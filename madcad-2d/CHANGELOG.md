@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.6.4 (2026-05-04)
+
+- Naprawiono przeciąganie okna aplikacji na Windowsie po ukryciu natywnego paska tytułu.
+- Dodano widoczny górny obszar przeciągania z odstępem na systemowe przyciski okna.
+
 ## 3.1.5 (2026-03-08)
 
 - Podbito wersję release po poprawkach instalatora aktualizacji na macOS.
