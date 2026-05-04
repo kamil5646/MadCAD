@@ -929,6 +929,12 @@ select {
   -webkit-app-region: drag;
 }
 
+.platform-win .top-quickbar {
+  display: flex;
+  min-height: 32px;
+  padding-right: var(--window-controls-space);
+}
+
 .platform-mac .ribbon-tabs,
 .platform-mac .ribbon,
 .platform-mac .ribbon *,
