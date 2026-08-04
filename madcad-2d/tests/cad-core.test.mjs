@@ -3,9 +3,14 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import atomicFile from '../electron/atomic-file.cjs';
 import {
   DOCUMENT_SCHEMA_VERSION,
+  createDocument,
+  createFeature,
+  createRectangleProfile,
+  createSketch,
   createStarterDocument,
   openDocument,
   validateDocument,
@@ -256,6 +261,104 @@ test('walidacja wskazuje dokładną ścieżkę zerwanej referencji i duplikatu I
   assert.ok(validation.issues.some((issue) => issue.path === 'features[0].profileIds[0]' && issue.code === 'BROKEN_REFERENCE'));
   assert.ok(validation.issues.some((issue) => issue.path === 'sketches[0].profiles[0].id' && issue.code === 'DUPLICATE_ID'));
   assert.ok(validation.issues.some((issue) => issue.path === 'sketches[0].constraints[0].entityIds[0]' && issue.code === 'BROKEN_REFERENCE'));
+});
+
+test('round-trip .madcad zachowuje dokument bez utraty danych', () => {
+  const source = createStarterDocument();
+  const serialized = JSON.stringify(source);
+  const opened = openDocument(JSON.parse(serialized));
+
+  assert.equal(opened.migrated, false);
+  assert.equal(opened.readOnly, false);
+  assert.deepEqual(opened.document, source);
+  assert.equal(JSON.stringify(opened.document), serialized);
+});
+
+test('deterministyczny fuzz odrzuca zera i skrajne błędy, a zachowuje poprawne wymiary', () => {
+  let state = 0x4d414443;
+  const random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+
+  for (let index = 0; index < 100; index += 1) {
+    const left = 1 + Math.floor(random() * 100000);
+    const right = 1 + Math.floor(random() * 100000);
+    const divisor = 1 + Math.floor(random() * 1000);
+    const expression = `${left} + ${right} * 2 / ${divisor}`;
+    assert.equal(evaluateExpression(expression), left + ((right * 2) / divisor));
+
+    const document = createStarterDocument();
+    const exponent = -4 + (random() * 10);
+    const width = 10 ** exponent;
+    document.parameters.find((parameter) => parameter.name === 'szerokosc').expression = String(width);
+    const prepared = prepareDocument(document);
+    assert.equal(prepared.features[0].profiles[0].geometry.width, width);
+  }
+
+  for (const invalidWidth of ['0', String(GEOMETRY_POLICY.linearTolerance / 2), '-1', '1e309', 'brakujacy']) {
+    const document = createStarterDocument();
+    document.parameters.find((parameter) => parameter.name === 'szerokosc').expression = invalidWidth;
+    assert.throws(() => prepareDocument(document));
+  }
+});
+
+test('duży dokument mieści się w budżecie przygotowania historii', () => {
+  const document = createDocument('Test wydajności');
+  for (let index = 0; index < 200; index += 1) {
+    const profile = createRectangleProfile({
+      name: `Profil ${index + 1}`,
+      width: String(10 + (index % 20)),
+      height: String(10 + (index % 15)),
+      x: String(index * 2),
+      y: '0',
+    });
+    const sketch = createSketch({ name: `Szkic ${index + 1}`, profiles: [profile] });
+    const feature = createFeature('extrude', {
+      name: `Bryła ${index + 1}`,
+      sketchId: sketch.id,
+      profileIds: [profile.id],
+      distance: '5',
+      operation: 'new',
+    });
+    document.sketches.push(sketch);
+    document.features.push(feature);
+  }
+
+  const startedAt = performance.now();
+  const prepared = prepareDocument(document);
+  const durationMs = performance.now() - startedAt;
+  assert.equal(prepared.features.length, 200);
+  assert.ok(
+    durationMs < GEOMETRY_POLICY.performanceBudgets.prepareLargeMs,
+    `Przygotowanie dużego dokumentu trwało ${durationMs.toFixed(1)} ms.`,
+  );
+});
+
+test('mały i średni dokument mieszczą się w osobnych budżetach wydajności', () => {
+  const scenarios = [
+    { name: 'mały', featureCount: 10, budget: GEOMETRY_POLICY.performanceBudgets.prepareSmallMs },
+    { name: 'średni', featureCount: 75, budget: GEOMETRY_POLICY.performanceBudgets.prepareMediumMs },
+  ];
+  for (const scenario of scenarios) {
+    const document = createDocument(`Model ${scenario.name}`);
+    for (let index = 0; index < scenario.featureCount; index += 1) {
+      const profile = createRectangleProfile({ width: '20', height: '12', x: String(index * 2), y: '0' });
+      const sketch = createSketch({ name: `Szkic ${index + 1}`, profiles: [profile] });
+      document.sketches.push(sketch);
+      document.features.push(createFeature('extrude', {
+        name: `Bryła ${index + 1}`,
+        sketchId: sketch.id,
+        profileIds: [profile.id],
+        distance: '5',
+        operation: 'new',
+      }));
+    }
+    const startedAt = performance.now();
+    prepareDocument(document);
+    const durationMs = performance.now() - startedAt;
+    assert.ok(durationMs < scenario.budget, `${scenario.name}: ${durationMs.toFixed(1)} ms >= ${scenario.budget} ms`);
+  }
 });
 
 test('zapis atomowy zachowuje poprzednią poprawną wersję jako .bak', async () => {

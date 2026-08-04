@@ -1,0 +1,66 @@
+name: MadCAD CI
+
+on:
+  push:
+    branches:
+      - main
+      - "agent/**"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: Core tests and UI build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: madcad-2d
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: madcad-2d/package-lock.json
+      - name: Install exact dependencies
+        run: npm ci
+      - name: Run CAD core tests
+        run: npm run test:core
+      - name: Build desktop renderer
+        run: npm run build:ui
+
+  desktop-e2e:
+    name: Desktop modeling E2E
+    runs-on: ubuntu-latest
+    needs: core
+    defaults:
+      run:
+        working-directory: madcad-2d
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: madcad-2d/package-lock.json
+      - name: Install exact dependencies
+        run: npm ci
+      - name: Run Electron modeling verification
+        run: xvfb-run -a npm run verify:modeling
+      - name: Upload verification artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: modeling-verification
+          path: madcad-2d/artifacts/
+          if-no-files-found: warn

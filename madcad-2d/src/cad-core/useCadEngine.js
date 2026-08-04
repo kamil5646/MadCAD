@@ -136,12 +136,26 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     };
   }, [document, quality, send, workerGeneration]);
 
-  const exportModel = useCallback(async (format) => {
+  const exportModel = useCallback(async (format, { validateRoundTrip = false } = {}) => {
     const revision = revisionRef.current;
-    const result = await send({ type: 'export', format, document, revision });
+    const result = await send({ type: 'export', format, document, revision, validateRoundTrip });
     if (result.revision !== revision) throw engineError('Silnik zwrócił eksport z innej rewizji dokumentu.', 'EXPORT_REVISION_MISMATCH');
-    return result.buffers;
+    return validateRoundTrip ? result : result.buffers;
   }, [document, send]);
 
-  return { ...state, exportModel };
+  const restartWorkerForTest = useCallback(() => {
+    if (!workerRef.current) throw engineError('Silnik CAD nie jest gotowy do testu odtwarzania.', 'WORKER_NOT_READY');
+    const crash = engineError('Kontrolowana awaria workera w teście desktopowym.', 'WORKER_CRASH');
+    rejectPending(crash);
+    const recovery = recoveryPolicyRef.current.recordCrash();
+    setState((current) => ({
+      ...current,
+      status: 'recovering',
+      error: crash.message,
+      diagnostics: [...current.diagnostics, { code: crash.code, message: crash.message, attempt: recovery.attempt }],
+    }));
+    setWorkerGeneration((generation) => generation + 1);
+  }, [rejectPending]);
+
+  return { ...state, exportModel, restartWorkerForTest };
 }

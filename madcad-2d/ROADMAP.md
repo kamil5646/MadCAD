@@ -79,6 +79,7 @@ Pełny szkic 3D, zaawansowane analizy powierzchni, CAM, FEA i elektronika nie s�
 - [x] Kontrakt trwałych sygnatur topologii odporny na kolejność elementów i szum mieszczący się w tolerancji.
 - [x] Rewizje dokumentu, serializowana kolejka workera, odrzucanie spóźnionych wyników, ograniczony cache LRU i eksport z dokładnego snapshotu.
 - [x] Worker zwraca mapowanie trójkątów do trwałych face ID oraz linii do trwałych edge ID.
+- [x] Fundament ma golden B-Rep, round-trip `.madcad`/STEP/STL, fuzz, budżety wydajności i automatyczny test desktopowy w CI.
 
 ### Działa tylko częściowo
 
@@ -92,13 +93,13 @@ Pełny szkic 3D, zaawansowane analizy powierzchni, CAM, FEA i elektronika nie s�
 
 ### Najważniejsze braki
 
-- [ ] Rejestr migracji, model zależności i trwały kontrakt dokumentu.
+- [x] Rejestr migracji, model zależności i trwały kontrakt dokumentu.
 - [~] Stabilne nazewnictwo topologii jest podłączone do OpenCascade, ale pełne wskazywanie i operacje na tych ID należą do R2.1.
 - [ ] Ogólny model encji szkicu, zamkniętych profili, wymiarów i więzów.
 - [ ] Zaznaczanie ścian, krawędzi i wierzchołków oraz operacje na wskazanej geometrii.
 - [ ] Geometria konstrukcyjna, pomiary, przekroje i właściwości fizyczne.
 - [ ] Import STEP/STL/3MF i wiarygodna analiza oraz naprawa modelu do druku.
-- [ ] Pełne testy dokumentu, migracji, geometrii, eksportu, wydajności, awarii i aktualizacji.
+- [~] Fundament dokumentu, geometrii, eksportu, wydajności i awarii workera jest testowany; testy aktualizatora oraz przyszłych modułów dochodzą razem z R5 i kolejnymi pakietami.
 
 ---
 
@@ -141,19 +142,21 @@ Wynik R0.3: `npm run test:core` — 15/15; test kolejki, LRU, rewizji i polityki
 
 ### R0.4 — baza testów CAD `L`
 
-- [ ] Testy jednostkowe dokumentu, migracji, grafu zależności i wyrażeń.
-- [ ] Golden tests B-Rep: liczba brył, objętość, pole, bounding box i oczekiwane cechy topologii z tolerancją.
-- [ ] Testy round-trip `.madcad`, STEP, STL i później 3MF przez ponowny import.
-- [ ] Property/fuzz tests dla przerw, zerowych krawędzi, samoprzecięć i skrajnych wartości.
-- [ ] Desktop E2E dla myszy, dotyku/pióra tam, gdzie dostępne, klawiatury, undo/redo, zapisu i awarii workera.
-- [ ] Budżety wydajności dla małego, średniego i dużego modelu.
+- [x] Testy jednostkowe dokumentu, migracji, grafu zależności i wyrażeń.
+- [x] Golden tests B-Rep: liczba brył, objętość, pole, bounding box i oczekiwane cechy topologii z tolerancją.
+- [x] Testy round-trip `.madcad`, STEP i STL przez ponowny import. 3MF wchodzi razem z właściwym eksporterem w R4.5.
+- [x] Deterministyczne property/fuzz tests dla bieżących profili, zerowych i skrajnych wartości oraz błędnych wyrażeń. Przerwy i samoprzecięcia dochodzą w R1.5, gdy istnieją dowolne łańcuchy krzywych.
+- [x] Desktop E2E dla wskaźnika pióra, klawiatury, undo/redo, autozapisu i kontrolowanego odtworzenia workera; zapis atomowy pokrywa osobny test rdzenia.
+- [x] Budżety wydajności dla małego, średniego i dużego dokumentu oraz uruchomienia i przepływu desktopowego.
+
+Wynik R0.4: `npm run test:core` — 19/19. Golden B-Rep 64 × 42 × 8 mm: objętość 21 504 mm³, pole 7 072 mm², 6 ścian i 12 krawędzi. Ponowny import STEP zachowuje objętość z błędem względnym poniżej `6e-15`, a STL poniżej `3e-5`. Desktop E2E przechodzi po odtworzeniu workera z rewizji 21 do 22; zimny start 1,9 s, pełny przepływ 4,5 s. GitHub Actions uruchamia testy na Windowsie i Linuksie oraz Electron E2E pod Xvfb.
 
 ### Kryterium zamknięcia R0
 
-- [ ] Obecny projekt v2 migruje bez utraty modelu, eksportu ani historii.
-- [ ] Spóźnione przeliczenie nie może nadpisać nowszego wyniku ani eksportować starszej bryły.
-- [ ] Błąd pojedynczej operacji nie zamyka aplikacji i nie niszczy pliku.
-- [ ] Testy fundamentu przechodzą automatycznie w CI.
+- [x] Obecny projekt v2 migruje bez utraty modelu, eksportu ani historii.
+- [x] Spóźnione przeliczenie nie może nadpisać nowszego wyniku ani eksportować starszej bryły.
+- [x] Błąd pojedynczej operacji nie zamyka aplikacji i nie niszczy pliku.
+- [x] Testy fundamentu przechodzą automatycznie w CI.
 
 ---
 
@@ -505,6 +508,6 @@ Cel wydania: MadCAD przygotowuje wiarygodny model do slicera i wykrywa najczęst
 
 ## Następne pojedyncze zadanie
 
-`R0.4 — baza testów CAD`.
+`R1.1 — nowy model danych szkicu`.
 
-R0.1–R0.3 są zamknięte i zweryfikowane. Teraz realizujemy wyłącznie R0.4, a dopiero po spełnieniu kryterium całego R0 rozpoczynamy R1.1. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.
+R0.1–R0.4 są zamknięte i zweryfikowane. Fundament CAD jest objęty CI; teraz przechodzimy po kolei do R1.1. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.

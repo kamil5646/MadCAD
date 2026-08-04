@@ -1,6 +1,15 @@
 import opencascade from 'replicad-opencascadejs';
 import opencascadeWasm from 'replicad-opencascadejs/src/replicad_single.wasm?url';
-import { drawCircle, drawRectangle, makeCylinder, setOC } from 'replicad';
+import {
+  drawCircle,
+  drawRectangle,
+  importSTEP,
+  importSTL,
+  makeCylinder,
+  measureShapeSurfaceProperties,
+  measureShapeVolumeProperties,
+  setOC,
+} from 'replicad';
 import { FEATURE_STATUS, prepareDocument } from './evaluator.js';
 import { evaluateFeatureHistory } from './feature-history.js';
 import { GEOMETRY_POLICY } from './geometry-policy.js';
@@ -129,6 +138,32 @@ function edgeDescriptor(edge) {
   }
 }
 
+function measureBodyShape(shape) {
+  const surface = measureShapeSurfaceProperties(shape);
+  const volume = measureShapeVolumeProperties(shape);
+  const boundingBox = shape.boundingBox;
+  try {
+    const bounds = boundingBox.bounds.map((point) => [...point]);
+    return {
+      volume: volume.volume,
+      area: surface.area,
+      centerOfMass: [...volume.centerOfMass],
+      bounds,
+      dimensions: [
+        bounds[1][0] - bounds[0][0],
+        bounds[1][1] - bounds[0][1],
+        bounds[1][2] - bounds[0][2],
+      ],
+      faceCount: shape.faces.length,
+      edgeCount: shape.edges.length,
+    };
+  } finally {
+    surface.delete();
+    volume.delete();
+    boundingBox.delete();
+  }
+}
+
 function meshBody(body, index, quality = 'display') {
   const meshPolicy = quality === 'preview' ? GEOMETRY_POLICY.previewMesh : GEOMETRY_POLICY.displayMesh;
   const mesh = body.shape.mesh({
@@ -174,8 +209,9 @@ function meshBody(body, index, quality = 'display') {
       faces: faces.map(({ sourceHash, ...face }) => ({ ...face, sourceHash })),
       edges: stableEdges.map(({ sourceHash, ...edge }) => ({ ...edge, sourceHash })),
     },
-    bounds: body.shape.boundingBox.bounds,
+    metrics: measureBodyShape(body.shape),
   };
+  renderBody.bounds = renderBody.metrics.bounds;
   return { renderBody, topologyState: { faces, edges: stableEdges } };
 }
 
@@ -244,7 +280,48 @@ async function resolveRevision(document, revision, quality = 'display') {
   return evaluated;
 }
 
-async function exportBodies(kernelBodies, format) {
+function relativeDifference(left, right) {
+  const scale = Math.max(Math.abs(left), Math.abs(right), GEOMETRY_POLICY.linearTolerance);
+  return Math.abs(left - right) / scale;
+}
+
+function compareRoundTrip(source, imported, tolerance) {
+  const volumeDifference = relativeDifference(source.volume, imported.volume);
+  const areaDifference = relativeDifference(source.area, imported.area);
+  const dimensionDifferences = source.dimensions.map((value, index) => relativeDifference(value, imported.dimensions[index]));
+  const dimensionAbsoluteDifferences = source.dimensions.map((value, index) => Math.abs(value - imported.dimensions[index]));
+  return {
+    valid: volumeDifference <= tolerance
+      && areaDifference <= tolerance
+      && dimensionAbsoluteDifferences.every((difference) => difference <= GEOMETRY_POLICY.roundTrip.boundsAbsoluteTolerance),
+    tolerance,
+    boundsAbsoluteTolerance: GEOMETRY_POLICY.roundTrip.boundsAbsoluteTolerance,
+    source,
+    imported,
+    differences: {
+      volume: volumeDifference,
+      area: areaDifference,
+      dimensions: dimensionDifferences,
+      dimensionsAbsolute: dimensionAbsoluteDifferences,
+    },
+  };
+}
+
+async function validateExportRoundTrip(kernelBodies, blobs, format) {
+  const tolerance = format === 'step'
+    ? GEOMETRY_POLICY.roundTrip.stepRelativeTolerance
+    : GEOMETRY_POLICY.roundTrip.stlRelativeTolerance;
+  return Promise.all(blobs.map(async (blob, index) => {
+    const imported = format === 'step' ? await importSTEP(blob) : await importSTL(blob);
+    try {
+      return compareRoundTrip(measureBodyShape(kernelBodies[index].shape), measureBodyShape(imported), tolerance);
+    } finally {
+      imported.delete?.();
+    }
+  }));
+}
+
+async function exportBodies(kernelBodies, format, validateRoundTrip = false) {
   if (!kernelBodies.length) throw new Error('Brak bryły do eksportu.');
   if (format !== 'step' && format !== 'stl') throw new Error(`Nieobsługiwany format eksportu: ${format}.`);
   const blobs = await Promise.all(kernelBodies.map(({ shape }) => (
@@ -256,11 +333,12 @@ async function exportBodies(kernelBodies, format) {
         binary: true,
       })
   )));
-  return Promise.all(blobs.map((blob) => blob.arrayBuffer()));
+  const roundTrip = validateRoundTrip ? await validateExportRoundTrip(kernelBodies, blobs, format) : [];
+  return { buffers: await Promise.all(blobs.map((blob) => blob.arrayBuffer())), roundTrip };
 }
 
 async function handleMessage(data) {
-  const { id, type, document, format, revision, quality = 'display' } = data;
+  const { id, type, document, format, revision, quality = 'display', validateRoundTrip = false } = data;
   if (type === 'evaluate') {
     const evaluated = await resolveRevision(document, revision, quality);
     const bodies = cloneRenderBodies(evaluated.renderBodies);
@@ -278,8 +356,8 @@ async function handleMessage(data) {
   }
   if (type === 'export') {
     const evaluated = await resolveRevision(document, revision, 'display');
-    const buffers = await exportBodies(evaluated.kernelBodies, format);
-    self.postMessage({ id, ok: true, type, result: { format, revision, buffers } }, buffers);
+    const exported = await exportBodies(evaluated.kernelBodies, format, validateRoundTrip);
+    self.postMessage({ id, ok: true, type, result: { format, revision, ...exported } }, exported.buffers);
     return;
   }
   const error = new Error(`Nieznane polecenie: ${type}`);

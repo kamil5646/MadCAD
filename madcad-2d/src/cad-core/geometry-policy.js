@@ -7,7 +7,19 @@ export const GEOMETRY_POLICY = Object.freeze({
   previewMesh: Object.freeze({ linearTolerance: 0.2, angularTolerance: 0.35 }),
   displayMesh: Object.freeze({ linearTolerance: 0.08, angularTolerance: 0.2 }),
   exportMesh: Object.freeze({ linearTolerance: 0.05, angularTolerance: 0.15 }),
+  roundTrip: Object.freeze({
+    stepRelativeTolerance: 1e-7,
+    stlRelativeTolerance: 5e-3,
+    boundsAbsoluteTolerance: 0.02,
+  }),
   cache: Object.freeze({ maxRevisions: 3, maxMeshBytes: 192 * 1024 * 1024 }),
+  performanceBudgets: Object.freeze({
+    prepareSmallMs: 50,
+    prepareMediumMs: 250,
+    prepareLargeMs: 1000,
+    desktopColdStartMs: 30000,
+    desktopWorkflowMs: 45000,
+  }),
 });
 
 export function isFiniteNumber(value) {

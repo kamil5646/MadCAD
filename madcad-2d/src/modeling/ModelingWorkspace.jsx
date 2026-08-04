@@ -491,8 +491,12 @@ export default function ModelingWorkspace({ onClose }) {
     const verifyMode = new URLSearchParams(window.location.search).has('verify');
     if (!verifyMode) return undefined;
     window.__madcadVerifyExport = engine.exportModel;
-    return () => { delete window.__madcadVerifyExport; };
-  }, [engine.exportModel]);
+    window.__madcadVerifyRestartWorker = engine.restartWorkerForTest;
+    return () => {
+      delete window.__madcadVerifyExport;
+      delete window.__madcadVerifyRestartWorker;
+    };
+  }, [engine.exportModel, engine.restartWorkerForTest]);
 
   useEffect(() => {
     const verifyMode = new URLSearchParams(window.location.search).has('verify');
@@ -503,9 +507,10 @@ export default function ModelingWorkspace({ onClose }) {
       cache: engine.cache,
       bodies: engine.bodies,
       timeline: engine.timeline,
+      diagnostics: engine.diagnostics,
     };
     return () => { delete window.__madcadVerifyEngineState; };
-  }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline]);
+  }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline, engine.diagnostics]);
 
   const updateCommand = (patch) => {
     setCommand((current) => {
@@ -816,6 +821,12 @@ export default function ModelingWorkspace({ onClose }) {
         confirmFeature();
         return;
       }
+      if (event.ctrlKey && !command && !readOnly && (event.key.toLowerCase() === 'z' || event.key.toLowerCase() === 'y')) {
+        event.preventDefault();
+        if (event.key.toLowerCase() === 'y' || event.shiftKey) history.redo();
+        else history.undo();
+        return;
+      }
       if (event.ctrlKey && event.key.toLowerCase() === 'e' && selectedProfile && !activeSketchId && !readOnly) {
         event.preventDefault();
         openExtrude();
@@ -823,7 +834,7 @@ export default function ModelingWorkspace({ onClose }) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [command, selectedProfile, activeSketchId, readOnly]);
+  }, [command, selectedProfile, activeSketchId, readOnly, history]);
 
   const timelineStatus = new Map(engine.timeline?.map((item) => [item.id, item]));
   const sketch = document.sketches.find((item) => item.id === activeSketchId);

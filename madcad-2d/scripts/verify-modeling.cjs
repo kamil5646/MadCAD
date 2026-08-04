@@ -7,6 +7,7 @@ const emptyOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-empty
 const sketchOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-sketch.png');
 const directOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-direct-extrude.png');
 const narrowOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-narrow.png');
+const verificationStartedAt = Date.now();
 
 async function waitForModel(window, timeoutMs = 30000) {
   const start = Date.now();
@@ -26,16 +27,26 @@ async function waitForModel(window, timeoutMs = 30000) {
   throw new Error('Przekroczono czas oczekiwania na silnik CAD.');
 }
 
-async function verifyExport(window, format, timeoutMs = 20000) {
+function assertClose(actual, expected, tolerance, label) {
+  if (!Number.isFinite(actual) || Math.abs(actual - expected) > tolerance) {
+    throw new Error(`${label}: expected ${expected} +/- ${tolerance}, received ${actual}.`);
+  }
+}
+
+async function verifyExport(window, format, timeoutMs = 45000) {
   const exportPromise = window.webContents.executeJavaScript(`(async () => {
     if (typeof window.__madcadVerifyExport !== 'function') throw new Error('Brak testowego interfejsu eksportu.');
-    const buffers = await window.__madcadVerifyExport('${format.toLowerCase()}');
-    return buffers.map((buffer) => buffer.byteLength);
+    const result = await window.__madcadVerifyExport('${format.toLowerCase()}', { validateRoundTrip: true });
+    return { sizes: result.buffers.map((buffer) => buffer.byteLength), roundTrip: result.roundTrip };
   })()`);
   const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error(`Przekroczono czas eksportu ${format}.`)), timeoutMs));
-  const sizes = await Promise.race([exportPromise, timeout]);
+  const result = await Promise.race([exportPromise, timeout]);
+  const sizes = result.sizes;
   if (!sizes.length || sizes.some((size) => size < 100)) throw new Error(`Eksport ${format} zwrócił pusty plik.`);
-  return sizes;
+  if (result.roundTrip.length !== sizes.length || result.roundTrip.some((entry) => !entry.valid)) {
+    throw new Error(`Round-trip ${format} exceeded tolerance: ${JSON.stringify(result.roundTrip)}`);
+  }
+  return result;
 }
 
 async function waitForUi(window, expression, label, timeoutMs = 12000) {
@@ -67,6 +78,15 @@ async function runUiFlow(window) {
     if (typeof handler !== 'function') throw new Error('Brak procedury przycisku: ${title}');
     handler({ currentTarget: button, target: button });
   })()`);
+  const sendShortcut = (key, shiftKey = false) => window.webContents.executeJavaScript(`(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: ${JSON.stringify(key)},
+      ctrlKey: true,
+      shiftKey: ${Boolean(shiftKey)},
+      bubbles: true,
+      cancelable: true,
+    }));
+  })()`);
   const setCommandField = (label, value) => window.webContents.executeJavaScript(`(() => {
     const field = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === ${JSON.stringify(label)});
     const input = field?.querySelector('input, select');
@@ -78,6 +98,11 @@ async function runUiFlow(window) {
   })()`);
   const confirmDialog = () => window.webContents.executeJavaScript(`(() => {
     const button = document.querySelector('.command-dialog .confirm');
+    const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
+    button[key].onClick();
+  })()`);
+  const confirmParameters = () => window.webContents.executeJavaScript(`(() => {
+    const button = document.querySelector('.parameters-dialog .confirm');
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);
@@ -95,7 +120,7 @@ async function runUiFlow(window) {
       const point = window.__madcadDirectHandlePoint || { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
       const key = Object.keys(handle).find((item) => item.startsWith('__reactProps'));
       const props = handle[key];
-      const event = (y) => ({ clientX: point.x, clientY: y, pointerId: 9, currentTarget: handle, preventDefault() {}, stopPropagation() {}, altKey: false });
+      const event = (y) => ({ clientX: point.x, clientY: y, pointerId: 9, pointerType: 'pen', currentTarget: handle, preventDefault() {}, stopPropagation() {}, altKey: false });
       props.onPointerDown(event(point.y));
       for (let offset = 20; offset <= 120; offset += 20) {
         props.onPointerMove(event(point.y - offset));
@@ -135,9 +160,27 @@ async function runUiFlow(window) {
   await new Promise((resolve) => setTimeout(resolve, 350));
   await fs.writeFile(directOutputPath, (await window.webContents.capturePage()).toPNG());
   await setCommandField('Odległość', '8');
+  await new Promise((resolve) => setTimeout(resolve, 100));
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 1`, 'dodane wyciągnięcie');
   await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'przeliczona bryła', 20000);
+
+  await waitForUi(
+    window,
+    `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - ${64 * 42 * 8}) < 0.00001`,
+    'golden B-Rep revision',
+    20000,
+  );
+  const goldenBrep = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.bodies?.[0]?.metrics || null`);
+  if (!goldenBrep) throw new Error('CAD engine did not return golden B-Rep metrics.');
+  assertClose(goldenBrep.volume, 64 * 42 * 8, 1e-5, 'Golden B-Rep volume');
+  assertClose(goldenBrep.area, 2 * ((64 * 42) + (64 * 8) + (42 * 8)), 1e-5, 'Golden B-Rep area');
+  goldenBrep.dimensions.forEach((dimension, index) => {
+    assertClose(dimension, [64, 42, 8][index], 1e-5, `Golden B-Rep dimension ${index}`);
+  });
+  if (goldenBrep.faceCount !== 6 || goldenBrep.edgeCount !== 12) {
+    throw new Error(`Unexpected golden B-Rep topology: ${goldenBrep.faceCount} faces, ${goldenBrep.edgeCount} edges.`);
+  }
 
   progress('hole sketch');
   await clickTool('Utwórz szkic');
@@ -185,11 +228,19 @@ async function runUiFlow(window) {
     add[key].onClick();
   })()`);
   await waitForUi(window, `document.querySelectorAll('.parameter-row').length === 1`, 'dodany parametr');
-  await window.webContents.executeJavaScript(`(() => { const button = document.querySelector('.parameters-dialog .confirm'); const key = Object.keys(button).find((item) => item.startsWith('__reactProps')); button[key].onClick(); })()`);
+  await confirmParameters();
+  await waitForUi(window, `!document.querySelector('.parameters-dialog')`, 'zamknięcie parametrów przed cofnięciem');
 
-  await clickByTitle('Cofnij');
-  await waitForUi(window, `document.querySelectorAll('.parameter-row').length === 0`, 'cofnięcie parametru');
-  await clickByTitle('Ponów');
+  await sendShortcut('z');
+  await waitForUi(window, `!document.querySelector('.modeling-shell button[title="Ponów"]')?.disabled`, 'aktywny stan ponowienia');
+  await clickTool('Parametry');
+  await waitForUi(window, `document.querySelector('.parameters-dialog') && document.querySelectorAll('.parameter-row').length === 0`, 'cofnięcie parametru skrótem');
+  await confirmParameters();
+  await waitForUi(window, `!document.querySelector('.parameters-dialog')`, 'zamknięcie parametrów przed ponowieniem');
+  await sendShortcut('y');
+  await clickTool('Parametry');
+  await waitForUi(window, `document.querySelectorAll('.parameter-row').length === 1`, 'ponowienie parametru skrótem');
+  await confirmParameters();
 
   await window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === 'DRUK 3D');
@@ -204,6 +255,34 @@ async function runUiFlow(window) {
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);
+
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  const autosaveRoundTrip = await window.webContents.executeJavaScript(`(() => {
+    const raw = window.localStorage.getItem('madcad:modeling-document:v4');
+    if (!raw) return false;
+    const saved = JSON.parse(raw);
+    return saved.schemaVersion === 3 && saved.features?.length === 4 && saved.sketches?.length === 2;
+  })()`);
+  if (!autosaveRoundTrip) throw new Error('Desktop autosave did not preserve the current document.');
+
+  const recoveryRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`(() => {
+    if (typeof window.__madcadVerifyRestartWorker !== 'function') throw new Error('Missing worker recovery test hook.');
+    window.__madcadVerifyRestartWorker();
+  })()`);
+  await waitForUi(
+    window,
+    `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${recoveryRevision}`,
+    'worker recovery',
+    20000,
+  );
+  const workerRecovery = await window.webContents.executeJavaScript(`(() => ({
+    fromRevision: ${recoveryRevision},
+    toRevision: window.__madcadVerifyEngineState.revision,
+    crashDiagnostic: window.__madcadVerifyEngineState.diagnostics?.some((item) => item.code === 'WORKER_CRASH'),
+    bodies: window.__madcadVerifyEngineState.bodies?.length || 0,
+  }))()`);
+  if (!workerRecovery.crashDiagnostic || !workerRecovery.bodies) throw new Error(`Incomplete worker recovery: ${JSON.stringify(workerRecovery)}`);
 
   const describedControls = await window.webContents.executeJavaScript(`(() => {
     const ribbon = [...document.querySelectorAll('.ribbon-tool:not(:disabled)')];
@@ -220,16 +299,23 @@ async function runUiFlow(window) {
     features: await window.webContents.executeJavaScript(`document.querySelectorAll('.timeline-item').length`),
     parameterEditing: true,
     undoRedo: true,
+    keyboardUndoRedo: true,
     sketchWorkflow: true,
     directManipulation: true,
+    pointerInput: 'pen',
     filletChamfer: true,
+    goldenBrep,
     describedControls,
     commandDialogs: true,
     printWorkspace: true,
+    autosaveRoundTrip,
+    workerRecovery,
   };
 }
 
 app.whenReady().then(async () => {
+  const performanceBudgets = { desktopColdStartMs: 30000, desktopWorkflowMs: 45000 };
+  const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
     width: 1936,
     height: 1080,
@@ -246,6 +332,10 @@ app.whenReady().then(async () => {
     process.stdout.write('[verify] loading application\n');
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1' } });
     const result = await waitForModel(window);
+    performance.coldStartMs = Date.now() - verificationStartedAt;
+    if (performance.coldStartMs > performanceBudgets.desktopColdStartMs) {
+      throw new Error(`Desktop cold start exceeded budget: ${performance.coldStartMs} ms.`);
+    }
     process.stdout.write('[verify] engine ready\n');
     const licenseBypass = await window.webContents.executeJavaScript(`(() => {
       const overlay = document.querySelector('#licenseOverlay');
@@ -262,7 +352,12 @@ app.whenReady().then(async () => {
     }
     await new Promise((resolve) => setTimeout(resolve, 600));
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
+    const workflowStartedAt = Date.now();
     const uiFlow = await runUiFlow(window);
+    performance.workflowMs = Date.now() - workflowStartedAt;
+    if (performance.workflowMs > performanceBudgets.desktopWorkflowMs) {
+      throw new Error(`Desktop workflow exceeded budget: ${performance.workflowMs} ms.`);
+    }
     await new Promise((resolve) => setTimeout(resolve, 600));
     const topologyMapping = await window.webContents.executeJavaScript(`(() => {
       const engine = window.__madcadVerifyEngineState;
@@ -295,7 +390,7 @@ app.whenReady().then(async () => {
     process.stdout.write('[verify] exporting STL and STEP\n');
     const stl = await verifyExport(window, 'STL');
     const step = await verifyExport(window, 'STEP');
-    const report = { ...result, licenseBypass, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step }, rendererMessages };
+    const report = { ...result, licenseBypass, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step }, performance, rendererMessages };
     await fs.writeFile(path.join(path.dirname(outputPath), 'verification-report.json'), JSON.stringify(report, null, 2));
     process.stdout.write(`${JSON.stringify(report)}\n`);
     if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.timelineVisible) process.exitCode = 1;
