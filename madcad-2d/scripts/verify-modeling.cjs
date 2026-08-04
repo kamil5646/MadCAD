@@ -154,7 +154,7 @@ async function runUiFlow(window) {
     await sendMouse('mouseUp', point, modifiers);
   };
   const dragSketchEntity = async (entityId, offsetX, offsetY) => {
-    if (process.platform === 'linux' && process.env.CI) {
+    if (isCi) {
       await window.webContents.executeJavaScript(`(() => {
         if (typeof window.__madcadVerifySketchSelection !== 'function' || typeof window.__madcadVerifyMoveSketch !== 'function') {
           throw new Error('Missing deterministic sketch drag verification hooks.');
