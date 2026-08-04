@@ -3,6 +3,7 @@ import { listExpressionIdentifiers } from './expressions.js';
 import {
   SKETCH_ENTITY_ROLES,
   SKETCH_ENTITY_TYPES,
+  boundaryPointIds,
   normalizeSketchModel,
 } from './sketch-model.js';
 
@@ -441,6 +442,14 @@ export function validateDocument(document) {
         if (!entityIds.has(entityId)) add(`${profileBase}.entityIds[${entityIndex}]`, `Nie znaleziono encji szkicu „${entityId}”.`, 'BROKEN_REFERENCE');
         else if (['construction', 'centerline'].includes(entityMap.get(entityId)?.role)) add(`${profileBase}.entityIds[${entityIndex}]`, 'Geometria konstrukcyjna nie może tworzyć profilu.', 'VALUE');
       });
+      if (profile.type === 'closed' && Array.isArray(profile.entityIds) && profile.entityIds.length) {
+        const endpoints = profile.entityIds.map((entityId) => boundaryPointIds(entityMap.get(entityId)));
+        endpoints.forEach((pair, entityIndex) => {
+          if (pair.length !== 2) add(`${profileBase}.entityIds[${entityIndex}]`, 'Profil zamknięty może zawierać tylko linie i łuki.', 'TYPE');
+          const next = endpoints[(entityIndex + 1) % endpoints.length];
+          if (pair.length === 2 && next?.length === 2 && pair[1] !== next[0]) add(`${profileBase}.entityIds[${entityIndex}]`, 'Segment nie łączy się z następną krawędzią profilu.', 'BROKEN_REFERENCE');
+        });
+      }
     });
   });
 

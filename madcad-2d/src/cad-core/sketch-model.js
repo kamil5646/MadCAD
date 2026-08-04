@@ -73,6 +73,75 @@ export function createSketchCircleEntity({ centerPointId, radius = 5, ...options
   });
 }
 
+export function boundaryPointIds(entity) {
+  if (entity?.type === 'line') return [entity.pointIds?.[0], entity.pointIds?.[1]];
+  if (entity?.type === 'arc') return [entity.pointIds?.[1], entity.pointIds?.[2]];
+  return [];
+}
+
+function numericCoordinate(point, axis) {
+  const value = Number(point?.geometry?.[axis]);
+  return Number.isFinite(value) ? value : 0;
+}
+
+export function createDetectedProfile(sketch, segmentIds, { name = 'Profil zamknięty' } = {}) {
+  const entities = segmentIds.map((id) => entityById(sketch, id));
+  if (entities.some((entity) => !entity)) throw new Error('Profil zawiera brakującą encję.');
+  const endpoints = entities.map(boundaryPointIds);
+  if (endpoints.some((pair) => pair.length !== 2)) throw new Error('Profil może zawierać tylko linie i łuki.');
+  for (let index = 0; index < endpoints.length; index += 1) {
+    const next = endpoints[(index + 1) % endpoints.length];
+    if (endpoints[index][1] !== next[0]) throw new Error('Segmenty profilu nie tworzą ciągłej zamkniętej pętli.');
+  }
+  if (entities.length < 2) throw new Error('Profil wymaga co najmniej dwóch segmentów.');
+  const pointIds = endpoints.map(([startPointId]) => startPointId);
+  const points = pointIds.map((id) => entityById(sketch, id));
+  const coordinates = points.map((point) => ({
+    x: numericCoordinate(point, 'x'),
+    y: numericCoordinate(point, 'y'),
+  }));
+  const minX = Math.min(...coordinates.map((point) => point.x));
+  const maxX = Math.max(...coordinates.map((point) => point.x));
+  const minY = Math.min(...coordinates.map((point) => point.y));
+  const maxY = Math.max(...coordinates.map((point) => point.y));
+  return {
+    id: createId('profile'),
+    name,
+    type: 'closed',
+    entityIds: [...segmentIds],
+    closed: true,
+    source: 'detected',
+    geometry: {
+      x: String((minX + maxX) / 2),
+      y: String((minY + maxY) / 2),
+      width: String(maxX - minX),
+      height: String(maxY - minY),
+      points: coordinates.map((point) => ({ x: String(point.x), y: String(point.y) })),
+    },
+  };
+}
+
+export function createTangentArcContinuation({ startPointId, endPointId, start, end, tangent }) {
+  const tangentLength = Math.hypot(tangent?.[0] || 0, tangent?.[1] || 0);
+  if (!(tangentLength > 0)) throw new Error('Łuk styczny wymaga prawidłowego kierunku poprzedniego segmentu.');
+  const unitTangent = [tangent[0] / tangentLength, tangent[1] / tangentLength];
+  const chord = [end[0] - start[0], end[1] - start[1]];
+  const normal = [-unitTangent[1], unitTangent[0]];
+  const denominator = 2 * ((chord[0] * normal[0]) + (chord[1] * normal[1]));
+  if (Math.abs(denominator) <= 1e-7) throw new Error('Punkt końcowy nie wyznacza skończonego łuku stycznego.');
+  const signedRadius = ((chord[0] ** 2) + (chord[1] ** 2)) / denominator;
+  const center = [start[0] + (normal[0] * signedRadius), start[1] + (normal[1] * signedRadius)];
+  const centerPoint = createSketchPoint({ x: center[0].toFixed(3), y: center[1].toFixed(3) });
+  const direction = signedRadius > 0 ? 'ccw' : 'cw';
+  const arc = createSketchArc({ centerPointId: centerPoint.id, startPointId, endPointId, direction });
+  const radial = [end[0] - center[0], end[1] - center[1]];
+  const radius = Math.hypot(...radial);
+  const endTangent = direction === 'ccw'
+    ? [-radial[1] / radius, radial[0] / radius]
+    : [radial[1] / radius, -radial[0] / radius];
+  return { center, centerPoint, arc, endTangent };
+}
+
 export function normalizeSketchEntity(entity) {
   const pointIds = Array.isArray(entity?.pointIds)
     ? entity.pointIds

@@ -24,11 +24,13 @@ import { GEOMETRY_POLICY, isPositiveLength, nearlyEqual } from '../src/cad-core/
 import { assignStableTopologyIds } from '../src/cad-core/topology-naming.js';
 import { RevisionCache, SerialTaskQueue, WorkerRecoveryPolicy, isStaleRevision } from '../src/cad-core/worker-runtime.js';
 import {
+  createDetectedProfile,
   createSketchArc,
   createSketchCircleEntity,
   createSketchEntity,
   createSketchLine,
   createSketchPoint,
+  createTangentArcContinuation,
   upsertSketchProfile,
 } from '../src/cad-core/sketch-model.js';
 
@@ -476,6 +478,56 @@ test('migracja v3 i round-trip v4 zachowują encje, profile, relacje i historię
   broken.sketches[0].entities = broken.sketches[0].entities.filter((entity) => entity.id !== referencedPointId);
   const brokenValidation = validateDocument(broken);
   assert.ok(brokenValidation.issues.some((issue) => issue.code === 'BROKEN_REFERENCE' && issue.path.includes('.pointIds[')));
+});
+
+test('zamknięta polilinia L tworzy profil i operację bez prostokąta', () => {
+  const document = createDocument('Profil L');
+  const coordinates = [[0, 0], [30, 0], [30, 10], [10, 10], [10, 30], [0, 30]];
+  const points = coordinates.map(([x, y]) => createSketchPoint({ x, y }));
+  const lines = points.map((point, index) => createSketchLine({
+    startPointId: point.id,
+    endPointId: points[(index + 1) % points.length].id,
+  }));
+  const sketch = createSketch({ entities: [...points, ...lines] });
+  const profile = createDetectedProfile(sketch, lines.map((line) => line.id), { name: 'Profil L' });
+  sketch.profiles.push(profile);
+  document.sketches.push(sketch);
+  document.features.push(createFeature('extrude', {
+    name: 'Wyciągnięcie L',
+    sketchId: sketch.id,
+    profileIds: [profile.id],
+    distance: '8',
+    operation: 'new',
+  }));
+
+  assert.equal(profile.type, 'closed');
+  assert.equal(document.sketches[0].profiles.some((item) => item.type === 'rectangle'), false);
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document);
+  assert.equal(prepared.features[0].profiles[0].geometry.segments.length, 6);
+  assert.deepEqual(prepared.features[0].profiles[0].geometry.points[3], [10, 10]);
+});
+
+test('kontynuacja łukiem zachowuje styczność do poprzedniego segmentu', () => {
+  const continuation = createTangentArcContinuation({
+    startPointId: 'point-start',
+    endPointId: 'point-end',
+    start: [10, 0],
+    end: [20, 10],
+    tangent: [1, 0],
+  });
+  assert.deepEqual(continuation.center, [10, 10]);
+  assert.equal(continuation.arc.type, 'arc');
+  assert.equal(continuation.arc.geometry.direction, 'ccw');
+  assert.ok(Math.abs(continuation.endTangent[0]) < 1e-12);
+  assert.ok(Math.abs(continuation.endTangent[1] - 1) < 1e-12);
+  assert.throws(() => createTangentArcContinuation({
+    startPointId: 'point-start',
+    endPointId: 'point-end',
+    start: [0, 0],
+    end: [10, 0],
+    tangent: [1, 0],
+  }), /skończonego łuku/);
 });
 
 test('zapis atomowy zachowuje poprzednią poprawną wersję jako .bak', async () => {

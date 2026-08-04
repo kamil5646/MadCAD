@@ -87,6 +87,7 @@ async function runUiFlow(window) {
       cancelable: true,
     }));
   })()`);
+  const sendKey = (key) => window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, bubbles: true, cancelable: true }))`);
   const setCommandField = (label, value) => window.webContents.executeJavaScript(`(() => {
     const field = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === ${JSON.stringify(label)});
     const input = field?.querySelector('input, select');
@@ -103,6 +104,12 @@ async function runUiFlow(window) {
   })()`);
   const confirmParameters = () => window.webContents.executeJavaScript(`(() => {
     const button = document.querySelector('.parameters-dialog .confirm');
+    const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
+    button[key].onClick();
+  })()`);
+  const clickDialogButton = (label) => window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.command-dialog footer button')].find((item) => item.textContent.includes(${JSON.stringify(label)}));
+    if (!button) throw new Error('Missing dialog button: ${label}');
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);
@@ -130,6 +137,77 @@ async function runUiFlow(window) {
     })()`);
   };
 
+  const addSketchPoint = async (point, expectedEntities) => {
+    await window.webContents.executeJavaScript(`(() => {
+      if (typeof window.__madcadVerifySketchPoint !== 'function') throw new Error('Missing sketch point test hook.');
+      window.__madcadVerifySketchPoint(${JSON.stringify(point)});
+    })()`);
+    await waitForUi(
+      window,
+      `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === ${expectedEntities}`,
+      `sketch entities ${expectedEntities}`,
+    );
+  };
+
+  progress('line and command termination');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla linii');
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny linii');
+  await pickPlane('XY');
+  await clickTool('Linia');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'polecenie linii');
+  await addSketchPoint([0, 0], 1);
+  await addSketchPoint([10, 0], 3);
+  await waitForUi(window, `!document.querySelector('.command-dialog')`, 'zakończenie pojedynczej linii');
+  await clickTool('Polilinia');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Polilinia')`, 'polilinia przed Escape');
+  await sendKey('Escape');
+  await waitForUi(window, `!document.querySelector('.command-dialog')`, 'Escape kończy polilinię');
+  await clickTool('Polilinia');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Polilinia')`, 'polilinia przed Enter');
+  await addSketchPoint([0, 10], 4);
+  await sendKey('Enter');
+  await waitForUi(window, `!document.querySelector('.command-dialog')`, 'Enter kończy polilinię');
+
+  progress('polyline L profile');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla polilinii');
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny polilinii');
+  await pickPlane('XY');
+  await clickTool('Polilinia');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Polilinia')`, 'polecenie polilinii');
+  await addSketchPoint([0, 0], 1);
+  await setCommandField('Długość', '30');
+  await setCommandField('Kąt', '0');
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 3`, 'dokładny pierwszy segment');
+  await addSketchPoint([30, 10], 5);
+  await addSketchPoint([10, 10], 7);
+  await addSketchPoint([10, 25], 9);
+  await clickDialogButton('Cofnij segment');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 7`, 'cofnięcie segmentu polilinii');
+  await addSketchPoint([10, 30], 9);
+  await addSketchPoint([0, 30], 11);
+  await addSketchPoint([0, 0], 12);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.profiles === 1`, 'zamknięty profil L');
+  await clickTool('Zakończ szkic');
+  await clickTool('Wyciągnij');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'wyciągnięcie profilu L');
+  await setCommandField('Odległość', '8');
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  await confirmDialog();
+  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 4000) < 0.01`, 'bryła z profilu L', 20000);
+  const polylineModel = await window.webContents.executeJavaScript(`(() => ({
+    metrics: window.__madcadVerifyEngineState.bodies[0].metrics,
+    entities: window.__madcadVerifyDocumentState.sketches[0].entities,
+    profiles: window.__madcadVerifyDocumentState.sketches[0].profiles,
+    features: window.__madcadVerifyDocumentState.features,
+  }))()`);
+  assertClose(polylineModel.metrics.area, 1960, 0.01, 'Polyline L area');
+
   progress('new document');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt');
@@ -154,6 +232,13 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.direct-extrude-hint')`, 'uchwyt bezpośredniego wyciągnięcia');
   await waitForUi(window, `window.__madcadDirectHandlePoint`, 'pozycja uchwytu wyciągnięcia');
   progress(`direct point ${JSON.stringify(await window.webContents.executeJavaScript(`window.__madcadDirectHandlePoint`))}`);
+  const directHandleIsVisible = await window.webContents.executeJavaScript(`(() => {
+    const canvas = document.querySelector('.model-viewport canvas');
+    const rect = canvas.getBoundingClientRect();
+    const point = window.__madcadDirectHandlePoint;
+    return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
+  })()`);
+  if (!directHandleIsVisible) throw new Error('Direct extrusion handle is outside the viewport.');
   await dragDirectExtrude();
   progress(`direct pointer ${JSON.stringify(await window.webContents.executeJavaScript(`window.__madcadPointerLog || null`))}`);
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'polecenie wyciągnięcia');
@@ -324,6 +409,9 @@ async function runUiFlow(window) {
     undoRedo: true,
     keyboardUndoRedo: true,
     sketchWorkflow: true,
+    linePolyline: true,
+    enterEscapeTermination: true,
+    polylineModel,
     directManipulation: true,
     pointerInput: 'pen',
     filletChamfer: true,

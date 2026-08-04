@@ -61,7 +61,13 @@ import {
   openDocument,
   touchDocument,
 } from '../cad-core/document.js';
-import { upsertSketchProfile } from '../cad-core/sketch-model.js';
+import {
+  createDetectedProfile,
+  createSketchLine,
+  createSketchPoint,
+  createTangentArcContinuation,
+  upsertSketchProfile,
+} from '../cad-core/sketch-model.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
 import ModelViewport from './ModelViewport.jsx';
 import './modeling.css';
@@ -80,6 +86,9 @@ const TOOL_DESCRIPTIONS = {
   'Utwórz szkic': 'Wybierz płaszczyznę i rozpocznij rysowanie profilu 2D.',
   'Prostokąt': 'Narysuj prostokątny profil, klikając środek i punkt rozmiaru.',
   'Okrąg': 'Narysuj okrąg, klikając środek i punkt promienia.',
+  'Linia': 'Utwórz pojedynczy segment przez dwa punkty albo przez dokładną długość i kąt.',
+  'Polilinia': 'Rysuj ciąg segmentów; kliknij punkt początkowy, aby zamknąć profil.',
+  'Łuk styczny': 'Kontynuuj polilinię łukiem stycznym do poprzedniego segmentu.',
   'Zakończ szkic': 'Zamknij edycję szkicu i wróć do modelowania bryły.',
   'Wyciągnij': 'Wyciągnij zaznaczony profil w bryłę; możesz też przeciągnąć niebieską strzałkę.',
   'Otwór': 'Wytnij cylindryczny otwór z zaznaczonego profilu okręgu.',
@@ -266,14 +275,15 @@ function Field({ label, value, onChange, suffix = '', type = 'text', disabled = 
   );
 }
 
-function CommandDialog({ command, profileName, onChange, onConfirm, onCancel }) {
+function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, onUndoSegment, onFinishPath }) {
   if (!command || command.type === 'plane' || command.type === 'parameters') return null;
   const isRectangle = command.type === 'rectangle';
   const isCircle = command.type === 'circle';
   const isExtrude = command.type === 'extrude';
   const isHole = command.type === 'hole';
   const isFillet = command.type === 'fillet';
-  const title = isRectangle ? 'Prostokąt ze środka' : isCircle ? 'Okrąg ze środka' : isExtrude ? 'Wyciągnięcie' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : 'Fazowanie';
+  const isSketchPath = command.type === 'line' || command.type === 'polyline';
+  const title = isRectangle ? 'Prostokąt ze środka' : isCircle ? 'Okrąg ze środka' : isExtrude ? 'Wyciągnięcie' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : 'Fazowanie';
   return (
     <section className="command-dialog" aria-label={title}>
       <header><strong>{title}</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
@@ -319,9 +329,26 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel }) 
         {(isFillet || command.type === 'chamfer') && (
           <Field label={isFillet ? 'Promień' : 'Odległość'} value={command.size} onChange={(size) => onChange({ size })} suffix="mm" autoFocus />
         )}
-        <div className="command-preview-note"><span className="preview-dot" />{isRectangle || isCircle ? 'Kliknij środek i drugi punkt na płótnie albo wpisz dokładne wymiary.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
+        {isSketchPath && (
+          <>
+            <Field label="Długość" value={command.length} onChange={(length) => onChange({ length })} suffix="mm" autoFocus />
+            <Field label="Kąt" value={command.angle} onChange={(angle) => onChange({ angle })} suffix="°" />
+            <label className="command-field">
+              <span>Segment</span>
+              <select value={command.segmentMode} onChange={(event) => onChange({ segmentMode: event.target.value })}>
+                <option value="line">Linia</option>
+                <option value="tangentArc" disabled={!command.segmentIds.length}>Łuk styczny</option>
+              </select>
+            </label>
+          </>
+        )}
+        <div className="command-preview-note"><span className="preview-dot" />{isSketchPath ? 'Klikaj punkty na płótnie lub dodaj następny punkt dokładną długością i kątem.' : isRectangle || isCircle ? 'Kliknij środek i drugi punkt na płótnie albo wpisz dokładne wymiary.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
       </div>
-      <footer><button className="secondary" type="button" onClick={onCancel}>Anuluj</button><button className="confirm" type="button" onClick={onConfirm}><Check size={14} /> OK</button></footer>
+      {isSketchPath ? (
+        <footer><button className="secondary" type="button" onClick={onUndoSegment} disabled={!command.pointIds.length}>Cofnij segment</button><button className="secondary" type="button" onClick={onFinishPath}>Zakończ</button><button className="confirm" type="button" onClick={onConfirm} disabled={!command.lastPoint}><Check size={14} /> Dodaj dokładnie</button></footer>
+      ) : (
+        <footer><button className="secondary" type="button" onClick={onCancel}>Anuluj</button><button className="confirm" type="button" onClick={onConfirm}><Check size={14} /> OK</button></footer>
+      )}
     </section>
   );
 }
@@ -590,6 +617,10 @@ export default function ModelingWorkspace({ onClose }) {
 
   const openProfileCommand = (type, profile = null) => {
     if (readOnly) return readOnlyNotice();
+    if (profile && !['rectangle', 'circle'].includes(type)) {
+      setNotice('Profil z segmentów edytuje się przez jego punkty i krawędzie; zaznaczanie segmentów wchodzi w R1.3.');
+      return;
+    }
     if (!activeSketchId) {
       startSketch();
       return;
@@ -601,6 +632,213 @@ export default function ModelingWorkspace({ onClose }) {
     }
     setNotice('Ustaw wymiary profilu. Podgląd na płótnie aktualizuje się na bieżąco.');
   };
+
+  const openSketchPath = (type) => {
+    if (readOnly) return readOnlyNotice();
+    if (!activeSketchId) {
+      startSketch();
+      return;
+    }
+    setCommand({
+      type,
+      pointIds: [],
+      segmentIds: [],
+      auxiliaryPointIds: [],
+      points: [],
+      tangents: [],
+      firstPoint: null,
+      lastPoint: null,
+      lastTangent: null,
+      length: '20',
+      angle: '0',
+      segmentMode: 'line',
+    });
+    setNotice(type === 'line' ? 'Wskaż początek i koniec linii.' : 'Klikaj kolejne punkty polilinii; kliknij początek, aby zamknąć profil.');
+  };
+
+  const finishSketchPath = () => {
+    if (command?.type !== 'line' && command?.type !== 'polyline') return;
+    if (!command.segmentIds.length && command.pointIds.length === 1) {
+      const pendingPointId = command.pointIds[0];
+      commit((next) => {
+        const sketch = next.sketches.find((item) => item.id === activeSketchId);
+        sketch.entities = sketch.entities.filter((entity) => entity.id !== pendingPointId);
+      });
+    }
+    setCommand(null);
+    setNotice(command.segmentIds.length ? 'Zakończono rysowanie ścieżki.' : 'Anulowano pustą ścieżkę.');
+  };
+
+  const appendSketchPoint = (coordinates) => {
+    if (command?.type !== 'line' && command?.type !== 'polyline') return;
+    const point = coordinates.map((value) => Number(value));
+    if (point.some((value) => !Number.isFinite(value))) {
+      setNotice('Punkt szkicu musi mieć prawidłowe współrzędne.');
+      return;
+    }
+    const activeSketch = document.sketches.find((sketch) => sketch.id === activeSketchId);
+    if (!activeSketch) return;
+
+    if (!command.lastPoint) {
+      const start = createSketchPoint({ x: point[0].toFixed(3), y: point[1].toFixed(3) });
+      commit((next) => next.sketches.find((sketch) => sketch.id === activeSketchId).entities.push(start));
+      setCommand((current) => ({ ...current, pointIds: [start.id], points: [point], firstPoint: point, lastPoint: point }));
+      setNotice('Punkt początkowy ustawiony. Wskaż koniec segmentu.');
+      return;
+    }
+
+    const start = command.lastPoint;
+    const distance = Math.hypot(point[0] - start[0], point[1] - start[1]);
+    const closes = command.type === 'polyline'
+      && command.segmentIds.length >= 2
+      && Math.hypot(point[0] - command.firstPoint[0], point[1] - command.firstPoint[1]) <= 2;
+    if (!closes && distance <= 1e-7) {
+      setNotice('Koniec segmentu musi różnić się od początku.');
+      return;
+    }
+
+    const targetPoint = closes ? null : createSketchPoint({ x: point[0].toFixed(3), y: point[1].toFixed(3) });
+    const targetPointId = closes ? command.pointIds[0] : targetPoint.id;
+    const end = closes ? command.firstPoint : point;
+    let segment;
+    let auxiliaryPoint = null;
+    let endTangent;
+    if (command.segmentMode === 'tangentArc' && command.lastTangent) {
+      try {
+        const continuation = createTangentArcContinuation({
+          startPointId: command.pointIds.at(-1),
+          endPointId: targetPointId,
+          start,
+          end,
+          tangent: command.lastTangent,
+        });
+        auxiliaryPoint = continuation.centerPoint;
+        segment = continuation.arc;
+        endTangent = continuation.endTangent;
+      } catch (error) {
+        setNotice(`${error.message} Wybierz punkt poza kierunkiem stycznej.`);
+        return;
+      }
+    } else {
+      segment = createSketchLine({ startPointId: command.pointIds.at(-1), endPointId: targetPointId });
+      const length = Math.hypot(end[0] - start[0], end[1] - start[1]);
+      endTangent = [(end[0] - start[0]) / length, (end[1] - start[1]) / length];
+    }
+
+    let detectedProfile = null;
+    if (closes) {
+      const detectionSketch = structuredClone(activeSketch);
+      if (targetPoint) detectionSketch.entities.push(targetPoint);
+      if (auxiliaryPoint) detectionSketch.entities.push(auxiliaryPoint);
+      detectionSketch.entities.push(segment);
+      detectedProfile = createDetectedProfile(detectionSketch, [...command.segmentIds, segment.id], {
+        name: `Profil ${document.sketches.flatMap((item) => item.profiles).length + 1}`,
+      });
+    }
+    commit((next) => {
+      const sketch = next.sketches.find((item) => item.id === activeSketchId);
+      if (targetPoint) sketch.entities.push(targetPoint);
+      if (auxiliaryPoint) sketch.entities.push(auxiliaryPoint);
+      sketch.entities.push(segment);
+      if (detectedProfile) sketch.profiles.push(detectedProfile);
+    });
+
+    if (closes) {
+      setSelection({ kind: 'profile', id: detectedProfile.id, sketchId: activeSketchId });
+      setCommand(null);
+      setNotice('Polilinia zamknięta. Utworzono profil gotowy do wyciągnięcia.');
+      return;
+    }
+    if (command.type === 'line') {
+      setCommand(null);
+      setNotice('Linia została dodana.');
+      return;
+    }
+    setCommand((current) => ({
+      ...current,
+      pointIds: [...current.pointIds, targetPoint.id],
+      segmentIds: [...current.segmentIds, segment.id],
+      auxiliaryPointIds: [...current.auxiliaryPointIds, auxiliaryPoint?.id || null],
+      points: [...current.points, point],
+      tangents: [...current.tangents, endTangent],
+      lastPoint: point,
+      lastTangent: endTangent,
+      segmentMode: 'line',
+    }));
+    setNotice('Segment dodany. Kliknij kolejny punkt, wybierz łuk styczny albo zamknij profil.');
+  };
+
+  const confirmExactSketchSegment = () => {
+    if (!command?.lastPoint) {
+      setNotice('Najpierw wskaż punkt początkowy na szkicu.');
+      return;
+    }
+    const length = Number(command.length);
+    const angle = Number(command.angle);
+    if (!(length > 0) || !Number.isFinite(angle)) {
+      setNotice('Długość musi być dodatnia, a kąt musi być liczbą.');
+      return;
+    }
+    const radians = angle * Math.PI / 180;
+    appendSketchPoint([command.lastPoint[0] + (Math.cos(radians) * length), command.lastPoint[1] + (Math.sin(radians) * length)]);
+  };
+
+  const undoSketchSegment = () => {
+    if (command?.type !== 'polyline' && command?.type !== 'line') return;
+    const segmentId = command.segmentIds.at(-1);
+    const pointId = command.pointIds.at(-1);
+    const auxiliaryPointId = command.auxiliaryPointIds.at(-1);
+    if (!segmentId) {
+      if (!pointId) return;
+      commit((next) => {
+        const sketch = next.sketches.find((item) => item.id === activeSketchId);
+        sketch.entities = sketch.entities.filter((entity) => entity.id !== pointId);
+      });
+      setCommand((current) => ({ ...current, pointIds: [], points: [], firstPoint: null, lastPoint: null }));
+      return;
+    }
+    commit((next) => {
+      const sketch = next.sketches.find((item) => item.id === activeSketchId);
+      const removed = new Set([segmentId, pointId, auxiliaryPointId].filter(Boolean));
+      sketch.entities = sketch.entities.filter((entity) => !removed.has(entity.id));
+    });
+    setCommand((current) => ({
+      ...current,
+      pointIds: current.pointIds.slice(0, -1),
+      segmentIds: current.segmentIds.slice(0, -1),
+      auxiliaryPointIds: current.auxiliaryPointIds.slice(0, -1),
+      points: current.points.slice(0, -1),
+      tangents: current.tangents.slice(0, -1),
+      lastPoint: current.points.at(-2) || current.firstPoint,
+      lastTangent: current.tangents.at(-2) || null,
+      segmentMode: 'line',
+    }));
+    setNotice('Cofnięto ostatni segment bez wychodzenia z polilinii.');
+  };
+
+  useEffect(() => {
+    const verifyMode = new URLSearchParams(window.location.search).has('verify');
+    if (!verifyMode) return undefined;
+    window.__madcadVerifySketchPoint = appendSketchPoint;
+    window.__madcadVerifyDocumentState = {
+      schemaVersion: document.schemaVersion,
+      sketches: document.sketches.map((sketch) => ({
+        id: sketch.id,
+        entities: sketch.entities.length,
+        profiles: sketch.profiles.length,
+      })),
+      features: document.features.length,
+      command: command ? {
+        type: command.type,
+        points: command.points?.length || 0,
+        segments: command.segmentIds?.length || 0,
+      } : null,
+    };
+    return () => {
+      delete window.__madcadVerifySketchPoint;
+      delete window.__madcadVerifyDocumentState;
+    };
+  }, [document, command]);
 
   const confirmProfile = () => {
     if (readOnly) return readOnlyNotice();
@@ -811,12 +1049,23 @@ export default function ModelingWorkspace({ onClose }) {
     const onKeyDown = (event) => {
       if (event.key === 'Escape' && command) {
         event.preventDefault();
-        setCommand(null);
+        if (command.type === 'line' || command.type === 'polyline') finishSketchPath();
+        else setCommand(null);
+        return;
+      }
+      if (event.key === 'Enter' && (command?.type === 'line' || command?.type === 'polyline')) {
+        event.preventDefault();
+        finishSketchPath();
         return;
       }
       if (event.key === 'Enter' && command?.previewFeature) {
         event.preventDefault();
         confirmFeature();
+        return;
+      }
+      if (event.ctrlKey && command?.type === 'polyline' && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        undoSketchSegment();
         return;
       }
       if (event.ctrlKey && !command && !readOnly && (event.key.toLowerCase() === 'z' || event.key.toLowerCase() === 'y')) {
@@ -860,7 +1109,7 @@ export default function ModelingWorkspace({ onClose }) {
           <div className="modeling-ribbon">
             {activeSketchId ? (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} primary disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /></RibbonGroup>
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
             ) : workspace === 'print' ? (
@@ -892,6 +1141,9 @@ export default function ModelingWorkspace({ onClose }) {
             draftProfile={draftProfile}
             draftType={command?.type === 'rectangle' || command?.type === 'circle' ? command.type : null}
             onDraftChange={readOnly ? undefined : updateCommand}
+            sketchTool={command?.type === 'line' || command?.type === 'polyline' ? command.type : null}
+            polylineDraft={command?.type === 'line' || command?.type === 'polyline' ? { lastPoint: command.lastPoint } : null}
+            onSketchPoint={readOnly ? undefined : appendSketchPoint}
             parameters={document.parameters}
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : null}
@@ -909,7 +1161,15 @@ export default function ModelingWorkspace({ onClose }) {
             <div className="empty-canvas"><PencilRuler size={28} /><strong>Zacznij od szkicu</strong><span>Wybierz płaszczyznę, narysuj zamknięty profil i wyciągnij go w bryłę.</span><button type="button" onClick={startSketch}>Utwórz szkic</button></div>
           )}
           {command?.type === 'plane' && <PlanePicker onPick={pickPlane} onCancel={() => { setCommand(null); setWorkspace('solid'); }} />}
-          <CommandDialog command={command} profileName={selectedProfile?.name || ''} onChange={updateCommand} onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : confirmFeature} onCancel={() => setCommand(null)} />
+          <CommandDialog
+            command={command}
+            profileName={selectedProfile?.name || ''}
+            onChange={updateCommand}
+            onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : confirmFeature}
+            onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => setCommand(null)}
+            onUndoSegment={undoSketchSegment}
+            onFinishPath={finishSketchPath}
+          />
           {command?.type === 'parameters' && <ParametersDialog document={document} commit={commit} onClose={() => setCommand(null)} />}
           {activeSketchId && <SketchPalette options={sketchOptions} onChange={(key, value) => setSketchOptions((current) => ({ ...current, [key]: value }))} onFinish={finishSketch} />}
         </main>

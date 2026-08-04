@@ -2,6 +2,7 @@ import opencascade from 'replicad-opencascadejs';
 import opencascadeWasm from 'replicad-opencascadejs/src/replicad_single.wasm?url';
 import {
   drawCircle,
+  draw,
   drawRectangle,
   importSTEP,
   importSTL,
@@ -45,6 +46,17 @@ function drawingForProfile(profile) {
   }
   if (profile.type === 'circle') {
     return drawCircle(geometry.diameter / 2).translate(geometry.x, geometry.y);
+  }
+  if (profile.type === 'closed') {
+    const [first, ...segments] = geometry.segments;
+    if (!first) throw new Error(`Profil ${profile.id} nie zawiera segmentów.`);
+    const pen = draw(first.start);
+    const ordered = [first, ...segments];
+    for (const segment of ordered) {
+      if (segment.type === 'arc') pen.tangentArcTo(segment.end);
+      else pen.lineTo(segment.end);
+    }
+    return pen.done();
   }
   throw new Error(`Nieobsługiwany profil: ${profile.type}`);
 }

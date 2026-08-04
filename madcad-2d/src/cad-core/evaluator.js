@@ -16,7 +16,48 @@ function positive(value, label) {
   return value;
 }
 
-export function resolveProfile(profile, parameters) {
+function resolveClosedProfile(profile, parameters, sketch) {
+  if (!sketch) throw new Error(`Profil ${profile.id} nie ma szkicu źródłowego.`);
+  const entityMap = new Map(sketch.entities.map((entity) => [entity.id, entity]));
+  const readPoint = (pointId) => {
+    const point = entityMap.get(pointId);
+    if (point?.type !== 'point') throw new Error(`Nie znaleziono punktu ${pointId} profilu ${profile.id}.`);
+    return [evaluateExpression(point.geometry.x, parameters), evaluateExpression(point.geometry.y, parameters)];
+  };
+  const segments = profile.entityIds.map((entityId) => {
+    const entity = entityMap.get(entityId);
+    if (entity?.type === 'line') {
+      const start = readPoint(entity.pointIds[0]);
+      const end = readPoint(entity.pointIds[1]);
+      positive(Math.hypot(end[0] - start[0], end[1] - start[1]), 'Długość linii');
+      return { type: 'line', id: entity.id, start, end };
+    }
+    if (entity?.type === 'arc') {
+      const center = readPoint(entity.pointIds[0]);
+      const start = readPoint(entity.pointIds[1]);
+      const end = readPoint(entity.pointIds[2]);
+      positive(Math.hypot(start[0] - center[0], start[1] - center[1]), 'Promień łuku');
+      return { type: 'arc', id: entity.id, center, start, end, direction: entity.geometry.direction };
+    }
+    throw new Error(`Nieobsługiwana encja ${entityId} w profilu ${profile.id}.`);
+  });
+  const points = segments.map((segment) => segment.start);
+  const xs = points.map((point) => point[0]);
+  const ys = points.map((point) => point[1]);
+  return {
+    ...profile,
+    geometry: {
+      points,
+      segments,
+      x: (Math.min(...xs) + Math.max(...xs)) / 2,
+      y: (Math.min(...ys) + Math.max(...ys)) / 2,
+      width: Math.max(...xs) - Math.min(...xs),
+      height: Math.max(...ys) - Math.min(...ys),
+    },
+  };
+}
+
+export function resolveProfile(profile, parameters, sketch = null) {
   const read = (value) => evaluateExpression(value, parameters);
   if (profile.type === 'rectangle') {
     return {
@@ -39,6 +80,7 @@ export function resolveProfile(profile, parameters) {
       }
     };
   }
+  if (profile.type === 'closed') return resolveClosedProfile(profile, parameters, sketch);
   throw new Error(`Nieobsługiwany profil: ${profile.type}`);
 }
 
@@ -58,7 +100,7 @@ export function prepareDocument(document) {
       const profiles = feature.profileIds.map((profileId) => {
         const match = findProfile(document, profileId);
         if (!match) throw new Error(`Nie znaleziono profilu ${profileId}.`);
-        return { ...resolveProfile(match.profile, parameterResult.values), plane: match.sketch.plane || 'XY' };
+        return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY' };
       });
       return {
         ...feature,
@@ -71,7 +113,7 @@ export function prepareDocument(document) {
     if (feature.type === 'hole') {
       const match = findProfile(document, feature.profileId);
       if (!match) throw new Error(`Nie znaleziono profilu otworu ${feature.profileId}.`);
-      const profile = resolveProfile(match.profile, parameterResult.values);
+      const profile = resolveProfile(match.profile, parameterResult.values, match.sketch);
       return {
         ...feature,
         status: 'ready',

@@ -179,12 +179,14 @@ Wynik R1.1: schemat v4 zapisuje punkty jako osobne encje, a linie, łuki i okrę
 
 ### R1.2 — linia i polilinia `M`
 
-- [ ] Narzędzie Linia: punkt początkowy, podgląd, punkt końcowy, Escape kończy polecenie.
-- [ ] Narzędzie Polilinia: kolejne segmenty, Enter/Escape kończy, kliknięcie początku zamyka obrys.
-- [ ] Wprowadzanie dokładnej długości i kąta z klawiatury.
-- [ ] Cofanie ostatniego segmentu bez wychodzenia z polecenia.
-- [ ] Łuk styczny jako kontynuacja odcinka.
-- [ ] Test: profil w kształcie litery L utworzony bez prostokąta.
+- [x] Narzędzie Linia: punkt początkowy, podgląd, punkt końcowy, Escape kończy polecenie.
+- [x] Narzędzie Polilinia: kolejne segmenty, Enter/Escape kończy, kliknięcie początku zamyka obrys.
+- [x] Wprowadzanie dokładnej długości i kąta z klawiatury.
+- [x] Cofanie ostatniego segmentu bez wychodzenia z polecenia.
+- [x] Łuk styczny jako kontynuacja odcinka.
+- [x] Test: profil w kształcie litery L utworzony bez prostokąta.
+
+Wynik R1.2: Linia i Polilinia zapisują prawdziwe punkty/segmenty v4, mają przerywany podgląd, dokładną długość i kąt, cofanie bieżącego segmentu oraz tryb stycznego łuku. Zamknięcie początku wykrywa profil brzegowy. Desktop E2E tworzy bez prostokąta profil L z 12 encji i wyciąga go na 8 mm: objętość 4 000 mm³, pole 1 960 mm², 8 ścian i 18 krawędzi. `npm run test:core` — 25/25.
 
 ### R1.3 — zaznaczanie i edycja szkicu `L`
 
@@ -510,6 +512,6 @@ Cel wydania: MadCAD przygotowuje wiarygodny model do slicera i wykrywa najczęst
 
 ## Następne pojedyncze zadanie
 
-`R1.2 — linia i polilinia`.
+`R1.3 — zaznaczanie i edycja szkicu`.
 
-R0.1–R0.4 oraz R1.1 są zamknięte i zweryfikowane. Następny krok to R1.2 na gotowym kontrakcie encji i stabilnych końców. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.
+R0.1–R0.4 oraz R1.1–R1.2 są zamknięte i zweryfikowane. Następny krok to R1.3: prawdziwe zaznaczanie i edycja punktów oraz segmentów. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.
