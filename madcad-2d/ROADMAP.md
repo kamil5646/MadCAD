@@ -149,7 +149,7 @@ Wynik R0.3: `npm run test:core` — 15/15; test kolejki, LRU, rewizji i polityki
 - [x] Desktop E2E dla wskaźnika pióra, klawiatury, undo/redo, autozapisu i kontrolowanego odtworzenia workera; zapis atomowy pokrywa osobny test rdzenia.
 - [x] Budżety wydajności dla małego, średniego i dużego dokumentu oraz uruchomienia i przepływu desktopowego.
 
-Wynik R0.4: `npm run test:core` — 19/19. Golden B-Rep 64 × 42 × 8 mm: objętość 21 504 mm³, pole 7 072 mm², 6 ścian i 12 krawędzi. Ponowny import STEP zachowuje objętość z błędem względnym poniżej `6e-15`, a STL poniżej `3e-5`. Desktop E2E przechodzi po odtworzeniu workera z rewizji 21 do 22; zimny start 1,9 s, pełny przepływ 4,5 s. GitHub Actions uruchamia testy na Windowsie i Linuksie oraz Electron E2E pod Xvfb.
+Wynik R0.4: `npm run test:core` — 19/19. Golden B-Rep 64 × 42 × 8 mm: objętość 21 504 mm³, pole 7 072 mm², 6 ścian i 12 krawędzi. Ponowny import STEP zachowuje objętość z błędem względnym poniżej `6e-15`, a STL poniżej `3e-5`. Desktop E2E przechodzi po odtworzeniu workera z rewizji 21 do 22; zimny start 1,9 s, pełny przepływ 4,5 s. GitHub Actions uruchamia testy rdzenia i build UI na Windowsie oraz Linuksie, a pełny Electron E2E na docelowym Windowsie.
 
 ### Kryterium zamknięcia R0
 

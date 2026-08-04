@@ -14,7 +14,6 @@
     "serve": "vite",
     "build:ui": "vite build",
     "verify:modeling": "npm run build:ui && electron scripts/verify-modeling.cjs",
-    "verify:modeling:ci": "npm run build:ui && electron --no-sandbox scripts/verify-modeling.cjs",
     "test:core": "node --test tests/cad-core.test.mjs",
     "start": "npm run build:ui && env -u ELECTRON_RUN_AS_NODE electron .",
     "dist": "npm run build:ui && electron-builder --mac dir --win nsis --x64",

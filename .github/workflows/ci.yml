@@ -38,7 +38,7 @@ jobs:
 
   desktop-e2e:
     name: Desktop modeling E2E
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     needs: core
     defaults:
       run:
@@ -55,7 +55,7 @@ jobs:
       - name: Install exact dependencies
         run: npm ci
       - name: Run Electron modeling verification
-        run: xvfb-run -a npm run verify:modeling:ci
+        run: npm run verify:modeling
       - name: Upload verification artifacts
         if: always()
         uses: actions/upload-artifact@v4
