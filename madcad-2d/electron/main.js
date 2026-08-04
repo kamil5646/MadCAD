@@ -1251,7 +1251,7 @@ function createMainWindow() {
     return { action: 'allow' };
   });
 
-  if (!app.isPackaged) {
+  if (!app.isPackaged && process.argv.includes('--devtools')) {
     win.webContents.openDevTools({ mode: 'detach' });
   }
 
