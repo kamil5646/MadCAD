@@ -1,24 +1,57 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppWindow,
   Box,
+  Check,
   ChevronDown,
+  ChevronRight,
   Circle,
   CircleDotDashed,
+  Copy,
   Cylinder,
-  Diamond,
+  FileBox,
+  FileDown,
+  FilePlus2,
   FolderOpen,
   Frame,
+  Grid2X2,
+  HardDriveDownload,
+  Hexagon,
+  Home,
+  Layers3,
+  Lock,
+  Maximize2,
+  Minus,
+  MousePointer2,
+  Move,
+  Move3d,
   PanelLeftClose,
+  PencilRuler,
+  Printer,
   Redo2,
+  Rotate3d,
+  RotateCw,
+  Ruler,
   Save,
+  ScanSearch,
+  Scissors,
+  Settings2,
+  Shapes,
+  SkipBack,
   Square,
+  StepBack,
+  StepForward,
   Triangle,
   Undo2,
   Variable,
+  Upload,
+  X,
+  ZoomIn,
 } from 'lucide-react';
 import {
   cloneDocument,
   createCircleProfile,
+  createDocument,
   createFeature,
   createParameter,
   createRectangleProfile,
@@ -31,21 +64,25 @@ import { useCadEngine } from '../cad-core/useCadEngine.js';
 import ModelViewport from './ModelViewport.jsx';
 import './modeling.css';
 
-const WORKSPACES = [
-  { id: 'model', label: 'Model' },
-  { id: 'sketch', label: 'Szkic' },
-  { id: 'solid', label: 'Bryła' },
-  { id: 'print', label: 'Druk 3D' },
+const AUTOSAVE_KEY = 'madcad:modeling-document:v4';
+
+const MAIN_TABS = [
+  { id: 'solid', label: 'BRYŁA' },
+  { id: 'surface', label: 'POWIERZCHNIA', disabled: true },
+  { id: 'mesh', label: 'SIATKA', disabled: true },
+  { id: 'sheet', label: 'KONSTRUKCJA BLACHOWA', disabled: true },
+  { id: 'tools', label: 'NARZĘDZIA' },
+  { id: 'print', label: 'DRUK 3D' },
 ];
 
-const AUTOSAVE_KEY = 'madcad:modeling-document:v3';
+const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
 
 function loadInitialDocument() {
   try {
     const saved = window.localStorage.getItem(AUTOSAVE_KEY);
     if (!saved) return createStarterDocument();
-    const document = JSON.parse(saved);
-    return validateDocument(document).valid ? document : createStarterDocument();
+    const loaded = JSON.parse(saved);
+    return validateDocument(loaded).valid ? loaded : createStarterDocument();
   } catch {
     return createStarterDocument();
   }
@@ -58,7 +95,7 @@ function useDocumentHistory(initialDocument) {
       const next = cloneDocument(current.present);
       mutator(next);
       touchDocument(next);
-      return { past: [...current.past.slice(-39), current.present], present: next, future: [] };
+      return { past: [...current.past.slice(-59), current.present], present: next, future: [] };
     });
   };
   const replace = (document) => setHistory({ past: [], present: document, future: [] });
@@ -98,217 +135,236 @@ function safeName(value) {
   return value.trim().replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-|-$/g, '') || 'model';
 }
 
-function WorkspaceButton({ icon: Icon, iconText, label, detail, onClick, disabled }) {
+function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = false, compact = false, title }) {
   return (
-    <button className="ribbon-tool" type="button" onClick={onClick} disabled={disabled}>
-      <span className="ribbon-icon" aria-hidden="true">{Icon ? <Icon size={19} strokeWidth={1.7} /> : iconText}</span>
-      <span>{label}</span>
-      {detail && <small>{detail}</small>}
+    <button
+      className={`ribbon-tool ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title || label}
+    >
+      <span className="ribbon-icon" aria-hidden="true"><Icon size={compact ? 18 : 25} strokeWidth={1.55} /></span>
+      <span className="ribbon-label">{label}</span>
     </button>
   );
 }
 
-function ProjectTree({ document, bodies, selection, onSelect }) {
+function RibbonGroup({ label, children, end = false }) {
   return (
-    <aside className="model-browser">
-      <div className="panel-heading"><span>Przeglądarka</span><span className="panel-count">{bodies.length} brył</span></div>
-      <button
-        className={`tree-row tree-root ${selection?.kind === 'document' ? 'selected' : ''}`}
-        type="button"
-        onClick={() => onSelect({ kind: 'document', id: document.id })}
-      >
-        <span className="tree-toggle"><ChevronDown size={13} /></span><span className="tree-symbol"><Diamond size={13} /></span><span>{document.name}</span>
+    <div className={`ribbon-group ${end ? 'ribbon-group-end' : ''}`}>
+      <div className="ribbon-tools">{children}</div>
+      <span className="ribbon-group-label">{label}</span>
+    </div>
+  );
+}
+
+function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect }) {
+  const [expanded, setExpanded] = useState({ origin: true, sketches: true, bodies: true });
+  const toggle = (key) => setExpanded((current) => ({ ...current, [key]: !current[key] }));
+  return (
+    <aside className="model-browser" aria-label="Przeglądarka projektu">
+      <div className="browser-heading"><strong>PRZEGLĄDARKA</strong><button type="button" title="Zwiń przeglądarkę"><PanelLeftClose size={14} /></button></div>
+      <button className={`tree-row tree-root ${selection?.kind === 'document' ? 'selected' : ''}`} type="button" onClick={() => onSelect({ kind: 'document', id: document.id })}>
+        <ChevronDown size={13} /><FileBox size={14} /><strong>{document.name || 'Bez nazwy'}</strong>
       </button>
-      <div className="tree-section">
-        <div className="tree-label">Parametry</div>
-        {document.parameters.map((parameter) => (
-          <button
-            className={`tree-row tree-child ${selection?.kind === 'parameter' && selection.id === parameter.id ? 'selected' : ''}`}
-            key={parameter.id}
-            type="button"
-            onClick={() => onSelect({ kind: 'parameter', id: parameter.id })}
-          >
-            <span className="tree-symbol muted"><Variable size={13} /></span><span>{parameter.label}</span><span className="tree-value">{parameter.expression} {parameter.unit}</span>
-          </button>
-        ))}
-      </div>
-      <div className="tree-section">
-        <div className="tree-label">Szkice</div>
-        {document.sketches.map((sketch) => (
-          <React.Fragment key={sketch.id}>
-            <button
-              className={`tree-row tree-child ${selection?.kind === 'sketch' && selection.id === sketch.id ? 'selected' : ''}`}
-              type="button"
-              onClick={() => onSelect({ kind: 'sketch', id: sketch.id })}
-            >
-              <span className="tree-symbol"><Frame size={13} /></span><span>{sketch.name}</span><span className="tree-value">{sketch.plane}</span>
+      <button className="tree-row tree-child" type="button" onClick={() => onSelect({ kind: 'settings', id: document.id })}>
+        <span /><Settings2 size={14} /><span>Ustawienia dokumentu</span><small>mm</small>
+      </button>
+
+      <button className="tree-row tree-child tree-folder" type="button" onClick={() => toggle('origin')}>
+        {expanded.origin ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Layers3 size={14} /><span>Początek</span>
+      </button>
+      {expanded.origin && (
+        <div className="tree-nested">
+          {Object.entries(PLANE_LABELS).map(([plane, label]) => (
+            <button key={plane} className="tree-row tree-grandchild" type="button" onClick={() => onSelect({ kind: 'plane', id: plane })}>
+              <span /><Frame size={13} /><span>{label}</span>
             </button>
-            {sketch.profiles.map((profile) => (
-              <button
-                className={`tree-row tree-grandchild ${selection?.kind === 'profile' && selection.id === profile.id ? 'selected' : ''}`}
-                key={profile.id}
-                type="button"
-                onClick={() => onSelect({ kind: 'profile', id: profile.id, sketchId: sketch.id })}
-              >
-                <span className="tree-symbol muted">{profile.type === 'circle' ? <Circle size={13} /> : <Square size={13} />}</span><span>{profile.name}</span>
-              </button>
-            ))}
-          </React.Fragment>
-        ))}
-      </div>
-      <div className="tree-section">
-        <div className="tree-label">Bryły</div>
-        {bodies.map((body) => (
+          ))}
+        </div>
+      )}
+
+      <button className="tree-row tree-child tree-folder" type="button" onClick={() => toggle('sketches')}>
+        {expanded.sketches ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<FolderOpen size={14} /><span>Szkice</span><small>{document.sketches.length}</small>
+      </button>
+      {expanded.sketches && document.sketches.map((sketch) => (
+        <React.Fragment key={sketch.id}>
           <button
-            className={`tree-row tree-child ${selection?.kind === 'body' && selection.id === body.id ? 'selected' : ''}`}
-            key={body.id}
+            className={`tree-row tree-grandchild ${selection?.kind === 'sketch' && selection.id === sketch.id ? 'selected' : ''} ${activeSketchId === sketch.id ? 'editing' : ''}`}
             type="button"
-            onClick={() => onSelect({ kind: 'body', id: body.id })}
+            onClick={() => onSelect({ kind: 'sketch', id: sketch.id })}
           >
-            <span className="body-dot" style={{ background: body.color }} /><span>{body.name}</span>
+            <span /><PencilRuler size={13} /><span>{sketch.name}</span><small>{sketch.plane}</small>
           </button>
-        ))}
-      </div>
+          {sketch.profiles.map((profile) => (
+            <button
+              className={`tree-row tree-profile ${selection?.kind === 'profile' && selection.id === profile.id ? 'selected' : ''}`}
+              key={profile.id}
+              type="button"
+              onClick={() => onSelect({ kind: 'profile', id: profile.id, sketchId: sketch.id })}
+            >
+              <span />{profile.type === 'circle' ? <Circle size={12} /> : <Square size={12} />}<span>{profile.name}</span>
+            </button>
+          ))}
+        </React.Fragment>
+      ))}
+
+      <button className="tree-row tree-child tree-folder" type="button" onClick={() => toggle('bodies')}>
+        {expanded.bodies ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<FolderOpen size={14} /><span>Bryły</span><small>{bodies.length}</small>
+      </button>
+      {expanded.bodies && bodies.map((body) => (
+        <button
+          className={`tree-row tree-grandchild ${selection?.kind === 'body' && selection.id === body.id ? 'selected' : ''}`}
+          key={body.id}
+          type="button"
+          onClick={() => onSelect({ kind: 'body', id: body.id })}
+        >
+          <span /><Box size={13} /><span>{body.name}</span><i className="body-color" style={{ background: body.color }} />
+        </button>
+      ))}
     </aside>
   );
 }
 
-function Field({ label, value, onChange, suffix, type = 'text', disabled = false }) {
+function Field({ label, value, onChange, suffix = '', type = 'text', disabled = false, autoFocus = false }) {
   return (
-    <label className="property-field">
+    <label className="command-field">
       <span>{label}</span>
-      <div className="property-input-wrap">
-        <input type={type} value={value ?? ''} onChange={(event) => onChange?.(event.target.value)} disabled={disabled} />
+      <div className="command-input-wrap">
+        <input autoFocus={autoFocus} type={type} value={value ?? ''} onChange={(event) => onChange?.(event.target.value)} disabled={disabled} />
         {suffix && <em>{suffix}</em>}
       </div>
     </label>
   );
 }
 
-function Inspector({ document, selection, bodies, engine, commit, onSelect }) {
-  const selectedParameter = document.parameters.find((item) => selection?.kind === 'parameter' && item.id === selection.id);
-  const selectedSketch = document.sketches.find((item) => selection?.kind === 'sketch' && item.id === selection.id);
-  const profileMatch = document.sketches
-    .flatMap((sketch) => sketch.profiles.map((profile) => ({ sketch, profile })))
-    .find(({ profile }) => selection?.kind === 'profile' && profile.id === selection.id);
-  const selectedFeature = document.features.find((item) => selection?.kind === 'feature' && item.id === selection.id);
-  const selectedBody = bodies.find((item) => selection?.kind === 'body' && item.id === selection.id);
-  const bodySize = selectedBody ? selectedBody.bounds[1].map((max, index) => max - selectedBody.bounds[0][index]) : null;
-
-  if (selectedParameter) {
-    return (
-      <aside className="property-panel">
-        <div className="panel-heading">Parametr użytkownika</div>
-        <div className="property-section">
-          <Field label="Etykieta" value={selectedParameter.label} onChange={(value) => commit((next) => { next.parameters.find((item) => item.id === selectedParameter.id).label = value; })} />
-          <Field label="Nazwa" value={selectedParameter.name} disabled />
-          <Field label="Wyrażenie" value={selectedParameter.expression} suffix="mm" onChange={(value) => commit((next) => { next.parameters.find((item) => item.id === selectedParameter.id).expression = value; })} />
-          <p className="property-note">Możesz używać innych parametrów oraz działań + − × ÷, np. <code>szerokosc / 2</code>.</p>
-        </div>
-      </aside>
-    );
-  }
-
-  if (profileMatch) {
-    const { profile } = profileMatch;
-    const updateGeometry = (key, value) => commit((next) => {
-      const target = next.sketches.flatMap((sketch) => sketch.profiles).find((item) => item.id === profile.id);
-      target.geometry[key] = value;
-    });
-    return (
-      <aside className="property-panel">
-        <div className="panel-heading">Profil szkicu</div>
-        <div className="property-section">
-          <Field label="Nazwa" value={profile.name} onChange={(value) => commit((next) => { next.sketches.flatMap((sketch) => sketch.profiles).find((item) => item.id === profile.id).name = value; })} />
-          {profile.type === 'rectangle' ? (
-            <>
-              <Field label="Szerokość" value={profile.geometry.width} suffix="mm" onChange={(value) => updateGeometry('width', value)} />
-              <Field label="Głębokość" value={profile.geometry.height} suffix="mm" onChange={(value) => updateGeometry('height', value)} />
-            </>
-          ) : <Field label="Średnica" value={profile.geometry.diameter} suffix="mm" onChange={(value) => updateGeometry('diameter', value)} />}
-          <Field label="Położenie X" value={profile.geometry.x} suffix="mm" onChange={(value) => updateGeometry('x', value)} />
-          <Field label="Położenie Y" value={profile.geometry.y} suffix="mm" onChange={(value) => updateGeometry('y', value)} />
-        </div>
-      </aside>
-    );
-  }
-
-  if (selectedFeature) {
-    const updateFeature = (key, value) => commit((next) => { next.features.find((item) => item.id === selectedFeature.id)[key] = value; });
-    const dimension = selectedFeature.type === 'hole'
-      ? { label: 'Głębokość', key: 'depth' }
-      : selectedFeature.type === 'fillet'
-        ? { label: 'Promień', key: 'radius' }
-        : selectedFeature.type === 'chamfer'
-          ? { label: 'Odległość fazy', key: 'distance' }
-          : { label: 'Odległość', key: 'distance' };
-    return (
-      <aside className="property-panel">
-        <div className="panel-heading">Operacja</div>
-        <div className="property-section">
-          <Field label="Nazwa" value={selectedFeature.name} onChange={(value) => updateFeature('name', value)} />
-          <Field
-            label={dimension.label}
-            value={selectedFeature[dimension.key]}
-            suffix="mm"
-            onChange={(value) => updateFeature(dimension.key, value)}
-          />
-          {selectedFeature.type === 'hole' && <Field label="Średnica" value={selectedFeature.diameter} suffix="mm" onChange={(value) => updateFeature('diameter', value)} />}
-          {selectedFeature.type === 'extrude' && (
-            <label className="property-field">
+function CommandDialog({ command, profileName, onChange, onConfirm, onCancel }) {
+  if (!command || command.type === 'plane' || command.type === 'parameters') return null;
+  const isRectangle = command.type === 'rectangle';
+  const isCircle = command.type === 'circle';
+  const isExtrude = command.type === 'extrude';
+  const isHole = command.type === 'hole';
+  const isFillet = command.type === 'fillet';
+  const title = isRectangle ? 'Prostokąt ze środka' : isCircle ? 'Okrąg ze środka' : isExtrude ? 'Wyciągnięcie' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : 'Fazowanie';
+  return (
+    <section className="command-dialog" aria-label={title}>
+      <header><strong>{title}</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
+      <div className="command-dialog-body">
+        {(isRectangle || isCircle) && <Field label="Nazwa" value={command.name} onChange={(name) => onChange({ name })} />}
+        {isRectangle && (
+          <>
+            <Field label="Szerokość" value={command.width} onChange={(width) => onChange({ width })} suffix="mm" autoFocus />
+            <Field label="Wysokość" value={command.height} onChange={(height) => onChange({ height })} suffix="mm" />
+            <Field label="Środek X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" />
+            <Field label="Środek Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" />
+          </>
+        )}
+        {isCircle && (
+          <>
+            <Field label="Średnica" value={command.diameter} onChange={(diameter) => onChange({ diameter })} suffix="mm" autoFocus />
+            <Field label="Środek X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" />
+            <Field label="Środek Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" />
+          </>
+        )}
+        {(isExtrude || isHole) && <Field label="Profil" value={profileName} disabled />}
+        {isExtrude && (
+          <>
+            <Field label="Odległość" value={command.distance} onChange={(distance) => onChange({ distance })} suffix="mm" autoFocus />
+            <label className="command-field">
               <span>Operacja</span>
-              <select value={selectedFeature.operation} onChange={(event) => updateFeature('operation', event.target.value)}>
+              <select value={command.operation} onChange={(event) => onChange({ operation: event.target.value })}>
                 <option value="new">Nowa bryła</option>
                 <option value="join">Połącz</option>
-                <option value="cut">Odejmij</option>
+                <option value="cut">Wytnij</option>
                 <option value="intersect">Część wspólna</option>
               </select>
             </label>
-          )}
-          <label className="property-check">
-            <input type="checkbox" checked={!selectedFeature.suppressed} onChange={(event) => updateFeature('suppressed', !event.target.checked)} />
-            <span>Operacja aktywna</span>
-          </label>
-        </div>
-      </aside>
-    );
-  }
-
-  if (selectedBody) {
-    return (
-      <aside className="property-panel">
-        <div className="panel-heading">Właściwości bryły</div>
-        <div className="property-section body-summary">
-          <div className="body-preview" style={{ '--body-color': selectedBody.color }} />
-          <h3>{selectedBody.name}</h3>
-          <dl>
-            <div><dt>Rozmiar X</dt><dd>{bodySize[0].toFixed(2)} mm</dd></div>
-            <div><dt>Rozmiar Y</dt><dd>{bodySize[1].toFixed(2)} mm</dd></div>
-            <div><dt>Rozmiar Z</dt><dd>{bodySize[2].toFixed(2)} mm</dd></div>
-            <div><dt>Siatka</dt><dd>{Math.round(selectedBody.triangles.length / 3)} trójkątów</dd></div>
-          </dl>
-        </div>
-      </aside>
-    );
-  }
-
-  return (
-    <aside className="property-panel">
-      <div className="panel-heading">Projekt</div>
-      <div className="property-section">
-        <Field label="Nazwa projektu" value={document.name} onChange={(value) => commit((next) => { next.name = value; })} />
-        <Field label="Jednostki" value="Milimetry" disabled />
-        <div className="kernel-card">
-          <span className={`kernel-light ${engine.status}`} />
-          <div><strong>Silnik geometryczny</strong><small>{engine.status === 'ready' ? 'OpenCascade · gotowy' : engine.status === 'computing' ? 'Przeliczanie modelu…' : engine.status === 'loading' ? 'Uruchamianie…' : 'Wymaga uwagi'}</small></div>
-        </div>
-        <button className="inline-action" type="button" onClick={() => onSelect({ kind: 'parameter', id: document.parameters[0]?.id })}>Otwórz parametry</button>
+            <label className="command-field"><span>Kierunek</span><select disabled><option>Jedna strona</option></select></label>
+          </>
+        )}
+        {isHole && (
+          <>
+            <Field label="Średnica" value={command.diameter} onChange={(diameter) => onChange({ diameter })} suffix="mm" autoFocus />
+            <Field label="Głębokość" value={command.depth} onChange={(depth) => onChange({ depth })} suffix="mm" />
+          </>
+        )}
+        {(isFillet || command.type === 'chamfer') && (
+          <Field label={isFillet ? 'Promień' : 'Odległość'} value={command.size} onChange={(size) => onChange({ size })} suffix="mm" autoFocus />
+        )}
+        <div className="command-preview-note"><span className="preview-dot" />{isRectangle || isCircle ? 'Kliknij środek i drugi punkt na płótnie albo wpisz dokładne wymiary.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
       </div>
+      <footer><button className="secondary" type="button" onClick={onCancel}>Anuluj</button><button className="confirm" type="button" onClick={onConfirm}><Check size={14} /> OK</button></footer>
+    </section>
+  );
+}
+
+function PlanePicker({ onPick, onCancel }) {
+  return (
+    <section className="plane-picker" aria-label="Wybierz płaszczyznę szkicu">
+      <header><div><strong>Wybierz płaszczyznę szkicu</strong><span>Wskaż jedną z płaszczyzn początku.</span></div><button type="button" onClick={onCancel} title="Anuluj"><X size={17} /></button></header>
+      <div className="plane-options">
+        {Object.entries(PLANE_LABELS).map(([plane, label]) => (
+          <button key={plane} type="button" onClick={() => onPick(plane)}>
+            <Frame size={28} strokeWidth={1.25} /><strong>{plane}</strong><span>{label}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ParametersDialog({ document, commit, onClose }) {
+  const add = () => {
+    let number = document.parameters.length + 1;
+    while (document.parameters.some((item) => item.name === `parametr${number}`)) number += 1;
+    commit((next) => next.parameters.push(createParameter(`parametr${number}`, 10, 'mm', `Parametr ${number}`)));
+  };
+  return (
+    <section className="parameters-dialog" aria-label="Parametry użytkownika">
+      <header><div><strong>Parametry</strong><span>Steruj wymiarami modelu z jednego miejsca.</span></div><button type="button" onClick={onClose} title="Zamknij"><X size={16} /></button></header>
+      <div className="parameter-table">
+        <div className="parameter-head"><span>Nazwa</span><span>Wyrażenie</span><span>Jednostka</span></div>
+        {document.parameters.map((parameter) => (
+          <div className="parameter-row" key={parameter.id}>
+            <input value={parameter.label} aria-label="Etykieta parametru" onChange={(event) => commit((next) => { next.parameters.find((item) => item.id === parameter.id).label = event.target.value; })} />
+            <input value={parameter.expression} aria-label={`Wyrażenie ${parameter.label}`} onChange={(event) => commit((next) => { next.parameters.find((item) => item.id === parameter.id).expression = event.target.value; })} />
+            <span>{parameter.unit}</span>
+          </div>
+        ))}
+        {!document.parameters.length && <p className="empty-parameters">Brak parametrów użytkownika.</p>}
+      </div>
+      <footer><button className="secondary" type="button" onClick={add}>Dodaj parametr</button><button className="confirm" type="button" onClick={onClose}><Check size={14} /> Gotowe</button></footer>
+    </section>
+  );
+}
+
+function SketchPalette({ options, onChange, onFinish }) {
+  const items = [
+    ['grid', 'Siatka szkicu'],
+    ['snap', 'Przyciąganie'],
+    ['profiles', 'Profile'],
+    ['points', 'Punkty'],
+    ['dimensions', 'Wymiary'],
+    ['constraints', 'Wiązania'],
+    ['construction', 'Geometrie konstrukcyjne'],
+    ['sketch3d', 'Szkic 3D'],
+  ];
+  return (
+    <aside className="sketch-palette">
+      <header><strong>PALETA SZKICU</strong><Settings2 size={13} /></header>
+      <div className="sketch-palette-body">
+        <h3>Opcje</h3>
+        {items.map(([key, label]) => (
+          <label key={key}><span>{label}</span><input type="checkbox" checked={Boolean(options[key])} onChange={(event) => onChange(key, event.target.checked)} /></label>
+        ))}
+      </div>
+      <footer><button type="button" onClick={onFinish}>Zakończ szkic</button></footer>
     </aside>
   );
 }
 
-function PrintInspector({ document, bodies, commit, engine, onExport }) {
+function PrintPanel({ document, bodies, engine, commit, onExport, onClose }) {
   const bounds = useMemo(() => {
     if (!bodies.length) return [0, 0, 0];
     const min = [Infinity, Infinity, Infinity];
@@ -319,50 +375,72 @@ function PrintInspector({ document, bodies, commit, engine, onExport }) {
     })));
     return max.map((value, axis) => value - min[axis]);
   }, [bodies]);
-  const fits = bounds[0] <= document.print.bedWidth && bounds[1] <= document.print.bedDepth && bounds[2] <= document.print.bedHeight;
-  const updatePrint = (key, value) => commit((next) => { next.print[key] = Math.max(1, Number(value) || 1); });
+  const fits = Boolean(bodies.length) && bounds[0] <= document.print.bedWidth && bounds[1] <= document.print.bedDepth && bounds[2] <= document.print.bedHeight;
+  const update = (key, value) => commit((next) => { next.print[key] = Math.max(1, Number(value) || 1); });
   return (
-    <aside className="property-panel print-inspector">
-      <div className="panel-heading">Przygotowanie druku</div>
-      <div className="property-section">
-        <h3>Obszar roboczy drukarki</h3>
-        <Field type="number" label="Szerokość X" value={document.print.bedWidth} suffix="mm" onChange={(value) => updatePrint('bedWidth', value)} />
-        <Field type="number" label="Głębokość Y" value={document.print.bedDepth} suffix="mm" onChange={(value) => updatePrint('bedDepth', value)} />
-        <Field type="number" label="Wysokość Z" value={document.print.bedHeight} suffix="mm" onChange={(value) => updatePrint('bedHeight', value)} />
+    <aside className="print-panel print-inspector">
+      <header><div><strong>DRUK 3D</strong><span>Sprawdź model i wyeksportuj siatkę.</span></div><button type="button" onClick={onClose} title="Zamknij"><X size={16} /></button></header>
+      <div className="print-section">
+        <h3>Objętość robocza</h3>
+        <Field type="number" label="Szerokość X" value={document.print.bedWidth} suffix="mm" onChange={(value) => update('bedWidth', value)} />
+        <Field type="number" label="Głębokość Y" value={document.print.bedDepth} suffix="mm" onChange={(value) => update('bedDepth', value)} />
+        <Field type="number" label="Wysokość Z" value={document.print.bedHeight} suffix="mm" onChange={(value) => update('bedHeight', value)} />
       </div>
-      <div className="property-section print-check">
+      <div className="print-section print-summary">
         <h3>Kontrola modelu</h3>
-        <dl>
-          <div><dt>Bryły</dt><dd>{bodies.length}</dd></div>
-          <div><dt>Rozmiar</dt><dd>{bounds.map((value) => value.toFixed(1)).join(' × ')} mm</dd></div>
-        </dl>
-        <p className={fits && bodies.length ? 'check-ok' : 'check-warning'}>{!bodies.length ? 'Brak bryły do wydruku.' : fits ? 'Model mieści się na stole drukarki.' : 'Model przekracza obszar drukarki.'}</p>
+        <dl><div><dt>Bryły</dt><dd>{bodies.length}</dd></div><div><dt>Rozmiar</dt><dd>{bounds.map((value) => value.toFixed(1)).join(' × ')} mm</dd></div></dl>
+        <p className={fits ? 'check-ok' : 'check-warning'}>{!bodies.length ? 'Najpierw utwórz bryłę.' : fits ? 'Model mieści się na stole drukarki.' : 'Model przekracza obszar drukarki.'}</p>
       </div>
-      <div className="export-stack">
-        <button type="button" disabled={!bodies.length || engine.status !== 'ready'} onClick={() => onExport('stl')}>Eksportuj STL do druku</button>
-        <button type="button" className="secondary" disabled={!bodies.length || engine.status !== 'ready'} onClick={() => onExport('step')}>Eksportuj STEP</button>
+      <div className="print-actions">
+        <button type="button" onClick={() => onExport('stl')} disabled={!bodies.length || engine.status !== 'ready'}><HardDriveDownload size={16} /> Eksportuj STL</button>
+        <button className="secondary" type="button" onClick={() => onExport('step')} disabled={!bodies.length || engine.status !== 'ready'}>Eksportuj STEP</button>
       </div>
     </aside>
   );
 }
 
+function featureIcon(type, size = 16) {
+  if (type === 'hole') return <Cylinder size={size} />;
+  if (type === 'fillet') return <CircleDotDashed size={size} />;
+  if (type === 'chamfer') return <Triangle size={size} />;
+  return <Box size={size} />;
+}
+
 export default function ModelingWorkspace({ onClose }) {
   const history = useDocumentHistory(loadInitialDocument());
   const { document, commit } = history;
-  const engine = useCadEngine(document);
-  const [workspace, setWorkspace] = useState('model');
+  const [workspace, setWorkspace] = useState('solid');
   const [selection, setSelection] = useState({ kind: 'document', id: document.id });
-  const [notice, setNotice] = useState('Projekt jest przeliczany przez dokładny silnik CAD.');
+  const [activeSketchId, setActiveSketchId] = useState(null);
+  const [command, setCommand] = useState(null);
+  const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, profiles: true, points: true, dimensions: true, constraints: true, construction: true, sketch3d: false });
+  const [notice, setNotice] = useState('Gotowe. Wybierz „Utwórz szkic”, aby rozpocząć modelowanie.');
   const fileInputRef = useRef(null);
 
-  const selectBody = (id) => setSelection(id ? { kind: 'body', id } : { kind: 'document', id: document.id });
-  const selectedProfile = document.sketches.flatMap((sketch) => sketch.profiles).find((profile) => selection?.kind === 'profile' && profile.id === selection.id);
-  const firstBodyId = engine.bodies[0]?.id;
+  const selectedProfileMatch = document.sketches
+    .flatMap((sketch) => sketch.profiles.map((profile) => ({ sketch, profile })))
+    .find(({ profile }) => selection?.kind === 'profile' && profile.id === selection.id);
+  const selectedProfile = selectedProfileMatch?.profile;
+  const firstBodyId = `body-${document.features.find((feature) => feature.type === 'extrude' && feature.operation === 'new')?.id || ''}`;
+
+  const previewDocument = useMemo(() => {
+    if (!command?.previewFeature) return document;
+    const next = cloneDocument(document);
+    if (command.editId) {
+      const index = next.features.findIndex((feature) => feature.id === command.editId);
+      if (index >= 0) next.features[index] = command.previewFeature;
+    } else {
+      next.features.push(command.previewFeature);
+    }
+    return next;
+  }, [document, command]);
+  const engine = useCadEngine(previewDocument);
+  const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => feature.type === 'extrude' && feature.operation === 'new').map((feature) => `body-${feature.id}`)), [document.features]);
+  const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
+  const targetBodyId = selection?.kind === 'body' ? selection.id : (engine.bodies[0]?.id || firstBodyId || null);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(document));
-    }, 300);
+    const timeout = window.setTimeout(() => window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(document)), 300);
     return () => window.clearTimeout(timeout);
   }, [document]);
 
@@ -373,99 +451,179 @@ export default function ModelingWorkspace({ onClose }) {
     return () => { delete window.__madcadVerifyExport; };
   }, [engine.exportModel]);
 
-  const addProfile = (type) => {
-    const profileNumber = (document.sketches[0]?.profiles.length || 0) + 1;
-    const profile = type === 'circle'
-      ? createCircleProfile({ name: `Okrąg ${profileNumber}`, diameter: 10, x: 0, y: 0 })
-      : createRectangleProfile({ name: `Prostokąt ${profileNumber}`, width: 30, height: 20, x: 0, y: 0 });
-    commit((next) => {
-      if (!next.sketches.length) next.sketches.push(createSketch({ name: 'Szkic XY', plane: 'XY' }));
-      next.sketches[0].profiles.push(profile);
+  const updateCommand = (patch) => {
+    setCommand((current) => {
+      const next = { ...current, ...patch };
+      if (next.type === 'extrude') {
+        next.previewFeature = createFeature('extrude', {
+          name: current.previewFeature?.name || `Wyciągnięcie ${document.features.length + 1}`,
+          sketchId: selectedProfileMatch?.sketch.id,
+          profileIds: [selectedProfile.id],
+          distance: next.distance,
+          operation: next.operation,
+          targetBodyId: next.operation === 'new' ? null : targetBodyId,
+        });
+        if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
+      }
+      if (next.type === 'hole') {
+        next.previewFeature = createFeature('hole', {
+          name: current.previewFeature?.name || `Otwór ${document.features.length + 1}`,
+          targetBodyId,
+          sketchId: selectedProfileMatch?.sketch.id,
+          profileId: selectedProfile.id,
+          diameter: next.diameter,
+          depth: next.depth,
+        });
+        if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
+      }
+      if (next.type === 'fillet' || next.type === 'chamfer') {
+        next.previewFeature = createFeature(next.type, {
+          name: current.previewFeature?.name || `${next.type === 'fillet' ? 'Zaokrąglenie' : 'Fazowanie'} ${document.features.length + 1}`,
+          targetBodyId,
+          ...(next.type === 'fillet' ? { radius: next.size } : { distance: next.size }),
+        });
+        if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
+      }
+      return next;
     });
-    setSelection({ kind: 'profile', id: profile.id });
+  };
+
+  const startSketch = () => {
     setWorkspace('sketch');
-    setNotice('Dodano profil. Ustaw wymiary po prawej stronie.');
+    setCommand({ type: 'plane' });
+    setNotice('Wybierz płaszczyznę szkicu.');
   };
 
-  const addExtrude = () => {
-    if (!selectedProfile) {
-      setNotice('Najpierw wybierz profil w drzewie projektu.');
+  const pickPlane = (plane) => {
+    const sketch = createSketch({ name: `Szkic ${document.sketches.length + 1}`, plane });
+    commit((next) => next.sketches.push(sketch));
+    setActiveSketchId(sketch.id);
+    setSelection({ kind: 'sketch', id: sketch.id });
+    setCommand(null);
+    setWorkspace('sketch');
+    setNotice(`Edytujesz ${sketch.name} na płaszczyźnie ${plane}.`);
+  };
+
+  const editSketch = (sketchId) => {
+    const sketch = document.sketches.find((item) => item.id === sketchId);
+    if (!sketch) return;
+    setActiveSketchId(sketch.id);
+    setSelection({ kind: 'sketch', id: sketch.id });
+    setWorkspace('sketch');
+    setCommand(null);
+    setNotice(`Edytujesz ${sketch.name}.`);
+  };
+
+  const finishSketch = () => {
+    const sketch = document.sketches.find((item) => item.id === activeSketchId);
+    const lastProfile = sketch?.profiles.at(-1);
+    setActiveSketchId(null);
+    setWorkspace('solid');
+    setCommand(null);
+    if (lastProfile) setSelection({ kind: 'profile', id: lastProfile.id, sketchId: sketch.id });
+    setNotice('Szkic zakończony. Wybierz profil i użyj operacji bryłowej.');
+  };
+
+  const openProfileCommand = (type, profile = null) => {
+    if (!activeSketchId) {
+      startSketch();
       return;
     }
-    const target = engine.bodies[0]?.id;
-    const feature = createFeature('extrude', {
-      name: `Wyciągnięcie ${document.features.length + 1}`,
-      profileIds: [selectedProfile.id],
-      distance: 10,
-      operation: target ? 'join' : 'new',
-      targetBodyId: target,
-    });
-    commit((next) => {
-      next.features.push(feature);
-    });
-    setSelection({ kind: 'feature', id: feature.id });
-    setWorkspace('solid');
-    setNotice('Dodano wyciągnięcie. Zmień odległość i typ operacji w panelu właściwości.');
+    if (type === 'rectangle') {
+      setCommand({ type, editId: profile?.id || null, name: profile?.name || `Prostokąt ${document.sketches.flatMap((item) => item.profiles).length + 1}`, width: profile?.geometry.width || '40', height: profile?.geometry.height || '30', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0' });
+    } else {
+      setCommand({ type, editId: profile?.id || null, name: profile?.name || `Okrąg ${document.sketches.flatMap((item) => item.profiles).length + 1}`, diameter: profile?.geometry.diameter || '10', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0' });
+    }
+    setNotice('Ustaw wymiary profilu. Podgląd na płótnie aktualizuje się na bieżąco.');
   };
 
-  const addHole = () => {
-    if (!selectedProfile || selectedProfile.type !== 'circle' || !firstBodyId) {
-      setNotice('Wybierz profil okręgu i upewnij się, że projekt zawiera bryłę.');
+  const confirmProfile = () => {
+    const profile = command.type === 'rectangle'
+      ? createRectangleProfile({ name: command.name, width: command.width, height: command.height, x: command.x, y: command.y })
+      : createCircleProfile({ name: command.name, diameter: command.diameter, x: command.x, y: command.y });
+    if (command.editId) profile.id = command.editId;
+    commit((next) => {
+      const sketch = next.sketches.find((item) => item.id === activeSketchId);
+      if (command.editId) {
+        const index = sketch.profiles.findIndex((item) => item.id === command.editId);
+        sketch.profiles[index] = profile;
+      } else sketch.profiles.push(profile);
+    });
+    setSelection({ kind: 'profile', id: profile.id, sketchId: activeSketchId });
+    setCommand(null);
+    setNotice(`${profile.name} dodany do szkicu.`);
+  };
+
+  const openExtrude = () => {
+    if (!selectedProfile || activeSketchId) {
+      setNotice(activeSketchId ? 'Najpierw zakończ szkic.' : 'Wybierz zamknięty profil w przeglądarce.');
       return;
     }
-    const feature = createFeature('hole', {
-      name: `Otwór ${document.features.length + 1}`,
-      targetBodyId: firstBodyId,
-      profileId: selectedProfile.id,
-      diameter: selectedProfile.geometry.diameter,
-      depth: 10,
-    });
-    commit((next) => {
-      next.features.push(feature);
-    });
-    setSelection({ kind: 'feature', id: feature.id });
-    setWorkspace('solid');
-    setNotice('Dodano otwór. Średnicę i głębokość możesz powiązać z parametrami.');
+    const operation = engine.bodies.length ? 'join' : 'new';
+    setCommand({ type: 'extrude', distance: '10', operation, previewFeature: null });
+    window.setTimeout(() => updateCommand({ distance: '10', operation }), 0);
+    setNotice('Podgląd wyciągnięcia jest aktywny. Potwierdź operację przyciskiem OK.');
   };
 
-  const addEdgeFeature = (type) => {
-    const targetBodyId = selection?.kind === 'body' ? selection.id : firstBodyId;
-    if (!targetBodyId) {
-      setNotice('Najpierw utwórz lub wybierz bryłę.');
+  const openHole = () => {
+    if (!selectedProfile || selectedProfile.type !== 'circle' || !targetBodyId || activeSketchId) {
+      setNotice('Zakończ szkic, wybierz profil okręgu oraz bryłę docelową.');
       return;
     }
-    const feature = createFeature(type, {
-      name: `${type === 'fillet' ? 'Zaokrąglenie' : 'Fazowanie'} ${document.features.length + 1}`,
-      targetBodyId,
-      ...(type === 'fillet' ? { radius: 1 } : { distance: 1 }),
-    });
-    commit((next) => {
-      next.features.push(feature);
-    });
-    setSelection({ kind: 'feature', id: feature.id });
-    setWorkspace('solid');
-    setNotice(type === 'fillet' ? 'Dodano zaokrąglenie wszystkich krawędzi bryły.' : 'Dodano fazowanie wszystkich krawędzi bryły.');
+    setCommand({ type: 'hole', diameter: selectedProfile.geometry.diameter, depth: '10', previewFeature: null });
+    window.setTimeout(() => updateCommand({ diameter: selectedProfile.geometry.diameter, depth: '10' }), 0);
   };
 
-  const addParameter = () => {
-    let number = document.parameters.length + 1;
-    while (document.parameters.some((item) => item.name === `parametr${number}`)) number += 1;
-    const parameter = createParameter(`parametr${number}`, 10, 'mm', `Parametr ${number}`);
+  const openEdgeCommand = (type) => {
+    if (!targetBodyId || activeSketchId) {
+      setNotice('Wybierz bryłę docelową.');
+      return;
+    }
+    setCommand({ type, size: '1', previewFeature: null });
+    window.setTimeout(() => updateCommand({ size: '1' }), 0);
+  };
+
+  const confirmFeature = () => {
+    if (!command?.previewFeature) return;
     commit((next) => {
-      next.parameters.push(parameter);
+      if (command.editId) {
+        const index = next.features.findIndex((feature) => feature.id === command.editId);
+        next.features[index] = command.previewFeature;
+      } else next.features.push(command.previewFeature);
     });
-    setSelection({ kind: 'parameter', id: parameter.id });
-    setNotice('Dodano parametr użytkownika.');
+    setSelection({ kind: 'feature', id: command.previewFeature.id });
+    setWorkspace('solid');
+    setCommand(null);
+    setNotice('Operacja została dodana do parametrycznej osi czasu.');
+  };
+
+  const editSelection = () => {
+    if (selection?.kind === 'sketch') return editSketch(selection.id);
+    if (selection?.kind === 'profile') return openProfileCommand(selectedProfile.type, selectedProfile);
+    if (selection?.kind !== 'feature') return;
+    const feature = document.features.find((item) => item.id === selection.id);
+    if (!feature) return;
+    const profile = document.sketches.flatMap((sketch) => sketch.profiles).find((item) => feature.profileIds?.includes(item.id) || feature.profileId === item.id);
+    if (profile) setSelection({ kind: 'profile', id: profile.id });
+    if (feature.type === 'extrude') setCommand({ type: 'extrude', editId: feature.id, distance: feature.distance, operation: feature.operation, previewFeature: feature });
+    else if (feature.type === 'hole') setCommand({ type: 'hole', editId: feature.id, diameter: feature.diameter, depth: feature.depth, previewFeature: feature });
+    else setCommand({ type: feature.type, editId: feature.id, size: feature.type === 'fillet' ? feature.radius : feature.distance, previewFeature: feature });
+  };
+
+  const createNew = () => {
+    const blank = createDocument('Bez nazwy');
+    history.replace(blank);
+    setSelection({ kind: 'document', id: blank.id });
+    setActiveSketchId(null);
+    setCommand(null);
+    setWorkspace('solid');
+    setNotice('Nowy pusty projekt. Utwórz pierwszy szkic.');
   };
 
   const saveProject = async () => {
     const payload = JSON.stringify(document, null, 2);
     if (window.desktopApp?.saveTextFile) {
-      const result = await window.desktopApp.saveTextFile({
-        defaultName: `${safeName(document.name)}.madcad`,
-        text: payload,
-        filters: [{ name: 'Projekt MadCAD', extensions: ['madcad'] }, { name: 'JSON', extensions: ['json'] }],
-      });
+      const result = await window.desktopApp.saveTextFile({ defaultName: `${safeName(document.name)}.madcad`, text: payload, filters: [{ name: 'Projekt MadCAD', extensions: ['madcad'] }, { name: 'JSON', extensions: ['json'] }] });
       setNotice(result?.ok ? `Zapisano projekt: ${result.filePath}` : result?.canceled ? 'Anulowano zapis.' : `Nie udało się zapisać: ${result?.error || 'nieznany błąd'}`);
     } else {
       downloadBlob(new Blob([payload], { type: 'application/json' }), `${safeName(document.name)}.madcad`);
@@ -483,6 +641,9 @@ export default function ModelingWorkspace({ onClose }) {
       if (!validation.valid) throw new Error(validation.errors.join(' '));
       history.replace(loaded);
       setSelection({ kind: 'document', id: loaded.id });
+      setActiveSketchId(null);
+      setCommand(null);
+      setWorkspace('solid');
       setNotice(`Otwarto projekt ${loaded.name}.`);
     } catch (error) {
       setNotice(`Nie udało się otworzyć projektu: ${error.message}`);
@@ -493,94 +654,115 @@ export default function ModelingWorkspace({ onClose }) {
     setNotice(`Przygotowywanie pliku ${format.toUpperCase()}…`);
     try {
       const buffers = await engine.exportModel(format);
-      buffers.forEach((buffer, index) => {
-        const suffix = buffers.length > 1 ? `-${index + 1}` : '';
-        downloadBlob(
-          new Blob([buffer], { type: format === 'stl' ? 'model/stl' : 'model/step' }),
-          `${safeName(document.name)}${suffix}.${format === 'step' ? 'step' : 'stl'}`,
-        );
-      });
+      buffers.forEach((buffer, index) => downloadBlob(new Blob([buffer], { type: format === 'stl' ? 'model/stl' : 'model/step' }), `${safeName(document.name)}${buffers.length > 1 ? `-${index + 1}` : ''}.${format === 'step' ? 'step' : 'stl'}`));
       setNotice(`Wyeksportowano ${format.toUpperCase()} z dokładnej bryły B-Rep.`);
     } catch (error) {
       setNotice(`Eksport nie powiódł się: ${error.message}`);
     }
   };
 
+  const switchWorkspace = (id) => {
+    if (id === 'tools') {
+      setCommand({ type: 'parameters' });
+      setWorkspace('solid');
+      return;
+    }
+    setCommand(null);
+    setActiveSketchId(null);
+    setWorkspace(id);
+    setNotice(id === 'print' ? 'Sprawdź gabaryty i przygotuj plik do druku 3D.' : 'Obszar modelowania bryłowego.');
+  };
+
   const timelineStatus = new Map(engine.timeline?.map((item) => [item.id, item]));
+  const sketch = document.sketches.find((item) => item.id === activeSketchId);
+  const draftProfile = command?.type === 'rectangle'
+    ? { type: 'rectangle', geometry: { width: command.width, height: command.height, x: command.x, y: command.y } }
+    : command?.type === 'circle'
+      ? { type: 'circle', geometry: { diameter: command.diameter, x: command.x, y: command.y } }
+      : null;
 
   return (
     <section className="modeling-shell" aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
-        <div className="brand-mark">M</div>
-        <div className="document-title"><strong>MadCAD</strong><span>/</span><input value={document.name} aria-label="Nazwa projektu" onChange={(event) => commit((next) => { next.name = event.target.value; })} /></div>
-        <div className="title-actions">
-          <button type="button" onClick={() => { history.replace(createStarterDocument()); setSelection({ kind: 'document' }); setNotice('Utworzono nowy projekt przykładowy.'); }}>Nowy</button>
-          <button type="button" onClick={() => fileInputRef.current?.click()}><FolderOpen size={14} /> Otwórz</button>
-          <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
-          <button type="button" onClick={saveProject}><Save size={14} /> Zapisz</button>
-          <span className="title-divider" />
-          <button type="button" disabled={!history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button>
-          <button type="button" disabled={!history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button>
-          <button className="return-button" type="button" onClick={onClose}><PanelLeftClose size={14} /> Rysunek 2D</button>
-        </div>
+        <div className="app-menu"><div className="brand-mark">M</div><button type="button" title="Strona główna"><Home size={16} /></button><button type="button" title="Panel danych"><Grid2X2 size={16} /></button><button type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button type="button" title="Otwórz projekt" onClick={() => fileInputRef.current?.click()}><FolderOpen size={16} /></button><button type="button" title="Zapisz" onClick={saveProject}><Save size={16} /></button></div>
+        <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
+        <div className="document-tab"><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" onChange={(event) => commit((next) => { next.name = event.target.value; })} /><span>*</span><button type="button" title="Zamknij dokument"><X size={13} /></button></div>
+        <div className="title-actions"><button type="button" disabled={!history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button type="button" disabled={!history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><button type="button" title="Dokumentacja 2D" onClick={onClose}><AppWindow size={15} /><span>Dokumentacja</span></button></div>
       </header>
 
-      <nav className="workspace-tabs" aria-label="Obszary robocze">
-        {WORKSPACES.map((item) => <button key={item.id} className={workspace === item.id ? 'active' : ''} type="button" onClick={() => setWorkspace(item.id)}>{item.label}</button>)}
-      </nav>
+      <section className="command-area">
+        <div className="workspace-switcher"><button type="button"><span>PROJEKT</span><ChevronDown size={13} /></button></div>
+        <div className="command-ribbon">
+          <nav className="workspace-tabs" aria-label="Obszary robocze">
+            {activeSketchId ? <button className="active" type="button">SZKICUJ</button> : MAIN_TABS.map((item) => <button key={item.id} className={workspace === item.id ? 'active' : ''} type="button" disabled={item.disabled} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
+          </nav>
+          <div className="modeling-ribbon">
+            {activeSketchId ? (
+              <>
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} primary /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} /><ToolButton icon={Minus} label="Linia" disabled /><ToolButton icon={Hexagon} label="Wielokąt" disabled /></RibbonGroup>
+                <RibbonGroup label="ZMIANA"><ToolButton icon={Scissors} label="Przytnij" disabled /><ToolButton icon={Move} label="Przesuń" disabled /><ToolButton icon={RotateCw} label="Obróć" disabled /><ToolButton icon={Copy} label="Odsuń" disabled /></RibbonGroup>
+                <RibbonGroup label="WIĄZANIA"><ToolButton icon={Ruler} label="Wymiar" disabled /><ToolButton icon={Lock} label="Ustal" disabled /><ToolButton icon={Settings2} label="Wiązania" disabled /></RibbonGroup>
+                <RibbonGroup label="SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
+              </>
+            ) : workspace === 'print' ? (
+              <>
+                <RibbonGroup label="PRZYGOTUJ"><ToolButton icon={Printer} label="Kontrola druku" primary onClick={() => setWorkspace('print')} /><ToolButton icon={Ruler} label="Wymiary" disabled /></RibbonGroup>
+                <RibbonGroup label="EKSPORT"><ToolButton icon={HardDriveDownload} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
+              </>
+            ) : (
+              <>
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={!selectedProfile} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={selectedProfile?.type !== 'circle' || !engine.bodies.length} /></RibbonGroup>
+                <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={!engine.bodies.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={!engine.bodies.length} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={!['sketch', 'profile', 'feature'].includes(selection?.kind)} /></RibbonGroup>
+                <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Layers3} label="Płaszczyzna" disabled /><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} /></RibbonGroup>
+                <RibbonGroup label="SPRAWDŹ"><ToolButton icon={Ruler} label="Zmierz" disabled /><ToolButton icon={ScanSearch} label="Analiza" disabled /></RibbonGroup>
+                <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Otwórz" onClick={() => fileInputRef.current?.click()} /><ToolButton icon={Layers3} label="Komponent" disabled /></RibbonGroup>
+                <RibbonGroup label="WYBIERZ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
+                <RibbonGroup label="EKSPORT" end><ToolButton icon={FileDown} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={Printer} label="Druk 3D" onClick={() => switchWorkspace('print')} /></RibbonGroup>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
 
-      <div className="modeling-ribbon">
-        <div className="ribbon-group">
-          <WorkspaceButton icon={Square} label="Prostokąt" detail="profil" onClick={() => addProfile('rectangle')} />
-          <WorkspaceButton icon={Circle} label="Okrąg" detail="profil" onClick={() => addProfile('circle')} />
-          <WorkspaceButton icon={Variable} label="Parametr" detail="użytkownika" onClick={addParameter} />
-        </div>
-        <div className="ribbon-group">
-          <WorkspaceButton icon={Box} label="Wyciągnij" detail="profil → bryła" onClick={addExtrude} disabled={!selectedProfile} />
-          <WorkspaceButton icon={Cylinder} label="Otwór" detail="wytnij walec" onClick={addHole} disabled={selectedProfile?.type !== 'circle' || !firstBodyId} />
-          <WorkspaceButton icon={CircleDotDashed} label="Zaokrąglij" detail="krawędzie bryły" onClick={() => addEdgeFeature('fillet')} disabled={!firstBodyId} />
-          <WorkspaceButton icon={Triangle} label="Fazuj" detail="krawędzie bryły" onClick={() => addEdgeFeature('chamfer')} disabled={!firstBodyId} />
-        </div>
-        <div className="ribbon-group ribbon-export">
-          <WorkspaceButton iconText="STL" label="Eksport STL" detail="druk 3D" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} />
-          <WorkspaceButton iconText="STEP" label="Eksport STEP" detail="wymiana CAD" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready'} />
-        </div>
-      </div>
-
-      <div className="modeling-content">
-        <ProjectTree document={document} bodies={engine.bodies} selection={selection} onSelect={setSelection} />
+      <div className={`modeling-content ${workspace === 'print' ? 'with-print-panel' : ''}`}>
+        <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={setSelection} />
         <main className="modeling-stage">
           <ModelViewport
             bodies={engine.bodies}
+            sketches={document.sketches}
+            activeSketchId={activeSketchId}
+            draftProfile={draftProfile}
+            draftType={command?.type === 'rectangle' || command?.type === 'circle' ? command.type : null}
+            onDraftChange={updateCommand}
+            parameters={document.parameters}
+            showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : null}
-            onSelectBody={selectBody}
+            onSelectBody={(id) => setSelection(id ? { kind: 'body', id } : { kind: 'document', id: document.id })}
             bed={document.print}
             showBed={workspace === 'print'}
           />
-          <div className={`engine-status ${engine.status}`}>
-            <span />{engine.status === 'ready' ? `Model gotowy · ${engine.bodies.length} brył` : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie silnika OpenCascade…' : engine.error}
-          </div>
+          <div className={`engine-status ${engine.status}`}><span />{engine.status === 'ready' ? `${command?.previewFeature ? 'Podgląd' : 'Model'} gotowy · ${engine.bodies.length} ${engine.bodies.length === 1 ? 'bryła' : 'brył'}` : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>
+          {!document.sketches.length && !engine.bodies.length && !command && (
+            <div className="empty-canvas"><PencilRuler size={28} /><strong>Zacznij od szkicu</strong><span>Wybierz płaszczyznę, narysuj zamknięty profil i wyciągnij go w bryłę.</span><button type="button" onClick={startSketch}>Utwórz szkic</button></div>
+          )}
+          {command?.type === 'plane' && <PlanePicker onPick={pickPlane} onCancel={() => { setCommand(null); setWorkspace('solid'); }} />}
+          <CommandDialog command={command} profileName={selectedProfile?.name || ''} onChange={updateCommand} onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : confirmFeature} onCancel={() => setCommand(null)} />
+          {command?.type === 'parameters' && <ParametersDialog document={document} commit={commit} onClose={() => setCommand(null)} />}
+          {activeSketchId && <SketchPalette options={sketchOptions} onChange={(key, value) => setSketchOptions((current) => ({ ...current, [key]: value }))} onFinish={finishSketch} />}
         </main>
-        {workspace === 'print'
-          ? <PrintInspector document={document} bodies={engine.bodies} commit={commit} engine={engine} onExport={exportModel} />
-          : <Inspector document={document} selection={selection} bodies={engine.bodies} engine={engine} commit={commit} onSelect={setSelection} />}
+        {workspace === 'print' && <PrintPanel document={document} bodies={engine.bodies} engine={engine} commit={commit} onExport={exportModel} onClose={() => switchWorkspace('solid')} />}
       </div>
 
       <footer className="modeling-footer">
-        <div className="notice" role="status">{engine.error || notice}</div>
-        <div className="timeline" aria-label="Historia operacji">
-          <span className="timeline-label">Historia</span>
+        <div className="notice" role="status"><span className={`status-dot ${engine.status}`} />{engine.error || notice}</div>
+        <div className="timeline" aria-label="Parametryczna oś czasu">
+          <div className="timeline-controls"><button type="button" title="Przejdź na początek"><SkipBack size={14} /></button><button type="button" title="Poprzednia operacja"><StepBack size={14} /></button><button type="button" title="Następna operacja"><StepForward size={14} /></button></div>
+          <span className="timeline-start" />
           {document.features.map((feature, index) => {
             const result = timelineStatus.get(feature.id);
             return (
-              <button
-                key={feature.id}
-                className={`timeline-item ${selection?.kind === 'feature' && selection.id === feature.id ? 'selected' : ''} ${result?.status || ''}`}
-                type="button"
-                onClick={() => setSelection({ kind: 'feature', id: feature.id })}
-                title={result?.error || feature.name}
-              >
-                <span>{feature.type === 'hole' ? <Cylinder size={16} /> : feature.type === 'fillet' ? <CircleDotDashed size={16} /> : feature.type === 'chamfer' ? <Triangle size={16} /> : <Box size={16} />}</span><strong>{index + 1}</strong><em>{feature.name}</em>
+              <button key={feature.id} className={`timeline-item ${selection?.kind === 'feature' && selection.id === feature.id ? 'selected' : ''} ${result?.status || ''}`} type="button" onClick={() => setSelection({ kind: 'feature', id: feature.id })} onDoubleClick={editSelection} title={`${index + 1}. ${feature.name}${result?.error ? ` — ${result.error}` : ''}`}>
+                {featureIcon(feature.type, 16)}<span>{index + 1}</span>
               </button>
             );
           })}

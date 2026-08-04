@@ -793,6 +793,12 @@
   }
 
   async function ensureLanguageOnFirstLaunch() {
+    if (new URLSearchParams(window.location.search).has("verify")) {
+      APP_LANGUAGE = "pl";
+      saveUiLanguage("pl");
+      markLanguageOnboardingCompleted();
+      return true;
+    }
     const storedLanguage = getStoredUiLanguage();
     if (storedLanguage) {
       markLanguageOnboardingCompleted();

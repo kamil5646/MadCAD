@@ -47,7 +47,7 @@ export function prepareDocument(document) {
       const profiles = feature.profileIds.map((profileId) => {
         const match = findProfile(document, profileId);
         if (!match) throw new Error(`Nie znaleziono profilu ${profileId}.`);
-        return resolveProfile(match.profile, parameterResult.values);
+        return { ...resolveProfile(match.profile, parameterResult.values), plane: match.sketch.plane || 'XY' };
       });
       return {
         ...feature,
@@ -63,7 +63,7 @@ export function prepareDocument(document) {
       return {
         ...feature,
         status: 'ready',
-        profile,
+        profile: { ...profile, plane: match.sketch.plane || 'XY' },
         diameterValue: positive(evaluateExpression(feature.diameter, parameterResult.values), 'Średnica otworu'),
         depthValue: positive(evaluateExpression(feature.depth, parameterResult.values), 'Głębokość otworu'),
       };

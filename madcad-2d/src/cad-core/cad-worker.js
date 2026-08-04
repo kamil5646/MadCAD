@@ -28,7 +28,7 @@ function drawingForProfile(profile) {
 }
 
 function extrudeProfile(profile, distance) {
-  return drawingForProfile(profile).sketchOnPlane('XY').extrude(distance);
+  return drawingForProfile(profile).sketchOnPlane(profile.plane || 'XY').extrude(distance);
 }
 
 function combineShapes(shapes) {
@@ -61,12 +61,13 @@ function runFeature(feature, bodyMap, bodyOrder) {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);
     const { x, y } = feature.profile.geometry;
-    const cutter = makeCylinder(
-      feature.diameterValue / 2,
-      feature.depthValue + 2,
-      [x, y, -1],
-      [0, 0, 1]
-    );
+    const plane = feature.profile.plane || 'XY';
+    const placement = plane === 'XZ'
+      ? { origin: [x, 1, y], direction: [0, -1, 0] }
+      : plane === 'YZ'
+        ? { origin: [-1, x, y], direction: [1, 0, 0] }
+        : { origin: [x, y, -1], direction: [0, 0, 1] };
+    const cutter = makeCylinder(feature.diameterValue / 2, feature.depthValue + 2, placement.origin, placement.direction);
     target.shape = target.shape.cut(cutter);
     return;
   }
