@@ -49,6 +49,7 @@ import {
   ZoomIn,
 } from 'lucide-react';
 import {
+  DOCUMENT_SCHEMA_VERSION,
   cloneDocument,
   createCircleProfile,
   createDocument,
@@ -57,8 +58,8 @@ import {
   createRectangleProfile,
   createSketch,
   createStarterDocument,
+  openDocument,
   touchDocument,
-  validateDocument,
 } from '../cad-core/document.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
 import ModelViewport from './ModelViewport.jsx';
@@ -96,11 +97,15 @@ const TOOL_DESCRIPTIONS = {
 function loadInitialDocument() {
   try {
     const saved = window.localStorage.getItem(AUTOSAVE_KEY);
-    if (!saved) return createStarterDocument();
-    const loaded = JSON.parse(saved);
-    return validateDocument(loaded).valid ? loaded : createStarterDocument();
-  } catch {
-    return createStarterDocument();
+    if (!saved) return { document: createStarterDocument(), readOnly: false, warning: '', sourceVersion: null };
+    return openDocument(JSON.parse(saved));
+  } catch (error) {
+    return {
+      document: createStarterDocument(),
+      readOnly: false,
+      warning: `Nie udało się odtworzyć autozapisu: ${error.message}. Utworzono bezpieczny dokument startowy.`,
+      sourceVersion: null,
+    };
   }
 }
 
@@ -385,7 +390,7 @@ function SketchPalette({ options, onChange, onFinish }) {
   );
 }
 
-function PrintPanel({ document, bodies, engine, commit, onExport, onClose }) {
+function PrintPanel({ document, bodies, engine, commit, onExport, onClose, readOnly = false }) {
   const bounds = useMemo(() => {
     if (!bodies.length) return [0, 0, 0];
     const min = [Infinity, Infinity, Infinity];
@@ -403,9 +408,9 @@ function PrintPanel({ document, bodies, engine, commit, onExport, onClose }) {
       <header><div><strong>DRUK 3D</strong><span>Sprawdź model i wyeksportuj siatkę.</span></div><button type="button" onClick={onClose} title="Zamknij"><X size={16} /></button></header>
       <div className="print-section">
         <h3>Objętość robocza</h3>
-        <Field type="number" label="Szerokość X" value={document.print.bedWidth} suffix="mm" onChange={(value) => update('bedWidth', value)} />
-        <Field type="number" label="Głębokość Y" value={document.print.bedDepth} suffix="mm" onChange={(value) => update('bedDepth', value)} />
-        <Field type="number" label="Wysokość Z" value={document.print.bedHeight} suffix="mm" onChange={(value) => update('bedHeight', value)} />
+        <Field type="number" label="Szerokość X" value={document.print.bedWidth} suffix="mm" onChange={(value) => update('bedWidth', value)} disabled={readOnly} />
+        <Field type="number" label="Głębokość Y" value={document.print.bedDepth} suffix="mm" onChange={(value) => update('bedDepth', value)} disabled={readOnly} />
+        <Field type="number" label="Wysokość Z" value={document.print.bedHeight} suffix="mm" onChange={(value) => update('bedHeight', value)} disabled={readOnly} />
       </div>
       <div className="print-section print-summary">
         <h3>Kontrola modelu</h3>
@@ -428,16 +433,31 @@ function featureIcon(type, size = 16) {
 }
 
 export default function ModelingWorkspace({ onClose }) {
-  const history = useDocumentHistory(loadInitialDocument());
-  const { document, commit } = history;
+  const [initialOpen] = useState(loadInitialDocument);
+  const history = useDocumentHistory(initialOpen.document);
+  const { document } = history;
+  const [documentAccess, setDocumentAccess] = useState({
+    readOnly: Boolean(initialOpen.readOnly),
+    sourceVersion: initialOpen.sourceVersion,
+    originalDocument: initialOpen.originalDocument || null,
+  });
   const [workspace, setWorkspace] = useState('solid');
   const [selection, setSelection] = useState({ kind: 'document', id: document.id });
   const [activeSketchId, setActiveSketchId] = useState(null);
   const [command, setCommand] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(true);
   const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, profiles: true, points: true, dimensions: true, constraints: true, construction: true, sketch3d: false });
-  const [notice, setNotice] = useState('Gotowe. Wybierz „Utwórz szkic”, aby rozpocząć modelowanie.');
+  const [notice, setNotice] = useState(initialOpen.warning || 'Gotowe. Wybierz „Utwórz szkic”, aby rozpocząć modelowanie.');
   const fileInputRef = useRef(null);
+  const readOnly = documentAccess.readOnly;
+  const readOnlyNotice = () => setNotice(`Projekt v${documentAccess.sourceVersion} jest otwarty tylko do odczytu. Utwórz nowy projekt albo otwórz obsługiwaną wersję, aby edytować.`);
+  const commit = (mutator) => {
+    if (readOnly) {
+      readOnlyNotice();
+      return;
+    }
+    history.commit(mutator);
+  };
 
   const selectedProfileMatch = document.sketches
     .flatMap((sketch) => sketch.profiles.map((profile) => ({ sketch, profile })))
@@ -462,9 +482,10 @@ export default function ModelingWorkspace({ onClose }) {
   const targetBodyId = selection?.kind === 'body' ? selection.id : (engine.bodies[0]?.id || firstBodyId || null);
 
   useEffect(() => {
+    if (readOnly) return undefined;
     const timeout = window.setTimeout(() => window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(document)), 300);
     return () => window.clearTimeout(timeout);
-  }, [document]);
+  }, [document, readOnly]);
 
   useEffect(() => {
     const verifyMode = new URLSearchParams(window.location.search).has('verify');
@@ -511,12 +532,14 @@ export default function ModelingWorkspace({ onClose }) {
   };
 
   const startSketch = () => {
+    if (readOnly) return readOnlyNotice();
     setWorkspace('sketch');
     setCommand({ type: 'plane' });
     setNotice('Wybierz płaszczyznę szkicu.');
   };
 
   const pickPlane = (plane) => {
+    if (readOnly) return readOnlyNotice();
     const sketch = createSketch({ name: `Szkic ${document.sketches.length + 1}`, plane });
     commit((next) => next.sketches.push(sketch));
     setActiveSketchId(sketch.id);
@@ -547,6 +570,7 @@ export default function ModelingWorkspace({ onClose }) {
   };
 
   const openProfileCommand = (type, profile = null) => {
+    if (readOnly) return readOnlyNotice();
     if (!activeSketchId) {
       startSketch();
       return;
@@ -560,6 +584,7 @@ export default function ModelingWorkspace({ onClose }) {
   };
 
   const confirmProfile = () => {
+    if (readOnly) return readOnlyNotice();
     const profile = command.type === 'rectangle'
       ? createRectangleProfile({ name: command.name, width: command.width, height: command.height, x: command.x, y: command.y })
       : createCircleProfile({ name: command.name, diameter: command.diameter, x: command.x, y: command.y });
@@ -577,6 +602,7 @@ export default function ModelingWorkspace({ onClose }) {
   };
 
   const openExtrude = () => {
+    if (readOnly) return readOnlyNotice();
     if (!selectedProfile || activeSketchId) {
       setNotice(activeSketchId ? 'Najpierw zakończ szkic.' : 'Wybierz zamknięty profil w przeglądarce.');
       return;
@@ -586,6 +612,7 @@ export default function ModelingWorkspace({ onClose }) {
   };
 
   const beginOrUpdateExtrude = (distance) => {
+    if (readOnly) return readOnlyNotice();
     if (!selectedProfile || activeSketchId) return;
     setCommand((current) => {
       const editing = current?.type === 'extrude' ? current : null;
@@ -612,6 +639,7 @@ export default function ModelingWorkspace({ onClose }) {
   };
 
   const openHole = () => {
+    if (readOnly) return readOnlyNotice();
     if (!selectedProfile || selectedProfile.type !== 'circle' || !targetBodyId || activeSketchId) {
       setNotice('Zakończ szkic, wybierz profil okręgu oraz bryłę docelową.');
       return;
@@ -621,6 +649,7 @@ export default function ModelingWorkspace({ onClose }) {
   };
 
   const openEdgeCommand = (type) => {
+    if (readOnly) return readOnlyNotice();
     if (!targetBodyId || activeSketchId) {
       setNotice('Wybierz bryłę docelową.');
       return;
@@ -630,6 +659,7 @@ export default function ModelingWorkspace({ onClose }) {
   };
 
   const confirmFeature = () => {
+    if (readOnly) return readOnlyNotice();
     if (!command?.previewFeature) return;
     commit((next) => {
       if (command.editId) {
@@ -644,6 +674,7 @@ export default function ModelingWorkspace({ onClose }) {
   };
 
   const editSelection = () => {
+    if (readOnly) return readOnlyNotice();
     if (selection?.kind === 'sketch') return editSketch(selection.id);
     if (selection?.kind === 'profile') return openProfileCommand(selectedProfile.type, selectedProfile);
     if (selection?.kind !== 'feature') return;
@@ -659,6 +690,7 @@ export default function ModelingWorkspace({ onClose }) {
   const createNew = () => {
     const blank = createDocument('Bez nazwy');
     history.replace(blank);
+    setDocumentAccess({ readOnly: false, sourceVersion: DOCUMENT_SCHEMA_VERSION, originalDocument: null });
     setSelection({ kind: 'document', id: blank.id });
     setActiveSketchId(null);
     setCommand(null);
@@ -667,10 +699,17 @@ export default function ModelingWorkspace({ onClose }) {
   };
 
   const saveProject = async () => {
+    if (readOnly) return readOnlyNotice();
     const payload = JSON.stringify(document, null, 2);
     if (window.desktopApp?.saveTextFile) {
-      const result = await window.desktopApp.saveTextFile({ defaultName: `${safeName(document.name)}.madcad`, text: payload, filters: [{ name: 'Projekt MadCAD', extensions: ['madcad'] }, { name: 'JSON', extensions: ['json'] }] });
-      setNotice(result?.ok ? `Zapisano projekt: ${result.filePath}` : result?.canceled ? 'Anulowano zapis.' : `Nie udało się zapisać: ${result?.error || 'nieznany błąd'}`);
+      const result = await window.desktopApp.saveTextFile({
+        defaultName: `${safeName(document.name)}.madcad`,
+        text: payload,
+        filters: [{ name: 'Projekt MadCAD', extensions: ['madcad'] }, { name: 'JSON', extensions: ['json'] }],
+        atomic: true,
+        createBackup: true,
+      });
+      setNotice(result?.ok ? `Zapisano projekt atomowo: ${result.filePath}${result.backupPath ? ' · poprzednia wersja: .bak' : ''}` : result?.canceled ? 'Anulowano zapis.' : `Nie udało się zapisać: ${result?.error || 'nieznany błąd'}`);
     } else {
       downloadBlob(new Blob([payload], { type: 'application/json' }), `${safeName(document.name)}.madcad`);
       setNotice('Zapisano projekt MadCAD.');
@@ -682,15 +721,14 @@ export default function ModelingWorkspace({ onClose }) {
     event.target.value = '';
     if (!file) return;
     try {
-      const loaded = JSON.parse(await file.text());
-      const validation = validateDocument(loaded);
-      if (!validation.valid) throw new Error(validation.errors.join(' '));
-      history.replace(loaded);
-      setSelection({ kind: 'document', id: loaded.id });
+      const opened = openDocument(JSON.parse(await file.text()));
+      history.replace(opened.document);
+      setDocumentAccess({ readOnly: opened.readOnly, sourceVersion: opened.sourceVersion, originalDocument: opened.originalDocument });
+      setSelection({ kind: 'document', id: opened.document.id });
       setActiveSketchId(null);
       setCommand(null);
       setWorkspace('solid');
-      setNotice(`Otwarto projekt ${loaded.name}.`);
+      setNotice(`${opened.warning ? `${opened.warning} ` : ''}Otwarto projekt ${opened.document.name}.`);
     } catch (error) {
       setNotice(`Nie udało się otworzyć projektu: ${error.message}`);
     }
@@ -709,6 +747,7 @@ export default function ModelingWorkspace({ onClose }) {
 
   const switchWorkspace = (id) => {
     if (id === 'tools') {
+      if (readOnly) return readOnlyNotice();
       setCommand({ type: 'parameters' });
       setWorkspace('solid');
       return;
@@ -741,6 +780,11 @@ export default function ModelingWorkspace({ onClose }) {
       return;
     }
     if (nextSelection.kind === 'plane') {
+      if (readOnly) {
+        setSelection(nextSelection);
+        readOnlyNotice();
+        return;
+      }
       pickPlane(nextSelection.id);
       return;
     }
@@ -759,14 +803,14 @@ export default function ModelingWorkspace({ onClose }) {
         confirmFeature();
         return;
       }
-      if (event.ctrlKey && event.key.toLowerCase() === 'e' && selectedProfile && !activeSketchId) {
+      if (event.ctrlKey && event.key.toLowerCase() === 'e' && selectedProfile && !activeSketchId && !readOnly) {
         event.preventDefault();
         openExtrude();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [command, selectedProfile, activeSketchId]);
+  }, [command, selectedProfile, activeSketchId, readOnly]);
 
   const timelineStatus = new Map(engine.timeline?.map((item) => [item.id, item]));
   const sketch = document.sketches.find((item) => item.id === activeSketchId);
@@ -779,10 +823,10 @@ export default function ModelingWorkspace({ onClose }) {
   return (
     <section className="modeling-shell" aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
-        <div className="app-menu"><div className="brand-mark">M</div><button type="button" title="Dokumentacja" onClick={onClose}><Home size={16} /></button><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button type="button" title="Otwórz projekt" onClick={() => fileInputRef.current?.click()}><FolderOpen size={16} /></button><button type="button" title="Zapisz" onClick={saveProject}><Save size={16} /></button></div>
+        <div className="app-menu"><div className="brand-mark">M</div><button type="button" title="Dokumentacja" onClick={onClose}><Home size={16} /></button><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button type="button" title="Otwórz projekt" onClick={() => fileInputRef.current?.click()}><FolderOpen size={16} /></button><button type="button" title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : 'Zapisz'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
-        <div className="document-tab"><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" onChange={(event) => commit((next) => { next.name = event.target.value; })} /><span>*</span><button type="button" title="Zamknij dokument" onClick={onClose}><X size={13} /></button></div>
-        <div className="title-actions"><button type="button" disabled={!history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button type="button" disabled={!history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><button type="button" title="Dokumentacja 2D" onClick={onClose}><AppWindow size={15} /><span>Dokumentacja</span></button></div>
+        <div className="document-tab"><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" disabled={readOnly} onChange={(event) => commit((next) => { next.name = event.target.value; })} />{readOnly ? <span className="read-only-badge">TYLKO ODCZYT · v{documentAccess.sourceVersion}</span> : <span>*</span>}<button type="button" title="Zamknij dokument" onClick={onClose}><X size={13} /></button></div>
+        <div className="title-actions"><button type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><button type="button" title="Dokumentacja 2D" onClick={onClose}><AppWindow size={15} /><span>Dokumentacja</span></button></div>
       </header>
 
       <section className="command-area">
@@ -794,7 +838,7 @@ export default function ModelingWorkspace({ onClose }) {
           <div className="modeling-ribbon">
             {activeSketchId ? (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} primary /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} /></RibbonGroup>
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} primary disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
             ) : workspace === 'print' ? (
@@ -804,9 +848,9 @@ export default function ModelingWorkspace({ onClose }) {
               </>
             ) : (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={!selectedProfile} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={selectedProfile?.type !== 'circle' || !engine.bodies.length} /></RibbonGroup>
-                <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={!engine.bodies.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={!engine.bodies.length} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={!['sketch', 'profile', 'feature'].includes(selection?.kind)} /></RibbonGroup>
-                <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} /></RibbonGroup>
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || !selectedProfile} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || selectedProfile?.type !== 'circle' || !engine.bodies.length} /></RibbonGroup>
+                <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !engine.bodies.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !engine.bodies.length} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature'].includes(selection?.kind)} /></RibbonGroup>
+                <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Otwórz" onClick={() => fileInputRef.current?.click()} /></RibbonGroup>
                 <RibbonGroup label="WYBIERZ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
                 <RibbonGroup label="EKSPORT" end><ToolButton icon={FileDown} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={Printer} label="Druk 3D" onClick={() => switchWorkspace('print')} /></RibbonGroup>
@@ -825,7 +869,7 @@ export default function ModelingWorkspace({ onClose }) {
             activeSketchId={activeSketchId}
             draftProfile={draftProfile}
             draftType={command?.type === 'rectangle' || command?.type === 'circle' ? command.type : null}
-            onDraftChange={updateCommand}
+            onDraftChange={readOnly ? undefined : updateCommand}
             parameters={document.parameters}
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : null}
@@ -833,13 +877,13 @@ export default function ModelingWorkspace({ onClose }) {
             selectedProfile={selectedProfile}
             selectedProfilePlane={selectedProfileMatch?.sketch.plane || 'XY'}
             directExtrudeDistance={command?.type === 'extrude' ? command.distance : 0}
-            onDirectExtrude={beginOrUpdateExtrude}
+            onDirectExtrude={readOnly ? undefined : beginOrUpdateExtrude}
             snapEnabled={sketchOptions.snap}
             bed={document.print}
             showBed={workspace === 'print'}
           />
           <div className={`engine-status ${engine.status}`}><span />{engine.status === 'ready' ? `${command?.previewFeature ? 'Podgląd' : 'Model'} gotowy · ${engine.bodies.length} ${engine.bodies.length === 1 ? 'bryła' : 'brył'}` : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>
-          {!document.sketches.length && !engine.bodies.length && !command && (
+          {!document.sketches.length && !engine.bodies.length && !command && !readOnly && (
             <div className="empty-canvas"><PencilRuler size={28} /><strong>Zacznij od szkicu</strong><span>Wybierz płaszczyznę, narysuj zamknięty profil i wyciągnij go w bryłę.</span><button type="button" onClick={startSketch}>Utwórz szkic</button></div>
           )}
           {command?.type === 'plane' && <PlanePicker onPick={pickPlane} onCancel={() => { setCommand(null); setWorkspace('solid'); }} />}
@@ -847,7 +891,7 @@ export default function ModelingWorkspace({ onClose }) {
           {command?.type === 'parameters' && <ParametersDialog document={document} commit={commit} onClose={() => setCommand(null)} />}
           {activeSketchId && <SketchPalette options={sketchOptions} onChange={(key, value) => setSketchOptions((current) => ({ ...current, [key]: value }))} onFinish={finishSketch} />}
         </main>
-        {workspace === 'print' && <PrintPanel document={document} bodies={engine.bodies} engine={engine} commit={commit} onExport={exportModel} onClose={() => switchWorkspace('solid')} />}
+        {workspace === 'print' && <PrintPanel document={document} bodies={engine.bodies} engine={engine} commit={commit} onExport={exportModel} onClose={() => switchWorkspace('solid')} readOnly={readOnly} />}
       </div>
 
       <footer className="modeling-footer">

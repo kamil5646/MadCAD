@@ -73,6 +73,8 @@ Pełny szkic 3D, zaawansowane analizy powierzchni, CAM, FEA i elektronika nie s�
 - [x] Kontrola gabarytu względem pola drukarki oraz eksport STL i STEP.
 - [x] Opisy aktywnych narzędzi po najechaniu.
 - [x] Aktywacja licencji tymczasowo wyłączona jednym przełącznikiem; kod licencji zachowany.
+- [x] Schemat dokumentu v3, migracja v2 → v3, szczegółowa walidacja i bezpieczny podgląd nowszego zgodnego formatu tylko do odczytu.
+- [x] Atomowy zapis projektu i autozapisu z kopią poprzedniej poprawnej wersji `.bak`.
 
 ### Działa tylko częściowo
 
@@ -80,7 +82,6 @@ Pełny szkic 3D, zaawansowane analizy powierzchni, CAM, FEA i elektronika nie s�
 - [~] Zaokrąglenie i fazowanie obejmuje wszystkie możliwe krawędzie zamiast wybranych krawędzi.
 - [~] Przygotowanie do druku sprawdza gabaryty, ale nie analizuje grubości ścian, nawisów, samoprzecięć ani szczelności siatki.
 - [~] Oś czasu pozwala wybierać i edytować parametry, ale nie ma rollback, zmiany kolejności i pełnego menu operacji.
-- [~] Dokument ma `schemaVersion`, lecz starsze i przyszłe wersje są odrzucane zamiast przechodzić przez rejestr migracji.
 - [~] Worker CAD izoluje OpenCascade od UI, ale nie ma anulowania/stemplowania generacji, cache siatki ani gwarancji, że eksport dotyczy dokładnie bieżącej rewizji dokumentu.
 - [~] Aktualizator wykrywa GitHub Releases i uruchamia instalator na Windows/macOS, ale nie ma kanałów, jawnej weryfikacji integralności, rollback i testów przerwanego procesu.
 - [~] Widoczna nazwa produktu to MadCAD, lecz identyfikatory techniczne i repozytorium nadal zawierają `MadCAD2D`; zmiana musi zachować dane i ciągłość aktualizacji.
@@ -104,12 +105,14 @@ Cel wydania: kolejne narzędzia powstają na stabilnym dokumencie, grafie zależ
 
 ### R0.1 — format dokumentu i migracje `L`
 
-- [ ] Ustalić schemat v3 dla `entities`, `profiles`, `constraints`, `dimensions`, `features`, `bodies`, `components` i referencji topologicznych.
-- [ ] Dodać rejestr migracji `v2 -> v3`; zachować istniejące prostokąty, okręgi, operacje, parametry i ustawienia druku.
-- [ ] Dodać walidację strukturalną z komunikatem wskazującym pole i operację, która zerwała referencję.
-- [ ] Nowszy nieznany format otwierać tylko do odczytu zamiast go nadpisywać.
-- [ ] Zapisywać projekt atomowo: plik tymczasowy, flush, podmiana i zachowana kopia ostatniej poprawnej wersji.
-- [ ] Fixture v2 i test: migracja → zapis v3 → ponowne otwarcie → identyczna geometria i historia.
+- [x] Ustalić schemat v3 dla `entities`, `profiles`, `constraints`, `dimensions`, `features`, `bodies`, `components` i referencji topologicznych.
+- [x] Dodać rejestr migracji `v2 -> v3`; zachować istniejące prostokąty, okręgi, operacje, parametry i ustawienia druku.
+- [x] Dodać walidację strukturalną z komunikatem wskazującym pole i operację, która zerwała referencję.
+- [x] Nowszy nieznany format otwierać tylko do odczytu zamiast go nadpisywać.
+- [x] Zapisywać projekt atomowo: plik tymczasowy, flush, podmiana i zachowana kopia ostatniej poprawnej wersji.
+- [x] Fixture v2 i test: migracja → zapis v3 → ponowne otwarcie → identyczna geometria i historia.
+
+Wynik R0.1: `npm run test:core` — 8/8; `npm run verify:modeling` — pełny przepływ desktopowy oraz eksport STL/STEP zaliczony; build produkcyjny poprawny.
 
 ### R0.2 — kontrakty geometrii i historia `XL`
 
@@ -495,6 +498,6 @@ Cel wydania: MadCAD przygotowuje wiarygodny model do slicera i wykrywa najczęst
 
 ## Następne pojedyncze zadanie
 
-`R0.1 — format dokumentu i migracja v2 -> v3`.
+`R0.2 — kontrakty geometrii i historia`.
 
-Po zamknięciu R0.1 przechodzimy do R0.2, a dopiero po spełnieniu kryterium całego R0 rozpoczynamy R1.1. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.
+R0.1 jest zamknięte i zweryfikowane. Teraz realizujemy wyłącznie R0.2, a dopiero po spełnieniu kryterium całego R0 rozpoczynamy R1.1. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.

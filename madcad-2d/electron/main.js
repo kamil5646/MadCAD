@@ -5,6 +5,7 @@ const https = require('https');
 const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 const { app, BrowserWindow, Menu, shell, nativeImage, dialog, ipcMain } = require('electron');
+const { atomicWriteTextFile } = require('./atomic-file.cjs');
 
 const execFileAsync = promisify(execFile);
 
@@ -1436,8 +1437,10 @@ ipcMain.handle('madcad:save-text-file', async (event, payload) => {
       return { ok: false, canceled: true };
     }
 
-    await fs.writeFile(result.filePath, text, 'utf8');
-    return { ok: true, canceled: false, filePath: result.filePath };
+    const writeResult = payload?.atomic
+      ? await atomicWriteTextFile(result.filePath, text, { backup: payload.createBackup !== false })
+      : (await fs.writeFile(result.filePath, text, 'utf8'), { filePath: result.filePath, backupPath: null });
+    return { ok: true, canceled: false, ...writeResult };
   } catch (error) {
     return {
       ok: false,
@@ -1608,10 +1611,10 @@ ipcMain.handle('madcad:autosave-write', async (_event, payload) => {
     }
     const autoSavePath = getAutoSavePath();
     await fs.mkdir(path.dirname(autoSavePath), { recursive: true });
-    await fs.writeFile(autoSavePath, text, 'utf8');
+    const writeResult = await atomicWriteTextFile(autoSavePath, text, { backup: true });
     return {
       ok: true,
-      filePath: autoSavePath,
+      ...writeResult,
       savedAt: new Date().toISOString()
     };
   } catch (error) {

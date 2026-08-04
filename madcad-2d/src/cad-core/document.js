@@ -1,6 +1,54 @@
 import { createId } from './ids.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 2;
+export const DOCUMENT_SCHEMA_VERSION = 3;
+export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
+
+const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
+const FEATURE_TYPES = new Set(['extrude', 'hole', 'fillet', 'chamfer']);
+const PROFILE_TYPES = new Set(['rectangle', 'circle']);
+
+function isRecord(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function readSchemaVersion(document) {
+  const version = document?.schemaVersion;
+  return Number.isInteger(version) && version > 0 ? version : null;
+}
+
+function ensureV3Collections(document) {
+  if (document.bodies === undefined) document.bodies = [];
+  if (document.components === undefined) document.components = [];
+  if (document.references === undefined) document.references = [];
+  if (Array.isArray(document.sketches)) {
+    document.sketches = document.sketches.map((sketch) => {
+      if (!isRecord(sketch)) return sketch;
+      return {
+        ...sketch,
+        entities: sketch.entities === undefined ? [] : sketch.entities,
+        constraints: sketch.constraints === undefined ? [] : sketch.constraints,
+        dimensions: sketch.dimensions === undefined ? [] : sketch.dimensions,
+      };
+    });
+  }
+  return document;
+}
+
+function migrateV2ToV3(source, now) {
+  const migrated = ensureV3Collections(cloneDocument(source));
+  migrated.schemaVersion = 3;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: 2,
+    migratedAt: now,
+    modifiedAt: now,
+  };
+  return migrated;
+}
+
+const MIGRATIONS = new Map([
+  [2, migrateV2ToV3],
+]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
   return { id: createId('param'), name, label, expression: String(expression), unit };
@@ -27,7 +75,17 @@ export function createCircleProfile({ name = 'Okrąg', diameter = 'srednicaOtwor
 }
 
 export function createSketch({ name = 'Szkic', plane = 'XY', profiles = [] } = {}) {
-  return { id: createId('sketch'), name, type: 'sketch', plane, visible: true, profiles };
+  return {
+    id: createId('sketch'),
+    name,
+    type: 'sketch',
+    plane,
+    visible: true,
+    entities: [],
+    profiles,
+    constraints: [],
+    dimensions: [],
+  };
 }
 
 export function createFeature(type, options = {}) {
@@ -50,6 +108,9 @@ export function createDocument(name = 'Nowy projekt') {
     parameters: [],
     sketches: [],
     features: [],
+    bodies: [],
+    components: [],
+    references: [],
     print: { bedWidth: 220, bedDepth: 220, bedHeight: 250, material: 'PLA' },
     metadata: { createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }
   };
@@ -96,22 +157,267 @@ export function touchDocument(document) {
 }
 
 export function findProfile(document, profileId) {
-  for (const sketch of document.sketches) {
+  for (const sketch of document?.sketches || []) {
     const profile = sketch.profiles.find((item) => item.id === profileId);
     if (profile) return { sketch, profile };
   }
   return null;
 }
 
-export function validateDocument(document) {
-  const errors = [];
-  if (!document || document.schemaVersion !== DOCUMENT_SCHEMA_VERSION) errors.push('Nieobsługiwana wersja dokumentu.');
-  if (!document?.name?.trim()) errors.push('Projekt musi mieć nazwę.');
-  const parameterNames = new Set();
-  for (const parameter of document?.parameters || []) {
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(parameter.name)) errors.push(`Nieprawidłowa nazwa parametru: ${parameter.name}`);
-    if (parameterNames.has(parameter.name)) errors.push(`Powtórzony parametr: ${parameter.name}`);
-    parameterNames.add(parameter.name);
+export function migrateDocument(source, { now = new Date().toISOString() } = {}) {
+  if (!isRecord(source)) throw new Error('Dokument musi być obiektem JSON.');
+  const sourceVersion = readSchemaVersion(source);
+  if (!sourceVersion) throw new Error('Dokument nie zawiera prawidłowego numeru schemaVersion.');
+  if (sourceVersion > DOCUMENT_SCHEMA_VERSION) {
+    throw new Error(`Projekt używa nowszego formatu v${sourceVersion}; bieżąca wersja obsługuje v${DOCUMENT_SCHEMA_VERSION}.`);
   }
-  return { valid: errors.length === 0, errors };
+  if (sourceVersion < MIN_MIGRATABLE_SCHEMA_VERSION) {
+    throw new Error(`Brak bezpiecznej ścieżki migracji formatu v${sourceVersion}.`);
+  }
+
+  let document = cloneDocument(source);
+  let version = sourceVersion;
+  while (version < DOCUMENT_SCHEMA_VERSION) {
+    const migration = MIGRATIONS.get(version);
+    if (!migration) throw new Error(`Brak migracji formatu v${version} -> v${version + 1}.`);
+    document = migration(document, now);
+    version = readSchemaVersion(document);
+  }
+  return document;
+}
+
+function projectFutureDocument(source) {
+  const projected = ensureV3Collections(cloneDocument(source));
+  projected.schemaVersion = DOCUMENT_SCHEMA_VERSION;
+  projected.metadata = {
+    ...(isRecord(projected.metadata) ? projected.metadata : {}),
+    openedFromNewerVersion: source.schemaVersion,
+  };
+  return projected;
+}
+
+export function openDocument(source, options = {}) {
+  if (!isRecord(source)) throw new Error('Dokument musi być obiektem JSON.');
+  const sourceVersion = readSchemaVersion(source);
+  if (!sourceVersion) throw new Error('Dokument nie zawiera prawidłowego numeru schemaVersion.');
+
+  if (sourceVersion > DOCUMENT_SCHEMA_VERSION) {
+    const projected = projectFutureDocument(source);
+    const validation = validateDocument(projected);
+    if (!validation.valid) {
+      throw new Error(`Projekt v${sourceVersion} nie jest zgodny nawet w trybie podglądu. ${validation.errors.join(' ')}`);
+    }
+    return {
+      document: projected,
+      originalDocument: cloneDocument(source),
+      sourceVersion,
+      migrated: false,
+      readOnly: true,
+      warning: `Projekt ma nowszy format v${sourceVersion}. Otworzono zgodną część tylko do odczytu; zapis jest zablokowany.`,
+    };
+  }
+
+  const document = migrateDocument(source, options);
+  const validation = validateDocument(document);
+  if (!validation.valid) throw new Error(validation.errors.join(' '));
+  return {
+    document,
+    originalDocument: null,
+    sourceVersion,
+    migrated: sourceVersion !== DOCUMENT_SCHEMA_VERSION,
+    readOnly: false,
+    warning: sourceVersion === DOCUMENT_SCHEMA_VERSION
+      ? ''
+      : `Projekt został bezpiecznie zmigrowany z v${sourceVersion} do v${DOCUMENT_SCHEMA_VERSION}.`,
+  };
+}
+
+export function validateDocument(document) {
+  const issues = [];
+  const add = (path, message, code = 'INVALID') => issues.push({ path, message, code });
+  const requireArray = (owner, key, path = key) => {
+    if (!Array.isArray(owner?.[key])) {
+      add(path, 'Wymagana jest tablica.', 'TYPE');
+      return [];
+    }
+    return owner[key];
+  };
+
+  if (!isRecord(document)) {
+    add('$', 'Dokument musi być obiektem JSON.', 'TYPE');
+    return { valid: false, errors: issues.map((issue) => `${issue.path}: ${issue.message}`), issues };
+  }
+  if (document.schemaVersion !== DOCUMENT_SCHEMA_VERSION) {
+    add('schemaVersion', `Oczekiwano wersji ${DOCUMENT_SCHEMA_VERSION}.`, 'VERSION');
+  }
+  if (typeof document.id !== 'string' || !document.id.trim()) add('id', 'Dokument musi mieć niepuste ID.', 'REQUIRED');
+  if (typeof document.name !== 'string' || !document.name.trim()) add('name', 'Projekt musi mieć nazwę.', 'REQUIRED');
+  if (document.units !== 'mm') add('units', 'Bieżąca wersja obsługuje jednostkę dokumentu „mm”.', 'UNSUPPORTED');
+
+  const parameters = requireArray(document, 'parameters');
+  const sketches = requireArray(document, 'sketches');
+  const features = requireArray(document, 'features');
+  const bodies = requireArray(document, 'bodies');
+  const components = requireArray(document, 'components');
+  const references = requireArray(document, 'references');
+  if (!isRecord(document.print)) add('print', 'Wymagane są ustawienia druku.', 'TYPE');
+  if (!isRecord(document.metadata)) add('metadata', 'Wymagane są metadane dokumentu.', 'TYPE');
+
+  const allIds = new Map();
+  const registerId = (value, path) => {
+    if (typeof value !== 'string' || !value.trim()) {
+      add(path, 'Wymagane jest niepuste ID.', 'REQUIRED');
+      return;
+    }
+    if (allIds.has(value)) add(path, `ID „${value}” jest już użyte w ${allIds.get(value)}.`, 'DUPLICATE_ID');
+    else allIds.set(value, path);
+  };
+  registerId(document.id, 'id');
+
+  const parameterNames = new Set();
+  parameters.forEach((parameter, index) => {
+    const base = `parameters[${index}]`;
+    if (!isRecord(parameter)) {
+      add(base, 'Parametr musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(parameter.id, `${base}.id`);
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(parameter.name || '')) add(`${base}.name`, `Nieprawidłowa nazwa parametru: ${parameter.name ?? ''}`, 'FORMAT');
+    if (parameterNames.has(parameter.name)) add(`${base}.name`, `Powtórzony parametr: ${parameter.name}`, 'DUPLICATE');
+    parameterNames.add(parameter.name);
+    if (typeof parameter.expression !== 'string' && typeof parameter.expression !== 'number') add(`${base}.expression`, 'Wyrażenie musi być tekstem albo liczbą.', 'TYPE');
+    if (typeof parameter.unit !== 'string' || !parameter.unit) add(`${base}.unit`, 'Parametr musi mieć jednostkę.', 'REQUIRED');
+  });
+
+  const sketchIds = new Set();
+  const profileOwners = new Map();
+  sketches.forEach((sketch, sketchIndex) => {
+    const base = `sketches[${sketchIndex}]`;
+    if (!isRecord(sketch)) {
+      add(base, 'Szkic musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(sketch.id, `${base}.id`);
+    if (typeof sketch.id === 'string') sketchIds.add(sketch.id);
+    if (sketch.type !== 'sketch') add(`${base}.type`, 'Typ szkicu musi mieć wartość „sketch”.', 'VALUE');
+    if (!SUPPORTED_PLANES.has(sketch.plane)) add(`${base}.plane`, `Nieobsługiwana płaszczyzna: ${sketch.plane ?? ''}.`, 'UNSUPPORTED');
+    const profiles = requireArray(sketch, 'profiles', `${base}.profiles`);
+    const entities = requireArray(sketch, 'entities', `${base}.entities`);
+    const constraints = requireArray(sketch, 'constraints', `${base}.constraints`);
+    const dimensions = requireArray(sketch, 'dimensions', `${base}.dimensions`);
+    const entityIds = new Set();
+    entities.forEach((entity, entityIndex) => {
+      const entityBase = `${base}.entities[${entityIndex}]`;
+      if (!isRecord(entity)) {
+        add(entityBase, 'Encja szkicu musi być obiektem.', 'TYPE');
+        return;
+      }
+      registerId(entity.id, `${entityBase}.id`);
+      if (typeof entity.id === 'string') entityIds.add(entity.id);
+      if (typeof entity.type !== 'string' || !entity.type.trim()) add(`${entityBase}.type`, 'Encja musi mieć typ.', 'REQUIRED');
+    });
+    const validateEntityReferences = (owner, ownerBase) => {
+      const referencedIds = Array.isArray(owner.entityIds)
+        ? owner.entityIds
+        : typeof owner.entityId === 'string'
+          ? [owner.entityId]
+          : [];
+      referencedIds.forEach((entityId, referenceIndex) => {
+        if (!entityIds.has(entityId)) add(`${ownerBase}.entityIds[${referenceIndex}]`, `Nie znaleziono encji szkicu „${entityId}”.`, 'BROKEN_REFERENCE');
+      });
+    };
+    constraints.forEach((constraint, constraintIndex) => {
+      const constraintBase = `${base}.constraints[${constraintIndex}]`;
+      if (!isRecord(constraint)) {
+        add(constraintBase, 'Wiązanie musi być obiektem.', 'TYPE');
+        return;
+      }
+      registerId(constraint.id, `${constraintBase}.id`);
+      if (typeof constraint.type !== 'string' || !constraint.type.trim()) add(`${constraintBase}.type`, 'Wiązanie musi mieć typ.', 'REQUIRED');
+      validateEntityReferences(constraint, constraintBase);
+    });
+    dimensions.forEach((dimension, dimensionIndex) => {
+      const dimensionBase = `${base}.dimensions[${dimensionIndex}]`;
+      if (!isRecord(dimension)) {
+        add(dimensionBase, 'Wymiar musi być obiektem.', 'TYPE');
+        return;
+      }
+      registerId(dimension.id, `${dimensionBase}.id`);
+      if (typeof dimension.type !== 'string' || !dimension.type.trim()) add(`${dimensionBase}.type`, 'Wymiar musi mieć typ.', 'REQUIRED');
+      validateEntityReferences(dimension, dimensionBase);
+    });
+    profiles.forEach((profile, profileIndex) => {
+      const profileBase = `${base}.profiles[${profileIndex}]`;
+      if (!isRecord(profile)) {
+        add(profileBase, 'Profil musi być obiektem.', 'TYPE');
+        return;
+      }
+      registerId(profile.id, `${profileBase}.id`);
+      if (typeof profile.id === 'string') profileOwners.set(profile.id, sketch.id);
+      if (!PROFILE_TYPES.has(profile.type)) add(`${profileBase}.type`, `Nieobsługiwany profil: ${profile.type ?? ''}.`, 'UNSUPPORTED');
+      if (!isRecord(profile.geometry)) add(`${profileBase}.geometry`, 'Profil musi zawierać geometrię.', 'TYPE');
+      if (Array.isArray(profile.entityIds)) profile.entityIds.forEach((entityId, entityIndex) => {
+        if (!entityIds.has(entityId)) add(`${profileBase}.entityIds[${entityIndex}]`, `Nie znaleziono encji szkicu „${entityId}”.`, 'BROKEN_REFERENCE');
+      });
+    });
+  });
+
+  const bodyIds = new Set();
+  bodies.forEach((body, index) => {
+    const base = `bodies[${index}]`;
+    if (!isRecord(body)) {
+      add(base, 'Bryła musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(body.id, `${base}.id`);
+    if (typeof body.id === 'string') bodyIds.add(body.id);
+  });
+
+  components.forEach((component, index) => {
+    const base = `components[${index}]`;
+    if (!isRecord(component)) add(base, 'Komponent musi być obiektem.', 'TYPE');
+    else registerId(component.id, `${base}.id`);
+  });
+  references.forEach((reference, index) => {
+    const base = `references[${index}]`;
+    if (!isRecord(reference)) add(base, 'Referencja musi być obiektem.', 'TYPE');
+    else registerId(reference.id, `${base}.id`);
+  });
+
+  features.forEach((feature, featureIndex) => {
+    const base = `features[${featureIndex}]`;
+    if (!isRecord(feature)) {
+      add(base, 'Operacja musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(feature.id, `${base}.id`);
+    if (!FEATURE_TYPES.has(feature.type)) add(`${base}.type`, `Nieobsługiwana operacja: ${feature.type ?? ''}.`, 'UNSUPPORTED');
+    if (typeof feature.suppressed !== 'boolean') add(`${base}.suppressed`, 'Pole suppressed musi być logiczne.', 'TYPE');
+
+    if (feature.type === 'extrude') {
+      if (!sketchIds.has(feature.sketchId)) add(`${base}.sketchId`, `Nie znaleziono szkicu „${feature.sketchId ?? ''}”.`, 'BROKEN_REFERENCE');
+      if (!Array.isArray(feature.profileIds) || !feature.profileIds.length) add(`${base}.profileIds`, 'Wyciągnięcie wymaga co najmniej jednego profilu.', 'REQUIRED');
+      else feature.profileIds.forEach((profileId, profileIndex) => {
+        if (!profileOwners.has(profileId)) add(`${base}.profileIds[${profileIndex}]`, `Nie znaleziono profilu „${profileId}”.`, 'BROKEN_REFERENCE');
+        else if (profileOwners.get(profileId) !== feature.sketchId) add(`${base}.profileIds[${profileIndex}]`, `Profil „${profileId}” nie należy do szkicu „${feature.sketchId}”.`, 'BROKEN_REFERENCE');
+      });
+      if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, `Nieobsługiwana operacja: ${feature.operation ?? ''}.`, 'UNSUPPORTED');
+      if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
+      else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono wcześniejszej bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
+    }
+
+    if (feature.type === 'hole') {
+      if (!sketchIds.has(feature.sketchId)) add(`${base}.sketchId`, `Nie znaleziono szkicu „${feature.sketchId ?? ''}”.`, 'BROKEN_REFERENCE');
+      if (!profileOwners.has(feature.profileId)) add(`${base}.profileId`, `Nie znaleziono profilu „${feature.profileId ?? ''}”.`, 'BROKEN_REFERENCE');
+      else if (profileOwners.get(feature.profileId) !== feature.sketchId) add(`${base}.profileId`, `Profil „${feature.profileId}” nie należy do szkicu „${feature.sketchId}”.`, 'BROKEN_REFERENCE');
+      if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono wcześniejszej bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
+    }
+
+    if ((feature.type === 'fillet' || feature.type === 'chamfer') && !bodyIds.has(feature.targetBodyId)) {
+      add(`${base}.targetBodyId`, `Nie znaleziono wcześniejszej bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
+    }
+  });
+
+  const errors = issues.map((issue) => `${issue.path}: ${issue.message}`);
+  return { valid: errors.length === 0, errors, issues };
 }

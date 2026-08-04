@@ -155,6 +155,20 @@
   color: #aeb8c3;
 }
 
+.document-tab .read-only-badge {
+  max-width: 150px;
+  overflow: hidden;
+  border: 1px solid #d89a36;
+  border-radius: 3px;
+  padding: 2px 5px;
+  color: #ffd58e;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .document-tab button {
   position: absolute;
   right: 3px;
