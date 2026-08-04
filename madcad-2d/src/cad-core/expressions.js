@@ -105,6 +105,14 @@ export function evaluateExpression(expression, parameters = {}) {
   return stack[0];
 }
 
+export function listExpressionIdentifiers(expression) {
+  const source = String(expression ?? '').trim();
+  if (!source) return [];
+  return [...new Set(tokenize(source)
+    .filter((token) => token.type === 'identifier')
+    .map((token) => token.value))];
+}
+
 export function resolveParameters(parameters) {
   const resolved = {};
   const pending = new Map(parameters.map((parameter) => [parameter.name, parameter]));

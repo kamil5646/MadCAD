@@ -1,8 +1,18 @@
 import { evaluateExpression, resolveParameters } from './expressions.js';
 import { findProfile, validateDocument } from './document.js';
+import { buildDependencyGraph } from './dependency-graph.js';
+import { GEOMETRY_POLICY, isPositiveLength } from './geometry-policy.js';
+
+export const FEATURE_STATUS = Object.freeze({
+  OK: 'ok',
+  WARNING: 'warning',
+  ERROR: 'error',
+  SUPPRESSED: 'suppressed',
+  STALE: 'stale',
+});
 
 function positive(value, label) {
-  if (!(value > 0)) throw new Error(`${label} musi być większe od zera.`);
+  if (!isPositiveLength(value)) throw new Error(`${label} musi być większe od ${GEOMETRY_POLICY.linearTolerance} mm.`);
   return value;
 }
 
@@ -41,8 +51,9 @@ export function prepareDocument(document) {
     throw new Error(message);
   }
 
+  const dependencyGraph = buildDependencyGraph(document);
   const features = document.features.map((feature) => {
-    if (feature.suppressed) return { ...feature, status: 'suppressed' };
+    if (feature.suppressed) return { ...feature, status: FEATURE_STATUS.SUPPRESSED, diagnostics: [] };
     if (feature.type === 'extrude') {
       const profiles = feature.profileIds.map((profileId) => {
         const match = findProfile(document, profileId);
@@ -52,6 +63,7 @@ export function prepareDocument(document) {
       return {
         ...feature,
         status: 'ready',
+        diagnostics: [],
         distanceValue: positive(evaluateExpression(feature.distance, parameterResult.values), 'Odległość wyciągnięcia'),
         profiles,
       };
@@ -63,6 +75,7 @@ export function prepareDocument(document) {
       return {
         ...feature,
         status: 'ready',
+        diagnostics: [],
         profile: { ...profile, plane: match.sketch.plane || 'XY' },
         diameterValue: positive(evaluateExpression(feature.diameter, parameterResult.values), 'Średnica otworu'),
         depthValue: positive(evaluateExpression(feature.depth, parameterResult.values), 'Głębokość otworu'),
@@ -73,11 +86,12 @@ export function prepareDocument(document) {
       return {
         ...feature,
         status: 'ready',
+        diagnostics: [],
         sizeValue: positive(evaluateExpression(feature[valueKey], parameterResult.values), feature.type === 'fillet' ? 'Promień' : 'Odległość fazy'),
       };
     }
     throw new Error(`Nieobsługiwana operacja: ${feature.type}`);
   });
 
-  return { parameters: parameterResult.values, features };
+  return { parameters: parameterResult.values, features, dependencyGraph };
 }

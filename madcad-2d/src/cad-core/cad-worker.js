@@ -1,7 +1,9 @@
 import opencascade from 'replicad-opencascadejs';
 import opencascadeWasm from 'replicad-opencascadejs/src/replicad_single.wasm?url';
 import { drawCircle, drawRectangle, makeCylinder, setOC } from 'replicad';
-import { prepareDocument } from './evaluator.js';
+import { FEATURE_STATUS, prepareDocument } from './evaluator.js';
+import { evaluateFeatureHistory } from './feature-history.js';
+import { GEOMETRY_POLICY } from './geometry-policy.js';
 
 let kernelPromise;
 let lastBodies = [];
@@ -37,13 +39,13 @@ function combineShapes(shapes) {
 }
 
 function runFeature(feature, bodyMap, bodyOrder) {
-  if (feature.status === 'suppressed') return;
+  if (feature.status === FEATURE_STATUS.SUPPRESSED) return;
 
   if (feature.type === 'extrude') {
     const tool = combineShapes(feature.profiles.map((profile) => extrudeProfile(profile, feature.distanceValue)));
     const bodyId = `body-${feature.id}`;
     if (feature.operation === 'new' || !feature.targetBodyId) {
-      bodyMap.set(bodyId, { id: bodyId, name: feature.name, shape: tool });
+      bodyMap.set(bodyId, { id: bodyId, name: feature.name, sourceFeatureId: feature.id, representation: 'brep', shape: tool });
       bodyOrder.push(bodyId);
       return;
     }
@@ -82,11 +84,19 @@ function runFeature(feature, bodyMap, bodyOrder) {
 }
 
 function meshBody(body, index) {
-  const mesh = body.shape.mesh({ tolerance: 0.08, angularTolerance: 0.2 });
-  const edges = body.shape.meshEdges({ tolerance: 0.08, angularTolerance: 0.2 });
+  const mesh = body.shape.mesh({
+    tolerance: GEOMETRY_POLICY.displayMesh.linearTolerance,
+    angularTolerance: GEOMETRY_POLICY.displayMesh.angularTolerance,
+  });
+  const edges = body.shape.meshEdges({
+    tolerance: GEOMETRY_POLICY.displayMesh.linearTolerance,
+    angularTolerance: GEOMETRY_POLICY.displayMesh.angularTolerance,
+  });
   return {
     id: body.id,
     name: body.name,
+    sourceFeatureId: body.sourceFeatureId,
+    representation: 'mesh',
     color: ['#55b7db', '#81c784', '#ffb95c', '#c49cff'][index % 4],
     vertices: Float32Array.from(mesh.vertices),
     normals: Float32Array.from(mesh.normals),
@@ -99,23 +109,12 @@ function meshBody(body, index) {
 async function evaluate(document) {
   await ensureKernel();
   const prepared = prepareDocument(document);
-  const bodyMap = new Map();
-  const bodyOrder = [];
-  const timeline = [];
-
-  for (const feature of prepared.features) {
-    try {
-      runFeature(feature, bodyMap, bodyOrder);
-      timeline.push({ id: feature.id, status: feature.status === 'suppressed' ? 'suppressed' : 'ok' });
-    } catch (error) {
-      timeline.push({ id: feature.id, status: 'error', error: error.message });
-      break;
-    }
-  }
+  const history = evaluateFeatureHistory(prepared.features, runFeature);
+  const { bodyMap, bodyOrder, timeline } = history;
 
   lastBodies = bodyOrder.filter((id) => bodyMap.has(id)).map((id) => bodyMap.get(id));
   const bodies = lastBodies.map(meshBody);
-  return { bodies, timeline, parameters: prepared.parameters };
+  return { bodies, timeline, parameters: prepared.parameters, dependencyGraph: prepared.dependencyGraph.toJSON() };
 }
 
 function transferableBuffers(bodies) {
@@ -132,7 +131,11 @@ async function exportBodies(format) {
   const blobs = await Promise.all(lastBodies.map(({ shape }) => (
     format === 'step'
       ? shape.blobSTEP()
-      : shape.blobSTL({ tolerance: 0.05, angularTolerance: 0.15, binary: true })
+      : shape.blobSTL({
+        tolerance: GEOMETRY_POLICY.exportMesh.linearTolerance,
+        angularTolerance: GEOMETRY_POLICY.exportMesh.angularTolerance,
+        binary: true,
+      })
   )));
   return Promise.all(blobs.map((blob) => blob.arrayBuffer()));
 }

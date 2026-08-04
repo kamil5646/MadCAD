@@ -75,6 +75,8 @@ Pełny szkic 3D, zaawansowane analizy powierzchni, CAM, FEA i elektronika nie s�
 - [x] Aktywacja licencji tymczasowo wyłączona jednym przełącznikiem; kod licencji zachowany.
 - [x] Schemat dokumentu v3, migracja v2 → v3, szczegółowa walidacja i bezpieczny podgląd nowszego zgodnego formatu tylko do odczytu.
 - [x] Atomowy zapis projektu i autozapisu z kopią poprzedniej poprawnej wersji `.bak`.
+- [x] Wspólna polityka tolerancji, graf zależności, transakcje operacji i pełne stany historii `ok/warning/error/stale/suppressed`.
+- [x] Kontrakt trwałych sygnatur topologii odporny na kolejność elementów i szum mieszczący się w tolerancji.
 
 ### Działa tylko częściowo
 
@@ -82,7 +84,7 @@ Pełny szkic 3D, zaawansowane analizy powierzchni, CAM, FEA i elektronika nie s�
 - [~] Zaokrąglenie i fazowanie obejmuje wszystkie możliwe krawędzie zamiast wybranych krawędzi.
 - [~] Przygotowanie do druku sprawdza gabaryty, ale nie analizuje grubości ścian, nawisów, samoprzecięć ani szczelności siatki.
 - [~] Oś czasu pozwala wybierać i edytować parametry, ale nie ma rollback, zmiany kolejności i pełnego menu operacji.
-- [~] Worker CAD izoluje OpenCascade od UI, ale nie ma anulowania/stemplowania generacji, cache siatki ani gwarancji, że eksport dotyczy dokładnie bieżącej rewizji dokumentu.
+- [~] Worker CAD izoluje OpenCascade od UI i wykonuje operacje transakcyjnie, ale nie ma jeszcze anulowania/stemplowania generacji, cache siatki ani gwarancji, że eksport dotyczy dokładnie bieżącej rewizji dokumentu.
 - [~] Aktualizator wykrywa GitHub Releases i uruchamia instalator na Windows/macOS, ale nie ma kanałów, jawnej weryfikacji integralności, rollback i testów przerwanego procesu.
 - [~] Widoczna nazwa produktu to MadCAD, lecz identyfikatory techniczne i repozytorium nadal zawierają `MadCAD2D`; zmiana musi zachować dane i ciągłość aktualizacji.
 - [~] Dokumentacja projektu i README opisują częściowo starszą wersję 2D.
@@ -90,7 +92,7 @@ Pełny szkic 3D, zaawansowane analizy powierzchni, CAM, FEA i elektronika nie s�
 ### Najważniejsze braki
 
 - [ ] Rejestr migracji, model zależności i trwały kontrakt dokumentu.
-- [ ] Stabilne nazewnictwo topologii po przeliczeniu historii.
+- [~] Istnieje kontrakt stabilnego nazewnictwa topologii, ale nie jest jeszcze podłączony do ścian/krawędzi zwracanych przez OpenCascade.
 - [ ] Ogólny model encji szkicu, zamkniętych profili, wymiarów i więzów.
 - [ ] Zaznaczanie ścian, krawędzi i wierzchołków oraz operacje na wskazanej geometrii.
 - [ ] Geometria konstrukcyjna, pomiary, przekroje i właściwości fizyczne.
@@ -116,12 +118,14 @@ Wynik R0.1: `npm run test:core` — 8/8; `npm run verify:modeling` — pełny pr
 
 ### R0.2 — kontrakty geometrii i historia `XL`
 
-- [ ] Ustalić jedną politykę jednostek, precyzji, tolerancji długości/kąta i porównywania punktów.
-- [ ] Wprowadzić graf zależności: parametr → szkic → profil → feature → body → komponent.
-- [ ] Każda operacja kernela ma wejście, wynik, diagnostykę i transakcję; błąd nie usuwa ostatniej poprawnej bryły.
-- [ ] Zaprojektować trwałe identyfikatory ścian/krawędzi/wierzchołków oraz reguły ponownego dopasowania po przebudowie.
-- [ ] Rozdzielić definicję parametryczną, wynik B-Rep, siatkę renderera i dane zaznaczania.
-- [ ] Dodać stan `ok / warning / error / suppressed / stale` na każdej operacji historii.
+- [x] Ustalić jedną politykę jednostek, precyzji, tolerancji długości/kąta i porównywania punktów.
+- [x] Wprowadzić graf zależności: parametr → szkic → profil → feature → body → komponent.
+- [x] Każda operacja kernela ma wejście, wynik, diagnostykę i transakcję; błąd nie usuwa ostatniej poprawnej bryły.
+- [x] Zaprojektować trwałe identyfikatory ścian/krawędzi/wierzchołków oraz reguły ponownego dopasowania po przebudowie.
+- [x] Rozdzielić definicję parametryczną, wynik B-Rep, siatkę renderera i dane zaznaczania.
+- [x] Dodać stan `ok / warning / error / suppressed / stale` na każdej operacji historii.
+
+Wynik R0.2: `npm run test:core` — 13/13; test grafu zależności, rollback transakcji, pięciu stanów historii i stabilności sygnatur topologii zaliczony; `npm run verify:modeling` oraz eksport STL/STEP bez regresji.
 
 ### R0.3 — worker, przeliczanie i viewport `L`
 
@@ -498,6 +502,6 @@ Cel wydania: MadCAD przygotowuje wiarygodny model do slicera i wykrywa najczęst
 
 ## Następne pojedyncze zadanie
 
-`R0.2 — kontrakty geometrii i historia`.
+`R0.3 — worker, przeliczanie i viewport`.
 
-R0.1 jest zamknięte i zweryfikowane. Teraz realizujemy wyłącznie R0.2, a dopiero po spełnieniu kryterium całego R0 rozpoczynamy R1.1. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.
+R0.1 i R0.2 są zamknięte i zweryfikowane. Teraz realizujemy wyłącznie R0.3, a dopiero po spełnieniu kryterium całego R0 rozpoczynamy R1.1. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.

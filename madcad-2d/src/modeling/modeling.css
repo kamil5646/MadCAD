@@ -1254,6 +1254,17 @@
   border-color: var(--mc-danger);
 }
 
+.timeline-item.warning {
+  border-color: #e9ac47;
+  background: #574b34;
+}
+
+.timeline-item.stale {
+  border-style: dashed;
+  border-color: #8693a0;
+  opacity: 0.65;
+}
+
 .timeline-item.suppressed {
   opacity: 0.5;
 }

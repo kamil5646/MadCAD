@@ -10,8 +10,13 @@ import {
   openDocument,
   validateDocument,
 } from '../src/cad-core/document.js';
-import { evaluateExpression, resolveParameters } from '../src/cad-core/expressions.js';
-import { prepareDocument } from '../src/cad-core/evaluator.js';
+import { buildDependencyGraph } from '../src/cad-core/dependency-graph.js';
+import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
+import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
+import { evaluateFeatureHistory } from '../src/cad-core/feature-history.js';
+import { executeFeatureTransaction } from '../src/cad-core/feature-transaction.js';
+import { GEOMETRY_POLICY, isPositiveLength, nearlyEqual } from '../src/cad-core/geometry-policy.js';
+import { assignStableTopologyIds } from '../src/cad-core/topology-naming.js';
 
 const { atomicWriteTextFile } = atomicFile;
 
@@ -20,6 +25,13 @@ test('bezpiecznie oblicza wyrażenia parametryczne', () => {
   assert.equal(evaluateExpression('(8 + 2) * 4', {}), 40);
   assert.throws(() => evaluateExpression('globalThis.alert(1)', {}), /Niedozwolony znak|Nieznany parametr/);
   assert.throws(() => evaluateExpression('10 / 0', {}), /Dzielenie przez zero/);
+});
+
+test('wykrywa identyfikatory wyrażeń i stosuje jedną politykę tolerancji', () => {
+  assert.deepEqual(listExpressionIdentifiers('szerokosc / 2 + luz + szerokosc'), ['szerokosc', 'luz']);
+  assert.equal(isPositiveLength(GEOMETRY_POLICY.linearTolerance / 2), false);
+  assert.equal(isPositiveLength(1), true);
+  assert.equal(nearlyEqual(10, 10 + GEOMETRY_POLICY.linearTolerance / 2), true);
 });
 
 test('rozwiązuje parametry zależne niezależnie od kolejności', () => {
@@ -49,6 +61,99 @@ test('przygotowuje historię modelu startowego dla jądra CAD', () => {
   assert.equal(prepared.features[0].distanceValue, 8);
   assert.equal(prepared.features[0].profiles[0].geometry.width, 60);
   assert.equal(prepared.features[1].diameterValue, 8);
+});
+
+test('graf zależności wyznacza elementy dotknięte zmianą parametru', () => {
+  const document = createStarterDocument();
+  const graph = buildDependencyGraph(document);
+  const heightParameter = document.parameters.find((parameter) => parameter.name === 'wysokosc');
+  const baseFeature = document.features[0];
+  const holeFeature = document.features[1];
+  const baseBodyId = `body-${baseFeature.id}`;
+  const affected = new Set(graph.affectedBy(heightParameter.id));
+
+  assert.ok(affected.has(baseFeature.id));
+  assert.ok(affected.has(holeFeature.id));
+  assert.ok(affected.has(baseBodyId));
+  assert.equal(graph.producerOfBody(baseBodyId), baseFeature.id);
+  assert.ok(graph.toJSON().edges.some((edge) => edge.from === baseFeature.id && edge.to === baseBodyId && edge.kind === 'produces'));
+});
+
+test('transakcja operacji zachowuje ostatni poprawny model po błędzie', () => {
+  const originalBody = { id: 'body-base', shape: { version: 1 } };
+  const bodyMap = new Map([[originalBody.id, originalBody]]);
+  const bodyOrder = [originalBody.id];
+  const transaction = executeFeatureTransaction(
+    { id: 'feature-failing' },
+    bodyMap,
+    bodyOrder,
+    (_feature, draftMap, draftOrder) => {
+      draftMap.get(originalBody.id).shape = { version: 2 };
+      draftOrder.push('body-partial');
+      throw new Error('Kontrolowany błąd kernela.');
+    },
+  );
+
+  assert.equal(transaction.committed, false);
+  assert.equal(transaction.error.message, 'Kontrolowany błąd kernela.');
+  assert.equal(transaction.bodyMap, bodyMap);
+  assert.equal(transaction.bodyOrder, bodyOrder);
+  assert.equal(bodyMap.get(originalBody.id).shape.version, 1);
+  assert.deepEqual(bodyOrder, ['body-base']);
+});
+
+test('historia nadaje stany ok, warning, error, stale i suppressed bez częściowego wyniku', () => {
+  const features = [
+    { id: 'feature-ok', name: 'Poprawna', status: 'ready' },
+    { id: 'feature-warning', name: 'Ostrzeżenie', status: 'ready' },
+    { id: 'feature-error', name: 'Błędna', status: 'ready' },
+    { id: 'feature-stale', name: 'Nieprzeliczona', status: 'ready' },
+    { id: 'feature-suppressed', name: 'Wyłączona', status: FEATURE_STATUS.SUPPRESSED },
+  ];
+  const history = evaluateFeatureHistory(features, (feature, bodyMap, bodyOrder) => {
+    if (feature.id === 'feature-error') {
+      bodyMap.set('body-partial', { id: 'body-partial' });
+      bodyOrder.push('body-partial');
+      throw new Error('Błąd kontrolowany.');
+    }
+    bodyMap.set(`body-${feature.id}`, { id: `body-${feature.id}` });
+    bodyOrder.push(`body-${feature.id}`);
+    return feature.id === 'feature-warning'
+      ? { diagnostics: [{ level: 'warning', code: 'TEST_WARNING', message: 'Kontrolowane ostrzeżenie.' }] }
+      : { diagnostics: [] };
+  });
+
+  assert.deepEqual(history.timeline.map((item) => item.status), [
+    FEATURE_STATUS.OK,
+    FEATURE_STATUS.WARNING,
+    FEATURE_STATUS.ERROR,
+    FEATURE_STATUS.STALE,
+    FEATURE_STATUS.SUPPRESSED,
+  ]);
+  assert.equal(history.bodyMap.has('body-partial'), false);
+  assert.deepEqual(history.bodyOrder, ['body-feature-ok', 'body-feature-warning']);
+  assert.equal(history.timeline[2].diagnostics[0].code, 'KERNEL_OPERATION_FAILED');
+  assert.equal(history.timeline[3].diagnostics[0].code, 'UPSTREAM_FEATURE_FAILED');
+});
+
+test('trwałe nazwy topologii przeżywają zmianę kolejności i szum tolerancji', () => {
+  const descriptors = [
+    { surface: 'plane', center: [0, 0, 0], area: 100 },
+    { surface: 'cylinder', center: [5, 0, 0], radius: 2, area: 40 },
+  ];
+  const initial = assignStableTopologyIds('feature-base', 'face', descriptors);
+  const rebuilt = assignStableTopologyIds('feature-base', 'face', [
+    { ...descriptors[1], radius: 2 + GEOMETRY_POLICY.linearTolerance / 4 },
+    descriptors[0],
+  ], initial);
+
+  assert.equal(rebuilt[0].id, initial[1].id);
+  assert.equal(rebuilt[1].id, initial[0].id);
+
+  const changed = assignStableTopologyIds('feature-base', 'face', [
+    { ...descriptors[1], radius: 2.01 },
+  ], initial);
+  assert.notEqual(changed[0].id, initial[1].id);
 });
 
 test('migruje rzeczywisty fixture dokumentu v2 do v3 bez utraty geometrii', async () => {
