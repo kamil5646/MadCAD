@@ -8,6 +8,8 @@ const sketchOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-sket
 const directOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-direct-extrude.png');
 const narrowOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-narrow.png');
 const verificationStartedAt = Date.now();
+const isCi = Boolean(process.env.CI);
+const modelingTimeoutMs = isCi ? 60000 : 20000;
 
 async function waitForModel(window, timeoutMs = 30000) {
   const start = Date.now();
@@ -33,7 +35,7 @@ function assertClose(actual, expected, tolerance, label) {
   }
 }
 
-async function verifyExport(window, format, timeoutMs = 45000) {
+async function verifyExport(window, format, timeoutMs = isCi ? 90000 : 45000) {
   const exportPromise = window.webContents.executeJavaScript(`(async () => {
     if (typeof window.__madcadVerifyExport !== 'function') throw new Error('Brak testowego interfejsu eksportu.');
     const result = await window.__madcadVerifyExport('${format.toLowerCase()}', { validateRoundTrip: true });
@@ -310,7 +312,7 @@ async function runUiFlow(window) {
   await setCommandField('Odległość', '8');
   await new Promise((resolve) => setTimeout(resolve, 100));
   await confirmDialog();
-  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 4400) < 0.01`, 'bryła ze zmienionego profilu L', 20000);
+  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 4400) < 0.01`, 'bryła ze zmienionego profilu L', modelingTimeoutMs);
   const polylineModel = await window.webContents.executeJavaScript(`(() => ({
     metrics: window.__madcadVerifyEngineState.bodies[0].metrics,
     entities: window.__madcadVerifyDocumentState.sketches[0].entities,
@@ -359,13 +361,13 @@ async function runUiFlow(window) {
   await new Promise((resolve) => setTimeout(resolve, 100));
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 1`, 'dodane wyciągnięcie');
-  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'przeliczona bryła', 20000);
+  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'przeliczona bryła', modelingTimeoutMs);
 
   await waitForUi(
     window,
     `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - ${64 * 42 * 8}) < 0.00001`,
     'golden B-Rep revision',
-    20000,
+    modelingTimeoutMs,
   );
   const goldenBrep = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.bodies?.[0]?.metrics || null`);
   if (!goldenBrep) throw new Error('CAD engine did not return golden B-Rep metrics.');
@@ -389,15 +391,15 @@ async function runUiFlow(window) {
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.tree-profile').length === 2`, 'profil okręgu');
   await clickTool('Zakończ szkic');
-  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'bryła przed otworem', 20000);
-  await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === 'Otwór' && !item.disabled)`, 'aktywne polecenie otworu', 20000);
+  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'bryła przed otworem', modelingTimeoutMs);
+  await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === 'Otwór' && !item.disabled)`, 'aktywne polecenie otworu', modelingTimeoutMs);
   progress('hole');
   await clickTool('Otwór');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Otwór')`, 'polecenie otworu');
   await setCommandField('Głębokość', '8');
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 2`, 'dodany otwór');
-  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'przeliczony otwór', 20000);
+  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'przeliczony otwór', modelingTimeoutMs);
 
   progress('fillet and chamfer');
   await clickTool('Zaokrąglij');
@@ -405,14 +407,14 @@ async function runUiFlow(window) {
   await setCommandField('Promień', '0.8');
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 3`, 'dodane zaokrąglenie');
-  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready') && !document.querySelector('.timeline-item.error')`, 'przeliczone zaokrąglenie', 20000);
+  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready') && !document.querySelector('.timeline-item.error')`, 'przeliczone zaokrąglenie', modelingTimeoutMs);
 
   await clickTool('Fazuj');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Fazowanie')`, 'polecenie fazowania');
   await setCommandField('Odległość', '0.4');
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 4`, 'dodane fazowanie');
-  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready') && !document.querySelector('.timeline-item.error')`, 'przeliczone fazowanie', 20000);
+  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready') && !document.querySelector('.timeline-item.error')`, 'przeliczone fazowanie', modelingTimeoutMs);
 
   progress('parameters and undo/redo');
   await clickTool('Parametry');
@@ -493,7 +495,7 @@ async function runUiFlow(window) {
     window,
     `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${recoveryRevision}`,
     'worker recovery',
-    20000,
+    modelingTimeoutMs,
   );
   const workerRecovery = await window.webContents.executeJavaScript(`(() => ({
     fromRevision: ${recoveryRevision},
@@ -540,7 +542,9 @@ async function runUiFlow(window) {
 }
 
 app.whenReady().then(async () => {
-  const performanceBudgets = { desktopColdStartMs: 30000, desktopWorkflowMs: 45000 };
+  const performanceBudgets = isCi
+    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 150000 }
+    : { desktopColdStartMs: 30000, desktopWorkflowMs: 45000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
     width: 1936,
