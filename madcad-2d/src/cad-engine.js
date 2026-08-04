@@ -12632,6 +12632,26 @@
     return JSON.stringify(buildProjectPayload(), null, 2);
   };
 
+  window.__madcadGet3DSource = () => {
+    const selectedIds = new Set([
+      ...(Array.isArray(state.selectedIds) ? state.selectedIds : []),
+      ...(state.selectedId ? [state.selectedId] : [])
+    ]);
+    const printableTypes = new Set(["rect", "circle", "fillRegion"]);
+    const entities = state.entities
+      .filter((entity) => printableTypes.has(entity.type) && isEntityVisible(entity))
+      .map((entity) => ({
+        ...cloneEntity(entity),
+        selected: selectedIds.has(entity.id)
+      }));
+
+    return {
+      version: 1,
+      units: "mm",
+      entities
+    };
+  };
+
   window.__madcadHasDrawableContent = () => {
     try {
       return Array.isArray(state.entities) && state.entities.length > 0;
