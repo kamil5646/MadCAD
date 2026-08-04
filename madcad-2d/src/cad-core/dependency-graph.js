@@ -61,9 +61,15 @@ export function buildDependencyGraph(document) {
     for (const entity of sketch.entities || []) {
       addNode(entity.id, 'sketch-entity', entity.name || entity.type, { sketchId: sketch.id });
       addEdge(sketch.id, entity.id, 'contains');
-      for (const value of Object.values(entity.geometry || {})) {
+      const expressionValues = Array.isArray(entity.expressionKeys)
+        ? entity.expressionKeys.map((key) => entity.geometry?.[key])
+        : Object.values(entity.geometry || {});
+      for (const value of expressionValues) {
         for (const name of expressionDependencies(value)) addEdge(parameterIdsByName.get(name), entity.id, 'drives');
       }
+    }
+    for (const profile of sketch.profiles || []) {
+      for (const entityId of profile.entityIds || []) addEdge(entityId, profile.id, 'bounds');
     }
   }
 

@@ -256,14 +256,37 @@ async function runUiFlow(window) {
     button[key].onClick();
   })()`);
 
-  await new Promise((resolve) => setTimeout(resolve, 400));
-  const autosaveRoundTrip = await window.webContents.executeJavaScript(`(() => {
+  await waitForUi(
+    window,
+    `(() => {
+      try {
+        const saved = JSON.parse(window.localStorage.getItem('madcad:modeling-document:v4') || 'null');
+        return saved?.schemaVersion === 4 && saved?.features?.length === 4 && saved?.sketches?.length === 2;
+      } catch (_error) {
+        return false;
+      }
+    })()`,
+    'current autosave revision',
+    5000,
+  );
+  const autosaveState = await window.webContents.executeJavaScript(`(() => {
     const raw = window.localStorage.getItem('madcad:modeling-document:v4');
-    if (!raw) return false;
+    if (!raw) return { available: false };
     const saved = JSON.parse(raw);
-    return saved.schemaVersion === 3 && saved.features?.length === 4 && saved.sketches?.length === 2;
+    return {
+      available: true,
+      schemaVersion: saved.schemaVersion,
+      features: saved.features?.length || 0,
+      sketches: saved.sketches?.length || 0,
+      entities: saved.sketches?.reduce((total, sketch) => total + (sketch.entities?.length || 0), 0) || 0,
+    };
   })()`);
-  if (!autosaveRoundTrip) throw new Error('Desktop autosave did not preserve the current document.');
+  const autosaveRoundTrip = autosaveState.available
+    && autosaveState.schemaVersion === 4
+    && autosaveState.features === 4
+    && autosaveState.sketches === 2
+    && autosaveState.entities === 10;
+  if (!autosaveRoundTrip) throw new Error(`Desktop autosave did not preserve the current document: ${JSON.stringify(autosaveState)}`);
 
   const recoveryRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`(() => {

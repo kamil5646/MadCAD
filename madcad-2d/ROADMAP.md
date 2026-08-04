@@ -73,7 +73,7 @@ Pełny szkic 3D, zaawansowane analizy powierzchni, CAM, FEA i elektronika nie s�
 - [x] Kontrola gabarytu względem pola drukarki oraz eksport STL i STEP.
 - [x] Opisy aktywnych narzędzi po najechaniu.
 - [x] Aktywacja licencji tymczasowo wyłączona jednym przełącznikiem; kod licencji zachowany.
-- [x] Schemat dokumentu v3, migracja v2 → v3, szczegółowa walidacja i bezpieczny podgląd nowszego zgodnego formatu tylko do odczytu.
+- [x] Schemat dokumentu v4, migracje v2 → v3 → v4, szczegółowa walidacja i bezpieczny podgląd nowszego zgodnego formatu tylko do odczytu.
 - [x] Atomowy zapis projektu i autozapisu z kopią poprzedniej poprawnej wersji `.bak`.
 - [x] Wspólna polityka tolerancji, graf zależności, transakcje operacji i pełne stany historii `ok/warning/error/stale/suppressed`.
 - [x] Kontrakt trwałych sygnatur topologii odporny na kolejność elementów i szum mieszczący się w tolerancji.
@@ -168,12 +168,14 @@ Zadania wykonujemy dokładnie w tej kolejności.
 
 ### R1.1 — nowy model danych szkicu `L`
 
-- [ ] Dodać encje `point`, `line`, `arc`, `circle` oraz stabilne identyfikatory końców.
-- [ ] Przygotować rozszerzalny kontrakt dla `ellipse`, `ellipticalArc`, `spline`, `conic`, `slot`, `polygon` i `text` bez kolejnego łamania formatu.
-- [ ] Oddzielić encje szkicu od wykrytych profili zamkniętych.
-- [ ] Rozróżnić geometrię zwykłą, konstrukcyjną, centerline, projected i fixed.
-- [ ] Walidować referencje, usuwanie, duplikaty ID i zależności do parametrów.
-- [ ] Test: edycja → zapis → ponowne otwarcie → identyczne encje, profile, relacje i historia.
+- [x] Dodać encje `point`, `line`, `arc`, `circle` oraz stabilne identyfikatory końców.
+- [x] Przygotować rozszerzalny kontrakt dla `ellipse`, `ellipticalArc`, `spline`, `conic`, `slot`, `polygon` i `text` bez kolejnego łamania formatu.
+- [x] Oddzielić encje szkicu od wykrytych profili zamkniętych.
+- [x] Rozróżnić geometrię zwykłą, konstrukcyjną, centerline, projected i fixed.
+- [x] Walidować referencje, usuwanie, duplikaty ID i zależności do parametrów.
+- [x] Test: edycja → zapis → ponowne otwarcie → identyczne encje, profile, relacje i historia.
+
+Wynik R1.1: schemat v4 zapisuje punkty jako osobne encje, a linie, łuki i okręgi wskazują je przez stabilne `pointIds`; profile zawierają wyłącznie referencje brzegowe oraz cache zgodności obecnych prymitywów synchronizowany przy każdej edycji. Migracja v3 → v4 materializuje 8 encji prostokąta i 2 encje okręgu bez zmiany geometrii. `npm run test:core` — 23/23; pełny desktop E2E, odtworzenie workera oraz round-trip STEP/STL zaliczone.
 
 ### R1.2 — linia i polilinia `M`
 
@@ -508,6 +510,6 @@ Cel wydania: MadCAD przygotowuje wiarygodny model do slicera i wykrywa najczęst
 
 ## Następne pojedyncze zadanie
 
-`R1.1 — nowy model danych szkicu`.
+`R1.2 — linia i polilinia`.
 
-R0.1–R0.4 są zamknięte i zweryfikowane. Fundament CAD jest objęty CI; teraz przechodzimy po kolei do R1.1. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.
+R0.1–R0.4 oraz R1.1 są zamknięte i zweryfikowane. Następny krok to R1.2 na gotowym kontrakcie encji i stabilnych końców. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.

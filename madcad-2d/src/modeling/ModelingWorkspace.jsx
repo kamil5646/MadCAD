@@ -61,6 +61,7 @@ import {
   openDocument,
   touchDocument,
 } from '../cad-core/document.js';
+import { upsertSketchProfile } from '../cad-core/sketch-model.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
 import ModelViewport from './ModelViewport.jsx';
 import './modeling.css';
@@ -609,10 +610,7 @@ export default function ModelingWorkspace({ onClose }) {
     if (command.editId) profile.id = command.editId;
     commit((next) => {
       const sketch = next.sketches.find((item) => item.id === activeSketchId);
-      if (command.editId) {
-        const index = sketch.profiles.findIndex((item) => item.id === command.editId);
-        sketch.profiles[index] = profile;
-      } else sketch.profiles.push(profile);
+      upsertSketchProfile(sketch, profile);
     });
     setSelection({ kind: 'profile', id: profile.id, sketchId: activeSketchId });
     setCommand(null);

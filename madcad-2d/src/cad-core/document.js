@@ -1,11 +1,19 @@
 import { createId } from './ids.js';
+import { listExpressionIdentifiers } from './expressions.js';
+import {
+  SKETCH_ENTITY_ROLES,
+  SKETCH_ENTITY_TYPES,
+  normalizeSketchModel,
+} from './sketch-model.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 3;
+export const DOCUMENT_SCHEMA_VERSION = 4;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
 const FEATURE_TYPES = new Set(['extrude', 'hole', 'fillet', 'chamfer']);
-const PROFILE_TYPES = new Set(['rectangle', 'circle']);
+const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
+const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
+const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
 
 function isRecord(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -46,8 +54,26 @@ function migrateV2ToV3(source, now) {
   return migrated;
 }
 
+function migrateV3ToV4(source, now) {
+  const migrated = ensureV3Collections(cloneDocument(source));
+  migrated.schemaVersion = 4;
+  migrated.sketches = migrated.sketches.map(normalizeSketchModel);
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 3,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 3, to: 4, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
+  [3, migrateV3ToV4],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -74,18 +100,18 @@ export function createCircleProfile({ name = 'Okrąg', diameter = 'srednicaOtwor
   };
 }
 
-export function createSketch({ name = 'Szkic', plane = 'XY', profiles = [] } = {}) {
-  return {
+export function createSketch({ name = 'Szkic', plane = 'XY', entities = [], profiles = [], constraints = [], dimensions = [] } = {}) {
+  return normalizeSketchModel({
     id: createId('sketch'),
     name,
     type: 'sketch',
     plane,
     visible: true,
-    entities: [],
+    entities,
     profiles,
-    constraints: [],
-    dimensions: [],
-  };
+    constraints,
+    dimensions,
+  });
 }
 
 export function createFeature(type, options = {}) {
@@ -306,6 +332,7 @@ export function validateDocument(document) {
     const constraints = requireArray(sketch, 'constraints', `${base}.constraints`);
     const dimensions = requireArray(sketch, 'dimensions', `${base}.dimensions`);
     const entityIds = new Set();
+    const entityMap = new Map();
     entities.forEach((entity, entityIndex) => {
       const entityBase = `${base}.entities[${entityIndex}]`;
       if (!isRecord(entity)) {
@@ -313,8 +340,59 @@ export function validateDocument(document) {
         return;
       }
       registerId(entity.id, `${entityBase}.id`);
-      if (typeof entity.id === 'string') entityIds.add(entity.id);
+      if (typeof entity.id === 'string') {
+        entityIds.add(entity.id);
+        entityMap.set(entity.id, entity);
+      }
       if (typeof entity.type !== 'string' || !entity.type.trim()) add(`${entityBase}.type`, 'Encja musi mieć typ.', 'REQUIRED');
+      else if (!ENTITY_TYPES.has(entity.type)) add(`${entityBase}.type`, `Nieobsługiwany typ encji: ${entity.type}.`, 'UNSUPPORTED');
+      if (!ENTITY_ROLES.has(entity.role)) add(`${entityBase}.role`, `Nieobsługiwana rola encji: ${entity.role ?? ''}.`, 'UNSUPPORTED');
+      if (typeof entity.fixed !== 'boolean') add(`${entityBase}.fixed`, 'Pole fixed musi być logiczne.', 'TYPE');
+      if (!Array.isArray(entity.pointIds)) add(`${entityBase}.pointIds`, 'Encja musi zawierać tablicę stabilnych referencji punktów.', 'TYPE');
+      if (!isRecord(entity.geometry)) add(`${entityBase}.geometry`, 'Encja musi zawierać geometrię.', 'TYPE');
+      if (!Array.isArray(entity.expressionKeys)) add(`${entityBase}.expressionKeys`, 'Encja musi wskazywać pola zależne od parametrów.', 'TYPE');
+      else entity.expressionKeys.forEach((key, expressionIndex) => {
+        const value = entity.geometry?.[key];
+        if (typeof value !== 'string' && typeof value !== 'number') {
+          add(`${entityBase}.expressionKeys[${expressionIndex}]`, `Pole geometrii „${key}” nie istnieje.`, 'BROKEN_REFERENCE');
+          return;
+        }
+        try {
+          for (const parameterName of listExpressionIdentifiers(value)) {
+            if (!parameterNames.has(parameterName)) add(`${entityBase}.geometry.${key}`, `Nie znaleziono parametru „${parameterName}”.`, 'BROKEN_REFERENCE');
+          }
+        } catch (error) {
+          add(`${entityBase}.geometry.${key}`, error.message, 'FORMAT');
+        }
+      });
+      if (entity.role === 'projected' && (typeof entity.sourceReferenceId !== 'string' || !entity.sourceReferenceId.trim())) {
+        add(`${entityBase}.sourceReferenceId`, 'Geometria projected wymaga referencji źródłowej.', 'BROKEN_REFERENCE');
+      }
+      const pointCount = Array.isArray(entity.pointIds) ? entity.pointIds.length : 0;
+      if (entity.type === 'point') {
+        if (pointCount !== 0) add(`${entityBase}.pointIds`, 'Punkt nie może odwoływać się do innych punktów.', 'VALUE');
+        for (const coordinate of ['x', 'y']) {
+          if (typeof entity.geometry?.[coordinate] !== 'string' && typeof entity.geometry?.[coordinate] !== 'number') {
+            add(`${entityBase}.geometry.${coordinate}`, `Punkt wymaga współrzędnej ${coordinate}.`, 'REQUIRED');
+          }
+        }
+      }
+      if (entity.type === 'line' && pointCount !== 2) add(`${entityBase}.pointIds`, 'Linia wymaga dwóch końców.', 'VALUE');
+      if (entity.type === 'arc' && pointCount !== 3) add(`${entityBase}.pointIds`, 'Łuk wymaga centrum, początku i końca.', 'VALUE');
+      if (entity.type === 'arc' && !['cw', 'ccw'].includes(entity.geometry?.direction)) add(`${entityBase}.geometry.direction`, 'Kierunek łuku musi mieć wartość cw albo ccw.', 'VALUE');
+      if (entity.type === 'circle') {
+        if (pointCount !== 1) add(`${entityBase}.pointIds`, 'Okrąg wymaga punktu środka.', 'VALUE');
+        if (typeof entity.geometry?.radius !== 'string' && typeof entity.geometry?.radius !== 'number') add(`${entityBase}.geometry.radius`, 'Okrąg wymaga promienia.', 'REQUIRED');
+      }
+    });
+    entities.forEach((entity, entityIndex) => {
+      if (!Array.isArray(entity?.pointIds)) return;
+      entity.pointIds.forEach((pointId, pointIndex) => {
+        const point = entityMap.get(pointId);
+        if (!point) add(`${base}.entities[${entityIndex}].pointIds[${pointIndex}]`, `Nie znaleziono punktu „${pointId ?? ''}”.`, 'BROKEN_REFERENCE');
+        else if (point.type !== 'point') add(`${base}.entities[${entityIndex}].pointIds[${pointIndex}]`, `Encja „${pointId}” nie jest punktem.`, 'TYPE');
+      });
+      if (new Set(entity.pointIds).size !== entity.pointIds.length) add(`${base}.entities[${entityIndex}].pointIds`, 'Referencje punktów encji nie mogą się powtarzać.', 'DUPLICATE');
     });
     const validateEntityReferences = (owner, ownerBase) => {
       const referencedIds = Array.isArray(owner.entityIds)
@@ -355,9 +433,13 @@ export function validateDocument(document) {
       registerId(profile.id, `${profileBase}.id`);
       if (typeof profile.id === 'string') profileOwners.set(profile.id, sketch.id);
       if (!PROFILE_TYPES.has(profile.type)) add(`${profileBase}.type`, `Nieobsługiwany profil: ${profile.type ?? ''}.`, 'UNSUPPORTED');
-      if (!isRecord(profile.geometry)) add(`${profileBase}.geometry`, 'Profil musi zawierać geometrię.', 'TYPE');
+      if ((profile.type === 'rectangle' || profile.type === 'circle') && !isRecord(profile.geometry)) add(`${profileBase}.geometry`, 'Profil prymitywu musi zawierać zgodny cache geometrii.', 'TYPE');
+      if (profile.closed !== true) add(`${profileBase}.closed`, 'Profil bryłowy musi być zamknięty.', 'VALUE');
+      if (typeof profile.source !== 'string' || !profile.source.trim()) add(`${profileBase}.source`, 'Profil musi wskazywać źródło wykrycia.', 'REQUIRED');
+      if (!Array.isArray(profile.entityIds) || !profile.entityIds.length) add(`${profileBase}.entityIds`, 'Profil musi odwoływać się do encji brzegowych.', 'REQUIRED');
       if (Array.isArray(profile.entityIds)) profile.entityIds.forEach((entityId, entityIndex) => {
         if (!entityIds.has(entityId)) add(`${profileBase}.entityIds[${entityIndex}]`, `Nie znaleziono encji szkicu „${entityId}”.`, 'BROKEN_REFERENCE');
+        else if (['construction', 'centerline'].includes(entityMap.get(entityId)?.role)) add(`${profileBase}.entityIds[${entityIndex}]`, 'Geometria konstrukcyjna nie może tworzyć profilu.', 'VALUE');
       });
     });
   });

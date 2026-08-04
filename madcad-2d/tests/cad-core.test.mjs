@@ -23,6 +23,14 @@ import { executeFeatureTransaction } from '../src/cad-core/feature-transaction.j
 import { GEOMETRY_POLICY, isPositiveLength, nearlyEqual } from '../src/cad-core/geometry-policy.js';
 import { assignStableTopologyIds } from '../src/cad-core/topology-naming.js';
 import { RevisionCache, SerialTaskQueue, WorkerRecoveryPolicy, isStaleRevision } from '../src/cad-core/worker-runtime.js';
+import {
+  createSketchArc,
+  createSketchCircleEntity,
+  createSketchEntity,
+  createSketchLine,
+  createSketchPoint,
+  upsertSketchProfile,
+} from '../src/cad-core/sketch-model.js';
 
 const { atomicWriteTextFile } = atomicFile;
 
@@ -197,7 +205,7 @@ test('polityka odtwarzania workera ma limit prób i reset po sukcesie', () => {
   assert.deepEqual(policy.recordCrash(), { attempt: 1, shouldRestart: true, delayMs: 10 });
 });
 
-test('migruje rzeczywisty fixture dokumentu v2 do v3 bez utraty geometrii', async () => {
+test('migruje rzeczywisty fixture dokumentu v2 do bieżącego schematu bez utraty geometrii', async () => {
   const raw = await readFile(new URL('./fixtures/document-v2.madcad', import.meta.url), 'utf8');
   const source = JSON.parse(raw);
   const sourceSnapshot = structuredClone(source);
@@ -209,7 +217,9 @@ test('migruje rzeczywisty fixture dokumentu v2 do v3 bez utraty geometrii', asyn
   assert.equal(opened.sourceVersion, 2);
   assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(source, sourceSnapshot, 'migracja nie może zmieniać źródłowego obiektu v2');
-  assert.deepEqual(opened.document.sketches[0].entities, []);
+  assert.equal(opened.document.sketches[0].entities.length, 10);
+  assert.equal(opened.document.sketches[0].profiles[0].entityIds.length, 4);
+  assert.equal(opened.document.sketches[0].profiles[1].entityIds.length, 1);
   assert.deepEqual(opened.document.sketches[0].constraints, []);
   assert.deepEqual(opened.document.sketches[0].dimensions, []);
   assert.deepEqual(opened.document.bodies, []);
@@ -359,6 +369,113 @@ test('mały i średni dokument mieszczą się w osobnych budżetach wydajności'
     const durationMs = performance.now() - startedAt;
     assert.ok(durationMs < scenario.budget, `${scenario.name}: ${durationMs.toFixed(1)} ms >= ${scenario.budget} ms`);
   }
+});
+
+test('model szkicu obsługuje punkty, linie, łuki, okręgi i wszystkie role geometrii', () => {
+  const document = createDocument('Kontrakt encji szkicu');
+  const center = createSketchPoint({ x: 0, y: 0, fixed: true });
+  const start = createSketchPoint({ x: 10, y: 0 });
+  const end = createSketchPoint({ x: 0, y: 10 });
+  const line = createSketchLine({ startPointId: start.id, endPointId: end.id });
+  const construction = createSketchLine({ startPointId: center.id, endPointId: start.id, role: 'construction' });
+  const centerline = createSketchLine({ startPointId: center.id, endPointId: end.id, role: 'centerline' });
+  const arc = createSketchArc({ centerPointId: center.id, startPointId: start.id, endPointId: end.id, direction: 'ccw' });
+  const circle = createSketchCircleEntity({
+    centerPointId: center.id,
+    radius: 'promien',
+    role: 'projected',
+    sourceReferenceId: 'face:external:1',
+  });
+  document.parameters.push({ id: 'param-radius', name: 'promien', label: 'Promień', expression: '5', unit: 'mm' });
+  document.sketches.push(createSketch({ entities: [center, start, end, line, construction, centerline, arc, circle] }));
+
+  const validation = validateDocument(document);
+  assert.equal(validation.valid, true, validation.errors.join('\n'));
+  assert.equal(document.sketches[0].entities.find((entity) => entity.id === center.id).fixed, true);
+  assert.deepEqual(new Set(document.sketches[0].entities.map((entity) => entity.role)), new Set(['standard', 'construction', 'centerline', 'projected']));
+  assert.deepEqual(line.pointIds, [start.id, end.id]);
+  assert.deepEqual(arc.pointIds, [center.id, start.id, end.id]);
+
+  const brokenParameter = structuredClone(document);
+  brokenParameter.sketches[0].entities.find((entity) => entity.type === 'circle').geometry.radius = 'nieistniejacyParametr';
+  const brokenValidation = validateDocument(brokenParameter);
+  assert.ok(brokenValidation.issues.some((issue) => issue.code === 'BROKEN_REFERENCE' && issue.path.endsWith('.geometry.radius')));
+});
+
+test('kontrakt encji jest rozszerzalny bez zmiany formatu dokumentu', () => {
+  const document = createDocument('Przyszłe encje');
+  const futureTypes = ['ellipse', 'ellipticalArc', 'spline', 'conic', 'slot', 'polygon', 'text'];
+  const entities = futureTypes.map((type) => createSketchEntity(type, {
+    geometry: { contractVersion: 1, payload: `${type}-definition` },
+  }));
+  document.sketches.push(createSketch({ entities }));
+
+  const validation = validateDocument(document);
+  assert.equal(validation.valid, true, validation.errors.join('\n'));
+  assert.deepEqual(document.sketches[0].entities.map((entity) => entity.type), futureTypes);
+});
+
+test('edycja prymitywu zachowuje stabilne ID końców i oddzielny profil', () => {
+  const document = createDocument('Stabilne końce');
+  const original = createRectangleProfile({ width: '40', height: '30', x: '0', y: '0' });
+  const sketch = createSketch({ profiles: [original] });
+  document.sketches.push(sketch);
+  document.features.push(createFeature('extrude', {
+    sketchId: sketch.id,
+    profileIds: [original.id],
+    distance: '5',
+    operation: 'new',
+  }));
+  const originalBoundaryIds = [...sketch.profiles[0].entityIds];
+  const originalPointIds = sketch.entities.filter((entity) => entity.type === 'point').map((entity) => entity.id);
+
+  const edited = createRectangleProfile({ width: '80', height: '25', x: '4', y: '2' });
+  edited.id = original.id;
+  upsertSketchProfile(sketch, edited);
+
+  assert.deepEqual(sketch.profiles[0].entityIds, originalBoundaryIds);
+  assert.deepEqual(sketch.entities.filter((entity) => entity.type === 'point').map((entity) => entity.id), originalPointIds);
+  assert.equal(sketch.profiles[0].geometry.width, '80');
+  assert.equal(validateDocument(document).valid, true);
+  assert.equal(prepareDocument(document).features[0].profiles[0].geometry.width, 80);
+  const graph = buildDependencyGraph(document).toJSON();
+  assert.ok(graph.edges.some((edge) => edge.from === originalBoundaryIds[0] && edge.to === original.id && edge.kind === 'bounds'));
+});
+
+test('migracja v3 i round-trip v4 zachowują encje, profile, relacje i historię', () => {
+  const current = createStarterDocument();
+  const legacy = structuredClone(current);
+  legacy.schemaVersion = 3;
+  legacy.sketches.forEach((sketch) => {
+    sketch.entities = [];
+    sketch.profiles.forEach((profile) => {
+      delete profile.entityIds;
+      delete profile.closed;
+      delete profile.source;
+    });
+  });
+  delete legacy.metadata.migrationHistory;
+
+  const migrated = openDocument(legacy, { now: '2026-08-04T18:00:00.000Z' });
+  assert.equal(migrated.migrated, true);
+  assert.equal(migrated.sourceVersion, 3);
+  assert.equal(migrated.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
+  assert.equal(migrated.document.sketches[0].entities.length, 10);
+  const firstLine = migrated.document.sketches[0].profiles[0].entityIds[0];
+  migrated.document.sketches[0].constraints.push({ id: 'constraint-r1', type: 'horizontal', entityIds: [firstLine] });
+  migrated.document.sketches[0].dimensions.push({ id: 'dimension-r1', type: 'length', entityIds: [firstLine], expression: 'szerokosc' });
+  assert.equal(validateDocument(migrated.document).valid, true);
+
+  const reopened = openDocument(JSON.parse(JSON.stringify(migrated.document)));
+  assert.deepEqual(reopened.document.sketches, migrated.document.sketches);
+  assert.deepEqual(reopened.document.features, migrated.document.features);
+  assert.deepEqual(reopened.document.parameters, migrated.document.parameters);
+
+  const broken = structuredClone(reopened.document);
+  const referencedPointId = broken.sketches[0].entities.find((entity) => entity.type === 'line').pointIds[0];
+  broken.sketches[0].entities = broken.sketches[0].entities.filter((entity) => entity.id !== referencedPointId);
+  const brokenValidation = validateDocument(broken);
+  assert.ok(brokenValidation.issues.some((issue) => issue.code === 'BROKEN_REFERENCE' && issue.path.includes('.pointIds[')));
 });
 
 test('zapis atomowy zachowuje poprzednią poprawną wersję jako .bak', async () => {
