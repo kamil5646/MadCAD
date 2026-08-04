@@ -3,6 +3,7 @@
 Aplikacja desktop CAD 2D (Electron) do projektowania technicznego i konstrukcji stalowych.
 
 ## Szybkie Linki
+- Główny plan rozwoju: [`ROADMAP.md`](./ROADMAP.md)
 - Najnowszy release: https://github.com/kamil5646/MadCAD2D/releases/latest
 - Strona projektu (GitHub Pages): https://kamil5646.github.io/MadCAD2D/
 - README repo (główny): [`../README.md`](../README.md)
