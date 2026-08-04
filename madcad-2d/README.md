@@ -1,4 +1,4 @@
-# MadCAD 2D Desktop App
+# MadCAD Desktop App
 
 Aplikacja desktop CAD 2D (Electron) do projektowania technicznego i konstrukcji stalowych.
 
@@ -9,7 +9,7 @@ Aplikacja desktop CAD 2D (Electron) do projektowania technicznego i konstrukcji 
 - Wsparcie projektu: https://paypal.me/refek1
 
 ## Wsparcie Projektu
-MadCAD 2D rozwija się aktywnie. Jeśli chcesz wesprzeć rozwój aplikacji:
+MadCAD rozwija się aktywnie. Jeśli chcesz wesprzeć rozwój aplikacji:
 - PayPal: https://paypal.me/refek1
 
 ## Co Jest W Aplikacji
@@ -112,7 +112,7 @@ Strona ODA:
 ## Troubleshooting
 ### macOS - komunikat o uszkodzonej aplikacji
 ```bash
-xattr -dr com.apple.quarantine "/Applications/MadCAD 2D.app" && open -a "/Applications/MadCAD 2D.app"
+xattr -dr com.apple.quarantine "/Applications/MadCAD.app" && open -a "/Applications/MadCAD.app"
 ```
 
 ### Windows - blokada SmartScreen

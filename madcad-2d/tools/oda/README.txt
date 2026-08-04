@@ -1,4 +1,4 @@
-MadCAD 2D - Dodatek ODA File Converter
+MadCAD - Dodatek ODA File Converter
 
 Ten folder służy do bundlowania konwertera DWG/DXF razem z aplikacją.
 

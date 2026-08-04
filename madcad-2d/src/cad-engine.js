@@ -488,7 +488,7 @@
       "Brak zaznaczonego obiektu": "No object selected",
       "Gotowe. Użyj przycisków ze wstążki.": "Ready. Use ribbon buttons.",
       "Przywrócono widoczność warstw z istniejącą geometrią.": "Restored visibility for layers with existing geometry.",
-      "Aktywuj licencję, aby odblokować pracę w MadCAD 2D.": "Activate a license to unlock work in MadCAD 2D.",
+      "Aktywuj licencję, aby odblokować pracę w MadCAD.": "Activate a license to unlock work in MadCAD.",
       "Wybierz plik DXF do importu.": "Choose a DXF file to import.",
       "Wybierz plik JSON do wczytania.": "Choose a JSON file to load.",
       "Wyczyszczono rysunek.": "Drawing cleared.",
@@ -566,7 +566,7 @@
       .replace(/^Warstwa (.+): ukryta\.$/, "Layer $1: hidden.")
       .replace(/^Warstwa (.+): zablokowana\.$/, "Layer $1: locked.")
       .replace(/^Warstwa (.+): odblokowana\.$/, "Layer $1: unlocked.")
-      .replace(/^MadCAD 2D jest aktualny \(v(.+)\)\.$/, "MadCAD 2D is up to date (v$1).")
+      .replace(/^MadCAD jest aktualny \(v(.+)\)\.$/, "MadCAD is up to date (v$1).")
       .replace(/^Automatyczny aktualizator nie jest dostępny w tej wersji\.$/, "Automatic updater is not available in this version.")
       .replace(/^Pobieranie aktualizacji\. Po chwili aplikacja uruchomi instalator\.$/, "Downloading update. The app will launch installer shortly.")
       .replace(
@@ -980,7 +980,7 @@
       "Prostokąt: szer.": "Rectangle: width",
       "Prostokąt: wys.": "Rectangle: height",
       "Okrąg: promień": "Circle: radius",
-      "Aktywacja licencji MadCAD 2D": "MadCAD 2D license activation",
+      "Aktywacja licencji MadCAD": "MadCAD license activation",
       Zamknij: "Close",
       "Darmowy klucz licencyjny": "Free license key",
       "Wsparcie projektu": "Project support",
@@ -991,8 +991,8 @@
       "Wyczyść zapis": "Clear saved token",
       "Kopiuj ID urządzenia": "Copy device ID",
       "Otwórz formularz tokenu na GitHub": "Open token form on GitHub",
-      "Jeśli MadCAD 2D przyspiesza Twoją codzienną pracę, możesz wesprzeć dalszy rozwój projektu.":
-        "If MadCAD 2D speeds up your daily work, you can support further project development.",
+      "Jeśli MadCAD przyspiesza Twoją codzienną pracę, możesz wesprzeć dalszy rozwój projektu.":
+        "If MadCAD speeds up your daily work, you can support further project development.",
       "Link:": "Link:"
     };
     localizeTextNodes(uiTextMap);
@@ -1863,7 +1863,7 @@
 
     setUpdateButtonUi("current", result);
     if (!silent) {
-      echoCommand(`MadCAD 2D jest aktualny (v${result.currentVersion || "?"}).`);
+      echoCommand(`MadCAD jest aktualny (v${result.currentVersion || "?"}).`);
     }
     return result;
   }
@@ -10179,7 +10179,7 @@
     });
     const hasSelectionForPrint = getSelectedEntities().some((entity) => isEntityVisible(entity));
     const timestamp = new Date().toLocaleString("pl-PL");
-    const documentTitle = "MadCAD 2D - wydruk";
+    const documentTitle = "MadCAD - wydruk";
     let desktopError = "";
     const html = [
       "<!doctype html>",
@@ -12615,7 +12615,7 @@
       echoCommand("Przywrócono widoczność warstw z istniejącą geometrią.");
     }
     if (!licensedAtBoot) {
-      echoCommand("Aktywuj licencję, aby odblokować pracę w MadCAD 2D.", true, { toast: false });
+      echoCommand("Aktywuj licencję, aby odblokować pracę w MadCAD.", true, { toast: false });
     }
     if (window.desktopApp && typeof window.desktopApp.getOdaStatus === "function") {
       void refreshDwgExportButtonState();

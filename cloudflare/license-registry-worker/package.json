@@ -2,7 +2,7 @@
   "name": "madcad-license-registry-worker",
   "private": true,
   "version": "1.0.0",
-  "description": "Cloudflare Worker for MadCAD 2D license registry",
+  "description": "Cloudflare Worker for MadCAD license registry",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",

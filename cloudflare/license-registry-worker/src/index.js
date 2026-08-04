@@ -515,7 +515,7 @@ async function handlePayPalCreateOrder(request, env, corsHeaders) {
     intent: "CAPTURE",
     purchase_units: [
       {
-        description: "MadCAD 2D commercial license",
+        description: "MadCAD commercial license",
         amount: {
           currency_code: currency,
           value: amount

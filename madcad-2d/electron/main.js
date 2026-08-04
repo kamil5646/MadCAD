@@ -10,7 +10,7 @@ const execFileAsync = promisify(execFile);
 
 const isMac = process.platform === 'darwin';
 const isWindows = process.platform === 'win32';
-const APP_DISPLAY_NAME = 'MadCAD 2D';
+const APP_DISPLAY_NAME = 'MadCAD';
 const appIconPng = path.join(__dirname, '..', 'assets', 'icons', 'madcad-512.png');
 const ODA_DOWNLOAD_URL = 'https://www.opendesign.com/guestfiles/oda_file_converter';
 const ODA_DOWNLOAD_PAGE_HOST = 'www.opendesign.com';
@@ -1143,7 +1143,7 @@ async function handleSavePromptBeforeExit(win) {
     defaultId: 0,
     cancelId: 2,
     noLink: true,
-    title: t('Zamykanie MadCAD 2D', 'Closing MadCAD 2D'),
+    title: t('Zamykanie MadCAD', 'Closing MadCAD'),
     message: t('Czy chcesz zapisać rysunek przed wyjściem?', 'Do you want to save the drawing before exit?'),
     detail: t('Po zamknięciu sesja robocza zostanie wyczyszczona.', 'The current runtime session will be cleared after closing.')
   });
@@ -1665,7 +1665,7 @@ ipcMain.handle('madcad:open-print-preview', async (event, payload) => {
     const windowTitle =
       payload && typeof payload.title === 'string' && payload.title.trim()
         ? payload.title.trim()
-        : t('MadCAD 2D - wydruk', 'MadCAD 2D - print');
+        : t('MadCAD - wydruk', 'MadCAD - print');
 
     if (!html || html.length < 32) {
       return { ok: false, error: t('Brak danych podglądu wydruku.', 'Missing print preview data.') };
@@ -1828,8 +1828,8 @@ ipcMain.handle('madcad:convert-cad-file', async (event, payload) => {
         ok: false,
         canceled: false,
         error: t(
-          'Nie znaleziono ODA File Converter. Zainstaluj aplikację i uruchom ponownie MadCAD 2D.',
-          'ODA File Converter not found. Install it and restart MadCAD 2D.'
+          'Nie znaleziono ODA File Converter. Zainstaluj aplikację i uruchom ponownie MadCAD.',
+          'ODA File Converter not found. Install it and restart MadCAD.'
         )
       };
     }
