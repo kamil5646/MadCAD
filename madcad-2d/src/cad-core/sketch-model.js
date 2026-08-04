@@ -1,4 +1,5 @@
 import { createId } from './ids.js';
+import { evaluateExpression, resolveParameters } from './expressions.js';
 
 export const SKETCH_ENTITY_TYPES = Object.freeze([
   'point',
@@ -118,6 +119,143 @@ export function createDetectedProfile(sketch, segmentIds, { name = 'Profil zamkn
       height: String(maxY - minY),
       points: coordinates.map((point) => ({ x: String(point.x), y: String(point.y) })),
     },
+  };
+}
+
+function resolvedValues(parameters) {
+  if (!Array.isArray(parameters)) return parameters || {};
+  const result = resolveParameters(parameters);
+  if (!result.valid) throw new Error(Object.values(result.errors).join(' '));
+  return result.values;
+}
+
+function evaluatedCoordinate(point, axis, parameters) {
+  return evaluateExpression(point.geometry[axis], parameters);
+}
+
+export function sketchSelectionPointIds(sketch, selectedIds) {
+  const selected = new Set(selectedIds || []);
+  const points = new Set();
+  for (const entity of sketch.entities || []) {
+    if (!selected.has(entity.id)) continue;
+    if (entity.type === 'point') points.add(entity.id);
+    else for (const pointId of entity.pointIds || []) points.add(pointId);
+  }
+  return [...points];
+}
+
+export function synchronizeSketchProfiles(sketch, parameters = []) {
+  const values = resolvedValues(parameters);
+  const entityMap = new Map((sketch.entities || []).map((entity) => [entity.id, entity]));
+  const readPoint = (pointId) => {
+    const point = entityMap.get(pointId);
+    if (point?.type !== 'point') return null;
+    return {
+      x: evaluatedCoordinate(point, 'x', values),
+      y: evaluatedCoordinate(point, 'y', values),
+    };
+  };
+  const boundsGeometry = (points) => {
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    return {
+      x: String((minX + maxX) / 2),
+      y: String((minY + maxY) / 2),
+      width: String(maxX - minX),
+      height: String(maxY - minY),
+      points: points.map((point) => ({ x: String(point.x), y: String(point.y) })),
+    };
+  };
+
+  for (const profile of sketch.profiles || []) {
+    if (profile.type === 'circle') {
+      const circle = entityMap.get(profile.entityIds?.[0]);
+      const center = circle?.type === 'circle' ? readPoint(circle.pointIds?.[0]) : null;
+      if (!center) continue;
+      profile.geometry = {
+        ...profile.geometry,
+        x: String(center.x),
+        y: String(center.y),
+        diameter: String(evaluateExpression(circle.geometry.radius, values) * 2),
+      };
+      continue;
+    }
+    const segments = (profile.entityIds || []).map((id) => entityMap.get(id)).filter(Boolean);
+    const pointIds = profile.type === 'closed'
+      ? segments.map((entity) => boundaryPointIds(entity)[0])
+      : [...new Set(segments.flatMap((entity) => entity.pointIds || []))];
+    const points = pointIds.map(readPoint).filter(Boolean);
+    if (points.length) profile.geometry = { ...profile.geometry, ...boundsGeometry(points) };
+  }
+  return sketch;
+}
+
+export function translateSketchSelection(sketch, selectedIds, { dx = 0, dy = 0 } = {}, parameters = []) {
+  const deltaX = Number(dx);
+  const deltaY = Number(dy);
+  if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) throw new Error('Przesunięcie szkicu wymaga prawidłowych wartości X i Y.');
+  const selected = new Set(selectedIds || []);
+  const selectedEntities = (sketch.entities || []).filter((entity) => selected.has(entity.id));
+  if (!selectedEntities.length) throw new Error('Wybierz punkt lub segment do przesunięcia.');
+  if (selectedEntities.some((entity) => entity.fixed || entity.role === 'projected')) {
+    throw new Error('Geometria ustalona lub rzutowana nie może być przeciągana.');
+  }
+  const values = resolvedValues(parameters);
+  const pointIds = new Set(sketchSelectionPointIds(sketch, selectedIds));
+  for (const point of sketch.entities || []) {
+    if (point.type !== 'point' || !pointIds.has(point.id)) continue;
+    if (point.fixed || point.role === 'projected') throw new Error('Geometria ustalona lub rzutowana nie może być przeciągana.');
+    point.geometry.x = String(evaluatedCoordinate(point, 'x', values) + deltaX);
+    point.geometry.y = String(evaluatedCoordinate(point, 'y', values) + deltaY);
+  }
+  synchronizeSketchProfiles(sketch, values);
+  return [...pointIds];
+}
+
+export function deleteSketchSelection(document, sketchId, selectedIds) {
+  const sketch = (document.sketches || []).find((item) => item.id === sketchId);
+  if (!sketch) throw new Error(`Nie znaleziono szkicu ${sketchId}.`);
+  const selected = new Set(selectedIds || []);
+  const selectedPoints = new Set((sketch.entities || [])
+    .filter((entity) => selected.has(entity.id) && entity.type === 'point')
+    .map((entity) => entity.id));
+  const removedEntityIds = new Set(selected);
+  for (const entity of sketch.entities || []) {
+    if ((entity.pointIds || []).some((pointId) => selectedPoints.has(pointId))) removedEntityIds.add(entity.id);
+  }
+  if (!removedEntityIds.size) return { entityIds: [], profileIds: [], featureIds: [] };
+  const removedProfileIds = new Set((sketch.profiles || [])
+    .filter((profile) => (profile.entityIds || []).some((entityId) => removedEntityIds.has(entityId)))
+    .map((profile) => profile.id));
+  sketch.entities = (sketch.entities || []).filter((entity) => !removedEntityIds.has(entity.id));
+  sketch.profiles = (sketch.profiles || []).filter((profile) => !removedProfileIds.has(profile.id));
+  sketch.constraints = (sketch.constraints || []).filter((constraint) => !(constraint.entityIds || []).some((id) => removedEntityIds.has(id)));
+  sketch.dimensions = (sketch.dimensions || []).filter((dimension) => !(dimension.entityIds || []).some((id) => removedEntityIds.has(id)));
+
+  const removedFeatureIds = new Set();
+  const removedBodyIds = new Set();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const feature of document.features || []) {
+      if (removedFeatureIds.has(feature.id)) continue;
+      const referencesRemovedProfile = (feature.profileIds || []).some((id) => removedProfileIds.has(id))
+        || removedProfileIds.has(feature.profileId);
+      if (!referencesRemovedProfile && !removedBodyIds.has(feature.targetBodyId)) continue;
+      removedFeatureIds.add(feature.id);
+      if (feature.type === 'extrude' && feature.operation === 'new') removedBodyIds.add(`body-${feature.id}`);
+      changed = true;
+    }
+  }
+  document.features = (document.features || []).filter((feature) => !removedFeatureIds.has(feature.id));
+  return {
+    entityIds: [...removedEntityIds],
+    profileIds: [...removedProfileIds],
+    featureIds: [...removedFeatureIds],
   };
 }
 

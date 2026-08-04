@@ -66,6 +66,8 @@ import {
   createSketchLine,
   createSketchPoint,
   createTangentArcContinuation,
+  deleteSketchSelection,
+  translateSketchSelection,
   upsertSketchProfile,
 } from '../cad-core/sketch-model.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
@@ -89,6 +91,8 @@ const TOOL_DESCRIPTIONS = {
   'Linia': 'Utwórz pojedynczy segment przez dwa punkty albo przez dokładną długość i kąt.',
   'Polilinia': 'Rysuj ciąg segmentów; kliknij punkt początkowy, aby zamknąć profil.',
   'Łuk styczny': 'Kontynuuj polilinię łukiem stycznym do poprzedniego segmentu.',
+  'Przesuń': 'Przesuń zaznaczone punkty lub segmenty przeciągnięciem albo dokładnym ΔX i ΔY.',
+  'Usuń': 'Usuń zaznaczoną geometrię oraz bezpiecznie zależne profile i operacje.',
   'Zakończ szkic': 'Zamknij edycję szkicu i wróć do modelowania bryły.',
   'Wyciągnij': 'Wyciągnij zaznaczony profil w bryłę; możesz też przeciągnąć niebieską strzałkę.',
   'Otwór': 'Wytnij cylindryczny otwór z zaznaczonego profilu okręgu.',
@@ -283,7 +287,8 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
   const isHole = command.type === 'hole';
   const isFillet = command.type === 'fillet';
   const isSketchPath = command.type === 'line' || command.type === 'polyline';
-  const title = isRectangle ? 'Prostokąt ze środka' : isCircle ? 'Okrąg ze środka' : isExtrude ? 'Wyciągnięcie' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : 'Fazowanie';
+  const isSketchMove = command.type === 'moveSketch';
+  const title = isRectangle ? 'Prostokąt ze środka' : isCircle ? 'Okrąg ze środka' : isExtrude ? 'Wyciągnięcie' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : 'Fazowanie';
   return (
     <section className="command-dialog" aria-label={title}>
       <header><strong>{title}</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
@@ -342,7 +347,13 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
             </label>
           </>
         )}
-        <div className="command-preview-note"><span className="preview-dot" />{isSketchPath ? 'Klikaj punkty na płótnie lub dodaj następny punkt dokładną długością i kątem.' : isRectangle || isCircle ? 'Kliknij środek i drugi punkt na płótnie albo wpisz dokładne wymiary.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
+        {isSketchMove && (
+          <>
+            <Field label="Przesunięcie X" value={command.dx} onChange={(dx) => onChange({ dx })} suffix="mm" autoFocus />
+            <Field label="Przesunięcie Y" value={command.dy} onChange={(dy) => onChange({ dy })} suffix="mm" />
+          </>
+        )}
+        <div className="command-preview-note"><span className="preview-dot" />{isSketchPath ? 'Klikaj punkty na płótnie lub dodaj następny punkt dokładną długością i kątem.' : isSketchMove ? 'Wpisz dokładne przesunięcie zaznaczenia w osiach szkicu.' : isRectangle || isCircle ? 'Kliknij środek i drugi punkt na płótnie albo wpisz dokładne wymiary.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
       </div>
       {isSketchPath ? (
         <footer><button className="secondary" type="button" onClick={onUndoSegment} disabled={!command.pointIds.length}>Cofnij segment</button><button className="secondary" type="button" onClick={onFinishPath}>Zakończ</button><button className="confirm" type="button" onClick={onConfirm} disabled={!command.lastPoint}><Check size={14} /> Dodaj dokładnie</button></footer>
@@ -412,6 +423,15 @@ function SketchPalette({ options, onChange, onFinish }) {
         {items.map(([key, label]) => (
           <label key={key}><span>{label}</span><input type="checkbox" checked={Boolean(options[key])} onChange={(event) => onChange(key, event.target.checked)} /></label>
         ))}
+        <div className="sketch-state-legend" aria-label="Legenda stanów geometrii szkicu">
+          <h3>Stany geometrii</h3>
+          <span><i className="under" /> Niedowiązana</span>
+          <span><i className="fixed" /> W pełni związana</span>
+          <span><i className="construction" /> Konstrukcyjna</span>
+          <span><i className="projected" /> Rzutowana</span>
+          <span><i className="selected" /> Zaznaczona</span>
+          <span><i className="error" /> Błąd geometrii</span>
+        </div>
       </div>
       <footer><button type="button" onClick={onFinish}>Zakończ szkic</button></footer>
     </aside>
@@ -491,6 +511,9 @@ export default function ModelingWorkspace({ onClose }) {
     .flatMap((sketch) => sketch.profiles.map((profile) => ({ sketch, profile })))
     .find(({ profile }) => selection?.kind === 'profile' && profile.id === selection.id);
   const selectedProfile = selectedProfileMatch?.profile;
+  const selectedSketchEntityIds = selection?.kind === 'sketchEntities' && selection.sketchId === activeSketchId
+    ? selection.ids
+    : [];
   const firstBodyId = `body-${document.features.find((feature) => feature.type === 'extrude' && feature.operation === 'new')?.id || ''}`;
 
   const previewDocument = useMemo(() => {
@@ -816,18 +839,98 @@ export default function ModelingWorkspace({ onClose }) {
     setNotice('Cofnięto ostatni segment bez wychodzenia z polilinii.');
   };
 
+  const handleSketchSelection = (ids, mode = 'replace', details = {}) => {
+    const candidates = [...new Set(ids || [])];
+    setSelection((current) => {
+      const existing = current?.kind === 'sketchEntities' && current.sketchId === activeSketchId ? current.ids : [];
+      let nextIds;
+      if (mode === 'add') nextIds = [...new Set([...existing, ...candidates])];
+      else if (mode === 'toggle') {
+        const next = new Set(existing);
+        candidates.forEach((id) => next.has(id) ? next.delete(id) : next.add(id));
+        nextIds = [...next];
+      } else nextIds = candidates;
+      return nextIds.length
+        ? { kind: 'sketchEntities', sketchId: activeSketchId, ids: nextIds }
+        : { kind: 'sketch', id: activeSketchId };
+    });
+    if (candidates.length) {
+      setNotice(`${details.crossing ? 'Wybór przecinający' : 'Zaznaczenie'}: ${candidates.length} ${candidates.length === 1 ? 'element' : 'elementy'}. Ctrl/Shift dodaje kolejne.`);
+    } else setNotice('Wyczyszczono zaznaczenie szkicu.');
+  };
+
+  const moveSketchEntities = ({ ids = selectedSketchEntityIds, dx = 0, dy = 0 } = {}) => {
+    if (readOnly) return readOnlyNotice();
+    if (!activeSketchId || !ids.length) {
+      setNotice('Wybierz punkt lub segment szkicu do przesunięcia.');
+      return false;
+    }
+    try {
+      const checked = cloneDocument(document);
+      translateSketchSelection(
+        checked.sketches.find((item) => item.id === activeSketchId),
+        ids,
+        { dx, dy },
+        checked.parameters,
+      );
+      commit((next) => translateSketchSelection(
+        next.sketches.find((item) => item.id === activeSketchId),
+        ids,
+        { dx, dy },
+        next.parameters,
+      ));
+      setNotice(`Przesunięto ${ids.length} ${ids.length === 1 ? 'element' : 'elementy'}: ΔX ${Number(dx).toFixed(1)} mm, ΔY ${Number(dy).toFixed(1)} mm.`);
+      return true;
+    } catch (error) {
+      setNotice(error.message);
+      return false;
+    }
+  };
+
+  const openSketchMove = () => {
+    if (!selectedSketchEntityIds.length) {
+      setNotice('Najpierw zaznacz punkt lub segment szkicu.');
+      return;
+    }
+    setCommand({ type: 'moveSketch', dx: '0', dy: '0' });
+    setNotice('Wpisz dokładne przesunięcie w osiach aktywnego szkicu.');
+  };
+
+  const confirmSketchMove = () => {
+    if (moveSketchEntities({ ids: selectedSketchEntityIds, dx: command.dx, dy: command.dy })) setCommand(null);
+  };
+
+  const deleteSelectedSketchEntities = () => {
+    if (readOnly) return readOnlyNotice();
+    if (!activeSketchId || !selectedSketchEntityIds.length) {
+      setNotice('Wybierz geometrię szkicu do usunięcia.');
+      return;
+    }
+    const checked = cloneDocument(document);
+    const result = deleteSketchSelection(checked, activeSketchId, selectedSketchEntityIds);
+    commit((next) => deleteSketchSelection(next, activeSketchId, selectedSketchEntityIds));
+    setSelection({ kind: 'sketch', id: activeSketchId });
+    setCommand(null);
+    setNotice(`Usunięto ${result.entityIds.length} encji${result.profileIds.length ? `, ${result.profileIds.length} zależny profil` : ''}${result.featureIds.length ? ` i ${result.featureIds.length} zależną operację` : ''}. Cofnij przywraca cały stan.`);
+  };
+
   useEffect(() => {
     const verifyMode = new URLSearchParams(window.location.search).has('verify');
     if (!verifyMode) return undefined;
     window.__madcadVerifySketchPoint = appendSketchPoint;
+    window.__madcadVerifySketchSelection = handleSketchSelection;
+    window.__madcadVerifyMoveSketch = moveSketchEntities;
+    window.__madcadVerifyDeleteSketch = deleteSelectedSketchEntities;
     window.__madcadVerifyDocumentState = {
       schemaVersion: document.schemaVersion,
       sketches: document.sketches.map((sketch) => ({
         id: sketch.id,
         entities: sketch.entities.length,
+        entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, pointIds: entity.pointIds, geometry: entity.geometry })),
         profiles: sketch.profiles.length,
       })),
       features: document.features.length,
+      selection: selection?.kind === 'sketchEntities' ? { kind: selection.kind, ids: selection.ids } : { kind: selection?.kind },
       command: command ? {
         type: command.type,
         points: command.points?.length || 0,
@@ -836,9 +939,12 @@ export default function ModelingWorkspace({ onClose }) {
     };
     return () => {
       delete window.__madcadVerifySketchPoint;
+      delete window.__madcadVerifySketchSelection;
+      delete window.__madcadVerifyMoveSketch;
+      delete window.__madcadVerifyDeleteSketch;
       delete window.__madcadVerifyDocumentState;
     };
-  }, [document, command]);
+  }, [document, command, selection]);
 
   const confirmProfile = () => {
     if (readOnly) return readOnlyNotice();
@@ -1047,6 +1153,7 @@ export default function ModelingWorkspace({ onClose }) {
 
   useEffect(() => {
     const onKeyDown = (event) => {
+      const textEntry = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName) || event.target?.isContentEditable;
       if (event.key === 'Escape' && command) {
         event.preventDefault();
         if (command.type === 'line' || command.type === 'polyline') finishSketchPath();
@@ -1063,6 +1170,11 @@ export default function ModelingWorkspace({ onClose }) {
         confirmFeature();
         return;
       }
+      if (event.key === 'Enter' && command?.type === 'moveSketch') {
+        event.preventDefault();
+        confirmSketchMove();
+        return;
+      }
       if (event.ctrlKey && command?.type === 'polyline' && event.key.toLowerCase() === 'z') {
         event.preventDefault();
         undoSketchSegment();
@@ -1074,6 +1186,11 @@ export default function ModelingWorkspace({ onClose }) {
         else history.undo();
         return;
       }
+      if (event.key === 'Delete' && !textEntry && !command && activeSketchId && selectedSketchEntityIds.length && !readOnly) {
+        event.preventDefault();
+        deleteSelectedSketchEntities();
+        return;
+      }
       if (event.ctrlKey && event.key.toLowerCase() === 'e' && selectedProfile && !activeSketchId && !readOnly) {
         event.preventDefault();
         openExtrude();
@@ -1081,7 +1198,7 @@ export default function ModelingWorkspace({ onClose }) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [command, selectedProfile, activeSketchId, readOnly, history]);
+  }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, readOnly, history]);
 
   const timelineStatus = new Map(engine.timeline?.map((item) => [item.id, item]));
   const sketch = document.sketches.find((item) => item.id === activeSketchId);
@@ -1110,6 +1227,7 @@ export default function ModelingWorkspace({ onClose }) {
             {activeSketchId ? (
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /></RibbonGroup>
+                <RibbonGroup label="EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => handleSketchSelection([], 'replace')} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Scissors} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || !selectedSketchEntityIds.length} /></RibbonGroup>
                 <RibbonGroup label="SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
             ) : workspace === 'print' ? (
@@ -1144,6 +1262,10 @@ export default function ModelingWorkspace({ onClose }) {
             sketchTool={command?.type === 'line' || command?.type === 'polyline' ? command.type : null}
             polylineDraft={command?.type === 'line' || command?.type === 'polyline' ? { lastPoint: command.lastPoint } : null}
             onSketchPoint={readOnly ? undefined : appendSketchPoint}
+            selectedSketchEntityIds={selectedSketchEntityIds}
+            onSketchSelection={handleSketchSelection}
+            onSketchMove={readOnly ? undefined : moveSketchEntities}
+            showSketchPoints={sketchOptions.points}
             parameters={document.parameters}
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : null}
@@ -1165,7 +1287,7 @@ export default function ModelingWorkspace({ onClose }) {
             command={command}
             profileName={selectedProfile?.name || ''}
             onChange={updateCommand}
-            onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : confirmFeature}
+            onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : confirmFeature}
             onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => setCommand(null)}
             onUndoSegment={undoSketchSegment}
             onFinishPath={finishSketchPath}

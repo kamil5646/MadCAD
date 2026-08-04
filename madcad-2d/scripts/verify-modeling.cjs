@@ -137,6 +137,35 @@ async function runUiFlow(window) {
     })()`);
   };
 
+  const sketchScreenPoint = (entityId) => window.webContents.executeJavaScript(`(() => {
+    const point = window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(entityId)}];
+    if (!point) throw new Error('Missing sketch screen point: ${entityId}');
+    return point;
+  })()`);
+  const sendMouse = async (type, point, modifiers = []) => {
+    window.webContents.sendInputEvent({ type, x: Math.round(point.x), y: Math.round(point.y), button: 'left', clickCount: 1, modifiers });
+    await new Promise((resolve) => setTimeout(resolve, 45));
+  };
+  const clickSketchEntity = async (entityId, modifiers = []) => {
+    const point = await sketchScreenPoint(entityId);
+    await sendMouse('mouseDown', point, modifiers);
+    await sendMouse('mouseUp', point, modifiers);
+  };
+  const dragSketchEntity = async (entityId, offsetX, offsetY) => {
+    const point = await sketchScreenPoint(entityId);
+    await sendMouse('mouseDown', point);
+    for (let step = 1; step <= 4; step += 1) {
+      await sendMouse('mouseMove', { x: point.x + (offsetX * step / 4), y: point.y + (offsetY * step / 4) });
+    }
+    await sendMouse('mouseUp', { x: point.x + offsetX, y: point.y + offsetY });
+  };
+  const dragSelectionBox = async (start, end) => {
+    await sendMouse('mouseDown', start);
+    await sendMouse('mouseMove', { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 });
+    await sendMouse('mouseMove', end);
+    await sendMouse('mouseUp', end);
+  };
+
   const addSketchPoint = async (point, expectedEntities) => {
     await window.webContents.executeJavaScript(`(() => {
       if (typeof window.__madcadVerifySketchPoint !== 'function') throw new Error('Missing sketch point test hook.');
@@ -193,20 +222,91 @@ async function runUiFlow(window) {
   await addSketchPoint([0, 30], 11);
   await addSketchPoint([0, 0], 12);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.profiles === 1`, 'zamknięty profil L');
+
+  progress('sketch selection and editing');
+  const editTargets = await window.webContents.executeJavaScript(`(() => {
+    const entities = window.__madcadVerifyDocumentState.sketches.at(-1).entityData;
+    const pointAt = (x, y) => entities.find((entity) => entity.type === 'point' && Number(entity.geometry.x) === x && Number(entity.geometry.y) === y)?.id;
+    return {
+      concavePointId: pointAt(10, 10),
+      neighborPointId: pointAt(30, 10),
+      originPointId: pointAt(0, 0),
+      lineId: entities.find((entity) => entity.type === 'line')?.id,
+    };
+  })()`);
+  if (!editTargets.concavePointId || !editTargets.neighborPointId || !editTargets.lineId) throw new Error(`Missing L-profile edit targets: ${JSON.stringify(editTargets)}`);
+  await waitForUi(window, `window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(editTargets.concavePointId)}]`, 'punkty ekranowe szkicu');
+
+  await clickSketchEntity(editTargets.concavePointId);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length === 1`, 'zaznaczenie punktu');
+  await clickSketchEntity(editTargets.neighborPointId, ['shift']);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length === 2`, 'wielokrotny wybór Shift');
+  await clickSketchEntity(editTargets.neighborPointId, ['control']);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length === 1`, 'przełączenie wyboru Ctrl');
+
+  await clickTool('Wybierz');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketch'`, 'wyczyszczenie wyboru przed inside');
+  const insidePoints = await Promise.all([sketchScreenPoint(editTargets.concavePointId), sketchScreenPoint(editTargets.neighborPointId)]);
+  await dragSelectionBox(
+    { x: Math.min(...insidePoints.map((point) => point.x)) - 12, y: Math.min(...insidePoints.map((point) => point.y)) - 12 },
+    { x: Math.max(...insidePoints.map((point) => point.x)) + 12, y: Math.max(...insidePoints.map((point) => point.y)) + 12 },
+  );
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length >= 2`, 'wybór oknem inside');
+
+  await clickTool('Wybierz');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketch'`, 'wyczyszczenie wyboru przed crossing');
+  const linePoint = await sketchScreenPoint(editTargets.lineId);
+  await dragSelectionBox({ x: linePoint.x + 14, y: linePoint.y - 22 }, { x: linePoint.x - 14, y: linePoint.y + 22 });
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.includes(${JSON.stringify(editTargets.lineId)})`, 'wybór oknem crossing');
+  const crossingPreservedGeometry = await window.webContents.executeJavaScript(`(() => {
+    const point = window.__madcadVerifyDocumentState.sketches.at(-1).entityData.find((entity) => entity.id === ${JSON.stringify(editTargets.originPointId)});
+    return Number(point.geometry.x) === 0 && Number(point.geometry.y) === 0;
+  })()`);
+  if (!crossingPreservedGeometry) throw new Error('Crossing selection dragged geometry instead of selecting it.');
+  await sendKey('Delete');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.profiles === 0`, 'Delete usuwa zależny profil');
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.profiles === 1`, 'Undo przywraca profil i relacje');
+  await sendShortcut('y');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.profiles === 0`, 'Redo ponownie usuwa profil');
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.profiles === 1`, 'drugie Undo przywraca profil');
+
+  await waitForUi(window, `window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(editTargets.concavePointId)}]`, 'odtworzony punkt ekranowy');
+  await dragSketchEntity(editTargets.concavePointId, 24, 0);
+  await waitForUi(window, `(() => { const point = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData?.find((entity) => entity.id === ${JSON.stringify(editTargets.concavePointId)}); return Number(point?.geometry?.x) !== 10 || Number(point?.geometry?.y) !== 10; })()`, 'przeciągnięcie punktu');
+  await sendShortcut('z');
+  await waitForUi(window, `(() => { const point = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData?.find((entity) => entity.id === ${JSON.stringify(editTargets.concavePointId)}); return Number(point?.geometry?.x) === 10 && Number(point?.geometry?.y) === 10; })()`, 'Undo przeciągnięcia punktu');
+
+  await waitForUi(window, `window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(editTargets.lineId)}]`, 'odtworzony segment ekranowy');
+  await dragSketchEntity(editTargets.lineId, 18, 0);
+  await waitForUi(window, `(() => { const point = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData?.find((entity) => entity.id === ${JSON.stringify(editTargets.originPointId)}); return Number(point?.geometry?.x) !== 0 || Number(point?.geometry?.y) !== 0; })()`, 'przeciągnięcie segmentu');
+  await sendShortcut('z');
+  await waitForUi(window, `(() => { const point = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData?.find((entity) => entity.id === ${JSON.stringify(editTargets.originPointId)}); return Number(point?.geometry?.x) === 0 && Number(point?.geometry?.y) === 0; })()`, 'Undo przeciągnięcia segmentu');
+
+  await clickSketchEntity(editTargets.concavePointId);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.includes(${JSON.stringify(editTargets.concavePointId)})`, 'ponowne zaznaczenie wierzchołka');
+  await clickTool('Przesuń');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Przesuń geometrię')`, 'dokładne przesunięcie szkicu');
+  await setCommandField('Przesunięcie X', '5');
+  await setCommandField('Przesunięcie Y', '0');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const point = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData?.find((entity) => entity.id === ${JSON.stringify(editTargets.concavePointId)}); return Number(point?.geometry?.x) === 15; })()`, 'dokładna zmiana wierzchołka');
+
   await clickTool('Zakończ szkic');
   await clickTool('Wyciągnij');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'wyciągnięcie profilu L');
   await setCommandField('Odległość', '8');
   await new Promise((resolve) => setTimeout(resolve, 100));
   await confirmDialog();
-  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 4000) < 0.01`, 'bryła z profilu L', 20000);
+  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 4400) < 0.01`, 'bryła ze zmienionego profilu L', 20000);
   const polylineModel = await window.webContents.executeJavaScript(`(() => ({
     metrics: window.__madcadVerifyEngineState.bodies[0].metrics,
     entities: window.__madcadVerifyDocumentState.sketches[0].entities,
     profiles: window.__madcadVerifyDocumentState.sketches[0].profiles,
     features: window.__madcadVerifyDocumentState.features,
   }))()`);
-  assertClose(polylineModel.metrics.area, 1960, 0.01, 'Polyline L area');
+  assertClose(polylineModel.metrics.area, 1100 + ((95 + Math.sqrt(425)) * 8), 0.01, 'Edited polyline L area');
 
   progress('new document');
   await clickByTitle('Nowy projekt');
@@ -411,6 +511,10 @@ async function runUiFlow(window) {
     sketchWorkflow: true,
     linePolyline: true,
     enterEscapeTermination: true,
+    sketchMultiSelection: true,
+    crossingInsideSelection: true,
+    sketchPointSegmentDrag: true,
+    sketchDeleteUndoRedo: true,
     polylineModel,
     directManipulation: true,
     pointerInput: 'pen',

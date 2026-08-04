@@ -31,6 +31,8 @@ import {
   createSketchLine,
   createSketchPoint,
   createTangentArcContinuation,
+  deleteSketchSelection,
+  translateSketchSelection,
   upsertSketchProfile,
 } from '../src/cad-core/sketch-model.js';
 
@@ -528,6 +530,62 @@ test('kontynuacja łukiem zachowuje styczność do poprzedniego segmentu', () =>
     end: [10, 0],
     tangent: [1, 0],
   }), /skończonego łuku/);
+});
+
+test('przesunięcie wierzchołka zachowuje ID i aktualizuje profil zależny', () => {
+  const document = createDocument('Edycja L');
+  const coordinates = [[0, 0], [30, 0], [30, 10], [10, 10], [10, 30], [0, 30]];
+  const points = coordinates.map(([x, y]) => createSketchPoint({ x, y }));
+  const lines = points.map((point, index) => createSketchLine({
+    startPointId: point.id,
+    endPointId: points[(index + 1) % points.length].id,
+  }));
+  const sketch = createSketch({ entities: [...points, ...lines] });
+  const profile = createDetectedProfile(sketch, lines.map((line) => line.id), { name: 'Profil L' });
+  sketch.profiles.push(profile);
+  document.sketches.push(sketch);
+  document.features.push(createFeature('extrude', {
+    sketchId: sketch.id,
+    profileIds: [profile.id],
+    distance: '8',
+    operation: 'new',
+  }));
+
+  const pointId = points[3].id;
+  translateSketchSelection(sketch, [pointId], { dx: 5, dy: 0 }, document.parameters);
+
+  assert.equal(sketch.entities.find((entity) => entity.id === pointId).geometry.x, '15');
+  assert.equal(sketch.profiles[0].geometry.points[3].x, '15');
+  assert.equal(validateDocument(document).valid, true);
+  assert.deepEqual(prepareDocument(document).features[0].profiles[0].geometry.points[3], [15, 10]);
+});
+
+test('usunięcie punktu usuwa zależny profil i operację bez zerwanych referencji', () => {
+  const document = createDocument('Usuwanie zależności');
+  const points = [[0, 0], [20, 0], [20, 20], [0, 20]].map(([x, y]) => createSketchPoint({ x, y }));
+  const lines = points.map((point, index) => createSketchLine({
+    startPointId: point.id,
+    endPointId: points[(index + 1) % points.length].id,
+  }));
+  const sketch = createSketch({ entities: [...points, ...lines] });
+  const profile = createDetectedProfile(sketch, lines.map((line) => line.id));
+  sketch.profiles.push(profile);
+  document.sketches.push(sketch);
+  document.features.push(createFeature('extrude', {
+    sketchId: sketch.id,
+    profileIds: [profile.id],
+    distance: '5',
+    operation: 'new',
+  }));
+
+  const removed = deleteSketchSelection(document, sketch.id, [points[0].id]);
+
+  assert.ok(removed.entityIds.includes(points[0].id));
+  assert.equal(removed.profileIds.length, 1);
+  assert.equal(removed.featureIds.length, 1);
+  assert.equal(document.features.length, 0);
+  assert.equal(sketch.profiles.length, 0);
+  assert.equal(validateDocument(document).valid, true);
 });
 
 test('zapis atomowy zachowuje poprzednią poprawną wersję jako .bak', async () => {

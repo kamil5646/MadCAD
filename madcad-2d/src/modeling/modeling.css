@@ -666,6 +666,38 @@
   text-align: center;
 }
 
+.sketch-drag-dimension {
+  position: absolute;
+  z-index: 9;
+  min-width: 142px;
+  padding: 5px 8px;
+  border: 1px solid #ffc857;
+  border-radius: 3px;
+  background: #28291f;
+  color: #fff4c8;
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+  text-align: center;
+}
+
+.sketch-selection-box {
+  position: absolute;
+  z-index: 8;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.sketch-selection-box.inside {
+  border: 1px solid #60b9ff;
+  background: rgba(55, 148, 230, 0.14);
+}
+
+.sketch-selection-box.crossing {
+  border: 1px dashed #68d48c;
+  background: rgba(57, 185, 104, 0.14);
+}
+
 .sketch-plane-badge {
   position: absolute;
   z-index: 4;
@@ -918,6 +950,42 @@
 .sketch-palette-body input {
   accent-color: #35b8e2;
 }
+
+.sketch-state-legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 8px;
+  margin-top: 8px;
+  padding-top: 9px;
+  border-top: 1px solid #586472;
+}
+
+.sketch-state-legend h3 {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+}
+
+.sketch-state-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #cdd5dc;
+  font-size: 9px;
+}
+
+.sketch-state-legend i {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #74cef0;
+}
+
+.sketch-state-legend i.fixed { background: #67d987; }
+.sketch-state-legend i.construction { background: #7893a2; }
+.sketch-state-legend i.projected { background: #c388e8; }
+.sketch-state-legend i.selected { background: #ffc857; }
+.sketch-state-legend i.error { background: #ff5e66; }
 
 .sketch-palette > footer {
   display: flex;

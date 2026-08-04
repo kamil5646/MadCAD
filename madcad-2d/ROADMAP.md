@@ -190,12 +190,14 @@ Wynik R1.2: Linia i Polilinia zapisują prawdziwe punkty/segmenty v4, mają prze
 
 ### R1.3 — zaznaczanie i edycja szkicu `L`
 
-- [ ] Zaznaczanie punktu, segmentu i wielu elementów z Ctrl/Shift.
-- [ ] Przeciąganie punktów i segmentów z podglądem na żywo oraz wpisem liczbowym.
-- [ ] Delete usuwa zaznaczenie; undo/redo przywraca dokładny stan i relacje.
-- [ ] Wybór oknem crossing/inside od lewej i prawej strony.
-- [ ] Czytelne stany: hover, selected, under-constrained, fully-constrained, construction, projected i error.
-- [ ] Test: przesunięcie wierzchołka zmienia profil i wynik wyciągnięcia.
+- [x] Zaznaczanie punktu, segmentu i wielu elementów z Ctrl/Shift.
+- [x] Przeciąganie punktów i segmentów z podglądem na żywo oraz wpisem liczbowym.
+- [x] Delete usuwa zaznaczenie; undo/redo przywraca dokładny stan i relacje.
+- [x] Wybór oknem crossing/inside od lewej i prawej strony.
+- [x] Czytelne stany: hover, selected, under-constrained, fully-constrained, construction, projected i error.
+- [x] Test: przesunięcie wierzchołka zmienia profil i wynik wyciągnięcia.
+
+Wynik R1.3: punkty i segmenty mają stabilne trafienia oraz rozróżnione stany wizualne, obsługują Ctrl/Shift, wybór inside/crossing, przeciąganie z podglądem i dokładne ΔX/ΔY. Delete usuwa zależności kaskadowo w jednej transakcji, a Undo/Redo przywraca profil. Desktop E2E przesuwa wierzchołek profilu L z 10 na 15 mm i potwierdza zmianę dokładnej bryły: objętość 4 400 mm³, pole 2 024,924 mm², 8 ścian i 18 krawędzi. `npm run test:core` — 27/27.
 
 ### R1.4 — snap, inferencje i prowadnice `L`
 
@@ -512,6 +514,6 @@ Cel wydania: MadCAD przygotowuje wiarygodny model do slicera i wykrywa najczęst
 
 ## Następne pojedyncze zadanie
 
-`R1.3 — zaznaczanie i edycja szkicu`.
+`R1.4 — snap, inferencje i prowadnice`.
 
-R0.1–R0.4 oraz R1.1–R1.2 są zamknięte i zweryfikowane. Następny krok to R1.3: prawdziwe zaznaczanie i edycja punktów oraz segmentów. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.
+R0.1–R0.4 oraz R1.1–R1.3 są zamknięte i zweryfikowane. Następny krok to R1.4: snap, inferencje i prowadnice. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.
