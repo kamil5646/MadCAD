@@ -99,6 +99,11 @@
   color: white;
 }
 
+.app-menu button.active {
+  background: #245368;
+  color: #dff8ff;
+}
+
 .app-menu button:disabled,
 .title-actions button:disabled {
   color: #596572;
@@ -195,6 +200,18 @@
   color: white;
   padding: 0 14px;
   cursor: pointer;
+}
+
+.workspace-label {
+  display: flex;
+  width: 108px;
+  height: 60px;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid #697481;
+  color: #dce3e9;
+  font-size: 11px;
+  letter-spacing: 0.04em;
 }
 
 .workspace-switcher button:hover {
@@ -344,6 +361,14 @@
 
 .modeling-content.with-print-panel {
   grid-template-columns: 306px minmax(0, 1fr) 310px;
+}
+
+.modeling-content.without-browser {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.modeling-content.without-browser.with-print-panel {
+  grid-template-columns: minmax(0, 1fr) 310px;
 }
 
 .model-browser {
@@ -575,6 +600,56 @@
 .navigation-bar button:hover {
   background: #53606e;
   color: white;
+}
+
+.navigation-bar button.active {
+  background: #176f8f;
+  color: #eafaff;
+}
+
+.direct-extrude-hint {
+  position: absolute;
+  z-index: 5;
+  right: 132px;
+  top: 18px;
+  padding: 6px 9px;
+  border: 1px solid rgba(75, 202, 238, 0.62);
+  border-radius: 3px;
+  background: rgba(34, 45, 56, 0.92);
+  color: #c9f4ff;
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.direct-handle-hit {
+  position: absolute;
+  z-index: 7;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  cursor: ns-resize;
+  transform: translate(-50%, -50%);
+}
+
+.direct-handle-hit:hover {
+  background: rgba(61, 215, 250, 0.12);
+  box-shadow: 0 0 0 1px rgba(86, 225, 255, 0.5);
+}
+
+.direct-dimension {
+  position: absolute;
+  z-index: 9;
+  min-width: 72px;
+  padding: 5px 8px;
+  border: 1px solid #59dafa;
+  border-radius: 3px;
+  background: #152832;
+  box-shadow: 0 7px 20px rgba(5, 15, 20, 0.35);
+  color: #f2fcff;
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+  text-align: center;
 }
 
 .sketch-plane-badge {
@@ -1190,5 +1265,15 @@
 
   .ribbon-tool {
     min-width: 54px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .modeling-content.without-browser {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .modeling-content.without-browser.with-print-panel {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

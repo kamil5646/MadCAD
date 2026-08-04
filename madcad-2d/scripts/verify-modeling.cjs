@@ -5,6 +5,7 @@ const { app, BrowserWindow } = require('electron');
 const outputPath = path.join(__dirname, '..', 'artifacts', 'modeling-checkpoint.png');
 const emptyOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-empty.png');
 const sketchOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-sketch.png');
+const directOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-direct-extrude.png');
 const narrowOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-narrow.png');
 
 async function waitForModel(window, timeoutMs = 30000) {
@@ -86,6 +87,23 @@ async function runUiFlow(window) {
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);
+  const dragDirectExtrude = async () => {
+    await window.webContents.executeJavaScript(`(async () => {
+      const canvas = document.querySelector('.model-viewport canvas');
+      const handle = document.querySelector('.direct-handle-hit');
+      const rect = canvas.getBoundingClientRect();
+      const point = window.__madcadDirectHandlePoint || { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+      const key = Object.keys(handle).find((item) => item.startsWith('__reactProps'));
+      const props = handle[key];
+      const event = (y) => ({ clientX: point.x, clientY: y, pointerId: 9, currentTarget: handle, preventDefault() {}, stopPropagation() {}, altKey: false });
+      props.onPointerDown(event(point.y));
+      for (let offset = 20; offset <= 120; offset += 20) {
+        props.onPointerMove(event(point.y - offset));
+        await new Promise((resolve) => setTimeout(resolve, 35));
+      }
+      props.onPointerUp(event(point.y - 120));
+    })()`);
+  };
 
   progress('new document');
   await clickByTitle('Nowy projekt');
@@ -108,8 +126,14 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelectorAll('.tree-profile').length === 1`, 'profil prostokąta');
   await clickTool('Zakończ szkic');
   progress('extrude');
-  await clickTool('Wyciągnij');
+  await waitForUi(window, `document.querySelector('.direct-extrude-hint')`, 'uchwyt bezpośredniego wyciągnięcia');
+  await waitForUi(window, `window.__madcadDirectHandlePoint`, 'pozycja uchwytu wyciągnięcia');
+  progress(`direct point ${JSON.stringify(await window.webContents.executeJavaScript(`window.__madcadDirectHandlePoint`))}`);
+  await dragDirectExtrude();
+  progress(`direct pointer ${JSON.stringify(await window.webContents.executeJavaScript(`window.__madcadPointerLog || null`))}`);
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'polecenie wyciągnięcia');
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await fs.writeFile(directOutputPath, (await window.webContents.capturePage()).toPNG());
   await setCommandField('Odległość', '8');
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 1`, 'dodane wyciągnięcie');
@@ -135,6 +159,21 @@ async function runUiFlow(window) {
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 2`, 'dodany otwór');
   await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'przeliczony otwór', 20000);
+
+  progress('fillet and chamfer');
+  await clickTool('Zaokrąglij');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Zaokrąglenie')`, 'polecenie zaokrąglenia');
+  await setCommandField('Promień', '0.8');
+  await confirmDialog();
+  await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 3`, 'dodane zaokrąglenie');
+  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready') && !document.querySelector('.timeline-item.error')`, 'przeliczone zaokrąglenie', 20000);
+
+  await clickTool('Fazuj');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Fazowanie')`, 'polecenie fazowania');
+  await setCommandField('Odległość', '0.4');
+  await confirmDialog();
+  await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 4`, 'dodane fazowanie');
+  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready') && !document.querySelector('.timeline-item.error')`, 'przeliczone fazowanie', 20000);
 
   progress('parameters and undo/redo');
   await clickTool('Parametry');
@@ -166,6 +205,15 @@ async function runUiFlow(window) {
     button[key].onClick();
   })()`);
 
+  const describedControls = await window.webContents.executeJavaScript(`(() => {
+    const ribbon = [...document.querySelectorAll('.ribbon-tool:not(:disabled)')];
+    const navigation = [...document.querySelectorAll('.navigation-bar button')];
+    return ribbon.length > 0
+      && ribbon.every((button) => button.querySelector('.ribbon-label')?.textContent.trim() && button.title.trim())
+      && navigation.every((button) => button.title.trim());
+  })()`);
+  if (!describedControls) throw new Error('Aktywne opcje nie mają kompletu podpisów i opisów.');
+
   progress('ui flow complete');
   return {
     profiles: await window.webContents.executeJavaScript(`document.querySelectorAll('.tree-profile').length`),
@@ -173,6 +221,9 @@ async function runUiFlow(window) {
     parameterEditing: true,
     undoRedo: true,
     sketchWorkflow: true,
+    directManipulation: true,
+    filletChamfer: true,
+    describedControls,
     commandDialogs: true,
     printWorkspace: true,
   };

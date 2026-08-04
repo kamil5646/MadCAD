@@ -68,14 +68,30 @@ const AUTOSAVE_KEY = 'madcad:modeling-document:v4';
 
 const MAIN_TABS = [
   { id: 'solid', label: 'BRYŁA' },
-  { id: 'surface', label: 'POWIERZCHNIA', disabled: true },
-  { id: 'mesh', label: 'SIATKA', disabled: true },
-  { id: 'sheet', label: 'KONSTRUKCJA BLACHOWA', disabled: true },
   { id: 'tools', label: 'NARZĘDZIA' },
   { id: 'print', label: 'DRUK 3D' },
 ];
 
 const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
+
+const TOOL_DESCRIPTIONS = {
+  'Utwórz szkic': 'Wybierz płaszczyznę i rozpocznij rysowanie profilu 2D.',
+  'Prostokąt': 'Narysuj prostokątny profil, klikając środek i punkt rozmiaru.',
+  'Okrąg': 'Narysuj okrąg, klikając środek i punkt promienia.',
+  'Zakończ szkic': 'Zamknij edycję szkicu i wróć do modelowania bryły.',
+  'Wyciągnij': 'Wyciągnij zaznaczony profil w bryłę; możesz też przeciągnąć niebieską strzałkę.',
+  'Otwór': 'Wytnij cylindryczny otwór z zaznaczonego profilu okręgu.',
+  'Zaokrąglij': 'Zaokrąglij krawędzie zaznaczonej bryły podanym promieniem.',
+  'Fazuj': 'Zetnij ostre krawędzie zaznaczonej bryły podaną odległością.',
+  'Edytuj': 'Otwórz parametry zaznaczonego szkicu, profilu lub kroku historii.',
+  'Parametry': 'Dodaj i zmień nazwane wymiary sterujące modelem.',
+  'Otwórz': 'Wczytaj zapisany projekt MadCAD z dysku.',
+  'Wybierz': 'Wyczyść zaznaczenie i wróć do trybu wyboru obiektów.',
+  'STL': 'Eksportuj siatkę gotową do programu przygotowującego druk 3D.',
+  'STEP': 'Eksportuj dokładną bryłę B-Rep do wymiany z innymi programami CAD.',
+  'Druk 3D': 'Otwórz kontrolę gabarytów i ustawień eksportu do druku 3D.',
+  'Kontrola druku': 'Sprawdź, czy model mieści się na stole drukarki.',
+};
 
 function loadInitialDocument() {
   try {
@@ -135,14 +151,16 @@ function safeName(value) {
   return value.trim().replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-|-$/g, '') || 'model';
 }
 
-function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = false, compact = false, title }) {
+function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = false, compact = false, title, description }) {
+  const help = description || title || TOOL_DESCRIPTIONS[label] || label;
   return (
     <button
       className={`ribbon-tool ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
       type="button"
       onClick={onClick}
       disabled={disabled}
-      title={title || label}
+      title={help}
+      aria-label={`${label}. ${help}`}
     >
       <span className="ribbon-icon" aria-hidden="true"><Icon size={compact ? 18 : 25} strokeWidth={1.55} /></span>
       <span className="ribbon-label">{label}</span>
@@ -159,33 +177,33 @@ function RibbonGroup({ label, children, end = false }) {
   );
 }
 
-function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect }) {
+function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onClose }) {
   const [expanded, setExpanded] = useState({ origin: true, sketches: true, bodies: true });
   const toggle = (key) => setExpanded((current) => ({ ...current, [key]: !current[key] }));
   return (
     <aside className="model-browser" aria-label="Przeglądarka projektu">
-      <div className="browser-heading"><strong>PRZEGLĄDARKA</strong><button type="button" title="Zwiń przeglądarkę"><PanelLeftClose size={14} /></button></div>
-      <button className={`tree-row tree-root ${selection?.kind === 'document' ? 'selected' : ''}`} type="button" onClick={() => onSelect({ kind: 'document', id: document.id })}>
+      <div className="browser-heading"><strong>PRZEGLĄDARKA</strong><button type="button" title="Zwiń przeglądarkę" onClick={onClose}><PanelLeftClose size={14} /></button></div>
+      <button className={`tree-row tree-root ${selection?.kind === 'document' ? 'selected' : ''}`} type="button" title="Zaznacz cały dokument projektu." onClick={() => onSelect({ kind: 'document', id: document.id })}>
         <ChevronDown size={13} /><FileBox size={14} /><strong>{document.name || 'Bez nazwy'}</strong>
       </button>
-      <button className="tree-row tree-child" type="button" onClick={() => onSelect({ kind: 'settings', id: document.id })}>
-        <span /><Settings2 size={14} /><span>Ustawienia dokumentu</span><small>mm</small>
+      <button className="tree-row tree-child" type="button" title="Otwórz nazwane parametry sterujące wymiarami modelu." onClick={() => onSelect({ kind: 'settings', id: document.id })}>
+        <span /><Settings2 size={14} /><span>Parametry modelu</span><small>mm</small>
       </button>
 
-      <button className="tree-row tree-child tree-folder" type="button" onClick={() => toggle('origin')}>
+      <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj płaszczyzny początku układu." onClick={() => toggle('origin')}>
         {expanded.origin ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Layers3 size={14} /><span>Początek</span>
       </button>
       {expanded.origin && (
         <div className="tree-nested">
           {Object.entries(PLANE_LABELS).map(([plane, label]) => (
-            <button key={plane} className="tree-row tree-grandchild" type="button" onClick={() => onSelect({ kind: 'plane', id: plane })}>
+            <button key={plane} className="tree-row tree-grandchild" type="button" title={`Zaznacz płaszczyznę ${plane} jako bazę szkicu.`} onClick={() => onSelect({ kind: 'plane', id: plane })}>
               <span /><Frame size={13} /><span>{label}</span>
             </button>
           ))}
         </div>
       )}
 
-      <button className="tree-row tree-child tree-folder" type="button" onClick={() => toggle('sketches')}>
+      <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj szkice i ich profile." onClick={() => toggle('sketches')}>
         {expanded.sketches ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<FolderOpen size={14} /><span>Szkice</span><small>{document.sketches.length}</small>
       </button>
       {expanded.sketches && document.sketches.map((sketch) => (
@@ -193,6 +211,7 @@ function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect 
           <button
             className={`tree-row tree-grandchild ${selection?.kind === 'sketch' && selection.id === sketch.id ? 'selected' : ''} ${activeSketchId === sketch.id ? 'editing' : ''}`}
             type="button"
+            title={`Zaznacz ${sketch.name}; użyj Edytuj, aby wrócić do szkicu.`}
             onClick={() => onSelect({ kind: 'sketch', id: sketch.id })}
           >
             <span /><PencilRuler size={13} /><span>{sketch.name}</span><small>{sketch.plane}</small>
@@ -202,6 +221,7 @@ function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect 
               className={`tree-row tree-profile ${selection?.kind === 'profile' && selection.id === profile.id ? 'selected' : ''}`}
               key={profile.id}
               type="button"
+              title={`Zaznacz ${profile.name}; przeciągnij strzałkę lub użyj Wyciągnij.`}
               onClick={() => onSelect({ kind: 'profile', id: profile.id, sketchId: sketch.id })}
             >
               <span />{profile.type === 'circle' ? <Circle size={12} /> : <Square size={12} />}<span>{profile.name}</span>
@@ -210,7 +230,7 @@ function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect 
         </React.Fragment>
       ))}
 
-      <button className="tree-row tree-child tree-folder" type="button" onClick={() => toggle('bodies')}>
+      <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj utworzone bryły." onClick={() => toggle('bodies')}>
         {expanded.bodies ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<FolderOpen size={14} /><span>Bryły</span><small>{bodies.length}</small>
       </button>
       {expanded.bodies && bodies.map((body) => (
@@ -218,6 +238,7 @@ function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect 
           className={`tree-row tree-grandchild ${selection?.kind === 'body' && selection.id === body.id ? 'selected' : ''}`}
           key={body.id}
           type="button"
+          title={`Zaznacz bryłę ${body.name} do dalszych operacji.`}
           onClick={() => onSelect({ kind: 'body', id: body.id })}
         >
           <span /><Box size={13} /><span>{body.name}</span><i className="body-color" style={{ background: body.color }} />
@@ -292,7 +313,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel }) 
         {(isFillet || command.type === 'chamfer') && (
           <Field label={isFillet ? 'Promień' : 'Odległość'} value={command.size} onChange={(size) => onChange({ size })} suffix="mm" autoFocus />
         )}
-        <div className="command-preview-note"><span className="preview-dot" />{isRectangle || isCircle ? 'Kliknij środek i drugi punkt na płótnie albo wpisz dokładne wymiary.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
+        <div className="command-preview-note"><span className="preview-dot" />{isRectangle || isCircle ? 'Kliknij środek i drugi punkt na płótnie albo wpisz dokładne wymiary.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
       </div>
       <footer><button className="secondary" type="button" onClick={onCancel}>Anuluj</button><button className="confirm" type="button" onClick={onConfirm}><Check size={14} /> OK</button></footer>
     </section>
@@ -413,6 +434,7 @@ export default function ModelingWorkspace({ onClose }) {
   const [selection, setSelection] = useState({ kind: 'document', id: document.id });
   const [activeSketchId, setActiveSketchId] = useState(null);
   const [command, setCommand] = useState(null);
+  const [browserOpen, setBrowserOpen] = useState(true);
   const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, profiles: true, points: true, dimensions: true, constraints: true, construction: true, sketch3d: false });
   const [notice, setNotice] = useState('Gotowe. Wybierz „Utwórz szkic”, aby rozpocząć modelowanie.');
   const fileInputRef = useRef(null);
@@ -559,10 +581,34 @@ export default function ModelingWorkspace({ onClose }) {
       setNotice(activeSketchId ? 'Najpierw zakończ szkic.' : 'Wybierz zamknięty profil w przeglądarce.');
       return;
     }
-    const operation = engine.bodies.length ? 'join' : 'new';
-    setCommand({ type: 'extrude', distance: '10', operation, previewFeature: null });
-    window.setTimeout(() => updateCommand({ distance: '10', operation }), 0);
+    beginOrUpdateExtrude(10);
     setNotice('Podgląd wyciągnięcia jest aktywny. Potwierdź operację przyciskiem OK.');
+  };
+
+  const beginOrUpdateExtrude = (distance) => {
+    if (!selectedProfile || activeSketchId) return;
+    setCommand((current) => {
+      const editing = current?.type === 'extrude' ? current : null;
+      const operation = editing?.operation || (engine.bodies.length ? 'join' : 'new');
+      const next = {
+        ...(editing || {}),
+        type: 'extrude',
+        distance: String(distance),
+        operation,
+      };
+      next.previewFeature = createFeature('extrude', {
+        name: editing?.previewFeature?.name || `Wyciągnięcie ${document.features.length + 1}`,
+        sketchId: selectedProfileMatch?.sketch.id,
+        profileIds: [selectedProfile.id],
+        distance: next.distance,
+        operation,
+        targetBodyId: operation === 'new' ? null : targetBodyId,
+      });
+      if (editing?.previewFeature?.id) next.previewFeature.id = editing.previewFeature.id;
+      if (editing?.editId) next.editId = editing.editId;
+      return next;
+    });
+    setNotice(`Wyciągnięcie ustawione przeciągnięciem: ${Number(distance).toFixed(1)} mm. Kliknij OK, aby zapisać operację.`);
   };
 
   const openHole = () => {
@@ -673,6 +719,55 @@ export default function ModelingWorkspace({ onClose }) {
     setNotice(id === 'print' ? 'Sprawdź gabaryty i przygotuj plik do druku 3D.' : 'Obszar modelowania bryłowego.');
   };
 
+  const selectTimelineStep = (direction) => {
+    if (!document.features.length) return;
+    const currentIndex = selection?.kind === 'feature'
+      ? document.features.findIndex((feature) => feature.id === selection.id)
+      : -1;
+    const nextIndex = direction === 'start'
+      ? 0
+      : direction === 'previous'
+        ? Math.max(0, currentIndex < 0 ? document.features.length - 1 : currentIndex - 1)
+        : Math.min(document.features.length - 1, currentIndex + 1);
+    const feature = document.features[nextIndex];
+    setSelection({ kind: 'feature', id: feature.id });
+    setNotice(`${nextIndex + 1}. ${feature.name}`);
+  };
+
+  const handleBrowserSelection = (nextSelection) => {
+    if (nextSelection.kind === 'settings') {
+      setCommand({ type: 'parameters' });
+      setNotice('Parametry modelu sterują wymiarami szkiców i operacji.');
+      return;
+    }
+    if (nextSelection.kind === 'plane') {
+      pickPlane(nextSelection.id);
+      return;
+    }
+    setSelection(nextSelection);
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape' && command) {
+        event.preventDefault();
+        setCommand(null);
+        return;
+      }
+      if (event.key === 'Enter' && command?.previewFeature) {
+        event.preventDefault();
+        confirmFeature();
+        return;
+      }
+      if (event.ctrlKey && event.key.toLowerCase() === 'e' && selectedProfile && !activeSketchId) {
+        event.preventDefault();
+        openExtrude();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [command, selectedProfile, activeSketchId]);
+
   const timelineStatus = new Map(engine.timeline?.map((item) => [item.id, item]));
   const sketch = document.sketches.find((item) => item.id === activeSketchId);
   const draftProfile = command?.type === 'rectangle'
@@ -684,38 +779,35 @@ export default function ModelingWorkspace({ onClose }) {
   return (
     <section className="modeling-shell" aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
-        <div className="app-menu"><div className="brand-mark">M</div><button type="button" title="Strona główna"><Home size={16} /></button><button type="button" title="Panel danych"><Grid2X2 size={16} /></button><button type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button type="button" title="Otwórz projekt" onClick={() => fileInputRef.current?.click()}><FolderOpen size={16} /></button><button type="button" title="Zapisz" onClick={saveProject}><Save size={16} /></button></div>
+        <div className="app-menu"><div className="brand-mark">M</div><button type="button" title="Dokumentacja" onClick={onClose}><Home size={16} /></button><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button type="button" title="Otwórz projekt" onClick={() => fileInputRef.current?.click()}><FolderOpen size={16} /></button><button type="button" title="Zapisz" onClick={saveProject}><Save size={16} /></button></div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
-        <div className="document-tab"><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" onChange={(event) => commit((next) => { next.name = event.target.value; })} /><span>*</span><button type="button" title="Zamknij dokument"><X size={13} /></button></div>
+        <div className="document-tab"><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" onChange={(event) => commit((next) => { next.name = event.target.value; })} /><span>*</span><button type="button" title="Zamknij dokument" onClick={onClose}><X size={13} /></button></div>
         <div className="title-actions"><button type="button" disabled={!history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button type="button" disabled={!history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><button type="button" title="Dokumentacja 2D" onClick={onClose}><AppWindow size={15} /><span>Dokumentacja</span></button></div>
       </header>
 
       <section className="command-area">
-        <div className="workspace-switcher"><button type="button"><span>PROJEKT</span><ChevronDown size={13} /></button></div>
+        <div className="workspace-switcher"><div className="workspace-label"><span>PROJEKT</span></div></div>
         <div className="command-ribbon">
           <nav className="workspace-tabs" aria-label="Obszary robocze">
-            {activeSketchId ? <button className="active" type="button">SZKICUJ</button> : MAIN_TABS.map((item) => <button key={item.id} className={workspace === item.id ? 'active' : ''} type="button" disabled={item.disabled} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
+            {activeSketchId ? <button className="active" type="button" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item) => <button key={item.id} className={workspace === item.id ? 'active' : ''} type="button" title={item.id === 'solid' ? 'Modelowanie bryłowe i operacje na profilach.' : item.id === 'tools' ? 'Parametry i narzędzia dokumentu.' : 'Kontrola modelu oraz eksport do druku 3D.'} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
           </nav>
           <div className="modeling-ribbon">
             {activeSketchId ? (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} primary /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} /><ToolButton icon={Minus} label="Linia" disabled /><ToolButton icon={Hexagon} label="Wielokąt" disabled /></RibbonGroup>
-                <RibbonGroup label="ZMIANA"><ToolButton icon={Scissors} label="Przytnij" disabled /><ToolButton icon={Move} label="Przesuń" disabled /><ToolButton icon={RotateCw} label="Obróć" disabled /><ToolButton icon={Copy} label="Odsuń" disabled /></RibbonGroup>
-                <RibbonGroup label="WIĄZANIA"><ToolButton icon={Ruler} label="Wymiar" disabled /><ToolButton icon={Lock} label="Ustal" disabled /><ToolButton icon={Settings2} label="Wiązania" disabled /></RibbonGroup>
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} primary /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} /></RibbonGroup>
                 <RibbonGroup label="SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
             ) : workspace === 'print' ? (
               <>
-                <RibbonGroup label="PRZYGOTUJ"><ToolButton icon={Printer} label="Kontrola druku" primary onClick={() => setWorkspace('print')} /><ToolButton icon={Ruler} label="Wymiary" disabled /></RibbonGroup>
+                <RibbonGroup label="PRZYGOTUJ"><ToolButton icon={Printer} label="Kontrola druku" primary onClick={() => setWorkspace('print')} /></RibbonGroup>
                 <RibbonGroup label="EKSPORT"><ToolButton icon={HardDriveDownload} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
               </>
             ) : (
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={!selectedProfile} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={selectedProfile?.type !== 'circle' || !engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={!engine.bodies.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={!engine.bodies.length} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={!['sketch', 'profile', 'feature'].includes(selection?.kind)} /></RibbonGroup>
-                <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Layers3} label="Płaszczyzna" disabled /><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} /></RibbonGroup>
-                <RibbonGroup label="SPRAWDŹ"><ToolButton icon={Ruler} label="Zmierz" disabled /><ToolButton icon={ScanSearch} label="Analiza" disabled /></RibbonGroup>
-                <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Otwórz" onClick={() => fileInputRef.current?.click()} /><ToolButton icon={Layers3} label="Komponent" disabled /></RibbonGroup>
+                <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} /></RibbonGroup>
+                <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Otwórz" onClick={() => fileInputRef.current?.click()} /></RibbonGroup>
                 <RibbonGroup label="WYBIERZ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
                 <RibbonGroup label="EKSPORT" end><ToolButton icon={FileDown} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={Printer} label="Druk 3D" onClick={() => switchWorkspace('print')} /></RibbonGroup>
               </>
@@ -724,8 +816,8 @@ export default function ModelingWorkspace({ onClose }) {
         </div>
       </section>
 
-      <div className={`modeling-content ${workspace === 'print' ? 'with-print-panel' : ''}`}>
-        <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={setSelection} />
+      <div className={`modeling-content ${workspace === 'print' ? 'with-print-panel' : ''} ${browserOpen ? '' : 'without-browser'}`}>
+        {browserOpen && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onClose={() => setBrowserOpen(false)} />}
         <main className="modeling-stage">
           <ModelViewport
             bodies={engine.bodies}
@@ -738,6 +830,11 @@ export default function ModelingWorkspace({ onClose }) {
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : null}
             onSelectBody={(id) => setSelection(id ? { kind: 'body', id } : { kind: 'document', id: document.id })}
+            selectedProfile={selectedProfile}
+            selectedProfilePlane={selectedProfileMatch?.sketch.plane || 'XY'}
+            directExtrudeDistance={command?.type === 'extrude' ? command.distance : 0}
+            onDirectExtrude={beginOrUpdateExtrude}
+            snapEnabled={sketchOptions.snap}
             bed={document.print}
             showBed={workspace === 'print'}
           />
@@ -756,7 +853,7 @@ export default function ModelingWorkspace({ onClose }) {
       <footer className="modeling-footer">
         <div className="notice" role="status"><span className={`status-dot ${engine.status}`} />{engine.error || notice}</div>
         <div className="timeline" aria-label="Parametryczna oś czasu">
-          <div className="timeline-controls"><button type="button" title="Przejdź na początek"><SkipBack size={14} /></button><button type="button" title="Poprzednia operacja"><StepBack size={14} /></button><button type="button" title="Następna operacja"><StepForward size={14} /></button></div>
+          <div className="timeline-controls"><button type="button" title="Zaznacz pierwszy krok parametrycznej historii." onClick={() => selectTimelineStep('start')}><SkipBack size={14} /></button><button type="button" title="Zaznacz poprzednią operację w historii." onClick={() => selectTimelineStep('previous')}><StepBack size={14} /></button><button type="button" title="Zaznacz następną operację w historii." onClick={() => selectTimelineStep('next')}><StepForward size={14} /></button></div>
           <span className="timeline-start" />
           {document.features.map((feature, index) => {
             const result = timelineStatus.get(feature.id);
