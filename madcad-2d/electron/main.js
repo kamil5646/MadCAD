@@ -11,6 +11,7 @@ const execFileAsync = promisify(execFile);
 const isMac = process.platform === 'darwin';
 const isWindows = process.platform === 'win32';
 const APP_DISPLAY_NAME = 'MadCAD';
+const LEGACY_USER_DATA_NAME = 'MadCAD 2D';
 const appIconPng = path.join(__dirname, '..', 'assets', 'icons', 'madcad-512.png');
 const ODA_DOWNLOAD_URL = 'https://www.opendesign.com/guestfiles/oda_file_converter';
 const ODA_DOWNLOAD_PAGE_HOST = 'www.opendesign.com';
@@ -21,6 +22,9 @@ let forceCloseForUpdate = false;
 
 if (app && typeof app.setName === 'function') {
   app.setName(APP_DISPLAY_NAME);
+  // Zachowujemy dotychczasowy katalog danych, aby aktualizacja po zmianie nazwy
+  // nie utraciła licencji, ustawień ani automatycznych zapisów użytkownika.
+  app.setPath('userData', path.join(app.getPath('appData'), LEGACY_USER_DATA_NAME));
 }
 
 function resolveAppLanguage() {
