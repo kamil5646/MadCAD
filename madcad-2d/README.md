@@ -17,6 +17,7 @@ MadCAD 2D rozwija się aktywnie. Jeśli chcesz wesprzeć rozwój aplikacji:
 - Narzędzia CAD 2D: linia, polilinia, prostokąt, okrąg, pomiar, wymiarowanie.
 - Modyfikacje: przesuń, kopiuj, odsuń, duplikuj, usuwanie, kolejność obiektów.
 - Generator stali: szablony `brama`, `ogrodzenie`, `balkon`.
+- Moduł druku 3D: dodatkowy widok projektu, wyciąganie prostokątów, okręgów i zamkniętych obszarów oraz eksport STL.
 - Import/eksport: `JSON`, `DXF`, `SVG`, druk/PDF.
 - Aktualizacje z poziomu aplikacji.
 

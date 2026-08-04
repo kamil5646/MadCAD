@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.7.0 (2026-08-04)
+
+- Dodano dodatkowy widok przygotowania projektu do druku 3D bez usuwania narzędzi CAD 2D.
+- Dodano wyciąganie prostokątów, okręgów i zamkniętych obszarów 2D do brył 3D.
+- Dodano interaktywny podgląd modelu, kontrolę wymiarów stołu drukarki i eksport STL w milimetrach.
+- Moduł 3D jest ładowany na żądanie, aby nie obciążać podstawowego trybu 2D.
+
 ## 5.6.4 (2026-05-04)
 
 - Naprawiono przeciąganie okna aplikacji na Windowsie po ukryciu natywnego paska tytułu.

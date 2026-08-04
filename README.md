@@ -29,6 +29,7 @@ MadCAD 2D łączy klasyczne narzędzia CAD 2D z gotowym workflow pod bramy, ogro
 - Wymiarowanie: tryby wyrównany, liniowy, obrócony i kątowy.
 - Modyfikacje: przesuń, kopiuj, odsuń, duplikuj, warstwy, kolejność obiektów.
 - Generator stali: szybkie szablony `brama`, `ogrodzenie`, `balkon`.
+- Druk 3D: wyciąganie zamkniętych figur 2D, kontrola stołu drukarki i eksport `STL`.
 - Eksport i wydruk: `JSON`, `DXF`, `SVG`, `PDF`.
 - Aktualizacje aplikacji z poziomu interfejsu.
 
@@ -66,6 +67,7 @@ MadCAD 2D is a desktop 2D CAD app focused on technical drawing and steel-structu
 - Dimensioning modes: aligned, linear, rotated, angular.
 - Editing: move, copy, offset, duplicate, layers, object order.
 - Steel generator templates: `gate`, `fence`, `balcony`.
+- 3D printing: extrude closed 2D shapes, check printer-bed fit, and export `STL`.
 - Export and print: `JSON`, `DXF`, `SVG`, `PDF`.
 - Built-in update flow from the app UI.
 
