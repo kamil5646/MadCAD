@@ -15,11 +15,11 @@ export default function App() {
 
   return (
     <div className="react-ui-layer">
-      {modelingOpen && (
+      <div hidden={!modelingOpen}>
         <Suspense fallback={<div className="print3d-loading">Ładowanie modułu 3D…</div>}>
           <ModelingWorkspace onClose={() => setModelingOpen(false)} />
         </Suspense>
-      )}
+      </div>
     </div>
   );
 }

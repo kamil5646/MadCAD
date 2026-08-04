@@ -38,6 +38,19 @@ const WORKSPACES = [
   { id: 'print', label: 'Druk 3D' },
 ];
 
+const AUTOSAVE_KEY = 'madcad:modeling-document:v3';
+
+function loadInitialDocument() {
+  try {
+    const saved = window.localStorage.getItem(AUTOSAVE_KEY);
+    if (!saved) return createStarterDocument();
+    const document = JSON.parse(saved);
+    return validateDocument(document).valid ? document : createStarterDocument();
+  } catch {
+    return createStarterDocument();
+  }
+}
+
 function useDocumentHistory(initialDocument) {
   const [history, setHistory] = useState({ past: [], present: initialDocument, future: [] });
   const commit = (mutator) => {
@@ -334,7 +347,7 @@ function PrintInspector({ document, bodies, commit, engine, onExport }) {
 }
 
 export default function ModelingWorkspace({ onClose }) {
-  const history = useDocumentHistory(createStarterDocument());
+  const history = useDocumentHistory(loadInitialDocument());
   const { document, commit } = history;
   const engine = useCadEngine(document);
   const [workspace, setWorkspace] = useState('model');
@@ -347,6 +360,13 @@ export default function ModelingWorkspace({ onClose }) {
   const firstBodyId = engine.bodies[0]?.id;
 
   useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(document));
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [document]);
+
+  useEffect(() => {
     const verifyMode = new URLSearchParams(window.location.search).has('verify');
     if (!verifyMode) return undefined;
     window.__madcadVerifyExport = engine.exportModel;
@@ -354,12 +374,12 @@ export default function ModelingWorkspace({ onClose }) {
   }, [engine.exportModel]);
 
   const addProfile = (type) => {
-    let profile;
+    const profileNumber = (document.sketches[0]?.profiles.length || 0) + 1;
+    const profile = type === 'circle'
+      ? createCircleProfile({ name: `Okrąg ${profileNumber}`, diameter: 10, x: 0, y: 0 })
+      : createRectangleProfile({ name: `Prostokąt ${profileNumber}`, width: 30, height: 20, x: 0, y: 0 });
     commit((next) => {
       if (!next.sketches.length) next.sketches.push(createSketch({ name: 'Szkic XY', plane: 'XY' }));
-      profile = type === 'circle'
-        ? createCircleProfile({ name: `Okrąg ${next.sketches[0].profiles.length + 1}`, diameter: 10, x: 0, y: 0 })
-        : createRectangleProfile({ name: `Prostokąt ${next.sketches[0].profiles.length + 1}`, width: 30, height: 20, x: 0, y: 0 });
       next.sketches[0].profiles.push(profile);
     });
     setSelection({ kind: 'profile', id: profile.id });
@@ -372,16 +392,15 @@ export default function ModelingWorkspace({ onClose }) {
       setNotice('Najpierw wybierz profil w drzewie projektu.');
       return;
     }
-    let feature;
+    const target = engine.bodies[0]?.id;
+    const feature = createFeature('extrude', {
+      name: `Wyciągnięcie ${document.features.length + 1}`,
+      profileIds: [selectedProfile.id],
+      distance: 10,
+      operation: target ? 'join' : 'new',
+      targetBodyId: target,
+    });
     commit((next) => {
-      const target = engine.bodies[0]?.id;
-      feature = createFeature('extrude', {
-        name: `Wyciągnięcie ${next.features.length + 1}`,
-        profileIds: [selectedProfile.id],
-        distance: 10,
-        operation: target ? 'join' : 'new',
-        targetBodyId: target,
-      });
       next.features.push(feature);
     });
     setSelection({ kind: 'feature', id: feature.id });
@@ -394,15 +413,14 @@ export default function ModelingWorkspace({ onClose }) {
       setNotice('Wybierz profil okręgu i upewnij się, że projekt zawiera bryłę.');
       return;
     }
-    let feature;
+    const feature = createFeature('hole', {
+      name: `Otwór ${document.features.length + 1}`,
+      targetBodyId: firstBodyId,
+      profileId: selectedProfile.id,
+      diameter: selectedProfile.geometry.diameter,
+      depth: 10,
+    });
     commit((next) => {
-      feature = createFeature('hole', {
-        name: `Otwór ${next.features.length + 1}`,
-        targetBodyId: firstBodyId,
-        profileId: selectedProfile.id,
-        diameter: selectedProfile.geometry.diameter,
-        depth: 10,
-      });
       next.features.push(feature);
     });
     setSelection({ kind: 'feature', id: feature.id });
@@ -416,13 +434,12 @@ export default function ModelingWorkspace({ onClose }) {
       setNotice('Najpierw utwórz lub wybierz bryłę.');
       return;
     }
-    let feature;
+    const feature = createFeature(type, {
+      name: `${type === 'fillet' ? 'Zaokrąglenie' : 'Fazowanie'} ${document.features.length + 1}`,
+      targetBodyId,
+      ...(type === 'fillet' ? { radius: 1 } : { distance: 1 }),
+    });
     commit((next) => {
-      feature = createFeature(type, {
-        name: `${type === 'fillet' ? 'Zaokrąglenie' : 'Fazowanie'} ${next.features.length + 1}`,
-        targetBodyId,
-        ...(type === 'fillet' ? { radius: 1 } : { distance: 1 }),
-      });
       next.features.push(feature);
     });
     setSelection({ kind: 'feature', id: feature.id });
@@ -431,11 +448,10 @@ export default function ModelingWorkspace({ onClose }) {
   };
 
   const addParameter = () => {
-    let parameter;
+    let number = document.parameters.length + 1;
+    while (document.parameters.some((item) => item.name === `parametr${number}`)) number += 1;
+    const parameter = createParameter(`parametr${number}`, 10, 'mm', `Parametr ${number}`);
     commit((next) => {
-      let number = next.parameters.length + 1;
-      while (next.parameters.some((item) => item.name === `parametr${number}`)) number += 1;
-      parameter = createParameter(`parametr${number}`, 10, 'mm', `Parametr ${number}`);
       next.parameters.push(parameter);
     });
     setSelection({ kind: 'parameter', id: parameter.id });

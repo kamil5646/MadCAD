@@ -81,13 +81,8 @@ export function createStarterDocument() {
     diameter: 'srednicaOtworu',
     depth: 'wysokosc',
   });
-  const fillet = createFeature('fillet', {
-    name: 'Zaokrąglenie krawędzi',
-    targetBodyId: `body-${base.id}`,
-    radius: 1.5,
-  });
   document.sketches = [sketch];
-  document.features = [base, hole, fillet];
+  document.features = [base, hole];
   return document;
 }
 

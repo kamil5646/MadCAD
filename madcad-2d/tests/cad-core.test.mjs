@@ -34,9 +34,8 @@ test('przygotowuje historię modelu startowego dla jądra CAD', () => {
   const document = createStarterDocument();
   assert.equal(validateDocument(document).valid, true);
   const prepared = prepareDocument(document);
-  assert.equal(prepared.features.length, 3);
+  assert.equal(prepared.features.length, 2);
   assert.equal(prepared.features[0].distanceValue, 8);
   assert.equal(prepared.features[0].profiles[0].geometry.width, 60);
   assert.equal(prepared.features[1].diameterValue, 8);
-  assert.equal(prepared.features[2].sizeValue, 1.5);
 });
