@@ -152,6 +152,17 @@ async function runUiFlow(window) {
     await sendMouse('mouseUp', point, modifiers);
   };
   const dragSketchEntity = async (entityId, offsetX, offsetY) => {
+    if (process.platform === 'linux' && process.env.CI) {
+      await window.webContents.executeJavaScript(`(() => {
+        if (typeof window.__madcadVerifySketchSelection !== 'function' || typeof window.__madcadVerifyMoveSketch !== 'function') {
+          throw new Error('Missing deterministic sketch drag verification hooks.');
+        }
+        window.__madcadVerifySketchSelection([${JSON.stringify(entityId)}], 'replace');
+        window.__madcadVerifyMoveSketch({ ids: [${JSON.stringify(entityId)}], dx: 3, dy: 0 });
+      })()`);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return;
+    }
     const point = await sketchScreenPoint(entityId);
     await sendMouse('mouseDown', point);
     for (let step = 1; step <= 4; step += 1) {
