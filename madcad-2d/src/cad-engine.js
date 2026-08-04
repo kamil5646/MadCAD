@@ -144,6 +144,8 @@
 
   const LICENSE_STORAGE_KEY = "madcad-license-v1";
   const LICENSE_CLEARED_MARK_KEY = "madcad-license-cleared-at-v1";
+  // Tymczasowy przełącznik produktu. Kod licencji pozostaje gotowy do ponownego włączenia.
+  const LICENSE_ENFORCEMENT_ENABLED = false;
   const UI_LANGUAGE_STORAGE_KEY = "madcad-ui-language";
   const UI_LANGUAGE_ONBOARDING_KEY = "madcad-ui-language-onboarded-v1";
   const LICENSE_TOKEN_PATTERN = /^M2D[0-9]+\.[A-Za-z0-9_-]{8,512}(?:\.[A-Za-z0-9_-]{8,1200})?$/;
@@ -2677,6 +2679,9 @@
   }
 
   function startRemoteLicenseRecheck() {
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      return;
+    }
     if (licenseRemoteRecheckTimer !== null || !licenseSession.active || !licenseSession.token) {
       return;
     }
@@ -2695,6 +2700,9 @@
   }
 
   async function validateLicenseWithPublicRegistry(options) {
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      return true;
+    }
     const opts = options && typeof options === "object" ? options : {};
     if (!licenseSession.active || !licenseSession.token) {
       return false;
@@ -2847,6 +2855,14 @@
     }
     licenseSummaryChip.classList.remove("is-free", "is-commercial", "is-missing");
 
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      licenseSummaryChip.dataset.icon = "\u2713";
+      licenseSummaryChip.textContent = "Licencja: wyłączona";
+      licenseSummaryChip.classList.add("is-free");
+      licenseSummaryChip.title = "Aktywacja licencji jest tymczasowo wyłączona.";
+      return;
+    }
+
     if (!licenseSession.active) {
       licenseSummaryChip.dataset.icon = "\u26A0";
       licenseSummaryChip.textContent = "Licencja: brak";
@@ -2890,6 +2906,9 @@
   }
 
   function enforceLicenseStorageIntegrity(options) {
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      return true;
+    }
     const opts = options && typeof options === "object" ? options : {};
     const storedRecord = readPersistedLicenseRecord();
     const storedToken = String(storedRecord && storedRecord.token ? storedRecord.token : "").trim();
@@ -2918,6 +2937,10 @@
   }
 
   function openLicenseManager() {
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      setLicenseOverlayVisible(false);
+      return;
+    }
     setLicenseOverlayVisible(true);
     if (licenseTokenInput) {
       licenseTokenInput.focus();
@@ -2932,7 +2955,7 @@
   }
 
   function setLicenseLocked(locked) {
-    const isLocked = Boolean(locked);
+    const isLocked = LICENSE_ENFORCEMENT_ENABLED ? Boolean(locked) : false;
     licenseSession.active = !isLocked;
     if (appRoot) {
       appRoot.classList.toggle("license-locked", isLocked);
@@ -2972,6 +2995,10 @@
   }
 
   function validateStoredLicenseAtStartup(storedRecord, options) {
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      setLicenseLocked(false);
+      return true;
+    }
     const opts = options && typeof options === "object" ? options : {};
     const auditEnabled = opts.audit !== false;
     const contextLabel = String(opts.context || "Walidacja przy uruchomieniu");
@@ -3103,6 +3130,19 @@
   }
 
   function initializeLicenseManager() {
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      licenseSession.active = true;
+      stopRemoteLicenseRecheck();
+      setLicenseOverlayVisible(false);
+      if (licenseCategoryBtn) {
+        licenseCategoryBtn.hidden = true;
+      }
+      if (appRoot) {
+        appRoot.classList.remove("license-locked");
+      }
+      updateLicenseSummaryChip();
+      return true;
+    }
     if (!licenseOverlay) {
       licenseSession.active = true;
       updateLicenseSummaryChip();

@@ -67,6 +67,7 @@ The sketch comparison provides readable evidence for the densest areas: contextu
 - Direct manipulation: the selected profile exposes a visible 3D arrow; pointer drag updates a translucent solid preview and millimeter label, then transfers the value into the B-Rep command and parametric timeline.
 - Control clarity: every active ribbon command keeps a visible label and descriptive hover text; viewport navigation and timeline controls also expose descriptive hover help.
 - Honest scope pass: non-functional ribbon placeholders and inactive workspace tabs were removed from the primary interface. Visible primary commands now have real handlers.
+- Temporary license bypass: startup remains unlocked, the activation overlay stays hidden, and the license menu entry is removed while the existing token system remains in source for later re-enabling.
 - Exact exports after the full rounded-and-chamfered verification model: STL 582,884 bytes; STEP 73,213 bytes.
 - Core tests: 4 passed.
 - Runtime console: no application exceptions. Electron reports its development-only CSP warning; OpenCascade emits expected STEP writer diagnostics.

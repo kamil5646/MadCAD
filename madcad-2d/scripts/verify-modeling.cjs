@@ -247,10 +247,19 @@ app.whenReady().then(async () => {
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1' } });
     const result = await waitForModel(window);
     process.stdout.write('[verify] engine ready\n');
-    await window.webContents.executeJavaScript(`(() => {
+    const licenseBypass = await window.webContents.executeJavaScript(`(() => {
       const overlay = document.querySelector('#licenseOverlay');
-      if (overlay) overlay.style.visibility = 'hidden';
+      const root = document.querySelector('.app');
+      const entry = document.querySelector('#licenseCategoryBtn');
+      return {
+        overlayHidden: !overlay || overlay.hidden,
+        appUnlocked: !root?.classList.contains('license-locked'),
+        entryHidden: !entry || entry.hidden,
+      };
     })()`);
+    if (!licenseBypass.overlayHidden || !licenseBypass.appUnlocked || !licenseBypass.entryHidden) {
+      throw new Error('Aktywacja licencji nadal blokuje interfejs.');
+    }
     await new Promise((resolve) => setTimeout(resolve, 600));
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     const uiFlow = await runUiFlow(window);
@@ -271,7 +280,7 @@ app.whenReady().then(async () => {
     process.stdout.write('[verify] exporting STL and STEP\n');
     const stl = await verifyExport(window, 'STL');
     const step = await verifyExport(window, 'STEP');
-    const report = { ...result, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, exports: { stl, step }, rendererMessages };
+    const report = { ...result, licenseBypass, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, exports: { stl, step }, rendererMessages };
     await fs.writeFile(path.join(path.dirname(outputPath), 'verification-report.json'), JSON.stringify(report, null, 2));
     process.stdout.write(`${JSON.stringify(report)}\n`);
     if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.timelineVisible) process.exitCode = 1;
