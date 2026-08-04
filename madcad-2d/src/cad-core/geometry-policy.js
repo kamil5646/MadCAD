@@ -4,8 +4,10 @@ export const GEOMETRY_POLICY = Object.freeze({
   angularTolerance: 1e-9,
   profileJoinTolerance: 1e-5,
   selectionTolerancePixels: 8,
+  previewMesh: Object.freeze({ linearTolerance: 0.2, angularTolerance: 0.35 }),
   displayMesh: Object.freeze({ linearTolerance: 0.08, angularTolerance: 0.2 }),
   exportMesh: Object.freeze({ linearTolerance: 0.05, angularTolerance: 0.15 }),
+  cache: Object.freeze({ maxRevisions: 3, maxMeshBytes: 192 * 1024 * 1024 }),
 });
 
 export function isFiniteNumber(value) {

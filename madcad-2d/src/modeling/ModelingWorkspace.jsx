@@ -476,7 +476,7 @@ export default function ModelingWorkspace({ onClose }) {
     }
     return next;
   }, [document, command]);
-  const engine = useCadEngine(previewDocument);
+  const engine = useCadEngine(previewDocument, { quality: command?.previewFeature ? 'preview' : 'display' });
   const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => feature.type === 'extrude' && feature.operation === 'new').map((feature) => `body-${feature.id}`)), [document.features]);
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
   const targetBodyId = selection?.kind === 'body' ? selection.id : (engine.bodies[0]?.id || firstBodyId || null);
@@ -493,6 +493,19 @@ export default function ModelingWorkspace({ onClose }) {
     window.__madcadVerifyExport = engine.exportModel;
     return () => { delete window.__madcadVerifyExport; };
   }, [engine.exportModel]);
+
+  useEffect(() => {
+    const verifyMode = new URLSearchParams(window.location.search).has('verify');
+    if (!verifyMode) return undefined;
+    window.__madcadVerifyEngineState = {
+      status: engine.status,
+      revision: engine.revision,
+      cache: engine.cache,
+      bodies: engine.bodies,
+      timeline: engine.timeline,
+    };
+    return () => { delete window.__madcadVerifyEngineState; };
+  }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline]);
 
   const updateCommand = (patch) => {
     setCommand((current) => {

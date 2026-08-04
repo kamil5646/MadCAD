@@ -4,9 +4,20 @@ import { drawCircle, drawRectangle, makeCylinder, setOC } from 'replicad';
 import { FEATURE_STATUS, prepareDocument } from './evaluator.js';
 import { evaluateFeatureHistory } from './feature-history.js';
 import { GEOMETRY_POLICY } from './geometry-policy.js';
+import { assignStableTopologyIds } from './topology-naming.js';
+import { RevisionCache, SerialTaskQueue, estimateMeshBytes, isStaleRevision } from './worker-runtime.js';
 
 let kernelPromise;
-let lastBodies = [];
+let latestRequestedRevision = 0;
+const requestQueue = new SerialTaskQueue();
+const revisionCache = new RevisionCache({
+  maxEntries: GEOMETRY_POLICY.cache.maxRevisions,
+  maxBytes: GEOMETRY_POLICY.cache.maxMeshBytes,
+  onEvict: (entry) => {
+    for (const body of entry?.kernelBodies || []) body.shape?.delete?.();
+  },
+});
+const topologyHistory = new Map();
 
 async function ensureKernel() {
   if (!kernelPromise) {
@@ -83,16 +94,61 @@ function runFeature(feature, bodyMap, bodyOrder) {
   }
 }
 
-function meshBody(body, index) {
+function faceDescriptor(face) {
+  try {
+    const center = face.center.toTuple();
+    return {
+      geometry: face.geomType,
+      center,
+      normal: face.normalAt(center).toTuple(),
+      orientation: face.orientation,
+    };
+  } catch (_error) {
+    return { geometry: 'UNKNOWN_FACE' };
+  }
+}
+
+function edgeDescriptor(edge) {
+  try {
+    const start = edge.startPoint.toTuple();
+    const end = edge.endPoint.toTuple();
+    const ordered = [start, end].sort((left, right) => {
+      for (let axis = 0; axis < 3; axis += 1) {
+        if (left[axis] !== right[axis]) return left[axis] - right[axis];
+      }
+      return 0;
+    });
+    return {
+      geometry: edge.geomType,
+      endpoints: ordered,
+      length: edge.length,
+      closed: edge.isClosed,
+    };
+  } catch (_error) {
+    return { geometry: 'UNKNOWN_EDGE' };
+  }
+}
+
+function meshBody(body, index, quality = 'display') {
+  const meshPolicy = quality === 'preview' ? GEOMETRY_POLICY.previewMesh : GEOMETRY_POLICY.displayMesh;
   const mesh = body.shape.mesh({
-    tolerance: GEOMETRY_POLICY.displayMesh.linearTolerance,
-    angularTolerance: GEOMETRY_POLICY.displayMesh.angularTolerance,
+    tolerance: meshPolicy.linearTolerance,
+    angularTolerance: meshPolicy.angularTolerance,
   });
   const edges = body.shape.meshEdges({
-    tolerance: GEOMETRY_POLICY.displayMesh.linearTolerance,
-    angularTolerance: GEOMETRY_POLICY.displayMesh.angularTolerance,
+    tolerance: meshPolicy.linearTolerance,
+    angularTolerance: meshPolicy.angularTolerance,
   });
-  return {
+  const shapeFaces = body.shape.faces;
+  const shapeEdges = body.shape.edges;
+  const previousTopology = topologyHistory.get(body.id) || { faces: [], edges: [] };
+  const faces = assignStableTopologyIds(body.id, 'face', shapeFaces.map(faceDescriptor), previousTopology.faces)
+    .map((record, faceIndex) => ({ ...record, sourceHash: shapeFaces[faceIndex].hashCode }));
+  const stableEdges = assignStableTopologyIds(body.id, 'edge', shapeEdges.map(edgeDescriptor), previousTopology.edges)
+    .map((record, edgeIndex) => ({ ...record, sourceHash: shapeEdges[edgeIndex].hashCode }));
+  const faceIds = new Map(faces.map((face) => [face.sourceHash, face.id]));
+  const edgeIds = new Map(stableEdges.map((edge) => [edge.sourceHash, edge.id]));
+  const renderBody = {
     id: body.id,
     name: body.name,
     sourceFeatureId: body.sourceFeatureId,
@@ -102,19 +158,44 @@ function meshBody(body, index) {
     normals: Float32Array.from(mesh.normals),
     triangles: Uint32Array.from(mesh.triangles),
     lines: Float32Array.from(edges.lines),
+    faceGroups: mesh.faceGroups.map((group) => ({
+      start: group.start,
+      count: group.count,
+      sourceHash: group.faceId,
+      topologyId: faceIds.get(group.faceId) || null,
+    })),
+    edgeGroups: edges.edgeGroups.map((group) => ({
+      start: group.start,
+      count: group.count,
+      sourceHash: group.edgeId,
+      topologyId: edgeIds.get(group.edgeId) || null,
+    })),
+    topology: {
+      faces: faces.map(({ sourceHash, ...face }) => ({ ...face, sourceHash })),
+      edges: stableEdges.map(({ sourceHash, ...edge }) => ({ ...edge, sourceHash })),
+    },
     bounds: body.shape.boundingBox.bounds,
   };
+  return { renderBody, topologyState: { faces, edges: stableEdges } };
 }
 
-async function evaluate(document) {
+async function evaluateRevision(document, quality) {
   await ensureKernel();
   const prepared = prepareDocument(document);
   const history = evaluateFeatureHistory(prepared.features, runFeature);
   const { bodyMap, bodyOrder, timeline } = history;
 
-  lastBodies = bodyOrder.filter((id) => bodyMap.has(id)).map((id) => bodyMap.get(id));
-  const bodies = lastBodies.map(meshBody);
-  return { bodies, timeline, parameters: prepared.parameters, dependencyGraph: prepared.dependencyGraph.toJSON() };
+  const kernelBodies = bodyOrder.filter((id) => bodyMap.has(id)).map((id) => bodyMap.get(id));
+  const meshedBodies = kernelBodies.map((body, index) => meshBody(body, index, quality));
+  return {
+    kernelBodies,
+    renderBodies: meshedBodies.map((entry) => entry.renderBody),
+    topologyByBody: new Map(meshedBodies.map((entry, index) => [kernelBodies[index].id, entry.topologyState])),
+    timeline,
+    parameters: prepared.parameters,
+    dependencyGraph: prepared.dependencyGraph.toJSON(),
+    quality,
+  };
 }
 
 function transferableBuffers(bodies) {
@@ -126,9 +207,47 @@ function transferableBuffers(bodies) {
   ]);
 }
 
-async function exportBodies(format) {
-  if (!lastBodies.length) throw new Error('Brak bryły do eksportu.');
-  const blobs = await Promise.all(lastBodies.map(({ shape }) => (
+function cloneRenderBodies(bodies) {
+  return bodies.map((body) => ({
+    ...body,
+    vertices: Float32Array.from(body.vertices),
+    normals: Float32Array.from(body.normals),
+    triangles: Uint32Array.from(body.triangles),
+    lines: Float32Array.from(body.lines),
+  }));
+}
+
+function commitTopology(topologyByBody) {
+  for (const [bodyId, topology] of topologyByBody) topologyHistory.set(bodyId, topology);
+}
+
+function createRevisionError(revision) {
+  const error = new Error(`Wynik rewizji ${revision} jest nieaktualny; oczekiwana rewizja to ${latestRequestedRevision}.`);
+  error.code = 'STALE_REVISION';
+  return error;
+}
+
+async function resolveRevision(document, revision, quality = 'display') {
+  if (!Number.isInteger(revision) || revision < 1) {
+    const error = new Error('Żądanie silnika CAD nie zawiera prawidłowej rewizji dokumentu.');
+    error.code = 'INVALID_REVISION';
+    throw error;
+  }
+  if (isStaleRevision(revision, latestRequestedRevision)) throw createRevisionError(revision);
+  const cached = revisionCache.get(revision);
+  if (cached) return cached;
+
+  const evaluated = await evaluateRevision(document, quality);
+  if (isStaleRevision(revision, latestRequestedRevision)) throw createRevisionError(revision);
+  commitTopology(evaluated.topologyByBody);
+  revisionCache.set(revision, evaluated, estimateMeshBytes(evaluated.renderBodies));
+  return evaluated;
+}
+
+async function exportBodies(kernelBodies, format) {
+  if (!kernelBodies.length) throw new Error('Brak bryły do eksportu.');
+  if (format !== 'step' && format !== 'stl') throw new Error(`Nieobsługiwany format eksportu: ${format}.`);
+  const blobs = await Promise.all(kernelBodies.map(({ shape }) => (
     format === 'step'
       ? shape.blobSTEP()
       : shape.blobSTL({
@@ -140,21 +259,47 @@ async function exportBodies(format) {
   return Promise.all(blobs.map((blob) => blob.arrayBuffer()));
 }
 
-self.addEventListener('message', async (event) => {
-  const { id, type, document, format } = event.data;
-  try {
-    if (type === 'evaluate') {
-      const result = await evaluate(document);
-      self.postMessage({ id, ok: true, type, result }, transferableBuffers(result.bodies));
-      return;
-    }
-    if (type === 'export') {
-      const buffers = await exportBodies(format);
-      self.postMessage({ id, ok: true, type, result: { format, buffers } }, buffers);
-      return;
-    }
-    throw new Error(`Nieznane polecenie: ${type}`);
-  } catch (error) {
-    self.postMessage({ id, ok: false, type, error: error?.message || String(error) });
+async function handleMessage(data) {
+  const { id, type, document, format, revision, quality = 'display' } = data;
+  if (type === 'evaluate') {
+    const evaluated = await resolveRevision(document, revision, quality);
+    const bodies = cloneRenderBodies(evaluated.renderBodies);
+    const result = {
+      revision,
+      quality: evaluated.quality,
+      bodies,
+      timeline: evaluated.timeline,
+      parameters: evaluated.parameters,
+      dependencyGraph: evaluated.dependencyGraph,
+      cache: revisionCache.stats,
+    };
+    self.postMessage({ id, ok: true, type, result }, transferableBuffers(bodies));
+    return;
   }
+  if (type === 'export') {
+    const evaluated = await resolveRevision(document, revision, 'display');
+    const buffers = await exportBodies(evaluated.kernelBodies, format);
+    self.postMessage({ id, ok: true, type, result: { format, revision, buffers } }, buffers);
+    return;
+  }
+  const error = new Error(`Nieznane polecenie: ${type}`);
+  error.code = 'UNKNOWN_COMMAND';
+  throw error;
+}
+
+self.addEventListener('message', (event) => {
+  const data = event.data || {};
+  if (data.type === 'evaluate' && Number.isInteger(data.revision)) {
+    latestRequestedRevision = Math.max(latestRequestedRevision, data.revision);
+  }
+  requestQueue.enqueue(() => handleMessage(data)).catch((error) => {
+    self.postMessage({
+      id: data.id,
+      ok: false,
+      type: data.type,
+      code: error?.code || 'CAD_ENGINE_ERROR',
+      canceled: error?.code === 'STALE_REVISION',
+      error: error?.message || String(error),
+    });
+  });
 });

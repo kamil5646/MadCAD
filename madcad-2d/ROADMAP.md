@@ -77,14 +77,15 @@ Pełny szkic 3D, zaawansowane analizy powierzchni, CAM, FEA i elektronika nie s�
 - [x] Atomowy zapis projektu i autozapisu z kopią poprzedniej poprawnej wersji `.bak`.
 - [x] Wspólna polityka tolerancji, graf zależności, transakcje operacji i pełne stany historii `ok/warning/error/stale/suppressed`.
 - [x] Kontrakt trwałych sygnatur topologii odporny na kolejność elementów i szum mieszczący się w tolerancji.
+- [x] Rewizje dokumentu, serializowana kolejka workera, odrzucanie spóźnionych wyników, ograniczony cache LRU i eksport z dokładnego snapshotu.
+- [x] Worker zwraca mapowanie trójkątów do trwałych face ID oraz linii do trwałych edge ID.
 
 ### Działa tylko częściowo
 
-- [~] Zaznaczanie rozpoznaje dokument, szkic, profil i bryłę, ale nie rozpoznaje stabilnie ścian, krawędzi i wierzchołków B-Rep.
+- [~] Worker zwraca stabilne face/edge ID, ale viewport nie używa ich jeszcze do interaktywnego zaznaczania ścian, krawędzi i wierzchołków B-Rep.
 - [~] Zaokrąglenie i fazowanie obejmuje wszystkie możliwe krawędzie zamiast wybranych krawędzi.
 - [~] Przygotowanie do druku sprawdza gabaryty, ale nie analizuje grubości ścian, nawisów, samoprzecięć ani szczelności siatki.
 - [~] Oś czasu pozwala wybierać i edytować parametry, ale nie ma rollback, zmiany kolejności i pełnego menu operacji.
-- [~] Worker CAD izoluje OpenCascade od UI i wykonuje operacje transakcyjnie, ale nie ma jeszcze anulowania/stemplowania generacji, cache siatki ani gwarancji, że eksport dotyczy dokładnie bieżącej rewizji dokumentu.
 - [~] Aktualizator wykrywa GitHub Releases i uruchamia instalator na Windows/macOS, ale nie ma kanałów, jawnej weryfikacji integralności, rollback i testów przerwanego procesu.
 - [~] Widoczna nazwa produktu to MadCAD, lecz identyfikatory techniczne i repozytorium nadal zawierają `MadCAD2D`; zmiana musi zachować dane i ciągłość aktualizacji.
 - [~] Dokumentacja projektu i README opisują częściowo starszą wersję 2D.
@@ -92,7 +93,7 @@ Pełny szkic 3D, zaawansowane analizy powierzchni, CAM, FEA i elektronika nie s�
 ### Najważniejsze braki
 
 - [ ] Rejestr migracji, model zależności i trwały kontrakt dokumentu.
-- [~] Istnieje kontrakt stabilnego nazewnictwa topologii, ale nie jest jeszcze podłączony do ścian/krawędzi zwracanych przez OpenCascade.
+- [~] Stabilne nazewnictwo topologii jest podłączone do OpenCascade, ale pełne wskazywanie i operacje na tych ID należą do R2.1.
 - [ ] Ogólny model encji szkicu, zamkniętych profili, wymiarów i więzów.
 - [ ] Zaznaczanie ścian, krawędzi i wierzchołków oraz operacje na wskazanej geometrii.
 - [ ] Geometria konstrukcyjna, pomiary, przekroje i właściwości fizyczne.
@@ -129,12 +130,14 @@ Wynik R0.2: `npm run test:core` — 13/13; test grafu zależności, rollback tra
 
 ### R0.3 — worker, przeliczanie i viewport `L`
 
-- [ ] Numerować rewizje dokumentu i ignorować każdy spóźniony wynik starszego przeliczenia.
-- [ ] Debounce, anulowanie możliwych zadań i kolejka gwarantująca kolejność operacji zależnych.
-- [ ] Eksport otrzymuje snapshot/revision dokumentu i nie korzysta z niejawnego `lastBodies` bez sprawdzenia wersji.
-- [ ] Cache tessellacji, osobne LOD podglądu i eksportu oraz budżet pamięci.
-- [ ] Siatka zwraca mapowanie trójkąt → face ID i odcinek → edge ID potrzebne do prawdziwego pickingu.
-- [ ] Po awarii worker jest odtwarzany, a UI zachowuje dokument i pokazuje pełną diagnostykę.
+- [x] Numerować rewizje dokumentu i ignorować każdy spóźniony wynik starszego przeliczenia.
+- [x] Debounce, anulowanie możliwych zadań i kolejka gwarantująca kolejność operacji zależnych.
+- [x] Eksport otrzymuje snapshot/revision dokumentu i nie korzysta z niejawnego `lastBodies` bez sprawdzenia wersji.
+- [x] Cache tessellacji, osobne LOD podglądu i eksportu oraz budżet pamięci.
+- [x] Siatka zwraca mapowanie trójkąt → face ID i odcinek → edge ID potrzebne do prawdziwego pickingu.
+- [x] Po awarii worker jest odtwarzany, a UI zachowuje dokument i pokazuje pełną diagnostykę.
+
+Wynik R0.3: `npm run test:core` — 15/15; test kolejki, LRU, rewizji i polityki odtwarzania workera zaliczony. Test desktopowy: rewizja 21, cache 3, 29 ścian i 63 krawędzie z kompletnym mapowaniem trwałych ID; eksport STL/STEP bez regresji.
 
 ### R0.4 — baza testów CAD `L`
 
@@ -502,6 +505,6 @@ Cel wydania: MadCAD przygotowuje wiarygodny model do slicera i wykrywa najczęst
 
 ## Następne pojedyncze zadanie
 
-`R0.3 — worker, przeliczanie i viewport`.
+`R0.4 — baza testów CAD`.
 
-R0.1 i R0.2 są zamknięte i zweryfikowane. Teraz realizujemy wyłącznie R0.3, a dopiero po spełnieniu kryterium całego R0 rozpoczynamy R1.1. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.
+R0.1–R0.3 są zamknięte i zweryfikowane. Teraz realizujemy wyłącznie R0.4, a dopiero po spełnieniu kryterium całego R0 rozpoczynamy R1.1. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.

@@ -264,6 +264,21 @@ app.whenReady().then(async () => {
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     const uiFlow = await runUiFlow(window);
     await new Promise((resolve) => setTimeout(resolve, 600));
+    const topologyMapping = await window.webContents.executeJavaScript(`(() => {
+      const engine = window.__madcadVerifyEngineState;
+      const bodies = engine?.bodies || [];
+      return {
+        revision: engine?.revision || 0,
+        cacheEntries: engine?.cache?.entries || 0,
+        faces: bodies.reduce((total, body) => total + (body.topology?.faces?.length || 0), 0),
+        edges: bodies.reduce((total, body) => total + (body.topology?.edges?.length || 0), 0),
+        faceGroupsMapped: bodies.every((body) => (body.faceGroups || []).every((group) => Boolean(group.topologyId))),
+        edgeGroupsMapped: bodies.every((body) => (body.edgeGroups || []).every((group) => Boolean(group.topologyId))),
+      };
+    })()`);
+    if (!topologyMapping.revision || !topologyMapping.faces || !topologyMapping.edges || !topologyMapping.faceGroupsMapped || !topologyMapping.edgeGroupsMapped) {
+      throw new Error(`Niepełne mapowanie topologii workera: ${JSON.stringify(topologyMapping)}`);
+    }
     const image = await window.webContents.capturePage();
     await fs.writeFile(outputPath, image.toPNG());
     window.setContentSize(1100, 760);
@@ -280,7 +295,7 @@ app.whenReady().then(async () => {
     process.stdout.write('[verify] exporting STL and STEP\n');
     const stl = await verifyExport(window, 'STL');
     const step = await verifyExport(window, 'STEP');
-    const report = { ...result, licenseBypass, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, exports: { stl, step }, rendererMessages };
+    const report = { ...result, licenseBypass, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step }, rendererMessages };
     await fs.writeFile(path.join(path.dirname(outputPath), 'verification-report.json'), JSON.stringify(report, null, 2));
     process.stdout.write(`${JSON.stringify(report)}\n`);
     if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.timelineVisible) process.exitCode = 1;

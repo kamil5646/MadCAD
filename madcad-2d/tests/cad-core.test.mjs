@@ -17,6 +17,7 @@ import { evaluateFeatureHistory } from '../src/cad-core/feature-history.js';
 import { executeFeatureTransaction } from '../src/cad-core/feature-transaction.js';
 import { GEOMETRY_POLICY, isPositiveLength, nearlyEqual } from '../src/cad-core/geometry-policy.js';
 import { assignStableTopologyIds } from '../src/cad-core/topology-naming.js';
+import { RevisionCache, SerialTaskQueue, WorkerRecoveryPolicy, isStaleRevision } from '../src/cad-core/worker-runtime.js';
 
 const { atomicWriteTextFile } = atomicFile;
 
@@ -154,6 +155,41 @@ test('trwałe nazwy topologii przeżywają zmianę kolejności i szum tolerancji
     { ...descriptors[1], radius: 2.01 },
   ], initial);
   assert.notEqual(changed[0].id, initial[1].id);
+});
+
+test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {
+  const queue = new SerialTaskQueue();
+  const order = [];
+  await Promise.all([
+    queue.enqueue(async () => {
+      order.push('a-start');
+      await Promise.resolve();
+      order.push('a-end');
+    }),
+    queue.enqueue(async () => { order.push('b'); }),
+  ]);
+  assert.deepEqual(order, ['a-start', 'a-end', 'b']);
+
+  const evicted = [];
+  const cache = new RevisionCache({ maxEntries: 2, maxBytes: 10, onEvict: (_value, revision) => evicted.push(revision) });
+  cache.set(1, { name: 'one' }, 4);
+  cache.set(2, { name: 'two' }, 4);
+  assert.equal(cache.get(1).name, 'one');
+  cache.set(3, { name: 'three' }, 4);
+  assert.equal(cache.get(2), null);
+  assert.deepEqual(evicted, [2]);
+  assert.deepEqual(cache.stats, { entries: 2, bytes: 8 });
+  assert.equal(isStaleRevision(4, 5), true);
+  assert.equal(isStaleRevision(5, 5), false);
+});
+
+test('polityka odtwarzania workera ma limit prób i reset po sukcesie', () => {
+  const policy = new WorkerRecoveryPolicy({ maxAttempts: 2, baseDelayMs: 10, maxDelayMs: 15 });
+  assert.deepEqual(policy.recordCrash(), { attempt: 1, shouldRestart: true, delayMs: 10 });
+  assert.deepEqual(policy.recordCrash(), { attempt: 2, shouldRestart: true, delayMs: 15 });
+  assert.deepEqual(policy.recordCrash(), { attempt: 3, shouldRestart: false, delayMs: 15 });
+  policy.recordSuccess();
+  assert.deepEqual(policy.recordCrash(), { attempt: 1, shouldRestart: true, delayMs: 10 });
 });
 
 test('migruje rzeczywisty fixture dokumentu v2 do v3 bez utraty geometrii', async () => {
