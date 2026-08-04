@@ -1,7 +1,9 @@
 # MadCAD — główny plan rozwoju
 
-Aktualizacja: 2026-08-04  
-Status produktu: `6.0.0-alpha.1`  
+Aktualizacja: 2026-08-04
+
+Status produktu: `6.0.0-alpha.1`
+
 Główna gałąź prac: `agent/madcad-vnext-core`
 
 Ten dokument jest głównym źródłem kolejności prac nad MadCAD. Po każdym ukończonym pakiecie należy zaktualizować status, dopisać wynik testów i wskazać następne zadanie. Nie rozpoczynamy kilku dużych modułów naraz.
