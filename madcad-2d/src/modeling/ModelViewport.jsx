@@ -326,8 +326,8 @@ export default function ModelViewport({
   onSketchSelection,
   onSketchConstraintSelection,
   onSketchConstraintValueChange,
-  sketchTrimMode = false,
-  onSketchTrim,
+  sketchModifierMode = null,
+  onSketchModify,
   onSketchProfileSelection,
   onSketchMove,
   showSketchPoints = true,
@@ -356,7 +356,7 @@ export default function ModelViewport({
   const sketchSelectionRef = useRef(onSketchSelection);
   const sketchProfileSelectionRef = useRef(onSketchProfileSelection);
   const sketchMoveRef = useRef(onSketchMove);
-  const sketchTrimRef = useRef(onSketchTrim);
+  const sketchModifyRef = useRef(onSketchModify);
   const directRef = useRef({});
   const [view, setView] = useState('iso');
   const [navigationMode, setNavigationMode] = useState('orbit');
@@ -385,7 +385,7 @@ export default function ModelViewport({
   sketchSelectionRef.current = onSketchSelection;
   sketchProfileSelectionRef.current = onSketchProfileSelection;
   sketchMoveRef.current = onSketchMove;
-  sketchTrimRef.current = onSketchTrim;
+  sketchModifyRef.current = onSketchModify;
   directRef.current = {
     distance: numericValue(directExtrudeDistance, parameters),
     onCommit: onDirectExtrude,
@@ -856,12 +856,12 @@ export default function ModelViewport({
         setSnapFeedback(null);
         return;
       }
-      if (activeSketch && sketchTrimMode && sketchRender) {
+      if (activeSketch && sketchModifierMode && sketchRender) {
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
         const hit = pickSketchEntity(event);
         if (!worldPoint || !hit) return;
         event.preventDefault();
-        sketchTrimRef.current?.({ entityId: hit.object.userData.sketchEntityId, point: localPoint(worldPoint) });
+        sketchModifyRef.current?.({ mode: sketchModifierMode, entityId: hit.object.userData.sketchEntityId, point: localPoint(worldPoint) });
         return;
       }
       if (activeSketch && sketchRender) {
@@ -1139,7 +1139,7 @@ export default function ModelViewport({
       delete window.__madcadSketchEntityScreenPoints;
       delete window.__madcadSketchLocalToScreen;
     };
-  }, [bodies, selectedBodyId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchTrimMode]);
+  }, [bodies, selectedBodyId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
 
   return (
     <div className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`} ref={hostRef}>
@@ -1215,9 +1215,9 @@ export default function ModelViewport({
       )}
       {activeSketchId && <div className="sketch-plane-badge"><PencilRulerIcon /> Szkic · {activePlane}</div>}
       {activeSketchId && draftType && <div className="sketch-pointer-hint">Kliknij środek, a następnie punkt rozmiaru</div>}
-      {activeSketchId && sketchTrimMode && <div className="sketch-pointer-hint">Trim · kliknij fragment linii albo łuku do usunięcia · Escape kończy</div>}
+      {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
       {activeSketchId && sketchTool && <div className="sketch-pointer-hint">Klikaj kolejne punkty · kliknij początek, aby zamknąć · Alt chwilowo wyłącza snap · Enter/Escape kończy</div>}
-      {activeSketchId && !sketchTool && !draftType && !sketchTrimMode && <div className="sketch-pointer-hint">Kliknij lub przeciągnij geometrię · Ctrl/Shift wybiera wiele · przeciągnij tło, aby wybrać oknem</div>}
+      {activeSketchId && !sketchTool && !draftType && !sketchModifierMode && <div className="sketch-pointer-hint">Kliknij lub przeciągnij geometrię · Ctrl/Shift wybiera wiele · przeciągnij tło, aby wybrać oknem</div>}
     </div>
   );
 }

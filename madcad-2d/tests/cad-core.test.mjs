@@ -40,7 +40,7 @@ import {
 } from '../src/cad-core/sketch-model.js';
 import { analyzeSketchConstraints, applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../src/cad-core/sketch-solver.js';
 import { collectSketchSnapCandidates, snapSketchPoint } from '../src/cad-core/sketch-snap.js';
-import { trimSketchEntity } from '../src/cad-core/sketch-modifiers.js';
+import { breakSketchEntity, extendSketchEntity, trimSketchEntity } from '../src/cad-core/sketch-modifiers.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import {
   arcCenterStartEnd,
@@ -810,6 +810,75 @@ test('Trim dzieli łuk na dwa trwałe fragmenty i odrzuca brak ograniczającego 
   const before = structuredClone(isolatedDocument);
   assert.throws(() => trimSketchEntity(isolatedDocument, isolatedSketch.id, isolatedLine.id, [5, 0]), /Brak przecięcia/);
   assert.deepEqual(isolatedDocument, before);
+});
+
+test('Break dzieli linię w profilu bez utraty ID profilu i zależnej operacji', () => {
+  const document = createDocument('Break profilu');
+  const points = [[0, 0], [20, 0], [20, 10], [0, 10]].map(([x, y]) => createSketchPoint({ x, y }));
+  const lines = points.map((point, index) => createSketchLine({ startPointId: point.id, endPointId: points[(index + 1) % points.length].id }));
+  const sketch = createSketch({ entities: [...points, ...lines] });
+  refreshDetectedSketchProfiles(sketch);
+  const profileId = sketch.profiles[0].id;
+  const feature = createFeature('extrude', { sketchId: sketch.id, profileIds: [profileId], distance: '4', operation: 'new' });
+  const horizontal = createSketchConstraint('horizontal', [lines[0].id]);
+  sketch.constraints.push(horizontal);
+  document.sketches.push(sketch);
+  document.features.push(feature);
+
+  const result = breakSketchEntity(document, sketch.id, lines[0].id, [8, 1]);
+  assert.equal(sketch.entities.some((entity) => entity.id === lines[0].id), true);
+  assert.equal(sketch.entities.some((entity) => entity.id === result.continuationEntityId), true);
+  assert.equal(sketch.profiles.length, 1);
+  assert.equal(sketch.profiles[0].id, profileId);
+  assert.equal(document.features[0].id, feature.id);
+  assert.equal(document.features[0].profileIds[0], profileId);
+  assert.deepEqual(result.removedConstraintIds, [horizontal.id]);
+  assert.equal(validateDocument(document).valid, true);
+});
+
+test('Extend przedłuża wskazany koniec linii i łuku do najbliższej geometrii', () => {
+  const lineDocument = createDocument('Extend linii');
+  const start = createSketchPoint({ x: 0, y: 0 });
+  const end = createSketchPoint({ x: 10, y: 0 });
+  const cutterStart = createSketchPoint({ x: 20, y: -5 });
+  const cutterEnd = createSketchPoint({ x: 20, y: 5 });
+  const line = createSketchLine({ startPointId: start.id, endPointId: end.id });
+  const cutter = createSketchLine({ startPointId: cutterStart.id, endPointId: cutterEnd.id, role: 'construction' });
+  const lineSketch = createSketch({ entities: [start, end, cutterStart, cutterEnd, line, cutter], constraints: [createSketchConstraint('horizontal', [line.id])] });
+  lineDocument.sketches.push(lineSketch);
+  const lineResult = extendSketchEntity(lineDocument, lineSketch.id, line.id, [9, 0]);
+  const extendedEnd = lineSketch.entities.find((entity) => entity.id === lineResult.pointId);
+  assert.equal(lineResult.extendedEndpoint, 'end');
+  assert.ok(Math.abs(Number(extendedEnd.geometry.x) - 20) <= GEOMETRY_POLICY.linearTolerance);
+  assert.ok(Math.abs(Number(extendedEnd.geometry.y)) <= GEOMETRY_POLICY.linearTolerance);
+  assert.equal(lineSketch.entities.find((entity) => entity.id === line.id).id, line.id);
+  assert.equal(lineSketch.constraints.length, 0);
+
+  const arcDocument = createDocument('Extend łuku');
+  const center = createSketchPoint({ x: 0, y: 0 });
+  const arcStart = createSketchPoint({ x: 10, y: 0 });
+  const arcEnd = createSketchPoint({ x: 0, y: 10 });
+  const boundaryStart = createSketchPoint({ x: -10, y: -5 });
+  const boundaryEnd = createSketchPoint({ x: -10, y: 5 });
+  const arc = createSketchArc({ centerPointId: center.id, startPointId: arcStart.id, endPointId: arcEnd.id, direction: 'ccw' });
+  const boundary = createSketchLine({ startPointId: boundaryStart.id, endPointId: boundaryEnd.id, role: 'construction' });
+  const arcSketch = createSketch({ entities: [center, arcStart, arcEnd, boundaryStart, boundaryEnd, arc, boundary] });
+  arcDocument.sketches.push(arcSketch);
+  const arcResult = extendSketchEntity(arcDocument, arcSketch.id, arc.id, [0, 9]);
+  const nextEnd = arcSketch.entities.find((entity) => entity.id === arcResult.pointId);
+  assert.equal(arcResult.extendedEndpoint, 'end');
+  assert.ok(Math.abs(Number(nextEnd.geometry.x) + 10) <= GEOMETRY_POLICY.linearTolerance);
+  assert.ok(Math.abs(Number(nextEnd.geometry.y)) <= GEOMETRY_POLICY.linearTolerance);
+
+  const isolated = createDocument('Extend bez celu');
+  const isolatedStart = createSketchPoint({ x: 0, y: 0 });
+  const isolatedEnd = createSketchPoint({ x: 5, y: 0 });
+  const isolatedLine = createSketchLine({ startPointId: isolatedStart.id, endPointId: isolatedEnd.id });
+  const isolatedSketch = createSketch({ entities: [isolatedStart, isolatedEnd, isolatedLine] });
+  isolated.sketches.push(isolatedSketch);
+  const before = structuredClone(isolated);
+  assert.throws(() => extendSketchEntity(isolated, isolatedSketch.id, isolatedLine.id, [5, 0]), /Brak geometrii/);
+  assert.deepEqual(isolated, before);
 });
 
 test('kontrakt encji jest rozszerzalny bez zmiany formatu dokumentu', () => {

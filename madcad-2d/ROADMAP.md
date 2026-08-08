@@ -50,6 +50,7 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 ## M2 — podstawowe modyfikacje szkicu `P0`
 
 - [x] Trim linii i łuku wybiera kliknięty fragment na canvasie, aktualizuje profil i bezpiecznie usuwa zerwane więzy oraz operacje.
+- [x] Extend i Break działają na canvasie dla linii/łuków, zachowują ID oraz zależne profile i bezpiecznie czyszczą więzy.
 - [ ] Offset krzywej, łańcucha i profilu.
 - [ ] Sketch Fillet i Sketch Chamfer.
 - [ ] Move, Rotate, Copy i Mirror; Scale tylko dla geometrii bez blokujących wymiarów.
@@ -157,4 +158,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M2.2 — Extend i Break z wyborem rozwiązania oraz zachowaniem trwałych ID.`
+`M2.3 — Offset krzywej, łańcucha i profilu z kontrolą strony oraz odległości.`
