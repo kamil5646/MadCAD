@@ -3,6 +3,7 @@ import { listExpressionIdentifiers } from './expressions.js';
 import {
   SKETCH_ENTITY_ROLES,
   SKETCH_ENTITY_TYPES,
+  SKETCH_DIMENSION_TYPES,
   boundaryPointIds,
   normalizeSketchModel,
 } from './sketch-model.js';
@@ -15,6 +16,7 @@ const FEATURE_TYPES = new Set(['extrude', 'hole', 'fillet', 'chamfer']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
+const DIMENSION_TYPES = new Set(SKETCH_DIMENSION_TYPES);
 
 function isRecord(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -407,6 +409,7 @@ export function validateDocument(document) {
         if (!entityIds.has(entityId)) add(`${ownerBase}.entityIds[${referenceIndex}]`, `Nie znaleziono encji szkicu „${entityId}”.`, 'BROKEN_REFERENCE');
       });
     };
+    const constraintIds = new Set();
     constraints.forEach((constraint, constraintIndex) => {
       const constraintBase = `${base}.constraints[${constraintIndex}]`;
       if (!isRecord(constraint)) {
@@ -414,6 +417,7 @@ export function validateDocument(document) {
         return;
       }
       registerId(constraint.id, `${constraintBase}.id`);
+      if (typeof constraint.id === 'string') constraintIds.add(constraint.id);
       if (typeof constraint.type !== 'string' || !constraint.type.trim()) add(`${constraintBase}.type`, 'Wiązanie musi mieć typ.', 'REQUIRED');
       validateEntityReferences(constraint, constraintBase);
       if (constraint.value !== undefined) {
@@ -437,7 +441,22 @@ export function validateDocument(document) {
       }
       registerId(dimension.id, `${dimensionBase}.id`);
       if (typeof dimension.type !== 'string' || !dimension.type.trim()) add(`${dimensionBase}.type`, 'Wymiar musi mieć typ.', 'REQUIRED');
+      else if (!DIMENSION_TYPES.has(dimension.type) && dimension.type !== 'length') add(`${dimensionBase}.type`, `Nieobsługiwany typ wymiaru: ${dimension.type}.`, 'UNSUPPORTED');
       validateEntityReferences(dimension, dimensionBase);
+      if (dimension.expression !== undefined) {
+        if (typeof dimension.expression !== 'string' && typeof dimension.expression !== 'number') add(`${dimensionBase}.expression`, 'Wartość wymiaru musi być wyrażeniem tekstowym albo liczbą.', 'TYPE');
+        else {
+          try {
+            for (const parameterName of listExpressionIdentifiers(dimension.expression)) {
+              if (!parameterNames.has(parameterName)) add(`${dimensionBase}.expression`, `Nie znaleziono parametru „${parameterName}”.`, 'BROKEN_REFERENCE');
+            }
+          } catch (error) {
+            add(`${dimensionBase}.expression`, error.message, 'FORMAT');
+          }
+        }
+      }
+      if (dimension.driving !== undefined && typeof dimension.driving !== 'boolean') add(`${dimensionBase}.driving`, 'Pole driving musi być logiczne.', 'TYPE');
+      if (dimension.constraintId !== undefined && !constraintIds.has(dimension.constraintId)) add(`${dimensionBase}.constraintId`, `Nie znaleziono więzu „${dimension.constraintId ?? ''}”.`, 'BROKEN_REFERENCE');
     });
     profiles.forEach((profile, profileIndex) => {
       const profileBase = `${base}.profiles[${profileIndex}]`;

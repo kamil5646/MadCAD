@@ -92,6 +92,7 @@ import {
   slotThreePoints,
 } from '../cad-core/sketch-primitives.js';
 import { refreshDetectedSketchProfiles } from '../cad-core/sketch-topology.js';
+import { applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
 import ModelViewport from './ModelViewport.jsx';
 import './modeling.css';
@@ -586,6 +587,9 @@ export default function ModelingWorkspace({ onClose }) {
   const selectedSketchEntityIds = selection?.kind === 'sketchEntities' && selection.sketchId === activeSketchId
     ? selection.ids
     : [];
+  const selectedSketchConstraintId = selection?.kind === 'sketchConstraint' && selection.sketchId === activeSketchId
+    ? selection.id
+    : null;
   const firstBodyId = `body-${document.features.find((feature) => feature.type === 'extrude' && feature.operation === 'new')?.id || ''}`;
 
   const previewDocument = useMemo(() => {
@@ -1003,8 +1007,18 @@ export default function ModelingWorkspace({ onClose }) {
 
   const deleteSelectedSketchEntities = () => {
     if (readOnly) return readOnlyNotice();
+    if (activeSketchId && selectedSketchConstraintId) {
+      commit((next) => {
+        const sketch = next.sketches.find((item) => item.id === activeSketchId);
+        sketch.constraints = (sketch.constraints || []).filter((constraint) => constraint.id !== selectedSketchConstraintId);
+        sketch.dimensions = (sketch.dimensions || []).filter((dimension) => dimension.constraintId !== selectedSketchConstraintId);
+      });
+      setSelection({ kind: 'sketch', id: activeSketchId });
+      setNotice('Usunięto więz i powiązany wymiar. Cofnij przywraca cały stan.');
+      return;
+    }
     if (!activeSketchId || !selectedSketchEntityIds.length) {
-      setNotice('Wybierz geometrię szkicu do usunięcia.');
+      setNotice('Wybierz geometrię albo badge więzu do usunięcia.');
       return;
     }
     const checked = cloneDocument(document);
@@ -1016,6 +1030,33 @@ export default function ModelingWorkspace({ onClose }) {
     setSelection({ kind: 'sketch', id: activeSketchId });
     setCommand(null);
     setNotice(`Usunięto ${result.entityIds.length} encji${result.profileIds.length ? `, ${result.profileIds.length} zależny profil` : ''}${result.featureIds.length ? ` i ${result.featureIds.length} zależną operację` : ''}. Cofnij przywraca cały stan.`);
+  };
+
+  const updateSketchConstraintValue = (constraintId, value) => {
+    if (readOnly) return readOnlyNotice();
+    const applyValue = (next) => {
+      const sketch = next.sketches.find((item) => item.id === activeSketchId);
+      const constraint = sketch?.constraints?.find((item) => item.id === constraintId);
+      if (!constraint) throw new Error('Nie znaleziono wybranego więzu.');
+      constraint.value = String(value);
+      for (const dimension of sketch.dimensions || []) {
+        if (dimension.constraintId === constraintId) dimension.expression = String(value);
+      }
+      const solution = solveSketchConstraints(sketch, next.parameters);
+      if (!solution.converged || !solution.solved || solution.status === SKETCH_SOLVER_STATUS.CONFLICT) {
+        throw new Error(solution.diagnostics?.[0]?.message || 'Solver nie znalazł poprawnego rozwiązania.');
+      }
+      applySketchConstraintSolution(sketch, solution);
+      refreshDetectedSketchProfiles(sketch, next.parameters);
+    };
+    try {
+      const checked = cloneDocument(document);
+      applyValue(checked);
+      commit(applyValue);
+      setNotice(`Zmieniono wartość więzu na ${value}. Szkic i zależny model zostaną przeliczone.`);
+    } catch (error) {
+      setNotice(`Nie zmieniono więzu: ${error.message}`);
+    }
   };
 
   useEffect(() => {
@@ -1451,7 +1492,7 @@ export default function ModelingWorkspace({ onClose }) {
         else history.undo();
         return;
       }
-      if (event.key === 'Delete' && !textEntry && !command && activeSketchId && selectedSketchEntityIds.length && !readOnly) {
+      if (event.key === 'Delete' && !textEntry && !command && activeSketchId && (selectedSketchEntityIds.length || selectedSketchConstraintId) && !readOnly) {
         event.preventDefault();
         deleteSelectedSketchEntities();
         return;
@@ -1463,7 +1504,7 @@ export default function ModelingWorkspace({ onClose }) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, readOnly, history]);
+  }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, selectedSketchConstraintId, readOnly, history]);
 
   const timelineStatus = new Map(engine.timeline?.map((item) => [item.id, item]));
   const sketch = document.sketches.find((item) => item.id === activeSketchId);
@@ -1492,7 +1533,7 @@ export default function ModelingWorkspace({ onClose }) {
             {activeSketchId ? (
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /></RibbonGroup>
-                <RibbonGroup label="EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => handleSketchSelection([], 'replace')} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Scissors} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || !selectedSketchEntityIds.length} /></RibbonGroup>
+                <RibbonGroup label="EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => handleSketchSelection([], 'replace')} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Scissors} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
                 <RibbonGroup label="SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
             ) : workspace === 'print' ? (
@@ -1528,7 +1569,10 @@ export default function ModelingWorkspace({ onClose }) {
             polylineDraft={command?.type === 'line' || command?.type === 'polyline' ? { lastPoint: command.lastPoint } : null}
             onSketchPoint={readOnly ? undefined : appendSketchPoint}
             selectedSketchEntityIds={selectedSketchEntityIds}
+            selectedSketchConstraintId={selectedSketchConstraintId}
             onSketchSelection={handleSketchSelection}
+            onSketchConstraintSelection={(constraintId) => setSelection({ kind: 'sketchConstraint', id: constraintId, sketchId: activeSketchId })}
+            onSketchConstraintValueChange={updateSketchConstraintValue}
             onSketchProfileSelection={(profileId) => setSelection({ kind: 'profile', id: profileId, sketchId: activeSketchId })}
             onSketchMove={readOnly ? undefined : moveSketchEntities}
             showSketchPoints={sketchOptions.points}

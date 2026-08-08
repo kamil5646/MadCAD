@@ -22,6 +22,15 @@ export const SKETCH_ENTITY_ROLES = Object.freeze([
   'projected',
 ]);
 
+export const SKETCH_DIMENSION_TYPES = Object.freeze([
+  'horizontal',
+  'vertical',
+  'aligned',
+  'angle',
+  'radius',
+  'diameter',
+]);
+
 const ENTITY_TYPE_SET = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLE_SET = new Set(SKETCH_ENTITY_ROLES);
 const DEFAULT_EXPRESSION_KEYS = Object.freeze({ point: ['x', 'y'], circle: ['radius'] });
@@ -84,6 +93,42 @@ export function createSketchConstraint(type, entityIds, options = {}) {
     ...(options.value !== undefined ? { value: String(options.value) } : {}),
     ...(options.driving !== undefined ? { driving: Boolean(options.driving) } : {}),
   };
+}
+
+const DIMENSION_CONSTRAINT_TYPES = Object.freeze({
+  horizontal: 'distanceX',
+  vertical: 'distanceY',
+  aligned: 'distance',
+  angle: 'angle',
+  radius: 'radius',
+  diameter: 'diameter',
+});
+
+export function createSketchDimension(type, entityIds, options = {}) {
+  if (!SKETCH_DIMENSION_TYPES.includes(type)) throw new Error(`Nieobsługiwany typ wymiaru szkicu: ${type}.`);
+  if (!Array.isArray(entityIds) || !entityIds.length) throw new Error('Wymiar szkicu wymaga referencji do encji.');
+  return {
+    id: options.id || createId('dimension'),
+    type,
+    entityIds: [...entityIds],
+    expression: expression(options.expression ?? options.value, 1),
+    driving: options.driving !== false,
+    ...(options.constraintId ? { constraintId: options.constraintId } : {}),
+    ...(options.position ? { position: [...options.position] } : {}),
+  };
+}
+
+export function addDrivingSketchDimension(sketch, type, entityIds, options = {}) {
+  if (!SKETCH_DIMENSION_TYPES.includes(type)) throw new Error(`Nieobsługiwany typ wymiaru szkicu: ${type}.`);
+  const value = options.expression ?? options.value ?? 1;
+  const constraint = createSketchConstraint(DIMENSION_CONSTRAINT_TYPES[type], entityIds, {
+    value,
+    driving: true,
+  });
+  const dimension = createSketchDimension(type, entityIds, { ...options, expression: value, driving: true, constraintId: constraint.id });
+  sketch.constraints = [...(sketch.constraints || []), constraint];
+  sketch.dimensions = [...(sketch.dimensions || []), dimension];
+  return { dimension, constraint };
 }
 
 export function boundaryPointIds(entity) {

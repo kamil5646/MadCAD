@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Maximize2, Move3d, Orbit, Square, ZoomIn } from 'lucide-react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
+import { analyzeSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { DEFAULT_SNAP_THRESHOLD_PX, snapSketchPoint } from '../cad-core/sketch-snap.js';
 
 const VIEW_DIRECTIONS = {
@@ -321,7 +322,10 @@ export default function ModelViewport({
   polylineDraft,
   onSketchPoint,
   selectedSketchEntityIds = [],
+  selectedSketchConstraintId = null,
   onSketchSelection,
+  onSketchConstraintSelection,
+  onSketchConstraintValueChange,
   onSketchProfileSelection,
   onSketchMove,
   showSketchPoints = true,
@@ -360,6 +364,14 @@ export default function ModelViewport({
   const [snapFeedback, setSnapFeedback] = useState(null);
   const activeSketch = sketches.find((sketch) => sketch.id === activeSketchId);
   const activePlane = activeSketch?.plane || 'XY';
+  const solverAnalysis = useMemo(() => {
+    if (!activeSketch) return null;
+    try {
+      return analyzeSketchConstraints(activeSketch, parameters);
+    } catch (error) {
+      return { status: SKETCH_SOLVER_STATUS.CONFLICT, degreesOfFreedom: null, diagnostics: [{ message: error.message }], conflictConstraintIds: [] };
+    }
+  }, [activeSketch, parameters]);
   if (sketchInteractionRef.current.activeSketchId !== activeSketchId) {
     sketchInteractionRef.current = { activeSketchId, start: null, drag: null, box: null };
   }
@@ -1162,6 +1174,32 @@ export default function ModelViewport({
           {activeSketch.diagnostics.slice(0, 3).map((entry, index) => <span key={`${entry.code}-${index}`}>{entry.message}</span>)}
           {activeSketch.diagnostics.length > 3 && <small>+{activeSketch.diagnostics.length - 3} kolejnych problemów</small>}
         </div>
+      )}
+      {solverAnalysis && (
+        <div className={`sketch-solver-status ${solverAnalysis.status}`} role="status">
+          <i />
+          <strong>{solverAnalysis.status === SKETCH_SOLVER_STATUS.FULLY_CONSTRAINED ? 'W pełni związany' : solverAnalysis.status === SKETCH_SOLVER_STATUS.CONFLICT ? 'Konflikt więzów' : solverAnalysis.status === SKETCH_SOLVER_STATUS.OVER_CONSTRAINED ? 'Nadmiar więzów' : 'Niedowiązany'}</strong>
+          <span>{solverAnalysis.degreesOfFreedom === null ? '—' : `${solverAnalysis.degreesOfFreedom} DOF`}</span>
+        </div>
+      )}
+      {activeSketchId && activeSketch?.constraints?.length > 0 && (
+        <div className="sketch-constraint-badges" aria-label="Wiązania szkicu">
+          {activeSketch.constraints.map((constraint) => {
+            const labels = { fixed: 'F', coincident: '●', horizontal: 'H', vertical: 'V', distance: '↔', distanceX: 'X', distanceY: 'Y', angle: '∠', radius: 'R', diameter: 'Ø', tangent: 'T', equal: '=' };
+            const conflicting = solverAnalysis?.conflictConstraintIds?.includes(constraint.id);
+            return <button key={constraint.id} className={`${selectedSketchConstraintId === constraint.id ? 'selected' : ''} ${conflicting ? 'conflict' : ''}`} type="button" title={`${constraint.type}${constraint.value !== undefined ? `: ${constraint.value}` : ''}`} onClick={() => onSketchConstraintSelection?.(constraint.id)}>{labels[constraint.type] || '?'}</button>;
+          })}
+        </div>
+      )}
+      {selectedSketchConstraintId && activeSketch?.constraints?.some((constraint) => constraint.id === selectedSketchConstraintId && constraint.value !== undefined) && (
+        <form className="sketch-constraint-editor" key={`${selectedSketchConstraintId}:${activeSketch.constraints.find((constraint) => constraint.id === selectedSketchConstraintId)?.value}`} onSubmit={(event) => {
+          event.preventDefault();
+          onSketchConstraintValueChange?.(selectedSketchConstraintId, new FormData(event.currentTarget).get('constraintValue'));
+        }}>
+          <label>Wartość więzu</label>
+          <input name="constraintValue" defaultValue={activeSketch.constraints.find((constraint) => constraint.id === selectedSketchConstraintId)?.value} aria-label="Wartość wybranego więzu" autoFocus />
+          <button type="submit">Zastosuj</button>
+        </form>
       )}
       {activeSketchId && <div className="sketch-plane-badge"><PencilRulerIcon /> Szkic · {activePlane}</div>}
       {activeSketchId && draftType && <div className="sketch-pointer-hint">Kliknij środek, a następnie punkt rozmiaru</div>}

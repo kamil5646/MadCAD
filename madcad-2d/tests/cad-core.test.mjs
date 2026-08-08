@@ -24,10 +24,12 @@ import { GEOMETRY_POLICY, isPositiveLength, nearlyEqual } from '../src/cad-core/
 import { assignStableTopologyIds } from '../src/cad-core/topology-naming.js';
 import { RevisionCache, SerialTaskQueue, WorkerRecoveryPolicy, isStaleRevision } from '../src/cad-core/worker-runtime.js';
 import {
+  addDrivingSketchDimension,
   createDetectedProfile,
   createSketchArc,
   createSketchCircleEntity,
   createSketchConstraint,
+  createSketchDimension,
   createSketchEntity,
   createSketchLine,
   createSketchPoint,
@@ -527,6 +529,108 @@ test('solver utrzymuje wymiar distance z parametru dokumentu', () => {
   const broken = structuredClone(document);
   broken.sketches[0].constraints[0].value = 'brakujacyParametr';
   assert.ok(validateDocument(broken).issues.some((issue) => issue.path.endsWith('.constraints[0].value') && issue.code === 'BROKEN_REFERENCE'));
+});
+
+test('solver utrzymuje kąt między liniami w stopniach', () => {
+  const origin = createSketchPoint({ x: 0, y: 0, fixed: true });
+  const referenceEnd = createSketchPoint({ x: 10, y: 0, fixed: true });
+  const angledEnd = createSketchPoint({ x: 8, y: 6 });
+  const reference = createSketchLine({ startPointId: origin.id, endPointId: referenceEnd.id });
+  const angled = createSketchLine({ startPointId: origin.id, endPointId: angledEnd.id });
+  const angle = createSketchConstraint('angle', [reference.id, angled.id], { value: 'kat' });
+  const sketch = createSketch({ entities: [origin, referenceEnd, angledEnd, reference, angled], constraints: [angle] });
+  const originalIds = sketch.entities.map((entity) => entity.id);
+  const solution = solveSketchConstraints(sketch, [{ name: 'kat', expression: '90' }]);
+
+  assert.equal(solution.converged, true);
+  assert.equal(solution.solved, true);
+  assert.equal(solution.degreesOfFreedom, 1);
+  applySketchConstraintSolution(sketch, solution);
+  const update = sketch.entities.find((entity) => entity.id === angledEnd.id);
+  assert.ok(Math.abs(Number(update.geometry.x)) <= GEOMETRY_POLICY.linearTolerance);
+  assert.ok(Math.abs(Number(update.geometry.y) - 10) <= GEOMETRY_POLICY.linearTolerance);
+  assert.deepEqual(sketch.entities.map((entity) => entity.id), originalIds);
+});
+
+test('solver steruje promieniem i średnicą okręgu jako osobnym stopniem swobody', () => {
+  const center = createSketchPoint({ x: 0, y: 0, fixed: true });
+  const circle = createSketchCircleEntity({ centerPointId: center.id, radius: 5 });
+  const radius = createSketchConstraint('radius', [circle.id], { value: 'promien' });
+  const sketch = createSketch({ entities: [center, circle], constraints: [radius] });
+  const solution = solveSketchConstraints(sketch, [{ name: 'promien', expression: '8' }]);
+
+  assert.equal(solution.converged, true);
+  assert.equal(solution.solved, true);
+  assert.equal(solution.status, SKETCH_SOLVER_STATUS.FULLY_CONSTRAINED);
+  assert.equal(solution.variableCount, 1);
+  assert.equal(solution.rank, 1);
+  applySketchConstraintSolution(sketch, solution);
+  assert.equal(sketch.entities.find((entity) => entity.id === circle.id).geometry.radius, '8');
+
+  const diameterSketch = structuredClone(sketch);
+  diameterSketch.constraints = [createSketchConstraint('diameter', [circle.id], { value: '20' })];
+  const diameterSolution = solveSketchConstraints(diameterSketch);
+  assert.equal(diameterSolution.solved, true);
+  assert.equal(diameterSolution.entityUpdates.find((entry) => entry.entityId === circle.id).geometry.radius, '10');
+});
+
+test('wymiary poziomy, pionowy i aligned tworzą spójne sterujące więzy', () => {
+  const origin = createSketchPoint({ x: 0, y: 0, fixed: true });
+  const end = createSketchPoint({ x: 3, y: 4 });
+  const line = createSketchLine({ startPointId: origin.id, endPointId: end.id });
+  const sketch = createSketch({ entities: [origin, end, line] });
+  const horizontal = addDrivingSketchDimension(sketch, 'horizontal', [line.id], { expression: 'szerokosc' });
+  const vertical = addDrivingSketchDimension(sketch, 'vertical', [line.id], { expression: 'wysokosc' });
+  const solution = solveSketchConstraints(sketch, [
+    { name: 'szerokosc', expression: '12' },
+    { name: 'wysokosc', expression: '9' },
+  ]);
+
+  assert.equal(horizontal.constraint.type, 'distanceX');
+  assert.equal(vertical.constraint.type, 'distanceY');
+  assert.equal(horizontal.dimension.constraintId, horizontal.constraint.id);
+  assert.equal(solution.status, SKETCH_SOLVER_STATUS.FULLY_CONSTRAINED);
+  assert.equal(solution.solved, true);
+  const update = solution.updates.find((entry) => entry.pointId === end.id);
+  assert.ok(Math.abs(update.x - 12) <= GEOMETRY_POLICY.linearTolerance);
+  assert.ok(Math.abs(update.y - 9) <= GEOMETRY_POLICY.linearTolerance);
+
+  const document = createDocument('Wymiary sterujące');
+  document.parameters.push(
+    { id: 'param-width', name: 'szerokosc', label: 'Szerokość', expression: '12', unit: 'mm' },
+    { id: 'param-height', name: 'wysokosc', label: 'Wysokość', expression: '9', unit: 'mm' },
+  );
+  document.sketches.push(sketch);
+  assert.equal(validateDocument(document).valid, true);
+
+  const alignedSketch = createSketch({ entities: [structuredClone(origin), structuredClone(end), structuredClone(line)] });
+  const aligned = addDrivingSketchDimension(alignedSketch, 'aligned', [line.id], { expression: '15' });
+  assert.equal(aligned.constraint.type, 'distance');
+  assert.equal(solveSketchConstraints(alignedSketch).solved, true);
+
+  const orphaned = structuredClone(document);
+  orphaned.sketches[0].dimensions[0].constraintId = 'constraint-missing';
+  assert.ok(validateDocument(orphaned).issues.some((issue) => issue.path.endsWith('.dimensions[0].constraintId') && issue.code === 'BROKEN_REFERENCE'));
+  assert.throws(() => createSketchDimension('unsupported', [line.id]), /Nieobsługiwany typ wymiaru/);
+});
+
+test('diagnostyka wskazuje minimalny zestaw sprzecznych więzów', () => {
+  const origin = createSketchPoint({ x: 0, y: 0, fixed: true });
+  const end = createSketchPoint({ x: 10, y: 0 });
+  const line = createSketchLine({ startPointId: origin.id, endPointId: end.id });
+  const horizontal = createSketchConstraint('horizontal', [line.id]);
+  const widthTen = createSketchConstraint('distanceX', [line.id], { value: '10' });
+  const widthTwenty = createSketchConstraint('distanceX', [line.id], { value: '20' });
+  const sketch = createSketch({ entities: [origin, end, line], constraints: [horizontal, widthTen, widthTwenty] });
+  const analysis = analyzeSketchConstraints(sketch);
+
+  assert.equal(analysis.status, SKETCH_SOLVER_STATUS.CONFLICT);
+  assert.deepEqual(new Set(analysis.conflictConstraintIds), new Set([widthTen.id, widthTwenty.id]));
+  assert.equal(analysis.conflictConstraintIds.includes(horizontal.id), false);
+  assert.ok(analysis.diagnostics.some((entry) => entry.code === 'CONFLICTING_CONSTRAINTS'
+    && entry.constraintIds.length === 2
+    && entry.constraintIds.includes(widthTen.id)
+    && entry.constraintIds.includes(widthTwenty.id)));
 });
 
 test('kontrakt encji jest rozszerzalny bez zmiany formatu dokumentu', () => {

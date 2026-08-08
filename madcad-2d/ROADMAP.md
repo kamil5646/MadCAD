@@ -51,10 +51,10 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 
 - [x] Osobny moduł solvera i kontrakt wyniku: `under-constrained / fully-constrained / conflict / over-constrained`.
 - [x] Stopnie swobody punktów oraz jawne punkty `fixed`.
-- [~] Więzy: gotowe fixed, coincident, horizontal, vertical i distance; oczekują angle, radius, diameter, tangent i equal.
-- [ ] Wymiary: poziomy, pionowy, aligned, kąt, promień i średnica.
-- [ ] Diagnostyka konfliktu wskazuje minimalny zestaw problematycznych więzów.
-- [ ] Canvas pokazuje stopnie swobody i badges więzów; badge można zaznaczyć, edytować i usunąć.
+- [~] Więzy: gotowe fixed, coincident, horizontal, vertical, distance, angle, radius i diameter; oczekują tangent i equal.
+- [x] Wymiary sterujące: poziomy, pionowy, aligned, kąt, promień i średnica mają wspólny kontrakt z więzem solvera.
+- [x] Diagnostyka konfliktu wskazuje minimalny zestaw problematycznych więzów.
+- [x] Canvas pokazuje status solvera, stopnie swobody i wybieralne badges więzów; badge można zaznaczyć, edytować i usunąć.
 - [ ] Zmiana wymiaru przebudowuje szkic i zależną bryłę bez zmiany trwałych ID.
 - [ ] Scenariusz: w pełni związany wspornik reaguje na zmianę dwóch wymiarów po zapisie i ponownym otwarciu.
 
@@ -170,4 +170,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M1.3 — angle, radius i diameter oraz ich wymiary sterujące.`
+`M1.7 — test scenariusza zmiany dwóch wymiarów wspornika, przebudowy bryły oraz zapisu i ponownego otwarcia.`
