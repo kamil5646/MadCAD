@@ -336,8 +336,9 @@ export default function ModelViewport({
   parameters = [],
   showGrid = true,
   selectedBodyId,
+  selectedBodyIds = [],
   onSelectBody,
-  selectedTopologyId = null,
+  selectedTopologyIds = [],
   onSelectTopology,
   selectedProfile,
   selectedProfilePlane = 'XY',
@@ -370,6 +371,8 @@ export default function ModelViewport({
   const [selectionBox, setSelectionBox] = useState(null);
   const [snapFeedback, setSnapFeedback] = useState(null);
   const [selectionFilter, setSelectionFilter] = useState('auto');
+  const selectedTopologySet = useMemo(() => new Set(selectedTopologyIds), [selectedTopologyIds]);
+  const selectedBodySet = useMemo(() => new Set(selectedBodyIds.length ? selectedBodyIds : [selectedBodyId].filter(Boolean)), [selectedBodyId, selectedBodyIds]);
   const activeSketch = sketches.find((sketch) => sketch.id === activeSketchId);
   const activePlane = activeSketch?.plane || 'XY';
   const solverAnalysis = useMemo(() => {
@@ -452,13 +455,14 @@ export default function ModelViewport({
     const facePickables = [];
     const edgePickables = [];
     const vertexPickables = [];
+    const faceHighlights = new Map();
     for (const body of bodies) {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(body.vertices, 3));
       if (body.normals.length) geometry.setAttribute('normal', new THREE.BufferAttribute(body.normals, 3));
       geometry.setIndex(new THREE.BufferAttribute(body.triangles, 1));
       geometry.computeBoundingSphere();
-      const selected = body.id === selectedBodyId;
+      const selected = selectedBodySet.has(body.id);
       const material = new THREE.MeshStandardMaterial({
         color: selected ? '#72c9eb' : body.color,
         metalness: 0.08,
@@ -475,15 +479,16 @@ export default function ModelViewport({
       pickables.push(mesh);
       facePickables.push(mesh);
 
-      const selectedFaceGroup = body.faceGroups?.find((group) => group.topologyId === selectedTopologyId);
-      if (selectedFaceGroup) {
+      for (const faceGroup of body.faceGroups || []) {
         const highlightGeometry = new THREE.BufferGeometry();
-        highlightGeometry.setAttribute('position', geometry.getAttribute('position').clone());
-        if (geometry.getAttribute('normal')) highlightGeometry.setAttribute('normal', geometry.getAttribute('normal').clone());
-        highlightGeometry.setIndex(Array.from(body.triangles.slice(selectedFaceGroup.start, selectedFaceGroup.start + selectedFaceGroup.count)));
+        highlightGeometry.setAttribute('position', geometry.getAttribute('position'));
+        if (geometry.getAttribute('normal')) highlightGeometry.setAttribute('normal', geometry.getAttribute('normal'));
+        highlightGeometry.setIndex(Array.from(body.triangles.slice(faceGroup.start, faceGroup.start + faceGroup.count)));
         const highlight = new THREE.Mesh(highlightGeometry, new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.42, depthWrite: false, side: THREE.DoubleSide }));
         highlight.renderOrder = 3;
+        highlight.visible = selectedTopologySet.has(faceGroup.topologyId);
         modelGroup.add(highlight);
+        faceHighlights.set(faceGroup.topologyId, highlight);
       }
 
       for (const edgeGroup of body.edgeGroups || []) {
@@ -491,10 +496,10 @@ export default function ModelViewport({
         if (!vertices.length) continue;
         const edgeGeometry = new THREE.BufferGeometry();
         edgeGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-        const edgeSelected = edgeGroup.topologyId === selectedTopologyId;
+        const edgeSelected = selectedTopologySet.has(edgeGroup.topologyId);
         const edgeMaterial = new THREE.LineBasicMaterial({ color: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : 0x26333b), transparent: true, opacity: activeSketchId ? 0.34 : edgeSelected ? 1 : 0.72 });
         const edgeObject = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-        edgeObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, topologyKind: 'edge', topologyId: edgeGroup.topologyId };
+        edgeObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, topologyKind: 'edge', topologyId: edgeGroup.topologyId, baseColor: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : 0x26333b) };
         modelGroup.add(edgeObject);
         pickables.push(edgeObject);
         edgePickables.push(edgeObject);
@@ -505,10 +510,10 @@ export default function ModelViewport({
         if (!Array.isArray(point) || point.length !== 3) continue;
         const vertexGeometry = new THREE.BufferGeometry();
         vertexGeometry.setAttribute('position', new THREE.Float32BufferAttribute(point, 3));
-        const vertexSelected = vertex.id === selectedTopologyId;
+        const vertexSelected = selectedTopologySet.has(vertex.id);
         const vertexObject = new THREE.Points(vertexGeometry, new THREE.PointsMaterial({ color: vertexSelected ? 0xffc857 : 0xe8f8ff, size: vertexSelected ? 9 : 6, sizeAttenuation: false, transparent: true, opacity: selectionFilter === 'vertex' || vertexSelected ? 1 : 0 }));
         vertexObject.visible = selectionFilter === 'vertex' || vertexSelected;
-        vertexObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, topologyKind: 'vertex', topologyId: vertex.id };
+        vertexObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, topologyKind: 'vertex', topologyId: vertex.id, baseColor: vertexSelected ? 0xffc857 : 0xe8f8ff };
         modelGroup.add(vertexObject);
         pickables.push(vertexObject);
         vertexPickables.push(vertexObject);
@@ -708,6 +713,9 @@ export default function ModelViewport({
     const pointer = new THREE.Vector2();
     const sketchInteraction = sketchInteractionRef.current;
     let hoveredSketchObject = null;
+    let hoveredModel = null;
+    let modelPickCycle = { x: NaN, y: NaN, index: 0 };
+    let modelSelectionBox = null;
     const sketchPlane = activePlane === 'XZ'
       ? new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
       : activePlane === 'YZ'
@@ -801,6 +809,46 @@ export default function ModelViewport({
         renderer.domElement.style.cursor = object ? 'pointer' : 'crosshair';
       }
     };
+    const setModelHover = (hit) => {
+      if (hoveredModel?.kind === 'face') {
+        const highlight = faceHighlights.get(hoveredModel.id);
+        if (highlight) highlight.visible = selectedTopologySet.has(hoveredModel.id);
+      } else if (hoveredModel?.object?.material?.color) {
+        hoveredModel.object.material.color.setHex(hoveredModel.object.userData.baseColor);
+      }
+      const topology = topologySelectionFromIntersection(hit);
+      hoveredModel = topology && topology.kind !== 'body' ? { ...topology, object: hit.object } : null;
+      if (new URLSearchParams(window.location.search).has('verify')) window.__madcadModelHover = hoveredModel ? { kind: hoveredModel.kind, id: hoveredModel.id } : null;
+      if (hoveredModel?.kind === 'face') {
+        const highlight = faceHighlights.get(hoveredModel.id);
+        if (highlight) highlight.visible = true;
+      } else if (hoveredModel?.object?.material?.color) hoveredModel.object.material.color.setHex(0xf4fbff);
+      if (!activeSketch && !directDragRef.current) renderer.domElement.style.cursor = hoveredModel ? 'pointer' : 'grab';
+    };
+    const modelCandidates = () => selectionFilter === 'body' || selectionFilter === 'face'
+      ? facePickables
+      : selectionFilter === 'edge'
+        ? edgePickables
+        : selectionFilter === 'vertex'
+          ? vertexPickables
+          : pickables;
+    const pickModel = (event, cycle = false) => {
+      const hits = raycaster.intersectObjects(modelCandidates(), false);
+      if (!hits.length) return null;
+      const unique = [];
+      const keys = new Set();
+      for (const hit of hits) {
+        const topology = topologySelectionFromIntersection(hit);
+        const key = topology ? `${topology.kind}:${topology.id}` : null;
+        if (!key || keys.has(key)) continue;
+        keys.add(key);
+        unique.push(hit);
+      }
+      const samePoint = Math.hypot(event.clientX - modelPickCycle.x, event.clientY - modelPickCycle.y) <= 3;
+      const index = cycle && samePoint ? (modelPickCycle.index + 1) % Math.max(1, unique.length) : 0;
+      modelPickCycle = { x: event.clientX, y: event.clientY, index };
+      return unique[index] || unique[0];
+    };
     const boxSelectedIds = (box) => {
       if (!sketchRender) return [];
       const rect = renderer.domElement.getBoundingClientRect();
@@ -832,6 +880,62 @@ export default function ModelViewport({
         if (inside || (crossing && intersects)) ids.add(entry.entity.id);
       }
       return [...ids];
+    };
+    const projectedPoints = (object, vertexIndices = null) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const position = object.geometry?.getAttribute('position');
+      if (!position) return [];
+      object.updateMatrixWorld(true);
+      const indices = vertexIndices || Array.from({ length: position.count }, (_, index) => index);
+      return indices.map((index) => {
+        const point = new THREE.Vector3().fromBufferAttribute(position, index).applyMatrix4(object.matrixWorld).project(camera);
+        return [rect.left + ((point.x + 1) * rect.width) / 2, rect.top + ((1 - point.y) * rect.height) / 2];
+      });
+    };
+    const boxContainsPoints = (box, points) => {
+      if (!points.length) return false;
+      const left = Math.min(box.startX, box.endX);
+      const right = Math.max(box.startX, box.endX);
+      const top = Math.min(box.startY, box.endY);
+      const bottom = Math.max(box.startY, box.endY);
+      const inside = points.every(([x, y]) => x >= left && x <= right && y >= top && y <= bottom);
+      if (inside) return true;
+      if (box.endX >= box.startX) return false;
+      const minX = Math.min(...points.map((point) => point[0]));
+      const maxX = Math.max(...points.map((point) => point[0]));
+      const minY = Math.min(...points.map((point) => point[1]));
+      const maxY = Math.max(...points.map((point) => point[1]));
+      return maxX >= left && minX <= right && maxY >= top && minY <= bottom;
+    };
+    const boxSelectedModelTopology = (box) => {
+      const selections = [];
+      const add = (selection) => {
+        if (selection && !selections.some((entry) => entry.kind === selection.kind && entry.id === selection.id)) selections.push(selection);
+      };
+      if (selectionFilter === 'auto' || selectionFilter === 'body') {
+        for (const object of facePickables) {
+          if (!boxContainsPoints(box, projectedPoints(object))) continue;
+          add({ kind: 'body', id: object.userData.bodyId, bodyId: object.userData.bodyId, sourceFeatureId: object.userData.sourceFeatureId || null });
+        }
+        return selections;
+      }
+      if (selectionFilter === 'face') {
+        for (const object of facePickables) {
+          const index = object.geometry.getIndex();
+          for (const group of object.userData.faceGroups || []) {
+            const vertexIndices = [...new Set(Array.from({ length: group.count }, (_, offset) => index.getX(group.start + offset)))];
+            if (!boxContainsPoints(box, projectedPoints(object, vertexIndices))) continue;
+            add({ kind: 'face', id: group.topologyId, bodyId: object.userData.bodyId, sourceFeatureId: object.userData.sourceFeatureId || null });
+          }
+        }
+      } else {
+        const candidates = selectionFilter === 'edge' ? edgePickables : vertexPickables;
+        for (const object of candidates) {
+          if (!boxContainsPoints(box, projectedPoints(object))) continue;
+          add({ kind: object.userData.topologyKind, id: object.userData.topologyId, bodyId: object.userData.bodyId, sourceFeatureId: object.userData.sourceFeatureId || null });
+        }
+      }
+      return selections;
     };
     const onPointerDown = (event) => {
       const rect = setRayFromEvent(event);
@@ -948,14 +1052,21 @@ export default function ModelViewport({
         return;
       }
       if (activeSketch) return;
-      const candidates = selectionFilter === 'body' || selectionFilter === 'face'
-        ? facePickables
-        : selectionFilter === 'edge'
-          ? edgePickables
-          : selectionFilter === 'vertex'
-            ? vertexPickables
-            : pickables;
-      const hit = raycaster.intersectObjects(candidates, false)[0];
+      const hit = pickModel(event, event.altKey);
+      if (event.shiftKey && !hit) {
+        event.preventDefault();
+        controls.enabled = false;
+        try { renderer.domElement.setPointerCapture?.(event.pointerId); } catch { /* Pointer capture is optional in synthetic tests. */ }
+        modelSelectionBox = {
+          startX: event.clientX,
+          startY: event.clientY,
+          endX: event.clientX,
+          endY: event.clientY,
+          mode: selectionMode(event),
+        };
+        setSelectionBox({ left: event.clientX - rect.left, top: event.clientY - rect.top, width: 0, height: 0, crossing: false });
+        return;
+      }
       const topologySelection = topologySelectionFromIntersection(hit);
       if (topologySelection && selectionFilter === 'body') {
         topologySelection.kind = 'body';
@@ -977,6 +1088,20 @@ export default function ModelViewport({
         const rect = renderer.domElement.getBoundingClientRect();
         setDragLabel({ value, x: event.clientX - rect.left + 14, y: event.clientY - rect.top - 12 });
         if (window.__madcadPointerLog) window.__madcadPointerLog.moveValue = value;
+        return;
+      }
+      if (modelSelectionBox) {
+        event.preventDefault();
+        const rect = renderer.domElement.getBoundingClientRect();
+        modelSelectionBox.endX = event.clientX;
+        modelSelectionBox.endY = event.clientY;
+        setSelectionBox({
+          left: Math.min(modelSelectionBox.startX, modelSelectionBox.endX) - rect.left,
+          top: Math.min(modelSelectionBox.startY, modelSelectionBox.endY) - rect.top,
+          width: Math.abs(modelSelectionBox.endX - modelSelectionBox.startX),
+          height: Math.abs(modelSelectionBox.endY - modelSelectionBox.startY),
+          crossing: modelSelectionBox.endX < modelSelectionBox.startX,
+        });
         return;
       }
       if (sketchInteraction.drag && sketchRender) {
@@ -1007,6 +1132,10 @@ export default function ModelViewport({
         setSketchDragLabel({ dx, dy, x: event.clientX - rect.left + 14, y: event.clientY - rect.top - 28 });
         renderer.domElement.style.cursor = 'move';
         return;
+      }
+      if (!activeSketch && !directDrag) {
+        setRayFromEvent(event);
+        setModelHover(pickModel(event, false));
       }
       if (sketchInteraction.box) {
         event.preventDefault();
@@ -1050,6 +1179,19 @@ export default function ModelViewport({
     const onPointerUp = (event) => {
       if (window.__madcadPointerLog) window.__madcadPointerLog.upCalled = true;
       const directDrag = directDragRef.current;
+      if (modelSelectionBox) {
+        event.preventDefault();
+        const finished = modelSelectionBox;
+        modelSelectionBox = null;
+        controls.enabled = true;
+        try { renderer.domElement.releasePointerCapture?.(event.pointerId); } catch { /* Pointer capture may already be released. */ }
+        const moved = Math.hypot(finished.endX - finished.startX, finished.endY - finished.startY) >= 3;
+        const selections = moved ? boxSelectedModelTopology(finished) : [];
+        selections.forEach((selection, index) => topologySelectRef.current?.(selection, index ? 'add' : finished.mode));
+        setSelectionBox(null);
+        renderer.domElement.style.cursor = navigationMode === 'pan' ? 'move' : 'grab';
+        return;
+      }
       if (sketchInteraction.drag) {
         event.preventDefault();
         const finished = sketchInteraction.drag;
@@ -1104,6 +1246,7 @@ export default function ModelViewport({
     renderer.domElement.addEventListener('pointercancel', onPointerUp);
     const onPointerLeave = () => {
       if (!sketchInteraction.drag && !sketchInteraction.box) setSnapFeedback(null);
+      setModelHover(null);
     };
     renderer.domElement.addEventListener('pointerleave', onPointerLeave);
     const directHandleElement = directHandleRef.current;
@@ -1161,6 +1304,41 @@ export default function ModelViewport({
           };
         };
       }
+      if (!activeSketch && bodies.length && new URLSearchParams(window.location.search).has('verify')) {
+        modelGroup.updateMatrixWorld(true);
+        const bodyBounds = {};
+        const topologyPoints = {};
+        for (const object of facePickables) {
+          const points = projectedPoints(object);
+          if (points.length) bodyBounds[object.userData.bodyId] = {
+            left: Math.min(...points.map((point) => point[0])),
+            right: Math.max(...points.map((point) => point[0])),
+            top: Math.min(...points.map((point) => point[1])),
+            bottom: Math.max(...points.map((point) => point[1])),
+          };
+          const index = object.geometry.getIndex();
+          for (const group of object.userData.faceGroups || []) {
+            const vertexIndices = [...new Set(Array.from({ length: group.count }, (_, offset) => index.getX(group.start + offset)))];
+            const facePoints = projectedPoints(object, vertexIndices);
+            if (!facePoints.length) continue;
+            topologyPoints[group.topologyId] = {
+              kind: 'face',
+              x: facePoints.reduce((total, point) => total + point[0], 0) / facePoints.length,
+              y: facePoints.reduce((total, point) => total + point[1], 0) / facePoints.length,
+            };
+          }
+        }
+        for (const object of [...edgePickables, ...vertexPickables]) {
+          const points = projectedPoints(object);
+          if (!points.length) continue;
+          topologyPoints[object.userData.topologyId] = {
+            kind: object.userData.topologyKind,
+            x: points.reduce((total, point) => total + point[0], 0) / points.length,
+            y: points.reduce((total, point) => total + point[1], 0) / points.length,
+          };
+        }
+        window.__madcadModelScreenState = { bodyBounds, topologyPoints };
+      }
     };
     const observer = new ResizeObserver(resize);
     observer.observe(host);
@@ -1196,8 +1374,10 @@ export default function ModelViewport({
       delete window.__madcadDirectHandlePoint;
       delete window.__madcadSketchEntityScreenPoints;
       delete window.__madcadSketchLocalToScreen;
+      delete window.__madcadModelScreenState;
+      delete window.__madcadModelHover;
     };
-  }, [bodies, selectedBodyId, selectedTopologyId, selectionFilter, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
+  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
 
   return (
     <div className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`} ref={hostRef}>
@@ -1218,6 +1398,7 @@ export default function ModelViewport({
           ['profile', 'Profil'],
         ].map(([id, label]) => <button key={id} className={selectionFilter === id ? 'active' : ''} type="button" disabled={id === 'profile' ? !activeSketchId : Boolean(activeSketchId)} title={`Filtr wyboru: ${label}`} onClick={() => setSelectionFilter(id)}>{label}</button>)}
       </div>
+      {!activeSketchId && <div className="model-selection-hint">Ctrl/Shift: wiele · Alt+klik: przełącz · Shift+przeciągnij tło: obszar</div>}
       {directEnabled && (
         <div
           ref={directHandleRef}

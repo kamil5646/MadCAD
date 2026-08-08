@@ -496,6 +496,50 @@ async function runUiFlow(window) {
     throw new Error(`Unexpected golden B-Rep topology: ${goldenBrep.faceCount} faces, ${goldenBrep.edgeCount} edges.`);
   }
 
+  progress('B-Rep hover, multi-select and box select');
+  const selectionRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  const topologyIds = await window.webContents.executeJavaScript(`(() => {
+    const body = window.__madcadVerifyEngineState.bodies[0];
+    return { face: body.topology.faces[0].id, edge: body.topology.edges[0].id, body: body.id };
+  })()`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'face', id: ${JSON.stringify(topologyIds.face)}, bodyId: ${JSON.stringify(topologyIds.body)} }, 'replace')`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'edge', id: ${JSON.stringify(topologyIds.edge)}, bodyId: ${JSON.stringify(topologyIds.body)} }, 'add')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.items?.length === 2`, 'wielokrotny wybór topologii');
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'face', id: ${JSON.stringify(topologyIds.face)}, bodyId: ${JSON.stringify(topologyIds.body)} }, 'toggle')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.items?.length === 1 && window.__madcadVerifyDocumentState.selection.items[0].kind === 'edge'`, 'przełączenie topologii Ctrl');
+  await waitForUi(window, `window.__madcadModelScreenState?.topologyPoints?.[${JSON.stringify(topologyIds.face)}]`, 'punkt ekranowy ściany');
+  const facePoint = await window.webContents.executeJavaScript(`window.__madcadModelScreenState.topologyPoints[${JSON.stringify(topologyIds.face)}]`);
+  await sendMouse('mouseMove', facePoint);
+  await waitForUi(window, `window.__madcadModelHover?.kind === 'face'`, 'hover ściany');
+  await window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.selection-filter-bar button')].find((item) => item.textContent === 'Ściana');
+    button.click();
+  })()`);
+  await sendMouse('mouseMove', facePoint);
+  await sendMouse('mouseDown', facePoint);
+  await sendMouse('mouseUp', facePoint);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face'`, 'pierwsza ściana cyklu');
+  const firstCycledFace = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.selection.id`);
+  await sendMouse('mouseMove', facePoint);
+  await sendMouse('mouseDown', facePoint, ['alt']);
+  await sendMouse('mouseUp', facePoint, ['alt']);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id !== ${JSON.stringify(firstCycledFace)}`, 'cykliczny wybór nakładającej się ściany');
+  await window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.selection-filter-bar button')].find((item) => item.textContent === 'Bryła');
+    button.click();
+  })()`);
+  await waitForUi(window, `document.querySelector('.selection-filter-bar button.active')?.textContent === 'Bryła'`, 'filtr bryły');
+  const bodyBounds = await window.webContents.executeJavaScript(`window.__madcadModelScreenState.bodyBounds[${JSON.stringify(topologyIds.body)}]`);
+  const canvasBounds = await window.webContents.executeJavaScript(`(() => { const rect = document.querySelector('.model-viewport canvas').getBoundingClientRect(); return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }; })()`);
+  const boxStart = { x: Math.max(canvasBounds.left + 2, bodyBounds.left - 12), y: Math.max(canvasBounds.top + 2, bodyBounds.top - 12) };
+  const boxEnd = { x: Math.min(canvasBounds.right - 2, bodyBounds.right + 12), y: Math.min(canvasBounds.bottom - 2, bodyBounds.bottom + 12) };
+  await sendMouse('mouseDown', boxStart, ['shift']);
+  await sendMouse('mouseMove', boxEnd, ['shift']);
+  await sendMouse('mouseUp', boxEnd, ['shift']);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.items?.some((item) => item.kind === 'body')`, 'wybór bryły obszarem');
+  const revisionAfterSelection = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  if (revisionAfterSelection !== selectionRevision) throw new Error('Picking uruchomił ponowne przeliczenie bryły.');
+
   progress('hole sketch');
   await clickTool('Utwórz szkic');
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'drugi wybór płaszczyzny');

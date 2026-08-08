@@ -614,6 +614,12 @@ export default function ModelingWorkspace({ onClose }) {
   const selectedSketchConstraintId = selection?.kind === 'sketchConstraint' && selection.sketchId === activeSketchId
     ? selection.id
     : null;
+  const selectedTopologyIds = useMemo(() => (
+    selection?.items || (['face', 'edge', 'vertex'].includes(selection?.kind) ? [selection] : [])
+  ).filter((item) => ['face', 'edge', 'vertex'].includes(item.kind)).map((item) => item.id), [selection]);
+  const selectedBodyIds = useMemo(() => (
+    selection?.items || (selection?.kind === 'body' ? [selection] : [])
+  ).filter((item) => item.kind === 'body').map((item) => item.id), [selection]);
   const firstBodyId = `body-${document.features.find((feature) => feature.type === 'extrude' && feature.operation === 'new')?.id || ''}`;
 
   const previewDocument = useMemo(() => {
@@ -988,16 +994,27 @@ export default function ModelingWorkspace({ onClose }) {
     } else setNotice('Wyczyszczono zaznaczenie szkicu.');
   };
 
-  const handleTopologySelection = (topology) => {
+  const handleTopologySelection = (topology, mode = 'replace') => {
     if (!topology) {
       setSelection({ kind: 'document', id: document.id });
       return;
     }
-    setSelection(topology.kind === 'body'
-      ? { kind: 'body', id: topology.bodyId }
-      : { kind: topology.kind, id: topology.id, bodyId: topology.bodyId, sourceFeatureId: topology.sourceFeatureId });
+    const item = topology.kind === 'body'
+      ? { kind: 'body', id: topology.bodyId, bodyId: topology.bodyId, sourceFeatureId: topology.sourceFeatureId }
+      : { kind: topology.kind, id: topology.id, bodyId: topology.bodyId, sourceFeatureId: topology.sourceFeatureId };
+    setSelection((current) => {
+      if (mode === 'replace') return { ...item, items: [item] };
+      const existing = current?.items || (['body', 'face', 'edge', 'vertex'].includes(current?.kind) ? [current] : []);
+      const key = `${item.kind}:${item.id}`;
+      const hasItem = existing.some((entry) => `${entry.kind}:${entry.id}` === key);
+      const items = mode === 'toggle' && hasItem
+        ? existing.filter((entry) => `${entry.kind}:${entry.id}` !== key)
+        : hasItem ? existing : [...existing, item];
+      if (!items.length) return { kind: 'document', id: document.id };
+      return { ...items.at(-1), items };
+    });
     const label = topology.kind === 'face' ? 'Ściana' : topology.kind === 'edge' ? 'Krawędź' : topology.kind === 'vertex' ? 'Wierzchołek' : 'Bryła';
-    setNotice(`${label} zaznaczona przez trwałe ID: ${topology.id}.`);
+    setNotice(`${label} zaznaczona przez trwałe ID: ${topology.id}.${mode === 'replace' ? '' : ' Ctrl/Shift utrzymuje wybór wielokrotny.'}`);
   };
 
   const moveSketchEntities = ({ ids = selectedSketchEntityIds, dx = 0, dy = 0 } = {}) => {
@@ -1201,6 +1218,7 @@ export default function ModelingWorkspace({ onClose }) {
     if (!verifyMode) return undefined;
     window.__madcadVerifySketchPoint = appendSketchPoint;
     window.__madcadVerifySketchSelection = handleSketchSelection;
+    window.__madcadVerifyTopologySelection = handleTopologySelection;
     window.__madcadVerifyMoveSketch = moveSketchEntities;
     window.__madcadVerifyDeleteSketch = deleteSelectedSketchEntities;
     window.__madcadVerifyLoadTopologyFixture = (plane = 'XY') => {
@@ -1348,7 +1366,9 @@ export default function ModelingWorkspace({ onClose }) {
       })),
       features: document.features.length,
       featureIds: document.features.map((feature) => feature.id),
-      selection: selection?.kind === 'sketchEntities' ? { kind: selection.kind, ids: selection.ids } : { kind: selection?.kind },
+      selection: selection?.kind === 'sketchEntities'
+        ? { kind: selection.kind, ids: selection.ids }
+        : { kind: selection?.kind, id: selection?.id, items: selection?.items?.map((item) => ({ kind: item.kind, id: item.id })) || [] },
       command: command ? {
         type: command.type,
         points: command.points?.length || 0,
@@ -1358,6 +1378,7 @@ export default function ModelingWorkspace({ onClose }) {
     return () => {
       delete window.__madcadVerifySketchPoint;
       delete window.__madcadVerifySketchSelection;
+      delete window.__madcadVerifyTopologySelection;
       delete window.__madcadVerifyMoveSketch;
       delete window.__madcadVerifyDeleteSketch;
       delete window.__madcadVerifyLoadTopologyFixture;
@@ -1786,8 +1807,9 @@ export default function ModelingWorkspace({ onClose }) {
             parameters={document.parameters}
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : (selection?.bodyId || null)}
+            selectedBodyIds={selectedBodyIds}
             onSelectBody={(id) => setSelection(id ? { kind: 'body', id } : { kind: 'document', id: document.id })}
-            selectedTopologyId={['face', 'edge', 'vertex'].includes(selection?.kind) ? selection.id : null}
+            selectedTopologyIds={selectedTopologyIds}
             onSelectTopology={handleTopologySelection}
             selectedProfile={selectedProfile}
             selectedProfilePlane={selectedProfileMatch?.sketch.plane || 'XY'}

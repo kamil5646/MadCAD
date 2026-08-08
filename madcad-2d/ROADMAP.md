@@ -51,9 +51,9 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 
 - [x] Viewport mapuje trafiony trójkąt ściany i osobne segmenty krawędzi na trwałe face/edge ID bez indeksów tessellacji.
 - [x] Filtry Auto/Profil/Ściana/Krawędź/Wierzchołek/Bryła sterują pickingiem; worker nadaje trwałe ID również wierzchołkom.
-- [ ] Hover, multi-select, cykliczny wybór elementów nakładających się i box select.
+- [x] Hover, multi-select, cykliczny wybór elementów nakładających się i box select.
 - [ ] Utracona referencja pokazuje źródłowy feature i możliwe ponowne przypisanie.
-- [ ] Picking nie uruchamia ponownej tessellacji ani przeliczenia bryły.
+- [x] Picking nie uruchamia ponownej tessellacji ani przeliczenia bryły.
 
 ## M4 — geometria konstrukcyjna MVP `P0`
 
@@ -147,4 +147,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M3.3 — Hover, multi-select, wybór cykliczny nakładającej się topologii i box select bryły.`
+`M3.4 — Utracona referencja pokazuje źródłowy feature i prowadzi przez ponowne przypisanie.`

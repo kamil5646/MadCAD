@@ -619,6 +619,20 @@
   cursor: default;
 }
 
+.model-selection-hint {
+  position: absolute;
+  z-index: 7;
+  top: 50px;
+  left: 50%;
+  padding: 3px 8px;
+  border-radius: 4px;
+  color: #9fb4c0;
+  background: rgba(31, 39, 49, 0.72);
+  font-size: 9px;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
 .axis-x { color: #ee6c69; }
 .axis-y { color: #65d37e; }
 .axis-z { color: #5d8ffa; }
