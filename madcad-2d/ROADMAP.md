@@ -84,7 +84,7 @@ Revolve, Sweep, Loft, Draft, Thin Extrude, Heal/Replace Face, Rib, Coil i Pipe s
 ## M7 — otwory i gwinty MVP `P0`
 
 - [x] Umieszczenie prostego otworu przez trwały punkt szkicu.
-- [ ] Umieszczenie na ścianie z referencjami do krawędzi.
+- [x] Umieszczenie na planarnej ścianie z trwałymi referencjami do dwóch prostopadłych krawędzi i parametrycznymi odsunięciami.
 - [ ] Otwór prosty, counterbore i countersink; Distance/Through All.
 - [ ] Podstawowy gwint metryczny kosmetyczny i modelowany: średnica, skok, kierunek i długość.
 - [ ] Profil kompensacji luzu FFF bez zmiany nominalnego wymiaru.

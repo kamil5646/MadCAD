@@ -634,14 +634,18 @@ export function validateDocument(document) {
     }
 
     if (feature.type === 'hole') {
-      if (!sketchIds.has(feature.sketchId)) add(`${base}.sketchId`, `Nie znaleziono szkicu „${feature.sketchId ?? ''}”.`, 'BROKEN_REFERENCE');
-      if (feature.pointId) {
-        const owner = entityOwners.get(feature.pointId);
-        if (!owner || owner.type !== 'point') add(`${base}.pointId`, `Nie znaleziono punktu „${feature.pointId}”.`, 'BROKEN_REFERENCE');
-        else if (owner.sketchId !== feature.sketchId) add(`${base}.pointId`, `Punkt „${feature.pointId}” nie należy do szkicu „${feature.sketchId}”.`, 'BROKEN_REFERENCE');
+      if (feature.placement === 'face-edges') {
+        if (!Array.isArray(feature.referenceIds) || feature.referenceIds.length !== 3) add(`${base}.referenceIds`, 'Otwór od krawędzi wymaga jednej ściany i dwóch krawędzi.', 'REQUIRED');
       } else {
-        if (!profileOwners.has(feature.profileId)) add(`${base}.profileId`, `Nie znaleziono profilu „${feature.profileId ?? ''}”.`, 'BROKEN_REFERENCE');
-        else if (profileOwners.get(feature.profileId) !== feature.sketchId) add(`${base}.profileId`, `Profil „${feature.profileId}” nie należy do szkicu „${feature.sketchId}”.`, 'BROKEN_REFERENCE');
+        if (!sketchIds.has(feature.sketchId)) add(`${base}.sketchId`, `Nie znaleziono szkicu „${feature.sketchId ?? ''}”.`, 'BROKEN_REFERENCE');
+        if (feature.pointId) {
+          const owner = entityOwners.get(feature.pointId);
+          if (!owner || owner.type !== 'point') add(`${base}.pointId`, `Nie znaleziono punktu „${feature.pointId}”.`, 'BROKEN_REFERENCE');
+          else if (owner.sketchId !== feature.sketchId) add(`${base}.pointId`, `Punkt „${feature.pointId}” nie należy do szkicu „${feature.sketchId}”.`, 'BROKEN_REFERENCE');
+        } else {
+          if (!profileOwners.has(feature.profileId)) add(`${base}.profileId`, `Nie znaleziono profilu „${feature.profileId ?? ''}”.`, 'BROKEN_REFERENCE');
+          else if (profileOwners.get(feature.profileId) !== feature.sketchId) add(`${base}.profileId`, `Profil „${feature.profileId}” nie należy do szkicu „${feature.sketchId}”.`, 'BROKEN_REFERENCE');
+        }
       }
       if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono wcześniejszej bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
     }

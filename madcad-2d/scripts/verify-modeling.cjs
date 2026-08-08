@@ -460,6 +460,45 @@ async function runUiFlow(window) {
   const pointHoleVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume`);
   assertClose(pointHoleVolume, (40 * 30 * 10) - (Math.PI * 3 * 3 * 10), 0.05, 'Point reference hole volume');
 
+  progress('hole on face positioned from two edges');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla otworu od krawędzi');
+  await clickTool('Prymityw');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Prymityw 3D')`, 'baza otworu od krawędzi');
+  await setCommandField('Szerokość', '40');
+  await setCommandField('Głębokość', '30');
+  await setCommandField('Wysokość', '10');
+  await confirmDialog();
+  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 12000) < 0.05`, 'baza otworu od krawędzi gotowa', modelingTimeoutMs);
+  const faceEdgeHoleSelection = await window.webContents.executeJavaScript(`(() => {
+    const body = window.__madcadVerifyEngineState.bodies[0];
+    const face = body.topology.faces.filter((item) => item.descriptor.geometry === 'PLANE').sort((a, b) => b.descriptor.center[2] - a.descriptor.center[2])[0];
+    const edges = body.topology.edges.filter((item) => item.descriptor.geometry === 'LINE' && item.descriptor.endpoints.every((point) => Math.abs(point[2] - 10) < 0.001));
+    let pair = null;
+    for (let first = 0; first < edges.length && !pair; first += 1) for (let second = first + 1; second < edges.length && !pair; second += 1) {
+      const shared = edges[first].descriptor.endpoints.some((left) => edges[second].descriptor.endpoints.some((right) => Math.hypot(...left.map((value, axis) => value - right[axis])) < 0.001));
+      if (shared) pair = [edges[first], edges[second]];
+    }
+    if (!face || !pair) throw new Error('Nie znaleziono ściany i narożnika testowego Box.');
+    const selection = (kind, record) => ({ kind, id: record.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId });
+    return [selection('face', face), selection('edge', pair[0]), selection('edge', pair[1])];
+  })()`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(faceEdgeHoleSelection[0])}, 'replace')`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(faceEdgeHoleSelection[1])}, 'add')`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(faceEdgeHoleSelection[2])}, 'add')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.items?.length === 3`, 'ściana i dwie krawędzie otworu');
+  await clickTool('Otwór');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Od krawędzi 1')`, 'pozycjonowanie otworu od krawędzi');
+  await setCommandField('Od krawędzi 1', '6');
+  await setCommandField('Od krawędzi 2', '8');
+  await setCommandField('Średnica', '5');
+  await setCommandField('Głębokość', '10');
+  const faceEdgeHoleVolume = 12000 - (Math.PI * 2.5 * 2.5 * 10);
+  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - ${faceEdgeHoleVolume}) < 0.05`, 'podgląd otworu od krawędzi', modelingTimeoutMs);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.placement === 'face-edges' && window.__madcadVerifyDocumentState.featureData[1].referenceIds?.length === 3`, 'zapisany otwór od krawędzi', modelingTimeoutMs);
+  assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), faceEdgeHoleVolume, 0.05, 'Face-edge hole volume');
+
   progress('box cylinder sphere torus primitives');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla prymitywów');

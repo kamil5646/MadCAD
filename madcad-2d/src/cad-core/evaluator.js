@@ -204,6 +204,18 @@ export function prepareDocument(document) {
       };
     }
     if (feature.type === 'hole') {
+      if (feature.placement === 'face-edges') {
+        return {
+          ...feature,
+          status: 'ready',
+          diagnostics: [],
+          topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
+          firstOffsetValue: positive(evaluateExpression(feature.firstOffset, parameterResult.values), 'Odległość od pierwszej krawędzi'),
+          secondOffsetValue: positive(evaluateExpression(feature.secondOffset, parameterResult.values), 'Odległość od drugiej krawędzi'),
+          diameterValue: positive(evaluateExpression(feature.diameter, parameterResult.values), 'Średnica otworu'),
+          depthValue: positive(evaluateExpression(feature.depth, parameterResult.values), 'Głębokość otworu'),
+        };
+      }
       let profile;
       let plane;
       if (feature.pointId) {

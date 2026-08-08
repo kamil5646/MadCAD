@@ -60,10 +60,11 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Extrude obsługuje New/Join/Cut/Intersect, jedną i dwie strony, symetrię oraz Through All.
 - [x] Boolean, Fillet/Chamfer wskazanych krawędzi, Shell wskazanych ścian, Box/Cylinder/Sphere/Torus oraz wspólny manipulator działają na dokładnym B-Rep.
 - [x] Text tworzy przenośny profil znaków i realizuje nową bryłę, Emboss oraz Deboss bez zależności od fontu systemowego.
+- [x] Otwór można umieścić bez szkicu na planarnej ścianie przez dwie prostopadłe krawędzie i dwa parametryczne odsunięcia.
 
 ## Ostatnia zweryfikowana baza
 
-- Testy rdzenia: 78 zaliczonych, 0 błędów.
+- Testy rdzenia: 79 zaliczonych, 0 błędów.
 - Desktop E2E: profile XY/XZ/YZ, spline, conic, parametryczny wspornik, prymitywy, wspólny manipulator, Text/Emboss/Deboss, otwór z punktu, fillet/chamfer, Shell, autosave, odtworzenie workera oraz eksport STEP/STL.
 - Commity kontrolne: `1633cf3`, `6505103`, `be3c067`, `ec5e45f`, `0ad3b75`, `1ca5237`, `1a0a02b`, `fe19842`.
 

@@ -107,6 +107,7 @@ import { createMidplane, createOffsetPlane, createThreePointPlane, resolveConstr
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../cad-core/construction-axes.js';
 import { createCenterPoint, createIntersectionPoint, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../cad-core/construction-points.js';
 import { projectTopologyToSketch, synchronizeProjectedGeometry } from '../cad-core/sketch-projection.js';
+import { resolveFaceEdgeHolePlacement } from '../cad-core/face-edge-hole.js';
 import ModelViewport from './ModelViewport.jsx';
 import './modeling.css';
 
@@ -454,7 +455,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
         {isSpline && <Field label="Punkty X,Y" value={command.pointsText} onChange={(pointsText) => onChange({ pointsText })} autoFocus />}
         {isConic && <><Field label="Początek X" value={command.x1} onChange={(x1) => onChange({ x1 })} suffix="mm" autoFocus /><Field label="Początek Y" value={command.y1} onChange={(y1) => onChange({ y1 })} suffix="mm" /><Field label="Kontrola X" value={command.x2} onChange={(x2) => onChange({ x2 })} suffix="mm" /><Field label="Kontrola Y" value={command.y2} onChange={(y2) => onChange({ y2 })} suffix="mm" /><Field label="Koniec X" value={command.x3} onChange={(x3) => onChange({ x3 })} suffix="mm" /><Field label="Koniec Y" value={command.y3} onChange={(y3) => onChange({ y3 })} suffix="mm" /><Field label="Rho" value={command.rho} onChange={(rho) => onChange({ rho })} /><label className="command-field"><span>Ciągłość</span><select value={command.continuity} onChange={(event) => onChange({ continuity: event.target.value })}><option value="free">Swobodna (G0)</option><option value="tangent">Styczna (G1)</option><option value="curvature">Krzywizna (G2)</option></select></label></>}
         {isPoint && <><Field label="X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" autoFocus /><Field label="Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" /><label className="command-field"><span>Rola</span><select value={command.role} onChange={(event) => onChange({ role: event.target.value })}><option value="standard">Referencja otworu</option><option value="construction">Konstrukcyjny</option></select></label></>}
-        {(isExtrude || isHole) && <Field label="Profil" value={profileName} disabled />}
+        {(isExtrude || (isHole && command.placement !== 'face-edges')) && <Field label="Profil" value={profileName} disabled />}
         {isExtrude && (
           <>
             {command.extent !== 'through-all' && <Field label={command.extent === 'symmetric' ? 'Długość całkowita' : 'Odległość'} value={command.distance} onChange={(distance) => onChange({ distance })} suffix="mm" autoFocus />}
@@ -496,6 +497,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
         {isTextSolid && <><Field label="Tekst" value={command.text} onChange={(text) => onChange({ text })} autoFocus /><Field label="Rozmiar" value={command.fontSize} onChange={(fontSize) => onChange({ fontSize })} suffix="mm" /><Field label="Głębokość" value={command.depth} onChange={(depth) => onChange({ depth })} suffix="mm" /><label className="command-field"><span>Operacja</span><select value={command.operation} onChange={(event) => onChange({ operation: event.target.value })}><option value="new">Nowa bryła</option><option value="emboss" disabled={!command.targetBodyId}>Emboss — wypukły</option><option value="deboss" disabled={!command.targetBodyId}>Deboss — wklęsły</option></select></label><Field label="Położenie X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" /><Field label="Położenie Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" /><Field label={command.operation === 'new' ? 'Położenie Z' : 'Powierzchnia Z'} value={command.z} onChange={(z) => onChange({ z })} suffix="mm" /></>}
         {isHole && (
           <>
+            {command.placement === 'face-edges' && <><Field label="Pozycjonowanie" value="Ściana + 2 krawędzie" disabled /><Field label="Od krawędzi 1" value={command.firstOffset} onChange={(firstOffset) => onChange({ firstOffset })} suffix="mm" autoFocus /><Field label="Od krawędzi 2" value={command.secondOffset} onChange={(secondOffset) => onChange({ secondOffset })} suffix="mm" /></>}
             <Field label="Średnica" value={command.diameter} onChange={(diameter) => onChange({ diameter })} suffix="mm" autoFocus />
             <Field label="Głębokość" value={command.depth} onChange={(depth) => onChange({ depth })} suffix="mm" />
           </>
@@ -767,6 +769,9 @@ export default function ModelingWorkspace({ onClose }) {
   const selectedFaceItems = useMemo(() => (
     selection?.items || (selection?.kind === 'face' ? [selection] : [])
   ).filter((item) => item.kind === 'face' && item.bodyId), [selection]);
+  const hasFaceEdgeHoleReference = selectedFaceItems.length === 1
+    && selectedEdgeItems.length === 2
+    && selectedEdgeItems.every((item) => item.bodyId === selectedFaceItems[0].bodyId);
   const constructionPlanes = useMemo(() => resolveConstructionPlanes(document.references, document.parameters), [document.references, document.parameters]);
   const firstBodyId = `body-${document.features.find((feature) => feature.type === 'extrude' && feature.operation === 'new')?.id || ''}`;
 
@@ -858,14 +863,25 @@ export default function ModelingWorkspace({ onClose }) {
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
       if (next.type === 'hole') {
-        next.previewFeature = createFeature('hole', {
-          name: current.previewFeature?.name || `Otwór ${document.features.length + 1}`,
-          targetBodyId,
-          sketchId: selectedSketchPointMatch?.sketch.id || selectedProfileMatch?.sketch.id,
-          ...(selectedSketchPointMatch ? { pointId: selectedSketchPointMatch.point.id } : { profileId: selectedProfile.id }),
-          diameter: next.diameter,
-          depth: next.depth,
-        });
+        next.previewFeature = next.placement === 'face-edges'
+          ? createFeature('hole', {
+            name: current.previewFeature?.name || `Otwór ${document.features.length + 1}`,
+            placement: 'face-edges',
+            targetBodyId: next.targetBodyId,
+            referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
+            firstOffset: next.firstOffset,
+            secondOffset: next.secondOffset,
+            diameter: next.diameter,
+            depth: next.depth,
+          })
+          : createFeature('hole', {
+            name: current.previewFeature?.name || `Otwór ${document.features.length + 1}`,
+            targetBodyId,
+            sketchId: selectedSketchPointMatch?.sketch.id || selectedProfileMatch?.sketch.id,
+            ...(selectedSketchPointMatch ? { pointId: selectedSketchPointMatch.point.id } : { profileId: selectedProfile.id }),
+            diameter: next.diameter,
+            depth: next.depth,
+          });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
       if (next.type === 'boolean') {
@@ -1729,7 +1745,7 @@ export default function ModelingWorkspace({ onClose }) {
       })),
       features: document.features.length,
       featureIds: document.features.map((feature) => feature.id),
-      featureData: document.features.map((feature) => ({ id: feature.id, type: feature.type, operation: feature.operation, extent: feature.extent, distance: feature.distance, secondDistance: feature.secondDistance, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
+      featureData: document.features.map((feature) => ({ id: feature.id, type: feature.type, operation: feature.operation, placement: feature.placement, extent: feature.extent, distance: feature.distance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
       references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
@@ -1887,8 +1903,29 @@ export default function ModelingWorkspace({ onClose }) {
 
   const openHole = () => {
     if (readOnly) return readOnlyNotice();
+    if (hasFaceEdgeHoleReference && !activeSketchId) {
+      const bodyId = selectedFaceItems[0].bodyId;
+      const body = engine.bodies.find((candidate) => candidate.id === bodyId);
+      const faceRecord = body?.topology?.faces?.find((record) => record.id === selectedFaceItems[0].id);
+      const edgeRecords = selectedEdgeItems.map((item) => body?.topology?.edges?.find((record) => record.id === item.id));
+      try {
+        resolveFaceEdgeHolePlacement(faceRecord?.descriptor, edgeRecords[0]?.descriptor, edgeRecords[1]?.descriptor, 10, 10);
+        const topologyReferences = [
+          createTopologyReference({ selection: selectedFaceItems[0], descriptor: faceRecord.descriptor, label: 'Otwór — ściana' }),
+          createTopologyReference({ selection: selectedEdgeItems[0], descriptor: edgeRecords[0].descriptor, label: 'Otwór — krawędź 1' }),
+          createTopologyReference({ selection: selectedEdgeItems[1], descriptor: edgeRecords[1].descriptor, label: 'Otwór — krawędź 2' }),
+        ].map((reference) => ({ ...reference, scope: 'feature-input' }));
+        const next = { type: 'hole', placement: 'face-edges', targetBodyId: bodyId, firstOffset: '10', secondOffset: '10', diameter: '6', depth: '10', topologyReferences, previewFeature: null };
+        setCommand(next);
+        window.setTimeout(() => updateCommand(next), 0);
+        setNotice('Otwór jest pozycjonowany parametrycznie od dwóch wskazanych krawędzi.');
+      } catch (error) {
+        setNotice(`Nie można pozycjonować otworu: ${error.message}`);
+      }
+      return;
+    }
     if (!hasHoleReference || !targetBodyId || activeSketchId) {
-      setNotice('Zakończ szkic, wybierz profil okręgu oraz bryłę docelową.');
+      setNotice('Zakończ szkic i wybierz punkt/profil albo planarną ścianę z dwiema prostopadłymi krawędziami.');
       return;
     }
     setCommand({ type: 'hole', diameter: selectedCircleDiameter, depth: '10', previewFeature: null });
@@ -2194,7 +2231,9 @@ export default function ModelingWorkspace({ onClose }) {
     else if (feature.type === 'transform') setCommand({ type: 'transform', editId: feature.id, targetBodyId: feature.targetBodyId, mode: feature.mode, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', angle: feature.angle || '0', originX: feature.originX || '0', originY: feature.originY || '0', originZ: feature.originZ || '0', previewFeature: feature });
     else if (feature.type === 'offsetFace') setCommand({ type: 'offsetFace', editId: feature.id, targetBodyId: feature.targetBodyId, distance: feature.distance, faceLabel: '1 wskazana', previewFeature: feature });
     else if (feature.type === 'textSolid') setCommand({ type: 'textSolid', editId: feature.id, text: feature.text, fontSize: feature.fontSize, depth: feature.depth, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', operation: feature.operation, targetBodyId: feature.targetBodyId || null, previewFeature: feature });
-    else if (feature.type === 'hole') setCommand({ type: 'hole', editId: feature.id, diameter: feature.diameter, depth: feature.depth, previewFeature: feature });
+    else if (feature.type === 'hole') setCommand(feature.placement === 'face-edges'
+      ? { type: 'hole', placement: 'face-edges', editId: feature.id, targetBodyId: feature.targetBodyId, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, diameter: feature.diameter, depth: feature.depth, previewFeature: feature }
+      : { type: 'hole', editId: feature.id, diameter: feature.diameter, depth: feature.depth, previewFeature: feature });
     else if (feature.type === 'shell') setCommand({ type: 'shell', editId: feature.id, thickness: feature.thickness, faceCount: feature.referenceIds?.length || 0, previewFeature: feature });
     else setCommand({ type: feature.type, editId: feature.id, size: feature.type === 'fillet' ? feature.radius : feature.distance, previewFeature: feature });
   };
@@ -2415,7 +2454,7 @@ export default function ModelingWorkspace({ onClose }) {
               </>
             ) : (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || !selectedProfile} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={Type} label="Tekst 3D" onClick={openTextSolid} disabled={readOnly} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || selectedBodyIds.length !== 2} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || !hasHoleReference || !engine.bodies.length} /></RibbonGroup>
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || !selectedProfile} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={Type} label="Tekst 3D" onClick={openTextSolid} disabled={readOnly} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || selectedBodyIds.length !== 2} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Layers3} label="Shell" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Layers3} label="Offset Face" onClick={openOffsetFace} disabled={readOnly || selectedFaceItems.length !== 1} /><ToolButton icon={Move3d} label="Przesuń bryłę" onClick={() => openTransform('move')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Rotate3d} label="Obróć bryłę" onClick={() => openTransform('rotate')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
                 <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={CircleDotDashed} label="Punkt wierzchołka" onClick={() => openConstructionPoint('vertex')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt centrum" onClick={() => openConstructionPoint('center')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt przecięcia" onClick={() => openConstructionPoint('intersection')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Otwórz" onClick={() => fileInputRef.current?.click()} /></RibbonGroup>

@@ -52,6 +52,7 @@ import { createCenterPoint, createIntersectionPoint, createVertexPoint, resolveC
 import { projectTopologyToSketch, synchronizeProjectedGeometry } from '../src/cad-core/sketch-projection.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import { createTextProfile } from '../src/cad-core/text-profile.js';
+import { resolveFaceEdgeHolePlacement } from '../src/cad-core/face-edge-hole.js';
 import {
   arcCenterStartEnd,
   arcThroughThreePoints,
@@ -506,6 +507,41 @@ test('wspólny manipulator ma parametryczne operacje Move, Rotate i Offset Face'
   assert.equal(prepared[2].angleValue, 90);
   assert.equal(prepared[3].distanceValue, 2);
   assert.equal(prepared[3].topologyReferences[0].id, faceReference.id);
+});
+
+test('otwór na ścianie zachowuje parametryczne odległości od dwóch krawędzi', () => {
+  const faceDescriptor = { geometry: 'PLANE', center: [20, 15, 10], normal: [0, 0, 1] };
+  const firstEdgeDescriptor = { geometry: 'LINE', endpoints: [[0, 0, 10], [40, 0, 10]], length: 40 };
+  const secondEdgeDescriptor = { geometry: 'LINE', endpoints: [[0, 0, 10], [0, 30, 10]], length: 30 };
+  const placement = resolveFaceEdgeHolePlacement(faceDescriptor, firstEdgeDescriptor, secondEdgeDescriptor, 6, 8);
+  assert.deepEqual(placement.position, [8, 6, 10]);
+  assert.deepEqual(placement.direction, [0, 0, -1]);
+
+  const document = createDocument('Otwór od krawędzi');
+  const base = createFeature('primitive', { primitiveType: 'box', x: '0', y: '0', z: '0', width: '40', depth: '30', height: '10' });
+  const bodyId = `body-${base.id}`;
+  const selections = [
+    { kind: 'face', id: 'top-face', bodyId },
+    { kind: 'edge', id: 'bottom-edge', bodyId },
+    { kind: 'edge', id: 'left-edge', bodyId },
+  ];
+  const references = [faceDescriptor, firstEdgeDescriptor, secondEdgeDescriptor].map((descriptor, index) => ({
+    ...createTopologyReference({ selection: selections[index], descriptor, label: `Pozycjonowanie otworu ${index + 1}` }),
+    scope: 'feature-input',
+  }));
+  const hole = createFeature('hole', {
+    placement: 'face-edges', targetBodyId: bodyId, referenceIds: references.map((reference) => reference.id),
+    firstOffset: '6', secondOffset: '8', diameter: '5', depth: '10',
+  });
+  document.references.push(...references);
+  document.features.push(base, hole);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[1];
+  assert.deepEqual([prepared.firstOffsetValue, prepared.secondOffsetValue, prepared.diameterValue, prepared.depthValue], [6, 8, 5, 10]);
+  assert.deepEqual(prepared.topologyReferences.map((reference) => reference.id), references.map((reference) => reference.id));
+  assert.equal(buildDependencyGraph(document).edges.filter((edge) => edge.to === hole.id && edge.kind === 'references-topology').length, 3);
+  assert.throws(() => resolveFaceEdgeHolePlacement(faceDescriptor, firstEdgeDescriptor, { ...secondEdgeDescriptor, endpoints: [[1, 1, 10], [1, 20, 10]] }, 6, 8), /wspólny narożnik/);
 });
 
 test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwałymi linkami', () => {

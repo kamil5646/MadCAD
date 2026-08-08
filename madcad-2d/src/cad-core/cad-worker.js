@@ -23,6 +23,7 @@ import {
 import { FEATURE_STATUS, prepareDocument } from './evaluator.js';
 import { evaluateFeatureHistory } from './feature-history.js';
 import { GEOMETRY_POLICY } from './geometry-policy.js';
+import { resolveFaceEdgeHolePlacement } from './face-edge-hole.js';
 import { assignStableTopologyIds } from './topology-naming.js';
 import { RevisionCache, SerialTaskQueue, estimateMeshBytes, isStaleRevision } from './worker-runtime.js';
 
@@ -231,6 +232,30 @@ function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.type === 'hole') {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);
+    if (feature.placement === 'face-edges') {
+      const [faceReference, firstEdgeReference, secondEdgeReference] = feature.topologyReferences || [];
+      const faces = target.shape.faces;
+      const edges = target.shape.edges;
+      let placement;
+      try {
+        const faceDescriptors = faces.map((face) => faceDescriptor(face));
+        const edgeDescriptors = edges.map((edge) => edgeDescriptor(edge));
+        placement = resolveFaceEdgeHolePlacement(
+          faceDescriptors[matchingFaceIndex(faceReference, faceDescriptors)],
+          edgeDescriptors[matchingEdgeIndex(firstEdgeReference, edgeDescriptors)],
+          edgeDescriptors[matchingEdgeIndex(secondEdgeReference, edgeDescriptors)],
+          feature.firstOffsetValue,
+          feature.secondOffsetValue,
+        );
+      } finally {
+        faces.forEach((face) => face.delete());
+        edges.forEach((edge) => edge.delete());
+      }
+      const origin = placement.position.map((value, axis) => value + placement.normal[axis]);
+      const cutter = makeCylinder(feature.diameterValue / 2, feature.depthValue + 2, origin, placement.direction);
+      target.shape = target.shape.cut(cutter);
+      return;
+    }
     const { x, y } = feature.profile.geometry;
     const plane = feature.profile.plane || 'XY';
     const planeOffset = Number(feature.profile.planeOffset || 0);
@@ -303,22 +328,27 @@ function selectedEdgeHashes(shape, references) {
     const descriptors = edges.map((edge) => edgeDescriptor(edge));
     const hashes = new Set();
     for (const reference of references) {
-      let bestIndex = -1;
-      let bestDistance = Number.POSITIVE_INFINITY;
-      descriptors.forEach((descriptor, index) => {
-        const distance = edgeReferenceDistance(reference, descriptor);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestIndex = index;
-        }
-      });
-      if (bestIndex < 0 || bestDistance > 1e-4) throw new Error(`Nie odnaleziono wskazanej krawędzi „${reference.label || reference.topologyId}”.`);
+      const bestIndex = matchingEdgeIndex(reference, descriptors);
       hashes.add(edges[bestIndex].hashCode);
     }
     return hashes;
   } finally {
     edges.forEach((edge) => edge.delete());
   }
+}
+
+function matchingEdgeIndex(reference, descriptors) {
+  let bestIndex = -1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  descriptors.forEach((descriptor, index) => {
+    const distance = edgeReferenceDistance(reference, descriptor);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  });
+  if (bestIndex < 0 || bestDistance > 1e-4) throw new Error(`Nie odnaleziono wskazanej krawędzi „${reference?.label || reference?.topologyId}”.`);
+  return bestIndex;
 }
 
 function faceReferenceDistance(reference, descriptor) {
