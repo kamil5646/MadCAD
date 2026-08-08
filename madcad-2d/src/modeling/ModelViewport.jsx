@@ -148,9 +148,10 @@ function sketchEntityState(entity, selected, error = false) {
   return 'under-constrained';
 }
 
-function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [], showPoints = true, planeOffset = 0 } = {}) {
+function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [], errorIds = [], showPoints = true, planeOffset = 0 } = {}) {
   const entityMap = new Map(sketch.entities.map((entity) => [entity.id, entity]));
   const selected = new Set(selectedIds);
+  const errors = new Set(errorIds);
   const coordinates = new Map();
   const entries = [];
   const pickables = [];
@@ -242,13 +243,13 @@ function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [],
     if (entity.type === 'point') continue;
     const localPoints = localPointsFor(entity);
     if (localPoints.length < 2) continue;
-    const hasError = entity.type === 'line'
+    const hasError = errors.has(entity.id) || (entity.type === 'line'
       ? Math.hypot(localPoints[1][0] - localPoints[0][0], localPoints[1][1] - localPoints[0][1]) <= 1e-7
       : entity.type === 'circle'
         ? !(numericValue(entity.geometry.radius, parameters) > 0)
         : entity.type === 'arc' || entity.type === 'ellipticalArc'
           ? Math.hypot(localPoints[0][0] - localPoints.at(-1)[0], localPoints[0][1] - localPoints.at(-1)[1]) <= 1e-7
-          : false;
+          : false);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(localPoints.flatMap((point) => mapPlanePoint(point[0], point[1], plane, 0.12, planeOffset)), 3));
     const baseColor = sketchEntityColor(entity, selected.has(entity.id), hasError);
@@ -263,14 +264,15 @@ function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [],
   if (showPoints) {
     for (const entity of sketch.entities) {
       if (entity.type !== 'point' || !coordinates.has(entity.id)) continue;
-      const baseColor = sketchEntityColor(entity, selected.has(entity.id));
+      const hasError = errors.has(entity.id);
+      const baseColor = sketchEntityColor(entity, selected.has(entity.id), hasError);
       const point = new THREE.Mesh(
         new THREE.SphereGeometry(selected.has(entity.id) ? 1.25 : 0.9, 14, 10),
         new THREE.MeshBasicMaterial({ color: baseColor, depthTest: false }),
       );
       point.position.set(...mapPlanePoint(...coordinates.get(entity.id), plane, 0.18, planeOffset));
       point.renderOrder = 5;
-      point.userData = { sketchEntityId: entity.id, sketchEntityType: 'point', sketchState: sketchEntityState(entity, selected.has(entity.id)), baseColor };
+      point.userData = { sketchEntityId: entity.id, sketchEntityType: 'point', sketchState: sketchEntityState(entity, selected.has(entity.id), hasError), baseColor };
       group.add(point);
       entries.push({ entity, object: point });
       pickables.unshift(point);
@@ -326,6 +328,7 @@ export default function ModelViewport({
   polylineDraft,
   onSketchPoint,
   selectedSketchEntityIds = [],
+  lostProjectedEntityIds = [],
   selectedSketchConstraintId = null,
   onSketchSelection,
   onSketchConstraintSelection,
@@ -688,6 +691,7 @@ export default function ModelViewport({
       });
       sketchRender = addSketchEntities(sketchGroup, activeSketch, parameters, activePlane, {
         selectedIds: selectedSketchEntityIds,
+        errorIds: lostProjectedEntityIds,
         showPoints: showSketchPoints,
         planeOffset: activePlaneOffset,
       });
@@ -1379,6 +1383,7 @@ export default function ModelViewport({
           const point = worldPoint.project(camera);
           screenPoints[entry.entity.id] = {
             type: entry.entity.type,
+            state: entry.object.userData.sketchState,
             x: Math.round(rect.left + (point.x + 1) * rect.width / 2),
             y: Math.round(rect.top + (1 - point.y) * rect.height / 2),
           };
@@ -1469,7 +1474,7 @@ export default function ModelViewport({
       delete window.__madcadConstructionAxisState;
       delete window.__madcadConstructionPointState;
     };
-  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
+  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
 
   return (
     <div className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`} ref={hostRef}>

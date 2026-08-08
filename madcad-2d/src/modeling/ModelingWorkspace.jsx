@@ -105,7 +105,7 @@ import { createTopologyReference, inspectTopologyReferences, reassignTopologyRef
 import { createMidplane, createOffsetPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../cad-core/construction-axes.js';
 import { createCenterPoint, createIntersectionPoint, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../cad-core/construction-points.js';
-import { projectTopologyToSketch } from '../cad-core/sketch-projection.js';
+import { projectTopologyToSketch, synchronizeProjectedGeometry } from '../cad-core/sketch-projection.js';
 import ModelViewport from './ModelViewport.jsx';
 import './modeling.css';
 
@@ -190,6 +190,12 @@ function useDocumentHistory(initialDocument) {
     });
   };
   const replace = (document) => setHistory({ past: [], present: document, future: [] });
+  const synchronize = (mutator) => setHistory((current) => {
+    const next = cloneDocument(current.present);
+    mutator(next);
+    touchDocument(next);
+    return { ...current, present: next };
+  });
   const undo = () => setHistory((current) => current.past.length ? {
     past: current.past.slice(0, -1),
     present: current.past.at(-1),
@@ -204,6 +210,7 @@ function useDocumentHistory(initialDocument) {
     document: history.present,
     commit,
     replace,
+    synchronize,
     undo,
     redo,
     canUndo: history.past.length > 0,
@@ -739,6 +746,21 @@ export default function ModelingWorkspace({ onClose }) {
   const topologyReferenceStates = useMemo(() => inspectTopologyReferences(document, actualBodies), [document, actualBodies]);
   const lostTopologyReferences = engine.status === 'ready' && !command?.previewFeature ? topologyReferenceStates.filter((item) => item.status === 'lost') : [];
   const lostReferenceOwnerIds = useMemo(() => new Set(lostTopologyReferences.map((item) => item.reference.ownerFeatureId).filter(Boolean)), [lostTopologyReferences]);
+  const lostProjectedEntityIds = useMemo(() => {
+    const lostIds = new Set(lostTopologyReferences.map((item) => item.reference.id));
+    return document.sketches.flatMap((sketch) => sketch.entities
+      .filter((entity) => entity.role === 'projected' && lostIds.has(entity.projectionReferenceId || entity.sourceReferenceId))
+      .map((entity) => entity.id));
+  }, [document.sketches, lostTopologyReferences]);
+
+  useEffect(() => {
+    if (readOnly || command?.previewFeature || engine.status !== 'ready' || engine.evaluatedDocument !== document) return;
+    const probe = cloneDocument(document);
+    const result = synchronizeProjectedGeometry(probe, actualBodies);
+    if (!result.updatedEntityIds.length && !result.updatedReferenceIds.length) return;
+    history.synchronize((next) => synchronizeProjectedGeometry(next, actualBodies));
+    setNotice(`Project odświeżony automatycznie · ${result.updatedEntityIds.length} ${result.updatedEntityIds.length === 1 ? 'element' : 'elementów'}.`);
+  }, [document, actualBodies, command?.previewFeature, engine.status, engine.evaluatedDocument, history, readOnly]);
 
   useEffect(() => {
     if (readOnly) return undefined;
@@ -1177,6 +1199,7 @@ export default function ModelingWorkspace({ onClose }) {
         const index = next.references.findIndex((reference) => reference.id === referenceId);
         if (index < 0) throw new Error('Nie znaleziono referencji do naprawy.');
         next.references[index] = reassignTopologyReference(next.references[index], topology, descriptor);
+        synchronizeProjectedGeometry(next, actualBodies);
       });
       setSelection({ kind: topology.kind, id: topology.id, bodyId: topology.bodyId, sourceFeatureId: topology.sourceFeatureId, items: [topology] });
       setNotice('Referencja została ponownie przypisana i historia modelu jest przeliczana.');
@@ -1435,6 +1458,17 @@ export default function ModelingWorkspace({ onClose }) {
       history.commit((next) => { next.references.push(reference); });
       return reference.id;
     };
+    window.__madcadVerifyBreakProjectedReference = () => {
+      const projected = document.sketches.flatMap((sketch) => sketch.entities)
+        .find((entity) => entity.type === 'line' && entity.role === 'projected' && entity.projectionReferenceId);
+      if (!projected) throw new Error('Brak geometrii Project do testu utraconej referencji.');
+      history.commit((next) => {
+        const reference = next.references.find((item) => item.id === projected.projectionReferenceId);
+        if (!reference) throw new Error('Brak źródła Project do kontrolowanego zerwania.');
+        reference.topologyId = `${reference.topologyId}-lost`;
+      });
+      return { entityId: projected.id, referenceId: projected.projectionReferenceId };
+    };
     window.__madcadVerifyMoveSketch = moveSketchEntities;
     window.__madcadVerifyDeleteSketch = deleteSelectedSketchEntities;
     window.__madcadVerifyLoadTopologyFixture = (plane = 'XY') => {
@@ -1600,6 +1634,7 @@ export default function ModelingWorkspace({ onClose }) {
       delete window.__madcadVerifySketchSelection;
       delete window.__madcadVerifyTopologySelection;
       delete window.__madcadVerifyCreateLostTopologyReference;
+      delete window.__madcadVerifyBreakProjectedReference;
       delete window.__madcadVerifyMoveSketch;
       delete window.__madcadVerifyDeleteSketch;
       delete window.__madcadVerifyLoadTopologyFixture;
@@ -2193,6 +2228,7 @@ export default function ModelingWorkspace({ onClose }) {
             polylineDraft={command?.type === 'line' || command?.type === 'polyline' ? { lastPoint: command.lastPoint } : null}
             onSketchPoint={readOnly ? undefined : appendSketchPoint}
             selectedSketchEntityIds={selectedSketchEntityIds}
+            lostProjectedEntityIds={lostProjectedEntityIds}
             selectedSketchConstraintId={selectedSketchConstraintId}
             onSketchSelection={handleSketchSelection}
             onSketchConstraintSelection={(constraintId) => setSelection({ kind: 'sketchConstraint', id: constraintId, sketchId: activeSketchId })}

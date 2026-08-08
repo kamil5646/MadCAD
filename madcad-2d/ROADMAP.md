@@ -64,7 +64,7 @@ Pozostałe warianty UCS/płaszczyzn/osi są `P1`.
   - [x] Planarna ściana bryły z trwałą referencją podpory i odsunięciem.
   - [x] Nazwana płaszczyzna konstrukcyjna.
 - [x] Project punktu, krawędzi i zamkniętej pętli.
-- [ ] Associative link oraz czytelny stan utraconej referencji.
+- [x] Associative link oraz czytelny stan utraconej referencji.
 - [ ] Slice i kontrola widoczności profili, więzów oraz projected geometry.
 
 Import SVG/DXF jest `P1`.
@@ -143,4 +143,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M5.4 — Associative link Project oraz czytelny stan utraconej referencji.`
+`M5.5 — Slice oraz kontrola widoczności profili, więzów i geometrii Project.`

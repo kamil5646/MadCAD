@@ -25,6 +25,7 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     cache: { entries: 0, bytes: 0 },
     diagnostics: [],
     error: '',
+    evaluatedDocument: null,
   });
 
   const rejectPending = useCallback((error) => {
@@ -118,7 +119,7 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
       try {
         const result = await send({ type: 'evaluate', document, revision, quality });
         if (active && result.revision === revision) {
-          setState((current) => ({ ...current, status: 'ready', error: '', ...result }));
+          setState((current) => ({ ...current, status: 'ready', error: '', ...result, evaluatedDocument: document }));
         }
       } catch (error) {
         if (!active || error.code === 'STALE_REVISION' || error.code === 'WORKER_STOPPED' || error.code === 'WORKER_CRASH') return;

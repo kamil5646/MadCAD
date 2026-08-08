@@ -48,7 +48,7 @@ import { createTopologyReference, inspectTopologyReferences, reassignTopologyRef
 import { createMidplane, createOffsetPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../src/cad-core/construction-planes.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../src/cad-core/construction-axes.js';
 import { createCenterPoint, createIntersectionPoint, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../src/cad-core/construction-points.js';
-import { projectTopologyToSketch } from '../src/cad-core/sketch-projection.js';
+import { projectTopologyToSketch, synchronizeProjectedGeometry } from '../src/cad-core/sketch-projection.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import {
   arcCenterStartEnd,
@@ -372,6 +372,32 @@ test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwał
   assert.equal(validateDocument(document).valid, true);
   assert.equal(sketch.entities.every((entity) => entity.role !== 'projected' || entity.sourceReferenceId), true);
   assert.equal(sketch.entities.every((entity) => !entity.projectionReferenceId || document.references.some((reference) => reference.id === entity.projectionReferenceId)), true);
+
+  const movedBody = {
+    id: 'body-a',
+    topology: {
+      faces: [],
+      vertices: [{ id: 'vertex-a', descriptor: { point: [4, 5, 8] } }],
+      edges: edges.map((edge) => ({
+        id: edge.selection.id,
+        descriptor: { endpoints: edge.descriptor.endpoints.map(([x, y, z]) => [x + 1, y + 2, z]) },
+      })),
+    },
+  };
+  const synchronized = synchronizeProjectedGeometry(document, [movedBody]);
+  const standalone = sketch.entities.find((entity) => entity.type === 'point' && entity.projectionReferenceId === result.createdReferenceIds[0]);
+  const firstLine = sketch.entities.find((entity) => entity.type === 'line' && entity.projectionReferenceId === result.createdReferenceIds[1]);
+  assert.deepEqual([standalone.geometry.x, standalone.geometry.y], ['4', '5']);
+  assert.deepEqual(firstLine.pointIds.map((pointId) => {
+    const point = sketch.entities.find((entity) => entity.id === pointId);
+    return [point.geometry.x, point.geometry.y];
+  }), [['1', '2'], ['11', '2']]);
+  assert.ok(synchronized.updatedEntityIds.includes(firstLine.id));
+  assert.equal(sketch.profiles.length, 1);
+
+  movedBody.topology.edges.pop();
+  const lost = synchronizeProjectedGeometry(document, [movedBody]);
+  assert.ok(lost.lostReferenceIds.includes(result.createdReferenceIds.at(-1)));
 });
 
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {

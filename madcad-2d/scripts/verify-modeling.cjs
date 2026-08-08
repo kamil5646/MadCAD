@@ -691,6 +691,14 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify({ kind: 'edge', ...projectionEdge })}, 'replace')`);
   await clickTool('Project');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.some((entity) => entity.role === 'projected' && entity.fixed && entity.projectionReferenceId)`, 'projekcja krawędzi z trwałym linkiem');
+  const brokenProject = await window.webContents.executeJavaScript(`window.__madcadVerifyBreakProjectedReference()`);
+  await waitForUi(window, `document.querySelector('.reference-repair-panel')?.textContent.includes('Project') && window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(brokenProject.entityId)}]?.state === 'error'`, 'czytelny stan utraconego źródła Project', modelingTimeoutMs);
+  await window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.reference-repair-panel button')].find((item) => item.textContent === 'Kandydat 1');
+    if (!button) throw new Error('Brak kandydata naprawy Project.');
+    button.click();
+  })()`);
+  await waitForUi(window, `!document.querySelector('.reference-repair-panel') && window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(brokenProject.entityId)}]?.state === 'projected' && !window.__madcadVerifyDocumentState.references.find((item) => item.id === ${JSON.stringify(brokenProject.referenceId)})?.topologyId.endsWith('-lost')`, 'naprawa i odświeżenie Project', modelingTimeoutMs);
   await clickTool('Okrąg');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Okrąg')`, 'polecenie okręgu');
   await setCommandField('Średnica', '12');
