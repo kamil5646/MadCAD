@@ -809,6 +809,29 @@ export default function ModelingWorkspace({ onClose }) {
 
   const startSketch = () => {
     if (readOnly) return readOnlyNotice();
+    if (selection?.kind === 'constructionPlane') {
+      const supportPlane = constructionPlanes.find((plane) => plane.id === selection.id);
+      if (!supportPlane || supportPlane.status !== 'ok') {
+        setNotice('Wybrana płaszczyzna konstrukcyjna ma błąd i nie może być podporą szkicu.');
+        return;
+      }
+      const normal = supportPlane.normal;
+      const dominant = normal.map(Math.abs).indexOf(Math.max(...normal.map(Math.abs)));
+      if (normal.some((value, index) => index !== dominant && Math.abs(value) > 1e-6)) {
+        setNotice('Obrócone płaszczyzny konstrukcyjne wymagają ramy UCS; wybierz obecnie płaszczyznę równoległą do XY, XZ albo YZ.');
+        return;
+      }
+      const plane = dominant === 0 ? 'YZ' : dominant === 1 ? 'XZ' : 'XY';
+      const planeOffset = dominant === 1 ? -supportPlane.origin[1] : supportPlane.origin[dominant];
+      const sketch = createSketch({ name: `Szkic ${document.sketches.length + 1}`, plane, planeOffset, support: { kind: 'construction-plane', referenceId: supportPlane.id } });
+      commit((next) => next.sketches.push(sketch));
+      setActiveSketchId(sketch.id);
+      setSelection({ kind: 'sketch', id: sketch.id });
+      setCommand(null);
+      setWorkspace('sketch');
+      setNotice(`Edytujesz ${sketch.name} na płaszczyźnie ${supportPlane.name}.`);
+      return;
+    }
     const selectedFace = (selection?.items || (selection?.kind === 'face' ? [selection] : [])).find((item) => item.kind === 'face');
     if (selectedFace) {
       const body = engine.bodies.find((candidate) => candidate.id === selectedFace.bodyId);

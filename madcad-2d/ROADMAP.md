@@ -59,10 +59,10 @@ Pozostałe warianty UCS/płaszczyzn/osi są `P1`.
 
 ## M5 — szkic na modelu i Project `P0`
 
-- [>] Szkic na płaszczyźnie bazowej, ścianie planarnej i płaszczyźnie konstrukcyjnej.
+- [x] Szkic na płaszczyźnie bazowej, ścianie planarnej i płaszczyźnie konstrukcyjnej.
   - [x] Płaszczyzny bazowe XY/XZ/YZ.
   - [x] Planarna ściana bryły z trwałą referencją podpory i odsunięciem.
-  - [ ] Nazwana płaszczyzna konstrukcyjna.
+  - [x] Nazwana płaszczyzna konstrukcyjna.
 - [ ] Project punktu, krawędzi i zamkniętej pętli.
 - [ ] Associative link oraz czytelny stan utraconej referencji.
 - [ ] Slice i kontrola widoczności profili, więzów oraz projected geometry.
@@ -143,4 +143,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M5.2 — Szkic zakładany na nazwanej płaszczyźnie konstrukcyjnej.`
+`M5.3 — Project punktu i krawędzi do aktywnego szkicu z trwałym linkiem.`

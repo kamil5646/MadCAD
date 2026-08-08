@@ -663,6 +663,18 @@ async function runUiFlow(window) {
   await clickTool('Zakończ szkic');
   await waitForUi(window, `!document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'zakończenie szkicu na ścianie');
 
+  progress('sketch on named construction plane');
+  await window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.tree-reference-row .tree-row')].find((item) => item.textContent.includes('Płaszczyzna montażowa'));
+    if (!button) throw new Error('Brak płaszczyzny konstrukcyjnej w przeglądarce.');
+    button.click();
+  })()`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'constructionPlane'`, 'wybór płaszczyzny konstrukcyjnej');
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.length === 3 && window.__madcadVerifyDocumentState.sketches[2].support?.kind === 'construction-plane' && Number(window.__madcadVerifyDocumentState.sketches[2].planeOffset) === 15 && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'szkic na nazwanej płaszczyźnie konstrukcyjnej', modelingTimeoutMs);
+  await clickTool('Zakończ szkic');
+  await waitForUi(window, `!document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'zakończenie szkicu na płaszczyźnie konstrukcyjnej');
+
   progress('hole sketch');
   await clickTool('Utwórz szkic');
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'drugi wybór płaszczyzny');
@@ -742,7 +754,7 @@ async function runUiFlow(window) {
     `(() => {
       try {
         const saved = JSON.parse(window.localStorage.getItem('madcad:modeling-document:v4') || 'null');
-        return saved?.schemaVersion === 4 && saved?.features?.length === 4 && saved?.sketches?.length === 3 && saved?.references?.some((item) => item.kind === 'construction-plane' && item.name === 'Płaszczyzna montażowa');
+        return saved?.schemaVersion === 4 && saved?.features?.length === 4 && saved?.sketches?.length === 4 && saved?.references?.some((item) => item.kind === 'construction-plane' && item.name === 'Płaszczyzna montażowa');
       } catch (_error) {
         return false;
       }
@@ -780,7 +792,7 @@ async function runUiFlow(window) {
   const autosaveRoundTrip = autosaveState.available
     && autosaveState.schemaVersion === 4
     && autosaveState.features === 4
-    && autosaveState.sketches === 3
+    && autosaveState.sketches === 4
     && autosaveState.entities === 10
     && autosaveState.constructionPlanes === 3
     && autosaveState.constructionAxes === 4
