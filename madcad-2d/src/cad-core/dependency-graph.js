@@ -70,6 +70,9 @@ export function buildDependencyGraph(document) {
     }
     for (const profile of sketch.profiles || []) {
       for (const entityId of profile.entityIds || []) addEdge(entityId, profile.id, 'bounds');
+      for (const loop of profile.innerLoops || []) {
+        for (const entityId of loop.entityIds || []) addEdge(entityId, profile.id, 'bounds-hole');
+      }
     }
   }
 
@@ -84,6 +87,7 @@ export function buildDependencyGraph(document) {
     if (feature.sketchId) addEdge(feature.sketchId, feature.id, 'references');
     for (const profileId of feature.profileIds || []) addEdge(profileId, feature.id, 'references');
     if (feature.profileId) addEdge(feature.profileId, feature.id, 'references');
+    if (feature.pointId) addEdge(feature.pointId, feature.id, 'references');
     for (const value of featureExpressions(feature)) {
       for (const name of expressionDependencies(value)) addEdge(parameterIdsByName.get(name), feature.id, 'drives');
     }

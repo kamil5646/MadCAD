@@ -1,9 +1,12 @@
 import opencascade from 'replicad-opencascadejs';
 import opencascadeWasm from 'replicad-opencascadejs/src/replicad_single.wasm?url';
 import {
+  Curve2D,
   drawCircle,
+  drawEllipse,
   draw,
   drawRectangle,
+  getOC,
   importSTEP,
   importSTL,
   makeCylinder,
@@ -39,6 +42,51 @@ async function ensureKernel() {
   return kernelPromise;
 }
 
+function rationalConicCurve(segment) {
+  const oc = getOC();
+  const poles = new oc.TColgp_Array1OfPnt2d_2(1, 3);
+  const weights = new oc.TColStd_Array1OfReal_2(1, 3);
+  const points = [segment.start, segment.control, segment.end].map(([x, y]) => new oc.gp_Pnt2d_3(x, y));
+  points.forEach((point, index) => poles.SetValue(index + 1, point));
+  weights.SetValue(1, 1);
+  weights.SetValue(2, segment.rho);
+  weights.SetValue(3, 1);
+  const bezier = new oc.Geom2d_BezierCurve_2(poles, weights);
+  const curve = new Curve2D(new oc.Handle_Geom2d_Curve_2(bezier));
+  points.forEach((point) => point.delete());
+  poles.delete();
+  weights.delete();
+  return curve;
+}
+
+function drawingForSegments(segments, profileId) {
+  const [first, ...rest] = segments;
+  if (!first) throw new Error(`Profil ${profileId} nie zawiera segmentów.`);
+  if (first.type === 'circle' && !rest.length) return drawCircle(first.radius).translate(...first.center);
+  if (first.type === 'ellipse' && !rest.length) return drawEllipse(first.majorRadius, first.minorRadius).rotate(first.rotation).translate(...first.center);
+  const arcMidpoint = (segment) => {
+    let startAngle = Math.atan2(segment.start[1] - segment.center[1], segment.start[0] - segment.center[0]);
+    let endAngle = Math.atan2(segment.end[1] - segment.center[1], segment.end[0] - segment.center[0]);
+    if (segment.direction === 'cw' && endAngle >= startAngle) endAngle -= Math.PI * 2;
+    if (segment.direction !== 'cw' && endAngle <= startAngle) endAngle += Math.PI * 2;
+    const radius = Math.hypot(segment.start[0] - segment.center[0], segment.start[1] - segment.center[1]);
+    const angle = (startAngle + endAngle) / 2;
+    return [segment.center[0] + Math.cos(angle) * radius, segment.center[1] + Math.sin(angle) * radius];
+  };
+  const pen = draw(first.start);
+  for (const segment of [first, ...rest]) {
+    if (segment.type === 'arc') pen.threePointsArcTo(segment.end, arcMidpoint(segment));
+    else if (segment.type === 'ellipticalArc') pen.ellipseTo(segment.end, segment.majorRadius, segment.minorRadius, segment.rotation, segment.longAxis, segment.sweep);
+    else if (segment.type === 'spline') segment.beziers.forEach((bezier) => pen.bezierCurveTo(bezier.end, bezier.controls));
+    else if (segment.type === 'conic') {
+      pen.pendingCurves.push(rationalConicCurve(segment));
+      pen.pointer = segment.end;
+    }
+    else pen.lineTo(segment.end);
+  }
+  return pen.done();
+}
+
 function drawingForProfile(profile) {
   const { geometry } = profile;
   if (profile.type === 'rectangle') {
@@ -48,21 +96,19 @@ function drawingForProfile(profile) {
     return drawCircle(geometry.diameter / 2).translate(geometry.x, geometry.y);
   }
   if (profile.type === 'closed') {
-    const [first, ...segments] = geometry.segments;
-    if (!first) throw new Error(`Profil ${profile.id} nie zawiera segmentów.`);
-    const pen = draw(first.start);
-    const ordered = [first, ...segments];
-    for (const segment of ordered) {
-      if (segment.type === 'arc') pen.tangentArcTo(segment.end);
-      else pen.lineTo(segment.end);
-    }
-    return pen.done();
+    return drawingForSegments(geometry.segments, profile.id);
   }
   throw new Error(`Nieobsługiwany profil: ${profile.type}`);
 }
 
 function extrudeProfile(profile, distance) {
-  return drawingForProfile(profile).sketchOnPlane(profile.plane || 'XY').extrude(distance);
+  const plane = profile.plane || 'XY';
+  let shape = drawingForProfile(profile).sketchOnPlane(plane).extrude(distance);
+  for (const hole of profile.geometry.holes || []) {
+    const cutter = drawingForSegments(hole.segments, profile.id).sketchOnPlane(plane).extrude(distance);
+    shape = shape.cut(cutter);
+  }
+  return shape;
 }
 
 function combineShapes(shapes) {

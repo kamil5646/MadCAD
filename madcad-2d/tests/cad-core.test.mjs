@@ -35,6 +35,29 @@ import {
   translateSketchSelection,
   upsertSketchProfile,
 } from '../src/cad-core/sketch-model.js';
+import { collectSketchSnapCandidates, snapSketchPoint } from '../src/cad-core/sketch-snap.js';
+import { detectSketchProfiles } from '../src/cad-core/sketch-topology.js';
+import {
+  arcCenterStartEnd,
+  arcThroughThreePoints,
+  circleCenterRadius,
+  circleThreePoints,
+  circleTwoPoints,
+  conicThroughControlPoint,
+  ellipticalArcFromCenter,
+  ellipseFromCenter,
+  fitPointSpline,
+  polygonFromEdge,
+  rectangleFromCenter,
+  rectangleThreePoints,
+  rectangleTwoPoints,
+  regularPolygon,
+  controlPointSpline,
+  slotCenterToCenter,
+  slotArc,
+  slotOverall,
+  slotThreePoints,
+} from '../src/cad-core/sketch-primitives.js';
 
 const { atomicWriteTextFile } = atomicFile;
 
@@ -586,6 +609,366 @@ test('usunięcie punktu usuwa zależny profil i operację bez zerwanych referenc
   assert.equal(document.features.length, 0);
   assert.equal(sketch.profiles.length, 0);
   assert.equal(validateDocument(document).valid, true);
+});
+
+test('snap szkicu rozpoznaje punkty charakterystyczne, przecięcia, styczność i najbliższą geometrię', () => {
+  const endpointStart = createSketchPoint({ x: 0, y: 0 });
+  const endpointEnd = createSketchPoint({ x: 20, y: 0 });
+  const crossingStart = createSketchPoint({ x: 10, y: -10 });
+  const crossingEnd = createSketchPoint({ x: 10, y: 10 });
+  const center = createSketchPoint({ x: 40, y: 0 });
+  const sketch = createSketch({ entities: [
+    endpointStart,
+    endpointEnd,
+    crossingStart,
+    crossingEnd,
+    center,
+    createSketchLine({ startPointId: endpointStart.id, endPointId: endpointEnd.id }),
+    createSketchLine({ startPointId: crossingStart.id, endPointId: crossingEnd.id }),
+    createSketchCircleEntity({ centerPointId: center.id, radius: 5 }),
+  ] });
+
+  const types = new Set(collectSketchSnapCandidates(sketch, [9, 1], { anchor: [30, 0] }).map((entry) => entry.type));
+  for (const type of ['endpoint', 'midpoint', 'center', 'quadrant', 'intersection', 'tangent', 'nearest', 'grid', 'horizontal', 'vertical', 'alignment']) {
+    assert.ok(types.has(type), `Brak kandydata snap: ${type}`);
+  }
+  assert.equal(snapSketchPoint(sketch, [0.4, 0.2], { pixelsPerUnit: 10, thresholdPx: 12 }).type, 'endpoint');
+  assert.equal(snapSketchPoint(sketch, [10.3, 0.2], { pixelsPerUnit: 10, thresholdPx: 12 }).type, 'intersection');
+  assert.equal(snapSketchPoint(sketch, [40.4, 0.2], { pixelsPerUnit: 10, thresholdPx: 12 }).type, 'center');
+  assert.equal(snapSketchPoint(sketch, [45.3, 0.2], { pixelsPerUnit: 10, thresholdPx: 12 }).type, 'quadrant');
+
+  const isolatedLine = createSketch({ entities: [endpointStart, endpointEnd, createSketchLine({ startPointId: endpointStart.id, endPointId: endpointEnd.id })] });
+  assert.equal(snapSketchPoint(isolatedLine, [10.2, 0.4], { pixelsPerUnit: 10, thresholdPx: 12 }).type, 'midpoint');
+  const diagonalEnd = createSketchPoint({ x: 20, y: 20 });
+  const diagonal = createSketch({ entities: [endpointStart, diagonalEnd, createSketchLine({ startPointId: endpointStart.id, endPointId: diagonalEnd.id })] });
+  assert.equal(snapSketchPoint(diagonal, [6, 7], { pixelsPerUnit: 10, thresholdPx: 12 }).type, 'nearest');
+
+  const tangentCenter = createSketchPoint({ x: 0, y: 0 });
+  const tangentSketch = createSketch({ entities: [tangentCenter, createSketchCircleEntity({ centerPointId: tangentCenter.id, radius: 5 })] });
+  assert.equal(snapSketchPoint(tangentSketch, [-2.45, 4.25], { anchor: [-10, 0], pixelsPerUnit: 10, thresholdPx: 12 }).type, 'tangent');
+});
+
+test('prowadnice obejmują poziom, pion, wyrównanie i przedłużenie, a Alt wyłącza snap', () => {
+  const empty = createSketch();
+  const horizontal = snapSketchPoint(empty, [6, 0.6], { anchor: [0, 0], pixelsPerUnit: 10, thresholdPx: 12 });
+  assert.equal(horizontal.type, 'horizontal');
+  assert.deepEqual(horizontal.point, [6, 0]);
+  const vertical = snapSketchPoint(empty, [0.6, 6], { anchor: [0, 0], pixelsPerUnit: 10, thresholdPx: 12 });
+  assert.equal(vertical.type, 'vertical');
+
+  const alignmentPoint = createSketchPoint({ x: 4, y: 8 });
+  const aligned = snapSketchPoint(createSketch({ entities: [alignmentPoint] }), [4.5, 2], { pixelsPerUnit: 10, thresholdPx: 12 });
+  assert.equal(aligned.type, 'alignment');
+  assert.deepEqual(aligned.point, [4, 2]);
+
+  const start = createSketchPoint({ x: 0, y: 0 });
+  const end = createSketchPoint({ x: 10, y: 0 });
+  const extension = snapSketchPoint(createSketch({ entities: [start, end, createSketchLine({ startPointId: start.id, endPointId: end.id })] }), [12, 0.5], { pixelsPerUnit: 10, thresholdPx: 12 });
+  assert.equal(extension.type, 'extension');
+  assert.deepEqual(extension.point, [12, 0]);
+  assert.equal(extension.guides[0].kind, 'extension');
+
+  const disabled = snapSketchPoint(empty, [2.2, 3.2], { disabled: true, gridSize: 1, pixelsPerUnit: 10, thresholdPx: 12 });
+  assert.equal(disabled.snapped, false);
+  assert.deepEqual(disabled.point, [2.2, 3.2]);
+});
+
+test('próg snap pozostaje stały w pikselach CSS przy różnym zoomie i DPI', () => {
+  const start = createSketchPoint({ x: 0, y: 0 });
+  const end = createSketchPoint({ x: 20, y: 0 });
+  const sketch = createSketch({ entities: [start, end, createSketchLine({ startPointId: start.id, endPointId: end.id })] });
+  for (const { pixelsPerUnit, devicePixelRatio } of [
+    { pixelsPerUnit: 2, devicePixelRatio: 1 },
+    { pixelsPerUnit: 8, devicePixelRatio: 2 },
+    { pixelsPerUnit: 20, devicePixelRatio: 3 },
+  ]) {
+    const tenCssPixels = 10 / pixelsPerUnit;
+    const inside = snapSketchPoint(sketch, [tenCssPixels, 0], { pixelsPerUnit, devicePixelRatio, thresholdPx: 12 });
+    const outside = snapSketchPoint(sketch, [13 / pixelsPerUnit, 0], { pixelsPerUnit, devicePixelRatio, thresholdPx: 12, gridSize: 0 });
+    assert.equal(inside.type, 'endpoint');
+    assert.notEqual(outside.type, 'endpoint');
+  }
+});
+
+function sketchFromLoops(loops) {
+  const entities = [];
+  for (const coordinates of loops) {
+    const points = coordinates.map(([x, y]) => createSketchPoint({ x, y }));
+    const lines = points.map((point, index) => createSketchLine({
+      startPointId: point.id,
+      endPointId: points[(index + 1) % points.length].id,
+    }));
+    entities.push(...points, ...lines);
+  }
+  return createSketch({ entities });
+}
+
+test('graf topologii wykrywa dowolny profil L i sześciokąt', () => {
+  const shapeL = sketchFromLoops([[[0, 0], [30, 0], [30, 10], [10, 10], [10, 30], [0, 30]]]);
+  const detectedL = detectSketchProfiles(shapeL);
+  assert.equal(detectedL.diagnostics.length, 0);
+  assert.equal(detectedL.profiles.length, 1);
+  assert.equal(detectedL.profiles[0].entityIds.length, 6);
+  assert.equal(detectedL.graph.vertices.every((vertex) => vertex.degree === 2), true);
+
+  const hexagon = sketchFromLoops([[[0, 10], [8.66, 5], [8.66, -5], [0, -10], [-8.66, -5], [-8.66, 5]]]);
+  const detectedHexagon = detectSketchProfiles(hexagon);
+  assert.equal(detectedHexagon.diagnostics.length, 0);
+  assert.equal(detectedHexagon.profiles.length, 1);
+  assert.equal(detectedHexagon.profiles[0].entityIds.length, 6);
+});
+
+test('zagnieżdżone pętle tworzą otwór i osobną wyspę zgodnie z parzystością', () => {
+  const sketch = sketchFromLoops([
+    [[0, 0], [40, 0], [40, 40], [0, 40]],
+    [[10, 10], [30, 10], [30, 30], [10, 30]],
+    [[16, 16], [24, 16], [24, 24], [16, 24]],
+  ]);
+  const result = detectSketchProfiles(sketch);
+  assert.equal(result.diagnostics.length, 0);
+  assert.equal(result.profiles.length, 2);
+  const outer = result.profiles.find((profile) => profile.innerLoops.length === 1);
+  const island = result.profiles.find((profile) => profile !== outer);
+  assert.ok(outer);
+  assert.equal(outer.entityIds.length, 4);
+  assert.equal(outer.innerLoops[0].entityIds.length, 4);
+  assert.equal(outer.geometry.holes.length, 1);
+  assert.equal(island.innerLoops.length, 0);
+  assert.deepEqual(result.graph.loops.map((loop) => loop.depth).sort(), [0, 1, 2]);
+});
+
+test('profil z otworem przechodzi walidację, zależności i przygotowanie kernela na XY, XZ i YZ', () => {
+  for (const plane of ['XY', 'XZ', 'YZ']) {
+    const sketch = sketchFromLoops([
+      [[0, 0], [40, 0], [40, 30], [0, 30]],
+      [[10, 8], [30, 8], [30, 22], [10, 22]],
+    ]);
+    sketch.plane = plane;
+    const detected = detectSketchProfiles(sketch);
+    sketch.profiles = detected.profiles;
+    const document = createDocument(`Profil z otworem ${plane}`);
+    document.sketches.push(sketch);
+    document.features.push(createFeature('extrude', {
+      sketchId: sketch.id,
+      profileIds: [sketch.profiles[0].id],
+      distance: '6',
+      operation: 'new',
+    }));
+
+    assert.equal(validateDocument(document).valid, true, validateDocument(document).errors.join('\n'));
+    const prepared = prepareDocument(document);
+    assert.equal(prepared.features[0].profiles[0].plane, plane);
+    assert.equal(prepared.features[0].profiles[0].geometry.segments.length, 4);
+    assert.equal(prepared.features[0].profiles[0].geometry.holes.length, 1);
+    assert.equal(prepared.features[0].profiles[0].geometry.holes[0].segments.length, 4);
+    const graph = buildDependencyGraph(document).toJSON();
+    assert.equal(graph.edges.filter((edge) => edge.kind === 'bounds-hole').length, 4);
+    assert.deepEqual(openDocument(JSON.parse(JSON.stringify(document))).document.sketches[0].profiles, sketch.profiles);
+  }
+});
+
+test('okrąg wewnętrzny jest poprawnym otworem dowolnego profilu', () => {
+  const sketch = sketchFromLoops([[[0, 0], [40, 0], [40, 40], [0, 40]]]);
+  const center = createSketchPoint({ x: 20, y: 20 });
+  const circle = createSketchCircleEntity({ centerPointId: center.id, radius: 6 });
+  sketch.entities.push(center, circle);
+  const result = detectSketchProfiles(sketch);
+  assert.equal(result.profiles.length, 1);
+  assert.deepEqual(result.profiles[0].innerLoops[0].entityIds, [circle.id]);
+  sketch.profiles = result.profiles;
+  const document = createDocument('Otwór okrągły');
+  document.sketches.push(sketch);
+  document.features.push(createFeature('extrude', { sketchId: sketch.id, profileIds: [result.profiles[0].id], distance: '5', operation: 'new' }));
+  assert.equal(validateDocument(document).valid, true, validateDocument(document).errors.join('\n'));
+  const hole = prepareDocument(document).features[0].profiles[0].geometry.holes[0].segments[0];
+  assert.equal(hole.type, 'circle');
+  assert.equal(hole.radius, 6);
+});
+
+test('diagnostyka odrzuca przerwę, samoprzecięcie, nakładanie i zerowy segment', () => {
+  const gapPoints = [[0, 0], [20, 0], [20, 20], [0, 20]].map(([x, y]) => createSketchPoint({ x, y }));
+  const gapSketch = createSketch({ entities: [
+    ...gapPoints,
+    createSketchLine({ startPointId: gapPoints[0].id, endPointId: gapPoints[1].id }),
+    createSketchLine({ startPointId: gapPoints[1].id, endPointId: gapPoints[2].id }),
+    createSketchLine({ startPointId: gapPoints[2].id, endPointId: gapPoints[3].id }),
+  ] });
+  const gap = detectSketchProfiles(gapSketch);
+  assert.equal(gap.profiles.length, 0);
+  assert.ok(gap.diagnostics.some((entry) => entry.code === 'GAP' && entry.point));
+
+  const crossing = sketchFromLoops([[[0, 0], [20, 20], [0, 20], [20, 0]]]);
+  const crossingResult = detectSketchProfiles(crossing);
+  assert.equal(crossingResult.profiles.length, 0);
+  assert.ok(crossingResult.diagnostics.some((entry) => entry.code === 'SELF_INTERSECTION'));
+
+  const overlapStart = createSketchPoint({ x: 0, y: 0 });
+  const overlapMiddle = createSketchPoint({ x: 10, y: 0 });
+  const overlapEnd = createSketchPoint({ x: 20, y: 0 });
+  const zero = createSketchPoint({ x: 30, y: 0 });
+  const invalid = createSketch({ entities: [
+    overlapStart,
+    overlapMiddle,
+    overlapEnd,
+    zero,
+    createSketchLine({ startPointId: overlapStart.id, endPointId: overlapEnd.id }),
+    createSketchLine({ startPointId: overlapMiddle.id, endPointId: overlapEnd.id }),
+    createSketchLine({ startPointId: zero.id, endPointId: zero.id }),
+  ] });
+  const invalidResult = detectSketchProfiles(invalid);
+  assert.ok(invalidResult.diagnostics.some((entry) => entry.code === 'OVERLAP'));
+  assert.ok(invalidResult.diagnostics.some((entry) => entry.code === 'ZERO_LENGTH'));
+});
+
+test('konstruktory łuków, prostokątów i okręgów zachowują dokładną geometrię', () => {
+  const arc3 = arcThroughThreePoints([10, 0], [0, 10], [-10, 0]);
+  assert.equal(arc3.curves[0].type, 'arc');
+  assert.equal(Number(arc3.points[0].geometry.x).toFixed(6), '0.000000');
+  assert.equal(Number(arc3.points[0].geometry.y).toFixed(6), '0.000000');
+  assert.throws(() => arcThroughThreePoints([0, 0], [5, 0], [10, 0]), /współliniowe/);
+  assert.equal(arcCenterStartEnd([0, 0], [5, 0], [0, 5]).curves[0].geometry.direction, 'ccw');
+
+  for (const rectangle of [
+    rectangleTwoPoints([0, 0], [20, 10]),
+    rectangleFromCenter([0, 0], 20, 10, 30),
+    rectangleThreePoints([0, 0], [20, 0], [0, 10]),
+  ]) {
+    assert.equal(rectangle.curves.length, 4);
+    assert.equal(detectSketchProfiles(createSketch({ entities: rectangle.entities })).profiles.length, 1);
+  }
+  assert.equal(Number(circleTwoPoints([-5, 0], [5, 0]).curves[0].geometry.radius), 5);
+  assert.equal(Number(circleThreePoints([5, 0], [0, 5], [-5, 0]).curves[0].geometry.radius), 5);
+});
+
+test('wielokąty, elipsa i sloty mają rozszerzalny kontrakt encji', () => {
+  const hexagon = regularPolygon({ center: [0, 0], radius: 10, sides: 6 });
+  const edgeHexagon = polygonFromEdge([0, 0], [10, 0], 6);
+  assert.equal(hexagon.curves.length, 6);
+  assert.equal(edgeHexagon.curves.length, 6);
+  assert.equal(detectSketchProfiles(createSketch({ entities: hexagon.entities })).profiles.length, 1);
+
+  const ellipse = ellipseFromCenter([2, 3], 12, 5, 25);
+  assert.equal(ellipse.curves[0].type, 'ellipse');
+  assert.deepEqual(ellipse.curves[0].expressionKeys, ['majorRadius', 'minorRadius', 'rotation']);
+  const ellipseSketch = createSketch({ entities: ellipse.entities });
+  const ellipseDetection = detectSketchProfiles(ellipseSketch);
+  assert.equal(ellipseDetection.profiles.length, 1);
+  ellipseSketch.profiles = ellipseDetection.profiles;
+  const ellipseDocument = createDocument('Elipsa');
+  ellipseDocument.sketches.push(ellipseSketch);
+  ellipseDocument.features.push(createFeature('extrude', { sketchId: ellipseSketch.id, profileIds: [ellipseSketch.profiles[0].id], distance: '4', operation: 'new' }));
+  const ellipseSegment = prepareDocument(ellipseDocument).features[0].profiles[0].geometry.segments[0];
+  assert.equal(ellipseSegment.type, 'ellipse');
+  assert.equal(ellipseSegment.majorRadius, 12);
+
+  const ellipticalArc = ellipticalArcFromCenter([0, 0], 10, 5, 0, 180, 20, 'ccw');
+  const closingLine = createSketchLine({ startPointId: ellipticalArc.points[2].id, endPointId: ellipticalArc.points[1].id });
+  const ellipticalArcSketch = createSketch({ entities: [...ellipticalArc.entities, closingLine] });
+  const ellipticalArcDetection = detectSketchProfiles(ellipticalArcSketch);
+  assert.equal(ellipticalArc.curves[0].type, 'ellipticalArc');
+  assert.equal(ellipticalArcDetection.diagnostics.length, 0);
+  assert.equal(ellipticalArcDetection.profiles.length, 1);
+  ellipticalArcSketch.profiles = ellipticalArcDetection.profiles;
+  const ellipticalArcDocument = createDocument('Łuk eliptyczny');
+  ellipticalArcDocument.sketches.push(ellipticalArcSketch);
+  ellipticalArcDocument.features.push(createFeature('extrude', { sketchId: ellipticalArcSketch.id, profileIds: [ellipticalArcSketch.profiles[0].id], distance: '2', operation: 'new' }));
+  assert.ok(prepareDocument(ellipticalArcDocument).features[0].profiles[0].geometry.segments.some((segment) => segment.type === 'ellipticalArc'));
+
+  for (const slot of [slotCenterToCenter([0, 0], [30, 0], 10), slotOverall([0, 0], [40, 0], 10), slotThreePoints([0, 0], [30, 0], [0, 5]), slotArc({ center: [0, 0], radius: 30, width: 8, startAngle: 10, endAngle: 120 })]) {
+    assert.equal(slot.curves.length, 4);
+    assert.ok(slot.curves.every((curve) => ['line', 'arc'].includes(curve.type)));
+    const detected = detectSketchProfiles(createSketch({ entities: slot.entities }));
+    assert.equal(detected.diagnostics.length, 0);
+    assert.equal(detected.profiles.length, 1);
+  }
+});
+
+test('wspornik łączy proste boki, łuk, slot i dwa otwory w jeden profil mechaniczny', () => {
+  const lowerLeft = createSketchPoint({ x: -40, y: -25 });
+  const lowerArc = createSketchPoint({ x: 20, y: -25 });
+  const arcCenter = createSketchPoint({ x: 20, y: 0 });
+  const upperArc = createSketchPoint({ x: 20, y: 25 });
+  const upperLeft = createSketchPoint({ x: -40, y: 25 });
+  const outline = [
+    createSketchLine({ startPointId: lowerLeft.id, endPointId: lowerArc.id }),
+    createSketchArc({ centerPointId: arcCenter.id, startPointId: lowerArc.id, endPointId: upperArc.id, direction: 'ccw' }),
+    createSketchLine({ startPointId: upperArc.id, endPointId: upperLeft.id }),
+    createSketchLine({ startPointId: upperLeft.id, endPointId: lowerLeft.id }),
+  ];
+  const slot = slotCenterToCenter([-12, 0], [8, 0], 8);
+  const firstHole = circleCenterRadius([-25, -12], 4);
+  const secondHole = circleCenterRadius([-25, 12], 4);
+  const sketch = createSketch({ entities: [lowerLeft, lowerArc, arcCenter, upperArc, upperLeft, ...outline, ...slot.entities, ...firstHole.entities, ...secondHole.entities] });
+  const detection = detectSketchProfiles(sketch);
+  assert.equal(detection.diagnostics.length, 0);
+  assert.equal(detection.profiles.length, 1);
+  assert.equal(detection.profiles[0].innerLoops.length, 3);
+  sketch.profiles = detection.profiles;
+  const document = createDocument('Wspornik mechaniczny');
+  document.sketches.push(sketch);
+  document.features.push(createFeature('extrude', { sketchId: sketch.id, profileIds: [sketch.profiles[0].id], distance: '6', operation: 'new' }));
+  const prepared = prepareDocument(document);
+  assert.ok(prepared.features[0].profiles[0].geometry.segments.some((segment) => segment.type === 'arc'));
+  assert.equal(prepared.features[0].profiles[0].geometry.holes.length, 3);
+});
+
+test('spline przez punkty dopasowania i kontrolne tworzy edytowalny profil B-Rep', () => {
+  for (const spline of [fitPointSpline([[0, 0], [8, 12], [16, 8], [24, 0]]), controlPointSpline([[0, 0], [6, 14], [18, 14], [24, 0]])]) {
+    const closingLine = createSketchLine({ startPointId: spline.points.at(-1).id, endPointId: spline.points[0].id });
+    const sketch = createSketch({ entities: [...spline.entities, closingLine] });
+    const detection = detectSketchProfiles(sketch);
+    assert.equal(detection.diagnostics.length, 0);
+    assert.equal(detection.profiles.length, 1);
+    sketch.profiles = detection.profiles;
+    const document = createDocument(`Spline ${spline.curves[0].geometry.mode}`);
+    document.sketches.push(sketch);
+    document.features.push(createFeature('extrude', { sketchId: sketch.id, profileIds: [sketch.profiles[0].id], distance: '3', operation: 'new' }));
+    const prepared = prepareDocument(document);
+    const segment = prepared.features[0].profiles[0].geometry.segments.find((entry) => entry.type === 'spline');
+    assert.ok(segment);
+    assert.ok(segment.beziers.length >= 1);
+    const controlPoint = spline.points[1];
+    const previousX = Number(controlPoint.geometry.x);
+    translateSketchSelection(sketch, [controlPoint.id], { dx: 2, dy: -1 });
+    assert.equal(Number(sketch.entities.find((entity) => entity.id === controlPoint.id).geometry.x), previousX + 2);
+  }
+});
+
+test('conic zachowuje rho, ciągłość i dokładną krzywą racjonalną w profilu', () => {
+  const conic = conicThroughControlPoint([-12, 0], [0, 14], [12, 0], Math.SQRT1_2, 'tangent');
+  const closingLine = createSketchLine({ startPointId: conic.points[2].id, endPointId: conic.points[0].id });
+  const sketch = createSketch({ entities: [...conic.entities, closingLine] });
+  const detection = detectSketchProfiles(sketch);
+  assert.equal(detection.diagnostics.length, 0);
+  assert.equal(detection.profiles.length, 1);
+  assert.equal(conic.curves[0].geometry.continuity, 'tangent');
+  assert.equal(Number(conic.curves[0].geometry.rho), Math.SQRT1_2);
+  sketch.profiles = detection.profiles;
+  const document = createDocument('Conic racjonalny');
+  document.sketches.push(sketch);
+  document.features.push(createFeature('extrude', { sketchId: sketch.id, profileIds: [sketch.profiles[0].id], distance: '3', operation: 'new' }));
+  const segment = prepareDocument(document).features[0].profiles[0].geometry.segments.find((entry) => entry.type === 'conic');
+  assert.ok(segment);
+  assert.equal(segment.rho, Math.SQRT1_2);
+  assert.equal(segment.continuity, 'tangent');
+  assert.deepEqual(segment.control, [0, 14]);
+  assert.throws(() => conicThroughControlPoint([0, 0], [1, 1], [2, 0], 0), /rho/);
+});
+
+test('punkt szkicu jest trwałą referencją osi otworu i elementem grafu zależności', () => {
+  const document = createDocument('Otwór z punktu');
+  const baseProfile = createRectangleProfile({ width: 40, height: 30, x: 0, y: 0 });
+  const baseSketch = createSketch({ name: 'Baza', profiles: [baseProfile] });
+  const referencePoint = createSketchPoint({ x: 7, y: -4 });
+  const pointSketch = createSketch({ name: 'Pozycja otworu', entities: [referencePoint] });
+  document.sketches.push(baseSketch, pointSketch);
+  const extrusion = createFeature('extrude', { sketchId: baseSketch.id, profileIds: [baseSketch.profiles[0].id], distance: '10', operation: 'new' });
+  const hole = createFeature('hole', { targetBodyId: `body-${extrusion.id}`, sketchId: pointSketch.id, pointId: referencePoint.id, diameter: '6', depth: '10' });
+  document.features.push(extrusion, hole);
+  assert.equal(validateDocument(document).valid, true);
+  const preparedHole = prepareDocument(document).features[1];
+  assert.deepEqual(preparedHole.profile.geometry, { x: 7, y: -4 });
+  assert.ok(buildDependencyGraph(document).edges.some((edge) => edge.from === referencePoint.id && edge.to === hole.id));
 });
 
 test('zapis atomowy zachowuje poprzednią poprawną wersję jako .bak', async () => {

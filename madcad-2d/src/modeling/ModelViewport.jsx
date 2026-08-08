@@ -3,6 +3,7 @@ import { Box, Maximize2, Move3d, Orbit, Square, ZoomIn } from 'lucide-react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
+import { DEFAULT_SNAP_THRESHOLD_PX, snapSketchPoint } from '../cad-core/sketch-snap.js';
 
 const VIEW_DIRECTIONS = {
   iso: [1.25, -1.45, 1.15],
@@ -37,32 +38,76 @@ function mapPlanePoint(x, y, plane, z = 0.04) {
 }
 
 function profilePoints(profile, parameters, plane) {
+  return profileLocalPoints(profile, parameters).map((point) => mapPlanePoint(point[0], point[1], plane));
+}
+
+function profileLocalPoints(profile, parameters) {
   const x = numericValue(profile.geometry.x, parameters);
   const y = numericValue(profile.geometry.y, parameters);
   if (profile.type === 'rectangle') {
     const halfWidth = numericValue(profile.geometry.width, parameters) / 2;
     const halfHeight = numericValue(profile.geometry.height, parameters) / 2;
     return [
-      mapPlanePoint(x - halfWidth, y - halfHeight, plane),
-      mapPlanePoint(x + halfWidth, y - halfHeight, plane),
-      mapPlanePoint(x + halfWidth, y + halfHeight, plane),
-      mapPlanePoint(x - halfWidth, y + halfHeight, plane),
-      mapPlanePoint(x - halfWidth, y - halfHeight, plane),
+      [x - halfWidth, y - halfHeight],
+      [x + halfWidth, y - halfHeight],
+      [x + halfWidth, y + halfHeight],
+      [x - halfWidth, y + halfHeight],
+      [x - halfWidth, y - halfHeight],
     ];
   }
   if (profile.type === 'closed') {
-    const points = (profile.geometry.points || []).map((point) => mapPlanePoint(
+    const points = (profile.geometry.points || []).map((point) => [
       numericValue(point.x, parameters),
       numericValue(point.y, parameters),
-      plane,
-    ));
+    ]);
     return points.length ? [...points, points[0]] : [];
   }
   const radius = numericValue(profile.geometry.diameter, parameters) / 2;
   return Array.from({ length: 73 }, (_, index) => {
     const angle = (index / 72) * Math.PI * 2;
-    return mapPlanePoint(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius, plane);
+    return [x + Math.cos(angle) * radius, y + Math.sin(angle) * radius];
   });
+}
+
+function addSketchProfiles(group, sketch, parameters, plane, { selectedProfileId = null, visible = true } = {}) {
+  const pickables = [];
+  if (!visible) return { pickables };
+  for (const profile of sketch.profiles || []) {
+    const outer = profileLocalPoints(profile, parameters);
+    if (outer.length < 4) continue;
+    const shape = new THREE.Shape();
+    outer.slice(0, -1).forEach((point, index) => (index ? shape.lineTo(...point) : shape.moveTo(...point)));
+    shape.closePath();
+    for (const hole of profile.geometry?.holes || []) {
+      const points = (hole.points || []).map((point) => [numericValue(point.x, parameters), numericValue(point.y, parameters)]);
+      if (points.length < 3) continue;
+      const path = new THREE.Path();
+      points.forEach((point, index) => (index ? path.lineTo(...point) : path.moveTo(...point)));
+      path.closePath();
+      shape.holes.push(path);
+    }
+    const geometry = new THREE.ShapeGeometry(shape);
+    const position = geometry.getAttribute('position');
+    for (let index = 0; index < position.count; index += 1) {
+      const mapped = mapPlanePoint(position.getX(index), position.getY(index), plane, 0.035);
+      position.setXYZ(index, ...mapped);
+    }
+    position.needsUpdate = true;
+    geometry.computeBoundingSphere();
+    const selected = profile.id === selectedProfileId;
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+      color: selected ? 0xffc857 : 0x45b9dc,
+      transparent: true,
+      opacity: selected ? 0.28 : 0.12,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    }));
+    mesh.renderOrder = 1;
+    mesh.userData = { sketchProfileId: profile.id, baseColor: selected ? 0xffc857 : 0x45b9dc };
+    group.add(mesh);
+    pickables.push(mesh);
+  }
+  return { pickables };
 }
 
 function sketchPoint(entityMap, pointId, parameters) {
@@ -123,6 +168,67 @@ function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [],
         return [center[0] + Math.cos(angle) * radius, center[1] + Math.sin(angle) * radius];
       }) : [];
     }
+    if (entity.type === 'ellipse') {
+      const center = readPoint(entity.pointIds[0], overrides);
+      const majorRadius = numericValue(entity.geometry.majorRadius, parameters);
+      const minorRadius = numericValue(entity.geometry.minorRadius, parameters);
+      const rotation = numericValue(entity.geometry.rotation || 0, parameters) * Math.PI / 180;
+      return center ? Array.from({ length: 73 }, (_, index) => {
+        const angle = (index / 72) * Math.PI * 2;
+        const x = Math.cos(angle) * majorRadius;
+        const y = Math.sin(angle) * minorRadius;
+        return [center[0] + (x * Math.cos(rotation)) - (y * Math.sin(rotation)), center[1] + (x * Math.sin(rotation)) + (y * Math.cos(rotation))];
+      }) : [];
+    }
+    if (entity.type === 'ellipticalArc') {
+      const center = readPoint(entity.pointIds[0], overrides);
+      const majorRadius = numericValue(entity.geometry.majorRadius, parameters);
+      const minorRadius = numericValue(entity.geometry.minorRadius, parameters);
+      const rotation = numericValue(entity.geometry.rotation || 0, parameters) * Math.PI / 180;
+      let startAngle = numericValue(entity.geometry.startAngle, parameters) * Math.PI / 180;
+      let endAngle = numericValue(entity.geometry.endAngle, parameters) * Math.PI / 180;
+      if (entity.geometry.direction === 'cw' && endAngle >= startAngle) endAngle -= Math.PI * 2;
+      if (entity.geometry.direction !== 'cw' && endAngle <= startAngle) endAngle += Math.PI * 2;
+      return center ? Array.from({ length: 49 }, (_, index) => {
+        const parameter = startAngle + ((endAngle - startAngle) * index) / 48;
+        const x = Math.cos(parameter) * majorRadius;
+        const y = Math.sin(parameter) * minorRadius;
+        return [center[0] + (x * Math.cos(rotation)) - (y * Math.sin(rotation)), center[1] + (x * Math.sin(rotation)) + (y * Math.cos(rotation))];
+      }) : [];
+    }
+    if (entity.type === 'spline') {
+      const splinePoints = entity.pointIds.map((pointId) => readPoint(pointId, overrides)).filter(Boolean);
+      const bezierPoint = (points, parameter) => {
+        let level = points.map((entry) => [...entry]);
+        while (level.length > 1) level = level.slice(0, -1).map((entry, index) => [entry[0] + ((level[index + 1][0] - entry[0]) * parameter), entry[1] + ((level[index + 1][1] - entry[1]) * parameter)]);
+        return level[0];
+      };
+      if (entity.geometry.mode === 'control') return Array.from({ length: 65 }, (_, index) => bezierPoint(splinePoints, index / 64));
+      const sampled = [];
+      for (let index = 0; index < splinePoints.length - 1; index += 1) {
+        const p0 = splinePoints[Math.max(0, index - 1)];
+        const p1 = splinePoints[index];
+        const p2 = splinePoints[index + 1];
+        const p3 = splinePoints[Math.min(splinePoints.length - 1, index + 2)];
+        const controls = [p1, [p1[0] + ((p2[0] - p0[0]) / 6), p1[1] + ((p2[1] - p0[1]) / 6)], [p2[0] - ((p3[0] - p1[0]) / 6), p2[1] - ((p3[1] - p1[1]) / 6)], p2];
+        for (let step = index ? 1 : 0; step <= 16; step += 1) sampled.push(bezierPoint(controls, step / 16));
+      }
+      return sampled;
+    }
+    if (entity.type === 'conic') {
+      const [start, control, end] = entity.pointIds.map((pointId) => readPoint(pointId, overrides));
+      const rho = numericValue(entity.geometry.rho || 1, parameters);
+      if (!start || !control || !end || !(rho > 0)) return [];
+      return Array.from({ length: 65 }, (_, index) => {
+        const t = index / 64;
+        const inverse = 1 - t;
+        const denominator = (inverse * inverse) + (2 * rho * inverse * t) + (t * t);
+        return [
+          ((inverse * inverse * start[0]) + (2 * rho * inverse * t * control[0]) + (t * t * end[0])) / denominator,
+          ((inverse * inverse * start[1]) + (2 * rho * inverse * t * control[1]) + (t * t * end[1])) / denominator,
+        ];
+      });
+    }
     if (entity.type === 'arc') {
       const [center, start, end] = entity.pointIds.map((pointId) => readPoint(pointId, overrides));
       return center && start && end ? arcPoints(center, start, end, entity.geometry.direction) : [];
@@ -138,7 +244,7 @@ function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [],
       ? Math.hypot(localPoints[1][0] - localPoints[0][0], localPoints[1][1] - localPoints[0][1]) <= 1e-7
       : entity.type === 'circle'
         ? !(numericValue(entity.geometry.radius, parameters) > 0)
-        : entity.type === 'arc'
+        : entity.type === 'arc' || entity.type === 'ellipticalArc'
           ? Math.hypot(localPoints[0][0] - localPoints.at(-1)[0], localPoints[0][1] - localPoints.at(-1)[1]) <= 1e-7
           : false;
     const geometry = new THREE.BufferGeometry();
@@ -216,8 +322,10 @@ export default function ModelViewport({
   onSketchPoint,
   selectedSketchEntityIds = [],
   onSketchSelection,
+  onSketchProfileSelection,
   onSketchMove,
   showSketchPoints = true,
+  showSketchProfiles = true,
   parameters = [],
   showGrid = true,
   selectedBodyId,
@@ -227,6 +335,7 @@ export default function ModelViewport({
   directExtrudeDistance = 0,
   onDirectExtrude,
   snapEnabled = true,
+  snapThresholdPx = DEFAULT_SNAP_THRESHOLD_PX,
   bed,
   showBed,
 }) {
@@ -234,10 +343,12 @@ export default function ModelViewport({
   const directHandleRef = useRef(null);
   const directEventRef = useRef({});
   const directDragRef = useRef(null);
+  const sketchInteractionRef = useRef({ activeSketchId: null, start: null, drag: null, box: null });
   const selectRef = useRef(onSelectBody);
   const draftChangeRef = useRef(onDraftChange);
   const sketchPointRef = useRef(onSketchPoint);
   const sketchSelectionRef = useRef(onSketchSelection);
+  const sketchProfileSelectionRef = useRef(onSketchProfileSelection);
   const sketchMoveRef = useRef(onSketchMove);
   const directRef = useRef({});
   const [view, setView] = useState('iso');
@@ -246,18 +357,24 @@ export default function ModelViewport({
   const [dragLabel, setDragLabel] = useState(null);
   const [sketchDragLabel, setSketchDragLabel] = useState(null);
   const [selectionBox, setSelectionBox] = useState(null);
+  const [snapFeedback, setSnapFeedback] = useState(null);
   const activeSketch = sketches.find((sketch) => sketch.id === activeSketchId);
   const activePlane = activeSketch?.plane || 'XY';
+  if (sketchInteractionRef.current.activeSketchId !== activeSketchId) {
+    sketchInteractionRef.current = { activeSketchId, start: null, drag: null, box: null };
+  }
   const directEnabled = Boolean(selectedProfile && !activeSketchId);
   selectRef.current = onSelectBody;
   draftChangeRef.current = onDraftChange;
   sketchPointRef.current = onSketchPoint;
   sketchSelectionRef.current = onSketchSelection;
+  sketchProfileSelectionRef.current = onSketchProfileSelection;
   sketchMoveRef.current = onSketchMove;
   directRef.current = {
     distance: numericValue(directExtrudeDistance, parameters),
     onCommit: onDirectExtrude,
     snapEnabled,
+    snapThresholdPx,
   };
 
   useEffect(() => {
@@ -473,6 +590,7 @@ export default function ModelViewport({
     const sketchGroup = new THREE.Group();
     let sketchPreviewLine = null;
     let sketchRender = null;
+    let sketchProfileRender = null;
     if (activeSketch) {
       const axisLength = gridSize / 2;
       const xAxisGeometry = new THREE.BufferGeometry();
@@ -487,6 +605,10 @@ export default function ModelViewport({
         ...mapPlanePoint(0, axisLength, activePlane, 0.06),
       ], 3));
       sketchGroup.add(new THREE.Line(yAxisGeometry, new THREE.LineBasicMaterial({ color: 0x54c978, transparent: true, opacity: 0.9 })));
+      sketchProfileRender = addSketchProfiles(sketchGroup, activeSketch, parameters, activePlane, {
+        selectedProfileId: selectedProfile?.id,
+        visible: showSketchProfiles,
+      });
       sketchRender = addSketchEntities(sketchGroup, activeSketch, parameters, activePlane, {
         selectedIds: selectedSketchEntityIds,
         showPoints: showSketchPoints,
@@ -523,9 +645,7 @@ export default function ModelViewport({
     const raycaster = new THREE.Raycaster();
     raycaster.params.Line.threshold = 1.6;
     const pointer = new THREE.Vector2();
-    let sketchStart = null;
-    let sketchDrag = null;
-    let sketchBox = null;
+    const sketchInteraction = sketchInteractionRef.current;
     let hoveredSketchObject = null;
     const sketchPlane = activePlane === 'XZ'
       ? new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
@@ -540,10 +660,66 @@ export default function ModelViewport({
       raycaster.setFromCamera(pointer, camera);
       return rect;
     };
-    const pickSketchEntity = () => {
-      const hits = sketchRender ? raycaster.intersectObjects(sketchRender.pickables, false) : [];
-      return hits.find((hit) => hit.object.userData.sketchEntityType === 'point') || hits[0] || null;
+    const screenPoint = (coordinate, rect) => {
+      const projected = new THREE.Vector3(...mapPlanePoint(coordinate[0], coordinate[1], activePlane, 0.2)).project(camera);
+      return [((projected.x + 1) * rect.width) / 2, ((1 - projected.y) * rect.height) / 2];
     };
+    const pixelsPerSketchUnit = (coordinate, rect) => {
+      const origin = screenPoint(coordinate, rect);
+      const xOffset = screenPoint([coordinate[0] + 1, coordinate[1]], rect);
+      const yOffset = screenPoint([coordinate[0], coordinate[1] + 1], rect);
+      return Math.max(0.001, (Math.hypot(xOffset[0] - origin[0], xOffset[1] - origin[1]) + Math.hypot(yOffset[0] - origin[0], yOffset[1] - origin[1])) / 2);
+    };
+    const updateSnapFeedback = (result, rect) => {
+      if (!result?.snapped) {
+        setSnapFeedback(null);
+        return;
+      }
+      const [x, y] = screenPoint(result.point, rect);
+      const guides = (result.guides || []).map((guide) => {
+        if (guide.kind === 'horizontal') return { x1: 0, y1: y, x2: rect.width, y2: y };
+        if (guide.kind === 'vertical') return { x1: x, y1: 0, x2: x, y2: rect.height };
+        if (guide.from && guide.to) {
+          const from = screenPoint(guide.from, rect);
+          const to = screenPoint(guide.to, rect);
+          return { x1: from[0], y1: from[1], x2: to[0], y2: to[1] };
+        }
+        return null;
+      }).filter(Boolean);
+      setSnapFeedback({ x, y, label: result.label, type: result.type, guides });
+    };
+    const resolveSnap = (event, rawPoint, rect, options = {}) => {
+      const result = snapSketchPoint(activeSketch, rawPoint, {
+        parameters,
+        anchor: options.anchor || null,
+        excludePointIds: options.excludePointIds || [],
+        gridSize: 1,
+        pixelsPerUnit: pixelsPerSketchUnit(rawPoint, rect),
+        thresholdPx: directRef.current.snapThresholdPx,
+        disabled: !directRef.current.snapEnabled || event.altKey,
+      });
+      updateSnapFeedback(result, rect);
+      return result;
+    };
+    const pickSketchEntity = (event = null) => {
+      const hits = sketchRender ? raycaster.intersectObjects(sketchRender.pickables, false) : [];
+      const hit = hits.find((entry) => entry.object.userData.sketchEntityType === 'point') || hits[0] || null;
+      if (hit || !event || !sketchRender) return hit;
+      const rect = renderer.domElement.getBoundingClientRect();
+      const fallback = sketchRender.entries
+        .filter((entry) => entry.entity.type === 'point')
+        .map((entry) => {
+          const projected = entry.object.getWorldPosition(new THREE.Vector3()).project(camera);
+          const x = rect.left + ((projected.x + 1) * rect.width) / 2;
+          const y = rect.top + ((1 - projected.y) * rect.height) / 2;
+          return { object: entry.object, distance: Math.hypot(event.clientX - x, event.clientY - y) };
+        })
+        .sort((first, second) => first.distance - second.distance)[0];
+      return fallback?.distance <= Math.max(10, directRef.current.snapThresholdPx) ? fallback : null;
+    };
+    const pickSketchProfile = () => sketchProfileRender
+      ? raycaster.intersectObjects(sketchProfileRender.pickables, false)[0] || null
+      : null;
     const selectionMode = (event) => event.ctrlKey ? 'toggle' : event.shiftKey ? 'add' : 'replace';
     const movingPointIds = (entityIds) => {
       const selected = new Set(entityIds);
@@ -560,7 +736,7 @@ export default function ModelViewport({
       if (hoveredSketchObject?.material?.color) hoveredSketchObject.material.color.setHex(hoveredSketchObject.userData.baseColor);
       hoveredSketchObject = object;
       if (hoveredSketchObject?.material?.color) hoveredSketchObject.material.color.setHex(0xf4fbff);
-      if (!sketchDrag && !sketchBox && activeSketch && !sketchTool && !draftType) {
+      if (!sketchInteraction.drag && !sketchInteraction.box && activeSketch && !sketchTool && !draftType) {
         renderer.domElement.style.cursor = object ? 'pointer' : 'crosshair';
       }
     };
@@ -640,30 +816,34 @@ export default function ModelViewport({
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
         if (!worldPoint) return;
         event.preventDefault();
-        const point = localPoint(worldPoint);
+        const point = resolveSnap(event, localPoint(worldPoint), rect, { anchor: polylineDraft?.lastPoint }).point;
         sketchPointRef.current?.([Number(point[0].toFixed(3)), Number(point[1].toFixed(3))]);
+        setSnapFeedback(null);
         return;
       }
       if (activeSketch && draftType) {
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
         if (!worldPoint) return;
-        const point = localPoint(worldPoint);
-        if (!sketchStart) {
-          sketchStart = point;
+        const point = resolveSnap(event, localPoint(worldPoint), rect, { anchor: sketchInteraction.start }).point;
+        if (!sketchInteraction.start) {
+          sketchInteraction.start = point;
+          setSnapFeedback(null);
           return;
         }
-        const deltaX = point[0] - sketchStart[0];
-        const deltaY = point[1] - sketchStart[1];
+        const deltaX = point[0] - sketchInteraction.start[0];
+        const deltaY = point[1] - sketchInteraction.start[1];
         const rounded = (value) => Math.max(0.1, Math.round(Math.abs(value) * 10) / 10).toString();
         draftChangeRef.current?.(draftType === 'rectangle'
-          ? { x: sketchStart[0].toFixed(1), y: sketchStart[1].toFixed(1), width: rounded(deltaX * 2), height: rounded(deltaY * 2) }
-          : { x: sketchStart[0].toFixed(1), y: sketchStart[1].toFixed(1), diameter: rounded(Math.hypot(deltaX, deltaY) * 2) });
-        sketchStart = null;
+          ? { x: sketchInteraction.start[0].toFixed(1), y: sketchInteraction.start[1].toFixed(1), width: rounded(deltaX * 2), height: rounded(deltaY * 2) }
+          : { x: sketchInteraction.start[0].toFixed(1), y: sketchInteraction.start[1].toFixed(1), diameter: rounded(Math.hypot(deltaX, deltaY) * 2) });
+        sketchInteraction.start = null;
+        setSnapFeedback(null);
         return;
       }
       if (activeSketch && sketchRender) {
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
-        const hit = pickSketchEntity();
+        const hit = pickSketchEntity(event);
+        const profileHit = hit ? null : pickSketchProfile();
         if (!worldPoint) return;
         event.preventDefault();
         controls.enabled = false;
@@ -672,7 +852,7 @@ export default function ModelViewport({
           const hitId = hit.object.userData.sketchEntityId;
           const existing = selectedSketchEntityIds.includes(hitId) && !event.ctrlKey && !event.shiftKey;
           const entityIds = existing ? [...selectedSketchEntityIds] : [hitId];
-          sketchDrag = {
+          sketchInteraction.drag = {
             hitId,
             entityIds,
             pointIds: movingPointIds(entityIds),
@@ -686,12 +866,13 @@ export default function ModelViewport({
           };
           setSketchHover(null);
         } else {
-          sketchBox = {
+          sketchInteraction.box = {
             startX: event.clientX,
             startY: event.clientY,
             endX: event.clientX,
             endY: event.clientY,
             mode: selectionMode(event),
+            profileId: profileHit?.object?.userData?.sketchProfileId || null,
           };
           setSelectionBox({ left: event.clientX - rect.left, top: event.clientY - rect.top, width: 0, height: 0, crossing: false });
         }
@@ -716,15 +897,23 @@ export default function ModelViewport({
         if (window.__madcadPointerLog) window.__madcadPointerLog.moveValue = value;
         return;
       }
-      if (sketchDrag && sketchRender) {
+      if (sketchInteraction.drag && sketchRender) {
         event.preventDefault();
+        const sketchDrag = sketchInteraction.drag;
         const rect = setRayFromEvent(event);
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
         if (!worldPoint) return;
         const current = localPoint(worldPoint);
-        const step = directRef.current.snapEnabled && !event.altKey ? 1 : 0.1;
-        const dx = Math.round((current[0] - sketchDrag.start[0]) / step) * step;
-        const dy = Math.round((current[1] - sketchDrag.start[1]) / step) * step;
+        const referencePointId = sketchDrag.pointIds[0];
+        const referencePoint = sketchRender.coordinates.get(referencePointId);
+        const rawDx = current[0] - sketchDrag.start[0];
+        const rawDy = current[1] - sketchDrag.start[1];
+        const snappedReference = referencePoint
+          ? resolveSnap(event, [referencePoint[0] + rawDx, referencePoint[1] + rawDy], rect, { excludePointIds: sketchDrag.pointIds }).point
+          : current;
+        const step = directRef.current.snapEnabled && !event.altKey && !referencePoint ? 1 : 0.1;
+        const dx = referencePoint ? snappedReference[0] - referencePoint[0] : Math.round(rawDx / step) * step;
+        const dy = referencePoint ? snappedReference[1] - referencePoint[1] : Math.round(rawDy / step) * step;
         sketchDrag.dx = dx;
         sketchDrag.dy = dy;
         sketchDrag.moved = Math.hypot(event.clientX - sketchDrag.startClientX, event.clientY - sketchDrag.startClientY) >= 3;
@@ -737,8 +926,9 @@ export default function ModelViewport({
         renderer.domElement.style.cursor = 'move';
         return;
       }
-      if (sketchBox) {
+      if (sketchInteraction.box) {
         event.preventDefault();
+        const sketchBox = sketchInteraction.box;
         const rect = renderer.domElement.getBoundingClientRect();
         sketchBox.endX = event.clientX;
         sketchBox.endY = event.clientY;
@@ -752,13 +942,10 @@ export default function ModelViewport({
         return;
       }
       if (sketchPreviewLine && activeSketch && sketchTool) {
-        const rect = renderer.domElement.getBoundingClientRect();
-        pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-        raycaster.setFromCamera(pointer, camera);
+        const rect = setRayFromEvent(event);
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
         if (!worldPoint) return;
-        const point = localPoint(worldPoint);
+        const point = resolveSnap(event, localPoint(worldPoint), rect, { anchor: polylineDraft?.lastPoint }).point;
         const position = sketchPreviewLine.geometry.getAttribute('position');
         const mapped = mapPlanePoint(point[0], point[1], activePlane, 0.09);
         position.setXYZ(1, ...mapped);
@@ -766,21 +953,29 @@ export default function ModelViewport({
         sketchPreviewLine.computeLineDistances();
         return;
       }
+      if (activeSketch && draftType) {
+        const rect = setRayFromEvent(event);
+        const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
+        if (worldPoint) resolveSnap(event, localPoint(worldPoint), rect, { anchor: sketchInteraction.start });
+        return;
+      }
       if (activeSketch && sketchRender && !sketchTool && !draftType) {
+        setSnapFeedback(null);
         setRayFromEvent(event);
-        setSketchHover(pickSketchEntity()?.object || null);
+        setSketchHover(pickSketchEntity(event)?.object || null);
       }
     };
     const onPointerUp = (event) => {
       if (window.__madcadPointerLog) window.__madcadPointerLog.upCalled = true;
       const directDrag = directDragRef.current;
-      if (sketchDrag) {
+      if (sketchInteraction.drag) {
         event.preventDefault();
-        const finished = sketchDrag;
-        sketchDrag = null;
+        const finished = sketchInteraction.drag;
+        sketchInteraction.drag = null;
         controls.enabled = true;
         try { renderer.domElement.releasePointerCapture?.(event.pointerId); } catch { /* Pointer capture may already be released. */ }
         setSketchDragLabel(null);
+        setSnapFeedback(null);
         renderer.domElement.style.cursor = 'crosshair';
         if (finished.moved && (Math.abs(finished.dx) > 1e-9 || Math.abs(finished.dy) > 1e-9)) {
           if (!selectedSketchEntityIds.includes(finished.hitId)) sketchSelectionRef.current?.(finished.entityIds, finished.mode);
@@ -791,16 +986,18 @@ export default function ModelViewport({
         }
         return;
       }
-      if (sketchBox) {
+      if (sketchInteraction.box) {
         event.preventDefault();
-        const finished = sketchBox;
-        sketchBox = null;
+        const finished = sketchInteraction.box;
+        sketchInteraction.box = null;
         controls.enabled = true;
         try { renderer.domElement.releasePointerCapture?.(event.pointerId); } catch { /* Pointer capture may already be released. */ }
         const moved = Math.hypot(finished.endX - finished.startX, finished.endY - finished.startY) >= 3;
         const ids = moved ? boxSelectedIds(finished) : [];
-        sketchSelectionRef.current?.(ids, finished.mode, { crossing: finished.endX < finished.startX });
+        if (!moved && finished.profileId) sketchProfileSelectionRef.current?.(finished.profileId);
+        else sketchSelectionRef.current?.(ids, finished.mode, { crossing: finished.endX < finished.startX });
         setSelectionBox(null);
+        setSnapFeedback(null);
         renderer.domElement.style.cursor = 'crosshair';
         return;
       }
@@ -823,6 +1020,10 @@ export default function ModelViewport({
     renderer.domElement.addEventListener('pointermove', onPointerMove);
     renderer.domElement.addEventListener('pointerup', onPointerUp);
     renderer.domElement.addEventListener('pointercancel', onPointerUp);
+    const onPointerLeave = () => {
+      if (!sketchInteraction.drag && !sketchInteraction.box) setSnapFeedback(null);
+    };
+    renderer.domElement.addEventListener('pointerleave', onPointerLeave);
     const directHandleElement = directHandleRef.current;
     directEventRef.current = { down: onPointerDown, move: onPointerMove, up: onPointerUp };
 
@@ -870,6 +1071,13 @@ export default function ModelViewport({
           };
         }
         window.__madcadSketchEntityScreenPoints = screenPoints;
+        window.__madcadSketchLocalToScreen = (x, y) => {
+          const point = new THREE.Vector3(...mapPlanePoint(Number(x), Number(y), activePlane, 0.2)).project(camera);
+          return {
+            x: Math.round(rect.left + ((point.x + 1) * rect.width) / 2),
+            y: Math.round(rect.top + ((1 - point.y) * rect.height) / 2),
+          };
+        };
       }
     };
     const observer = new ResizeObserver(resize);
@@ -891,6 +1099,7 @@ export default function ModelViewport({
       renderer.domElement.removeEventListener('pointermove', onPointerMove);
       renderer.domElement.removeEventListener('pointerup', onPointerUp);
       renderer.domElement.removeEventListener('pointercancel', onPointerUp);
+      renderer.domElement.removeEventListener('pointerleave', onPointerLeave);
       directEventRef.current = {};
       controls.dispose();
       disposeObject(modelGroup);
@@ -904,8 +1113,9 @@ export default function ModelViewport({
       renderer.domElement.remove();
       delete window.__madcadDirectHandlePoint;
       delete window.__madcadSketchEntityScreenPoints;
+      delete window.__madcadSketchLocalToScreen;
     };
-  }, [bodies, selectedBodyId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints]);
+  }, [bodies, selectedBodyId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx]);
 
   return (
     <div className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`} ref={hostRef}>
@@ -937,10 +1147,25 @@ export default function ModelViewport({
       {directEnabled && <div className="direct-extrude-hint">Przeciągnij niebieską strzałkę, aby wyciągnąć profil</div>}
       {dragLabel && <div className="direct-dimension" style={{ left: dragLabel.x, top: dragLabel.y }}>{dragLabel.value.toFixed(1)} mm</div>}
       {sketchDragLabel && <div className="sketch-drag-dimension" style={{ left: sketchDragLabel.x, top: sketchDragLabel.y }}>ΔX {sketchDragLabel.dx.toFixed(1)} · ΔY {sketchDragLabel.dy.toFixed(1)} mm</div>}
+      {snapFeedback && (
+        <>
+          <svg className="sketch-snap-guides" aria-hidden="true">
+            {snapFeedback.guides.map((guide, index) => <line key={`${snapFeedback.type}-${index}`} {...guide} />)}
+          </svg>
+          <div className={`sketch-snap-marker ${snapFeedback.type}`} style={{ left: snapFeedback.x, top: snapFeedback.y }}><i /><span>{snapFeedback.label}</span></div>
+        </>
+      )}
       {selectionBox && <div className={`sketch-selection-box ${selectionBox.crossing ? 'crossing' : 'inside'}`} style={{ left: selectionBox.left, top: selectionBox.top, width: selectionBox.width, height: selectionBox.height }} />}
+      {activeSketch?.diagnostics?.length > 0 && (
+        <div className="sketch-diagnostics" role="status">
+          <strong>Obrys wymaga poprawy</strong>
+          {activeSketch.diagnostics.slice(0, 3).map((entry, index) => <span key={`${entry.code}-${index}`}>{entry.message}</span>)}
+          {activeSketch.diagnostics.length > 3 && <small>+{activeSketch.diagnostics.length - 3} kolejnych problemów</small>}
+        </div>
+      )}
       {activeSketchId && <div className="sketch-plane-badge"><PencilRulerIcon /> Szkic · {activePlane}</div>}
       {activeSketchId && draftType && <div className="sketch-pointer-hint">Kliknij środek, a następnie punkt rozmiaru</div>}
-      {activeSketchId && sketchTool && <div className="sketch-pointer-hint">Klikaj kolejne punkty · kliknij początek, aby zamknąć · Enter/Escape kończy</div>}
+      {activeSketchId && sketchTool && <div className="sketch-pointer-hint">Klikaj kolejne punkty · kliknij początek, aby zamknąć · Alt chwilowo wyłącza snap · Enter/Escape kończy</div>}
       {activeSketchId && !sketchTool && !draftType && <div className="sketch-pointer-hint">Kliknij lub przeciągnij geometrię · Ctrl/Shift wybiera wiele · przeciągnij tło, aby wybrać oknem</div>}
     </div>
   );

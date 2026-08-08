@@ -76,7 +76,8 @@ export function createSketchCircleEntity({ centerPointId, radius = 5, ...options
 
 export function boundaryPointIds(entity) {
   if (entity?.type === 'line') return [entity.pointIds?.[0], entity.pointIds?.[1]];
-  if (entity?.type === 'arc') return [entity.pointIds?.[1], entity.pointIds?.[2]];
+  if (entity?.type === 'arc' || entity?.type === 'ellipticalArc') return [entity.pointIds?.[1], entity.pointIds?.[2]];
+  if (entity?.type === 'spline' || entity?.type === 'conic') return [entity.pointIds?.[0], entity.pointIds?.at(-1)];
   return [];
 }
 

@@ -318,6 +318,7 @@ export function validateDocument(document) {
 
   const sketchIds = new Set();
   const profileOwners = new Map();
+  const entityOwners = new Map();
   sketches.forEach((sketch, sketchIndex) => {
     const base = `sketches[${sketchIndex}]`;
     if (!isRecord(sketch)) {
@@ -344,6 +345,7 @@ export function validateDocument(document) {
       if (typeof entity.id === 'string') {
         entityIds.add(entity.id);
         entityMap.set(entity.id, entity);
+        entityOwners.set(entity.id, { sketchId: sketch.id, type: entity.type });
       }
       if (typeof entity.type !== 'string' || !entity.type.trim()) add(`${entityBase}.type`, 'Encja musi mieć typ.', 'REQUIRED');
       else if (!ENTITY_TYPES.has(entity.type)) add(`${entityBase}.type`, `Nieobsługiwany typ encji: ${entity.type}.`, 'UNSUPPORTED');
@@ -437,19 +439,36 @@ export function validateDocument(document) {
       if ((profile.type === 'rectangle' || profile.type === 'circle') && !isRecord(profile.geometry)) add(`${profileBase}.geometry`, 'Profil prymitywu musi zawierać zgodny cache geometrii.', 'TYPE');
       if (profile.closed !== true) add(`${profileBase}.closed`, 'Profil bryłowy musi być zamknięty.', 'VALUE');
       if (typeof profile.source !== 'string' || !profile.source.trim()) add(`${profileBase}.source`, 'Profil musi wskazywać źródło wykrycia.', 'REQUIRED');
-      if (!Array.isArray(profile.entityIds) || !profile.entityIds.length) add(`${profileBase}.entityIds`, 'Profil musi odwoływać się do encji brzegowych.', 'REQUIRED');
-      if (Array.isArray(profile.entityIds)) profile.entityIds.forEach((entityId, entityIndex) => {
-        if (!entityIds.has(entityId)) add(`${profileBase}.entityIds[${entityIndex}]`, `Nie znaleziono encji szkicu „${entityId}”.`, 'BROKEN_REFERENCE');
-        else if (['construction', 'centerline'].includes(entityMap.get(entityId)?.role)) add(`${profileBase}.entityIds[${entityIndex}]`, 'Geometria konstrukcyjna nie może tworzyć profilu.', 'VALUE');
-      });
-      if (profile.type === 'closed' && Array.isArray(profile.entityIds) && profile.entityIds.length) {
-        const endpoints = profile.entityIds.map((entityId) => boundaryPointIds(entityMap.get(entityId)));
-        endpoints.forEach((pair, entityIndex) => {
-          if (pair.length !== 2) add(`${profileBase}.entityIds[${entityIndex}]`, 'Profil zamknięty może zawierać tylko linie i łuki.', 'TYPE');
-          const next = endpoints[(entityIndex + 1) % endpoints.length];
-          if (pair.length === 2 && next?.length === 2 && pair[1] !== next[0]) add(`${profileBase}.entityIds[${entityIndex}]`, 'Segment nie łączy się z następną krawędzią profilu.', 'BROKEN_REFERENCE');
+      const validateProfileLoop = (loop, loopBase) => {
+        if (!Array.isArray(loop.entityIds) || !loop.entityIds.length) {
+          add(`${loopBase}.entityIds`, 'Pętla profilu musi odwoływać się do encji brzegowych.', 'REQUIRED');
+          return;
+        }
+        loop.entityIds.forEach((entityId, entityIndex) => {
+          if (!entityIds.has(entityId)) add(`${loopBase}.entityIds[${entityIndex}]`, `Nie znaleziono encji szkicu „${entityId}”.`, 'BROKEN_REFERENCE');
+          else if (['construction', 'centerline'].includes(entityMap.get(entityId)?.role)) add(`${loopBase}.entityIds[${entityIndex}]`, 'Geometria konstrukcyjna nie może tworzyć profilu.', 'VALUE');
         });
-      }
+        if (loop.entityDirections !== undefined && (!Array.isArray(loop.entityDirections) || loop.entityDirections.length !== loop.entityIds.length || loop.entityDirections.some((value) => ![-1, 1].includes(value)))) {
+          add(`${loopBase}.entityDirections`, 'Kierunki pętli muszą odpowiadać krawędziom i mieć wartość -1 albo 1.', 'VALUE');
+        }
+        if (loop.entityIds.length === 1 && ['circle', 'ellipse'].includes(entityMap.get(loop.entityIds[0])?.type)) return;
+        const endpoints = loop.entityIds.map((entityId, entityIndex) => {
+          const pair = boundaryPointIds(entityMap.get(entityId));
+          return loop.entityDirections?.[entityIndex] === -1 ? [...pair].reverse() : pair;
+        });
+        endpoints.forEach((pair, entityIndex) => {
+          if (pair.length !== 2) add(`${loopBase}.entityIds[${entityIndex}]`, 'Profil zamknięty może zawierać tylko linie, łuki, pojedynczy okrąg albo elipsę.', 'TYPE');
+          const next = endpoints[(entityIndex + 1) % endpoints.length];
+          if (pair.length === 2 && next?.length === 2 && pair[1] !== next[0]) add(`${loopBase}.entityIds[${entityIndex}]`, 'Segment nie łączy się z następną krawędzią profilu.', 'BROKEN_REFERENCE');
+        });
+      };
+      validateProfileLoop(profile, profileBase);
+      if (profile.innerLoops !== undefined && !Array.isArray(profile.innerLoops)) add(`${profileBase}.innerLoops`, 'Otwory profilu muszą być tablicą pętli.', 'TYPE');
+      (profile.innerLoops || []).forEach((loop, loopIndex) => {
+        const loopBase = `${profileBase}.innerLoops[${loopIndex}]`;
+        if (!isRecord(loop)) add(loopBase, 'Otwór profilu musi być obiektem.', 'TYPE');
+        else validateProfileLoop(loop, loopBase);
+      });
     });
   });
 
@@ -499,8 +518,14 @@ export function validateDocument(document) {
 
     if (feature.type === 'hole') {
       if (!sketchIds.has(feature.sketchId)) add(`${base}.sketchId`, `Nie znaleziono szkicu „${feature.sketchId ?? ''}”.`, 'BROKEN_REFERENCE');
-      if (!profileOwners.has(feature.profileId)) add(`${base}.profileId`, `Nie znaleziono profilu „${feature.profileId ?? ''}”.`, 'BROKEN_REFERENCE');
-      else if (profileOwners.get(feature.profileId) !== feature.sketchId) add(`${base}.profileId`, `Profil „${feature.profileId}” nie należy do szkicu „${feature.sketchId}”.`, 'BROKEN_REFERENCE');
+      if (feature.pointId) {
+        const owner = entityOwners.get(feature.pointId);
+        if (!owner || owner.type !== 'point') add(`${base}.pointId`, `Nie znaleziono punktu „${feature.pointId}”.`, 'BROKEN_REFERENCE');
+        else if (owner.sketchId !== feature.sketchId) add(`${base}.pointId`, `Punkt „${feature.pointId}” nie należy do szkicu „${feature.sketchId}”.`, 'BROKEN_REFERENCE');
+      } else {
+        if (!profileOwners.has(feature.profileId)) add(`${base}.profileId`, `Nie znaleziono profilu „${feature.profileId ?? ''}”.`, 'BROKEN_REFERENCE');
+        else if (profileOwners.get(feature.profileId) !== feature.sketchId) add(`${base}.profileId`, `Profil „${feature.profileId}” nie należy do szkicu „${feature.sketchId}”.`, 'BROKEN_REFERENCE');
+      }
       if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono wcześniejszej bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
     }
 

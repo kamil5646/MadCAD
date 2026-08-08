@@ -1,6 +1,6 @@
 # MadCAD — główny plan rozwoju
 
-Aktualizacja i pełny audyt zakresu: 2026-08-04
+Aktualizacja i pełny audyt zakresu: 2026-08-08
 
 Status produktu: `6.0.0-alpha.1`
 
@@ -95,7 +95,7 @@ Pełny szkic 3D, zaawansowane analizy powierzchni, CAM, FEA i elektronika nie s�
 
 - [x] Rejestr migracji, model zależności i trwały kontrakt dokumentu.
 - [~] Stabilne nazewnictwo topologii jest podłączone do OpenCascade, ale pełne wskazywanie i operacje na tych ID należą do R2.1.
-- [ ] Ogólny model encji szkicu, zamkniętych profili, wymiarów i więzów.
+- [~] Ogólny model encji i dowolne profile zamknięte są gotowe; wymiary i więzy należą do R1.9.
 - [ ] Zaznaczanie ścian, krawędzi i wierzchołków oraz operacje na wskazanej geometrii.
 - [ ] Geometria konstrukcyjna, pomiary, przekroje i właściwości fizyczne.
 - [ ] Import STEP/STL/3MF i wiarygodna analiza oraz naprawa modelu do druku.
@@ -201,38 +201,50 @@ Wynik R1.3: punkty i segmenty mają stabilne trafienia oraz rozróżnione stany 
 
 ### R1.4 — snap, inferencje i prowadnice `L`
 
-- [ ] Przyciąganie do końca, środka, centrum, kwadrantu, przecięcia, styczności, najbliższego punktu i siatki.
-- [ ] Prowadnice pozioma/pionowa, wyrównanie, przedłużenie i podgląd proponowanej relacji przed kliknięciem.
-- [ ] Regulowany próg przyciągania niezależny od poziomu zoomu.
-- [ ] Możliwość chwilowego wyłączenia snap klawiszem modyfikującym.
-- [ ] Testy wszystkich typów snap przy kilku poziomach zoomu i DPI.
+- [x] Przyciąganie do końca, środka, centrum, kwadrantu, przecięcia, styczności, najbliższego punktu i siatki.
+- [x] Prowadnice pozioma/pionowa, wyrównanie, przedłużenie i podgląd proponowanej relacji przed kliknięciem.
+- [x] Regulowany próg przyciągania niezależny od poziomu zoomu.
+- [x] Możliwość chwilowego wyłączenia snap klawiszem modyfikującym.
+- [x] Testy wszystkich typów snap przy kilku poziomach zoomu i DPI.
+
+Wynik R1.4: osobny silnik snap rozpoznaje punkty charakterystyczne linii, łuków i okręgów, dokładne przecięcia, styczne z aktywnego punktu, najbliższą geometrię, siatkę oraz inferencje poziome, pionowe, wyrównania i przedłużenia. Próg 4–24 px działa w pikselach CSS niezależnie od zoomu i DPI, Alt chwilowo wyłącza przyciąganie, a canvas pokazuje marker relacji i prowadnice przed kliknięciem. `npm run test:core` — 30/30; build produkcyjny i pełny desktop E2E zaliczone.
 
 ### R1.5 — wykrywanie zamkniętych profili `XL`
 
-- [ ] Zbudować graf topologii szkicu zgodny z polityką tolerancji R0.
-- [ ] Wykrywać zamknięte pętle, pętle zagnieżdżone, wyspy i otwory wewnętrzne.
-- [ ] Odrzucać przerwy, samoprzecięcia, nakładanie i zerowe segmenty z czytelnym wskazaniem miejsca.
-- [ ] Wypełniać poprawne profile na płótnie i umożliwiać ich zaznaczenie.
-- [ ] Przekazać dowolną pętlę do OpenCascade i wyciągnąć ją na XY/XZ/YZ oraz dowolnej płaszczyźnie planarnej.
-- [ ] Test: litera L, sześciokąt, profil z otworem i profil z celową przerwą.
+- [x] Zbudować graf topologii szkicu zgodny z polityką tolerancji R0.
+- [x] Wykrywać zamknięte pętle, pętle zagnieżdżone, wyspy i otwory wewnętrzne.
+- [x] Odrzucać przerwy, samoprzecięcia, nakładanie i zerowe segmenty z czytelnym wskazaniem miejsca.
+- [x] Wypełniać poprawne profile na płótnie i umożliwiać ich zaznaczenie.
+- [x] Przekazać dowolną pętlę do OpenCascade i wyciągnąć ją na XY/XZ/YZ oraz dowolnej płaszczyźnie planarnej.
+- [x] Test: litera L, sześciokąt, profil z otworem i profil z celową przerwą.
+
+Wynik R1.5: osobny graf topologii klastruje współrzędne według tolerancji R0, zachowuje kierunek krawędzi i wykrywa pętle o dowolnej orientacji. Parzystość zagnieżdżenia rozróżnia zewnętrzne profile, otwory i wyspy; pętle wewnętrzne są trwałą częścią formatu `.madcad` i grafu zależności. Canvas wypełnia region z rzeczywistymi otworami, umożliwia wybór wnętrza i pokazuje diagnostykę przerwy, samoprzecięcia, nakładania, rozgałęzienia oraz zerowej geometrii. `npm run test:core` — 35/35. Desktop E2E potwierdza wypełnienie i wybór profilu oraz dokładną objętość 5 520 mm³ dla profilu z otworem wyciągniętego przez OpenCascade na XY, XZ i YZ.
 
 ### R1.6 — figury mechaniczne `XL`
 
-- [ ] Łuk przez trzy punkty, środek–początek–koniec i styczny.
-- [ ] Prostokąt: dwa punkty, środek oraz trzy punkty.
-- [ ] Okrąg: środek/promień, dwa punkty i trzy punkty.
-- [ ] Wielokąt wpisany/opisany i zdefiniowany krawędzią.
-- [ ] Elipsa i łuk eliptyczny.
-- [ ] Slot: środek–środek, całościowy, trzy punkty i łukowy.
-- [ ] Test: wspornik z prostymi bokami, łukiem, slotem i otworami.
+- [x] Łuk przez trzy punkty, środek–początek–koniec i styczny.
+- [x] Prostokąt: dwa punkty, środek oraz trzy punkty.
+- [x] Okrąg: środek/promień, dwa punkty i trzy punkty.
+- [x] Wielokąt wpisany/opisany i zdefiniowany krawędzią.
+- [x] Elipsa i łuk eliptyczny.
+- [x] Slot: środek–środek, całościowy, trzy punkty i łukowy.
+- [x] Test: wspornik z prostymi bokami, łukiem, slotem i otworami.
+
+Wynik R1.6: dokładne konstruktory figur zapisują edytowalne punkty, linie, łuki kołowe, okręgi, elipsy i łuki eliptyczne zamiast spłaszczonej siatki. Wszystkie metody konstrukcji są dostępne z aktywnych komend wstążki, przechodzą detekcję profilu i zachowują się poprawnie w OpenCascade. `bun test` — 38/38. Desktop E2E potwierdza objętości elipsy, półelipsy, slotu prostego, slotu łukowego i wspornika z trzema otworami wewnętrznymi, a następnie pełny przepływ, odtworzenie workera i round-trip STL/STEP.
+
+Następne pojedyncze zadanie: R1.7 — conic z parametrem rho i kontrolą ciągłości.
 
 ### R1.7 — krzywe, punkty i tekst `L`
 
-- [ ] Fit-point spline i control-point spline z edycją uchwytów.
-- [ ] Conic z kontrolą rho i ciągłości.
-- [ ] Punkt szkicu jako referencja dla otworu i konstrukcji.
+- [x] Fit-point spline i control-point spline z edycją uchwytów.
+- [x] Conic z kontrolą rho i ciągłości.
+- [x] Punkt szkicu jako referencja dla otworu i konstrukcji.
 - [ ] Tekst szkicu z fontem, wysokością, wyrównaniem i zamianą na profile do emboss/wycięcia.
 - [ ] Diagnostyka krzywizny i samoprzecięć krzywej.
+
+Stan R1.7: spline dopasowany jest zapisywany jako odcinki kubiczne przechodzące przez punkty, a spline kontrolny jako dokładna krzywa Béziera. Conic używa trzech trwałych punktów, dodatniego parametru `rho`, trybu ciągłości G0/G1/G2 i trafia do OpenCascade jako dokładna racjonalna krzywa Béziera z wagami `[1, rho, 1]`. Krzywe korzystają z istniejącego zaznaczania, przeciągania, wpisu ΔX/ΔY, Delete i Undo/Redo. Samodzielny punkt szkicu ma trwałe ID, może być zwykłą geometrią referencyjną albo konstrukcyjną i bez profilu wyznacza oś operacji Otwór; wierzchołki należące do konturu są celowo odróżniane od takich punktów. `bun test` — 41/41; pełny desktop E2E wyciąga profile spline i conic, wykonuje dokładny otwór z punktu, odtwarza worker i przechodzi round-trip STL/STEP.
+
+Następne pojedyncze zadanie: tekst szkicu z zamianą na profile do emboss/wycięcia.
 
 ### R1.8 — modyfikacje szkicu `XL`
 
@@ -514,6 +526,6 @@ Cel wydania: MadCAD przygotowuje wiarygodny model do slicera i wykrywa najczęst
 
 ## Następne pojedyncze zadanie
 
-`R1.4 — snap, inferencje i prowadnice`.
+`R1.6 — figury mechaniczne`.
 
-R0.1–R0.4 oraz R1.1–R1.3 są zamknięte i zweryfikowane. Następny krok to R1.4: snap, inferencje i prowadnice. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.
+R0.1–R0.4 oraz R1.1–R1.5 są zamknięte i zweryfikowane. Następny krok to R1.6: łuki, warianty prostokąta i okręgu, wielokąty, elipsy oraz sloty. Nie rozpoczynamy równolegle nowych modułów powierzchni, CAM, zespołów ani renderingu.

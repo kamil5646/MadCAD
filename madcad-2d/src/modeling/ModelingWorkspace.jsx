@@ -62,7 +62,7 @@ import {
   touchDocument,
 } from '../cad-core/document.js';
 import {
-  createDetectedProfile,
+  createSketchArc,
   createSketchLine,
   createSketchPoint,
   createTangentArcContinuation,
@@ -70,6 +70,28 @@ import {
   translateSketchSelection,
   upsertSketchProfile,
 } from '../cad-core/sketch-model.js';
+import {
+  arcCenterStartEnd,
+  arcThroughThreePoints,
+  circleCenterRadius,
+  circleThreePoints,
+  circleTwoPoints,
+  conicThroughControlPoint,
+  ellipticalArcFromCenter,
+  ellipseFromCenter,
+  fitPointSpline,
+  polygonFromEdge,
+  rectangleFromCenter,
+  rectangleThreePoints,
+  rectangleTwoPoints,
+  regularPolygon,
+  controlPointSpline,
+  slotCenterToCenter,
+  slotArc,
+  slotOverall,
+  slotThreePoints,
+} from '../cad-core/sketch-primitives.js';
+import { refreshDetectedSketchProfiles } from '../cad-core/sketch-topology.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
 import ModelViewport from './ModelViewport.jsx';
 import './modeling.css';
@@ -88,6 +110,12 @@ const TOOL_DESCRIPTIONS = {
   'Utwórz szkic': 'Wybierz płaszczyznę i rozpocznij rysowanie profilu 2D.',
   'Prostokąt': 'Narysuj prostokątny profil, klikając środek i punkt rozmiaru.',
   'Okrąg': 'Narysuj okrąg, klikając środek i punkt promienia.',
+  'Łuk': 'Utwórz dokładny łuk przez trzy punkty albo przez środek, początek i koniec.',
+  'Wielokąt': 'Utwórz regularny wielokąt wpisany, opisany albo z zadanej krawędzi.',
+  'Elipsa': 'Utwórz dokładną, obróconą elipsę z dwóch promieni.',
+  'Slot': 'Utwórz zamknięty slot przez środki łuków albo długość całkowitą.',
+  'Spline': 'Utwórz krzywą przez punkty dopasowania albo punkty kontrolne.',
+  'Punkt': 'Dodaj punkt referencyjny otworu albo punkt konstrukcyjny.',
   'Linia': 'Utwórz pojedynczy segment przez dwa punkty albo przez dokładną długość i kąt.',
   'Polilinia': 'Rysuj ciąg segmentów; kliknij punkt początkowy, aby zamknąć profil.',
   'Łuk styczny': 'Kontynuuj polilinię łukiem stycznym do poprzedniego segmentu.',
@@ -283,32 +311,56 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
   if (!command || command.type === 'plane' || command.type === 'parameters') return null;
   const isRectangle = command.type === 'rectangle';
   const isCircle = command.type === 'circle';
+  const isArc = command.type === 'arc';
+  const isPolygon = command.type === 'polygon';
+  const isEllipse = command.type === 'ellipse';
+  const isSlot = command.type === 'slot';
+  const isSpline = command.type === 'spline';
+  const isConic = command.type === 'conic';
+  const isPoint = command.type === 'point';
+  const isMechanicalShape = isRectangle || isCircle || isArc || isPolygon || isEllipse || isSlot || isSpline || isConic;
   const isExtrude = command.type === 'extrude';
   const isHole = command.type === 'hole';
   const isFillet = command.type === 'fillet';
   const isSketchPath = command.type === 'line' || command.type === 'polyline';
   const isSketchMove = command.type === 'moveSketch';
-  const title = isRectangle ? 'Prostokąt ze środka' : isCircle ? 'Okrąg ze środka' : isExtrude ? 'Wyciągnięcie' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : 'Fazowanie';
+  const title = isRectangle ? 'Prostokąt' : isCircle ? 'Okrąg' : isArc ? 'Łuk' : isPolygon ? 'Wielokąt regularny' : isEllipse ? 'Elipsa' : isSlot ? 'Slot' : isSpline ? 'Spline' : isConic ? 'Krzywa conic' : isPoint ? 'Punkt szkicu' : isExtrude ? 'Wyciągnięcie' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : 'Fazowanie';
   return (
     <section className="command-dialog" aria-label={title}>
       <header><strong>{title}</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
       <div className="command-dialog-body">
-        {(isRectangle || isCircle) && <Field label="Nazwa" value={command.name} onChange={(name) => onChange({ name })} />}
+        {isMechanicalShape && <Field label="Nazwa" value={command.name} onChange={(name) => onChange({ name })} />}
+        {(isRectangle || isCircle || isArc || isPolygon || isEllipse || isSlot || isSpline) && (
+          <label className="command-field">
+            <span>Metoda</span>
+            <select value={command.definition} onChange={(event) => onChange({ definition: event.target.value })} disabled={Boolean(command.editId)}>
+              {isRectangle && <><option value="center">Środek i wymiary</option><option value="twoPoints">Dwa narożniki</option><option value="threePoints">Trzy punkty</option></>}
+              {isCircle && <><option value="centerRadius">Środek i średnica</option><option value="twoPoints">Dwa punkty średnicy</option><option value="threePoints">Trzy punkty</option></>}
+              {isArc && <><option value="threePoints">Trzy punkty</option><option value="centerStartEnd">Środek, początek, koniec</option></>}
+              {isPolygon && <><option value="inscribed">Wpisany</option><option value="circumscribed">Opisany</option><option value="edge">Z krawędzi</option></>}
+              {isEllipse && <><option value="full">Pełna elipsa</option><option value="arc">Łuk eliptyczny</option></>}
+              {isSlot && <><option value="centerToCenter">Środek–środek</option><option value="overall">Długość całkowita</option><option value="threePoints">Trzy punkty</option><option value="arc">Po łuku</option></>}
+              {isSpline && <><option value="fit">Punkty dopasowania</option><option value="control">Punkty kontrolne</option></>}
+            </select>
+          </label>
+        )}
         {isRectangle && (
           <>
-            <Field label="Szerokość" value={command.width} onChange={(width) => onChange({ width })} suffix="mm" autoFocus />
-            <Field label="Wysokość" value={command.height} onChange={(height) => onChange({ height })} suffix="mm" />
-            <Field label="Środek X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" />
-            <Field label="Środek Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" />
+            {command.definition === 'center' ? <><Field label="Szerokość" value={command.width} onChange={(width) => onChange({ width })} suffix="mm" autoFocus /><Field label="Wysokość" value={command.height} onChange={(height) => onChange({ height })} suffix="mm" /><Field label="Środek X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" /><Field label="Środek Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" /><Field label="Obrót" value={command.rotation} onChange={(rotation) => onChange({ rotation })} suffix="°" /></> : <><Field label="Punkt 1 X" value={command.x1} onChange={(x1) => onChange({ x1 })} suffix="mm" autoFocus /><Field label="Punkt 1 Y" value={command.y1} onChange={(y1) => onChange({ y1 })} suffix="mm" /><Field label="Punkt 2 X" value={command.x2} onChange={(x2) => onChange({ x2 })} suffix="mm" /><Field label="Punkt 2 Y" value={command.y2} onChange={(y2) => onChange({ y2 })} suffix="mm" />{command.definition === 'threePoints' && <><Field label="Punkt 3 X" value={command.x3} onChange={(x3) => onChange({ x3 })} suffix="mm" /><Field label="Punkt 3 Y" value={command.y3} onChange={(y3) => onChange({ y3 })} suffix="mm" /></>}</>}
           </>
         )}
         {isCircle && (
           <>
-            <Field label="Średnica" value={command.diameter} onChange={(diameter) => onChange({ diameter })} suffix="mm" autoFocus />
-            <Field label="Środek X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" />
-            <Field label="Środek Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" />
+            {command.definition === 'centerRadius' ? <><Field label="Średnica" value={command.diameter} onChange={(diameter) => onChange({ diameter })} suffix="mm" autoFocus /><Field label="Środek X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" /><Field label="Środek Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" /></> : <><Field label="Punkt 1 X" value={command.x1} onChange={(x1) => onChange({ x1 })} suffix="mm" autoFocus /><Field label="Punkt 1 Y" value={command.y1} onChange={(y1) => onChange({ y1 })} suffix="mm" /><Field label="Punkt 2 X" value={command.x2} onChange={(x2) => onChange({ x2 })} suffix="mm" /><Field label="Punkt 2 Y" value={command.y2} onChange={(y2) => onChange({ y2 })} suffix="mm" />{command.definition === 'threePoints' && <><Field label="Punkt 3 X" value={command.x3} onChange={(x3) => onChange({ x3 })} suffix="mm" /><Field label="Punkt 3 Y" value={command.y3} onChange={(y3) => onChange({ y3 })} suffix="mm" /></>}</>}
           </>
         )}
+        {isArc && <><Field label={command.definition === 'centerStartEnd' ? 'Środek X' : 'Początek X'} value={command.x1} onChange={(x1) => onChange({ x1 })} suffix="mm" autoFocus /><Field label={command.definition === 'centerStartEnd' ? 'Środek Y' : 'Początek Y'} value={command.y1} onChange={(y1) => onChange({ y1 })} suffix="mm" /><Field label={command.definition === 'centerStartEnd' ? 'Początek X' : 'Punkt łuku X'} value={command.x2} onChange={(x2) => onChange({ x2 })} suffix="mm" /><Field label={command.definition === 'centerStartEnd' ? 'Początek Y' : 'Punkt łuku Y'} value={command.y2} onChange={(y2) => onChange({ y2 })} suffix="mm" /><Field label="Koniec X" value={command.x3} onChange={(x3) => onChange({ x3 })} suffix="mm" /><Field label="Koniec Y" value={command.y3} onChange={(y3) => onChange({ y3 })} suffix="mm" />{command.definition === 'centerStartEnd' && <label className="command-field"><span>Kierunek</span><select value={command.direction} onChange={(event) => onChange({ direction: event.target.value })}><option value="ccw">Przeciwnie do wskazówek</option><option value="cw">Zgodnie ze wskazówkami</option></select></label>}</>}
+        {isPolygon && <>{command.definition === 'edge' ? <><Field label="Krawędź P1 X" value={command.x1} onChange={(x1) => onChange({ x1 })} suffix="mm" autoFocus /><Field label="Krawędź P1 Y" value={command.y1} onChange={(y1) => onChange({ y1 })} suffix="mm" /><Field label="Krawędź P2 X" value={command.x2} onChange={(x2) => onChange({ x2 })} suffix="mm" /><Field label="Krawędź P2 Y" value={command.y2} onChange={(y2) => onChange({ y2 })} suffix="mm" /></> : <><Field label="Promień" value={command.radius} onChange={(radius) => onChange({ radius })} suffix="mm" autoFocus /><Field label="Środek X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" /><Field label="Środek Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" /><Field label="Obrót" value={command.rotation} onChange={(rotation) => onChange({ rotation })} suffix="°" /></>}<Field label="Liczba boków" value={command.sides} onChange={(sides) => onChange({ sides })} /></>}
+        {isEllipse && <><Field label="Promień główny" value={command.majorRadius} onChange={(majorRadius) => onChange({ majorRadius })} suffix="mm" autoFocus /><Field label="Promień boczny" value={command.minorRadius} onChange={(minorRadius) => onChange({ minorRadius })} suffix="mm" /><Field label="Środek X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" /><Field label="Środek Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" /><Field label="Obrót" value={command.rotation} onChange={(rotation) => onChange({ rotation })} suffix="°" />{command.definition === 'arc' && <><Field label="Kąt początku" value={command.startAngle} onChange={(startAngle) => onChange({ startAngle })} suffix="°" /><Field label="Kąt końca" value={command.endAngle} onChange={(endAngle) => onChange({ endAngle })} suffix="°" /><label className="command-field"><span>Kierunek</span><select value={command.direction} onChange={(event) => onChange({ direction: event.target.value })}><option value="ccw">Przeciwnie do wskazówek</option><option value="cw">Zgodnie ze wskazówkami</option></select></label></>}</>}
+        {isSlot && <>{command.definition === 'arc' ? <><Field label="Środek X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" autoFocus /><Field label="Środek Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" /><Field label="Promień osi" value={command.radius} onChange={(radius) => onChange({ radius })} suffix="mm" /><Field label="Kąt początku" value={command.startAngle} onChange={(startAngle) => onChange({ startAngle })} suffix="°" /><Field label="Kąt końca" value={command.endAngle} onChange={(endAngle) => onChange({ endAngle })} suffix="°" /><label className="command-field"><span>Kierunek</span><select value={command.direction} onChange={(event) => onChange({ direction: event.target.value })}><option value="ccw">Przeciwnie do wskazówek</option><option value="cw">Zgodnie ze wskazówkami</option></select></label></> : <><Field label="Punkt 1 X" value={command.x1} onChange={(x1) => onChange({ x1 })} suffix="mm" autoFocus /><Field label="Punkt 1 Y" value={command.y1} onChange={(y1) => onChange({ y1 })} suffix="mm" /><Field label="Punkt 2 X" value={command.x2} onChange={(x2) => onChange({ x2 })} suffix="mm" /><Field label="Punkt 2 Y" value={command.y2} onChange={(y2) => onChange({ y2 })} suffix="mm" />{command.definition === 'threePoints' && <><Field label="Punkt szerokości X" value={command.x3} onChange={(x3) => onChange({ x3 })} suffix="mm" /><Field label="Punkt szerokości Y" value={command.y3} onChange={(y3) => onChange({ y3 })} suffix="mm" /></>}</>}{command.definition !== 'threePoints' && <Field label="Szerokość" value={command.width} onChange={(width) => onChange({ width })} suffix="mm" />}</>}
+        {isSpline && <Field label="Punkty X,Y" value={command.pointsText} onChange={(pointsText) => onChange({ pointsText })} autoFocus />}
+        {isConic && <><Field label="Początek X" value={command.x1} onChange={(x1) => onChange({ x1 })} suffix="mm" autoFocus /><Field label="Początek Y" value={command.y1} onChange={(y1) => onChange({ y1 })} suffix="mm" /><Field label="Kontrola X" value={command.x2} onChange={(x2) => onChange({ x2 })} suffix="mm" /><Field label="Kontrola Y" value={command.y2} onChange={(y2) => onChange({ y2 })} suffix="mm" /><Field label="Koniec X" value={command.x3} onChange={(x3) => onChange({ x3 })} suffix="mm" /><Field label="Koniec Y" value={command.y3} onChange={(y3) => onChange({ y3 })} suffix="mm" /><Field label="Rho" value={command.rho} onChange={(rho) => onChange({ rho })} /><label className="command-field"><span>Ciągłość</span><select value={command.continuity} onChange={(event) => onChange({ continuity: event.target.value })}><option value="free">Swobodna (G0)</option><option value="tangent">Styczna (G1)</option><option value="curvature">Krzywizna (G2)</option></select></label></>}
+        {isPoint && <><Field label="X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" autoFocus /><Field label="Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" /><label className="command-field"><span>Rola</span><select value={command.role} onChange={(event) => onChange({ role: event.target.value })}><option value="standard">Referencja otworu</option><option value="construction">Konstrukcyjny</option></select></label></>}
         {(isExtrude || isHole) && <Field label="Profil" value={profileName} disabled />}
         {isExtrude && (
           <>
@@ -353,7 +405,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
             <Field label="Przesunięcie Y" value={command.dy} onChange={(dy) => onChange({ dy })} suffix="mm" />
           </>
         )}
-        <div className="command-preview-note"><span className="preview-dot" />{isSketchPath ? 'Klikaj punkty na płótnie lub dodaj następny punkt dokładną długością i kątem.' : isSketchMove ? 'Wpisz dokładne przesunięcie zaznaczenia w osiach szkicu.' : isRectangle || isCircle ? 'Kliknij środek i drugi punkt na płótnie albo wpisz dokładne wymiary.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
+        <div className="command-preview-note"><span className="preview-dot" />{isSketchPath ? 'Klikaj punkty na płótnie lub dodaj następny punkt dokładną długością i kątem.' : isSketchMove ? 'Wpisz dokładne przesunięcie zaznaczenia w osiach szkicu.' : isPoint ? 'Punkt zwykły może wyznaczać oś otworu; konstrukcyjny służy tylko jako referencja.' : isMechanicalShape ? 'Wpisz dokładne dane konstrukcyjne; po zatwierdzeniu powstanie edytowalna geometria szkicu.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
       </div>
       {isSketchPath ? (
         <footer><button className="secondary" type="button" onClick={onUndoSegment} disabled={!command.pointIds.length}>Cofnij segment</button><button className="secondary" type="button" onClick={onFinishPath}>Zakończ</button><button className="confirm" type="button" onClick={onConfirm} disabled={!command.lastPoint}><Check size={14} /> Dodaj dokładnie</button></footer>
@@ -423,6 +475,10 @@ function SketchPalette({ options, onChange, onFinish }) {
         {items.map(([key, label]) => (
           <label key={key}><span>{label}</span><input type="checkbox" checked={Boolean(options[key])} onChange={(event) => onChange(key, event.target.checked)} /></label>
         ))}
+        <label className="sketch-snap-threshold">
+          <span>Próg snap <output>{options.snapDistance}px</output></span>
+          <input type="range" min="4" max="24" step="1" value={options.snapDistance} disabled={!options.snap} onChange={(event) => onChange('snapDistance', Number(event.target.value))} />
+        </label>
         <div className="sketch-state-legend" aria-label="Legenda stanów geometrii szkicu">
           <h3>Stany geometrii</h3>
           <span><i className="under" /> Niedowiązana</span>
@@ -494,7 +550,7 @@ export default function ModelingWorkspace({ onClose }) {
   const [activeSketchId, setActiveSketchId] = useState(null);
   const [command, setCommand] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(true);
-  const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, profiles: true, points: true, dimensions: true, constraints: true, construction: true, sketch3d: false });
+  const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, profiles: true, points: true, dimensions: true, constraints: true, construction: true, sketch3d: false });
   const [notice, setNotice] = useState(initialOpen.warning || 'Gotowe. Wybierz „Utwórz szkic”, aby rozpocząć modelowanie.');
   const fileInputRef = useRef(null);
   const readOnly = documentAccess.readOnly;
@@ -511,6 +567,22 @@ export default function ModelingWorkspace({ onClose }) {
     .flatMap((sketch) => sketch.profiles.map((profile) => ({ sketch, profile })))
     .find(({ profile }) => selection?.kind === 'profile' && profile.id === selection.id);
   const selectedProfile = selectedProfileMatch?.profile;
+  const selectedProfileBoundaryEntity = selectedProfile?.entityIds?.length === 1
+    ? selectedProfileMatch?.sketch.entities.find((entity) => entity.id === selectedProfile.entityIds[0])
+    : null;
+  const isCircularProfile = selectedProfile?.type === 'circle' || selectedProfileBoundaryEntity?.type === 'circle';
+  const selectedCircleDiameter = selectedProfile?.geometry?.diameter
+    || (selectedProfileBoundaryEntity?.type === 'circle'
+      ? (Number.isFinite(Number(selectedProfileBoundaryEntity.geometry.radius)) ? String(Number(selectedProfileBoundaryEntity.geometry.radius) * 2) : `(${selectedProfileBoundaryEntity.geometry.radius}) * 2`)
+      : '10');
+  const selectedSketchPointMatch = selection?.kind === 'sketchPoint'
+    ? document.sketches.map((sketch) => {
+      const point = sketch.entities.find((entity) => entity.id === selection.id && entity.type === 'point');
+      const isIndependent = point && !sketch.entities.some((entity) => entity.id !== point.id && entity.pointIds?.includes(point.id));
+      return { sketch, point: isIndependent ? point : null };
+    }).find((entry) => entry.point)
+    : null;
+  const hasHoleReference = isCircularProfile || Boolean(selectedSketchPointMatch);
   const selectedSketchEntityIds = selection?.kind === 'sketchEntities' && selection.sketchId === activeSketchId
     ? selection.ids
     : [];
@@ -581,8 +653,8 @@ export default function ModelingWorkspace({ onClose }) {
         next.previewFeature = createFeature('hole', {
           name: current.previewFeature?.name || `Otwór ${document.features.length + 1}`,
           targetBodyId,
-          sketchId: selectedProfileMatch?.sketch.id,
-          profileId: selectedProfile.id,
+          sketchId: selectedSketchPointMatch?.sketch.id || selectedProfileMatch?.sketch.id,
+          ...(selectedSketchPointMatch ? { pointId: selectedSketchPointMatch.point.id } : { profileId: selectedProfile.id }),
           diameter: next.diameter,
           depth: next.depth,
         });
@@ -631,10 +703,17 @@ export default function ModelingWorkspace({ onClose }) {
   const finishSketch = () => {
     const sketch = document.sketches.find((item) => item.id === activeSketchId);
     const lastProfile = sketch?.profiles.at(-1);
+    const selectedPoint = selectedSketchEntityIds.length === 1
+      ? sketch?.entities.find((entity) => entity.id === selectedSketchEntityIds[0]
+        && entity.type === 'point'
+        && entity.role === 'standard'
+        && !sketch.entities.some((candidate) => candidate.id !== entity.id && candidate.pointIds?.includes(entity.id)))
+      : null;
     setActiveSketchId(null);
     setWorkspace('solid');
     setCommand(null);
-    if (lastProfile) setSelection({ kind: 'profile', id: lastProfile.id, sketchId: sketch.id });
+    if (selectedPoint) setSelection({ kind: 'sketchPoint', id: selectedPoint.id, sketchId: sketch.id });
+    else if (lastProfile) setSelection({ kind: 'profile', id: lastProfile.id, sketchId: sketch.id });
     setNotice('Szkic zakończony. Wybierz profil i użyj operacji bryłowej.');
   };
 
@@ -649,11 +728,28 @@ export default function ModelingWorkspace({ onClose }) {
       return;
     }
     if (type === 'rectangle') {
-      setCommand({ type, editId: profile?.id || null, name: profile?.name || `Prostokąt ${document.sketches.flatMap((item) => item.profiles).length + 1}`, width: profile?.geometry.width || '40', height: profile?.geometry.height || '30', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0' });
+      setCommand({ type, definition: 'center', editId: profile?.id || null, name: profile?.name || `Prostokąt ${document.sketches.flatMap((item) => item.profiles).length + 1}`, width: profile?.geometry.width || '40', height: profile?.geometry.height || '30', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', rotation: '0', x1: '-20', y1: '-15', x2: '20', y2: '15', x3: '20', y3: '15' });
     } else {
-      setCommand({ type, editId: profile?.id || null, name: profile?.name || `Okrąg ${document.sketches.flatMap((item) => item.profiles).length + 1}`, diameter: profile?.geometry.diameter || '10', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0' });
+      setCommand({ type, definition: 'centerRadius', editId: profile?.id || null, name: profile?.name || `Okrąg ${document.sketches.flatMap((item) => item.profiles).length + 1}`, diameter: profile?.geometry.diameter || '10', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', x1: '-5', y1: '0', x2: '5', y2: '0', x3: '0', y3: '5' });
     }
     setNotice('Ustaw wymiary profilu. Podgląd na płótnie aktualizuje się na bieżąco.');
+  };
+
+  const openMechanicalShape = (type) => {
+    if (readOnly) return readOnlyNotice();
+    if (!activeSketchId) {
+      startSketch();
+      return;
+    }
+    const number = document.sketches.flatMap((item) => item.profiles).length + 1;
+    if (type === 'arc') setCommand({ type, definition: 'threePoints', name: `Łuk ${number}`, x1: '-10', y1: '0', x2: '0', y2: '10', x3: '10', y3: '0', direction: 'ccw' });
+    if (type === 'polygon') setCommand({ type, definition: 'inscribed', name: `Wielokąt ${number}`, sides: '6', radius: '15', x: '0', y: '0', rotation: '0', x1: '-10', y1: '0', x2: '10', y2: '0' });
+    if (type === 'ellipse') setCommand({ type, definition: 'full', name: `Elipsa ${number}`, majorRadius: '20', minorRadius: '10', x: '0', y: '0', rotation: '0', startAngle: '0', endAngle: '180', direction: 'ccw' });
+    if (type === 'slot') setCommand({ type, definition: 'centerToCenter', name: `Slot ${number}`, x1: '-15', y1: '0', x2: '15', y2: '0', x3: '-15', y3: '5', x: '0', y: '0', radius: '25', startAngle: '0', endAngle: '90', direction: 'ccw', width: '10' });
+    if (type === 'spline') setCommand({ type, definition: 'fit', name: `Spline ${number}`, pointsText: '-20,0; -8,15; 8,-15; 20,0' });
+    if (type === 'conic') setCommand({ type, name: `Conic ${number}`, x1: '-20', y1: '0', x2: '0', y2: '20', x3: '20', y3: '0', rho: '0.7071067812', continuity: 'tangent' });
+    if (type === 'point') setCommand({ type, x: '0', y: '0', role: 'standard' });
+    setNotice('Ustaw dokładne dane konstrukcyjne figury i zatwierdź operację.');
   };
 
   const openSketchPath = (type) => {
@@ -686,6 +782,7 @@ export default function ModelingWorkspace({ onClose }) {
       commit((next) => {
         const sketch = next.sketches.find((item) => item.id === activeSketchId);
         sketch.entities = sketch.entities.filter((entity) => entity.id !== pendingPointId);
+        refreshDetectedSketchProfiles(sketch, next.parameters);
       });
     }
     setCommand(null);
@@ -748,33 +845,35 @@ export default function ModelingWorkspace({ onClose }) {
       endTangent = [(end[0] - start[0]) / length, (end[1] - start[1]) / length];
     }
 
-    let detectedProfile = null;
-    if (closes) {
-      const detectionSketch = structuredClone(activeSketch);
-      if (targetPoint) detectionSketch.entities.push(targetPoint);
-      if (auxiliaryPoint) detectionSketch.entities.push(auxiliaryPoint);
-      detectionSketch.entities.push(segment);
-      detectedProfile = createDetectedProfile(detectionSketch, [...command.segmentIds, segment.id], {
-        name: `Profil ${document.sketches.flatMap((item) => item.profiles).length + 1}`,
-      });
-    }
+    const detectionSketch = structuredClone(activeSketch);
+    if (targetPoint) detectionSketch.entities.push(targetPoint);
+    if (auxiliaryPoint) detectionSketch.entities.push(auxiliaryPoint);
+    detectionSketch.entities.push(segment);
+    const topology = refreshDetectedSketchProfiles(detectionSketch, document.parameters);
+    const detectedProfile = topology.profiles.find((profile) => profile.entityIds.includes(segment.id)) || null;
     commit((next) => {
       const sketch = next.sketches.find((item) => item.id === activeSketchId);
       if (targetPoint) sketch.entities.push(targetPoint);
       if (auxiliaryPoint) sketch.entities.push(auxiliaryPoint);
       sketch.entities.push(segment);
-      if (detectedProfile) sketch.profiles.push(detectedProfile);
+      sketch.profiles = structuredClone(detectionSketch.profiles);
+      sketch.diagnostics = structuredClone(detectionSketch.diagnostics || []);
     });
 
     if (closes) {
-      setSelection({ kind: 'profile', id: detectedProfile.id, sketchId: activeSketchId });
+      setSelection(detectedProfile ? { kind: 'profile', id: detectedProfile.id, sketchId: activeSketchId } : { kind: 'sketch', id: activeSketchId });
       setCommand(null);
-      setNotice('Polilinia zamknięta. Utworzono profil gotowy do wyciągnięcia.');
+      setNotice(detectedProfile
+        ? `Polilinia zamknięta. Utworzono profil${detectedProfile.innerLoops?.length ? ` z ${detectedProfile.innerLoops.length} otworem` : ''} gotowy do wyciągnięcia.`
+        : topology.diagnostics[0]?.message || 'Obrys jest zamknięty, ale nie tworzy poprawnego profilu.');
       return;
     }
     if (command.type === 'line') {
       setCommand(null);
-      setNotice('Linia została dodana.');
+      if (detectedProfile) {
+        setSelection({ kind: 'profile', id: detectedProfile.id, sketchId: activeSketchId });
+        setNotice('Linia zamknęła obrys. Utworzono profil gotowy do wyciągnięcia.');
+      } else setNotice('Linia została dodana.');
       return;
     }
     setCommand((current) => ({
@@ -816,6 +915,7 @@ export default function ModelingWorkspace({ onClose }) {
       commit((next) => {
         const sketch = next.sketches.find((item) => item.id === activeSketchId);
         sketch.entities = sketch.entities.filter((entity) => entity.id !== pointId);
+        refreshDetectedSketchProfiles(sketch, next.parameters);
       });
       setCommand((current) => ({ ...current, pointIds: [], points: [], firstPoint: null, lastPoint: null }));
       return;
@@ -824,6 +924,7 @@ export default function ModelingWorkspace({ onClose }) {
       const sketch = next.sketches.find((item) => item.id === activeSketchId);
       const removed = new Set([segmentId, pointId, auxiliaryPointId].filter(Boolean));
       sketch.entities = sketch.entities.filter((entity) => !removed.has(entity.id));
+      refreshDetectedSketchProfiles(sketch, next.parameters);
     });
     setCommand((current) => ({
       ...current,
@@ -873,12 +974,12 @@ export default function ModelingWorkspace({ onClose }) {
         { dx, dy },
         checked.parameters,
       );
-      commit((next) => translateSketchSelection(
-        next.sketches.find((item) => item.id === activeSketchId),
-        ids,
-        { dx, dy },
-        next.parameters,
-      ));
+      refreshDetectedSketchProfiles(checked.sketches.find((item) => item.id === activeSketchId), checked.parameters);
+      commit((next) => {
+        const sketch = next.sketches.find((item) => item.id === activeSketchId);
+        translateSketchSelection(sketch, ids, { dx, dy }, next.parameters);
+        refreshDetectedSketchProfiles(sketch, next.parameters);
+      });
       setNotice(`Przesunięto ${ids.length} ${ids.length === 1 ? 'element' : 'elementy'}: ΔX ${Number(dx).toFixed(1)} mm, ΔY ${Number(dy).toFixed(1)} mm.`);
       return true;
     } catch (error) {
@@ -908,7 +1009,10 @@ export default function ModelingWorkspace({ onClose }) {
     }
     const checked = cloneDocument(document);
     const result = deleteSketchSelection(checked, activeSketchId, selectedSketchEntityIds);
-    commit((next) => deleteSketchSelection(next, activeSketchId, selectedSketchEntityIds));
+    commit((next) => {
+      deleteSketchSelection(next, activeSketchId, selectedSketchEntityIds);
+      refreshDetectedSketchProfiles(next.sketches.find((item) => item.id === activeSketchId), next.parameters);
+    });
     setSelection({ kind: 'sketch', id: activeSketchId });
     setCommand(null);
     setNotice(`Usunięto ${result.entityIds.length} encji${result.profileIds.length ? `, ${result.profileIds.length} zależny profil` : ''}${result.featureIds.length ? ` i ${result.featureIds.length} zależną operację` : ''}. Cofnij przywraca cały stan.`);
@@ -921,6 +1025,93 @@ export default function ModelingWorkspace({ onClose }) {
     window.__madcadVerifySketchSelection = handleSketchSelection;
     window.__madcadVerifyMoveSketch = moveSketchEntities;
     window.__madcadVerifyDeleteSketch = deleteSelectedSketchEntities;
+    window.__madcadVerifyLoadTopologyFixture = (plane = 'XY') => {
+      const fixture = createDocument(`Topologia ${plane}`);
+      const loopEntities = (coordinates) => {
+        const points = coordinates.map(([x, y]) => createSketchPoint({ x, y }));
+        const lines = points.map((point, index) => createSketchLine({ startPointId: point.id, endPointId: points[(index + 1) % points.length].id }));
+        return [...points, ...lines];
+      };
+      const sketch = createSketch({
+        name: `Profil z otworem ${plane}`,
+        plane,
+        entities: [
+          ...loopEntities([[0, 0], [40, 0], [40, 30], [0, 30]]),
+          ...loopEntities([[10, 8], [30, 8], [30, 22], [10, 22]]),
+        ],
+      });
+      refreshDetectedSketchProfiles(sketch, fixture.parameters);
+      fixture.sketches.push(sketch);
+      fixture.features.push(createFeature('extrude', {
+        name: `Wyciągnięcie z otworem ${plane}`,
+        sketchId: sketch.id,
+        profileIds: [sketch.profiles[0].id],
+        distance: '6',
+        operation: 'new',
+      }));
+      history.replace(fixture);
+      setActiveSketchId(null);
+      setWorkspace('solid');
+      setSelection({ kind: 'document', id: fixture.id });
+      setCommand(null);
+    };
+    window.__madcadVerifyLoadMechanicalFixture = (kind = 'ellipse') => {
+      const fixture = createDocument(`Figura mechaniczna ${kind}`);
+      let shape;
+      if (kind === 'bracket') {
+        const lowerLeft = createSketchPoint({ x: -40, y: -25 });
+        const lowerArc = createSketchPoint({ x: 20, y: -25 });
+        const arcCenter = createSketchPoint({ x: 20, y: 0 });
+        const upperArc = createSketchPoint({ x: 20, y: 25 });
+        const upperLeft = createSketchPoint({ x: -40, y: 25 });
+        const outline = [
+          createSketchLine({ startPointId: lowerLeft.id, endPointId: lowerArc.id }),
+          createSketchArc({ centerPointId: arcCenter.id, startPointId: lowerArc.id, endPointId: upperArc.id, direction: 'ccw' }),
+          createSketchLine({ startPointId: upperArc.id, endPointId: upperLeft.id }),
+          createSketchLine({ startPointId: upperLeft.id, endPointId: lowerLeft.id }),
+        ];
+        const slot = slotCenterToCenter([-12, 0], [8, 0], 8);
+        const firstHole = circleCenterRadius([-25, -12], 4);
+        const secondHole = circleCenterRadius([-25, 12], 4);
+        shape = { entities: [lowerLeft, lowerArc, arcCenter, upperArc, upperLeft, ...outline, ...slot.entities, ...firstHole.entities, ...secondHole.entities] };
+      } else if (kind === 'ellipse') shape = ellipseFromCenter([0, 0], 20, 10, 25);
+      else if (kind === 'spline') {
+        shape = fitPointSpline([[0, 0], [8, 12], [16, 8], [24, 0]]);
+        shape.entities.push(createSketchLine({ startPointId: shape.points.at(-1).id, endPointId: shape.points[0].id }));
+      } else if (kind === 'conic') {
+        shape = conicThroughControlPoint([-14, 0], [0, 18], [14, 0], Math.SQRT1_2, 'tangent');
+        shape.entities.push(createSketchLine({ startPointId: shape.points[2].id, endPointId: shape.points[0].id }));
+      } else if (kind === 'ellipticalArc') {
+        shape = ellipticalArcFromCenter([0, 0], 20, 10, 0, 180, 0, 'ccw');
+        shape.entities.push(createSketchLine({ startPointId: shape.points[2].id, endPointId: shape.points[1].id }));
+      } else if (kind === 'slotArc') shape = slotArc({ center: [0, 0], radius: 25, width: 10, startAngle: 0, endAngle: 90, direction: 'ccw' });
+      else shape = slotCenterToCenter([-15, 0], [15, 0], 10);
+      const sketch = createSketch({ name: `Szkic ${kind}`, plane: 'XY', entities: shape.entities });
+      refreshDetectedSketchProfiles(sketch, fixture.parameters);
+      fixture.sketches.push(sketch);
+      fixture.features.push(createFeature('extrude', { name: `Wyciągnięcie ${kind}`, sketchId: sketch.id, profileIds: [sketch.profiles[0].id], distance: '3', operation: 'new' }));
+      history.replace(fixture);
+      setActiveSketchId(null);
+      setWorkspace('solid');
+      setSelection({ kind: 'document', id: fixture.id });
+      setCommand(null);
+    };
+    window.__madcadVerifyLoadPointHoleFixture = () => {
+      const fixture = createDocument('Otwór z punktu');
+      const baseProfile = createRectangleProfile({ width: 40, height: 30, x: 0, y: 0 });
+      const baseSketch = createSketch({ name: 'Baza punktu', plane: 'XY', profiles: [baseProfile] });
+      const referencePoint = createSketchPoint({ x: 7, y: -4 });
+      const pointSketch = createSketch({ name: 'Punkt otworu', plane: 'XY', entities: [referencePoint] });
+      const extrusion = createFeature('extrude', { name: 'Baza', sketchId: baseSketch.id, profileIds: [baseSketch.profiles[0].id], distance: '10', operation: 'new' });
+      const hole = createFeature('hole', { name: 'Otwór z punktu', targetBodyId: `body-${extrusion.id}`, sketchId: pointSketch.id, pointId: referencePoint.id, diameter: '6', depth: '10' });
+      fixture.sketches.push(baseSketch, pointSketch);
+      fixture.features.push(extrusion, hole);
+      history.replace(fixture);
+      setActiveSketchId(null);
+      setWorkspace('solid');
+      setSelection({ kind: 'sketchPoint', id: referencePoint.id, sketchId: pointSketch.id });
+      setCommand(null);
+    };
     window.__madcadVerifyDocumentState = {
       schemaVersion: document.schemaVersion,
       sketches: document.sketches.map((sketch) => ({
@@ -942,12 +1133,16 @@ export default function ModelingWorkspace({ onClose }) {
       delete window.__madcadVerifySketchSelection;
       delete window.__madcadVerifyMoveSketch;
       delete window.__madcadVerifyDeleteSketch;
+      delete window.__madcadVerifyLoadTopologyFixture;
+      delete window.__madcadVerifyLoadMechanicalFixture;
+      delete window.__madcadVerifyLoadPointHoleFixture;
       delete window.__madcadVerifyDocumentState;
     };
   }, [document, command, selection]);
 
   const confirmProfile = () => {
     if (readOnly) return readOnlyNotice();
+    if (!command.editId) return confirmMechanicalShape();
     const profile = command.type === 'rectangle'
       ? createRectangleProfile({ name: command.name, width: command.width, height: command.height, x: command.x, y: command.y })
       : createCircleProfile({ name: command.name, diameter: command.diameter, x: command.x, y: command.y });
@@ -959,6 +1154,76 @@ export default function ModelingWorkspace({ onClose }) {
     setSelection({ kind: 'profile', id: profile.id, sketchId: activeSketchId });
     setCommand(null);
     setNotice(`${profile.name} dodany do szkicu.`);
+  };
+
+  const confirmMechanicalShape = () => {
+    if (readOnly) return readOnlyNotice();
+    const coordinate = (x, y) => [Number(x), Number(y)];
+    let shape;
+    try {
+      if (command.type === 'rectangle') {
+        if (command.definition === 'twoPoints') shape = rectangleTwoPoints(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2));
+        else if (command.definition === 'threePoints') shape = rectangleThreePoints(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), coordinate(command.x3, command.y3));
+        else shape = rectangleFromCenter(coordinate(command.x, command.y), command.width, command.height, command.rotation);
+      } else if (command.type === 'circle') {
+        if (command.definition === 'twoPoints') shape = circleTwoPoints(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2));
+        else if (command.definition === 'threePoints') shape = circleThreePoints(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), coordinate(command.x3, command.y3));
+        else shape = circleCenterRadius(coordinate(command.x, command.y), Number(command.diameter) / 2);
+      } else if (command.type === 'arc') {
+        shape = command.definition === 'centerStartEnd'
+          ? arcCenterStartEnd(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), coordinate(command.x3, command.y3), command.direction)
+          : arcThroughThreePoints(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), coordinate(command.x3, command.y3));
+      } else if (command.type === 'polygon') {
+        shape = command.definition === 'edge'
+          ? polygonFromEdge(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), command.sides)
+          : regularPolygon({ center: coordinate(command.x, command.y), radius: command.radius, sides: command.sides, rotation: command.rotation, circumscribed: command.definition === 'circumscribed' });
+      } else if (command.type === 'ellipse') {
+        shape = command.definition === 'arc'
+          ? ellipticalArcFromCenter(coordinate(command.x, command.y), command.majorRadius, command.minorRadius, command.startAngle, command.endAngle, command.rotation, command.direction)
+          : ellipseFromCenter(coordinate(command.x, command.y), command.majorRadius, command.minorRadius, command.rotation);
+      } else if (command.type === 'slot') {
+        if (command.definition === 'arc') shape = slotArc({ center: coordinate(command.x, command.y), radius: command.radius, width: command.width, startAngle: command.startAngle, endAngle: command.endAngle, direction: command.direction });
+        else if (command.definition === 'threePoints') shape = slotThreePoints(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), coordinate(command.x3, command.y3));
+        else shape = command.definition === 'overall' ? slotOverall(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), command.width) : slotCenterToCenter(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), command.width);
+      } else if (command.type === 'spline') {
+        const points = command.pointsText.split(';').map((entry) => entry.split(',').map((value) => Number(value.trim())));
+        if (points.some((entry) => entry.length !== 2 || entry.some((value) => !Number.isFinite(value)))) throw new Error('Punkty spline wpisz jako x,y; x,y; …');
+        shape = command.definition === 'control' ? controlPointSpline(points) : fitPointSpline(points);
+      } else if (command.type === 'conic') {
+        shape = conicThroughControlPoint(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), coordinate(command.x3, command.y3), command.rho, command.continuity);
+      }
+      if (!shape || shape.entities.some((entity) => entity.type === 'point' && (!Number.isFinite(Number(entity.geometry.x)) || !Number.isFinite(Number(entity.geometry.y))))) throw new Error('Współrzędne figury muszą być liczbami.');
+    } catch (error) {
+      setNotice(`Nie można utworzyć figury: ${error.message}`);
+      return;
+    }
+    const curveIds = shape.curves.map((entity) => entity.id);
+    const curveIdSet = new Set(curveIds);
+    const shapeName = command.name?.trim() || 'Figura szkicu';
+    commit((next) => {
+      const sketch = next.sketches.find((item) => item.id === activeSketchId);
+      sketch.entities.push(...shape.entities);
+      const result = refreshDetectedSketchProfiles(sketch, next.parameters);
+      const createdProfile = result.profiles.find((profile) => profile.entityIds.length === curveIds.length && profile.entityIds.every((id) => curveIdSet.has(id)));
+      if (createdProfile) createdProfile.name = shapeName;
+    });
+    setSelection({ kind: 'sketchEntities', ids: curveIds, sketchId: activeSketchId });
+    setCommand(null);
+    setNotice(`${shapeName} utworzono jako dokładną geometrię szkicu.`);
+  };
+
+  const confirmSketchPoint = () => {
+    const x = Number(command.x);
+    const y = Number(command.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      setNotice('Punkt wymaga prawidłowych współrzędnych X i Y.');
+      return;
+    }
+    const point = createSketchPoint({ x: String(x), y: String(y), role: command.role });
+    commit((next) => next.sketches.find((item) => item.id === activeSketchId).entities.push(point));
+    setSelection({ kind: 'sketchEntities', ids: [point.id], sketchId: activeSketchId });
+    setCommand(null);
+    setNotice(command.role === 'construction' ? 'Dodano punkt konstrukcyjny.' : 'Dodano punkt referencyjny gotowy do utworzenia otworu.');
   };
 
   const openExtrude = () => {
@@ -1000,12 +1265,12 @@ export default function ModelingWorkspace({ onClose }) {
 
   const openHole = () => {
     if (readOnly) return readOnlyNotice();
-    if (!selectedProfile || selectedProfile.type !== 'circle' || !targetBodyId || activeSketchId) {
+    if (!hasHoleReference || !targetBodyId || activeSketchId) {
       setNotice('Zakończ szkic, wybierz profil okręgu oraz bryłę docelową.');
       return;
     }
-    setCommand({ type: 'hole', diameter: selectedProfile.geometry.diameter, depth: '10', previewFeature: null });
-    window.setTimeout(() => updateCommand({ diameter: selectedProfile.geometry.diameter, depth: '10' }), 0);
+    setCommand({ type: 'hole', diameter: selectedCircleDiameter, depth: '10', previewFeature: null });
+    window.setTimeout(() => updateCommand({ diameter: selectedCircleDiameter, depth: '10' }), 0);
   };
 
   const openEdgeCommand = (type) => {
@@ -1202,9 +1467,9 @@ export default function ModelingWorkspace({ onClose }) {
 
   const timelineStatus = new Map(engine.timeline?.map((item) => [item.id, item]));
   const sketch = document.sketches.find((item) => item.id === activeSketchId);
-  const draftProfile = command?.type === 'rectangle'
+  const draftProfile = command?.type === 'rectangle' && command.definition === 'center'
     ? { type: 'rectangle', geometry: { width: command.width, height: command.height, x: command.x, y: command.y } }
-    : command?.type === 'circle'
+    : command?.type === 'circle' && command.definition === 'centerRadius'
       ? { type: 'circle', geometry: { diameter: command.diameter, x: command.x, y: command.y } }
       : null;
 
@@ -1226,7 +1491,7 @@ export default function ModelingWorkspace({ onClose }) {
           <div className="modeling-ribbon">
             {activeSketchId ? (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /></RibbonGroup>
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => handleSketchSelection([], 'replace')} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Scissors} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || !selectedSketchEntityIds.length} /></RibbonGroup>
                 <RibbonGroup label="SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
@@ -1237,7 +1502,7 @@ export default function ModelingWorkspace({ onClose }) {
               </>
             ) : (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || !selectedProfile} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || selectedProfile?.type !== 'circle' || !engine.bodies.length} /></RibbonGroup>
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || !selectedProfile} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || !hasHoleReference || !engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !engine.bodies.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !engine.bodies.length} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature'].includes(selection?.kind)} /></RibbonGroup>
                 <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Otwórz" onClick={() => fileInputRef.current?.click()} /></RibbonGroup>
@@ -1257,15 +1522,17 @@ export default function ModelingWorkspace({ onClose }) {
             sketches={document.sketches}
             activeSketchId={activeSketchId}
             draftProfile={draftProfile}
-            draftType={command?.type === 'rectangle' || command?.type === 'circle' ? command.type : null}
+            draftType={(command?.type === 'rectangle' && command.definition === 'center') || (command?.type === 'circle' && command.definition === 'centerRadius') ? command.type : null}
             onDraftChange={readOnly ? undefined : updateCommand}
             sketchTool={command?.type === 'line' || command?.type === 'polyline' ? command.type : null}
             polylineDraft={command?.type === 'line' || command?.type === 'polyline' ? { lastPoint: command.lastPoint } : null}
             onSketchPoint={readOnly ? undefined : appendSketchPoint}
             selectedSketchEntityIds={selectedSketchEntityIds}
             onSketchSelection={handleSketchSelection}
+            onSketchProfileSelection={(profileId) => setSelection({ kind: 'profile', id: profileId, sketchId: activeSketchId })}
             onSketchMove={readOnly ? undefined : moveSketchEntities}
             showSketchPoints={sketchOptions.points}
+            showSketchProfiles={sketchOptions.profiles}
             parameters={document.parameters}
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : null}
@@ -1275,6 +1542,7 @@ export default function ModelingWorkspace({ onClose }) {
             directExtrudeDistance={command?.type === 'extrude' ? command.distance : 0}
             onDirectExtrude={readOnly ? undefined : beginOrUpdateExtrude}
             snapEnabled={sketchOptions.snap}
+            snapThresholdPx={sketchOptions.snapDistance}
             bed={document.print}
             showBed={workspace === 'print'}
           />
@@ -1287,7 +1555,7 @@ export default function ModelingWorkspace({ onClose }) {
             command={command}
             profileName={selectedProfile?.name || ''}
             onChange={updateCommand}
-            onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : confirmFeature}
+            onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : confirmFeature}
             onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => setCommand(null)}
             onUndoSegment={undoSketchSegment}
             onFinishPath={finishSketchPath}

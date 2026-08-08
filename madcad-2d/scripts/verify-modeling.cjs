@@ -235,6 +235,11 @@ async function runUiFlow(window) {
   await addSketchPoint([0, 30], 11);
   await addSketchPoint([0, 0], 12);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.profiles === 1`, 'zamknięty profil L');
+  await clickTool('Wybierz');
+  const profileInterior = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen?.(5, 5)`);
+  await sendMouse('mouseDown', profileInterior);
+  await sendMouse('mouseUp', profileInterior);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'profile'`, 'wybór wypełnionego profilu');
 
   progress('sketch selection and editing');
   const editTargets = await window.webContents.executeJavaScript(`(() => {
@@ -321,6 +326,38 @@ async function runUiFlow(window) {
   }))()`);
   assertClose(polylineModel.metrics.area, 1100 + ((95 + Math.sqrt(425)) * 8), 0.01, 'Edited polyline L area');
 
+  progress('topology profiles XY XZ YZ');
+  for (const plane of ['XY', 'XZ', 'YZ']) {
+    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTopologyFixture?.(${JSON.stringify(plane)})`);
+    await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 5520) < 0.01`, `profil z otworem ${plane}`, modelingTimeoutMs);
+  }
+
+  progress('mechanical profiles and exact curved B-Rep');
+  const mechanicalFixtures = [
+    ['ellipse', Math.PI * 20 * 10 * 3],
+    ['ellipticalArc', Math.PI * 20 * 10 * 1.5],
+    ['slot', ((30 * 10) + (Math.PI * 25)) * 3],
+    ['slotArc', (((Math.PI / 2) * 25 * 10) + (Math.PI * 25)) * 3],
+    ['bracket', ((60 * 50) + (Math.PI * 25 * 25 / 2) - ((20 * 8) + (Math.PI * 4 * 4)) - (2 * Math.PI * 4 * 4)) * 3],
+    ['spline', null],
+    ['conic', null],
+  ];
+  for (const [kind, expectedVolume] of mechanicalFixtures) {
+    const previousRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadMechanicalFixture?.(${JSON.stringify(kind)})`);
+    await waitForUi(window, `(window.__madcadVerifyEngineState?.revision || 0) > ${previousRevision} && window.__madcadVerifyEngineState?.status === 'ready'`, `rewizja dokładnej figury ${kind}`, modelingTimeoutMs);
+    const actualVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume`);
+    progress(`${kind} volume ${actualVolume}`);
+    if (expectedVolume === null) {
+      if (!(actualVolume > 100)) throw new Error(`Mechanical ${kind} returned invalid volume ${actualVolume}.`);
+    } else assertClose(actualVolume, expectedVolume, 0.05, `Mechanical ${kind} volume`);
+  }
+  const pointHoleRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyLoadPointHoleFixture?.()`);
+  await waitForUi(window, `(window.__madcadVerifyEngineState?.revision || 0) > ${pointHoleRevision} && window.__madcadVerifyEngineState?.status === 'ready'`, 'otwór z punktu referencyjnego', modelingTimeoutMs);
+  const pointHoleVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume`);
+  assertClose(pointHoleVolume, (40 * 30 * 10) - (Math.PI * 3 * 3 * 10), 0.05, 'Point reference hole volume');
+
   progress('new document');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt');
@@ -333,7 +370,7 @@ async function runUiFlow(window) {
   await pickPlane('XY');
   await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'tryb szkicu');
   await clickTool('Prostokąt');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Prostokąt ze środka')`, 'polecenie prostokąta');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Prostokąt')`, 'polecenie prostokąta');
   await setCommandField('Szerokość', '64');
   await setCommandField('Wysokość', '42');
   await new Promise((resolve) => setTimeout(resolve, 250));
@@ -386,7 +423,7 @@ async function runUiFlow(window) {
   await pickPlane('XY');
   await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'drugi tryb szkicu');
   await clickTool('Okrąg');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Okrąg ze środka')`, 'polecenie okręgu');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Okrąg')`, 'polecenie okręgu');
   await setCommandField('Średnica', '12');
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.tree-profile').length === 2`, 'profil okręgu');
@@ -491,12 +528,17 @@ async function runUiFlow(window) {
     if (typeof window.__madcadVerifyRestartWorker !== 'function') throw new Error('Missing worker recovery test hook.');
     window.__madcadVerifyRestartWorker();
   })()`);
-  await waitForUi(
-    window,
-    `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${recoveryRevision}`,
-    'worker recovery',
-    modelingTimeoutMs,
-  );
+  try {
+    await waitForUi(
+      window,
+      `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${recoveryRevision}`,
+      'worker recovery',
+      modelingTimeoutMs,
+    );
+  } catch (error) {
+    const recoveryState = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState`);
+    throw new Error(`${error.message}: ${JSON.stringify(recoveryState)}`);
+  }
   const workerRecovery = await window.webContents.executeJavaScript(`(() => ({
     fromRevision: ${recoveryRevision},
     toRevision: window.__madcadVerifyEngineState.revision,
@@ -522,6 +564,7 @@ async function runUiFlow(window) {
     undoRedo: true,
     keyboardUndoRedo: true,
     sketchWorkflow: true,
+    sketchProfileFillSelection: true,
     linePolyline: true,
     enterEscapeTermination: true,
     sketchMultiSelection: true,
@@ -529,6 +572,7 @@ async function runUiFlow(window) {
     sketchPointSegmentDrag: true,
     sketchDeleteUndoRedo: true,
     polylineModel,
+    topologyProfiles: true,
     directManipulation: true,
     pointerInput: 'pen',
     filletChamfer: true,
