@@ -531,17 +531,23 @@ test('otwór na ścianie zachowuje parametryczne odległości od dwóch krawędz
   }));
   const hole = createFeature('hole', {
     placement: 'face-edges', targetBodyId: bodyId, referenceIds: references.map((reference) => reference.id),
-    firstOffset: '6', secondOffset: '8', diameter: '5', depth: '10',
+    firstOffset: '6', secondOffset: '8', holeType: 'counterbore', extent: 'through-all', diameter: '5', depth: '10', counterboreDiameter: '9', counterboreDepth: '3',
   });
   document.references.push(...references);
   document.features.push(base, hole);
 
   assert.equal(validateDocument(document).valid, true);
   const prepared = prepareDocument(document).features[1];
-  assert.deepEqual([prepared.firstOffsetValue, prepared.secondOffsetValue, prepared.diameterValue, prepared.depthValue], [6, 8, 5, 10]);
+  assert.deepEqual([prepared.firstOffsetValue, prepared.secondOffsetValue, prepared.diameterValue, prepared.depthValue], [6, 8, 5, 1_000_000]);
+  assert.deepEqual([prepared.holeType, prepared.extent, prepared.counterboreDiameterValue, prepared.counterboreDepthValue], ['counterbore', 'through-all', 9, 3]);
   assert.deepEqual(prepared.topologyReferences.map((reference) => reference.id), references.map((reference) => reference.id));
   assert.equal(buildDependencyGraph(document).edges.filter((edge) => edge.to === hole.id && edge.kind === 'references-topology').length, 3);
   assert.throws(() => resolveFaceEdgeHolePlacement(faceDescriptor, firstEdgeDescriptor, { ...secondEdgeDescriptor, endpoints: [[1, 1, 10], [1, 20, 10]] }, 6, 8), /wspólny narożnik/);
+
+  const countersinkDocument = structuredClone(document);
+  Object.assign(countersinkDocument.features[1], { holeType: 'countersink', extent: 'distance', depth: '10', countersinkDiameter: '10', countersinkAngle: '90' });
+  const countersink = prepareDocument(countersinkDocument).features[1];
+  assert.deepEqual([countersink.countersinkDiameterValue, countersink.countersinkAngleValue, countersink.depthValue], [10, 90, 10]);
 });
 
 test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwałymi linkami', () => {

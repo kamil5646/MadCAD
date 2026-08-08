@@ -499,6 +499,35 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.placement === 'face-edges' && window.__madcadVerifyDocumentState.featureData[1].referenceIds?.length === 3`, 'zapisany otwór od krawędzi', modelingTimeoutMs);
   assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), faceEdgeHoleVolume, 0.05, 'Face-edge hole volume');
 
+  await editTimelineFeature(1, 'Otwór');
+  await setCommandField('Typ otworu', 'counterbore');
+  await setCommandField('Zakres', 'through-all');
+  await setCommandField('Średnica Counterbore', '9');
+  await setCommandField('Głębokość Counterbore', '3');
+  const counterboreVolume = 12000 - (Math.PI * 2.5 ** 2 * 10) - (Math.PI * ((4.5 ** 2) - (2.5 ** 2)) * 3);
+  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - ${counterboreVolume}) < 0.05`, 'podgląd Counterbore Through All', modelingTimeoutMs);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.holeType === 'counterbore' && window.__madcadVerifyDocumentState.featureData[1].extent === 'through-all'`, 'zapisany Counterbore Through All', modelingTimeoutMs);
+  assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), counterboreVolume, 0.05, 'Counterbore Through All volume');
+
+  await editTimelineFeature(1, 'Otwór');
+  const countersinkRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await setCommandField('Typ otworu', 'countersink');
+  await setCommandField('Zakres', 'distance');
+  await setCommandField('Głębokość', '10');
+  await setCommandField('Średnica Countersink', '10');
+  await setCommandField('Kąt Countersink', '90');
+  const sinkDepth = (5 - 2.5) / Math.tan(Math.PI / 4);
+  const countersinkExtra = (Math.PI * sinkDepth / 3) * ((5 ** 2) + (5 * 2.5) - (2 * (2.5 ** 2)));
+  const countersinkVolume = 12000 - (Math.PI * 2.5 ** 2 * 10) - countersinkExtra;
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${countersinkRevision} && (window.__madcadVerifyEngineState?.status === 'ready' || window.__madcadVerifyEngineState?.status === 'error')`, 'wynik Countersink', modelingTimeoutMs);
+  const countersinkPreview = await window.webContents.executeJavaScript(`({ status: window.__madcadVerifyEngineState?.status, error: document.querySelector('.engine-status')?.textContent, volume: window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume, timeline: window.__madcadVerifyEngineState?.timeline })`);
+  if (countersinkPreview.status !== 'ready') throw new Error(`Countersink kernel error: ${JSON.stringify(countersinkPreview)}`);
+  if (Math.abs(countersinkPreview.volume - countersinkVolume) > 0.05) throw new Error(`Countersink preview mismatch: ${JSON.stringify({ expected: countersinkVolume, ...countersinkPreview })}`);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.holeType === 'countersink' && window.__madcadVerifyDocumentState.featureData[1].extent === 'distance'`, 'zapisany Countersink', modelingTimeoutMs);
+  assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), countersinkVolume, 0.05, 'Countersink volume');
+
   progress('box cylinder sphere torus primitives');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla prymitywów');

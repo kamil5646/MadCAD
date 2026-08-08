@@ -3,6 +3,7 @@ import opencascadeWasm from 'replicad-opencascadejs/src/replicad_single.wasm?url
 import {
   Curve2D,
   FaceFinder,
+  Plane,
   Vector,
   cast,
   drawCircle,
@@ -133,6 +134,16 @@ function combineShapes(shapes) {
   return shapes.slice(1).reduce((result, shape) => result.fuse(shape), shapes[0]);
 }
 
+function makeCone(firstRadius, secondRadius, height, location, direction) {
+  const plane = new Plane(location, null, direction);
+  const shape = drawCircle(firstRadius).sketchOnPlane(plane).extrude(height, {
+    extrusionDirection: direction,
+    extrusionProfile: { profile: 'linear', endFactor: secondRadius / firstRadius },
+  });
+  plane.delete();
+  return shape;
+}
+
 function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.status === FEATURE_STATUS.SUPPRESSED) return;
 
@@ -232,11 +243,11 @@ function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.type === 'hole') {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);
+    let placement;
     if (feature.placement === 'face-edges') {
       const [faceReference, firstEdgeReference, secondEdgeReference] = feature.topologyReferences || [];
       const faces = target.shape.faces;
       const edges = target.shape.edges;
-      let placement;
       try {
         const faceDescriptors = faces.map((face) => faceDescriptor(face));
         const edgeDescriptors = edges.map((edge) => edgeDescriptor(edge));
@@ -251,21 +262,32 @@ function runFeature(feature, bodyMap, bodyOrder) {
         faces.forEach((face) => face.delete());
         edges.forEach((edge) => edge.delete());
       }
-      const origin = placement.position.map((value, axis) => value + placement.normal[axis]);
-      const cutter = makeCylinder(feature.diameterValue / 2, feature.depthValue + 2, origin, placement.direction);
-      target.shape = target.shape.cut(cutter);
-      return;
+    } else {
+      const { x, y } = feature.profile.geometry;
+      const plane = feature.profile.plane || 'XY';
+      const planeOffset = Number(feature.profile.planeOffset || 0);
+      const outside = plane === 'XZ'
+        ? [x, 1 - planeOffset, y]
+        : plane === 'YZ'
+          ? [planeOffset - 1, x, y]
+          : [x, y, planeOffset - 1];
+      const direction = plane === 'XZ' ? [0, -1, 0] : plane === 'YZ' ? [1, 0, 0] : [0, 0, 1];
+      placement = { position: outside.map((value, axis) => value + direction[axis]), direction };
     }
-    const { x, y } = feature.profile.geometry;
-    const plane = feature.profile.plane || 'XY';
-    const planeOffset = Number(feature.profile.planeOffset || 0);
-    const placement = plane === 'XZ'
-      ? { origin: [x, 1 - planeOffset, y], direction: [0, -1, 0] }
-      : plane === 'YZ'
-        ? { origin: [planeOffset - 1, x, y], direction: [1, 0, 0] }
-        : { origin: [x, y, planeOffset - 1], direction: [0, 0, 1] };
-    const cutter = makeCylinder(feature.diameterValue / 2, feature.depthValue + 2, placement.origin, placement.direction);
-    target.shape = target.shape.cut(cutter);
+    const outside = placement.position.map((value, axis) => value - placement.direction[axis]);
+    const cutters = [makeCylinder(feature.diameterValue / 2, feature.depthValue + 2, outside, placement.direction)];
+    if (feature.holeType === 'counterbore') {
+      cutters.push(makeCylinder(feature.counterboreDiameterValue / 2, feature.counterboreDepthValue + 1, outside, placement.direction));
+    } else if (feature.holeType === 'countersink') {
+      const mainRadius = feature.diameterValue / 2;
+      const sinkRadius = feature.countersinkDiameterValue / 2;
+      const tangent = Math.tan((feature.countersinkAngleValue * Math.PI / 180) / 2);
+      const sinkDepth = (sinkRadius - mainRadius) / tangent;
+      const epsilon = 0.001;
+      const coneOrigin = placement.position.map((value, axis) => value - (placement.direction[axis] * epsilon));
+      cutters.push(makeCone(sinkRadius + (epsilon * tangent), mainRadius, sinkDepth + epsilon, coneOrigin, placement.direction));
+    }
+    target.shape = target.shape.cut(combineShapes(cutters));
     return;
   }
 

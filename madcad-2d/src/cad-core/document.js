@@ -634,6 +634,13 @@ export function validateDocument(document) {
     }
 
     if (feature.type === 'hole') {
+      const holeType = feature.holeType || 'simple';
+      const holeExtent = feature.extent || 'distance';
+      if (!['simple', 'counterbore', 'countersink'].includes(holeType)) add(`${base}.holeType`, `Nieobsługiwany typ otworu: ${holeType}.`, 'UNSUPPORTED');
+      if (!['distance', 'through-all'].includes(holeExtent)) add(`${base}.extent`, `Nieobsługiwany zakres otworu: ${holeExtent}.`, 'UNSUPPORTED');
+      if (holeExtent === 'distance' && feature.depth === undefined) add(`${base}.depth`, 'Otwór Distance wymaga głębokości.', 'REQUIRED');
+      if (holeType === 'counterbore' && (feature.counterboreDiameter === undefined || feature.counterboreDepth === undefined)) add(`${base}.counterboreDiameter`, 'Counterbore wymaga średnicy i głębokości pogłębienia.', 'REQUIRED');
+      if (holeType === 'countersink' && (feature.countersinkDiameter === undefined || feature.countersinkAngle === undefined)) add(`${base}.countersinkDiameter`, 'Countersink wymaga średnicy i kąta pogłębienia.', 'REQUIRED');
       if (feature.placement === 'face-edges') {
         if (!Array.isArray(feature.referenceIds) || feature.referenceIds.length !== 3) add(`${base}.referenceIds`, 'Otwór od krawędzi wymaga jednej ściany i dwóch krawędzi.', 'REQUIRED');
       } else {

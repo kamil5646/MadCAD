@@ -61,6 +61,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Boolean, Fillet/Chamfer wskazanych krawędzi, Shell wskazanych ścian, Box/Cylinder/Sphere/Torus oraz wspólny manipulator działają na dokładnym B-Rep.
 - [x] Text tworzy przenośny profil znaków i realizuje nową bryłę, Emboss oraz Deboss bez zależności od fontu systemowego.
 - [x] Otwór można umieścić bez szkicu na planarnej ścianie przez dwie prostopadłe krawędzie i dwa parametryczne odsunięcia.
+- [x] Otwory proste, Counterbore i Countersink obsługują zakres Distance/Through All oraz dokładną geometrię walcową i stożkową.
 
 ## Ostatnia zweryfikowana baza
 

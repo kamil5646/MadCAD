@@ -204,6 +204,17 @@ export function prepareDocument(document) {
       };
     }
     if (feature.type === 'hole') {
+      const holeType = feature.holeType || 'simple';
+      const extent = feature.extent || 'distance';
+      const diameterValue = positive(evaluateExpression(feature.diameter, parameterResult.values), 'Średnica otworu');
+      const depthValue = extent === 'through-all' ? 1_000_000 : positive(evaluateExpression(feature.depth, parameterResult.values), 'Głębokość otworu');
+      const counterboreDiameterValue = holeType === 'counterbore' ? positive(evaluateExpression(feature.counterboreDiameter, parameterResult.values), 'Średnica Counterbore') : null;
+      const counterboreDepthValue = holeType === 'counterbore' ? positive(evaluateExpression(feature.counterboreDepth, parameterResult.values), 'Głębokość Counterbore') : null;
+      const countersinkDiameterValue = holeType === 'countersink' ? positive(evaluateExpression(feature.countersinkDiameter, parameterResult.values), 'Średnica Countersink') : null;
+      const countersinkAngleValue = holeType === 'countersink' ? evaluateExpression(feature.countersinkAngle, parameterResult.values) : null;
+      if (counterboreDiameterValue !== null && counterboreDiameterValue <= diameterValue) throw new Error('Średnica Counterbore musi być większa od średnicy otworu.');
+      if (countersinkDiameterValue !== null && countersinkDiameterValue <= diameterValue) throw new Error('Średnica Countersink musi być większa od średnicy otworu.');
+      if (countersinkAngleValue !== null && (countersinkAngleValue <= 0 || countersinkAngleValue >= 180)) throw new Error('Kąt Countersink musi należeć do zakresu 0–180°.');
       if (feature.placement === 'face-edges') {
         return {
           ...feature,
@@ -212,8 +223,7 @@ export function prepareDocument(document) {
           topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
           firstOffsetValue: positive(evaluateExpression(feature.firstOffset, parameterResult.values), 'Odległość od pierwszej krawędzi'),
           secondOffsetValue: positive(evaluateExpression(feature.secondOffset, parameterResult.values), 'Odległość od drugiej krawędzi'),
-          diameterValue: positive(evaluateExpression(feature.diameter, parameterResult.values), 'Średnica otworu'),
-          depthValue: positive(evaluateExpression(feature.depth, parameterResult.values), 'Głębokość otworu'),
+          holeType, extent, diameterValue, depthValue, counterboreDiameterValue, counterboreDepthValue, countersinkDiameterValue, countersinkAngleValue,
         };
       }
       let profile;
@@ -235,8 +245,7 @@ export function prepareDocument(document) {
         status: 'ready',
         diagnostics: [],
         profile: { ...profile, plane, planeOffset: evaluateExpression((document.sketches.find((item) => item.id === feature.sketchId)?.planeOffset) || 0, parameterResult.values) },
-        diameterValue: positive(evaluateExpression(feature.diameter, parameterResult.values), 'Średnica otworu'),
-        depthValue: positive(evaluateExpression(feature.depth, parameterResult.values), 'Głębokość otworu'),
+        holeType, extent, diameterValue, depthValue, counterboreDiameterValue, counterboreDepthValue, countersinkDiameterValue, countersinkAngleValue,
       };
     }
     if (feature.type === 'boolean') {
