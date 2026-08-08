@@ -848,6 +848,27 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 5`, 'dodane fazowanie');
   await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${chamferRevision} && document.querySelector('.engine-status')?.classList.contains('ready') && !document.querySelector('.timeline-item.error')`, 'przeliczone fazowanie', modelingTimeoutMs);
 
+  progress('shell selected face');
+  const shellInput = await window.webContents.executeJavaScript(`(() => {
+    const body = window.__madcadVerifyEngineState.bodies[0];
+    const face = body.topology.faces.filter((item) => item.descriptor.geometry === 'PLANE').sort((left, right) => right.descriptor.center[2] - left.descriptor.center[2])[0];
+    return { selection: { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }, volume: body.metrics.volume };
+  })()`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(shellInput.selection)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face'`, 'ściana wskazana do Shell');
+  await clickTool('Shell');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Shell')`, 'polecenie Shell');
+  await setCommandField('Grubość', '1');
+  const shellRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await confirmDialog();
+  await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 6`, 'dodany Shell');
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${shellRevision} && document.querySelector('.engine-status')?.classList.contains('ready') && !document.querySelector('.timeline-item.error')`, 'przeliczony Shell', modelingTimeoutMs);
+  const shellVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`);
+  if (!(shellVolume > 0 && shellVolume < shellInput.volume)) throw new Error(`Shell powinien zmniejszyć objętość: ${shellInput.volume} -> ${shellVolume}`);
+  await waitForUi(window, `(() => { try { const saved = JSON.parse(window.localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.features?.length === 6 && saved.features[5]?.type === 'shell' && saved.features[5]?.referenceIds?.length === 1; } catch (_error) { return false; } })()`, 'Shell zapisany automatycznie', 5000);
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.length === 5 && document.querySelectorAll('.timeline-item').length === 5`, 'cofnięcie Shell przed kontrolą eksportu');
+
   progress('parameters and undo/redo');
   await clickTool('Parametry');
   await waitForUi(window, `document.querySelector('.parameters-dialog')`, 'okno parametrów');

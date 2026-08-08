@@ -239,6 +239,15 @@ export function prepareDocument(document) {
         sizeValue: positive(evaluateExpression(feature[valueKey], parameterResult.values), feature.type === 'fillet' ? 'Promień' : 'Odległość fazy'),
       };
     }
+    if (feature.type === 'shell') {
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
+        thicknessValue: positive(evaluateExpression(feature.thickness, parameterResult.values), 'Grubość Shell'),
+      };
+    }
     throw new Error(`Nieobsługiwana operacja: ${feature.type}`);
   });
 

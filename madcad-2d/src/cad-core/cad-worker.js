@@ -2,6 +2,7 @@ import opencascade from 'replicad-opencascadejs';
 import opencascadeWasm from 'replicad-opencascadejs/src/replicad_single.wasm?url';
 import {
   Curve2D,
+  FaceFinder,
   drawCircle,
   drawEllipse,
   draw,
@@ -188,6 +189,18 @@ function runFeature(feature, bodyMap, bodyOrder) {
     target.shape = feature.type === 'fillet'
       ? target.shape.fillet(radius)
       : target.shape.chamfer(radius);
+    return;
+  }
+
+  if (feature.type === 'shell') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);
+    const selectedHashes = selectedFaceHashes(target.shape, feature.topologyReferences || []);
+    if (!selectedHashes.size) throw new Error('Shell wymaga co najmniej jednej usuwanej ściany.');
+    target.shape = target.shape.shell({
+      thickness: feature.thicknessValue,
+      filter: new FaceFinder().when(({ element }) => selectedHashes.has(element.hashCode)),
+    });
   }
 }
 
@@ -226,6 +239,41 @@ function selectedEdgeHashes(shape, references) {
     return hashes;
   } finally {
     edges.forEach((edge) => edge.delete());
+  }
+}
+
+function faceReferenceDistance(reference, descriptor) {
+  const expected = reference?.descriptor;
+  if (!expected?.center || !descriptor?.center || expected.geometry !== descriptor.geometry) return Number.POSITIVE_INFINITY;
+  const centerDistance = descriptorPointDistance(expected.center, descriptor.center);
+  const normalDistance = expected.normal && descriptor.normal
+    ? Math.min(descriptorPointDistance(expected.normal, descriptor.normal), descriptorPointDistance(expected.normal, descriptor.normal.map((value) => -value)))
+    : 0;
+  return centerDistance + normalDistance;
+}
+
+function selectedFaceHashes(shape, references) {
+  if (!references.length) return new Set();
+  const faces = shape.faces;
+  try {
+    const descriptors = faces.map((face) => faceDescriptor(face));
+    const hashes = new Set();
+    for (const reference of references) {
+      let bestIndex = -1;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      descriptors.forEach((descriptor, index) => {
+        const distance = faceReferenceDistance(reference, descriptor);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestIndex = index;
+        }
+      });
+      if (bestIndex < 0 || bestDistance > 1e-4) throw new Error(`Nie odnaleziono wskazanej ściany „${reference.label || reference.topologyId}”.`);
+      hashes.add(faces[bestIndex].hashCode);
+    }
+    return hashes;
+  } finally {
+    faces.forEach((face) => face.delete());
   }
 }
 

@@ -407,6 +407,35 @@ test('Boolean wymaga dwóch brył, konsumuje narzędzie i zapisuje zależności 
   assert.ok(validateDocument(broken).issues.some((issue) => issue.path.endsWith('.toolBodyId')));
 });
 
+test('Shell wymaga wskazanej ściany i przygotowuje parametryczną grubość dla kernela', () => {
+  const document = createDocument('Shell');
+  const profile = createRectangleProfile({ width: 20, height: 10 });
+  const sketch = createSketch({ profiles: [profile] });
+  const base = createFeature('extrude', { sketchId: sketch.id, profileIds: [profile.id], distance: '8', operation: 'new' });
+  const faceReference = {
+    ...createTopologyReference({
+      selection: { kind: 'face', id: 'face-top', bodyId: `body-${base.id}`, sourceFeatureId: base.id },
+      descriptor: { geometry: 'PLANE', center: [0, 0, 8], normal: [0, 0, 1], orientation: 'forward' },
+      label: 'Shell — usuwana ściana 1',
+    }),
+    scope: 'feature-input',
+  };
+  const shell = createFeature('shell', { targetBodyId: `body-${base.id}`, referenceIds: [faceReference.id], thickness: '1.5' });
+  document.sketches.push(sketch);
+  document.references.push(faceReference);
+  document.features.push(base, shell);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[1];
+  assert.equal(prepared.thicknessValue, 1.5);
+  assert.equal(prepared.topologyReferences[0].id, faceReference.id);
+  assert.ok(buildDependencyGraph(document).edges.some((edge) => edge.from === faceReference.id && edge.to === shell.id && edge.kind === 'references-topology'));
+
+  const missingFace = structuredClone(document);
+  missingFace.features[1].referenceIds = [];
+  assert.ok(validateDocument(missingFace).issues.some((issue) => issue.path.endsWith('.referenceIds') && issue.code === 'REQUIRED'));
+});
+
 test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwałymi linkami', () => {
   const document = createDocument('Project');
   const sketch = createSketch({ plane: 'XY', planeOffset: '8' });

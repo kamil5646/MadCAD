@@ -14,6 +14,7 @@ function featureExpressions(feature) {
   if (feature.type === 'hole') return [feature.diameter, feature.depth];
   if (feature.type === 'fillet') return [feature.radius];
   if (feature.type === 'chamfer') return [feature.distance];
+  if (feature.type === 'shell') return [feature.thickness];
   return [];
 }
 
