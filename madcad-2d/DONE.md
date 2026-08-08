@@ -35,10 +35,19 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Przebudowa szkicu i zależnej bryły bez zmiany trwałych ID profilu, encji i operacji.
 - [x] W pełni związany wspornik zmienia dwa wymiary, zachowuje poprawną objętość B-Rep i przechodzi autozapis oraz ponowne otwarcie.
 
+## Podstawowe modyfikacje szkicu M2
+
+- [x] Trim, Extend i Break linii/łuków działają bezpośrednio na canvasie, zachowują możliwe ID i bezpiecznie usuwają utracone zależności.
+- [x] Offset linii, ciągłego łańcucha, profilu, okręgu i łuku obsługuje parametryczną odległość oraz stronę przez znak.
+- [x] Sketch Fillet i Chamfer skracają dwie linie, zachowują ID profilu i zależnej operacji oraz odrzucają zbyt duży wymiar transakcyjnie.
+- [x] Move, Rotate, Copy, Mirror i Scale mają dokładne pola; Copy tworzy niezależny profil, Mirror odwraca łuk, a Scale respektuje wymiary blokujące.
+- [x] Anulowanie, undo/redo, zapis/otwarcie, stabilne profile, błędy bez częściowego stanu i jawne czyszczenie zerwanych więzów są pokryte testami.
+- [x] Desktop E2E wykonuje Offset, Fillet, Chamfer i Copy na rzeczywistym szkicu, cofa każdą zmianę i kończy pełnym STEP/STL round-trip.
+
 ## Ostatnia zweryfikowana baza
 
-- Testy rdzenia: 53 zaliczone, 0 błędów.
+- Testy rdzenia: 64 zaliczone, 0 błędów.
 - Desktop E2E: profile XY/XZ/YZ, spline, conic, parametryczny wspornik, otwór z punktu, fillet/chamfer, autosave, odtworzenie workera oraz eksport STEP/STL.
-- Commity kontrolne: `1633cf3`, `6505103`, `be3c067`, `ec5e45f`.
+- Commity kontrolne: `1633cf3`, `6505103`, `be3c067`, `ec5e45f`, `0ad3b75`, `1ca5237`, `1a0a02b`, `fe19842`.
 
 Liczby testów są historycznym zapisem tej bazy; bieżący wynik zawsze pochodzi z aktualnego uruchomienia CI.

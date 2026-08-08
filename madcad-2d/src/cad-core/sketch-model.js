@@ -270,6 +270,14 @@ export function translateSketchSelection(sketch, selectedIds, { dx = 0, dy = 0 }
     point.geometry.x = String(evaluatedCoordinate(point, 'x', values) + deltaX);
     point.geometry.y = String(evaluatedCoordinate(point, 'y', values) + deltaY);
   }
+  const touchedIds = new Set([
+    ...selectedEntities.map((entity) => entity.id),
+    ...pointIds,
+    ...(sketch.entities || []).filter((entity) => entity.pointIds?.some((pointId) => pointIds.has(pointId))).map((entity) => entity.id),
+  ]);
+  const removedConstraintIds = new Set((sketch.constraints || []).filter((constraint) => constraint.entityIds?.some((id) => touchedIds.has(id))).map((constraint) => constraint.id));
+  sketch.constraints = (sketch.constraints || []).filter((constraint) => !removedConstraintIds.has(constraint.id));
+  sketch.dimensions = (sketch.dimensions || []).filter((dimension) => !dimension.entityIds?.some((id) => touchedIds.has(id)) && !removedConstraintIds.has(dimension.constraintId));
   synchronizeSketchProfiles(sketch, values);
   return [...pointIds];
 }

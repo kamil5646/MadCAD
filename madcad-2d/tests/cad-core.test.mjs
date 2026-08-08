@@ -41,6 +41,7 @@ import {
 import { analyzeSketchConstraints, applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../src/cad-core/sketch-solver.js';
 import { collectSketchSnapCandidates, snapSketchPoint } from '../src/cad-core/sketch-snap.js';
 import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketchLines, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../src/cad-core/sketch-modifiers.js';
+import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../src/cad-core/sketch-transforms.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import {
   arcCenterStartEnd,
@@ -1019,6 +1020,66 @@ test('Sketch Chamfer tworzy fazę, obsługuje parametr i odrzuca za duży wymiar
   assert.deepEqual(document, before);
 });
 
+test('Rotate zachowuje ID profilu, a Mirror odwraca kierunek łuku', () => {
+  const document = createDocument('Rotate i Mirror');
+  const points = [[0, 0], [10, 0], [10, 5], [0, 5]].map(([x, y]) => createSketchPoint({ x, y }));
+  const lines = points.map((point, index) => createSketchLine({ startPointId: point.id, endPointId: points[(index + 1) % points.length].id }));
+  const horizontal = createSketchConstraint('horizontal', [lines[0].id]);
+  const sketch = createSketch({ entities: [...points, ...lines], constraints: [horizontal] });
+  refreshDetectedSketchProfiles(sketch);
+  const profileId = sketch.profiles[0].id;
+  document.sketches.push(sketch);
+
+  const rotated = rotateSketchSelection(document, sketch.id, lines.map((line) => line.id), { centerX: 0, centerY: 0, angle: 90 });
+  const rotatedPoints = points.map((source) => sketch.entities.find((entity) => entity.id === source.id));
+  assert.deepEqual(rotatedPoints.map((point) => [Number(Number(point.geometry.x).toFixed(8)), Number(Number(point.geometry.y).toFixed(8))]), [[0, 0], [0, 10], [-5, 10], [-5, 0]]);
+  assert.equal(sketch.profiles[0].id, profileId);
+  assert.deepEqual(rotated.removedConstraintIds, [horizontal.id]);
+
+  const center = createSketchPoint({ x: 20, y: 0 });
+  const start = createSketchPoint({ x: 25, y: 0 });
+  const end = createSketchPoint({ x: 20, y: 5 });
+  const arc = createSketchArc({ centerPointId: center.id, startPointId: start.id, endPointId: end.id, direction: 'ccw' });
+  sketch.entities.push(center, start, end, arc);
+  mirrorSketchSelection(document, sketch.id, [arc.id], { originX: 20, originY: 0, angle: 90 });
+  const mirroredArc = sketch.entities.find((entity) => entity.id === arc.id);
+  const mirroredStart = sketch.entities.find((entity) => entity.id === start.id);
+  assert.equal(mirroredArc.geometry.direction, 'cw');
+  assert.deepEqual([Number(Number(mirroredStart.geometry.x).toFixed(8)), Number(Number(mirroredStart.geometry.y).toFixed(8))], [15, 0]);
+});
+
+test('Copy tworzy niezależny profil, a Scale zmienia okrąg i respektuje blokujący wymiar', () => {
+  const document = createDocument('Copy i Scale');
+  const points = [[0, 0], [10, 0], [10, 5], [0, 5]].map(([x, y]) => createSketchPoint({ x, y }));
+  const lines = points.map((point, index) => createSketchLine({ startPointId: point.id, endPointId: points[(index + 1) % points.length].id }));
+  const sketch = createSketch({ entities: [...points, ...lines] });
+  refreshDetectedSketchProfiles(sketch);
+  document.sketches.push(sketch);
+
+  const copied = copySketchSelection(document, sketch.id, lines.map((line) => line.id), { dx: 20, dy: 3 });
+  assert.equal(copied.createdEntityIds.length, 4);
+  assert.equal(copied.createdPointIds.length, 4);
+  assert.equal(sketch.profiles.length, 2);
+  assert.equal(copied.profileIds.length, 1);
+  assert.equal(new Set([...points.map((point) => point.id), ...copied.createdPointIds]).size, 8);
+
+  const center = createSketchPoint({ x: 50, y: 0 });
+  const circle = createSketchCircleEntity({ centerPointId: center.id, radius: 4 });
+  sketch.entities.push(center, circle);
+  scaleSketchSelection(document, sketch.id, [circle.id], { centerX: 0, centerY: 0, factor: 2 });
+  const scaledCenter = sketch.entities.find((entity) => entity.id === center.id);
+  const scaledCircle = sketch.entities.find((entity) => entity.id === circle.id);
+  assert.deepEqual([Number(scaledCenter.geometry.x), Number(scaledCenter.geometry.y), Number(scaledCircle.geometry.radius)], [100, 0, 8]);
+
+  const radiusConstraint = createSketchConstraint('radius', [circle.id], { value: '8' });
+  const radiusDimension = createSketchDimension('radius', [circle.id], { expression: '8', constraintId: radiusConstraint.id });
+  sketch.constraints.push(radiusConstraint);
+  sketch.dimensions.push(radiusDimension);
+  const before = structuredClone(document);
+  assert.throws(() => scaleSketchSelection(document, sketch.id, [circle.id], { centerX: 0, centerY: 0, factor: 1.5 }), /zablokowany przez wymiar/);
+  assert.deepEqual(document, before);
+});
+
 test('kontrakt encji jest rozszerzalny bez zmiany formatu dokumentu', () => {
   const document = createDocument('Przyszłe encje');
   const futureTypes = ['ellipse', 'ellipticalArc', 'spline', 'conic', 'slot', 'polygon', 'text'];
@@ -1156,6 +1217,10 @@ test('przesunięcie wierzchołka zachowuje ID i aktualizuje profil zależny', ()
   const sketch = createSketch({ entities: [...points, ...lines] });
   const profile = createDetectedProfile(sketch, lines.map((line) => line.id), { name: 'Profil L' });
   sketch.profiles.push(profile);
+  const horizontal = createSketchConstraint('horizontal', [lines[2].id]);
+  const dimension = createSketchDimension('aligned', [lines[2].id], { expression: '20', constraintId: horizontal.id });
+  sketch.constraints.push(horizontal);
+  sketch.dimensions.push(dimension);
   document.sketches.push(sketch);
   document.features.push(createFeature('extrude', {
     sketchId: sketch.id,
@@ -1169,6 +1234,8 @@ test('przesunięcie wierzchołka zachowuje ID i aktualizuje profil zależny', ()
 
   assert.equal(sketch.entities.find((entity) => entity.id === pointId).geometry.x, '15');
   assert.equal(sketch.profiles[0].geometry.points[3].x, '15');
+  assert.equal(sketch.constraints.length, 0);
+  assert.equal(sketch.dimensions.length, 0);
   assert.equal(validateDocument(document).valid, true);
   assert.deepEqual(prepareDocument(document).features[0].profiles[0].geometry.points[3], [15, 10]);
 });

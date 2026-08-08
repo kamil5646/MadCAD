@@ -37,8 +37,8 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 | Kolejność | Etap | Status | Zależność | Wynik użytkownika |
 | --- | --- | --- | --- | --- |
 | 1 | M1 Solver szkicu MVP | `[x]` | ukończony model encji | szkic ma wymiary, podstawowe więzy i stopnie swobody |
-| 2 | M2 Podstawowe modyfikacje szkicu | `[>]` | M1 | Trim/Extend/Break/Offset/Fillet/Chamfer i podstawowe transformacje zachowują więzy |
-| 3 | M3 Picking B-Rep | `[ ]` | trwałe ID z R0 | można stabilnie wskazać ścianę, krawędź i wierzchołek |
+| 2 | M2 Podstawowe modyfikacje szkicu | `[x]` | M1 | Trim/Extend/Break/Offset/Fillet/Chamfer i podstawowe transformacje zachowują więzy |
+| 3 | M3 Picking B-Rep | `[>]` | trwałe ID z R0 | można stabilnie wskazać ścianę, krawędź i wierzchołek |
 | 4 | M4 Konstrukcja podstawowa | `[ ]` | M3 | offset plane, midplane, plane przez trzy punkty, osie i punkty konstrukcyjne |
 | 5 | M5 Szkic na modelu i Project | `[ ]` | M1, M3, M4 | drugi szkic powstaje na ścianie i zachowuje projekcję krawędzi |
 | 6 | M6 Modelowanie części MVP | `[ ]` | M3, M5 | pełniejsze Extrude, Boolean, wskazane Fillet/Chamfer, Shell i podstawowe prymitywy |
@@ -46,17 +46,6 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 | 8 | M8 Inspect MVP | `[ ]` | M3, M6 | Measure, Section, objętość, pole, masa i środek masy |
 | 9 | M9 Przygotowanie druku MVP | `[ ]` | M6–M8 | orientacja, STEP/STL/3MF, skala 1:1, manifold, grubość, nawisy i przekazanie do slicera |
 | 10 | M10 Wydanie alpha/beta | `[ ]` | M1–M9 | instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS |
-
-## M2 — podstawowe modyfikacje szkicu `P0`
-
-- [x] Trim linii i łuku wybiera kliknięty fragment na canvasie, aktualizuje profil i bezpiecznie usuwa zerwane więzy oraz operacje.
-- [x] Extend i Break działają na canvasie dla linii/łuków, zachowują ID oraz zależne profile i bezpiecznie czyszczą więzy.
-- [x] Offset linii, łańcucha i profilu oraz pojedynczego łuku/okręgu z parametryczną odległością i kontrolą strony przez znak.
-- [x] Sketch Fillet i Sketch Chamfer dla dwóch linii zachowują profil oraz ID geometrii i jawnie czyszczą zerwane więzy.
-- [ ] Move, Rotate, Copy i Mirror; Scale tylko dla geometrii bez blokujących wymiarów.
-- [ ] Operacje aktualizują lub jawnie odrzucają więzy, zamiast pozostawiać zerwane referencje.
-
-Szyki szkicu oraz pomijanie wystąpień są `P1` i nie blokują M3.
 
 ## M3 — stabilne zaznaczanie B-Rep `P0`
 
@@ -158,4 +147,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M2.5 — Rotate, Copy i Mirror zaznaczenia; domknięcie istniejącego Move oraz bezpieczny Scale.`
+`M3.1 — Picking B-Rep: stabilne wskazywanie ścian i krawędzi na istniejącym mapowaniu trwałych ID.`

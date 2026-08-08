@@ -251,6 +251,7 @@ async function runUiFlow(window) {
       neighborPointId: pointAt(30, 10),
       originPointId,
       originCornerLineIds: entities.filter((entity) => entity.type === 'line' && entity.pointIds?.includes(originPointId)).map((entity) => entity.id),
+      allLineIds: entities.filter((entity) => entity.type === 'line').map((entity) => entity.id),
       lineId: entities.find((entity) => entity.type === 'line')?.id,
     };
   })()`);
@@ -341,6 +342,20 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 15`, 'utworzenie Offset linii');
   await sendShortcut('z');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 12`, 'Undo Offset');
+
+  progress('sketch copy transform command');
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.(${JSON.stringify(editTargets.allLineIds)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length === ${editTargets.allLineIds.length}`, 'pełny profil do Copy');
+  await clickTool('Transformuj');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Transformuj szkic')`, 'okno transformacji szkicu');
+  await setCommandField('Operacja', 'copy');
+  await waitForUi(window, `[...document.querySelectorAll('.command-field')].some((item) => item.firstElementChild?.textContent === 'Kopia ΔX')`, 'pola Copy');
+  await setCommandField('Kopia ΔX', '50');
+  await setCommandField('Kopia ΔY', '0');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 24 && window.__madcadVerifyDocumentState?.sketches?.at(-1)?.profiles === 2`, 'Copy tworzy niezależny profil');
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 12 && window.__madcadVerifyDocumentState?.sketches?.at(-1)?.profiles === 1`, 'Undo Copy');
 
   await clickSketchEntity(editTargets.concavePointId);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.includes(${JSON.stringify(editTargets.concavePointId)})`, 'ponowne zaznaczenie wierzchołka');
