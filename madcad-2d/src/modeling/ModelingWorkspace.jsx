@@ -396,6 +396,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
   const isMechanicalShape = isRectangle || isCircle || isArc || isPolygon || isEllipse || isSlot || isSpline || isConic;
   const isExtrude = command.type === 'extrude';
   const isBoolean = command.type === 'boolean';
+  const isPrimitive = command.type === 'primitive';
   const isHole = command.type === 'hole';
   const isFillet = command.type === 'fillet';
   const isShell = command.type === 'shell';
@@ -412,7 +413,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
   const axisTitles = { edge: 'Oś z krawędzi', cylinder: 'Oś walca', 'two-points': 'Oś przez dwa punkty', 'plane-intersection': 'Oś przecięcia płaszczyzn' };
   const isConstructionPoint = command.type === 'constructionPoint';
   const pointTitles = { vertex: 'Punkt na wierzchołku', center: 'Punkt środka', intersection: 'Punkt przecięcia' };
-  const title = isRectangle ? 'Prostokąt' : isCircle ? 'Okrąg' : isArc ? 'Łuk' : isPolygon ? 'Wielokąt regularny' : isEllipse ? 'Elipsa' : isSlot ? 'Slot' : isSpline ? 'Spline' : isConic ? 'Krzywa conic' : isPoint ? 'Punkt szkicu' : isExtrude ? 'Wyciągnięcie' : isBoolean ? 'Boolean' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : isShell ? 'Shell' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : isSketchOffset ? 'Offset szkicu' : isSketchCorner ? (command.mode === 'fillet' ? 'Fillet szkicu' : 'Chamfer szkicu') : isSketchTransform ? 'Transformuj szkic' : isOffsetPlane ? 'Płaszczyzna odsunięta' : isMidplane ? 'Płaszczyzna środkowa' : isThreePointPlane ? 'Płaszczyzna przez trzy punkty' : isConstructionAxis ? axisTitles[command.axisType] : isConstructionPoint ? pointTitles[command.pointType] : 'Fazowanie';
+  const title = isRectangle ? 'Prostokąt' : isCircle ? 'Okrąg' : isArc ? 'Łuk' : isPolygon ? 'Wielokąt regularny' : isEllipse ? 'Elipsa' : isSlot ? 'Slot' : isSpline ? 'Spline' : isConic ? 'Krzywa conic' : isPoint ? 'Punkt szkicu' : isExtrude ? 'Wyciągnięcie' : isBoolean ? 'Boolean' : isPrimitive ? 'Prymityw 3D' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : isShell ? 'Shell' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : isSketchOffset ? 'Offset szkicu' : isSketchCorner ? (command.mode === 'fillet' ? 'Fillet szkicu' : 'Chamfer szkicu') : isSketchTransform ? 'Transformuj szkic' : isOffsetPlane ? 'Płaszczyzna odsunięta' : isMidplane ? 'Płaszczyzna środkowa' : isThreePointPlane ? 'Płaszczyzna przez trzy punkty' : isConstructionAxis ? axisTitles[command.axisType] : isConstructionPoint ? pointTitles[command.pointType] : 'Fazowanie';
   return (
     <section className="command-dialog" aria-label={title}>
       <header><strong>{title}</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
@@ -471,6 +472,19 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
             <Field label="Bryła bazowa" value={command.targetName || command.targetBodyId} disabled />
             <Field label="Bryła narzędziowa" value={command.toolName || command.toolBodyId} disabled />
             <label className="command-field"><span>Operacja</span><select value={command.operation} onChange={(event) => onChange({ operation: event.target.value })}><option value="union">Union</option><option value="subtract">Subtract</option><option value="intersect">Intersect</option></select></label>
+          </>
+        )}
+        {isPrimitive && (
+          <>
+            <Field label="Nazwa" value={command.name} onChange={(name) => onChange({ name })} />
+            <label className="command-field"><span>Typ</span><select value={command.primitiveType} onChange={(event) => onChange({ primitiveType: event.target.value })}><option value="box">Box</option><option value="cylinder">Cylinder</option><option value="sphere">Sphere</option><option value="torus">Torus</option></select></label>
+            {command.primitiveType === 'box' && <><Field label="Szerokość" value={command.width} onChange={(width) => onChange({ width })} suffix="mm" autoFocus /><Field label="Głębokość" value={command.depth} onChange={(depth) => onChange({ depth })} suffix="mm" /><Field label="Wysokość" value={command.height} onChange={(height) => onChange({ height })} suffix="mm" /></>}
+            {command.primitiveType === 'cylinder' && <><Field label="Promień" value={command.radius} onChange={(radius) => onChange({ radius })} suffix="mm" autoFocus /><Field label="Wysokość" value={command.height} onChange={(height) => onChange({ height })} suffix="mm" /></>}
+            {command.primitiveType === 'sphere' && <Field label="Promień" value={command.radius} onChange={(radius) => onChange({ radius })} suffix="mm" autoFocus />}
+            {command.primitiveType === 'torus' && <><Field label="Promień główny" value={command.majorRadius} onChange={(majorRadius) => onChange({ majorRadius })} suffix="mm" autoFocus /><Field label="Promień przekroju" value={command.minorRadius} onChange={(minorRadius) => onChange({ minorRadius })} suffix="mm" /></>}
+            <Field label="Położenie X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" />
+            <Field label="Położenie Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" />
+            <Field label="Położenie Z" value={command.z} onChange={(z) => onChange({ z })} suffix="mm" />
           </>
         )}
         {isHole && (
@@ -674,6 +688,7 @@ function featureIcon(type, size = 16) {
   if (type === 'fillet') return <CircleDotDashed size={size} />;
   if (type === 'chamfer') return <Triangle size={size} />;
   if (type === 'shell') return <Layers3 size={size} />;
+  if (type === 'primitive') return <Box size={size} />;
   return <Box size={size} />;
 }
 
@@ -762,7 +777,7 @@ export default function ModelingWorkspace({ onClose }) {
   const engine = useCadEngine(previewDocument, { quality: command?.previewFeature ? 'preview' : 'display' });
   const constructionAxes = useMemo(() => resolveConstructionAxes(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
   const constructionPoints = useMemo(() => resolveConstructionPoints(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
-  const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => feature.type === 'extrude' && feature.operation === 'new').map((feature) => `body-${feature.id}`)), [document.features]);
+  const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => (feature.type === 'extrude' && feature.operation === 'new') || feature.type === 'primitive').map((feature) => `body-${feature.id}`)), [document.features]);
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
   const targetBodyId = selection?.kind === 'body' ? selection.id : (selection?.bodyId || engine.bodies[0]?.id || firstBodyId || null);
   const topologyReferenceStates = useMemo(() => inspectTopologyReferences(document, actualBodies), [document, actualBodies]);
@@ -849,6 +864,16 @@ export default function ModelingWorkspace({ onClose }) {
           targetBodyId: next.targetBodyId,
           toolBodyId: next.toolBodyId,
           operation: next.operation,
+        });
+        if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
+      }
+      if (next.type === 'primitive') {
+        next.previewFeature = createFeature('primitive', {
+          name: next.name,
+          primitiveType: next.primitiveType,
+          x: next.x, y: next.y, z: next.z,
+          width: next.width, depth: next.depth, height: next.height,
+          radius: next.radius, majorRadius: next.majorRadius, minorRadius: next.minorRadius,
         });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
@@ -1841,6 +1866,14 @@ export default function ModelingWorkspace({ onClose }) {
     setNotice('Wybierz Union, Subtract albo Intersect i zatwierdź operację Boolean.');
   };
 
+  const openPrimitive = () => {
+    if (readOnly) return readOnlyNotice();
+    const sequence = document.features.filter((feature) => feature.type === 'primitive').length + 1;
+    const next = { type: 'primitive', name: `Box ${sequence}`, primitiveType: 'box', x: '0', y: '0', z: '0', width: '20', depth: '20', height: '20', radius: '10', majorRadius: '15', minorRadius: '4', previewFeature: null };
+    setCommand(next);
+    window.setTimeout(() => updateCommand(next), 0);
+  };
+
   const openEdgeCommand = (type) => {
     if (readOnly) return readOnlyNotice();
     if (!targetBodyId || activeSketchId) {
@@ -2078,6 +2111,7 @@ export default function ModelingWorkspace({ onClose }) {
     if (profile) setSelection({ kind: 'profile', id: profile.id });
     if (feature.type === 'extrude') setCommand({ type: 'extrude', editId: feature.id, distance: feature.distance, secondDistance: feature.secondDistance || feature.distance, extent: feature.extent || 'one-side', operation: feature.operation, previewFeature: feature });
     else if (feature.type === 'boolean') setCommand({ type: 'boolean', editId: feature.id, operation: feature.operation, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, targetName: feature.targetBodyId, toolName: feature.toolBodyId, previewFeature: feature });
+    else if (feature.type === 'primitive') setCommand({ type: 'primitive', editId: feature.id, name: feature.name, primitiveType: feature.primitiveType, x: feature.x, y: feature.y, z: feature.z, width: feature.width || '20', depth: feature.depth || '20', height: feature.height || '20', radius: feature.radius || '10', majorRadius: feature.majorRadius || '15', minorRadius: feature.minorRadius || '4', previewFeature: feature });
     else if (feature.type === 'hole') setCommand({ type: 'hole', editId: feature.id, diameter: feature.diameter, depth: feature.depth, previewFeature: feature });
     else if (feature.type === 'shell') setCommand({ type: 'shell', editId: feature.id, thickness: feature.thickness, faceCount: feature.referenceIds?.length || 0, previewFeature: feature });
     else setCommand({ type: feature.type, editId: feature.id, size: feature.type === 'fillet' ? feature.radius : feature.distance, previewFeature: feature });
@@ -2288,7 +2322,7 @@ export default function ModelingWorkspace({ onClose }) {
               </>
             ) : (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || !selectedProfile} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || selectedBodyIds.length !== 2} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || !hasHoleReference || !engine.bodies.length} /></RibbonGroup>
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || !selectedProfile} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || selectedBodyIds.length !== 2} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || !hasHoleReference || !engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Layers3} label="Shell" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
                 <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={CircleDotDashed} label="Punkt wierzchołka" onClick={() => openConstructionPoint('vertex')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt centrum" onClick={() => openConstructionPoint('center')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt przecięcia" onClick={() => openConstructionPoint('intersection')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Otwórz" onClick={() => fileInputRef.current?.click()} /></RibbonGroup>

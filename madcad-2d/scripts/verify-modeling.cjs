@@ -460,6 +460,27 @@ async function runUiFlow(window) {
   const pointHoleVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume`);
   assertClose(pointHoleVolume, (40 * 30 * 10) - (Math.PI * 3 * 3 * 10), 0.05, 'Point reference hole volume');
 
+  progress('box cylinder sphere torus primitives');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla prymitywów');
+  const primitiveFixtures = [
+    { type: 'box', fields: { Szerokość: '10', Głębokość: '12', Wysokość: '14', 'Położenie X': '0' }, volume: 10 * 12 * 14 },
+    { type: 'cylinder', fields: { Promień: '5', Wysokość: '10', 'Położenie X': '30' }, volume: Math.PI * 5 * 5 * 10 },
+    { type: 'sphere', fields: { Promień: '6', 'Położenie X': '60' }, volume: (4 / 3) * Math.PI * 6 ** 3 },
+    { type: 'torus', fields: { 'Promień główny': '12', 'Promień przekroju': '3', 'Położenie X': '100' }, volume: 2 * Math.PI ** 2 * 12 * 3 ** 2 },
+  ];
+  for (const [index, fixture] of primitiveFixtures.entries()) {
+    await clickTool('Prymityw');
+    await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Prymityw 3D')`, `okno prymitywu ${fixture.type}`);
+    await setCommandField('Typ', fixture.type);
+    for (const [label, value] of Object.entries(fixture.fields)) await setCommandField(label, value);
+    const primitiveRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+    await confirmDialog();
+    await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${primitiveRevision} && window.__madcadVerifyEngineState?.bodies?.length === ${index + 1} && window.__madcadVerifyEngineState?.status === 'ready'`, `przeliczony prymityw ${fixture.type}`, modelingTimeoutMs);
+    const volume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[${index}].metrics.volume`);
+    assertClose(volume, fixture.volume, 0.05, `${fixture.type} volume`);
+  }
+
   progress('new document');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt');

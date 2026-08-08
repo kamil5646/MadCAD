@@ -3,6 +3,7 @@ import opencascadeWasm from 'replicad-opencascadejs/src/replicad_single.wasm?url
 import {
   Curve2D,
   FaceFinder,
+  cast,
   drawCircle,
   drawEllipse,
   draw,
@@ -10,7 +11,10 @@ import {
   getOC,
   importSTEP,
   importSTL,
+  makeAx2,
+  makeBox,
   makeCylinder,
+  makeSphere,
   measureShapeSurfaceProperties,
   measureShapeVolumeProperties,
   setOC,
@@ -129,6 +133,26 @@ function combineShapes(shapes) {
 
 function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.status === FEATURE_STATUS.SUPPRESSED) return;
+
+  if (feature.type === 'primitive') {
+    const [x, y, z] = feature.position;
+    let shape;
+    if (feature.primitiveType === 'box') shape = makeBox([x, y, z], [x + feature.widthValue, y + feature.depthValue, z + feature.heightValue]);
+    else if (feature.primitiveType === 'cylinder') shape = makeCylinder(feature.radiusValue, feature.heightValue, [x, y, z], [0, 0, 1]);
+    else if (feature.primitiveType === 'sphere') shape = makeSphere(feature.radiusValue).translate(x, y, z);
+    else if (feature.primitiveType === 'torus') {
+      if (feature.minorRadiusValue >= feature.majorRadiusValue) throw new Error('Promień przekroju Torus musi być mniejszy od promienia głównego.');
+      const axis = makeAx2([x, y, z], [0, 0, 1]);
+      const builder = new (getOC().BRepPrimAPI_MakeTorus_5)(axis, feature.majorRadiusValue, feature.minorRadiusValue);
+      shape = cast(builder.Shape());
+      builder.delete();
+      axis.delete();
+    } else throw new Error(`Nieobsługiwany prymityw: ${feature.primitiveType}.`);
+    const bodyId = `body-${feature.id}`;
+    bodyMap.set(bodyId, { id: bodyId, name: feature.name, sourceFeatureId: feature.id, representation: 'brep', shape });
+    bodyOrder.push(bodyId);
+    return;
+  }
 
   if (feature.type === 'extrude') {
     const span = extrusionSpan(feature);

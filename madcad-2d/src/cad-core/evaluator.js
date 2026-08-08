@@ -229,6 +229,29 @@ export function prepareDocument(document) {
     if (feature.type === 'boolean') {
       return { ...feature, status: 'ready', diagnostics: [] };
     }
+    if (feature.type === 'primitive') {
+      const read = (value, label, requirePositive = false) => {
+        const result = evaluateExpression(value ?? 0, parameterResult.values);
+        return requirePositive ? positive(result, label) : result;
+      };
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        position: [read(feature.x, 'Położenie X'), read(feature.y, 'Położenie Y'), read(feature.z, 'Położenie Z')],
+        ...(feature.primitiveType === 'box' ? {
+          widthValue: read(feature.width, 'Szerokość', true),
+          depthValue: read(feature.depth, 'Głębokość', true),
+          heightValue: read(feature.height, 'Wysokość', true),
+        } : {}),
+        ...(['cylinder', 'sphere'].includes(feature.primitiveType) ? { radiusValue: read(feature.radius, 'Promień', true) } : {}),
+        ...(feature.primitiveType === 'cylinder' ? { heightValue: read(feature.height, 'Wysokość', true) } : {}),
+        ...(feature.primitiveType === 'torus' ? {
+          majorRadiusValue: read(feature.majorRadius, 'Promień główny', true),
+          minorRadiusValue: read(feature.minorRadius, 'Promień przekroju', true),
+        } : {}),
+      };
+    }
     if (feature.type === 'fillet' || feature.type === 'chamfer') {
       const valueKey = feature.type === 'fillet' ? 'radius' : 'distance';
       return {

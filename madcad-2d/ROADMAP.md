@@ -75,7 +75,7 @@ Import SVG/DXF jest `P1`.
 - [x] Boolean Union/Subtract/Intersect dla wskazanych brył.
 - [x] Fillet i Chamfer wyłącznie wskazanych krawędzi.
 - [x] Shell z wyborem usuwanych ścian.
-- [ ] Box, Cylinder, Sphere i Torus.
+- [x] Box, Cylinder, Sphere i Torus.
 - [ ] Jeden manipulator dla Extrude, Move/Rotate i Offset Face.
 - [ ] Tekst szkicu realizować tutaj jako jeden scenariusz `Text → profile → Extrude/Emboss/Deboss`, aby nie blokował solvera.
 
@@ -143,4 +143,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M6.5 — Box, Cylinder, Sphere i Torus.`
+`M6.6 — Jeden manipulator dla Extrude, Move/Rotate i Offset Face.`

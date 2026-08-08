@@ -15,6 +15,7 @@ function featureExpressions(feature) {
   if (feature.type === 'fillet') return [feature.radius];
   if (feature.type === 'chamfer') return [feature.distance];
   if (feature.type === 'shell') return [feature.thickness];
+  if (feature.type === 'primitive') return [feature.x, feature.y, feature.z, feature.width, feature.depth, feature.height, feature.radius, feature.majorRadius, feature.minorRadius];
   return [];
 }
 
@@ -128,7 +129,7 @@ export function buildDependencyGraph(document) {
 
     if (feature.targetBodyId) addEdge(feature.targetBodyId, feature.id, 'modifies');
     if (feature.toolBodyId) addEdge(feature.toolBodyId, feature.id, 'consumes');
-    if (feature.type === 'extrude' && feature.operation === 'new') {
+    if ((feature.type === 'extrude' && feature.operation === 'new') || feature.type === 'primitive') {
       const bodyId = `body-${feature.id}`;
       addNode(bodyId, 'body', feature.name, { persisted: false, producerFeatureId: feature.id });
       bodyProducerById.set(bodyId, feature.id);

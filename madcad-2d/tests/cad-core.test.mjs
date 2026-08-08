@@ -436,6 +436,26 @@ test('Shell wymaga wskazanej ściany i przygotowuje parametryczną grubość dla
   assert.ok(validateDocument(missingFace).issues.some((issue) => issue.path.endsWith('.referenceIds') && issue.code === 'REQUIRED'));
 });
 
+test('Box, Cylinder, Sphere i Torus przygotowują parametryczne bryły oraz osobne ciała', () => {
+  const document = createDocument('Prymitywy');
+  const primitives = [
+    createFeature('primitive', { primitiveType: 'box', x: '1', y: '2', z: '3', width: '10', depth: '12', height: '14' }),
+    createFeature('primitive', { primitiveType: 'cylinder', x: '20', y: '0', z: '0', radius: '5', height: '10' }),
+    createFeature('primitive', { primitiveType: 'sphere', x: '40', y: '0', z: '0', radius: '6' }),
+    createFeature('primitive', { primitiveType: 'torus', x: '60', y: '0', z: '0', majorRadius: '12', minorRadius: '3' }),
+  ];
+  document.features.push(...primitives);
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features;
+  assert.deepEqual(prepared[0].position, [1, 2, 3]);
+  assert.deepEqual([prepared[0].widthValue, prepared[0].depthValue, prepared[0].heightValue], [10, 12, 14]);
+  assert.deepEqual([prepared[1].radiusValue, prepared[1].heightValue], [5, 10]);
+  assert.equal(prepared[2].radiusValue, 6);
+  assert.deepEqual([prepared[3].majorRadiusValue, prepared[3].minorRadiusValue], [12, 3]);
+  const graph = buildDependencyGraph(document);
+  assert.equal(primitives.every((feature) => graph.producerOfBody(`body-${feature.id}`) === feature.id), true);
+});
+
 test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwałymi linkami', () => {
   const document = createDocument('Project');
   const sketch = createSketch({ plane: 'XY', planeOffset: '8' });
