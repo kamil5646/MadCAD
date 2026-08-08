@@ -528,6 +528,38 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.holeType === 'countersink' && window.__madcadVerifyDocumentState.featureData[1].extent === 'distance'`, 'zapisany Countersink', modelingTimeoutMs);
   assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), countersinkVolume, 0.05, 'Countersink volume');
 
+  await editTimelineFeature(1, 'Otwór');
+  await setCommandField('Typ otworu', 'simple');
+  await setCommandField('Gwint', 'cosmetic');
+  await setCommandField('Średnica gwintu', '6');
+  await setCommandField('Skok gwintu', '1');
+  await setCommandField('Długość gwintu', '8');
+  await setCommandField('Kierunek gwintu', 'right');
+  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - ${faceEdgeHoleVolume}) < 0.05`, 'gwint kosmetyczny bez zmiany B-Rep', modelingTimeoutMs);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.threadMode === 'cosmetic' && window.__madcadVerifyDocumentState.featureData[1].threadDirection === 'right'`, 'zapisany gwint kosmetyczny', modelingTimeoutMs);
+
+  await editTimelineFeature(1, 'Otwór');
+  const modeledThreadRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await setCommandField('Gwint', 'modeled');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.previewThreadMode === 'modeled'`, 'parametry modelowanego gwintu');
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${modeledThreadRevision} && ['ok', 'error'].includes(window.__madcadVerifyEngineState?.timeline?.[1]?.status)`, 'modelowany gwint prawy', modelingTimeoutMs);
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const modeledThreadState = await window.webContents.executeJavaScript(`({ volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume, timeline: window.__madcadVerifyEngineState.timeline })`);
+  if (modeledThreadState.timeline?.[1]?.status !== 'ok') throw new Error(`Modeled thread kernel error: ${JSON.stringify(modeledThreadState)}`);
+  const rightThreadVolume = modeledThreadState.volume;
+  if (!(rightThreadVolume < faceEdgeHoleVolume - 0.1 && rightThreadVolume > faceEdgeHoleVolume - 100)) throw new Error(`Modeled right thread volume is invalid: ${rightThreadVolume}.`);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.threadMode === 'modeled'`, 'zapisany gwint modelowany');
+
+  await editTimelineFeature(1, 'Otwór');
+  await setCommandField('Kierunek gwintu', 'left');
+  await waitForUi(window, `window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'`, 'modelowany gwint lewy', modelingTimeoutMs);
+  const leftThreadVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`);
+  assertClose(leftThreadVolume, rightThreadVolume, 0.1, 'Left/right modeled thread volume');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.threadDirection === 'left'`, 'zapisany lewy gwint modelowany');
+
   progress('box cylinder sphere torus primitives');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla prymitywów');

@@ -288,6 +288,19 @@ function runFeature(feature, bodyMap, bodyOrder) {
       cutters.push(makeCone(sinkRadius + (epsilon * tangent), mainRadius, sinkDepth + epsilon, coneOrigin, placement.direction));
     }
     target.shape = target.shape.cut(combineShapes(cutters));
+    if (feature.threadMode === 'modeled') {
+      const threadDepth = Math.min(feature.threadPitchValue * 0.3, feature.threadDiameterValue * 0.08);
+      const turns = Math.max(1, Math.floor(feature.threadLengthValue / feature.threadPitchValue));
+      const grooveRadius = Math.min(feature.threadDiameterValue / 2, (feature.diameterValue / 2) + threadDepth);
+      const grooveWidth = Math.min(feature.threadPitchValue * 0.25, threadDepth);
+      const grooves = Array.from({ length: turns }, (_unused, index) => {
+        const phase = feature.threadDirection === 'left' ? 0.65 : 0.35;
+        const offset = Math.min(feature.threadLengthValue, (index + phase) * feature.threadPitchValue);
+        const origin = placement.position.map((value, axis) => value + (placement.direction[axis] * (offset - (grooveWidth / 2))));
+        return makeCylinder(grooveRadius, grooveWidth, origin, placement.direction);
+      });
+      for (const groove of grooves) target.shape = target.shape.cut(groove);
+    }
     return;
   }
 

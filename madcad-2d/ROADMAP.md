@@ -86,7 +86,7 @@ Revolve, Sweep, Loft, Draft, Thin Extrude, Heal/Replace Face, Rib, Coil i Pipe s
 - [x] Umieszczenie prostego otworu przez trwały punkt szkicu.
 - [x] Umieszczenie na planarnej ścianie z trwałymi referencjami do dwóch prostopadłych krawędzi i parametrycznymi odsunięciami.
 - [x] Otwór prosty, Counterbore i Countersink; Distance/Through All.
-- [ ] Podstawowy gwint metryczny kosmetyczny i modelowany: średnica, skok, kierunek i długość.
+- [x] Podstawowy gwint metryczny kosmetyczny i modelowany: średnica, skok, kierunek i długość.
 - [ ] Profil kompensacji luzu FFF bez zmiany nominalnego wymiaru.
 
 Tapered threads, wiele norm i klasy pasowania są `P1`.

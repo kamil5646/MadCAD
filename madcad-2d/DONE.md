@@ -62,6 +62,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Text tworzy przenośny profil znaków i realizuje nową bryłę, Emboss oraz Deboss bez zależności od fontu systemowego.
 - [x] Otwór można umieścić bez szkicu na planarnej ścianie przez dwie prostopadłe krawędzie i dwa parametryczne odsunięcia.
 - [x] Otwory proste, Counterbore i Countersink obsługują zakres Distance/Through All oraz dokładną geometrię walcową i stożkową.
+- [x] Gwint metryczny ma tryb kosmetyczny i modelowany z parametrami średnicy, skoku, długości oraz kierunku prawego/lewego; liczba zwojów ma bezpieczny limit.
 
 ## Ostatnia zweryfikowana baza
 

@@ -504,6 +504,8 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
             {command.extent === 'distance' && <Field label="Głębokość" value={command.depth} onChange={(depth) => onChange({ depth })} suffix="mm" />}
             {command.holeType === 'counterbore' && <><Field label="Średnica Counterbore" value={command.counterboreDiameter} onChange={(counterboreDiameter) => onChange({ counterboreDiameter })} suffix="mm" /><Field label="Głębokość Counterbore" value={command.counterboreDepth} onChange={(counterboreDepth) => onChange({ counterboreDepth })} suffix="mm" /></>}
             {command.holeType === 'countersink' && <><Field label="Średnica Countersink" value={command.countersinkDiameter} onChange={(countersinkDiameter) => onChange({ countersinkDiameter })} suffix="mm" /><Field label="Kąt Countersink" value={command.countersinkAngle} onChange={(countersinkAngle) => onChange({ countersinkAngle })} suffix="°" /></>}
+            <label className="command-field"><span>Gwint</span><select value={command.threadMode} onChange={(event) => onChange({ threadMode: event.target.value })}><option value="none">Brak</option><option value="cosmetic">Kosmetyczny</option><option value="modeled">Modelowany</option></select></label>
+            {command.threadMode !== 'none' && <><Field label="Średnica gwintu" value={command.threadDiameter} onChange={(threadDiameter) => onChange({ threadDiameter })} suffix="mm" /><Field label="Skok gwintu" value={command.threadPitch} onChange={(threadPitch) => onChange({ threadPitch })} suffix="mm" /><Field label="Długość gwintu" value={command.threadLength} onChange={(threadLength) => onChange({ threadLength })} suffix="mm" /><label className="command-field"><span>Kierunek gwintu</span><select value={command.threadDirection} onChange={(event) => onChange({ threadDirection: event.target.value })}><option value="right">Prawy</option><option value="left">Lewy</option></select></label></>}
           </>
         )}
         {(isFillet || command.type === 'chamfer') && (
@@ -878,6 +880,7 @@ export default function ModelingWorkspace({ onClose }) {
             holeType: next.holeType, extent: next.extent, diameter: next.diameter, depth: next.depth,
             counterboreDiameter: next.counterboreDiameter, counterboreDepth: next.counterboreDepth,
             countersinkDiameter: next.countersinkDiameter, countersinkAngle: next.countersinkAngle,
+            threadMode: next.threadMode, threadDiameter: next.threadDiameter, threadPitch: next.threadPitch, threadLength: next.threadLength, threadDirection: next.threadDirection,
           })
           : createFeature('hole', {
             name: current.previewFeature?.name || `Otwór ${document.features.length + 1}`,
@@ -887,6 +890,7 @@ export default function ModelingWorkspace({ onClose }) {
             holeType: next.holeType, extent: next.extent, diameter: next.diameter, depth: next.depth,
             counterboreDiameter: next.counterboreDiameter, counterboreDepth: next.counterboreDepth,
             countersinkDiameter: next.countersinkDiameter, countersinkAngle: next.countersinkAngle,
+            threadMode: next.threadMode, threadDiameter: next.threadDiameter, threadPitch: next.threadPitch, threadLength: next.threadLength, threadDirection: next.threadDirection,
           });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
@@ -1751,13 +1755,15 @@ export default function ModelingWorkspace({ onClose }) {
       })),
       features: document.features.length,
       featureIds: document.features.map((feature) => feature.id),
-      featureData: document.features.map((feature) => ({ id: feature.id, type: feature.type, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, depth: feature.depth, diameter: feature.diameter, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
+      featureData: document.features.map((feature) => ({ id: feature.id, type: feature.type, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, depth: feature.depth, diameter: feature.diameter, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
       references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
         : { kind: selection?.kind, id: selection?.id, items: selection?.items?.map((item) => ({ kind: item.kind, id: item.id })) || [] },
       command: command ? {
         type: command.type,
+        previewThreadMode: command.previewFeature?.threadMode,
+        previewThreadDirection: command.previewFeature?.threadDirection,
         points: command.points?.length || 0,
         segments: command.segmentIds?.length || 0,
       } : null,
@@ -1921,7 +1927,7 @@ export default function ModelingWorkspace({ onClose }) {
           createTopologyReference({ selection: selectedEdgeItems[0], descriptor: edgeRecords[0].descriptor, label: 'Otwór — krawędź 1' }),
           createTopologyReference({ selection: selectedEdgeItems[1], descriptor: edgeRecords[1].descriptor, label: 'Otwór — krawędź 2' }),
         ].map((reference) => ({ ...reference, scope: 'feature-input' }));
-        const next = { type: 'hole', placement: 'face-edges', targetBodyId: bodyId, firstOffset: '10', secondOffset: '10', holeType: 'simple', extent: 'distance', diameter: '6', depth: '10', counterboreDiameter: '10', counterboreDepth: '3', countersinkDiameter: '10', countersinkAngle: '90', topologyReferences, previewFeature: null };
+        const next = { type: 'hole', placement: 'face-edges', targetBodyId: bodyId, firstOffset: '10', secondOffset: '10', holeType: 'simple', extent: 'distance', diameter: '5', depth: '10', counterboreDiameter: '9', counterboreDepth: '3', countersinkDiameter: '10', countersinkAngle: '90', threadMode: 'none', threadDiameter: '6', threadPitch: '1', threadLength: '8', threadDirection: 'right', topologyReferences, previewFeature: null };
         setCommand(next);
         window.setTimeout(() => updateCommand(next), 0);
         setNotice('Otwór jest pozycjonowany parametrycznie od dwóch wskazanych krawędzi.');
@@ -1934,7 +1940,7 @@ export default function ModelingWorkspace({ onClose }) {
       setNotice('Zakończ szkic i wybierz punkt/profil albo planarną ścianę z dwiema prostopadłymi krawędziami.');
       return;
     }
-    const next = { type: 'hole', holeType: 'simple', extent: 'distance', diameter: selectedCircleDiameter, depth: '10', counterboreDiameter: '10', counterboreDepth: '3', countersinkDiameter: '10', countersinkAngle: '90', previewFeature: null };
+    const next = { type: 'hole', holeType: 'simple', extent: 'distance', diameter: selectedCircleDiameter, depth: '10', counterboreDiameter: '10', counterboreDepth: '3', countersinkDiameter: '10', countersinkAngle: '90', threadMode: 'none', threadDiameter: '10', threadPitch: '1.5', threadLength: '8', threadDirection: 'right', previewFeature: null };
     setCommand(next);
     window.setTimeout(() => updateCommand(next), 0);
   };
@@ -2239,7 +2245,7 @@ export default function ModelingWorkspace({ onClose }) {
     else if (feature.type === 'offsetFace') setCommand({ type: 'offsetFace', editId: feature.id, targetBodyId: feature.targetBodyId, distance: feature.distance, faceLabel: '1 wskazana', previewFeature: feature });
     else if (feature.type === 'textSolid') setCommand({ type: 'textSolid', editId: feature.id, text: feature.text, fontSize: feature.fontSize, depth: feature.depth, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', operation: feature.operation, targetBodyId: feature.targetBodyId || null, previewFeature: feature });
     else if (feature.type === 'hole') {
-      const holeOptions = { holeType: feature.holeType || 'simple', extent: feature.extent || 'distance', diameter: feature.diameter, depth: feature.depth || '10', counterboreDiameter: feature.counterboreDiameter || '10', counterboreDepth: feature.counterboreDepth || '3', countersinkDiameter: feature.countersinkDiameter || '10', countersinkAngle: feature.countersinkAngle || '90' };
+      const holeOptions = { holeType: feature.holeType || 'simple', extent: feature.extent || 'distance', diameter: feature.diameter, depth: feature.depth || '10', counterboreDiameter: feature.counterboreDiameter || '10', counterboreDepth: feature.counterboreDepth || '3', countersinkDiameter: feature.countersinkDiameter || '10', countersinkAngle: feature.countersinkAngle || '90', threadMode: feature.threadMode || 'none', threadDiameter: feature.threadDiameter || '10', threadPitch: feature.threadPitch || '1.5', threadLength: feature.threadLength || feature.depth || '8', threadDirection: feature.threadDirection || 'right' };
       setCommand(feature.placement === 'face-edges'
         ? { type: 'hole', placement: 'face-edges', editId: feature.id, targetBodyId: feature.targetBodyId, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, ...holeOptions, previewFeature: feature }
         : { type: 'hole', editId: feature.id, ...holeOptions, previewFeature: feature });

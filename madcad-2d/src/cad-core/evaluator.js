@@ -212,9 +212,15 @@ export function prepareDocument(document) {
       const counterboreDepthValue = holeType === 'counterbore' ? positive(evaluateExpression(feature.counterboreDepth, parameterResult.values), 'Głębokość Counterbore') : null;
       const countersinkDiameterValue = holeType === 'countersink' ? positive(evaluateExpression(feature.countersinkDiameter, parameterResult.values), 'Średnica Countersink') : null;
       const countersinkAngleValue = holeType === 'countersink' ? evaluateExpression(feature.countersinkAngle, parameterResult.values) : null;
+      const threadMode = feature.threadMode || 'none';
+      const threadDiameterValue = threadMode !== 'none' ? positive(evaluateExpression(feature.threadDiameter, parameterResult.values), 'Średnica gwintu') : null;
+      const threadPitchValue = threadMode !== 'none' ? positive(evaluateExpression(feature.threadPitch, parameterResult.values), 'Skok gwintu') : null;
+      const threadLengthValue = threadMode !== 'none' ? positive(evaluateExpression(feature.threadLength, parameterResult.values), 'Długość gwintu') : null;
       if (counterboreDiameterValue !== null && counterboreDiameterValue <= diameterValue) throw new Error('Średnica Counterbore musi być większa od średnicy otworu.');
       if (countersinkDiameterValue !== null && countersinkDiameterValue <= diameterValue) throw new Error('Średnica Countersink musi być większa od średnicy otworu.');
       if (countersinkAngleValue !== null && (countersinkAngleValue <= 0 || countersinkAngleValue >= 180)) throw new Error('Kąt Countersink musi należeć do zakresu 0–180°.');
+      if (threadDiameterValue !== null && threadDiameterValue <= diameterValue) throw new Error('Średnica gwintu musi być większa od średnicy otworu bazowego.');
+      if (threadMode === 'modeled' && (threadLengthValue / threadPitchValue) > 200) throw new Error('Modelowany gwint może mieć najwyżej 200 zwojów.');
       if (feature.placement === 'face-edges') {
         return {
           ...feature,
@@ -223,7 +229,7 @@ export function prepareDocument(document) {
           topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
           firstOffsetValue: positive(evaluateExpression(feature.firstOffset, parameterResult.values), 'Odległość od pierwszej krawędzi'),
           secondOffsetValue: positive(evaluateExpression(feature.secondOffset, parameterResult.values), 'Odległość od drugiej krawędzi'),
-          holeType, extent, diameterValue, depthValue, counterboreDiameterValue, counterboreDepthValue, countersinkDiameterValue, countersinkAngleValue,
+          holeType, extent, diameterValue, depthValue, counterboreDiameterValue, counterboreDepthValue, countersinkDiameterValue, countersinkAngleValue, threadMode, threadDiameterValue, threadPitchValue, threadLengthValue,
         };
       }
       let profile;
@@ -245,7 +251,7 @@ export function prepareDocument(document) {
         status: 'ready',
         diagnostics: [],
         profile: { ...profile, plane, planeOffset: evaluateExpression((document.sketches.find((item) => item.id === feature.sketchId)?.planeOffset) || 0, parameterResult.values) },
-        holeType, extent, diameterValue, depthValue, counterboreDiameterValue, counterboreDepthValue, countersinkDiameterValue, countersinkAngleValue,
+        holeType, extent, diameterValue, depthValue, counterboreDiameterValue, counterboreDepthValue, countersinkDiameterValue, countersinkAngleValue, threadMode, threadDiameterValue, threadPitchValue, threadLengthValue,
       };
     }
     if (feature.type === 'boolean') {
