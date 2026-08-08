@@ -127,6 +127,13 @@ async function runUiFlow(window) {
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);
+  const toggleSketchOption = (label) => window.webContents.executeJavaScript(`(() => {
+    const row = [...document.querySelectorAll('.sketch-palette label')].find((item) => item.querySelector('span')?.textContent === ${JSON.stringify(label)});
+    const input = row?.querySelector('input[type="checkbox"]');
+    if (!input) throw new Error('Brak opcji szkicu: ${label}');
+    const key = Object.keys(input).find((item) => item.startsWith('__reactProps'));
+    input[key].onChange({ target: { checked: !input.checked } });
+  })()`);
   const dragDirectExtrude = async () => {
     await window.webContents.executeJavaScript(`(async () => {
       const canvas = document.querySelector('.model-viewport canvas');
@@ -699,11 +706,32 @@ async function runUiFlow(window) {
     button.click();
   })()`);
   await waitForUi(window, `!document.querySelector('.reference-repair-panel') && window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(brokenProject.entityId)}]?.state === 'projected' && !window.__madcadVerifyDocumentState.references.find((item) => item.id === ${JSON.stringify(brokenProject.referenceId)})?.topologyId.endsWith('-lost')`, 'naprawa i odświeżenie Project', modelingTimeoutMs);
+  await toggleSketchOption('Geometria Project');
+  await waitForUi(window, `window.__madcadSketchVisibilityState?.showProjectedGeometry === false && !window.__madcadSketchVisibilityState.entityIds.includes(${JSON.stringify(brokenProject.entityId)})`, 'ukrycie geometrii Project');
+  await toggleSketchOption('Geometria Project');
+  await waitForUi(window, `window.__madcadSketchVisibilityState?.showProjectedGeometry === true && window.__madcadSketchVisibilityState.entityIds.includes(${JSON.stringify(brokenProject.entityId)})`, 'pokazanie geometrii Project');
+  await toggleSketchOption('Slice modelu');
+  await waitForUi(window, `window.__madcadSketchVisibilityState?.sliceModel === true && document.querySelector('.sketch-slice-badge')?.textContent.includes('XY')`, 'Slice modelu na płaszczyźnie szkicu');
+  await toggleSketchOption('Slice modelu');
+  await waitForUi(window, `window.__madcadSketchVisibilityState?.sliceModel === false && !document.querySelector('.sketch-slice-badge')`, 'wyłączenie Slice');
   await clickTool('Okrąg');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Okrąg')`, 'polecenie okręgu');
   await setCommandField('Średnica', '12');
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.tree-profile').length === 2`, 'profil okręgu');
+  await toggleSketchOption('Profile');
+  await waitForUi(window, `window.__madcadSketchVisibilityState?.showSketchProfiles === false && window.__madcadSketchVisibilityState.profileCount === 0`, 'ukrycie profili szkicu');
+  await toggleSketchOption('Profile');
+  await waitForUi(window, `window.__madcadSketchVisibilityState?.showSketchProfiles === true && window.__madcadSketchVisibilityState.profileCount > 0`, 'pokazanie profili szkicu');
+  await toggleSketchOption('Wiązania');
+  await waitForUi(window, `window.__madcadSketchVisibilityState?.showSketchConstraints === false`, 'ukrycie więzów szkicu');
+  await toggleSketchOption('Wiązania');
+  await toggleSketchOption('Wymiary');
+  await waitForUi(window, `window.__madcadSketchVisibilityState?.showSketchConstraints === true && window.__madcadSketchVisibilityState?.showSketchDimensions === false`, 'niezależna kontrola wymiarów i więzów');
+  await toggleSketchOption('Wymiary');
+  await toggleSketchOption('Geometrie konstrukcyjne');
+  await waitForUi(window, `window.__madcadSketchVisibilityState?.showSketchDimensions === true && window.__madcadSketchVisibilityState?.showConstructionGeometry === false`, 'ukrycie geometrii konstrukcyjnej');
+  await toggleSketchOption('Geometrie konstrukcyjne');
   await clickTool('Zakończ szkic');
   await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'bryła przed otworem', modelingTimeoutMs);
   await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === 'Otwór' && !item.disabled)`, 'aktywne polecenie otworu', modelingTimeoutMs);

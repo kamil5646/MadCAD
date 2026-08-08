@@ -40,8 +40,8 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 | 2 | M2 Podstawowe modyfikacje szkicu | `[x]` | M1 | Trim/Extend/Break/Offset/Fillet/Chamfer i podstawowe transformacje zachowują więzy |
 | 3 | M3 Picking B-Rep | `[x]` | trwałe ID z R0 | można stabilnie wskazać ścianę, krawędź i wierzchołek |
 | 4 | M4 Konstrukcja podstawowa | `[x]` | M3 | offset plane, midplane, plane przez trzy punkty, osie i punkty konstrukcyjne |
-| 5 | M5 Szkic na modelu i Project | `[>]` | M1, M3, M4 | drugi szkic powstaje na ścianie i zachowuje projekcję krawędzi |
-| 6 | M6 Modelowanie części MVP | `[ ]` | M3, M5 | pełniejsze Extrude, Boolean, wskazane Fillet/Chamfer, Shell i podstawowe prymitywy |
+| 5 | M5 Szkic na modelu i Project | `[x]` | M1, M3, M4 | drugi szkic powstaje na ścianie i zachowuje projekcję krawędzi |
+| 6 | M6 Modelowanie części MVP | `[>]` | M3, M5 | pełniejsze Extrude, Boolean, wskazane Fillet/Chamfer, Shell i podstawowe prymitywy |
 | 7 | M7 Otwory i gwinty MVP | `[ ]` | M3, M5, M6 | proste/counterbore/countersink otwory i podstawowy gwint metryczny |
 | 8 | M8 Inspect MVP | `[ ]` | M3, M6 | Measure, Section, objętość, pole, masa i środek masy |
 | 9 | M9 Przygotowanie druku MVP | `[ ]` | M6–M8 | orientacja, STEP/STL/3MF, skala 1:1, manifold, grubość, nawisy i przekazanie do slicera |
@@ -65,7 +65,7 @@ Pozostałe warianty UCS/płaszczyzn/osi są `P1`.
   - [x] Nazwana płaszczyzna konstrukcyjna.
 - [x] Project punktu, krawędzi i zamkniętej pętli.
 - [x] Associative link oraz czytelny stan utraconej referencji.
-- [ ] Slice i kontrola widoczności profili, więzów oraz projected geometry.
+- [x] Slice i kontrola widoczności profili, więzów oraz projected geometry.
 
 Import SVG/DXF jest `P1`.
 
@@ -143,4 +143,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M5.5 — Slice oraz kontrola widoczności profili, więzów i geometrii Project.`
+`M6.1 — Extrude: Join/Cut/Intersect, dwie strony, symetrycznie i Through All.`

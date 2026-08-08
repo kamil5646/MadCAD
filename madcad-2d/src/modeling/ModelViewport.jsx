@@ -148,10 +148,22 @@ function sketchEntityState(entity, selected, error = false) {
   return 'under-constrained';
 }
 
-function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [], errorIds = [], showPoints = true, planeOffset = 0 } = {}) {
+function addSketchEntities(group, sketch, parameters, plane, {
+  selectedIds = [],
+  errorIds = [],
+  showPoints = true,
+  showConstruction = true,
+  showProjected = true,
+  planeOffset = 0,
+} = {}) {
   const entityMap = new Map(sketch.entities.map((entity) => [entity.id, entity]));
   const selected = new Set(selectedIds);
   const errors = new Set(errorIds);
+  const roleVisible = (entity) => (showConstruction || !['construction', 'centerline'].includes(entity.role))
+    && (showProjected || entity.role !== 'projected');
+  const visibleCurves = sketch.entities.filter((entity) => entity.type !== 'point' && roleVisible(entity));
+  const allReferencedPointIds = new Set(sketch.entities.flatMap((entity) => entity.pointIds || []));
+  const visibleReferencedPointIds = new Set(visibleCurves.flatMap((entity) => entity.pointIds || []));
   const coordinates = new Map();
   const entries = [];
   const pickables = [];
@@ -239,8 +251,7 @@ function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [],
     return [];
   };
 
-  for (const entity of sketch.entities) {
-    if (entity.type === 'point') continue;
+  for (const entity of visibleCurves) {
     const localPoints = localPointsFor(entity);
     if (localPoints.length < 2) continue;
     const hasError = errors.has(entity.id) || (entity.type === 'line'
@@ -263,7 +274,8 @@ function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [],
 
   if (showPoints) {
     for (const entity of sketch.entities) {
-      if (entity.type !== 'point' || !coordinates.has(entity.id)) continue;
+      if (entity.type !== 'point' || !coordinates.has(entity.id) || !roleVisible(entity)) continue;
+      if (allReferencedPointIds.has(entity.id) && !visibleReferencedPointIds.has(entity.id)) continue;
       const hasError = errors.has(entity.id);
       const baseColor = sketchEntityColor(entity, selected.has(entity.id), hasError);
       const point = new THREE.Mesh(
@@ -339,6 +351,11 @@ export default function ModelViewport({
   onSketchMove,
   showSketchPoints = true,
   showSketchProfiles = true,
+  showSketchConstraints = true,
+  showSketchDimensions = true,
+  showConstructionGeometry = true,
+  showProjectedGeometry = true,
+  sliceModel = false,
   parameters = [],
   showGrid = true,
   selectedBodyId,
@@ -430,6 +447,7 @@ export default function ModelViewport({
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.localClippingEnabled = Boolean(activeSketch && sliceModel);
     host.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -464,6 +482,14 @@ export default function ModelViewport({
     }
 
     const modelGroup = new THREE.Group();
+    const slicePlane = activeSketch && sliceModel
+      ? activePlane === 'XZ'
+        ? new THREE.Plane(new THREE.Vector3(0, -1, 0), -activePlaneOffset)
+        : activePlane === 'YZ'
+          ? new THREE.Plane(new THREE.Vector3(1, 0, 0), -activePlaneOffset)
+          : new THREE.Plane(new THREE.Vector3(0, 0, 1), -activePlaneOffset)
+      : null;
+    const clippingPlanes = slicePlane ? [slicePlane] : [];
     const pickables = [];
     const facePickables = [];
     const edgePickables = [];
@@ -485,6 +511,7 @@ export default function ModelViewport({
         transparent: Boolean(activeSketchId),
         opacity: activeSketchId ? 0.38 : 1,
         side: THREE.DoubleSide,
+        clippingPlanes,
       });
       const mesh = new THREE.Mesh(geometry, material);
       mesh.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, faceGroups: body.faceGroups };
@@ -497,7 +524,7 @@ export default function ModelViewport({
         highlightGeometry.setAttribute('position', geometry.getAttribute('position'));
         if (geometry.getAttribute('normal')) highlightGeometry.setAttribute('normal', geometry.getAttribute('normal'));
         highlightGeometry.setIndex(Array.from(body.triangles.slice(faceGroup.start, faceGroup.start + faceGroup.count)));
-        const highlight = new THREE.Mesh(highlightGeometry, new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.42, depthWrite: false, side: THREE.DoubleSide }));
+        const highlight = new THREE.Mesh(highlightGeometry, new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.42, depthWrite: false, side: THREE.DoubleSide, clippingPlanes }));
         highlight.renderOrder = 3;
         highlight.visible = selectedTopologySet.has(faceGroup.topologyId);
         modelGroup.add(highlight);
@@ -510,7 +537,7 @@ export default function ModelViewport({
         const edgeGeometry = new THREE.BufferGeometry();
         edgeGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
         const edgeSelected = selectedTopologySet.has(edgeGroup.topologyId);
-        const edgeMaterial = new THREE.LineBasicMaterial({ color: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : 0x26333b), transparent: true, opacity: activeSketchId ? 0.34 : edgeSelected ? 1 : 0.72 });
+        const edgeMaterial = new THREE.LineBasicMaterial({ color: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : 0x26333b), transparent: true, opacity: activeSketchId ? 0.34 : edgeSelected ? 1 : 0.72, clippingPlanes });
         const edgeObject = new THREE.LineSegments(edgeGeometry, edgeMaterial);
         edgeObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, topologyKind: 'edge', topologyId: edgeGroup.topologyId, baseColor: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : 0x26333b) };
         modelGroup.add(edgeObject);
@@ -524,7 +551,7 @@ export default function ModelViewport({
         const vertexGeometry = new THREE.BufferGeometry();
         vertexGeometry.setAttribute('position', new THREE.Float32BufferAttribute(point, 3));
         const vertexSelected = selectedTopologySet.has(vertex.id);
-        const vertexObject = new THREE.Points(vertexGeometry, new THREE.PointsMaterial({ color: vertexSelected ? 0xffc857 : 0xe8f8ff, size: vertexSelected ? 9 : 6, sizeAttenuation: false, transparent: true, opacity: selectionFilter === 'vertex' || vertexSelected ? 1 : 0 }));
+        const vertexObject = new THREE.Points(vertexGeometry, new THREE.PointsMaterial({ color: vertexSelected ? 0xffc857 : 0xe8f8ff, size: vertexSelected ? 9 : 6, sizeAttenuation: false, transparent: true, opacity: selectionFilter === 'vertex' || vertexSelected ? 1 : 0, clippingPlanes }));
         vertexObject.visible = selectionFilter === 'vertex' || vertexSelected;
         vertexObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, topologyKind: 'vertex', topologyId: vertex.id, baseColor: vertexSelected ? 0xffc857 : 0xe8f8ff };
         modelGroup.add(vertexObject);
@@ -693,6 +720,8 @@ export default function ModelViewport({
         selectedIds: selectedSketchEntityIds,
         errorIds: lostProjectedEntityIds,
         showPoints: showSketchPoints,
+        showConstruction: showConstructionGeometry,
+        showProjected: showProjectedGeometry,
         planeOffset: activePlaneOffset,
       });
       if (draftProfile) addSketchLine(sketchGroup, draftProfile, parameters, activePlane, true, activePlaneOffset);
@@ -1396,6 +1425,16 @@ export default function ModelViewport({
             y: Math.round(rect.top + ((1 - point.y) * rect.height) / 2),
           };
         };
+        window.__madcadSketchVisibilityState = {
+          entityIds: sketchRender.entries.map((entry) => entry.entity.id),
+          profileCount: sketchProfileRender?.pickables?.length || 0,
+          showSketchProfiles,
+          showSketchConstraints,
+          showSketchDimensions,
+          showConstructionGeometry,
+          showProjectedGeometry,
+          sliceModel,
+        };
       }
       if (!activeSketch && bodies.length && new URLSearchParams(window.location.search).has('verify')) {
         modelGroup.updateMatrixWorld(true);
@@ -1468,13 +1507,14 @@ export default function ModelViewport({
       delete window.__madcadDirectHandlePoint;
       delete window.__madcadSketchEntityScreenPoints;
       delete window.__madcadSketchLocalToScreen;
+      delete window.__madcadSketchVisibilityState;
       delete window.__madcadModelScreenState;
       delete window.__madcadModelHover;
       delete window.__madcadConstructionPlaneState;
       delete window.__madcadConstructionAxisState;
       delete window.__madcadConstructionPointState;
     };
-  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
+  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, snapThresholdPx, sketchModifierMode]);
 
   return (
     <div className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`} ref={hostRef}>
@@ -1540,16 +1580,19 @@ export default function ModelViewport({
           <span>{solverAnalysis.degreesOfFreedom === null ? '—' : `${solverAnalysis.degreesOfFreedom} DOF`}</span>
         </div>
       )}
-      {activeSketchId && activeSketch?.constraints?.length > 0 && (
+      {activeSketchId && activeSketch?.constraints?.length > 0 && (showSketchConstraints || showSketchDimensions) && (
         <div className="sketch-constraint-badges" aria-label="Wiązania szkicu">
-          {activeSketch.constraints.map((constraint) => {
+          {activeSketch.constraints.filter((constraint) => {
+            const isDimension = activeSketch.dimensions?.some((dimension) => dimension.constraintId === constraint.id);
+            return isDimension ? showSketchDimensions : showSketchConstraints;
+          }).map((constraint) => {
             const labels = { fixed: 'F', coincident: '●', horizontal: 'H', vertical: 'V', distance: '↔', distanceX: 'X', distanceY: 'Y', angle: '∠', radius: 'R', diameter: 'Ø', tangent: 'T', equal: '=' };
             const conflicting = solverAnalysis?.conflictConstraintIds?.includes(constraint.id);
             return <button key={constraint.id} className={`${selectedSketchConstraintId === constraint.id ? 'selected' : ''} ${conflicting ? 'conflict' : ''}`} type="button" title={`${constraint.type}${constraint.value !== undefined ? `: ${constraint.value}` : ''}`} onClick={() => onSketchConstraintSelection?.(constraint.id)}>{labels[constraint.type] || '?'}</button>;
           })}
         </div>
       )}
-      {selectedSketchConstraintId && activeSketch?.constraints?.some((constraint) => constraint.id === selectedSketchConstraintId && constraint.value !== undefined) && (
+      {showSketchDimensions && selectedSketchConstraintId && activeSketch?.constraints?.some((constraint) => constraint.id === selectedSketchConstraintId && constraint.value !== undefined) && (
         <form className="sketch-constraint-editor" key={`${selectedSketchConstraintId}:${activeSketch.constraints.find((constraint) => constraint.id === selectedSketchConstraintId)?.value}`} onSubmit={(event) => {
           event.preventDefault();
           onSketchConstraintValueChange?.(selectedSketchConstraintId, new FormData(event.currentTarget).get('constraintValue'));
@@ -1560,6 +1603,7 @@ export default function ModelViewport({
         </form>
       )}
       {activeSketchId && <div className="sketch-plane-badge"><PencilRulerIcon /> Szkic · {activePlane}</div>}
+      {activeSketchId && sliceModel && <div className="sketch-slice-badge">Slice · przekrój na {activePlane}</div>}
       {activeSketchId && draftType && <div className="sketch-pointer-hint">Kliknij środek, a następnie punkt rozmiaru</div>}
       {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
       {activeSketchId && sketchTool && <div className="sketch-pointer-hint">Klikaj kolejne punkty · kliknij początek, aby zamknąć · Alt chwilowo wyłącza snap · Enter/Escape kończy</div>}

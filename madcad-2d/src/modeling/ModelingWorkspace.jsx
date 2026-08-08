@@ -590,6 +590,8 @@ function SketchPalette({ options, onChange, onFinish }) {
     ['dimensions', 'Wymiary'],
     ['constraints', 'Wiązania'],
     ['construction', 'Geometrie konstrukcyjne'],
+    ['projected', 'Geometria Project'],
+    ['slice', 'Slice modelu'],
     ['sketch3d', 'Szkic 3D'],
   ];
   return (
@@ -675,7 +677,7 @@ export default function ModelingWorkspace({ onClose }) {
   const [activeSketchId, setActiveSketchId] = useState(null);
   const [command, setCommand] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(true);
-  const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, profiles: true, points: true, dimensions: true, constraints: true, construction: true, sketch3d: false });
+  const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, profiles: true, points: true, dimensions: true, constraints: true, construction: true, projected: true, slice: false, sketch3d: false });
   const [notice, setNotice] = useState(initialOpen.warning || 'Gotowe. Wybierz „Utwórz szkic”, aby rozpocząć modelowanie.');
   const fileInputRef = useRef(null);
   const readOnly = documentAccess.readOnly;
@@ -2239,6 +2241,11 @@ export default function ModelingWorkspace({ onClose }) {
             onSketchMove={readOnly ? undefined : moveSketchEntities}
             showSketchPoints={sketchOptions.points}
             showSketchProfiles={sketchOptions.profiles}
+            showSketchConstraints={sketchOptions.constraints}
+            showSketchDimensions={sketchOptions.dimensions}
+            showConstructionGeometry={sketchOptions.construction}
+            showProjectedGeometry={sketchOptions.projected}
+            sliceModel={sketchOptions.slice}
             parameters={document.parameters}
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : (selection?.bodyId || null)}

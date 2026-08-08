@@ -1034,6 +1034,20 @@
   transform: translateX(-50%);
 }
 
+.sketch-slice-badge {
+  position: absolute;
+  z-index: 4;
+  bottom: 44px;
+  left: calc(50% + 112px);
+  padding: 5px 8px;
+  border: 1px solid #b9894a;
+  border-radius: 2px;
+  background: rgba(77, 59, 38, 0.92);
+  color: #ffd394;
+  font-size: 10px;
+  pointer-events: none;
+}
+
 .sketch-pointer-hint {
   position: absolute;
   z-index: 4;
