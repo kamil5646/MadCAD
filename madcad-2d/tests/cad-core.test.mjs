@@ -56,6 +56,7 @@ import { resolveFaceEdgeHolePlacement } from '../src/cad-core/face-edge-hole.js'
 import { measureSelection } from '../src/cad-core/measure-selection.js';
 import { calculateMassProperties } from '../src/cad-core/mass-properties.js';
 import { summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
+import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-profiles.js';
 import {
   arcCenterStartEnd,
   arcThroughThreePoints,
@@ -606,6 +607,12 @@ test('analiza geometrii wybiera minimalny promień i zachowuje dokładne pary ko
     { metrics: { minimumRadius: null } },
   ], { collisions: [{ firstBodyId: 'a', secondBodyId: 'b', volume: 12 }] });
   assert.deepEqual(result, { bodyCount: 3, minimumRadius: 3, collisions: [{ firstBodyId: 'a', secondBodyId: 'b', volume: 12 }] });
+});
+
+test('profile Bambu, Prusa i Creality ustawiają stół, a profil własny zachowuje wymiary', () => {
+  assert.deepEqual(PRINTER_PROFILES.map((profile) => profile.id), ['bambu-x1-p1', 'prusa-mk4', 'creality-ender3']);
+  assert.deepEqual(applyPrinterProfile({ material: 'PLA' }, 'prusa-mk4'), { material: 'PLA', profileId: 'prusa-mk4', bedWidth: 250, bedDepth: 210, bedHeight: 220 });
+  assert.deepEqual(applyPrinterProfile({ material: 'PETG', bedWidth: 300, bedDepth: 300, bedHeight: 400 }, 'custom'), { material: 'PETG', profileId: 'custom', bedWidth: 300, bedDepth: 300, bedHeight: 400 });
 });
 
 test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwałymi linkami', () => {

@@ -111,6 +111,7 @@ import { resolveFaceEdgeHolePlacement } from '../cad-core/face-edge-hole.js';
 import { measureSelection } from '../cad-core/measure-selection.js';
 import { calculateMassProperties } from '../cad-core/mass-properties.js';
 import { summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
+import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profiles.js';
 import ModelViewport from './ModelViewport.jsx';
 import './modeling.css';
 
@@ -764,12 +765,14 @@ function PrintPanel({ document, bodies, engine, commit, onExport, onClose, readO
     return max.map((value, axis) => value - min[axis]);
   }, [bodies]);
   const fits = Boolean(bodies.length) && bounds[0] <= document.print.bedWidth && bounds[1] <= document.print.bedDepth && bounds[2] <= document.print.bedHeight;
-  const update = (key, value) => commit((next) => { next.print[key] = Math.max(1, Number(value) || 1); });
+  const update = (key, value) => commit((next) => { next.print[key] = Math.max(1, Number(value) || 1); next.print.profileId = 'custom'; });
+  const selectProfile = (profileId) => commit((next) => { next.print = applyPrinterProfile(next.print, profileId); });
   return (
     <aside className="print-panel print-inspector">
       <header><div><strong>DRUK 3D</strong><span>Sprawdź model i wyeksportuj siatkę.</span></div><button type="button" onClick={onClose} title="Zamknij"><X size={16} /></button></header>
       <div className="print-section">
         <h3>Objętość robocza</h3>
+        <label className="command-field"><span>Profil drukarki</span><select value={document.print.profileId || 'custom'} onChange={(event) => selectProfile(event.target.value)} disabled={readOnly}>{PRINTER_PROFILES.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}<option value="custom">Własny</option></select></label>
         <Field type="number" label="Szerokość X" value={document.print.bedWidth} suffix="mm" onChange={(value) => update('bedWidth', value)} disabled={readOnly} />
         <Field type="number" label="Głębokość Y" value={document.print.bedDepth} suffix="mm" onChange={(value) => update('bedDepth', value)} disabled={readOnly} />
         <Field type="number" label="Wysokość Z" value={document.print.bedHeight} suffix="mm" onChange={(value) => update('bedHeight', value)} disabled={readOnly} />

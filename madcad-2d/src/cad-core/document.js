@@ -142,7 +142,7 @@ export function createDocument(name = 'Nowy projekt') {
     bodies: [],
     components: [],
     references: [],
-    print: { bedWidth: 220, bedDepth: 220, bedHeight: 250, material: 'PLA' },
+    print: { profileId: 'creality-ender3', bedWidth: 220, bedDepth: 220, bedHeight: 250, material: 'PLA' },
     metadata: { createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }
   };
 }
