@@ -1237,6 +1237,79 @@
   box-shadow: 0 15px 40px rgba(8, 13, 19, 0.42);
 }
 
+.measure-panel {
+  position: absolute;
+  z-index: 7;
+  top: 14px;
+  right: 14px;
+  width: 300px;
+  border: 1px solid #66717e;
+  border-radius: 3px;
+  background: rgba(52, 62, 75, 0.97);
+  box-shadow: 0 15px 40px rgba(8, 13, 19, 0.42);
+  color: #e1e7ec;
+}
+
+.measure-panel > header {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid #596573;
+  background: #3f4a59;
+}
+
+.measure-panel > header div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.measure-panel > header button {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #dce4ea;
+  cursor: pointer;
+}
+
+.measure-panel-body {
+  padding: 10px 12px 12px;
+}
+
+.measure-panel-body p {
+  margin: 2px 0;
+  color: #b9c4cd;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.measure-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(112, 126, 139, 0.36);
+  font-size: 11px;
+}
+
+.measure-row:last-child {
+  border-bottom: 0;
+}
+
+.measure-row span {
+  color: #aeb9c2;
+}
+
+.measure-row strong {
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
 .sketch-palette {
   position: absolute;
   z-index: 6;

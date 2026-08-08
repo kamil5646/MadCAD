@@ -53,6 +53,7 @@ import { projectTopologyToSketch, synchronizeProjectedGeometry } from '../src/ca
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import { createTextProfile } from '../src/cad-core/text-profile.js';
 import { resolveFaceEdgeHolePlacement } from '../src/cad-core/face-edge-hole.js';
+import { measureSelection } from '../src/cad-core/measure-selection.js';
 import {
   arcCenterStartEnd,
   arcThroughThreePoints,
@@ -551,6 +552,40 @@ test('otwór na ścianie zachowuje parametryczne odległości od dwóch krawędz
   const countersink = prepareDocument(countersinkDocument).features[1];
   assert.deepEqual([countersink.countersinkDiameterValue, countersink.countersinkAngleValue, countersink.depthValue], [10, 90, 10]);
   assert.deepEqual([countersink.threadMode, countersink.threadDiameterValue, countersink.threadPitchValue, countersink.threadLengthValue, countersink.threadDirection], ['modeled', 6, 1, 8, 'left']);
+});
+
+test('Measure zwraca długość, odległość, kąt, promień, średnicę, pole i pozycję zaznaczenia', () => {
+  const body = {
+    id: 'body-a',
+    metrics: { volume: 6000, area: 2200, centerOfMass: [5, 10, 15], dimensions: [10, 20, 30] },
+    topology: {
+      faces: [{ id: 'face-a', descriptor: { geometry: 'PLANE', area: 200, center: [5, 10, 0], centerOfMass: [5, 10, 0], normal: [0, 0, 1] } }],
+      edges: [
+        { id: 'circle-a', descriptor: { geometry: 'CIRCLE', length: 8 * Math.PI, center: [5, 5, 0], radius: 4, diameter: 8, endpoints: [[9, 5, 0], [9, 5, 0]] } },
+        { id: 'line-x', descriptor: { geometry: 'LINE', length: 10, endpoints: [[0, 0, 0], [10, 0, 0]] } },
+        { id: 'line-y', descriptor: { geometry: 'LINE', length: 10, endpoints: [[0, 5, 0], [0, 15, 0]] } },
+      ],
+      vertices: [
+        { id: 'vertex-a', descriptor: { point: [0, 0, 5] } },
+        { id: 'vertex-b', descriptor: { point: [3, 4, 5] } },
+      ],
+    },
+  };
+
+  assert.deepEqual(measureSelection([body], { kind: 'body', id: body.id }), {
+    selectionCount: 1, kind: 'body', position: [5, 10, 15], volume: 6000, area: 2200, dimensions: [10, 20, 30],
+  });
+  assert.deepEqual(measureSelection([body], { kind: 'face', id: 'face-a', bodyId: body.id }), {
+    selectionCount: 1, kind: 'face', position: [5, 10, 0], area: 200, normal: [0, 0, 1],
+  });
+  const circle = measureSelection([body], { kind: 'edge', id: 'circle-a', bodyId: body.id });
+  assert.deepEqual([circle.length, circle.radius, circle.diameter, circle.position], [8 * Math.PI, 4, 8, [5, 5, 0]]);
+  const vertices = measureSelection([body], { items: [{ kind: 'vertex', id: 'vertex-a', bodyId: body.id }, { kind: 'vertex', id: 'vertex-b', bodyId: body.id }] });
+  assert.deepEqual([vertices.distance, vertices.delta], [5, [3, 4, 0]]);
+  const lines = measureSelection([body], { items: [{ kind: 'edge', id: 'line-x', bodyId: body.id }, { kind: 'edge', id: 'line-y', bodyId: body.id }] });
+  assert.equal(lines.angle, 90);
+  const vertexToFace = measureSelection([body], { items: [{ kind: 'vertex', id: 'vertex-a', bodyId: body.id }, { kind: 'face', id: 'face-a', bodyId: body.id }] });
+  assert.equal(vertexToFace.distance, 5);
 });
 
 test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwałymi linkami', () => {

@@ -487,6 +487,16 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(faceEdgeHoleSelection[1])}, 'add')`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(faceEdgeHoleSelection[2])}, 'add')`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.items?.length === 3`, 'ściana i dwie krawędzie otworu');
+  await clickTool('Zmierz');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'measure' && Math.abs(window.__madcadVerifyDocumentState.command.measurement?.angle - 90) < 0.001 && window.__madcadVerifyDocumentState.command.measurement?.length > 0 && window.__madcadVerifyDocumentState.command.measurement?.distance > 0`, 'Measure dwóch prostopadłych krawędzi');
+  await waitForUi(window, `document.querySelector('.measure-panel')?.textContent.includes('Długość') && document.querySelector('.measure-panel')?.textContent.includes('Odległość') && document.querySelector('.measure-panel')?.textContent.includes('Kąt')`, 'panel wyniku Measure');
+  await window.webContents.executeJavaScript(`(() => {
+    const button = document.querySelector('.measure-panel header button');
+    const key = button && Object.keys(button).find((item) => item.startsWith('__reactProps'));
+    if (!key || typeof button[key]?.onClick !== 'function') throw new Error('Brak zamknięcia Measure.');
+    button[key].onClick();
+  })()`);
+  await waitForUi(window, `!document.querySelector('.measure-panel')`, 'zamknięty Measure');
   await clickTool('Otwór');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Od krawędzi 1')`, 'pozycjonowanie otworu od krawędzi');
   await setCommandField('Od krawędzi 1', '6');

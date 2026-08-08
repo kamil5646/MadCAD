@@ -64,10 +64,11 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Otwory proste, Counterbore i Countersink obsługują zakres Distance/Through All oraz dokładną geometrię walcową i stożkową.
 - [x] Gwint metryczny ma tryb kosmetyczny i modelowany z parametrami średnicy, skoku, długości oraz kierunku prawego/lewego; liczba zwojów ma bezpieczny limit.
 - [x] Profil luzu FFF zwiększa wyłącznie wykonawczą średnicę otworu o dwukrotność naddatku promieniowego, zachowując nominalny wymiar i wyrażenie parametryczne.
+- [x] Measure odczytuje długość, odległość, kąt, promień/średnicę, pole i pozycję z trwałego zaznaczenia B-Rep; dla bryły pokazuje też objętość i gabaryt.
 
 ## Ostatnia zweryfikowana baza
 
-- Testy rdzenia: 79 zaliczonych, 0 błędów.
+- Testy rdzenia: 80 zaliczonych, 0 błędów.
 - Desktop E2E: profile XY/XZ/YZ, spline, conic, parametryczny wspornik, prymitywy, wspólny manipulator, Text/Emboss/Deboss, otwór z punktu, fillet/chamfer, Shell, autosave, odtworzenie workera oraz eksport STEP/STL.
 - Commity kontrolne: `1633cf3`, `6505103`, `be3c067`, `ec5e45f`, `0ad3b75`, `1ca5237`, `1a0a02b`, `fe19842`.
 

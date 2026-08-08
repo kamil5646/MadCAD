@@ -427,11 +427,15 @@ function selectedFaceHashes(shape, references) {
 }
 
 function faceDescriptor(face) {
+  let properties;
   try {
     const center = face.center.toTuple();
+    properties = measureShapeSurfaceProperties(face);
     const descriptor = {
       geometry: face.geomType,
       center,
+      area: properties.area,
+      centerOfMass: [...properties.centerOfMass],
       normal: face.normalAt(center).toTuple(),
       orientation: face.orientation,
     };
@@ -452,10 +456,15 @@ function faceDescriptor(face) {
     return descriptor;
   } catch (_error) {
     return { geometry: 'UNKNOWN_FACE' };
+  } finally {
+    properties?.delete();
   }
 }
 
 function edgeDescriptor(edge) {
+  let adaptor;
+  let circle;
+  let circleCenter;
   try {
     const start = edge.startPoint.toTuple();
     const end = edge.endPoint.toTuple();
@@ -465,14 +474,27 @@ function edgeDescriptor(edge) {
       }
       return 0;
     });
-    return {
+    const descriptor = {
       geometry: edge.geomType,
       endpoints: ordered,
       length: edge.length,
       closed: edge.isClosed,
     };
+    if (descriptor.geometry === 'CIRCLE') {
+      adaptor = edge._geomAdaptor();
+      circle = adaptor.Circle();
+      circleCenter = circle.Location();
+      descriptor.center = [circleCenter.X(), circleCenter.Y(), circleCenter.Z()];
+      descriptor.radius = circle.Radius();
+      descriptor.diameter = descriptor.radius * 2;
+    }
+    return descriptor;
   } catch (_error) {
     return { geometry: 'UNKNOWN_EDGE' };
+  } finally {
+    circleCenter?.delete();
+    circle?.delete();
+    adaptor?.delete();
   }
 }
 
