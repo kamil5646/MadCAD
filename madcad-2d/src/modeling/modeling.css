@@ -1636,6 +1636,44 @@
   font-size: 11px;
 }
 
+.print-field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.print-field-grid .command-field:last-child {
+  grid-column: 1 / -1;
+}
+
+.print-layout-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.print-layout-actions button {
+  min-height: 32px;
+  border: 1px solid #596776;
+  border-radius: 2px;
+  background: #313b47;
+  color: #dbe5ec;
+  font-size: 10px;
+}
+
+.print-layout-actions button:disabled {
+  opacity: 0.42;
+}
+
+.print-section small {
+  display: block;
+  margin-top: 8px;
+  color: #9daab5;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 .print-summary dl {
   margin: 0;
 }

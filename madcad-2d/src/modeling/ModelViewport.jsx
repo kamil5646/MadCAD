@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Maximize2, Move3d, Orbit, Square, ZoomIn } from 'lucide-react';
 import * as THREE from 'three';
+import { calculatePrintLayout } from '../cad-core/print-layout.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
 import { analyzeSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
@@ -380,6 +381,7 @@ export default function ModelViewport({
   snapThresholdPx = DEFAULT_SNAP_THRESHOLD_PX,
   bed,
   showBed,
+  printLayout,
 }) {
   const hostRef = useRef(null);
   const directHandleRef = useRef(null);
@@ -582,7 +584,23 @@ export default function ModelViewport({
         vertexPickables.push(vertexObject);
       }
     }
-    scene.add(modelGroup);
+    if (showBed) {
+      const printResult = calculatePrintLayout(bodies, printLayout);
+      const degrees = Math.PI / 180;
+      const orientation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(...printResult.layout.orientationAxis), printResult.layout.orientationAngle * degrees);
+      const rotateX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), printResult.layout.rotationX * degrees);
+      const rotateY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), printResult.layout.rotationY * degrees);
+      const rotateZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), printResult.layout.rotationZ * degrees);
+      const rotation = rotateZ.clone().multiply(rotateY).multiply(rotateX).multiply(orientation);
+      printResult.instances.forEach(({ index, offsetX }) => {
+        const instance = index === 0 ? modelGroup : modelGroup.clone(true);
+        instance.scale.setScalar(printResult.layout.scale);
+        instance.quaternion.copy(rotation);
+        instance.position.set(printResult.layout.positionX + offsetX, printResult.layout.positionY, printResult.layout.positionZ);
+        scene.add(instance);
+      });
+      if (new URLSearchParams(window.location.search).has('verify')) window.__madcadPrintLayoutState = printResult;
+    } else scene.add(modelGroup);
 
     const sectionGroup = new THREE.Group();
     if (sectionAnalysis?.enabled) {

@@ -112,6 +112,7 @@ import { measureSelection } from '../cad-core/measure-selection.js';
 import { calculateMassProperties } from '../cad-core/mass-properties.js';
 import { summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profiles.js';
+import { calculatePrintLayout, orientationForBedFace } from '../cad-core/print-layout.js';
 import ModelViewport from './ModelViewport.jsx';
 import './modeling.css';
 
@@ -753,33 +754,77 @@ function SketchPalette({ options, onChange, onFinish }) {
   );
 }
 
-function PrintPanel({ document, bodies, engine, commit, onExport, onClose, readOnly = false }) {
-  const bounds = useMemo(() => {
-    if (!bodies.length) return [0, 0, 0];
-    const min = [Infinity, Infinity, Infinity];
-    const max = [-Infinity, -Infinity, -Infinity];
-    bodies.forEach((body) => body.bounds.forEach((point, pointIndex) => point.forEach((value, axis) => {
-      if (pointIndex === 0) min[axis] = Math.min(min[axis], value);
-      else max[axis] = Math.max(max[axis], value);
-    })));
-    return max.map((value, axis) => value - min[axis]);
-  }, [bodies]);
-  const fits = Boolean(bodies.length) && bounds[0] <= document.print.bedWidth && bounds[1] <= document.print.bedDepth && bounds[2] <= document.print.bedHeight;
-  const update = (key, value) => commit((next) => { next.print[key] = Math.max(1, Number(value) || 1); next.print.profileId = 'custom'; });
+function PrintPanel({ document, bodies, engine, selectedFace, commit, onExport, onClose, readOnly = false }) {
+  const layoutResult = useMemo(() => calculatePrintLayout(bodies, document.print), [bodies, document.print]);
+  const bounds = layoutResult.dimensions;
+  const fits = Boolean(bodies.length)
+    && layoutResult.min[0] >= -document.print.bedWidth / 2
+    && layoutResult.max[0] <= document.print.bedWidth / 2
+    && layoutResult.min[1] >= -document.print.bedDepth / 2
+    && layoutResult.max[1] <= document.print.bedDepth / 2
+    && layoutResult.min[2] >= -0.001
+    && layoutResult.max[2] <= document.print.bedHeight;
+  const updateBed = (key, value) => commit((next) => { next.print[key] = Math.max(1, Number(value) || 1); next.print.profileId = 'custom'; });
+  const updateLayout = (key, value) => commit((next) => {
+    const parsed = Number(value);
+    if (key === 'scale') next.print[key] = Math.max(0.01, Number.isFinite(parsed) ? parsed : 1);
+    else if (key === 'copies') next.print[key] = Math.max(1, Math.min(100, Math.round(Number.isFinite(parsed) ? parsed : 1)));
+    else if (key === 'copySpacing') next.print[key] = Math.max(0, Number.isFinite(parsed) ? parsed : 0);
+    else next.print[key] = Number.isFinite(parsed) ? parsed : 0;
+  });
   const selectProfile = (profileId) => commit((next) => { next.print = applyPrinterProfile(next.print, profileId); });
+  const orientToSelectedFace = () => commit((next) => {
+    const orientation = orientationForBedFace(selectedFace.normal);
+    const candidate = {
+      ...next.print,
+      rotationX: 0, rotationY: 0, rotationZ: 0,
+      positionZ: 0,
+      orientationAxis: orientation.axis,
+      orientationAngle: orientation.angle,
+    };
+    const result = calculatePrintLayout(bodies, candidate);
+    next.print = { ...candidate, positionZ: -result.min[2] };
+  });
+  const resetLayout = () => commit((next) => {
+    Object.assign(next.print, {
+      positionX: 0, positionY: 0, positionZ: 0,
+      rotationX: 0, rotationY: 0, rotationZ: 0,
+      scale: 1, copies: 1, copySpacing: 10,
+      orientationAxis: [0, 0, 1], orientationAngle: 0,
+    });
+  });
   return (
     <aside className="print-panel print-inspector">
       <header><div><strong>DRUK 3D</strong><span>Sprawdź model i wyeksportuj siatkę.</span></div><button type="button" onClick={onClose} title="Zamknij"><X size={16} /></button></header>
       <div className="print-section">
         <h3>Objętość robocza</h3>
         <label className="command-field"><span>Profil drukarki</span><select value={document.print.profileId || 'custom'} onChange={(event) => selectProfile(event.target.value)} disabled={readOnly}>{PRINTER_PROFILES.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}<option value="custom">Własny</option></select></label>
-        <Field type="number" label="Szerokość X" value={document.print.bedWidth} suffix="mm" onChange={(value) => update('bedWidth', value)} disabled={readOnly} />
-        <Field type="number" label="Głębokość Y" value={document.print.bedDepth} suffix="mm" onChange={(value) => update('bedDepth', value)} disabled={readOnly} />
-        <Field type="number" label="Wysokość Z" value={document.print.bedHeight} suffix="mm" onChange={(value) => update('bedHeight', value)} disabled={readOnly} />
+        <Field type="number" label="Szerokość X" value={document.print.bedWidth} suffix="mm" onChange={(value) => updateBed('bedWidth', value)} disabled={readOnly} />
+        <Field type="number" label="Głębokość Y" value={document.print.bedDepth} suffix="mm" onChange={(value) => updateBed('bedDepth', value)} disabled={readOnly} />
+        <Field type="number" label="Wysokość Z" value={document.print.bedHeight} suffix="mm" onChange={(value) => updateBed('bedHeight', value)} disabled={readOnly} />
+      </div>
+      <div className="print-section">
+        <h3>Układ części</h3>
+        <div className="print-field-grid">
+          <Field type="number" label="Pozycja X" value={document.print.positionX ?? 0} suffix="mm" onChange={(value) => updateLayout('positionX', value)} disabled={readOnly} />
+          <Field type="number" label="Pozycja Y" value={document.print.positionY ?? 0} suffix="mm" onChange={(value) => updateLayout('positionY', value)} disabled={readOnly} />
+          <Field type="number" label="Pozycja Z" value={document.print.positionZ ?? 0} suffix="mm" onChange={(value) => updateLayout('positionZ', value)} disabled={readOnly} />
+          <Field type="number" label="Obrót X" value={document.print.rotationX ?? 0} suffix="°" onChange={(value) => updateLayout('rotationX', value)} disabled={readOnly} />
+          <Field type="number" label="Obrót Y" value={document.print.rotationY ?? 0} suffix="°" onChange={(value) => updateLayout('rotationY', value)} disabled={readOnly} />
+          <Field type="number" label="Obrót Z" value={document.print.rotationZ ?? 0} suffix="°" onChange={(value) => updateLayout('rotationZ', value)} disabled={readOnly} />
+          <Field type="number" label="Skala" value={document.print.scale ?? 1} suffix="×" onChange={(value) => updateLayout('scale', value)} disabled={readOnly} />
+          <Field type="number" label="Kopie" value={document.print.copies ?? 1} suffix="szt." onChange={(value) => updateLayout('copies', value)} disabled={readOnly} />
+          <Field type="number" label="Odstęp" value={document.print.copySpacing ?? 10} suffix="mm" onChange={(value) => updateLayout('copySpacing', value)} disabled={readOnly} />
+        </div>
+        <div className="print-layout-actions">
+          <button type="button" disabled={readOnly || !selectedFace} onClick={orientToSelectedFace}>Połóż ścianą na stole</button>
+          <button type="button" disabled={readOnly} onClick={resetLayout}>Resetuj układ</button>
+        </div>
+        <small>{selectedFace ? 'Zaznaczona płaska ściana jest gotowa do orientacji.' : 'Zaznacz płaską ścianę modelu, aby oprzeć ją na stole.'}</small>
       </div>
       <div className="print-section print-summary">
         <h3>Kontrola modelu</h3>
-        <dl><div><dt>Bryły</dt><dd>{bodies.length}</dd></div><div><dt>Rozmiar</dt><dd>{bounds.map((value) => value.toFixed(1)).join(' × ')} mm</dd></div></dl>
+        <dl><div><dt>Bryły</dt><dd>{bodies.length}</dd></div><div><dt>Kopie</dt><dd>{layoutResult.layout.copies}</dd></div><div><dt>Rozmiar układu</dt><dd>{bounds.map((value) => value.toFixed(1)).join(' × ')} mm</dd></div></dl>
         <p className={fits ? 'check-ok' : 'check-warning'}>{!bodies.length ? 'Najpierw utwórz bryłę.' : fits ? 'Model mieści się na stole drukarki.' : 'Model przekracza obszar drukarki.'}</p>
       </div>
       <div className="print-actions">
@@ -907,6 +952,12 @@ export default function ModelingWorkspace({ onClose }) {
     }
   }, [command?.type, command?.density, massBodies]);
   const geometryInspection = useMemo(() => summarizeGeometryInspection(engine.bodies, engine.analysis), [engine.bodies, engine.analysis]);
+  const selectedPrintFace = useMemo(() => {
+    if (selectedFaceItems.length !== 1) return null;
+    const selected = selectedFaceItems[0];
+    const descriptor = engine.bodies.find((body) => body.id === selected.bodyId)?.topology?.faces?.find((face) => face.id === selected.id)?.descriptor;
+    return descriptor?.geometry === 'PLANE' && Array.isArray(descriptor.normal) ? descriptor : null;
+  }, [engine.bodies, selectedFaceItems]);
   const constructionAxes = useMemo(() => resolveConstructionAxes(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
   const constructionPoints = useMemo(() => resolveConstructionPoints(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
   const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => (feature.type === 'extrude' && feature.operation === 'new') || feature.type === 'primitive' || (feature.type === 'textSolid' && feature.operation === 'new')).map((feature) => `body-${feature.id}`)), [document.features]);
@@ -2684,6 +2735,7 @@ export default function ModelingWorkspace({ onClose }) {
             snapThresholdPx={sketchOptions.snapDistance}
             bed={document.print}
             showBed={workspace === 'print'}
+            printLayout={document.print}
           />
           <div className={`engine-status ${engine.status}`}><span />{engine.status === 'ready' ? `${command?.previewFeature ? 'Podgląd' : 'Model'} gotowy · ${engine.bodies.length} ${engine.bodies.length === 1 ? 'bryła' : 'brył'}` : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>
           <TopologyReferenceRepairPanel items={lostTopologyReferences} selection={selection} onReassign={repairTopologyReference} />
@@ -2707,7 +2759,7 @@ export default function ModelingWorkspace({ onClose }) {
           {command?.type === 'parameters' && <ParametersDialog document={document} commit={commit} onClose={() => setCommand(null)} />}
           {activeSketchId && <SketchPalette options={sketchOptions} onChange={(key, value) => setSketchOptions((current) => ({ ...current, [key]: value }))} onFinish={finishSketch} />}
         </main>
-        {workspace === 'print' && <PrintPanel document={document} bodies={engine.bodies} engine={engine} commit={commit} onExport={exportModel} onClose={() => switchWorkspace('solid')} readOnly={readOnly} />}
+        {workspace === 'print' && <PrintPanel document={document} bodies={engine.bodies} engine={engine} selectedFace={selectedPrintFace} commit={commit} onExport={exportModel} onClose={() => switchWorkspace('solid')} readOnly={readOnly} />}
       </div>
 
       <footer className="modeling-footer">

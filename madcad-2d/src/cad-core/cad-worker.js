@@ -27,6 +27,7 @@ import { GEOMETRY_POLICY } from './geometry-policy.js';
 import { resolveFaceEdgeHolePlacement } from './face-edge-hole.js';
 import { assignStableTopologyIds } from './topology-naming.js';
 import { RevisionCache, SerialTaskQueue, estimateMeshBytes, isStaleRevision } from './worker-runtime.js';
+import { calculatePrintLayout, normalizePrintLayout } from './print-layout.js';
 
 let kernelPromise;
 let latestRequestedRevision = 0;
@@ -717,6 +718,20 @@ async function validateExportRoundTrip(kernelBodies, blobs, format) {
   }));
 }
 
+function preparePrintBodies(kernelBodies, renderBodies, print) {
+  const layoutResult = calculatePrintLayout(renderBodies, print);
+  const layout = normalizePrintLayout(print);
+  return layoutResult.instances.flatMap(({ index, offsetX }) => kernelBodies.map((body) => {
+    let shape = body.shape.clone().scale(layout.scale, [0, 0, 0]);
+    if (Math.abs(layout.orientationAngle) > 1e-9) shape = shape.rotate(layout.orientationAngle, [0, 0, 0], layout.orientationAxis);
+    if (Math.abs(layout.rotationX) > 1e-9) shape = shape.rotate(layout.rotationX, [0, 0, 0], [1, 0, 0]);
+    if (Math.abs(layout.rotationY) > 1e-9) shape = shape.rotate(layout.rotationY, [0, 0, 0], [0, 1, 0]);
+    if (Math.abs(layout.rotationZ) > 1e-9) shape = shape.rotate(layout.rotationZ, [0, 0, 0], [0, 0, 1]);
+    shape = shape.translate(layout.positionX + offsetX, layout.positionY, layout.positionZ);
+    return { ...body, id: `${body.id}-print-${index + 1}`, shape };
+  }));
+}
+
 async function exportBodies(kernelBodies, format, validateRoundTrip = false) {
   if (!kernelBodies.length) throw new Error('Brak bryły do eksportu.');
   if (format !== 'step' && format !== 'stl') throw new Error(`Nieobsługiwany format eksportu: ${format}.`);
@@ -752,8 +767,13 @@ async function handleMessage(data) {
   }
   if (type === 'export') {
     const evaluated = await resolveRevision(document, revision, 'display');
-    const exported = await exportBodies(evaluated.kernelBodies, format, validateRoundTrip);
-    self.postMessage({ id, ok: true, type, result: { format, revision, ...exported } }, exported.buffers);
+    const printBodies = preparePrintBodies(evaluated.kernelBodies, evaluated.renderBodies, document.print);
+    try {
+      const exported = await exportBodies(printBodies, format, validateRoundTrip);
+      self.postMessage({ id, ok: true, type, result: { format, revision, ...exported } }, exported.buffers);
+    } finally {
+      printBodies.forEach((body) => body.shape.delete?.());
+    }
     return;
   }
   const error = new Error(`Nieznane polecenie: ${type}`);

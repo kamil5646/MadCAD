@@ -57,6 +57,7 @@ import { measureSelection } from '../src/cad-core/measure-selection.js';
 import { calculateMassProperties } from '../src/cad-core/mass-properties.js';
 import { summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-profiles.js';
+import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, transformPrintPoint } from '../src/cad-core/print-layout.js';
 import {
   arcCenterStartEnd,
   arcThroughThreePoints,
@@ -2115,4 +2116,38 @@ test('zapis atomowy zachowuje poprzednią poprawną wersję jako .bak', async ()
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('układ druku normalizuje wartości i rozstawia obrócone kopie bez nakładania', () => {
+  const normalized = normalizePrintLayout({ scale: 0, copies: 2.6, copySpacing: -4, orientationAxis: [0, 0, 0] });
+  assert.equal(normalized.copies, 3);
+  assert.equal(normalized.copySpacing, 0);
+  assert.ok(normalized.scale > 0);
+  assert.deepEqual(normalized.orientationAxis, [0, 0, 1]);
+
+  const result = calculatePrintLayout([{ bounds: [[-5, -10, 0], [5, 10, 2]] }], {
+    rotationZ: 90,
+    scale: 2,
+    copies: 2,
+    copySpacing: 4,
+    positionX: -3,
+    positionY: 7,
+    positionZ: 1,
+  });
+  assert.deepEqual(result.dimensions.map((value) => Math.round(value)), [84, 20, 4]);
+  assert.equal(Math.round(result.pitch), 44);
+  assert.deepEqual(result.min.map((value) => Math.round(value)), [-23, -3, 1]);
+});
+
+test('orientacja druku kieruje normalną zaznaczonej ściany do stołu', () => {
+  const orientation = orientationForBedFace([1, 0, 0]);
+  const transformed = transformPrintPoint([1, 0, 0], {
+    orientationAxis: orientation.axis,
+    orientationAngle: orientation.angle,
+  });
+  assert.ok(Math.abs(transformed[0]) < 1e-9);
+  assert.ok(Math.abs(transformed[1]) < 1e-9);
+  assert.ok(Math.abs(transformed[2] + 1) < 1e-9);
+  assert.deepEqual(orientationForBedFace([0, 0, -1]), { axis: [0, 0, 1], angle: 0 });
+  assert.deepEqual(orientationForBedFace([0, 0, 1]), { axis: [1, 0, 0], angle: 180 });
 });
