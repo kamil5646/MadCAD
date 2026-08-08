@@ -1644,7 +1644,7 @@
       localStorage.setItem("cad-session-v2", JSON.stringify(parsed));
       restoreSession();
       state.autosaveLastPayload = JSON.stringify(parsed);
-      echoCommand("Przywrócono autozapis po awaryjnym zamknięciu.");
+      echoCommand(result.warning || "Przywrócono autozapis po awaryjnym zamknięciu.");
       return true;
     } catch (error) {
       console.warn("Nie udało się przywrócić autozapisu:", error);

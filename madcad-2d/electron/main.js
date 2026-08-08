@@ -7,6 +7,8 @@ const { promisify } = require('util');
 const { app, BrowserWindow, Menu, shell, nativeImage, dialog, ipcMain } = require('electron');
 const { atomicWriteTextFile } = require('./atomic-file.cjs');
 const { normalizeSlicerPayload, windowsCandidates } = require('./slicer-launch.cjs');
+const { isTrustedAppNavigation, normalizeExternalUrl } = require('./security-policy.cjs');
+const { readRecoverableTextFile, validateJsonText } = require('./recovery-file.cjs');
 
 const execFileAsync = promisify(execFile);
 
@@ -1238,7 +1240,9 @@ function createMainWindow() {
       contextIsolation: true,
       sandbox: false,
       nodeIntegration: false,
-      devTools: true,
+      devTools: !app.isPackaged,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
       additionalArguments: [`--madcad-lang=${appLanguage}`]
     }
   });
@@ -1250,11 +1254,18 @@ function createMainWindow() {
   }
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      shell.openExternal(url);
-      return { action: 'deny' };
-    }
-    return { action: 'allow' };
+    const externalUrl = normalizeExternalUrl(url);
+    if (externalUrl) void shell.openExternal(externalUrl);
+    return { action: 'deny' };
+  });
+
+  win.webContents.on('will-navigate', (event, url) => {
+    const currentUrl = win.webContents.getURL();
+    const developmentOrigin = process.env.VITE_DEV_SERVER_URL ? new URL(process.env.VITE_DEV_SERVER_URL).origin : '';
+    if (isTrustedAppNavigation(url, currentUrl, developmentOrigin)) return;
+    event.preventDefault();
+    const externalUrl = normalizeExternalUrl(url);
+    if (externalUrl) void shell.openExternal(externalUrl);
   });
 
   if (!app.isPackaged && process.argv.includes('--devtools')) {
@@ -1426,6 +1437,12 @@ function spawnDetached(executable, args) {
   });
 }
 
+function storageErrorMessage(error, fallbackPl, fallbackEn) {
+  if (error?.code === 'ENOSPC') return t('Brak wolnego miejsca na dysku. Ostatnia poprawna wersja pliku nie została zmieniona.', 'The disk is full. The last valid file version was not changed.');
+  if (error?.code === 'EACCES' || error?.code === 'EPERM') return t('Brak uprawnień do zapisu w wybranym miejscu.', 'Permission denied for the selected location.');
+  return error?.message ? String(error.message) : t(fallbackPl, fallbackEn);
+}
+
 async function openFilesInSlicer(slicer, definition, filePaths) {
   if (process.platform === 'darwin') {
     let lastError;
@@ -1489,6 +1506,7 @@ ipcMain.handle('madcad:save-text-file', async (event, payload) => {
         ? 'drawing.txt'
         : 'rysunek.txt';
     const text = payload && typeof payload.text === 'string' ? payload.text : '';
+    if (text.length > 128 * 1024 * 1024) throw new Error(t('Plik przekracza limit zapisu 128 MB.', 'The file exceeds the 128 MB save limit.'));
     const filters = Array.isArray(payload && payload.filters) ? payload.filters : [];
 
     const result = await dialog.showSaveDialog(senderWindow, {
@@ -1510,7 +1528,7 @@ ipcMain.handle('madcad:save-text-file', async (event, payload) => {
     return {
       ok: false,
       canceled: false,
-      error: error && error.message ? String(error.message) : t('Nieznany błąd zapisu', 'Unknown save error')
+      error: storageErrorMessage(error, 'Nieznany błąd zapisu', 'Unknown save error')
     };
   }
 });
@@ -1674,6 +1692,7 @@ ipcMain.handle('madcad:autosave-write', async (_event, payload) => {
         error: t('Brak danych autozapisu.', 'Missing autosave payload.')
       };
     }
+    if (text.length > 64 * 1024 * 1024) throw new Error(t('Autozapis przekracza limit 64 MB.', 'The autosave exceeds the 64 MB limit.'));
     const autoSavePath = getAutoSavePath();
     await fs.mkdir(path.dirname(autoSavePath), { recursive: true });
     const writeResult = await atomicWriteTextFile(autoSavePath, text, { backup: true });
@@ -1685,8 +1704,7 @@ ipcMain.handle('madcad:autosave-write', async (_event, payload) => {
   } catch (error) {
     return {
       ok: false,
-      error:
-        error && error.message ? String(error.message) : t('Nie udało się zapisać autozapisu.', 'Autosave write failed.')
+      error: storageErrorMessage(error, 'Nie udało się zapisać autozapisu.', 'Autosave write failed.')
     };
   }
 });
@@ -1694,19 +1712,12 @@ ipcMain.handle('madcad:autosave-write', async (_event, payload) => {
 ipcMain.handle('madcad:autosave-read', async () => {
   try {
     const autoSavePath = getAutoSavePath();
-    let stat = null;
-    try {
-      stat = await fs.stat(autoSavePath);
-    } catch (_error) {
-      return { ok: true, exists: false, filePath: autoSavePath };
-    }
-    const text = await fs.readFile(autoSavePath, 'utf8');
+    const recovered = await readRecoverableTextFile(autoSavePath, { validate: validateJsonText });
+    if (!recovered.exists) return { ok: true, ...recovered };
     return {
       ok: true,
-      exists: true,
-      filePath: autoSavePath,
-      text,
-      updatedAt: stat && stat.mtime ? stat.mtime.toISOString() : null
+      ...recovered,
+      warning: recovered.recovered ? t('Główny autozapis był uszkodzony. Odzyskano poprzednią wersję z kopii zapasowej.', 'The main autosave was corrupted. The previous version was recovered from backup.') : null,
     };
   } catch (error) {
     return {

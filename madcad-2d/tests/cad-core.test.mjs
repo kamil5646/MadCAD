@@ -6,6 +6,9 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import atomicFile from '../electron/atomic-file.cjs';
 import slicerLaunch from '../electron/slicer-launch.cjs';
+import securityPolicy from '../electron/security-policy.cjs';
+import recoveryFile from '../electron/recovery-file.cjs';
+import * as fsPromises from 'node:fs/promises';
 import {
   DOCUMENT_SCHEMA_VERSION,
   createDocument,
@@ -2230,4 +2233,54 @@ test('przekazanie do slicera waliduje program, rozmiar i bezpieczną nazwę STL'
   assert.throws(() => slicerLaunch.normalizeSlicerPayload({ slicer: 'nieznany', files: [{ name: 'a.stl', data: new Uint8Array(84) }] }), /Nieobsługiwany/);
   assert.throws(() => slicerLaunch.normalizeSlicerPayload({ slicer: 'cura', files: [{ name: 'a.stl', data: new Uint8Array(20) }] }), /pusty/);
   assert.ok(slicerLaunch.windowsCandidates('prusa', { ProgramFiles: 'C:\\Program Files' }).some((candidate) => candidate.toLowerCase().includes('prusa-slicer.exe')));
+});
+
+test('polityka Electron przepuszcza tylko HTTPS i nawigację wewnątrz aplikacji', () => {
+  assert.equal(securityPolicy.normalizeExternalUrl('https://example.com/help'), 'https://example.com/help');
+  assert.equal(securityPolicy.normalizeExternalUrl('http://example.com/help'), null);
+  assert.equal(securityPolicy.normalizeExternalUrl('file:///etc/passwd'), null);
+  assert.equal(securityPolicy.normalizeExternalUrl('javascript:alert(1)'), null);
+  assert.equal(securityPolicy.normalizeExternalUrl('https://user:secret@example.com'), null);
+  assert.equal(securityPolicy.isTrustedAppNavigation('file:///Applications/MadCAD/index.html', 'file:///Applications/MadCAD/index.html#model'), true);
+  assert.equal(securityPolicy.isTrustedAppNavigation('file:///tmp/other.html', 'file:///Applications/MadCAD/index.html'), false);
+  assert.equal(securityPolicy.isTrustedAppNavigation('http://localhost:5173/model', 'http://localhost:5173/', 'http://localhost:5173'), true);
+});
+
+test('uszkodzony autozapis jest odzyskiwany z poprawnej kopii .bak', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'madcad-recovery-'));
+  const targetPath = join(directory, 'session.json');
+  try {
+    await writeFile(targetPath, '{uszkodzony', 'utf8');
+    await writeFile(`${targetPath}.bak`, JSON.stringify({ revision: 7, valid: true }), 'utf8');
+    const recovered = await recoveryFile.readRecoverableTextFile(targetPath, { validate: recoveryFile.validateJsonText });
+    assert.equal(recovered.recovered, true);
+    assert.equal(JSON.parse(recovered.text).revision, 7);
+    assert.match(recovered.primaryError, /JSON|position|property/i);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('brak miejsca podczas zapisu nie narusza ostatniej poprawnej wersji', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'madcad-full-disk-'));
+  const targetPath = join(directory, 'project.madcad');
+  try {
+    await writeFile(targetPath, 'ostatnia-poprawna', 'utf8');
+    const simulatedFullDisk = {
+      ...fsPromises,
+      open: async (filePath, ...args) => {
+        if (String(filePath).endsWith('.tmp')) {
+          const error = new Error('no space left on device');
+          error.code = 'ENOSPC';
+          throw error;
+        }
+        return fsPromises.open(filePath, ...args);
+      },
+    };
+    await assert.rejects(() => atomicWriteTextFile(targetPath, 'niedokończona', { fileSystem: simulatedFullDisk }), (error) => error.code === 'ENOSPC');
+    assert.equal(await readFile(targetPath, 'utf8'), 'ostatnia-poprawna');
+    assert.equal((await readdir(directory)).some((name) => name.endsWith('.tmp')), false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
