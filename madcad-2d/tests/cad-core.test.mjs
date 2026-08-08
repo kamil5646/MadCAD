@@ -7,6 +7,7 @@ import { performance } from 'node:perf_hooks';
 import atomicFile from '../electron/atomic-file.cjs';
 import slicerLaunch from '../electron/slicer-launch.cjs';
 import securityPolicy from '../electron/security-policy.cjs';
+import ipcPolicy from '../electron/ipc-policy.cjs';
 import recoveryFile from '../electron/recovery-file.cjs';
 import windowBounds from '../electron/window-bounds.cjs';
 import updatePolicy from '../electron/update-policy.cjs';
@@ -2332,6 +2333,42 @@ test('polityka Electron przepuszcza tylko HTTPS i nawigację wewnątrz aplikacji
   assert.equal(securityPolicy.isTrustedAppNavigation('file:///Applications/MadCAD/index.html', 'file:///Applications/MadCAD/index.html#model'), true);
   assert.equal(securityPolicy.isTrustedAppNavigation('file:///tmp/other.html', 'file:///Applications/MadCAD/index.html'), false);
   assert.equal(securityPolicy.isTrustedAppNavigation('http://localhost:5173/model', 'http://localhost:5173/', 'http://localhost:5173'), true);
+  assert.equal(securityPolicy.isTrustedIpcUrl('file:///Applications/MadCAD/dist/index.html?verify=1', 'file:///Applications/MadCAD/dist/index.html'), true);
+  assert.equal(securityPolicy.isTrustedIpcUrl('file:///tmp/attacker.html', 'file:///Applications/MadCAD/dist/index.html'), false);
+  assert.equal(securityPolicy.isTrustedIpcUrl('http://localhost:5173/model', 'file:///Applications/MadCAD/dist/index.html', 'http://localhost:5173'), true);
+  assert.equal(securityPolicy.isTrustedIpcUrl('https://example.com/', 'file:///Applications/MadCAD/dist/index.html', 'http://localhost:5173'), false);
+});
+
+test('polityka IPC ogranicza nazwy, filtry, konwersje i podgląd wydruku', () => {
+  const save = ipcPolicy.normalizeSaveTextPayload({
+    text: 'projekt',
+    defaultName: '../../projekt.step',
+    filters: [{ name: 'STEP', extensions: ['step', '.stp'] }],
+    atomic: true,
+  });
+  assert.equal(save.defaultName, 'projekt.step');
+  assert.deepEqual(save.filters[0].extensions, ['step', 'stp']);
+  assert.equal(save.atomic, true);
+  assert.throws(() => ipcPolicy.normalizeSaveTextPayload({ text: 'x', filters: [{ name: 'Zły', extensions: ['../exe'] }] }), /rozszerzenie/i);
+  assert.throws(() => ipcPolicy.normalizeAutosavePayload({ text: '' }), /pusty/i);
+  assert.throws(() => ipcPolicy.normalizeCadConversionPayload({ mode: 'dwg-to-dxf', sourcePath: '/tmp/model.exe' }), /DWG/i);
+  assert.equal(ipcPolicy.normalizeCadConversionPayload({ mode: 'dxf-text-to-dwg', dxfText: '0\nEOF', defaultName: '../part' }).defaultName, 'part.dwg');
+  const preview = ipcPolicy.securePrintPreviewHtml('<!doctype html><html><head></head><body><script>print()</script></body></html>');
+  assert.match(preview, /Content-Security-Policy/);
+  assert.match(preview, /connect-src 'none'/);
+});
+
+test('okna Electron i preload utrzymują sandbox oraz jedną bramę IPC', async () => {
+  const [mainSource, preloadSource] = await Promise.all([
+    readFile(new URL('../electron/main.js', import.meta.url), 'utf8'),
+    readFile(new URL('../electron/preload.js', import.meta.url), 'utf8'),
+  ]);
+  assert.doesNotMatch(mainSource, /sandbox:\s*false/);
+  assert.equal((mainSource.match(/sandbox:\s*true/g) || []).length, 2);
+  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 16);
+  assert.equal((mainSource.match(/ipcMain\.handle\(/g) || []).length, 1);
+  assert.doesNotMatch(preloadSource, /require\(['"](?:os|crypto|fs|child_process)['"]\)/);
+  assert.doesNotMatch(preloadSource, /verifyLicenseSignature/);
 });
 
 test('uszkodzony autozapis jest odzyskiwany z poprawnej kopii .bak', async () => {

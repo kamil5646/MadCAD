@@ -60,6 +60,8 @@ jobs:
         run: npm ci
       - name: Run Electron modeling verification
         run: npm run verify:modeling
+      - name: Verify Electron sandbox and IPC boundary
+        run: npm run verify:electron-security
       - name: Upload verification artifacts
         if: always()
         uses: actions/upload-artifact@v4

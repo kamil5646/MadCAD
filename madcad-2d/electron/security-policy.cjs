@@ -22,5 +22,15 @@ function isTrustedAppNavigation(target, current, developmentOrigin = '') {
   }
 }
 
-module.exports = { SAFE_EXTERNAL_PROTOCOLS, isTrustedAppNavigation, normalizeExternalUrl };
+function isTrustedIpcUrl(value, appEntryUrl, developmentOrigin = '') {
+  try {
+    const sender = new URL(String(value || ''));
+    if (developmentOrigin && sender.origin === developmentOrigin) return true;
+    const entry = new URL(String(appEntryUrl || ''));
+    return sender.protocol === 'file:' && entry.protocol === 'file:' && sender.pathname === entry.pathname;
+  } catch (_error) {
+    return false;
+  }
+}
 
+module.exports = { SAFE_EXTERNAL_PROTOCOLS, isTrustedAppNavigation, isTrustedIpcUrl, normalizeExternalUrl };

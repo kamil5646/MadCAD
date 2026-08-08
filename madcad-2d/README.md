@@ -92,6 +92,16 @@ npm run dist:release:trusted
 - Techniczna wersja builda jest pełnym semver, np. `6.0.0-alpha.1`, i wynika z `package.json`.
 - Sufiks `alpha`/`beta` wybiera kanał aktualizacji; wersja bez sufiksu używa kanału stabilnego.
 
+## Weryfikacja
+
+```bash
+npm run test:core
+npm run verify:modeling
+npm run verify:electron-security
+```
+
+Ostatnia komenda uruchamia prawdziwe okno główne i potwierdza sandbox, context isolation, preload oraz odrzucenie IPC z obcego dokumentu.
+
 ## ODA File Converter (DWG)
 Jeśli import/eksport DWG nie działa, skonfiguruj ODA ręcznie:
 

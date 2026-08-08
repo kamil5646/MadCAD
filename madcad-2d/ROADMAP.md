@@ -45,7 +45,7 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 | 7 | M7 Otwory i gwinty MVP | `[x]` | M3, M5, M6 | proste/counterbore/countersink otwory i podstawowy gwint metryczny |
 | 8 | M8 Inspect MVP | `[x]` | M3, M6 | Measure, Section, objętość, pole, masa i środek masy |
 | 9 | M9 Przygotowanie druku MVP | `[x]` | M6–M8 | orientacja, STEP/STL/3MF, skala 1:1, manifold, grubość, nawisy i przekazanie do slicera |
-| 10 | M10 Wydanie alpha/beta | `[ ]` | M1–M9 | instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS |
+| 10 | M10 Wydanie alpha/beta | `[x]` | M1–M9 | instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS |
 
 ## M4 — geometria konstrukcyjna MVP `P0`
 
@@ -115,7 +115,7 @@ Te prace nie czekają na koniec modelowania:
 
 - [x] CI: test core i build na Linux/macOS/Windows, desktop E2E na macOS/Windows oraz smoke test paczek ZIP/NSIS.
 - [x] Awaria workera, pełny dysk, uszkodzony projekt, kopia autozapisu i odzyskanie sesji są testowane.
-- [~] Electron ma context isolation, CSP, bezpieczne linki oraz limity krytycznych payloadów; pozostał sandbox i pełny audyt wszystkich starszych kanałów IPC.
+- [x] Electron ma context isolation, sandbox, CSP, bezpieczne linki, wspólną kontrolę źródła dla wszystkich 16 kanałów IPC oraz test odrzucenia obcego widoku.
 - [x] Budżety wydajności pickingu, meshowania i długiej historii są mierzone w testach core i desktop E2E.
 - [x] PL/EN, dostępność klawiatury i fokusu, DPI 100–200% oraz bezpieczny powrót okna po odłączeniu monitora są testowane.
 - [x] Kanały alpha/beta/stable, SHA-256, wymagany podpis paczek release, rollback instalacji macOS i updater ignorujący niezaufany adres z renderera.
@@ -143,4 +143,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M6.7 — Text → profile → Extrude/Emboss/Deboss.`
+`P1.1 — import SVG/DXF do szkicu z kontrolą jednostek, profilem, undo/redo, zapisem i testem E2E.`
