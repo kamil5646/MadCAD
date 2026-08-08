@@ -41,11 +41,33 @@
   font: inherit;
 }
 
+.modeling-shell button:focus,
+.modeling-shell input:focus,
+.modeling-shell select:focus,
 .modeling-shell button:focus-visible,
 .modeling-shell input:focus-visible,
 .modeling-shell select:focus-visible {
-  outline: 2px solid var(--mc-accent-strong);
-  outline-offset: -1px;
+  outline: 2px solid var(--mc-accent-strong) !important;
+  outline-offset: 2px !important;
+}
+
+.modeling-shell [role="button"]:focus,
+.modeling-shell [tabindex]:focus,
+.modeling-shell [role="button"]:focus-visible,
+.modeling-shell [tabindex]:focus-visible {
+  outline: 2px solid var(--mc-accent-strong) !important;
+  outline-offset: 2px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modeling-shell *,
+  .modeling-shell *::before,
+  .modeling-shell *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 .modeling-titlebar {

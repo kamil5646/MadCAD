@@ -4,11 +4,12 @@ const fs = require('fs/promises');
 const https = require('https');
 const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
-const { app, BrowserWindow, Menu, shell, nativeImage, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, shell, nativeImage, dialog, ipcMain, screen } = require('electron');
 const { atomicWriteTextFile } = require('./atomic-file.cjs');
 const { normalizeSlicerPayload, windowsCandidates } = require('./slicer-launch.cjs');
 const { isTrustedAppNavigation, normalizeExternalUrl } = require('./security-policy.cjs');
 const { readRecoverableTextFile, validateJsonText } = require('./recovery-file.cjs');
+const { normalizeWindowBounds } = require('./window-bounds.cjs');
 
 const execFileAsync = promisify(execFile);
 
@@ -84,6 +85,15 @@ function getSavedAppLanguageSync() {
     const raw = fsRaw.readFileSync(configPath, 'utf8');
     const parsed = JSON.parse(raw);
     return normalizeLanguage(parsed && parsed.appLanguage);
+  } catch (_error) {
+    return null;
+  }
+}
+
+function getSavedWindowBoundsSync() {
+  try {
+    const parsed = JSON.parse(fsRaw.readFileSync(getCadConfigPath(), 'utf8'));
+    return parsed && typeof parsed.windowBounds === 'object' ? parsed.windowBounds : null;
   } catch (_error) {
     return null;
   }
@@ -1211,11 +1221,15 @@ async function handleSavePromptBeforeExit(win) {
 }
 
 function createMainWindow() {
+  const initialBounds = normalizeWindowBounds(
+    getSavedWindowBoundsSync(),
+    screen.getAllDisplays().map((display) => ({ workArea: display.workArea, primary: display.id === screen.getPrimaryDisplay().id })),
+    { width: 1680, height: 980 },
+  );
   const win = new BrowserWindow({
-    width: 1680,
-    height: 980,
-    minWidth: 1200,
-    minHeight: 760,
+    ...initialBounds,
+    minWidth: Math.min(1200, initialBounds.width),
+    minHeight: Math.min(760, initialBounds.height),
     backgroundColor: '#111b29',
     title: appLanguage === 'en' ? `${APP_DISPLAY_NAME} EN` : `${APP_DISPLAY_NAME} PL`,
     icon: appIconPng,
@@ -1275,6 +1289,25 @@ function createMainWindow() {
   if (!isMac) {
     win.setMenuBarVisibility(false);
   }
+
+  let windowBoundsSaveTimer = null;
+  const scheduleWindowBoundsSave = () => {
+    if (win.isDestroyed() || win.isMaximized() || win.isFullScreen()) return;
+    if (windowBoundsSaveTimer) clearTimeout(windowBoundsSaveTimer);
+    windowBoundsSaveTimer = setTimeout(() => {
+      windowBoundsSaveTimer = null;
+      void (async () => {
+        const config = await readCadConfig();
+        config.windowBounds = win.getNormalBounds();
+        await writeCadConfig(config);
+      })().catch(() => {});
+    }, 400);
+  };
+  win.on('move', scheduleWindowBoundsSave);
+  win.on('resize', scheduleWindowBoundsSave);
+  win.on('closed', () => {
+    if (windowBoundsSaveTimer) clearTimeout(windowBoundsSaveTimer);
+  });
 
   let closeApproved = false;
   win.on('close', (event) => {

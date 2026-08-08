@@ -115,6 +115,7 @@ import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profi
 import { calculatePrintLayout, orientationForBedFace } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
+import { observeModelingLocalization, resolveModelingLanguage } from './i18n.js';
 import { ThreeMFLoader } from 'three/examples/jsm/loaders/3MFLoader.js';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import ModelViewport from './ModelViewport.jsx';
@@ -897,6 +898,11 @@ function featureIcon(type, size = 16) {
 }
 
 export default function ModelingWorkspace({ onClose }) {
+  useEffect(() => {
+    const root = window.document.querySelector('.modeling-shell');
+    const language = resolveModelingLanguage(window.document.documentElement.lang, window.desktopApp?.appLanguage);
+    return observeModelingLocalization(root, language);
+  }, []);
   const [initialOpen] = useState(loadInitialDocument);
   const history = useDocumentHistory(initialOpen.document);
   const { document } = history;

@@ -8,6 +8,7 @@ import atomicFile from '../electron/atomic-file.cjs';
 import slicerLaunch from '../electron/slicer-launch.cjs';
 import securityPolicy from '../electron/security-policy.cjs';
 import recoveryFile from '../electron/recovery-file.cjs';
+import windowBounds from '../electron/window-bounds.cjs';
 import * as fsPromises from 'node:fs/promises';
 import {
   DOCUMENT_SCHEMA_VERSION,
@@ -64,6 +65,7 @@ import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-p
 import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, transformPrintPoint } from '../src/cad-core/print-layout.js';
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
 import { analyzePrintability } from '../src/cad-core/print-analysis.js';
+import { resolveModelingLanguage, translateModelingText } from '../src/modeling/i18n.js';
 import {
   arcCenterStartEnd,
   arcThroughThreePoints,
@@ -885,6 +887,35 @@ test('picking dużej siatki mieści się w budżecie i mapuje właściwe ściany
   assert.ok(
     durationMs < GEOMETRY_POLICY.performanceBudgets.pickingBatchMs,
     `Picking ${pickCount} trafień trwał ${durationMs.toFixed(1)} ms.`,
+  );
+});
+
+test('interfejs modelowania rozpoznaje PL/EN i tłumaczy także dynamiczny stan silnika', () => {
+  assert.equal(resolveModelingLanguage('en-US', 'pl'), 'en');
+  assert.equal(resolveModelingLanguage('pl-PL', 'en'), 'pl');
+  assert.equal(resolveModelingLanguage('', 'en'), 'en');
+  assert.equal(translateModelingText('  Utwórz szkic  ', 'en'), '  Create sketch  ');
+  assert.equal(translateModelingText('Model gotowy · 1 bryła', 'en'), 'Model ready · 1 body');
+  assert.equal(translateModelingText('Przeliczanie historii…', 'en'), 'Recomputing history…');
+  assert.equal(translateModelingText('Utwórz szkic', 'pl'), 'Utwórz szkic');
+});
+
+test('okno wraca na dostępny monitor po odłączeniu ekranu i zachowuje ujemne współrzędne', () => {
+  const displays = [
+    { primary: true, workArea: { x: 0, y: 0, width: 1920, height: 1040 } },
+    { primary: false, workArea: { x: -2560, y: 0, width: 2560, height: 1400 } },
+  ];
+  assert.deepEqual(
+    windowBounds.normalizeWindowBounds({ x: -2200, y: 80, width: 1400, height: 900 }, displays),
+    { x: -2200, y: 80, width: 1400, height: 900 },
+  );
+  assert.deepEqual(
+    windowBounds.normalizeWindowBounds({ x: 5000, y: 4000, width: 1680, height: 980 }, [displays[0]]),
+    { x: 120, y: 30, width: 1680, height: 980 },
+  );
+  assert.deepEqual(
+    windowBounds.normalizeWindowBounds({ x: 0, y: 0, width: 2400, height: 1600 }, [{ primary: true, workArea: { x: 0, y: 0, width: 1024, height: 700 } }]),
+    { x: 0, y: 0, width: 1024, height: 700 },
   );
 });
 

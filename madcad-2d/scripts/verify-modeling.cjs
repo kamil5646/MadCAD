@@ -29,6 +29,72 @@ async function waitForModel(window, timeoutMs = 30000) {
   throw new Error('Przekroczono czas oczekiwania na silnik CAD.');
 }
 
+async function verifyAccessibilityAndScale(window) {
+  const checks = [];
+  for (const zoomFactor of [1, 1.5, 2]) {
+    window.webContents.setZoomFactor(zoomFactor);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await window.webContents.executeJavaScript(`document.querySelector('.modeling-shell button:not([disabled])')?.focus()`);
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const state = await window.webContents.executeJavaScript(`(() => {
+      const shell = document.querySelector('.modeling-shell');
+      const buttons = [...shell.querySelectorAll('button:not([disabled])')];
+      if (!shell.contains(document.activeElement) || !document.activeElement.matches('button, input, select, [tabindex]')) buttons[0]?.focus();
+      const focusTarget = document.activeElement;
+      const focusStyle = focusTarget ? getComputedStyle(focusTarget) : null;
+      const unnamedButtons = buttons.filter((button) => !((button.getAttribute('aria-label') || button.getAttribute('title') || button.textContent || '').trim())).length;
+      return {
+        language: document.documentElement.lang,
+        width: innerWidth,
+        height: innerHeight,
+        documentOverflow: document.documentElement.scrollWidth > innerWidth + 1,
+        shellOverflow: shell.scrollWidth > shell.clientWidth + 1,
+        toolbarVisible: Boolean(document.querySelector('.ribbon-tool')),
+        timelineVisible: Boolean(document.querySelector('.timeline')),
+        unnamedButtons,
+        focusReachable: shell.contains(focusTarget) && focusTarget.matches('button, input, select, [tabindex]'),
+        focusControl: focusTarget ? focusTarget.tagName + '.' + (focusTarget.className || '') : '',
+        focusOutline: (focusStyle?.outlineWidth || '0') + ' ' + (focusStyle?.outlineStyle || 'none'),
+      };
+    })()`);
+    if (state.documentOverflow || state.shellOverflow || !state.toolbarVisible || !state.timelineVisible || state.unnamedButtons || !state.focusReachable) {
+      throw new Error(`Accessibility/DPI check failed at ${zoomFactor * 100}%: ${JSON.stringify(state)}`);
+    }
+    checks.push({ zoomPercent: zoomFactor * 100, ...state });
+  }
+  window.webContents.setZoomFactor(1);
+  return checks;
+}
+
+async function verifyEnglishModelingUi() {
+  const englishWindow = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    show: false,
+    webPreferences: { partition: `madcad-verifier-en-${Date.now()}` },
+  });
+  try {
+    await englishWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'en' } });
+    await waitForModel(englishWindow);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const state = await englishWindow.webContents.executeJavaScript(`(() => ({
+      language: document.documentElement.lang,
+      createSketch: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Create sketch'),
+      browser: document.querySelector('.browser-heading strong')?.textContent.trim(),
+      engineReady: document.querySelector('.engine-status')?.textContent.includes('ready'),
+      polishPrimaryLabel: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Utwórz szkic'),
+    }))()`);
+    if (state.language !== 'en' || !state.createSketch || state.browser !== 'BROWSER' || !state.engineReady || state.polishPrimaryLabel) {
+      throw new Error(`English UI smoke check failed: ${JSON.stringify(state)}`);
+    }
+    return state;
+  } finally {
+    englishWindow.destroy();
+  }
+}
+
 function assertClose(actual, expected, tolerance, label) {
   if (!Number.isFinite(actual) || Math.abs(actual - expected) > tolerance) {
     throw new Error(`${label}: expected ${expected} +/- ${tolerance}, received ${actual}.`);
@@ -1408,6 +1474,8 @@ app.whenReady().then(async () => {
     const step = await verifyExport(window, 'STEP');
     const threeMf = await verifyThreeMfExport(window);
     const threeMfImport = await verifyThreeMfImport(window);
+    const accessibility = await verifyAccessibilityAndScale(window);
+    const englishUi = await verifyEnglishModelingUi();
     const workerPerformance = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.performance || null`);
     if (!workerPerformance || workerPerformance.totalMs > performanceBudgets.displayEvaluationMs) {
       throw new Error(`Worker evaluation exceeded budget: ${JSON.stringify(workerPerformance)}.`);
@@ -1415,7 +1483,7 @@ app.whenReady().then(async () => {
     const slowBody = workerPerformance.bodies?.find((body) => body.durationMs > performanceBudgets.displayMeshPerBodyMs);
     if (slowBody) throw new Error(`Body meshing exceeded budget: ${JSON.stringify(slowBody)}.`);
     performance.worker = workerPerformance;
-    const report = { ...result, licenseBypass, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, performance, rendererMessages };
+    const report = { ...result, licenseBypass, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, englishUi, performance, rendererMessages };
     await fs.writeFile(path.join(path.dirname(outputPath), 'verification-report.json'), JSON.stringify(report, null, 2));
     process.stdout.write(`${JSON.stringify(report)}\n`);
     if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.timelineVisible) process.exitCode = 1;
