@@ -101,6 +101,7 @@ import {
 import { refreshDetectedSketchProfiles } from '../cad-core/sketch-topology.js';
 import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketchLines, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../cad-core/sketch-modifiers.js';
 import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../cad-core/sketch-transforms.js';
+import { circularSketchPattern, rectangularSketchPattern } from '../cad-core/sketch-patterns.js';
 import { applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
@@ -590,6 +591,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
   const isSketchOffset = command.type === 'offsetSketch';
   const isSketchCorner = command.type === 'cornerSketch';
   const isSketchTransform = command.type === 'transformSketch';
+  const isSketchPattern = command.type === 'patternSketch';
   const isOffsetPlane = command.type === 'offsetPlane';
   const isMidplane = command.type === 'midplanePlane';
   const isThreePointPlane = command.type === 'threePointPlane';
@@ -598,7 +600,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
   const axisTitles = { edge: 'Oś z krawędzi', cylinder: 'Oś walca', 'two-points': 'Oś przez dwa punkty', 'plane-intersection': 'Oś przecięcia płaszczyzn' };
   const isConstructionPoint = command.type === 'constructionPoint';
   const pointTitles = { vertex: 'Punkt na wierzchołku', center: 'Punkt środka', intersection: 'Punkt przecięcia' };
-  const title = isRectangle ? 'Prostokąt' : isCircle ? 'Okrąg' : isArc ? 'Łuk' : isPolygon ? 'Wielokąt regularny' : isEllipse ? 'Elipsa' : isSlot ? 'Slot' : isSpline ? 'Spline' : isConic ? 'Krzywa conic' : isPoint ? 'Punkt szkicu' : isExtrude ? 'Wyciągnięcie' : isBoolean ? 'Boolean' : isPrimitive ? 'Prymityw 3D' : isTransform ? (command.mode === 'rotate' ? 'Obróć bryłę' : 'Przesuń bryłę') : isOffsetFace ? 'Offset Face' : isTextSolid ? 'Tekst 3D' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : isShell ? 'Shell' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : isSketchOffset ? 'Offset szkicu' : isSketchCorner ? (command.mode === 'fillet' ? 'Fillet szkicu' : 'Chamfer szkicu') : isSketchTransform ? 'Transformuj szkic' : isOffsetPlane ? 'Płaszczyzna odsunięta' : isMidplane ? 'Płaszczyzna środkowa' : isThreePointPlane ? 'Płaszczyzna przez trzy punkty' : isConstructionAxis ? axisTitles[command.axisType] : isConstructionPoint ? pointTitles[command.pointType] : 'Fazowanie';
+  const title = isRectangle ? 'Prostokąt' : isCircle ? 'Okrąg' : isArc ? 'Łuk' : isPolygon ? 'Wielokąt regularny' : isEllipse ? 'Elipsa' : isSlot ? 'Slot' : isSpline ? 'Spline' : isConic ? 'Krzywa conic' : isPoint ? 'Punkt szkicu' : isExtrude ? 'Wyciągnięcie' : isBoolean ? 'Boolean' : isPrimitive ? 'Prymityw 3D' : isTransform ? (command.mode === 'rotate' ? 'Obróć bryłę' : 'Przesuń bryłę') : isOffsetFace ? 'Offset Face' : isTextSolid ? 'Tekst 3D' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : isShell ? 'Shell' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : isSketchOffset ? 'Offset szkicu' : isSketchCorner ? (command.mode === 'fillet' ? 'Fillet szkicu' : 'Chamfer szkicu') : isSketchTransform ? 'Transformuj szkic' : isSketchPattern ? 'Szyk szkicu' : isOffsetPlane ? 'Płaszczyzna odsunięta' : isMidplane ? 'Płaszczyzna środkowa' : isThreePointPlane ? 'Płaszczyzna przez trzy punkty' : isConstructionAxis ? axisTitles[command.axisType] : isConstructionPoint ? pointTitles[command.pointType] : 'Fazowanie';
   return (
     <section className="command-dialog" aria-label={title}>
       <header><strong>{title}</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
@@ -753,7 +755,15 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
             {command.operation === 'copy' ? <><Field label="Kopia ΔX" value={command.dx} onChange={(dx) => onChange({ dx })} suffix="mm" autoFocus /><Field label="Kopia ΔY" value={command.dy} onChange={(dy) => onChange({ dy })} suffix="mm" /></> : command.operation === 'mirror' ? <><label className="command-field"><span>Oś odbicia</span><select value={command.axis} onChange={(event) => onChange({ axis: event.target.value })}><option value="vertical">Pionowa X</option><option value="horizontal">Pozioma Y</option></select></label><Field label="Położenie osi" value={command.axisOffset} onChange={(axisOffset) => onChange({ axisOffset })} suffix="mm" autoFocus /></> : <><Field label="Środek X" value={command.centerX} onChange={(centerX) => onChange({ centerX })} suffix="mm" autoFocus /><Field label="Środek Y" value={command.centerY} onChange={(centerY) => onChange({ centerY })} suffix="mm" />{command.operation === 'rotate' ? <Field label="Kąt obrotu" value={command.angle} onChange={(angle) => onChange({ angle })} suffix="°" /> : <Field label="Skala" value={command.factor} onChange={(factor) => onChange({ factor })} />}</>}
           </>
         )}
-        <div className="command-preview-note"><span className="preview-dot" />{isSketchPath ? 'Klikaj punkty na płótnie lub dodaj następny punkt dokładną długością i kątem.' : isSketchMove ? 'Wpisz dokładne przesunięcie zaznaczenia w osiach szkicu.' : isSketchOffset ? 'Operacja powstanie dopiero po zatwierdzeniu; Anuluj nie zmienia szkicu.' : isSketchCorner ? 'Oryginalne linie zachowają ID; zerwane więzy zostaną jawnie usunięte.' : isSketchTransform ? 'Transformacja jest transakcyjna; Scale odrzuca geometrię z blokującym wymiarem.' : isConstructionPlane ? 'Współrzędne i odległości mogą być liczbami albo wyrażeniami z parametrów modelu.' : isPoint ? 'Punkt zwykły może wyznaczać oś otworu; konstrukcyjny służy tylko jako referencja.' : isMechanicalShape ? 'Wpisz dokładne dane konstrukcyjne; po zatwierdzeniu powstanie edytowalna geometria szkicu.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
+        {isSketchPattern && (
+          <>
+            <label className="command-field"><span>Typ szyku</span><select value={command.mode} onChange={(event) => onChange({ mode: event.target.value })}><option value="rectangular">Prostokątny</option><option value="circular">Kołowy</option></select></label>
+            {command.mode === 'rectangular' ? <><Field label="Kolumny" value={command.columns} onChange={(columns) => onChange({ columns })} autoFocus /><Field label="Wiersze" value={command.rows} onChange={(rows) => onChange({ rows })} /><Field label="Odstęp X" value={command.spacingX} onChange={(spacingX) => onChange({ spacingX })} suffix="mm" /><Field label="Odstęp Y" value={command.spacingY} onChange={(spacingY) => onChange({ spacingY })} suffix="mm" /></> : <><Field label="Wystąpienia" value={command.count} onChange={(count) => onChange({ count })} autoFocus /><Field label="Środek X" value={command.centerX} onChange={(centerX) => onChange({ centerX })} suffix="mm" /><Field label="Środek Y" value={command.centerY} onChange={(centerY) => onChange({ centerY })} suffix="mm" /><Field label="Kąt całkowity" value={command.totalAngle} onChange={(totalAngle) => onChange({ totalAngle })} suffix="°" /></>}
+            <Field label="Pomiń wystąpienia" value={command.skippedOccurrences} onChange={(skippedOccurrences) => onChange({ skippedOccurrences })} />
+            <p className="command-hint">Numery oddziel przecinkami lub podaj zakres, np. 3, 5-7. Wystąpienie 1 jest źródłem.</p>
+          </>
+        )}
+        <div className="command-preview-note"><span className="preview-dot" />{isSketchPath ? 'Klikaj punkty na płótnie lub dodaj następny punkt dokładną długością i kątem.' : isSketchMove ? 'Wpisz dokładne przesunięcie zaznaczenia w osiach szkicu.' : isSketchOffset ? 'Operacja powstanie dopiero po zatwierdzeniu; Anuluj nie zmienia szkicu.' : isSketchCorner ? 'Oryginalne linie zachowają ID; zerwane więzy zostaną jawnie usunięte.' : isSketchTransform ? 'Transformacja jest transakcyjna; Scale odrzuca geometrię z blokującym wymiarem.' : isSketchPattern ? 'Szyk powstanie transakcyjnie; pominięte kopie nie zostaną utworzone.' : isConstructionPlane ? 'Współrzędne i odległości mogą być liczbami albo wyrażeniami z parametrów modelu.' : isPoint ? 'Punkt zwykły może wyznaczać oś otworu; konstrukcyjny służy tylko jako referencja.' : isMechanicalShape ? 'Wpisz dokładne dane konstrukcyjne; po zatwierdzeniu powstanie edytowalna geometria szkicu.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
       </div>
       {isSketchPath ? (
         <footer><button className="secondary" type="button" onClick={onUndoSegment} disabled={!command.pointIds.length}>Cofnij segment</button><button className="secondary" type="button" onClick={onFinishPath}>Zakończ</button><button className="confirm" type="button" onClick={onConfirm} disabled={!command.lastPoint}><Check size={14} /> Dodaj dokładnie</button></footer>
@@ -1864,6 +1874,31 @@ export default function ModelingWorkspace({ onClose }) {
     }
   };
 
+  const openSketchPattern = () => {
+    if (!selectedSketchEntityIds.length) {
+      setNotice('Najpierw zaznacz geometrię źródłową szyku.');
+      return;
+    }
+    setCommand({ type: 'patternSketch', mode: 'rectangular', columns: '3', rows: '2', spacingX: '15', spacingY: '15', count: '6', centerX: '0', centerY: '0', totalAngle: '360', skippedOccurrences: '' });
+    setNotice('Wybierz szyk prostokątny lub kołowy oraz opcjonalne wystąpienia do pominięcia.');
+  };
+
+  const confirmSketchPattern = () => {
+    const applyPattern = (next) => command.mode === 'circular'
+      ? circularSketchPattern(next, activeSketchId, selectedSketchEntityIds, { count: command.count, centerX: command.centerX, centerY: command.centerY, totalAngle: command.totalAngle, skippedOccurrences: command.skippedOccurrences })
+      : rectangularSketchPattern(next, activeSketchId, selectedSketchEntityIds, { columns: command.columns, rows: command.rows, spacingX: command.spacingX, spacingY: command.spacingY, skippedOccurrences: command.skippedOccurrences });
+    try {
+      const checked = cloneDocument(document);
+      const result = applyPattern(checked);
+      commit(applyPattern);
+      setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: result.createdEntityIds });
+      setCommand(null);
+      setNotice(`${command.mode === 'circular' ? 'Szyk kołowy' : 'Szyk prostokątny'} utworzył ${result.occurrences.length} ${result.occurrences.length === 1 ? 'kopię' : 'kopie'}${result.skippedOccurrences.length ? `; pominięto: ${result.skippedOccurrences.join(', ')}` : ''}. Cofnij przywraca stan.`);
+    } catch (error) {
+      setNotice(`Szyk nie został wykonany: ${error.message}`);
+    }
+  };
+
   const projectSelectedTopology = () => {
     if (readOnly) return readOnlyNotice();
     const selected = (selection?.items || (['edge', 'vertex'].includes(selection?.kind) ? [selection] : [])).filter((item) => ['edge', 'vertex'].includes(item.kind));
@@ -2144,6 +2179,20 @@ export default function ModelingWorkspace({ onClose }) {
       setSelection({ kind: 'sketch', id: sketch.id });
       setCommand(null);
     };
+    window.__madcadVerifyLoadPatternFixture = (mode = 'rectangular') => {
+      const fixture = createDocument(`Szyk ${mode}`);
+      const points = [[10, -2], [14, -2], [14, 2], [10, 2]].map(([x, y]) => createSketchPoint({ x, y }));
+      const lines = points.map((point, index) => createSketchLine({ startPointId: point.id, endPointId: points[(index + 1) % points.length].id }));
+      const sketch = createSketch({ name: `Szkic szyku ${mode}`, plane: 'XY', entities: [...points, ...lines] });
+      refreshDetectedSketchProfiles(sketch, fixture.parameters);
+      fixture.sketches.push(sketch);
+      window.__madcadPatternFixtureIds = { lineIds: lines.map((line) => line.id) };
+      history.replace(fixture);
+      setActiveSketchId(sketch.id);
+      setWorkspace('sketch');
+      setSelection({ kind: 'sketch', id: sketch.id });
+      setCommand(null);
+    };
     window.__madcadVerifyUpdateConstraint = updateSketchConstraintValue;
     window.__madcadVerifyReopenAutosave = () => {
       const raw = window.localStorage.getItem(AUTOSAVE_KEY);
@@ -2217,6 +2266,7 @@ export default function ModelingWorkspace({ onClose }) {
       delete window.__madcadVerifyLoadParametricBracketFixture;
       delete window.__madcadVerifyLoadConstraintFixture;
       delete window.__madcadVerifyLoadDimensionFixture;
+      delete window.__madcadVerifyLoadPatternFixture;
       delete window.__madcadVerifyUpdateConstraint;
       delete window.__madcadVerifyReopenAutosave;
       delete window.__madcadVerifyLoadPointHoleFixture;
@@ -2981,6 +3031,11 @@ export default function ModelingWorkspace({ onClose }) {
         confirmSketchTransform();
         return;
       }
+      if (event.key === 'Enter' && command?.type === 'patternSketch') {
+        event.preventDefault();
+        confirmSketchPattern();
+        return;
+      }
       if (event.ctrlKey && command?.type === 'polyline' && event.key.toLowerCase() === 'z') {
         event.preventDefault();
         undoSketchSegment();
@@ -3046,7 +3101,7 @@ export default function ModelingWorkspace({ onClose }) {
             {activeSketchId ? (
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /><ToolButton icon={Upload} label="Import SVG/DXF" onClick={() => sketchImportInputRef.current?.click()} disabled={readOnly} /></RibbonGroup>
-                <RibbonGroup label="EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { setCommand(null); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Maximize2} label="Extend" onClick={() => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' })} primary={command?.type === 'extendSketch'} disabled={readOnly} /><ToolButton icon={Minus} label="Break" onClick={() => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' })} primary={command?.type === 'breakSketch'} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Project" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} /><ToolButton icon={Copy} label="Offset" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} /><ToolButton icon={CircleDotDashed} label="Fillet szkicu" onClick={() => openSketchCorner('fillet')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={Triangle} label="Faza szkicu" onClick={() => openSketchCorner('chamfer')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={RotateCw} label="Transformuj" onClick={openSketchTransform} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
+                <RibbonGroup label="EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { setCommand(null); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Maximize2} label="Extend" onClick={() => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' })} primary={command?.type === 'extendSketch'} disabled={readOnly} /><ToolButton icon={Minus} label="Break" onClick={() => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' })} primary={command?.type === 'breakSketch'} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Project" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} /><ToolButton icon={Copy} label="Offset" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} /><ToolButton icon={CircleDotDashed} label="Fillet szkicu" onClick={() => openSketchCorner('fillet')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={Triangle} label="Faza szkicu" onClick={() => openSketchCorner('chamfer')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={RotateCw} label="Transformuj" onClick={openSketchTransform} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Grid2X2} label="Szyk szkicu" onClick={openSketchPattern} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
                 <RibbonGroup label="WIĘZY"><ToolButton icon={Minus} label="Współliniowe" onClick={() => addSelectedSketchConstraint('collinear')} disabled={readOnly || !canAddCollinear} /><ToolButton icon={Frame} label="Symetria" onClick={() => addSelectedSketchConstraint('symmetry')} disabled={readOnly || !canAddSymmetry} /></RibbonGroup>
                 <RibbonGroup label="WYMIARY"><ToolButton icon={Ruler} label="Ordinate X" onClick={() => openSketchDimension('ordinateX')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={Ruler} label="Ordinate Y" onClick={() => openSketchDimension('ordinateY')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={RotateCw} label="Długość łuku" onClick={() => openSketchDimension('arcLength')} disabled={readOnly || !canAddArcLength} /></RibbonGroup>
                 <RibbonGroup label="SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
@@ -3141,7 +3196,7 @@ export default function ModelingWorkspace({ onClose }) {
             command={command}
             profileName={selectedProfile?.name || ''}
             onChange={updateCommand}
-            onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : ['offsetPlane', 'midplanePlane', 'threePointPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
+            onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
             onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => setCommand(null)}
             onUndoSegment={undoSketchSegment}
             onFinishPath={finishSketchPath}

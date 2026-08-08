@@ -5,7 +5,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 ## P1 — rozszerzenie modelowania części
 
 - Pozostały zestaw wymiarów i więzów po ukończeniu symmetry/collinear oraz ordinate/długości łuku: curvature.
-- Szyki szkicu prostokątne, kołowe i po ścieżce z pomijaniem wystąpień.
+- Szyk szkicu po ścieżce z pomijaniem wystąpień; szyki prostokątny i kołowy ukończono jako `P1.4`.
 - [x] Import SVG/DXF do szkicu — przeniesiony i ukończony jako `P1.1` w aktywnym planie.
 - Rozbudowany UCS, płaszczyzny tangent/angle/path oraz pełny zestaw osi i punktów konstrukcyjnych.
 - Extrude To Object, offset start, draft i thin extrude.

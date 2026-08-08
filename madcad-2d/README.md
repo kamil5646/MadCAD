@@ -17,7 +17,7 @@ MadCAD rozwija się aktywnie. Jeśli chcesz wesprzeć rozwój aplikacji:
 ## Co Jest W Aplikacji
 - Wstążka z zakładkami: `Główne`, `Wymiarowanie`, `Stal`, `Widok`, `Warstwy`.
 - Narzędzia CAD 2D: linia, polilinia, prostokąt, okrąg, pomiar oraz sterujące wymiary liniowe, kątowe, ordinate X/Y i długości łuku.
-- Modyfikacje: przesuń, kopiuj, odsuń, duplikuj, usuwanie, kolejność obiektów.
+- Modyfikacje: przesuń, kopiuj, odsuń, duplikuj, prostokątny i kołowy szyk szkicu z pomijaniem wystąpień, usuwanie oraz kolejność obiektów.
 - Generator stali: szablony `brama`, `ogrodzenie`, `balkon`.
 - Modeler 3D: szkice z więzami (w tym współliniowość i symetria), historia parametryczna, podstawowe operacje bryłowe, otwory, inspekcja i przygotowanie druku.
 - Import/eksport 3D: `STEP`, `STL`, `3MF`; projekt parametryczny: `.madcad`.

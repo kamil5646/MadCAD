@@ -51,6 +51,7 @@ import { analyzeSketchConstraints, applySketchConstraintSolution, solveSketchCon
 import { collectSketchSnapCandidates, snapSketchPoint } from '../src/cad-core/sketch-snap.js';
 import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketchLines, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../src/cad-core/sketch-modifiers.js';
 import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../src/cad-core/sketch-transforms.js';
+import { circularSketchPattern, parseSkippedPatternOccurrences, rectangularSketchPattern } from '../src/cad-core/sketch-patterns.js';
 import { edgeGroupVertices, topologyIdForFaceIndex, topologySelectionFromIntersection } from '../src/cad-core/brep-picking.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../src/cad-core/topology-references.js';
 import { createMidplane, createOffsetPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../src/cad-core/construction-planes.js';
@@ -1755,6 +1756,50 @@ test('Copy tworzy niezależny profil, a Scale zmienia okrąg i respektuje blokuj
   const before = structuredClone(document);
   assert.throws(() => scaleSketchSelection(document, sketch.id, [circle.id], { centerX: 0, centerY: 0, factor: 1.5 }), /zablokowany przez wymiar/);
   assert.deepEqual(document, before);
+});
+
+test('szyk prostokątny kopiuje profile i pomija wskazane wystąpienia', () => {
+  const document = createDocument('Szyk prostokątny');
+  const points = [[0, 0], [4, 0], [4, 3], [0, 3]].map(([x, y]) => createSketchPoint({ x, y }));
+  const lines = points.map((point, index) => createSketchLine({ startPointId: point.id, endPointId: points[(index + 1) % points.length].id }));
+  const sketch = createSketch({ entities: [...points, ...lines] });
+  refreshDetectedSketchProfiles(sketch);
+  document.sketches.push(sketch);
+
+  const result = rectangularSketchPattern(document, sketch.id, lines.map((line) => line.id), {
+    columns: 3,
+    rows: 2,
+    spacingX: 10,
+    spacingY: 8,
+    skippedOccurrences: '3',
+  });
+  assert.deepEqual(result.occurrences.map((entry) => entry.occurrenceIndex), [2, 4, 5, 6]);
+  assert.equal(result.createdEntityIds.length, 16);
+  assert.equal(result.createdPointIds.length, 16);
+  assert.equal(sketch.profiles.length, 5);
+  const copiedPoints = result.occurrences[0].pointIds.map((id) => sketch.entities.find((entity) => entity.id === id));
+  assert.deepEqual(copiedPoints.map((point) => [Number(point.geometry.x), Number(point.geometry.y)]), [[10, 0], [14, 0], [14, 3], [10, 3]]);
+});
+
+test('szyk kołowy rozkłada geometrię po kącie i waliduje pominięcia', () => {
+  const document = createDocument('Szyk kołowy');
+  const start = createSketchPoint({ x: 10, y: 0 });
+  const end = createSketchPoint({ x: 14, y: 0 });
+  const line = createSketchLine({ startPointId: start.id, endPointId: end.id });
+  const sketch = createSketch({ entities: [start, end, line] });
+  document.sketches.push(sketch);
+
+  const result = circularSketchPattern(document, sketch.id, [line.id], { count: 4, centerX: 0, centerY: 0, totalAngle: 360, skippedOccurrences: [3] });
+  assert.deepEqual(result.occurrences.map((entry) => entry.occurrenceIndex), [2, 4]);
+  const secondStart = sketch.entities.find((entity) => entity.id === result.occurrences[0].pointIds[0]);
+  assert.ok(Math.abs(Number(secondStart.geometry.x)) < 1e-8);
+  assert.ok(Math.abs(Number(secondStart.geometry.y) - 10) < 1e-8);
+  assert.deepEqual(parseSkippedPatternOccurrences('2, 4-6, 4'), [2, 4, 5, 6]);
+
+  const before = structuredClone(document);
+  assert.throws(() => circularSketchPattern(document, sketch.id, [line.id], { count: 4, skippedOccurrences: '1' }), /źródłową/);
+  assert.deepEqual(document, before);
+  assert.throws(() => rectangularSketchPattern(document, sketch.id, [line.id], { columns: 1, rows: 1 }), /od 2 do 100/);
 });
 
 test('kontrakt encji jest rozszerzalny bez zmiany formatu dokumentu', () => {

@@ -414,6 +414,45 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.dimensions?.length === 3 && window.__madcadVerifyDocumentState.sketches[0].constraints.some((item) => item.type === 'coordinateX') && window.__madcadVerifyDocumentState.sketches[0].constraints.some((item) => item.type === 'coordinateY') && window.__madcadVerifyDocumentState.sketches[0].constraints.some((item) => item.type === 'arcLength')`, 'ponownie otwarte wymiary P1');
   const dimensionFlow = { ordinateX: true, ordinateY: true, arcLength: true, inlineEdit: true, undoRedo: true, reopened: true };
 
+  progress('rectangular and circular sketch patterns');
+  await window.webContents.executeJavaScript(`window.__madcadVerifyLoadPatternFixture?.('rectangular')`);
+  await waitForUi(window, `window.__madcadPatternFixtureIds && window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 8`, 'fixture szyku prostokątnego');
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection(window.__madcadPatternFixtureIds.lineIds, 'replace')`);
+  await clickTool('Szyk szkicu');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Szyk szkicu')`, 'dialog szyku prostokątnego');
+  await setCommandField('Kolumny', '3');
+  await setCommandField('Wiersze', '1');
+  await setCommandField('Odstęp X', '12');
+  await setCommandField('Pomiń wystąpienia', '3');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 16 && window.__madcadVerifyDocumentState.sketches[0].profiles === 2`, 'szyk prostokątny z pominięciem');
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 8`, 'undo szyku prostokątnego');
+  await sendShortcut('z', true);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 16`, 'redo szyku prostokątnego');
+
+  await window.webContents.executeJavaScript(`window.__madcadVerifyLoadPatternFixture?.('circular')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 8 && window.__madcadVerifyDocumentState.sketches[0].profiles === 1`, 'fixture szyku kołowego');
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection(window.__madcadPatternFixtureIds.lineIds, 'replace')`);
+  await clickTool('Szyk szkicu');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Typ szyku')`, 'dialog szyku kołowego');
+  await setCommandField('Typ szyku', 'circular');
+  await setCommandField('Wystąpienia', '4');
+  await setCommandField('Środek X', '0');
+  await setCommandField('Środek Y', '0');
+  await setCommandField('Kąt całkowity', '360');
+  await setCommandField('Pomiń wystąpienia', '3');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 24 && window.__madcadVerifyDocumentState.sketches[0].profiles === 3`, 'szyk kołowy z pominięciem');
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 8`, 'undo szyku kołowego');
+  await sendShortcut('z', true);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 24`, 'redo szyku kołowego');
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.[0]?.entities?.length === 24 && saved.sketches[0].profiles?.length === 3; })()`, 'autozapis szyku kołowego');
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 24 && window.__madcadVerifyDocumentState.sketches[0].profiles === 3`, 'ponownie otwarty szyk kołowy');
+  const patternFlow = { rectangular: true, circular: true, skippedOccurrences: true, undoRedo: true, reopened: true };
+
   progress('line and command termination');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla linii');
@@ -1490,6 +1529,7 @@ async function runUiFlow(window) {
     sketchImport,
     constraintFlow,
     dimensionFlow,
+    patternFlow,
     autosaveRoundTrip,
     workerRecovery,
   };

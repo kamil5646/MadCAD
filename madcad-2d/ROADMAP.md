@@ -126,7 +126,8 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.1 Import SVG/DXF do aktywnego szkicu: wykrywanie i wybór jednostek, profile, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
 - [x] P1.2 Więzy `collinear` i `symmetry` od solvera do interfejsu, z diagnostyką konfliktów, undo/redo, autozapisem i round-trip projektu.
 - [x] P1.3 Wymiary ordinate X/Y oraz długości łuku: sterowanie solverem, znaczniki, edycja na szkicu, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
-- [>] P1.4 Prostokątny i kołowy szyk geometrii szkicu z pomijaniem wystąpień.
+- [x] P1.4 Prostokątny i kołowy szyk geometrii szkicu z pomijaniem wystąpień, walidacją, undo/redo, autozapisem i ponownym otwarciem w desktop E2E.
+- [>] P1.5 Szyk geometrii szkicu po ścieżce z równym rozstawem, orientacją i pomijaniem wystąpień.
 
 ## Definition of Done
 
@@ -150,4 +151,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.4 — prostokątny i kołowy szyk geometrii szkicu z pomijaniem wystąpień, undo/redo i desktop E2E.`
+`P1.5 — szyk geometrii szkicu po ścieżce z równym rozstawem, orientacją i pomijaniem wystąpień.`

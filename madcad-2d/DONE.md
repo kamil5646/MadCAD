@@ -40,6 +40,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Import SVG/DXF do aktywnego szkicu obsługuje jednostki, podstawowe krzywe, profile, diagnostykę pominiętej geometrii oraz pełny przepływ zapisu.
 - [x] Więzy współliniowości i symetrii działają od solvera do przycisków i znaczników szkicu, z diagnostyką konfliktów.
 - [x] Sterujące wymiary ordinate X/Y i długości łuku mają tworzenie oraz edycję na szkicu, transakcyjne błędy, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
+- [x] Prostokątny i kołowy szyk szkicu kopiuje punkty, linie, łuki, okręgi i profile, obsługuje listy oraz zakresy pomijanych wystąpień i przechodzi pełny przepływ zapisu.
 
 ## Podstawowe modyfikacje szkicu M2
 
