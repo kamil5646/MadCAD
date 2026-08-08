@@ -352,6 +352,30 @@ async function runUiFlow(window) {
       if (!(actualVolume > 100)) throw new Error(`Mechanical ${kind} returned invalid volume ${actualVolume}.`);
     } else assertClose(actualVolume, expectedVolume, 0.05, `Mechanical ${kind} volume`);
   }
+  progress('fully constrained parametric bracket');
+  let previousRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyLoadParametricBracketFixture?.()`);
+  await waitForUi(window, `(window.__madcadVerifyEngineState?.revision || 0) > ${previousRevision} && Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 6000) < 0.05`, 'początkowa bryła parametrycznego wspornika', modelingTimeoutMs);
+  await waitForUi(window, `document.querySelector('.sketch-solver-status')?.textContent.includes('W pełni związany')`, 'status w pełni związanego wspornika');
+  const bracketIds = await window.webContents.executeJavaScript(`window.__madcadParametricBracketIds`);
+  previousRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyUpdateConstraint?.(window.__madcadParametricBracketIds.widthConstraintId, '60')`);
+  await waitForUi(window, `(window.__madcadVerifyEngineState?.revision || 0) > ${previousRevision} && Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 9000) < 0.05`, 'bryła po zmianie szerokości', modelingTimeoutMs);
+  previousRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyUpdateConstraint?.(window.__madcadParametricBracketIds.heightConstraintId, '25')`);
+  await waitForUi(window, `(window.__madcadVerifyEngineState?.revision || 0) > ${previousRevision} && Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 7500) < 0.05`, 'bryła po zmianie wysokości', modelingTimeoutMs);
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.[0]?.constraints?.some((item) => item.id === window.__madcadParametricBracketIds.heightConstraintId && item.value === '25'); })()`, 'autozapis zmienionych wymiarów');
+  previousRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `(window.__madcadVerifyEngineState?.revision || 0) > ${previousRevision} && Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 7500) < 0.05`, 'ponownie otwarta bryła wspornika', modelingTimeoutMs);
+  const reopenedBracketIds = await window.webContents.executeJavaScript(`(() => ({
+    entityIds: window.__madcadVerifyDocumentState.sketches[0].entityData.map((entity) => entity.id),
+    profileId: window.__madcadVerifyDocumentState.sketches[0].profileIds[0],
+    featureId: window.__madcadVerifyDocumentState.featureIds[0],
+  }))()`);
+  if (JSON.stringify(reopenedBracketIds.entityIds) !== JSON.stringify(bracketIds.entityIds)
+    || reopenedBracketIds.profileId !== bracketIds.profileId
+    || reopenedBracketIds.featureId !== bracketIds.featureId) throw new Error(`Parametric bracket lost stable IDs: ${JSON.stringify({ bracketIds, reopenedBracketIds })}`);
   const pointHoleRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyLoadPointHoleFixture?.()`);
   await waitForUi(window, `(window.__madcadVerifyEngineState?.revision || 0) > ${pointHoleRevision} && window.__madcadVerifyEngineState?.status === 'ready'`, 'otwór z punktu referencyjnego', modelingTimeoutMs);
@@ -573,6 +597,7 @@ async function runUiFlow(window) {
     sketchDeleteUndoRedo: true,
     polylineModel,
     topologyProfiles: true,
+    parametricBracket: true,
     directManipulation: true,
     pointerInput: 'pen',
     filletChamfer: true,

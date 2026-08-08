@@ -24,10 +24,21 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Fit/control spline, dokładna racjonalna conic z `rho`, analiza krzywizny i samoprzecięcia.
 - [x] Samodzielny punkt jako trwała referencja osi otworu.
 
+## Solver szkicu M1
+
+- [x] Osobny moduł solvera i stany `under-constrained / fully-constrained / conflict / over-constrained`.
+- [x] Stopnie swobody punktów i promieni, jawne `fixed` oraz geometria projected.
+- [x] Więzy fixed, coincident, horizontal, vertical, distance, angle, radius, diameter, tangent i equal.
+- [x] Wymiary sterujące poziome, pionowe, aligned, kąta, promienia i średnicy.
+- [x] Minimalny zestaw konfliktowych więzów i diagnostyka bez częściowej zmiany dokumentu.
+- [x] Status solvera, DOF i wybieralne badges na canvasie z edycją oraz usuwaniem.
+- [x] Przebudowa szkicu i zależnej bryły bez zmiany trwałych ID profilu, encji i operacji.
+- [x] W pełni związany wspornik zmienia dwa wymiary, zachowuje poprawną objętość B-Rep i przechodzi autozapis oraz ponowne otwarcie.
+
 ## Ostatnia zweryfikowana baza
 
-- Testy rdzenia: 42 zaliczone, 0 błędów.
-- Desktop E2E: profile XY/XZ/YZ, spline, conic, otwór z punktu, fillet/chamfer, autosave, odtworzenie workera oraz eksport STEP/STL.
-- Commity kontrolne: `1633cf3`, `6505103`.
+- Testy rdzenia: 53 zaliczone, 0 błędów.
+- Desktop E2E: profile XY/XZ/YZ, spline, conic, parametryczny wspornik, otwór z punktu, fillet/chamfer, autosave, odtworzenie workera oraz eksport STEP/STL.
+- Commity kontrolne: `1633cf3`, `6505103`, `be3c067`, `ec5e45f`.
 
 Liczby testów są historycznym zapisem tej bazy; bieżący wynik zawsze pochodzi z aktualnego uruchomienia CI.

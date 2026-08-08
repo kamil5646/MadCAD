@@ -153,6 +153,10 @@ function curveIntersections(first, second) {
   return circleCircleIntersections(first, second);
 }
 
+export function intersectSketchCurves(first, second) {
+  return curveIntersections(first, second);
+}
+
 function tangentPoints(anchor, curve) {
   if (!anchor || curve.kind === 'line') return [];
   const delta = [anchor[0] - curve.center[0], anchor[1] - curve.center[1]];
@@ -196,6 +200,10 @@ function sketchGeometry(sketch, parameters) {
     }
   }
   return { entities, map, points, curves };
+}
+
+export function sketchCurveGeometry(sketch, parameters = []) {
+  return sketchGeometry(sketch, resolvedValues(parameters));
 }
 
 function candidate(type, point, options = {}) {

@@ -520,11 +520,19 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
 
 export function refreshDetectedSketchProfiles(sketch, parameters = []) {
   const primitiveProfiles = (sketch.profiles || []).filter((profile) => profile.source === 'primitive');
+  const detectedProfilesBySignature = new Map((sketch.profiles || [])
+    .filter((profile) => profile.source !== 'primitive')
+    .map((profile) => [[...(profile.entityIds || [])].sort().join('|'), profile]));
   const result = detectSketchProfiles(sketch, parameters);
   const primitiveSignatures = new Set(primitiveProfiles.map((profile) => [...(profile.entityIds || [])].sort().join('|')));
   sketch.profiles = [
     ...primitiveProfiles,
-    ...result.profiles.filter((profile) => !primitiveSignatures.has([...profile.entityIds].sort().join('|'))),
+    ...result.profiles
+      .filter((profile) => !primitiveSignatures.has([...profile.entityIds].sort().join('|')))
+      .map((profile) => {
+        const previous = detectedProfilesBySignature.get([...profile.entityIds].sort().join('|'));
+        return previous ? { ...profile, id: previous.id, name: previous.name || profile.name } : profile;
+      }),
   ];
   sketch.diagnostics = result.diagnostics;
   return result;

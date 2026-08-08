@@ -40,7 +40,8 @@ import {
 } from '../src/cad-core/sketch-model.js';
 import { analyzeSketchConstraints, applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../src/cad-core/sketch-solver.js';
 import { collectSketchSnapCandidates, snapSketchPoint } from '../src/cad-core/sketch-snap.js';
-import { detectSketchProfiles } from '../src/cad-core/sketch-topology.js';
+import { trimSketchEntity } from '../src/cad-core/sketch-modifiers.js';
+import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import {
   arcCenterStartEnd,
   arcThroughThreePoints,
@@ -466,14 +467,14 @@ test('solver rozpoznaje nadmiarowy więz i nie zgaduje nieobsługiwanej relacji'
   const line = createSketchLine({ startPointId: first.id, endPointId: second.id });
   const firstHorizontal = createSketchConstraint('horizontal', [line.id]);
   const duplicateHorizontal = createSketchConstraint('horizontal', [first.id, second.id]);
-  const tangent = createSketchConstraint('tangent', [line.id]);
-  const sketch = createSketch({ entities: [first, second, line], constraints: [firstHorizontal, duplicateHorizontal, tangent] });
+  const parallel = createSketchConstraint('parallel', [line.id]);
+  const sketch = createSketch({ entities: [first, second, line], constraints: [firstHorizontal, duplicateHorizontal, parallel] });
   const result = analyzeSketchConstraints(sketch);
 
   assert.equal(result.status, SKETCH_SOLVER_STATUS.OVER_CONSTRAINED);
   assert.equal(result.degreesOfFreedom, 3);
   assert.ok(result.diagnostics.some((entry) => entry.code === 'REDUNDANT_CONSTRAINTS'));
-  assert.ok(result.diagnostics.some((entry) => entry.code === 'UNSUPPORTED_CONSTRAINT' && entry.constraintIds.includes(tangent.id)));
+  assert.ok(result.diagnostics.some((entry) => entry.code === 'UNSUPPORTED_CONSTRAINT' && entry.constraintIds.includes(parallel.id)));
 });
 
 test('solver projektuje coincident, horizontal i vertical bez zmiany trwałych ID', () => {
@@ -631,6 +632,184 @@ test('diagnostyka wskazuje minimalny zestaw sprzecznych więzów', () => {
     && entry.constraintIds.length === 2
     && entry.constraintIds.includes(widthTen.id)
     && entry.constraintIds.includes(widthTwenty.id)));
+});
+
+test('w pełni związany wspornik przebudowuje bryłę i zachowuje ID po zmianie dwóch wymiarów oraz ponownym otwarciu', () => {
+  const document = createDocument('Parametryczny wspornik');
+  const points = [
+    createSketchPoint({ x: 0, y: 0, fixed: true }),
+    createSketchPoint({ x: 40, y: 0 }),
+    createSketchPoint({ x: 40, y: 30 }),
+    createSketchPoint({ x: 0, y: 30 }),
+  ];
+  const lines = points.map((point, index) => createSketchLine({
+    startPointId: point.id,
+    endPointId: points[(index + 1) % points.length].id,
+  }));
+  const sketch = createSketch({ entities: [...points, ...lines], constraints: [
+    createSketchConstraint('horizontal', [lines[0].id]),
+    createSketchConstraint('vertical', [lines[1].id]),
+    createSketchConstraint('horizontal', [lines[2].id]),
+    createSketchConstraint('vertical', [lines[3].id]),
+  ] });
+  const width = addDrivingSketchDimension(sketch, 'horizontal', [points[0].id, points[1].id], { expression: '40' });
+  const height = addDrivingSketchDimension(sketch, 'vertical', [points[0].id, points[3].id], { expression: '30' });
+  refreshDetectedSketchProfiles(sketch);
+  document.sketches.push(sketch);
+  document.features.push(createFeature('extrude', { sketchId: sketch.id, profileIds: [sketch.profiles[0].id], distance: '5', operation: 'new' }));
+  const stableIds = {
+    entities: sketch.entities.map((entity) => entity.id),
+    profile: sketch.profiles[0].id,
+    feature: document.features[0].id,
+  };
+  assert.equal(analyzeSketchConstraints(sketch).status, SKETCH_SOLVER_STATUS.FULLY_CONSTRAINED);
+  assert.equal(prepareDocument(document).features[0].profiles[0].geometry.width, 40);
+  assert.equal(prepareDocument(document).features[0].profiles[0].geometry.height, 30);
+
+  width.constraint.value = '60';
+  width.dimension.expression = '60';
+  let solution = solveSketchConstraints(sketch);
+  assert.equal(solution.solved, true);
+  applySketchConstraintSolution(sketch, solution);
+  refreshDetectedSketchProfiles(sketch);
+  height.constraint.value = '25';
+  height.dimension.expression = '25';
+  solution = solveSketchConstraints(sketch);
+  assert.equal(solution.solved, true);
+  applySketchConstraintSolution(sketch, solution);
+  refreshDetectedSketchProfiles(sketch);
+
+  assert.equal(analyzeSketchConstraints(sketch).status, SKETCH_SOLVER_STATUS.FULLY_CONSTRAINED);
+  assert.deepEqual(sketch.entities.map((entity) => entity.id), stableIds.entities);
+  assert.equal(sketch.profiles[0].id, stableIds.profile);
+  assert.equal(document.features[0].id, stableIds.feature);
+  assert.equal(document.features[0].profileIds[0], stableIds.profile);
+  const prepared = prepareDocument(document);
+  assert.ok(Math.abs(prepared.features[0].profiles[0].geometry.width - 60) <= GEOMETRY_POLICY.linearTolerance);
+  assert.ok(Math.abs(prepared.features[0].profiles[0].geometry.height - 25) <= GEOMETRY_POLICY.linearTolerance);
+
+  const reopened = openDocument(JSON.parse(JSON.stringify(document))).document;
+  assert.equal(validateDocument(reopened).valid, true);
+  assert.deepEqual(reopened.sketches[0].entities.map((entity) => entity.id), stableIds.entities);
+  assert.equal(reopened.sketches[0].profiles[0].id, stableIds.profile);
+  assert.equal(reopened.features[0].id, stableIds.feature);
+  assert.ok(Math.abs(prepareDocument(reopened).features[0].profiles[0].geometry.width - 60) <= GEOMETRY_POLICY.linearTolerance);
+  assert.ok(Math.abs(prepareDocument(reopened).features[0].profiles[0].geometry.height - 25) <= GEOMETRY_POLICY.linearTolerance);
+});
+
+test('solver utrzymuje equal dla linii i okręgów', () => {
+  const a0 = createSketchPoint({ x: 0, y: 0, fixed: true });
+  const a1 = createSketchPoint({ x: 10, y: 0, fixed: true });
+  const b0 = createSketchPoint({ x: 20, y: 0, fixed: true });
+  const b1 = createSketchPoint({ x: 23, y: 4 });
+  const firstLine = createSketchLine({ startPointId: a0.id, endPointId: a1.id });
+  const secondLine = createSketchLine({ startPointId: b0.id, endPointId: b1.id });
+  const lineSketch = createSketch({ entities: [a0, a1, b0, b1, firstLine, secondLine], constraints: [createSketchConstraint('equal', [firstLine.id, secondLine.id])] });
+  const lineSolution = solveSketchConstraints(lineSketch);
+  assert.equal(lineSolution.solved, true);
+  const lineEnd = lineSolution.updates.find((entry) => entry.pointId === b1.id);
+  assert.ok(Math.abs(Math.hypot(lineEnd.x - 20, lineEnd.y) - 10) <= GEOMETRY_POLICY.linearTolerance);
+
+  const c0 = createSketchPoint({ x: 0, y: 0 });
+  const c1 = createSketchPoint({ x: 20, y: 0, fixed: true });
+  const firstCircle = createSketchCircleEntity({ centerPointId: c0.id, radius: 5, fixed: true });
+  const secondCircle = createSketchCircleEntity({ centerPointId: c1.id, radius: 8 });
+  const circleSketch = createSketch({ entities: [c0, c1, firstCircle, secondCircle], constraints: [createSketchConstraint('equal', [firstCircle.id, secondCircle.id])] });
+  const circleSolution = solveSketchConstraints(circleSketch);
+  assert.equal(circleSolution.solved, true);
+  assert.equal(circleSolution.status, SKETCH_SOLVER_STATUS.FULLY_CONSTRAINED);
+  assert.equal(circleSolution.entityUpdates.find((entry) => entry.entityId === secondCircle.id).geometry.radius, '5');
+});
+
+test('solver utrzymuje styczność linii z okręgiem oraz dwóch okręgów', () => {
+  const lineStart = createSketchPoint({ x: -10, y: 0, fixed: true });
+  const lineEnd = createSketchPoint({ x: 10, y: 0, fixed: true });
+  const center = createSketchPoint({ x: 0, y: 8 });
+  const line = createSketchLine({ startPointId: lineStart.id, endPointId: lineEnd.id });
+  const circle = createSketchCircleEntity({ centerPointId: center.id, radius: 5 });
+  const lineCircleSketch = createSketch({ entities: [lineStart, lineEnd, center, line, circle], constraints: [createSketchConstraint('tangent', [line.id, circle.id])] });
+  const lineCircleSolution = solveSketchConstraints(lineCircleSketch);
+  assert.equal(lineCircleSolution.solved, true);
+  assert.ok(Math.abs(lineCircleSolution.updates.find((entry) => entry.pointId === center.id).y - 5) <= GEOMETRY_POLICY.linearTolerance);
+
+  const firstCenter = createSketchPoint({ x: 0, y: 0, fixed: true });
+  const secondCenter = createSketchPoint({ x: 10, y: 0 });
+  const firstCircle = createSketchCircleEntity({ centerPointId: firstCenter.id, radius: 5, fixed: true });
+  const secondCircle = createSketchCircleEntity({ centerPointId: secondCenter.id, radius: 3 });
+  const circleSketch = createSketch({ entities: [firstCenter, secondCenter, firstCircle, secondCircle], constraints: [createSketchConstraint('tangent', [firstCircle.id, secondCircle.id])] });
+  const circleSolution = solveSketchConstraints(circleSketch);
+  assert.equal(circleSolution.solved, true);
+  const movedCenter = circleSolution.updates.find((entry) => entry.pointId === secondCenter.id);
+  assert.ok(Math.abs(Math.hypot(movedCenter.x, movedCenter.y) - 8) <= GEOMETRY_POLICY.linearTolerance);
+});
+
+test('Trim usuwa wskazany środkowy fragment linii i bezpiecznie czyści zależności', () => {
+  const document = createDocument('Trim linii');
+  const points = [[0, 0], [20, 0], [20, 10], [0, 10]].map(([x, y]) => createSketchPoint({ x, y }));
+  const boundary = points.map((point, index) => createSketchLine({ startPointId: point.id, endPointId: points[(index + 1) % points.length].id }));
+  const sketch = createSketch({ entities: [...points, ...boundary] });
+  refreshDetectedSketchProfiles(sketch);
+  const profileId = sketch.profiles[0].id;
+  const feature = createFeature('extrude', { sketchId: sketch.id, profileIds: [profileId], distance: '5', operation: 'new' });
+  const lowerA = createSketchPoint({ x: 5, y: -5 });
+  const upperA = createSketchPoint({ x: 5, y: 5 });
+  const lowerB = createSketchPoint({ x: 15, y: -5 });
+  const upperB = createSketchPoint({ x: 15, y: 5 });
+  sketch.entities.push(lowerA, upperA, lowerB, upperB,
+    createSketchLine({ startPointId: lowerA.id, endPointId: upperA.id, role: 'construction' }),
+    createSketchLine({ startPointId: lowerB.id, endPointId: upperB.id, role: 'construction' }));
+  const horizontal = createSketchConstraint('horizontal', [boundary[0].id]);
+  sketch.constraints.push(horizontal);
+  const dimension = createSketchDimension('aligned', [boundary[0].id], { expression: '20', constraintId: horizontal.id });
+  sketch.dimensions.push(dimension);
+  document.sketches.push(sketch);
+  document.features.push(feature);
+
+  const result = trimSketchEntity(document, sketch.id, boundary[0].id, [10, 0]);
+  const lines = sketch.entities.filter((entity) => entity.type === 'line' && entity.role === 'standard');
+  const pointMap = new Map(sketch.entities.filter((entity) => entity.type === 'point').map((point) => [point.id, point]));
+  const retained = lines.find((line) => line.id === boundary[0].id);
+  const continuation = lines.find((line) => result.createdEntityIds.includes(line.id));
+
+  assert.ok(retained);
+  assert.ok(continuation);
+  assert.ok(Math.abs(Number(pointMap.get(retained.pointIds[1]).geometry.x) - 5) <= GEOMETRY_POLICY.linearTolerance);
+  assert.ok(Math.abs(Number(pointMap.get(continuation.pointIds[0]).geometry.x) - 15) <= GEOMETRY_POLICY.linearTolerance);
+  assert.deepEqual(result.removedConstraintIds, [horizontal.id]);
+  assert.deepEqual(result.removedDimensionIds, [dimension.id]);
+  assert.deepEqual(result.removedProfileIds, [profileId]);
+  assert.deepEqual(result.removedFeatureIds, [feature.id]);
+  assert.equal(document.features.length, 0);
+});
+
+test('Trim dzieli łuk na dwa trwałe fragmenty i odrzuca brak ograniczającego przecięcia bez mutacji', () => {
+  const document = createDocument('Trim łuku');
+  const center = createSketchPoint({ x: 0, y: 0 });
+  const start = createSketchPoint({ x: 10, y: 0 });
+  const end = createSketchPoint({ x: -10, y: 0 });
+  const arc = createSketchArc({ centerPointId: center.id, startPointId: start.id, endPointId: end.id, direction: 'ccw' });
+  const cutterPoints = [[5, 0], [5, 15], [-5, 0], [-5, 15]].map(([x, y]) => createSketchPoint({ x, y }));
+  const cutters = [
+    createSketchLine({ startPointId: cutterPoints[0].id, endPointId: cutterPoints[1].id, role: 'construction' }),
+    createSketchLine({ startPointId: cutterPoints[2].id, endPointId: cutterPoints[3].id, role: 'construction' }),
+  ];
+  const sketch = createSketch({ entities: [center, start, end, ...cutterPoints, arc, ...cutters] });
+  document.sketches.push(sketch);
+  const result = trimSketchEntity(document, sketch.id, arc.id, [0, 10]);
+  const arcs = sketch.entities.filter((entity) => entity.type === 'arc');
+  assert.equal(arcs.length, 2);
+  assert.equal(arcs.some((entity) => entity.id === arc.id), true);
+  assert.equal(arcs.some((entity) => result.createdEntityIds.includes(entity.id)), true);
+
+  const isolatedDocument = createDocument('Trim bez przecięcia');
+  const isolatedStart = createSketchPoint({ x: 0, y: 0 });
+  const isolatedEnd = createSketchPoint({ x: 10, y: 0 });
+  const isolatedLine = createSketchLine({ startPointId: isolatedStart.id, endPointId: isolatedEnd.id });
+  const isolatedSketch = createSketch({ entities: [isolatedStart, isolatedEnd, isolatedLine] });
+  isolatedDocument.sketches.push(isolatedSketch);
+  const before = structuredClone(isolatedDocument);
+  assert.throws(() => trimSketchEntity(isolatedDocument, isolatedSketch.id, isolatedLine.id, [5, 0]), /Brak przecięcia/);
+  assert.deepEqual(isolatedDocument, before);
 });
 
 test('kontrakt encji jest rozszerzalny bez zmiany formatu dokumentu', () => {

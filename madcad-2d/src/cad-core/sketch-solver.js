@@ -19,6 +19,8 @@ export const SUPPORTED_SKETCH_CONSTRAINTS = Object.freeze([
   'angle',
   'radius',
   'diameter',
+  'tangent',
+  'equal',
 ]);
 
 function parameterValues(parameters) {
@@ -192,6 +194,92 @@ function rowForConstraint(constraint, entityMap, variableColumns, values) {
     if (column !== undefined) row[column] = multiplier;
     const radius = evaluateExpression(circle.geometry.radius, values);
     return { supported: true, rows: [{ row, residual: radius * multiplier - target }] };
+  }
+
+  if (constraint.type === 'equal') {
+    const lines = referencedEntities(constraint.entityIds, entityMap, 'line');
+    const circles = referencedEntities(constraint.entityIds, entityMap, 'circle');
+    const row = makeRow();
+    if (lines.length === 2 && circles.length === 0) {
+      const lengths = lines.map((line, lineIndex) => {
+        const [start, end] = line.pointIds.map((pointId) => entityMap.get(pointId));
+        if (start?.type !== 'point' || end?.type !== 'point') return null;
+        const dx = pointValue(end, 'x') - pointValue(start, 'x');
+        const dy = pointValue(end, 'y') - pointValue(start, 'y');
+        const length = Math.hypot(dx, dy);
+        if (length <= GEOMETRY_POLICY.linearTolerance) return null;
+        const sign = lineIndex === 0 ? -1 : 1;
+        coefficient(row, start.id, 'x', sign * -dx / length);
+        coefficient(row, start.id, 'y', sign * -dy / length);
+        coefficient(row, end.id, 'x', sign * dx / length);
+        coefficient(row, end.id, 'y', sign * dy / length);
+        return length;
+      });
+      if (lengths.some((length) => length === null)) return { supported: true, error: 'Wiązanie equal nie obsługuje linii o zerowej długości.' };
+      return { supported: true, rows: [{ row, residual: lengths[1] - lengths[0] }] };
+    }
+    if (circles.length === 2 && lines.length === 0) {
+      circles.forEach((circle, index) => {
+        const column = variableColumns.get(`${circle.id}:radius`);
+        if (column !== undefined) row[column] += index === 0 ? -1 : 1;
+      });
+      const radii = circles.map((circle) => evaluateExpression(circle.geometry.radius, values));
+      return { supported: true, rows: [{ row, residual: radii[1] - radii[0] }] };
+    }
+    return { supported: true, error: 'Wiązanie equal wymaga dwóch linii albo dwóch okręgów.' };
+  }
+
+  if (constraint.type === 'tangent') {
+    const lines = referencedEntities(constraint.entityIds, entityMap, 'line');
+    const circles = referencedEntities(constraint.entityIds, entityMap, 'circle');
+    const row = makeRow();
+    if (lines.length === 1 && circles.length === 1) {
+      const line = lines[0];
+      const circle = circles[0];
+      const [start, end] = line.pointIds.map((pointId) => entityMap.get(pointId));
+      const center = entityMap.get(circle.pointIds[0]);
+      if ([start, end, center].some((point) => point?.type !== 'point')) return { supported: true, error: 'Wiązanie tangent wskazuje niepełną geometrię.' };
+      const ax = pointValue(start, 'x');
+      const ay = pointValue(start, 'y');
+      const bx = pointValue(end, 'x');
+      const by = pointValue(end, 'y');
+      const cx = pointValue(center, 'x');
+      const cy = pointValue(center, 'y');
+      const dx = bx - ax;
+      const dy = by - ay;
+      const length = Math.hypot(dx, dy);
+      if (length <= GEOMETRY_POLICY.linearTolerance) return { supported: true, error: 'Wiązanie tangent nie obsługuje linii o zerowej długości.' };
+      const cross = dx * (cy - ay) - dy * (cx - ax);
+      const signedDistance = cross / length;
+      const side = signedDistance < 0 ? -1 : 1;
+      const crossGradients = [by - cy, cx - bx, cy - ay, ax - cx, -dy, dx];
+      const lengthGradients = [-dx / length, -dy / length, dx / length, dy / length, 0, 0];
+      const variables = [[start, 'x'], [start, 'y'], [end, 'x'], [end, 'y'], [center, 'x'], [center, 'y']];
+      variables.forEach(([point, axis], index) => coefficient(row, point.id, axis, side * ((crossGradients[index] / length) - ((cross * lengthGradients[index]) / (length * length)))));
+      const radiusColumn = variableColumns.get(`${circle.id}:radius`);
+      if (radiusColumn !== undefined) row[radiusColumn] -= 1;
+      const radius = evaluateExpression(circle.geometry.radius, values);
+      return { supported: true, rows: [{ row, residual: Math.abs(signedDistance) - radius }] };
+    }
+    if (lines.length === 0 && circles.length === 2) {
+      const centers = circles.map((circle) => entityMap.get(circle.pointIds[0]));
+      if (centers.some((point) => point?.type !== 'point')) return { supported: true, error: 'Wiązanie tangent wskazuje okrąg bez środka.' };
+      const dx = pointValue(centers[1], 'x') - pointValue(centers[0], 'x');
+      const dy = pointValue(centers[1], 'y') - pointValue(centers[0], 'y');
+      const distance = Math.hypot(dx, dy);
+      const direction = distance > GEOMETRY_POLICY.linearTolerance ? [dx / distance, dy / distance] : [1, 0];
+      coefficient(row, centers[0].id, 'x', -direction[0]);
+      coefficient(row, centers[0].id, 'y', -direction[1]);
+      coefficient(row, centers[1].id, 'x', direction[0]);
+      coefficient(row, centers[1].id, 'y', direction[1]);
+      circles.forEach((circle) => {
+        const column = variableColumns.get(`${circle.id}:radius`);
+        if (column !== undefined) row[column] -= 1;
+      });
+      const target = circles.reduce((sum, circle) => sum + evaluateExpression(circle.geometry.radius, values), 0);
+      return { supported: true, rows: [{ row, residual: distance - target }] };
+    }
+    return { supported: true, error: 'Wiązanie tangent wymaga linii i okręgu albo dwóch okręgów.' };
   }
 
   if (constraint.type === 'fixed') return { supported: true, rows: [] };
@@ -391,6 +479,11 @@ export function solveSketchConstraints(sketch, parameters = [], options = {}) {
     const end = coordinates.get(line.pointIds[1]);
     return Math.atan2(end.y - start.y, end.x - start.x);
   };
+  const lineLength = (line) => {
+    const start = coordinates.get(line.pointIds[0]);
+    const end = coordinates.get(line.pointIds[1]);
+    return Math.hypot(end.x - start.x, end.y - start.y);
+  };
   const setLineAngle = (line, targetAngle) => {
     const [startId, endId] = line.pointIds;
     const start = coordinates.get(startId);
@@ -445,6 +538,64 @@ export function solveSketchConstraints(sketch, parameters = [], options = {}) {
         const current = radii.get(circles[0].id);
         maximumDelta = Math.max(maximumDelta, Math.abs(current - target));
         radii.set(circles[0].id, target);
+        continue;
+      }
+      if (constraint.type === 'equal') {
+        const lines = referencedEntities(constraint.entityIds, entityMap, 'line');
+        const circles = referencedEntities(constraint.entityIds, entityMap, 'circle');
+        if (lines.length === 2 && circles.length === 0) {
+          const secondPoints = lines[1].pointIds.map((pointId) => entityMap.get(pointId));
+          const firstPoints = lines[0].pointIds.map((pointId) => entityMap.get(pointId));
+          const secondMovable = secondPoints.some((point) => !fixedPointIds.has(point.id));
+          maximumDelta = Math.max(maximumDelta, secondMovable
+            ? setDistance(secondPoints[0], secondPoints[1], lineLength(lines[0]))
+            : setDistance(firstPoints[0], firstPoints[1], lineLength(lines[1])));
+        } else if (circles.length === 2 && lines.length === 0) {
+          const targetCircle = fixedEntityIds.has(circles[1].id) ? circles[0] : circles[1];
+          const sourceCircle = targetCircle === circles[1] ? circles[0] : circles[1];
+          if (!fixedEntityIds.has(targetCircle.id)) {
+            const nextRadius = radii.get(sourceCircle.id);
+            maximumDelta = Math.max(maximumDelta, Math.abs(radii.get(targetCircle.id) - nextRadius));
+            radii.set(targetCircle.id, nextRadius);
+          }
+        }
+        continue;
+      }
+      if (constraint.type === 'tangent') {
+        const lines = referencedEntities(constraint.entityIds, entityMap, 'line');
+        const circles = referencedEntities(constraint.entityIds, entityMap, 'circle');
+        if (lines.length === 1 && circles.length === 1) {
+          const [startId, endId] = lines[0].pointIds;
+          const start = coordinates.get(startId);
+          const end = coordinates.get(endId);
+          const centerId = circles[0].pointIds[0];
+          const center = coordinates.get(centerId);
+          const dx = end.x - start.x;
+          const dy = end.y - start.y;
+          const length = Math.hypot(dx, dy);
+          if (length <= tolerance) continue;
+          const normal = [-dy / length, dx / length];
+          const signedDistance = ((center.x - start.x) * normal[0]) + ((center.y - start.y) * normal[1]);
+          const targetSigned = (signedDistance < 0 ? -1 : 1) * radii.get(circles[0].id);
+          const correction = targetSigned - signedDistance;
+          if (!fixedPointIds.has(centerId)) {
+            center.x += normal[0] * correction;
+            center.y += normal[1] * correction;
+            maximumDelta = Math.max(maximumDelta, Math.abs(correction));
+          } else if (!fixedEntityIds.has(circles[0].id)) {
+            maximumDelta = Math.max(maximumDelta, Math.abs(radii.get(circles[0].id) - Math.abs(signedDistance)));
+            radii.set(circles[0].id, Math.abs(signedDistance));
+          } else if (!fixedPointIds.has(startId) && !fixedPointIds.has(endId)) {
+            start.x -= normal[0] * correction;
+            start.y -= normal[1] * correction;
+            end.x -= normal[0] * correction;
+            end.y -= normal[1] * correction;
+            maximumDelta = Math.max(maximumDelta, Math.abs(correction));
+          }
+        } else if (lines.length === 0 && circles.length === 2) {
+          const centers = circles.map((circle) => entityMap.get(circle.pointIds[0]));
+          maximumDelta = Math.max(maximumDelta, setDistance(centers[0], centers[1], radii.get(circles[0].id) + radii.get(circles[1].id)));
+        }
         continue;
       }
       if (!['coincident', 'horizontal', 'vertical', 'distance', 'distanceX', 'distanceY'].includes(constraint.type)) continue;

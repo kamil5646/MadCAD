@@ -36,8 +36,8 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 
 | Kolejność | Etap | Status | Zależność | Wynik użytkownika |
 | --- | --- | --- | --- | --- |
-| 1 | M1 Solver szkicu MVP | `[>]` | ukończony model encji | szkic ma wymiary, podstawowe więzy i stopnie swobody |
-| 2 | M2 Podstawowe modyfikacje szkicu | `[ ]` | M1 | Trim/Extend/Break/Offset/Fillet/Chamfer i podstawowe transformacje zachowują więzy |
+| 1 | M1 Solver szkicu MVP | `[x]` | ukończony model encji | szkic ma wymiary, podstawowe więzy i stopnie swobody |
+| 2 | M2 Podstawowe modyfikacje szkicu | `[>]` | M1 | Trim/Extend/Break/Offset/Fillet/Chamfer i podstawowe transformacje zachowują więzy |
 | 3 | M3 Picking B-Rep | `[ ]` | trwałe ID z R0 | można stabilnie wskazać ścianę, krawędź i wierzchołek |
 | 4 | M4 Konstrukcja podstawowa | `[ ]` | M3 | offset plane, midplane, plane przez trzy punkty, osie i punkty konstrukcyjne |
 | 5 | M5 Szkic na modelu i Project | `[ ]` | M1, M3, M4 | drugi szkic powstaje na ścianie i zachowuje projekcję krawędzi |
@@ -47,22 +47,9 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 | 9 | M9 Przygotowanie druku MVP | `[ ]` | M6–M8 | orientacja, STEP/STL/3MF, skala 1:1, manifold, grubość, nawisy i przekazanie do slicera |
 | 10 | M10 Wydanie alpha/beta | `[ ]` | M1–M9 | instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS |
 
-## M1 — solver szkicu MVP `P0`
-
-- [x] Osobny moduł solvera i kontrakt wyniku: `under-constrained / fully-constrained / conflict / over-constrained`.
-- [x] Stopnie swobody punktów oraz jawne punkty `fixed`.
-- [~] Więzy: gotowe fixed, coincident, horizontal, vertical, distance, angle, radius i diameter; oczekują tangent i equal.
-- [x] Wymiary sterujące: poziomy, pionowy, aligned, kąt, promień i średnica mają wspólny kontrakt z więzem solvera.
-- [x] Diagnostyka konfliktu wskazuje minimalny zestaw problematycznych więzów.
-- [x] Canvas pokazuje status solvera, stopnie swobody i wybieralne badges więzów; badge można zaznaczyć, edytować i usunąć.
-- [ ] Zmiana wymiaru przebudowuje szkic i zależną bryłę bez zmiany trwałych ID.
-- [ ] Scenariusz: w pełni związany wspornik reaguje na zmianę dwóch wymiarów po zapisie i ponownym otwarciu.
-
-Kryterium wyjścia: solver nie mieszka w komponencie React, zachowuje istniejące ID, wykrywa konflikt bez częściowej zmiany dokumentu i ma deterministyczne testy.
-
 ## M2 — podstawowe modyfikacje szkicu `P0`
 
-- [ ] Trim, Extend i Break z podglądem oraz wyborem rozwiązania.
+- [x] Trim linii i łuku wybiera kliknięty fragment na canvasie, aktualizuje profil i bezpiecznie usuwa zerwane więzy oraz operacje.
 - [ ] Offset krzywej, łańcucha i profilu.
 - [ ] Sketch Fillet i Sketch Chamfer.
 - [ ] Move, Rotate, Copy i Mirror; Scale tylko dla geometrii bez blokujących wymiarów.
@@ -170,4 +157,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M1.7 — test scenariusza zmiany dwóch wymiarów wspornika, przebudowy bryły oraz zapisu i ponownego otwarcia.`
+`M2.2 — Extend i Break z wyborem rozwiązania oraz zachowaniem trwałych ID.`

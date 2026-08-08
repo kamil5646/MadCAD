@@ -62,7 +62,9 @@ import {
   touchDocument,
 } from '../cad-core/document.js';
 import {
+  addDrivingSketchDimension,
   createSketchArc,
+  createSketchConstraint,
   createSketchLine,
   createSketchPoint,
   createTangentArcContinuation,
@@ -92,6 +94,7 @@ import {
   slotThreePoints,
 } from '../cad-core/sketch-primitives.js';
 import { refreshDetectedSketchProfiles } from '../cad-core/sketch-topology.js';
+import { trimSketchEntity } from '../cad-core/sketch-modifiers.js';
 import { applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
 import ModelViewport from './ModelViewport.jsx';
@@ -309,7 +312,7 @@ function Field({ label, value, onChange, suffix = '', type = 'text', disabled = 
 }
 
 function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, onUndoSegment, onFinishPath }) {
-  if (!command || command.type === 'plane' || command.type === 'parameters') return null;
+  if (!command || command.type === 'plane' || command.type === 'parameters' || command.type === 'trimSketch') return null;
   const isRectangle = command.type === 'rectangle';
   const isCircle = command.type === 'circle';
   const isArc = command.type === 'arc';
@@ -1059,6 +1062,19 @@ export default function ModelingWorkspace({ onClose }) {
     }
   };
 
+  const trimSketchAtPoint = ({ entityId, point }) => {
+    if (readOnly) return readOnlyNotice();
+    try {
+      const checked = cloneDocument(document);
+      const result = trimSketchEntity(checked, activeSketchId, entityId, point);
+      commit((next) => trimSketchEntity(next, activeSketchId, entityId, point));
+      setSelection({ kind: 'sketch', id: activeSketchId });
+      setNotice(`Trim usunął wskazany fragment${result.removedConstraintIds.length ? ` i ${result.removedConstraintIds.length} zerwanych więzów` : ''}${result.removedFeatureIds.length ? `; usunięto ${result.removedFeatureIds.length} zależną operację` : ''}. Cofnij przywraca stan.`);
+    } catch (error) {
+      setNotice(`Trim nie został wykonany: ${error.message}`);
+    }
+  };
+
   useEffect(() => {
     const verifyMode = new URLSearchParams(window.location.search).has('verify');
     if (!verifyMode) return undefined;
@@ -1137,6 +1153,51 @@ export default function ModelingWorkspace({ onClose }) {
       setSelection({ kind: 'document', id: fixture.id });
       setCommand(null);
     };
+    window.__madcadVerifyLoadParametricBracketFixture = () => {
+      const fixture = createDocument('W pełni związany wspornik');
+      const points = [
+        createSketchPoint({ x: 0, y: 0, fixed: true }),
+        createSketchPoint({ x: 40, y: 0 }),
+        createSketchPoint({ x: 40, y: 30 }),
+        createSketchPoint({ x: 0, y: 30 }),
+      ];
+      const lines = points.map((point, index) => createSketchLine({ startPointId: point.id, endPointId: points[(index + 1) % points.length].id }));
+      const sketch = createSketch({ name: 'Szkic wspornika', plane: 'XY', entities: [...points, ...lines], constraints: [
+        createSketchConstraint('horizontal', [lines[0].id]),
+        createSketchConstraint('vertical', [lines[1].id]),
+        createSketchConstraint('horizontal', [lines[2].id]),
+        createSketchConstraint('vertical', [lines[3].id]),
+      ] });
+      const width = addDrivingSketchDimension(sketch, 'horizontal', [points[0].id, points[1].id], { expression: '40' });
+      const height = addDrivingSketchDimension(sketch, 'vertical', [points[0].id, points[3].id], { expression: '30' });
+      refreshDetectedSketchProfiles(sketch, fixture.parameters);
+      const feature = createFeature('extrude', { name: 'Bryła wspornika', sketchId: sketch.id, profileIds: [sketch.profiles[0].id], distance: '5', operation: 'new' });
+      fixture.sketches.push(sketch);
+      fixture.features.push(feature);
+      window.__madcadParametricBracketIds = {
+        sketchId: sketch.id,
+        entityIds: sketch.entities.map((entity) => entity.id),
+        profileId: sketch.profiles[0].id,
+        featureId: feature.id,
+        widthConstraintId: width.constraint.id,
+        heightConstraintId: height.constraint.id,
+      };
+      history.replace(fixture);
+      setActiveSketchId(sketch.id);
+      setWorkspace('solid');
+      setSelection({ kind: 'sketch', id: sketch.id });
+      setCommand(null);
+    };
+    window.__madcadVerifyUpdateConstraint = updateSketchConstraintValue;
+    window.__madcadVerifyReopenAutosave = () => {
+      const raw = window.localStorage.getItem(AUTOSAVE_KEY);
+      if (!raw) throw new Error('Brak autozapisu do ponownego otwarcia.');
+      const opened = openDocument(JSON.parse(raw));
+      history.replace(opened.document);
+      setActiveSketchId(null);
+      setSelection({ kind: 'document', id: opened.document.id });
+      setCommand(null);
+    };
     window.__madcadVerifyLoadPointHoleFixture = () => {
       const fixture = createDocument('Otwór z punktu');
       const baseProfile = createRectangleProfile({ width: 40, height: 30, x: 0, y: 0 });
@@ -1160,8 +1221,12 @@ export default function ModelingWorkspace({ onClose }) {
         entities: sketch.entities.length,
         entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, pointIds: entity.pointIds, geometry: entity.geometry })),
         profiles: sketch.profiles.length,
+        profileIds: sketch.profiles.map((profile) => profile.id),
+        constraints: sketch.constraints.map((constraint) => ({ id: constraint.id, type: constraint.type, value: constraint.value })),
+        dimensions: sketch.dimensions.map((dimension) => ({ id: dimension.id, constraintId: dimension.constraintId, expression: dimension.expression })),
       })),
       features: document.features.length,
+      featureIds: document.features.map((feature) => feature.id),
       selection: selection?.kind === 'sketchEntities' ? { kind: selection.kind, ids: selection.ids } : { kind: selection?.kind },
       command: command ? {
         type: command.type,
@@ -1176,10 +1241,13 @@ export default function ModelingWorkspace({ onClose }) {
       delete window.__madcadVerifyDeleteSketch;
       delete window.__madcadVerifyLoadTopologyFixture;
       delete window.__madcadVerifyLoadMechanicalFixture;
+      delete window.__madcadVerifyLoadParametricBracketFixture;
+      delete window.__madcadVerifyUpdateConstraint;
+      delete window.__madcadVerifyReopenAutosave;
       delete window.__madcadVerifyLoadPointHoleFixture;
       delete window.__madcadVerifyDocumentState;
     };
-  }, [document, command, selection]);
+  }, [document, command, selection, activeSketchId]);
 
   const confirmProfile = () => {
     if (readOnly) return readOnlyNotice();
@@ -1533,7 +1601,7 @@ export default function ModelingWorkspace({ onClose }) {
             {activeSketchId ? (
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /></RibbonGroup>
-                <RibbonGroup label="EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => handleSketchSelection([], 'replace')} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Scissors} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
+                <RibbonGroup label="EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { setCommand(null); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
                 <RibbonGroup label="SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
             ) : workspace === 'print' ? (
@@ -1573,6 +1641,8 @@ export default function ModelingWorkspace({ onClose }) {
             onSketchSelection={handleSketchSelection}
             onSketchConstraintSelection={(constraintId) => setSelection({ kind: 'sketchConstraint', id: constraintId, sketchId: activeSketchId })}
             onSketchConstraintValueChange={updateSketchConstraintValue}
+            sketchTrimMode={command?.type === 'trimSketch'}
+            onSketchTrim={trimSketchAtPoint}
             onSketchProfileSelection={(profileId) => setSelection({ kind: 'profile', id: profileId, sketchId: activeSketchId })}
             onSketchMove={readOnly ? undefined : moveSketchEntities}
             showSketchPoints={sketchOptions.points}
