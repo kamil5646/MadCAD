@@ -10,6 +10,7 @@ const { normalizeSlicerPayload, windowsCandidates } = require('./slicer-launch.c
 const { isTrustedAppNavigation, normalizeExternalUrl } = require('./security-policy.cjs');
 const { readRecoverableTextFile, validateJsonText } = require('./recovery-file.cjs');
 const { normalizeWindowBounds } = require('./window-bounds.cjs');
+const updatePolicy = require('./update-policy.cjs');
 
 const execFileAsync = promisify(execFile);
 
@@ -20,7 +21,7 @@ const LEGACY_USER_DATA_NAME = 'MadCAD 2D';
 const appIconPng = path.join(__dirname, '..', 'assets', 'icons', 'madcad-512.png');
 const ODA_DOWNLOAD_URL = 'https://www.opendesign.com/guestfiles/oda_file_converter';
 const ODA_DOWNLOAD_PAGE_HOST = 'www.opendesign.com';
-const MADCAD_RELEASE_API_URL = 'https://api.github.com/repos/kamil5646/MadCAD2D/releases/latest';
+const MADCAD_RELEASE_API_URL = 'https://api.github.com/repos/kamil5646/MadCAD2D/releases?per_page=30';
 const MADCAD_RELEASE_LATEST_PAGE_URL = 'https://github.com/kamil5646/MadCAD2D/releases/latest';
 const MADCAD_UPDATE_USER_AGENT = 'MadCAD2D-Updater/1.0';
 let forceCloseForUpdate = false;
@@ -287,42 +288,7 @@ function httpsGetBuffer(url) {
 }
 
 function normalizeVersionText(value) {
-  const cleaned = String(value || '')
-    .trim()
-    .replace(/^v/i, '');
-  const parts = cleaned.split('.');
-  while (parts.length > 2 && parts[parts.length - 1] === '0') {
-    parts.pop();
-  }
-  return parts.join('.');
-}
-
-function parseVersionTuple(versionText) {
-  const parts = normalizeVersionText(versionText)
-    .split('.')
-    .map((part) => parseInt(part, 10));
-  while (parts.length < 3) {
-    parts.push(0);
-  }
-  return parts.slice(0, 3).map((part) => (Number.isFinite(part) ? part : 0));
-}
-
-function isVersionGreater(candidate, current) {
-  const a = parseVersionTuple(candidate);
-  const b = parseVersionTuple(current);
-  for (let i = 0; i < 3; i += 1) {
-    if (a[i] > b[i]) {
-      return true;
-    }
-    if (a[i] < b[i]) {
-      return false;
-    }
-  }
-  return false;
-}
-
-function isUpdateVersionDifferent(candidate, current) {
-  return normalizeVersionText(candidate) !== normalizeVersionText(current);
+  return String(value || '').trim().replace(/^v/i, '');
 }
 
 function selectReleaseAssetForPlatform(assets) {
@@ -415,6 +381,10 @@ function sanitizeFileName(name, fallback) {
 
 function downloadFileWithRedirects(url, destinationPath, redirectCount = 0) {
   return new Promise((resolve, reject) => {
+    if (!updatePolicy.isTrustedUpdateUrl(url)) {
+      reject(new Error('Niezaufany adres pobierania aktualizacji.'));
+      return;
+    }
     if (redirectCount > 8) {
       reject(new Error('Zbyt wiele przekierowań podczas pobierania aktualizacji.'));
       return;
@@ -433,6 +403,10 @@ function downloadFileWithRedirects(url, destinationPath, redirectCount = 0) {
         if ([301, 302, 303, 307, 308].includes(status) && location) {
           response.resume();
           const nextUrl = location.startsWith('http') ? location : new URL(location, url).toString();
+          if (!updatePolicy.isTrustedUpdateUrl(nextUrl)) {
+            reject(new Error('Przekierowanie aktualizacji prowadzi do niezaufanego hosta.'));
+            return;
+          }
           resolve(downloadFileWithRedirects(nextUrl, destinationPath, redirectCount + 1));
           return;
         }
@@ -475,6 +449,7 @@ ZIP_PATH="$1"
 TARGET_APP="$2"
 LOG_PATH="$3"
 APP_EXECUTABLE="$4"
+BACKUP_APP="${'${TARGET_APP}'}.madcad-backup"
 
 exec >>"$LOG_PATH" 2>&1
 
@@ -507,24 +482,20 @@ for attempt in $(seq 1 60); do
   sleep 0.5
 done
 
-for attempt in $(seq 1 20); do
-  echo "Remove target attempt $attempt"
+rollback() {
+  echo "Rolling back previous app"
   /bin/rm -rf "$TARGET_APP" >/dev/null 2>&1 || true
-  if [ ! -e "$TARGET_APP" ]; then
-    break
-  fi
-  sleep 0.5
-done
+  if [ -e "$BACKUP_APP" ]; then /bin/mv "$BACKUP_APP" "$TARGET_APP"; fi
+}
 
-if [ -e "$TARGET_APP" ]; then
-  echo "ERROR: target app still exists after retries"
+/bin/rm -rf "$BACKUP_APP" >/dev/null 2>&1 || true
+if [ -e "$TARGET_APP" ] && ! /bin/mv "$TARGET_APP" "$BACKUP_APP"; then
+  echo "ERROR: cannot create rollback backup"
   exit 1
 fi
 
-if ! /usr/bin/ditto "$NEW_APP" "$TARGET_APP"; then
-  echo "ERROR: copy app failed"
-  exit 1
-fi
+if ! /usr/bin/ditto "$NEW_APP" "$TARGET_APP"; then rollback; exit 1; fi
+if ! /usr/bin/codesign --verify --deep --strict "$TARGET_APP"; then rollback; exit 1; fi
 
 /usr/bin/xattr -dr com.apple.quarantine "$TARGET_APP" >/dev/null 2>&1 || true
 echo "Opening installed app"
@@ -548,10 +519,22 @@ function launchWindowsInstaller(installerPath) {
   child.unref();
 }
 
-async function fetchLatestMadcadRelease() {
+async function verifyWindowsInstallerSignature(installerPath) {
+  if (!isWindows) return;
+  const escapedPath = String(installerPath).replace(/'/g, "''");
+  const command = `$signature = Get-AuthenticodeSignature -LiteralPath '${escapedPath}'; if ($signature.Status -ne 'Valid') { throw \"Invalid Authenticode status: $($signature.Status)\" }`;
+  await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { timeout: 120000 });
+}
+
+async function fetchLatestMadcadRelease(channel = 'stable', currentVersion = app.getVersion()) {
   try {
-    const release = await httpsGetJson(MADCAD_RELEASE_API_URL);
-    const latestVersion = normalizeVersionText(String((release && (release.tag_name || release.name)) || ''));
+    const releases = await httpsGetJson(MADCAD_RELEASE_API_URL);
+    const selected = updatePolicy.selectLatestRelease(releases, channel, currentVersion);
+    if (!selected) {
+      return { latestVersion: normalizeVersionText(currentVersion), asset: null, checksumAsset: null, releaseUrl: '' };
+    }
+    const release = selected.release;
+    const latestVersion = selected.version.raw;
     if (!latestVersion) {
       throw new Error(
         t(
@@ -561,9 +544,14 @@ async function fetchLatestMadcadRelease() {
       );
     }
     const asset = selectReleaseAssetForPlatform(release && release.assets);
+    const checksumAsset = asset
+      ? (release.assets || []).find((item) => String(item?.name || '') === `${asset.name}.sha256`) || null
+      : null;
     return {
       latestVersion,
       asset,
+      checksumAsset: checksumAsset ? { name: checksumAsset.name, url: checksumAsset.browser_download_url } : null,
+      channel,
       releaseUrl: String((release && release.html_url) || '')
     };
   } catch (apiError) {
@@ -601,6 +589,8 @@ async function fetchLatestMadcadRelease() {
       return {
         latestVersion,
         asset,
+        checksumAsset: null,
+        channel: 'stable',
         releaseUrl: `https://github.com/kamil5646/MadCAD2D/releases/tag/v${latestVersion}`
       };
     } catch (_fallbackError) {
@@ -1582,17 +1572,18 @@ ipcMain.handle('madcad:check-for-updates', async () => {
         )
       };
     }
-    const currentVersion = normalizeVersionText(app.getVersion());
-    const latest = await fetchLatestMadcadRelease();
-    const hasNewerVersion =
-      isVersionGreater(latest.latestVersion, currentVersion) ||
-      isUpdateVersionDifferent(latest.latestVersion, currentVersion);
-    const hasAssetForPlatform = Boolean(latest.asset && latest.asset.url);
+    const currentVersion = String(app.getVersion());
+    const config = await readCadConfig();
+    const channel = updatePolicy.normalizeChannel(config.updateChannel, currentVersion);
+    const latest = await fetchLatestMadcadRelease(channel, currentVersion);
+    const hasNewerVersion = updatePolicy.compareVersions(latest.latestVersion, currentVersion) > 0;
+    const hasAssetForPlatform = Boolean(latest.asset && latest.asset.url && latest.checksumAsset?.url);
     return {
       ok: true,
       available: hasNewerVersion && hasAssetForPlatform,
       supported: hasAssetForPlatform,
       currentVersion,
+      channel,
       latestVersion: latest.latestVersion,
       assetName: latest.asset ? latest.asset.name : null,
       downloadUrl: latest.asset ? latest.asset.url : null,
@@ -1615,7 +1606,7 @@ ipcMain.handle('madcad:check-for-updates', async () => {
   }
 });
 
-ipcMain.handle('madcad:download-and-install-update', async (_event, payload) => {
+ipcMain.handle('madcad:download-and-install-update', async () => {
   try {
     if (!app.isPackaged) {
       return {
@@ -1628,13 +1619,11 @@ ipcMain.handle('madcad:download-and-install-update', async (_event, payload) => 
       };
     }
 
-    let downloadUrl = String((payload && payload.downloadUrl) || '').trim();
-    let assetName = String((payload && payload.assetName) || '').trim();
-    let latestVersion = normalizeVersionText(String((payload && payload.latestVersion) || ''));
-
-    if (!downloadUrl) {
-      const latest = await fetchLatestMadcadRelease();
-      if (!latest.asset || !latest.asset.url) {
+    const currentVersion = String(app.getVersion());
+    const config = await readCadConfig();
+    const channel = updatePolicy.normalizeChannel(config.updateChannel, currentVersion);
+    const latest = await fetchLatestMadcadRelease(channel, currentVersion);
+    if (!latest.asset?.url || !latest.checksumAsset?.url) {
         return {
           ok: false,
           installing: false,
@@ -1643,22 +1632,14 @@ ipcMain.handle('madcad:download-and-install-update', async (_event, payload) => 
             'No update package is available for this platform.'
           )
         };
-      }
-      downloadUrl = String(latest.asset.url || '').trim();
-      assetName = String(latest.asset.name || '').trim();
-      latestVersion = latest.latestVersion;
     }
-
-    if (!downloadUrl) {
-      return {
-        ok: false,
-        installing: false,
-        error: t('Brak adresu pobierania aktualizacji.', 'Missing update download URL.')
-      };
+    const downloadUrl = String(latest.asset.url).trim();
+    const assetName = String(latest.asset.name).trim();
+    const latestVersion = latest.latestVersion;
+    if (!updatePolicy.isTrustedUpdateUrl(downloadUrl) || !updatePolicy.isTrustedUpdateUrl(latest.checksumAsset.url)) {
+      throw new Error(t('Źródło aktualizacji nie jest zaufane.', 'The update source is not trusted.'));
     }
-
-    const currentVersion = normalizeVersionText(app.getVersion());
-    if (latestVersion && !isUpdateVersionDifferent(latestVersion, currentVersion)) {
+    if (updatePolicy.compareVersions(latestVersion, currentVersion) <= 0) {
       return {
         ok: true,
         installing: false,
@@ -1673,11 +1654,19 @@ ipcMain.handle('madcad:download-and-install-update', async (_event, payload) => 
     const fileBase = sanitizeFileName(assetName, isWindows ? 'madcad-update.exe' : 'madcad-update.zip');
     const downloadedPath = path.join(updateDir, `${Date.now()}-${fileBase}`);
     await downloadFileWithRedirects(downloadUrl, downloadedPath);
+    const checksumText = (await httpsGetBuffer(latest.checksumAsset.url)).toString('utf8');
+    const expectedChecksum = updatePolicy.parseChecksumFile(checksumText, assetName);
+    const downloadedBuffer = await fs.readFile(downloadedPath);
+    if (!expectedChecksum || !updatePolicy.verifyBufferChecksum(downloadedBuffer, expectedChecksum)) {
+      await fs.rm(downloadedPath, { force: true }).catch(() => {});
+      throw new Error(t('Suma SHA-256 paczki aktualizacji jest nieprawidłowa.', 'The update package SHA-256 checksum is invalid.'));
+    }
 
     let installerMeta = null;
     if (isMac) {
       installerMeta = await scheduleMacZipInstall(downloadedPath);
     } else if (isWindows) {
+      await verifyWindowsInstallerSignature(downloadedPath);
       launchWindowsInstaller(downloadedPath);
     } else {
       return {

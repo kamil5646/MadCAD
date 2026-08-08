@@ -118,7 +118,7 @@ Te prace nie czekają na koniec modelowania:
 - [~] Electron ma context isolation, CSP, bezpieczne linki oraz limity krytycznych payloadów; pozostał sandbox i pełny audyt wszystkich starszych kanałów IPC.
 - [x] Budżety wydajności pickingu, meshowania i długiej historii są mierzone w testach core i desktop E2E.
 - [x] PL/EN, dostępność klawiatury i fokusu, DPI 100–200% oraz bezpieczny powrót okna po odłączeniu monitora są testowane.
-- [ ] Kanały alpha/beta/stable, integralność paczki, podpis, rollback i bezpieczny updater.
+- [x] Kanały alpha/beta/stable, SHA-256, wymagany podpis paczek release, rollback instalacji macOS i updater ignorujący niezaufany adres z renderera.
 - [ ] Aktualny samouczek „pierwsza część do druku” i znane ograniczenia.
 
 ## Definition of Done

@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build & Release on ${{ matrix.os }}
+  build:
+    name: Signed build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -40,12 +40,52 @@ jobs:
         working-directory: madcad-2d
         run: npm run test:core
 
-      - name: Build and Publish Electron
+      - name: Build signed Electron package
         working-directory: madcad-2d
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --publish always
+          CSC_LINK: ${{ runner.os == 'macOS' && secrets.MAC_CSC_LINK || secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.MAC_CSC_KEY_PASSWORD || secrets.WIN_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npx electron-builder --publish never
 
-      - name: Verify published package locally
+      - name: Create SHA-256 sidecars
         working-directory: madcad-2d
+        run: npm run checksums:package
+
+      - name: Verify signature, format and SHA-256
+        working-directory: madcad-2d
+        env:
+          MADCAD_REQUIRE_CHECKSUM: '1'
+          MADCAD_REQUIRE_SIGNATURE: '1'
         run: npm run verify:package -- ${{ runner.os == 'macOS' && 'mac' || 'windows' }}
+
+      - name: Upload signed release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ runner.os }}
+          path: |
+            madcad-2d/release/MadCAD-*.zip
+            madcad-2d/release/MadCAD-*.exe
+            madcad-2d/release/MadCAD-*.sha256
+          if-no-files-found: error
+
+  publish:
+    name: Publish immutable GitHub release
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download verified packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish release channel
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/MadCAD-*
+          fail_on_unmatched_files: true
+          prerelease: ${{ contains(github.ref_name, '-alpha.') || contains(github.ref_name, '-beta.') }}
+          generate_release_notes: true

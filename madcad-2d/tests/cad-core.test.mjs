@@ -9,6 +9,7 @@ import slicerLaunch from '../electron/slicer-launch.cjs';
 import securityPolicy from '../electron/security-policy.cjs';
 import recoveryFile from '../electron/recovery-file.cjs';
 import windowBounds from '../electron/window-bounds.cjs';
+import updatePolicy from '../electron/update-policy.cjs';
 import * as fsPromises from 'node:fs/promises';
 import {
   DOCUMENT_SCHEMA_VERSION,
@@ -917,6 +918,27 @@ test('okno wraca na dostępny monitor po odłączeniu ekranu i zachowuje ujemne 
     windowBounds.normalizeWindowBounds({ x: 0, y: 0, width: 2400, height: 1600 }, [{ primary: true, workArea: { x: 0, y: 0, width: 1024, height: 700 } }]),
     { x: 0, y: 0, width: 1024, height: 700 },
   );
+});
+
+test('kanały aktualizacji respektują semver, zaufane hosty i integralność SHA-256', () => {
+  const releases = [
+    { tag_name: 'v6.1.0-alpha.2', draft: false },
+    { tag_name: 'v6.1.0-beta.1', draft: false },
+    { tag_name: 'v6.0.1', draft: false },
+    { tag_name: 'v9.0.0', draft: true },
+  ];
+  assert.equal(updatePolicy.selectLatestRelease(releases, 'stable', '6.0.0')?.version.raw, '6.0.1');
+  assert.equal(updatePolicy.selectLatestRelease(releases, 'beta', '6.0.0')?.version.raw, '6.1.0-beta.1');
+  assert.equal(updatePolicy.selectLatestRelease(releases, 'alpha', '6.0.0-alpha.1')?.version.raw, '6.1.0-beta.1');
+  assert.equal(updatePolicy.compareVersions('6.0.0', '6.0.0-beta.9'), 1);
+  assert.equal(updatePolicy.normalizeChannel('', '6.0.0-alpha.1'), 'alpha');
+  assert.equal(updatePolicy.isTrustedUpdateUrl('https://github.com/kamil5646/MadCAD2D/releases/download/v6/MadCAD.zip'), true);
+  assert.equal(updatePolicy.isTrustedUpdateUrl('https://example.com/MadCAD.zip'), false);
+  const payload = Buffer.from('signed package bytes');
+  const hash = updatePolicy.sha256Buffer(payload);
+  assert.equal(updatePolicy.parseChecksumFile(`${hash}  MadCAD.zip\n`, 'MadCAD.zip'), hash);
+  assert.equal(updatePolicy.verifyBufferChecksum(payload, hash), true);
+  assert.equal(updatePolicy.verifyBufferChecksum(Buffer.from('tampered'), hash), false);
 });
 
 test('model szkicu obsługuje punkty, linie, łuki, okręgi i wszystkie role geometrii', () => {
