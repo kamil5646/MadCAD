@@ -1,4 +1,5 @@
-import { createSketchArc, createSketchLine, createSketchPoint } from './sketch-model.js';
+import { createSketchArc, createSketchCircleEntity, createSketchLine, createSketchPoint } from './sketch-model.js';
+import { evaluateExpression, resolveParameters } from './expressions.js';
 import { intersectSketchCurves, sketchCurveGeometry } from './sketch-snap.js';
 import { refreshDetectedSketchProfiles } from './sketch-topology.js';
 
@@ -109,6 +110,97 @@ function uniqueParameterizedPoints(curve, points) {
   return points.map((point) => ({ point, parameter: parameterFor(curve, point) }))
     .sort((first, second) => first.parameter - second.parameter)
     .filter((entry, index, entries) => index === 0 || distance(entry.point, entries[index - 1].point) > EPSILON);
+}
+
+function parameterValues(parameters) {
+  if (!Array.isArray(parameters)) return parameters || {};
+  const resolved = resolveParameters(parameters);
+  if (!resolved.valid) throw new Error(Object.values(resolved.errors).join(' '));
+  return resolved.values;
+}
+
+function numericDistance(value, parameters) {
+  const distanceValue = evaluateExpression(value, parameterValues(parameters));
+  if (!Number.isFinite(distanceValue) || Math.abs(distanceValue) <= EPSILON) throw new Error('Offset wymaga niezerowej, skończonej odległości.');
+  return distanceValue;
+}
+
+function lineIntersection(firstStart, firstEnd, secondStart, secondEnd) {
+  const firstDirection = [firstEnd[0] - firstStart[0], firstEnd[1] - firstStart[1]];
+  const secondDirection = [secondEnd[0] - secondStart[0], secondEnd[1] - secondStart[1]];
+  const denominator = (firstDirection[0] * secondDirection[1]) - (firstDirection[1] * secondDirection[0]);
+  if (Math.abs(denominator) <= EPSILON) return [(firstEnd[0] + secondStart[0]) / 2, (firstEnd[1] + secondStart[1]) / 2];
+  const delta = [secondStart[0] - firstStart[0], secondStart[1] - firstStart[1]];
+  const parameter = ((delta[0] * secondDirection[1]) - (delta[1] * secondDirection[0])) / denominator;
+  return [firstStart[0] + (firstDirection[0] * parameter), firstStart[1] + (firstDirection[1] * parameter)];
+}
+
+function orderedLineChain(lines) {
+  const lineById = new Map(lines.map((line) => [line.id, line]));
+  const adjacency = new Map();
+  for (const line of lines) {
+    for (const pointId of line.pointIds) adjacency.set(pointId, [...(adjacency.get(pointId) || []), line.id]);
+  }
+  if ([...adjacency.values()].some((ids) => ids.length > 2)) throw new Error('Offset łańcucha nie obsługuje rozgałęzienia.');
+  const endpoints = [...adjacency.entries()].filter(([, ids]) => ids.length === 1).map(([pointId]) => pointId);
+  if (![0, 2].includes(endpoints.length)) throw new Error('Wybrane linie nie tworzą jednego łańcucha.');
+  const startPointId = endpoints[0] || lines[0].pointIds[0];
+  const unused = new Set(lineById.keys());
+  const ordered = [];
+  let currentPointId = startPointId;
+  while (unused.size) {
+    const nextId = (adjacency.get(currentPointId) || []).find((lineId) => unused.has(lineId));
+    if (!nextId) throw new Error('Wybrane linie nie tworzą ciągłego łańcucha.');
+    const line = lineById.get(nextId);
+    const reversed = line.pointIds[1] === currentPointId;
+    const endPointId = reversed ? line.pointIds[0] : line.pointIds[1];
+    ordered.push({ entity: line, startPointId: currentPointId, endPointId });
+    unused.delete(nextId);
+    currentPointId = endPointId;
+  }
+  const closed = currentPointId === startPointId;
+  if (!closed && endpoints.length !== 2) throw new Error('Łańcuch Offset ma nieprawidłowe zakończenie.');
+  return { ordered, closed };
+}
+
+function offsetLineChain(sketch, curvesById, lines, distanceValue, role) {
+  const { ordered, closed } = orderedLineChain(lines);
+  const shifted = ordered.map(({ entity, startPointId, endPointId }) => {
+    const curve = curvesById.get(entity.id);
+    const forward = entity.pointIds[0] === startPointId;
+    const start = forward ? curve.start : curve.end;
+    const end = forward ? curve.end : curve.start;
+    const dx = end[0] - start[0];
+    const dy = end[1] - start[1];
+    const length = Math.hypot(dx, dy);
+    if (length <= EPSILON) throw new Error('Offset nie obsługuje linii o zerowej długości.');
+    const normal = [-dy / length, dx / length];
+    return {
+      start: [start[0] + (normal[0] * distanceValue), start[1] + (normal[1] * distanceValue)],
+      end: [end[0] + (normal[0] * distanceValue), end[1] + (normal[1] * distanceValue)],
+    };
+  });
+  const vertices = [];
+  if (closed) {
+    for (let index = 0; index < shifted.length; index += 1) {
+      const previous = shifted[(index - 1 + shifted.length) % shifted.length];
+      const current = shifted[index];
+      vertices.push(lineIntersection(previous.start, previous.end, current.start, current.end));
+    }
+  } else {
+    vertices.push(shifted[0].start);
+    for (let index = 1; index < shifted.length; index += 1) vertices.push(lineIntersection(shifted[index - 1].start, shifted[index - 1].end, shifted[index].start, shifted[index].end));
+    vertices.push(shifted.at(-1).end);
+  }
+  if (vertices.some((vertex) => !vertex.every(Number.isFinite))) throw new Error('Offset utworzył nieprawidłowe przecięcie narożnika.');
+  const points = vertices.map(([x, y]) => createSketchPoint({ x, y, role }));
+  const createdLines = ordered.map((_, index) => createSketchLine({
+    startPointId: points[index].id,
+    endPointId: points[(index + 1) % points.length].id,
+    role,
+  }));
+  sketch.entities.push(...points, ...createdLines);
+  return { points, entities: createdLines, closed };
 }
 
 export function trimSketchEntity(document, sketchId, targetEntityId, pickPoint) {
@@ -253,4 +345,77 @@ export function extendSketchEntity(document, sketchId, targetEntityId, pickPoint
     ...relationChanges,
     ...profileChanges,
   };
+}
+
+function buildOffset(sketch, entityIds, distanceValue, parameters, options = {}) {
+  const geometry = sketchCurveGeometry(sketch, parameters);
+  const uniqueIds = [...new Set(entityIds || [])];
+  if (!uniqueIds.length) throw new Error('Offset wymaga co najmniej jednej krzywej.');
+  const entities = uniqueIds.map((entityId) => geometry.map.get(entityId));
+  if (entities.some((entity) => !entity)) throw new Error('Offset wskazuje brakującą encję szkicu.');
+  if (entities.some((entity) => !['line', 'arc', 'circle'].includes(entity.type))) throw new Error('Offset obsługuje linie, łuki i okręgi.');
+  const role = options.role || (entities.every((entity) => entity.role === entities[0].role) ? entities[0].role : 'standard');
+  const curvesById = new Map(geometry.curves.map((curve) => [curve.id, curve]));
+  let created;
+  if (entities.every((entity) => entity.type === 'line')) {
+    created = offsetLineChain(sketch, curvesById, entities, distanceValue, role);
+  } else if (entities.length === 1 && entities[0].type === 'circle') {
+    const curve = curvesById.get(entities[0].id);
+    const radius = curve.radius + distanceValue;
+    if (radius <= EPSILON) throw new Error('Offset okręgu daje niedodatni promień.');
+    const center = createSketchPoint({ x: curve.center[0], y: curve.center[1], role });
+    const circle = createSketchCircleEntity({ centerPointId: center.id, radius, role });
+    sketch.entities.push(center, circle);
+    created = { points: [center], entities: [circle], closed: true };
+  } else if (entities.length === 1 && entities[0].type === 'arc') {
+    const curve = curvesById.get(entities[0].id);
+    const radius = curve.radius + distanceValue;
+    if (radius <= EPSILON) throw new Error('Offset łuku daje niedodatni promień.');
+    const radialPoint = (point) => {
+      const vector = [point[0] - curve.center[0], point[1] - curve.center[1]];
+      const length = Math.hypot(...vector);
+      return [curve.center[0] + ((vector[0] / length) * radius), curve.center[1] + ((vector[1] / length) * radius)];
+    };
+    const center = createSketchPoint({ x: curve.center[0], y: curve.center[1], role });
+    const start = createSketchPoint({ x: radialPoint(curve.start)[0], y: radialPoint(curve.start)[1], role });
+    const end = createSketchPoint({ x: radialPoint(curve.end)[0], y: radialPoint(curve.end)[1], role });
+    const arc = createSketchArc({ centerPointId: center.id, startPointId: start.id, endPointId: end.id, direction: curve.direction, role });
+    sketch.entities.push(center, start, end, arc);
+    created = { points: [center, start, end], entities: [arc], closed: false };
+  } else {
+    throw new Error('Mieszany Offset łańcucha łuków i linii nie jest jeszcze obsługiwany; wybierz pojedynczy łuk albo łańcuch linii.');
+  }
+
+  refreshDetectedSketchProfiles(sketch, parameters);
+  const createdIds = new Set(created.entities.map((entity) => entity.id));
+  const blockingDiagnostics = (sketch.diagnostics || []).filter((diagnostic) => ['SELF_INTERSECTION', 'OVERLAPPING_SEGMENTS', 'ZERO_LENGTH_SEGMENT'].includes(diagnostic.code)
+    && diagnostic.entityIds?.some((entityId) => createdIds.has(entityId)));
+  if (blockingDiagnostics.length) throw new Error(`Offset został odrzucony: ${blockingDiagnostics[0].message}`);
+  const profileIds = sketch.profiles.filter((profile) => profile.entityIds.some((entityId) => createdIds.has(entityId))
+    || (profile.innerLoops || []).some((loop) => loop.entityIds?.some((entityId) => createdIds.has(entityId)))).map((profile) => profile.id);
+  return {
+    distance: distanceValue,
+    sourceEntityIds: uniqueIds,
+    createdEntityIds: created.entities.map((entity) => entity.id),
+    createdPointIds: created.points.map((point) => point.id),
+    profileIds,
+    closed: created.closed,
+  };
+}
+
+export function offsetSketchEntities(document, sketchId, entityIds, distanceExpression, options = {}) {
+  const sketch = document?.sketches?.find((item) => item.id === sketchId);
+  if (!sketch) throw new Error('Nie znaleziono szkicu do wykonania Offset.');
+  const distanceValue = numericDistance(distanceExpression, document.parameters);
+  const workingSketch = structuredClone(sketch);
+  const result = buildOffset(workingSketch, entityIds, distanceValue, document.parameters, options);
+  Object.assign(sketch, workingSketch);
+  return result;
+}
+
+export function offsetSketchProfile(document, sketchId, profileId, distanceExpression, options = {}) {
+  const sketch = document?.sketches?.find((item) => item.id === sketchId);
+  const profile = sketch?.profiles?.find((item) => item.id === profileId);
+  if (!profile) throw new Error('Nie znaleziono profilu do wykonania Offset.');
+  return offsetSketchEntities(document, sketchId, profile.entityIds, distanceExpression, options);
 }

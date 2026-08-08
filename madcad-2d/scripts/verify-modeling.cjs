@@ -302,6 +302,21 @@ async function runUiFlow(window) {
   await sendShortcut('z');
   await waitForUi(window, `(() => { const point = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData?.find((entity) => entity.id === ${JSON.stringify(editTargets.originPointId)}); return Number(point?.geometry?.x) === 0 && Number(point?.geometry?.y) === 0; })()`, 'Undo przeciągnięcia segmentu');
 
+  progress('sketch offset command, cancel and undo');
+  await clickSketchEntity(editTargets.lineId);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.includes(${JSON.stringify(editTargets.lineId)})`, 'zaznaczenie linii Offset');
+  await clickTool('Offset');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Offset szkicu')`, 'okno Offset');
+  await setCommandField('Odległość', '-2');
+  await clickDialogButton('Anuluj');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 12`, 'anulowanie Offset bez zmiany');
+  await clickTool('Offset');
+  await setCommandField('Odległość', '-2');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 15`, 'utworzenie Offset linii');
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 12`, 'Undo Offset');
+
   await clickSketchEntity(editTargets.concavePointId);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.includes(${JSON.stringify(editTargets.concavePointId)})`, 'ponowne zaznaczenie wierzchołka');
   await clickTool('Przesuń');

@@ -40,7 +40,7 @@ import {
 } from '../src/cad-core/sketch-model.js';
 import { analyzeSketchConstraints, applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../src/cad-core/sketch-solver.js';
 import { collectSketchSnapCandidates, snapSketchPoint } from '../src/cad-core/sketch-snap.js';
-import { breakSketchEntity, extendSketchEntity, trimSketchEntity } from '../src/cad-core/sketch-modifiers.js';
+import { breakSketchEntity, extendSketchEntity, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../src/cad-core/sketch-modifiers.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import {
   arcCenterStartEnd,
@@ -879,6 +879,85 @@ test('Extend przedłuża wskazany koniec linii i łuku do najbliższej geometrii
   const before = structuredClone(isolated);
   assert.throws(() => extendSketchEntity(isolated, isolatedSketch.id, isolatedLine.id, [5, 0]), /Brak geometrii/);
   assert.deepEqual(isolated, before);
+});
+
+test('Offset tworzy równoległą linię i ciągły łańcuch z narożnikiem miter', () => {
+  const document = createDocument('Offset łańcucha');
+  const points = [[0, 0], [10, 0], [10, 10]].map(([x, y]) => createSketchPoint({ x, y }));
+  const lines = [
+    createSketchLine({ startPointId: points[0].id, endPointId: points[1].id }),
+    createSketchLine({ startPointId: points[1].id, endPointId: points[2].id }),
+  ];
+  const sketch = createSketch({ entities: [...points, ...lines] });
+  document.sketches.push(sketch);
+
+  const result = offsetSketchEntities(document, sketch.id, lines.map((line) => line.id), '2');
+  const createdLines = result.createdEntityIds.map((id) => sketch.entities.find((entity) => entity.id === id));
+  const pointMap = new Map(sketch.entities.filter((entity) => entity.type === 'point').map((point) => [point.id, point]));
+  const coordinates = createdLines.map((line) => line.pointIds.map((id) => {
+    const point = pointMap.get(id);
+    return [Number(point.geometry.x), Number(point.geometry.y)];
+  }));
+
+  assert.equal(result.closed, false);
+  assert.equal(createdLines.length, 2);
+  assert.deepEqual(coordinates, [[[0, 2], [8, 2]], [[8, 2], [8, 10]]]);
+  assert.equal(createdLines[0].pointIds[1], createdLines[1].pointIds[0]);
+  assert.deepEqual(points.map((point) => [Number(point.geometry.x), Number(point.geometry.y)]), [[0, 0], [10, 0], [10, 10]]);
+});
+
+test('Offset profilu zachowuje źródło i wykrywa nową zamkniętą pętlę', () => {
+  const document = createDocument('Offset profilu');
+  const points = [[0, 0], [20, 0], [20, 10], [0, 10]].map(([x, y]) => createSketchPoint({ x, y }));
+  const lines = points.map((point, index) => createSketchLine({ startPointId: point.id, endPointId: points[(index + 1) % points.length].id }));
+  const sketch = createSketch({ entities: [...points, ...lines] });
+  refreshDetectedSketchProfiles(sketch);
+  document.sketches.push(sketch);
+  const profileId = sketch.profiles[0].id;
+
+  const result = offsetSketchProfile(document, sketch.id, profileId, '2');
+  const createdLines = result.createdEntityIds.map((id) => sketch.entities.find((entity) => entity.id === id));
+  const pointMap = new Map(sketch.entities.filter((entity) => entity.type === 'point').map((point) => [point.id, point]));
+  const createdCoordinates = new Set(createdLines.flatMap((line) => line.pointIds.map((id) => {
+    const point = pointMap.get(id);
+    return `${Number(point.geometry.x)},${Number(point.geometry.y)}`;
+  })));
+
+  assert.equal(result.closed, true);
+  assert.equal(createdLines.length, 4);
+  assert.deepEqual(createdCoordinates, new Set(['2,2', '18,2', '18,8', '2,8']));
+  assert.ok(result.profileIds.length >= 1);
+  assert.equal(lines.every((line) => sketch.entities.some((entity) => entity.id === line.id)), true);
+  assert.equal(validateDocument(document).valid, true);
+  const reopened = openDocument(JSON.parse(JSON.stringify(document)));
+  assert.equal(reopened.readOnly, false);
+  assert.deepEqual(reopened.document.sketches[0].entities.map((entity) => entity.id), sketch.entities.map((entity) => entity.id));
+  assert.deepEqual(reopened.document.sketches[0].profiles.map((profile) => profile.id), sketch.profiles.map((profile) => profile.id));
+});
+
+test('Offset okręgu i łuku zmienia promień parametrycznie, a błąd nie mutuje dokumentu', () => {
+  const document = createDocument('Offset krzywych');
+  document.parameters.push({ id: 'parameter-offset', name: 'luz', expression: '2', unit: 'mm', label: 'Luz' });
+  const center = createSketchPoint({ x: 0, y: 0 });
+  const circle = createSketchCircleEntity({ centerPointId: center.id, radius: 5 });
+  const arcCenter = createSketchPoint({ x: 20, y: 0 });
+  const arcStart = createSketchPoint({ x: 25, y: 0 });
+  const arcEnd = createSketchPoint({ x: 20, y: 5 });
+  const arc = createSketchArc({ centerPointId: arcCenter.id, startPointId: arcStart.id, endPointId: arcEnd.id, direction: 'ccw' });
+  const sketch = createSketch({ entities: [center, circle, arcCenter, arcStart, arcEnd, arc] });
+  document.sketches.push(sketch);
+
+  const circleResult = offsetSketchEntities(document, sketch.id, [circle.id], 'luz');
+  const offsetCircle = sketch.entities.find((entity) => entity.id === circleResult.createdEntityIds[0]);
+  assert.equal(offsetCircle.geometry.radius, '7');
+  const arcResult = offsetSketchEntities(document, sketch.id, [arc.id], '-luz');
+  const offsetArc = sketch.entities.find((entity) => entity.id === arcResult.createdEntityIds[0]);
+  const offsetArcPoints = offsetArc.pointIds.map((id) => sketch.entities.find((entity) => entity.id === id));
+  assert.deepEqual(offsetArcPoints.map((point) => [Number(point.geometry.x), Number(point.geometry.y)]), [[20, 0], [23, 0], [20, 3]]);
+
+  const before = structuredClone(document);
+  assert.throws(() => offsetSketchEntities(document, sketch.id, [circle.id], '-5'), /niedodatni promień/);
+  assert.deepEqual(document, before);
 });
 
 test('kontrakt encji jest rozszerzalny bez zmiany formatu dokumentu', () => {
