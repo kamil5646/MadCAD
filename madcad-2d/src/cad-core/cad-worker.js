@@ -234,11 +234,13 @@ function meshBody(body, index, quality = 'display') {
   });
   const shapeFaces = body.shape.faces;
   const shapeEdges = body.shape.edges;
-  const previousTopology = topologyHistory.get(body.id) || { faces: [], edges: [] };
+  const previousTopology = topologyHistory.get(body.id) || { faces: [], edges: [], vertices: [] };
   const faces = assignStableTopologyIds(body.id, 'face', shapeFaces.map(faceDescriptor), previousTopology.faces)
     .map((record, faceIndex) => ({ ...record, sourceHash: shapeFaces[faceIndex].hashCode }));
   const stableEdges = assignStableTopologyIds(body.id, 'edge', shapeEdges.map(edgeDescriptor), previousTopology.edges)
     .map((record, edgeIndex) => ({ ...record, sourceHash: shapeEdges[edgeIndex].hashCode }));
+  const vertexDescriptors = [...new Map(stableEdges.flatMap((edge) => (edge.descriptor.endpoints || []).map((point) => [JSON.stringify(point), { point }]))).values()];
+  const stableVertices = assignStableTopologyIds(body.id, 'vertex', vertexDescriptors, previousTopology.vertices);
   const faceIds = new Map(faces.map((face) => [face.sourceHash, face.id]));
   const edgeIds = new Map(stableEdges.map((edge) => [edge.sourceHash, edge.id]));
   const renderBody = {
@@ -266,11 +268,12 @@ function meshBody(body, index, quality = 'display') {
     topology: {
       faces: faces.map(({ sourceHash, ...face }) => ({ ...face, sourceHash })),
       edges: stableEdges.map(({ sourceHash, ...edge }) => ({ ...edge, sourceHash })),
+      vertices: stableVertices,
     },
     metrics: measureBodyShape(body.shape),
   };
   renderBody.bounds = renderBody.metrics.bounds;
-  return { renderBody, topologyState: { faces, edges: stableEdges } };
+  return { renderBody, topologyState: { faces, edges: stableEdges, vertices: stableVertices } };
 }
 
 async function evaluateRevision(document, quality) {

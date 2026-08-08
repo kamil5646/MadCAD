@@ -996,7 +996,7 @@ export default function ModelingWorkspace({ onClose }) {
     setSelection(topology.kind === 'body'
       ? { kind: 'body', id: topology.bodyId }
       : { kind: topology.kind, id: topology.id, bodyId: topology.bodyId, sourceFeatureId: topology.sourceFeatureId });
-    const label = topology.kind === 'face' ? 'Ściana' : topology.kind === 'edge' ? 'Krawędź' : 'Bryła';
+    const label = topology.kind === 'face' ? 'Ściana' : topology.kind === 'edge' ? 'Krawędź' : topology.kind === 'vertex' ? 'Wierzchołek' : 'Bryła';
     setNotice(`${label} zaznaczona przez trwałe ID: ${topology.id}.`);
   };
 
@@ -1787,7 +1787,7 @@ export default function ModelingWorkspace({ onClose }) {
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : (selection?.bodyId || null)}
             onSelectBody={(id) => setSelection(id ? { kind: 'body', id } : { kind: 'document', id: document.id })}
-            selectedTopologyId={selection?.kind === 'face' || selection?.kind === 'edge' ? selection.id : null}
+            selectedTopologyId={['face', 'edge', 'vertex'].includes(selection?.kind) ? selection.id : null}
             onSelectTopology={handleTopologySelection}
             selectedProfile={selectedProfile}
             selectedProfilePlane={selectedProfileMatch?.sketch.plane || 'XY'}

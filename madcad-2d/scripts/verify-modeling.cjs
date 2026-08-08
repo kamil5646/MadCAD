@@ -583,6 +583,18 @@ async function runUiFlow(window) {
     'current autosave revision',
     5000,
   );
+  const selectionFilters = await window.webContents.executeJavaScript(`(() => {
+    const buttons = [...document.querySelectorAll('.selection-filter-bar button')];
+    const vertex = buttons.find((button) => button.textContent === 'Wierzchołek');
+    const automatic = buttons.find((button) => button.textContent === 'Auto');
+    if (!vertex || !automatic || vertex.disabled) return { count: buttons.length, switched: false };
+    const vertexKey = Object.keys(vertex).find((item) => item.startsWith('__reactProps'));
+    vertex[vertexKey].onClick();
+    const autoKey = Object.keys(automatic).find((item) => item.startsWith('__reactProps'));
+    automatic[autoKey].onClick();
+    return { count: buttons.length, switched: true };
+  })()`);
+  if (selectionFilters.count !== 6 || !selectionFilters.switched) throw new Error(`Niepełne filtry wyboru B-Rep: ${JSON.stringify(selectionFilters)}`);
   const autosaveState = await window.webContents.executeJavaScript(`(() => {
     const raw = window.localStorage.getItem('madcad:modeling-document:v4');
     if (!raw) return { available: false };
@@ -721,11 +733,12 @@ app.whenReady().then(async () => {
         cacheEntries: engine?.cache?.entries || 0,
         faces: bodies.reduce((total, body) => total + (body.topology?.faces?.length || 0), 0),
         edges: bodies.reduce((total, body) => total + (body.topology?.edges?.length || 0), 0),
+        vertices: bodies.reduce((total, body) => total + (body.topology?.vertices?.length || 0), 0),
         faceGroupsMapped: bodies.every((body) => (body.faceGroups || []).every((group) => Boolean(group.topologyId))),
         edgeGroupsMapped: bodies.every((body) => (body.edgeGroups || []).every((group) => Boolean(group.topologyId))),
       };
     })()`);
-    if (!topologyMapping.revision || !topologyMapping.faces || !topologyMapping.edges || !topologyMapping.faceGroupsMapped || !topologyMapping.edgeGroupsMapped) {
+    if (!topologyMapping.revision || !topologyMapping.faces || !topologyMapping.edges || !topologyMapping.vertices || !topologyMapping.faceGroupsMapped || !topologyMapping.edgeGroupsMapped) {
       throw new Error(`Niepełne mapowanie topologii workera: ${JSON.stringify(topologyMapping)}`);
     }
     const image = await window.webContents.capturePage();

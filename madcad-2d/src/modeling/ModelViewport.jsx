@@ -369,6 +369,7 @@ export default function ModelViewport({
   const [sketchDragLabel, setSketchDragLabel] = useState(null);
   const [selectionBox, setSelectionBox] = useState(null);
   const [snapFeedback, setSnapFeedback] = useState(null);
+  const [selectionFilter, setSelectionFilter] = useState('auto');
   const activeSketch = sketches.find((sketch) => sketch.id === activeSketchId);
   const activePlane = activeSketch?.plane || 'XY';
   const solverAnalysis = useMemo(() => {
@@ -379,6 +380,9 @@ export default function ModelViewport({
       return { status: SKETCH_SOLVER_STATUS.CONFLICT, degreesOfFreedom: null, diagnostics: [{ message: error.message }], conflictConstraintIds: [] };
     }
   }, [activeSketch, parameters]);
+  useEffect(() => {
+    if (!activeSketchId && selectionFilter === 'profile') setSelectionFilter('auto');
+  }, [activeSketchId, selectionFilter]);
   if (sketchInteractionRef.current.activeSketchId !== activeSketchId) {
     sketchInteractionRef.current = { activeSketchId, start: null, drag: null, box: null };
   }
@@ -445,6 +449,9 @@ export default function ModelViewport({
 
     const modelGroup = new THREE.Group();
     const pickables = [];
+    const facePickables = [];
+    const edgePickables = [];
+    const vertexPickables = [];
     for (const body of bodies) {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(body.vertices, 3));
@@ -466,6 +473,7 @@ export default function ModelViewport({
       mesh.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, faceGroups: body.faceGroups };
       modelGroup.add(mesh);
       pickables.push(mesh);
+      facePickables.push(mesh);
 
       const selectedFaceGroup = body.faceGroups?.find((group) => group.topologyId === selectedTopologyId);
       if (selectedFaceGroup) {
@@ -489,6 +497,21 @@ export default function ModelViewport({
         edgeObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, topologyKind: 'edge', topologyId: edgeGroup.topologyId };
         modelGroup.add(edgeObject);
         pickables.push(edgeObject);
+        edgePickables.push(edgeObject);
+      }
+
+      for (const vertex of body.topology?.vertices || []) {
+        const point = vertex.descriptor?.point;
+        if (!Array.isArray(point) || point.length !== 3) continue;
+        const vertexGeometry = new THREE.BufferGeometry();
+        vertexGeometry.setAttribute('position', new THREE.Float32BufferAttribute(point, 3));
+        const vertexSelected = vertex.id === selectedTopologyId;
+        const vertexObject = new THREE.Points(vertexGeometry, new THREE.PointsMaterial({ color: vertexSelected ? 0xffc857 : 0xe8f8ff, size: vertexSelected ? 9 : 6, sizeAttenuation: false, transparent: true, opacity: selectionFilter === 'vertex' || vertexSelected ? 1 : 0 }));
+        vertexObject.visible = selectionFilter === 'vertex' || vertexSelected;
+        vertexObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, topologyKind: 'vertex', topologyId: vertex.id };
+        modelGroup.add(vertexObject);
+        pickables.push(vertexObject);
+        vertexPickables.push(vertexObject);
       }
     }
     scene.add(modelGroup);
@@ -888,8 +911,8 @@ export default function ModelViewport({
       }
       if (activeSketch && sketchRender) {
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
-        const hit = pickSketchEntity(event);
-        const profileHit = hit ? null : pickSketchProfile();
+        const hit = selectionFilter === 'profile' ? null : pickSketchEntity(event);
+        const profileHit = selectionFilter === 'profile' || !hit ? pickSketchProfile() : null;
         if (!worldPoint) return;
         event.preventDefault();
         controls.enabled = false;
@@ -925,8 +948,19 @@ export default function ModelViewport({
         return;
       }
       if (activeSketch) return;
-      const hit = raycaster.intersectObjects(pickables, false)[0];
+      const candidates = selectionFilter === 'body' || selectionFilter === 'face'
+        ? facePickables
+        : selectionFilter === 'edge'
+          ? edgePickables
+          : selectionFilter === 'vertex'
+            ? vertexPickables
+            : pickables;
+      const hit = raycaster.intersectObjects(candidates, false)[0];
       const topologySelection = topologySelectionFromIntersection(hit);
+      if (topologySelection && selectionFilter === 'body') {
+        topologySelection.kind = 'body';
+        topologySelection.id = topologySelection.bodyId;
+      }
       if (topologySelection && topologySelectRef.current) topologySelectRef.current(topologySelection, selectionMode(event));
       else selectRef.current?.(topologySelection?.bodyId || null);
     };
@@ -1163,7 +1197,7 @@ export default function ModelViewport({
       delete window.__madcadSketchEntityScreenPoints;
       delete window.__madcadSketchLocalToScreen;
     };
-  }, [bodies, selectedBodyId, selectedTopologyId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
+  }, [bodies, selectedBodyId, selectedTopologyId, selectionFilter, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
 
   return (
     <div className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`} ref={hostRef}>
@@ -1174,6 +1208,16 @@ export default function ModelViewport({
         <button className="cube-right" type="button" title="Ustaw kamerę na widok z prawej strony." onClick={() => setView('right')}>PRAWO</button>
       </div>
       <div className="axis-indicator" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
+      <div className="selection-filter-bar" aria-label="Filtr wyboru geometrii">
+        {[
+          ['auto', 'Auto'],
+          ['body', 'Bryła'],
+          ['face', 'Ściana'],
+          ['edge', 'Krawędź'],
+          ['vertex', 'Wierzchołek'],
+          ['profile', 'Profil'],
+        ].map(([id, label]) => <button key={id} className={selectionFilter === id ? 'active' : ''} type="button" disabled={id === 'profile' ? !activeSketchId : Boolean(activeSketchId)} title={`Filtr wyboru: ${label}`} onClick={() => setSelectionFilter(id)}>{label}</button>)}
+      </div>
       {directEnabled && (
         <div
           ref={directHandleRef}

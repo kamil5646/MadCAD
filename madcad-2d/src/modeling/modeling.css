@@ -582,6 +582,43 @@
   font-weight: 700;
 }
 
+.selection-filter-bar {
+  position: absolute;
+  z-index: 8;
+  top: 12px;
+  left: 50%;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid rgba(162, 187, 202, 0.28);
+  border-radius: 6px;
+  background: rgba(31, 39, 49, 0.9);
+  transform: translateX(-50%);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.2);
+}
+
+.selection-filter-bar button {
+  min-height: 25px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  color: #b8c6cf;
+  background: transparent;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.selection-filter-bar button:hover:not(:disabled),
+.selection-filter-bar button.active {
+  color: #f4fbff;
+  background: #2379a2;
+}
+
+.selection-filter-bar button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .axis-x { color: #ee6c69; }
 .axis-y { color: #65d37e; }
 .axis-z { color: #5d8ffa; }

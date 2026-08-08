@@ -50,7 +50,7 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 ## M3 — stabilne zaznaczanie B-Rep `P0`
 
 - [x] Viewport mapuje trafiony trójkąt ściany i osobne segmenty krawędzi na trwałe face/edge ID bez indeksów tessellacji.
-- [ ] Filtry: profile, ściany, krawędzie, wierzchołki i bryły.
+- [x] Filtry Auto/Profil/Ściana/Krawędź/Wierzchołek/Bryła sterują pickingiem; worker nadaje trwałe ID również wierzchołkom.
 - [ ] Hover, multi-select, cykliczny wybór elementów nakładających się i box select.
 - [ ] Utracona referencja pokazuje źródłowy feature i możliwe ponowne przypisanie.
 - [ ] Picking nie uruchamia ponownej tessellacji ani przeliczenia bryły.
@@ -147,4 +147,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M3.2 — Filtry wyboru profilu, ściany, krawędzi, wierzchołka i bryły oraz czytelny stan aktywnego filtra.`
+`M3.3 — Hover, multi-select, wybór cykliczny nakładającej się topologii i box select bryły.`

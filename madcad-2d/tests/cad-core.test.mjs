@@ -223,6 +223,9 @@ test('picking B-Rep mapuje trójkąty i segmenty na trwałe ID topologii', () =>
   assert.deepEqual(topologySelectionFromIntersection({
     object: { userData: { bodyId: 'body-a', sourceFeatureId: 'feature-a', topologyKind: 'edge', topologyId: 'edge-stable-a' } },
   }), { kind: 'edge', id: 'edge-stable-a', bodyId: 'body-a', sourceFeatureId: 'feature-a' });
+  assert.deepEqual(topologySelectionFromIntersection({
+    object: { userData: { bodyId: 'body-a', sourceFeatureId: 'feature-a', topologyKind: 'vertex', topologyId: 'vertex-stable-a' } },
+  }), { kind: 'vertex', id: 'vertex-stable-a', bodyId: 'body-a', sourceFeatureId: 'feature-a' });
 });
 
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {

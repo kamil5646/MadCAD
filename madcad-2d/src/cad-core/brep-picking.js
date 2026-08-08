@@ -16,6 +16,9 @@ export function topologySelectionFromIntersection(intersection) {
   if (object.userData.topologyKind === 'edge' && object.userData.topologyId) {
     return { kind: 'edge', id: object.userData.topologyId, bodyId: object.userData.bodyId, sourceFeatureId: object.userData.sourceFeatureId || null };
   }
+  if (object.userData.topologyKind === 'vertex' && object.userData.topologyId) {
+    return { kind: 'vertex', id: object.userData.topologyId, bodyId: object.userData.bodyId, sourceFeatureId: object.userData.sourceFeatureId || null };
+  }
   const topologyId = topologyIdForFaceIndex(object.userData.faceGroups, intersection.faceIndex);
   if (topologyId) return { kind: 'face', id: topologyId, bodyId: object.userData.bodyId, sourceFeatureId: object.userData.sourceFeatureId || null };
   return { kind: 'body', id: object.userData.bodyId, bodyId: object.userData.bodyId, sourceFeatureId: object.userData.sourceFeatureId || null };
