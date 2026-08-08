@@ -44,7 +44,7 @@ import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketch
 import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../src/cad-core/sketch-transforms.js';
 import { edgeGroupVertices, topologyIdForFaceIndex, topologySelectionFromIntersection } from '../src/cad-core/brep-picking.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../src/cad-core/topology-references.js';
-import { createOffsetPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../src/cad-core/construction-planes.js';
+import { createMidplane, createOffsetPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../src/cad-core/construction-planes.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import {
   arcCenterStartEnd,
@@ -281,6 +281,18 @@ test('offset plane ma trwałe ID, nazwę, widoczność i parametryczne położen
   }
   const invalid = createOffsetPlane({ offset: 'brakujacy' });
   assert.equal(resolveConstructionPlanes([invalid], parameters)[0].status, 'error');
+});
+
+test('midplane wyznacza połowę dwóch położeń, a plane przez trzy punkty odrzuca współliniowość', () => {
+  const parameters = [{ id: 'param-gap', name: 'rozstaw', label: 'Rozstaw', expression: '20', unit: 'mm' }];
+  const midplane = resolveConstructionPlane(createMidplane({ basePlane: 'XY', firstOffset: '-4', secondOffset: 'rozstaw' }), parameters);
+  assert.equal(midplane.offsetValue, 8);
+  assert.deepEqual(midplane.origin, [0, 0, 8]);
+
+  const threePoint = resolveConstructionPlane(createThreePointPlane({ points: [[0, 0, 2], [10, 0, 2], [0, 10, 2]] }), parameters);
+  assert.deepEqual(threePoint.origin, [10 / 3, 10 / 3, 2]);
+  assert.deepEqual(threePoint.normal, [0, 0, 1]);
+  assert.throws(() => resolveConstructionPlane(createThreePointPlane({ points: [[0, 0, 0], [1, 1, 1], [2, 2, 2]] }), parameters), /zerowej długości/);
 });
 
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {

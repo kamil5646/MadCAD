@@ -529,10 +529,12 @@ export function validateDocument(document) {
         if (typeof reference.topologyId !== 'string' || !reference.topologyId) add(`${base}.topologyId`, 'Referencja topologii wymaga trwałego ID.', 'REQUIRED');
         if (typeof reference.bodyId !== 'string' || !reference.bodyId) add(`${base}.bodyId`, 'Referencja topologii wymaga ID bryły.', 'REQUIRED');
       } else if (reference.kind === 'construction-plane') {
-        if (reference.planeType !== 'offset') add(`${base}.planeType`, 'Nieobsługiwany typ płaszczyzny konstrukcyjnej.', 'UNSUPPORTED');
-        if (!SUPPORTED_PLANES.has(reference.basePlane)) add(`${base}.basePlane`, `Nieobsługiwana płaszczyzna bazowa: ${reference.basePlane ?? ''}.`, 'UNSUPPORTED');
+        if (!['offset', 'midplane', 'three-points'].includes(reference.planeType)) add(`${base}.planeType`, 'Nieobsługiwany typ płaszczyzny konstrukcyjnej.', 'UNSUPPORTED');
+        if (reference.planeType !== 'three-points' && !SUPPORTED_PLANES.has(reference.basePlane)) add(`${base}.basePlane`, `Nieobsługiwana płaszczyzna bazowa: ${reference.basePlane ?? ''}.`, 'UNSUPPORTED');
         if (typeof reference.name !== 'string' || !reference.name.trim()) add(`${base}.name`, 'Płaszczyzna konstrukcyjna wymaga nazwy.', 'REQUIRED');
-        if (typeof reference.offset !== 'string' && typeof reference.offset !== 'number') add(`${base}.offset`, 'Odległość płaszczyzny musi być wyrażeniem albo liczbą.', 'TYPE');
+        if (reference.planeType === 'offset' && typeof reference.offset !== 'string' && typeof reference.offset !== 'number') add(`${base}.offset`, 'Odległość płaszczyzny musi być wyrażeniem albo liczbą.', 'TYPE');
+        if (reference.planeType === 'midplane' && [reference.firstOffset, reference.secondOffset].some((value) => typeof value !== 'string' && typeof value !== 'number')) add(`${base}.firstOffset`, 'Płaszczyzna środkowa wymaga dwóch położeń.', 'TYPE');
+        if (reference.planeType === 'three-points' && (!Array.isArray(reference.points) || reference.points.length !== 3 || reference.points.some((point) => !Array.isArray(point) || point.length !== 3))) add(`${base}.points`, 'Płaszczyzna wymaga trzech punktów 3D.', 'TYPE');
         if (typeof reference.visible !== 'boolean') add(`${base}.visible`, 'Widoczność płaszczyzny musi być wartością logiczną.', 'TYPE');
       }
     }

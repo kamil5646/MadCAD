@@ -90,7 +90,12 @@ export function buildDependencyGraph(document) {
     });
     addEdge(document.id, reference.id, 'contains');
     if (reference.kind === 'construction-plane') {
-      for (const name of expressionDependencies(reference.offset)) addEdge(parameterIdsByName.get(name), reference.id, 'drives');
+      const expressions = reference.planeType === 'midplane'
+        ? [reference.firstOffset, reference.secondOffset]
+        : reference.planeType === 'three-points'
+          ? (reference.points || []).flat()
+          : [reference.offset];
+      for (const expression of expressions) for (const name of expressionDependencies(expression)) addEdge(parameterIdsByName.get(name), reference.id, 'drives');
     }
   }
 

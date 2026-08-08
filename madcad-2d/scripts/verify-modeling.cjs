@@ -98,6 +98,12 @@ async function runUiFlow(window) {
     const handler = key && input[key]?.onChange;
     if (typeof handler !== 'function') throw new Error('Brak procedury pola: ${label}');
     handler({ target: { value: ${JSON.stringify(value)} } });
+    return new Promise((resolve, reject) => requestAnimationFrame(() => setTimeout(() => {
+      const updatedField = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === ${JSON.stringify(label)});
+      const updatedInput = updatedField?.querySelector('input, select');
+      if (String(updatedInput?.value) !== ${JSON.stringify(String(value))}) reject(new Error('Pole nie przyjęło wartości: ${label}'));
+      else resolve();
+    }, 30)));
   })()`);
   const confirmDialog = () => window.webContents.executeJavaScript(`(() => {
     const button = document.querySelector('.command-dialog .confirm');
@@ -497,6 +503,7 @@ async function runUiFlow(window) {
   }
 
   progress('B-Rep hover, multi-select and box select');
+  await new Promise((resolve) => setTimeout(resolve, 120));
   const selectionRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   const topologyIds = await window.webContents.executeJavaScript(`(() => {
     const body = window.__madcadVerifyEngineState.bodies[0];
@@ -570,6 +577,22 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(constructionPlaneId)})?.visible === false`, 'redo widoczności płaszczyzny');
   await sendShortcut('z');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(constructionPlaneId)})?.visible === true`, 'przywrócenie widoczności płaszczyzny');
+  await clickTool('Midplane');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna środkowa')`, 'okno midplane');
+  await setCommandField('Nazwa', 'Środek korpusu');
+  await setCommandField('Płaszczyzna bazowa', 'XY');
+  await setCommandField('Położenie A', '-4');
+  await setCommandField('Położenie B', '20');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const plane = window.__madcadConstructionPlaneState?.find((item) => item.name === 'Środek korpusu'); return plane?.status === 'ok' && plane.origin[2] === 8; })()`, 'dokładna płaszczyzna środkowa');
+  await clickTool('Plane 3 punkty');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna przez trzy punkty')`, 'okno plane przez trzy punkty');
+  await setCommandField('Nazwa', 'Płaszczyzna punktów');
+  await setCommandField('Punkt 1 Z', '6');
+  await setCommandField('Punkt 2 Z', '6');
+  await setCommandField('Punkt 3 Z', '6');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const plane = window.__madcadConstructionPlaneState?.find((item) => item.name === 'Płaszczyzna punktów'); return plane?.status === 'ok' && plane.origin[2] === 6 && plane.normal[2] === 1; })()`, 'płaszczyzna przez trzy niewspółliniowe punkty');
 
   progress('hole sketch');
   await clickTool('Utwórz szkic');
@@ -688,7 +711,7 @@ async function runUiFlow(window) {
     && autosaveState.features === 4
     && autosaveState.sketches === 2
     && autosaveState.entities === 10
-    && autosaveState.constructionPlanes === 1;
+    && autosaveState.constructionPlanes === 3;
   if (!autosaveRoundTrip) throw new Error(`Desktop autosave did not preserve the current document: ${JSON.stringify(autosaveState)}`);
 
   const recoveryRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
