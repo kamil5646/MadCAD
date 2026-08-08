@@ -5,6 +5,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
 import { analyzeSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { DEFAULT_SNAP_THRESHOLD_PX, snapSketchPoint } from '../cad-core/sketch-snap.js';
+import { edgeGroupVertices, topologySelectionFromIntersection } from '../cad-core/brep-picking.js';
 
 const VIEW_DIRECTIONS = {
   iso: [1.25, -1.45, 1.15],
@@ -336,6 +337,8 @@ export default function ModelViewport({
   showGrid = true,
   selectedBodyId,
   onSelectBody,
+  selectedTopologyId = null,
+  onSelectTopology,
   selectedProfile,
   selectedProfilePlane = 'XY',
   directExtrudeDistance = 0,
@@ -351,6 +354,7 @@ export default function ModelViewport({
   const directDragRef = useRef(null);
   const sketchInteractionRef = useRef({ activeSketchId: null, start: null, drag: null, box: null });
   const selectRef = useRef(onSelectBody);
+  const topologySelectRef = useRef(onSelectTopology);
   const draftChangeRef = useRef(onDraftChange);
   const sketchPointRef = useRef(onSketchPoint);
   const sketchSelectionRef = useRef(onSketchSelection);
@@ -380,6 +384,7 @@ export default function ModelViewport({
   }
   const directEnabled = Boolean(selectedProfile && !activeSketchId);
   selectRef.current = onSelectBody;
+  topologySelectRef.current = onSelectTopology;
   draftChangeRef.current = onDraftChange;
   sketchPointRef.current = onSketchPoint;
   sketchSelectionRef.current = onSketchSelection;
@@ -458,15 +463,32 @@ export default function ModelViewport({
         side: THREE.DoubleSide,
       });
       const mesh = new THREE.Mesh(geometry, material);
-      mesh.userData.bodyId = body.id;
+      mesh.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, faceGroups: body.faceGroups };
       modelGroup.add(mesh);
       pickables.push(mesh);
 
-      if (body.lines.length) {
+      const selectedFaceGroup = body.faceGroups?.find((group) => group.topologyId === selectedTopologyId);
+      if (selectedFaceGroup) {
+        const highlightGeometry = new THREE.BufferGeometry();
+        highlightGeometry.setAttribute('position', geometry.getAttribute('position').clone());
+        if (geometry.getAttribute('normal')) highlightGeometry.setAttribute('normal', geometry.getAttribute('normal').clone());
+        highlightGeometry.setIndex(Array.from(body.triangles.slice(selectedFaceGroup.start, selectedFaceGroup.start + selectedFaceGroup.count)));
+        const highlight = new THREE.Mesh(highlightGeometry, new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.42, depthWrite: false, side: THREE.DoubleSide }));
+        highlight.renderOrder = 3;
+        modelGroup.add(highlight);
+      }
+
+      for (const edgeGroup of body.edgeGroups || []) {
+        const vertices = edgeGroupVertices(body.lines, edgeGroup);
+        if (!vertices.length) continue;
         const edgeGeometry = new THREE.BufferGeometry();
-        edgeGeometry.setAttribute('position', new THREE.BufferAttribute(body.lines, 3));
-        const edgeMaterial = new THREE.LineBasicMaterial({ color: selected ? 0xe4f8ff : 0x26333b, transparent: true, opacity: activeSketchId ? 0.34 : 0.72 });
-        modelGroup.add(new THREE.LineSegments(edgeGeometry, edgeMaterial));
+        edgeGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        const edgeSelected = edgeGroup.topologyId === selectedTopologyId;
+        const edgeMaterial = new THREE.LineBasicMaterial({ color: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : 0x26333b), transparent: true, opacity: activeSketchId ? 0.34 : edgeSelected ? 1 : 0.72 });
+        const edgeObject = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+        edgeObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, topologyKind: 'edge', topologyId: edgeGroup.topologyId };
+        modelGroup.add(edgeObject);
+        pickables.push(edgeObject);
       }
     }
     scene.add(modelGroup);
@@ -904,7 +926,9 @@ export default function ModelViewport({
       }
       if (activeSketch) return;
       const hit = raycaster.intersectObjects(pickables, false)[0];
-      selectRef.current?.(hit?.object?.userData?.bodyId || null);
+      const topologySelection = topologySelectionFromIntersection(hit);
+      if (topologySelection && topologySelectRef.current) topologySelectRef.current(topologySelection, selectionMode(event));
+      else selectRef.current?.(topologySelection?.bodyId || null);
     };
     const onPointerMove = (event) => {
       const directDrag = directDragRef.current;
@@ -1139,7 +1163,7 @@ export default function ModelViewport({
       delete window.__madcadSketchEntityScreenPoints;
       delete window.__madcadSketchLocalToScreen;
     };
-  }, [bodies, selectedBodyId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
+  }, [bodies, selectedBodyId, selectedTopologyId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
 
   return (
     <div className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`} ref={hostRef}>

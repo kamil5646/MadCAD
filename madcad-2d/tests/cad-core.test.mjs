@@ -42,6 +42,7 @@ import { analyzeSketchConstraints, applySketchConstraintSolution, solveSketchCon
 import { collectSketchSnapCandidates, snapSketchPoint } from '../src/cad-core/sketch-snap.js';
 import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketchLines, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../src/cad-core/sketch-modifiers.js';
 import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../src/cad-core/sketch-transforms.js';
+import { edgeGroupVertices, topologyIdForFaceIndex, topologySelectionFromIntersection } from '../src/cad-core/brep-picking.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import {
   arcCenterStartEnd,
@@ -201,6 +202,27 @@ test('trwałe nazwy topologii przeżywają zmianę kolejności i szum tolerancji
     { ...descriptors[1], radius: 2.01 },
   ], initial);
   assert.notEqual(changed[0].id, initial[1].id);
+});
+
+test('picking B-Rep mapuje trójkąty i segmenty na trwałe ID topologii', () => {
+  const faceGroups = [
+    { start: 0, count: 6, topologyId: 'face-stable-a' },
+    { start: 6, count: 3, topologyId: 'face-stable-b' },
+  ];
+  assert.equal(topologyIdForFaceIndex(faceGroups, 0), 'face-stable-a');
+  assert.equal(topologyIdForFaceIndex(faceGroups, 1), 'face-stable-a');
+  assert.equal(topologyIdForFaceIndex(faceGroups, 2), 'face-stable-b');
+  assert.equal(topologyIdForFaceIndex(faceGroups, 3), null);
+  const lines = Float32Array.from([0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0]);
+  assert.deepEqual([...edgeGroupVertices(lines, { start: 2, count: 2 })], [1, 0, 0, 1, 1, 0]);
+
+  assert.deepEqual(topologySelectionFromIntersection({
+    faceIndex: 2,
+    object: { userData: { bodyId: 'body-a', sourceFeatureId: 'feature-a', faceGroups } },
+  }), { kind: 'face', id: 'face-stable-b', bodyId: 'body-a', sourceFeatureId: 'feature-a' });
+  assert.deepEqual(topologySelectionFromIntersection({
+    object: { userData: { bodyId: 'body-a', sourceFeatureId: 'feature-a', topologyKind: 'edge', topologyId: 'edge-stable-a' } },
+  }), { kind: 'edge', id: 'edge-stable-a', bodyId: 'body-a', sourceFeatureId: 'feature-a' });
 });
 
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {

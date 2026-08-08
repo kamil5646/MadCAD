@@ -49,7 +49,7 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 
 ## M3 — stabilne zaznaczanie B-Rep `P0`
 
-- [ ] Viewport korzysta z istniejącego mapowania trwałych face/edge ID.
+- [x] Viewport mapuje trafiony trójkąt ściany i osobne segmenty krawędzi na trwałe face/edge ID bez indeksów tessellacji.
 - [ ] Filtry: profile, ściany, krawędzie, wierzchołki i bryły.
 - [ ] Hover, multi-select, cykliczny wybór elementów nakładających się i box select.
 - [ ] Utracona referencja pokazuje źródłowy feature i możliwe ponowne przypisanie.
@@ -147,4 +147,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M3.1 — Picking B-Rep: stabilne wskazywanie ścian i krawędzi na istniejącym mapowaniu trwałych ID.`
+`M3.2 — Filtry wyboru profilu, ściany, krawędzi, wierzchołka i bryły oraz czytelny stan aktywnego filtra.`

@@ -630,7 +630,7 @@ export default function ModelingWorkspace({ onClose }) {
   const engine = useCadEngine(previewDocument, { quality: command?.previewFeature ? 'preview' : 'display' });
   const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => feature.type === 'extrude' && feature.operation === 'new').map((feature) => `body-${feature.id}`)), [document.features]);
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
-  const targetBodyId = selection?.kind === 'body' ? selection.id : (engine.bodies[0]?.id || firstBodyId || null);
+  const targetBodyId = selection?.kind === 'body' ? selection.id : (selection?.bodyId || engine.bodies[0]?.id || firstBodyId || null);
 
   useEffect(() => {
     if (readOnly) return undefined;
@@ -986,6 +986,18 @@ export default function ModelingWorkspace({ onClose }) {
     if (candidates.length) {
       setNotice(`${details.crossing ? 'Wybór przecinający' : 'Zaznaczenie'}: ${candidates.length} ${candidates.length === 1 ? 'element' : 'elementy'}. Ctrl/Shift dodaje kolejne.`);
     } else setNotice('Wyczyszczono zaznaczenie szkicu.');
+  };
+
+  const handleTopologySelection = (topology) => {
+    if (!topology) {
+      setSelection({ kind: 'document', id: document.id });
+      return;
+    }
+    setSelection(topology.kind === 'body'
+      ? { kind: 'body', id: topology.bodyId }
+      : { kind: topology.kind, id: topology.id, bodyId: topology.bodyId, sourceFeatureId: topology.sourceFeatureId });
+    const label = topology.kind === 'face' ? 'Ściana' : topology.kind === 'edge' ? 'Krawędź' : 'Bryła';
+    setNotice(`${label} zaznaczona przez trwałe ID: ${topology.id}.`);
   };
 
   const moveSketchEntities = ({ ids = selectedSketchEntityIds, dx = 0, dy = 0 } = {}) => {
@@ -1773,8 +1785,10 @@ export default function ModelingWorkspace({ onClose }) {
             showSketchProfiles={sketchOptions.profiles}
             parameters={document.parameters}
             showGrid={!activeSketchId || sketchOptions.grid}
-            selectedBodyId={selection?.kind === 'body' ? selection.id : null}
+            selectedBodyId={selection?.kind === 'body' ? selection.id : (selection?.bodyId || null)}
             onSelectBody={(id) => setSelection(id ? { kind: 'body', id } : { kind: 'document', id: document.id })}
+            selectedTopologyId={selection?.kind === 'face' || selection?.kind === 'edge' ? selection.id : null}
+            onSelectTopology={handleTopologySelection}
             selectedProfile={selectedProfile}
             selectedProfilePlane={selectedProfileMatch?.sketch.plane || 'XY'}
             directExtrudeDistance={command?.type === 'extrude' ? command.distance : 0}
