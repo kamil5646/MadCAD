@@ -240,9 +240,9 @@ Następne pojedyncze zadanie: R1.7 — conic z parametrem rho i kontrolą ciąg�
 - [x] Conic z kontrolą rho i ciągłości.
 - [x] Punkt szkicu jako referencja dla otworu i konstrukcji.
 - [ ] Tekst szkicu z fontem, wysokością, wyrównaniem i zamianą na profile do emboss/wycięcia.
-- [ ] Diagnostyka krzywizny i samoprzecięć krzywej.
+- [x] Diagnostyka krzywizny i samoprzecięć krzywej.
 
-Stan R1.7: spline dopasowany jest zapisywany jako odcinki kubiczne przechodzące przez punkty, a spline kontrolny jako dokładna krzywa Béziera. Conic używa trzech trwałych punktów, dodatniego parametru `rho`, trybu ciągłości G0/G1/G2 i trafia do OpenCascade jako dokładna racjonalna krzywa Béziera z wagami `[1, rho, 1]`. Krzywe korzystają z istniejącego zaznaczania, przeciągania, wpisu ΔX/ΔY, Delete i Undo/Redo. Samodzielny punkt szkicu ma trwałe ID, może być zwykłą geometrią referencyjną albo konstrukcyjną i bez profilu wyznacza oś operacji Otwór; wierzchołki należące do konturu są celowo odróżniane od takich punktów. `bun test` — 41/41; pełny desktop E2E wyciąga profile spline i conic, wykonuje dokładny otwór z punktu, odtwarza worker i przechodzi round-trip STL/STEP.
+Stan R1.7: spline dopasowany jest zapisywany jako odcinki kubiczne przechodzące przez punkty, a spline kontrolny jako dokładna krzywa Béziera. Conic używa trzech trwałych punktów, dodatniego parametru `rho`, trybu ciągłości G0/G1/G2 i trafia do OpenCascade jako dokładna racjonalna krzywa Béziera z wagami `[1, rho, 1]`. Analiza krzywych zapisuje zakres krzywizny, wykrywa osobliwości oraz samoprzecięcie pojedynczej spline/conic, zanim błędna pętla trafi do kernela. Krzywe korzystają z istniejącego zaznaczania, przeciągania, wpisu ΔX/ΔY, Delete i Undo/Redo. Samodzielny punkt szkicu ma trwałe ID, może być zwykłą geometrią referencyjną albo konstrukcyjną i bez profilu wyznacza oś operacji Otwór; wierzchołki należące do konturu są celowo odróżniane od takich punktów. `bun test` — 42/42; pełny desktop E2E wyciąga profile spline i conic, wykonuje dokładny otwór z punktu, odtwarza worker i przechodzi round-trip STL/STEP.
 
 Następne pojedyncze zadanie: tekst szkicu z zamianą na profile do emboss/wycięcia.
 

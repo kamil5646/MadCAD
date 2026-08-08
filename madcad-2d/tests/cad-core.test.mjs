@@ -955,6 +955,20 @@ test('conic zachowuje rho, ciągłość i dokładną krzywą racjonalną w profi
   assert.throws(() => conicThroughControlPoint([0, 0], [1, 1], [2, 0], 0), /rho/);
 });
 
+test('diagnostyka krzywych raportuje zakres krzywizny i samoprzecięcie jednej spline', () => {
+  const conic = conicThroughControlPoint([-12, 0], [0, 14], [12, 0], 0.8, 'curvature');
+  const conicResult = detectSketchProfiles(createSketch({ entities: conic.entities }));
+  const conicAnalysis = conicResult.graph.curveAnalyses.find((entry) => entry.entityId === conic.curves[0].id);
+  assert.ok(conicAnalysis.curvature.maxAbsolute > 0);
+  assert.equal(conicAnalysis.singular, false);
+  assert.deepEqual(conicAnalysis.selfIntersections, []);
+
+  const loopingSpline = controlPointSpline([[0, 0], [20, 20], [-20, 20], [5, 0]]);
+  const loopResult = detectSketchProfiles(createSketch({ entities: loopingSpline.entities }));
+  assert.ok(loopResult.diagnostics.some((entry) => entry.code === 'SELF_INTERSECTION' && entry.entityIds.includes(loopingSpline.curves[0].id)));
+  assert.ok(loopResult.graph.curveAnalyses[0].selfIntersections.length > 0);
+});
+
 test('punkt szkicu jest trwałą referencją osi otworu i elementem grafu zależności', () => {
   const document = createDocument('Otwór z punktu');
   const baseProfile = createRectangleProfile({ width: 40, height: 30, x: 0, y: 0 });

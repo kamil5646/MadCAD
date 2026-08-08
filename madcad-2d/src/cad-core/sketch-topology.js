@@ -178,6 +178,51 @@ function edgeIntersections(first, second, tolerance) {
   return results;
 }
 
+function analyzeCurvedEdge(edge, tolerance) {
+  const samples = edgeSamples(edge);
+  const curvatures = [];
+  let singular = false;
+  for (let index = 1; index < samples.length - 1; index += 1) {
+    const first = samples[index - 1];
+    const middle = samples[index];
+    const last = samples[index + 1];
+    const a = distance(first, middle);
+    const b = distance(middle, last);
+    const c = distance(first, last);
+    const denominator = a * b * c;
+    if (denominator <= tolerance ** 3) {
+      singular = true;
+      continue;
+    }
+    const cross = ((middle[0] - first[0]) * (last[1] - first[1])) - ((middle[1] - first[1]) * (last[0] - first[0]));
+    curvatures.push((2 * cross) / denominator);
+  }
+  const selfIntersections = [];
+  const segmentCount = samples.length - 1;
+  const closed = samePoint(samples[0], samples.at(-1), tolerance);
+  for (let firstIndex = 0; firstIndex < segmentCount; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 2; secondIndex < segmentCount; secondIndex += 1) {
+      if (closed && firstIndex === 0 && secondIndex === segmentCount - 1) continue;
+      const intersection = segmentIntersection(samples[firstIndex], samples[firstIndex + 1], samples[secondIndex], samples[secondIndex + 1], tolerance);
+      if (intersection?.kind === 'overlap' || (intersection?.kind === 'point' && !(intersection.firstEndpoint && intersection.secondEndpoint))) {
+        selfIntersections.push(intersection.point || samples[firstIndex]);
+      }
+    }
+  }
+  return {
+    entityId: edge.id,
+    type: edge.type,
+    sampleCount: samples.length,
+    curvature: {
+      min: curvatures.length ? Math.min(...curvatures) : 0,
+      max: curvatures.length ? Math.max(...curvatures) : 0,
+      maxAbsolute: curvatures.length ? Math.max(...curvatures.map(Math.abs)) : 0,
+    },
+    singular,
+    selfIntersections,
+  };
+}
+
 function canonicalCycle(steps) {
   const tokens = steps.map((step) => step.edge.id);
   const variants = [];
@@ -380,6 +425,11 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
   }
 
   const allEdges = [...edges, ...circleEdges];
+  const curveAnalyses = allEdges.filter((edge) => ['arc', 'ellipticalArc', 'ellipse', 'circle', 'spline', 'conic'].includes(edge.type)).map((edge) => analyzeCurvedEdge(edge, tolerance));
+  for (const analysis of curveAnalyses) {
+    if (analysis.singular) diagnostics.push(diagnostic('CURVATURE_SINGULARITY', `Krzywa ${analysis.entityId} ma osobliwość krzywizny.`, [analysis.entityId]));
+    analysis.selfIntersections.forEach((point) => diagnostics.push(diagnostic('SELF_INTERSECTION', `Krzywa ${analysis.entityId} przecina samą siebie.`, [analysis.entityId], point)));
+  }
   for (let firstIndex = 0; firstIndex < allEdges.length; firstIndex += 1) {
     for (let secondIndex = firstIndex + 1; secondIndex < allEdges.length; secondIndex += 1) {
       const first = allEdges[firstIndex];
@@ -413,7 +463,7 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
     ...circleEdges.map((edge) => ({ steps: [{ edge, reversed: false }], points: edgeSamples(edge).slice(0, -1) })),
   ].filter((loop) => loop.points.length >= 3 && Math.abs(signedArea(loop.points)) > tolerance * tolerance);
 
-  const blockingEntityIds = new Set(diagnostics.filter((entry) => ['ZERO_LENGTH', 'ZERO_RADIUS', 'OVERLAP', 'SELF_INTERSECTION', 'BRANCH'].includes(entry.code)).flatMap((entry) => entry.entityIds));
+  const blockingEntityIds = new Set(diagnostics.filter((entry) => ['ZERO_LENGTH', 'ZERO_RADIUS', 'OVERLAP', 'SELF_INTERSECTION', 'CURVATURE_SINGULARITY', 'BRANCH'].includes(entry.code)).flatMap((entry) => entry.entityIds));
   const validLoops = cycles.filter((loop) => !loop.steps.some((step) => blockingEntityIds.has(step.edge.id)));
   validLoops.forEach((loop) => {
     loop.area = signedArea(loop.points);
@@ -462,6 +512,7 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
     graph: {
       vertices: vertices.map((vertex) => ({ id: vertex.id, coordinate: vertex.coordinate, pointIds: vertex.pointIds, degree: degree.get(vertex.id) || 0 })),
       edges: allEdges.map((edge) => ({ id: edge.id, type: edge.type, startVertex: edge.startVertex || null, endVertex: edge.endVertex || null })),
+      curveAnalyses,
       loops: validLoops.map((loop) => ({ entityIds: loop.steps.map((step) => step.edge.id), depth: loop.depth, area: Math.abs(loop.area) })),
     },
   };
