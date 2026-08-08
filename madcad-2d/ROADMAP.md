@@ -116,7 +116,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] CI: test core i build na Linux/macOS/Windows, desktop E2E na macOS/Windows oraz smoke test paczek ZIP/NSIS.
 - [x] Awaria workera, pełny dysk, uszkodzony projekt, kopia autozapisu i odzyskanie sesji są testowane.
 - [~] Electron ma context isolation, CSP, bezpieczne linki oraz limity krytycznych payloadów; pozostał sandbox i pełny audyt wszystkich starszych kanałów IPC.
-- [ ] Budżety wydajności pickingu, meshowania i długiej historii.
+- [x] Budżety wydajności pickingu, meshowania i długiej historii są mierzone w testach core i desktop E2E.
 - [ ] PL/EN, dostępność, DPI 100–200% i wielu monitorów.
 - [ ] Kanały alpha/beta/stable, integralność paczki, podpis, rollback i bezpieczny updater.
 - [ ] Aktualny samouczek „pierwsza część do druku” i znane ograniczenia.

@@ -1,8 +1,17 @@
 export function topologyIdForFaceIndex(faceGroups, faceIndex) {
   if (!Number.isInteger(faceIndex) || faceIndex < 0) return null;
   const indexOffset = faceIndex * 3;
-  const group = (faceGroups || []).find((entry) => indexOffset >= entry.start && indexOffset < entry.start + entry.count);
-  return group?.topologyId || null;
+  const groups = faceGroups || [];
+  let low = 0;
+  let high = groups.length - 1;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    const group = groups[middle];
+    if (indexOffset < group.start) high = middle - 1;
+    else if (indexOffset >= group.start + group.count) low = middle + 1;
+    else return group.topologyId || null;
+  }
+  return null;
 }
 
 export function edgeGroupVertices(lines, group) {

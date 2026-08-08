@@ -1328,8 +1328,8 @@ async function runUiFlow(window) {
 
 app.whenReady().then(async () => {
   const performanceBudgets = isCi
-    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 150000 }
-    : { desktopColdStartMs: 30000, desktopWorkflowMs: 45000 };
+    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 150000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 45000 }
+    : { desktopColdStartMs: 30000, desktopWorkflowMs: 45000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
     width: 1936,
@@ -1408,6 +1408,13 @@ app.whenReady().then(async () => {
     const step = await verifyExport(window, 'STEP');
     const threeMf = await verifyThreeMfExport(window);
     const threeMfImport = await verifyThreeMfImport(window);
+    const workerPerformance = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.performance || null`);
+    if (!workerPerformance || workerPerformance.totalMs > performanceBudgets.displayEvaluationMs) {
+      throw new Error(`Worker evaluation exceeded budget: ${JSON.stringify(workerPerformance)}.`);
+    }
+    const slowBody = workerPerformance.bodies?.find((body) => body.durationMs > performanceBudgets.displayMeshPerBodyMs);
+    if (slowBody) throw new Error(`Body meshing exceeded budget: ${JSON.stringify(slowBody)}.`);
+    performance.worker = workerPerformance;
     const report = { ...result, licenseBypass, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, performance, rendererMessages };
     await fs.writeFile(path.join(path.dirname(outputPath), 'verification-report.json'), JSON.stringify(report, null, 2));
     process.stdout.write(`${JSON.stringify(report)}\n`);

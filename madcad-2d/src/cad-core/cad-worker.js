@@ -550,6 +550,7 @@ function measureBodyShape(shape) {
 }
 
 function meshBody(body, index, quality = 'display') {
+  const startedAt = performance.now();
   const meshPolicy = quality === 'preview' ? GEOMETRY_POLICY.previewMesh : GEOMETRY_POLICY.displayMesh;
   const mesh = body.shape.mesh({
     tolerance: meshPolicy.linearTolerance,
@@ -602,12 +603,26 @@ function meshBody(body, index, quality = 'display') {
   const topologyRadii = [...faces, ...stableEdges].map((record) => record.descriptor?.radius).filter((radius) => Number.isFinite(radius) && radius > 0);
   renderBody.metrics.minimumRadius = topologyRadii.length ? Math.min(...topologyRadii) : null;
   renderBody.bounds = renderBody.metrics.bounds;
-  return { renderBody, topologyState: { faces, edges: stableEdges, vertices: stableVertices } };
+  return {
+    renderBody,
+    topologyState: { faces, edges: stableEdges, vertices: stableVertices },
+    performance: {
+      bodyId: body.id,
+      durationMs: performance.now() - startedAt,
+      triangleCount: renderBody.triangles.length / 3,
+    },
+  };
 }
 
 async function evaluateRevision(document, quality) {
+  const totalStartedAt = performance.now();
+  const kernelStartedAt = performance.now();
   await ensureKernel();
+  const kernelMs = performance.now() - kernelStartedAt;
+  const prepareStartedAt = performance.now();
   const prepared = prepareDocument(document);
+  const prepareMs = performance.now() - prepareStartedAt;
+  const importStartedAt = performance.now();
   const features = await Promise.all(prepared.features.map(async (feature) => {
     if (feature.type !== 'importedModel' || feature.status === FEATURE_STATUS.SUPPRESSED) return feature;
     const bytes = Uint8Array.from(atob(feature.dataBase64), (character) => character.charCodeAt(0));
@@ -617,11 +632,17 @@ async function evaluateRevision(document, quality) {
     if (Math.abs(unitScale - 1) > 1e-12) importedShape = importedShape.scale(unitScale, [0, 0, 0]);
     return { ...feature, importedShape };
   }));
+  const importMs = performance.now() - importStartedAt;
+  const historyStartedAt = performance.now();
   const history = evaluateFeatureHistory(features, runFeature);
+  const historyMs = performance.now() - historyStartedAt;
   const { bodyMap, bodyOrder, timeline } = history;
 
   const kernelBodies = bodyOrder.filter((id) => bodyMap.has(id)).map((id) => bodyMap.get(id));
+  const meshStartedAt = performance.now();
   const meshedBodies = kernelBodies.map((body, index) => meshBody(body, index, quality));
+  const meshMs = performance.now() - meshStartedAt;
+  const collisionStartedAt = performance.now();
   const collisions = [];
   for (let first = 0; first < kernelBodies.length; first += 1) {
     for (let second = first + 1; second < kernelBodies.length; second += 1) {
@@ -637,6 +658,7 @@ async function evaluateRevision(document, quality) {
       }
     }
   }
+  const collisionMs = performance.now() - collisionStartedAt;
   return {
     kernelBodies,
     renderBodies: meshedBodies.map((entry) => entry.renderBody),
@@ -646,6 +668,16 @@ async function evaluateRevision(document, quality) {
     dependencyGraph: prepared.dependencyGraph.toJSON(),
     quality,
     analysis: { collisions },
+    performance: {
+      totalMs: performance.now() - totalStartedAt,
+      kernelMs,
+      prepareMs,
+      importMs,
+      historyMs,
+      meshMs,
+      collisionMs,
+      bodies: meshedBodies.map((entry) => entry.performance),
+    },
   };
 }
 
@@ -784,6 +816,8 @@ async function handleMessage(data) {
       parameters: evaluated.parameters,
       dependencyGraph: evaluated.dependencyGraph,
       cache: revisionCache.stats,
+      analysis: evaluated.analysis,
+      performance: evaluated.performance,
     };
     self.postMessage({ id, ok: true, type, result }, transferableBuffers(bodies));
     return;

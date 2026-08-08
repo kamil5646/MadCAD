@@ -865,6 +865,29 @@ test('mały i średni dokument mieszczą się w osobnych budżetach wydajności'
   }
 });
 
+test('picking dużej siatki mieści się w budżecie i mapuje właściwe ściany', () => {
+  const groupCount = 4096;
+  const pickCount = 100000;
+  const faceGroups = Array.from({ length: groupCount }, (_, index) => ({
+    start: index * 6,
+    count: 6,
+    topologyId: `face-${index}`,
+  }));
+  let checksum = 0;
+  const startedAt = performance.now();
+  for (let index = 0; index < pickCount; index += 1) {
+    const faceIndex = (index * 7919) % (groupCount * 2);
+    const topologyId = topologyIdForFaceIndex(faceGroups, faceIndex);
+    checksum += Number(topologyId.slice(5));
+  }
+  const durationMs = performance.now() - startedAt;
+  assert.ok(checksum > 0);
+  assert.ok(
+    durationMs < GEOMETRY_POLICY.performanceBudgets.pickingBatchMs,
+    `Picking ${pickCount} trafień trwał ${durationMs.toFixed(1)} ms.`,
+  );
+});
+
 test('model szkicu obsługuje punkty, linie, łuki, okręgi i wszystkie role geometrii', () => {
   const document = createDocument('Kontrakt encji szkicu');
   const center = createSketchPoint({ x: 0, y: 0, fixed: true });

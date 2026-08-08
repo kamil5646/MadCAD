@@ -1059,9 +1059,10 @@ export default function ModelingWorkspace({ onClose }) {
       bodies: engine.bodies,
       timeline: engine.timeline,
       diagnostics: engine.diagnostics,
+      performance: engine.performance,
     };
     return () => { delete window.__madcadVerifyEngineState; };
-  }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline, engine.diagnostics]);
+  }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline, engine.diagnostics, engine.performance]);
 
   const updateCommand = (patch) => {
     setCommand((current) => {
