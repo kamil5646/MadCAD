@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import atomicFile from '../electron/atomic-file.cjs';
+import slicerLaunch from '../electron/slicer-launch.cjs';
 import {
   DOCUMENT_SCHEMA_VERSION,
   createDocument,
@@ -59,6 +60,7 @@ import { summarizeGeometryInspection } from '../src/cad-core/geometry-inspection
 import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-profiles.js';
 import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, transformPrintPoint } from '../src/cad-core/print-layout.js';
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
+import { analyzePrintability } from '../src/cad-core/print-analysis.js';
 import {
   arcCenterStartEnd,
   arcThroughThreePoints,
@@ -2180,4 +2182,52 @@ test('dokument przechowuje import STEP/STL/3MF z jawną skalą jednostki', () =>
   const broken = structuredClone(document);
   broken.features[0].unitScale = 0;
   assert.equal(validateDocument(broken).valid, false);
+});
+
+test('analiza druku odróżnia zamkniętą siatkę od otwartej i wskazuje problem', () => {
+  const tetrahedron = {
+    id: 'body-tetra', name: 'Tetra', sourceFeatureId: 'feature-tetra',
+    vertices: Float32Array.from([0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 10]),
+    normals: new Float32Array(),
+    triangles: Uint32Array.from([0, 2, 1, 0, 1, 3, 1, 2, 3, 2, 0, 3]),
+    bounds: [[0, 0, 0], [10, 10, 10]],
+    faceGroups: [0, 1, 2, 3].map((index) => ({ start: index * 3, count: 3, topologyId: `face-${index}` })),
+    topology: { faces: [] },
+  };
+  const print = { bedWidth: 220, bedDepth: 220, bedHeight: 250, minimumWallThickness: 0.8, minimumHoleDiameter: 2, overhangAngle: 45 };
+  const closed = analyzePrintability([tetrahedron], print);
+  assert.equal(closed.bodyResults[0].boundaryEdges, 0);
+  assert.equal(closed.bodyResults[0].nonManifoldEdges, 0);
+  assert.equal(closed.issues.some((issue) => issue.code === 'MANIFOLD'), false);
+  assert.equal(closed.issues.some((issue) => issue.code === 'OVERHANG'), true);
+
+  const open = analyzePrintability([{ ...tetrahedron, triangles: Uint32Array.from([0, 2, 1]) }], print);
+  assert.equal(open.bodyResults[0].boundaryEdges, 3);
+  assert.equal(open.issues.find((issue) => issue.code === 'MANIFOLD').selection.id, 'body-tetra');
+});
+
+test('analiza druku wykrywa trójkąt zdegenerowany, mały otwór i przekroczenie stołu', () => {
+  const body = {
+    id: 'body-risk', name: 'Ryzyko', sourceFeatureId: 'feature-risk',
+    vertices: Float32Array.from([0, 0, 0, 1, 0, 0, 2, 0, 0]), normals: new Float32Array(), triangles: Uint32Array.from([0, 1, 2]),
+    bounds: [[0, 0, 0], [300, 1, 1]], faceGroups: [{ start: 0, count: 3, topologyId: 'face-degenerate' }],
+    topology: { faces: [{ id: 'face-hole', descriptor: { geometry: 'CYLINDRE', radius: 0.4 } }] },
+  };
+  const result = analyzePrintability([body], { bedWidth: 220, bedDepth: 220, bedHeight: 250, minimumHoleDiameter: 2 });
+  assert.ok(result.issues.some((issue) => issue.code === 'DEGENERATE' && issue.selection.id === 'face-degenerate'));
+  assert.ok(result.issues.some((issue) => issue.code === 'SMALL_HOLE' && issue.selection.id === 'face-hole'));
+  assert.ok(result.issues.some((issue) => issue.code === 'BED_BOUNDS'));
+});
+
+test('przekazanie do slicera waliduje program, rozmiar i bezpieczną nazwę STL', () => {
+  const normalized = slicerLaunch.normalizeSlicerPayload({
+    slicer: 'bambu',
+    files: [{ name: '../../Uchwyt testowy.stl', data: new Uint8Array(84) }],
+  });
+  assert.equal(normalized.slicer, 'bambu');
+  assert.equal(normalized.files[0].name, 'Uchwyt-testowy.stl');
+  assert.equal(normalized.files[0].bytes.byteLength, 84);
+  assert.throws(() => slicerLaunch.normalizeSlicerPayload({ slicer: 'nieznany', files: [{ name: 'a.stl', data: new Uint8Array(84) }] }), /Nieobsługiwany/);
+  assert.throws(() => slicerLaunch.normalizeSlicerPayload({ slicer: 'cura', files: [{ name: 'a.stl', data: new Uint8Array(20) }] }), /pusty/);
+  assert.ok(slicerLaunch.windowsCandidates('prusa', { ProgramFiles: 'C:\\Program Files' }).some((candidate) => candidate.toLowerCase().includes('prusa-slicer.exe')));
 });

@@ -44,7 +44,7 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 | 6 | M6 Modelowanie części MVP | `[x]` | M3, M5 | pełniejsze Extrude, Boolean, wskazane Fillet/Chamfer, Shell i podstawowe prymitywy |
 | 7 | M7 Otwory i gwinty MVP | `[x]` | M3, M5, M6 | proste/counterbore/countersink otwory i podstawowy gwint metryczny |
 | 8 | M8 Inspect MVP | `[x]` | M3, M6 | Measure, Section, objętość, pole, masa i środek masy |
-| 9 | M9 Przygotowanie druku MVP | `[ ]` | M6–M8 | orientacja, STEP/STL/3MF, skala 1:1, manifold, grubość, nawisy i przekazanie do slicera |
+| 9 | M9 Przygotowanie druku MVP | `[x]` | M6–M8 | orientacja, STEP/STL/3MF, skala 1:1, manifold, grubość, nawisy i przekazanie do slicera |
 | 10 | M10 Wydanie alpha/beta | `[ ]` | M1–M9 | instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS |
 
 ## M4 — geometria konstrukcyjna MVP `P0`
@@ -103,9 +103,9 @@ Tapered threads, wiele norm i klasy pasowania są `P1`.
 - [x] Profile stołu Bambu/Prusa/Creality i własny profil.
 - [x] Pozycja, obrót, skala, kopie i orientacja względem płaskiej ściany.
 - [x] Import STEP/STL/3MF z kontrolą jednostek; eksport STEP/STL/3MF w skali 1:1.
-- [ ] Analiza manifold, normalnych, trójkątów zdegenerowanych, minimalnej grubości, małych otworów, nawisów i gabarytu stołu.
-- [ ] Lista problemów wskazuje geometrię; wynik opisuje ryzyko, nie gwarancję wydruku.
-- [ ] Przekazanie pliku do Bambu Studio, PrusaSlicer lub Cura.
+- [x] Analiza manifold, normalnych, trójkątów zdegenerowanych, minimalnej grubości, małych otworów, nawisów i gabarytu stołu.
+- [x] Lista problemów wskazuje geometrię; wynik opisuje ryzyko, nie gwarancję wydruku.
+- [x] Przekazanie pliku do Bambu Studio, PrusaSlicer lub Cura.
 
 Zaawansowane heatmapy, automatyczne rozmieszczanie wielu części i rozbudowany remesh są `P1`.
 

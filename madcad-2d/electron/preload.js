@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld('desktopApp', {
   verifyLicenseSignature: (payloadJson, signatureBase64Url) =>
     verifyLicenseSignature(payloadJson, signatureBase64Url),
   saveTextFile: (payload) => ipcRenderer.invoke('madcad:save-text-file', payload),
+  sendToSlicer: (payload) => ipcRenderer.invoke('madcad:send-to-slicer', payload),
   autosaveWrite: (payload) => ipcRenderer.invoke('madcad:autosave-write', payload),
   autosaveRead: () => ipcRenderer.invoke('madcad:autosave-read'),
   autosaveClear: () => ipcRenderer.invoke('madcad:autosave-clear'),

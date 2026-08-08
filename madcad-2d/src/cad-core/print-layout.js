@@ -85,6 +85,15 @@ export function transformPrintPoint(point, print = {}, copyOffsetX = 0) {
   ];
 }
 
+export function transformPrintDirection(direction, print = {}) {
+  const layout = normalizePrintLayout(print);
+  let transformed = rotateAroundAxis(normalizeVector(direction), layout.orientationAxis, layout.orientationAngle);
+  transformed = rotateAroundAxis(transformed, [1, 0, 0], layout.rotationX);
+  transformed = rotateAroundAxis(transformed, [0, 1, 0], layout.rotationY);
+  transformed = rotateAroundAxis(transformed, [0, 0, 1], layout.rotationZ);
+  return normalizeVector(transformed);
+}
+
 function corners(bounds) {
   const [min, max] = bounds;
   return [min[0], max[0]].flatMap((x) => [min[1], max[1]].flatMap((y) => [min[2], max[2]].map((z) => [x, y, z])));
@@ -114,4 +123,3 @@ export function calculatePrintLayout(bodies = [], print = {}) {
   ]));
   return { ...unionPoints(points), layout, pitch, instances };
 }
-

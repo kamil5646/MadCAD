@@ -114,6 +114,7 @@ import { summarizeGeometryInspection } from '../cad-core/geometry-inspection.js'
 import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profiles.js';
 import { calculatePrintLayout, orientationForBedFace } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
+import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { ThreeMFLoader } from 'three/examples/jsm/loaders/3MFLoader.js';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import ModelViewport from './ModelViewport.jsx';
@@ -782,16 +783,11 @@ function SketchPalette({ options, onChange, onFinish }) {
   );
 }
 
-function PrintPanel({ document, bodies, engine, selectedFace, commit, onExport, onClose, readOnly = false }) {
+function PrintPanel({ document, bodies, engine, selectedFace, commit, onSelectIssue, onExport, onSendToSlicer, onClose, readOnly = false }) {
   const layoutResult = useMemo(() => calculatePrintLayout(bodies, document.print), [bodies, document.print]);
+  const printAnalysis = useMemo(() => analyzePrintability(bodies, document.print), [bodies, document.print]);
   const bounds = layoutResult.dimensions;
-  const fits = Boolean(bodies.length)
-    && layoutResult.min[0] >= -document.print.bedWidth / 2
-    && layoutResult.max[0] <= document.print.bedWidth / 2
-    && layoutResult.min[1] >= -document.print.bedDepth / 2
-    && layoutResult.max[1] <= document.print.bedDepth / 2
-    && layoutResult.min[2] >= -0.001
-    && layoutResult.max[2] <= document.print.bedHeight;
+  const fits = printAnalysis.fitsBed;
   const updateBed = (key, value) => commit((next) => { next.print[key] = Math.max(1, Number(value) || 1); next.print.profileId = 'custom'; });
   const updateLayout = (key, value) => commit((next) => {
     const parsed = Number(value);
@@ -799,6 +795,12 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, onExport, 
     else if (key === 'copies') next.print[key] = Math.max(1, Math.min(100, Math.round(Number.isFinite(parsed) ? parsed : 1)));
     else if (key === 'copySpacing') next.print[key] = Math.max(0, Number.isFinite(parsed) ? parsed : 0);
     else next.print[key] = Number.isFinite(parsed) ? parsed : 0;
+  });
+  const updateAnalysis = (key, value) => commit((next) => {
+    const parsed = Number(value);
+    next.print[key] = key === 'overhangAngle'
+      ? Math.max(0, Math.min(89, Number.isFinite(parsed) ? parsed : 45))
+      : Math.max(0.05, Number.isFinite(parsed) ? parsed : 0.4);
   });
   const selectProfile = (profileId) => commit((next) => { next.print = applyPrinterProfile(next.print, profileId); });
   const orientToSelectedFace = () => commit((next) => {
@@ -855,10 +857,26 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, onExport, 
         <dl><div><dt>Bryły</dt><dd>{bodies.length}</dd></div><div><dt>Kopie</dt><dd>{layoutResult.layout.copies}</dd></div><div><dt>Rozmiar układu</dt><dd>{bounds.map((value) => value.toFixed(1)).join(' × ')} mm</dd></div></dl>
         <p className={fits ? 'check-ok' : 'check-warning'}>{!bodies.length ? 'Najpierw utwórz bryłę.' : fits ? 'Model mieści się na stole drukarki.' : 'Model przekracza obszar drukarki.'}</p>
       </div>
+      <div className="print-section print-analysis-section">
+        <h3>Analiza drukowalności</h3>
+        <div className="print-field-grid">
+          <Field type="number" label="Dysza" value={document.print.nozzleDiameter ?? 0.4} suffix="mm" onChange={(value) => updateAnalysis('nozzleDiameter', value)} disabled={readOnly} />
+          <Field type="number" label="Min. ścianka" value={document.print.minimumWallThickness ?? 0.8} suffix="mm" onChange={(value) => updateAnalysis('minimumWallThickness', value)} disabled={readOnly} />
+          <Field type="number" label="Min. otwór" value={document.print.minimumHoleDiameter ?? 2} suffix="mm" onChange={(value) => updateAnalysis('minimumHoleDiameter', value)} disabled={readOnly} />
+          <Field type="number" label="Próg nawisu" value={document.print.overhangAngle ?? 45} suffix="°" onChange={(value) => updateAnalysis('overhangAngle', value)} disabled={readOnly} />
+        </div>
+        <div className="print-analysis-summary"><strong>{printAnalysis.errorCount} błędów · {printAnalysis.warningCount} ostrzeżeń</strong><span>Wynik opisuje ryzyko technologiczne, nie gwarantuje udanego wydruku.</span></div>
+        <div className="print-issues">
+          {printAnalysis.issues.map((issue, index) => <button type="button" className={issue.severity} key={`${issue.code}-${issue.bodyId || 'layout'}-${index}`} onClick={() => onSelectIssue(issue.selection)}><AlertTriangle size={13} /><span><strong>{issue.message}</strong><small>{issue.risk}</small></span></button>)}
+          {bodies.length > 0 && !printAnalysis.issues.length && <p className="check-ok">Nie wykryto problemów przy bieżących progach analizy.</p>}
+        </div>
+      </div>
       <div className="print-actions">
         <button type="button" onClick={() => onExport('stl')} disabled={!bodies.length || engine.status !== 'ready'}><HardDriveDownload size={16} /> Eksportuj STL</button>
         <button className="secondary" type="button" onClick={() => onExport('step')} disabled={!bodies.length || engine.status !== 'ready'}>Eksportuj STEP</button>
         <button className="secondary" type="button" onClick={() => onExport('3mf')} disabled={!bodies.length || engine.status !== 'ready'}>Eksportuj 3MF</button>
+        <label className="command-field slicer-field"><span>Program tnący</span><select value={document.print.slicer || 'bambu'} onChange={(event) => commit((next) => { next.print.slicer = event.target.value; })} disabled={readOnly}><option value="bambu">Bambu Studio</option><option value="prusa">PrusaSlicer</option><option value="cura">UltiMaker Cura</option></select></label>
+        <button className="send-slicer" type="button" onClick={() => onSendToSlicer(document.print.slicer || 'bambu')} disabled={!bodies.length || engine.status !== 'ready'}><Printer size={16} /> Otwórz STL w slicerze</button>
       </div>
     </aside>
   );
@@ -2600,6 +2618,28 @@ export default function ModelingWorkspace({ onClose }) {
     }
   };
 
+  const sendToSlicer = async (slicer) => {
+    const slicerNames = { bambu: 'Bambu Studio', prusa: 'PrusaSlicer', cura: 'UltiMaker Cura' };
+    const name = slicerNames[slicer] || slicer;
+    setNotice(`Przygotowywanie STL dla ${name}…`);
+    try {
+      const buffers = await engine.exportModel('stl');
+      if (!window.desktopApp?.sendToSlicer) {
+        buffers.forEach((buffer, index) => downloadBlob(new Blob([buffer], { type: 'model/stl' }), `${safeName(document.name)}${buffers.length > 1 ? `-${index + 1}` : ''}.stl`));
+        setNotice(`Pobrano STL. Otwórz plik ręcznie w ${name}.`);
+        return;
+      }
+      const result = await window.desktopApp.sendToSlicer({
+        slicer,
+        files: buffers.map((buffer, index) => ({ name: `${safeName(document.name)}${buffers.length > 1 ? `-${index + 1}` : ''}.stl`, data: new Uint8Array(buffer) })),
+      });
+      if (!result?.ok) throw new Error(result?.error || `Nie udało się uruchomić ${name}.`);
+      setNotice(`Przekazano ${buffers.length} ${buffers.length === 1 ? 'plik' : 'pliki'} STL do ${name}.`);
+    } catch (error) {
+      setNotice(`Przekazanie do ${name} nie powiodło się: ${error.message}`);
+    }
+  };
+
   const switchWorkspace = (id) => {
     if (id === 'tools') {
       if (readOnly) return readOnlyNotice();
@@ -2851,7 +2891,7 @@ export default function ModelingWorkspace({ onClose }) {
           {command?.type === 'parameters' && <ParametersDialog document={document} commit={commit} onClose={() => setCommand(null)} />}
           {activeSketchId && <SketchPalette options={sketchOptions} onChange={(key, value) => setSketchOptions((current) => ({ ...current, [key]: value }))} onFinish={finishSketch} />}
         </main>
-        {workspace === 'print' && <PrintPanel document={document} bodies={engine.bodies} engine={engine} selectedFace={selectedPrintFace} commit={commit} onExport={exportModel} onClose={() => switchWorkspace('solid')} readOnly={readOnly} />}
+        {workspace === 'print' && <PrintPanel document={document} bodies={engine.bodies} engine={engine} selectedFace={selectedPrintFace} commit={commit} onSelectIssue={(item) => setSelection(item?.kind === 'document' ? { kind: 'document', id: document.id } : item)} onExport={exportModel} onSendToSlicer={sendToSlicer} onClose={() => switchWorkspace('solid')} readOnly={readOnly} />}
       </div>
 
       <footer className="modeling-footer">

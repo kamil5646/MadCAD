@@ -6,6 +6,7 @@ const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 const { app, BrowserWindow, Menu, shell, nativeImage, dialog, ipcMain } = require('electron');
 const { atomicWriteTextFile } = require('./atomic-file.cjs');
+const { normalizeSlicerPayload, windowsCandidates } = require('./slicer-launch.cjs');
 
 const execFileAsync = promisify(execFile);
 
@@ -1413,6 +1414,70 @@ function createMenu() {
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
+
+function spawnDetached(executable, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(executable, args, { detached: true, stdio: 'ignore' });
+    child.once('error', reject);
+    child.once('spawn', () => {
+      child.unref();
+      resolve();
+    });
+  });
+}
+
+async function openFilesInSlicer(slicer, definition, filePaths) {
+  if (process.platform === 'darwin') {
+    let lastError;
+    for (const applicationName of definition.mac) {
+      try {
+        await execFileAsync('/usr/bin/open', ['-a', applicationName, ...filePaths]);
+        return applicationName;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw new Error(`${definition.label} nie jest zainstalowany albo macOS nie może go uruchomić. ${lastError?.message || ''}`.trim());
+  }
+  if (process.platform === 'win32') {
+    for (const executable of windowsCandidates(slicer)) {
+      if (!(await pathExists(executable))) continue;
+      await spawnDetached(executable, filePaths);
+      return executable;
+    }
+    throw new Error(`${definition.label} nie został znaleziony w standardowych katalogach Windows.`);
+  }
+  let lastError;
+  for (const command of definition.linux) {
+    try {
+      await spawnDetached(command, filePaths);
+      return command;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error(`${definition.label} nie jest dostępny w PATH. ${lastError?.message || ''}`.trim());
+}
+
+ipcMain.handle('madcad:send-to-slicer', async (_event, payload) => {
+  let filePaths = [];
+  try {
+    const normalized = normalizeSlicerPayload(payload);
+    const root = path.join(app.getPath('temp'), 'madcad-slicer');
+    await fs.mkdir(root, { recursive: true });
+    const jobDirectory = await fs.mkdtemp(path.join(root, 'job-'));
+    filePaths = await Promise.all(normalized.files.map(async (file, index) => {
+      const filePath = path.join(jobDirectory, `${String(index + 1).padStart(2, '0')}-${file.name}`);
+      await fs.writeFile(filePath, Buffer.from(file.bytes));
+      return filePath;
+    }));
+    const launchedWith = await openFilesInSlicer(normalized.slicer, normalized.definition, filePaths);
+    return { ok: true, slicer: normalized.slicer, launchedWith, filePaths };
+  } catch (error) {
+    if (filePaths[0]) shell.showItemInFolder(filePaths[0]);
+    return { ok: false, filePaths, error: error?.message || String(error) };
+  }
+});
 
 ipcMain.handle('madcad:save-text-file', async (event, payload) => {
   try {
