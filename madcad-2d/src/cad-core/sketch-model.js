@@ -74,6 +74,18 @@ export function createSketchCircleEntity({ centerPointId, radius = 5, ...options
   });
 }
 
+export function createSketchConstraint(type, entityIds, options = {}) {
+  if (typeof type !== 'string' || !type.trim()) throw new Error('Wiązanie szkicu wymaga typu.');
+  if (!Array.isArray(entityIds) || !entityIds.length) throw new Error('Wiązanie szkicu wymaga referencji do encji.');
+  return {
+    id: options.id || createId('constraint'),
+    type,
+    entityIds: [...entityIds],
+    ...(options.value !== undefined ? { value: String(options.value) } : {}),
+    ...(options.driving !== undefined ? { driving: Boolean(options.driving) } : {}),
+  };
+}
+
 export function boundaryPointIds(entity) {
   if (entity?.type === 'line') return [entity.pointIds?.[0], entity.pointIds?.[1]];
   if (entity?.type === 'arc' || entity?.type === 'ellipticalArc') return [entity.pointIds?.[1], entity.pointIds?.[2]];

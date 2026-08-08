@@ -27,6 +27,7 @@ import {
   createDetectedProfile,
   createSketchArc,
   createSketchCircleEntity,
+  createSketchConstraint,
   createSketchEntity,
   createSketchLine,
   createSketchPoint,
@@ -35,6 +36,7 @@ import {
   translateSketchSelection,
   upsertSketchProfile,
 } from '../src/cad-core/sketch-model.js';
+import { analyzeSketchConstraints, applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../src/cad-core/sketch-solver.js';
 import { collectSketchSnapCandidates, snapSketchPoint } from '../src/cad-core/sketch-snap.js';
 import { detectSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import {
@@ -427,6 +429,104 @@ test('model szkicu obsługuje punkty, linie, łuki, okręgi i wszystkie role geo
   brokenParameter.sketches[0].entities.find((entity) => entity.type === 'circle').geometry.radius = 'nieistniejacyParametr';
   const brokenValidation = validateDocument(brokenParameter);
   assert.ok(brokenValidation.issues.some((issue) => issue.code === 'BROKEN_REFERENCE' && issue.path.endsWith('.geometry.radius')));
+});
+
+test('solver szkicu wyznacza stopnie swobody, fixed, pełne związanie i konflikt', () => {
+  const start = createSketchPoint({ x: 0, y: 0 });
+  const end = createSketchPoint({ x: 20, y: 0 });
+  const line = createSketchLine({ startPointId: start.id, endPointId: end.id });
+  const horizontal = createSketchConstraint('horizontal', [line.id]);
+  const sketch = createSketch({ entities: [start, end, line], constraints: [horizontal] });
+
+  const under = analyzeSketchConstraints(sketch);
+  assert.equal(under.status, SKETCH_SOLVER_STATUS.UNDER_CONSTRAINED);
+  assert.equal(under.variableCount, 4);
+  assert.equal(under.rank, 1);
+  assert.equal(under.degreesOfFreedom, 3);
+  assert.equal(under.solved, true);
+
+  sketch.entities.find((entity) => entity.id === start.id).fixed = true;
+  sketch.entities.find((entity) => entity.id === end.id).fixed = true;
+  const fully = analyzeSketchConstraints(sketch);
+  assert.equal(fully.status, SKETCH_SOLVER_STATUS.FULLY_CONSTRAINED);
+  assert.equal(fully.degreesOfFreedom, 0);
+  assert.ok(fully.points.every((point) => point.fixed));
+
+  sketch.entities.find((entity) => entity.id === end.id).geometry.y = '5';
+  const conflict = analyzeSketchConstraints(sketch);
+  assert.equal(conflict.status, SKETCH_SOLVER_STATUS.CONFLICT);
+  assert.ok(conflict.diagnostics.some((entry) => entry.code === 'CONFLICTING_FIXED_GEOMETRY' && entry.constraintIds.includes(horizontal.id)));
+});
+
+test('solver rozpoznaje nadmiarowy więz i nie zgaduje nieobsługiwanej relacji', () => {
+  const first = createSketchPoint({ x: 0, y: 0 });
+  const second = createSketchPoint({ x: 10, y: 0 });
+  const line = createSketchLine({ startPointId: first.id, endPointId: second.id });
+  const firstHorizontal = createSketchConstraint('horizontal', [line.id]);
+  const duplicateHorizontal = createSketchConstraint('horizontal', [first.id, second.id]);
+  const tangent = createSketchConstraint('tangent', [line.id]);
+  const sketch = createSketch({ entities: [first, second, line], constraints: [firstHorizontal, duplicateHorizontal, tangent] });
+  const result = analyzeSketchConstraints(sketch);
+
+  assert.equal(result.status, SKETCH_SOLVER_STATUS.OVER_CONSTRAINED);
+  assert.equal(result.degreesOfFreedom, 3);
+  assert.ok(result.diagnostics.some((entry) => entry.code === 'REDUNDANT_CONSTRAINTS'));
+  assert.ok(result.diagnostics.some((entry) => entry.code === 'UNSUPPORTED_CONSTRAINT' && entry.constraintIds.includes(tangent.id)));
+});
+
+test('solver projektuje coincident, horizontal i vertical bez zmiany trwałych ID', () => {
+  const fixedOrigin = createSketchPoint({ x: 0, y: 0, fixed: true });
+  const horizontalEnd = createSketchPoint({ x: 20, y: 7 });
+  const coincidentPoint = createSketchPoint({ x: 24, y: -3 });
+  const verticalEnd = createSketchPoint({ x: 9, y: 30 });
+  const horizontalLine = createSketchLine({ startPointId: fixedOrigin.id, endPointId: horizontalEnd.id });
+  const verticalLine = createSketchLine({ startPointId: coincidentPoint.id, endPointId: verticalEnd.id });
+  const sketch = createSketch({
+    entities: [fixedOrigin, horizontalEnd, coincidentPoint, verticalEnd, horizontalLine, verticalLine],
+    constraints: [
+      createSketchConstraint('horizontal', [horizontalLine.id]),
+      createSketchConstraint('coincident', [horizontalEnd.id, coincidentPoint.id]),
+      createSketchConstraint('vertical', [verticalLine.id]),
+    ],
+  });
+  const original = structuredClone(sketch);
+  const solution = solveSketchConstraints(sketch);
+
+  assert.equal(solution.converged, true);
+  assert.equal(solution.solved, true);
+  assert.equal(solution.status, SKETCH_SOLVER_STATUS.UNDER_CONSTRAINED);
+  assert.deepEqual(sketch, original, 'obliczenie rozwiązania nie mutuje dokumentu');
+  applySketchConstraintSolution(sketch, solution);
+  const points = new Map(sketch.entities.filter((entity) => entity.type === 'point').map((point) => [point.id, point]));
+  assert.ok(Math.abs(Number(points.get(horizontalEnd.id).geometry.y)) <= GEOMETRY_POLICY.linearTolerance);
+  assert.ok(Math.abs(Number(points.get(coincidentPoint.id).geometry.x) - Number(points.get(horizontalEnd.id).geometry.x)) <= GEOMETRY_POLICY.linearTolerance);
+  assert.ok(Math.abs(Number(points.get(coincidentPoint.id).geometry.y)) <= GEOMETRY_POLICY.linearTolerance);
+  assert.ok(Math.abs(Number(points.get(verticalEnd.id).geometry.x) - Number(points.get(coincidentPoint.id).geometry.x)) <= GEOMETRY_POLICY.linearTolerance);
+  assert.deepEqual(sketch.entities.map((entity) => entity.id), original.entities.map((entity) => entity.id));
+});
+
+test('solver utrzymuje wymiar distance z parametru dokumentu', () => {
+  const origin = createSketchPoint({ x: 0, y: 0, fixed: true });
+  const end = createSketchPoint({ x: 8, y: 6 });
+  const line = createSketchLine({ startPointId: origin.id, endPointId: end.id });
+  const distanceConstraint = createSketchConstraint('distance', [line.id], { value: 'dlugosc' });
+  const sketch = createSketch({ entities: [origin, end, line], constraints: [distanceConstraint] });
+  const solution = solveSketchConstraints(sketch, [{ name: 'dlugosc', expression: '20' }]);
+
+  assert.equal(solution.converged, true);
+  assert.equal(solution.solved, true);
+  assert.equal(solution.degreesOfFreedom, 1);
+  const update = solution.updates.find((entry) => entry.pointId === end.id);
+  assert.ok(Math.abs(Math.hypot(update.x, update.y) - 20) <= GEOMETRY_POLICY.linearTolerance);
+  assert.ok(Math.abs(update.x - 16) <= GEOMETRY_POLICY.linearTolerance);
+  assert.ok(Math.abs(update.y - 12) <= GEOMETRY_POLICY.linearTolerance);
+  const document = createDocument('Parametryczny więz odległości');
+  document.parameters.push({ id: 'param-distance', name: 'dlugosc', label: 'Długość', expression: '20', unit: 'mm' });
+  document.sketches.push(sketch);
+  assert.equal(validateDocument(document).valid, true);
+  const broken = structuredClone(document);
+  broken.sketches[0].constraints[0].value = 'brakujacyParametr';
+  assert.ok(validateDocument(broken).issues.some((issue) => issue.path.endsWith('.constraints[0].value') && issue.code === 'BROKEN_REFERENCE'));
 });
 
 test('kontrakt encji jest rozszerzalny bez zmiany formatu dokumentu', () => {

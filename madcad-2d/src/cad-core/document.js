@@ -416,6 +416,18 @@ export function validateDocument(document) {
       registerId(constraint.id, `${constraintBase}.id`);
       if (typeof constraint.type !== 'string' || !constraint.type.trim()) add(`${constraintBase}.type`, 'Wiązanie musi mieć typ.', 'REQUIRED');
       validateEntityReferences(constraint, constraintBase);
+      if (constraint.value !== undefined) {
+        if (typeof constraint.value !== 'string' && typeof constraint.value !== 'number') add(`${constraintBase}.value`, 'Wartość więzu musi być wyrażeniem tekstowym albo liczbą.', 'TYPE');
+        else {
+          try {
+            for (const parameterName of listExpressionIdentifiers(constraint.value)) {
+              if (!parameterNames.has(parameterName)) add(`${constraintBase}.value`, `Nie znaleziono parametru „${parameterName}”.`, 'BROKEN_REFERENCE');
+            }
+          } catch (error) {
+            add(`${constraintBase}.value`, error.message, 'FORMAT');
+          }
+        }
+      }
     });
     dimensions.forEach((dimension, dimensionIndex) => {
       const dimensionBase = `${base}.dimensions[${dimensionIndex}]`;
