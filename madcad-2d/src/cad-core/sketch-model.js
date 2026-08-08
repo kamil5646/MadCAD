@@ -29,6 +29,9 @@ export const SKETCH_DIMENSION_TYPES = Object.freeze([
   'angle',
   'radius',
   'diameter',
+  'ordinateX',
+  'ordinateY',
+  'arcLength',
 ]);
 
 const ENTITY_TYPE_SET = new Set(SKETCH_ENTITY_TYPES);
@@ -102,6 +105,9 @@ const DIMENSION_CONSTRAINT_TYPES = Object.freeze({
   angle: 'angle',
   radius: 'radius',
   diameter: 'diameter',
+  ordinateX: 'coordinateX',
+  ordinateY: 'coordinateY',
+  arcLength: 'arcLength',
 });
 
 export function createSketchDimension(type, entityIds, options = {}) {

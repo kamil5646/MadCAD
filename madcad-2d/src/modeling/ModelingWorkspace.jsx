@@ -102,6 +102,7 @@ import { refreshDetectedSketchProfiles } from '../cad-core/sketch-topology.js';
 import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketchLines, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../cad-core/sketch-modifiers.js';
 import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../cad-core/sketch-transforms.js';
 import { applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
+import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../cad-core/topology-references.js';
 import { createMidplane, createOffsetPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
@@ -544,8 +545,27 @@ function ImportSketchDialog({ draft, onChange, onConfirm, onCancel }) {
   );
 }
 
+function SketchDimensionDialog({ command, onChange, onConfirm, onCancel }) {
+  if (command?.type !== 'sketchDimension') return null;
+  const titles = {
+    ordinateX: 'Wymiar ordinate X',
+    ordinateY: 'Wymiar ordinate Y',
+    arcLength: 'Wymiar długości łuku',
+  };
+  return (
+    <section className="command-dialog sketch-dimension-dialog" aria-label={titles[command.dimensionType]}>
+      <header><strong>{titles[command.dimensionType]}</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
+      <div className="command-dialog-body">
+        <Field label="Wartość" value={command.value} onChange={(value) => onChange({ value })} suffix="mm" autoFocus />
+        <div className="command-preview-note"><span className="preview-dot" />Wymiar steruje geometrią i można go później zmienić bezpośrednio na szkicu.</div>
+      </div>
+      <footer><button className="secondary" type="button" onClick={onCancel}>Anuluj</button><button className="confirm" type="button" onClick={onConfirm}><Check size={14} /> Dodaj wymiar</button></footer>
+    </section>
+  );
+}
+
 function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, onUndoSegment, onFinishPath }) {
-  if (!command || command.type === 'plane' || command.type === 'parameters' || command.type === 'measure' || command.type === 'sectionAnalysis' || command.type === 'massProperties' || command.type === 'geometryInspection' || ['trimSketch', 'extendSketch', 'breakSketch', 'projectSketch'].includes(command.type)) return null;
+  if (!command || command.type === 'plane' || command.type === 'parameters' || command.type === 'measure' || command.type === 'sectionAnalysis' || command.type === 'massProperties' || command.type === 'geometryInspection' || command.type === 'sketchDimension' || ['trimSketch', 'extendSketch', 'breakSketch', 'projectSketch'].includes(command.type)) return null;
   const isRectangle = command.type === 'rectangle';
   const isCircle = command.type === 'circle';
   const isArc = command.type === 'arc';
@@ -1010,6 +1030,8 @@ export default function ModelingWorkspace({ onClose }) {
   const canAddSymmetry = selectedSketchEntities.filter((entity) => entity.type === 'point').length === 2
     && selectedSketchEntities.filter((entity) => entity.type === 'line').length === 1
     && selectedSketchEntities.length === 3;
+  const canAddOrdinate = selectedSketchEntities.length === 1 && selectedSketchEntities[0].type === 'point';
+  const canAddArcLength = selectedSketchEntities.length === 1 && selectedSketchEntities[0].type === 'arc';
   const selectedTopologyIds = useMemo(() => (
     selection?.items || (['face', 'edge', 'vertex'].includes(selection?.kind) ? [selection] : [])
   ).filter((item) => ['face', 'edge', 'vertex'].includes(item.kind)).map((item) => item.id), [selection]);
@@ -1679,6 +1701,71 @@ export default function ModelingWorkspace({ onClose }) {
     }
   };
 
+  const openSketchDimension = (dimensionType) => {
+    if (readOnly) return readOnlyNotice();
+    const sketch = document.sketches.find((item) => item.id === activeSketchId);
+    const entity = selectedSketchEntities[0];
+    if (!sketch || (dimensionType === 'arcLength' ? !canAddArcLength : !canAddOrdinate)) {
+      setNotice(dimensionType === 'arcLength' ? 'Długość łuku wymaga zaznaczenia jednego łuku.' : 'Wymiar ordinate wymaga zaznaczenia jednego punktu.');
+      return;
+    }
+    let value = dimensionType === 'ordinateX' ? entity.geometry.x : entity.geometry.y;
+    if (dimensionType === 'arcLength') {
+      const resolved = resolveParameters(document.parameters);
+      if (!resolved.valid) {
+        setNotice('Nie można odczytać długości łuku, dopóki parametry dokumentu zawierają błędy.');
+        return;
+      }
+      const [center, start, end] = entity.pointIds.map((pointId) => sketch.entities.find((item) => item.id === pointId));
+      const point = (item) => ({
+        x: evaluateExpression(item?.geometry?.x, resolved.values),
+        y: evaluateExpression(item?.geometry?.y, resolved.values),
+      });
+      const centerValue = point(center); const startValue = point(start); const endValue = point(end);
+      if ([centerValue, startValue, endValue].some((item) => !Number.isFinite(item.x) || !Number.isFinite(item.y))) {
+        setNotice('Nie można odczytać bieżącej długości łuku. Sprawdź współrzędne jego punktów.');
+        return;
+      }
+      const radius = Math.hypot(startValue.x - centerValue.x, startValue.y - centerValue.y);
+      let sweep = Math.atan2(endValue.y - centerValue.y, endValue.x - centerValue.x) - Math.atan2(startValue.y - centerValue.y, startValue.x - centerValue.x);
+      if (entity.geometry.direction === 'cw') { while (sweep >= 0) sweep -= Math.PI * 2; }
+      else { while (sweep <= 0) sweep += Math.PI * 2; }
+      value = String(radius * Math.abs(sweep));
+    }
+    setCommand({ type: 'sketchDimension', dimensionType, entityIds: [...selectedSketchEntityIds], value: String(value) });
+    setNotice('Podaj wartość sterującą wymiaru szkicu.');
+  };
+
+  const confirmSketchDimension = () => {
+    if (command?.type !== 'sketchDimension' || readOnly) return;
+    try {
+      const checked = cloneDocument(document);
+      const checkedSketch = checked.sketches.find((item) => item.id === activeSketchId);
+      if (!checkedSketch) throw new Error('Nie znaleziono aktywnego szkicu.');
+      const created = addDrivingSketchDimension(checkedSketch, command.dimensionType, command.entityIds, { expression: command.value });
+      const checkedSolution = solveSketchConstraints(checkedSketch, checked.parameters);
+      if (!checkedSolution.converged || !checkedSolution.solved || checkedSolution.status === SKETCH_SOLVER_STATUS.CONFLICT) {
+        throw new Error(checkedSolution.diagnostics?.[0]?.message || 'Solver nie znalazł poprawnego rozwiązania.');
+      }
+      applySketchConstraintSolution(checkedSketch, checkedSolution);
+      refreshDetectedSketchProfiles(checkedSketch, checked.parameters);
+      commit((next) => {
+        const sketch = next.sketches.find((item) => item.id === activeSketchId);
+        sketch.constraints.push({ ...created.constraint, entityIds: [...created.constraint.entityIds] });
+        sketch.dimensions.push({ ...created.dimension, entityIds: [...created.dimension.entityIds] });
+        const solution = solveSketchConstraints(sketch, next.parameters);
+        if (!solution.converged || !solution.solved || solution.status === SKETCH_SOLVER_STATUS.CONFLICT) throw new Error('Solver nie odtworzył wymiaru.');
+        applySketchConstraintSolution(sketch, solution);
+        refreshDetectedSketchProfiles(sketch, next.parameters);
+      });
+      setSelection({ kind: 'sketchConstraint', id: created.constraint.id, sketchId: activeSketchId });
+      setCommand(null);
+      setNotice('Dodano sterujący wymiar szkicu. Zaznacz jego znacznik, aby zmienić wartość.');
+    } catch (error) {
+      setNotice(`Nie dodano wymiaru: ${error.message}`);
+    }
+  };
+
   const openSketchMove = () => {
     if (!selectedSketchEntityIds.length) {
       setNotice('Najpierw zaznacz punkt lub segment szkicu.');
@@ -2035,6 +2122,28 @@ export default function ModelingWorkspace({ onClose }) {
       setSelection({ kind: 'sketch', id: sketch.id });
       setCommand(null);
     };
+    window.__madcadVerifyLoadDimensionFixture = () => {
+      const fixture = createDocument('Wymiary P1');
+      const ordinatePoint = createSketchPoint({ x: 3, y: 4 });
+      const center = createSketchPoint({ x: 0, y: 0, fixed: true });
+      const start = createSketchPoint({ x: 10, y: 0 });
+      const end = createSketchPoint({ x: 0, y: 10 });
+      const arc = createSketchArc({ centerPointId: center.id, startPointId: start.id, endPointId: end.id, direction: 'ccw' });
+      const sketch = createSketch({ name: 'Szkic wymiarów P1', plane: 'XY', entities: [ordinatePoint, center, start, end, arc] });
+      fixture.sketches.push(sketch);
+      window.__madcadDimensionFixtureIds = {
+        pointId: ordinatePoint.id,
+        arcId: arc.id,
+        centerId: center.id,
+        startId: start.id,
+        endId: end.id,
+      };
+      history.replace(fixture);
+      setActiveSketchId(sketch.id);
+      setWorkspace('sketch');
+      setSelection({ kind: 'sketch', id: sketch.id });
+      setCommand(null);
+    };
     window.__madcadVerifyUpdateConstraint = updateSketchConstraintValue;
     window.__madcadVerifyReopenAutosave = () => {
       const raw = window.localStorage.getItem(AUTOSAVE_KEY);
@@ -2073,7 +2182,7 @@ export default function ModelingWorkspace({ onClose }) {
         profiles: sketch.profiles.length,
         profileIds: sketch.profiles.map((profile) => profile.id),
         constraints: sketch.constraints.map((constraint) => ({ id: constraint.id, type: constraint.type, value: constraint.value })),
-        dimensions: sketch.dimensions.map((dimension) => ({ id: dimension.id, constraintId: dimension.constraintId, expression: dimension.expression })),
+        dimensions: sketch.dimensions.map((dimension) => ({ id: dimension.id, type: dimension.type, entityIds: dimension.entityIds, constraintId: dimension.constraintId, expression: dimension.expression })),
       })),
       features: document.features.length,
       featureIds: document.features.map((feature) => feature.id),
@@ -2107,6 +2216,7 @@ export default function ModelingWorkspace({ onClose }) {
       delete window.__madcadVerifyLoadMechanicalFixture;
       delete window.__madcadVerifyLoadParametricBracketFixture;
       delete window.__madcadVerifyLoadConstraintFixture;
+      delete window.__madcadVerifyLoadDimensionFixture;
       delete window.__madcadVerifyUpdateConstraint;
       delete window.__madcadVerifyReopenAutosave;
       delete window.__madcadVerifyLoadPointHoleFixture;
@@ -2938,6 +3048,7 @@ export default function ModelingWorkspace({ onClose }) {
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /><ToolButton icon={Upload} label="Import SVG/DXF" onClick={() => sketchImportInputRef.current?.click()} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { setCommand(null); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Maximize2} label="Extend" onClick={() => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' })} primary={command?.type === 'extendSketch'} disabled={readOnly} /><ToolButton icon={Minus} label="Break" onClick={() => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' })} primary={command?.type === 'breakSketch'} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Project" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} /><ToolButton icon={Copy} label="Offset" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} /><ToolButton icon={CircleDotDashed} label="Fillet szkicu" onClick={() => openSketchCorner('fillet')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={Triangle} label="Faza szkicu" onClick={() => openSketchCorner('chamfer')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={RotateCw} label="Transformuj" onClick={openSketchTransform} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
                 <RibbonGroup label="WIĘZY"><ToolButton icon={Minus} label="Współliniowe" onClick={() => addSelectedSketchConstraint('collinear')} disabled={readOnly || !canAddCollinear} /><ToolButton icon={Frame} label="Symetria" onClick={() => addSelectedSketchConstraint('symmetry')} disabled={readOnly || !canAddSymmetry} /></RibbonGroup>
+                <RibbonGroup label="WYMIARY"><ToolButton icon={Ruler} label="Ordinate X" onClick={() => openSketchDimension('ordinateX')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={Ruler} label="Ordinate Y" onClick={() => openSketchDimension('ordinateY')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={RotateCw} label="Długość łuku" onClick={() => openSketchDimension('arcLength')} disabled={readOnly || !canAddArcLength} /></RibbonGroup>
                 <RibbonGroup label="SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
             ) : workspace === 'print' ? (
@@ -3037,6 +3148,7 @@ export default function ModelingWorkspace({ onClose }) {
           />
           <ImportModelDialog draft={importDraft} onChange={(patch) => setImportDraft((current) => ({ ...current, ...patch }))} onConfirm={confirmModelImport} onCancel={() => setImportDraft(null)} />
           <ImportSketchDialog draft={sketchImportDraft} onChange={(patch) => setSketchImportDraft((current) => ({ ...current, ...patch }))} onConfirm={confirmSketchImport} onCancel={() => setSketchImportDraft(null)} />
+          <SketchDimensionDialog command={command} onChange={updateCommand} onConfirm={confirmSketchDimension} onCancel={() => setCommand(null)} />
           {command?.type === 'parameters' && <ParametersDialog document={document} commit={commit} onClose={() => setCommand(null)} />}
           {activeSketchId && <SketchPalette options={sketchOptions} onChange={(key, value) => setSketchOptions((current) => ({ ...current, [key]: value }))} onFinish={finishSketch} />}
         </main>

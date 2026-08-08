@@ -372,6 +372,48 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.[0]?.constraints?.some((item) => item.type === 'collinear') && saved.sketches[0].constraints.some((item) => item.type === 'symmetry'); })()`, 'autozapis więzów P1');
   const constraintFlow = { collinear: collinearSolved, symmetry: symmetrySolved, undoRedo: true };
 
+  progress('ordinate and arc length dimensions');
+  await window.webContents.executeJavaScript(`window.__madcadVerifyLoadDimensionFixture?.()`);
+  await waitForUi(window, `window.__madcadDimensionFixtureIds && window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 5`, 'fixture wymiarów P1');
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection([window.__madcadDimensionFixtureIds.pointId], 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Ordinate X')?.disabled)`, 'aktywny wymiar ordinate X');
+  await clickTool('Ordinate X');
+  await waitForUi(window, `document.querySelector('.sketch-dimension-dialog')?.textContent.includes('Wymiar ordinate X')`, 'dialog ordinate X');
+  await setCommandField('Wartość', '12');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const sketch = window.__madcadVerifyDocumentState?.sketches?.[0]; const point = sketch?.entityData?.find((item) => item.id === window.__madcadDimensionFixtureIds.pointId); return sketch?.constraints?.some((item) => item.type === 'coordinateX') && Math.abs(Number(point?.geometry?.x) - 12) < 1e-6; })()`, 'zastosowany ordinate X');
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection([window.__madcadDimensionFixtureIds.pointId], 'replace')`);
+  await clickTool('Ordinate Y');
+  await waitForUi(window, `document.querySelector('.sketch-dimension-dialog')?.textContent.includes('Wymiar ordinate Y')`, 'dialog ordinate Y');
+  await setCommandField('Wartość', '-7');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const sketch = window.__madcadVerifyDocumentState?.sketches?.[0]; const point = sketch?.entityData?.find((item) => item.id === window.__madcadDimensionFixtureIds.pointId); return sketch?.constraints?.some((item) => item.type === 'coordinateY') && Math.abs(Number(point?.geometry?.y) + 7) < 1e-6; })()`, 'zastosowany ordinate Y');
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection([window.__madcadDimensionFixtureIds.arcId], 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Długość łuku')?.disabled)`, 'aktywny wymiar długości łuku');
+  await clickTool('Długość łuku');
+  await waitForUi(window, `document.querySelector('.sketch-dimension-dialog')?.textContent.includes('Wymiar długości łuku')`, 'dialog długości łuku');
+  await setCommandField('Wartość', String(Math.PI * 10));
+  await confirmDialog();
+  await waitForUi(window, `(() => { const sketch = window.__madcadVerifyDocumentState?.sketches?.[0]; const center = sketch?.entityData?.find((item) => item.id === window.__madcadDimensionFixtureIds.centerId); const start = sketch?.entityData?.find((item) => item.id === window.__madcadDimensionFixtureIds.startId); return sketch?.constraints?.some((item) => item.type === 'arcLength') && Math.abs(Math.hypot(Number(start?.geometry?.x) - Number(center?.geometry?.x), Number(start?.geometry?.y) - Number(center?.geometry?.y)) - 20) < 1e-5; })()`, 'zastosowana długość łuku');
+  await waitForUi(window, `document.querySelector('.sketch-constraint-editor input')`, 'edytor długości łuku na szkicu');
+  await window.webContents.executeJavaScript(`(() => {
+    const form = document.querySelector('.sketch-constraint-editor');
+    const input = form?.querySelector('input');
+    const button = form?.querySelector('button[type="submit"]');
+    if (!input || !button) throw new Error('Brak edytora wybranego wymiaru.');
+    input.value = String(Math.PI * 12.5);
+    button.click();
+  })()`);
+  await waitForUi(window, `(() => { const sketch = window.__madcadVerifyDocumentState?.sketches?.[0]; const center = sketch?.entityData?.find((item) => item.id === window.__madcadDimensionFixtureIds.centerId); const start = sketch?.entityData?.find((item) => item.id === window.__madcadDimensionFixtureIds.startId); return Math.abs(Math.hypot(Number(start?.geometry?.x) - Number(center?.geometry?.x), Number(start?.geometry?.y) - Number(center?.geometry?.y)) - 25) < 1e-5; })()`, 'edycja długości łuku na szkicu');
+  await sendShortcut('z');
+  await waitForUi(window, `(() => { const sketch = window.__madcadVerifyDocumentState?.sketches?.[0]; const center = sketch?.entityData?.find((item) => item.id === window.__madcadDimensionFixtureIds.centerId); const start = sketch?.entityData?.find((item) => item.id === window.__madcadDimensionFixtureIds.startId); return Math.abs(Math.hypot(Number(start?.geometry?.x) - Number(center?.geometry?.x), Number(start?.geometry?.y) - Number(center?.geometry?.y)) - 20) < 1e-5; })()`, 'undo edycji długości łuku');
+  await sendShortcut('z', true);
+  await waitForUi(window, `(() => { const sketch = window.__madcadVerifyDocumentState?.sketches?.[0]; const center = sketch?.entityData?.find((item) => item.id === window.__madcadDimensionFixtureIds.centerId); const start = sketch?.entityData?.find((item) => item.id === window.__madcadDimensionFixtureIds.startId); return Math.abs(Math.hypot(Number(start?.geometry?.x) - Number(center?.geometry?.x), Number(start?.geometry?.y) - Number(center?.geometry?.y)) - 25) < 1e-5; })()`, 'redo edycji długości łuku');
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.[0]?.dimensions?.length === 3 && saved.sketches[0].constraints.some((item) => item.type === 'arcLength'); })()`, 'autozapis wymiarów P1');
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.dimensions?.length === 3 && window.__madcadVerifyDocumentState.sketches[0].constraints.some((item) => item.type === 'coordinateX') && window.__madcadVerifyDocumentState.sketches[0].constraints.some((item) => item.type === 'coordinateY') && window.__madcadVerifyDocumentState.sketches[0].constraints.some((item) => item.type === 'arcLength')`, 'ponownie otwarte wymiary P1');
+  const dimensionFlow = { ordinateX: true, ordinateY: true, arcLength: true, inlineEdit: true, undoRedo: true, reopened: true };
+
   progress('line and command termination');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla linii');
@@ -1447,6 +1489,7 @@ async function runUiFlow(window) {
     tutorial,
     sketchImport,
     constraintFlow,
+    dimensionFlow,
     autosaveRoundTrip,
     workerRecovery,
   };
@@ -1454,8 +1497,8 @@ async function runUiFlow(window) {
 
 app.whenReady().then(async () => {
   const performanceBudgets = isCi
-    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 150000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 45000 }
-    : { desktopColdStartMs: 30000, desktopWorkflowMs: 45000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
+    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 165000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 45000 }
+    : { desktopColdStartMs: 30000, desktopWorkflowMs: 50000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
     width: 1936,

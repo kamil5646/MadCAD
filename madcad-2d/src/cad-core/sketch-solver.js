@@ -23,6 +23,9 @@ export const SUPPORTED_SKETCH_CONSTRAINTS = Object.freeze([
   'equal',
   'collinear',
   'symmetry',
+  'coordinateX',
+  'coordinateY',
+  'arcLength',
 ]);
 
 function parameterValues(parameters) {
@@ -153,6 +156,34 @@ function rowForConstraint(constraint, entityMap, variableColumns, values) {
         return { row, residual: pointValue(points[1], axis) - pointValue(points[0], axis) };
       }),
     };
+  }
+
+  if (constraint.type === 'coordinateX' || constraint.type === 'coordinateY') {
+    const selectedPoints = referencedEntities(constraint.entityIds, entityMap, 'point');
+    if (selectedPoints.length !== 1) return { supported: true, error: `Wiązanie ${constraint.type} wymaga dokładnie jednego punktu.` };
+    const target = evaluateExpression(constraint.value, values);
+    const axis = constraint.type === 'coordinateX' ? 'x' : 'y';
+    const row = makeRow();
+    coefficient(row, selectedPoints[0].id, axis, 1);
+    return { supported: true, rows: [{ row, residual: pointValue(selectedPoints[0], axis) - target }] };
+  }
+
+  if (constraint.type === 'arcLength') {
+    const arcs = referencedEntities(constraint.entityIds, entityMap, 'arc');
+    if (arcs.length !== 1) return { supported: true, error: 'Wymiar długości łuku wymaga dokładnie jednego łuku.' };
+    const arcPoints = arcs[0].pointIds.map((pointId) => entityMap.get(pointId));
+    if (arcPoints.some((point) => point?.type !== 'point')) return { supported: true, error: 'Łuk nie ma kompletu punktów.' };
+    const target = evaluateExpression(constraint.value, values);
+    if (!(target > GEOMETRY_POLICY.linearTolerance)) return { supported: true, error: 'Długość łuku musi być dodatnia.' };
+    const residual = (get) => {
+      const [center, start, end] = arcPoints.map((point) => get(point.id));
+      const radius = Math.hypot(start.x - center.x, start.y - center.y);
+      let sweep = Math.atan2(end.y - center.y, end.x - center.x) - Math.atan2(start.y - center.y, start.x - center.x);
+      if (arcs[0].geometry.direction === 'cw') { while (sweep >= 0) sweep -= Math.PI * 2; }
+      else { while (sweep <= 0) sweep += Math.PI * 2; }
+      return radius * Math.abs(sweep) - target;
+    };
+    return { supported: true, rows: numericalRows(arcPoints, [residual]) };
   }
 
   if (constraint.type === 'collinear') {
@@ -650,12 +681,48 @@ export function solveSketchConstraints(sketch, parameters = [], options = {}) {
     Object.assign(first, nextFirst); Object.assign(second, nextSecond);
     return delta;
   };
+  const setPointCoordinate = (pointId, axis, target) => {
+    if (fixedPointIds.has(pointId)) return 0;
+    const point = coordinates.get(pointId);
+    const delta = Math.abs(point[axis] - target);
+    point[axis] = target;
+    return delta;
+  };
+  const setArcLength = (arc, targetLength) => {
+    const [centerId, startId, endId] = arc.pointIds;
+    const center = coordinates.get(centerId); const start = coordinates.get(startId); const end = coordinates.get(endId);
+    if (!center || !start || !end) return 0;
+    const startAngle = Math.atan2(start.y - center.y, start.x - center.x);
+    const endAngle = Math.atan2(end.y - center.y, end.x - center.x);
+    let sweep = endAngle - startAngle;
+    if (arc.geometry.direction === 'cw') { while (sweep >= 0) sweep -= Math.PI * 2; }
+    else { while (sweep <= 0) sweep += Math.PI * 2; }
+    const targetRadius = targetLength / Math.abs(sweep);
+    let delta = 0;
+    for (const [pointId, point, angle] of [[startId, start, startAngle], [endId, end, endAngle]]) {
+      if (fixedPointIds.has(pointId)) continue;
+      const next = { x: center.x + Math.cos(angle) * targetRadius, y: center.y + Math.sin(angle) * targetRadius };
+      delta = Math.max(delta, Math.hypot(point.x - next.x, point.y - next.y));
+      Object.assign(point, next);
+    }
+    return delta;
+  };
 
   let converged = false;
   let iterations = 0;
   for (iterations = 1; iterations <= maximumIterations; iterations += 1) {
     let maximumDelta = 0;
     for (const constraint of sketch?.constraints || []) {
+      if (constraint.type === 'coordinateX' || constraint.type === 'coordinateY') {
+        const points = referencedEntities(constraint.entityIds, entityMap, 'point');
+        if (points.length === 1) maximumDelta = Math.max(maximumDelta, setPointCoordinate(points[0].id, constraint.type === 'coordinateX' ? 'x' : 'y', evaluateExpression(constraint.value, values)));
+        continue;
+      }
+      if (constraint.type === 'arcLength') {
+        const arcs = referencedEntities(constraint.entityIds, entityMap, 'arc');
+        if (arcs.length === 1) maximumDelta = Math.max(maximumDelta, setArcLength(arcs[0], evaluateExpression(constraint.value, values)));
+        continue;
+      }
       if (constraint.type === 'collinear') {
         const lines = referencedEntities(constraint.entityIds, entityMap, 'line');
         if (lines.length !== 2) continue;

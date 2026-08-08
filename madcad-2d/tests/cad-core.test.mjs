@@ -1208,6 +1208,55 @@ test('wymiary poziomy, pionowy i aligned tworzą spójne sterujące więzy', () 
   assert.throws(() => createSketchDimension('unsupported', [line.id]), /Nieobsługiwany typ wymiaru/);
 });
 
+test('wymiary ordinate X/Y sterują bezwzględną pozycją punktu', () => {
+  const point = createSketchPoint({ x: 3, y: 4 });
+  const sketch = createSketch({ entities: [point] });
+  addDrivingSketchDimension(sketch, 'ordinateX', [point.id], { expression: '12' });
+  addDrivingSketchDimension(sketch, 'ordinateY', [point.id], { expression: '-7' });
+  const solution = solveSketchConstraints(sketch);
+  assert.equal(solution.converged, true);
+  applySketchConstraintSolution(sketch, solution);
+  assert.equal(Number(sketch.entities[0].geometry.x), 12);
+  assert.equal(Number(sketch.entities[0].geometry.y), -7);
+  assert.deepEqual(sketch.dimensions.map((dimension) => dimension.type), ['ordinateX', 'ordinateY']);
+});
+
+test('wymiar długości łuku steruje promieniem bez zmiany kąta', () => {
+  const center = createSketchPoint({ x: 0, y: 0, fixed: true });
+  const start = createSketchPoint({ x: 10, y: 0 });
+  const end = createSketchPoint({ x: 0, y: 10 });
+  const arc = createSketchArc({ centerPointId: center.id, startPointId: start.id, endPointId: end.id, direction: 'ccw' });
+  const sketch = createSketch({ entities: [center, start, end, arc] });
+  addDrivingSketchDimension(sketch, 'arcLength', [arc.id], { expression: String(Math.PI * 10) });
+  const solution = solveSketchConstraints(sketch);
+  assert.equal(solution.converged, true);
+  applySketchConstraintSolution(sketch, solution);
+  const solvedStart = sketch.entities.find((entity) => entity.id === start.id);
+  const solvedEnd = sketch.entities.find((entity) => entity.id === end.id);
+  assert.ok(Math.abs(Number(solvedStart.geometry.x) - 20) < 1e-6);
+  assert.ok(Math.abs(Number(solvedEnd.geometry.y) - 20) < 1e-6);
+});
+
+test('wymiary ordinate i długości łuku odrzucają konflikt oraz niedodatnią wartość', () => {
+  const fixedPoint = createSketchPoint({ x: 3, y: 4, fixed: true });
+  const ordinateSketch = createSketch({ entities: [fixedPoint] });
+  addDrivingSketchDimension(ordinateSketch, 'ordinateX', [fixedPoint.id], { expression: '12' });
+  const ordinateSolution = solveSketchConstraints(ordinateSketch);
+  assert.equal(ordinateSolution.status, SKETCH_SOLVER_STATUS.CONFLICT);
+  assert.equal(ordinateSolution.converged, false);
+  assert.equal(Number(fixedPoint.geometry.x), 3);
+
+  const center = createSketchPoint({ x: 0, y: 0 });
+  const start = createSketchPoint({ x: 10, y: 0 });
+  const end = createSketchPoint({ x: 0, y: 10 });
+  const arc = createSketchArc({ centerPointId: center.id, startPointId: start.id, endPointId: end.id });
+  const arcSketch = createSketch({ entities: [center, start, end, arc] });
+  addDrivingSketchDimension(arcSketch, 'arcLength', [arc.id], { expression: '0' });
+  const arcSolution = solveSketchConstraints(arcSketch);
+  assert.equal(arcSolution.status, SKETCH_SOLVER_STATUS.CONFLICT);
+  assert.ok(arcSolution.diagnostics.some((entry) => entry.code === 'INVALID_CONSTRAINT' && entry.message.includes('dodatnia')));
+});
+
 test('diagnostyka wskazuje minimalny zestaw sprzecznych więzów', () => {
   const origin = createSketchPoint({ x: 0, y: 0, fixed: true });
   const end = createSketchPoint({ x: 10, y: 0 });

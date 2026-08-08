@@ -1,6 +1,6 @@
 # MadCAD — aktywny plan rozwoju
 
-Aktualizacja: 2026-08-08
+Aktualizacja: 2026-08-09
 Wersja: `6.0.0-alpha.1`
 Gałąź: `agent/madcad-vnext-core`
 
@@ -125,7 +125,8 @@ Te prace nie czekają na koniec modelowania:
 
 - [x] P1.1 Import SVG/DXF do aktywnego szkicu: wykrywanie i wybór jednostek, profile, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
 - [x] P1.2 Więzy `collinear` i `symmetry` od solvera do interfejsu, z diagnostyką konfliktów, undo/redo, autozapisem i round-trip projektu.
-- [ ] P1.3 Wymiary ordinate oraz długości łuku.
+- [x] P1.3 Wymiary ordinate X/Y oraz długości łuku: sterowanie solverem, znaczniki, edycja na szkicu, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
+- [>] P1.4 Prostokątny i kołowy szyk geometrii szkicu z pomijaniem wystąpień.
 
 ## Definition of Done
 
@@ -149,4 +150,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.3 — wymiary ordinate oraz długości łuku od modelu i solvera do edycji na szkicu.`
+`P1.4 — prostokątny i kołowy szyk geometrii szkicu z pomijaniem wystąpień, undo/redo i desktop E2E.`
