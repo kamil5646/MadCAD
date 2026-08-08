@@ -456,6 +456,27 @@ test('Box, Cylinder, Sphere i Torus przygotowują parametryczne bryły oraz osob
   assert.equal(primitives.every((feature) => graph.producerOfBody(`body-${feature.id}`) === feature.id), true);
 });
 
+test('wspólny manipulator ma parametryczne operacje Move, Rotate i Offset Face', () => {
+  const document = createDocument('Manipulacja bezpośrednia');
+  const box = createFeature('primitive', { primitiveType: 'box', x: '0', y: '0', z: '0', width: '10', depth: '12', height: '14' });
+  const bodyId = `body-${box.id}`;
+  const faceReference = {
+    ...createTopologyReference({ selection: { kind: 'face', id: 'top', bodyId }, descriptor: { geometry: 'PLANE', center: [5, 6, 14], normal: [0, 0, 1] }, label: 'Offset Face — ściana' }),
+    scope: 'feature-input',
+  };
+  const move = createFeature('transform', { targetBodyId: bodyId, mode: 'move', x: '5', y: '2', z: '-1', angle: '0', originX: '0', originY: '0', originZ: '0' });
+  const rotate = createFeature('transform', { targetBodyId: bodyId, mode: 'rotate', x: '0', y: '0', z: '0', angle: '90', originX: '0', originY: '0', originZ: '0' });
+  const offset = createFeature('offsetFace', { targetBodyId: bodyId, referenceIds: [faceReference.id], distance: '2' });
+  document.references.push(faceReference);
+  document.features.push(box, move, rotate, offset);
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features;
+  assert.deepEqual(prepared[1].translation, [5, 2, -1]);
+  assert.equal(prepared[2].angleValue, 90);
+  assert.equal(prepared[3].distanceValue, 2);
+  assert.equal(prepared[3].topologyReferences[0].id, faceReference.id);
+});
+
 test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwałymi linkami', () => {
   const document = createDocument('Project');
   const sketch = createSketch({ plane: 'XY', planeOffset: '8' });

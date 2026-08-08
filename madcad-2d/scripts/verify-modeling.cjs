@@ -481,6 +481,43 @@ async function runUiFlow(window) {
     assertClose(volume, fixture.volume, 0.05, `${fixture.type} volume`);
   }
 
+  progress('shared move rotate offset face manipulator');
+  const primitiveBoxId = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].id`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'body', bodyId: ${JSON.stringify(primitiveBoxId)} }, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'bryła wskazana do przesunięcia');
+  await clickTool('Przesuń bryłę');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Przesuń bryłę') && document.querySelector('.direct-handle-hit')`, 'wspólny manipulator przesunięcia');
+  await dragDirectExtrude();
+  await setCommandField('Przesunięcie X', '5');
+  await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.bounds[0][0] - 5) < 0.001 && window.__madcadVerifyEngineState.timeline.at(-1)?.status === 'ok'`, 'podgląd przesuniętej bryły', modelingTimeoutMs);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'transform' && window.__madcadVerifyDocumentState.featureData.at(-1).x === '5'`, 'zapisane przesunięcie bryły', modelingTimeoutMs);
+  let boxBounds = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.bounds`);
+  if (Math.abs(boxBounds[0][0] - 5) > 0.001) {
+    const moveDiagnostic = await window.webContents.executeJavaScript(`({ feature: window.__madcadVerifyDocumentState.featureData.at(-1), bodies: window.__madcadVerifyEngineState.bodies.map((body) => ({ id: body.id, bounds: body.metrics.bounds })) })`);
+    throw new Error(`Move body minimum X: expected 5, received ${boxBounds[0][0]}; ${JSON.stringify(moveDiagnostic)}`);
+  }
+
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'body', bodyId: ${JSON.stringify(primitiveBoxId)} }, 'replace')`);
+  await clickTool('Obróć bryłę');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Obróć bryłę') && document.querySelector('.direct-handle-hit')`, 'wspólny manipulator obrotu');
+  await setCommandField('Kąt Z', '90');
+  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.dimensions[0]) - 12) < 0.001 && window.__madcadVerifyEngineState.timeline.at(-1)?.status === 'ok'`, 'podgląd obróconej bryły', modelingTimeoutMs);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.mode === 'rotate'`, 'zapisany obrót bryły', modelingTimeoutMs);
+  boxBounds = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.bounds`);
+  assertClose(boxBounds[1][0] - boxBounds[0][0], 12, 0.001, 'Rotate body X dimension');
+
+  const offsetSelection = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies.find((item) => item.id === ${JSON.stringify(primitiveBoxId)}); const face = body.topology.faces.filter((item) => item.descriptor.geometry === 'PLANE').sort((left, right) => right.descriptor.center[2] - left.descriptor.center[2])[0]; return { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }; })()`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(offsetSelection)}, 'replace')`);
+  await clickTool('Offset Face');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Offset Face') && document.querySelector('.direct-handle-hit')`, 'wspólny manipulator Offset Face');
+  await setCommandField('Odległość', '2');
+  await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume - ${10 * 12 * 16}) < 0.05 && window.__madcadVerifyEngineState.timeline.at(-1)?.status === 'ok'`, 'podgląd odsuniętej ściany', modelingTimeoutMs);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'offsetFace'`, 'zapisany Offset Face', modelingTimeoutMs);
+  assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume`), 10 * 12 * 16, 0.05, 'Offset Face volume');
+
   progress('new document');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt');
@@ -541,7 +578,7 @@ async function runUiFlow(window) {
   }
 
   progress('B-Rep hover, multi-select and box select');
-  await new Promise((resolve) => setTimeout(resolve, 120));
+  await new Promise((resolve) => setTimeout(resolve, 500));
   const selectionRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   const topologyIds = await window.webContents.executeJavaScript(`(() => {
     const body = window.__madcadVerifyEngineState.bodies[0];

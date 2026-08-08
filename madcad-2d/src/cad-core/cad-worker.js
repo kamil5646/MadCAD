@@ -3,6 +3,7 @@ import opencascadeWasm from 'replicad-opencascadejs/src/replicad_single.wasm?url
 import {
   Curve2D,
   FaceFinder,
+  Vector,
   cast,
   drawCircle,
   drawEllipse,
@@ -154,6 +155,40 @@ function runFeature(feature, bodyMap, bodyOrder) {
     return;
   }
 
+  if (feature.type === 'transform') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);
+    if (feature.mode === 'move') target.shape = target.shape.translate(...feature.translation);
+    else if (feature.mode === 'rotate') target.shape = target.shape.rotate(feature.angleValue, feature.origin, [0, 0, 1]);
+    else throw new Error(`Nieobsługiwana transformacja: ${feature.mode}.`);
+    return;
+  }
+
+  if (feature.type === 'offsetFace') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);
+    if (Math.abs(feature.distanceValue) <= GEOMETRY_POLICY.linearTolerance) return;
+    const faces = target.shape.faces;
+    try {
+      const descriptors = faces.map((face) => faceDescriptor(face));
+      const faceIndex = matchingFaceIndex(feature.topologyReferences?.[0], descriptors);
+      const face = faces[faceIndex];
+      if (face.geomType !== 'PLANE') throw new Error('Offset Face obsługuje obecnie wyłącznie ściany planarne.');
+      const center = face.center.toTuple();
+      const normal = face.normalAt(center).toTuple();
+      const vector = new Vector(normal.map((value) => value * feature.distanceValue));
+      const builder = new (getOC().BRepPrimAPI_MakePrism_1)(face.wrapped, vector.wrapped, true, true);
+      const tool = cast(builder.Shape());
+      target.shape = feature.distanceValue > 0 ? target.shape.fuse(tool) : target.shape.cut(tool);
+      tool.delete();
+      builder.delete();
+      vector.delete();
+    } finally {
+      faces.forEach((face) => face.delete());
+    }
+    return;
+  }
+
   if (feature.type === 'extrude') {
     const span = extrusionSpan(feature);
     const tool = combineShapes(feature.profiles.map((profile) => extrudeProfile(profile, span)));
@@ -276,6 +311,20 @@ function faceReferenceDistance(reference, descriptor) {
   return centerDistance + normalDistance;
 }
 
+function matchingFaceIndex(reference, descriptors) {
+  let bestIndex = -1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  descriptors.forEach((descriptor, index) => {
+    const distance = faceReferenceDistance(reference, descriptor);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  });
+  if (bestIndex < 0 || bestDistance > 1e-4) throw new Error(`Nie odnaleziono wskazanej ściany „${reference?.label || reference?.topologyId}”.`);
+  return bestIndex;
+}
+
 function selectedFaceHashes(shape, references) {
   if (!references.length) return new Set();
   const faces = shape.faces;
@@ -283,16 +332,7 @@ function selectedFaceHashes(shape, references) {
     const descriptors = faces.map((face) => faceDescriptor(face));
     const hashes = new Set();
     for (const reference of references) {
-      let bestIndex = -1;
-      let bestDistance = Number.POSITIVE_INFINITY;
-      descriptors.forEach((descriptor, index) => {
-        const distance = faceReferenceDistance(reference, descriptor);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestIndex = index;
-        }
-      });
-      if (bestIndex < 0 || bestDistance > 1e-4) throw new Error(`Nie odnaleziono wskazanej ściany „${reference.label || reference.topologyId}”.`);
+      const bestIndex = matchingFaceIndex(reference, descriptors);
       hashes.add(faces[bestIndex].hashCode);
     }
     return hashes;

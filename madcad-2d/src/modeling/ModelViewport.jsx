@@ -374,6 +374,7 @@ export default function ModelViewport({
   selectedProfilePlaneOffset = 0,
   directExtrudeDistance = 0,
   onDirectExtrude,
+  directManipulator = null,
   snapEnabled = true,
   snapThresholdPx = DEFAULT_SNAP_THRESHOLD_PX,
   bed,
@@ -420,7 +421,7 @@ export default function ModelViewport({
   if (sketchInteractionRef.current.activeSketchId !== activeSketchId) {
     sketchInteractionRef.current = { activeSketchId, start: null, drag: null, box: null };
   }
-  const directEnabled = Boolean(selectedProfile && !activeSketchId);
+  const directEnabled = Boolean((selectedProfile || directManipulator) && !activeSketchId);
   selectRef.current = onSelectBody;
   topologySelectRef.current = onSelectTopology;
   draftChangeRef.current = onDraftChange;
@@ -430,8 +431,13 @@ export default function ModelViewport({
   sketchMoveRef.current = onSketchMove;
   sketchModifyRef.current = onSketchModify;
   directRef.current = {
-    distance: numericValue(directExtrudeDistance, parameters),
-    onCommit: onDirectExtrude,
+    distance: directManipulator ? numericValue(directManipulator.value, parameters) : numericValue(directExtrudeDistance, parameters),
+    onCommit: directManipulator?.onCommit || onDirectExtrude,
+    min: directManipulator?.min ?? 0.1,
+    max: directManipulator?.max ?? Number.POSITIVE_INFINITY,
+    origin: directManipulator?.origin || null,
+    axis: directManipulator?.axis || null,
+    kind: directManipulator?.kind || 'extrude',
     snapEnabled,
     snapThresholdPx,
   };
@@ -567,16 +573,20 @@ export default function ModelViewport({
     let updateDirectVisual = null;
     let ghostPreview = null;
     if (directEnabled) {
-      const normal = selectedProfilePlane === 'XZ'
+      const normal = directManipulator?.axis
+        ? new THREE.Vector3(...directManipulator.axis).normalize()
+        : selectedProfilePlane === 'XZ'
         ? new THREE.Vector3(0, -1, 0)
         : selectedProfilePlane === 'YZ'
           ? new THREE.Vector3(1, 0, 0)
           : new THREE.Vector3(0, 0, 1);
-      const profileX = numericValue(selectedProfile.geometry.x, parameters);
-      const profileY = numericValue(selectedProfile.geometry.y, parameters);
-      const center = new THREE.Vector3(...mapPlanePoint(profileX, profileY, selectedProfilePlane, 0.12, selectedProfilePlaneOffset));
+      const profileX = selectedProfile ? numericValue(selectedProfile.geometry.x, parameters) : 0;
+      const profileY = selectedProfile ? numericValue(selectedProfile.geometry.y, parameters) : 0;
+      const center = directManipulator?.origin
+        ? new THREE.Vector3(...directManipulator.origin)
+        : new THREE.Vector3(...mapPlanePoint(profileX, profileY, selectedProfilePlane, 0.12, selectedProfilePlaneOffset));
 
-      addSketchLine(directGroup, selectedProfile, parameters, selectedProfilePlane, true, selectedProfilePlaneOffset);
+      if (selectedProfile) addSketchLine(directGroup, selectedProfile, parameters, selectedProfilePlane, true, selectedProfilePlaneOffset);
 
       const shaft = new THREE.Mesh(
         new THREE.CylinderGeometry(0.65, 0.65, 1, 18),
@@ -610,6 +620,7 @@ export default function ModelViewport({
 
       const makeGhost = (distance) => {
         removeGhost();
+        if (!selectedProfile) return;
         const depth = Math.max(0.1, Math.abs(distance));
         const material = new THREE.MeshStandardMaterial({
           color: 0x53d9f7,
@@ -1061,10 +1072,14 @@ export default function ModelViewport({
         event.preventDefault();
         event.stopPropagation();
         controls.enabled = false;
-        const profileX = numericValue(selectedProfile.geometry.x, parameters);
-        const profileY = numericValue(selectedProfile.geometry.y, parameters);
-        const origin = new THREE.Vector3(...mapPlanePoint(profileX, profileY, selectedProfilePlane, 0.12, selectedProfilePlaneOffset));
-        const normal = selectedProfilePlane === 'XZ'
+        const profileX = selectedProfile ? numericValue(selectedProfile.geometry.x, parameters) : 0;
+        const profileY = selectedProfile ? numericValue(selectedProfile.geometry.y, parameters) : 0;
+        const origin = directRef.current.origin
+          ? new THREE.Vector3(...directRef.current.origin)
+          : new THREE.Vector3(...mapPlanePoint(profileX, profileY, selectedProfilePlane, 0.12, selectedProfilePlaneOffset));
+        const normal = directRef.current.axis
+          ? new THREE.Vector3(...directRef.current.axis).normalize()
+          : selectedProfilePlane === 'XZ'
           ? new THREE.Vector3(0, -1, 0)
           : selectedProfilePlane === 'YZ'
             ? new THREE.Vector3(1, 0, 0)
@@ -1080,8 +1095,8 @@ export default function ModelViewport({
         directDragRef.current = {
           startX: event.clientX,
           startY: event.clientY,
-          startDistance: Math.max(0, directRef.current.distance || 0),
-          value: Math.max(0, directRef.current.distance || 0),
+          startDistance: directRef.current.distance || 0,
+          value: directRef.current.distance || 0,
           screenAxis,
           pixelsPerUnit,
         };
@@ -1203,7 +1218,7 @@ export default function ModelViewport({
         const delta = new THREE.Vector2(event.clientX - directDrag.startX, event.clientY - directDrag.startY);
         const raw = directDrag.startDistance + delta.dot(directDrag.screenAxis) / directDrag.pixelsPerUnit;
         const step = directRef.current.snapEnabled && !event.altKey ? 1 : 0.1;
-        const value = Math.max(0.1, Math.round(raw / step) * step);
+        const value = Math.min(directRef.current.max, Math.max(directRef.current.min, Math.round(raw / step) * step));
         directDrag.value = value;
         updateDirectVisual(value, true);
         const rect = renderer.domElement.getBoundingClientRect();
@@ -1514,7 +1529,7 @@ export default function ModelViewport({
       delete window.__madcadConstructionAxisState;
       delete window.__madcadConstructionPointState;
     };
-  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, snapThresholdPx, sketchModifierMode]);
+  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, snapThresholdPx, sketchModifierMode]);
 
   return (
     <div className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`} ref={hostRef}>
@@ -1540,8 +1555,8 @@ export default function ModelViewport({
         <div
           ref={directHandleRef}
           className="direct-handle-hit"
-          title="Przeciągnij strzałkę, aby ustawić odległość wyciągnięcia."
-          aria-label="Przeciągnij wyciągnięcie"
+          title={directManipulator?.hint || 'Przeciągnij strzałkę, aby ustawić odległość wyciągnięcia.'}
+          aria-label={directManipulator?.label || 'Przeciągnij wyciągnięcie'}
           onPointerDown={(event) => directEventRef.current.down?.(event)}
           onPointerMove={(event) => directEventRef.current.move?.(event)}
           onPointerUp={(event) => directEventRef.current.up?.(event)}
@@ -1554,7 +1569,7 @@ export default function ModelViewport({
         <button type="button" title="Powiększ model w bieżącym widoku." onClick={() => setZoomScale((scale) => Math.max(0.35, scale * 0.78))}><ZoomIn size={16} /></button>
         <button type="button" title="Dopasuj cały model do dostępnego obszaru." onClick={() => { setZoomScale(1); setView(activeSketchId ? (activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top') : 'iso'); }}><Maximize2 size={16} /></button>
       </div>
-      {directEnabled && <div className="direct-extrude-hint">Przeciągnij niebieską strzałkę, aby wyciągnąć profil</div>}
+      {directEnabled && <div className="direct-extrude-hint">{directManipulator?.hint || 'Przeciągnij niebieską strzałkę, aby wyciągnąć profil'}</div>}
       {dragLabel && <div className="direct-dimension" style={{ left: dragLabel.x, top: dragLabel.y }}>{dragLabel.value.toFixed(1)} mm</div>}
       {sketchDragLabel && <div className="sketch-drag-dimension" style={{ left: sketchDragLabel.x, top: sketchDragLabel.y }}>ΔX {sketchDragLabel.dx.toFixed(1)} · ΔY {sketchDragLabel.dy.toFixed(1)} mm</div>}
       {snapFeedback && (

@@ -76,7 +76,7 @@ Import SVG/DXF jest `P1`.
 - [x] Fillet i Chamfer wyłącznie wskazanych krawędzi.
 - [x] Shell z wyborem usuwanych ścian.
 - [x] Box, Cylinder, Sphere i Torus.
-- [ ] Jeden manipulator dla Extrude, Move/Rotate i Offset Face.
+- [x] Jeden manipulator dla Extrude, Move/Rotate i Offset Face.
 - [ ] Tekst szkicu realizować tutaj jako jeden scenariusz `Text → profile → Extrude/Emboss/Deboss`, aby nie blokował solvera.
 
 Revolve, Sweep, Loft, Draft, Thin Extrude, Heal/Replace Face, Rib, Coil i Pipe są `P1`.
@@ -143,4 +143,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M6.6 — Jeden manipulator dla Extrude, Move/Rotate i Offset Face.`
+`M6.7 — Text → profile → Extrude/Emboss/Deboss.`

@@ -252,6 +252,26 @@ export function prepareDocument(document) {
         } : {}),
       };
     }
+    if (feature.type === 'transform') {
+      const read = (value) => evaluateExpression(value ?? 0, parameterResult.values);
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        translation: [read(feature.x), read(feature.y), read(feature.z)],
+        angleValue: read(feature.angle),
+        origin: [read(feature.originX), read(feature.originY), read(feature.originZ)],
+      };
+    }
+    if (feature.type === 'offsetFace') {
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
+        distanceValue: evaluateExpression(feature.distance, parameterResult.values),
+      };
+    }
     if (feature.type === 'fillet' || feature.type === 'chamfer') {
       const valueKey = feature.type === 'fillet' ? 'radius' : 'distance';
       return {

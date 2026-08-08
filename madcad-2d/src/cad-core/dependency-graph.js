@@ -16,6 +16,8 @@ function featureExpressions(feature) {
   if (feature.type === 'chamfer') return [feature.distance];
   if (feature.type === 'shell') return [feature.thickness];
   if (feature.type === 'primitive') return [feature.x, feature.y, feature.z, feature.width, feature.depth, feature.height, feature.radius, feature.majorRadius, feature.minorRadius];
+  if (feature.type === 'transform') return [feature.x, feature.y, feature.z, feature.angle, feature.originX, feature.originY, feature.originZ];
+  if (feature.type === 'offsetFace') return [feature.distance];
   return [];
 }
 
