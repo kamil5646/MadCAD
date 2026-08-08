@@ -102,7 +102,7 @@ Tapered threads, wiele norm i klasy pasowania są `P1`.
 
 - [x] Profile stołu Bambu/Prusa/Creality i własny profil.
 - [x] Pozycja, obrót, skala, kopie i orientacja względem płaskiej ściany.
-- [ ] Import STEP/STL/3MF z kontrolą jednostek; eksport STEP/STL/3MF w skali 1:1.
+- [x] Import STEP/STL/3MF z kontrolą jednostek; eksport STEP/STL/3MF w skali 1:1.
 - [ ] Analiza manifold, normalnych, trójkątów zdegenerowanych, minimalnej grubości, małych otworów, nawisów i gabarytu stołu.
 - [ ] Lista problemów wskazuje geometrię; wynik opisuje ryzyko, nie gwarancję wydruku.
 - [ ] Przekazanie pliku do Bambu Studio, PrusaSlicer lub Cura.

@@ -51,6 +51,41 @@ async function verifyExport(window, format, timeoutMs = isCi ? 90000 : 45000) {
   return result;
 }
 
+async function verifyThreeMfExport(window) {
+  const result = await window.webContents.executeJavaScript(`(async () => {
+    if (typeof window.__madcadVerifyExport !== 'function') throw new Error('Brak testowego interfejsu eksportu.');
+    const exported = await window.__madcadVerifyExport('3mf');
+    const bytes = new Uint8Array(exported[0]);
+    return { size: bytes.byteLength, signature: Array.from(bytes.slice(0, 4)) };
+  })()`);
+  if (result.size < 300 || result.signature[0] !== 0x50 || result.signature[1] !== 0x4b) throw new Error(`Invalid 3MF archive: ${JSON.stringify(result)}`);
+  return result;
+}
+
+async function verifyThreeMfImport(window) {
+  const before = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.bodies?.length || 0`);
+  await window.webContents.executeJavaScript(`(async () => {
+    const exported = await window.__madcadVerifyExport('3mf');
+    const input = [...document.querySelectorAll('input[type="file"]')].find((item) => item.accept.includes('.3mf'));
+    const key = input && Object.keys(input).find((item) => item.startsWith('__reactProps'));
+    const handler = key && input[key]?.onChange;
+    if (!handler) throw new Error('Brak interfejsu importu modelu.');
+    await handler({ target: { files: [new File([exported[0]], 'roundtrip.3mf', { type: 'model/3mf' })], value: '' } });
+  })()`);
+  await waitForUi(window, `Boolean(document.querySelector('.import-model-dialog .confirm'))`, '3MF import dialog', modelingTimeoutMs);
+  await window.webContents.executeJavaScript(`(() => {
+    const button = document.querySelector('.import-model-dialog .confirm');
+    const key = button && Object.keys(button).find((item) => item.startsWith('__reactProps'));
+    if (!key || typeof button[key]?.onClick !== 'function') throw new Error('Brak potwierdzenia importu 3MF.');
+    button[key].onClick();
+  })()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === ${before + 1}`, '3MF imported body', isCi ? 90000 : 45000);
+  return window.webContents.executeJavaScript(`(() => {
+    const body = window.__madcadVerifyEngineState.bodies.at(-1);
+    return { bodies: window.__madcadVerifyEngineState.bodies.length, dimensions: body.metrics.dimensions, volume: body.metrics.volume };
+  })()`);
+}
+
 async function waitForUi(window, expression, label, timeoutMs = 12000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -1368,10 +1403,12 @@ app.whenReady().then(async () => {
       timelineVisible: Boolean(document.querySelector('.timeline')),
     })`);
     window.setContentSize(1936, 1017);
-    process.stdout.write('[verify] exporting STL and STEP\n');
+    process.stdout.write('[verify] exporting STL, STEP and 3MF\n');
     const stl = await verifyExport(window, 'STL');
     const step = await verifyExport(window, 'STEP');
-    const report = { ...result, licenseBypass, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step }, performance, rendererMessages };
+    const threeMf = await verifyThreeMfExport(window);
+    const threeMfImport = await verifyThreeMfImport(window);
+    const report = { ...result, licenseBypass, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, performance, rendererMessages };
     await fs.writeFile(path.join(path.dirname(outputPath), 'verification-report.json'), JSON.stringify(report, null, 2));
     process.stdout.write(`${JSON.stringify(report)}\n`);
     if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.timelineVisible) process.exitCode = 1;

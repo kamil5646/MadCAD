@@ -58,6 +58,7 @@ import { calculateMassProperties } from '../src/cad-core/mass-properties.js';
 import { summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-profiles.js';
 import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, transformPrintPoint } from '../src/cad-core/print-layout.js';
+import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
 import {
   arcCenterStartEnd,
   arcThroughThreePoints,
@@ -2150,4 +2151,33 @@ test('orientacja druku kieruje normalną zaznaczonej ściany do stołu', () => {
   assert.ok(Math.abs(transformed[2] + 1) < 1e-9);
   assert.deepEqual(orientationForBedFace([0, 0, -1]), { axis: [0, 0, 1], angle: 0 });
   assert.deepEqual(orientationForBedFace([0, 0, 1]), { axis: [1, 0, 0], angle: 180 });
+});
+
+test('eksport 3MF zapisuje milimetry, obiekty i trójkąty w poprawnym archiwum', () => {
+  const archive = createThreeMfArchive([{
+    name: 'Trójkąt',
+    vertices: [0, 0, 0, 10, 0, 0, 0, 10, 0],
+    triangles: [0, 1, 2],
+  }]);
+  const inspection = inspectThreeMfArchive(archive);
+  assert.equal(inspection.unit, 'millimeter');
+  assert.equal(inspection.objectCount, 1);
+  assert.equal(inspection.triangleCount, 1);
+  assert.ok(archive.byteLength > 300);
+});
+
+test('dokument przechowuje import STEP/STL/3MF z jawną skalą jednostki', () => {
+  const document = createDocument('Import');
+  document.features.push(createFeature('importedModel', {
+    importFormat: 'stl',
+    originalFormat: '3mf',
+    dataBase64: 'AA==',
+    sourceUnit: 'inch',
+    unitScale: 25.4,
+  }));
+  assert.equal(validateDocument(document).valid, true);
+  assert.equal(prepareDocument(document).features[0].unitScale, 25.4);
+  const broken = structuredClone(document);
+  broken.features[0].unitScale = 0;
+  assert.equal(validateDocument(broken).valid, false);
 });

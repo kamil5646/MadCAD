@@ -283,6 +283,7 @@ export function prepareDocument(document) {
         } : {}),
       };
     }
+    if (feature.type === 'importedModel') return { ...feature, status: 'ready', diagnostics: [] };
     if (feature.type === 'transform') {
       const read = (value) => evaluateExpression(value ?? 0, parameterResult.values);
       return {

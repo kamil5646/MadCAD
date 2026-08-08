@@ -113,6 +113,9 @@ import { calculateMassProperties } from '../cad-core/mass-properties.js';
 import { summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profiles.js';
 import { calculatePrintLayout, orientationForBedFace } from '../cad-core/print-layout.js';
+import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
+import { ThreeMFLoader } from 'three/examples/jsm/loaders/3MFLoader.js';
+import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import ModelViewport from './ModelViewport.jsx';
 import './modeling.css';
 
@@ -474,6 +477,31 @@ function GeometryInspectionPanel({ result, onClose }) {
   );
 }
 
+const IMPORT_UNIT_OPTIONS = [
+  ['auto', 'Automatycznie / z pliku'],
+  ['millimeter', 'Milimetry (mm)'],
+  ['centimeter', 'Centymetry (cm)'],
+  ['inch', 'Cale (in)'],
+  ['meter', 'Metry (m)'],
+  ['micron', 'Mikrometry (µm)'],
+];
+
+function ImportModelDialog({ draft, onChange, onConfirm, onCancel }) {
+  if (!draft) return null;
+  return (
+    <section className="command-dialog import-model-dialog" aria-label="Import modelu 3D">
+      <header><strong>Import modelu 3D</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
+      <div className="command-dialog-body">
+        <Field label="Plik" value={draft.fileName} disabled />
+        <Field label="Format" value={draft.originalFormat.toUpperCase()} disabled />
+        <label className="command-field"><span>Jednostka źródłowa</span><select value={draft.sourceUnit} onChange={(event) => onChange({ sourceUnit: event.target.value })}>{IMPORT_UNIT_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <div className="command-preview-note"><span className="preview-dot" />Model zostanie przeliczony do milimetrów. STEP zachowuje dokładną geometrię; STL i 3MF są importowane jako siatka.</div>
+      </div>
+      <footer><button className="secondary" type="button" onClick={onCancel}>Anuluj</button><button className="confirm" type="button" onClick={onConfirm}><Check size={14} /> Importuj</button></footer>
+    </section>
+  );
+}
+
 function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, onUndoSegment, onFinishPath }) {
   if (!command || command.type === 'plane' || command.type === 'parameters' || command.type === 'measure' || command.type === 'sectionAnalysis' || command.type === 'massProperties' || command.type === 'geometryInspection' || ['trimSketch', 'extendSketch', 'breakSketch', 'projectSketch'].includes(command.type)) return null;
   const isRectangle = command.type === 'rectangle';
@@ -830,6 +858,7 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, onExport, 
       <div className="print-actions">
         <button type="button" onClick={() => onExport('stl')} disabled={!bodies.length || engine.status !== 'ready'}><HardDriveDownload size={16} /> Eksportuj STL</button>
         <button className="secondary" type="button" onClick={() => onExport('step')} disabled={!bodies.length || engine.status !== 'ready'}>Eksportuj STEP</button>
+        <button className="secondary" type="button" onClick={() => onExport('3mf')} disabled={!bodies.length || engine.status !== 'ready'}>Eksportuj 3MF</button>
       </div>
     </aside>
   );
@@ -845,6 +874,7 @@ function featureIcon(type, size = 16) {
   if (type === 'transform') return <Move3d size={size} />;
   if (type === 'offsetFace') return <Layers3 size={size} />;
   if (type === 'textSolid') return <Type size={size} />;
+  if (type === 'importedModel') return <Upload size={size} />;
   return <Box size={size} />;
 }
 
@@ -866,6 +896,8 @@ export default function ModelingWorkspace({ onClose }) {
   const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, profiles: true, points: true, dimensions: true, constraints: true, construction: true, projected: true, slice: false, sketch3d: false });
   const [notice, setNotice] = useState(initialOpen.warning || 'Gotowe. Wybierz „Utwórz szkic”, aby rozpocząć modelowanie.');
   const fileInputRef = useRef(null);
+  const importInputRef = useRef(null);
+  const [importDraft, setImportDraft] = useState(null);
   const readOnly = documentAccess.readOnly;
   useEffect(() => {
     if (command?.type !== 'sectionAnalysis' && sectionAnalysis) setSectionAnalysis(null);
@@ -960,7 +992,7 @@ export default function ModelingWorkspace({ onClose }) {
   }, [engine.bodies, selectedFaceItems]);
   const constructionAxes = useMemo(() => resolveConstructionAxes(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
   const constructionPoints = useMemo(() => resolveConstructionPoints(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
-  const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => (feature.type === 'extrude' && feature.operation === 'new') || feature.type === 'primitive' || (feature.type === 'textSolid' && feature.operation === 'new')).map((feature) => `body-${feature.id}`)), [document.features]);
+  const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => (feature.type === 'extrude' && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || (feature.type === 'textSolid' && feature.operation === 'new')).map((feature) => `body-${feature.id}`)), [document.features]);
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
   const targetBodyId = selection?.kind === 'body' ? selection.id : (selection?.bodyId || engine.bodies[0]?.id || firstBodyId || null);
   const topologyReferenceStates = useMemo(() => inspectTopologyReferences(document, actualBodies), [document, actualBodies]);
@@ -2499,11 +2531,69 @@ export default function ModelingWorkspace({ onClose }) {
     }
   };
 
+  const chooseModelImport = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const originalFormat = file.name.split('.').pop()?.toLowerCase();
+    if (!['step', 'stp', 'stl', '3mf'].includes(originalFormat)) {
+      setNotice('Import obsługuje pliki STEP, STL i 3MF.');
+      return;
+    }
+    try {
+      const sourceBuffer = await file.arrayBuffer();
+      let importFormat = originalFormat === 'step' || originalFormat === 'stp' ? 'step' : 'stl';
+      let buffer = sourceBuffer;
+      let detectedUnit = 'millimeter';
+      if (originalFormat === '3mf') {
+        detectedUnit = inspectThreeMfArchive(sourceBuffer).unit;
+        const group = new ThreeMFLoader().parse(sourceBuffer);
+        group.updateMatrixWorld(true);
+        const exported = new STLExporter().parse(group, { binary: true });
+        buffer = exported.buffer.slice(exported.byteOffset, exported.byteOffset + exported.byteLength);
+      }
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+      setImportDraft({
+        fileName: file.name,
+        name: file.name.replace(/\.(step|stp|stl|3mf)$/i, ''),
+        originalFormat: originalFormat === 'stp' ? 'step' : originalFormat,
+        importFormat,
+        dataBase64: btoa(binary),
+        sourceUnit: originalFormat === '3mf' ? detectedUnit : 'auto',
+      });
+      setNotice(`Wczytano ${file.name}. Potwierdź jednostkę źródłową.`);
+    } catch (error) {
+      setNotice(`Nie udało się odczytać modelu: ${error.message}`);
+    }
+  };
+
+  const confirmModelImport = () => {
+    if (!importDraft || readOnly) return;
+    const unitScale = { auto: 1, millimeter: 1, centimeter: 10, inch: 25.4, meter: 1000, micron: 0.001 }[importDraft.sourceUnit] || 1;
+    const feature = createFeature('importedModel', {
+      name: importDraft.name || 'Model importowany',
+      originalFormat: importDraft.originalFormat,
+      importFormat: importDraft.importFormat,
+      dataBase64: importDraft.dataBase64,
+      sourceUnit: importDraft.sourceUnit,
+      unitScale,
+    });
+    commit((next) => next.features.push(feature));
+    setSelection({ kind: 'feature', id: feature.id });
+    setImportDraft(null);
+    setWorkspace('solid');
+    setNotice(`Zaimportowano ${importDraft.fileName} i przeliczono geometrię do milimetrów.`);
+  };
+
   const exportModel = async (format) => {
     setNotice(`Przygotowywanie pliku ${format.toUpperCase()}…`);
     try {
       const buffers = await engine.exportModel(format);
-      buffers.forEach((buffer, index) => downloadBlob(new Blob([buffer], { type: format === 'stl' ? 'model/stl' : 'model/step' }), `${safeName(document.name)}${buffers.length > 1 ? `-${index + 1}` : ''}.${format === 'step' ? 'step' : 'stl'}`));
+      const extension = format === 'step' ? 'step' : format;
+      const mime = format === 'stl' ? 'model/stl' : format === '3mf' ? 'model/3mf' : 'model/step';
+      buffers.forEach((buffer, index) => downloadBlob(new Blob([buffer], { type: mime }), `${safeName(document.name)}${buffers.length > 1 ? `-${index + 1}` : ''}.${extension}`));
       setNotice(`Wyeksportowano ${format.toUpperCase()} z dokładnej bryły B-Rep.`);
     } catch (error) {
       setNotice(`Eksport nie powiódł się: ${error.message}`);
@@ -2644,6 +2734,7 @@ export default function ModelingWorkspace({ onClose }) {
       <header className="modeling-titlebar">
         <div className="app-menu"><div className="brand-mark">M</div><button type="button" title="Dokumentacja" onClick={onClose}><Home size={16} /></button><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button type="button" title="Otwórz projekt" onClick={() => fileInputRef.current?.click()}><FolderOpen size={16} /></button><button type="button" title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : 'Zapisz'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
+        <input ref={importInputRef} hidden type="file" accept=".step,.stp,.stl,.3mf,model/step,model/stl,model/3mf" onChange={chooseModelImport} />
         <div className="document-tab"><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" disabled={readOnly} onChange={(event) => commit((next) => { next.name = event.target.value; })} />{readOnly ? <span className="read-only-badge">TYLKO ODCZYT · v{documentAccess.sourceVersion}</span> : <span>*</span>}<button type="button" title="Zamknij dokument" onClick={onClose}><X size={13} /></button></div>
         <div className="title-actions"><button type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><button type="button" title="Dokumentacja 2D" onClick={onClose}><AppWindow size={15} /><span>Dokumentacja</span></button></div>
       </header>
@@ -2664,7 +2755,7 @@ export default function ModelingWorkspace({ onClose }) {
             ) : workspace === 'print' ? (
               <>
                 <RibbonGroup label="PRZYGOTUJ"><ToolButton icon={Printer} label="Kontrola druku" primary onClick={() => setWorkspace('print')} /></RibbonGroup>
-                <RibbonGroup label="EKSPORT"><ToolButton icon={HardDriveDownload} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
+                <RibbonGroup label="EKSPORT"><ToolButton icon={HardDriveDownload} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="3MF" onClick={() => exportModel('3mf')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
               </>
             ) : (
               <>
@@ -2672,9 +2763,9 @@ export default function ModelingWorkspace({ onClose }) {
                 <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Layers3} label="Shell" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Layers3} label="Offset Face" onClick={openOffsetFace} disabled={readOnly || selectedFaceItems.length !== 1} /><ToolButton icon={Move3d} label="Przesuń bryłę" onClick={() => openTransform('move')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Rotate3d} label="Obróć bryłę" onClick={() => openTransform('rotate')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
                 <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={CircleDotDashed} label="Punkt wierzchołka" onClick={() => openConstructionPoint('vertex')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt centrum" onClick={() => openConstructionPoint('center')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt przecięcia" onClick={() => openConstructionPoint('intersection')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="INSPECT"><ToolButton icon={Ruler} label="Zmierz" onClick={openMeasure} /><ToolButton icon={ScanSearch} label="Przekrój" onClick={openSectionAnalysis} disabled={!engine.bodies.length} /><ToolButton icon={Box} label="Masa" onClick={openMassProperties} disabled={!engine.bodies.length} /><ToolButton icon={AlertTriangle} label="Analiza" onClick={openGeometryInspection} disabled={!engine.bodies.length} /></RibbonGroup>
-                <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Otwórz" onClick={() => fileInputRef.current?.click()} /></RibbonGroup>
+                <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Import 3D" onClick={() => importInputRef.current?.click()} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="WYBIERZ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
-                <RibbonGroup label="EKSPORT" end><ToolButton icon={FileDown} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={Printer} label="Druk 3D" onClick={() => switchWorkspace('print')} /></RibbonGroup>
+                <RibbonGroup label="EKSPORT" end><ToolButton icon={FileDown} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="3MF" onClick={() => exportModel('3mf')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={Printer} label="Druk 3D" onClick={() => switchWorkspace('print')} /></RibbonGroup>
               </>
             )}
           </div>
@@ -2756,6 +2847,7 @@ export default function ModelingWorkspace({ onClose }) {
             onUndoSegment={undoSketchSegment}
             onFinishPath={finishSketchPath}
           />
+          <ImportModelDialog draft={importDraft} onChange={(patch) => setImportDraft((current) => ({ ...current, ...patch }))} onConfirm={confirmModelImport} onCancel={() => setImportDraft(null)} />
           {command?.type === 'parameters' && <ParametersDialog document={document} commit={commit} onClose={() => setCommand(null)} />}
           {activeSketchId && <SketchPalette options={sketchOptions} onChange={(key, value) => setSketchOptions((current) => ({ ...current, [key]: value }))} onFinish={finishSketch} />}
         </main>

@@ -12,7 +12,7 @@ export const DOCUMENT_SCHEMA_VERSION = 4;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'primitive', 'transform', 'offsetFace', 'textSolid']);
+const FEATURE_TYPES = new Set(['extrude', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -120,7 +120,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D' };
+  const names = { extrude: 'Wyciągnięcie', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -615,6 +615,14 @@ export function validateDocument(document) {
 
     if (feature.type === 'primitive') {
       if (!['box', 'cylinder', 'sphere', 'torus'].includes(feature.primitiveType)) add(`${base}.primitiveType`, `Nieobsługiwany prymityw: ${feature.primitiveType ?? ''}.`, 'UNSUPPORTED');
+      bodyIds.add(`body-${feature.id}`);
+    }
+
+    if (feature.type === 'importedModel') {
+      if (!['step', 'stl'].includes(feature.importFormat)) add(`${base}.importFormat`, 'Import kernela obsługuje STEP albo STL.', 'UNSUPPORTED');
+      if (!['step', 'stl', '3mf'].includes(feature.originalFormat)) add(`${base}.originalFormat`, 'Nieobsługiwany format źródłowy.', 'UNSUPPORTED');
+      if (typeof feature.dataBase64 !== 'string' || !feature.dataBase64.length) add(`${base}.dataBase64`, 'Brak danych modelu importowanego.', 'REQUIRED');
+      if (!Number.isFinite(Number(feature.unitScale)) || Number(feature.unitScale) <= 0) add(`${base}.unitScale`, 'Skala jednostki musi być dodatnia.', 'VALUE');
       bodyIds.add(`body-${feature.id}`);
     }
 

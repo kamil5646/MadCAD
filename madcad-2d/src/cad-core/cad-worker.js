@@ -28,6 +28,7 @@ import { resolveFaceEdgeHolePlacement } from './face-edge-hole.js';
 import { assignStableTopologyIds } from './topology-naming.js';
 import { RevisionCache, SerialTaskQueue, estimateMeshBytes, isStaleRevision } from './worker-runtime.js';
 import { calculatePrintLayout, normalizePrintLayout } from './print-layout.js';
+import { createThreeMfArchive } from './three-mf.js';
 
 let kernelPromise;
 let latestRequestedRevision = 0;
@@ -147,6 +148,14 @@ function makeCone(firstRadius, secondRadius, height, location, direction) {
 
 function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.status === FEATURE_STATUS.SUPPRESSED) return;
+
+  if (feature.type === 'importedModel') {
+    if (!feature.importedShape) throw new Error(`Nie załadowano geometrii ${feature.name}.`);
+    const bodyId = `body-${feature.id}`;
+    bodyMap.set(bodyId, { id: bodyId, name: feature.name, sourceFeatureId: feature.id, representation: feature.importFormat === 'step' ? 'brep' : 'mesh-import', shape: feature.importedShape });
+    bodyOrder.push(bodyId);
+    return;
+  }
 
   if (feature.type === 'primitive') {
     const [x, y, z] = feature.position;
@@ -599,7 +608,16 @@ function meshBody(body, index, quality = 'display') {
 async function evaluateRevision(document, quality) {
   await ensureKernel();
   const prepared = prepareDocument(document);
-  const history = evaluateFeatureHistory(prepared.features, runFeature);
+  const features = await Promise.all(prepared.features.map(async (feature) => {
+    if (feature.type !== 'importedModel' || feature.status === FEATURE_STATUS.SUPPRESSED) return feature;
+    const bytes = Uint8Array.from(atob(feature.dataBase64), (character) => character.charCodeAt(0));
+    const blob = new Blob([bytes], { type: feature.importFormat === 'step' ? 'model/step' : 'model/stl' });
+    let importedShape = feature.importFormat === 'step' ? await importSTEP(blob) : await importSTL(blob);
+    const unitScale = Number(feature.unitScale) || 1;
+    if (Math.abs(unitScale - 1) > 1e-12) importedShape = importedShape.scale(unitScale, [0, 0, 0]);
+    return { ...feature, importedShape };
+  }));
+  const history = evaluateFeatureHistory(features, runFeature);
   const { bodyMap, bodyOrder, timeline } = history;
 
   const kernelBodies = bodyOrder.filter((id) => bodyMap.has(id)).map((id) => bodyMap.get(id));
@@ -734,7 +752,12 @@ function preparePrintBodies(kernelBodies, renderBodies, print) {
 
 async function exportBodies(kernelBodies, format, validateRoundTrip = false) {
   if (!kernelBodies.length) throw new Error('Brak bryły do eksportu.');
-  if (format !== 'step' && format !== 'stl') throw new Error(`Nieobsługiwany format eksportu: ${format}.`);
+  if (!['step', 'stl', '3mf'].includes(format)) throw new Error(`Nieobsługiwany format eksportu: ${format}.`);
+  if (format === '3mf') {
+    const meshes = kernelBodies.map(({ name, shape }) => ({ name, ...shape.mesh({ tolerance: GEOMETRY_POLICY.exportMesh.linearTolerance, angularTolerance: GEOMETRY_POLICY.exportMesh.angularTolerance }) }));
+    const archive = createThreeMfArchive(meshes);
+    return { buffers: [archive.buffer.slice(archive.byteOffset, archive.byteOffset + archive.byteLength)], roundTrip: [] };
+  }
   const blobs = await Promise.all(kernelBodies.map(({ shape }) => (
     format === 'step'
       ? shape.blobSTEP()
