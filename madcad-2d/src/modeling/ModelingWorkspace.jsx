@@ -19,6 +19,8 @@ import {
   HardDriveDownload,
   Hexagon,
   Home,
+  Eye,
+  EyeOff,
   Layers3,
   Lock,
   Maximize2,
@@ -100,6 +102,7 @@ import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scal
 import { applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../cad-core/topology-references.js';
+import { createOffsetPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
 import ModelViewport from './ModelViewport.jsx';
 import './modeling.css';
 
@@ -139,6 +142,7 @@ const TOOL_DESCRIPTIONS = {
   'Fazuj': 'Zetnij ostre krawędzie zaznaczonej bryły podaną odległością.',
   'Edytuj': 'Otwórz parametry zaznaczonego szkicu, profilu lub kroku historii.',
   'Parametry': 'Dodaj i zmień nazwane wymiary sterujące modelem.',
+  'Płaszczyzna offset': 'Utwórz nazwaną płaszczyznę konstrukcyjną w parametrycznej odległości od XY, XZ albo YZ.',
   'Otwórz': 'Wczytaj zapisany projekt MadCAD z dysku.',
   'Wybierz': 'Wyczyść zaznaczenie i wróć do trybu wyboru obiektów.',
   'STL': 'Eksportuj siatkę gotową do programu przygotowującego druk 3D.',
@@ -235,8 +239,8 @@ function RibbonGroup({ label, children, end = false }) {
   );
 }
 
-function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onClose }) {
-  const [expanded, setExpanded] = useState({ origin: true, sketches: true, bodies: true });
+function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onClose }) {
+  const [expanded, setExpanded] = useState({ origin: true, construction: true, sketches: true, bodies: true });
   const toggle = (key) => setExpanded((current) => ({ ...current, [key]: !current[key] }));
   return (
     <aside className="model-browser" aria-label="Przeglądarka projektu">
@@ -260,6 +264,18 @@ function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect,
           ))}
         </div>
       )}
+
+      <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj geometrię konstrukcyjną." onClick={() => toggle('construction')}>
+        {expanded.construction ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Frame size={14} /><span>Konstrukcja</span><small>{document.references.filter((reference) => reference.kind === 'construction-plane').length}</small>
+      </button>
+      {expanded.construction && document.references.filter((reference) => reference.kind === 'construction-plane').map((plane) => (
+        <div className="tree-reference-row" key={plane.id}>
+          <button className={`tree-row tree-grandchild ${selection?.kind === 'constructionPlane' && selection.id === plane.id ? 'selected' : ''}`} type="button" title={`Zaznacz ${plane.name}.`} onClick={() => onSelect({ kind: 'constructionPlane', id: plane.id })}>
+            <span /><Frame size={13} /><span>{plane.name}</span><small>{plane.basePlane}</small>
+          </button>
+          <button className="tree-reference-visibility" type="button" title={plane.visible ? `Ukryj ${plane.name}` : `Pokaż ${plane.name}`} onClick={() => onToggleReference(plane.id)}>{plane.visible ? <Eye size={13} /> : <EyeOff size={13} />}</button>
+        </div>
+      ))}
 
       <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj szkice i ich profile." onClick={() => toggle('sketches')}>
         {expanded.sketches ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<FolderOpen size={14} /><span>Szkice</span><small>{document.sketches.length}</small>
@@ -364,7 +380,8 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
   const isSketchOffset = command.type === 'offsetSketch';
   const isSketchCorner = command.type === 'cornerSketch';
   const isSketchTransform = command.type === 'transformSketch';
-  const title = isRectangle ? 'Prostokąt' : isCircle ? 'Okrąg' : isArc ? 'Łuk' : isPolygon ? 'Wielokąt regularny' : isEllipse ? 'Elipsa' : isSlot ? 'Slot' : isSpline ? 'Spline' : isConic ? 'Krzywa conic' : isPoint ? 'Punkt szkicu' : isExtrude ? 'Wyciągnięcie' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : isSketchOffset ? 'Offset szkicu' : isSketchCorner ? (command.mode === 'fillet' ? 'Fillet szkicu' : 'Chamfer szkicu') : isSketchTransform ? 'Transformuj szkic' : 'Fazowanie';
+  const isOffsetPlane = command.type === 'offsetPlane';
+  const title = isRectangle ? 'Prostokąt' : isCircle ? 'Okrąg' : isArc ? 'Łuk' : isPolygon ? 'Wielokąt regularny' : isEllipse ? 'Elipsa' : isSlot ? 'Slot' : isSpline ? 'Spline' : isConic ? 'Krzywa conic' : isPoint ? 'Punkt szkicu' : isExtrude ? 'Wyciągnięcie' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : isSketchOffset ? 'Offset szkicu' : isSketchCorner ? (command.mode === 'fillet' ? 'Fillet szkicu' : 'Chamfer szkicu') : isSketchTransform ? 'Transformuj szkic' : isOffsetPlane ? 'Płaszczyzna odsunięta' : 'Fazowanie';
   return (
     <section className="command-dialog" aria-label={title}>
       <header><strong>{title}</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
@@ -426,6 +443,14 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
         {(isFillet || command.type === 'chamfer') && (
           <Field label={isFillet ? 'Promień' : 'Odległość'} value={command.size} onChange={(size) => onChange({ size })} suffix="mm" autoFocus />
         )}
+        {isOffsetPlane && (
+          <>
+            <Field label="Nazwa" value={command.name} onChange={(name) => onChange({ name })} autoFocus />
+            <label className="command-field"><span>Płaszczyzna bazowa</span><select value={command.basePlane} onChange={(event) => onChange({ basePlane: event.target.value })}><option value="XY">Góra (XY)</option><option value="XZ">Przód (XZ)</option><option value="YZ">Prawo (YZ)</option></select></label>
+            <Field label="Odległość" value={command.offset} onChange={(offset) => onChange({ offset })} suffix="mm" />
+            <label className="command-field"><span>Widoczna</span><select value={command.visible ? 'yes' : 'no'} onChange={(event) => onChange({ visible: event.target.value === 'yes' })}><option value="yes">Tak</option><option value="no">Nie</option></select></label>
+          </>
+        )}
         {isSketchPath && (
           <>
             <Field label="Długość" value={command.length} onChange={(length) => onChange({ length })} suffix="mm" autoFocus />
@@ -458,7 +483,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
             {command.operation === 'copy' ? <><Field label="Kopia ΔX" value={command.dx} onChange={(dx) => onChange({ dx })} suffix="mm" autoFocus /><Field label="Kopia ΔY" value={command.dy} onChange={(dy) => onChange({ dy })} suffix="mm" /></> : command.operation === 'mirror' ? <><label className="command-field"><span>Oś odbicia</span><select value={command.axis} onChange={(event) => onChange({ axis: event.target.value })}><option value="vertical">Pionowa X</option><option value="horizontal">Pozioma Y</option></select></label><Field label="Położenie osi" value={command.axisOffset} onChange={(axisOffset) => onChange({ axisOffset })} suffix="mm" autoFocus /></> : <><Field label="Środek X" value={command.centerX} onChange={(centerX) => onChange({ centerX })} suffix="mm" autoFocus /><Field label="Środek Y" value={command.centerY} onChange={(centerY) => onChange({ centerY })} suffix="mm" />{command.operation === 'rotate' ? <Field label="Kąt obrotu" value={command.angle} onChange={(angle) => onChange({ angle })} suffix="°" /> : <Field label="Skala" value={command.factor} onChange={(factor) => onChange({ factor })} />}</>}
           </>
         )}
-        <div className="command-preview-note"><span className="preview-dot" />{isSketchPath ? 'Klikaj punkty na płótnie lub dodaj następny punkt dokładną długością i kątem.' : isSketchMove ? 'Wpisz dokładne przesunięcie zaznaczenia w osiach szkicu.' : isSketchOffset ? 'Operacja powstanie dopiero po zatwierdzeniu; Anuluj nie zmienia szkicu.' : isSketchCorner ? 'Oryginalne linie zachowają ID; zerwane więzy zostaną jawnie usunięte.' : isSketchTransform ? 'Transformacja jest transakcyjna; Scale odrzuca geometrię z blokującym wymiarem.' : isPoint ? 'Punkt zwykły może wyznaczać oś otworu; konstrukcyjny służy tylko jako referencja.' : isMechanicalShape ? 'Wpisz dokładne dane konstrukcyjne; po zatwierdzeniu powstanie edytowalna geometria szkicu.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
+        <div className="command-preview-note"><span className="preview-dot" />{isSketchPath ? 'Klikaj punkty na płótnie lub dodaj następny punkt dokładną długością i kątem.' : isSketchMove ? 'Wpisz dokładne przesunięcie zaznaczenia w osiach szkicu.' : isSketchOffset ? 'Operacja powstanie dopiero po zatwierdzeniu; Anuluj nie zmienia szkicu.' : isSketchCorner ? 'Oryginalne linie zachowają ID; zerwane więzy zostaną jawnie usunięte.' : isSketchTransform ? 'Transformacja jest transakcyjna; Scale odrzuca geometrię z blokującym wymiarem.' : isOffsetPlane ? 'Odległość może być liczbą albo wyrażeniem z parametrów modelu.' : isPoint ? 'Punkt zwykły może wyznaczać oś otworu; konstrukcyjny służy tylko jako referencja.' : isMechanicalShape ? 'Wpisz dokładne dane konstrukcyjne; po zatwierdzeniu powstanie edytowalna geometria szkicu.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
       </div>
       {isSketchPath ? (
         <footer><button className="secondary" type="button" onClick={onUndoSegment} disabled={!command.pointIds.length}>Cofnij segment</button><button className="secondary" type="button" onClick={onFinishPath}>Zakończ</button><button className="confirm" type="button" onClick={onConfirm} disabled={!command.lastPoint}><Check size={14} /> Dodaj dokładnie</button></footer>
@@ -648,6 +673,7 @@ export default function ModelingWorkspace({ onClose }) {
   const selectedBodyIds = useMemo(() => (
     selection?.items || (selection?.kind === 'body' ? [selection] : [])
   ).filter((item) => item.kind === 'body').map((item) => item.id), [selection]);
+  const constructionPlanes = useMemo(() => resolveConstructionPlanes(document.references, document.parameters), [document.references, document.parameters]);
   const firstBodyId = `body-${document.features.find((feature) => feature.type === 'extrude' && feature.operation === 'new')?.id || ''}`;
 
   const previewDocument = useMemo(() => {
@@ -1067,6 +1093,14 @@ export default function ModelingWorkspace({ onClose }) {
     }
   };
 
+  const toggleConstructionVisibility = (referenceId) => {
+    if (readOnly) return readOnlyNotice();
+    commit((next) => {
+      const reference = next.references.find((item) => item.id === referenceId && item.kind === 'construction-plane');
+      if (reference) reference.visible = !reference.visible;
+    });
+  };
+
   const moveSketchEntities = ({ ids = selectedSketchEntityIds, dx = 0, dy = 0 } = {}) => {
     if (readOnly) return readOnlyNotice();
     if (!activeSketchId || !ids.length) {
@@ -1430,7 +1464,7 @@ export default function ModelingWorkspace({ onClose }) {
       })),
       features: document.features.length,
       featureIds: document.features.map((feature) => feature.id),
-      references: document.references.map((reference) => ({ id: reference.id, topologyId: reference.topologyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
+      references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, visible: reference.visible, topologyId: reference.topologyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
         : { kind: selection?.kind, id: selection?.id, items: selection?.items?.map((item) => ({ kind: item.kind, id: item.id })) || [] },
@@ -1607,6 +1641,39 @@ export default function ModelingWorkspace({ onClose }) {
     window.setTimeout(() => updateCommand({ size: '1' }), 0);
   };
 
+  const openOffsetPlane = (plane = null) => {
+    if (readOnly) return readOnlyNotice();
+    const existing = plane || (selection?.kind === 'constructionPlane' ? document.references.find((reference) => reference.id === selection.id) : null);
+    setCommand({
+      type: 'offsetPlane',
+      editId: existing?.id || null,
+      name: existing?.name || `Płaszczyzna odsunięta ${document.references.filter((reference) => reference.kind === 'construction-plane').length + 1}`,
+      basePlane: existing?.basePlane || (selection?.kind === 'plane' && PLANE_LABELS[selection.id] ? selection.id : 'XY'),
+      offset: existing?.offset || '10',
+      visible: existing?.visible ?? true,
+    });
+    setNotice(existing ? `Edytujesz ${existing.name}.` : 'Ustaw parametry nowej płaszczyzny odsuniętej.');
+  };
+
+  const confirmOffsetPlane = () => {
+    if (readOnly) return readOnlyNotice();
+    try {
+      const plane = createOffsetPlane({ name: command.name, basePlane: command.basePlane, offset: command.offset, visible: command.visible });
+      if (command.editId) plane.id = command.editId;
+      resolveConstructionPlane(plane, document.parameters);
+      commit((next) => {
+        const index = next.references.findIndex((reference) => reference.id === plane.id);
+        if (index >= 0) next.references[index] = plane;
+        else next.references.push(plane);
+      });
+      setSelection({ kind: 'constructionPlane', id: plane.id });
+      setCommand(null);
+      setNotice(`${plane.name} została zapisana jako trwała geometria konstrukcyjna.`);
+    } catch (error) {
+      setNotice(`Nie udało się utworzyć płaszczyzny: ${error.message}`);
+    }
+  };
+
   const confirmFeature = () => {
     if (readOnly) return readOnlyNotice();
     if (!command?.previewFeature) return;
@@ -1632,6 +1699,7 @@ export default function ModelingWorkspace({ onClose }) {
     if (readOnly) return readOnlyNotice();
     if (selection?.kind === 'sketch') return editSketch(selection.id);
     if (selection?.kind === 'profile') return openProfileCommand(selectedProfile.type, selectedProfile);
+    if (selection?.kind === 'constructionPlane') return openOffsetPlane();
     if (selection?.kind !== 'feature') return;
     const feature = document.features.find((item) => item.id === selection.id);
     if (!feature) return;
@@ -1849,7 +1917,7 @@ export default function ModelingWorkspace({ onClose }) {
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || !selectedProfile} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || !hasHoleReference || !engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !engine.bodies.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !engine.bodies.length} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature'].includes(selection?.kind)} /></RibbonGroup>
-                <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} /></RibbonGroup>
+                <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openOffsetPlane()} disabled={readOnly} /><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Otwórz" onClick={() => fileInputRef.current?.click()} /></RibbonGroup>
                 <RibbonGroup label="WYBIERZ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
                 <RibbonGroup label="EKSPORT" end><ToolButton icon={FileDown} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={Printer} label="Druk 3D" onClick={() => switchWorkspace('print')} /></RibbonGroup>
@@ -1860,7 +1928,7 @@ export default function ModelingWorkspace({ onClose }) {
       </section>
 
       <div className={`modeling-content ${workspace === 'print' ? 'with-print-panel' : ''} ${browserOpen ? '' : 'without-browser'}`}>
-        {browserOpen && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onClose={() => setBrowserOpen(false)} />}
+        {browserOpen && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onClose={() => setBrowserOpen(false)} />}
         <main className="modeling-stage">
           <ModelViewport
             bodies={engine.bodies}
@@ -1890,6 +1958,8 @@ export default function ModelingWorkspace({ onClose }) {
             onSelectBody={(id) => setSelection(id ? { kind: 'body', id } : { kind: 'document', id: document.id })}
             selectedTopologyIds={selectedTopologyIds}
             onSelectTopology={handleTopologySelection}
+            constructionPlanes={constructionPlanes}
+            selectedConstructionId={selection?.kind === 'constructionPlane' ? selection.id : null}
             selectedProfile={selectedProfile}
             selectedProfilePlane={selectedProfileMatch?.sketch.plane || 'XY'}
             directExtrudeDistance={command?.type === 'extrude' ? command.distance : 0}
@@ -1909,7 +1979,7 @@ export default function ModelingWorkspace({ onClose }) {
             command={command}
             profileName={selectedProfile?.name || ''}
             onChange={updateCommand}
-            onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : confirmFeature}
+            onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'offsetPlane' ? confirmOffsetPlane : confirmFeature}
             onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => setCommand(null)}
             onUndoSegment={undoSketchSegment}
             onFinishPath={finishSketchPath}

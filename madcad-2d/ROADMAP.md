@@ -49,7 +49,8 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 
 ## M4 — geometria konstrukcyjna MVP `P0`
 
-- [ ] Offset plane, midplane i plane przez trzy punkty.
+- [x] Offset plane ma nazwę, widoczność, parametryczną odległość, trwałe ID i pełny przepływ zapisu/undo/redo.
+- [ ] Midplane i płaszczyzna przez trzy punkty.
 - [ ] Oś z krawędzi, walca, dwóch punktów oraz przecięcia dwóch płaszczyzn.
 - [ ] Punkt na wierzchołku, centrum i przecięciu.
 - [ ] Widoczność, nazwa i trwała referencja do konstrukcji.
@@ -139,4 +140,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M4.1 — Offset plane z nazwą, widocznością, parametryczną odległością i trwałą referencją.`
+`M4.2 — Midplane między równoległymi płaszczyznami i płaszczyzna przez trzy punkty.`

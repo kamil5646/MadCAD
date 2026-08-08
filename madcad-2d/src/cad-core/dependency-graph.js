@@ -89,6 +89,9 @@ export function buildDependencyGraph(document) {
       bodyId: reference.bodyId,
     });
     addEdge(document.id, reference.id, 'contains');
+    if (reference.kind === 'construction-plane') {
+      for (const name of expressionDependencies(reference.offset)) addEdge(parameterIdsByName.get(name), reference.id, 'drives');
+    }
   }
 
   for (const feature of document.features || []) {

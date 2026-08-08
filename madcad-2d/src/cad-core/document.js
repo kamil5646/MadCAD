@@ -528,6 +528,12 @@ export function validateDocument(document) {
         if (!['face', 'edge', 'vertex'].includes(reference.topologyKind)) add(`${base}.topologyKind`, 'Referencja topologii wymaga typu face, edge albo vertex.', 'VALUE');
         if (typeof reference.topologyId !== 'string' || !reference.topologyId) add(`${base}.topologyId`, 'Referencja topologii wymaga trwałego ID.', 'REQUIRED');
         if (typeof reference.bodyId !== 'string' || !reference.bodyId) add(`${base}.bodyId`, 'Referencja topologii wymaga ID bryły.', 'REQUIRED');
+      } else if (reference.kind === 'construction-plane') {
+        if (reference.planeType !== 'offset') add(`${base}.planeType`, 'Nieobsługiwany typ płaszczyzny konstrukcyjnej.', 'UNSUPPORTED');
+        if (!SUPPORTED_PLANES.has(reference.basePlane)) add(`${base}.basePlane`, `Nieobsługiwana płaszczyzna bazowa: ${reference.basePlane ?? ''}.`, 'UNSUPPORTED');
+        if (typeof reference.name !== 'string' || !reference.name.trim()) add(`${base}.name`, 'Płaszczyzna konstrukcyjna wymaga nazwy.', 'REQUIRED');
+        if (typeof reference.offset !== 'string' && typeof reference.offset !== 'number') add(`${base}.offset`, 'Odległość płaszczyzny musi być wyrażeniem albo liczbą.', 'TYPE');
+        if (typeof reference.visible !== 'boolean') add(`${base}.visible`, 'Widoczność płaszczyzny musi być wartością logiczną.', 'TYPE');
       }
     }
   });

@@ -548,6 +548,29 @@ async function runUiFlow(window) {
   })()`);
   await waitForUi(window, `!document.querySelector('.reference-repair-panel') && window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(lostReferenceId)})?.topologyId !== window.__madcadVerifyEngineState.bodies[0].topology.edges[0].id + '-lost'`, 'ponowne przypisanie referencji', modelingTimeoutMs);
 
+  progress('parametric offset construction plane');
+  await clickTool('Płaszczyzna offset');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna odsunięta')`, 'okno płaszczyzny odsuniętej');
+  await setCommandField('Nazwa', 'Płaszczyzna montażowa');
+  await setCommandField('Płaszczyzna bazowa', 'YZ');
+  await setCommandField('Odległość', '15');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.references?.some((item) => item.kind === 'construction-plane' && item.name === 'Płaszczyzna montażowa' && item.basePlane === 'YZ' && item.offset === '15')`, 'zapis płaszczyzny konstrukcyjnej');
+  const constructionPlaneId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.references.find((item) => item.kind === 'construction-plane').id`);
+  await waitForUi(window, `(() => { const plane = window.__madcadConstructionPlaneState?.find((item) => item.id === ${JSON.stringify(constructionPlaneId)}); return plane?.status === 'ok' && plane.visible && plane.origin[0] === 15 && plane.origin[1] === 0 && plane.origin[2] === 0; })()`, 'dokładne położenie płaszczyzny YZ');
+  await window.webContents.executeJavaScript(`(() => {
+    const button = document.querySelector('.tree-reference-row .tree-reference-visibility');
+    if (!button) throw new Error('Brak przełącznika widoczności płaszczyzny.');
+    button.click();
+  })()`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(constructionPlaneId)})?.visible === false`, 'ukrycie płaszczyzny');
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(constructionPlaneId)})?.visible === true`, 'undo widoczności płaszczyzny');
+  await sendShortcut('y');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(constructionPlaneId)})?.visible === false`, 'redo widoczności płaszczyzny');
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(constructionPlaneId)})?.visible === true`, 'przywrócenie widoczności płaszczyzny');
+
   progress('hole sketch');
   await clickTool('Utwórz szkic');
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'drugi wybór płaszczyzny');
@@ -627,7 +650,7 @@ async function runUiFlow(window) {
     `(() => {
       try {
         const saved = JSON.parse(window.localStorage.getItem('madcad:modeling-document:v4') || 'null');
-        return saved?.schemaVersion === 4 && saved?.features?.length === 4 && saved?.sketches?.length === 2;
+        return saved?.schemaVersion === 4 && saved?.features?.length === 4 && saved?.sketches?.length === 2 && saved?.references?.some((item) => item.kind === 'construction-plane' && item.name === 'Płaszczyzna montażowa');
       } catch (_error) {
         return false;
       }
@@ -657,13 +680,15 @@ async function runUiFlow(window) {
       features: saved.features?.length || 0,
       sketches: saved.sketches?.length || 0,
       entities: saved.sketches?.reduce((total, sketch) => total + (sketch.entities?.length || 0), 0) || 0,
+      constructionPlanes: saved.references?.filter((item) => item.kind === 'construction-plane').length || 0,
     };
   })()`);
   const autosaveRoundTrip = autosaveState.available
     && autosaveState.schemaVersion === 4
     && autosaveState.features === 4
     && autosaveState.sketches === 2
-    && autosaveState.entities === 10;
+    && autosaveState.entities === 10
+    && autosaveState.constructionPlanes === 1;
   if (!autosaveRoundTrip) throw new Error(`Desktop autosave did not preserve the current document: ${JSON.stringify(autosaveState)}`);
 
   const recoveryRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
@@ -720,6 +745,7 @@ async function runUiFlow(window) {
     directManipulation: true,
     pointerInput: 'pen',
     filletChamfer: true,
+    constructionPlane: true,
     goldenBrep,
     describedControls,
     commandDialogs: true,

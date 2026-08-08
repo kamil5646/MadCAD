@@ -340,6 +340,8 @@ export default function ModelViewport({
   onSelectBody,
   selectedTopologyIds = [],
   onSelectTopology,
+  constructionPlanes = [],
+  selectedConstructionId = null,
   selectedProfile,
   selectedProfilePlane = 'XY',
   directExtrudeDistance = 0,
@@ -699,6 +701,42 @@ export default function ModelViewport({
     if (activeSketch) center.set(0, 0, 0);
     const size = modelBox ? modelBox.getSize(new THREE.Vector3()) : new THREE.Vector3(80, 60, 20);
     const radius = Math.max(size.x, size.y, size.z, 55);
+    const constructionGroup = new THREE.Group();
+    const planeSize = Math.max(60, radius * 1.15);
+    for (const plane of constructionPlanes) {
+      if (!plane.visible || plane.status !== 'ok') continue;
+      const origin = new THREE.Vector3(...plane.origin);
+      const u = new THREE.Vector3(...plane.u).multiplyScalar(planeSize / 2);
+      const v = new THREE.Vector3(...plane.v).multiplyScalar(planeSize / 2);
+      const corners = [
+        origin.clone().sub(u).sub(v),
+        origin.clone().add(u).sub(v),
+        origin.clone().add(u).add(v),
+        origin.clone().sub(u).add(v),
+      ];
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(corners.flatMap((point) => point.toArray()), 3));
+      geometry.setIndex([0, 1, 2, 0, 2, 3]);
+      const selected = plane.id === selectedConstructionId;
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+        color: selected ? 0xffc857 : 0x6bc8eb,
+        transparent: true,
+        opacity: selected ? 0.23 : 0.11,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }));
+      mesh.renderOrder = 1;
+      mesh.userData = { constructionId: plane.id };
+      const outlineGeometry = new THREE.BufferGeometry();
+      outlineGeometry.setAttribute('position', new THREE.Float32BufferAttribute([...corners, corners[0]].flatMap((point) => point.toArray()), 3));
+      const outline = new THREE.Line(outlineGeometry, new THREE.LineDashedMaterial({ color: selected ? 0xffc857 : 0x69b8d7, dashSize: 4, gapSize: 2, transparent: true, opacity: selected ? 1 : 0.75 }));
+      outline.computeLineDistances();
+      constructionGroup.add(mesh, outline);
+    }
+    scene.add(constructionGroup);
+    if (new URLSearchParams(window.location.search).has('verify')) {
+      window.__madcadConstructionPlaneState = constructionPlanes.map((plane) => ({ id: plane.id, name: plane.name, status: plane.status, visible: plane.visible, origin: plane.origin, normal: plane.normal }));
+    }
     const sketchView = activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top';
     const direction = VIEW_DIRECTIONS[activeSketch ? sketchView : view] || VIEW_DIRECTIONS.iso;
     camera.up.set(0, 0, 1);
@@ -1365,6 +1403,7 @@ export default function ModelViewport({
       disposeObject(modelGroup);
       disposeObject(sketchGroup);
       disposeObject(directGroup);
+      disposeObject(constructionGroup);
       if (plate) disposeObject(plate);
       grid.geometry.dispose();
       grid.material.dispose();
@@ -1376,8 +1415,9 @@ export default function ModelViewport({
       delete window.__madcadSketchLocalToScreen;
       delete window.__madcadModelScreenState;
       delete window.__madcadModelHover;
+      delete window.__madcadConstructionPlaneState;
     };
-  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
+  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, selectedConstructionId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
 
   return (
     <div className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`} ref={hostRef}>

@@ -44,6 +44,7 @@ import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketch
 import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../src/cad-core/sketch-transforms.js';
 import { edgeGroupVertices, topologyIdForFaceIndex, topologySelectionFromIntersection } from '../src/cad-core/brep-picking.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../src/cad-core/topology-references.js';
+import { createOffsetPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../src/cad-core/construction-planes.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import {
   arcCenterStartEnd,
@@ -260,6 +261,26 @@ test('utracona referencja topologii wskazuje feature źródłowy i pozwala na po
   assert.equal(resolved.status, 'resolved');
   assert.equal(resolved.reference.topologyId, 'edge-current');
   assert.ok(resolved.reference.repairedAt);
+});
+
+test('offset plane ma trwałe ID, nazwę, widoczność i parametryczne położenie na XY, XZ i YZ', () => {
+  const parameters = [{ id: 'param-offset', name: 'odsuniecie', label: 'Odsunięcie', expression: '12.5', unit: 'mm' }];
+  const expected = {
+    XY: [0, 0, 12.5],
+    XZ: [0, -12.5, 0],
+    YZ: [12.5, 0, 0],
+  };
+  for (const basePlane of Object.keys(expected)) {
+    const plane = createOffsetPlane({ name: `Płaszczyzna ${basePlane}`, basePlane, offset: 'odsuniecie', visible: basePlane !== 'XZ' });
+    const resolved = resolveConstructionPlane(plane, parameters);
+    assert.match(plane.id, /^plane-/);
+    assert.equal(resolved.name, `Płaszczyzna ${basePlane}`);
+    assert.equal(resolved.visible, basePlane !== 'XZ');
+    assert.deepEqual(resolved.origin, expected[basePlane]);
+    assert.equal(resolved.offsetValue, 12.5);
+  }
+  const invalid = createOffsetPlane({ offset: 'brakujacy' });
+  assert.equal(resolveConstructionPlanes([invalid], parameters)[0].status, 'error');
 });
 
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {

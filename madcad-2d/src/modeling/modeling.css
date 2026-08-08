@@ -459,6 +459,34 @@
   padding-left: 52px;
 }
 
+.tree-reference-row {
+  position: relative;
+}
+
+.tree-reference-row .tree-row {
+  padding-right: 36px;
+}
+
+.tree-reference-visibility {
+  position: absolute;
+  top: 3px;
+  right: 8px;
+  display: grid;
+  width: 23px;
+  height: 20px;
+  place-items: center;
+  border: 0;
+  border-radius: 3px;
+  color: #aebdc7;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tree-reference-visibility:hover {
+  color: white;
+  background: #526170;
+}
+
 .tree-folder {
   font-weight: 600;
 }
