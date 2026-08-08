@@ -522,8 +522,16 @@ export function validateDocument(document) {
   references.forEach((reference, index) => {
     const base = `references[${index}]`;
     if (!isRecord(reference)) add(base, 'Referencja musi być obiektem.', 'TYPE');
-    else registerId(reference.id, `${base}.id`);
+    else {
+      registerId(reference.id, `${base}.id`);
+      if (reference.kind === 'topology') {
+        if (!['face', 'edge', 'vertex'].includes(reference.topologyKind)) add(`${base}.topologyKind`, 'Referencja topologii wymaga typu face, edge albo vertex.', 'VALUE');
+        if (typeof reference.topologyId !== 'string' || !reference.topologyId) add(`${base}.topologyId`, 'Referencja topologii wymaga trwałego ID.', 'REQUIRED');
+        if (typeof reference.bodyId !== 'string' || !reference.bodyId) add(`${base}.bodyId`, 'Referencja topologii wymaga ID bryły.', 'REQUIRED');
+      }
+    }
   });
+  const referenceIds = new Set(references.filter(isRecord).map((reference) => reference.id));
 
   features.forEach((feature, featureIndex) => {
     const base = `features[${featureIndex}]`;
@@ -534,6 +542,12 @@ export function validateDocument(document) {
     registerId(feature.id, `${base}.id`);
     if (!FEATURE_TYPES.has(feature.type)) add(`${base}.type`, `Nieobsługiwana operacja: ${feature.type ?? ''}.`, 'UNSUPPORTED');
     if (typeof feature.suppressed !== 'boolean') add(`${base}.suppressed`, 'Pole suppressed musi być logiczne.', 'TYPE');
+    if (feature.referenceIds !== undefined) {
+      if (!Array.isArray(feature.referenceIds)) add(`${base}.referenceIds`, 'Referencje topologii operacji muszą być tablicą.', 'TYPE');
+      else feature.referenceIds.forEach((referenceId, referenceIndex) => {
+        if (!referenceIds.has(referenceId)) add(`${base}.referenceIds[${referenceIndex}]`, `Nie znaleziono referencji „${referenceId}”.`, 'BROKEN_REFERENCE');
+      });
+    }
 
     if (feature.type === 'extrude') {
       if (!sketchIds.has(feature.sketchId)) add(`${base}.sketchId`, `Nie znaleziono szkicu „${feature.sketchId ?? ''}”.`, 'BROKEN_REFERENCE');

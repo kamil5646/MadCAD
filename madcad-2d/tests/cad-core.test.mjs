@@ -43,6 +43,7 @@ import { collectSketchSnapCandidates, snapSketchPoint } from '../src/cad-core/sk
 import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketchLines, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../src/cad-core/sketch-modifiers.js';
 import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../src/cad-core/sketch-transforms.js';
 import { edgeGroupVertices, topologyIdForFaceIndex, topologySelectionFromIntersection } from '../src/cad-core/brep-picking.js';
+import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../src/cad-core/topology-references.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import {
   arcCenterStartEnd,
@@ -226,6 +227,39 @@ test('picking B-Rep mapuje trójkąty i segmenty na trwałe ID topologii', () =>
   assert.deepEqual(topologySelectionFromIntersection({
     object: { userData: { bodyId: 'body-a', sourceFeatureId: 'feature-a', topologyKind: 'vertex', topologyId: 'vertex-stable-a' } },
   }), { kind: 'vertex', id: 'vertex-stable-a', bodyId: 'body-a', sourceFeatureId: 'feature-a' });
+});
+
+test('utracona referencja topologii wskazuje feature źródłowy i pozwala na ponowne przypisanie', () => {
+  const document = createDocument('Naprawa referencji');
+  const source = createFeature('extrude', { name: 'Bryła źródłowa', sketchId: 'sketch-a', profileIds: ['profile-a'], distance: '10', operation: 'new' });
+  const owner = createFeature('fillet', { name: 'Operacja zależna', targetBodyId: `body-${source.id}`, radius: '1' });
+  document.features.push(source, owner);
+  const body = {
+    id: `body-${source.id}`,
+    sourceFeatureId: source.id,
+    topology: {
+      faces: [],
+      edges: [{ id: 'edge-current', descriptor: { endpoints: [[0, 0, 0], [10, 0, 0]] } }],
+      vertices: [],
+    },
+  };
+  const reference = createTopologyReference({
+    selection: { kind: 'edge', id: 'edge-lost', bodyId: body.id, sourceFeatureId: source.id },
+    ownerFeatureId: owner.id,
+    descriptor: { endpoints: [[0, 0, 0], [9, 0, 0]] },
+  });
+  document.references.push(reference);
+  const [lost] = inspectTopologyReferences(document, [body]);
+  assert.equal(lost.status, 'lost');
+  assert.equal(lost.sourceFeature.name, 'Bryła źródłowa');
+  assert.equal(lost.ownerFeature.name, 'Operacja zależna');
+  assert.equal(lost.candidates[0].id, 'edge-current');
+
+  document.references[0] = reassignTopologyReference(reference, lost.candidates[0], lost.candidates[0].descriptor);
+  const [resolved] = inspectTopologyReferences(document, [body]);
+  assert.equal(resolved.status, 'resolved');
+  assert.equal(resolved.reference.topologyId, 'edge-current');
+  assert.ok(resolved.reference.repairedAt);
 });
 
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {

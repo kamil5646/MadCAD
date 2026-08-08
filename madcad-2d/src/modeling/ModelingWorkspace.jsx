@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppWindow,
+  AlertTriangle,
   Box,
   Check,
   ChevronDown,
@@ -98,6 +99,7 @@ import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketch
 import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../cad-core/sketch-transforms.js';
 import { applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
+import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../cad-core/topology-references.js';
 import ModelViewport from './ModelViewport.jsx';
 import './modeling.css';
 
@@ -300,6 +302,32 @@ function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect,
           <span /><Box size={13} /><span>{body.name}</span><i className="body-color" style={{ background: body.color }} />
         </button>
       ))}
+    </aside>
+  );
+}
+
+function TopologyReferenceRepairPanel({ items, selection, onReassign }) {
+  if (!items.length) return null;
+  const selectedItem = selection?.items?.at(-1) || selection;
+  return (
+    <aside className="reference-repair-panel" role="alert" aria-label="Naprawa utraconych referencji">
+      <header><AlertTriangle size={16} /><div><strong>Utracona referencja</strong><span>{items.length === 1 ? '1 element wymaga przypisania' : `${items.length} elementy wymagają przypisania`}</span></div></header>
+      {items.slice(0, 3).map((item) => {
+        const canUseSelection = selectedItem && selectedItem.kind === item.reference.topologyKind && selectedItem.id;
+        return (
+          <section key={item.reference.id}>
+            <strong>{item.ownerFeature?.name || item.reference.label || 'Operacja zależna'}</strong>
+            <span>Źródło: {item.sourceFeature?.name || item.reference.sourceFeatureId || 'nieznane'}</span>
+            <small>{item.reason}</small>
+            <div>
+              <button type="button" disabled={!canUseSelection} onClick={() => onReassign(item.reference.id, selectedItem)}>Przypisz zaznaczenie</button>
+              {item.candidates.slice(0, 2).map((candidate, index) => (
+                <button className="secondary" key={candidate.id} type="button" onClick={() => onReassign(item.reference.id, candidate, candidate.descriptor)}>{`Kandydat ${index + 1}`}</button>
+              ))}
+            </div>
+          </section>
+        );
+      })}
     </aside>
   );
 }
@@ -625,6 +653,9 @@ export default function ModelingWorkspace({ onClose }) {
   const previewDocument = useMemo(() => {
     if (!command?.previewFeature) return document;
     const next = cloneDocument(document);
+    for (const reference of command.topologyReferences || []) {
+      if (!next.references.some((item) => item.id === reference.id)) next.references.push({ ...reference, ownerFeatureId: command.previewFeature.id });
+    }
     if (command.editId) {
       const index = next.features.findIndex((feature) => feature.id === command.editId);
       if (index >= 0) next.features[index] = command.previewFeature;
@@ -637,6 +668,9 @@ export default function ModelingWorkspace({ onClose }) {
   const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => feature.type === 'extrude' && feature.operation === 'new').map((feature) => `body-${feature.id}`)), [document.features]);
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
   const targetBodyId = selection?.kind === 'body' ? selection.id : (selection?.bodyId || engine.bodies[0]?.id || firstBodyId || null);
+  const topologyReferenceStates = useMemo(() => inspectTopologyReferences(document, actualBodies), [document, actualBodies]);
+  const lostTopologyReferences = engine.status === 'ready' && !command?.previewFeature ? topologyReferenceStates.filter((item) => item.status === 'lost') : [];
+  const lostReferenceOwnerIds = useMemo(() => new Set(lostTopologyReferences.map((item) => item.reference.ownerFeatureId).filter(Boolean)), [lostTopologyReferences]);
 
   useEffect(() => {
     if (readOnly) return undefined;
@@ -698,6 +732,7 @@ export default function ModelingWorkspace({ onClose }) {
         next.previewFeature = createFeature(next.type, {
           name: current.previewFeature?.name || `${next.type === 'fillet' ? 'Zaokrąglenie' : 'Fazowanie'} ${document.features.length + 1}`,
           targetBodyId,
+          referenceIds: current.previewFeature?.referenceIds || current.topologyReferences?.map((reference) => reference.id) || [],
           ...(next.type === 'fillet' ? { radius: next.size } : { distance: next.size }),
         });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
@@ -1017,6 +1052,21 @@ export default function ModelingWorkspace({ onClose }) {
     setNotice(`${label} zaznaczona przez trwałe ID: ${topology.id}.${mode === 'replace' ? '' : ' Ctrl/Shift utrzymuje wybór wielokrotny.'}`);
   };
 
+  const repairTopologyReference = (referenceId, topology, descriptor = null) => {
+    if (readOnly) return readOnlyNotice();
+    try {
+      commit((next) => {
+        const index = next.references.findIndex((reference) => reference.id === referenceId);
+        if (index < 0) throw new Error('Nie znaleziono referencji do naprawy.');
+        next.references[index] = reassignTopologyReference(next.references[index], topology, descriptor);
+      });
+      setSelection({ kind: topology.kind, id: topology.id, bodyId: topology.bodyId, sourceFeatureId: topology.sourceFeatureId, items: [topology] });
+      setNotice('Referencja została ponownie przypisana i historia modelu jest przeliczana.');
+    } catch (error) {
+      setNotice(`Nie udało się naprawić referencji: ${error.message}`);
+    }
+  };
+
   const moveSketchEntities = ({ ids = selectedSketchEntityIds, dx = 0, dy = 0 } = {}) => {
     if (readOnly) return readOnlyNotice();
     if (!activeSketchId || !ids.length) {
@@ -1219,6 +1269,20 @@ export default function ModelingWorkspace({ onClose }) {
     window.__madcadVerifySketchPoint = appendSketchPoint;
     window.__madcadVerifySketchSelection = handleSketchSelection;
     window.__madcadVerifyTopologySelection = handleTopologySelection;
+    window.__madcadVerifyCreateLostTopologyReference = () => {
+      const body = engine.bodies[0];
+      const edge = body?.topology?.edges?.[0];
+      if (!body || !edge) throw new Error('Brak topologii do testu utraconej referencji.');
+      const ownerFeatureId = document.features.at(-1)?.id || body.sourceFeatureId;
+      const reference = createTopologyReference({
+        selection: { kind: 'edge', id: `${edge.id}-lost`, bodyId: body.id, sourceFeatureId: body.sourceFeatureId },
+        ownerFeatureId,
+        descriptor: edge.descriptor,
+        label: 'Kontrolowana utracona krawędź',
+      });
+      history.commit((next) => { next.references.push(reference); });
+      return reference.id;
+    };
     window.__madcadVerifyMoveSketch = moveSketchEntities;
     window.__madcadVerifyDeleteSketch = deleteSelectedSketchEntities;
     window.__madcadVerifyLoadTopologyFixture = (plane = 'XY') => {
@@ -1366,6 +1430,7 @@ export default function ModelingWorkspace({ onClose }) {
       })),
       features: document.features.length,
       featureIds: document.features.map((feature) => feature.id),
+      references: document.references.map((reference) => ({ id: reference.id, topologyId: reference.topologyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
         : { kind: selection?.kind, id: selection?.id, items: selection?.items?.map((item) => ({ kind: item.kind, id: item.id })) || [] },
@@ -1379,6 +1444,7 @@ export default function ModelingWorkspace({ onClose }) {
       delete window.__madcadVerifySketchPoint;
       delete window.__madcadVerifySketchSelection;
       delete window.__madcadVerifyTopologySelection;
+      delete window.__madcadVerifyCreateLostTopologyReference;
       delete window.__madcadVerifyMoveSketch;
       delete window.__madcadVerifyDeleteSketch;
       delete window.__madcadVerifyLoadTopologyFixture;
@@ -1389,7 +1455,7 @@ export default function ModelingWorkspace({ onClose }) {
       delete window.__madcadVerifyLoadPointHoleFixture;
       delete window.__madcadVerifyDocumentState;
     };
-  }, [document, command, selection, activeSketchId]);
+  }, [document, command, selection, activeSketchId, engine.bodies]);
 
   const confirmProfile = () => {
     if (readOnly) return readOnlyNotice();
@@ -1530,7 +1596,14 @@ export default function ModelingWorkspace({ onClose }) {
       setNotice('Wybierz bryłę docelową.');
       return;
     }
-    setCommand({ type, size: '1', previewFeature: null });
+    const selectedEdges = (selection?.items || (selection?.kind === 'edge' ? [selection] : []))
+      .filter((item) => item.kind === 'edge' && item.bodyId === targetBodyId);
+    const topologyReferences = selectedEdges.map((item, index) => {
+      const body = engine.bodies.find((candidate) => candidate.id === item.bodyId);
+      const descriptor = body?.topology?.edges?.find((edge) => edge.id === item.id)?.descriptor || null;
+      return createTopologyReference({ selection: item, descriptor, label: `${type === 'fillet' ? 'Zaokrąglenie' : 'Fazowanie'} — krawędź ${index + 1}` });
+    });
+    setCommand({ type, size: '1', previewFeature: null, topologyReferences });
     window.setTimeout(() => updateCommand({ size: '1' }), 0);
   };
 
@@ -1541,7 +1614,13 @@ export default function ModelingWorkspace({ onClose }) {
       if (command.editId) {
         const index = next.features.findIndex((feature) => feature.id === command.editId);
         next.features[index] = command.previewFeature;
-      } else next.features.push(command.previewFeature);
+      } else {
+        next.features.push(command.previewFeature);
+        for (const reference of command.topologyReferences || []) {
+          if (next.references.some((item) => item.id === reference.id)) continue;
+          next.references.push({ ...reference, ownerFeatureId: command.previewFeature.id });
+        }
+      }
     });
     setSelection({ kind: 'feature', id: command.previewFeature.id });
     setWorkspace('solid');
@@ -1821,6 +1900,7 @@ export default function ModelingWorkspace({ onClose }) {
             showBed={workspace === 'print'}
           />
           <div className={`engine-status ${engine.status}`}><span />{engine.status === 'ready' ? `${command?.previewFeature ? 'Podgląd' : 'Model'} gotowy · ${engine.bodies.length} ${engine.bodies.length === 1 ? 'bryła' : 'brył'}` : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>
+          <TopologyReferenceRepairPanel items={lostTopologyReferences} selection={selection} onReassign={repairTopologyReference} />
           {!document.sketches.length && !engine.bodies.length && !command && !readOnly && (
             <div className="empty-canvas"><PencilRuler size={28} /><strong>Zacznij od szkicu</strong><span>Wybierz płaszczyznę, narysuj zamknięty profil i wyciągnij go w bryłę.</span><button type="button" onClick={startSketch}>Utwórz szkic</button></div>
           )}
@@ -1848,7 +1928,7 @@ export default function ModelingWorkspace({ onClose }) {
           {document.features.map((feature, index) => {
             const result = timelineStatus.get(feature.id);
             return (
-              <button key={feature.id} className={`timeline-item ${selection?.kind === 'feature' && selection.id === feature.id ? 'selected' : ''} ${result?.status || ''}`} type="button" onClick={() => setSelection({ kind: 'feature', id: feature.id })} onDoubleClick={editSelection} title={`${index + 1}. ${feature.name}${result?.error ? ` — ${result.error}` : ''}`}>
+              <button key={feature.id} className={`timeline-item ${selection?.kind === 'feature' && selection.id === feature.id ? 'selected' : ''} ${lostReferenceOwnerIds.has(feature.id) ? 'warning reference-lost' : result?.status || ''}`} type="button" onClick={() => setSelection({ kind: 'feature', id: feature.id })} onDoubleClick={editSelection} title={`${index + 1}. ${feature.name}${lostReferenceOwnerIds.has(feature.id) ? ' — utracona referencja topologii' : result?.error ? ` — ${result.error}` : ''}`}>
                 {featureIcon(feature.type, 16)}<span>{index + 1}</span>
               </button>
             );

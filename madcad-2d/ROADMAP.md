@@ -38,22 +38,14 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 | --- | --- | --- | --- | --- |
 | 1 | M1 Solver szkicu MVP | `[x]` | ukończony model encji | szkic ma wymiary, podstawowe więzy i stopnie swobody |
 | 2 | M2 Podstawowe modyfikacje szkicu | `[x]` | M1 | Trim/Extend/Break/Offset/Fillet/Chamfer i podstawowe transformacje zachowują więzy |
-| 3 | M3 Picking B-Rep | `[>]` | trwałe ID z R0 | można stabilnie wskazać ścianę, krawędź i wierzchołek |
-| 4 | M4 Konstrukcja podstawowa | `[ ]` | M3 | offset plane, midplane, plane przez trzy punkty, osie i punkty konstrukcyjne |
+| 3 | M3 Picking B-Rep | `[x]` | trwałe ID z R0 | można stabilnie wskazać ścianę, krawędź i wierzchołek |
+| 4 | M4 Konstrukcja podstawowa | `[>]` | M3 | offset plane, midplane, plane przez trzy punkty, osie i punkty konstrukcyjne |
 | 5 | M5 Szkic na modelu i Project | `[ ]` | M1, M3, M4 | drugi szkic powstaje na ścianie i zachowuje projekcję krawędzi |
 | 6 | M6 Modelowanie części MVP | `[ ]` | M3, M5 | pełniejsze Extrude, Boolean, wskazane Fillet/Chamfer, Shell i podstawowe prymitywy |
 | 7 | M7 Otwory i gwinty MVP | `[ ]` | M3, M5, M6 | proste/counterbore/countersink otwory i podstawowy gwint metryczny |
 | 8 | M8 Inspect MVP | `[ ]` | M3, M6 | Measure, Section, objętość, pole, masa i środek masy |
 | 9 | M9 Przygotowanie druku MVP | `[ ]` | M6–M8 | orientacja, STEP/STL/3MF, skala 1:1, manifold, grubość, nawisy i przekazanie do slicera |
 | 10 | M10 Wydanie alpha/beta | `[ ]` | M1–M9 | instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS |
-
-## M3 — stabilne zaznaczanie B-Rep `P0`
-
-- [x] Viewport mapuje trafiony trójkąt ściany i osobne segmenty krawędzi na trwałe face/edge ID bez indeksów tessellacji.
-- [x] Filtry Auto/Profil/Ściana/Krawędź/Wierzchołek/Bryła sterują pickingiem; worker nadaje trwałe ID również wierzchołkom.
-- [x] Hover, multi-select, cykliczny wybór elementów nakładających się i box select.
-- [ ] Utracona referencja pokazuje źródłowy feature i możliwe ponowne przypisanie.
-- [x] Picking nie uruchamia ponownej tessellacji ani przeliczenia bryły.
 
 ## M4 — geometria konstrukcyjna MVP `P0`
 
@@ -147,4 +139,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M3.4 — Utracona referencja pokazuje źródłowy feature i prowadzi przez ponowne przypisanie.`
+`M4.1 — Offset plane z nazwą, widocznością, parametryczną odległością i trwałą referencją.`

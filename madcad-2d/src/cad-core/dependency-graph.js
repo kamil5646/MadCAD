@@ -81,6 +81,16 @@ export function buildDependencyGraph(document) {
     addEdge(document.id, body.id, 'contains');
   }
 
+  for (const reference of document.references || []) {
+    addNode(reference.id, 'reference', reference.label || reference.topologyId || reference.id, {
+      referenceKind: reference.kind,
+      topologyKind: reference.topologyKind,
+      topologyId: reference.topologyId,
+      bodyId: reference.bodyId,
+    });
+    addEdge(document.id, reference.id, 'contains');
+  }
+
   for (const feature of document.features || []) {
     addNode(feature.id, 'feature', feature.name, { featureType: feature.type });
     addEdge(document.id, feature.id, 'contains');
@@ -88,6 +98,7 @@ export function buildDependencyGraph(document) {
     for (const profileId of feature.profileIds || []) addEdge(profileId, feature.id, 'references');
     if (feature.profileId) addEdge(feature.profileId, feature.id, 'references');
     if (feature.pointId) addEdge(feature.pointId, feature.id, 'references');
+    for (const referenceId of feature.referenceIds || []) addEdge(referenceId, feature.id, 'references-topology');
     for (const value of featureExpressions(feature)) {
       for (const name of expressionDependencies(value)) addEdge(parameterIdsByName.get(name), feature.id, 'drives');
     }

@@ -832,6 +832,75 @@
   color: #d9a6aa;
 }
 
+.reference-repair-panel {
+  position: absolute;
+  z-index: 10;
+  top: 82px;
+  right: 12px;
+  width: min(340px, calc(100% - 24px));
+  overflow: hidden;
+  border: 1px solid rgba(237, 177, 75, 0.72);
+  border-radius: 7px;
+  color: #e9f0f4;
+  background: rgba(43, 45, 47, 0.96);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+}
+
+.reference-repair-panel header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  color: #ffd27d;
+  background: rgba(134, 91, 29, 0.35);
+}
+
+.reference-repair-panel header div,
+.reference-repair-panel section {
+  display: grid;
+  gap: 3px;
+}
+
+.reference-repair-panel header span,
+.reference-repair-panel section span,
+.reference-repair-panel section small {
+  color: #aebcc5;
+  font-size: 10px;
+}
+
+.reference-repair-panel section {
+  padding: 9px 11px 11px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.reference-repair-panel section div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.reference-repair-panel button {
+  min-height: 27px;
+  padding: 0 9px;
+  border: 1px solid #368eb3;
+  border-radius: 4px;
+  color: white;
+  background: #2379a2;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.reference-repair-panel button.secondary {
+  border-color: #657783;
+  background: #43515a;
+}
+
+.reference-repair-panel button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .sketch-solver-status {
   position: absolute;
   z-index: 9;

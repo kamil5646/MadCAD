@@ -44,9 +44,18 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Anulowanie, undo/redo, zapis/otwarcie, stabilne profile, błędy bez częściowego stanu i jawne czyszczenie zerwanych więzów są pokryte testami.
 - [x] Desktop E2E wykonuje Offset, Fillet, Chamfer i Copy na rzeczywistym szkicu, cofa każdą zmianę i kończy pełnym STEP/STL round-trip.
 
+## Stabilne zaznaczanie B-Rep M3
+
+- [x] Picking ścian, krawędzi i wierzchołków mapuje tessellację na trwałe ID topologii.
+- [x] Filtry Auto/Profil/Ściana/Krawędź/Wierzchołek/Bryła, hover i podświetlanie działają bez ponownego przeliczania bryły.
+- [x] Ctrl/Shift utrzymuje wybór wielokrotny, Alt przełącza nakładającą się topologię, a Shift+przeciągnięcie zaznacza obszarem.
+- [x] Referencje topologii zapisują bryłę, źródłowy i zależny feature oraz deskryptor geometryczny do rankingowania kandydatów.
+- [x] Utracona referencja ostrzega na osi czasu, pokazuje operację źródłową i pozwala przypisać zaznaczenie albo sugerowanego kandydata.
+- [x] Desktop E2E sprawdza hover, multi-select, cykl, box select, brak nowej rewizji po pickingu oraz pełną naprawę celowo zerwanej referencji.
+
 ## Ostatnia zweryfikowana baza
 
-- Testy rdzenia: 64 zaliczone, 0 błędów.
+- Testy rdzenia: 66 zaliczonych, 0 błędów.
 - Desktop E2E: profile XY/XZ/YZ, spline, conic, parametryczny wspornik, otwór z punktu, fillet/chamfer, autosave, odtworzenie workera oraz eksport STEP/STL.
 - Commity kontrolne: `1633cf3`, `6505103`, `be3c067`, `ec5e45f`, `0ad3b75`, `1ca5237`, `1a0a02b`, `fe19842`.
 
