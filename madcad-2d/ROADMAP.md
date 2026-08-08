@@ -127,7 +127,8 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.2 Więzy `collinear` i `symmetry` od solvera do interfejsu, z diagnostyką konfliktów, undo/redo, autozapisem i round-trip projektu.
 - [x] P1.3 Wymiary ordinate X/Y oraz długości łuku: sterowanie solverem, znaczniki, edycja na szkicu, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
 - [x] P1.4 Prostokątny i kołowy szyk geometrii szkicu z pomijaniem wystąpień, walidacją, undo/redo, autozapisem i ponownym otwarciem w desktop E2E.
-- [>] P1.5 Szyk geometrii szkicu po ścieżce z równym rozstawem, orientacją i pomijaniem wystąpień.
+- [x] P1.5 Szyk geometrii szkicu po linii lub łuku z równym rozstawem, stałą orientacją albo orientacją do stycznej, pomijaniem wystąpień i pełnym desktop E2E.
+- [>] P1.6 Płaszczyzny konstrukcyjne tangent, angle i path oraz brakujące warianty osi i punktów.
 
 ## Definition of Done
 
@@ -151,4 +152,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.5 — szyk geometrii szkicu po ścieżce z równym rozstawem, orientacją i pomijaniem wystąpień.`
+`P1.6 — płaszczyzny konstrukcyjne tangent, angle i path oraz brakujące warianty osi i punktów.`

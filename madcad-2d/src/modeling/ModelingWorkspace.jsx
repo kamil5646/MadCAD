@@ -101,7 +101,7 @@ import {
 import { refreshDetectedSketchProfiles } from '../cad-core/sketch-topology.js';
 import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketchLines, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../cad-core/sketch-modifiers.js';
 import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../cad-core/sketch-transforms.js';
-import { circularSketchPattern, rectangularSketchPattern } from '../cad-core/sketch-patterns.js';
+import { circularSketchPattern, pathSketchPattern, rectangularSketchPattern } from '../cad-core/sketch-patterns.js';
 import { applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
@@ -757,8 +757,8 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
         )}
         {isSketchPattern && (
           <>
-            <label className="command-field"><span>Typ szyku</span><select value={command.mode} onChange={(event) => onChange({ mode: event.target.value })}><option value="rectangular">Prostokątny</option><option value="circular">Kołowy</option></select></label>
-            {command.mode === 'rectangular' ? <><Field label="Kolumny" value={command.columns} onChange={(columns) => onChange({ columns })} autoFocus /><Field label="Wiersze" value={command.rows} onChange={(rows) => onChange({ rows })} /><Field label="Odstęp X" value={command.spacingX} onChange={(spacingX) => onChange({ spacingX })} suffix="mm" /><Field label="Odstęp Y" value={command.spacingY} onChange={(spacingY) => onChange({ spacingY })} suffix="mm" /></> : <><Field label="Wystąpienia" value={command.count} onChange={(count) => onChange({ count })} autoFocus /><Field label="Środek X" value={command.centerX} onChange={(centerX) => onChange({ centerX })} suffix="mm" /><Field label="Środek Y" value={command.centerY} onChange={(centerY) => onChange({ centerY })} suffix="mm" /><Field label="Kąt całkowity" value={command.totalAngle} onChange={(totalAngle) => onChange({ totalAngle })} suffix="°" /></>}
+            <label className="command-field"><span>Typ szyku</span><select value={command.mode} onChange={(event) => onChange({ mode: event.target.value })}><option value="rectangular">Prostokątny</option><option value="circular">Kołowy</option><option value="path">Po ścieżce</option></select></label>
+            {command.mode === 'rectangular' ? <><Field label="Kolumny" value={command.columns} onChange={(columns) => onChange({ columns })} autoFocus /><Field label="Wiersze" value={command.rows} onChange={(rows) => onChange({ rows })} /><Field label="Odstęp X" value={command.spacingX} onChange={(spacingX) => onChange({ spacingX })} suffix="mm" /><Field label="Odstęp Y" value={command.spacingY} onChange={(spacingY) => onChange({ spacingY })} suffix="mm" /></> : command.mode === 'circular' ? <><Field label="Wystąpienia" value={command.count} onChange={(count) => onChange({ count })} autoFocus /><Field label="Środek X" value={command.centerX} onChange={(centerX) => onChange({ centerX })} suffix="mm" /><Field label="Środek Y" value={command.centerY} onChange={(centerY) => onChange({ centerY })} suffix="mm" /><Field label="Kąt całkowity" value={command.totalAngle} onChange={(totalAngle) => onChange({ totalAngle })} suffix="°" /></> : <><label className="command-field"><span>Ścieżka</span><select value={command.pathEntityId} onChange={(event) => onChange({ pathEntityId: event.target.value })}>{command.pathOptions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><Field label="Wystąpienia" value={command.count} onChange={(count) => onChange({ count })} autoFocus /><label className="command-field"><span>Orientacja</span><select value={command.orientToPath ? 'path' : 'fixed'} onChange={(event) => onChange({ orientToPath: event.target.value === 'path' })}><option value="path">Zgodnie ze ścieżką</option><option value="fixed">Stała</option></select></label></>}
             <Field label="Pomiń wystąpienia" value={command.skippedOccurrences} onChange={(skippedOccurrences) => onChange({ skippedOccurrences })} />
             <p className="command-hint">Numery oddziel przecinkami lub podaj zakres, np. 3, 5-7. Wystąpienie 1 jest źródłem.</p>
           </>
@@ -1879,21 +1879,26 @@ export default function ModelingWorkspace({ onClose }) {
       setNotice('Najpierw zaznacz geometrię źródłową szyku.');
       return;
     }
-    setCommand({ type: 'patternSketch', mode: 'rectangular', columns: '3', rows: '2', spacingX: '15', spacingY: '15', count: '6', centerX: '0', centerY: '0', totalAngle: '360', skippedOccurrences: '' });
+    const sketch = document.sketches.find((item) => item.id === activeSketchId);
+    const pathOptions = (sketch?.entities || []).filter((entity) => ['line', 'arc'].includes(entity.type) && !selectedSketchEntityIds.includes(entity.id))
+      .map((entity, index) => ({ id: entity.id, label: `${entity.type === 'line' ? 'Linia' : 'Łuk'} ścieżki ${index + 1}` }));
+    setCommand({ type: 'patternSketch', mode: 'rectangular', columns: '3', rows: '2', spacingX: '15', spacingY: '15', count: '6', centerX: '0', centerY: '0', totalAngle: '360', pathEntityId: pathOptions[0]?.id || '', pathOptions, orientToPath: true, skippedOccurrences: '' });
     setNotice('Wybierz szyk prostokątny lub kołowy oraz opcjonalne wystąpienia do pominięcia.');
   };
 
   const confirmSketchPattern = () => {
     const applyPattern = (next) => command.mode === 'circular'
       ? circularSketchPattern(next, activeSketchId, selectedSketchEntityIds, { count: command.count, centerX: command.centerX, centerY: command.centerY, totalAngle: command.totalAngle, skippedOccurrences: command.skippedOccurrences })
-      : rectangularSketchPattern(next, activeSketchId, selectedSketchEntityIds, { columns: command.columns, rows: command.rows, spacingX: command.spacingX, spacingY: command.spacingY, skippedOccurrences: command.skippedOccurrences });
+      : command.mode === 'path'
+        ? pathSketchPattern(next, activeSketchId, selectedSketchEntityIds, { pathEntityId: command.pathEntityId, count: command.count, orientToPath: command.orientToPath, skippedOccurrences: command.skippedOccurrences })
+        : rectangularSketchPattern(next, activeSketchId, selectedSketchEntityIds, { columns: command.columns, rows: command.rows, spacingX: command.spacingX, spacingY: command.spacingY, skippedOccurrences: command.skippedOccurrences });
     try {
       const checked = cloneDocument(document);
       const result = applyPattern(checked);
       commit(applyPattern);
       setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: result.createdEntityIds });
       setCommand(null);
-      setNotice(`${command.mode === 'circular' ? 'Szyk kołowy' : 'Szyk prostokątny'} utworzył ${result.occurrences.length} ${result.occurrences.length === 1 ? 'kopię' : 'kopie'}${result.skippedOccurrences.length ? `; pominięto: ${result.skippedOccurrences.join(', ')}` : ''}. Cofnij przywraca stan.`);
+      setNotice(`${command.mode === 'circular' ? 'Szyk kołowy' : command.mode === 'path' ? 'Szyk po ścieżce' : 'Szyk prostokątny'} utworzył ${result.occurrences.length} ${result.occurrences.length === 1 ? 'kopię' : 'kopie'}${result.skippedOccurrences.length ? `; pominięto: ${result.skippedOccurrences.join(', ')}` : ''}. Cofnij przywraca stan.`);
     } catch (error) {
       setNotice(`Szyk nie został wykonany: ${error.message}`);
     }
@@ -2181,6 +2186,21 @@ export default function ModelingWorkspace({ onClose }) {
     };
     window.__madcadVerifyLoadPatternFixture = (mode = 'rectangular') => {
       const fixture = createDocument(`Szyk ${mode}`);
+      if (mode === 'path') {
+        const source = createSketchPoint({ x: 0, y: 0 });
+        const pathStart = createSketchPoint({ x: 0, y: 0, role: 'construction' });
+        const pathEnd = createSketchPoint({ x: 30, y: 0, role: 'construction' });
+        const pathLine = createSketchLine({ startPointId: pathStart.id, endPointId: pathEnd.id, role: 'construction' });
+        const sketch = createSketch({ name: 'Szkic szyku po ścieżce', plane: 'XY', entities: [source, pathStart, pathEnd, pathLine] });
+        fixture.sketches.push(sketch);
+        window.__madcadPatternFixtureIds = { sourceIds: [source.id], pathId: pathLine.id };
+        history.replace(fixture);
+        setActiveSketchId(sketch.id);
+        setWorkspace('sketch');
+        setSelection({ kind: 'sketch', id: sketch.id });
+        setCommand(null);
+        return;
+      }
       const points = [[10, -2], [14, -2], [14, 2], [10, 2]].map(([x, y]) => createSketchPoint({ x, y }));
       const lines = points.map((point, index) => createSketchLine({ startPointId: point.id, endPointId: points[(index + 1) % points.length].id }));
       const sketch = createSketch({ name: `Szkic szyku ${mode}`, plane: 'XY', entities: [...points, ...lines] });

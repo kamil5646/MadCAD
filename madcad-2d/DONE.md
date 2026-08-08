@@ -41,6 +41,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Więzy współliniowości i symetrii działają od solvera do przycisków i znaczników szkicu, z diagnostyką konfliktów.
 - [x] Sterujące wymiary ordinate X/Y i długości łuku mają tworzenie oraz edycję na szkicu, transakcyjne błędy, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
 - [x] Prostokątny i kołowy szyk szkicu kopiuje punkty, linie, łuki, okręgi i profile, obsługuje listy oraz zakresy pomijanych wystąpień i przechodzi pełny przepływ zapisu.
+- [x] Szyk szkicu po pojedynczej linii lub łuku rozstawia kopie równo, utrzymuje orientację albo obraca je do stycznej i obsługuje ten sam przepływ pomijania, undo/redo oraz zapisu.
 
 ## Podstawowe modyfikacje szkicu M2
 

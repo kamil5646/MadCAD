@@ -451,7 +451,27 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.[0]?.entities?.length === 24 && saved.sketches[0].profiles?.length === 3; })()`, 'autozapis szyku kołowego');
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 24 && window.__madcadVerifyDocumentState.sketches[0].profiles === 3`, 'ponownie otwarty szyk kołowy');
-  const patternFlow = { rectangular: true, circular: true, skippedOccurrences: true, undoRedo: true, reopened: true };
+
+  await window.webContents.executeJavaScript(`window.__madcadVerifyLoadPatternFixture?.('path')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 4 && window.__madcadPatternFixtureIds?.sourceIds?.length === 1`, 'fixture szyku po ścieżce');
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection(window.__madcadPatternFixtureIds.sourceIds, 'replace')`);
+  await clickTool('Szyk szkicu');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Typ szyku')`, 'dialog szyku po ścieżce');
+  await setCommandField('Typ szyku', 'path');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Orientacja')`, 'pola szyku po ścieżce');
+  await setCommandField('Wystąpienia', '4');
+  await setCommandField('Orientacja', 'path');
+  await setCommandField('Pomiń wystąpienia', '3');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const data = window.__madcadVerifyDocumentState?.sketches?.[0]?.entityData || []; const copies = data.filter((item) => item.type === 'point' && ![window.__madcadPatternFixtureIds.sourceIds[0]].includes(item.id) && item.role === 'standard'); return data.length === 6 && copies.some((item) => Math.abs(Number(item.geometry.x) - 10) < 1e-6) && copies.some((item) => Math.abs(Number(item.geometry.x) - 30) < 1e-6); })()`, 'szyk po ścieżce z pominięciem');
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 4`, 'undo szyku po ścieżce');
+  await sendShortcut('z', true);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 6`, 'redo szyku po ścieżce');
+  await waitForUi(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.sketches?.[0]?.entities?.length === 6`, 'autozapis szyku po ścieżce');
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 6`, 'ponownie otwarty szyk po ścieżce');
+  const patternFlow = { rectangular: true, circular: true, path: true, skippedOccurrences: true, undoRedo: true, reopened: true };
 
   progress('line and command termination');
   await clickByTitle('Nowy projekt');

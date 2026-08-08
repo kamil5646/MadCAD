@@ -51,7 +51,7 @@ import { analyzeSketchConstraints, applySketchConstraintSolution, solveSketchCon
 import { collectSketchSnapCandidates, snapSketchPoint } from '../src/cad-core/sketch-snap.js';
 import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketchLines, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../src/cad-core/sketch-modifiers.js';
 import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../src/cad-core/sketch-transforms.js';
-import { circularSketchPattern, parseSkippedPatternOccurrences, rectangularSketchPattern } from '../src/cad-core/sketch-patterns.js';
+import { circularSketchPattern, parseSkippedPatternOccurrences, pathSketchPattern, rectangularSketchPattern } from '../src/cad-core/sketch-patterns.js';
 import { edgeGroupVertices, topologyIdForFaceIndex, topologySelectionFromIntersection } from '../src/cad-core/brep-picking.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../src/cad-core/topology-references.js';
 import { createMidplane, createOffsetPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../src/cad-core/construction-planes.js';
@@ -1800,6 +1800,36 @@ test('szyk kołowy rozkłada geometrię po kącie i waliduje pominięcia', () =>
   assert.throws(() => circularSketchPattern(document, sketch.id, [line.id], { count: 4, skippedOccurrences: '1' }), /źródłową/);
   assert.deepEqual(document, before);
   assert.throws(() => rectangularSketchPattern(document, sketch.id, [line.id], { columns: 1, rows: 1 }), /od 2 do 100/);
+});
+
+test('szyk po ścieżce rozstawia kopie równo i orientuje je do linii oraz łuku', () => {
+  const document = createDocument('Szyk po ścieżce');
+  const source = createSketchPoint({ x: 0, y: 0 });
+  const pathStart = createSketchPoint({ x: 0, y: 0, role: 'construction' });
+  const pathEnd = createSketchPoint({ x: 30, y: 0, role: 'construction' });
+  const pathLine = createSketchLine({ startPointId: pathStart.id, endPointId: pathEnd.id, role: 'construction' });
+  const sketch = createSketch({ entities: [source, pathStart, pathEnd, pathLine] });
+  document.sketches.push(sketch);
+  const lineResult = pathSketchPattern(document, sketch.id, [source.id], { pathEntityId: pathLine.id, count: 4, orientToPath: true, skippedOccurrences: '3' });
+  assert.deepEqual(lineResult.occurrences.map((entry) => entry.occurrenceIndex), [2, 4]);
+  assert.deepEqual(lineResult.occurrences.map((entry) => {
+    const point = sketch.entities.find((entity) => entity.id === entry.entityIds[0]);
+    return [Number(point.geometry.x), Number(point.geometry.y)];
+  }), [[10, 0], [30, 0]]);
+
+  const arcCenter = createSketchPoint({ x: 0, y: 0, role: 'construction' });
+  const arcStart = createSketchPoint({ x: 10, y: 0, role: 'construction' });
+  const arcEnd = createSketchPoint({ x: 0, y: 10, role: 'construction' });
+  const pathArc = createSketchArc({ centerPointId: arcCenter.id, startPointId: arcStart.id, endPointId: arcEnd.id, role: 'construction' });
+  const markerStart = createSketchPoint({ x: 10, y: 0 });
+  const markerEnd = createSketchPoint({ x: 12, y: 0 });
+  const marker = createSketchLine({ startPointId: markerStart.id, endPointId: markerEnd.id });
+  sketch.entities.push(arcCenter, arcStart, arcEnd, pathArc, markerStart, markerEnd, marker);
+  const arcResult = pathSketchPattern(document, sketch.id, [marker.id], { pathEntityId: pathArc.id, count: 3, anchorX: 10, anchorY: 0, orientToPath: true });
+  const lastPoints = arcResult.occurrences.at(-1).pointIds.map((id) => sketch.entities.find((entity) => entity.id === id));
+  assert.ok(Math.abs(Number(lastPoints[0].geometry.x)) < 1e-8 && Math.abs(Number(lastPoints[0].geometry.y) - 10) < 1e-8);
+  assert.ok(Math.abs(Number(lastPoints[1].geometry.x)) < 1e-8 && Math.abs(Number(lastPoints[1].geometry.y) - 12) < 1e-8);
+  assert.throws(() => pathSketchPattern(document, sketch.id, [pathLine.id], { pathEntityId: pathLine.id, count: 3 }), /jednocześnie/);
 });
 
 test('kontrakt encji jest rozszerzalny bez zmiany formatu dokumentu', () => {

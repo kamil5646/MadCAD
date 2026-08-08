@@ -149,3 +149,53 @@ export function circularSketchPattern(document, sketchId, selectedIds, options =
   });
   return applyPattern(document, sketchId, selectedIds, transforms, options.skippedOccurrences, 'Szyk kołowy');
 }
+
+export function pathSketchPattern(document, sketchId, selectedIds, options = {}) {
+  const sketch = document?.sketches?.find((item) => item.id === sketchId);
+  if (!sketch) throw new Error('Nie znaleziono szkicu do szyku po ścieżce.');
+  const values = valuesFor(document);
+  const count = positiveInteger(options.count ?? 4, 'Liczba wystąpień');
+  if (count < 2) throw new Error('Szyk po ścieżce wymaga co najmniej dwóch wystąpień.');
+  const path = sketch.entities.find((entity) => entity.id === options.pathEntityId);
+  if (!path || !['line', 'arc'].includes(path.type)) throw new Error('Szyk po ścieżce wymaga wskazania jednej linii albo łuku.');
+  if ((selectedIds || []).includes(path.id)) throw new Error('Ścieżka nie może być jednocześnie geometrią źródłową szyku.');
+  const pointAt = (pointId) => {
+    const point = sketch.entities.find((entity) => entity.id === pointId && entity.type === 'point');
+    if (!point) throw new Error('Ścieżka wskazuje brakujący punkt.');
+    return [evaluateExpression(point.geometry.x, values), evaluateExpression(point.geometry.y, values)];
+  };
+  let sample;
+  if (path.type === 'line') {
+    const start = pointAt(path.pointIds[0]); const end = pointAt(path.pointIds[1]);
+    const angle = Math.atan2(end[1] - start[1], end[0] - start[0]);
+    sample = (ratio) => ({ point: [start[0] + (end[0] - start[0]) * ratio, start[1] + (end[1] - start[1]) * ratio], angle });
+  } else {
+    const center = pointAt(path.pointIds[0]); const start = pointAt(path.pointIds[1]); const end = pointAt(path.pointIds[2]);
+    const radius = Math.hypot(start[0] - center[0], start[1] - center[1]);
+    let sweep = Math.atan2(end[1] - center[1], end[0] - center[0]) - Math.atan2(start[1] - center[1], start[0] - center[0]);
+    if (path.geometry.direction === 'cw') { while (sweep >= 0) sweep -= Math.PI * 2; }
+    else { while (sweep <= 0) sweep += Math.PI * 2; }
+    const startAngle = Math.atan2(start[1] - center[1], start[0] - center[0]);
+    sample = (ratio) => {
+      const angle = startAngle + sweep * ratio;
+      return { point: [center[0] + Math.cos(angle) * radius, center[1] + Math.sin(angle) * radius], angle: angle + (sweep > 0 ? Math.PI / 2 : -Math.PI / 2) };
+    };
+  }
+  const source = sourceSelection(sketch, selectedIds);
+  const coordinates = source.points.map((point) => [evaluateExpression(point.geometry.x, values), evaluateExpression(point.geometry.y, values)]);
+  const anchor = options.anchorX !== undefined && options.anchorY !== undefined
+    ? [numeric(options.anchorX, values, 'Punkt bazowy X'), numeric(options.anchorY, values, 'Punkt bazowy Y')]
+    : [coordinates.reduce((sum, point) => sum + point[0], 0) / coordinates.length, coordinates.reduce((sum, point) => sum + point[1], 0) / coordinates.length];
+  const first = sample(0);
+  const orient = options.orientToPath !== false;
+  const transforms = Array.from({ length: count - 1 }, (_, index) => {
+    const target = sample((index + 1) / (count - 1));
+    const rotation = orient ? target.angle - first.angle : 0;
+    const cosine = Math.cos(rotation); const sine = Math.sin(rotation);
+    return ([x, y]) => {
+      const dx = x - anchor[0]; const dy = y - anchor[1];
+      return [target.point[0] + dx * cosine - dy * sine, target.point[1] + dx * sine + dy * cosine];
+    };
+  });
+  return applyPattern(document, sketchId, selectedIds, transforms, options.skippedOccurrences, 'Szyk po ścieżce');
+}
