@@ -51,7 +51,7 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 
 - [x] Offset plane ma nazwę, widoczność, parametryczną odległość, trwałe ID i pełny przepływ zapisu/undo/redo.
 - [x] Midplane i płaszczyzna przez trzy punkty.
-- [ ] Oś z krawędzi, walca, dwóch punktów oraz przecięcia dwóch płaszczyzn.
+- [x] Oś z krawędzi, walca, dwóch punktów oraz przecięcia dwóch płaszczyzn.
 - [ ] Punkt na wierzchołku, centrum i przecięciu.
 - [ ] Widoczność, nazwa i trwała referencja do konstrukcji.
 
@@ -140,4 +140,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M4.3 — Osie konstrukcyjne z krawędzi, walca, dwóch punktów i przecięcia dwóch płaszczyzn.`
+`M4.4 — Punkty konstrukcyjne na wierzchołku, w centrum i na przecięciu.`

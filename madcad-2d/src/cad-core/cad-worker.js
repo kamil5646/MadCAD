@@ -164,12 +164,27 @@ function runFeature(feature, bodyMap, bodyOrder) {
 function faceDescriptor(face) {
   try {
     const center = face.center.toTuple();
-    return {
+    const descriptor = {
       geometry: face.geomType,
       center,
       normal: face.normalAt(center).toTuple(),
       orientation: face.orientation,
     };
+    if (descriptor.geometry === 'CYLINDRE') {
+      const adaptor = face._geomAdaptor();
+      const cylinder = adaptor.Cylinder();
+      const axis = cylinder.Axis();
+      const location = axis.Location();
+      const direction = axis.Direction();
+      descriptor.axisOrigin = [location.X(), location.Y(), location.Z()];
+      descriptor.axisDirection = [direction.X(), direction.Y(), direction.Z()];
+      direction.delete();
+      location.delete();
+      axis.delete();
+      cylinder.delete();
+      adaptor.delete();
+    }
+    return descriptor;
   } catch (_error) {
     return { geometry: 'UNKNOWN_FACE' };
   }

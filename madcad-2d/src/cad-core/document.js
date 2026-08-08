@@ -536,10 +536,23 @@ export function validateDocument(document) {
         if (reference.planeType === 'midplane' && [reference.firstOffset, reference.secondOffset].some((value) => typeof value !== 'string' && typeof value !== 'number')) add(`${base}.firstOffset`, 'Płaszczyzna środkowa wymaga dwóch położeń.', 'TYPE');
         if (reference.planeType === 'three-points' && (!Array.isArray(reference.points) || reference.points.length !== 3 || reference.points.some((point) => !Array.isArray(point) || point.length !== 3))) add(`${base}.points`, 'Płaszczyzna wymaga trzech punktów 3D.', 'TYPE');
         if (typeof reference.visible !== 'boolean') add(`${base}.visible`, 'Widoczność płaszczyzny musi być wartością logiczną.', 'TYPE');
+      } else if (reference.kind === 'construction-axis') {
+        if (!['edge', 'cylinder', 'two-points', 'plane-intersection'].includes(reference.axisType)) add(`${base}.axisType`, 'Nieobsługiwany typ osi konstrukcyjnej.', 'UNSUPPORTED');
+        if (typeof reference.name !== 'string' || !reference.name.trim()) add(`${base}.name`, 'Oś konstrukcyjna wymaga nazwy.', 'REQUIRED');
+        if (['edge', 'two-points'].includes(reference.axisType) && (!Array.isArray(reference.points) || reference.points.length !== 2 || reference.points.some((point) => !Array.isArray(point) || point.length !== 3))) add(`${base}.points`, 'Oś wymaga dwóch punktów 3D.', 'TYPE');
+        if (reference.axisType === 'cylinder' && (![reference.origin, reference.direction].every((vector) => Array.isArray(vector) && vector.length === 3))) add(`${base}.direction`, 'Oś walca wymaga środka i kierunku 3D.', 'TYPE');
+        if (reference.axisType === 'plane-intersection' && (!Array.isArray(reference.planeIds) || reference.planeIds.length !== 2 || reference.planeIds.some((id) => typeof id !== 'string' || !id))) add(`${base}.planeIds`, 'Oś przecięcia wymaga dwóch ID płaszczyzn.', 'TYPE');
+        if (typeof reference.visible !== 'boolean') add(`${base}.visible`, 'Widoczność osi musi być wartością logiczną.', 'TYPE');
       }
     }
   });
   const referenceIds = new Set(references.filter(isRecord).map((reference) => reference.id));
+  references.forEach((reference, index) => {
+    if (!isRecord(reference) || reference.kind !== 'construction-axis' || reference.axisType !== 'plane-intersection' || !Array.isArray(reference.planeIds)) return;
+    reference.planeIds.forEach((planeId, planeIndex) => {
+      if (!referenceIds.has(planeId)) add(`references[${index}].planeIds[${planeIndex}]`, `Nie znaleziono płaszczyzny „${planeId}”.`, 'BROKEN_REFERENCE');
+    });
+  });
 
   features.forEach((feature, featureIndex) => {
     const base = `features[${featureIndex}]`;

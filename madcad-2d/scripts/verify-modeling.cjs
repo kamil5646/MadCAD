@@ -594,6 +594,36 @@ async function runUiFlow(window) {
   await confirmDialog();
   await waitForUi(window, `(() => { const plane = window.__madcadConstructionPlaneState?.find((item) => item.name === 'Płaszczyzna punktów'); return plane?.status === 'ok' && plane.origin[2] === 6 && plane.normal[2] === 1; })()`, 'płaszczyzna przez trzy niewspółliniowe punkty');
 
+  progress('construction axes');
+  await clickTool('Oś z krawędzi');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Oś z krawędzi')`, 'okno osi z krawędzi');
+  await setCommandField('Nazwa', 'Oś krawędzi testowej');
+  await setCommandField('Punkt 2 X', '25');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const axis = window.__madcadConstructionAxisState?.find((item) => item.name === 'Oś krawędzi testowej'); return axis?.status === 'ok' && axis.direction[0] === 1; })()`, 'oś z krawędzi');
+  await clickTool('Oś walca');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Oś walca')`, 'okno osi walca');
+  await setCommandField('Nazwa', 'Oś walca testowego');
+  await setCommandField('Środek X', '4');
+  await setCommandField('Kierunek Z', '3');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const axis = window.__madcadConstructionAxisState?.find((item) => item.name === 'Oś walca testowego'); return axis?.status === 'ok' && axis.origin[0] === 4 && axis.direction[2] === 1; })()`, 'oś walca');
+  await clickTool('Oś 2 punkty');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Oś przez dwa punkty')`, 'okno osi przez dwa punkty');
+  await setCommandField('Nazwa', 'Oś przekątna');
+  await setCommandField('Punkt 2 Y', '10');
+  await setCommandField('Punkt 2 Z', '10');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const axis = window.__madcadConstructionAxisState?.find((item) => item.name === 'Oś przekątna'); return axis?.status === 'ok' && Math.abs(axis.direction[1] - Math.SQRT1_2) < 1e-9 && Math.abs(axis.direction[2] - Math.SQRT1_2) < 1e-9; })()`, 'oś przez dwa punkty');
+  await clickTool('Oś przecięcia');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Oś przecięcia płaszczyzn')`, 'okno osi przecięcia');
+  await setCommandField('Nazwa', 'Oś przecięcia testowa');
+  await setCommandField('Płaszczyzna A', constructionPlaneId);
+  const midplaneId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.references.find((item) => item.name === 'Środek korpusu').id`);
+  await setCommandField('Płaszczyzna B', midplaneId);
+  await confirmDialog();
+  await waitForUi(window, `(() => { const axis = window.__madcadConstructionAxisState?.find((item) => item.name === 'Oś przecięcia testowa'); return axis?.status === 'ok' && axis.origin[0] === 15 && axis.origin[2] === 8 && Math.abs(axis.direction[1]) === 1; })()`, 'oś przecięcia dwóch płaszczyzn');
+
   progress('hole sketch');
   await clickTool('Utwórz szkic');
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'drugi wybór płaszczyzny');
@@ -704,6 +734,7 @@ async function runUiFlow(window) {
       sketches: saved.sketches?.length || 0,
       entities: saved.sketches?.reduce((total, sketch) => total + (sketch.entities?.length || 0), 0) || 0,
       constructionPlanes: saved.references?.filter((item) => item.kind === 'construction-plane').length || 0,
+      constructionAxes: saved.references?.filter((item) => item.kind === 'construction-axis').length || 0,
     };
   })()`);
   const autosaveRoundTrip = autosaveState.available
@@ -711,7 +742,8 @@ async function runUiFlow(window) {
     && autosaveState.features === 4
     && autosaveState.sketches === 2
     && autosaveState.entities === 10
-    && autosaveState.constructionPlanes === 3;
+    && autosaveState.constructionPlanes === 3
+    && autosaveState.constructionAxes === 4;
   if (!autosaveRoundTrip) throw new Error(`Desktop autosave did not preserve the current document: ${JSON.stringify(autosaveState)}`);
 
   const recoveryRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);

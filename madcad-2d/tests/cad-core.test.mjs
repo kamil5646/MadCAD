@@ -9,6 +9,7 @@ import {
   DOCUMENT_SCHEMA_VERSION,
   createDocument,
   createFeature,
+  createParameter,
   createRectangleProfile,
   createSketch,
   createStarterDocument,
@@ -45,6 +46,7 @@ import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scal
 import { edgeGroupVertices, topologyIdForFaceIndex, topologySelectionFromIntersection } from '../src/cad-core/brep-picking.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../src/cad-core/topology-references.js';
 import { createMidplane, createOffsetPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../src/cad-core/construction-planes.js';
+import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../src/cad-core/construction-axes.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import {
   arcCenterStartEnd,
@@ -293,6 +295,32 @@ test('midplane wyznacza połowę dwóch położeń, a plane przez trzy punkty od
   assert.deepEqual(threePoint.origin, [10 / 3, 10 / 3, 2]);
   assert.deepEqual(threePoint.normal, [0, 0, 1]);
   assert.throws(() => resolveConstructionPlane(createThreePointPlane({ points: [[0, 0, 0], [1, 1, 1], [2, 2, 2]] }), parameters), /zerowej długości/);
+});
+
+test('osie konstrukcyjne rozwiązują krawędź, walec, dwa punkty i przecięcie płaszczyzn', () => {
+  const parameters = [createParameter('H', '12')];
+  const edge = createEdgeAxis({ points: [[1, 2, 3], [11, 2, 3]], topologyId: 'edge-1', bodyId: 'body-1' });
+  const cylinder = createCylinderAxis({ origin: ['H / 2', 0, 0], direction: [0, 0, -5], topologyId: 'face-1', bodyId: 'body-1' });
+  const throughPoints = createTwoPointAxis({ points: [[0, 0, 0], [0, 'H', 'H']] });
+  assert.deepEqual(resolveConstructionAxis(edge, [], parameters).direction, [1, 0, 0]);
+  assert.deepEqual(resolveConstructionAxis(cylinder, [], parameters).origin, [6, 0, 0]);
+  assert.deepEqual(resolveConstructionAxis(cylinder, [], parameters).direction, [0, 0, -1]);
+  const liveBody = { id: 'body-1', topology: { edges: [{ id: 'edge-1', descriptor: { endpoints: [[2, 3, 4], [2, 13, 4]] } }], faces: [{ id: 'face-1', descriptor: { axisOrigin: [8, 9, 10], axisDirection: [1, 0, 0] } }] } };
+  assert.deepEqual(resolveConstructionAxis(edge, [], parameters, [liveBody]).direction, [0, 1, 0]);
+  assert.deepEqual(resolveConstructionAxis(cylinder, [], parameters, [liveBody]).origin, [8, 9, 10]);
+  assert.throws(() => resolveConstructionAxis(edge, [], parameters, [{ ...liveBody, topology: { edges: [], faces: [] } }]), /Utracono źródłową krawędź/);
+  const diagonal = resolveConstructionAxis(throughPoints, [], parameters).direction;
+  assert.ok(Math.abs(diagonal[1] - Math.SQRT1_2) < 1e-12 && Math.abs(diagonal[2] - Math.SQRT1_2) < 1e-12);
+
+  const xFive = createOffsetPlane({ name: 'X=5', basePlane: 'YZ', offset: '5' });
+  const zThree = createOffsetPlane({ name: 'Z=3', basePlane: 'XY', offset: '3' });
+  const intersection = createPlaneIntersectionAxis({ planeIds: [xFive.id, zThree.id] });
+  const resolved = resolveConstructionAxis(intersection, [xFive, zThree, intersection], parameters);
+  assert.deepEqual(resolved.origin.map((value) => Object.is(value, -0) ? 0 : value), [5, 0, 3]);
+  assert.deepEqual(resolved.direction, [0, -1, 0]);
+  assert.equal(resolveConstructionAxes([xFive, zThree, intersection], parameters)[0].status, 'ok');
+  assert.throws(() => resolveConstructionAxis(createTwoPointAxis({ points: [[1, 1, 1], [1, 1, 1]] })), /zerowej długości/);
+  assert.throws(() => resolveConstructionAxis(createPlaneIntersectionAxis({ planeIds: [xFive.id, createOffsetPlane({ basePlane: 'YZ', offset: '9' }).id] }), [xFive]), /Nie znaleziono/);
 });
 
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {

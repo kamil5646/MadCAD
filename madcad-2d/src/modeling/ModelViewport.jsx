@@ -341,7 +341,9 @@ export default function ModelViewport({
   selectedTopologyIds = [],
   onSelectTopology,
   constructionPlanes = [],
+  constructionAxes = [],
   selectedConstructionId = null,
+  selectedConstructionAxisId = null,
   selectedProfile,
   selectedProfilePlane = 'XY',
   directExtrudeDistance = 0,
@@ -733,9 +735,28 @@ export default function ModelViewport({
       outline.computeLineDistances();
       constructionGroup.add(mesh, outline);
     }
+    const axisLength = Math.max(80, radius * 1.6);
+    for (const axis of constructionAxes) {
+      if (!axis.visible || axis.status !== 'ok') continue;
+      const origin = new THREE.Vector3(...axis.origin);
+      const direction = new THREE.Vector3(...axis.direction).normalize().multiplyScalar(axisLength / 2);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute([
+        ...origin.clone().sub(direction).toArray(),
+        ...origin.clone().add(direction).toArray(),
+      ], 3));
+      const selected = axis.id === selectedConstructionAxisId;
+      const line = new THREE.Line(geometry, new THREE.LineDashedMaterial({ color: selected ? 0xffc857 : 0xd58cff, dashSize: 5, gapSize: 2, transparent: true, opacity: selected ? 1 : 0.88 }));
+      line.computeLineDistances();
+      line.userData = { constructionAxisId: axis.id };
+      const centerMarker = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.8, radius * 0.012), 12, 8), new THREE.MeshBasicMaterial({ color: selected ? 0xffc857 : 0xd58cff }));
+      centerMarker.position.copy(origin);
+      constructionGroup.add(line, centerMarker);
+    }
     scene.add(constructionGroup);
     if (new URLSearchParams(window.location.search).has('verify')) {
       window.__madcadConstructionPlaneState = constructionPlanes.map((plane) => ({ id: plane.id, name: plane.name, status: plane.status, visible: plane.visible, origin: plane.origin, normal: plane.normal }));
+      window.__madcadConstructionAxisState = constructionAxes.map((axis) => ({ id: axis.id, name: axis.name, axisType: axis.axisType, status: axis.status, visible: axis.visible, origin: axis.origin, direction: axis.direction }));
     }
     const sketchView = activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top';
     const direction = VIEW_DIRECTIONS[activeSketch ? sketchView : view] || VIEW_DIRECTIONS.iso;
@@ -1416,8 +1437,9 @@ export default function ModelViewport({
       delete window.__madcadModelScreenState;
       delete window.__madcadModelHover;
       delete window.__madcadConstructionPlaneState;
+      delete window.__madcadConstructionAxisState;
     };
-  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, selectedConstructionId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
+  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, selectedConstructionId, selectedConstructionAxisId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
 
   return (
     <div className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`} ref={hostRef}>
