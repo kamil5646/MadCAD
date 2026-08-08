@@ -36,8 +36,16 @@ jobs:
         working-directory: madcad-2d
         run: npm run build:ui
 
+      - name: Run CAD core tests
+        working-directory: madcad-2d
+        run: npm run test:core
+
       - name: Build and Publish Electron
         working-directory: madcad-2d
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --publish always
+
+      - name: Verify published package locally
+        working-directory: madcad-2d
+        run: npm run verify:package -- ${{ runner.os == 'macOS' && 'mac' || 'windows' }}

@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     defaults:
       run:
         working-directory: madcad-2d
@@ -37,9 +37,13 @@ jobs:
         run: npm run build:ui
 
   desktop-e2e:
-    name: Desktop modeling E2E
-    runs-on: windows-latest
+    name: Desktop modeling E2E (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     needs: core
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
     defaults:
       run:
         working-directory: madcad-2d
@@ -60,6 +64,45 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: modeling-verification
+          name: modeling-verification-${{ matrix.os }}
           path: madcad-2d/artifacts/
           if-no-files-found: warn
+
+  installer-smoke:
+    name: Installer smoke (${{ matrix.kind }})
+    runs-on: ${{ matrix.os }}
+    needs: desktop-e2e
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            kind: mac
+            build: npm run dist:mac:trusted
+          - os: windows-latest
+            kind: windows
+            build: npm run dist:win:trusted
+    defaults:
+      run:
+        working-directory: madcad-2d
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: madcad-2d/package-lock.json
+      - name: Install exact dependencies
+        run: npm ci
+      - name: Build installer
+        run: ${{ matrix.build }}
+      - name: Verify package signature and size
+        run: npm run verify:package -- ${{ matrix.kind }}
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: MadCAD-${{ matrix.kind }}
+          path: madcad-2d/release/MadCAD-*
+          if-no-files-found: error

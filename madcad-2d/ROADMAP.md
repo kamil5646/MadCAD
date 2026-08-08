@@ -113,7 +113,7 @@ Zaawansowane heatmapy, automatyczne rozmieszczanie wielu części i rozbudowany 
 
 Te prace nie czekają na koniec modelowania:
 
-- [~] CI: test core, build UI i desktop E2E; rozszerzyć macierz Windows/macOS oraz smoke test instalatora.
+- [x] CI: test core i build na Linux/macOS/Windows, desktop E2E na macOS/Windows oraz smoke test paczek ZIP/NSIS.
 - [x] Awaria workera, pełny dysk, uszkodzony projekt, kopia autozapisu i odzyskanie sesji są testowane.
 - [~] Electron ma context isolation, CSP, bezpieczne linki oraz limity krytycznych payloadów; pozostał sandbox i pełny audyt wszystkich starszych kanałów IPC.
 - [ ] Budżety wydajności pickingu, meshowania i długiej historii.
