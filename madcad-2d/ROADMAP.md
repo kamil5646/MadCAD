@@ -95,7 +95,7 @@ Tapered threads, wiele norm i klasy pasowania są `P1`.
 
 - [x] Measure: długość, odległość, kąt, promień/średnica, pole i pozycja.
 - [x] Section Analysis.
-- [ ] Objętość, pole, gęstość, masa i środek masy.
+- [x] Objętość, pole, gęstość, masa i środek masy.
 - [ ] Minimum Radius oraz podstawowa kontrola kolizji wielu brył.
 
 ## M9 — przygotowanie druku MVP `P0`

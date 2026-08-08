@@ -54,6 +54,7 @@ import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-
 import { createTextProfile } from '../src/cad-core/text-profile.js';
 import { resolveFaceEdgeHolePlacement } from '../src/cad-core/face-edge-hole.js';
 import { measureSelection } from '../src/cad-core/measure-selection.js';
+import { calculateMassProperties } from '../src/cad-core/mass-properties.js';
 import {
   arcCenterStartEnd,
   arcThroughThreePoints,
@@ -586,6 +587,15 @@ test('Measure zwraca długość, odległość, kąt, promień, średnicę, pole 
   assert.equal(lines.angle, 90);
   const vertexToFace = measureSelection([body], { items: [{ kind: 'vertex', id: 'vertex-a', bodyId: body.id }, { kind: 'face', id: 'face-a', bodyId: body.id }] });
   assert.equal(vertexToFace.distance, 5);
+});
+
+test('właściwości masowe sumują bryły i ważą środek masy objętością', () => {
+  const result = calculateMassProperties([
+    { metrics: { volume: 1000, area: 600, centerOfMass: [0, 0, 0] } },
+    { metrics: { volume: 3000, area: 1200, centerOfMass: [8, 4, 2] } },
+  ], 1.24);
+  assert.deepEqual(result, { bodyCount: 2, volume: 4000, area: 1800, density: 1.24, mass: 4.96, centerOfMass: [6, 3, 1.5] });
+  assert.throws(() => calculateMassProperties([], 0), /Gęstość/);
 });
 
 test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwałymi linkami', () => {

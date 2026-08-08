@@ -1327,6 +1327,10 @@
   accent-color: #29b6e4;
 }
 
+.measure-error {
+  color: #ffb3b3 !important;
+}
+
 .sketch-palette {
   position: absolute;
   z-index: 6;

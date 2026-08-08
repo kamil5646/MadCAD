@@ -515,6 +515,18 @@ async function runUiFlow(window) {
     button[key].onClick();
   })()`);
   await waitForUi(window, `!document.querySelector('.section-panel') && !window.__madcadSectionViewState?.enabled`, 'wyłączony Section Analysis');
+  await clickTool('Masa');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'massProperties' && document.querySelector('.mass-properties-panel')`, 'otwarte właściwości masowe');
+  await setCommandField('Gęstość', '1.2');
+  await waitForUi(window, `Math.abs(window.__madcadVerifyDocumentState?.command?.massProperties?.result?.volume - 12000) < 0.05 && Math.abs(window.__madcadVerifyDocumentState.command.massProperties.result.area - 3800) < 0.05 && Math.abs(window.__madcadVerifyDocumentState.command.massProperties.result.mass - 14.4) < 0.001 && Math.abs(window.__madcadVerifyDocumentState.command.massProperties.result.centerOfMass[2] - 5) < 0.001`, 'objętość pole masa i środek masy Box');
+  await waitForUi(window, `document.querySelector('.mass-properties-panel')?.textContent.includes('14,4 g') && document.querySelector('.mass-properties-panel')?.textContent.includes('12 000 mm³')`, 'wynik właściwości masowych');
+  await window.webContents.executeJavaScript(`(() => {
+    const button = document.querySelector('.mass-properties-panel header button');
+    const key = button && Object.keys(button).find((item) => item.startsWith('__reactProps'));
+    if (!key || typeof button[key]?.onClick !== 'function') throw new Error('Brak zamknięcia właściwości masowych.');
+    button[key].onClick();
+  })()`);
+  await waitForUi(window, `!document.querySelector('.mass-properties-panel')`, 'zamknięte właściwości masowe');
   await clickTool('Otwór');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Od krawędzi 1')`, 'pozycjonowanie otworu od krawędzi');
   await setCommandField('Od krawędzi 1', '6');
