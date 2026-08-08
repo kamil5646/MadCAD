@@ -1310,6 +1310,23 @@
   text-align: right;
 }
 
+.section-panel .command-field {
+  grid-template-columns: 102px minmax(0, 1fr);
+}
+
+.section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 12px;
+  color: #d7e0e7;
+  font-size: 11px;
+}
+
+.section-toggle input {
+  accent-color: #29b6e4;
+}
+
 .sketch-palette {
   position: absolute;
   z-index: 6;

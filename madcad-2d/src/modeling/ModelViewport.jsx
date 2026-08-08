@@ -356,6 +356,7 @@ export default function ModelViewport({
   showConstructionGeometry = true,
   showProjectedGeometry = true,
   sliceModel = false,
+  sectionAnalysis = null,
   parameters = [],
   showGrid = true,
   selectedBodyId,
@@ -453,7 +454,7 @@ export default function ModelViewport({
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.localClippingEnabled = Boolean(activeSketch && sliceModel);
+    renderer.localClippingEnabled = Boolean((activeSketch && sliceModel) || sectionAnalysis?.enabled);
     host.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -488,14 +489,30 @@ export default function ModelViewport({
     }
 
     const modelGroup = new THREE.Group();
-    const slicePlane = activeSketch && sliceModel
+    const sketchSlicePlane = activeSketch && sliceModel
       ? activePlane === 'XZ'
         ? new THREE.Plane(new THREE.Vector3(0, -1, 0), -activePlaneOffset)
         : activePlane === 'YZ'
           ? new THREE.Plane(new THREE.Vector3(1, 0, 0), -activePlaneOffset)
           : new THREE.Plane(new THREE.Vector3(0, 0, 1), -activePlaneOffset)
       : null;
-    const clippingPlanes = slicePlane ? [slicePlane] : [];
+    const sectionNormal = sectionAnalysis?.plane === 'XZ'
+      ? new THREE.Vector3(0, 1, 0)
+      : sectionAnalysis?.plane === 'YZ'
+        ? new THREE.Vector3(1, 0, 0)
+        : new THREE.Vector3(0, 0, 1);
+    if (sectionAnalysis?.flip) sectionNormal.negate();
+    const sectionOffset = Number(sectionAnalysis?.offset) || 0;
+    const sectionPlane = sectionAnalysis?.enabled
+      ? new THREE.Plane(sectionNormal, -sectionNormal.dot(
+        sectionAnalysis.plane === 'XZ'
+          ? new THREE.Vector3(0, sectionOffset, 0)
+          : sectionAnalysis.plane === 'YZ'
+            ? new THREE.Vector3(sectionOffset, 0, 0)
+            : new THREE.Vector3(0, 0, sectionOffset),
+      ))
+      : null;
+    const clippingPlanes = [sketchSlicePlane, sectionPlane].filter(Boolean);
     const pickables = [];
     const facePickables = [];
     const edgePickables = [];
@@ -566,6 +583,32 @@ export default function ModelViewport({
       }
     }
     scene.add(modelGroup);
+
+    const sectionGroup = new THREE.Group();
+    if (sectionAnalysis?.enabled) {
+      const sectionGeometry = new THREE.PlaneGeometry(gridSize * 0.82, gridSize * 0.82);
+      const sectionMaterial = new THREE.MeshBasicMaterial({ color: 0x5de1ff, transparent: true, opacity: 0.075, side: THREE.DoubleSide, depthWrite: false });
+      const sectionSurface = new THREE.Mesh(sectionGeometry, sectionMaterial);
+      if (sectionAnalysis.plane === 'XZ') {
+        sectionSurface.rotation.x = Math.PI / 2;
+        sectionSurface.position.y = sectionOffset;
+      } else if (sectionAnalysis.plane === 'YZ') {
+        sectionSurface.rotation.y = Math.PI / 2;
+        sectionSurface.position.x = sectionOffset;
+      } else sectionSurface.position.z = sectionOffset;
+      sectionSurface.renderOrder = 4;
+      sectionGroup.add(sectionSurface);
+      scene.add(sectionGroup);
+    }
+    if (new URLSearchParams(window.location.search).has('verify')) {
+      window.__madcadSectionViewState = {
+        enabled: Boolean(sectionAnalysis?.enabled),
+        plane: sectionAnalysis?.plane || null,
+        offset: sectionOffset,
+        flip: Boolean(sectionAnalysis?.flip),
+        clippingPlanes: clippingPlanes.length,
+      };
+    }
 
     const directGroup = new THREE.Group();
     const directPickables = [];
@@ -1513,6 +1556,7 @@ export default function ModelViewport({
       disposeObject(sketchGroup);
       disposeObject(directGroup);
       disposeObject(constructionGroup);
+      disposeObject(sectionGroup);
       if (plate) disposeObject(plate);
       grid.geometry.dispose();
       grid.material.dispose();
@@ -1528,8 +1572,9 @@ export default function ModelViewport({
       delete window.__madcadConstructionPlaneState;
       delete window.__madcadConstructionAxisState;
       delete window.__madcadConstructionPointState;
+      delete window.__madcadSectionViewState;
     };
-  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, snapThresholdPx, sketchModifierMode]);
+  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode]);
 
   return (
     <div className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`} ref={hostRef}>

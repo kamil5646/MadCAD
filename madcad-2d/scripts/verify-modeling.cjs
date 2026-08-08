@@ -497,6 +497,24 @@ async function runUiFlow(window) {
     button[key].onClick();
   })()`);
   await waitForUi(window, `!document.querySelector('.measure-panel')`, 'zamknięty Measure');
+  await clickTool('Przekrój');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'sectionAnalysis' && document.querySelector('.section-panel')`, 'otwarty Section Analysis');
+  await setCommandField('Płaszczyzna', 'XZ');
+  await setCommandField('Przesunięcie', '15');
+  await window.webContents.executeJavaScript(`(() => {
+    const input = document.querySelector('.section-toggle input');
+    const key = input && Object.keys(input).find((item) => item.startsWith('__reactProps'));
+    if (!key || typeof input[key]?.onChange !== 'function') throw new Error('Brak przełącznika strony przekroju.');
+    input[key].onChange({ target: { checked: true } });
+  })()`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.sectionAnalysis?.plane === 'XZ' && window.__madcadVerifyDocumentState.command.sectionAnalysis.offset === '15' && window.__madcadVerifyDocumentState.command.sectionAnalysis.flip === true && window.__madcadSectionViewState?.enabled && window.__madcadSectionViewState.plane === 'XZ' && window.__madcadSectionViewState.offset === 15 && window.__madcadSectionViewState.clippingPlanes === 1`, 'aktywny przekrój XZ');
+  await window.webContents.executeJavaScript(`(() => {
+    const button = document.querySelector('.section-panel header button');
+    const key = button && Object.keys(button).find((item) => item.startsWith('__reactProps'));
+    if (!key || typeof button[key]?.onClick !== 'function') throw new Error('Brak zamknięcia Section Analysis.');
+    button[key].onClick();
+  })()`);
+  await waitForUi(window, `!document.querySelector('.section-panel') && !window.__madcadSectionViewState?.enabled`, 'wyłączony Section Analysis');
   await clickTool('Otwór');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Od krawędzi 1')`, 'pozycjonowanie otworu od krawędzi');
   await setCommandField('Od krawędzi 1', '6');

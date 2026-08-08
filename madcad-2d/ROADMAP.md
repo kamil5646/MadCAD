@@ -94,7 +94,7 @@ Tapered threads, wiele norm i klasy pasowania są `P1`.
 ## M8 — Inspect MVP `P0`
 
 - [x] Measure: długość, odległość, kąt, promień/średnica, pole i pozycja.
-- [ ] Section Analysis.
+- [x] Section Analysis.
 - [ ] Objętość, pole, gęstość, masa i środek masy.
 - [ ] Minimum Radius oraz podstawowa kontrola kolizji wielu brył.
 
