@@ -323,6 +323,33 @@ async function runUiFlow(window) {
   await sendKey('Escape');
   await waitForUi(window, `!document.querySelector('.tutorial-dialog')`, 'zamknięty samouczek');
 
+  progress('SVG sketch import, undo, redo and reopen');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla importu SVG');
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny importu');
+  await pickPlane('XY');
+  await window.webContents.executeJavaScript(`(async () => {
+    const input = [...document.querySelectorAll('input[type="file"]')].find((item) => item.accept.includes('.svg'));
+    const key = input && Object.keys(input).find((item) => item.startsWith('__reactProps'));
+    const handler = key && input[key]?.onChange;
+    if (!handler) throw new Error('Brak interfejsu importu SVG/DXF.');
+    const svg = '<svg width="40mm" height="20mm" viewBox="0 0 40 20"><rect x="0" y="0" width="40" height="20"/></svg>';
+    await handler({ target: { files: [new File([svg], 'plate.svg', { type: 'image/svg+xml' })], value: '' } });
+  })()`);
+  await waitForUi(window, `document.querySelector('.import-sketch-dialog .confirm')`, 'dialog importu SVG');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 8 && window.__madcadVerifyDocumentState?.sketches?.at(-1)?.profiles === 1`, 'zaimportowany profil SVG');
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 0`, 'undo importu SVG');
+  await sendShortcut('z', true);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 8`, 'redo importu SVG');
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.at(-1)?.entities?.length === 8; })()`, 'autozapis importu SVG');
+  const importedRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${importedRevision} && window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 8`, 'ponownie otwarty import SVG', modelingTimeoutMs);
+  const sketchImport = { format: 'svg', entities: 8, profiles: 1, undoRedo: true, reopened: true };
+
   progress('line and command termination');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla linii');
@@ -1396,6 +1423,7 @@ async function runUiFlow(window) {
     commandDialogs: true,
     printWorkspace: true,
     tutorial,
+    sketchImport,
     autosaveRoundTrip,
     workerRecovery,
   };

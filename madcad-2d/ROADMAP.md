@@ -67,7 +67,7 @@ Pozostałe warianty UCS/płaszczyzn/osi są `P1`.
 - [x] Associative link oraz czytelny stan utraconej referencji.
 - [x] Slice i kontrola widoczności profili, więzów oraz projected geometry.
 
-Import SVG/DXF jest `P1`.
+Import SVG/DXF został ukończony w `P1.1`.
 
 ## M6 — modelowanie części MVP `P0`
 
@@ -121,6 +121,12 @@ Te prace nie czekają na koniec modelowania:
 - [x] Kanały alpha/beta/stable, SHA-256, wymagany podpis paczek release, rollback instalacji macOS i updater ignorujący niezaufany adres z renderera.
 - [x] Wbudowany samouczek „pierwsza część do druku” ma ścieżkę PL/EN i jawną listę znanych ograniczeń alpha.
 
+## P1 — rozszerzenie modelowania części
+
+- [x] P1.1 Import SVG/DXF do aktywnego szkicu: wykrywanie i wybór jednostek, profile, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
+- [ ] P1.2 Więzy `collinear` i `symmetry` od solvera do interfejsu, z diagnostyką konfliktów i round-trip projektu.
+- [ ] P1.3 Wymiary ordinate oraz długości łuku.
+
 ## Definition of Done
 
 Każda funkcja spełnia wymagania wspólne: test happy path i błędu, anulowanie bez częściowego stanu, undo/redo, zapis/otwarcie, poprawny komunikat użytkownika i brak aktywnej atrapy.
@@ -143,4 +149,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.1 — import SVG/DXF do szkicu z kontrolą jednostek, profilem, undo/redo, zapisem i testem E2E.`
+`P1.2 — więzy collinear i symmetry od solvera do interfejsu, z diagnostyką konfliktów i round-trip projektu.`

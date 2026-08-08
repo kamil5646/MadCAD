@@ -6,7 +6,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 
 - Pełny zestaw wymiarów i więzów: symmetry, curvature, collinear, ordinate i długość łuku.
 - Szyki szkicu prostokątne, kołowe i po ścieżce z pomijaniem wystąpień.
-- Import SVG/DXF do szkicu.
+- [x] Import SVG/DXF do szkicu — przeniesiony i ukończony jako `P1.1` w aktywnym planie.
 - Rozbudowany UCS, płaszczyzny tangent/angle/path oraz pełny zestaw osi i punktów konstrukcyjnych.
 - Extrude To Object, offset start, draft i thin extrude.
 - Press Pull, Draft, Split Face/Body, Delete/Heal/Replace Face.

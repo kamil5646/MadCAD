@@ -67,6 +67,7 @@ import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-p
 import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, transformPrintPoint } from '../src/cad-core/print-layout.js';
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
 import { analyzePrintability } from '../src/cad-core/print-analysis.js';
+import { inspectSketchImport, parseSketchImport } from '../src/cad-core/sketch-import.js';
 import { resolveModelingLanguage, translateModelingText } from '../src/modeling/i18n.js';
 import { tutorialForLanguage } from '../src/modeling/tutorial-content.js';
 import {
@@ -952,6 +953,47 @@ test('samouczek PL/EN prowadzi do eksportu i jawnie wymienia ograniczenia alpha'
     assert.ok(tutorial.limitations.some((item) => item.includes('STEP')));
     assert.ok(tutorial.limitations.some((item) => item.includes('Linux')));
   }
+});
+
+test('import SVG tworzy profil szkicu, skaluje cale i odwraca oś Y', () => {
+  const svg = '<svg width="2in" height="1in" viewBox="0 0 2 1"><rect x="0" y="0" width="2" height="1"/><circle cx="1" cy="0.5" r="0.2"/></svg>';
+  assert.equal(inspectSketchImport(svg, 'svg').detectedUnit, 'inch');
+  const imported = parseSketchImport(svg, 'svg', { sourceUnit: 'auto' });
+  assert.equal(imported.scale, 25.4);
+  assert.equal(imported.curveCount, 5);
+  assert.equal(imported.profiles.length, 1);
+  assert.equal(imported.profiles[0].innerLoops.length, 1);
+  const coordinates = imported.entities.filter((entity) => entity.type === 'point').map((entity) => Number(entity.geometry.y));
+  assert.equal(Math.min(...coordinates), -25.4);
+});
+
+test('automatyczna skala SVG uwzględnia relację fizycznego rozmiaru do viewBox', () => {
+  const imported = parseSketchImport('<svg width="100mm" height="50mm" viewBox="0 0 200 100"><path d="M 0 0 H 200 V 100 H 0 Z"/></svg>', 'svg');
+  assert.equal(imported.scale, 0.5);
+  const xs = imported.entities.filter((entity) => entity.type === 'point').map((entity) => Number(entity.geometry.x));
+  assert.equal(Math.max(...xs), 100);
+});
+
+test('import DXF obsługuje jednostki, LINE, zamkniętą LWPOLYLINE, CIRCLE i ARC', () => {
+  const dxf = ['0','SECTION','2','HEADER','9','$INSUNITS','70','4','0','ENDSEC','0','SECTION','2','ENTITIES','0','LINE','10','0','20','0','11','5','21','0','0','LWPOLYLINE','70','1','10','0','20','0','10','10','20','0','10','10','20','10','10','0','20','10','0','CIRCLE','10','4','20','4','40','2','0','ARC','10','20','20','20','40','5','50','0','51','90','0','ENDSEC','0','EOF'].join('\n');
+  const imported = parseSketchImport(dxf, '.dxf');
+  assert.equal(imported.detectedUnit, 'millimeter');
+  assert.equal(imported.curveCount, 7);
+  assert.ok(imported.profiles.length >= 1);
+  assert.ok(imported.entities.some((entity) => entity.type === 'circle'));
+  assert.ok(imported.entities.some((entity) => entity.type === 'arc'));
+});
+
+test('import DXF pomija geometrię definicji BLOCKS poza sekcją ENTITIES', () => {
+  const dxf = ['0','SECTION','2','BLOCKS','0','LINE','10','0','20','0','11','100','21','0','0','ENDSEC','0','SECTION','2','ENTITIES','0','LINE','10','0','20','0','11','5','21','0','0','ENDSEC','0','EOF'].join('\n');
+  const imported = parseSketchImport(dxf, 'dxf');
+  assert.equal(imported.curveCount, 1);
+});
+
+test('import szkicu odrzuca pusty plik, nieznany format i plik bez geometrii', () => {
+  assert.throws(() => parseSketchImport('', 'svg'), /pusty/i);
+  assert.throws(() => inspectSketchImport('<svg/>', 'pdf'), /SVG albo DXF/i);
+  assert.throws(() => parseSketchImport('<svg><text>abc</text></svg>', 'svg'), /geometrii/i);
 });
 
 test('model szkicu obsługuje punkty, linie, łuki, okręgi i wszystkie role geometrii', () => {
