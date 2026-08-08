@@ -733,6 +733,9 @@ export default function ModelingWorkspace({ onClose }) {
   const selectedBodyIds = useMemo(() => (
     selection?.items || (selection?.kind === 'body' ? [selection] : [])
   ).filter((item) => item.kind === 'body').map((item) => item.id), [selection]);
+  const selectedEdgeItems = useMemo(() => (
+    selection?.items || (selection?.kind === 'edge' ? [selection] : [])
+  ).filter((item) => item.kind === 'edge' && item.bodyId), [selection]);
   const constructionPlanes = useMemo(() => resolveConstructionPlanes(document.references, document.parameters), [document.references, document.parameters]);
   const firstBodyId = `body-${document.features.find((feature) => feature.type === 'extrude' && feature.operation === 'new')?.id || ''}`;
 
@@ -1829,12 +1832,15 @@ export default function ModelingWorkspace({ onClose }) {
       setNotice('Wybierz bryłę docelową.');
       return;
     }
-    const selectedEdges = (selection?.items || (selection?.kind === 'edge' ? [selection] : []))
-      .filter((item) => item.kind === 'edge' && item.bodyId === targetBodyId);
+    const selectedEdges = selectedEdgeItems.filter((item) => item.bodyId === targetBodyId);
+    if (!selectedEdges.length) {
+      setNotice(`Wybierz co najmniej jedną krawędź bryły dla ${type === 'fillet' ? 'Fillet' : 'Chamfer'}.`);
+      return;
+    }
     const topologyReferences = selectedEdges.map((item, index) => {
       const body = engine.bodies.find((candidate) => candidate.id === item.bodyId);
       const descriptor = body?.topology?.edges?.find((edge) => edge.id === item.id)?.descriptor || null;
-      return createTopologyReference({ selection: item, descriptor, label: `${type === 'fillet' ? 'Zaokrąglenie' : 'Fazowanie'} — krawędź ${index + 1}` });
+      return { ...createTopologyReference({ selection: item, descriptor, label: `${type === 'fillet' ? 'Zaokrąglenie' : 'Fazowanie'} — krawędź ${index + 1}` }), scope: 'feature-input' };
     });
     setCommand({ type, size: '1', previewFeature: null, topologyReferences });
     window.setTimeout(() => updateCommand({ size: '1' }), 0);
@@ -2247,7 +2253,7 @@ export default function ModelingWorkspace({ onClose }) {
             ) : (
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || !selectedProfile} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || selectedBodyIds.length !== 2} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || !hasHoleReference || !engine.bodies.length} /></RibbonGroup>
-                <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !engine.bodies.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !engine.bodies.length} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
+                <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
                 <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={CircleDotDashed} label="Punkt wierzchołka" onClick={() => openConstructionPoint('vertex')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt centrum" onClick={() => openConstructionPoint('center')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt przecięcia" onClick={() => openConstructionPoint('intersection')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Otwórz" onClick={() => fileInputRef.current?.click()} /></RibbonGroup>
                 <RibbonGroup label="WYBIERZ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>

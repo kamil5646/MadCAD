@@ -73,7 +73,7 @@ Import SVG/DXF jest `P1`.
 
 - [x] Extrude: New/Join/Cut/Intersect, jedna/dwie strony, symetrycznie i Through All.
 - [x] Boolean Union/Subtract/Intersect dla wskazanych brył.
-- [ ] Fillet i Chamfer wyłącznie wskazanych krawędzi.
+- [x] Fillet i Chamfer wyłącznie wskazanych krawędzi.
 - [ ] Shell z wyborem usuwanych ścian.
 - [ ] Box, Cylinder, Sphere i Torus.
 - [ ] Jeden manipulator dla Extrude, Move/Rotate i Offset Face.
@@ -143,4 +143,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M6.3 — Fillet i Chamfer wyłącznie na wskazanych krawędziach.`
+`M6.4 — Shell z wyborem usuwanych ścian.`

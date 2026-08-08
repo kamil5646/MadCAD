@@ -826,19 +826,27 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[2]?.operation === 'subtract' && window.__madcadVerifyEngineState?.revision > ${restoredSubtractRevision} && document.querySelector('.engine-status')?.classList.contains('ready')`, 'przywrócony Boolean Subtract', modelingTimeoutMs);
 
   progress('fillet and chamfer');
+  const filletEdge = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies[0]; const edge = body.topology.edges.find((item) => item.descriptor.geometry === 'LINE' && item.descriptor.length > 5); return { kind: 'edge', id: edge.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }; })()`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(filletEdge)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'edge'`, 'krawędź wskazana do Fillet');
   await clickTool('Zaokrąglij');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Zaokrąglenie')`, 'polecenie zaokrąglenia');
   await setCommandField('Promień', '0.8');
+  const filletRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 4`, 'dodane zaokrąglenie');
-  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready') && !document.querySelector('.timeline-item.error')`, 'przeliczone zaokrąglenie', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${filletRevision} && document.querySelector('.engine-status')?.classList.contains('ready') && !document.querySelector('.timeline-item.error')`, 'przeliczone zaokrąglenie', modelingTimeoutMs);
 
+  const chamferEdge = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies[0]; const edge = body.topology.edges.find((item) => item.descriptor.geometry === 'LINE' && item.descriptor.length > 5); return { kind: 'edge', id: edge.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }; })()`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(chamferEdge)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'edge'`, 'krawędź wskazana do Chamfer');
   await clickTool('Fazuj');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Fazowanie')`, 'polecenie fazowania');
   await setCommandField('Odległość', '0.4');
+  const chamferRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 5`, 'dodane fazowanie');
-  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready') && !document.querySelector('.timeline-item.error')`, 'przeliczone fazowanie', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${chamferRevision} && document.querySelector('.engine-status')?.classList.contains('ready') && !document.querySelector('.timeline-item.error')`, 'przeliczone fazowanie', modelingTimeoutMs);
 
   progress('parameters and undo/redo');
   await clickTool('Parametry');

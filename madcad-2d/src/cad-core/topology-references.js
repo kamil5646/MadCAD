@@ -45,7 +45,7 @@ export function topologySelectionForRecord(body, kind, record) {
 export function inspectTopologyReferences(document, bodies) {
   const bodyMap = new Map((bodies || []).map((body) => [body.id, body]));
   const featureMap = new Map((document?.features || []).map((feature) => [feature.id, feature]));
-  return (document?.references || []).filter((reference) => reference.kind === TOPOLOGY_REFERENCE_KIND).map((reference) => {
+  return (document?.references || []).filter((reference) => reference.kind === TOPOLOGY_REFERENCE_KIND && reference.scope !== 'feature-input').map((reference) => {
     const body = bodyMap.get(reference.bodyId);
     const records = topologyRecords(body, reference.topologyKind);
     const resolvedRecord = records.find((record) => record.id === reference.topologyId) || null;

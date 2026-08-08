@@ -235,6 +235,7 @@ export function prepareDocument(document) {
         ...feature,
         status: 'ready',
         diagnostics: [],
+        topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
         sizeValue: positive(evaluateExpression(feature[valueKey], parameterResult.values), feature.type === 'fillet' ? 'Promień' : 'Odległość fazy'),
       };
     }

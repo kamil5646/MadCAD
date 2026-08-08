@@ -181,9 +181,51 @@ function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.type === 'fillet' || feature.type === 'chamfer') {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);
+    const selectedHashes = selectedEdgeHashes(target.shape, feature.topologyReferences || []);
+    const radius = selectedHashes.size
+      ? (edge) => selectedHashes.has(edge.hashCode) ? feature.sizeValue : null
+      : feature.sizeValue;
     target.shape = feature.type === 'fillet'
-      ? target.shape.fillet(feature.sizeValue)
-      : target.shape.chamfer(feature.sizeValue);
+      ? target.shape.fillet(radius)
+      : target.shape.chamfer(radius);
+  }
+}
+
+function descriptorPointDistance(first, second) {
+  if (!Array.isArray(first) || !Array.isArray(second)) return Number.POSITIVE_INFINITY;
+  return Math.hypot(...first.map((value, axis) => Number(value) - Number(second[axis] || 0)));
+}
+
+function edgeReferenceDistance(reference, descriptor) {
+  const expected = reference?.descriptor;
+  if (!expected?.endpoints || !descriptor?.endpoints) return Number.POSITIVE_INFINITY;
+  const direct = descriptorPointDistance(expected.endpoints[0], descriptor.endpoints[0]) + descriptorPointDistance(expected.endpoints[1], descriptor.endpoints[1]);
+  const reverse = descriptorPointDistance(expected.endpoints[0], descriptor.endpoints[1]) + descriptorPointDistance(expected.endpoints[1], descriptor.endpoints[0]);
+  return Math.min(direct, reverse) + Math.abs(Number(expected.length || 0) - Number(descriptor.length || 0));
+}
+
+function selectedEdgeHashes(shape, references) {
+  if (!references.length) return new Set();
+  const edges = shape.edges;
+  try {
+    const descriptors = edges.map((edge) => edgeDescriptor(edge));
+    const hashes = new Set();
+    for (const reference of references) {
+      let bestIndex = -1;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      descriptors.forEach((descriptor, index) => {
+        const distance = edgeReferenceDistance(reference, descriptor);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestIndex = index;
+        }
+      });
+      if (bestIndex < 0 || bestDistance > 1e-4) throw new Error(`Nie odnaleziono wskazanej krawędzi „${reference.label || reference.topologyId}”.`);
+      hashes.add(edges[bestIndex].hashCode);
+    }
+    return hashes;
+  } finally {
+    edges.forEach((edge) => edge.delete());
   }
 }
 
