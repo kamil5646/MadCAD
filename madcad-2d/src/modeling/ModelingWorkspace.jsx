@@ -19,6 +19,7 @@ import {
   HardDriveDownload,
   Hexagon,
   Home,
+  CircleHelp,
   Eye,
   EyeOff,
   Layers3,
@@ -116,6 +117,7 @@ import { calculatePrintLayout, orientationForBedFace } from '../cad-core/print-l
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { observeModelingLocalization, resolveModelingLanguage } from './i18n.js';
+import { tutorialForLanguage } from './tutorial-content.js';
 import { ThreeMFLoader } from 'three/examples/jsm/loaders/3MFLoader.js';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import ModelViewport from './ModelViewport.jsx';
@@ -272,6 +274,26 @@ function RibbonGroup({ label, children, end = false }) {
     <div className={`ribbon-group ${end ? 'ribbon-group-end' : ''}`}>
       <div className="ribbon-tools">{children}</div>
       <span className="ribbon-group-label">{label}</span>
+    </div>
+  );
+}
+
+function FirstPartTutorial({ onClose }) {
+  const content = tutorialForLanguage(window.document.documentElement.lang);
+  useEffect(() => {
+    const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+  return (
+    <div className="tutorial-backdrop">
+      <section className="tutorial-dialog" role="dialog" aria-modal="true" aria-labelledby="firstPartTutorialTitle">
+        <header><div><strong id="firstPartTutorialTitle">{content.title}</strong><span>{content.intro}</span></div><button type="button" title={content.close} aria-label={content.close} onClick={onClose} autoFocus><X size={17} /></button></header>
+        <div className="tutorial-body">
+          <ol>{content.steps.map(([title, description]) => <li key={title}><strong>{title}</strong><span>{description}</span></li>)}</ol>
+          <aside><h3><AlertTriangle size={16} />{content.limitationsTitle}</h3><ul>{content.limitations.map((item) => <li key={item}>{item}</li>)}</ul></aside>
+        </div>
+      </section>
     </div>
   );
 }
@@ -898,6 +920,7 @@ function featureIcon(type, size = 16) {
 }
 
 export default function ModelingWorkspace({ onClose }) {
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   useEffect(() => {
     const root = window.document.querySelector('.modeling-shell');
     const language = resolveModelingLanguage(window.document.documentElement.lang, window.desktopApp?.appLanguage);
@@ -2783,7 +2806,7 @@ export default function ModelingWorkspace({ onClose }) {
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
         <input ref={importInputRef} hidden type="file" accept=".step,.stp,.stl,.3mf,model/step,model/stl,model/3mf" onChange={chooseModelImport} />
         <div className="document-tab"><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" disabled={readOnly} onChange={(event) => commit((next) => { next.name = event.target.value; })} />{readOnly ? <span className="read-only-badge">TYLKO ODCZYT · v{documentAccess.sourceVersion}</span> : <span>*</span>}<button type="button" title="Zamknij dokument" onClick={onClose}><X size={13} /></button></div>
-        <div className="title-actions"><button type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><button type="button" title="Dokumentacja 2D" onClick={onClose}><AppWindow size={15} /><span>Dokumentacja</span></button></div>
+        <div className="title-actions"><button type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><button type="button" title="Samouczek pierwszej części" aria-label="Samouczek pierwszej części" onClick={() => setTutorialOpen(true)}><CircleHelp size={15} /><span>Samouczek</span></button><button type="button" title="Dokumentacja 2D" onClick={onClose}><AppWindow size={15} /><span>Dokumentacja</span></button></div>
       </header>
 
       <section className="command-area">
@@ -2917,6 +2940,7 @@ export default function ModelingWorkspace({ onClose }) {
           <span className="timeline-end" />
         </div>
       </footer>
+      {tutorialOpen && <FirstPartTutorial onClose={() => setTutorialOpen(false)} />}
     </section>
   );
 }

@@ -119,7 +119,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] Budżety wydajności pickingu, meshowania i długiej historii są mierzone w testach core i desktop E2E.
 - [x] PL/EN, dostępność klawiatury i fokusu, DPI 100–200% oraz bezpieczny powrót okna po odłączeniu monitora są testowane.
 - [x] Kanały alpha/beta/stable, SHA-256, wymagany podpis paczek release, rollback instalacji macOS i updater ignorujący niezaufany adres z renderera.
-- [ ] Aktualny samouczek „pierwsza część do druku” i znane ograniczenia.
+- [x] Wbudowany samouczek „pierwsza część do druku” ma ścieżkę PL/EN i jawną listę znanych ograniczeń alpha.
 
 ## Definition of Done
 

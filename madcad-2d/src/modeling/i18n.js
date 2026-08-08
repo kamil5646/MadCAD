@@ -16,6 +16,8 @@ const ENGLISH_TEXT = Object.freeze({
   'NARZĘDZIA': 'TOOLS',
   'DRUK 3D': '3D PRINT',
   'Dokumentacja': 'Documentation',
+  'Samouczek': 'Tutorial',
+  'Samouczek pierwszej części': 'First part tutorial',
   'Parametry modelu': 'Model parameters',
   'Początek': 'Origin',
   'Konstrukcja': 'Construction',

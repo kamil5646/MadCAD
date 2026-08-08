@@ -43,6 +43,7 @@
       "LICENSE",
       "electron/**/*",
       "README.md",
+      "FIRST_PART.md",
       "package.json"
     ],
     "directories": {

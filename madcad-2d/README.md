@@ -4,6 +4,7 @@ Aplikacja desktop CAD 2D (Electron) do projektowania technicznego i konstrukcji 
 
 ## Szybkie Linki
 - Główny plan rozwoju: [`ROADMAP.md`](./ROADMAP.md)
+- Samouczek pierwszej części i znane ograniczenia: [`FIRST_PART.md`](./FIRST_PART.md)
 - Najnowszy release: https://github.com/kamil5646/MadCAD2D/releases/latest
 - Strona projektu (GitHub Pages): https://kamil5646.github.io/MadCAD2D/
 - README repo (główny): [`../README.md`](../README.md)
@@ -18,8 +19,9 @@ MadCAD rozwija się aktywnie. Jeśli chcesz wesprzeć rozwój aplikacji:
 - Narzędzia CAD 2D: linia, polilinia, prostokąt, okrąg, pomiar, wymiarowanie.
 - Modyfikacje: przesuń, kopiuj, odsuń, duplikuj, usuwanie, kolejność obiektów.
 - Generator stali: szablony `brama`, `ogrodzenie`, `balkon`.
-- Moduł druku 3D: dodatkowy widok projektu, wyciąganie prostokątów, okręgów i zamkniętych obszarów oraz eksport STL.
-- Import/eksport: `JSON`, `DXF`, `SVG`, druk/PDF.
+- Modeler 3D: szkice z więzami, historia parametryczna, podstawowe operacje bryłowe, otwory, inspekcja i przygotowanie druku.
+- Import/eksport 3D: `STEP`, `STL`, `3MF`; projekt parametryczny: `.madcad`.
+- Wbudowany samouczek „Pierwsza część do druku” z jawną listą ograniczeń wersji alpha.
 - Aktualizacje z poziomu aplikacji.
 
 ## Język Interfejsu
@@ -87,8 +89,8 @@ npm run dist:release:trusted
 ```
 
 ## Uwaga O Numerze Wersji
-- Techniczna wersja builda jest semver (`5.2.0`) i wynika z `package.json`.
-- W komunikacji/release używana jest skrócona forma (`5.2`).
+- Techniczna wersja builda jest pełnym semver, np. `6.0.0-alpha.1`, i wynika z `package.json`.
+- Sufiks `alpha`/`beta` wybiera kanał aktualizacji; wersja bez sufiksu używa kanału stabilnego.
 
 ## ODA File Converter (DWG)
 Jeśli import/eksport DWG nie działa, skonfiguruj ODA ręcznie:

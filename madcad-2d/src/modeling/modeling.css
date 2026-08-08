@@ -59,6 +59,55 @@
   outline-offset: 2px !important;
 }
 
+.tutorial-backdrop {
+  position: fixed;
+  z-index: 12000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(10, 16, 23, 0.76);
+}
+
+.tutorial-dialog {
+  display: grid;
+  width: min(820px, 100%);
+  max-height: min(760px, 100%);
+  overflow: hidden;
+  border: 1px solid #647382;
+  border-radius: 7px;
+  background: #303a47;
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.5);
+}
+
+.tutorial-dialog > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 17px 18px;
+  border-bottom: 1px solid #566473;
+  background: #3b4756;
+}
+
+.tutorial-dialog > header div { display: grid; gap: 5px; }
+.tutorial-dialog > header strong { font-size: 17px; }
+.tutorial-dialog > header span { color: var(--mc-muted); line-height: 1.45; }
+.tutorial-dialog > header button { color: white; background: transparent; border: 0; width: 30px; height: 30px; }
+.tutorial-body { overflow: auto; padding: 18px; }
+.tutorial-body ol { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 0; padding: 0; list-style: none; counter-reset: none; }
+.tutorial-body ol li { display: grid; gap: 4px; min-height: 70px; padding: 11px 12px; border: 1px solid #536171; border-radius: 4px; background: #29333f; }
+.tutorial-body ol strong { color: #78daf5; font-size: 11px; }
+.tutorial-body ol span { color: #c4cdd5; line-height: 1.45; }
+.tutorial-body aside { margin-top: 16px; padding: 13px 15px; border: 1px solid rgba(241, 189, 98, 0.5); border-radius: 4px; background: rgba(104, 72, 26, 0.2); }
+.tutorial-body aside h3 { display: flex; align-items: center; gap: 7px; margin: 0 0 8px; color: #ffd489; font-size: 12px; }
+.tutorial-body aside ul { display: grid; gap: 5px; margin: 0; padding-left: 18px; color: #d6dce1; line-height: 1.4; }
+
+@media (max-width: 760px), (max-height: 620px) {
+  .tutorial-backdrop { padding: 10px; }
+  .tutorial-body ol { grid-template-columns: 1fr; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .modeling-shell *,
   .modeling-shell *::before,

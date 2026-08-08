@@ -84,9 +84,10 @@ async function verifyEnglishModelingUi() {
       createSketch: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Create sketch'),
       browser: document.querySelector('.browser-heading strong')?.textContent.trim(),
       engineReady: document.querySelector('.engine-status')?.textContent.includes('ready'),
+      tutorialButton: Boolean(document.querySelector('button[title="First part tutorial"]')),
       polishPrimaryLabel: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Utwórz szkic'),
     }))()`);
-    if (state.language !== 'en' || !state.createSketch || state.browser !== 'BROWSER' || !state.engineReady || state.polishPrimaryLabel) {
+    if (state.language !== 'en' || !state.createSketch || state.browser !== 'BROWSER' || !state.engineReady || !state.tutorialButton || state.polishPrimaryLabel) {
       throw new Error(`English UI smoke check failed: ${JSON.stringify(state)}`);
     }
     return state;
@@ -314,6 +315,13 @@ async function runUiFlow(window) {
       `sketch entities ${expectedEntities}`,
     );
   };
+
+  progress('first printable part tutorial');
+  await clickByTitle('Samouczek pierwszej części');
+  await waitForUi(window, `document.querySelectorAll('.tutorial-body ol li').length === 8 && document.querySelectorAll('.tutorial-body aside li').length >= 6`, 'samouczek i ograniczenia alpha');
+  const tutorial = await window.webContents.executeJavaScript(`({ steps: document.querySelectorAll('.tutorial-body ol li').length, limitations: document.querySelectorAll('.tutorial-body aside li').length })`);
+  await sendKey('Escape');
+  await waitForUi(window, `!document.querySelector('.tutorial-dialog')`, 'zamknięty samouczek');
 
   progress('line and command termination');
   await clickByTitle('Nowy projekt');
@@ -1387,6 +1395,7 @@ async function runUiFlow(window) {
     describedControls,
     commandDialogs: true,
     printWorkspace: true,
+    tutorial,
     autosaveRoundTrip,
     workerRecovery,
   };

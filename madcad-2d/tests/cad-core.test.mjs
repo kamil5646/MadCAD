@@ -67,6 +67,7 @@ import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, tran
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
 import { analyzePrintability } from '../src/cad-core/print-analysis.js';
 import { resolveModelingLanguage, translateModelingText } from '../src/modeling/i18n.js';
+import { tutorialForLanguage } from '../src/modeling/tutorial-content.js';
 import {
   arcCenterStartEnd,
   arcThroughThreePoints,
@@ -939,6 +940,17 @@ test('kanały aktualizacji respektują semver, zaufane hosty i integralność SH
   assert.equal(updatePolicy.parseChecksumFile(`${hash}  MadCAD.zip\n`, 'MadCAD.zip'), hash);
   assert.equal(updatePolicy.verifyBufferChecksum(payload, hash), true);
   assert.equal(updatePolicy.verifyBufferChecksum(Buffer.from('tampered'), hash), false);
+});
+
+test('samouczek PL/EN prowadzi do eksportu i jawnie wymienia ograniczenia alpha', () => {
+  for (const language of ['pl', 'en']) {
+    const tutorial = tutorialForLanguage(language);
+    assert.equal(tutorial.steps.length, 8);
+    assert.ok(tutorial.steps.at(-1)[1].includes(language === 'en' ? 'export' : 'wyeksportuj'));
+    assert.ok(tutorial.limitations.length >= 6);
+    assert.ok(tutorial.limitations.some((item) => item.includes('STEP')));
+    assert.ok(tutorial.limitations.some((item) => item.includes('Linux')));
+  }
 });
 
 test('model szkicu obsługuje punkty, linie, łuki, okręgi i wszystkie role geometrii', () => {
