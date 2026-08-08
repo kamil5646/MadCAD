@@ -559,6 +559,9 @@ export function validateDocument(document) {
   const referenceIds = new Set(references.filter(isRecord).map((reference) => reference.id));
   sketches.forEach((sketch, index) => {
     if (sketch?.support?.referenceId && !referenceIds.has(sketch.support.referenceId)) add(`sketches[${index}].support.referenceId`, `Nie znaleziono podpory szkicu „${sketch.support.referenceId}”.`, 'BROKEN_REFERENCE');
+    (sketch?.entities || []).forEach((entity, entityIndex) => {
+      if (entity?.projectionReferenceId && !referenceIds.has(entity.projectionReferenceId)) add(`sketches[${index}].entities[${entityIndex}].projectionReferenceId`, `Nie znaleziono źródła Project „${entity.projectionReferenceId}”.`, 'BROKEN_REFERENCE');
+    });
   });
   references.forEach((reference, index) => {
     if (!isRecord(reference) || reference.kind !== 'construction-axis' || reference.axisType !== 'plane-intersection' || !Array.isArray(reference.planeIds)) return;

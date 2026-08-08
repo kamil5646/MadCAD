@@ -105,6 +105,7 @@ import { createTopologyReference, inspectTopologyReferences, reassignTopologyRef
 import { createMidplane, createOffsetPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../cad-core/construction-axes.js';
 import { createCenterPoint, createIntersectionPoint, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../cad-core/construction-points.js';
+import { projectTopologyToSketch } from '../cad-core/sketch-projection.js';
 import ModelViewport from './ModelViewport.jsx';
 import './modeling.css';
 
@@ -136,6 +137,7 @@ const TOOL_DESCRIPTIONS = {
   'Fillet szkicu': 'Zaokrąglij wspólny narożnik dokładnie dwóch zaznaczonych linii.',
   'Faza szkicu': 'Zetnij wspólny narożnik dokładnie dwóch zaznaczonych linii.',
   'Transformuj': 'Obróć, skopiuj, odbij lub przeskaluj zaznaczoną geometrię szkicu.',
+  'Project': 'Przenieś wskazane wierzchołki i krawędzie modelu do szkicu jako trwale powiązaną geometrię.',
   'Usuń': 'Usuń zaznaczoną geometrię oraz bezpiecznie zależne profile i operacje.',
   'Zakończ szkic': 'Zamknij edycję szkicu i wróć do modelowania bryły.',
   'Wyciągnij': 'Wyciągnij zaznaczony profil w bryłę; możesz też przeciągnąć niebieską strzałkę.',
@@ -373,7 +375,7 @@ function Field({ label, value, onChange, suffix = '', type = 'text', disabled = 
 }
 
 function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, onUndoSegment, onFinishPath }) {
-  if (!command || command.type === 'plane' || command.type === 'parameters' || ['trimSketch', 'extendSketch', 'breakSketch'].includes(command.type)) return null;
+  if (!command || command.type === 'plane' || command.type === 'parameters' || ['trimSketch', 'extendSketch', 'breakSketch', 'projectSketch'].includes(command.type)) return null;
   const isRectangle = command.type === 'rectangle';
   const isCircle = command.type === 'circle';
   const isArc = command.type === 'arc';
@@ -1317,6 +1319,32 @@ export default function ModelingWorkspace({ onClose }) {
     }
   };
 
+  const projectSelectedTopology = () => {
+    if (readOnly) return readOnlyNotice();
+    const selected = (selection?.items || (['edge', 'vertex'].includes(selection?.kind) ? [selection] : [])).filter((item) => ['edge', 'vertex'].includes(item.kind));
+    if (command?.type !== 'projectSketch' || !selected.length) {
+      setCommand({ type: 'projectSketch' });
+      setNotice('Project: kliknij wierzchołek albo krawędź modelu. Ctrl/Shift dodaje kolejne; ponownie wybierz Project, aby zatwierdzić.');
+      return;
+    }
+    try {
+      const sources = selected.map((item) => {
+        const body = engine.bodies.find((candidate) => candidate.id === item.bodyId);
+        const records = item.kind === 'edge' ? body?.topology?.edges : body?.topology?.vertices;
+        const record = records?.find((candidate) => candidate.id === item.id);
+        if (!record) throw new Error(`Nie znaleziono źródła ${item.kind}.`);
+        return { selection: { ...item, sourceFeatureId: item.sourceFeatureId || body.sourceFeatureId }, descriptor: record.descriptor };
+      });
+      let result;
+      commit((next) => { result = projectTopologyToSketch(next, activeSketchId, sources); });
+      setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: result.createdEntityIds });
+      setCommand(null);
+      setNotice(`Project utworzył ${result.createdEntityIds.length} elementów z ${result.createdReferenceIds.length} trwałych referencji.`);
+    } catch (error) {
+      setNotice(`Project nie został wykonany: ${error.message}`);
+    }
+  };
+
   const deleteSelectedSketchEntities = () => {
     if (readOnly) return readOnlyNotice();
     if (activeSketchId && selectedSketchConstraintId) {
@@ -1549,7 +1577,7 @@ export default function ModelingWorkspace({ onClose }) {
         planeOffset: sketch.planeOffset,
         support: sketch.support,
         entities: sketch.entities.length,
-        entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, pointIds: entity.pointIds, geometry: entity.geometry })),
+        entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, role: entity.role, fixed: entity.fixed, projectionReferenceId: entity.projectionReferenceId, pointIds: entity.pointIds, geometry: entity.geometry })),
         profiles: sketch.profiles.length,
         profileIds: sketch.profiles.map((profile) => profile.id),
         constraints: sketch.constraints.map((constraint) => ({ id: constraint.id, type: constraint.type, value: constraint.value })),
@@ -2129,7 +2157,7 @@ export default function ModelingWorkspace({ onClose }) {
             {activeSketchId ? (
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /></RibbonGroup>
-                <RibbonGroup label="EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { setCommand(null); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Maximize2} label="Extend" onClick={() => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' })} primary={command?.type === 'extendSketch'} disabled={readOnly} /><ToolButton icon={Minus} label="Break" onClick={() => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' })} primary={command?.type === 'breakSketch'} disabled={readOnly} /><ToolButton icon={Copy} label="Offset" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} /><ToolButton icon={CircleDotDashed} label="Fillet szkicu" onClick={() => openSketchCorner('fillet')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={Triangle} label="Faza szkicu" onClick={() => openSketchCorner('chamfer')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={RotateCw} label="Transformuj" onClick={openSketchTransform} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
+                <RibbonGroup label="EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { setCommand(null); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Maximize2} label="Extend" onClick={() => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' })} primary={command?.type === 'extendSketch'} disabled={readOnly} /><ToolButton icon={Minus} label="Break" onClick={() => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' })} primary={command?.type === 'breakSketch'} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Project" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} /><ToolButton icon={Copy} label="Offset" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} /><ToolButton icon={CircleDotDashed} label="Fillet szkicu" onClick={() => openSketchCorner('fillet')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={Triangle} label="Faza szkicu" onClick={() => openSketchCorner('chamfer')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={RotateCw} label="Transformuj" onClick={openSketchTransform} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
                 <RibbonGroup label="SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
             ) : workspace === 'print' ? (
@@ -2169,7 +2197,7 @@ export default function ModelingWorkspace({ onClose }) {
             onSketchSelection={handleSketchSelection}
             onSketchConstraintSelection={(constraintId) => setSelection({ kind: 'sketchConstraint', id: constraintId, sketchId: activeSketchId })}
             onSketchConstraintValueChange={updateSketchConstraintValue}
-            sketchModifierMode={command?.type === 'trimSketch' ? 'trim' : command?.type === 'extendSketch' ? 'extend' : command?.type === 'breakSketch' ? 'break' : null}
+            sketchModifierMode={command?.type === 'trimSketch' ? 'trim' : command?.type === 'extendSketch' ? 'extend' : command?.type === 'breakSketch' ? 'break' : command?.type === 'projectSketch' ? 'project' : null}
             onSketchModify={modifySketchAtPoint}
             onSketchProfileSelection={(profileId) => setSelection({ kind: 'profile', id: profileId, sketchId: activeSketchId })}
             onSketchMove={readOnly ? undefined : moveSketchEntities}

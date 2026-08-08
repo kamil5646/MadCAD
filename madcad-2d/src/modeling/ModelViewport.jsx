@@ -1085,6 +1085,14 @@ export default function ModelViewport({
         setSnapFeedback(null);
         return;
       }
+      if (activeSketch && sketchModifierMode === 'project') {
+        const hit = raycaster.intersectObjects([...vertexPickables, ...edgePickables], false)[0];
+        const topology = hit ? topologySelectionFromIntersection(hit) : null;
+        if (!topology || !['vertex', 'edge'].includes(topology.kind)) return;
+        event.preventDefault();
+        topologySelectRef.current?.(topology, selectionMode(event));
+        return;
+      }
       if (activeSketch && sketchModifierMode && sketchRender) {
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
         const hit = pickSketchEntity(event);
@@ -1548,7 +1556,7 @@ export default function ModelViewport({
       )}
       {activeSketchId && <div className="sketch-plane-badge"><PencilRulerIcon /> Szkic · {activePlane}</div>}
       {activeSketchId && draftType && <div className="sketch-pointer-hint">Kliknij środek, a następnie punkt rozmiaru</div>}
-      {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
+      {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
       {activeSketchId && sketchTool && <div className="sketch-pointer-hint">Klikaj kolejne punkty · kliknij początek, aby zamknąć · Alt chwilowo wyłącza snap · Enter/Escape kończy</div>}
       {activeSketchId && !sketchTool && !draftType && !sketchModifierMode && <div className="sketch-pointer-hint">Kliknij lub przeciągnij geometrię · Ctrl/Shift wybiera wiele · przeciągnij tło, aby wybrać oknem</div>}
     </div>

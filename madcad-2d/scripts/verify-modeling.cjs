@@ -680,6 +680,17 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'drugi wybór płaszczyzny');
   await pickPlane('XY');
   await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'drugi tryb szkicu');
+  await clickTool('Project');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'projectSketch'`, 'tryb Project');
+  const projectionEdge = await window.webContents.executeJavaScript(`(() => {
+    const body = window.__madcadVerifyEngineState.bodies[0];
+    const edge = body.topology.edges.find((item) => { const [first, second] = item.descriptor.endpoints || []; return first && second && Math.hypot(second[0] - first[0], second[1] - first[1]) > 1; });
+    return edge && { id: edge.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId };
+  })()`);
+  if (!projectionEdge) throw new Error('Brak niezerowej krawędzi do Project.');
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify({ kind: 'edge', ...projectionEdge })}, 'replace')`);
+  await clickTool('Project');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.some((entity) => entity.role === 'projected' && entity.fixed && entity.projectionReferenceId)`, 'projekcja krawędzi z trwałym linkiem');
   await clickTool('Okrąg');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Okrąg')`, 'polecenie okręgu');
   await setCommandField('Średnica', '12');
@@ -793,7 +804,7 @@ async function runUiFlow(window) {
     && autosaveState.schemaVersion === 4
     && autosaveState.features === 4
     && autosaveState.sketches === 4
-    && autosaveState.entities === 10
+    && autosaveState.entities === 13
     && autosaveState.constructionPlanes === 3
     && autosaveState.constructionAxes === 4
     && autosaveState.constructionPoints === 3;

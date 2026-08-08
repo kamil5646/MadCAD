@@ -48,6 +48,7 @@ import { createTopologyReference, inspectTopologyReferences, reassignTopologyRef
 import { createMidplane, createOffsetPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../src/cad-core/construction-planes.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../src/cad-core/construction-axes.js';
 import { createCenterPoint, createIntersectionPoint, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../src/cad-core/construction-points.js';
+import { projectTopologyToSketch } from '../src/cad-core/sketch-projection.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import {
   arcCenterStartEnd,
@@ -355,6 +356,22 @@ test('szkic na planarnej ścianie zachowuje podporę i odsunięcie w przygotowan
   const broken = structuredClone(document);
   broken.references = [];
   assert.equal(validateDocument(broken).issues.some((issue) => issue.path.endsWith('support.referenceId') && issue.code === 'BROKEN_REFERENCE'), true);
+});
+
+test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwałymi linkami', () => {
+  const document = createDocument('Project');
+  const sketch = createSketch({ plane: 'XY', planeOffset: '8' });
+  document.sketches.push(sketch);
+  const vertex = { selection: { kind: 'vertex', id: 'vertex-a', bodyId: 'body-a' }, descriptor: { point: [2, 3, 8] } };
+  const edges = [[[0, 0, 8], [10, 0, 8]], [[10, 0, 8], [10, 10, 8]], [[10, 10, 8], [0, 10, 8]], [[0, 10, 8], [0, 0, 8]]]
+    .map((endpoints, index) => ({ selection: { kind: 'edge', id: `edge-${index}`, bodyId: 'body-a' }, descriptor: { endpoints } }));
+  const result = projectTopologyToSketch(document, sketch.id, [vertex, ...edges]);
+  assert.equal(result.createdReferenceIds.length, 5);
+  assert.equal(sketch.entities.filter((entity) => entity.role === 'projected' && entity.fixed).length, 9);
+  assert.equal(sketch.profiles.length, 1);
+  assert.equal(validateDocument(document).valid, true);
+  assert.equal(sketch.entities.every((entity) => entity.role !== 'projected' || entity.sourceReferenceId), true);
+  assert.equal(sketch.entities.every((entity) => !entity.projectionReferenceId || document.references.some((reference) => reference.id === entity.projectionReferenceId)), true);
 });
 
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {

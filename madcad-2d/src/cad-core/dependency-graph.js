@@ -111,6 +111,7 @@ export function buildDependencyGraph(document) {
     }
   }
   for (const sketch of document.sketches || []) addEdge(sketch.support?.referenceId, sketch.id, 'supports');
+  for (const sketch of document.sketches || []) for (const entity of sketch.entities || []) addEdge(entity.projectionReferenceId, entity.id, 'projects');
 
   for (const feature of document.features || []) {
     addNode(feature.id, 'feature', feature.name, { featureType: feature.type });

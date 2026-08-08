@@ -63,7 +63,7 @@ Pozostałe warianty UCS/płaszczyzn/osi są `P1`.
   - [x] Płaszczyzny bazowe XY/XZ/YZ.
   - [x] Planarna ściana bryły z trwałą referencją podpory i odsunięciem.
   - [x] Nazwana płaszczyzna konstrukcyjna.
-- [ ] Project punktu, krawędzi i zamkniętej pętli.
+- [x] Project punktu, krawędzi i zamkniętej pętli.
 - [ ] Associative link oraz czytelny stan utraconej referencji.
 - [ ] Slice i kontrola widoczności profili, więzów oraz projected geometry.
 
@@ -143,4 +143,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M5.3 — Project punktu i krawędzi do aktywnego szkicu z trwałym linkiem.`
+`M5.4 — Associative link Project oraz czytelny stan utraconej referencji.`
