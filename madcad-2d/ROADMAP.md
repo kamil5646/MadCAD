@@ -52,7 +52,7 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 - [x] Trim linii i łuku wybiera kliknięty fragment na canvasie, aktualizuje profil i bezpiecznie usuwa zerwane więzy oraz operacje.
 - [x] Extend i Break działają na canvasie dla linii/łuków, zachowują ID oraz zależne profile i bezpiecznie czyszczą więzy.
 - [x] Offset linii, łańcucha i profilu oraz pojedynczego łuku/okręgu z parametryczną odległością i kontrolą strony przez znak.
-- [ ] Sketch Fillet i Sketch Chamfer.
+- [x] Sketch Fillet i Sketch Chamfer dla dwóch linii zachowują profil oraz ID geometrii i jawnie czyszczą zerwane więzy.
 - [ ] Move, Rotate, Copy i Mirror; Scale tylko dla geometrii bez blokujących wymiarów.
 - [ ] Operacje aktualizują lub jawnie odrzucają więzy, zamiast pozostawiać zerwane referencje.
 
@@ -158,4 +158,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M2.4 — Sketch Fillet i Sketch Chamfer z bezpiecznym skracaniem geometrii oraz obsługą więzów.`
+`M2.5 — Rotate, Copy i Mirror zaznaczenia; domknięcie istniejącego Move oraz bezpieczny Scale.`

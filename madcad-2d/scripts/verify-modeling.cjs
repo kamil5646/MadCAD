@@ -245,14 +245,16 @@ async function runUiFlow(window) {
   const editTargets = await window.webContents.executeJavaScript(`(() => {
     const entities = window.__madcadVerifyDocumentState.sketches.at(-1).entityData;
     const pointAt = (x, y) => entities.find((entity) => entity.type === 'point' && Number(entity.geometry.x) === x && Number(entity.geometry.y) === y)?.id;
+    const originPointId = pointAt(0, 0);
     return {
       concavePointId: pointAt(10, 10),
       neighborPointId: pointAt(30, 10),
-      originPointId: pointAt(0, 0),
+      originPointId,
+      originCornerLineIds: entities.filter((entity) => entity.type === 'line' && entity.pointIds?.includes(originPointId)).map((entity) => entity.id),
       lineId: entities.find((entity) => entity.type === 'line')?.id,
     };
   })()`);
-  if (!editTargets.concavePointId || !editTargets.neighborPointId || !editTargets.lineId) throw new Error(`Missing L-profile edit targets: ${JSON.stringify(editTargets)}`);
+  if (!editTargets.concavePointId || !editTargets.neighborPointId || !editTargets.lineId || editTargets.originCornerLineIds.length !== 2) throw new Error(`Missing L-profile edit targets: ${JSON.stringify(editTargets)}`);
   await waitForUi(window, `window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(editTargets.concavePointId)}]`, 'punkty ekranowe szkicu');
 
   await clickSketchEntity(editTargets.concavePointId);
@@ -301,6 +303,29 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const point = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData?.find((entity) => entity.id === ${JSON.stringify(editTargets.originPointId)}); return Number(point?.geometry?.x) !== 0 || Number(point?.geometry?.y) !== 0; })()`, 'przeciągnięcie segmentu');
   await sendShortcut('z');
   await waitForUi(window, `(() => { const point = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData?.find((entity) => entity.id === ${JSON.stringify(editTargets.originPointId)}); return Number(point?.geometry?.x) === 0 && Number(point?.geometry?.y) === 0; })()`, 'Undo przeciągnięcia segmentu');
+
+  progress('sketch fillet and chamfer commands');
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.(${JSON.stringify(editTargets.originCornerLineIds)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length === 2`, 'dwie linie narożnika Fillet');
+  await clickTool('Fillet szkicu');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Fillet szkicu')`, 'okno Fillet szkicu');
+  await setCommandField('Promień', '2');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 15`, 'utworzenie Fillet szkicu');
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 12`, 'Undo Fillet szkicu');
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.(${JSON.stringify(editTargets.originCornerLineIds)}, 'replace')`);
+  await clickTool('Faza szkicu');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Chamfer szkicu')`, 'okno Chamfer szkicu');
+  await setCommandField('Odległość', '3');
+  await clickDialogButton('Anuluj');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 12`, 'anulowanie Chamfer szkicu');
+  await clickTool('Faza szkicu');
+  await setCommandField('Odległość', '3');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 14`, 'utworzenie Chamfer szkicu');
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 12`, 'Undo Chamfer szkicu');
 
   progress('sketch offset command, cancel and undo');
   await clickSketchEntity(editTargets.lineId);

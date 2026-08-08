@@ -125,6 +125,12 @@ function numericDistance(value, parameters) {
   return distanceValue;
 }
 
+function numericPositiveSize(value, parameters, label) {
+  const size = evaluateExpression(value, parameterValues(parameters));
+  if (!Number.isFinite(size) || size <= EPSILON) throw new Error(`${label} wymaga dodatniego, skończonego wymiaru.`);
+  return size;
+}
+
 function lineIntersection(firstStart, firstEnd, secondStart, secondEnd) {
   const firstDirection = [firstEnd[0] - firstStart[0], firstEnd[1] - firstStart[1]];
   const secondDirection = [secondEnd[0] - secondStart[0], secondEnd[1] - secondStart[1]];
@@ -418,4 +424,129 @@ export function offsetSketchProfile(document, sketchId, profileId, distanceExpre
   const profile = sketch?.profiles?.find((item) => item.id === profileId);
   if (!profile) throw new Error('Nie znaleziono profilu do wykonania Offset.');
   return offsetSketchEntities(document, sketchId, profile.entityIds, distanceExpression, options);
+}
+
+function preserveCornerProfileLineage(sketch, parameters, previousProfiles, sourceEntityIds, connectorId) {
+  refreshDetectedSketchProfiles(sketch, parameters);
+  const sourceSet = new Set(sourceEntityIds);
+  for (const previous of previousProfiles) {
+    if (!sourceEntityIds.every((entityId) => previous.entityIds?.includes(entityId))) continue;
+    const expected = new Set([...(previous.entityIds || []), connectorId]);
+    const replacement = sketch.profiles.find((profile) => profile.entityIds.length === expected.size
+      && profile.entityIds.every((entityId) => expected.has(entityId)));
+    if (replacement) {
+      replacement.id = previous.id;
+      replacement.name = previous.name || replacement.name;
+      sourceSet.clear();
+    }
+  }
+  if (sourceSet.size && previousProfiles.some((profile) => sourceEntityIds.every((entityId) => profile.entityIds?.includes(entityId)))) {
+    throw new Error('Modyfikacja narożnika przerwała istniejący profil. Operacja została anulowana.');
+  }
+}
+
+function buildCornerModification(sketch, sourceEntityIds, size, parameters, mode) {
+  const uniqueIds = [...new Set(sourceEntityIds || [])];
+  if (uniqueIds.length !== 2) throw new Error(`${mode === 'fillet' ? 'Fillet' : 'Chamfer'} wymaga dokładnie dwóch linii.`);
+  const lines = uniqueIds.map((entityId) => sketch.entities.find((entity) => entity.id === entityId));
+  if (lines.some((entity) => entity?.type !== 'line')) throw new Error('Modyfikacja narożnika obsługuje dwie linie szkicu.');
+  const sharedPointIds = lines[0].pointIds.filter((pointId) => lines[1].pointIds.includes(pointId));
+  if (sharedPointIds.length !== 1) throw new Error('Wybrane linie muszą mieć dokładnie jeden wspólny narożnik.');
+  const cornerPointId = sharedPointIds[0];
+  const pointMap = new Map(sketch.entities.filter((entity) => entity.type === 'point').map((point) => [point.id, point]));
+  const coordinate = (pointId) => {
+    const point = pointMap.get(pointId);
+    if (!point) throw new Error('Narożnik wskazuje brakujący punkt.');
+    return [evaluateExpression(point.geometry.x, parameterValues(parameters)), evaluateExpression(point.geometry.y, parameterValues(parameters))];
+  };
+  const corner = coordinate(cornerPointId);
+  const otherPointIds = lines.map((line) => line.pointIds.find((pointId) => pointId !== cornerPointId));
+  const vectors = otherPointIds.map((pointId) => {
+    const other = coordinate(pointId);
+    const vector = [other[0] - corner[0], other[1] - corner[1]];
+    const length = Math.hypot(...vector);
+    if (length <= EPSILON) throw new Error('Modyfikacja narożnika nie obsługuje linii o zerowej długości.');
+    return { unit: [vector[0] / length, vector[1] / length], length };
+  });
+  const dot = Math.max(-1, Math.min(1, (vectors[0].unit[0] * vectors[1].unit[0]) + (vectors[0].unit[1] * vectors[1].unit[1])));
+  const angle = Math.acos(dot);
+  if (angle <= 1e-5 || Math.PI - angle <= 1e-5) throw new Error('Modyfikacja wymaga wyraźnego, niekoliniowego narożnika.');
+  const setback = mode === 'fillet' ? size / Math.tan(angle / 2) : size;
+  if (!Number.isFinite(setback) || setback >= Math.min(...vectors.map((vector) => vector.length)) - EPSILON) {
+    throw new Error(`${mode === 'fillet' ? 'Promień Fillet' : 'Odległość Chamfer'} jest za duży dla wybranych linii.`);
+  }
+
+  const tangentCoordinates = vectors.map(({ unit }) => [corner[0] + (unit[0] * setback), corner[1] + (unit[1] * setback)]);
+  const role = lines[0].role === lines[1].role ? lines[0].role : 'standard';
+  const tangentPoints = tangentCoordinates.map(([x, y]) => createSketchPoint({ x, y, role }));
+  lines.forEach((line, index) => {
+    line.pointIds[line.pointIds.indexOf(cornerPointId)] = tangentPoints[index].id;
+  });
+  let connector;
+  const createdPoints = [...tangentPoints];
+  if (mode === 'fillet') {
+    const bisector = [vectors[0].unit[0] + vectors[1].unit[0], vectors[0].unit[1] + vectors[1].unit[1]];
+    const bisectorLength = Math.hypot(...bisector);
+    const centerDistance = size / Math.sin(angle / 2);
+    const centerCoordinate = [corner[0] + ((bisector[0] / bisectorLength) * centerDistance), corner[1] + ((bisector[1] / bisectorLength) * centerDistance)];
+    const center = createSketchPoint({ x: centerCoordinate[0], y: centerCoordinate[1], role });
+    const firstRadius = [tangentCoordinates[0][0] - centerCoordinate[0], tangentCoordinates[0][1] - centerCoordinate[1]];
+    const secondRadius = [tangentCoordinates[1][0] - centerCoordinate[0], tangentCoordinates[1][1] - centerCoordinate[1]];
+    const cross = (firstRadius[0] * secondRadius[1]) - (firstRadius[1] * secondRadius[0]);
+    connector = createSketchArc({ centerPointId: center.id, startPointId: tangentPoints[0].id, endPointId: tangentPoints[1].id, direction: cross >= 0 ? 'ccw' : 'cw', role });
+    createdPoints.push(center);
+  } else {
+    connector = createSketchLine({ startPointId: tangentPoints[0].id, endPointId: tangentPoints[1].id, role });
+  }
+  sketch.entities.push(...createdPoints, connector);
+
+  const relationChanges = uniqueIds.reduce((changes, entityId) => {
+    const removed = removeBrokenRelations(sketch, entityId);
+    changes.removedConstraintIds.push(...removed.removedConstraintIds);
+    changes.removedDimensionIds.push(...removed.removedDimensionIds);
+    return changes;
+  }, { removedConstraintIds: [], removedDimensionIds: [] });
+  const cornerRelations = removeBrokenRelations(sketch, cornerPointId);
+  relationChanges.removedConstraintIds.push(...cornerRelations.removedConstraintIds);
+  relationChanges.removedDimensionIds.push(...cornerRelations.removedDimensionIds);
+  relationChanges.removedConstraintIds = [...new Set(relationChanges.removedConstraintIds)];
+  relationChanges.removedDimensionIds = [...new Set(relationChanges.removedDimensionIds)];
+  if (!sketch.entities.some((entity) => entity.id !== cornerPointId && entity.pointIds?.includes(cornerPointId))) {
+    sketch.entities = sketch.entities.filter((entity) => entity.id !== cornerPointId);
+  }
+  return { connector, tangentPoints, cornerPointId, ...relationChanges };
+}
+
+function modifySketchCorner(document, sketchId, sourceEntityIds, sizeExpression, mode) {
+  const sketch = document?.sketches?.find((item) => item.id === sketchId);
+  if (!sketch) throw new Error('Nie znaleziono szkicu do modyfikacji narożnika.');
+  const label = mode === 'fillet' ? 'Fillet' : 'Chamfer';
+  const size = numericPositiveSize(sizeExpression, document.parameters, label);
+  const workingSketch = structuredClone(sketch);
+  const previousProfiles = (workingSketch.profiles || []).map((profile) => structuredClone(profile));
+  const result = buildCornerModification(workingSketch, sourceEntityIds, size, document.parameters, mode);
+  preserveCornerProfileLineage(workingSketch, document.parameters, previousProfiles, sourceEntityIds, result.connector.id);
+  const diagnostic = (workingSketch.diagnostics || []).find((item) => ['SELF_INTERSECTION', 'OVERLAPPING_SEGMENTS', 'ZERO_LENGTH_SEGMENT'].includes(item.code)
+    && item.entityIds?.some((entityId) => entityId === result.connector.id || sourceEntityIds.includes(entityId)));
+  if (diagnostic) throw new Error(`${label} został odrzucony: ${diagnostic.message}`);
+  Object.assign(sketch, workingSketch);
+  return {
+    mode,
+    size,
+    sourceEntityIds: [...sourceEntityIds],
+    connectorEntityId: result.connector.id,
+    connectorType: result.connector.type,
+    createdPointIds: result.tangentPoints.map((point) => point.id),
+    removedPointId: result.cornerPointId,
+    removedConstraintIds: result.removedConstraintIds,
+    removedDimensionIds: result.removedDimensionIds,
+  };
+}
+
+export function filletSketchLines(document, sketchId, lineIds, radiusExpression) {
+  return modifySketchCorner(document, sketchId, lineIds, radiusExpression, 'fillet');
+}
+
+export function chamferSketchLines(document, sketchId, lineIds, distanceExpression) {
+  return modifySketchCorner(document, sketchId, lineIds, distanceExpression, 'chamfer');
 }

@@ -40,7 +40,7 @@ import {
 } from '../src/cad-core/sketch-model.js';
 import { analyzeSketchConstraints, applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../src/cad-core/sketch-solver.js';
 import { collectSketchSnapCandidates, snapSketchPoint } from '../src/cad-core/sketch-snap.js';
-import { breakSketchEntity, extendSketchEntity, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../src/cad-core/sketch-modifiers.js';
+import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketchLines, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../src/cad-core/sketch-modifiers.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import {
   arcCenterStartEnd,
@@ -896,7 +896,7 @@ test('Offset tworzy równoległą linię i ciągły łańcuch z narożnikiem mit
   const pointMap = new Map(sketch.entities.filter((entity) => entity.type === 'point').map((point) => [point.id, point]));
   const coordinates = createdLines.map((line) => line.pointIds.map((id) => {
     const point = pointMap.get(id);
-    return [Number(point.geometry.x), Number(point.geometry.y)];
+    return [Number(Number(point.geometry.x).toFixed(8)), Number(Number(point.geometry.y).toFixed(8))];
   }));
 
   assert.equal(result.closed, false);
@@ -957,6 +957,65 @@ test('Offset okręgu i łuku zmienia promień parametrycznie, a błąd nie mutuj
 
   const before = structuredClone(document);
   assert.throws(() => offsetSketchEntities(document, sketch.id, [circle.id], '-5'), /niedodatni promień/);
+  assert.deepEqual(document, before);
+});
+
+test('Sketch Fillet skraca dwie linie, tworzy styczny łuk i zachowuje profil z operacją', () => {
+  const document = createDocument('Fillet szkicu');
+  const points = [[0, 0], [20, 0], [20, 10], [0, 10]].map(([x, y]) => createSketchPoint({ x, y }));
+  const lines = points.map((point, index) => createSketchLine({ startPointId: point.id, endPointId: points[(index + 1) % points.length].id }));
+  const constraint = createSketchConstraint('horizontal', [lines[0].id]);
+  const dimension = createSketchDimension('aligned', [lines[0].id], { expression: '20', constraintId: constraint.id });
+  const sketch = createSketch({ entities: [...points, ...lines], constraints: [constraint], dimensions: [dimension] });
+  refreshDetectedSketchProfiles(sketch);
+  const profileId = sketch.profiles[0].id;
+  const feature = createFeature('extrude', { sketchId: sketch.id, profileIds: [profileId], distance: '5', operation: 'new' });
+  document.sketches.push(sketch);
+  document.features.push(feature);
+
+  const result = filletSketchLines(document, sketch.id, [lines[0].id, lines[1].id], '2');
+  const connector = sketch.entities.find((entity) => entity.id === result.connectorEntityId);
+  const pointMap = new Map(sketch.entities.filter((entity) => entity.type === 'point').map((point) => [point.id, point]));
+
+  assert.equal(connector.type, 'arc');
+  assert.deepEqual(result.removedConstraintIds, [constraint.id]);
+  assert.deepEqual(result.removedDimensionIds, [dimension.id]);
+  assert.equal(sketch.entities.some((entity) => entity.id === points[1].id), false);
+  const retainedLines = lines.slice(0, 2).map((line) => sketch.entities.find((entity) => entity.id === line.id));
+  assert.deepEqual(retainedLines.map((line) => line.pointIds.map((id) => {
+    const point = pointMap.get(id);
+    return [Number(Number(point.geometry.x).toFixed(8)), Number(Number(point.geometry.y).toFixed(8))];
+  })), [[[0, 0], [18, 0]], [[20, 2], [20, 10]]]);
+  assert.equal(sketch.profiles.length, 1);
+  assert.equal(sketch.profiles[0].id, profileId);
+  assert.equal(sketch.profiles[0].entityIds.includes(connector.id), true);
+  assert.equal(document.features[0].id, feature.id);
+  assert.equal(document.features[0].profileIds[0], profileId);
+  assert.equal(validateDocument(document).valid, true);
+});
+
+test('Sketch Chamfer tworzy fazę, obsługuje parametr i odrzuca za duży wymiar bez mutacji', () => {
+  const document = createDocument('Chamfer szkicu');
+  document.parameters.push({ id: 'parameter-faza', name: 'faza', expression: '3', unit: 'mm', label: 'Faza' });
+  const points = [[0, 0], [20, 0], [20, 10]].map(([x, y]) => createSketchPoint({ x, y }));
+  const lines = [
+    createSketchLine({ startPointId: points[0].id, endPointId: points[1].id }),
+    createSketchLine({ startPointId: points[1].id, endPointId: points[2].id }),
+  ];
+  const sketch = createSketch({ entities: [...points, ...lines] });
+  document.sketches.push(sketch);
+
+  const result = chamferSketchLines(document, sketch.id, lines.map((line) => line.id), 'faza');
+  const connector = sketch.entities.find((entity) => entity.id === result.connectorEntityId);
+  const pointMap = new Map(sketch.entities.filter((entity) => entity.type === 'point').map((point) => [point.id, point]));
+  assert.equal(connector.type, 'line');
+  assert.deepEqual(connector.pointIds.map((id) => {
+    const point = pointMap.get(id);
+    return [Number(point.geometry.x), Number(point.geometry.y)];
+  }), [[17, 0], [20, 3]]);
+
+  const before = structuredClone(document);
+  assert.throws(() => chamferSketchLines(document, sketch.id, [lines[0].id, connector.id], '50'), /za duży/);
   assert.deepEqual(document, before);
 });
 
