@@ -226,6 +226,9 @@ export function prepareDocument(document) {
         depthValue: positive(evaluateExpression(feature.depth, parameterResult.values), 'Głębokość otworu'),
       };
     }
+    if (feature.type === 'boolean') {
+      return { ...feature, status: 'ready', diagnostics: [] };
+    }
     if (feature.type === 'fillet' || feature.type === 'chamfer') {
       const valueKey = feature.type === 'fillet' ? 'radius' : 'distance';
       return {

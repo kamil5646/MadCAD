@@ -72,7 +72,7 @@ Import SVG/DXF jest `P1`.
 ## M6 — modelowanie części MVP `P0`
 
 - [x] Extrude: New/Join/Cut/Intersect, jedna/dwie strony, symetrycznie i Through All.
-- [ ] Boolean Union/Subtract/Intersect dla wskazanych brył.
+- [x] Boolean Union/Subtract/Intersect dla wskazanych brył.
 - [ ] Fillet i Chamfer wyłącznie wskazanych krawędzi.
 - [ ] Shell z wyborem usuwanych ścian.
 - [ ] Box, Cylinder, Sphere i Torus.
@@ -143,4 +143,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M6.2 — Boolean Union/Subtract/Intersect dla dwóch wskazanych brył.`
+`M6.3 — Fillet i Chamfer wyłącznie na wskazanych krawędziach.`

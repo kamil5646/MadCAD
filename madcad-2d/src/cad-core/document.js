@@ -12,7 +12,7 @@ export const DOCUMENT_SCHEMA_VERSION = 4;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'hole', 'fillet', 'chamfer']);
+const FEATURE_TYPES = new Set(['extrude', 'boolean', 'hole', 'fillet', 'chamfer']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -120,7 +120,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie' };
+  const names = { extrude: 'Wyciągnięcie', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -605,6 +605,14 @@ export function validateDocument(document) {
       if (extent === 'two-sides' && feature.secondDistance === undefined) add(`${base}.secondDistance`, 'Wyciągnięcie na dwie strony wymaga drugiej odległości.', 'REQUIRED');
       if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
       else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono wcześniejszej bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
+    }
+
+    if (feature.type === 'boolean') {
+      if (!['union', 'subtract', 'intersect'].includes(feature.operation)) add(`${base}.operation`, `Nieobsługiwana operacja Boolean: ${feature.operation ?? ''}.`, 'UNSUPPORTED');
+      if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono bryły bazowej „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
+      if (!bodyIds.has(feature.toolBodyId)) add(`${base}.toolBodyId`, `Nie znaleziono bryły narzędziowej „${feature.toolBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
+      if (feature.targetBodyId === feature.toolBodyId) add(`${base}.toolBodyId`, 'Boolean wymaga dwóch różnych brył.', 'VALUE');
+      if (bodyIds.has(feature.toolBodyId) && feature.toolBodyId !== feature.targetBodyId) bodyIds.delete(feature.toolBodyId);
     }
 
     if (feature.type === 'hole') {

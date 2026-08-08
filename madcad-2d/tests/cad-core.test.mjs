@@ -10,6 +10,7 @@ import {
   createDocument,
   createFeature,
   createParameter,
+  createCircleProfile,
   createRectangleProfile,
   createSketch,
   createStarterDocument,
@@ -380,6 +381,30 @@ test('Extrude przygotowuje Join, Cut i Intersect z jedną, dwiema, symetryczną 
   const invalid = structuredClone(document);
   invalid.features[0].extent = 'through-all';
   assert.ok(validateDocument(invalid).issues.some((issue) => issue.path.endsWith('.extent')));
+});
+
+test('Boolean wymaga dwóch brył, konsumuje narzędzie i zapisuje zależności Union/Subtract/Intersect', () => {
+  for (const operation of ['union', 'subtract', 'intersect']) {
+    const document = createDocument(`Boolean ${operation}`);
+    const firstProfile = createRectangleProfile({ width: 20, height: 10 });
+    const secondProfile = createCircleProfile({ diameter: 8 });
+    const firstSketch = createSketch({ profiles: [firstProfile] });
+    const secondSketch = createSketch({ profiles: [secondProfile] });
+    const first = createFeature('extrude', { sketchId: firstSketch.id, profileIds: [firstProfile.id], distance: '8', operation: 'new' });
+    const second = createFeature('extrude', { sketchId: secondSketch.id, profileIds: [secondProfile.id], distance: '8', operation: 'new' });
+    const boolean = createFeature('boolean', { operation, targetBodyId: `body-${first.id}`, toolBodyId: `body-${second.id}` });
+    document.sketches.push(firstSketch, secondSketch);
+    document.features.push(first, second, boolean);
+    assert.equal(validateDocument(document).valid, true);
+    assert.equal(prepareDocument(document).features[2].operation, operation);
+    const edges = buildDependencyGraph(document).edges;
+    assert.ok(edges.some((edge) => edge.from === boolean.targetBodyId && edge.to === boolean.id && edge.kind === 'modifies'));
+    assert.ok(edges.some((edge) => edge.from === boolean.toolBodyId && edge.to === boolean.id && edge.kind === 'consumes'));
+  }
+
+  const broken = createDocument('Boolean uszkodzony');
+  broken.features.push(createFeature('boolean', { operation: 'union', targetBodyId: 'body-a', toolBodyId: 'body-a' }));
+  assert.ok(validateDocument(broken).issues.some((issue) => issue.path.endsWith('.toolBodyId')));
 });
 
 test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwałymi linkami', () => {

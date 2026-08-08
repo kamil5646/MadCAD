@@ -164,6 +164,20 @@ function runFeature(feature, bodyMap, bodyOrder) {
     return;
   }
 
+  if (feature.type === 'boolean') {
+    const target = bodyMap.get(feature.targetBodyId);
+    const tool = bodyMap.get(feature.toolBodyId);
+    if (!target || !tool || target.id === tool.id) throw new Error(`Boolean ${feature.name} wymaga dwóch różnych brył.`);
+    if (feature.operation === 'union') target.shape = target.shape.fuse(tool.shape);
+    else if (feature.operation === 'subtract') target.shape = target.shape.cut(tool.shape);
+    else if (feature.operation === 'intersect') target.shape = target.shape.intersect(tool.shape);
+    else throw new Error(`Nieobsługiwana operacja Boolean: ${feature.operation}.`);
+    bodyMap.delete(tool.id);
+    const toolIndex = bodyOrder.indexOf(tool.id);
+    if (toolIndex >= 0) bodyOrder.splice(toolIndex, 1);
+    return;
+  }
+
   if (feature.type === 'fillet' || feature.type === 'chamfer') {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);

@@ -134,7 +134,7 @@ async function runUiFlow(window) {
     const key = Object.keys(input).find((item) => item.startsWith('__reactProps'));
     input[key].onChange({ target: { checked: !input.checked } });
   })()`);
-  const editTimelineFeature = async (index) => {
+  const editTimelineFeature = async (index, title = 'Wyciągnięcie') => {
     await window.webContents.executeJavaScript(`(() => {
       const button = document.querySelectorAll('.timeline-item')[${index}];
       if (!button) throw new Error('Brak operacji osi czasu: ${index}');
@@ -142,7 +142,7 @@ async function runUiFlow(window) {
     })()`);
     await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'feature'`, `wybór operacji ${index + 1}`);
     await clickTool('Edytuj');
-    await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, `edycja Extrude ${index + 1}`);
+    await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes(${JSON.stringify(title)})`, `edycja ${title} ${index + 1}`);
   };
   const dragDirectExtrude = async () => {
     await window.webContents.executeJavaScript(`(async () => {
@@ -785,25 +785,59 @@ async function runUiFlow(window) {
   assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), Math.PI * 6 * 6 * 8, 0.05, 'Extrude Intersect Through All volume');
 
   await editTimelineFeature(1);
-  await setCommandField('Operacja', 'cut');
-  await setCommandField('Kierunek', 'through-all');
-  const restoredCutRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await setCommandField('Operacja', 'new');
+  await setCommandField('Kierunek', 'one-side');
+  await setCommandField('Odległość', '8');
+  const secondBodyRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   await confirmDialog();
-  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.operation === 'cut' && window.__madcadVerifyDocumentState.featureData[1].extent === 'through-all' && window.__madcadVerifyEngineState?.revision > ${restoredCutRevision} && document.querySelector('.engine-status')?.classList.contains('ready')`, 'przywrócony Extrude Cut Through All', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.operation === 'new' && window.__madcadVerifyEngineState?.revision > ${secondBodyRevision} && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'druga niezależna bryła do Boolean', modelingTimeoutMs);
+
+  const booleanBodyIds = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies.map((body) => body.id)`);
+  await window.webContents.executeJavaScript(`(() => {
+    window.__madcadVerifyTopologySelection({ kind: 'body', bodyId: ${JSON.stringify(booleanBodyIds[0])} }, 'replace');
+    window.__madcadVerifyTopologySelection({ kind: 'body', bodyId: ${JSON.stringify(booleanBodyIds[1])} }, 'add');
+  })()`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.items?.length === 2`, 'dwie bryły zaznaczone do Boolean');
+  await clickTool('Boolean');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Boolean')`, 'polecenie Boolean Union');
+  const unionRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[2]?.type === 'boolean' && window.__madcadVerifyDocumentState.featureData[2].operation === 'union' && window.__madcadVerifyEngineState?.revision > ${unionRevision} && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'Boolean Union', modelingTimeoutMs);
+  assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), 64 * 42 * 8, 0.05, 'Boolean Union volume');
+
+  await editTimelineFeature(2, 'Boolean');
+  await setCommandField('Operacja', 'subtract');
+  const subtractRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[2]?.operation === 'subtract' && window.__madcadVerifyEngineState?.revision > ${subtractRevision} && document.querySelector('.engine-status')?.classList.contains('ready')`, 'Boolean Subtract', modelingTimeoutMs);
+  assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), (64 * 42 * 8) - (Math.PI * 6 * 6 * 8), 0.05, 'Boolean Subtract volume');
+
+  await editTimelineFeature(2, 'Boolean');
+  await setCommandField('Operacja', 'intersect');
+  const booleanIntersectRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[2]?.operation === 'intersect' && window.__madcadVerifyEngineState?.revision > ${booleanIntersectRevision} && document.querySelector('.engine-status')?.classList.contains('ready')`, 'Boolean Intersect', modelingTimeoutMs);
+  assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), Math.PI * 6 * 6 * 8, 0.05, 'Boolean Intersect volume');
+
+  await editTimelineFeature(2, 'Boolean');
+  await setCommandField('Operacja', 'subtract');
+  const restoredSubtractRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[2]?.operation === 'subtract' && window.__madcadVerifyEngineState?.revision > ${restoredSubtractRevision} && document.querySelector('.engine-status')?.classList.contains('ready')`, 'przywrócony Boolean Subtract', modelingTimeoutMs);
 
   progress('fillet and chamfer');
   await clickTool('Zaokrąglij');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Zaokrąglenie')`, 'polecenie zaokrąglenia');
   await setCommandField('Promień', '0.8');
   await confirmDialog();
-  await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 3`, 'dodane zaokrąglenie');
+  await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 4`, 'dodane zaokrąglenie');
   await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready') && !document.querySelector('.timeline-item.error')`, 'przeliczone zaokrąglenie', modelingTimeoutMs);
 
   await clickTool('Fazuj');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Fazowanie')`, 'polecenie fazowania');
   await setCommandField('Odległość', '0.4');
   await confirmDialog();
-  await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 4`, 'dodane fazowanie');
+  await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 5`, 'dodane fazowanie');
   await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready') && !document.querySelector('.timeline-item.error')`, 'przeliczone fazowanie', modelingTimeoutMs);
 
   progress('parameters and undo/redo');
@@ -849,7 +883,7 @@ async function runUiFlow(window) {
     `(() => {
       try {
         const saved = JSON.parse(window.localStorage.getItem('madcad:modeling-document:v4') || 'null');
-        return saved?.schemaVersion === 4 && saved?.features?.length === 4 && saved?.sketches?.length === 4 && saved?.references?.some((item) => item.kind === 'construction-plane' && item.name === 'Płaszczyzna montażowa');
+        return saved?.schemaVersion === 4 && saved?.features?.length === 5 && saved?.sketches?.length === 4 && saved?.references?.some((item) => item.kind === 'construction-plane' && item.name === 'Płaszczyzna montażowa');
       } catch (_error) {
         return false;
       }
@@ -886,7 +920,7 @@ async function runUiFlow(window) {
   })()`);
   const autosaveRoundTrip = autosaveState.available
     && autosaveState.schemaVersion === 4
-    && autosaveState.features === 4
+    && autosaveState.features === 5
     && autosaveState.sketches === 4
     && autosaveState.entities === 13
     && autosaveState.constructionPlanes === 3

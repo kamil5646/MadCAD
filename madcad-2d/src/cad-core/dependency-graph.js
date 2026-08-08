@@ -126,6 +126,7 @@ export function buildDependencyGraph(document) {
     }
 
     if (feature.targetBodyId) addEdge(feature.targetBodyId, feature.id, 'modifies');
+    if (feature.toolBodyId) addEdge(feature.toolBodyId, feature.id, 'consumes');
     if (feature.type === 'extrude' && feature.operation === 'new') {
       const bodyId = `body-${feature.id}`;
       addNode(bodyId, 'body', feature.name, { persisted: false, producerFeatureId: feature.id });
