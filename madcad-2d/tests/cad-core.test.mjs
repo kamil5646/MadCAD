@@ -531,7 +531,7 @@ test('otwór na ścianie zachowuje parametryczne odległości od dwóch krawędz
   }));
   const hole = createFeature('hole', {
     placement: 'face-edges', targetBodyId: bodyId, referenceIds: references.map((reference) => reference.id),
-    firstOffset: '6', secondOffset: '8', holeType: 'counterbore', extent: 'through-all', diameter: '5', depth: '10', counterboreDiameter: '9', counterboreDepth: '3', threadMode: 'cosmetic', threadDiameter: '6', threadPitch: '1', threadLength: '8', threadDirection: 'right',
+    firstOffset: '6', secondOffset: '8', holeType: 'counterbore', extent: 'through-all', diameter: '5', depth: '10', counterboreDiameter: '9', counterboreDepth: '3', threadMode: 'cosmetic', threadDiameter: '6', threadPitch: '1', threadLength: '8', threadDirection: 'right', clearanceProfile: 'fff', clearance: '0.2',
   });
   document.references.push(...references);
   document.features.push(base, hole);
@@ -541,6 +541,7 @@ test('otwór na ścianie zachowuje parametryczne odległości od dwóch krawędz
   assert.deepEqual([prepared.firstOffsetValue, prepared.secondOffsetValue, prepared.diameterValue, prepared.depthValue], [6, 8, 5, 1_000_000]);
   assert.deepEqual([prepared.holeType, prepared.extent, prepared.counterboreDiameterValue, prepared.counterboreDepthValue], ['counterbore', 'through-all', 9, 3]);
   assert.deepEqual([prepared.threadMode, prepared.threadDiameterValue, prepared.threadPitchValue, prepared.threadLengthValue], ['cosmetic', 6, 1, 8]);
+  assert.deepEqual([prepared.diameter, prepared.diameterValue, prepared.effectiveDiameterValue, prepared.clearanceProfile, prepared.clearanceValue], ['5', 5, 5.4, 'fff', 0.2]);
   assert.deepEqual(prepared.topologyReferences.map((reference) => reference.id), references.map((reference) => reference.id));
   assert.equal(buildDependencyGraph(document).edges.filter((edge) => edge.to === hole.id && edge.kind === 'references-topology').length, 3);
   assert.throws(() => resolveFaceEdgeHolePlacement(faceDescriptor, firstEdgeDescriptor, { ...secondEdgeDescriptor, endpoints: [[1, 1, 10], [1, 20, 10]] }, 6, 8), /wspólny narożnik/);

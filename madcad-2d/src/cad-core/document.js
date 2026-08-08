@@ -637,6 +637,7 @@ export function validateDocument(document) {
       const holeType = feature.holeType || 'simple';
       const holeExtent = feature.extent || 'distance';
       const threadMode = feature.threadMode || 'none';
+      const clearanceProfile = feature.clearanceProfile || 'nominal';
       if (!['simple', 'counterbore', 'countersink'].includes(holeType)) add(`${base}.holeType`, `Nieobsługiwany typ otworu: ${holeType}.`, 'UNSUPPORTED');
       if (!['distance', 'through-all'].includes(holeExtent)) add(`${base}.extent`, `Nieobsługiwany zakres otworu: ${holeExtent}.`, 'UNSUPPORTED');
       if (holeExtent === 'distance' && feature.depth === undefined) add(`${base}.depth`, 'Otwór Distance wymaga głębokości.', 'REQUIRED');
@@ -645,6 +646,8 @@ export function validateDocument(document) {
       if (!['none', 'cosmetic', 'modeled'].includes(threadMode)) add(`${base}.threadMode`, `Nieobsługiwany tryb gwintu: ${threadMode}.`, 'UNSUPPORTED');
       if (threadMode !== 'none' && (feature.threadDiameter === undefined || feature.threadPitch === undefined || feature.threadLength === undefined)) add(`${base}.threadDiameter`, 'Gwint wymaga średnicy, skoku i długości.', 'REQUIRED');
       if (threadMode !== 'none' && !['right', 'left'].includes(feature.threadDirection)) add(`${base}.threadDirection`, 'Kierunek gwintu musi być prawy albo lewy.', 'UNSUPPORTED');
+      if (!['nominal', 'fff'].includes(clearanceProfile)) add(`${base}.clearanceProfile`, `Nieobsługiwany profil luzu: ${clearanceProfile}.`, 'UNSUPPORTED');
+      if (clearanceProfile === 'fff' && feature.clearance === undefined) add(`${base}.clearance`, 'Profil FFF wymaga luzu promieniowego.', 'REQUIRED');
       if (feature.placement === 'face-edges') {
         if (!Array.isArray(feature.referenceIds) || feature.referenceIds.length !== 3) add(`${base}.referenceIds`, 'Otwór od krawędzi wymaga jednej ściany i dwóch krawędzi.', 'REQUIRED');
       } else {

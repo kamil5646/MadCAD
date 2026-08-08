@@ -560,6 +560,16 @@ async function runUiFlow(window) {
   await confirmDialog();
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.threadDirection === 'left'`, 'zapisany lewy gwint modelowany');
 
+  await editTimelineFeature(1, 'Otwór');
+  await setCommandField('Gwint', 'none');
+  await setCommandField('Profil luzu', 'fff');
+  await setCommandField('Luz promieniowy FFF', '0.2');
+  const fffHoleVolume = 12000 - (Math.PI * 2.7 * 2.7 * 10);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.previewClearanceProfile === 'fff' && Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - ${fffHoleVolume}) < 0.05`, 'podgląd kompensacji FFF', modelingTimeoutMs);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.clearanceProfile === 'fff' && window.__madcadVerifyDocumentState.featureData[1].diameter === '5' && window.__madcadVerifyDocumentState.featureData[1].clearance === '0.2'`, 'nominalny wymiar i profil FFF', modelingTimeoutMs);
+  assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), fffHoleVolume, 0.05, 'FFF compensated hole volume');
+
   progress('box cylinder sphere torus primitives');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla prymitywów');

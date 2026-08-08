@@ -63,6 +63,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Otwór można umieścić bez szkicu na planarnej ścianie przez dwie prostopadłe krawędzie i dwa parametryczne odsunięcia.
 - [x] Otwory proste, Counterbore i Countersink obsługują zakres Distance/Through All oraz dokładną geometrię walcową i stożkową.
 - [x] Gwint metryczny ma tryb kosmetyczny i modelowany z parametrami średnicy, skoku, długości oraz kierunku prawego/lewego; liczba zwojów ma bezpieczny limit.
+- [x] Profil luzu FFF zwiększa wyłącznie wykonawczą średnicę otworu o dwukrotność naddatku promieniowego, zachowując nominalny wymiar i wyrażenie parametryczne.
 
 ## Ostatnia zweryfikowana baza
 

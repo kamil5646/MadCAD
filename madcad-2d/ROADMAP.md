@@ -42,7 +42,7 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 | 4 | M4 Konstrukcja podstawowa | `[x]` | M3 | offset plane, midplane, plane przez trzy punkty, osie i punkty konstrukcyjne |
 | 5 | M5 Szkic na modelu i Project | `[x]` | M1, M3, M4 | drugi szkic powstaje na ścianie i zachowuje projekcję krawędzi |
 | 6 | M6 Modelowanie części MVP | `[x]` | M3, M5 | pełniejsze Extrude, Boolean, wskazane Fillet/Chamfer, Shell i podstawowe prymitywy |
-| 7 | M7 Otwory i gwinty MVP | `[ ]` | M3, M5, M6 | proste/counterbore/countersink otwory i podstawowy gwint metryczny |
+| 7 | M7 Otwory i gwinty MVP | `[x]` | M3, M5, M6 | proste/counterbore/countersink otwory i podstawowy gwint metryczny |
 | 8 | M8 Inspect MVP | `[ ]` | M3, M6 | Measure, Section, objętość, pole, masa i środek masy |
 | 9 | M9 Przygotowanie druku MVP | `[ ]` | M6–M8 | orientacja, STEP/STL/3MF, skala 1:1, manifold, grubość, nawisy i przekazanie do slicera |
 | 10 | M10 Wydanie alpha/beta | `[ ]` | M1–M9 | instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS |
@@ -87,7 +87,7 @@ Revolve, Sweep, Loft, Draft, Thin Extrude, Heal/Replace Face, Rib, Coil i Pipe s
 - [x] Umieszczenie na planarnej ścianie z trwałymi referencjami do dwóch prostopadłych krawędzi i parametrycznymi odsunięciami.
 - [x] Otwór prosty, Counterbore i Countersink; Distance/Through All.
 - [x] Podstawowy gwint metryczny kosmetyczny i modelowany: średnica, skok, kierunek i długość.
-- [ ] Profil kompensacji luzu FFF bez zmiany nominalnego wymiaru.
+- [x] Profil kompensacji luzu FFF bez zmiany nominalnego wymiaru.
 
 Tapered threads, wiele norm i klasy pasowania są `P1`.
 

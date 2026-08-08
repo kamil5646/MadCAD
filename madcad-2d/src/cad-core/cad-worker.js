@@ -275,11 +275,11 @@ function runFeature(feature, bodyMap, bodyOrder) {
       placement = { position: outside.map((value, axis) => value + direction[axis]), direction };
     }
     const outside = placement.position.map((value, axis) => value - placement.direction[axis]);
-    const cutters = [makeCylinder(feature.diameterValue / 2, feature.depthValue + 2, outside, placement.direction)];
+    const cutters = [makeCylinder(feature.effectiveDiameterValue / 2, feature.depthValue + 2, outside, placement.direction)];
     if (feature.holeType === 'counterbore') {
       cutters.push(makeCylinder(feature.counterboreDiameterValue / 2, feature.counterboreDepthValue + 1, outside, placement.direction));
     } else if (feature.holeType === 'countersink') {
-      const mainRadius = feature.diameterValue / 2;
+      const mainRadius = feature.effectiveDiameterValue / 2;
       const sinkRadius = feature.countersinkDiameterValue / 2;
       const tangent = Math.tan((feature.countersinkAngleValue * Math.PI / 180) / 2);
       const sinkDepth = (sinkRadius - mainRadius) / tangent;
@@ -291,7 +291,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
     if (feature.threadMode === 'modeled') {
       const threadDepth = Math.min(feature.threadPitchValue * 0.3, feature.threadDiameterValue * 0.08);
       const turns = Math.max(1, Math.floor(feature.threadLengthValue / feature.threadPitchValue));
-      const grooveRadius = Math.min(feature.threadDiameterValue / 2, (feature.diameterValue / 2) + threadDepth);
+      const grooveRadius = Math.min(feature.threadDiameterValue / 2, (feature.effectiveDiameterValue / 2) + threadDepth);
       const grooveWidth = Math.min(feature.threadPitchValue * 0.25, threadDepth);
       const grooves = Array.from({ length: turns }, (_unused, index) => {
         const phase = feature.threadDirection === 'left' ? 0.65 : 0.35;
