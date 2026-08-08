@@ -55,6 +55,7 @@ import { createTextProfile } from '../src/cad-core/text-profile.js';
 import { resolveFaceEdgeHolePlacement } from '../src/cad-core/face-edge-hole.js';
 import { measureSelection } from '../src/cad-core/measure-selection.js';
 import { calculateMassProperties } from '../src/cad-core/mass-properties.js';
+import { summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
 import {
   arcCenterStartEnd,
   arcThroughThreePoints,
@@ -596,6 +597,15 @@ test('właściwości masowe sumują bryły i ważą środek masy objętością',
   ], 1.24);
   assert.deepEqual(result, { bodyCount: 2, volume: 4000, area: 1800, density: 1.24, mass: 4.96, centerOfMass: [6, 3, 1.5] });
   assert.throws(() => calculateMassProperties([], 0), /Gęstość/);
+});
+
+test('analiza geometrii wybiera minimalny promień i zachowuje dokładne pary kolizji', () => {
+  const result = summarizeGeometryInspection([
+    { metrics: { minimumRadius: 5 } },
+    { metrics: { minimumRadius: 3 } },
+    { metrics: { minimumRadius: null } },
+  ], { collisions: [{ firstBodyId: 'a', secondBodyId: 'b', volume: 12 }] });
+  assert.deepEqual(result, { bodyCount: 3, minimumRadius: 3, collisions: [{ firstBodyId: 'a', secondBodyId: 'b', volume: 12 }] });
 });
 
 test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwałymi linkami', () => {

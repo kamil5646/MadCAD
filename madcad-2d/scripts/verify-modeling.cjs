@@ -631,6 +631,17 @@ async function runUiFlow(window) {
     assertClose(volume, fixture.volume, 0.05, `${fixture.type} volume`);
   }
 
+  await clickTool('Analiza');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'geometryInspection' && Math.abs(window.__madcadVerifyDocumentState.command.geometryInspection.minimumRadius - 3) < 0.001 && window.__madcadVerifyDocumentState.command.geometryInspection.collisions.length === 0`, 'minimalny promień i brak kolizji prymitywów', modelingTimeoutMs);
+  await waitForUi(window, `document.querySelector('.geometry-inspection-panel')?.textContent.includes('3 mm') && document.querySelector('.geometry-inspection-panel')?.textContent.includes('Nie wykryto wspólnej objętości')`, 'panel analizy geometrii');
+  await window.webContents.executeJavaScript(`(() => {
+    const button = document.querySelector('.geometry-inspection-panel header button');
+    const key = button && Object.keys(button).find((item) => item.startsWith('__reactProps'));
+    if (!key || typeof button[key]?.onClick !== 'function') throw new Error('Brak zamknięcia analizy geometrii.');
+    button[key].onClick();
+  })()`);
+  await waitForUi(window, `!document.querySelector('.geometry-inspection-panel')`, 'zamknięta analiza geometrii');
+
   progress('shared move rotate offset face manipulator');
   const primitiveBoxId = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].id`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'body', bodyId: ${JSON.stringify(primitiveBoxId)} }, 'replace')`);

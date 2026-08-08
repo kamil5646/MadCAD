@@ -447,10 +447,25 @@ function faceDescriptor(face) {
       const direction = axis.Direction();
       descriptor.axisOrigin = [location.X(), location.Y(), location.Z()];
       descriptor.axisDirection = [direction.X(), direction.Y(), direction.Z()];
+      descriptor.radius = cylinder.Radius();
       direction.delete();
       location.delete();
       axis.delete();
       cylinder.delete();
+      adaptor.delete();
+    } else if (descriptor.geometry === 'SPHERE') {
+      const adaptor = face._geomAdaptor();
+      const sphere = adaptor.Sphere();
+      descriptor.radius = sphere.Radius();
+      sphere.delete();
+      adaptor.delete();
+    } else if (descriptor.geometry === 'TORUS') {
+      const adaptor = face._geomAdaptor();
+      const torus = adaptor.Torus();
+      descriptor.majorRadius = torus.MajorRadius();
+      descriptor.minorRadius = torus.MinorRadius();
+      descriptor.radius = descriptor.minorRadius;
+      torus.delete();
       adaptor.delete();
     }
     return descriptor;
@@ -574,6 +589,8 @@ function meshBody(body, index, quality = 'display') {
     },
     metrics: measureBodyShape(body.shape),
   };
+  const topologyRadii = [...faces, ...stableEdges].map((record) => record.descriptor?.radius).filter((radius) => Number.isFinite(radius) && radius > 0);
+  renderBody.metrics.minimumRadius = topologyRadii.length ? Math.min(...topologyRadii) : null;
   renderBody.bounds = renderBody.metrics.bounds;
   return { renderBody, topologyState: { faces, edges: stableEdges, vertices: stableVertices } };
 }
@@ -586,6 +603,21 @@ async function evaluateRevision(document, quality) {
 
   const kernelBodies = bodyOrder.filter((id) => bodyMap.has(id)).map((id) => bodyMap.get(id));
   const meshedBodies = kernelBodies.map((body, index) => meshBody(body, index, quality));
+  const collisions = [];
+  for (let first = 0; first < kernelBodies.length; first += 1) {
+    for (let second = first + 1; second < kernelBodies.length; second += 1) {
+      let common;
+      let volume;
+      try {
+        common = kernelBodies[first].shape.intersect(kernelBodies[second].shape);
+        volume = measureShapeVolumeProperties(common);
+        if (volume.volume > GEOMETRY_POLICY.linearTolerance ** 3) collisions.push({ firstBodyId: kernelBodies[first].id, secondBodyId: kernelBodies[second].id, volume: volume.volume });
+      } finally {
+        volume?.delete();
+        common?.delete();
+      }
+    }
+  }
   return {
     kernelBodies,
     renderBodies: meshedBodies.map((entry) => entry.renderBody),
@@ -594,6 +626,7 @@ async function evaluateRevision(document, quality) {
     parameters: prepared.parameters,
     dependencyGraph: prepared.dependencyGraph.toJSON(),
     quality,
+    analysis: { collisions },
   };
 }
 

@@ -24,6 +24,7 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     revision: 0,
     cache: { entries: 0, bytes: 0 },
     diagnostics: [],
+    analysis: { collisions: [] },
     error: '',
     evaluatedDocument: null,
   });
