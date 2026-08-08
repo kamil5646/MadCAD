@@ -21,6 +21,8 @@ export const SUPPORTED_SKETCH_CONSTRAINTS = Object.freeze([
   'diameter',
   'tangent',
   'equal',
+  'collinear',
+  'symmetry',
 ]);
 
 function parameterValues(parameters) {
@@ -108,6 +110,28 @@ function rowForConstraint(constraint, entityMap, variableColumns, values) {
     if (column !== undefined) row[column] += value;
   };
   const pointValue = (point, axis) => coordinate(point, axis, values);
+  const numericalRows = (involvedPoints, residualFunctions) => {
+    const uniquePoints = [...new Map(involvedPoints.map((point) => [point.id, point])).values()];
+    const coordinates = new Map(uniquePoints.map((point) => [point.id, { x: pointValue(point, 'x'), y: pointValue(point, 'y') }]));
+    const get = (pointId) => coordinates.get(pointId);
+    return residualFunctions.map((residualFunction) => {
+      const residual = residualFunction(get);
+      const row = makeRow();
+      for (const point of uniquePoints) {
+        for (const axis of ['x', 'y']) {
+          const column = variableColumns.get(`${point.id}:${axis}`);
+          if (column === undefined) continue;
+          const coordinateValue = coordinates.get(point.id);
+          const original = coordinateValue[axis];
+          const step = 1e-6 * Math.max(1, Math.abs(original));
+          coordinateValue[axis] = original + step;
+          row[column] = (residualFunction(get) - residual) / step;
+          coordinateValue[axis] = original;
+        }
+      }
+      return { row, residual };
+    });
+  };
 
   if (constraint.type === 'horizontal' || constraint.type === 'vertical') {
     if (points.length !== 2) return { supported: true, error: 'Wiązanie wymaga dokładnie dwóch punktów.' };
@@ -129,6 +153,56 @@ function rowForConstraint(constraint, entityMap, variableColumns, values) {
         return { row, residual: pointValue(points[1], axis) - pointValue(points[0], axis) };
       }),
     };
+  }
+
+  if (constraint.type === 'collinear') {
+    const lines = referencedEntities(constraint.entityIds, entityMap, 'line');
+    if (lines.length !== 2) return { supported: true, error: 'Wiązanie collinear wymaga dokładnie dwóch linii.' };
+    const linePoints = lines.map((line) => line.pointIds.map((pointId) => entityMap.get(pointId)));
+    if (linePoints.some((pair) => pair.some((point) => point?.type !== 'point'))) return { supported: true, error: 'Wiązanie collinear wskazuje niepełną linię.' };
+    const allPoints = linePoints.flat();
+    const direction = (get, pair) => {
+      const start = get(pair[0].id); const end = get(pair[1].id);
+      return [end.x - start.x, end.y - start.y];
+    };
+    const residuals = [
+      (get) => {
+        const first = direction(get, linePoints[0]); const second = direction(get, linePoints[1]);
+        const denominator = Math.hypot(...first) * Math.hypot(...second);
+        return denominator > GEOMETRY_POLICY.linearTolerance ? ((first[0] * second[1]) - (first[1] * second[0])) / denominator : 1;
+      },
+      (get) => {
+        const first = direction(get, linePoints[0]);
+        const start = get(linePoints[0][0].id); const other = get(linePoints[1][0].id);
+        const length = Math.hypot(...first);
+        return length > GEOMETRY_POLICY.linearTolerance ? ((first[0] * (other.y - start.y)) - (first[1] * (other.x - start.x))) / length : 1;
+      },
+    ];
+    return { supported: true, rows: numericalRows(allPoints, residuals) };
+  }
+
+  if (constraint.type === 'symmetry') {
+    const selectedPoints = referencedEntities(constraint.entityIds, entityMap, 'point');
+    const axes = referencedEntities(constraint.entityIds, entityMap, 'line');
+    if (selectedPoints.length !== 2 || axes.length !== 1) return { supported: true, error: 'Wiązanie symmetry wymaga dwóch punktów i jednej linii osi.' };
+    const axisPoints = axes[0].pointIds.map((pointId) => entityMap.get(pointId));
+    if (axisPoints.some((point) => point?.type !== 'point')) return { supported: true, error: 'Oś więzu symmetry jest niepełna.' };
+    const residuals = [
+      (get) => {
+        const first = get(selectedPoints[0].id); const second = get(selectedPoints[1].id);
+        const axisStart = get(axisPoints[0].id); const axisEnd = get(axisPoints[1].id);
+        const dx = axisEnd.x - axisStart.x; const dy = axisEnd.y - axisStart.y; const length = Math.hypot(dx, dy);
+        const midpoint = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
+        return length > GEOMETRY_POLICY.linearTolerance ? (dx * (midpoint.y - axisStart.y) - dy * (midpoint.x - axisStart.x)) / length : 1;
+      },
+      (get) => {
+        const first = get(selectedPoints[0].id); const second = get(selectedPoints[1].id);
+        const axisStart = get(axisPoints[0].id); const axisEnd = get(axisPoints[1].id);
+        const dx = axisEnd.x - axisStart.x; const dy = axisEnd.y - axisStart.y; const length = Math.hypot(dx, dy);
+        return length > GEOMETRY_POLICY.linearTolerance ? ((second.x - first.x) * dx + (second.y - first.y) * dy) / length : 1;
+      },
+    ];
+    return { supported: true, rows: numericalRows([...selectedPoints, ...axisPoints], residuals) };
   }
 
   if (constraint.type === 'distance') {
@@ -515,12 +589,89 @@ export function solveSketchConstraints(sketch, parameters = [], options = {}) {
     [end.x, end.y] = nextEnd;
     return delta;
   };
+  const translateLineToLine = (targetLine, sourceLine) => {
+    const [sourceStart, sourceEnd] = sourceLine.pointIds.map((id) => coordinates.get(id));
+    const [targetStartId, targetEndId] = targetLine.pointIds;
+    const targetStart = coordinates.get(targetStartId);
+    const targetEnd = coordinates.get(targetEndId);
+    const dx = sourceEnd.x - sourceStart.x;
+    const dy = sourceEnd.y - sourceStart.y;
+    const length = Math.hypot(dx, dy);
+    if (length <= tolerance) return 0;
+    const normal = [-dy / length, dx / length];
+    const midpoint = [(targetStart.x + targetEnd.x) / 2, (targetStart.y + targetEnd.y) / 2];
+    const offset = ((midpoint[0] - sourceStart.x) * normal[0]) + ((midpoint[1] - sourceStart.y) * normal[1]);
+    let delta = 0;
+    for (const [id, point] of [[targetStartId, targetStart], [targetEndId, targetEnd]]) {
+      if (fixedPointIds.has(id)) continue;
+      point.x -= normal[0] * offset;
+      point.y -= normal[1] * offset;
+      delta = Math.max(delta, Math.abs(offset));
+    }
+    return delta;
+  };
+  const reflectAcrossLine = (point, axisStart, axisEnd) => {
+    const dx = axisEnd.x - axisStart.x;
+    const dy = axisEnd.y - axisStart.y;
+    const lengthSquared = dx * dx + dy * dy;
+    if (lengthSquared <= tolerance * tolerance) return { ...point };
+    const projection = ((point.x - axisStart.x) * dx + (point.y - axisStart.y) * dy) / lengthSquared;
+    const foot = { x: axisStart.x + projection * dx, y: axisStart.y + projection * dy };
+    return { x: (2 * foot.x) - point.x, y: (2 * foot.y) - point.y };
+  };
+  const setSymmetricPoints = (firstId, secondId, axisLine) => {
+    const first = coordinates.get(firstId);
+    const second = coordinates.get(secondId);
+    const [axisStart, axisEnd] = axisLine.pointIds.map((id) => coordinates.get(id));
+    if (!first || !second || !axisStart || !axisEnd) return 0;
+    const firstFixed = fixedPointIds.has(firstId);
+    const secondFixed = fixedPointIds.has(secondId);
+    if (firstFixed && secondFixed) return 0;
+    if (firstFixed || secondFixed) {
+      const source = firstFixed ? first : second;
+      const target = firstFixed ? second : first;
+      const reflected = reflectAcrossLine(source, axisStart, axisEnd);
+      const delta = Math.hypot(target.x - reflected.x, target.y - reflected.y);
+      target.x = reflected.x; target.y = reflected.y;
+      return delta;
+    }
+    const midpoint = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
+    const projectedMidpoint = reflectAcrossLine(midpoint, axisStart, axisEnd);
+    projectedMidpoint.x = (projectedMidpoint.x + midpoint.x) / 2;
+    projectedMidpoint.y = (projectedMidpoint.y + midpoint.y) / 2;
+    const dx = axisEnd.x - axisStart.x; const dy = axisEnd.y - axisStart.y; const length = Math.hypot(dx, dy);
+    if (length <= tolerance) return 0;
+    const normal = [-dy / length, dx / length];
+    const halfDistance = Math.hypot(second.x - first.x, second.y - first.y) / 2;
+    const sign = ((second.x - first.x) * normal[0] + (second.y - first.y) * normal[1]) < 0 ? -1 : 1;
+    const nextFirst = { x: projectedMidpoint.x - normal[0] * halfDistance * sign, y: projectedMidpoint.y - normal[1] * halfDistance * sign };
+    const nextSecond = { x: projectedMidpoint.x + normal[0] * halfDistance * sign, y: projectedMidpoint.y + normal[1] * halfDistance * sign };
+    const delta = Math.max(Math.hypot(first.x - nextFirst.x, first.y - nextFirst.y), Math.hypot(second.x - nextSecond.x, second.y - nextSecond.y));
+    Object.assign(first, nextFirst); Object.assign(second, nextSecond);
+    return delta;
+  };
 
   let converged = false;
   let iterations = 0;
   for (iterations = 1; iterations <= maximumIterations; iterations += 1) {
     let maximumDelta = 0;
     for (const constraint of sketch?.constraints || []) {
+      if (constraint.type === 'collinear') {
+        const lines = referencedEntities(constraint.entityIds, entityMap, 'line');
+        if (lines.length !== 2) continue;
+        const secondMovable = lines[1].pointIds.every((pointId) => !fixedPointIds.has(pointId));
+        const target = secondMovable ? lines[1] : lines[0];
+        const source = secondMovable ? lines[0] : lines[1];
+        const targetAngle = lineAngle(source) + (Math.cos(lineAngle(target) - lineAngle(source)) < 0 ? Math.PI : 0);
+        maximumDelta = Math.max(maximumDelta, setLineAngle(target, targetAngle), translateLineToLine(target, source));
+        continue;
+      }
+      if (constraint.type === 'symmetry') {
+        const points = referencedEntities(constraint.entityIds, entityMap, 'point');
+        const axes = referencedEntities(constraint.entityIds, entityMap, 'line');
+        if (points.length === 2 && axes.length === 1) maximumDelta = Math.max(maximumDelta, setSymmetricPoints(points[0].id, points[1].id, axes[0]));
+        continue;
+      }
       if (constraint.type === 'angle') {
         const lines = referencedEntities(constraint.entityIds, entityMap, 'line');
         if (lines.length !== 2) continue;

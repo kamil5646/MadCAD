@@ -1314,6 +1314,42 @@ test('solver utrzymuje equal dla linii i okręgów', () => {
   assert.equal(circleSolution.entityUpdates.find((entry) => entry.entityId === secondCircle.id).geometry.radius, '5');
 });
 
+test('solver collinear ustawia dwie linie na jednej prostej i zachowuje więz po round-trip', () => {
+  const points = [
+    createSketchPoint({ x: 0, y: 0, fixed: true }), createSketchPoint({ x: 10, y: 0, fixed: true }),
+    createSketchPoint({ x: 2, y: 4 }), createSketchPoint({ x: 8, y: 6 }),
+  ];
+  const lines = [createSketchLine({ startPointId: points[0].id, endPointId: points[1].id }), createSketchLine({ startPointId: points[2].id, endPointId: points[3].id })];
+  const constraint = createSketchConstraint('collinear', lines.map((line) => line.id));
+  const sketch = createSketch({ entities: [...points, ...lines], constraints: [constraint] });
+  const solution = solveSketchConstraints(sketch);
+  assert.equal(solution.converged, true);
+  applySketchConstraintSolution(sketch, solution);
+  const moved = sketch.entities.filter((entity) => [points[2].id, points[3].id].includes(entity.id));
+  assert.ok(moved.every((point) => Math.abs(Number(point.geometry.y)) < 1e-7));
+  const document = createDocument('Collinear');
+  document.sketches.push(sketch);
+  const reopened = openDocument(JSON.parse(JSON.stringify(document))).document;
+  assert.equal(reopened.sketches[0].constraints[0].type, 'collinear');
+});
+
+test('solver symmetry odbija dwa punkty względem osi i wykrywa konflikt geometrii stałej', () => {
+  const axisPoints = [createSketchPoint({ x: 0, y: -10, fixed: true }), createSketchPoint({ x: 0, y: 10, fixed: true })];
+  const axis = createSketchLine({ startPointId: axisPoints[0].id, endPointId: axisPoints[1].id });
+  const points = [createSketchPoint({ x: -2, y: 1, fixed: true }), createSketchPoint({ x: 5, y: 4 })];
+  const constraint = createSketchConstraint('symmetry', [points[0].id, points[1].id, axis.id]);
+  const sketch = createSketch({ entities: [...axisPoints, axis, ...points], constraints: [constraint] });
+  const solution = solveSketchConstraints(sketch);
+  assert.equal(solution.converged, true);
+  applySketchConstraintSolution(sketch, solution);
+  const reflected = sketch.entities.find((entity) => entity.id === points[1].id);
+  assert.ok(Math.abs(Number(reflected.geometry.x) - 2) < 1e-7);
+  assert.ok(Math.abs(Number(reflected.geometry.y) - 1) < 1e-7);
+
+  const conflicting = createSketch({ entities: [...axisPoints, axis, { ...points[0], fixed: true }, { ...points[1], fixed: true }], constraints: [constraint] });
+  assert.equal(analyzeSketchConstraints(conflicting).status, SKETCH_SOLVER_STATUS.CONFLICT);
+});
+
 test('solver utrzymuje styczność linii z okręgiem oraz dwóch okręgów', () => {
   const lineStart = createSketchPoint({ x: -10, y: 0, fixed: true });
   const lineEnd = createSketchPoint({ x: 10, y: 0, fixed: true });

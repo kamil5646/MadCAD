@@ -124,7 +124,7 @@ Te prace nie czekają na koniec modelowania:
 ## P1 — rozszerzenie modelowania części
 
 - [x] P1.1 Import SVG/DXF do aktywnego szkicu: wykrywanie i wybór jednostek, profile, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
-- [ ] P1.2 Więzy `collinear` i `symmetry` od solvera do interfejsu, z diagnostyką konfliktów i round-trip projektu.
+- [x] P1.2 Więzy `collinear` i `symmetry` od solvera do interfejsu, z diagnostyką konfliktów, undo/redo, autozapisem i round-trip projektu.
 - [ ] P1.3 Wymiary ordinate oraz długości łuku.
 
 ## Definition of Done
@@ -149,4 +149,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.2 — więzy collinear i symmetry od solvera do interfejsu, z diagnostyką konfliktów i round-trip projektu.`
+`P1.3 — wymiary ordinate oraz długości łuku od modelu i solvera do edycji na szkicu.`

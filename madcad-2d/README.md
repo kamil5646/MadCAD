@@ -19,7 +19,7 @@ MadCAD rozwija się aktywnie. Jeśli chcesz wesprzeć rozwój aplikacji:
 - Narzędzia CAD 2D: linia, polilinia, prostokąt, okrąg, pomiar, wymiarowanie.
 - Modyfikacje: przesuń, kopiuj, odsuń, duplikuj, usuwanie, kolejność obiektów.
 - Generator stali: szablony `brama`, `ogrodzenie`, `balkon`.
-- Modeler 3D: szkice z więzami, historia parametryczna, podstawowe operacje bryłowe, otwory, inspekcja i przygotowanie druku.
+- Modeler 3D: szkice z więzami (w tym współliniowość i symetria), historia parametryczna, podstawowe operacje bryłowe, otwory, inspekcja i przygotowanie druku.
 - Import/eksport 3D: `STEP`, `STL`, `3MF`; projekt parametryczny: `.madcad`.
 - Import szkicu: `SVG` i `DXF` z kontrolą jednostek oraz automatycznym wykrywaniem zamkniętych profili.
 - Wbudowany samouczek „Pierwsza część do druku” z jawną listą ograniczeń wersji alpha.
