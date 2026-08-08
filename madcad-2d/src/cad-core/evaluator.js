@@ -2,6 +2,7 @@ import { evaluateExpression, resolveParameters } from './expressions.js';
 import { findProfile, validateDocument } from './document.js';
 import { buildDependencyGraph } from './dependency-graph.js';
 import { GEOMETRY_POLICY, isPositiveLength } from './geometry-policy.js';
+import { createTextProfile } from './text-profile.js';
 
 export const FEATURE_STATUS = Object.freeze({
   OK: 'ok',
@@ -270,6 +271,24 @@ export function prepareDocument(document) {
         diagnostics: [],
         topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
         distanceValue: evaluateExpression(feature.distance, parameterResult.values),
+      };
+    }
+    if (feature.type === 'textSolid') {
+      const read = (value, label, requirePositive = false) => {
+        const result = evaluateExpression(value ?? 0, parameterResult.values);
+        return requirePositive ? positive(result, label) : result;
+      };
+      const fontSizeValue = read(feature.fontSize, 'Rozmiar tekstu', true);
+      const x = read(feature.x, 'Położenie X');
+      const y = read(feature.y, 'Położenie Y');
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        fontSizeValue,
+        depthValue: read(feature.depth, 'Głębokość tekstu', true),
+        position: [x, y, read(feature.z, 'Położenie Z')],
+        profile: createTextProfile(feature.text, fontSizeValue, x, y),
       };
     }
     if (feature.type === 'fillet' || feature.type === 'chamfer') {

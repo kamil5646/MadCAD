@@ -155,6 +155,26 @@ function runFeature(feature, bodyMap, bodyOrder) {
     return;
   }
 
+  if (feature.type === 'textSolid') {
+    const z = feature.operation === 'deboss' ? feature.position[2] - feature.depthValue : feature.position[2];
+    const tool = combineShapes(feature.profile.rectangles.map((rectangle) => makeBox(
+      [rectangle.x, rectangle.y, z],
+      [rectangle.x + rectangle.width, rectangle.y + rectangle.height, z + feature.depthValue],
+    )));
+    const bodyId = `body-${feature.id}`;
+    if (feature.operation === 'new') {
+      bodyMap.set(bodyId, { id: bodyId, name: feature.name, sourceFeatureId: feature.id, representation: 'brep', shape: tool });
+      bodyOrder.push(bodyId);
+      return;
+    }
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły docelowej dla ${feature.name}.`);
+    if (feature.operation === 'emboss') target.shape = target.shape.fuse(tool);
+    else if (feature.operation === 'deboss') target.shape = target.shape.cut(tool);
+    else throw new Error(`Nieobsługiwana operacja tekstu: ${feature.operation}.`);
+    return;
+  }
+
   if (feature.type === 'transform') {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);

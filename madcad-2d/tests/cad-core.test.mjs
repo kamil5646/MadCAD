@@ -51,6 +51,7 @@ import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, create
 import { createCenterPoint, createIntersectionPoint, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../src/cad-core/construction-points.js';
 import { projectTopologyToSketch, synchronizeProjectedGeometry } from '../src/cad-core/sketch-projection.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
+import { createTextProfile } from '../src/cad-core/text-profile.js';
 import {
   arcCenterStartEnd,
   arcThroughThreePoints,
@@ -454,6 +455,36 @@ test('Box, Cylinder, Sphere i Torus przygotowują parametryczne bryły oraz osob
   assert.deepEqual([prepared[3].majorRadiusValue, prepared[3].minorRadiusValue], [12, 3]);
   const graph = buildDependencyGraph(document);
   assert.equal(primitives.every((feature) => graph.producerOfBody(`body-${feature.id}`) === feature.id), true);
+});
+
+test('Text tworzy przenośny profil i obsługuje Extrude, Emboss oraz Deboss', () => {
+  const profile = createTextProfile('MĄD-1', 7, 2, 3);
+  assert.ok(profile.rectangles.length > 0);
+  assert.ok(profile.area > 0);
+  assert.deepEqual([profile.width, profile.height], [29, 7]);
+  assert.ok(profile.rectangles.every((rectangle) => rectangle.width > 0 && rectangle.height > 0));
+
+  const document = createDocument('Tekst 3D');
+  const base = createFeature('primitive', { primitiveType: 'box', x: '0', y: '0', z: '0', width: '40', depth: '20', height: '5' });
+  const newText = createFeature('textSolid', { text: 'HI', fontSize: '7', depth: '2', x: '2', y: '2', z: '8', operation: 'new' });
+  const emboss = createFeature('textSolid', { text: 'A', fontSize: '7', depth: '2', x: '10', y: '2', z: '5', operation: 'emboss', targetBodyId: `body-${base.id}` });
+  const deboss = createFeature('textSolid', { text: 'B', fontSize: '7', depth: '2', x: '20', y: '2', z: '5', operation: 'deboss', targetBodyId: `body-${base.id}` });
+  document.features.push(base, newText, emboss, deboss);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features;
+  assert.equal(prepared[1].profile.text, 'HI');
+  assert.deepEqual(prepared[1].position, [2, 2, 8]);
+  assert.equal(prepared[1].depthValue, 2);
+  const graph = buildDependencyGraph(document);
+  assert.equal(graph.producerOfBody(`body-${newText.id}`), newText.id);
+  assert.ok(graph.edges.some((edge) => edge.from === `body-${base.id}` && edge.to === emboss.id && edge.kind === 'modifies'));
+
+  const broken = structuredClone(document);
+  broken.features[1].text = '   ';
+  broken.features[2].operation = 'invalid';
+  assert.ok(validateDocument(broken).issues.some((issue) => issue.path.endsWith('.text') && issue.code === 'REQUIRED'));
+  assert.ok(validateDocument(broken).issues.some((issue) => issue.path.endsWith('.operation') && issue.code === 'UNSUPPORTED'));
 });
 
 test('wspólny manipulator ma parametryczne operacje Move, Rotate i Offset Face', () => {

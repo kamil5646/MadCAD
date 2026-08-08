@@ -518,6 +518,57 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'offsetFace'`, 'zapisany Offset Face', modelingTimeoutMs);
   assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume`), 10 * 12 * 16, 0.05, 'Offset Face volume');
 
+  progress('text profile extrude emboss deboss');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla tekstu');
+  await clickTool('Tekst 3D');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Tekst 3D')`, 'okno nowej bryły tekstowej');
+  await setCommandField('Tekst', 'HI');
+  await setCommandField('Rozmiar', '7');
+  await setCommandField('Głębokość', '2');
+  const newTextRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${newTextRevision} && window.__madcadVerifyEngineState?.bodies?.length === 1 && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'textSolid'`, 'wyciągnięty tekst jako nowa bryła', modelingTimeoutMs);
+  assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), 32 * 2, 0.05, 'Text extrusion volume');
+
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla Emboss');
+  await clickTool('Prymityw');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Prymityw 3D')`, 'baza tekstu');
+  await setCommandField('Szerokość', '40');
+  await setCommandField('Głębokość', '20');
+  await setCommandField('Wysokość', '5');
+  await confirmDialog();
+  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 4000) < 0.05`, 'bryła bazowa tekstu', modelingTimeoutMs);
+  const textBaseId = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].id`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'body', bodyId: ${JSON.stringify(textBaseId)} }, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'bryła wskazana dla Emboss');
+  await clickTool('Tekst 3D');
+  await setCommandField('Tekst', 'HI');
+  await setCommandField('Rozmiar', '7');
+  await setCommandField('Głębokość', '2');
+  await setCommandField('Położenie X', '2');
+  await setCommandField('Położenie Y', '2');
+  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 4064) < 0.05`, 'podgląd Emboss', modelingTimeoutMs);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.operation === 'emboss'`, 'zapisany Emboss', modelingTimeoutMs);
+  assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), 4064, 0.05, 'Text emboss volume');
+
+  await editTimelineFeature(1, 'Tekst 3D');
+  await setCommandField('Operacja', 'deboss');
+  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 3936) < 0.05`, 'podgląd Deboss', modelingTimeoutMs);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.operation === 'deboss'`, 'zapisany Deboss', modelingTimeoutMs);
+  assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), 3936, 0.05, 'Text deboss volume');
+  await sendShortcut('z');
+  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 4064) < 0.05`, 'undo tekstu', modelingTimeoutMs);
+  await sendShortcut('z', true);
+  await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 3936) < 0.05`, 'redo tekstu', modelingTimeoutMs);
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.features?.[1]?.type === 'textSolid' && saved.features[1].operation === 'deboss'; })()`, 'autozapis tekstu 3D');
+  const reopenTextRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${reopenTextRevision} && Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 3936) < 0.05`, 'ponownie otwarty Deboss', modelingTimeoutMs);
+
   progress('new document');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt');

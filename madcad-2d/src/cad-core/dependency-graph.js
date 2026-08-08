@@ -18,6 +18,7 @@ function featureExpressions(feature) {
   if (feature.type === 'primitive') return [feature.x, feature.y, feature.z, feature.width, feature.depth, feature.height, feature.radius, feature.majorRadius, feature.minorRadius];
   if (feature.type === 'transform') return [feature.x, feature.y, feature.z, feature.angle, feature.originX, feature.originY, feature.originZ];
   if (feature.type === 'offsetFace') return [feature.distance];
+  if (feature.type === 'textSolid') return [feature.fontSize, feature.depth, feature.x, feature.y, feature.z];
   return [];
 }
 
@@ -131,7 +132,7 @@ export function buildDependencyGraph(document) {
 
     if (feature.targetBodyId) addEdge(feature.targetBodyId, feature.id, 'modifies');
     if (feature.toolBodyId) addEdge(feature.toolBodyId, feature.id, 'consumes');
-    if ((feature.type === 'extrude' && feature.operation === 'new') || feature.type === 'primitive') {
+    if ((feature.type === 'extrude' && feature.operation === 'new') || feature.type === 'primitive' || (feature.type === 'textSolid' && feature.operation === 'new')) {
       const bodyId = `body-${feature.id}`;
       addNode(bodyId, 'body', feature.name, { persisted: false, producerFeatureId: feature.id });
       bodyProducerById.set(bodyId, feature.id);

@@ -12,7 +12,7 @@ export const DOCUMENT_SCHEMA_VERSION = 4;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'primitive', 'transform', 'offsetFace']);
+const FEATURE_TYPES = new Set(['extrude', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'primitive', 'transform', 'offsetFace', 'textSolid']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -120,7 +120,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face' };
+  const names = { extrude: 'Wyciągnięcie', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -610,6 +610,14 @@ export function validateDocument(document) {
     if (feature.type === 'primitive') {
       if (!['box', 'cylinder', 'sphere', 'torus'].includes(feature.primitiveType)) add(`${base}.primitiveType`, `Nieobsługiwany prymityw: ${feature.primitiveType ?? ''}.`, 'UNSUPPORTED');
       bodyIds.add(`body-${feature.id}`);
+    }
+
+    if (feature.type === 'textSolid') {
+      if (typeof feature.text !== 'string' || !feature.text.trim()) add(`${base}.text`, 'Tekst 3D nie może być pusty.', 'REQUIRED');
+      if (feature.text?.length > 80) add(`${base}.text`, 'Tekst 3D może mieć najwyżej 80 znaków.', 'VALUE');
+      if (!['new', 'emboss', 'deboss'].includes(feature.operation)) add(`${base}.operation`, `Nieobsługiwana operacja tekstu: ${feature.operation ?? ''}.`, 'UNSUPPORTED');
+      if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
+      else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono bryły docelowej „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
     }
 
     if (feature.type === 'transform') {

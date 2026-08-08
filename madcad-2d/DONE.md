@@ -53,10 +53,18 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Utracona referencja ostrzega na osi czasu, pokazuje operację źródłową i pozwala przypisać zaznaczenie albo sugerowanego kandydata.
 - [x] Desktop E2E sprawdza hover, multi-select, cykl, box select, brak nowej rewizji po pickingu oraz pełną naprawę celowo zerwanej referencji.
 
+## Konstrukcja, szkic na modelu i modelowanie części M4–M6
+
+- [x] Płaszczyzny, osie i punkty konstrukcyjne mają trwałe referencje, nazwy, widoczność oraz pełny przepływ zapisu.
+- [x] Szkic działa na płaszczyznach bazowych, konstrukcyjnych i planarnych ścianach modelu; Project utrzymuje skojarzone punkty, krawędzie i pętle.
+- [x] Extrude obsługuje New/Join/Cut/Intersect, jedną i dwie strony, symetrię oraz Through All.
+- [x] Boolean, Fillet/Chamfer wskazanych krawędzi, Shell wskazanych ścian, Box/Cylinder/Sphere/Torus oraz wspólny manipulator działają na dokładnym B-Rep.
+- [x] Text tworzy przenośny profil znaków i realizuje nową bryłę, Emboss oraz Deboss bez zależności od fontu systemowego.
+
 ## Ostatnia zweryfikowana baza
 
-- Testy rdzenia: 66 zaliczonych, 0 błędów.
-- Desktop E2E: profile XY/XZ/YZ, spline, conic, parametryczny wspornik, otwór z punktu, fillet/chamfer, autosave, odtworzenie workera oraz eksport STEP/STL.
+- Testy rdzenia: 78 zaliczonych, 0 błędów.
+- Desktop E2E: profile XY/XZ/YZ, spline, conic, parametryczny wspornik, prymitywy, wspólny manipulator, Text/Emboss/Deboss, otwór z punktu, fillet/chamfer, Shell, autosave, odtworzenie workera oraz eksport STEP/STL.
 - Commity kontrolne: `1633cf3`, `6505103`, `be3c067`, `ec5e45f`, `0ad3b75`, `1ca5237`, `1a0a02b`, `fe19842`.
 
 Liczby testów są historycznym zapisem tej bazy; bieżący wynik zawsze pochodzi z aktualnego uruchomienia CI.
