@@ -33,14 +33,14 @@ function numericValue(value, parameters) {
   }
 }
 
-function mapPlanePoint(x, y, plane, z = 0.04) {
-  if (plane === 'XZ') return [x, -z, y];
-  if (plane === 'YZ') return [z, x, y];
-  return [x, y, z];
+function mapPlanePoint(x, y, plane, z = 0.04, planeOffset = 0) {
+  if (plane === 'XZ') return [x, -planeOffset - z, y];
+  if (plane === 'YZ') return [planeOffset + z, x, y];
+  return [x, y, planeOffset + z];
 }
 
-function profilePoints(profile, parameters, plane) {
-  return profileLocalPoints(profile, parameters).map((point) => mapPlanePoint(point[0], point[1], plane));
+function profilePoints(profile, parameters, plane, planeOffset = 0) {
+  return profileLocalPoints(profile, parameters).map((point) => mapPlanePoint(point[0], point[1], plane, 0.04, planeOffset));
 }
 
 function profileLocalPoints(profile, parameters) {
@@ -71,7 +71,7 @@ function profileLocalPoints(profile, parameters) {
   });
 }
 
-function addSketchProfiles(group, sketch, parameters, plane, { selectedProfileId = null, visible = true } = {}) {
+function addSketchProfiles(group, sketch, parameters, plane, { selectedProfileId = null, visible = true, planeOffset = 0 } = {}) {
   const pickables = [];
   if (!visible) return { pickables };
   for (const profile of sketch.profiles || []) {
@@ -91,7 +91,7 @@ function addSketchProfiles(group, sketch, parameters, plane, { selectedProfileId
     const geometry = new THREE.ShapeGeometry(shape);
     const position = geometry.getAttribute('position');
     for (let index = 0; index < position.count; index += 1) {
-      const mapped = mapPlanePoint(position.getX(index), position.getY(index), plane, 0.035);
+      const mapped = mapPlanePoint(position.getX(index), position.getY(index), plane, 0.035, planeOffset);
       position.setXYZ(index, ...mapped);
     }
     position.needsUpdate = true;
@@ -148,7 +148,7 @@ function sketchEntityState(entity, selected, error = false) {
   return 'under-constrained';
 }
 
-function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [], showPoints = true } = {}) {
+function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [], showPoints = true, planeOffset = 0 } = {}) {
   const entityMap = new Map(sketch.entities.map((entity) => [entity.id, entity]));
   const selected = new Set(selectedIds);
   const coordinates = new Map();
@@ -250,7 +250,7 @@ function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [],
           ? Math.hypot(localPoints[0][0] - localPoints.at(-1)[0], localPoints[0][1] - localPoints.at(-1)[1]) <= 1e-7
           : false;
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(localPoints.flatMap((point) => mapPlanePoint(point[0], point[1], plane, 0.12)), 3));
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(localPoints.flatMap((point) => mapPlanePoint(point[0], point[1], plane, 0.12, planeOffset)), 3));
     const baseColor = sketchEntityColor(entity, selected.has(entity.id), hasError);
     const material = new THREE.LineBasicMaterial({ color: baseColor, transparent: true, opacity: 0.96 });
     const line = new THREE.Line(geometry, material);
@@ -268,7 +268,7 @@ function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [],
         new THREE.SphereGeometry(selected.has(entity.id) ? 1.25 : 0.9, 14, 10),
         new THREE.MeshBasicMaterial({ color: baseColor, depthTest: false }),
       );
-      point.position.set(...mapPlanePoint(...coordinates.get(entity.id), plane, 0.18));
+      point.position.set(...mapPlanePoint(...coordinates.get(entity.id), plane, 0.18, planeOffset));
       point.renderOrder = 5;
       point.userData = { sketchEntityId: entity.id, sketchEntityType: 'point', sketchState: sketchEntityState(entity, selected.has(entity.id)), baseColor };
       group.add(point);
@@ -281,12 +281,12 @@ function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [],
     for (const entry of entries) {
       if (entry.entity.type === 'point') {
         const point = readPoint(entry.entity.id, overrides);
-        if (point) entry.object.position.set(...mapPlanePoint(...point, plane, 0.18));
+        if (point) entry.object.position.set(...mapPlanePoint(...point, plane, 0.18, planeOffset));
         continue;
       }
       const localPoints = localPointsFor(entry.entity, overrides);
       entry.object.geometry.setAttribute('position', new THREE.Float32BufferAttribute(
-        localPoints.flatMap((point) => mapPlanePoint(point[0], point[1], plane, 0.12)),
+        localPoints.flatMap((point) => mapPlanePoint(point[0], point[1], plane, 0.12, planeOffset)),
         3,
       ));
       entry.object.geometry.computeBoundingSphere();
@@ -295,8 +295,8 @@ function addSketchEntities(group, sketch, parameters, plane, { selectedIds = [],
   return { coordinates, entries, pickables, update };
 }
 
-function addSketchLine(group, profile, parameters, plane, draft = false) {
-  const points = profilePoints(profile, parameters, plane).flat();
+function addSketchLine(group, profile, parameters, plane, draft = false, planeOffset = 0) {
+  const points = profilePoints(profile, parameters, plane, planeOffset).flat();
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
   const material = new THREE.LineBasicMaterial({
@@ -307,9 +307,12 @@ function addSketchLine(group, profile, parameters, plane, draft = false) {
   group.add(new THREE.Line(geometry, material));
 }
 
-function configureGrid(grid, plane) {
+function configureGrid(grid, plane, planeOffset = 0) {
   if (plane === 'XY') grid.rotation.x = Math.PI / 2;
   else if (plane === 'YZ') grid.rotation.z = Math.PI / 2;
+  if (plane === 'XY') grid.position.z = planeOffset;
+  else if (plane === 'XZ') grid.position.y = -planeOffset;
+  else grid.position.x = planeOffset;
 }
 
 export default function ModelViewport({
@@ -348,6 +351,7 @@ export default function ModelViewport({
   selectedConstructionPointId = null,
   selectedProfile,
   selectedProfilePlane = 'XY',
+  selectedProfilePlaneOffset = 0,
   directExtrudeDistance = 0,
   onDirectExtrude,
   snapEnabled = true,
@@ -381,6 +385,7 @@ export default function ModelViewport({
   const selectedBodySet = useMemo(() => new Set(selectedBodyIds.length ? selectedBodyIds : [selectedBodyId].filter(Boolean)), [selectedBodyId, selectedBodyIds]);
   const activeSketch = sketches.find((sketch) => sketch.id === activeSketchId);
   const activePlane = activeSketch?.plane || 'XY';
+  const activePlaneOffset = numericValue(activeSketch?.planeOffset || 0, parameters);
   const solverAnalysis = useMemo(() => {
     if (!activeSketch) return null;
     try {
@@ -442,8 +447,7 @@ export default function ModelViewport({
 
     const gridSize = Math.max(800, bed?.bedWidth || 220, bed?.bedDepth || 220);
     const grid = new THREE.GridHelper(gridSize, Math.round(gridSize / 10), 0x737e8b, 0x4b5562);
-    configureGrid(grid, activeSketchId ? activePlane : 'XY');
-    grid.position.z = activePlane === 'XY' ? -0.03 : 0;
+    configureGrid(grid, activeSketchId ? activePlane : 'XY', activeSketchId ? activePlaneOffset : 0);
     grid.visible = showGrid;
     scene.add(grid);
 
@@ -540,9 +544,9 @@ export default function ModelViewport({
           : new THREE.Vector3(0, 0, 1);
       const profileX = numericValue(selectedProfile.geometry.x, parameters);
       const profileY = numericValue(selectedProfile.geometry.y, parameters);
-      const center = new THREE.Vector3(...mapPlanePoint(profileX, profileY, selectedProfilePlane, 0.12));
+      const center = new THREE.Vector3(...mapPlanePoint(profileX, profileY, selectedProfilePlane, 0.12, selectedProfilePlaneOffset));
 
-      addSketchLine(directGroup, selectedProfile, parameters, selectedProfilePlane, true);
+      addSketchLine(directGroup, selectedProfile, parameters, selectedProfilePlane, true, selectedProfilePlaneOffset);
 
       const shaft = new THREE.Mesh(
         new THREE.CylinderGeometry(0.65, 0.65, 1, 18),
@@ -667,28 +671,30 @@ export default function ModelViewport({
       const axisLength = gridSize / 2;
       const xAxisGeometry = new THREE.BufferGeometry();
       xAxisGeometry.setAttribute('position', new THREE.Float32BufferAttribute([
-        ...mapPlanePoint(-axisLength, 0, activePlane, 0.06),
-        ...mapPlanePoint(axisLength, 0, activePlane, 0.06),
+        ...mapPlanePoint(-axisLength, 0, activePlane, 0.06, activePlaneOffset),
+        ...mapPlanePoint(axisLength, 0, activePlane, 0.06, activePlaneOffset),
       ], 3));
       sketchGroup.add(new THREE.Line(xAxisGeometry, new THREE.LineBasicMaterial({ color: 0xd85b61, transparent: true, opacity: 0.9 })));
       const yAxisGeometry = new THREE.BufferGeometry();
       yAxisGeometry.setAttribute('position', new THREE.Float32BufferAttribute([
-        ...mapPlanePoint(0, -axisLength, activePlane, 0.06),
-        ...mapPlanePoint(0, axisLength, activePlane, 0.06),
+        ...mapPlanePoint(0, -axisLength, activePlane, 0.06, activePlaneOffset),
+        ...mapPlanePoint(0, axisLength, activePlane, 0.06, activePlaneOffset),
       ], 3));
       sketchGroup.add(new THREE.Line(yAxisGeometry, new THREE.LineBasicMaterial({ color: 0x54c978, transparent: true, opacity: 0.9 })));
       sketchProfileRender = addSketchProfiles(sketchGroup, activeSketch, parameters, activePlane, {
         selectedProfileId: selectedProfile?.id,
         visible: showSketchProfiles,
+        planeOffset: activePlaneOffset,
       });
       sketchRender = addSketchEntities(sketchGroup, activeSketch, parameters, activePlane, {
         selectedIds: selectedSketchEntityIds,
         showPoints: showSketchPoints,
+        planeOffset: activePlaneOffset,
       });
-      if (draftProfile) addSketchLine(sketchGroup, draftProfile, parameters, activePlane, true);
+      if (draftProfile) addSketchLine(sketchGroup, draftProfile, parameters, activePlane, true, activePlaneOffset);
       if (sketchTool && polylineDraft?.lastPoint) {
         const previewGeometry = new THREE.BufferGeometry();
-        const start = mapPlanePoint(polylineDraft.lastPoint[0], polylineDraft.lastPoint[1], activePlane, 0.09);
+        const start = mapPlanePoint(polylineDraft.lastPoint[0], polylineDraft.lastPoint[1], activePlane, 0.09, activePlaneOffset);
         previewGeometry.setAttribute('position', new THREE.Float32BufferAttribute([...start, ...start], 3));
         sketchPreviewLine = new THREE.Line(
           previewGeometry,
@@ -702,7 +708,7 @@ export default function ModelViewport({
 
     const modelBox = bodies.length ? new THREE.Box3().setFromObject(modelGroup) : null;
     const center = modelBox ? modelBox.getCenter(new THREE.Vector3()) : new THREE.Vector3(0, 0, 0);
-    if (activeSketch) center.set(0, 0, 0);
+    if (activeSketch) center.set(...mapPlanePoint(0, 0, activePlane, 0, activePlaneOffset));
     const size = modelBox ? modelBox.getSize(new THREE.Vector3()) : new THREE.Vector3(80, 60, 20);
     const radius = Math.max(size.x, size.y, size.z, 55);
     const constructionGroup = new THREE.Group();
@@ -791,10 +797,10 @@ export default function ModelViewport({
     let modelPickCycle = { x: NaN, y: NaN, index: 0 };
     let modelSelectionBox = null;
     const sketchPlane = activePlane === 'XZ'
-      ? new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+      ? new THREE.Plane(new THREE.Vector3(0, 1, 0), activePlaneOffset)
       : activePlane === 'YZ'
-        ? new THREE.Plane(new THREE.Vector3(1, 0, 0), 0)
-        : new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+        ? new THREE.Plane(new THREE.Vector3(1, 0, 0), -activePlaneOffset)
+        : new THREE.Plane(new THREE.Vector3(0, 0, 1), -activePlaneOffset);
     const localPoint = (point) => activePlane === 'XZ' ? [point.x, point.z] : activePlane === 'YZ' ? [point.y, point.z] : [point.x, point.y];
     const setRayFromEvent = (event) => {
       const rect = renderer.domElement.getBoundingClientRect();
@@ -804,7 +810,7 @@ export default function ModelViewport({
       return rect;
     };
     const screenPoint = (coordinate, rect) => {
-      const projected = new THREE.Vector3(...mapPlanePoint(coordinate[0], coordinate[1], activePlane, 0.2)).project(camera);
+      const projected = new THREE.Vector3(...mapPlanePoint(coordinate[0], coordinate[1], activePlane, 0.2, activePlaneOffset)).project(camera);
       return [((projected.x + 1) * rect.width) / 2, ((1 - projected.y) * rect.height) / 2];
     };
     const pixelsPerSketchUnit = (coordinate, rect) => {
@@ -1024,7 +1030,7 @@ export default function ModelViewport({
         controls.enabled = false;
         const profileX = numericValue(selectedProfile.geometry.x, parameters);
         const profileY = numericValue(selectedProfile.geometry.y, parameters);
-        const origin = new THREE.Vector3(...mapPlanePoint(profileX, profileY, selectedProfilePlane, 0.12));
+        const origin = new THREE.Vector3(...mapPlanePoint(profileX, profileY, selectedProfilePlane, 0.12, selectedProfilePlaneOffset));
         const normal = selectedProfilePlane === 'XZ'
           ? new THREE.Vector3(0, -1, 0)
           : selectedProfilePlane === 'YZ'
@@ -1232,7 +1238,7 @@ export default function ModelViewport({
         if (!worldPoint) return;
         const point = resolveSnap(event, localPoint(worldPoint), rect, { anchor: polylineDraft?.lastPoint }).point;
         const position = sketchPreviewLine.geometry.getAttribute('position');
-        const mapped = mapPlanePoint(point[0], point[1], activePlane, 0.09);
+        const mapped = mapPlanePoint(point[0], point[1], activePlane, 0.09, activePlaneOffset);
         position.setXYZ(1, ...mapped);
         position.needsUpdate = true;
         sketchPreviewLine.computeLineDistances();
@@ -1371,7 +1377,7 @@ export default function ModelViewport({
         }
         window.__madcadSketchEntityScreenPoints = screenPoints;
         window.__madcadSketchLocalToScreen = (x, y) => {
-          const point = new THREE.Vector3(...mapPlanePoint(Number(x), Number(y), activePlane, 0.2)).project(camera);
+          const point = new THREE.Vector3(...mapPlanePoint(Number(x), Number(y), activePlane, 0.2, activePlaneOffset)).project(camera);
           return {
             x: Math.round(rect.left + ((point.x + 1) * rect.width) / 2),
             y: Math.round(rect.top + ((1 - point.y) * rect.height) / 2),
@@ -1455,7 +1461,7 @@ export default function ModelViewport({
       delete window.__madcadConstructionAxisState;
       delete window.__madcadConstructionPointState;
     };
-  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
+  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
 
   return (
     <div className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`} ref={hostRef}>

@@ -809,6 +809,33 @@ export default function ModelingWorkspace({ onClose }) {
 
   const startSketch = () => {
     if (readOnly) return readOnlyNotice();
+    const selectedFace = (selection?.items || (selection?.kind === 'face' ? [selection] : [])).find((item) => item.kind === 'face');
+    if (selectedFace) {
+      const body = engine.bodies.find((candidate) => candidate.id === selectedFace.bodyId);
+      const face = body?.topology?.faces?.find((candidate) => candidate.id === selectedFace.id);
+      if (face?.descriptor?.geometry !== 'PLANE') {
+        setNotice('Szkic można założyć bezpośrednio tylko na płaskiej ścianie.');
+        return;
+      }
+      const normal = face.descriptor.normal || [0, 0, 1];
+      const dominant = normal.map(Math.abs).indexOf(Math.max(...normal.map(Math.abs)));
+      if (normal.some((value, index) => index !== dominant && Math.abs(value) > 1e-6)) {
+        setNotice('Obrócone ściany planarne będą obsługiwane przez ramę UCS; ta ściana nie jest równoległa do XY, XZ ani YZ.');
+        return;
+      }
+      const plane = dominant === 0 ? 'YZ' : dominant === 1 ? 'XZ' : 'XY';
+      const center = face.descriptor.center || [0, 0, 0];
+      const planeOffset = dominant === 1 ? -center[1] : center[dominant];
+      const reference = createTopologyReference({ selection: selectedFace, descriptor: face.descriptor, label: `Podpora szkicu ${document.sketches.length + 1}` });
+      const sketch = createSketch({ name: `Szkic ${document.sketches.length + 1}`, plane, planeOffset, support: { kind: 'face', referenceId: reference.id } });
+      commit((next) => { next.references.push(reference); next.sketches.push(sketch); });
+      setActiveSketchId(sketch.id);
+      setSelection({ kind: 'sketch', id: sketch.id });
+      setCommand(null);
+      setWorkspace('sketch');
+      setNotice(`Edytujesz ${sketch.name} bezpośrednio na ścianie modelu (${plane}, odsunięcie ${planeOffset.toFixed(3)} mm).`);
+      return;
+    }
     setWorkspace('sketch');
     setCommand({ type: 'plane' });
     setNotice('Wybierz płaszczyznę szkicu.');
@@ -1495,6 +1522,9 @@ export default function ModelingWorkspace({ onClose }) {
       schemaVersion: document.schemaVersion,
       sketches: document.sketches.map((sketch) => ({
         id: sketch.id,
+        plane: sketch.plane,
+        planeOffset: sketch.planeOffset,
+        support: sketch.support,
         entities: sketch.entities.length,
         entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, pointIds: entity.pointIds, geometry: entity.geometry })),
         profiles: sketch.profiles.length,
@@ -2137,6 +2167,7 @@ export default function ModelingWorkspace({ onClose }) {
             selectedConstructionPointId={selection?.kind === 'constructionPoint' ? selection.id : null}
             selectedProfile={selectedProfile}
             selectedProfilePlane={selectedProfileMatch?.sketch.plane || 'XY'}
+            selectedProfilePlaneOffset={Number(selectedProfileMatch?.sketch.planeOffset || 0)}
             directExtrudeDistance={command?.type === 'extrude' ? command.distance : 0}
             onDirectExtrude={readOnly ? undefined : beginOrUpdateExtrude}
             snapEnabled={sketchOptions.snap}

@@ -187,7 +187,7 @@ export function prepareDocument(document) {
       const profiles = feature.profileIds.map((profileId) => {
         const match = findProfile(document, profileId);
         if (!match) throw new Error(`Nie znaleziono profilu ${profileId}.`);
-        return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY' };
+        return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
       });
       return {
         ...feature,
@@ -216,7 +216,7 @@ export function prepareDocument(document) {
         ...feature,
         status: 'ready',
         diagnostics: [],
-        profile: { ...profile, plane },
+        profile: { ...profile, plane, planeOffset: evaluateExpression((document.sketches.find((item) => item.id === feature.sketchId)?.planeOffset) || 0, parameterResult.values) },
         diameterValue: positive(evaluateExpression(feature.diameter, parameterResult.values), 'Średnica otworu'),
         depthValue: positive(evaluateExpression(feature.depth, parameterResult.values), 'Głębokość otworu'),
       };

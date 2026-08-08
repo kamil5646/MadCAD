@@ -650,6 +650,19 @@ async function runUiFlow(window) {
   await confirmDialog();
   await waitForUi(window, `(() => { const point = window.__madcadConstructionPointState?.find((item) => item.name === 'Punkt przecięcia testowy'); return point?.status === 'ok' && point.position.join(',') === '15,0,0'; })()`, 'punkt przecięcia osi i płaszczyzny');
 
+  progress('sketch on planar model face');
+  const supportFace = await window.webContents.executeJavaScript(`(() => {
+    const body = window.__madcadVerifyEngineState.bodies[0];
+    const face = body.topology.faces.find((item) => item.descriptor.geometry === 'PLANE' && Math.abs(item.descriptor.normal?.[2] || 0) > 0.99 && item.descriptor.center?.[2] > 7.9);
+    return face && { id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId };
+  })()`);
+  if (!supportFace) throw new Error('Brak górnej planarnej ściany do testu szkicu na modelu.');
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify({ kind: 'face', ...supportFace })}, 'replace')`);
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.length === 2 && window.__madcadVerifyDocumentState.sketches[1].support?.kind === 'face' && Number(window.__madcadVerifyDocumentState.sketches[1].planeOffset) > 7.9 && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'szkic założony bezpośrednio na ścianie modelu', modelingTimeoutMs);
+  await clickTool('Zakończ szkic');
+  await waitForUi(window, `!document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'zakończenie szkicu na ścianie');
+
   progress('hole sketch');
   await clickTool('Utwórz szkic');
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'drugi wybór płaszczyzny');
@@ -729,7 +742,7 @@ async function runUiFlow(window) {
     `(() => {
       try {
         const saved = JSON.parse(window.localStorage.getItem('madcad:modeling-document:v4') || 'null');
-        return saved?.schemaVersion === 4 && saved?.features?.length === 4 && saved?.sketches?.length === 2 && saved?.references?.some((item) => item.kind === 'construction-plane' && item.name === 'Płaszczyzna montażowa');
+        return saved?.schemaVersion === 4 && saved?.features?.length === 4 && saved?.sketches?.length === 3 && saved?.references?.some((item) => item.kind === 'construction-plane' && item.name === 'Płaszczyzna montażowa');
       } catch (_error) {
         return false;
       }
@@ -767,7 +780,7 @@ async function runUiFlow(window) {
   const autosaveRoundTrip = autosaveState.available
     && autosaveState.schemaVersion === 4
     && autosaveState.features === 4
-    && autosaveState.sketches === 2
+    && autosaveState.sketches === 3
     && autosaveState.entities === 10
     && autosaveState.constructionPlanes === 3
     && autosaveState.constructionAxes === 4

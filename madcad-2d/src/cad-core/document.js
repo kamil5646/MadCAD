@@ -103,12 +103,14 @@ export function createCircleProfile({ name = 'Okrąg', diameter = 'srednicaOtwor
   };
 }
 
-export function createSketch({ name = 'Szkic', plane = 'XY', entities = [], profiles = [], constraints = [], dimensions = [] } = {}) {
+export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', support = null, entities = [], profiles = [], constraints = [], dimensions = [] } = {}) {
   return normalizeSketchModel({
     id: createId('sketch'),
     name,
     type: 'sketch',
     plane,
+    planeOffset: String(planeOffset),
+    ...(support ? { support: structuredClone(support) } : {}),
     visible: true,
     entities,
     profiles,
@@ -331,6 +333,8 @@ export function validateDocument(document) {
     if (typeof sketch.id === 'string') sketchIds.add(sketch.id);
     if (sketch.type !== 'sketch') add(`${base}.type`, 'Typ szkicu musi mieć wartość „sketch”.', 'VALUE');
     if (!SUPPORTED_PLANES.has(sketch.plane)) add(`${base}.plane`, `Nieobsługiwana płaszczyzna: ${sketch.plane ?? ''}.`, 'UNSUPPORTED');
+    if (typeof sketch.planeOffset !== 'string' && typeof sketch.planeOffset !== 'number' && sketch.planeOffset !== undefined) add(`${base}.planeOffset`, 'Odsunięcie płaszczyzny szkicu musi być wyrażeniem albo liczbą.', 'TYPE');
+    if (sketch.support !== undefined && (!isRecord(sketch.support) || !['face', 'construction-plane'].includes(sketch.support.kind) || typeof sketch.support.referenceId !== 'string' || !sketch.support.referenceId)) add(`${base}.support`, 'Podpora szkicu wymaga trwałej referencji do ściany albo płaszczyzny.', 'TYPE');
     const profiles = requireArray(sketch, 'profiles', `${base}.profiles`);
     const entities = requireArray(sketch, 'entities', `${base}.entities`);
     const constraints = requireArray(sketch, 'constraints', `${base}.constraints`);
@@ -553,6 +557,9 @@ export function validateDocument(document) {
     }
   });
   const referenceIds = new Set(references.filter(isRecord).map((reference) => reference.id));
+  sketches.forEach((sketch, index) => {
+    if (sketch?.support?.referenceId && !referenceIds.has(sketch.support.referenceId)) add(`sketches[${index}].support.referenceId`, `Nie znaleziono podpory szkicu „${sketch.support.referenceId}”.`, 'BROKEN_REFERENCE');
+  });
   references.forEach((reference, index) => {
     if (!isRecord(reference) || reference.kind !== 'construction-axis' || reference.axisType !== 'plane-intersection' || !Array.isArray(reference.planeIds)) return;
     reference.planeIds.forEach((planeId, planeIndex) => {

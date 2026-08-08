@@ -103,9 +103,10 @@ function drawingForProfile(profile) {
 
 function extrudeProfile(profile, distance) {
   const plane = profile.plane || 'XY';
-  let shape = drawingForProfile(profile).sketchOnPlane(plane).extrude(distance);
+  const planeOffset = Number(profile.planeOffset || 0);
+  let shape = drawingForProfile(profile).sketchOnPlane(plane, planeOffset).extrude(distance);
   for (const hole of profile.geometry.holes || []) {
-    const cutter = drawingForSegments(hole.segments, profile.id).sketchOnPlane(plane).extrude(distance);
+    const cutter = drawingForSegments(hole.segments, profile.id).sketchOnPlane(plane, planeOffset).extrude(distance);
     shape = shape.cut(cutter);
   }
   return shape;
@@ -142,11 +143,12 @@ function runFeature(feature, bodyMap, bodyOrder) {
     if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);
     const { x, y } = feature.profile.geometry;
     const plane = feature.profile.plane || 'XY';
+    const planeOffset = Number(feature.profile.planeOffset || 0);
     const placement = plane === 'XZ'
-      ? { origin: [x, 1, y], direction: [0, -1, 0] }
+      ? { origin: [x, 1 - planeOffset, y], direction: [0, -1, 0] }
       : plane === 'YZ'
-        ? { origin: [-1, x, y], direction: [1, 0, 0] }
-        : { origin: [x, y, -1], direction: [0, 0, 1] };
+        ? { origin: [planeOffset - 1, x, y], direction: [1, 0, 0] }
+        : { origin: [x, y, planeOffset - 1], direction: [0, 0, 1] };
     const cutter = makeCylinder(feature.diameterValue / 2, feature.depthValue + 2, placement.origin, placement.direction);
     target.shape = target.shape.cut(cutter);
     return;

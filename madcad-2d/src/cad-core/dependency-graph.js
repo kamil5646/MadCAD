@@ -110,6 +110,7 @@ export function buildDependencyGraph(document) {
       addEdge(reference.planeId, reference.id, 'intersects');
     }
   }
+  for (const sketch of document.sketches || []) addEdge(sketch.support?.referenceId, sketch.id, 'supports');
 
   for (const feature of document.features || []) {
     addNode(feature.id, 'feature', feature.name, { featureType: feature.type });

@@ -341,6 +341,22 @@ test('punkty konstrukcyjne śledzą wierzchołek, centrum i przecięcie osi z p�
   assert.throws(() => resolveConstructionPoint(createIntersectionPoint({ axisId: parallel.id, planeId: plane.id }), [parallel, plane]), /równoległa/);
 });
 
+test('szkic na planarnej ścianie zachowuje podporę i odsunięcie w przygotowaniu kernela', () => {
+  const document = createDocument('Szkic na ścianie');
+  const support = createTopologyReference({ selection: { kind: 'face', id: 'face-top', bodyId: 'body-base', sourceFeatureId: 'feature-base' }, descriptor: { geometry: 'PLANE', center: [0, 0, 12], normal: [0, 0, 1] } });
+  const profile = createRectangleProfile({ width: 8, height: 6 });
+  const sketch = createSketch({ name: 'Szkic na górze', plane: 'XY', planeOffset: '12', support: { kind: 'face', referenceId: support.id }, profiles: [profile] });
+  document.references.push(support);
+  document.sketches.push(sketch);
+  document.features.push(createFeature('extrude', { sketchId: sketch.id, profileIds: [profile.id], distance: '3', operation: 'new' }));
+  const prepared = prepareDocument(document);
+  assert.equal(prepared.features[0].profiles[0].planeOffset, 12);
+  assert.equal(buildDependencyGraph(document).edges.some((edge) => edge.from === support.id && edge.to === sketch.id && edge.kind === 'supports'), true);
+  const broken = structuredClone(document);
+  broken.references = [];
+  assert.equal(validateDocument(broken).issues.some((issue) => issue.path.endsWith('support.referenceId') && issue.code === 'BROKEN_REFERENCE'), true);
+});
+
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {
   const queue = new SerialTaskQueue();
   const order = [];
