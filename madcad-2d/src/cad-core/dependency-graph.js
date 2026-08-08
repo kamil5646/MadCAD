@@ -104,6 +104,10 @@ export function buildDependencyGraph(document) {
           : [];
       for (const expression of expressions) for (const name of expressionDependencies(expression)) addEdge(parameterIdsByName.get(name), reference.id, 'drives');
       for (const planeId of reference.planeIds || []) addEdge(planeId, reference.id, 'intersects');
+    } else if (reference.kind === 'construction-point') {
+      for (const expression of reference.position || []) for (const name of expressionDependencies(expression)) addEdge(parameterIdsByName.get(name), reference.id, 'drives');
+      addEdge(reference.axisId, reference.id, 'intersects');
+      addEdge(reference.planeId, reference.id, 'intersects');
     }
   }
 

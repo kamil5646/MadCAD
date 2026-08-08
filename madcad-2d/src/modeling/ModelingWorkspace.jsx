@@ -104,6 +104,7 @@ import { useCadEngine } from '../cad-core/useCadEngine.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../cad-core/topology-references.js';
 import { createMidplane, createOffsetPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../cad-core/construction-axes.js';
+import { createCenterPoint, createIntersectionPoint, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../cad-core/construction-points.js';
 import ModelViewport from './ModelViewport.jsx';
 import './modeling.css';
 
@@ -150,6 +151,9 @@ const TOOL_DESCRIPTIONS = {
   'Oś walca': 'Utwórz oś walca lub cylindrycznej ściany ze środka i kierunku.',
   'Oś 2 punkty': 'Utwórz parametryczną oś przechodzącą przez dwa punkty 3D.',
   'Oś przecięcia': 'Utwórz oś na linii przecięcia dwóch nazwanych płaszczyzn konstrukcyjnych.',
+  'Punkt wierzchołka': 'Utwórz punkt śledzący trwały wierzchołek bryły albo dokładne współrzędne.',
+  'Punkt centrum': 'Utwórz punkt w centrum wybranej krawędzi, ściany lub walca.',
+  'Punkt przecięcia': 'Utwórz punkt w dokładnym przecięciu osi konstrukcyjnej z płaszczyzną.',
   'Otwórz': 'Wczytaj zapisany projekt MadCAD z dysku.',
   'Wybierz': 'Wyczyść zaznaczenie i wróć do trybu wyboru obiektów.',
   'STL': 'Eksportuj siatkę gotową do programu przygotowującego druk 3D.',
@@ -249,7 +253,7 @@ function RibbonGroup({ label, children, end = false }) {
 function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onClose }) {
   const [expanded, setExpanded] = useState({ origin: true, construction: true, sketches: true, bodies: true });
   const toggle = (key) => setExpanded((current) => ({ ...current, [key]: !current[key] }));
-  const constructionReferences = document.references.filter((reference) => ['construction-plane', 'construction-axis'].includes(reference.kind));
+  const constructionReferences = document.references.filter((reference) => ['construction-plane', 'construction-axis', 'construction-point'].includes(reference.kind));
   return (
     <aside className="model-browser" aria-label="Przeglądarka projektu">
       <div className="browser-heading"><strong>PRZEGLĄDARKA</strong><button type="button" title="Zwiń przeglądarkę" onClick={onClose}><PanelLeftClose size={14} /></button></div>
@@ -278,8 +282,8 @@ function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect,
       </button>
       {expanded.construction && constructionReferences.map((reference) => (
         <div className="tree-reference-row" key={reference.id}>
-          <button className={`tree-row tree-grandchild ${selection?.kind === (reference.kind === 'construction-axis' ? 'constructionAxis' : 'constructionPlane') && selection.id === reference.id ? 'selected' : ''}`} type="button" title={`Zaznacz ${reference.name}.`} onClick={() => onSelect({ kind: reference.kind === 'construction-axis' ? 'constructionAxis' : 'constructionPlane', id: reference.id })}>
-            <span />{reference.kind === 'construction-axis' ? <Minus size={13} /> : <Frame size={13} />}<span>{reference.name}</span><small>{reference.kind === 'construction-axis' ? 'OŚ' : (reference.basePlane || '3P')}</small>
+          <button className={`tree-row tree-grandchild ${selection?.kind === (reference.kind === 'construction-axis' ? 'constructionAxis' : reference.kind === 'construction-point' ? 'constructionPoint' : 'constructionPlane') && selection.id === reference.id ? 'selected' : ''}`} type="button" title={`Zaznacz ${reference.name}.`} onClick={() => onSelect({ kind: reference.kind === 'construction-axis' ? 'constructionAxis' : reference.kind === 'construction-point' ? 'constructionPoint' : 'constructionPlane', id: reference.id })}>
+            <span />{reference.kind === 'construction-axis' ? <Minus size={13} /> : reference.kind === 'construction-point' ? <CircleDotDashed size={13} /> : <Frame size={13} />}<span>{reference.name}</span><small>{reference.kind === 'construction-axis' ? 'OŚ' : reference.kind === 'construction-point' ? 'PKT' : (reference.basePlane || '3P')}</small>
           </button>
           <button className="tree-reference-visibility" type="button" title={reference.visible ? `Ukryj ${reference.name}` : `Pokaż ${reference.name}`} onClick={() => onToggleReference(reference.id)}>{reference.visible ? <Eye size={13} /> : <EyeOff size={13} />}</button>
         </div>
@@ -394,7 +398,9 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
   const isConstructionPlane = isOffsetPlane || isMidplane || isThreePointPlane;
   const isConstructionAxis = command.type === 'constructionAxis';
   const axisTitles = { edge: 'Oś z krawędzi', cylinder: 'Oś walca', 'two-points': 'Oś przez dwa punkty', 'plane-intersection': 'Oś przecięcia płaszczyzn' };
-  const title = isRectangle ? 'Prostokąt' : isCircle ? 'Okrąg' : isArc ? 'Łuk' : isPolygon ? 'Wielokąt regularny' : isEllipse ? 'Elipsa' : isSlot ? 'Slot' : isSpline ? 'Spline' : isConic ? 'Krzywa conic' : isPoint ? 'Punkt szkicu' : isExtrude ? 'Wyciągnięcie' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : isSketchOffset ? 'Offset szkicu' : isSketchCorner ? (command.mode === 'fillet' ? 'Fillet szkicu' : 'Chamfer szkicu') : isSketchTransform ? 'Transformuj szkic' : isOffsetPlane ? 'Płaszczyzna odsunięta' : isMidplane ? 'Płaszczyzna środkowa' : isThreePointPlane ? 'Płaszczyzna przez trzy punkty' : isConstructionAxis ? axisTitles[command.axisType] : 'Fazowanie';
+  const isConstructionPoint = command.type === 'constructionPoint';
+  const pointTitles = { vertex: 'Punkt na wierzchołku', center: 'Punkt środka', intersection: 'Punkt przecięcia' };
+  const title = isRectangle ? 'Prostokąt' : isCircle ? 'Okrąg' : isArc ? 'Łuk' : isPolygon ? 'Wielokąt regularny' : isEllipse ? 'Elipsa' : isSlot ? 'Slot' : isSpline ? 'Spline' : isConic ? 'Krzywa conic' : isPoint ? 'Punkt szkicu' : isExtrude ? 'Wyciągnięcie' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : isSketchOffset ? 'Offset szkicu' : isSketchCorner ? (command.mode === 'fillet' ? 'Fillet szkicu' : 'Chamfer szkicu') : isSketchTransform ? 'Transformuj szkic' : isOffsetPlane ? 'Płaszczyzna odsunięta' : isMidplane ? 'Płaszczyzna środkowa' : isThreePointPlane ? 'Płaszczyzna przez trzy punkty' : isConstructionAxis ? axisTitles[command.axisType] : isConstructionPoint ? pointTitles[command.pointType] : 'Fazowanie';
   return (
     <section className="command-dialog" aria-label={title}>
       <header><strong>{title}</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
@@ -473,6 +479,14 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
             {command.axisType === 'cylinder' && <>{['X', 'Y', 'Z'].map((axis, index) => <Field key={`origin-${axis}`} label={`Środek ${axis}`} value={command[`origin${index}`]} onChange={(value) => onChange({ [`origin${index}`]: value })} suffix="mm" />)}{['X', 'Y', 'Z'].map((axis, index) => <Field key={`direction-${axis}`} label={`Kierunek ${axis}`} value={command[`direction${index}`]} onChange={(value) => onChange({ [`direction${index}`]: value })} />)}</>}
             {command.axisType === 'plane-intersection' && <><label className="command-field"><span>Płaszczyzna A</span><select value={command.planeId1} onChange={(event) => onChange({ planeId1: event.target.value })}>{command.planeOptions.map((plane) => <option key={plane.id} value={plane.id}>{plane.name}</option>)}</select></label><label className="command-field"><span>Płaszczyzna B</span><select value={command.planeId2} onChange={(event) => onChange({ planeId2: event.target.value })}>{command.planeOptions.map((plane) => <option key={plane.id} value={plane.id}>{plane.name}</option>)}</select></label></>}
             <label className="command-field"><span>Widoczna</span><select value={command.visible ? 'yes' : 'no'} onChange={(event) => onChange({ visible: event.target.value === 'yes' })}><option value="yes">Tak</option><option value="no">Nie</option></select></label>
+          </>
+        )}
+        {isConstructionPoint && (
+          <>
+            <Field label="Nazwa" value={command.name} onChange={(name) => onChange({ name })} autoFocus />
+            {['vertex', 'center'].includes(command.pointType) && <>{['X', 'Y', 'Z'].map((axis, index) => <Field key={axis} label={axis} value={command[`position${index}`]} onChange={(value) => onChange({ [`position${index}`]: value })} suffix="mm" />)}</>}
+            {command.pointType === 'intersection' && <><label className="command-field"><span>Oś</span><select value={command.axisId} onChange={(event) => onChange({ axisId: event.target.value })}>{command.axisOptions.map((axis) => <option key={axis.id} value={axis.id}>{axis.name}</option>)}</select></label><label className="command-field"><span>Płaszczyzna</span><select value={command.planeId} onChange={(event) => onChange({ planeId: event.target.value })}>{command.planeOptions.map((plane) => <option key={plane.id} value={plane.id}>{plane.name}</option>)}</select></label></>}
+            <label className="command-field"><span>Widoczny</span><select value={command.visible ? 'yes' : 'no'} onChange={(event) => onChange({ visible: event.target.value === 'yes' })}><option value="yes">Tak</option><option value="no">Nie</option></select></label>
           </>
         )}
         {isSketchPath && (
@@ -716,6 +730,7 @@ export default function ModelingWorkspace({ onClose }) {
   }, [document, command]);
   const engine = useCadEngine(previewDocument, { quality: command?.previewFeature ? 'preview' : 'display' });
   const constructionAxes = useMemo(() => resolveConstructionAxes(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
+  const constructionPoints = useMemo(() => resolveConstructionPoints(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
   const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => feature.type === 'extrude' && feature.operation === 'new').map((feature) => `body-${feature.id}`)), [document.features]);
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
   const targetBodyId = selection?.kind === 'body' ? selection.id : (selection?.bodyId || engine.bodies[0]?.id || firstBodyId || null);
@@ -1121,7 +1136,7 @@ export default function ModelingWorkspace({ onClose }) {
   const toggleConstructionVisibility = (referenceId) => {
     if (readOnly) return readOnlyNotice();
     commit((next) => {
-      const reference = next.references.find((item) => item.id === referenceId && ['construction-plane', 'construction-axis'].includes(item.kind));
+      const reference = next.references.find((item) => item.id === referenceId && ['construction-plane', 'construction-axis', 'construction-point'].includes(item.kind));
       if (reference) reference.visible = !reference.visible;
     });
   };
@@ -1489,7 +1504,7 @@ export default function ModelingWorkspace({ onClose }) {
       })),
       features: document.features.length,
       featureIds: document.features.map((feature) => feature.id),
-      references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, points: reference.points, origin: reference.origin, direction: reference.direction, planeIds: reference.planeIds, visible: reference.visible, topologyId: reference.topologyId, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
+      references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
         : { kind: selection?.kind, id: selection?.id, items: selection?.items?.map((item) => ({ kind: item.kind, id: item.id })) || [] },
@@ -1766,6 +1781,59 @@ export default function ModelingWorkspace({ onClose }) {
     }
   };
 
+  const openConstructionPoint = (pointType = 'vertex', point = null) => {
+    if (readOnly) return readOnlyNotice();
+    const selectedItem = selection?.items?.[0] || selection;
+    const body = engine.bodies.find((candidate) => candidate.id === selectedItem?.bodyId);
+    const topologyKey = selectedItem?.kind === 'vertex' ? 'vertices' : selectedItem?.kind === 'edge' ? 'edges' : 'faces';
+    const topologyRecord = body?.topology?.[topologyKey]?.find((record) => record.id === selectedItem?.id);
+    const endpoints = topologyRecord?.descriptor?.endpoints;
+    const selectedPosition = topologyRecord?.descriptor?.point
+      || topologyRecord?.descriptor?.axisOrigin
+      || topologyRecord?.descriptor?.center
+      || (endpoints?.length === 2 ? endpoints[0].map((value, axis) => (value + endpoints[1][axis]) / 2) : null);
+    const position = point?.position || selectedPosition || [0, 0, 0];
+    const topologyCompatible = pointType === 'vertex' ? selectedItem?.kind === 'vertex' : pointType === 'center' && ['face', 'edge'].includes(selectedItem?.kind);
+    const axisOptions = document.references.filter((reference) => reference.kind === 'construction-axis');
+    const planeOptions = document.references.filter((reference) => reference.kind === 'construction-plane');
+    const defaultNames = { vertex: 'Punkt na wierzchołku', center: 'Punkt środka', intersection: 'Punkt przecięcia' };
+    setCommand({
+      type: 'constructionPoint', pointType, editId: point?.id || null,
+      name: point?.name || `${defaultNames[pointType]} ${document.references.filter((reference) => reference.kind === 'construction-point').length + 1}`,
+      position0: String(position[0]), position1: String(position[1]), position2: String(position[2]),
+      axisOptions, planeOptions, axisId: point?.axisId || axisOptions[0]?.id || '', planeId: point?.planeId || planeOptions[0]?.id || '',
+      topologyId: point?.topologyId || (topologyCompatible ? topologyRecord?.id : null) || null, bodyId: point?.bodyId || (topologyCompatible ? body?.id : null) || null,
+      topologyKind: point?.topologyKind || (selectedItem?.kind === 'edge' ? 'edge' : selectedItem?.kind === 'face' ? 'face' : 'vertex'),
+      visible: point?.visible ?? true,
+    });
+    setNotice(point ? `Edytujesz ${point.name}.` : `Ustaw parametry: ${defaultNames[pointType].toLowerCase()}.`);
+  };
+
+  const confirmConstructionPoint = () => {
+    if (readOnly) return readOnlyNotice();
+    try {
+      const common = { name: command.name, visible: command.visible };
+      const position = [command.position0, command.position1, command.position2];
+      const point = command.pointType === 'center'
+        ? createCenterPoint({ ...common, position, topologyId: command.topologyId, bodyId: command.bodyId, topologyKind: ['face', 'edge'].includes(command.topologyKind) ? command.topologyKind : 'face' })
+        : command.pointType === 'intersection'
+          ? createIntersectionPoint({ ...common, axisId: command.axisId, planeId: command.planeId })
+          : createVertexPoint({ ...common, position, topologyId: command.topologyId, bodyId: command.bodyId });
+      if (command.editId) point.id = command.editId;
+      resolveConstructionPoint(point, document.references, document.parameters, engine.bodies);
+      commit((next) => {
+        const index = next.references.findIndex((reference) => reference.id === point.id);
+        if (index >= 0) next.references[index] = point;
+        else next.references.push(point);
+      });
+      setSelection({ kind: 'constructionPoint', id: point.id });
+      setCommand(null);
+      setNotice(`${point.name} został zapisany jako trwały punkt konstrukcyjny.`);
+    } catch (error) {
+      setNotice(`Nie udało się utworzyć punktu: ${error.message}`);
+    }
+  };
+
   const confirmFeature = () => {
     if (readOnly) return readOnlyNotice();
     if (!command?.previewFeature) return;
@@ -1798,6 +1866,10 @@ export default function ModelingWorkspace({ onClose }) {
     if (selection?.kind === 'constructionAxis') {
       const axis = document.references.find((reference) => reference.id === selection.id && reference.kind === 'construction-axis');
       return axis ? openConstructionAxis(axis.axisType, axis) : undefined;
+    }
+    if (selection?.kind === 'constructionPoint') {
+      const point = document.references.find((reference) => reference.id === selection.id && reference.kind === 'construction-point');
+      return point ? openConstructionPoint(point.pointType, point) : undefined;
     }
     if (selection?.kind !== 'feature') return;
     const feature = document.features.find((item) => item.id === selection.id);
@@ -2015,8 +2087,8 @@ export default function ModelingWorkspace({ onClose }) {
             ) : (
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || !selectedProfile} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || !hasHoleReference || !engine.bodies.length} /></RibbonGroup>
-                <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !engine.bodies.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !engine.bodies.length} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis'].includes(selection?.kind)} /></RibbonGroup>
-                <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} /></RibbonGroup>
+                <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !engine.bodies.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !engine.bodies.length} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
+                <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={CircleDotDashed} label="Punkt wierzchołka" onClick={() => openConstructionPoint('vertex')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt centrum" onClick={() => openConstructionPoint('center')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt przecięcia" onClick={() => openConstructionPoint('intersection')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Otwórz" onClick={() => fileInputRef.current?.click()} /></RibbonGroup>
                 <RibbonGroup label="WYBIERZ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
                 <RibbonGroup label="EKSPORT" end><ToolButton icon={FileDown} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={Printer} label="Druk 3D" onClick={() => switchWorkspace('print')} /></RibbonGroup>
@@ -2059,8 +2131,10 @@ export default function ModelingWorkspace({ onClose }) {
             onSelectTopology={handleTopologySelection}
             constructionPlanes={constructionPlanes}
             constructionAxes={constructionAxes}
+            constructionPoints={constructionPoints}
             selectedConstructionId={selection?.kind === 'constructionPlane' ? selection.id : null}
             selectedConstructionAxisId={selection?.kind === 'constructionAxis' ? selection.id : null}
+            selectedConstructionPointId={selection?.kind === 'constructionPoint' ? selection.id : null}
             selectedProfile={selectedProfile}
             selectedProfilePlane={selectedProfileMatch?.sketch.plane || 'XY'}
             directExtrudeDistance={command?.type === 'extrude' ? command.distance : 0}
@@ -2080,7 +2154,7 @@ export default function ModelingWorkspace({ onClose }) {
             command={command}
             profileName={selectedProfile?.name || ''}
             onChange={updateCommand}
-            onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : ['offsetPlane', 'midplanePlane', 'threePointPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : confirmFeature}
+            onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : ['offsetPlane', 'midplanePlane', 'threePointPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
             onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => setCommand(null)}
             onUndoSegment={undoSketchSegment}
             onFinishPath={finishSketchPath}

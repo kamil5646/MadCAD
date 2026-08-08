@@ -47,6 +47,7 @@ import { edgeGroupVertices, topologyIdForFaceIndex, topologySelectionFromInterse
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../src/cad-core/topology-references.js';
 import { createMidplane, createOffsetPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../src/cad-core/construction-planes.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../src/cad-core/construction-axes.js';
+import { createCenterPoint, createIntersectionPoint, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../src/cad-core/construction-points.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import {
   arcCenterStartEnd,
@@ -321,6 +322,23 @@ test('osie konstrukcyjne rozwiązują krawędź, walec, dwa punkty i przecięcie
   assert.equal(resolveConstructionAxes([xFive, zThree, intersection], parameters)[0].status, 'ok');
   assert.throws(() => resolveConstructionAxis(createTwoPointAxis({ points: [[1, 1, 1], [1, 1, 1]] })), /zerowej długości/);
   assert.throws(() => resolveConstructionAxis(createPlaneIntersectionAxis({ planeIds: [xFive.id, createOffsetPlane({ basePlane: 'YZ', offset: '9' }).id] }), [xFive]), /Nie znaleziono/);
+});
+
+test('punkty konstrukcyjne śledzą wierzchołek, centrum i przecięcie osi z płaszczyzną', () => {
+  const vertex = createVertexPoint({ position: ['2 + 3', 4, 5], topologyId: 'vertex-1', bodyId: 'body-1' });
+  const center = createCenterPoint({ position: [1, 2, 3], topologyId: 'edge-1', bodyId: 'body-1', topologyKind: 'edge' });
+  assert.deepEqual(resolveConstructionPoint(vertex).position, [5, 4, 5]);
+  const body = { id: 'body-1', topology: { vertices: [{ id: 'vertex-1', descriptor: { point: [7, 8, 9] } }], edges: [{ id: 'edge-1', descriptor: { endpoints: [[0, 2, 4], [10, 6, 8]] } }], faces: [] } };
+  assert.deepEqual(resolveConstructionPoint(vertex, [], [], [body]).position, [7, 8, 9]);
+  assert.deepEqual(resolveConstructionPoint(center, [], [], [body]).position, [5, 4, 6]);
+
+  const axis = createTwoPointAxis({ points: [[5, 6, -10], [5, 6, 10]] });
+  const plane = createOffsetPlane({ basePlane: 'XY', offset: '3' });
+  const intersection = createIntersectionPoint({ axisId: axis.id, planeId: plane.id });
+  assert.deepEqual(resolveConstructionPoint(intersection, [axis, plane, intersection]).position, [5, 6, 3]);
+  assert.equal(resolveConstructionPoints([axis, plane, intersection])[0].status, 'ok');
+  const parallel = createTwoPointAxis({ points: [[0, 0, 2], [10, 0, 2]] });
+  assert.throws(() => resolveConstructionPoint(createIntersectionPoint({ axisId: parallel.id, planeId: plane.id }), [parallel, plane]), /równoległa/);
 });
 
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {

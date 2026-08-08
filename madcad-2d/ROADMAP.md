@@ -39,8 +39,8 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 | 1 | M1 Solver szkicu MVP | `[x]` | ukończony model encji | szkic ma wymiary, podstawowe więzy i stopnie swobody |
 | 2 | M2 Podstawowe modyfikacje szkicu | `[x]` | M1 | Trim/Extend/Break/Offset/Fillet/Chamfer i podstawowe transformacje zachowują więzy |
 | 3 | M3 Picking B-Rep | `[x]` | trwałe ID z R0 | można stabilnie wskazać ścianę, krawędź i wierzchołek |
-| 4 | M4 Konstrukcja podstawowa | `[>]` | M3 | offset plane, midplane, plane przez trzy punkty, osie i punkty konstrukcyjne |
-| 5 | M5 Szkic na modelu i Project | `[ ]` | M1, M3, M4 | drugi szkic powstaje na ścianie i zachowuje projekcję krawędzi |
+| 4 | M4 Konstrukcja podstawowa | `[x]` | M3 | offset plane, midplane, plane przez trzy punkty, osie i punkty konstrukcyjne |
+| 5 | M5 Szkic na modelu i Project | `[>]` | M1, M3, M4 | drugi szkic powstaje na ścianie i zachowuje projekcję krawędzi |
 | 6 | M6 Modelowanie części MVP | `[ ]` | M3, M5 | pełniejsze Extrude, Boolean, wskazane Fillet/Chamfer, Shell i podstawowe prymitywy |
 | 7 | M7 Otwory i gwinty MVP | `[ ]` | M3, M5, M6 | proste/counterbore/countersink otwory i podstawowy gwint metryczny |
 | 8 | M8 Inspect MVP | `[ ]` | M3, M6 | Measure, Section, objętość, pole, masa i środek masy |
@@ -52,8 +52,8 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 - [x] Offset plane ma nazwę, widoczność, parametryczną odległość, trwałe ID i pełny przepływ zapisu/undo/redo.
 - [x] Midplane i płaszczyzna przez trzy punkty.
 - [x] Oś z krawędzi, walca, dwóch punktów oraz przecięcia dwóch płaszczyzn.
-- [ ] Punkt na wierzchołku, centrum i przecięciu.
-- [ ] Widoczność, nazwa i trwała referencja do konstrukcji.
+- [x] Punkt na wierzchołku, centrum i przecięciu.
+- [x] Widoczność, nazwa i trwała referencja do konstrukcji.
 
 Pozostałe warianty UCS/płaszczyzn/osi są `P1`.
 
@@ -140,4 +140,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`M4.4 — Punkty konstrukcyjne na wierzchołku, w centrum i na przecięciu.`
+`M5.1 — Drugi szkic zakładany bezpośrednio na planarnej ścianie bryły.`

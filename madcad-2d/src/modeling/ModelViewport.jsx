@@ -342,8 +342,10 @@ export default function ModelViewport({
   onSelectTopology,
   constructionPlanes = [],
   constructionAxes = [],
+  constructionPoints = [],
   selectedConstructionId = null,
   selectedConstructionAxisId = null,
+  selectedConstructionPointId = null,
   selectedProfile,
   selectedProfilePlane = 'XY',
   directExtrudeDistance = 0,
@@ -753,10 +755,23 @@ export default function ModelViewport({
       centerMarker.position.copy(origin);
       constructionGroup.add(line, centerMarker);
     }
+    for (const point of constructionPoints) {
+      if (!point.visible || point.status !== 'ok') continue;
+      const selected = point.id === selectedConstructionPointId;
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(Math.max(1.25, radius * (selected ? 0.022 : 0.017)), 18, 12),
+        new THREE.MeshBasicMaterial({ color: selected ? 0xffc857 : 0x6ee7a8, depthTest: false }),
+      );
+      marker.position.set(...point.position);
+      marker.renderOrder = 4;
+      marker.userData = { constructionPointId: point.id };
+      constructionGroup.add(marker);
+    }
     scene.add(constructionGroup);
     if (new URLSearchParams(window.location.search).has('verify')) {
       window.__madcadConstructionPlaneState = constructionPlanes.map((plane) => ({ id: plane.id, name: plane.name, status: plane.status, visible: plane.visible, origin: plane.origin, normal: plane.normal }));
       window.__madcadConstructionAxisState = constructionAxes.map((axis) => ({ id: axis.id, name: axis.name, axisType: axis.axisType, status: axis.status, visible: axis.visible, origin: axis.origin, direction: axis.direction }));
+      window.__madcadConstructionPointState = constructionPoints.map((point) => ({ id: point.id, name: point.name, pointType: point.pointType, status: point.status, visible: point.visible, position: point.position }));
     }
     const sketchView = activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top';
     const direction = VIEW_DIRECTIONS[activeSketch ? sketchView : view] || VIEW_DIRECTIONS.iso;
@@ -1438,8 +1453,9 @@ export default function ModelViewport({
       delete window.__madcadModelHover;
       delete window.__madcadConstructionPlaneState;
       delete window.__madcadConstructionAxisState;
+      delete window.__madcadConstructionPointState;
     };
-  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, selectedConstructionId, selectedConstructionAxisId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
+  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, navigationMode, zoomScale, selectedSketchEntityIds, showSketchPoints, showSketchProfiles, snapThresholdPx, sketchModifierMode]);
 
   return (
     <div className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`} ref={hostRef}>

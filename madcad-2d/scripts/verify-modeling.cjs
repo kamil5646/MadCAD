@@ -624,6 +624,32 @@ async function runUiFlow(window) {
   await confirmDialog();
   await waitForUi(window, `(() => { const axis = window.__madcadConstructionAxisState?.find((item) => item.name === 'Oś przecięcia testowa'); return axis?.status === 'ok' && axis.origin[0] === 15 && axis.origin[2] === 8 && Math.abs(axis.direction[1]) === 1; })()`, 'oś przecięcia dwóch płaszczyzn');
 
+  progress('construction points');
+  await clickTool('Punkt wierzchołka');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Punkt na wierzchołku')`, 'okno punktu wierzchołka');
+  await setCommandField('Nazwa', 'Punkt bazowy');
+  await setCommandField('X', '2');
+  await setCommandField('Y', '3');
+  await setCommandField('Z', '4');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const point = window.__madcadConstructionPointState?.find((item) => item.name === 'Punkt bazowy'); return point?.status === 'ok' && point.position.join(',') === '2,3,4'; })()`, 'punkt na wierzchołku');
+  await clickTool('Punkt centrum');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Punkt środka')`, 'okno punktu centrum');
+  await setCommandField('Nazwa', 'Punkt środka testowy');
+  await setCommandField('X', '5');
+  await setCommandField('Y', '6');
+  await setCommandField('Z', '7');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const point = window.__madcadConstructionPointState?.find((item) => item.name === 'Punkt środka testowy'); return point?.status === 'ok' && point.position.join(',') === '5,6,7'; })()`, 'punkt centrum');
+  await clickTool('Punkt przecięcia');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Punkt przecięcia')`, 'okno punktu przecięcia');
+  await setCommandField('Nazwa', 'Punkt przecięcia testowy');
+  const edgeAxisId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.references.find((item) => item.name === 'Oś krawędzi testowej').id`);
+  await setCommandField('Oś', edgeAxisId);
+  await setCommandField('Płaszczyzna', constructionPlaneId);
+  await confirmDialog();
+  await waitForUi(window, `(() => { const point = window.__madcadConstructionPointState?.find((item) => item.name === 'Punkt przecięcia testowy'); return point?.status === 'ok' && point.position.join(',') === '15,0,0'; })()`, 'punkt przecięcia osi i płaszczyzny');
+
   progress('hole sketch');
   await clickTool('Utwórz szkic');
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'drugi wybór płaszczyzny');
@@ -735,6 +761,7 @@ async function runUiFlow(window) {
       entities: saved.sketches?.reduce((total, sketch) => total + (sketch.entities?.length || 0), 0) || 0,
       constructionPlanes: saved.references?.filter((item) => item.kind === 'construction-plane').length || 0,
       constructionAxes: saved.references?.filter((item) => item.kind === 'construction-axis').length || 0,
+      constructionPoints: saved.references?.filter((item) => item.kind === 'construction-point').length || 0,
     };
   })()`);
   const autosaveRoundTrip = autosaveState.available
@@ -743,7 +770,8 @@ async function runUiFlow(window) {
     && autosaveState.sketches === 2
     && autosaveState.entities === 10
     && autosaveState.constructionPlanes === 3
-    && autosaveState.constructionAxes === 4;
+    && autosaveState.constructionAxes === 4
+    && autosaveState.constructionPoints === 3;
   if (!autosaveRoundTrip) throw new Error(`Desktop autosave did not preserve the current document: ${JSON.stringify(autosaveState)}`);
 
   const recoveryRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);

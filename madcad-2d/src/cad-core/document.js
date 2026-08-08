@@ -543,6 +543,12 @@ export function validateDocument(document) {
         if (reference.axisType === 'cylinder' && (![reference.origin, reference.direction].every((vector) => Array.isArray(vector) && vector.length === 3))) add(`${base}.direction`, 'Oś walca wymaga środka i kierunku 3D.', 'TYPE');
         if (reference.axisType === 'plane-intersection' && (!Array.isArray(reference.planeIds) || reference.planeIds.length !== 2 || reference.planeIds.some((id) => typeof id !== 'string' || !id))) add(`${base}.planeIds`, 'Oś przecięcia wymaga dwóch ID płaszczyzn.', 'TYPE');
         if (typeof reference.visible !== 'boolean') add(`${base}.visible`, 'Widoczność osi musi być wartością logiczną.', 'TYPE');
+      } else if (reference.kind === 'construction-point') {
+        if (!['vertex', 'center', 'intersection'].includes(reference.pointType)) add(`${base}.pointType`, 'Nieobsługiwany typ punktu konstrukcyjnego.', 'UNSUPPORTED');
+        if (typeof reference.name !== 'string' || !reference.name.trim()) add(`${base}.name`, 'Punkt konstrukcyjny wymaga nazwy.', 'REQUIRED');
+        if (['vertex', 'center'].includes(reference.pointType) && (!Array.isArray(reference.position) || reference.position.length !== 3)) add(`${base}.position`, 'Punkt wymaga położenia 3D.', 'TYPE');
+        if (reference.pointType === 'intersection' && (!reference.axisId || !reference.planeId)) add(`${base}.axisId`, 'Punkt przecięcia wymaga osi i płaszczyzny.', 'REQUIRED');
+        if (typeof reference.visible !== 'boolean') add(`${base}.visible`, 'Widoczność punktu musi być wartością logiczną.', 'TYPE');
       }
     }
   });
@@ -552,6 +558,11 @@ export function validateDocument(document) {
     reference.planeIds.forEach((planeId, planeIndex) => {
       if (!referenceIds.has(planeId)) add(`references[${index}].planeIds[${planeIndex}]`, `Nie znaleziono płaszczyzny „${planeId}”.`, 'BROKEN_REFERENCE');
     });
+  });
+  references.forEach((reference, index) => {
+    if (!isRecord(reference) || reference.kind !== 'construction-point' || reference.pointType !== 'intersection') return;
+    if (!referenceIds.has(reference.axisId)) add(`references[${index}].axisId`, `Nie znaleziono osi „${reference.axisId}”.`, 'BROKEN_REFERENCE');
+    if (!referenceIds.has(reference.planeId)) add(`references[${index}].planeId`, `Nie znaleziono płaszczyzny „${reference.planeId}”.`, 'BROKEN_REFERENCE');
   });
 
   features.forEach((feature, featureIndex) => {
