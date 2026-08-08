@@ -449,7 +449,8 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
         {(isExtrude || isHole) && <Field label="Profil" value={profileName} disabled />}
         {isExtrude && (
           <>
-            <Field label="Odległość" value={command.distance} onChange={(distance) => onChange({ distance })} suffix="mm" autoFocus />
+            {command.extent !== 'through-all' && <Field label={command.extent === 'symmetric' ? 'Długość całkowita' : 'Odległość'} value={command.distance} onChange={(distance) => onChange({ distance })} suffix="mm" autoFocus />}
+            {command.extent === 'two-sides' && <Field label="Druga strona" value={command.secondDistance} onChange={(secondDistance) => onChange({ secondDistance })} suffix="mm" />}
             <label className="command-field">
               <span>Operacja</span>
               <select value={command.operation} onChange={(event) => onChange({ operation: event.target.value })}>
@@ -459,7 +460,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
                 <option value="intersect">Część wspólna</option>
               </select>
             </label>
-            <label className="command-field"><span>Kierunek</span><select disabled><option>Jedna strona</option></select></label>
+            <label className="command-field"><span>Kierunek</span><select value={command.extent} onChange={(event) => onChange({ extent: event.target.value })}><option value="one-side">Jedna strona</option><option value="two-sides">Dwie strony</option><option value="symmetric">Symetrycznie</option><option value="through-all" disabled={!['cut', 'intersect'].includes(command.operation)}>Through All</option></select></label>
           </>
         )}
         {isHole && (
@@ -799,11 +800,14 @@ export default function ModelingWorkspace({ onClose }) {
     setCommand((current) => {
       const next = { ...current, ...patch };
       if (next.type === 'extrude') {
+        if (next.extent === 'through-all' && !['cut', 'intersect'].includes(next.operation)) next.extent = 'one-side';
         next.previewFeature = createFeature('extrude', {
           name: current.previewFeature?.name || `Wyciągnięcie ${document.features.length + 1}`,
           sketchId: selectedProfileMatch?.sketch.id,
           profileIds: [selectedProfile.id],
           distance: next.distance,
+          secondDistance: next.secondDistance,
+          extent: next.extent,
           operation: next.operation,
           targetBodyId: next.operation === 'new' ? null : targetBodyId,
         });
@@ -1621,6 +1625,7 @@ export default function ModelingWorkspace({ onClose }) {
       })),
       features: document.features.length,
       featureIds: document.features.map((feature) => feature.id),
+      featureData: document.features.map((feature) => ({ id: feature.id, type: feature.type, operation: feature.operation, extent: feature.extent, distance: feature.distance, secondDistance: feature.secondDistance, targetBodyId: feature.targetBodyId })),
       references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
@@ -1755,6 +1760,8 @@ export default function ModelingWorkspace({ onClose }) {
         ...(editing || {}),
         type: 'extrude',
         distance: String(distance),
+        secondDistance: editing?.secondDistance || '10',
+        extent: editing?.extent || 'one-side',
         operation,
       };
       next.previewFeature = createFeature('extrude', {
@@ -1762,6 +1769,8 @@ export default function ModelingWorkspace({ onClose }) {
         sketchId: selectedProfileMatch?.sketch.id,
         profileIds: [selectedProfile.id],
         distance: next.distance,
+        secondDistance: next.secondDistance,
+        extent: next.extent,
         operation,
         targetBodyId: operation === 'new' ? null : targetBodyId,
       });
@@ -1994,7 +2003,7 @@ export default function ModelingWorkspace({ onClose }) {
     if (!feature) return;
     const profile = document.sketches.flatMap((sketch) => sketch.profiles).find((item) => feature.profileIds?.includes(item.id) || feature.profileId === item.id);
     if (profile) setSelection({ kind: 'profile', id: profile.id });
-    if (feature.type === 'extrude') setCommand({ type: 'extrude', editId: feature.id, distance: feature.distance, operation: feature.operation, previewFeature: feature });
+    if (feature.type === 'extrude') setCommand({ type: 'extrude', editId: feature.id, distance: feature.distance, secondDistance: feature.secondDistance || feature.distance, extent: feature.extent || 'one-side', operation: feature.operation, previewFeature: feature });
     else if (feature.type === 'hole') setCommand({ type: 'hole', editId: feature.id, diameter: feature.diameter, depth: feature.depth, previewFeature: feature });
     else setCommand({ type: feature.type, editId: feature.id, size: feature.type === 'fillet' ? feature.radius : feature.distance, previewFeature: feature });
   };

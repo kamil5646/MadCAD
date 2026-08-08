@@ -101,12 +101,21 @@ function drawingForProfile(profile) {
   throw new Error(`Nieobsługiwany profil: ${profile.type}`);
 }
 
-function extrudeProfile(profile, distance) {
+const THROUGH_ALL_DISTANCE = 1_000_000;
+
+function extrusionSpan(feature) {
+  if (feature.extent === 'two-sides') return { startDelta: -feature.secondDistanceValue, distance: feature.distanceValue + feature.secondDistanceValue };
+  if (feature.extent === 'symmetric') return { startDelta: -feature.distanceValue / 2, distance: feature.distanceValue };
+  if (feature.extent === 'through-all') return { startDelta: -THROUGH_ALL_DISTANCE / 2, distance: THROUGH_ALL_DISTANCE };
+  return { startDelta: 0, distance: feature.distanceValue };
+}
+
+function extrudeProfile(profile, span) {
   const plane = profile.plane || 'XY';
-  const planeOffset = Number(profile.planeOffset || 0);
-  let shape = drawingForProfile(profile).sketchOnPlane(plane, planeOffset).extrude(distance);
+  const planeOffset = Number(profile.planeOffset || 0) + span.startDelta;
+  let shape = drawingForProfile(profile).sketchOnPlane(plane, planeOffset).extrude(span.distance);
   for (const hole of profile.geometry.holes || []) {
-    const cutter = drawingForSegments(hole.segments, profile.id).sketchOnPlane(plane, planeOffset).extrude(distance);
+    const cutter = drawingForSegments(hole.segments, profile.id).sketchOnPlane(plane, planeOffset).extrude(span.distance);
     shape = shape.cut(cutter);
   }
   return shape;
@@ -121,7 +130,8 @@ function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.status === FEATURE_STATUS.SUPPRESSED) return;
 
   if (feature.type === 'extrude') {
-    const tool = combineShapes(feature.profiles.map((profile) => extrudeProfile(profile, feature.distanceValue)));
+    const span = extrusionSpan(feature);
+    const tool = combineShapes(feature.profiles.map((profile) => extrudeProfile(profile, span)));
     const bodyId = `body-${feature.id}`;
     if (feature.operation === 'new' || !feature.targetBodyId) {
       bodyMap.set(bodyId, { id: bodyId, name: feature.name, sourceFeatureId: feature.id, representation: 'brep', shape: tool });

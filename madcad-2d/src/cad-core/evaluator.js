@@ -184,6 +184,7 @@ export function prepareDocument(document) {
   const features = document.features.map((feature) => {
     if (feature.suppressed) return { ...feature, status: FEATURE_STATUS.SUPPRESSED, diagnostics: [] };
     if (feature.type === 'extrude') {
+      const extent = feature.extent || 'one-side';
       const profiles = feature.profileIds.map((profileId) => {
         const match = findProfile(document, profileId);
         if (!match) throw new Error(`Nie znaleziono profilu ${profileId}.`);
@@ -193,7 +194,11 @@ export function prepareDocument(document) {
         ...feature,
         status: 'ready',
         diagnostics: [],
+        extent,
         distanceValue: positive(evaluateExpression(feature.distance, parameterResult.values), 'Odległość wyciągnięcia'),
+        secondDistanceValue: extent === 'two-sides'
+          ? positive(evaluateExpression(feature.secondDistance ?? feature.distance, parameterResult.values), 'Odległość drugiej strony')
+          : 0,
         profiles,
       };
     }

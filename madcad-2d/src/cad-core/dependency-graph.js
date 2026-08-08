@@ -10,7 +10,7 @@ function expressionDependencies(value) {
 }
 
 function featureExpressions(feature) {
-  if (feature.type === 'extrude') return [feature.distance];
+  if (feature.type === 'extrude') return [feature.distance, feature.secondDistance];
   if (feature.type === 'hole') return [feature.diameter, feature.depth];
   if (feature.type === 'fillet') return [feature.radius];
   if (feature.type === 'chamfer') return [feature.distance];

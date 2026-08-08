@@ -134,6 +134,16 @@ async function runUiFlow(window) {
     const key = Object.keys(input).find((item) => item.startsWith('__reactProps'));
     input[key].onChange({ target: { checked: !input.checked } });
   })()`);
+  const editTimelineFeature = async (index) => {
+    await window.webContents.executeJavaScript(`(() => {
+      const button = document.querySelectorAll('.timeline-item')[${index}];
+      if (!button) throw new Error('Brak operacji osi czasu: ${index}');
+      button.click();
+    })()`);
+    await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'feature'`, `wybór operacji ${index + 1}`);
+    await clickTool('Edytuj');
+    await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, `edycja Extrude ${index + 1}`);
+  };
   const dragDirectExtrude = async () => {
     await window.webContents.executeJavaScript(`(async () => {
       const canvas = document.querySelector('.model-viewport canvas');
@@ -733,15 +743,53 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadSketchVisibilityState?.showSketchDimensions === true && window.__madcadSketchVisibilityState?.showConstructionGeometry === false`, 'ukrycie geometrii konstrukcyjnej');
   await toggleSketchOption('Geometrie konstrukcyjne');
   await clickTool('Zakończ szkic');
-  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'bryła przed otworem', modelingTimeoutMs);
-  await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === 'Otwór' && !item.disabled)`, 'aktywne polecenie otworu', modelingTimeoutMs);
-  progress('hole');
-  await clickTool('Otwór');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Otwór')`, 'polecenie otworu');
-  await setCommandField('Głębokość', '8');
+  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'bryła przed wycięciem Through All', modelingTimeoutMs);
+  await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === 'Wyciągnij' && !item.disabled)`, 'aktywne polecenie Extrude', modelingTimeoutMs);
+  progress('extrude cut through all');
+  await clickTool('Wyciągnij');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'polecenie Extrude Cut');
+  await setCommandField('Operacja', 'cut');
+  await setCommandField('Kierunek', 'through-all');
+  const throughAllRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   await confirmDialog();
-  await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 2`, 'dodany otwór');
-  await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'przeliczony otwór', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'extrude' && window.__madcadVerifyDocumentState.featureData[1].operation === 'cut' && window.__madcadVerifyDocumentState.featureData[1].extent === 'through-all'`, 'dodany Extrude Cut Through All');
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${throughAllRevision} && document.querySelector('.engine-status')?.classList.contains('ready')`, 'przeliczony Extrude Cut Through All', modelingTimeoutMs);
+  const throughAllVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume`);
+  assertClose(throughAllVolume, (64 * 42 * 8) - (Math.PI * 6 * 6 * 8), 0.05, 'Extrude Cut Through All volume');
+
+  await editTimelineFeature(1);
+  await setCommandField('Operacja', 'join');
+  await setCommandField('Kierunek', 'two-sides');
+  await setCommandField('Odległość', '3');
+  await setCommandField('Druga strona', '2');
+  const twoSidesRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.operation === 'join' && window.__madcadVerifyDocumentState.featureData[1].extent === 'two-sides' && window.__madcadVerifyEngineState?.revision > ${twoSidesRevision} && document.querySelector('.engine-status')?.classList.contains('ready')`, 'Extrude Join na dwie strony', modelingTimeoutMs);
+  assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), (64 * 42 * 8) + (Math.PI * 6 * 6 * 2), 0.05, 'Extrude Join two sides volume');
+
+  await editTimelineFeature(1);
+  await setCommandField('Operacja', 'cut');
+  await setCommandField('Kierunek', 'symmetric');
+  await setCommandField('Długość całkowita', '4');
+  const symmetricRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.operation === 'cut' && window.__madcadVerifyDocumentState.featureData[1].extent === 'symmetric' && window.__madcadVerifyEngineState?.revision > ${symmetricRevision} && document.querySelector('.engine-status')?.classList.contains('ready')`, 'Extrude Cut symetryczny', modelingTimeoutMs);
+  assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), (64 * 42 * 8) - (Math.PI * 6 * 6 * 2), 0.05, 'Extrude Cut symmetric volume');
+
+  await editTimelineFeature(1);
+  await setCommandField('Operacja', 'intersect');
+  await setCommandField('Kierunek', 'through-all');
+  const intersectRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.operation === 'intersect' && window.__madcadVerifyDocumentState.featureData[1].extent === 'through-all' && window.__madcadVerifyEngineState?.revision > ${intersectRevision} && document.querySelector('.engine-status')?.classList.contains('ready')`, 'Extrude Intersect Through All', modelingTimeoutMs);
+  assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), Math.PI * 6 * 6 * 8, 0.05, 'Extrude Intersect Through All volume');
+
+  await editTimelineFeature(1);
+  await setCommandField('Operacja', 'cut');
+  await setCommandField('Kierunek', 'through-all');
+  const restoredCutRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.operation === 'cut' && window.__madcadVerifyDocumentState.featureData[1].extent === 'through-all' && window.__madcadVerifyEngineState?.revision > ${restoredCutRevision} && document.querySelector('.engine-status')?.classList.contains('ready')`, 'przywrócony Extrude Cut Through All', modelingTimeoutMs);
 
   progress('fillet and chamfer');
   await clickTool('Zaokrąglij');

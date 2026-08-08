@@ -358,6 +358,30 @@ test('szkic na planarnej ścianie zachowuje podporę i odsunięcie w przygotowan
   assert.equal(validateDocument(broken).issues.some((issue) => issue.path.endsWith('support.referenceId') && issue.code === 'BROKEN_REFERENCE'), true);
 });
 
+test('Extrude przygotowuje Join, Cut i Intersect z jedną, dwiema, symetryczną oraz Through All', () => {
+  const document = createDocument('Zakresy Extrude');
+  const profile = createRectangleProfile({ width: 20, height: 10 });
+  const sketch = createSketch({ profiles: [profile] });
+  const base = createFeature('extrude', { sketchId: sketch.id, profileIds: [profile.id], distance: '8', extent: 'one-side', operation: 'new' });
+  const targetBodyId = `body-${base.id}`;
+  const twoSides = createFeature('extrude', { sketchId: sketch.id, profileIds: [profile.id], distance: '5', secondDistance: '3', extent: 'two-sides', operation: 'join', targetBodyId });
+  const symmetric = createFeature('extrude', { sketchId: sketch.id, profileIds: [profile.id], distance: '6', extent: 'symmetric', operation: 'cut', targetBodyId });
+  const throughAll = createFeature('extrude', { sketchId: sketch.id, profileIds: [profile.id], distance: '1', extent: 'through-all', operation: 'intersect', targetBodyId });
+  document.sketches.push(sketch);
+  document.features.push(base, twoSides, symmetric, throughAll);
+
+  const prepared = prepareDocument(document);
+  assert.deepEqual(prepared.features.map((feature) => feature.extent), ['one-side', 'two-sides', 'symmetric', 'through-all']);
+  assert.equal(prepared.features[1].distanceValue, 5);
+  assert.equal(prepared.features[1].secondDistanceValue, 3);
+  assert.equal(prepared.features[2].distanceValue, 6);
+  assert.equal(validateDocument(document).valid, true);
+
+  const invalid = structuredClone(document);
+  invalid.features[0].extent = 'through-all';
+  assert.ok(validateDocument(invalid).issues.some((issue) => issue.path.endsWith('.extent')));
+});
+
 test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwałymi linkami', () => {
   const document = createDocument('Project');
   const sketch = createSketch({ plane: 'XY', planeOffset: '8' });
