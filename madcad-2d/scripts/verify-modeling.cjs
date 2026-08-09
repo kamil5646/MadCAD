@@ -438,6 +438,7 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyLoadPatternFixture?.('rectangular')`);
   await waitForUi(window, `window.__madcadPatternFixtureIds && window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 8`, 'fixture szyku prostokątnego');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection(window.__madcadPatternFixtureIds.lineIds, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length === window.__madcadPatternFixtureIds?.lineIds?.length`, 'selekcja szyku prostokątnego');
   await clickTool('Szyk szkicu');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Szyk szkicu')`, 'dialog szyku prostokątnego');
   await setCommandField('Kolumny', '3');
@@ -454,6 +455,7 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyLoadPatternFixture?.('circular')`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 8 && window.__madcadVerifyDocumentState.sketches[0].profiles === 1`, 'fixture szyku kołowego');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection(window.__madcadPatternFixtureIds.lineIds, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length === window.__madcadPatternFixtureIds?.lineIds?.length`, 'selekcja szyku kołowego');
   await clickTool('Szyk szkicu');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Typ szyku')`, 'dialog szyku kołowego');
   await setCommandField('Typ szyku', 'circular');
@@ -475,6 +477,7 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyLoadPatternFixture?.('path')`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 4 && window.__madcadPatternFixtureIds?.sourceIds?.length === 1`, 'fixture szyku po ścieżce');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection(window.__madcadPatternFixtureIds.sourceIds, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length === window.__madcadPatternFixtureIds?.sourceIds?.length`, 'selekcja szyku po ścieżce');
   await clickTool('Szyk szkicu');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Typ szyku')`, 'dialog szyku po ścieżce');
   await setCommandField('Typ szyku', 'path');
