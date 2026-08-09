@@ -622,9 +622,15 @@ export function validateDocument(document) {
       });
       if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, `Nieobsługiwana operacja: ${feature.operation ?? ''}.`, 'UNSUPPORTED');
       const extent = feature.extent || 'one-side';
-      if (!['one-side', 'two-sides', 'symmetric', 'through-all'].includes(extent)) add(`${base}.extent`, `Nieobsługiwany zakres wyciągnięcia: ${extent}.`, 'UNSUPPORTED');
+      if (!['one-side', 'two-sides', 'symmetric', 'through-all', 'to-object'].includes(extent)) add(`${base}.extent`, `Nieobsługiwany zakres wyciągnięcia: ${extent}.`, 'UNSUPPORTED');
       if (extent === 'through-all' && !['cut', 'intersect'].includes(feature.operation)) add(`${base}.extent`, 'Through All jest dostępne dla Cut i Intersect.', 'UNSUPPORTED');
       if (extent === 'two-sides' && feature.secondDistance === undefined) add(`${base}.secondDistance`, 'Wyciągnięcie na dwie strony wymaga drugiej odległości.', 'REQUIRED');
+      if (extent === 'to-object') {
+        const targetReference = references.find((reference) => reference.id === feature.targetReferenceId);
+        if (!targetReference) add(`${base}.targetReferenceId`, `Nie znaleziono obiektu docelowego „${feature.targetReferenceId ?? ''}”.`, 'BROKEN_REFERENCE');
+        else if (targetReference.kind !== 'construction-plane' && !(targetReference.kind === 'topology' && targetReference.topologyKind === 'face' && targetReference.descriptor?.geometry === 'PLANE')) add(`${base}.targetReferenceId`, 'Obiektem docelowym musi być płaszczyzna konstrukcyjna albo planarna ściana.', 'UNSUPPORTED');
+        else if (targetReference.kind === 'topology' && ![targetReference.descriptor?.center, targetReference.descriptor?.normal].every((vector) => Array.isArray(vector) && vector.length === 3 && vector.every((value) => Number.isFinite(value)))) add(`${base}.targetReferenceId`, 'Planarna ściana docelowa wymaga prawidłowego środka i normalnej 3D.', 'TYPE');
+      }
       if (feature.startOffset !== undefined && typeof feature.startOffset !== 'string' && typeof feature.startOffset !== 'number') add(`${base}.startOffset`, 'Odsunięcie początku wyciągnięcia musi być wyrażeniem albo liczbą.', 'TYPE');
       if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
       else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono wcześniejszej bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');

@@ -3,6 +3,7 @@ import { findProfile, validateDocument } from './document.js';
 import { buildDependencyGraph } from './dependency-graph.js';
 import { GEOMETRY_POLICY, isPositiveLength } from './geometry-policy.js';
 import { createTextProfile } from './text-profile.js';
+import { BASE_PLANE_FRAMES, resolveConstructionPlane } from './construction-planes.js';
 
 export const FEATURE_STATUS = Object.freeze({
   OK: 'ok',
@@ -15,6 +16,27 @@ export const FEATURE_STATUS = Object.freeze({
 function positive(value, label) {
   if (!isPositiveLength(value)) throw new Error(`${label} musi być większe od ${GEOMETRY_POLICY.linearTolerance} mm.`);
   return value;
+}
+
+function extrudeToObjectDistance(document, profiles, startOffsetValue, targetReferenceId, parameters) {
+  const target = document.references.find((reference) => reference.id === targetReferenceId);
+  if (!target) throw new Error('Nie znaleziono obiektu docelowego wyciągnięcia.');
+  const source = profiles[0];
+  const sourceFrame = BASE_PLANE_FRAMES[source?.plane || 'XY'];
+  if (!sourceFrame) throw new Error('Nieobsługiwana płaszczyzna źródłowa wyciągnięcia.');
+  const targetFrame = target.kind === 'construction-plane'
+    ? resolveConstructionPlane(target, parameters)
+    : target.kind === 'topology' && target.topologyKind === 'face' && target.descriptor?.geometry === 'PLANE'
+      ? { origin: target.descriptor.center, normal: target.descriptor.normal }
+      : null;
+  if (!targetFrame?.origin || !targetFrame?.normal) throw new Error('Obiektem docelowym musi być płaszczyzna konstrukcyjna albo planarna ściana.');
+  const parallel = Math.abs(sourceFrame.normal.reduce((sum, value, index) => sum + value * targetFrame.normal[index], 0));
+  if (Math.abs(1 - parallel) > GEOMETRY_POLICY.angularTolerance) {
+    throw new Error('Docelowa płaszczyzna wyciągnięcia musi być równoległa do płaszczyzny szkicu.');
+  }
+  const sourceOrigin = sourceFrame.origin.map((value, index) => value + sourceFrame.normal[index] * (source.planeOffset + startOffsetValue));
+  const distance = targetFrame.origin.reduce((sum, value, index) => sum + ((value - sourceOrigin[index]) * sourceFrame.normal[index]), 0);
+  return positive(distance, 'Odległość do obiektu docelowego');
 }
 
 function resolveClosedProfile(profile, parameters, sketch) {
@@ -191,13 +213,18 @@ export function prepareDocument(document) {
         if (!match) throw new Error(`Nie znaleziono profilu ${profileId}.`);
         return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
       });
+      const startOffsetValue = evaluateExpression(feature.startOffset ?? 0, parameterResult.values);
+      const distanceValue = extent === 'to-object'
+        ? extrudeToObjectDistance(document, profiles, startOffsetValue, feature.targetReferenceId, parameterResult.values)
+        : positive(evaluateExpression(feature.distance, parameterResult.values), 'Odległość wyciągnięcia');
       return {
         ...feature,
         status: 'ready',
         diagnostics: [],
         extent,
-        startOffsetValue: evaluateExpression(feature.startOffset ?? 0, parameterResult.values),
-        distanceValue: positive(evaluateExpression(feature.distance, parameterResult.values), 'Odległość wyciągnięcia'),
+        startOffsetValue,
+        distanceValue,
+        targetObjectReference: extent === 'to-object' ? document.references.find((reference) => reference.id === feature.targetReferenceId) : null,
         secondDistanceValue: extent === 'two-sides'
           ? positive(evaluateExpression(feature.secondDistance ?? feature.distance, parameterResult.values), 'Odległość drugiej strony')
           : 0,

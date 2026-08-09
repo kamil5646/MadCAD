@@ -172,6 +172,8 @@ const ENGLISH_TEXT = Object.freeze({
   'Płaszczyzna A': 'Plane A',
   'Płaszczyzna B': 'Plane B',
   'Płaszczyzna bazowa': 'Base plane',
+  'Obiekt docelowy': 'Target object',
+  'Do obiektu': 'To Object',
   'Nowa bryła': 'New body',
   'Połącz': 'Join',
   'Odejmij': 'Cut',

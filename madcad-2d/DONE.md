@@ -45,6 +45,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Płaszczyzny angle/tangent/path, oś normalna do płaszczyzny oraz punkty środkowy i odsunięty na osi są parametryczne, walidowane i zachowują zależności po ponownym otwarciu dokumentu.
 - [x] Więz curvature utrzymuje wspólny okrąg oskulacyjny dwóch połączonych łuków, wykrywa konflikt nieruchomych środków i działa przez przycisk oraz znacznik κ.
 - [x] Extrude ma parametryczne odsunięcie początku uwzględniane przez graf zależności, wszystkie zakresy i dokładny B-Rep; edycja wraca bezpiecznie do zera.
+- [x] Extrude To Object kończy się na równoległej płaszczyźnie konstrukcyjnej albo planarnej ścianie, zapisuje trwałą zależność i śledzi parametryczne przesunięcie ściany źródłowej.
 
 ## Podstawowe modyfikacje szkicu M2
 

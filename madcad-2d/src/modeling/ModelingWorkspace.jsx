@@ -643,8 +643,9 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
         {(isExtrude || (isHole && command.placement !== 'face-edges')) && <Field label="Profil" value={profileName} disabled />}
         {isExtrude && (
           <>
-            {command.extent !== 'through-all' && <Field label={command.extent === 'symmetric' ? 'Długość całkowita' : 'Odległość'} value={command.distance} onChange={(distance) => onChange({ distance })} suffix="mm" autoFocus />}
+            {!['through-all', 'to-object'].includes(command.extent) && <Field label={command.extent === 'symmetric' ? 'Długość całkowita' : 'Odległość'} value={command.distance} onChange={(distance) => onChange({ distance })} suffix="mm" autoFocus />}
             {command.extent === 'two-sides' && <Field label="Druga strona" value={command.secondDistance} onChange={(secondDistance) => onChange({ secondDistance })} suffix="mm" />}
+            {command.extent === 'to-object' && <label className="command-field"><span>Obiekt docelowy</span><select value={command.targetReferenceId || ''} onChange={(event) => onChange({ targetReferenceId: event.target.value })}>{command.targetOptions.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}</select></label>}
             <Field label="Odsunięcie początku" value={command.startOffset} onChange={(startOffset) => onChange({ startOffset })} suffix="mm" />
             <label className="command-field">
               <span>Operacja</span>
@@ -655,7 +656,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
                 <option value="intersect">Część wspólna</option>
               </select>
             </label>
-            <label className="command-field"><span>Kierunek</span><select value={command.extent} onChange={(event) => onChange({ extent: event.target.value })}><option value="one-side">Jedna strona</option><option value="two-sides">Dwie strony</option><option value="symmetric">Symetrycznie</option><option value="through-all" disabled={!['cut', 'intersect'].includes(command.operation)}>Through All</option></select></label>
+            <label className="command-field"><span>Kierunek</span><select value={command.extent} onChange={(event) => onChange({ extent: event.target.value })}><option value="one-side">Jedna strona</option><option value="two-sides">Dwie strony</option><option value="symmetric">Symetrycznie</option><option value="to-object" disabled={!command.targetOptions.length}>Do obiektu</option><option value="through-all" disabled={!['cut', 'intersect'].includes(command.operation)}>Through All</option></select></label>
           </>
         )}
         {isBoolean && (
@@ -1169,6 +1170,9 @@ export default function ModelingWorkspace({ onClose }) {
       const next = { ...current, ...patch };
       if (next.type === 'extrude') {
         if (next.extent === 'through-all' && !['cut', 'intersect'].includes(next.operation)) next.extent = 'one-side';
+        if (next.extent === 'to-object' && !next.targetReferenceId) next.targetReferenceId = next.targetOptions[0]?.id;
+        const targetOption = next.targetOptions.find((option) => option.id === next.targetReferenceId);
+        next.topologyReferences = next.extent === 'to-object' && targetOption?.reference ? [targetOption.reference] : [];
         next.previewFeature = createFeature('extrude', {
           name: current.previewFeature?.name || `Wyciągnięcie ${document.features.length + 1}`,
           sketchId: selectedProfileMatch?.sketch.id,
@@ -1177,6 +1181,7 @@ export default function ModelingWorkspace({ onClose }) {
           secondDistance: next.secondDistance,
           startOffset: next.startOffset,
           extent: next.extent,
+          targetReferenceId: next.extent === 'to-object' ? next.targetReferenceId : undefined,
           operation: next.operation,
           targetBodyId: next.operation === 'new' ? null : targetBodyId,
         });
@@ -2277,7 +2282,7 @@ export default function ModelingWorkspace({ onClose }) {
       })),
       features: document.features.length,
       featureIds: document.features.map((feature) => feature.id),
-      featureData: document.features.map((feature) => ({ id: feature.id, type: feature.type, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, depth: feature.depth, diameter: feature.diameter, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
+      featureData: document.features.map((feature) => ({ id: feature.id, type: feature.type, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, depth: feature.depth, diameter: feature.diameter, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
       references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, rotationAxis: reference.rotationAxis, angle: reference.angle, surfaceType: reference.surfaceType, center: reference.center, point: reference.point, axis: reference.axis, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, distance: reference.distance, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
@@ -2412,12 +2417,36 @@ export default function ModelingWorkspace({ onClose }) {
     setNotice('Podgląd wyciągnięcia jest aktywny. Potwierdź operację przyciskiem OK.');
   };
 
+  const createExtrudeTargetOptions = (editingFeatureId = null) => {
+    const options = constructionPlanes.filter((plane) => plane.status === 'ok').map((plane) => ({ id: plane.id, name: plane.name, kind: 'construction-plane' }));
+    const existingFeature = document.features.find((feature) => feature.id === editingFeatureId);
+    const existingReference = document.references.find((reference) => reference.id === existingFeature?.targetReferenceId && reference.kind === 'topology');
+    if (existingReference) options.push({ id: existingReference.id, name: existingReference.label || 'Planarna ściana', kind: 'topology', reference: existingReference });
+    if (editingFeatureId) return options;
+    engine.bodies.forEach((body) => {
+      body.topology?.faces?.filter((face) => face.descriptor?.geometry === 'PLANE').forEach((face, index) => {
+        const normal = face.descriptor.normal || [0, 0, 1];
+        const axis = normal.map(Math.abs).indexOf(Math.max(...normal.map(Math.abs)));
+        const axisName = ['X', 'Y', 'Z'][axis];
+        const coordinate = Number(face.descriptor.center?.[axis] || 0).toFixed(3);
+        const reference = createTopologyReference({
+          selection: { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId },
+          descriptor: face.descriptor,
+          label: `Ściana planarna ${index + 1} · ${axisName}=${coordinate} · ${body.name}`,
+        });
+        options.push({ id: reference.id, name: reference.label, kind: 'topology', reference });
+      });
+    });
+    return options;
+  };
+
   const beginOrUpdateExtrude = (distance) => {
     if (readOnly) return readOnlyNotice();
     if (!selectedProfile || activeSketchId) return;
     setCommand((current) => {
       const editing = current?.type === 'extrude' ? current : null;
       const operation = editing?.operation || (engine.bodies.length ? 'join' : 'new');
+      const targetOptions = editing?.targetOptions || createExtrudeTargetOptions(editing?.editId);
       const next = {
         ...(editing || {}),
         type: 'extrude',
@@ -2426,6 +2455,8 @@ export default function ModelingWorkspace({ onClose }) {
         startOffset: editing?.startOffset || '0',
         extent: editing?.extent || 'one-side',
         operation,
+        targetOptions,
+        targetReferenceId: editing?.targetReferenceId || targetOptions[0]?.id,
       };
       next.previewFeature = createFeature('extrude', {
         name: editing?.previewFeature?.name || `Wyciągnięcie ${document.features.length + 1}`,
@@ -2435,11 +2466,14 @@ export default function ModelingWorkspace({ onClose }) {
         secondDistance: next.secondDistance,
         startOffset: next.startOffset,
         extent: next.extent,
+        targetReferenceId: next.extent === 'to-object' ? next.targetReferenceId : undefined,
         operation,
         targetBodyId: operation === 'new' ? null : targetBodyId,
       });
       if (editing?.previewFeature?.id) next.previewFeature.id = editing.previewFeature.id;
       if (editing?.editId) next.editId = editing.editId;
+      const targetOption = targetOptions.find((option) => option.id === next.targetReferenceId);
+      next.topologyReferences = next.extent === 'to-object' && targetOption?.reference ? [targetOption.reference] : [];
       return next;
     });
     setNotice(`Wyciągnięcie ustawione przeciągnięciem: ${Number(distance).toFixed(1)} mm. Kliknij OK, aby zapisać operację.`);
@@ -2788,10 +2822,10 @@ export default function ModelingWorkspace({ onClose }) {
         next.features[index] = command.previewFeature;
       } else {
         next.features.push(command.previewFeature);
-        for (const reference of command.topologyReferences || []) {
-          if (next.references.some((item) => item.id === reference.id)) continue;
-          next.references.push({ ...reference, ownerFeatureId: command.previewFeature.id });
-        }
+      }
+      for (const reference of command.topologyReferences || []) {
+        if (next.references.some((item) => item.id === reference.id)) continue;
+        next.references.push({ ...reference, ownerFeatureId: command.previewFeature.id });
       }
     });
     setSelection({ kind: 'feature', id: command.previewFeature.id });
@@ -2821,7 +2855,10 @@ export default function ModelingWorkspace({ onClose }) {
     if (!feature) return;
     const profile = document.sketches.flatMap((sketch) => sketch.profiles).find((item) => feature.profileIds?.includes(item.id) || feature.profileId === item.id);
     if (profile) setSelection({ kind: 'profile', id: profile.id });
-    if (feature.type === 'extrude') setCommand({ type: 'extrude', editId: feature.id, distance: feature.distance, secondDistance: feature.secondDistance || feature.distance, startOffset: feature.startOffset || '0', extent: feature.extent || 'one-side', operation: feature.operation, previewFeature: feature });
+    if (feature.type === 'extrude') {
+      const targetOptions = createExtrudeTargetOptions(feature.id);
+      setCommand({ type: 'extrude', editId: feature.id, distance: feature.distance, secondDistance: feature.secondDistance || feature.distance, startOffset: feature.startOffset || '0', extent: feature.extent || 'one-side', operation: feature.operation, targetOptions, targetReferenceId: feature.targetReferenceId || targetOptions[0]?.id, previewFeature: feature });
+    }
     else if (feature.type === 'boolean') setCommand({ type: 'boolean', editId: feature.id, operation: feature.operation, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, targetName: feature.targetBodyId, toolName: feature.toolBodyId, previewFeature: feature });
     else if (feature.type === 'primitive') setCommand({ type: 'primitive', editId: feature.id, name: feature.name, primitiveType: feature.primitiveType, x: feature.x, y: feature.y, z: feature.z, width: feature.width || '20', depth: feature.depth || '20', height: feature.height || '20', radius: feature.radius || '10', majorRadius: feature.majorRadius || '15', minorRadius: feature.minorRadius || '4', previewFeature: feature });
     else if (feature.type === 'transform') setCommand({ type: 'transform', editId: feature.id, targetBodyId: feature.targetBodyId, mode: feature.mode, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', angle: feature.angle || '0', originX: feature.originX || '0', originY: feature.originY || '0', originZ: feature.originZ || '0', previewFeature: feature });

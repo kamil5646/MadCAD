@@ -1145,6 +1145,36 @@ async function runUiFlow(window) {
   await setCommandField('Położenie B', '20');
   await confirmDialog();
   await waitForUi(window, `(() => { const plane = window.__madcadConstructionPlaneState?.find((item) => item.name === 'Środek korpusu'); return plane?.status === 'ok' && plane.origin[2] === 8; })()`, 'dokładna płaszczyzna środkowa');
+  await clickTool('Płaszczyzna offset');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna odsunięta')`, 'okno płaszczyzny końca wyciągnięcia');
+  await setCommandField('Nazwa', 'Koniec wyciągnięcia');
+  await setCommandField('Płaszczyzna bazowa', 'XY');
+  await setCommandField('Odległość', '12');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadConstructionPlaneState?.some((item) => item.name === 'Koniec wyciągnięcia' && item.status === 'ok' && item.origin[2] === 12)`, 'docelowa płaszczyzna wyciągnięcia');
+  const extrudeTargetPlaneId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.references.find((item) => item.kind === 'construction-plane' && item.name === 'Koniec wyciągnięcia').id`);
+
+  progress('extrude to construction plane');
+  await editTimelineFeature(0);
+  await setCommandField('Odsunięcie początku', '2');
+  await setCommandField('Kierunek', 'to-object');
+  await setCommandField('Obiekt docelowy', extrudeTargetPlaneId);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.extent === 'to-object' && window.__madcadVerifyDocumentState.featureData[0].targetReferenceId === ${JSON.stringify(extrudeTargetPlaneId)} && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.bounds?.[0]?.[2] - 2) < 1e-5 && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.bounds?.[1]?.[2] - 12) < 1e-5`, 'Extrude To Object do płaszczyzny', modelingTimeoutMs);
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.extent === 'one-side' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.bounds?.[1]?.[2] - 8) < 1e-5`, 'undo Extrude To Object', modelingTimeoutMs);
+  await sendShortcut('y');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.extent === 'to-object' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${64 * 42 * 10}) < 1e-5`, 'redo Extrude To Object', modelingTimeoutMs);
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.features?.[0]?.extent === 'to-object' && saved.features[0].targetReferenceId === ${JSON.stringify(extrudeTargetPlaneId)}; })()`, 'autozapis Extrude To Object');
+  const toObjectRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${toObjectRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.extent === 'to-object' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.bounds?.[1]?.[2] - 12) < 1e-5`, 'ponownie otwarty Extrude To Object', modelingTimeoutMs);
+  await editTimelineFeature(0);
+  await setCommandField('Kierunek', 'one-side');
+  await setCommandField('Odległość', '8');
+  await setCommandField('Odsunięcie początku', '0');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.extent === 'one-side' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.bounds?.[1]?.[2] - 8) < 1e-5`, 'przywrócony zakres bazowego wyciągnięcia', modelingTimeoutMs);
   await clickTool('Plane 3 punkty');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna przez trzy punkty')`, 'okno plane przez trzy punkty');
   await setCommandField('Nazwa', 'Płaszczyzna punktów');
@@ -1356,9 +1386,43 @@ async function runUiFlow(window) {
   await clickTool('Zakończ szkic');
   await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'bryła przed wycięciem Through All', modelingTimeoutMs);
   await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === 'Wyciągnij' && !item.disabled)`, 'aktywne polecenie Extrude', modelingTimeoutMs);
-  progress('extrude cut through all');
+  progress('extrude to planar face');
   await clickTool('Wyciągnij');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'polecenie Extrude Cut');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'polecenie Extrude To Object');
+  await setCommandField('Operacja', 'new');
+  await setCommandField('Kierunek', 'to-object');
+  const planarTargetReferenceId = await window.webContents.executeJavaScript(`(() => {
+    const field = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === 'Obiekt docelowy');
+    const option = [...(field?.querySelector('select')?.options || [])].find((item) => item.textContent.includes('Z=8.000'));
+    if (!option) throw new Error('Brak górnej ściany planarnej na liście To Object.');
+    return option.value;
+  })()`);
+  await setCommandField('Obiekt docelowy', planarTargetReferenceId);
+  const faceTargetRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.extent === 'to-object' && window.__madcadVerifyDocumentState.featureData[1].targetReferenceId === ${JSON.stringify(planarTargetReferenceId)} && window.__madcadVerifyEngineState?.revision > ${faceTargetRevision} && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'Extrude To Object do ściany planarnej', modelingTimeoutMs);
+  const faceTargetMetrics = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies.find((body) => body.id === 'body-' + window.__madcadVerifyDocumentState.featureData[1].id)?.metrics`);
+  assertClose(faceTargetMetrics.volume, Math.PI * 6 * 6 * 8, 0.05, 'Extrude To Object planar face volume');
+  assertClose(faceTargetMetrics.bounds[1][2], 8, 0.02, 'Extrude To Object planar face end');
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 1 && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'undo To Object do ściany', modelingTimeoutMs);
+  await sendShortcut('y');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.extent === 'to-object' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'redo To Object do ściany', modelingTimeoutMs);
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.features?.[1]?.extent === 'to-object' && saved.references?.some((item) => item.id === saved.features[1].targetReferenceId && item.topologyKind === 'face'); })()`, 'autozapis To Object do ściany');
+  const faceTargetReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${faceTargetReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[1]?.extent === 'to-object' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'ponownie otwarty To Object do ściany', modelingTimeoutMs);
+  await editTimelineFeature(0);
+  await setCommandField('Odległość', '10');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const feature = window.__madcadVerifyDocumentState?.featureData?.[1]; const body = window.__madcadVerifyEngineState?.bodies?.find((item) => item.id === 'body-' + feature?.id); return feature?.extent === 'to-object' && Math.abs(body?.metrics?.volume - ${Math.PI * 6 * 6 * 10}) < 0.05 && Math.abs(body?.metrics?.bounds?.[1]?.[2] - 10) < 0.02; })()`, 'parametryczne śledzenie przesuniętej ściany docelowej', modelingTimeoutMs);
+  await editTimelineFeature(0);
+  await setCommandField('Odległość', '8');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const feature = window.__madcadVerifyDocumentState?.featureData?.[1]; const body = window.__madcadVerifyEngineState?.bodies?.find((item) => item.id === 'body-' + feature?.id); return Math.abs(body?.metrics?.bounds?.[1]?.[2] - 8) < 0.02; })()`, 'powrót ściany docelowej na pierwotne położenie', modelingTimeoutMs);
+
+  progress('extrude cut through all');
+  await editTimelineFeature(1);
   await setCommandField('Operacja', 'cut');
   await setCommandField('Kierunek', 'through-all');
   const throughAllRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
@@ -1563,7 +1627,7 @@ async function runUiFlow(window) {
     && autosaveState.features === 5
     && autosaveState.sketches === 4
     && autosaveState.entities === 13
-    && autosaveState.constructionPlanes === 6
+    && autosaveState.constructionPlanes === 7
     && autosaveState.constructionAxes === 5
     && autosaveState.constructionPoints === 5;
   if (!autosaveRoundTrip) throw new Error(`Desktop autosave did not preserve the current document: ${JSON.stringify(autosaveState)}`);

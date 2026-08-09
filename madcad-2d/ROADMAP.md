@@ -130,9 +130,11 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.5 Szyk geometrii szkicu po linii lub łuku z równym rozstawem, stałą orientacją albo orientacją do stycznej, pomijaniem wystąpień i pełnym desktop E2E.
 - [x] P1.6 Parametryczne płaszczyzny tangent/angle/path, oś normalna do płaszczyzny oraz punkty środkowy i odsunięty na osi, z walidacją dokumentu, grafem zależności i pełnym desktop E2E.
 - [x] P1.7 Więz ciągłości krzywizny `curvature` (G2) dla dwóch łuków ze wspólnym końcem, z diagnostyką konfliktu, znacznikiem κ, undo/redo, autozapisem i round-trip dokumentu.
-- [>] P1.8 Extrude To Object i parametryczne odsunięcie początku wyciągnięcia; draft i thin extrude pozostają osobnym kolejnym etapem.
+- [x] P1.8 Extrude To Object i parametryczne odsunięcie początku wyciągnięcia.
   - [x] P1.8a Odsunięcie początku działa parametrycznie dla wszystkich zakresów, przechodzi edycję i pełny desktop E2E na przesuniętym B-Rep.
-  - [>] P1.8b To Object do równoległej płaszczyzny konstrukcyjnej lub planarnej ściany.
+  - [x] P1.8b To Object kończy bryłę na równoległej płaszczyźnie konstrukcyjnej albo planarnej ścianie, śledzi przesunięcie ściany przez trwałą referencję i przechodzi undo/redo, autozapis oraz ponowne otwarcie.
+- [>] P1.9 Thin Extrude dla zamkniętego i otwartego profilu: parametryczna grubość, strona wewnętrzna/zewnętrzna/symetryczna oraz pełny przepływ B-Rep.
+- [ ] P1.10 Draft wskazanych ścian względem płaszczyzny neutralnej po ukończeniu Thin Extrude.
 
 ## Definition of Done
 
@@ -156,4 +158,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.8 — Extrude To Object i parametryczne odsunięcie początku wyciągnięcia.`
+`P1.9 — Thin Extrude z parametryczną grubością i kontrolą strony.`

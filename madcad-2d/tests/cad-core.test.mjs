@@ -459,6 +459,42 @@ test('Extrude przygotowuje odsunięty start, Join, Cut i Intersect z jedną, dwi
   assert.ok(validateDocument(invalid).issues.some((issue) => issue.path.endsWith('.extent')));
 });
 
+test('Extrude To Object kończy się dokładnie na równoległej płaszczyźnie konstrukcyjnej', () => {
+  const document = createDocument('Extrude To Object');
+  document.parameters.push(createParameter('cel', '12'));
+  const profile = createRectangleProfile({ width: 20, height: 10 });
+  const sketch = createSketch({ plane: 'XY', planeOffset: '2', profiles: [profile] });
+  const target = createOffsetPlane({ name: 'Koniec', basePlane: 'XY', offset: 'cel' });
+  const feature = createFeature('extrude', { sketchId: sketch.id, profileIds: [profile.id], distance: '1', startOffset: '1', extent: 'to-object', targetReferenceId: target.id, operation: 'new' });
+  document.sketches.push(sketch);
+  document.references.push(target);
+  document.features.push(feature);
+
+  const prepared = prepareDocument(document);
+  assert.equal(prepared.features[0].distanceValue, 9);
+  assert.ok(buildDependencyGraph(document).edges.some((edge) => edge.from === target.id && edge.to === feature.id && edge.kind === 'to-object'));
+
+  const angled = structuredClone(document);
+  angled.references[0] = createAnglePlane({ name: 'Ukośna', basePlane: 'XY', angle: '30', offset: '12' });
+  angled.features[0].targetReferenceId = angled.references[0].id;
+  assert.throws(() => prepareDocument(angled), /musi być równoległa/);
+
+  const broken = structuredClone(document);
+  broken.features[0].targetReferenceId = 'missing-plane';
+  assert.ok(validateDocument(broken).issues.some((issue) => issue.path.endsWith('.targetReferenceId') && issue.code === 'BROKEN_REFERENCE'));
+
+  const faceDocument = structuredClone(document);
+  const face = createTopologyReference({ selection: { kind: 'face', id: 'face-top', bodyId: 'body-previous' }, descriptor: { geometry: 'PLANE', center: [0, 0, 10], normal: [0, 0, 1] }, label: 'Górna ściana' });
+  faceDocument.references = [face];
+  faceDocument.features[0].targetReferenceId = face.id;
+  assert.equal(prepareDocument(faceDocument).features[0].distanceValue, 7);
+  assert.equal(validateDocument(faceDocument).valid, true);
+
+  const curvedFace = structuredClone(faceDocument);
+  curvedFace.references[0].descriptor.geometry = 'CYLINDRE';
+  assert.ok(validateDocument(curvedFace).issues.some((issue) => issue.path.endsWith('.targetReferenceId') && issue.code === 'UNSUPPORTED'));
+});
+
 test('Boolean wymaga dwóch brył, konsumuje narzędzie i zapisuje zależności Union/Subtract/Intersect', () => {
   for (const operation of ['union', 'subtract', 'intersect']) {
     const document = createDocument(`Boolean ${operation}`);

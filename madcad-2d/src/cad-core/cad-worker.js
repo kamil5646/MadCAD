@@ -113,8 +113,50 @@ function drawingForProfile(profile) {
 
 const THROUGH_ALL_DISTANCE = 1_000_000;
 
-function extrusionSpan(feature) {
+function matchingTranslatedPlanarFaceIndex(reference, descriptors, sourceNormal) {
+  const expected = reference?.descriptor;
+  let bestIndex = -1;
+  let bestScore = Number.POSITIVE_INFINITY;
+  descriptors.forEach((descriptor, index) => {
+    if (expected?.geometry !== 'PLANE' || descriptor?.geometry !== 'PLANE' || !expected.center || !descriptor.center || !expected.normal || !descriptor.normal) return;
+    const normalDistance = descriptorPointDistance(expected.normal, descriptor.normal);
+    const delta = descriptor.center.map((value, axis) => value - expected.center[axis]);
+    const axial = delta.reduce((sum, value, axis) => sum + value * sourceNormal[axis], 0);
+    const lateralDistance = Math.hypot(...delta.map((value, axis) => value - axial * sourceNormal[axis]));
+    const areaScale = Math.max(Math.abs(Number(expected.area || 0)), Math.abs(Number(descriptor.area || 0)), 1);
+    const areaDifference = Math.abs(Number(expected.area || 0) - Number(descriptor.area || 0)) / areaScale;
+    const score = lateralDistance + normalDistance + areaDifference + (Math.abs(axial) * 1e-9);
+    if (score < bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+  if (bestIndex < 0 || bestScore > 1e-4) throw new Error(`Nie odnaleziono planarnej ściany docelowej „${reference?.label || reference?.topologyId}”.`);
+  return bestIndex;
+}
+
+function extrusionSpan(feature, bodyMap) {
   const startOffset = Number(feature.startOffsetValue || 0);
+  if (feature.extent === 'to-object' && feature.targetObjectReference?.kind === 'topology') {
+    const reference = feature.targetObjectReference;
+    const target = bodyMap.get(reference.bodyId);
+    if (!target) throw new Error('Docelowa ściana wyciągnięcia musi należeć do wcześniejszej bryły.');
+    const faces = target.shape.faces;
+    try {
+      const sourceNormal = { XY: [0, 0, 1], XZ: [0, -1, 0], YZ: [1, 0, 0] }[feature.profiles[0]?.plane || 'XY'];
+      const descriptors = faces.map((face) => faceDescriptor(face));
+      const descriptor = descriptors[matchingTranslatedPlanarFaceIndex(reference, descriptors, sourceNormal)];
+      const parallel = Math.abs(sourceNormal.reduce((sum, value, index) => sum + value * descriptor.normal[index], 0));
+      if (Math.abs(1 - parallel) > GEOMETRY_POLICY.angularTolerance) throw new Error('Docelowa ściana wyciągnięcia musi być równoległa do płaszczyzny szkicu.');
+      const targetCoordinate = descriptor.center.reduce((sum, value, index) => sum + value * sourceNormal[index], 0);
+      const sourceCoordinate = Number(feature.profiles[0]?.planeOffset || 0) + startOffset;
+      const distance = targetCoordinate - sourceCoordinate;
+      if (!(distance > GEOMETRY_POLICY.linearTolerance)) throw new Error('Obiekt docelowy musi leżeć przed początkiem wyciągnięcia.');
+      return { startDelta: startOffset, distance };
+    } finally {
+      faces.forEach((face) => face.delete());
+    }
+  }
   if (feature.extent === 'two-sides') return { startDelta: startOffset - feature.secondDistanceValue, distance: feature.distanceValue + feature.secondDistanceValue };
   if (feature.extent === 'symmetric') return { startDelta: startOffset - feature.distanceValue / 2, distance: feature.distanceValue };
   if (feature.extent === 'through-all') return { startDelta: startOffset - THROUGH_ALL_DISTANCE / 2, distance: THROUGH_ALL_DISTANCE };
@@ -233,7 +275,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
   }
 
   if (feature.type === 'extrude') {
-    const span = extrusionSpan(feature);
+    const span = extrusionSpan(feature, bodyMap);
     const tool = combineShapes(feature.profiles.map((profile) => extrudeProfile(profile, span)));
     const bodyId = `body-${feature.id}`;
     if (feature.operation === 'new' || !feature.targetBodyId) {
