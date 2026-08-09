@@ -660,6 +660,59 @@ function runFeature(feature, bodyMap, bodyOrder) {
       sourceProperties?.delete();
       upgrader?.delete();
     }
+    return;
+  }
+
+  if (feature.type === 'replaceFace') {
+    const target = bodyMap.get(feature.targetBodyId);
+    const [sourceReference, destinationReference] = feature.topologyReferences || [];
+    const destination = bodyMap.get(destinationReference?.bodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);
+    if (!destination || destination === target) throw new Error('Replace Face wymaga powierzchni docelowej należącej do innej bryły.');
+    const sourceFaces = target.shape.faces;
+    const destinationFaces = destination.shape.faces;
+    let builder;
+    let tool;
+    let vector;
+    try {
+      const sourceDescriptors = sourceFaces.map((face) => faceDescriptor(face));
+      const destinationDescriptors = destinationFaces.map((face) => faceDescriptor(face));
+      const sourceFace = sourceFaces[matchingFaceIndex(sourceReference, sourceDescriptors)];
+      const destinationFace = destinationFaces[matchingFaceIndex(destinationReference, destinationDescriptors)];
+      if (sourceFace.geomType !== 'PLANE' || destinationFace.geomType !== 'PLANE') throw new Error('Replace Face obsługuje obecnie wyłącznie dwie ściany planarne.');
+      const sourceCenter = sourceFace.center.toTuple();
+      const destinationCenter = destinationFace.center.toTuple();
+      const sourceNormal = sourceFace.normalAt(sourceCenter).toTuple();
+      const destinationNormal = destinationFace.normalAt(destinationCenter).toTuple();
+      const alignment = Math.abs(sourceNormal.reduce((sum, value, index) => sum + value * destinationNormal[index], 0));
+      if (1 - alignment > GEOMETRY_POLICY.angularTolerance) throw new Error('Powierzchnia docelowa Replace Face musi być równoległa do zastępowanej ściany.');
+      const distance = sourceNormal.reduce((sum, value, index) => sum + value * (destinationCenter[index] - sourceCenter[index]), 0);
+      if (Math.abs(distance) <= GEOMETRY_POLICY.linearTolerance) throw new Error('Powierzchnia docelowa Replace Face pokrywa się z zastępowaną ścianą.');
+      vector = new Vector(sourceNormal.map((value) => value * distance));
+      builder = new (getOC().BRepPrimAPI_MakePrism_1)(sourceFace.wrapped, vector.wrapped, true, true);
+      tool = cast(builder.Shape());
+      target.shape = distance > 0 ? target.shape.fuse(tool) : target.shape.cut(tool);
+      const resultFaces = target.shape.faces;
+      try {
+        const reachesDestination = resultFaces.some((face) => {
+          if (face.geomType !== 'PLANE') return false;
+          const center = face.center.toTuple();
+          const normal = face.normalAt(center).toTuple();
+          const parallel = Math.abs(normal.reduce((sum, value, index) => sum + value * destinationNormal[index], 0));
+          const planeDistance = Math.abs(destinationNormal.reduce((sum, value, index) => sum + value * (center[index] - destinationCenter[index]), 0));
+          return 1 - parallel <= GEOMETRY_POLICY.angularTolerance && planeDistance <= GEOMETRY_POLICY.linearTolerance * 10;
+        });
+        if (!reachesDestination) throw new Error('Replace Face nie utworzył poprawnej ściany na powierzchni docelowej.');
+      } finally {
+        resultFaces.forEach((face) => face.delete());
+      }
+    } finally {
+      sourceFaces.forEach((face) => face.delete());
+      destinationFaces.forEach((face) => face.delete());
+      tool?.delete();
+      builder?.delete();
+      vector?.delete();
+    }
   }
 }
 

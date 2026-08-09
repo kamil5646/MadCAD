@@ -12,7 +12,7 @@ export const DOCUMENT_SCHEMA_VERSION = 4;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -120,7 +120,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -756,6 +756,20 @@ export function validateDocument(document) {
         if (faceReference?.kind !== 'topology' || faceReference.topologyKind !== 'face') add(`${base}.referenceIds[${referenceIndex}]`, 'Delete Face + Heal wymaga trwałych referencji ścian.', 'UNSUPPORTED');
         else if (faceReference.bodyId !== feature.targetBodyId) add(`${base}.referenceIds[${referenceIndex}]`, 'Usuwana ściana musi należeć do bryły docelowej.', 'VALUE');
       });
+    }
+    if (feature.type === 'replaceFace') {
+      if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
+      if (!Array.isArray(feature.referenceIds) || feature.referenceIds.length !== 2) add(`${base}.referenceIds`, 'Replace Face wymaga ściany zastępowanej i powierzchni docelowej.', 'REQUIRED');
+      else {
+        const sourceReference = references.find((reference) => reference.id === feature.referenceIds[0]);
+        const destinationReference = references.find((reference) => reference.id === feature.referenceIds[1]);
+        for (const [index, reference] of [sourceReference, destinationReference].entries()) {
+          if (reference?.kind !== 'topology' || reference.topologyKind !== 'face' || reference.descriptor?.geometry !== 'PLANE') add(`${base}.referenceIds[${index}]`, 'Replace Face wymaga dwóch trwałych referencji planarnych ścian.', 'UNSUPPORTED');
+        }
+        if (sourceReference?.bodyId !== feature.targetBodyId) add(`${base}.referenceIds[0]`, 'Pierwsza ściana musi należeć do modyfikowanej bryły.', 'VALUE');
+        if (!destinationReference?.bodyId || destinationReference.bodyId === feature.targetBodyId || !bodyIds.has(destinationReference.bodyId)) add(`${base}.referenceIds[1]`, 'Powierzchnia docelowa musi należeć do innej istniejącej bryły.', 'VALUE');
+        if (feature.referenceIds[0] === feature.referenceIds[1]) add(`${base}.referenceIds`, 'Ściana zastępowana i powierzchnia docelowa muszą być różne.', 'VALUE');
+      }
     }
     if (feature.type === 'offsetFace') {
       if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');

@@ -699,6 +699,29 @@ test('Delete Face + Heal zachowuje trwałe referencje regionów tej samej bryły
   assert.ok(validateDocument(foreignBody).issues.some((issue) => issue.path.endsWith('.targetBodyId')));
 });
 
+test('Replace Face wiąże planarną ścianę z powierzchnią docelową innej bryły', () => {
+  const document = createDocument('Replace Face');
+  const source = createFeature('primitive', { primitiveType: 'box', width: '10', depth: '10', height: '10' });
+  const destination = createFeature('primitive', { primitiveType: 'box', x: '20', z: '15', width: '10', depth: '10', height: '2' });
+  const sourceBodyId = `body-${source.id}`;
+  const destinationBodyId = `body-${destination.id}`;
+  const sourceFace = { ...createTopologyReference({ selection: { kind: 'face', id: 'source-top', bodyId: sourceBodyId, sourceFeatureId: source.id }, descriptor: { geometry: 'PLANE', center: [5, 5, 10], normal: [0, 0, 1] }, label: 'Ściana zastępowana' }), scope: 'feature-input' };
+  const destinationFace = { ...createTopologyReference({ selection: { kind: 'face', id: 'destination-bottom', bodyId: destinationBodyId, sourceFeatureId: destination.id }, descriptor: { geometry: 'PLANE', center: [25, 5, 15], normal: [0, 0, -1] }, label: 'Powierzchnia docelowa' }), scope: 'feature-input' };
+  const replace = createFeature('replaceFace', { targetBodyId: sourceBodyId, referenceIds: [sourceFace.id, destinationFace.id] });
+  document.references.push(sourceFace, destinationFace);
+  document.features.push(source, destination, replace);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[2];
+  assert.deepEqual(prepared.topologyReferences.map((reference) => reference.id), [sourceFace.id, destinationFace.id]);
+  assert.ok(buildDependencyGraph(document).edges.some((edge) => edge.from === destinationFace.id && edge.to === replace.id && edge.kind === 'references-topology'));
+
+  const sameBody = structuredClone(document);
+  const replacementReference = sameBody.references.find((reference) => reference.id === destinationFace.id);
+  replacementReference.bodyId = sourceBodyId;
+  assert.ok(validateDocument(sameBody).issues.some((issue) => issue.path.endsWith('.referenceIds[1]')));
+});
+
 test('Box, Cylinder, Sphere i Torus przygotowują parametryczne bryły oraz osobne ciała', () => {
   const document = createDocument('Prymitywy');
   const primitives = [
