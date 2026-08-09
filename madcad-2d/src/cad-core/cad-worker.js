@@ -483,6 +483,75 @@ function runFeature(feature, bodyMap, bodyOrder) {
       origin?.delete();
       faces.forEach((face) => face.delete());
     }
+    return;
+  }
+
+  if (feature.type === 'splitBody') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);
+    const source = target.shape;
+    const boundingBox = source.boundingBox;
+    const { origin, normal, u, v } = feature.splitPlane;
+    const dot = (first, second) => first.reduce((sum, value, axis) => sum + value * second[axis], 0);
+    const relative = (point) => point.map((value, axis) => value - origin[axis]);
+    let positiveTool;
+    let negativeTool;
+    let positiveHalf;
+    let negativeHalf;
+    let positivePlane;
+    let negativePlane;
+    try {
+      const [minimum, maximum] = boundingBox.bounds;
+      const corners = [0, 1].flatMap((x) => [0, 1].flatMap((y) => [0, 1].map((z) => [
+        x ? maximum[0] : minimum[0],
+        y ? maximum[1] : minimum[1],
+        z ? maximum[2] : minimum[2],
+      ])));
+      const projected = corners.map((corner) => {
+        const vector = relative(corner);
+        return [dot(vector, u), dot(vector, v), dot(vector, normal)];
+      });
+      const range = (axis) => [Math.min(...projected.map((point) => point[axis])), Math.max(...projected.map((point) => point[axis]))];
+      const [minU, maxU] = range(0);
+      const [minV, maxV] = range(1);
+      const [minN, maxN] = range(2);
+      if (minN >= -GEOMETRY_POLICY.linearTolerance || maxN <= GEOMETRY_POLICY.linearTolerance) {
+        throw new Error('Płaszczyzna Split Body musi przecinać wnętrze bryły i pozostawić materiał po obu stronach.');
+      }
+      const margin = Math.max(maxU - minU, maxV - minV, maxN - minN, 1) + 1;
+      const rectangle = () => drawRectangle((maxU - minU) + (2 * margin), (maxV - minV) + (2 * margin)).translate((minU + maxU) / 2, (minV + maxV) / 2);
+      positivePlane = new Plane(origin, u, normal);
+      positiveTool = rectangle().sketchOnPlane(positivePlane).extrude(maxN + margin, { extrusionDirection: normal });
+      negativePlane = new Plane(origin, u, normal);
+      negativeTool = rectangle().sketchOnPlane(negativePlane).extrude(Math.abs(minN) + margin, { extrusionDirection: normal.map((value) => -value) });
+      positiveHalf = source.intersect(positiveTool);
+      negativeHalf = source.intersect(negativeTool);
+      const positiveProperties = measureShapeVolumeProperties(positiveHalf);
+      const negativeProperties = measureShapeVolumeProperties(negativeHalf);
+      try {
+        if (positiveProperties.volume <= GEOMETRY_POLICY.linearTolerance || negativeProperties.volume <= GEOMETRY_POLICY.linearTolerance) {
+          throw new Error('Split Body nie utworzył dwóch niepustych brył.');
+        }
+      } finally {
+        positiveProperties.delete();
+        negativeProperties.delete();
+      }
+      target.shape = positiveHalf;
+      const resultBodyId = `body-${feature.id}`;
+      bodyMap.set(resultBodyId, { id: resultBodyId, name: `${feature.name} B`, sourceFeatureId: feature.id, representation: 'brep', shape: negativeHalf });
+      if (!bodyOrder.includes(resultBodyId)) bodyOrder.push(resultBodyId);
+      positiveHalf = null;
+      negativeHalf = null;
+      source.delete();
+    } finally {
+      boundingBox.delete();
+      positiveTool?.delete();
+      negativeTool?.delete();
+      positiveHalf?.delete();
+      negativeHalf?.delete();
+      positivePlane?.delete();
+      negativePlane?.delete();
+    }
   }
 }
 

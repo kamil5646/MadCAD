@@ -139,6 +139,7 @@ export function buildDependencyGraph(document) {
     if (feature.pointId) addEdge(feature.pointId, feature.id, 'references');
     for (const referenceId of feature.referenceIds || []) addEdge(referenceId, feature.id, 'references-topology');
     if (feature.type === 'draft' && !['XY', 'XZ', 'YZ'].includes(feature.neutralPlaneId)) addEdge(feature.neutralPlaneId, feature.id, 'neutral-plane');
+    if (feature.type === 'splitBody' && !['XY', 'XZ', 'YZ'].includes(feature.planeId)) addEdge(feature.planeId, feature.id, 'split-plane');
     if (feature.type === 'extrude' && feature.extent === 'to-object') addEdge(feature.targetReferenceId, feature.id, 'to-object');
     for (const value of featureExpressions(feature)) {
       for (const name of expressionDependencies(value)) addEdge(parameterIdsByName.get(name), feature.id, 'drives');
@@ -146,7 +147,7 @@ export function buildDependencyGraph(document) {
 
     if (feature.targetBodyId) addEdge(feature.targetBodyId, feature.id, 'modifies');
     if (feature.toolBodyId) addEdge(feature.toolBodyId, feature.id, 'consumes');
-    if ((feature.type === 'extrude' && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || (feature.type === 'textSolid' && feature.operation === 'new')) {
+    if ((feature.type === 'extrude' && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
       const bodyId = `body-${feature.id}`;
       addNode(bodyId, 'body', feature.name, { persisted: false, producerFeatureId: feature.id });
       bodyProducerById.set(bodyId, feature.id);

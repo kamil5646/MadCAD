@@ -919,6 +919,57 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.clearanceProfile === 'fff' && window.__madcadVerifyDocumentState.featureData[1].diameter === '5' && window.__madcadVerifyDocumentState.featureData[1].clearance === '0.2'`, 'nominalny wymiar i profil FFF', modelingTimeoutMs);
   assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), fffHoleVolume, 0.05, 'FFF compensated hole volume');
 
+  progress('split body by construction and base plane');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla Split Body');
+  await clickTool('Prymityw');
+  await setCommandField('Szerokość', '20');
+  await setCommandField('Głębokość', '16');
+  await setCommandField('Wysokość', '12');
+  await setCommandField('Położenie X', '-10');
+  await setCommandField('Położenie Y', '-8');
+  await setCommandField('Położenie Z', '-6');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyEngineState?.bodies?.length === 1 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - 3840) < 0.05`, 'wyśrodkowana bryła Split Body', modelingTimeoutMs);
+  const splitSourceBodyId = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].id`);
+  await clickTool('Płaszczyzna offset');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna odsunięta')`, 'płaszczyzna konstrukcyjna Split Body');
+  await setCommandField('Płaszczyzna bazowa', 'XY');
+  await setCommandField('Odległość', '2');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.references?.some((reference) => reference.kind === 'construction-plane' && reference.offset === '2')`, 'zapisana płaszczyzna Split Body');
+  const splitConstructionPlaneId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.references.find((reference) => reference.kind === 'construction-plane' && reference.offset === '2').id`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'body', bodyId: ${JSON.stringify(splitSourceBodyId)} }, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'bryła wskazana do Split Body');
+  await clickTool('Split Body');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna podziału')`, 'otwarty Split Body');
+  await setCommandField('Płaszczyzna podziału', splitConstructionPlaneId);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.bodies?.length === 2 && Math.abs(window.__madcadVerifyEngineState.bodies.reduce((sum, body) => sum + body.metrics.volume, 0) - 3840) < 0.05 && Math.abs(Math.min(...window.__madcadVerifyEngineState.bodies.map((body) => body.metrics.volume)) - 1280) < 0.05`, 'podgląd podziału bryły płaszczyzną konstrukcyjną', modelingTimeoutMs);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'splitBody' && window.__madcadVerifyDocumentState.featureData[1].planeId === ${JSON.stringify(splitConstructionPlaneId)} && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'zapisany Split Body', modelingTimeoutMs);
+  const splitFeatureId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.featureData[1].id`);
+  const splitResultBodyId = `body-${splitFeatureId}`;
+  await waitForUi(window, `window.__madcadVerifyEngineState?.bodies?.some((body) => body.id === ${JSON.stringify(splitResultBodyId)})`, 'trwałe ID drugiej bryły Split Body');
+
+  await editTimelineFeature(1, 'Split Body');
+  await setCommandField('Płaszczyzna podziału', 'XZ');
+  await waitForUi(window, `window.__madcadVerifyEngineState?.bodies?.length === 2 && window.__madcadVerifyEngineState.bodies.every((body) => Math.abs(body.metrics.volume - 1920) < 0.05)`, 'podgląd edycji Split Body na XZ', modelingTimeoutMs);
+  await clickDialogButton('Anuluj');
+  await waitForUi(window, `!document.querySelector('.command-dialog') && window.__madcadVerifyDocumentState?.featureData?.[1]?.planeId === ${JSON.stringify(splitConstructionPlaneId)} && Math.abs(Math.min(...window.__madcadVerifyEngineState.bodies.map((body) => body.metrics.volume)) - 1280) < 0.05`, 'anulowanie edycji Split Body bez zmiany historii', modelingTimeoutMs);
+
+  await editTimelineFeature(1, 'Split Body');
+  await setCommandField('Płaszczyzna podziału', 'XZ');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.planeId === 'XZ' && window.__madcadVerifyEngineState?.bodies?.length === 2 && window.__madcadVerifyEngineState.bodies.every((body) => Math.abs(body.metrics.volume - 1920) < 0.05)`, 'edycja Split Body zapisana na XZ', modelingTimeoutMs);
+  await clickByTitle('Cofnij');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.planeId === ${JSON.stringify(splitConstructionPlaneId)} && Math.abs(Math.min(...window.__madcadVerifyEngineState.bodies.map((body) => body.metrics.volume)) - 1280) < 0.05`, 'undo edycji Split Body', modelingTimeoutMs);
+  await clickByTitle('Ponów');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.planeId === 'XZ' && window.__madcadVerifyEngineState?.bodies?.length === 2 && window.__madcadVerifyEngineState.bodies.every((body) => Math.abs(body.metrics.volume - 1920) < 0.05)`, 'redo edycji Split Body', modelingTimeoutMs);
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.features?.[1]?.type === 'splitBody' && saved.features[1].planeId === 'XZ'; })()`, 'autozapis Split Body');
+  const splitReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${splitReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[1]?.planeId === 'XZ' && window.__madcadVerifyEngineState?.bodies?.length === 2 && window.__madcadVerifyEngineState.bodies.some((body) => body.id === ${JSON.stringify(splitResultBodyId)})`, 'ponownie otwarty Split Body', modelingTimeoutMs);
+
   progress('box cylinder sphere torus primitives');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla prymitywów');
@@ -1818,7 +1869,7 @@ async function runUiFlow(window) {
 app.whenReady().then(async () => {
   const performanceBudgets = isCi
     ? { desktopColdStartMs: 60000, desktopWorkflowMs: 180000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 45000 }
-    : { desktopColdStartMs: 30000, desktopWorkflowMs: 60000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
+    : { desktopColdStartMs: 30000, desktopWorkflowMs: 70000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
     width: 1936,

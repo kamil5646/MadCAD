@@ -633,6 +633,27 @@ test('Draft przygotowuje wskazane ściany, kąt i parametryczną płaszczyznę n
   assert.ok(validateDocument(missingPlane).issues.some((issue) => issue.path.endsWith('.neutralPlaneId')));
 });
 
+test('Split Body przygotowuje płaszczyznę konstrukcyjną i produkuje drugą trwałą bryłę', () => {
+  const document = createDocument('Split Body');
+  const box = createFeature('primitive', { primitiveType: 'box', x: '-10', y: '-8', z: '-6', width: '20', depth: '16', height: '12' });
+  const plane = createOffsetPlane({ name: 'Podział parametryczny', basePlane: 'XY', offset: '2' });
+  const split = createFeature('splitBody', { targetBodyId: `body-${box.id}`, planeId: plane.id });
+  document.references.push(plane);
+  document.features.push(box, split);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[1];
+  assert.deepEqual(prepared.splitPlane, { origin: [0, 0, 2], normal: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0] });
+  const graph = buildDependencyGraph(document);
+  assert.equal(graph.producerOfBody(`body-${split.id}`), split.id);
+  assert.ok(graph.edges.some((edge) => edge.from === plane.id && edge.to === split.id && edge.kind === 'split-plane'));
+  assert.ok(graph.edges.some((edge) => edge.from === `body-${box.id}` && edge.to === split.id && edge.kind === 'modifies'));
+
+  const missingPlane = structuredClone(document);
+  missingPlane.features[1].planeId = 'missing-plane';
+  assert.ok(validateDocument(missingPlane).issues.some((issue) => issue.path.endsWith('.planeId') && issue.code === 'BROKEN_REFERENCE'));
+});
+
 test('Box, Cylinder, Sphere i Torus przygotowują parametryczne bryły oraz osobne ciała', () => {
   const document = createDocument('Prymitywy');
   const primitives = [

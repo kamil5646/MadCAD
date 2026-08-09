@@ -426,6 +426,17 @@ export function prepareDocument(document) {
         neutralPlane: { origin: [...neutralPlane.origin], normal: [...neutralPlane.normal] },
       };
     }
+    if (feature.type === 'splitBody') {
+      const basePlane = BASE_PLANE_FRAMES[feature.planeId];
+      const constructionPlane = document.references.find((reference) => reference.id === feature.planeId && reference.kind === 'construction-plane');
+      const splitPlane = basePlane || resolveConstructionPlane(constructionPlane, parameterResult.values);
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        splitPlane: { origin: [...splitPlane.origin], normal: [...splitPlane.normal], u: [...splitPlane.u], v: [...splitPlane.v] },
+      };
+    }
     throw new Error(`Nieobsługiwana operacja: ${feature.type}`);
   });
 
