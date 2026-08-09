@@ -133,10 +133,10 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.8 Extrude To Object i parametryczne odsunięcie początku wyciągnięcia.
   - [x] P1.8a Odsunięcie początku działa parametrycznie dla wszystkich zakresów, przechodzi edycję i pełny desktop E2E na przesuniętym B-Rep.
   - [x] P1.8b To Object kończy bryłę na równoległej płaszczyźnie konstrukcyjnej albo planarnej ścianie, śledzi przesunięcie ściany przez trwałą referencję i przechodzi undo/redo, autozapis oraz ponowne otwarcie.
-- [>] P1.9 Thin Extrude dla zamkniętego i otwartego profilu: parametryczna grubość, strona wewnętrzna/zewnętrzna/symetryczna oraz pełny przepływ B-Rep.
+- [x] P1.9 Thin Extrude dla zamkniętego i otwartego profilu: parametryczna grubość, strona wewnętrzna/zewnętrzna/symetryczna oraz pełny przepływ B-Rep.
   - [x] P1.9a Zamknięty profil tworzy dokładną cienkościenną bryłę do wewnątrz, na zewnątrz lub symetrycznie; edycja, undo/redo, autozapis i ponowne otwarcie przechodzą desktop E2E.
-  - [>] P1.9b Otwarty łańcuch szkicu tworzy cienkościenną bryłę z kontrolą zakończeń.
-- [ ] P1.10 Draft wskazanych ścian względem płaszczyzny neutralnej po ukończeniu Thin Extrude.
+  - [x] P1.9b Otwarty łańcuch linii szkicu tworzy dokładną cienkościenną bryłę z zakończeniem prostym lub wydłużonym; walidacja rozgałęzień, anulowanie, undo/redo, autozapis i ponowne otwarcie przechodzą testy.
+- [>] P1.10 Draft wskazanych ścian względem płaszczyzny neutralnej.
 
 ## Definition of Done
 
@@ -160,4 +160,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.9 — Thin Extrude z parametryczną grubością i kontrolą strony.`
+`P1.10 — Draft wskazanych ścian względem płaszczyzny neutralnej.`

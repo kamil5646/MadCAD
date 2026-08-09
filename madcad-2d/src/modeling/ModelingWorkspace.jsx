@@ -647,8 +647,8 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
             {command.extent === 'two-sides' && <Field label="Druga strona" value={command.secondDistance} onChange={(secondDistance) => onChange({ secondDistance })} suffix="mm" />}
             {command.extent === 'to-object' && <label className="command-field"><span>Obiekt docelowy</span><select value={command.targetReferenceId || ''} onChange={(event) => onChange({ targetReferenceId: event.target.value })}>{command.targetOptions.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}</select></label>}
             <Field label="Odsunięcie początku" value={command.startOffset} onChange={(startOffset) => onChange({ startOffset })} suffix="mm" />
-            <label className="command-field"><span>Cienka ścianka</span><input type="checkbox" checked={Boolean(command.thin)} onChange={(event) => onChange({ thin: event.target.checked })} /></label>
-            {command.thin && <><Field label="Grubość ścianki" value={command.wallThickness} onChange={(wallThickness) => onChange({ wallThickness })} suffix="mm" /><label className="command-field"><span>Strona ścianki</span><select value={command.wallSide} onChange={(event) => onChange({ wallSide: event.target.value })}><option value="inside">Do wewnątrz</option><option value="outside">Na zewnątrz</option><option value="symmetric">Symetrycznie</option></select></label></>}
+            <label className="command-field"><span>Cienka ścianka</span><input type="checkbox" checked={Boolean(command.thin)} disabled={command.openChain} onChange={(event) => onChange({ thin: event.target.checked })} /></label>
+            {command.thin && <><Field label="Grubość ścianki" value={command.wallThickness} onChange={(wallThickness) => onChange({ wallThickness })} suffix="mm" /><label className="command-field"><span>Strona ścianki</span><select value={command.wallSide} onChange={(event) => onChange({ wallSide: event.target.value })}><option value="inside">Do wewnątrz</option><option value="outside">Na zewnątrz</option><option value="symmetric">Symetrycznie</option></select></label>{command.openChain && <label className="command-field"><span>Zakończenie</span><select value={command.endCap} onChange={(event) => onChange({ endCap: event.target.value })}><option value="butt">Proste</option><option value="square">Wydłużone</option></select></label>}</>}
             <label className="command-field">
               <span>Operacja</span>
               <select value={command.operation} onChange={(event) => onChange({ operation: event.target.value })}>
@@ -1049,6 +1049,7 @@ export default function ModelingWorkspace({ onClose }) {
     : null;
   const selectedSketchEntities = (document.sketches.find((item) => item.id === activeSketchId)?.entities || [])
     .filter((entity) => selectedSketchEntityIds.includes(entity.id));
+  const canExtrudeOpenChain = Boolean(activeSketchId && selectedSketchEntities.length && selectedSketchEntities.every((entity) => entity.type === 'line'));
   const canAddCollinear = selectedSketchEntities.length === 2 && selectedSketchEntities.every((entity) => entity.type === 'line');
   const canAddSymmetry = selectedSketchEntities.filter((entity) => entity.type === 'point').length === 2
     && selectedSketchEntities.filter((entity) => entity.type === 'line').length === 1
@@ -1177,8 +1178,9 @@ export default function ModelingWorkspace({ onClose }) {
         next.topologyReferences = next.extent === 'to-object' && targetOption?.reference ? [targetOption.reference] : [];
         next.previewFeature = createFeature('extrude', {
           name: current.previewFeature?.name || `Wyciągnięcie ${document.features.length + 1}`,
-          sketchId: selectedProfileMatch?.sketch.id,
-          profileIds: [selectedProfile.id],
+          sketchId: current.previewFeature?.sketchId || selectedProfileMatch?.sketch.id,
+          profileIds: current.previewFeature?.profileIds || (selectedProfile ? [selectedProfile.id] : []),
+          openEntityIds: current.previewFeature?.openEntityIds,
           distance: next.distance,
           secondDistance: next.secondDistance,
           startOffset: next.startOffset,
@@ -1187,6 +1189,7 @@ export default function ModelingWorkspace({ onClose }) {
           thin: Boolean(next.thin),
           wallThickness: next.wallThickness,
           wallSide: next.wallSide,
+          endCap: next.endCap,
           operation: next.operation,
           targetBodyId: next.operation === 'new' ? null : targetBodyId,
         });
@@ -2287,7 +2290,7 @@ export default function ModelingWorkspace({ onClose }) {
       })),
       features: document.features.length,
       featureIds: document.features.map((feature) => feature.id),
-      featureData: document.features.map((feature) => ({ id: feature.id, type: feature.type, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, wallSide: feature.wallSide, depth: feature.depth, diameter: feature.diameter, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
+      featureData: document.features.map((feature) => ({ id: feature.id, type: feature.type, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, wallSide: feature.wallSide, endCap: feature.endCap, openEntityIds: feature.openEntityIds, depth: feature.depth, diameter: feature.diameter, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
       references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, rotationAxis: reference.rotationAxis, angle: reference.angle, surfaceType: reference.surfaceType, center: reference.center, point: reference.point, axis: reference.axis, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, distance: reference.distance, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
@@ -2414,6 +2417,31 @@ export default function ModelingWorkspace({ onClose }) {
 
   const openExtrude = () => {
     if (readOnly) return readOnlyNotice();
+    if (canExtrudeOpenChain) {
+      const operation = engine.bodies.length ? 'join' : 'new';
+      const targetOptions = createExtrudeTargetOptions();
+      const previewFeature = createFeature('extrude', {
+        name: `Wyciągnięcie ${document.features.length + 1}`,
+        sketchId: activeSketchId,
+        profileIds: [],
+        openEntityIds: [...selectedSketchEntityIds],
+        distance: '10',
+        secondDistance: '10',
+        startOffset: '0',
+        extent: 'one-side',
+        thin: true,
+        wallThickness: '2',
+        wallSide: 'symmetric',
+        endCap: 'butt',
+        operation,
+        targetBodyId: operation === 'new' ? null : targetBodyId,
+      });
+      setCommand({ type: 'extrude', openChain: true, sourceSketchId: activeSketchId, distance: '10', secondDistance: '10', startOffset: '0', extent: 'one-side', thin: true, wallThickness: '2', wallSide: 'symmetric', endCap: 'butt', operation, targetOptions, targetReferenceId: targetOptions[0]?.id, previewFeature });
+      setActiveSketchId(null);
+      setWorkspace('solid');
+      setNotice('Podgląd cienkościennego wyciągnięcia otwartego łańcucha jest aktywny.');
+      return;
+    }
     if (!selectedProfile || activeSketchId) {
       setNotice(activeSketchId ? 'Najpierw zakończ szkic.' : 'Wybierz zamknięty profil w przeglądarce.');
       return;
@@ -2461,6 +2489,7 @@ export default function ModelingWorkspace({ onClose }) {
         thin: Boolean(editing?.thin),
         wallThickness: editing?.wallThickness || '2',
         wallSide: editing?.wallSide || 'inside',
+        endCap: editing?.endCap || 'butt',
         extent: editing?.extent || 'one-side',
         operation,
         targetOptions,
@@ -2478,6 +2507,7 @@ export default function ModelingWorkspace({ onClose }) {
         thin: Boolean(next.thin),
         wallThickness: next.wallThickness,
         wallSide: next.wallSide,
+        endCap: next.endCap,
         operation,
         targetBodyId: operation === 'new' ? null : targetBodyId,
       });
@@ -2868,7 +2898,7 @@ export default function ModelingWorkspace({ onClose }) {
     if (profile) setSelection({ kind: 'profile', id: profile.id });
     if (feature.type === 'extrude') {
       const targetOptions = createExtrudeTargetOptions(feature.id);
-      setCommand({ type: 'extrude', editId: feature.id, distance: feature.distance, secondDistance: feature.secondDistance || feature.distance, startOffset: feature.startOffset || '0', thin: Boolean(feature.thin), wallThickness: feature.wallThickness || '2', wallSide: feature.wallSide || 'inside', extent: feature.extent || 'one-side', operation: feature.operation, targetOptions, targetReferenceId: feature.targetReferenceId || targetOptions[0]?.id, previewFeature: feature });
+      setCommand({ type: 'extrude', openChain: Boolean(feature.openEntityIds?.length), editId: feature.id, distance: feature.distance, secondDistance: feature.secondDistance || feature.distance, startOffset: feature.startOffset || '0', thin: Boolean(feature.thin), wallThickness: feature.wallThickness || '2', wallSide: feature.wallSide || 'inside', endCap: feature.endCap || 'butt', extent: feature.extent || 'one-side', operation: feature.operation, targetOptions, targetReferenceId: feature.targetReferenceId || targetOptions[0]?.id, previewFeature: feature });
     }
     else if (feature.type === 'boolean') setCommand({ type: 'boolean', editId: feature.id, operation: feature.operation, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, targetName: feature.targetBodyId, toolName: feature.toolBodyId, previewFeature: feature });
     else if (feature.type === 'primitive') setCommand({ type: 'primitive', editId: feature.id, name: feature.name, primitiveType: feature.primitiveType, x: feature.x, y: feature.y, z: feature.z, width: feature.width || '20', depth: feature.depth || '20', height: feature.height || '20', radius: feature.radius || '10', majorRadius: feature.majorRadius || '15', minorRadius: feature.minorRadius || '4', previewFeature: feature });
@@ -3214,7 +3244,7 @@ export default function ModelingWorkspace({ onClose }) {
           <div className="modeling-ribbon">
             {activeSketchId ? (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /><ToolButton icon={Upload} label="Import SVG/DXF" onClick={() => sketchImportInputRef.current?.click()} disabled={readOnly} /></RibbonGroup>
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /><ToolButton icon={Box} label="Thin Extrude" onClick={openExtrude} disabled={readOnly || !canExtrudeOpenChain} /><ToolButton icon={Upload} label="Import SVG/DXF" onClick={() => sketchImportInputRef.current?.click()} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { setCommand(null); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Maximize2} label="Extend" onClick={() => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' })} primary={command?.type === 'extendSketch'} disabled={readOnly} /><ToolButton icon={Minus} label="Break" onClick={() => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' })} primary={command?.type === 'breakSketch'} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Project" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} /><ToolButton icon={Copy} label="Offset" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} /><ToolButton icon={CircleDotDashed} label="Fillet szkicu" onClick={() => openSketchCorner('fillet')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={Triangle} label="Faza szkicu" onClick={() => openSketchCorner('chamfer')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={RotateCw} label="Transformuj" onClick={openSketchTransform} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Grid2X2} label="Szyk szkicu" onClick={openSketchPattern} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
                 <RibbonGroup label="WIĘZY"><ToolButton icon={Minus} label="Współliniowe" onClick={() => addSelectedSketchConstraint('collinear')} disabled={readOnly || !canAddCollinear} /><ToolButton icon={Frame} label="Symetria" onClick={() => addSelectedSketchConstraint('symmetry')} disabled={readOnly || !canAddSymmetry} /><ToolButton icon={CircleDotDashed} label="Krzywizna G2" onClick={() => addSelectedSketchConstraint('curvature')} disabled={readOnly || !canAddCurvature} /></RibbonGroup>
                 <RibbonGroup label="WYMIARY"><ToolButton icon={Ruler} label="Ordinate X" onClick={() => openSketchDimension('ordinateX')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={Ruler} label="Ordinate Y" onClick={() => openSketchDimension('ordinateY')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={RotateCw} label="Długość łuku" onClick={() => openSketchDimension('arcLength')} disabled={readOnly || !canAddArcLength} /></RibbonGroup>
@@ -3227,7 +3257,7 @@ export default function ModelingWorkspace({ onClose }) {
               </>
             ) : (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || !selectedProfile} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={Type} label="Tekst 3D" onClick={openTextSolid} disabled={readOnly} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || selectedBodyIds.length !== 2} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length} /></RibbonGroup>
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || (!selectedProfile && !canExtrudeOpenChain)} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={Type} label="Tekst 3D" onClick={openTextSolid} disabled={readOnly} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || selectedBodyIds.length !== 2} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Layers3} label="Shell" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Layers3} label="Offset Face" onClick={openOffsetFace} disabled={readOnly || selectedFaceItems.length !== 1} /><ToolButton icon={Move3d} label="Przesuń bryłę" onClick={() => openTransform('move')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Rotate3d} label="Obróć bryłę" onClick={() => openTransform('rotate')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
                 <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Rotate3d} label="Plane angle" onClick={() => openConstructionPlane('angle')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Plane tangent" onClick={() => openConstructionPlane('tangent')} disabled={readOnly} /><ToolButton icon={Move3d} label="Plane path" onClick={() => openConstructionPlane('path')} disabled={readOnly} /><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={Move3d} label="Oś normalna" onClick={() => openConstructionAxis('plane-normal')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={CircleDotDashed} label="Punkt wierzchołka" onClick={() => openConstructionPoint('vertex')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt centrum" onClick={() => openConstructionPoint('center')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt przecięcia" onClick={() => openConstructionPoint('intersection')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={CircleDotDashed} label="Punkt środkowy" onClick={() => openConstructionPoint('midpoint')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt na osi" onClick={() => openConstructionPoint('on-axis')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis')} /><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="INSPECT"><ToolButton icon={Ruler} label="Zmierz" onClick={openMeasure} /><ToolButton icon={ScanSearch} label="Przekrój" onClick={openSectionAnalysis} disabled={!engine.bodies.length} /><ToolButton icon={Box} label="Masa" onClick={openMassProperties} disabled={!engine.bodies.length} /><ToolButton icon={AlertTriangle} label="Analiza" onClick={openGeometryInspection} disabled={!engine.bodies.length} /></RibbonGroup>
@@ -3308,10 +3338,10 @@ export default function ModelingWorkspace({ onClose }) {
           {command?.type === 'plane' && <PlanePicker onPick={pickPlane} onCancel={() => { setCommand(null); setWorkspace('solid'); }} />}
           <CommandDialog
             command={command}
-            profileName={selectedProfile?.name || ''}
+            profileName={command?.openChain ? `Otwarty łańcuch (${command.previewFeature?.openEntityIds?.length || 0})` : selectedProfile?.name || ''}
             onChange={updateCommand}
             onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
-            onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => setCommand(null)}
+            onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => { if (command?.openChain && command.sourceSketchId) { setActiveSketchId(command.sourceSketchId); setWorkspace('sketch'); } setCommand(null); }}
             onUndoSegment={undoSketchSegment}
             onFinishPath={finishSketchPath}
           />

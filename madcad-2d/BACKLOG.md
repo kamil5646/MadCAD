@@ -9,7 +9,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Import SVG/DXF do szkicu — przeniesiony i ukończony jako `P1.1` w aktywnym planie.
 - [x] Płaszczyzny tangent/angle/path, oś normalna do płaszczyzny oraz punkty środkowy i na osi ukończono jako `P1.6`; rozbudowany UCS pozostaje osobnym późniejszym zakresem.
 - [x] Extrude To Object i offset start ukończono jako `P1.8` dla płaszczyzn konstrukcyjnych i planarnych ścian.
-- [>] Thin Extrude jest realizowany jako `P1.9`; Draft przechodzi do `P1.10`.
+- [x] Thin Extrude dla zamkniętych profili i otwartych łańcuchów ukończono jako `P1.9`.
+- [>] Draft wskazanych ścian względem płaszczyzny neutralnej jest realizowany jako `P1.10`.
 - Press Pull, Draft, Split Face/Body, Delete/Heal/Replace Face.
 - Revolve, Sweep, Loft, Rib/Web, Coil, Pipe, pattern i zaawansowane Emboss/Deboss.
 - Pełne normy gwintów, clearance/tapped/tapered oraz klasy pasowania.

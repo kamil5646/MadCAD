@@ -615,7 +615,14 @@ export function validateDocument(document) {
 
     if (feature.type === 'extrude') {
       if (!sketchIds.has(feature.sketchId)) add(`${base}.sketchId`, `Nie znaleziono szkicu „${feature.sketchId ?? ''}”.`, 'BROKEN_REFERENCE');
-      if (!Array.isArray(feature.profileIds) || !feature.profileIds.length) add(`${base}.profileIds`, 'Wyciągnięcie wymaga co najmniej jednego profilu.', 'REQUIRED');
+      const hasOpenChain = feature.thin && Array.isArray(feature.openEntityIds) && feature.openEntityIds.length > 0;
+      if (hasOpenChain) feature.openEntityIds.forEach((entityId, entityIndex) => {
+        const owner = entityOwners.get(entityId);
+        if (!owner) add(`${base}.openEntityIds[${entityIndex}]`, `Nie znaleziono encji „${entityId}”.`, 'BROKEN_REFERENCE');
+        else if (owner.sketchId !== feature.sketchId) add(`${base}.openEntityIds[${entityIndex}]`, `Encja „${entityId}” nie należy do szkicu „${feature.sketchId}”.`, 'BROKEN_REFERENCE');
+        else if (owner.type !== 'line') add(`${base}.openEntityIds[${entityIndex}]`, 'Otwarty Thin Extrude obsługuje obecnie połączone linie.', 'UNSUPPORTED');
+      });
+      else if (!Array.isArray(feature.profileIds) || !feature.profileIds.length) add(`${base}.profileIds`, 'Wyciągnięcie wymaga co najmniej jednego profilu albo otwartego łańcucha Thin Extrude.', 'REQUIRED');
       else feature.profileIds.forEach((profileId, profileIndex) => {
         if (!profileOwners.has(profileId)) add(`${base}.profileIds[${profileIndex}]`, `Nie znaleziono profilu „${profileId}”.`, 'BROKEN_REFERENCE');
         else if (profileOwners.get(profileId) !== feature.sketchId) add(`${base}.profileIds[${profileIndex}]`, `Profil „${profileId}” nie należy do szkicu „${feature.sketchId}”.`, 'BROKEN_REFERENCE');
@@ -636,6 +643,7 @@ export function validateDocument(document) {
       if (feature.thin) {
         if (typeof feature.wallThickness !== 'string' && typeof feature.wallThickness !== 'number') add(`${base}.wallThickness`, 'Thin Extrude wymaga parametrycznej grubości ścianki.', 'TYPE');
         if (!['inside', 'outside', 'symmetric'].includes(feature.wallSide)) add(`${base}.wallSide`, 'Nieobsługiwana strona grubości Thin Extrude.', 'UNSUPPORTED');
+        if (hasOpenChain && !['butt', 'square'].includes(feature.endCap || 'butt')) add(`${base}.endCap`, 'Nieobsługiwane zakończenie otwartego Thin Extrude.', 'UNSUPPORTED');
       }
       if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
       else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono wcześniejszej bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');

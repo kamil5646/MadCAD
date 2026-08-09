@@ -47,6 +47,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Extrude ma parametryczne odsunięcie początku uwzględniane przez graf zależności, wszystkie zakresy i dokładny B-Rep; edycja wraca bezpiecznie do zera.
 - [x] Extrude To Object kończy się na równoległej płaszczyźnie konstrukcyjnej albo planarnej ścianie, zapisuje trwałą zależność i śledzi parametryczne przesunięcie ściany źródłowej.
 - [x] Thin Extrude zamkniętego profilu ma parametryczną grubość do wewnątrz, na zewnątrz i symetrycznie oraz dokładny cienkościenny B-Rep.
+- [x] Thin Extrude otwartego łańcucha linii porządkuje segmenty niezależnie od kolejności wyboru, odrzuca rozgałęzienia i tworzy dokładny B-Rep z prostym albo wydłużonym zakończeniem.
 
 ## Podstawowe modyfikacje szkicu M2
 

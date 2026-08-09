@@ -133,6 +133,7 @@ export function buildDependencyGraph(document) {
     addEdge(document.id, feature.id, 'contains');
     if (feature.sketchId) addEdge(feature.sketchId, feature.id, 'references');
     for (const profileId of feature.profileIds || []) addEdge(profileId, feature.id, 'references');
+    for (const entityId of feature.openEntityIds || []) addEdge(entityId, feature.id, 'references-open-chain');
     if (feature.profileId) addEdge(feature.profileId, feature.id, 'references');
     if (feature.pointId) addEdge(feature.pointId, feature.id, 'references');
     for (const referenceId of feature.referenceIds || []) addEdge(referenceId, feature.id, 'references-topology');

@@ -157,7 +157,7 @@ async function waitForUi(window, expression, label, timeoutMs = 12000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (await window.webContents.executeJavaScript(`Boolean(${expression})`)) return;
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
   throw new Error(`Interfejs nie osiągnął stanu: ${label}.`);
 }
@@ -513,6 +513,36 @@ async function runUiFlow(window) {
   await addSketchPoint([0, 10], 4);
   await sendKey('Enter');
   await waitForUi(window, `!document.querySelector('.command-dialog')`, 'Enter kończy polilinię');
+
+  progress('open chain thin extrude');
+  const openThinLineId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(openThinLineId)}], 'replace')`);
+  await clickTool('Thin Extrude');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie') && document.querySelector('.command-dialog')?.textContent.includes('Zakończenie')`, 'podgląd otwartego Thin Extrude');
+  progress('open chain thin cancel');
+  await clickDialogButton('Anuluj');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 0 && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'anulowanie otwartego Thin Extrude');
+  progress('open chain thin reopen');
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(openThinLineId)}], 'replace')`);
+  await clickTool('Thin Extrude');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Zakończenie')`, 'ponowny podgląd otwartego Thin Extrude');
+  await setCommandField('Odległość', '5');
+  await setCommandField('Grubość ścianki', '2');
+  await setCommandField('Zakończenie', 'butt');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.openEntityIds?.length === 1 && window.__madcadVerifyDocumentState.featureData[0].thin === true && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 100) < 0.01`, 'otwarty Thin Extrude z prostym zakończeniem', modelingTimeoutMs);
+  await editTimelineFeature(0);
+  await setCommandField('Zakończenie', 'square');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.endCap === 'square' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 120) < 0.01`, 'edycja otwartego Thin Extrude na wydłużone zakończenie', modelingTimeoutMs);
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.endCap === 'butt' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 100) < 0.01`, 'undo zakończenia Thin Extrude', modelingTimeoutMs);
+  await sendShortcut('y');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.endCap === 'square' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 120) < 0.01`, 'redo zakończenia Thin Extrude', modelingTimeoutMs);
+  await waitForUi(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[0]?.endCap === 'square'`, 'autozapis otwartego Thin Extrude');
+  const openThinRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${openThinRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.endCap === 'square' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 120) < 0.01`, 'ponownie otwarty Thin Extrude otwartego łańcucha', modelingTimeoutMs);
 
   progress('polyline L profile');
   await clickByTitle('Nowy projekt');
@@ -1012,7 +1042,7 @@ async function runUiFlow(window) {
   progress('new document');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt');
-  await new Promise((resolve) => setTimeout(resolve, 250));
+  await new Promise((resolve) => setTimeout(resolve, 75));
   await fs.writeFile(emptyOutputPath, (await window.webContents.capturePage()).toPNG());
 
   progress('base sketch');
@@ -1024,7 +1054,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Prostokąt')`, 'polecenie prostokąta');
   await setCommandField('Szerokość', '64');
   await setCommandField('Wysokość', '42');
-  await new Promise((resolve) => setTimeout(resolve, 250));
+  await new Promise((resolve) => setTimeout(resolve, 75));
   await fs.writeFile(sketchOutputPath, (await window.webContents.capturePage()).toPNG());
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.tree-profile').length === 1`, 'profil prostokąta');
@@ -1043,11 +1073,11 @@ async function runUiFlow(window) {
   await dragDirectExtrude();
   progress(`direct pointer ${JSON.stringify(await window.webContents.executeJavaScript(`window.__madcadPointerLog || null`))}`);
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'polecenie wyciągnięcia');
-  await new Promise((resolve) => setTimeout(resolve, 350));
+  await new Promise((resolve) => setTimeout(resolve, 100));
   await fs.writeFile(directOutputPath, (await window.webContents.capturePage()).toPNG());
   await setCommandField('Odległość', '8');
   await setCommandField('Odsunięcie początku', '2');
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  await new Promise((resolve) => setTimeout(resolve, 50));
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 1`, 'dodane wyciągnięcie');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.startOffset === '2'`, 'parametryczne odsunięcie początku wyciągnięcia');

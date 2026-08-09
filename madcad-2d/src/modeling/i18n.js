@@ -175,10 +175,14 @@ const ENGLISH_TEXT = Object.freeze({
   'Obiekt docelowy': 'Target object',
   'Do obiektu': 'To Object',
   'Cienka ścianka': 'Thin wall',
+  'Thin Extrude': 'Thin Extrude',
   'Grubość ścianki': 'Wall thickness',
   'Strona ścianki': 'Wall side',
   'Do wewnątrz': 'Inside',
   'Na zewnątrz': 'Outside',
+  'Zakończenie': 'End cap',
+  'Proste': 'Butt',
+  'Wydłużone': 'Square',
   'Nowa bryła': 'New body',
   'Połącz': 'Join',
   'Odejmij': 'Cut',
@@ -207,6 +211,7 @@ const ENGLISH_TEXT = Object.freeze({
 });
 
 const ENGLISH_PHRASES = Object.freeze([
+  [/Otwarty łańcuch \((\d+)\)/g, 'Open chain ($1)'],
   [/Model gotowy/g, 'Model ready'],
   [/Podgląd gotowy/g, 'Preview ready'],
   [/Przeliczanie historii…/g, 'Recomputing history…'],

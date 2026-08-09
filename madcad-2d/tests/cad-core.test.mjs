@@ -518,6 +518,35 @@ test('Thin Extrude przygotowuje parametryczną grubość wewnętrzną, zewnętrz
   assert.ok(validateDocument(invalid).issues.some((issue) => issue.path.endsWith('.wallSide')));
 });
 
+test('Thin Extrude porządkuje otwarty łańcuch linii i waliduje zakończenia', () => {
+  const document = createDocument('Otwarty Thin Extrude');
+  const first = createSketchPoint({ x: '0', y: '0' });
+  const corner = createSketchPoint({ x: '20', y: '0' });
+  const last = createSketchPoint({ x: '20', y: '10' });
+  const horizontal = createSketchLine({ startPointId: first.id, endPointId: corner.id });
+  const vertical = createSketchLine({ startPointId: corner.id, endPointId: last.id });
+  const sketch = createSketch({ entities: [first, corner, last, horizontal, vertical] });
+  const feature = createFeature('extrude', { sketchId: sketch.id, profileIds: [], openEntityIds: [vertical.id, horizontal.id], distance: '8', operation: 'new', thin: true, wallThickness: '2', wallSide: 'symmetric', endCap: 'square' });
+  document.sketches.push(sketch);
+  document.features.push(feature);
+
+  const prepared = prepareDocument(document).features[0];
+  assert.equal(prepared.profiles[0].type, 'open');
+  assert.deepEqual(prepared.profiles[0].geometry.points, [[0, 0], [20, 0], [20, 10]]);
+  assert.ok(buildDependencyGraph(document).edges.some((edge) => edge.from === horizontal.id && edge.to === feature.id && edge.kind === 'references-open-chain'));
+
+  const branched = structuredClone(document);
+  const branchEnd = createSketchPoint({ x: '20', y: '-10' });
+  const branch = createSketchLine({ startPointId: corner.id, endPointId: branchEnd.id });
+  branched.sketches[0].entities.push(branchEnd, branch);
+  branched.features[0].openEntityIds.push(branch.id);
+  assert.throws(() => prepareDocument(branched), /nie może mieć rozgałęzień/);
+
+  const invalidCap = structuredClone(document);
+  invalidCap.features[0].endCap = 'round';
+  assert.ok(validateDocument(invalidCap).issues.some((issue) => issue.path.endsWith('.endCap')));
+});
+
 test('Boolean wymaga dwóch brył, konsumuje narzędzie i zapisuje zależności Union/Subtract/Intersect', () => {
   for (const operation of ['union', 'subtract', 'intersect']) {
     const document = createDocument(`Boolean ${operation}`);
@@ -1016,6 +1045,7 @@ test('interfejs modelowania rozpoznaje PL/EN i tłumaczy także dynamiczny stan 
   assert.equal(resolveModelingLanguage('', 'en'), 'en');
   assert.equal(translateModelingText('  Utwórz szkic  ', 'en'), '  Create sketch  ');
   assert.equal(translateModelingText('Model gotowy · 1 bryła', 'en'), 'Model ready · 1 body');
+  assert.equal(translateModelingText('Otwarty łańcuch (3)', 'en'), 'Open chain (3)');
   assert.equal(translateModelingText('Przeliczanie historii…', 'en'), 'Recomputing history…');
   assert.equal(translateModelingText('Utwórz szkic', 'pl'), 'Utwórz szkic');
 });

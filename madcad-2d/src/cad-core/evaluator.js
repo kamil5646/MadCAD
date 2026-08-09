@@ -194,6 +194,44 @@ export function resolveProfile(profile, parameters, sketch = null) {
   throw new Error(`Nieobsługiwany profil: ${profile.type}`);
 }
 
+function resolveOpenChainProfile(sketch, entityIds, parameters, featureId) {
+  if (!sketch) throw new Error('Otwarty Thin Extrude nie ma szkicu źródłowego.');
+  const entityMap = new Map(sketch.entities.map((entity) => [entity.id, entity]));
+  const readPoint = (pointId) => {
+    const point = entityMap.get(pointId);
+    if (point?.type !== 'point') throw new Error(`Nie znaleziono punktu ${pointId} otwartego łańcucha.`);
+    return [evaluateExpression(point.geometry.x, parameters), evaluateExpression(point.geometry.y, parameters)];
+  };
+  const lines = entityIds.map((entityId) => entityMap.get(entityId));
+  if (lines.some((entity) => entity?.type !== 'line')) throw new Error('Otwarty Thin Extrude obsługuje obecnie wyłącznie linie.');
+  const incidents = new Map();
+  lines.forEach((line) => line.pointIds.forEach((pointId) => {
+    if (!incidents.has(pointId)) incidents.set(pointId, []);
+    incidents.get(pointId).push(line);
+  }));
+  if ([...incidents.values()].some((items) => items.length > 2)) throw new Error('Otwarty łańcuch Thin Extrude nie może mieć rozgałęzień.');
+  const endpoints = [...incidents.entries()].filter(([, items]) => items.length === 1).map(([pointId]) => pointId).sort((left, right) => {
+    const first = readPoint(left); const second = readPoint(right);
+    return first[0] - second[0] || first[1] - second[1] || left.localeCompare(right);
+  });
+  if (endpoints.length !== 2) throw new Error('Thin Extrude otwartego profilu wymaga jednego ciągłego łańcucha z dwoma końcami.');
+  const ordered = [];
+  const remaining = new Set(lines.map((line) => line.id));
+  let currentPointId = endpoints[0];
+  while (remaining.size) {
+    const line = (incidents.get(currentPointId) || []).find((candidate) => remaining.has(candidate.id));
+    if (!line) throw new Error('Wybrane linie nie tworzą jednego ciągłego łańcucha Thin Extrude.');
+    const nextPointId = line.pointIds[0] === currentPointId ? line.pointIds[1] : line.pointIds[0];
+    ordered.push({ line, startPointId: currentPointId, endPointId: nextPointId });
+    remaining.delete(line.id);
+    currentPointId = nextPointId;
+  }
+  if (currentPointId !== endpoints[1]) throw new Error('Wybrane linie nie tworzą jednego otwartego łańcucha Thin Extrude.');
+  const segments = ordered.map(({ line, startPointId, endPointId }) => ({ type: 'line', id: line.id, start: readPoint(startPointId), end: readPoint(endPointId) }));
+  segments.forEach((segment) => positive(Math.hypot(segment.end[0] - segment.start[0], segment.end[1] - segment.start[1]), 'Długość linii otwartego łańcucha'));
+  return { id: `open-${featureId}`, name: 'Otwarty łańcuch', type: 'open', geometry: { segments, points: [segments[0].start, ...segments.map((segment) => segment.end)], holes: [] } };
+}
+
 export function prepareDocument(document) {
   const validation = validateDocument(document);
   if (!validation.valid) throw new Error(validation.errors.join(' '));
@@ -208,11 +246,14 @@ export function prepareDocument(document) {
     if (feature.suppressed) return { ...feature, status: FEATURE_STATUS.SUPPRESSED, diagnostics: [] };
     if (feature.type === 'extrude') {
       const extent = feature.extent || 'one-side';
-      const profiles = feature.profileIds.map((profileId) => {
-        const match = findProfile(document, profileId);
-        if (!match) throw new Error(`Nie znaleziono profilu ${profileId}.`);
-        return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
-      });
+      const sourceSketch = document.sketches.find((sketch) => sketch.id === feature.sketchId);
+      const profiles = feature.openEntityIds?.length
+        ? [{ ...resolveOpenChainProfile(sourceSketch, feature.openEntityIds, parameterResult.values, feature.id), plane: sourceSketch?.plane || 'XY', planeOffset: evaluateExpression(sourceSketch?.planeOffset || 0, parameterResult.values) }]
+        : feature.profileIds.map((profileId) => {
+          const match = findProfile(document, profileId);
+          if (!match) throw new Error(`Nie znaleziono profilu ${profileId}.`);
+          return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
+        });
       const startOffsetValue = evaluateExpression(feature.startOffset ?? 0, parameterResult.values);
       const distanceValue = extent === 'to-object'
         ? extrudeToObjectDistance(document, profiles, startOffsetValue, feature.targetReferenceId, parameterResult.values)

@@ -163,7 +163,51 @@ function extrusionSpan(feature, bodyMap) {
   return { startDelta: startOffset, distance: feature.distanceValue };
 }
 
+function openChainStrip(profile, feature) {
+  const points = profile.geometry.points;
+  const directions = points.slice(0, -1).map((point, index) => {
+    const delta = [points[index + 1][0] - point[0], points[index + 1][1] - point[1]];
+    const length = Math.hypot(...delta);
+    if (length <= GEOMETRY_POLICY.linearTolerance) throw new Error('Otwarty Thin Extrude zawiera odcinek o zerowej długości.');
+    return delta.map((value) => value / length);
+  });
+  const normals = directions.map(([x, y]) => [-y, x]);
+  const offsetPolyline = (distance) => points.map((point, index) => {
+    if (index === 0) return point.map((value, axis) => value + normals[0][axis] * distance);
+    if (index === points.length - 1) return point.map((value, axis) => value + normals.at(-1)[axis] * distance);
+    const firstOrigin = point.map((value, axis) => value + normals[index - 1][axis] * distance);
+    const secondOrigin = point.map((value, axis) => value + normals[index][axis] * distance);
+    const firstDirection = directions[index - 1];
+    const secondDirection = directions[index];
+    const determinant = (firstDirection[0] * secondDirection[1]) - (firstDirection[1] * secondDirection[0]);
+    if (Math.abs(determinant) <= GEOMETRY_POLICY.angularTolerance) return firstOrigin.map((value, axis) => (value + secondOrigin[axis]) / 2);
+    const delta = [secondOrigin[0] - firstOrigin[0], secondOrigin[1] - firstOrigin[1]];
+    const alongFirst = ((delta[0] * secondDirection[1]) - (delta[1] * secondDirection[0])) / determinant;
+    return firstOrigin.map((value, axis) => value + firstDirection[axis] * alongFirst);
+  });
+  const thickness = feature.wallThicknessValue;
+  const [leftDistance, rightDistance] = feature.wallSide === 'outside'
+    ? [thickness, 0]
+    : feature.wallSide === 'inside'
+      ? [0, -thickness]
+      : [thickness / 2, -thickness / 2];
+  const left = offsetPolyline(leftDistance);
+  const right = offsetPolyline(rightDistance);
+  if (feature.endCap === 'square') {
+    const extension = thickness / 2;
+    for (const polyline of [left, right]) {
+      polyline[0] = polyline[0].map((value, axis) => value - directions[0][axis] * extension);
+      polyline[polyline.length - 1] = polyline.at(-1).map((value, axis) => value + directions.at(-1)[axis] * extension);
+    }
+  }
+  const polygon = [...left, ...right.reverse()];
+  const pen = draw(polygon[0]);
+  polygon.slice(1).forEach((point) => pen.lineTo(point));
+  return pen.close();
+}
+
 function thinDrawingForProfile(profile, feature) {
+  if (profile.type === 'open') return openChainStrip(profile, feature);
   const drawing = drawingForProfile(profile);
   const thickness = feature.wallThicknessValue;
   const offset = (distance) => drawing.offset(distance, { lineJoinType: 'miter' });
