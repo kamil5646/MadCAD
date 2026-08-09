@@ -70,6 +70,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Kontrola druku': 'Print check',
   'Utwórz szkic': 'Create sketch',
   'Wyciągnij': 'Extrude',
+  'Press Pull': 'Press Pull',
   'Prymityw': 'Primitive',
   'Tekst 3D': '3D text',
   'Otwór': 'Hole',

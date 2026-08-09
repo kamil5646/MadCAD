@@ -699,7 +699,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const point = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData?.find((entity) => entity.id === ${JSON.stringify(editTargets.concavePointId)}); return Number(point?.geometry?.x) === 15; })()`, 'dokładna zmiana wierzchołka');
 
   await clickTool('Zakończ szkic');
-  await clickTool('Wyciągnij');
+  await clickTool('Press Pull');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'wyciągnięcie profilu L');
   await setCommandField('Odległość', '8');
   await new Promise((resolve) => setTimeout(resolve, 100));
@@ -980,7 +980,7 @@ async function runUiFlow(window) {
 
   const offsetSelection = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies.find((item) => item.id === ${JSON.stringify(primitiveBoxId)}); const face = body.topology.faces.filter((item) => item.descriptor.geometry === 'PLANE').sort((left, right) => right.descriptor.center[2] - left.descriptor.center[2])[0]; return { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }; })()`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(offsetSelection)}, 'replace')`);
-  await clickTool('Offset Face');
+  await clickTool('Press Pull');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Offset Face') && document.querySelector('.direct-handle-hit')`, 'wspólny manipulator Offset Face');
   await setCommandField('Odległość', '2');
   await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume - ${10 * 12 * 16}) < 0.05 && window.__madcadVerifyEngineState.timeline.at(-1)?.status === 'ok'`, 'podgląd odsuniętej ściany', modelingTimeoutMs);

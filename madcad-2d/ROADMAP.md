@@ -137,7 +137,10 @@ Te prace nie czekają na koniec modelowania:
   - [x] P1.9a Zamknięty profil tworzy dokładną cienkościenną bryłę do wewnątrz, na zewnątrz lub symetrycznie; edycja, undo/redo, autozapis i ponowne otwarcie przechodzą desktop E2E.
   - [x] P1.9b Otwarty łańcuch linii szkicu tworzy dokładną cienkościenną bryłę z zakończeniem prostym lub wydłużonym; walidacja rozgałęzień, anulowanie, undo/redo, autozapis i ponowne otwarcie przechodzą testy.
 - [x] P1.10 Draft wskazanych planarnych ścian względem bazowej albo parametrycznej płaszczyzny neutralnej, z kątem dodatnim/ujemnym, trwałymi referencjami, anulowaniem, edycją, undo/redo, autozapisem i ponownym otwarciem.
-- [>] P1.11 Press Pull jako kontekstowa operacja profilu i planarnej ściany, oparta na istniejących Extrude oraz Offset Face.
+- [x] P1.11 Press Pull jako kontekstowa operacja profilu i planarnej ściany, oparta na istniejących Extrude oraz Offset Face i sprawdzona w obu kontekstach przez desktop E2E.
+- [>] P1.12 Split Face/Body bez dublowania narzędzi tnących.
+  - [>] P1.12a Split Body bazową albo konstrukcyjną płaszczyzną, z zachowaniem obu wynikowych brył.
+  - [ ] P1.12b Split Face zamkniętym profilem szkicu na wskazanej planarnej ścianie.
 
 ## Definition of Done
 
@@ -161,4 +164,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.11 — Press Pull dla profilu i planarnej ściany.`
+`P1.12a — Split Body bazową albo konstrukcyjną płaszczyzną.`

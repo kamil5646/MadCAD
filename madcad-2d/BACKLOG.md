@@ -11,8 +11,9 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Extrude To Object i offset start ukończono jako `P1.8` dla płaszczyzn konstrukcyjnych i planarnych ścian.
 - [x] Thin Extrude dla zamkniętych profili i otwartych łańcuchów ukończono jako `P1.9`.
 - [x] Draft wskazanych ścian względem płaszczyzny neutralnej ukończono jako `P1.10`.
-- [>] Press Pull jest realizowany jako `P1.11`.
-- Split Face/Body, Delete/Heal/Replace Face.
+- [x] Press Pull ukończono jako `P1.11`, wykorzystując istniejące Extrude i Offset Face zamiast dublować funkcje oraz format dokumentu.
+- [>] Split Face/Body jest realizowany etapami jako `P1.12`: najpierw podział bryły płaszczyzną, potem podział planarnej ściany profilem.
+- Delete/Heal/Replace Face.
 - Revolve, Sweep, Loft, Rib/Web, Coil, Pipe, pattern i zaawansowane Emboss/Deboss.
 - Pełne normy gwintów, clearance/tapped/tapered oraz klasy pasowania.
 - Draft Analysis, Interference, Named Views i rozbudowany ViewCube.

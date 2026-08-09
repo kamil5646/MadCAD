@@ -49,6 +49,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Thin Extrude zamkniętego profilu ma parametryczną grubość do wewnątrz, na zewnątrz i symetrycznie oraz dokładny cienkościenny B-Rep.
 - [x] Thin Extrude otwartego łańcucha linii porządkuje segmenty niezależnie od kolejności wyboru, odrzuca rozgałęzienia i tworzy dokładny B-Rep z prostym albo wydłużonym zakończeniem.
 - [x] Draft pochyla wskazane planarne ściany względem bazowej albo konstrukcyjnej płaszczyzny neutralnej; znak kąta steruje stroną materiału, a trwałe referencje przechodzą pełny przepływ historii i zapisu.
+- [x] Press Pull kieruje zamknięty profil do parametrycznego Extrude, a planarną ścianę do Offset Face; jedna kontekstowa komenda nie dubluje geometrii, historii ani formatu projektu.
 
 ## Podstawowe modyfikacje szkicu M2
 
