@@ -85,6 +85,8 @@ const ENGLISH_TEXT = Object.freeze({
   'Split Face': 'Split Face',
   'Profil podziału': 'Splitting profile',
   'Ściana dzielona': 'Face to split',
+  'Delete Face + Heal': 'Delete Face + Heal',
+  'Usuwane regiony': 'Regions to remove',
   'Przesuń bryłę': 'Move body',
   'Obróć bryłę': 'Rotate body',
   'Edytuj': 'Edit',

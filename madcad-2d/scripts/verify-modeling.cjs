@@ -1016,6 +1016,34 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
   await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${splitFaceReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'splitFace' && window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.faceCount === ${splitFaceCount} && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - 4000) < 0.05`, 'ponownie otwarty Split Face', modelingTimeoutMs);
 
+  progress('delete split face region and heal surrounding surface');
+  const deleteFaceSelection = await window.webContents.executeJavaScript(`(() => {
+    const body = window.__madcadVerifyEngineState.bodies[0];
+    const face = body.topology.faces
+      .filter((item) => item.descriptor.geometry === 'PLANE' && item.descriptor.center[2] > 9.9)
+      .sort((left, right) => left.descriptor.area - right.descriptor.area)[0];
+    return { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId };
+  })()`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(deleteFaceSelection)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(deleteFaceSelection.id)}`, 'region wskazany do Delete Face + Heal');
+  await clickTool('Delete Face + Heal');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Usuwane regiony')`, 'otwarty Delete Face + Heal');
+  await waitForUi(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.timeline?.at(-1)?.status === 'ok' && window.__madcadVerifyEngineState?.bodies?.length === 1 && window.__madcadVerifyEngineState.bodies[0].metrics.faceCount === 6 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - 4000) < 0.05`, 'podgląd Delete Face + Heal odtwarza powierzchnię', modelingTimeoutMs);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[2]?.type === 'deleteFace' && window.__madcadVerifyDocumentState.featureData[2].referenceIds?.length === 1 && window.__madcadVerifyEngineState.bodies[0].metrics.faceCount === 6`, 'zapisany Delete Face + Heal z trwałą referencją', modelingTimeoutMs);
+  const deleteFaceReferenceId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.featureData[2].referenceIds[0]`);
+  await editTimelineFeature(2, 'Delete Face + Heal');
+  await clickDialogButton('Anuluj');
+  await waitForUi(window, `!document.querySelector('.command-dialog') && window.__madcadVerifyDocumentState?.featureData?.[2]?.type === 'deleteFace' && window.__madcadVerifyEngineState.bodies[0].metrics.faceCount === 6`, 'anulowanie edycji Delete Face + Heal', modelingTimeoutMs);
+  await clickByTitle('Cofnij');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 2 && window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'splitFace' && window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.faceCount === ${splitFaceCount}`, 'undo Delete Face + Heal', modelingTimeoutMs);
+  await clickByTitle('Ponów');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[2]?.type === 'deleteFace' && window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.faceCount === 6`, 'redo Delete Face + Heal', modelingTimeoutMs);
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.features?.[2]?.type === 'deleteFace' && saved.features[2].referenceIds?.[0] === ${JSON.stringify(deleteFaceReferenceId)}; })()`, 'autozapis Delete Face + Heal');
+  const deleteFaceReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${deleteFaceReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[2]?.type === 'deleteFace' && window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.faceCount === 6 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - 4000) < 0.05`, 'ponownie otwarty Delete Face + Heal', modelingTimeoutMs);
+
   progress('box cylinder sphere torus primitives');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla prymitywów');

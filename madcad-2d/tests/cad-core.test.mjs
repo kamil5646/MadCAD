@@ -680,6 +680,25 @@ test('Split Face wiąże profil szkicu z trwałą referencją planarnej ściany'
   assert.ok(validateDocument(mismatched).issues.some((issue) => issue.path.includes('.referenceIds')));
 });
 
+test('Delete Face + Heal zachowuje trwałe referencje regionów tej samej bryły', () => {
+  const document = createDocument('Delete Face + Heal');
+  const box = createFeature('primitive', { primitiveType: 'box', x: '-10', y: '-10', z: '0', width: '20', depth: '20', height: '10' });
+  const bodyId = `body-${box.id}`;
+  const region = { ...createTopologyReference({ selection: { kind: 'face', id: 'split-region', bodyId, sourceFeatureId: box.id }, descriptor: { geometry: 'PLANE', center: [0, 0, 10], normal: [0, 0, 1], area: Math.PI * 4 ** 2 }, label: 'Region do scalenia' }), scope: 'feature-input' };
+  const heal = createFeature('deleteFace', { targetBodyId: bodyId, referenceIds: [region.id] });
+  document.references.push(region);
+  document.features.push(box, heal);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[1];
+  assert.equal(prepared.topologyReferences[0].id, region.id);
+  assert.ok(buildDependencyGraph(document).edges.some((edge) => edge.from === region.id && edge.to === heal.id && edge.kind === 'references-topology'));
+
+  const foreignBody = structuredClone(document);
+  foreignBody.features[1].targetBodyId = 'body-foreign';
+  assert.ok(validateDocument(foreignBody).issues.some((issue) => issue.path.endsWith('.targetBodyId')));
+});
+
 test('Box, Cylinder, Sphere i Torus przygotowują parametryczne bryły oraz osobne ciała', () => {
   const document = createDocument('Prymitywy');
   const primitives = [

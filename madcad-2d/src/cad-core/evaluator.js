@@ -448,6 +448,14 @@ export function prepareDocument(document) {
         topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
       };
     }
+    if (feature.type === 'deleteFace') {
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
+      };
+    }
     throw new Error(`Nieobsługiwana operacja: ${feature.type}`);
   });
 

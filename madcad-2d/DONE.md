@@ -52,6 +52,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Press Pull kieruje zamknięty profil do parametrycznego Extrude, a planarną ścianę do Offset Face; jedna kontekstowa komenda nie dubluje geometrii, historii ani formatu projektu.
 - [x] Split Body dzieli dokładną bryłę bazową albo konstrukcyjną płaszczyzną, zachowuje obie strony jako trwałe bryły i odrzuca płaszczyznę, która nie przecina wnętrza.
 - [x] Split Face odciska zamknięty profil szkicu na jego planarnej ścianie podporowej, tworząc trwały region topologii B-Rep bez zmiany objętości bryły.
+- [x] Delete Face + Heal usuwa wskazany region podzielonej ściany przez kontrolowane scalenie zgodnych powierzchni, chroni granice poza wyborem i zachowuje objętość dokładnej bryły.
 
 ## Podstawowe modyfikacje szkicu M2
 

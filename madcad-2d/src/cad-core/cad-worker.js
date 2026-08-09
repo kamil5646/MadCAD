@@ -606,6 +606,60 @@ function runFeature(feature, bodyMap, bodyOrder) {
       resultProperties?.delete();
       sourceProperties?.delete();
     }
+    return;
+  }
+
+  if (feature.type === 'deleteFace') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);
+    const source = target.shape;
+    const faces = source.faces;
+    const edges = source.edges;
+    let upgrader;
+    let result;
+    let sourceProperties;
+    let resultProperties;
+    try {
+      const descriptors = faces.map((face) => faceDescriptor(face));
+      const selectedIndices = new Set((feature.topologyReferences || []).map((reference) => matchingFaceIndex(reference, descriptors)));
+      if (!selectedIndices.size) throw new Error('Delete Face + Heal wymaga co najmniej jednej wskazanej ściany.');
+      const mergeEdgeHashes = new Set();
+      for (const index of selectedIndices) {
+        const faceEdges = faces[index].edges;
+        try {
+          faceEdges.forEach((edge) => mergeEdgeHashes.add(edge.hashCode));
+        } finally {
+          faceEdges.forEach((edge) => edge.delete());
+        }
+      }
+      const oc = getOC();
+      upgrader = new oc.ShapeUpgrade_UnifySameDomain_2(source.wrapped, true, true, false);
+      upgrader.SetLinearTolerance(GEOMETRY_POLICY.linearTolerance);
+      upgrader.SetAngularTolerance(GEOMETRY_POLICY.angularTolerance);
+      edges.filter((edge) => !mergeEdgeHashes.has(edge.hashCode)).forEach((edge) => upgrader.KeepShape(edge.wrapped));
+      upgrader.Build();
+      result = cast(upgrader.Shape());
+      const resultFaces = result.faces;
+      sourceProperties = measureShapeVolumeProperties(source);
+      resultProperties = measureShapeVolumeProperties(result);
+      try {
+        const volumeTolerance = Math.max(GEOMETRY_POLICY.linearTolerance, Math.abs(sourceProperties.volume) * 1e-9);
+        if (Math.abs(resultProperties.volume - sourceProperties.volume) > volumeTolerance) throw new Error('Delete Face + Heal zmienił objętość bryły.');
+        if (resultFaces.length >= faces.length) throw new Error('Wskazany region nie ma sąsiedniej ściany na tej samej powierzchni do bezpiecznego scalenia.');
+      } finally {
+        resultFaces.forEach((face) => face.delete());
+      }
+      target.shape = result;
+      result = null;
+      source.delete();
+    } finally {
+      faces.forEach((face) => face.delete());
+      edges.forEach((edge) => edge.delete());
+      result?.delete();
+      resultProperties?.delete();
+      sourceProperties?.delete();
+      upgrader?.delete();
+    }
   }
 }
 
