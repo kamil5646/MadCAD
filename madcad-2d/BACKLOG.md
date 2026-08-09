@@ -14,7 +14,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Press Pull ukończono jako `P1.11`, wykorzystując istniejące Extrude i Offset Face zamiast dublować funkcje oraz format dokumentu.
 - [x] Split Face/Body ukończono etapami jako `P1.12`: podział bryły płaszczyzną oraz podział planarnej ściany profilem.
 - [x] Delete/Heal/Replace Face ukończono jako `P1.13`: kontrolowane scalanie regionów oraz Replace Face do równoległej powierzchni planarnej.
-- [>] Revolve jest aktywnym etapem `P1.14`; dalej pozostają Sweep, Loft, Rib/Web, Coil, Pipe, pattern i zaawansowane Emboss/Deboss.
+- [x] Revolve ukończono jako `P1.14` dla osi bazowych i konstrukcyjnych.
+- [>] Sweep jest aktywnym etapem `P1.15`; dalej pozostają Loft, Rib/Web, Coil, Pipe, pattern i zaawansowane Emboss/Deboss.
 - Pełne normy gwintów, clearance/tapped/tapered oraz klasy pasowania.
 - Draft Analysis, Interference, Named Views i rozbudowany ViewCube.
 - Zaawansowane profile materiałów/druku, heatmapy, automatyczne ułożenie i naprawa siatki.

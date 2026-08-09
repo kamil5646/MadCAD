@@ -4,6 +4,7 @@ import { buildDependencyGraph } from './dependency-graph.js';
 import { GEOMETRY_POLICY, isPositiveLength } from './geometry-policy.js';
 import { createTextProfile } from './text-profile.js';
 import { BASE_PLANE_FRAMES, resolveConstructionPlane } from './construction-planes.js';
+import { resolveConstructionAxis } from './construction-axes.js';
 
 export const FEATURE_STATUS = Object.freeze({
   OK: 'ok',
@@ -272,6 +273,26 @@ export function prepareDocument(document) {
           : 0,
         profiles,
       };
+    }
+    if (feature.type === 'revolve') {
+      const match = findProfile(document, feature.profileIds[0]);
+      if (!match) throw new Error(`Nie znaleziono profilu ${feature.profileIds[0]}.`);
+      const profile = { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
+      const baseAxes = {
+        X_AXIS: { id: 'X_AXIS', origin: [0, 0, 0], direction: [1, 0, 0] },
+        Y_AXIS: { id: 'Y_AXIS', origin: [0, 0, 0], direction: [0, 1, 0] },
+        Z_AXIS: { id: 'Z_AXIS', origin: [0, 0, 0], direction: [0, 0, 1] },
+      };
+      const axisReference = document.references.find((reference) => reference.id === feature.axisId);
+      const axis = baseAxes[feature.axisId] || resolveConstructionAxis(axisReference, document.references, parameterResult.values);
+      const angleValue = evaluateExpression(feature.angle, parameterResult.values);
+      if (Math.abs(angleValue) <= GEOMETRY_POLICY.angularTolerance || Math.abs(angleValue) > 360) throw new Error('Kąt Revolve musi należeć do zakresu -360°–360° i być różny od zera.');
+      const frame = BASE_PLANE_FRAMES[profile.plane];
+      const planeOrigin = frame.origin.map((value, index) => value + frame.normal[index] * profile.planeOffset);
+      const directionNormal = Math.abs(frame.normal.reduce((sum, value, index) => sum + value * axis.direction[index], 0));
+      const originDistance = Math.abs(frame.normal.reduce((sum, value, index) => sum + value * (axis.origin[index] - planeOrigin[index]), 0));
+      if (directionNormal > GEOMETRY_POLICY.angularTolerance || originDistance > GEOMETRY_POLICY.linearTolerance) throw new Error('Oś Revolve musi leżeć w płaszczyźnie szkicu.');
+      return { ...feature, status: 'ready', diagnostics: [], profile, axis: { origin: axis.origin, direction: axis.direction }, angleValue };
     }
     if (feature.type === 'hole') {
       const holeType = feature.holeType || 'simple';

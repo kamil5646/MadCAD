@@ -12,7 +12,7 @@ export const DOCUMENT_SCHEMA_VERSION = 4;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'revolve', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -120,7 +120,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', revolve: 'Revolve', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -645,6 +645,18 @@ export function validateDocument(document) {
         if (!['inside', 'outside', 'symmetric'].includes(feature.wallSide)) add(`${base}.wallSide`, 'Nieobsługiwana strona grubości Thin Extrude.', 'UNSUPPORTED');
         if (hasOpenChain && !['butt', 'square'].includes(feature.endCap || 'butt')) add(`${base}.endCap`, 'Nieobsługiwane zakończenie otwartego Thin Extrude.', 'UNSUPPORTED');
       }
+      if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
+      else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono wcześniejszej bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
+    }
+
+    if (feature.type === 'revolve') {
+      if (!sketchIds.has(feature.sketchId)) add(`${base}.sketchId`, `Nie znaleziono szkicu „${feature.sketchId ?? ''}”.`, 'BROKEN_REFERENCE');
+      if (!Array.isArray(feature.profileIds) || feature.profileIds.length !== 1) add(`${base}.profileIds`, 'Revolve wymaga dokładnie jednego zamkniętego profilu.', 'REQUIRED');
+      else if (!profileOwners.has(feature.profileIds[0]) || profileOwners.get(feature.profileIds[0]) !== feature.sketchId) add(`${base}.profileIds[0]`, 'Profil Revolve musi należeć do wskazanego szkicu.', 'BROKEN_REFERENCE');
+      const axisReference = references.find((reference) => reference.id === feature.axisId);
+      if (!['X_AXIS', 'Y_AXIS', 'Z_AXIS'].includes(feature.axisId) && axisReference?.kind !== 'construction-axis') add(`${base}.axisId`, `Nie znaleziono osi obrotu „${feature.axisId ?? ''}”.`, 'BROKEN_REFERENCE');
+      if (typeof feature.angle !== 'string' && typeof feature.angle !== 'number') add(`${base}.angle`, 'Revolve wymaga parametrycznego kąta.', 'TYPE');
+      if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, `Nieobsługiwana operacja Revolve: ${feature.operation ?? ''}.`, 'UNSUPPORTED');
       if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
       else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono wcześniejszej bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
     }

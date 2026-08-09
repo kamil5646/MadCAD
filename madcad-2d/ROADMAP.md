@@ -79,7 +79,7 @@ Import SVG/DXF został ukończony w `P1.1`.
 - [x] Jeden manipulator dla Extrude, Move/Rotate i Offset Face.
 - [x] Tekst szkicu jako jeden scenariusz `Text → profile → Extrude/Emboss/Deboss`, bez blokowania solvera i zależności od fontów systemowych.
 
-Revolve, Sweep, Loft, Rib, Coil i Pipe są `P1`.
+Sweep, Loft, Rib, Coil i Pipe są `P1`.
 
 ## M7 — otwory i gwinty MVP `P0`
 
@@ -144,7 +144,8 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.13 Naprawa ścian jako osobne, mierzalne etapy.
   - [x] P1.13a Delete Face + Heal scala wskazane regiony ze zgodnymi sąsiednimi ścianami, chroni pozostałe granice i kontroluje objętość oraz liczbę ścian wynikowej bryły; trwałe referencje, anulowanie, undo/redo, autozapis i ponowne otwarcie przechodzą desktop E2E.
   - [x] P1.13b Replace Face dopasowuje wskazaną planarną ścianę do równoległej powierzchni docelowej innej bryły, zachowuje bryłę referencyjną, odrzuca powierzchnie nierównoległe i przechodzi pełny przepływ trwałych referencji oraz historii.
-- [>] P1.14 Revolve zamkniętego profilu wokół osi bazowej albo konstrukcyjnej.
+- [x] P1.14 Revolve zamkniętego profilu wokół osi bazowej albo konstrukcyjnej, z kątem parametrycznym, New/Join/Cut/Intersect, kontrolą położenia osi, edycją, undo/redo, autozapisem i ponownym otwarciem.
+- [>] P1.15 Sweep profilu po ciągłej ścieżce szkicu.
 
 ## Definition of Done
 
@@ -168,4 +169,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.14 — Revolve zamkniętego profilu wokół osi bazowej albo konstrukcyjnej.`
+`P1.15 — Sweep profilu po ciągłej ścieżce szkicu.`

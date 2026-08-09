@@ -227,6 +227,17 @@ function extrudeProfile(profile, span, feature) {
   return shape;
 }
 
+function revolveProfile(profile, axis, angle) {
+  const plane = profile.plane || 'XY';
+  const planeOffset = Number(profile.planeOffset || 0);
+  let shape = drawingForProfile(profile).sketchOnPlane(plane, planeOffset).revolve(axis.direction, { origin: axis.origin, angle });
+  for (const hole of profile.geometry.holes || []) {
+    const cutter = drawingForSegments(hole.segments, profile.id).sketchOnPlane(plane, planeOffset).revolve(axis.direction, { origin: axis.origin, angle });
+    shape = shape.cut(cutter);
+  }
+  return shape;
+}
+
 function combineShapes(shapes) {
   if (!shapes.length) throw new Error('Operacja nie zawiera żadnego profilu.');
   return shapes.slice(1).reduce((result, shape) => result.fuse(shape), shapes[0]);
@@ -324,6 +335,23 @@ function runFeature(feature, bodyMap, bodyOrder) {
     } finally {
       faces.forEach((face) => face.delete());
     }
+    return;
+  }
+
+  if (feature.type === 'revolve') {
+    const tool = revolveProfile(feature.profile, feature.axis, feature.angleValue);
+    const bodyId = `body-${feature.id}`;
+    if (feature.operation === 'new' || !feature.targetBodyId) {
+      bodyMap.set(bodyId, { id: bodyId, name: feature.name, sourceFeatureId: feature.id, representation: 'brep', shape: tool });
+      bodyOrder.push(bodyId);
+      return;
+    }
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły docelowej dla ${feature.name}.`);
+    if (feature.operation === 'join') target.shape = target.shape.fuse(tool);
+    else if (feature.operation === 'cut') target.shape = target.shape.cut(tool);
+    else if (feature.operation === 'intersect') target.shape = target.shape.intersect(tool);
+    else throw new Error(`Nieobsługiwana operacja Revolve: ${feature.operation}.`);
     return;
   }
 

@@ -11,6 +11,7 @@ function expressionDependencies(value) {
 
 function featureExpressions(feature) {
   if (feature.type === 'extrude') return [feature.distance, feature.secondDistance, feature.startOffset, feature.wallThickness];
+  if (feature.type === 'revolve') return [feature.angle];
   if (feature.type === 'hole') return [feature.diameter, feature.depth, feature.firstOffset, feature.secondOffset, feature.counterboreDiameter, feature.counterboreDepth, feature.countersinkDiameter, feature.countersinkAngle, feature.threadDiameter, feature.threadPitch, feature.threadLength, feature.clearance];
   if (feature.type === 'fillet') return [feature.radius];
   if (feature.type === 'chamfer') return [feature.distance];
@@ -141,13 +142,14 @@ export function buildDependencyGraph(document) {
     if (feature.type === 'draft' && !['XY', 'XZ', 'YZ'].includes(feature.neutralPlaneId)) addEdge(feature.neutralPlaneId, feature.id, 'neutral-plane');
     if (feature.type === 'splitBody' && !['XY', 'XZ', 'YZ'].includes(feature.planeId)) addEdge(feature.planeId, feature.id, 'split-plane');
     if (feature.type === 'extrude' && feature.extent === 'to-object') addEdge(feature.targetReferenceId, feature.id, 'to-object');
+    if (feature.type === 'revolve' && !['X_AXIS', 'Y_AXIS', 'Z_AXIS'].includes(feature.axisId)) addEdge(feature.axisId, feature.id, 'revolve-axis');
     for (const value of featureExpressions(feature)) {
       for (const name of expressionDependencies(value)) addEdge(parameterIdsByName.get(name), feature.id, 'drives');
     }
 
     if (feature.targetBodyId) addEdge(feature.targetBodyId, feature.id, 'modifies');
     if (feature.toolBodyId) addEdge(feature.toolBodyId, feature.id, 'consumes');
-    if ((feature.type === 'extrude' && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
+    if (((feature.type === 'extrude' || feature.type === 'revolve') && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
       const bodyId = `body-${feature.id}`;
       addNode(bodyId, 'body', feature.name, { persisted: false, producerFeatureId: feature.id });
       bodyProducerById.set(bodyId, feature.id);

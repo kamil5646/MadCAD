@@ -495,6 +495,30 @@ test('Extrude To Object kończy się dokładnie na równoległej płaszczyźnie 
   assert.ok(validateDocument(curvedFace).issues.some((issue) => issue.path.endsWith('.targetReferenceId') && issue.code === 'UNSUPPORTED'));
 });
 
+test('Revolve przygotowuje zamknięty profil dla osi bazowej i konstrukcyjnej', () => {
+  const document = createDocument('Revolve');
+  const profile = createRectangleProfile({ x: 5, y: -2, width: 5, height: 4 });
+  const sketch = createSketch({ name: 'Przekrój obrotowy', plane: 'XY', profiles: [profile] });
+  const axis = createTwoPointAxis({ name: 'Oś Y', points: [[0, -10, 0], [0, 10, 0]] });
+  const revolve = createFeature('revolve', { sketchId: sketch.id, profileIds: [profile.id], axisId: axis.id, angle: '360', operation: 'new' });
+  document.sketches.push(sketch);
+  document.references.push(axis);
+  document.features.push(revolve);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[0];
+  assert.deepEqual(prepared.axis, { origin: [0, -10, 0], direction: [0, 1, 0] });
+  assert.equal(prepared.angleValue, 360);
+  assert.ok(buildDependencyGraph(document).edges.some((edge) => edge.from === axis.id && edge.to === revolve.id && edge.kind === 'revolve-axis'));
+
+  const baseAxis = structuredClone(document);
+  baseAxis.features[0].axisId = 'Y_AXIS';
+  assert.equal(prepareDocument(baseAxis).features[0].axis.direction[1], 1);
+  const perpendicular = structuredClone(document);
+  perpendicular.features[0].axisId = 'Z_AXIS';
+  assert.throws(() => prepareDocument(perpendicular), /płaszczyźnie szkicu/);
+});
+
 test('Thin Extrude przygotowuje parametryczną grubość wewnętrzną, zewnętrzną i symetryczną', () => {
   for (const wallSide of ['inside', 'outside', 'symmetric']) {
     const document = createDocument(`Thin Extrude ${wallSide}`);
