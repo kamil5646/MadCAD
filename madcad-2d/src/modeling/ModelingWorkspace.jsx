@@ -702,7 +702,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
         )}
         {isTransform && (command.mode === 'move' ? <><Field label="Przesunięcie X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" autoFocus /><Field label="Przesunięcie Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" /><Field label="Przesunięcie Z" value={command.z} onChange={(z) => onChange({ z })} suffix="mm" /></> : <><Field label="Kąt Z" value={command.angle} onChange={(angle) => onChange({ angle })} suffix="°" autoFocus /><Field label="Środek X" value={command.originX} onChange={(originX) => onChange({ originX })} suffix="mm" /><Field label="Środek Y" value={command.originY} onChange={(originY) => onChange({ originY })} suffix="mm" /><Field label="Środek Z" value={command.originZ} onChange={(originZ) => onChange({ originZ })} suffix="mm" /></>)}
         {isOffsetFace && <><Field label="Ściana" value={command.faceLabel || '1 wskazana'} disabled /><Field label="Odległość" value={command.distance} onChange={(distance) => onChange({ distance })} suffix="mm" autoFocus /></>}
-        {isTextSolid && <><Field label="Tekst" value={command.text} onChange={(text) => onChange({ text })} autoFocus /><Field label="Rozmiar" value={command.fontSize} onChange={(fontSize) => onChange({ fontSize })} suffix="mm" /><Field label="Głębokość" value={command.depth} onChange={(depth) => onChange({ depth })} suffix="mm" /><label className="command-field"><span>Operacja</span><select value={command.operation} onChange={(event) => onChange({ operation: event.target.value })}><option value="new">Nowa bryła</option><option value="emboss" disabled={!command.targetBodyId}>Emboss — wypukły</option><option value="deboss" disabled={!command.targetBodyId}>Deboss — wklęsły</option></select></label><Field label="Położenie X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" /><Field label="Położenie Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" /><Field label={command.operation === 'new' ? 'Położenie Z' : 'Powierzchnia Z'} value={command.z} onChange={(z) => onChange({ z })} suffix="mm" /></>}
+        {isTextSolid && <><Field label="Tekst" value={command.text} onChange={(text) => onChange({ text })} autoFocus /><Field label="Rozmiar" value={command.fontSize} onChange={(fontSize) => onChange({ fontSize })} suffix="mm" /><Field label="Głębokość" value={command.depth} onChange={(depth) => onChange({ depth })} suffix="mm" /><label className="command-field"><span>Operacja</span><select value={command.operation} onChange={(event) => onChange({ operation: event.target.value })}><option value="new">Nowa bryła</option><option value="emboss" disabled={!command.targetBodyId}>Emboss — wypukły</option><option value="deboss" disabled={!command.targetBodyId}>Deboss — wklęsły</option></select></label>{command.placement === 'face' && <Field label="Powierzchnia" value="Planarna ściana (trwała referencja)" disabled />}<Field label="Położenie X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" /><Field label="Położenie Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" />{command.placement !== 'face' && <Field label={command.operation === 'new' ? 'Położenie Z' : 'Powierzchnia Z'} value={command.z} onChange={(z) => onChange({ z })} suffix="mm" />}</>}
         {isHole && (
           <>
             {command.placement === 'face-edges' && <><Field label="Pozycjonowanie" value="Ściana + 2 krawędzie" disabled /><Field label="Od krawędzi 1" value={command.firstOffset} onChange={(firstOffset) => onChange({ firstOffset })} suffix="mm" autoFocus /><Field label="Od krawędzi 2" value={command.secondOffset} onChange={(secondOffset) => onChange({ secondOffset })} suffix="mm" /></>}
@@ -1383,6 +1383,8 @@ export default function ModelingWorkspace({ onClose }) {
           x: next.x, y: next.y, z: next.z,
           operation: next.operation,
           targetBodyId: next.operation === 'new' ? null : next.targetBodyId,
+          placement: next.placement,
+          referenceIds: current.previewFeature?.referenceIds || next.topologyReferences?.map((reference) => reference.id) || [],
         });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
@@ -2894,13 +2896,18 @@ export default function ModelingWorkspace({ onClose }) {
 
   const openTextSolid = () => {
     if (readOnly) return readOnlyNotice();
-    const selectedTargetId = selection?.kind === 'body' ? selection.id : null;
+    const selectedFace = selectedFaceItems.length === 1 ? selectedFaceItems[0] : null;
+    const selectedBody = selectedFace ? engine.bodies.find((body) => body.id === selectedFace.bodyId) : null;
+    const faceRecord = selectedBody?.topology?.faces?.find((face) => face.id === selectedFace?.id);
+    const planarFace = faceRecord?.descriptor?.geometry === 'PLANE' ? faceRecord : null;
+    const selectedTargetId = planarFace ? selectedFace.bodyId : selection?.kind === 'body' ? selection.id : null;
     const selectedTarget = engine.bodies.find((body) => body.id === selectedTargetId);
     const surfaceZ = selectedTarget?.metrics?.bounds?.[1]?.[2] ?? 0;
-    const next = { type: 'textSolid', text: 'MADCAD', fontSize: '10', depth: '2', x: '0', y: '0', z: String(surfaceZ), operation: selectedTargetId ? 'emboss' : 'new', targetBodyId: selectedTargetId, previewFeature: null };
+    const topologyReferences = planarFace ? [createTopologyReference({ selection: { kind: 'face', id: planarFace.id, bodyId: selectedBody.id, sourceFeatureId: selectedBody.sourceFeatureId }, descriptor: planarFace.descriptor, label: `Powierzchnia Emboss/Deboss · ${selectedBody.name}` })] : [];
+    const next = { type: 'textSolid', text: 'MADCAD', fontSize: '10', depth: '2', x: '0', y: '0', z: String(surfaceZ), operation: selectedTargetId ? 'emboss' : 'new', targetBodyId: selectedTargetId, placement: planarFace ? 'face' : 'world', topologyReferences, previewFeature: null };
     setCommand(next);
     window.setTimeout(() => updateCommand(next), 0);
-    setNotice(selectedTargetId ? 'Tekst zostanie dodany do zaznaczonej bryły. Wybierz Emboss lub Deboss.' : 'Tekst zostanie wyciągnięty jako nowa bryła.');
+    setNotice(planarFace ? 'Tekst jest trwale związany ze wskazaną planarną ścianą.' : selectedTargetId ? 'Tekst zostanie dodany do zaznaczonej bryły. Wybierz Emboss lub Deboss.' : 'Tekst zostanie wyciągnięty jako nowa bryła.');
   };
 
   const openTransform = (mode) => {
@@ -3321,7 +3328,7 @@ export default function ModelingWorkspace({ onClose }) {
     else if (feature.type === 'primitive') setCommand({ type: 'primitive', editId: feature.id, name: feature.name, primitiveType: feature.primitiveType, x: feature.x, y: feature.y, z: feature.z, width: feature.width || '20', depth: feature.depth || '20', height: feature.height || '20', radius: feature.radius || '10', majorRadius: feature.majorRadius || '15', minorRadius: feature.minorRadius || '4', previewFeature: feature });
     else if (feature.type === 'transform') setCommand({ type: 'transform', editId: feature.id, targetBodyId: feature.targetBodyId, mode: feature.mode, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', angle: feature.angle || '0', originX: feature.originX || '0', originY: feature.originY || '0', originZ: feature.originZ || '0', previewFeature: feature });
     else if (feature.type === 'offsetFace') setCommand({ type: 'offsetFace', editId: feature.id, targetBodyId: feature.targetBodyId, distance: feature.distance, faceLabel: '1 wskazana', previewFeature: feature });
-    else if (feature.type === 'textSolid') setCommand({ type: 'textSolid', editId: feature.id, text: feature.text, fontSize: feature.fontSize, depth: feature.depth, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', operation: feature.operation, targetBodyId: feature.targetBodyId || null, previewFeature: feature });
+    else if (feature.type === 'textSolid') setCommand({ type: 'textSolid', editId: feature.id, text: feature.text, fontSize: feature.fontSize, depth: feature.depth, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', operation: feature.operation, targetBodyId: feature.targetBodyId || null, placement: feature.placement || 'world', topologyReferences: (feature.referenceIds || []).map((id) => document.references.find((reference) => reference.id === id)).filter(Boolean), previewFeature: feature });
     else if (feature.type === 'hole') {
       const holeOptions = { holeType: feature.holeType || 'simple', extent: feature.extent || 'distance', diameter: feature.diameter, depth: feature.depth || '10', counterboreDiameter: feature.counterboreDiameter || '10', counterboreDepth: feature.counterboreDepth || '3', countersinkDiameter: feature.countersinkDiameter || '10', countersinkAngle: feature.countersinkAngle || '90', threadMode: feature.threadMode || 'none', threadDiameter: feature.threadDiameter || '10', threadPitch: feature.threadPitch || '1.5', threadLength: feature.threadLength || feature.depth || '8', threadDirection: feature.threadDirection || 'right', clearanceProfile: feature.clearanceProfile || 'nominal', clearance: feature.clearance || '0.2' };
       setCommand(feature.placement === 'face-edges'

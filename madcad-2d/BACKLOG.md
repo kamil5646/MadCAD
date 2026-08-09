@@ -21,7 +21,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Coil ukończono jako `P1.18` dla osi bazowych i konstrukcyjnych, parametrów średnicy, przekroju, skoku, liczby zwojów i kierunku.
 - [x] Pipe ukończono jako `P1.19` dla pustego parametrycznego przekroju prowadzonego po ciągłej ścieżce.
 - [x] Pattern bryły ukończono jako `P1.20` w trybie prostokątnym, kołowym i po ścieżce.
-- [>] Zaawansowane Emboss/Deboss jest aktywnym etapem `P1.21`.
+- [x] Zaawansowane Emboss/Deboss na trwale wskazanej planarnej ścianie ukończono jako `P1.21`; aktywna ścieżka P1 jest zamknięta.
 - Pełne normy gwintów, clearance/tapped/tapered oraz klasy pasowania.
 - Draft Analysis, Interference, Named Views i rozbudowany ViewCube.
 - Zaawansowane profile materiałów/druku, heatmapy, automatyczne ułożenie i naprawa siatki.

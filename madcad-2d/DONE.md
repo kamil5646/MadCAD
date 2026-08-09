@@ -91,6 +91,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Coil tworzy dokładną parametryczną bryłę helikalną na osi bazowej lub konstrukcyjnej, obsługuje kierunek prawy/lewy i operacje New/Join/Cut/Intersect oraz przechodzi pełny przepływ historii i zapisu.
 - [x] Pipe prowadzi rzeczywiście pusty przekrój rurowy po ciągłej ścieżce, kontroluje średnicę wewnętrzną i przechodzi edycję, undo/redo, autozapis oraz ponowne otwarcie w desktop E2E.
 - [x] Pattern bryły łączy wariant prostokątny, kołowy i po ścieżce we wspólnym feature, zachowuje parametry i bezpiecznie przełącza tryb w desktop E2E.
+- [x] Emboss/Deboss tekstu wiąże lokalny profil z trwałą referencją planarnej ściany i wykonuje operację wzdłuż jej normalnej bez ręcznego zgadywania globalnej współrzędnej Z.
 - [x] Measure odczytuje długość, odległość, kąt, promień/średnicę, pole i pozycję z trwałego zaznaczenia B-Rep; dla bryły pokazuje też objętość i gabaryt.
 - [x] Section Analysis przycina widok wszystkich brył interaktywną płaszczyzną XY/XZ/YZ z regulowanym położeniem i odwracaniem strony, bez mutowania historii.
 - [x] Właściwości masowe sumują objętość i pole zaznaczonych brył, przyjmują gęstość materiału, liczą masę oraz ważony środek masy.

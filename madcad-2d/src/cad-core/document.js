@@ -764,6 +764,10 @@ export function validateDocument(document) {
       if (!['new', 'emboss', 'deboss'].includes(feature.operation)) add(`${base}.operation`, `Nieobsługiwana operacja tekstu: ${feature.operation ?? ''}.`, 'UNSUPPORTED');
       if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
       else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono bryły docelowej „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
+      if (feature.placement === 'face') {
+        const faceReference = references.find((reference) => reference.id === feature.referenceIds?.[0]);
+        if (faceReference?.kind !== 'topology' || faceReference.topologyKind !== 'face' || faceReference.descriptor?.geometry !== 'PLANE') add(`${base}.referenceIds`, 'Emboss/Deboss na powierzchni wymaga trwałej referencji planarnej ściany.', 'BROKEN_REFERENCE');
+      }
     }
 
     if (feature.type === 'transform') {

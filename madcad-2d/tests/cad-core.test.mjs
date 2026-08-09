@@ -949,9 +949,11 @@ test('Text tworzy przenośny profil i obsługuje Extrude, Emboss oraz Deboss', (
 
   const document = createDocument('Tekst 3D');
   const base = createFeature('primitive', { primitiveType: 'box', x: '0', y: '0', z: '0', width: '40', depth: '20', height: '5' });
+  const faceReference = createTopologyReference({ selection: { kind: 'face', id: 'top-face', bodyId: `body-${base.id}`, sourceFeatureId: base.id }, descriptor: { geometry: 'PLANE', center: [20, 10, 5], normal: [0, 0, 1], orientation: 'forward' }, label: 'Powierzchnia tekstu' });
   const newText = createFeature('textSolid', { text: 'HI', fontSize: '7', depth: '2', x: '2', y: '2', z: '8', operation: 'new' });
-  const emboss = createFeature('textSolid', { text: 'A', fontSize: '7', depth: '2', x: '10', y: '2', z: '5', operation: 'emboss', targetBodyId: `body-${base.id}` });
+  const emboss = createFeature('textSolid', { text: 'A', fontSize: '7', depth: '2', x: '-10', y: '-5', z: '5', operation: 'emboss', placement: 'face', referenceIds: [faceReference.id], targetBodyId: `body-${base.id}` });
   const deboss = createFeature('textSolid', { text: 'B', fontSize: '7', depth: '2', x: '20', y: '2', z: '5', operation: 'deboss', targetBodyId: `body-${base.id}` });
+  document.references.push(faceReference);
   document.features.push(base, newText, emboss, deboss);
 
   assert.equal(validateDocument(document).valid, true);
@@ -959,6 +961,7 @@ test('Text tworzy przenośny profil i obsługuje Extrude, Emboss oraz Deboss', (
   assert.equal(prepared[1].profile.text, 'HI');
   assert.deepEqual(prepared[1].position, [2, 2, 8]);
   assert.equal(prepared[1].depthValue, 2);
+  assert.equal(prepared[2].topologyReferences[0].id, faceReference.id);
   const graph = buildDependencyGraph(document);
   assert.equal(graph.producerOfBody(`body-${newText.id}`), newText.id);
   assert.ok(graph.edges.some((edge) => edge.from === `body-${base.id}` && edge.to === emboss.id && edge.kind === 'modifies'));

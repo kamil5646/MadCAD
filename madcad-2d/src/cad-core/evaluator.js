@@ -493,6 +493,7 @@ export function prepareDocument(document) {
       const fontSizeValue = read(feature.fontSize, 'Rozmiar tekstu', true);
       const x = read(feature.x, 'Położenie X');
       const y = read(feature.y, 'Położenie Y');
+      const faceReference = feature.placement === 'face' ? document.references.find((reference) => reference.id === feature.referenceIds?.[0]) : null;
       return {
         ...feature,
         status: 'ready',
@@ -501,6 +502,7 @@ export function prepareDocument(document) {
         depthValue: read(feature.depth, 'Głębokość tekstu', true),
         position: [x, y, read(feature.z, 'Położenie Z')],
         profile: createTextProfile(feature.text, fontSizeValue, x, y),
+        topologyReferences: faceReference ? [faceReference] : [],
       };
     }
     if (feature.type === 'fillet' || feature.type === 'chamfer') {

@@ -1538,18 +1538,19 @@ async function runUiFlow(window) {
   await setCommandField('Wysokość', '5');
   await confirmDialog();
   await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 4000) < 0.05`, 'bryła bazowa tekstu', modelingTimeoutMs);
-  const textBaseId = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].id`);
-  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'body', bodyId: ${JSON.stringify(textBaseId)} }, 'replace')`);
-  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'bryła wskazana dla Emboss');
+  const textFace = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies[0]; const face = body.topology.faces.filter((item) => item.descriptor.geometry === 'PLANE').sort((left, right) => right.descriptor.center[2] - left.descriptor.center[2])[0]; return { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }; })()`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(textFace)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face'`, 'planarna ściana wskazana dla Emboss');
   await clickTool('Tekst 3D');
+  await waitForUi(window, `[...document.querySelectorAll('.command-field')].some((field) => field.firstElementChild?.textContent === 'Powierzchnia' && field.querySelector('input')?.value.includes('Planarna ściana'))`, 'trwała powierzchnia Emboss');
   await setCommandField('Tekst', 'HI');
   await setCommandField('Rozmiar', '7');
   await setCommandField('Głębokość', '2');
-  await setCommandField('Położenie X', '2');
-  await setCommandField('Położenie Y', '2');
+  await setCommandField('Położenie X', '-5');
+  await setCommandField('Położenie Y', '-3');
   await waitForUi(window, `Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 4064) < 0.05`, 'podgląd Emboss', modelingTimeoutMs);
   await confirmDialog();
-  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.operation === 'emboss'`, 'zapisany Emboss', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.operation === 'emboss' && window.__madcadVerifyDocumentState.featureData[1].placement === 'face' && window.__madcadVerifyDocumentState.featureData[1].referenceIds?.length === 1`, 'zapisany Emboss na powierzchni', modelingTimeoutMs);
   assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`), 4064, 0.05, 'Text emboss volume');
 
   await editTimelineFeature(1, 'Tekst 3D');

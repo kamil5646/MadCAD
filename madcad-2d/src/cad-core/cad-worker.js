@@ -371,11 +371,22 @@ function runFeature(feature, bodyMap, bodyOrder) {
   }
 
   if (feature.type === 'textSolid') {
-    const z = feature.operation === 'deboss' ? feature.position[2] - feature.depthValue : feature.position[2];
-    const tool = combineShapes(feature.profile.rectangles.map((rectangle) => makeBox(
-      [rectangle.x, rectangle.y, z],
-      [rectangle.x + rectangle.width, rectangle.y + rectangle.height, z + feature.depthValue],
-    )));
+    let tool;
+    if (feature.placement === 'face') {
+      const descriptor = feature.topologyReferences?.[0]?.descriptor;
+      const normal = descriptor?.normal;
+      const origin = descriptor?.center;
+      if (!origin || !normal) throw new Error('Utracono planarną powierzchnię Emboss/Deboss.');
+      const helper = Math.abs(normal[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+      const xDirection = [helper[1] * normal[2] - helper[2] * normal[1], helper[2] * normal[0] - helper[0] * normal[2], helper[0] * normal[1] - helper[1] * normal[0]];
+      const plane = new Plane(origin, xDirection, normal);
+      const distance = feature.operation === 'deboss' ? -feature.depthValue : feature.depthValue;
+      tool = combineShapes(feature.profile.rectangles.map((rectangle) => drawRectangle(rectangle.width, rectangle.height).translate(rectangle.x + (rectangle.width / 2), rectangle.y + (rectangle.height / 2)).sketchOnPlane(plane).extrude(distance)));
+      plane.delete();
+    } else {
+      const z = feature.operation === 'deboss' ? feature.position[2] - feature.depthValue : feature.position[2];
+      tool = combineShapes(feature.profile.rectangles.map((rectangle) => makeBox([rectangle.x, rectangle.y, z], [rectangle.x + rectangle.width, rectangle.y + rectangle.height, z + feature.depthValue])));
+    }
     const bodyId = `body-${feature.id}`;
     if (feature.operation === 'new') {
       bodyMap.set(bodyId, { id: bodyId, name: feature.name, sourceFeatureId: feature.id, representation: 'brep', shape: tool });
