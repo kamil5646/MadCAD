@@ -15,6 +15,7 @@ function featureExpressions(feature) {
   if (feature.type === 'rib') return [feature.thickness, feature.depth];
   if (feature.type === 'coil') return [feature.coilDiameter, feature.wireDiameter, feature.pitch, feature.turns];
   if (feature.type === 'pipe') return [feature.outsideDiameter, feature.wallThickness];
+  if (feature.type === 'pattern') return [feature.countX, feature.countY, feature.spacingX, feature.spacingY, feature.occurrences, feature.totalAngle];
   if (feature.type === 'hole') return [feature.diameter, feature.depth, feature.firstOffset, feature.secondOffset, feature.counterboreDiameter, feature.counterboreDepth, feature.countersinkDiameter, feature.countersinkAngle, feature.threadDiameter, feature.threadPitch, feature.threadLength, feature.clearance];
   if (feature.type === 'fillet') return [feature.radius];
   if (feature.type === 'chamfer') return [feature.distance];
@@ -150,6 +151,7 @@ export function buildDependencyGraph(document) {
     if (feature.type === 'extrude' && feature.extent === 'to-object') addEdge(feature.targetReferenceId, feature.id, 'to-object');
     if (feature.type === 'revolve' && !['X_AXIS', 'Y_AXIS', 'Z_AXIS'].includes(feature.axisId)) addEdge(feature.axisId, feature.id, 'revolve-axis');
     if (feature.type === 'coil' && !['X_AXIS', 'Y_AXIS', 'Z_AXIS'].includes(feature.axisId)) addEdge(feature.axisId, feature.id, 'coil-axis');
+    if (feature.type === 'pattern' && feature.patternType === 'circular' && !['X_AXIS', 'Y_AXIS', 'Z_AXIS'].includes(feature.axisId)) addEdge(feature.axisId, feature.id, 'pattern-axis');
     for (const value of featureExpressions(feature)) {
       for (const name of expressionDependencies(value)) addEdge(parameterIdsByName.get(name), feature.id, 'drives');
     }

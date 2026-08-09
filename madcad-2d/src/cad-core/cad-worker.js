@@ -299,6 +299,31 @@ function pipeShape(feature) {
   return sweepCircle(feature.outsideDiameterValue / 2).cut(sweepCircle(feature.insideDiameterValue / 2));
 }
 
+function patternTranslations(feature) {
+  if (feature.patternType === 'rectangular') {
+    const values = [];
+    for (let row = 0; row < feature.countYValue; row += 1) for (let column = 0; column < feature.countXValue; column += 1) if (row || column) values.push([column * feature.spacingXValue, row * feature.spacingYValue, 0]);
+    return values;
+  }
+  const frame = { XY: { u: [1, 0, 0], v: [0, 1, 0], n: [0, 0, 1] }, XZ: { u: [1, 0, 0], v: [0, 0, 1], n: [0, -1, 0] }, YZ: { u: [0, 1, 0], v: [0, 0, 1], n: [1, 0, 0] } }[feature.path.plane || 'XY'];
+  const points = feature.path.geometry.points;
+  const lengths = [0];
+  for (let index = 1; index < points.length; index += 1) lengths.push(lengths.at(-1) + Math.hypot(points[index][0] - points[index - 1][0], points[index][1] - points[index - 1][1]));
+  const total = lengths.at(-1);
+  const sample = (distance) => {
+    let segment = 1;
+    while (segment < lengths.length - 1 && lengths[segment] < distance) segment += 1;
+    const span = lengths[segment] - lengths[segment - 1];
+    const ratio = span ? (distance - lengths[segment - 1]) / span : 0;
+    return points[segment - 1].map((value, axis) => value + ((points[segment][axis] - value) * ratio));
+  };
+  const first = sample(0);
+  return Array.from({ length: feature.occurrencesValue - 1 }, (_value, index) => sample(total * (index + 1) / (feature.occurrencesValue - 1))).map((point) => {
+    const dx = point[0] - first[0]; const dy = point[1] - first[1];
+    return frame.u.map((value, axis) => (value * dx) + (frame.v[axis] * dy));
+  });
+}
+
 function combineShapes(shapes) {
   if (!shapes.length) throw new Error('Operacja nie zawiera żadnego profilu.');
   return shapes.slice(1).reduce((result, shape) => result.fuse(shape), shapes[0]);
@@ -488,6 +513,19 @@ function runFeature(feature, bodyMap, bodyOrder) {
     else if (feature.operation === 'cut') target.shape = target.shape.cut(tool);
     else if (feature.operation === 'intersect') target.shape = target.shape.intersect(tool);
     else throw new Error(`Nieobsługiwana operacja Pipe: ${feature.operation}.`);
+    return;
+  }
+
+  if (feature.type === 'pattern') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły docelowej dla ${feature.name}.`);
+    const seed = target.shape.clone();
+    if (feature.patternType === 'circular') {
+      const denominator = Math.abs(feature.totalAngleValue) === 360 ? feature.occurrencesValue : Math.max(1, feature.occurrencesValue - 1);
+      for (let index = 1; index < feature.occurrencesValue; index += 1) target.shape = target.shape.fuse(seed.clone().rotate((feature.totalAngleValue * index) / denominator, feature.axis.origin, feature.axis.direction));
+    } else {
+      for (const translation of patternTranslations(feature)) target.shape = target.shape.fuse(seed.clone().translate(translation));
+    }
     return;
   }
 

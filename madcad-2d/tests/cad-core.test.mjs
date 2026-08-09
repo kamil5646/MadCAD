@@ -712,6 +712,39 @@ test('Pipe przygotowuje pusty przekrój rurowy na ciągłej ścieżce', () => {
   assert.throws(() => prepareDocument(solid), /Podwójna grubość/);
 });
 
+test('Pattern bryły przygotowuje tryb prostokątny, kołowy i po ścieżce', () => {
+  const document = createDocument('Pattern');
+  const box = createFeature('primitive', { primitiveType: 'box', x: '5', y: '0', z: '0', width: '2', depth: '2', height: '2' });
+  const rectangular = createFeature('pattern', { targetBodyId: `body-${box.id}`, patternType: 'rectangular', countX: '3', countY: '2', spacingX: '10', spacingY: '8' });
+  document.features.push(box, rectangular);
+  let prepared = prepareDocument(document).features[1];
+  assert.equal(prepared.countXValue, 3);
+  assert.equal(prepared.countYValue, 2);
+  assert.equal(prepared.spacingXValue, 10);
+
+  const circular = structuredClone(document);
+  Object.assign(circular.features[1], { patternType: 'circular', axisId: 'Z_AXIS', occurrences: '4', totalAngle: '360' });
+  prepared = prepareDocument(circular).features[1];
+  assert.equal(prepared.occurrencesValue, 4);
+  assert.deepEqual(prepared.axis.direction, [0, 0, 1]);
+
+  const first = createSketchPoint({ x: 0, y: 0 });
+  const second = createSketchPoint({ x: 30, y: 0 });
+  const line = createSketchLine({ startPointId: first.id, endPointId: second.id });
+  const sketch = createSketch({ entities: [first, second, line] });
+  const path = structuredClone(document);
+  path.sketches.push(sketch);
+  Object.assign(path.features[1], { patternType: 'path', pathSketchId: sketch.id, pathEntityIds: [line.id], occurrences: '4' });
+  prepared = prepareDocument(path).features[1];
+  assert.equal(prepared.occurrencesValue, 4);
+  assert.deepEqual(prepared.path.geometry.points, [[0, 0], [30, 0]]);
+  assert.ok(buildDependencyGraph(path).edges.some((edge) => edge.from === line.id && edge.to === rectangular.id));
+
+  const excessive = structuredClone(document);
+  excessive.features[1].countX = '101';
+  assert.throws(() => prepareDocument(excessive), /1–100/);
+});
+
 test('Boolean wymaga dwóch brył, konsumuje narzędzie i zapisuje zależności Union/Subtract/Intersect', () => {
   for (const operation of ['union', 'subtract', 'intersect']) {
     const document = createDocument(`Boolean ${operation}`);

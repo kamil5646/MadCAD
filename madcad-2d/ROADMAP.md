@@ -150,7 +150,8 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.17 Rib/Web z ciągłego otwartego łańcucha linii szkicu: Rib rośnie w płaszczyźnie, Web prostopadle do niej, oba mają parametryczną grubość i zadany zasięg, stronę oraz kierunek, łączą się z istniejącą bryłą i przechodzą edycję, anulowanie, undo/redo, autozapis i ponowne otwarcie.
 - [x] P1.18 Coil jako dokładna bryła helikalna wokół osi bazowej albo konstrukcyjnej, z parametryczną średnicą spirali i przekroju, skokiem, ułamkową liczbą zwojów, kierunkiem prawym/lewym, New/Join/Cut/Intersect, limitem złożoności, kontrolą samoprzecięcia, edycją, anulowaniem, undo/redo, autozapisem i ponownym otwarciem.
 - [x] P1.19 Pipe jako dokładny pusty przekrój rurowy prowadzony po ciągłej otwartej ścieżce linii, z parametryczną średnicą zewnętrzną i grubością ścianki, New/Join/Cut/Intersect, walidacją ścieżki i kanału wewnętrznego, edycją, undo/redo, autozapisem i ponownym otwarciem.
-- [>] P1.20 Pattern operacji/bryły: prostokątny, kołowy i po ścieżce bez dublowania mechaniki szyków szkicu.
+- [x] P1.20 Pattern bryły w jednym wspólnym narzędziu: prostokątny z parametrycznymi wierszami/kolumnami i odstępami, kołowy wokół osi bazowej/konstrukcyjnej oraz równomierny po ciągłej ścieżce, z limitem 100 wystąpień, edycją trybu, undo/redo i autozapisem.
+- [>] P1.21 Zaawansowane Emboss/Deboss z trwałym wskazaniem powierzchni i kierunku operacji.
 
 ## Definition of Done
 
@@ -174,4 +175,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.20 — Pattern operacji/bryły: prostokątny, kołowy i po ścieżce.`
+`P1.21 — Zaawansowane Emboss/Deboss z trwałym wskazaniem powierzchni i kierunku operacji.`

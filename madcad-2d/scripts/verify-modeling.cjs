@@ -1174,6 +1174,45 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
   await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${pipeReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'pipe' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${100 * Math.PI}) < 0.05`, 'ponownie otwarty Pipe', modelingTimeoutMs);
 
+  progress('rectangular circular and path body patterns');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt Pattern');
+  await clickTool('Prymityw');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Prymityw')`, 'prymityw Pattern');
+  await setCommandField('Szerokość', '2');
+  await setCommandField('Głębokość', '2');
+  await setCommandField('Wysokość', '2');
+  await setCommandField('Położenie X', '5');
+  await setCommandField('Położenie Y', '-1');
+  await confirmDialog();
+  await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 8) < 0.05`, 'bryła źródłowa Pattern', modelingTimeoutMs);
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `document.querySelector('.plane-picker')`, 'płaszczyzna ścieżki Pattern');
+  await pickPlane('Góra');
+  await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'szkic ścieżki Pattern');
+  await clickTool('Linia');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'linia ścieżki Pattern');
+  await addSketchPoint([-10, 10], 1);
+  await addSketchPoint([20, 10], 3);
+  await clickTool('Zakończ szkic');
+  await waitForUi(window, `!document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'zakończony szkic Pattern');
+  await clickTool('Pattern');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Typ szyku')`, 'otwarty Pattern');
+  await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 24) < 0.05`, 'podgląd Pattern prostokątnego', modelingTimeoutMs);
+  await setCommandField('Typ szyku', 'path');
+  await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 32) < 0.05`, 'podgląd Pattern po ścieżce', modelingTimeoutMs);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.patternType === 'path'`, 'zapisany Pattern po ścieżce', modelingTimeoutMs);
+  await editTimelineFeature(1, 'Pattern');
+  await setCommandField('Typ szyku', 'circular');
+  await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 32) < 0.05`, 'podgląd Pattern kołowego', modelingTimeoutMs);
+  await confirmDialog();
+  await clickByTitle('Cofnij');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.patternType === 'path'`, 'undo Pattern', modelingTimeoutMs);
+  await clickByTitle('Ponów');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.patternType === 'circular'`, 'redo Pattern', modelingTimeoutMs);
+  await waitForUi(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[1]?.patternType === 'circular'`, 'autozapis Pattern');
+
   progress('split body by construction and base plane');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla Split Body');
@@ -2257,7 +2296,7 @@ async function runUiFlow(window) {
 app.whenReady().then(async () => {
   const performanceBudgets = isCi
     ? { desktopColdStartMs: 60000, desktopWorkflowMs: 180000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 45000 }
-    : { desktopColdStartMs: 30000, desktopWorkflowMs: 90000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
+    : { desktopColdStartMs: 30000, desktopWorkflowMs: 100000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
     width: 1936,

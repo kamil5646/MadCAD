@@ -12,7 +12,7 @@ export const DOCUMENT_SCHEMA_VERSION = 4;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'pattern', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -120,7 +120,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -727,6 +727,22 @@ export function validateDocument(document) {
       if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, 'Nieobsługiwana operacja Pipe.', 'UNSUPPORTED');
       if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
       else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Nie znaleziono bryły docelowej Pipe.', 'BROKEN_REFERENCE');
+    }
+
+    if (feature.type === 'pattern') {
+      if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Pattern wymaga wcześniejszej bryły docelowej.', 'BROKEN_REFERENCE');
+      if (!['rectangular', 'circular', 'path'].includes(feature.patternType)) add(`${base}.patternType`, 'Nieobsługiwany typ Pattern.', 'UNSUPPORTED');
+      if (feature.patternType === 'rectangular') for (const key of ['countX', 'countY', 'spacingX', 'spacingY']) if (typeof feature[key] !== 'string' && typeof feature[key] !== 'number') add(`${base}.${key}`, 'Pattern prostokątny wymaga parametrycznych ilości i odstępów.', 'TYPE');
+      if (feature.patternType === 'circular') {
+        const axisReference = references.find((reference) => reference.id === feature.axisId);
+        if (!['X_AXIS', 'Y_AXIS', 'Z_AXIS'].includes(feature.axisId) && axisReference?.kind !== 'construction-axis') add(`${base}.axisId`, 'Pattern kołowy wymaga osi.', 'BROKEN_REFERENCE');
+        for (const key of ['occurrences', 'totalAngle']) if (typeof feature[key] !== 'string' && typeof feature[key] !== 'number') add(`${base}.${key}`, 'Pattern kołowy wymaga liczby wystąpień i kąta.', 'TYPE');
+      }
+      if (feature.patternType === 'path') {
+        if (!sketchIds.has(feature.pathSketchId)) add(`${base}.pathSketchId`, 'Pattern po ścieżce wymaga szkicu.', 'BROKEN_REFERENCE');
+        if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Pattern po ścieżce wymaga łańcucha linii.', 'REQUIRED');
+        if (typeof feature.occurrences !== 'string' && typeof feature.occurrences !== 'number') add(`${base}.occurrences`, 'Pattern po ścieżce wymaga liczby wystąpień.', 'TYPE');
+      }
     }
 
     if (feature.type === 'primitive') {

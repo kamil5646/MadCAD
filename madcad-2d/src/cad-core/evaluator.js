@@ -365,6 +365,25 @@ export function prepareDocument(document) {
       if ((2 * wallThicknessValue) >= outsideDiameterValue) throw new Error('Podwójna grubość ścianki Pipe musi być mniejsza od średnicy zewnętrznej.');
       return { ...feature, status: 'ready', diagnostics: [], path, outsideDiameterValue, wallThicknessValue, insideDiameterValue: outsideDiameterValue - (2 * wallThicknessValue) };
     }
+    if (feature.type === 'pattern') {
+      const integer = (expression, label) => {
+        const value = evaluateExpression(expression, parameterResult.values);
+        if (!Number.isInteger(value) || value < 1 || value > 100) throw new Error(`${label} musi być liczbą całkowitą 1–100.`);
+        return value;
+      };
+      if (feature.patternType === 'rectangular') return { ...feature, status: 'ready', diagnostics: [], countXValue: integer(feature.countX, 'Kolumny Pattern'), countYValue: integer(feature.countY, 'Wiersze Pattern'), spacingXValue: evaluateExpression(feature.spacingX, parameterResult.values), spacingYValue: evaluateExpression(feature.spacingY, parameterResult.values) };
+      if (feature.patternType === 'circular') {
+        const baseAxes = { X_AXIS: { origin: [0, 0, 0], direction: [1, 0, 0] }, Y_AXIS: { origin: [0, 0, 0], direction: [0, 1, 0] }, Z_AXIS: { origin: [0, 0, 0], direction: [0, 0, 1] } };
+        const axisReference = document.references.find((reference) => reference.id === feature.axisId);
+        const axis = baseAxes[feature.axisId] || resolveConstructionAxis(axisReference, document.references, parameterResult.values);
+        const totalAngleValue = evaluateExpression(feature.totalAngle, parameterResult.values);
+        if (!Number.isFinite(totalAngleValue) || Math.abs(totalAngleValue) <= GEOMETRY_POLICY.angularTolerance || Math.abs(totalAngleValue) > 360) throw new Error('Kąt Pattern musi należeć do zakresu -360°–360°.');
+        return { ...feature, status: 'ready', diagnostics: [], occurrencesValue: integer(feature.occurrences, 'Wystąpienia Pattern'), totalAngleValue, axis: { origin: axis.origin, direction: axis.direction } };
+      }
+      const pathSketch = document.sketches.find((sketch) => sketch.id === feature.pathSketchId);
+      const path = { ...resolveOpenChainProfile(pathSketch, feature.pathEntityIds, parameterResult.values, feature.id, 'Pattern'), plane: pathSketch?.plane || 'XY', planeOffset: evaluateExpression(pathSketch?.planeOffset || 0, parameterResult.values) };
+      return { ...feature, status: 'ready', diagnostics: [], occurrencesValue: integer(feature.occurrences, 'Wystąpienia Pattern'), path };
+    }
     if (feature.type === 'hole') {
       const holeType = feature.holeType || 'simple';
       const extent = feature.extent || 'distance';
