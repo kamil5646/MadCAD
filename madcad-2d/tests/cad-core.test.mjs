@@ -623,6 +623,37 @@ test('Thin Extrude porządkuje otwarty łańcuch linii i waliduje zakończenia',
   assert.ok(validateDocument(invalidCap).issues.some((issue) => issue.path.endsWith('.endCap')));
 });
 
+test('Rib/Web przygotowuje parametryczne wzmocnienie z otwartego łańcucha', () => {
+  const document = createDocument('Rib Web');
+  const base = createFeature('primitive', { primitiveType: 'box', x: '-10', y: '-10', z: '0', width: '20', depth: '20', height: '5' });
+  const first = createSketchPoint({ x: -8, y: 0 });
+  const second = createSketchPoint({ x: 8, y: 0 });
+  const line = createSketchLine({ startPointId: first.id, endPointId: second.id });
+  const sketch = createSketch({ name: 'Profil Rib Web', plane: 'XY', planeOffset: '5', entities: [first, second, line] });
+  const rib = createFeature('rib', { sketchId: sketch.id, openEntityIds: [line.id], targetBodyId: `body-${base.id}`, ribMode: 'web', thickness: '2', depth: '5', wallSide: 'symmetric', reverse: false });
+  document.sketches.push(sketch);
+  document.features.push(base, rib);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[1];
+  assert.equal(prepared.ribMode, 'web');
+  assert.equal(prepared.thicknessValue, 2);
+  assert.equal(prepared.depthValue, 5);
+  assert.deepEqual(prepared.profile.geometry.points, [[-8, 0], [8, 0]]);
+  assert.ok(buildDependencyGraph(document).edges.some((edge) => edge.from === line.id && edge.to === rib.id && edge.kind === 'references-open-chain'));
+
+  const ribMode = structuredClone(document);
+  ribMode.features[1].ribMode = 'rib';
+  assert.equal(prepareDocument(ribMode).features[1].ribMode, 'rib');
+  const disconnected = structuredClone(document);
+  const third = createSketchPoint({ x: 20, y: 5 });
+  const fourth = createSketchPoint({ x: 25, y: 5 });
+  const extra = createSketchLine({ startPointId: third.id, endPointId: fourth.id });
+  disconnected.sketches[0].entities.push(third, fourth, extra);
+  disconnected.features[1].openEntityIds.push(extra.id);
+  assert.throws(() => prepareDocument(disconnected), /ciągłego łańcucha/);
+});
+
 test('Boolean wymaga dwóch brył, konsumuje narzędzie i zapisuje zależności Union/Subtract/Intersect', () => {
   for (const operation of ['union', 'subtract', 'intersect']) {
     const document = createDocument(`Boolean ${operation}`);

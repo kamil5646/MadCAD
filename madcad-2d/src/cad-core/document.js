@@ -12,7 +12,7 @@ export const DOCUMENT_SCHEMA_VERSION = 4;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'revolve', 'sweep', 'loft', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'revolve', 'sweep', 'loft', 'rib', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -120,7 +120,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -689,6 +689,21 @@ export function validateDocument(document) {
       if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, `Nieobsługiwana operacja Loft: ${feature.operation ?? ''}.`, 'UNSUPPORTED');
       if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
       else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Nie znaleziono bryły docelowej Loft.', 'BROKEN_REFERENCE');
+    }
+
+    if (feature.type === 'rib') {
+      if (!sketchIds.has(feature.sketchId)) add(`${base}.sketchId`, 'Rib/Web wymaga szkicu źródłowego.', 'BROKEN_REFERENCE');
+      if (!Array.isArray(feature.openEntityIds) || !feature.openEntityIds.length) add(`${base}.openEntityIds`, 'Rib/Web wymaga otwartego łańcucha linii.', 'REQUIRED');
+      else feature.openEntityIds.forEach((entityId, index) => {
+        const owner = entityOwners.get(entityId);
+        if (!owner || owner.sketchId !== feature.sketchId || owner.type !== 'line') add(`${base}.openEntityIds[${index}]`, 'Rib/Web obsługuje połączone linie wskazanego szkicu.', 'UNSUPPORTED');
+      });
+      if (!['rib', 'web'].includes(feature.ribMode || 'web')) add(`${base}.ribMode`, 'Nieobsługiwany typ Rib/Web.', 'UNSUPPORTED');
+      if (typeof feature.thickness !== 'string' && typeof feature.thickness !== 'number') add(`${base}.thickness`, 'Rib/Web wymaga parametrycznej grubości.', 'TYPE');
+      if (typeof feature.depth !== 'string' && typeof feature.depth !== 'number') add(`${base}.depth`, 'Rib/Web wymaga parametrycznego zasięgu.', 'TYPE');
+      if (!['inside', 'outside', 'symmetric'].includes(feature.wallSide || 'symmetric')) add(`${base}.wallSide`, 'Nieobsługiwana strona Rib/Web.', 'UNSUPPORTED');
+      if (typeof feature.reverse !== 'boolean') add(`${base}.reverse`, 'Kierunek Rib/Web musi być wartością logiczną.', 'TYPE');
+      if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Rib/Web wymaga wcześniejszej bryły docelowej.', 'BROKEN_REFERENCE');
     }
 
     if (feature.type === 'primitive') {

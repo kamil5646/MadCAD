@@ -1061,6 +1061,59 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
   await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${loftReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'loft' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${loftVolume}) < 0.05`, 'ponownie otwarty Loft', modelingTimeoutMs);
 
+  progress('rib and web from an open sketch profile');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla Rib Web');
+  await clickTool('Prymityw');
+  await setCommandField('Szerokość', '20');
+  await setCommandField('Głębokość', '20');
+  await setCommandField('Wysokość', '5');
+  await setCommandField('Położenie X', '-10');
+  await setCommandField('Położenie Y', '-10');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyEngineState?.bodies?.length === 1 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - 2000) < 0.05`, 'baza Rib Web', modelingTimeoutMs);
+  const ribSupport = await window.webContents.executeJavaScript(`(() => {
+    const body = window.__madcadVerifyEngineState.bodies[0];
+    const face = body.topology.faces.filter((item) => item.descriptor.geometry === 'PLANE').sort((left, right) => right.descriptor.center[2] - left.descriptor.center[2])[0];
+    return { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId };
+  })()`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(ribSupport)}, 'replace')`);
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.support?.kind === 'face' && Number(window.__madcadVerifyDocumentState.sketches[0].planeOffset) === 5`, 'szkic Rib Web na górnej ścianie', modelingTimeoutMs);
+  await clickTool('Linia');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'otwarty profil Rib Web');
+  await addSketchPoint([-8, 0], 1);
+  await addSketchPoint([8, 0], 3);
+  const ribLineId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(ribLineId)}], 'replace')`);
+  await clickTool('Rib/Web');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Otwarty profil') && document.querySelector('.command-dialog')?.textContent.includes('Zasięg')`, 'otwarty Rib Web');
+  await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2160) < 0.05 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.bounds[1][2] - 10) < 0.001`, 'podgląd Web', modelingTimeoutMs);
+  await clickDialogButton('Anuluj');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 1 && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'anulowanie Rib Web');
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(ribLineId)}], 'replace')`);
+  await clickTool('Rib/Web');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Rib/Web')`, 'ponownie otwarty Rib Web');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'rib' && window.__madcadVerifyDocumentState.featureData[1].ribMode === 'web' && window.__madcadVerifyDocumentState.featureData[1].openEntityIds?.[0] === ${JSON.stringify(ribLineId)} && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2160) < 0.05`, 'zapisany Web', modelingTimeoutMs);
+  await editTimelineFeature(1, 'Rib/Web');
+  await setCommandField('Typ', 'rib');
+  await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2160) < 0.05 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.bounds[1][2] - 7) < 0.001`, 'podgląd Rib w płaszczyźnie szkicu', modelingTimeoutMs);
+  await clickDialogButton('Anuluj');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.ribMode === 'web'`, 'anulowanie zmiany Web na Rib');
+  await editTimelineFeature(1, 'Rib/Web');
+  await setCommandField('Grubość', '3');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.thickness === '3' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2240) < 0.05`, 'edycja grubości Web', modelingTimeoutMs);
+  await clickByTitle('Cofnij');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.thickness === '2' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2160) < 0.05`, 'undo Rib Web', modelingTimeoutMs);
+  await clickByTitle('Ponów');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.thickness === '3' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2240) < 0.05`, 'redo Rib Web', modelingTimeoutMs);
+  await waitForUi(window, `(() => { const feature = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[1]; return feature?.type === 'rib' && feature.thickness === '3' && feature.ribMode === 'web'; })()`, 'autozapis Rib Web');
+  const ribReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${ribReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'rib' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2240) < 0.05`, 'ponownie otwarty Rib Web', modelingTimeoutMs);
+
   progress('split body by construction and base plane');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla Split Body');
@@ -2144,7 +2197,7 @@ async function runUiFlow(window) {
 app.whenReady().then(async () => {
   const performanceBudgets = isCi
     ? { desktopColdStartMs: 60000, desktopWorkflowMs: 180000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 45000 }
-    : { desktopColdStartMs: 30000, desktopWorkflowMs: 80000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
+    : { desktopColdStartMs: 30000, desktopWorkflowMs: 85000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
     width: 1936,

@@ -265,6 +265,13 @@ function loftProfiles(profiles, loftMode) {
   return shape;
 }
 
+function ribProfile(feature) {
+  const inPlaneThickness = feature.ribMode === 'rib' ? feature.depthValue : feature.thicknessValue;
+  const normalDistance = feature.ribMode === 'rib' ? feature.thicknessValue : feature.depthValue;
+  const drawing = openChainStrip(feature.profile, { wallThicknessValue: inPlaneThickness, wallSide: feature.wallSide, endCap: 'butt' });
+  return drawing.sketchOnPlane(feature.profile.plane || 'XY', Number(feature.profile.planeOffset || 0)).extrude(feature.reverse ? -normalDistance : normalDistance);
+}
+
 function combineShapes(shapes) {
   if (!shapes.length) throw new Error('Operacja nie zawiera żadnego profilu.');
   return shapes.slice(1).reduce((result, shape) => result.fuse(shape), shapes[0]);
@@ -413,6 +420,13 @@ function runFeature(feature, bodyMap, bodyOrder) {
     else if (feature.operation === 'cut') target.shape = target.shape.cut(tool);
     else if (feature.operation === 'intersect') target.shape = target.shape.intersect(tool);
     else throw new Error(`Nieobsługiwana operacja Loft: ${feature.operation}.`);
+    return;
+  }
+
+  if (feature.type === 'rib') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły docelowej dla ${feature.name}.`);
+    target.shape = target.shape.fuse(ribProfile(feature));
     return;
   }
 

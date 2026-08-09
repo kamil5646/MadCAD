@@ -316,6 +316,19 @@ export function prepareDocument(document) {
       if (holeCounts.size !== 1) throw new Error('Wszystkie profile Loft muszą mieć tę samą liczbę otworów.');
       return { ...feature, status: 'ready', diagnostics: [], profiles, loftMode: feature.loftMode || 'smooth' };
     }
+    if (feature.type === 'rib') {
+      const sourceSketch = document.sketches.find((sketch) => sketch.id === feature.sketchId);
+      const profile = { ...resolveOpenChainProfile(sourceSketch, feature.openEntityIds, parameterResult.values, feature.id, 'Rib/Web'), plane: sourceSketch?.plane || 'XY', planeOffset: evaluateExpression(sourceSketch?.planeOffset || 0, parameterResult.values) };
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        profile,
+        ribMode: feature.ribMode || 'web',
+        thicknessValue: positive(evaluateExpression(feature.thickness, parameterResult.values), 'Grubość Rib/Web'),
+        depthValue: positive(evaluateExpression(feature.depth, parameterResult.values), 'Zasięg Rib/Web'),
+      };
+    }
     if (feature.type === 'hole') {
       const holeType = feature.holeType || 'simple';
       const extent = feature.extent || 'distance';

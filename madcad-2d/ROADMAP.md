@@ -79,7 +79,7 @@ Import SVG/DXF został ukończony w `P1.1`.
 - [x] Jeden manipulator dla Extrude, Move/Rotate i Offset Face.
 - [x] Tekst szkicu jako jeden scenariusz `Text → profile → Extrude/Emboss/Deboss`, bez blokowania solvera i zależności od fontów systemowych.
 
-Rib, Coil i Pipe są `P1`.
+Coil i Pipe są `P1`.
 
 ## M7 — otwory i gwinty MVP `P0`
 
@@ -147,7 +147,8 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.14 Revolve zamkniętego profilu wokół osi bazowej albo konstrukcyjnej, z kątem parametrycznym, New/Join/Cut/Intersect, kontrolą położenia osi, edycją, undo/redo, autozapisem i ponownym otwarciem.
 - [x] P1.15 Sweep jednego zamkniętego profilu po ciągłej otwartej ścieżce linii z osobnego szkicu, z New/Join/Cut/Intersect, walidacją rozłączeń, edycją, anulowaniem, undo/redo, autozapisem i ponownym otwarciem.
 - [x] P1.16 Loft między dwoma zamkniętymi profilami z osobnych szkiców na różnych równoległych płaszczyznach, z przejściem gładkim/odcinkowym, zgodną liczbą otworów, New/Join/Cut/Intersect, edycją, anulowaniem, undo/redo, autozapisem i ponownym otwarciem.
-- [>] P1.17 Rib/Web z otwartego profilu szkicu.
+- [x] P1.17 Rib/Web z ciągłego otwartego łańcucha linii szkicu: Rib rośnie w płaszczyźnie, Web prostopadle do niej, oba mają parametryczną grubość i zadany zasięg, stronę oraz kierunek, łączą się z istniejącą bryłą i przechodzą edycję, anulowanie, undo/redo, autozapis i ponowne otwarcie.
+- [>] P1.18 Coil z parametryczną osią, średnicą, skokiem i liczbą zwojów.
 
 ## Definition of Done
 
@@ -171,4 +172,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.17 — Rib/Web z otwartego profilu szkicu.`
+`P1.18 — Coil z parametryczną osią, średnicą, skokiem i liczbą zwojów.`

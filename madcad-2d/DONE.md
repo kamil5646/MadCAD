@@ -57,6 +57,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Revolve obraca zamknięty profil wokół osi bazowej albo parametrycznej osi konstrukcyjnej, obsługuje pełny lub częściowy kąt oraz operacje New/Join/Cut/Intersect na dokładnym B-Rep.
 - [x] Sweep prowadzi zamknięty profil po ciągłej otwartej ścieżce linii osobnego szkicu, obsługuje New/Join/Cut/Intersect oraz pełny przepływ edycji, historii i ponownego otwarcia.
 - [x] Loft tworzy dokładną bryłę między dwoma zamkniętymi profilami na różnych równoległych płaszczyznach, obsługuje przejście gładkie/odcinkowe, zgodne otwory, operacje bryłowe i pełny przepływ historii oraz zapisu.
+- [x] Rib/Web tworzy połączone z bryłą cienkie wzmocnienie z otwartego łańcucha linii; tryby wzrostu w płaszczyźnie i prostopadle do niej mają parametryczną grubość, zasięg, stronę i kierunek.
 
 ## Podstawowe modyfikacje szkicu M2
 

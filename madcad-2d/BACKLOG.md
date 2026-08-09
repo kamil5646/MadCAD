@@ -17,7 +17,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Revolve ukończono jako `P1.14` dla osi bazowych i konstrukcyjnych.
 - [x] Sweep ukończono jako `P1.15` dla jednego zamkniętego profilu i ciągłej otwartej ścieżki linii osobnego szkicu.
 - [x] Loft ukończono jako `P1.16` dla dwóch zamkniętych profili na różnych równoległych płaszczyznach, z przejściem gładkim i odcinkowym.
-- [>] Rib/Web jest aktywnym etapem `P1.17`; dalej pozostają Coil, Pipe, pattern i zaawansowane Emboss/Deboss.
+- [x] Rib/Web ukończono jako `P1.17` dla ciągłych otwartych łańcuchów linii, z rozróżnieniem wzrostu w płaszczyźnie i prostopadle do niej.
+- [>] Coil jest aktywnym etapem `P1.18`; dalej pozostają Pipe, pattern i zaawansowane Emboss/Deboss.
 - Pełne normy gwintów, clearance/tapped/tapered oraz klasy pasowania.
 - Draft Analysis, Interference, Named Views i rozbudowany ViewCube.
 - Zaawansowane profile materiałów/druku, heatmapy, automatyczne ułożenie i naprawa siatki.
