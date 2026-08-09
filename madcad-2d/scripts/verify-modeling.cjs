@@ -962,6 +962,47 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
   await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${revolveReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'revolve' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${300 * Math.PI}) < 0.05`, 'ponownie otwarty Revolve', modelingTimeoutMs);
 
+  progress('sweep profile along a separate sketch path');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla Sweep');
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny ścieżki Sweep');
+  await pickPlane('XY');
+  await clickTool('Linia');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'linia ścieżki Sweep');
+  await addSketchPoint([0, 0], 1);
+  await addSketchPoint([20, 0], 3);
+  await waitForUi(window, `!document.querySelector('.command-dialog')`, 'zakończona ścieżka Sweep');
+  await clickTool('Zakończ szkic');
+  const sweepPathSketchId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].id`);
+  const sweepPathEntityId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny profilu Sweep');
+  await pickPlane('YZ');
+  await clickTool('Okrąg');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Okrąg')`, 'profil Sweep');
+  await setCommandField('Średnica', '4');
+  await setCommandField('Środek X', '0');
+  await setCommandField('Środek Y', '0');
+  await confirmDialog();
+  await clickTool('Zakończ szkic');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'profile'`, 'profil wskazany do Sweep');
+  await clickTool('Sweep');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Ścieżka Sweep')`, 'otwarty Sweep');
+  await waitForUi(window, `window.__madcadVerifyEngineState?.timeline?.at(-1)?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${80 * Math.PI}) < 0.05`, 'podgląd Sweep', modelingTimeoutMs);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'sweep' && window.__madcadVerifyDocumentState.featureData[0].pathSketchId === ${JSON.stringify(sweepPathSketchId)} && window.__madcadVerifyDocumentState.featureData[0].pathEntityIds?.[0] === ${JSON.stringify(sweepPathEntityId)} && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${80 * Math.PI}) < 0.05`, 'zapisany Sweep', modelingTimeoutMs);
+  await editTimelineFeature(0, 'Sweep');
+  await clickDialogButton('Anuluj');
+  await clickByTitle('Cofnij');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 0 && window.__madcadVerifyEngineState?.bodies?.length === 0`, 'undo Sweep', modelingTimeoutMs);
+  await clickByTitle('Ponów');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'sweep' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${80 * Math.PI}) < 0.05`, 'redo Sweep', modelingTimeoutMs);
+  await waitForUi(window, `(() => { const feature = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[0]; return feature?.type === 'sweep' && feature.pathSketchId === ${JSON.stringify(sweepPathSketchId)} && feature.pathEntityIds?.[0] === ${JSON.stringify(sweepPathEntityId)}; })()`, 'autozapis Sweep');
+  const sweepReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${sweepReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'sweep' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${80 * Math.PI}) < 0.05`, 'ponownie otwarty Sweep', modelingTimeoutMs);
+
   progress('split body by construction and base plane');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla Split Body');
@@ -2045,7 +2086,7 @@ async function runUiFlow(window) {
 app.whenReady().then(async () => {
   const performanceBudgets = isCi
     ? { desktopColdStartMs: 60000, desktopWorkflowMs: 180000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 45000 }
-    : { desktopColdStartMs: 30000, desktopWorkflowMs: 70000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
+    : { desktopColdStartMs: 30000, desktopWorkflowMs: 80000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
     width: 1936,

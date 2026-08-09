@@ -73,6 +73,8 @@ const ENGLISH_TEXT = Object.freeze({
   'Revolve': 'Revolve',
   'Oś obrotu': 'Rotation axis',
   'Kąt Revolve': 'Revolve angle',
+  'Sweep': 'Sweep',
+  'Ścieżka Sweep': 'Sweep path',
   'Press Pull': 'Press Pull',
   'Prymityw': 'Primitive',
   'Tekst 3D': '3D text',

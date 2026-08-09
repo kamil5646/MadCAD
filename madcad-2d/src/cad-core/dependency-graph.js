@@ -136,6 +136,8 @@ export function buildDependencyGraph(document) {
     if (feature.sketchId) addEdge(feature.sketchId, feature.id, 'references');
     for (const profileId of feature.profileIds || []) addEdge(profileId, feature.id, 'references');
     for (const entityId of feature.openEntityIds || []) addEdge(entityId, feature.id, 'references-open-chain');
+    for (const entityId of feature.pathEntityIds || []) addEdge(entityId, feature.id, 'sweep-path');
+    if (feature.pathSketchId) addEdge(feature.pathSketchId, feature.id, 'sweep-path-sketch');
     if (feature.profileId) addEdge(feature.profileId, feature.id, 'references');
     if (feature.pointId) addEdge(feature.pointId, feature.id, 'references');
     for (const referenceId of feature.referenceIds || []) addEdge(referenceId, feature.id, 'references-topology');
@@ -149,7 +151,7 @@ export function buildDependencyGraph(document) {
 
     if (feature.targetBodyId) addEdge(feature.targetBodyId, feature.id, 'modifies');
     if (feature.toolBodyId) addEdge(feature.toolBodyId, feature.id, 'consumes');
-    if (((feature.type === 'extrude' || feature.type === 'revolve') && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
+    if ((['extrude', 'revolve', 'sweep'].includes(feature.type) && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
       const bodyId = `body-${feature.id}`;
       addNode(bodyId, 'body', feature.name, { persisted: false, producerFeatureId: feature.id });
       bodyProducerById.set(bodyId, feature.id);

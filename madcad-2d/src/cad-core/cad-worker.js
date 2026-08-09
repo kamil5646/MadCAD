@@ -238,6 +238,19 @@ function revolveProfile(profile, axis, angle) {
   return shape;
 }
 
+function sweepProfile(profile, path) {
+  const sweepDrawing = (profileDrawing) => {
+    const [first, ...rest] = path.geometry.points;
+    const spinePen = draw(first);
+    rest.forEach((point) => spinePen.lineTo(point));
+    const spine = spinePen.done().sketchOnPlane(path.plane || 'XY', Number(path.planeOffset || 0));
+    return spine.sweepSketch((plane) => profileDrawing.sketchOnPlane(plane), { transitionMode: 'round' });
+  };
+  let shape = sweepDrawing(drawingForProfile(profile));
+  for (const hole of profile.geometry.holes || []) shape = shape.cut(sweepDrawing(drawingForSegments(hole.segments, profile.id)));
+  return shape;
+}
+
 function combineShapes(shapes) {
   if (!shapes.length) throw new Error('Operacja nie zawiera żadnego profilu.');
   return shapes.slice(1).reduce((result, shape) => result.fuse(shape), shapes[0]);
@@ -352,6 +365,23 @@ function runFeature(feature, bodyMap, bodyOrder) {
     else if (feature.operation === 'cut') target.shape = target.shape.cut(tool);
     else if (feature.operation === 'intersect') target.shape = target.shape.intersect(tool);
     else throw new Error(`Nieobsługiwana operacja Revolve: ${feature.operation}.`);
+    return;
+  }
+
+  if (feature.type === 'sweep') {
+    const tool = sweepProfile(feature.profile, feature.path);
+    const bodyId = `body-${feature.id}`;
+    if (feature.operation === 'new' || !feature.targetBodyId) {
+      bodyMap.set(bodyId, { id: bodyId, name: feature.name, sourceFeatureId: feature.id, representation: 'brep', shape: tool });
+      bodyOrder.push(bodyId);
+      return;
+    }
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły docelowej dla ${feature.name}.`);
+    if (feature.operation === 'join') target.shape = target.shape.fuse(tool);
+    else if (feature.operation === 'cut') target.shape = target.shape.cut(tool);
+    else if (feature.operation === 'intersect') target.shape = target.shape.intersect(tool);
+    else throw new Error(`Nieobsługiwana operacja Sweep: ${feature.operation}.`);
     return;
   }
 

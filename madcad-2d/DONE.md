@@ -55,6 +55,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Delete Face + Heal usuwa wskazany region podzielonej ściany przez kontrolowane scalenie zgodnych powierzchni, chroni granice poza wyborem i zachowuje objętość dokładnej bryły.
 - [x] Replace Face przesuwa planarną ścianę dokładnej bryły do równoległej powierzchni wskazanej na drugiej bryle, zachowując ją jako niezmienione źródło referencji.
 - [x] Revolve obraca zamknięty profil wokół osi bazowej albo parametrycznej osi konstrukcyjnej, obsługuje pełny lub częściowy kąt oraz operacje New/Join/Cut/Intersect na dokładnym B-Rep.
+- [x] Sweep prowadzi zamknięty profil po ciągłej otwartej ścieżce linii osobnego szkicu, obsługuje New/Join/Cut/Intersect oraz pełny przepływ edycji, historii i ponownego otwarcia.
 
 ## Podstawowe modyfikacje szkicu M2
 

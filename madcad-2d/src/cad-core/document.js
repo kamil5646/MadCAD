@@ -12,7 +12,7 @@ export const DOCUMENT_SCHEMA_VERSION = 4;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'revolve', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'revolve', 'sweep', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -120,7 +120,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', revolve: 'Revolve', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', revolve: 'Revolve', sweep: 'Sweep', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -659,6 +659,20 @@ export function validateDocument(document) {
       if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, `Nieobsługiwana operacja Revolve: ${feature.operation ?? ''}.`, 'UNSUPPORTED');
       if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
       else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono wcześniejszej bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
+    }
+
+    if (feature.type === 'sweep') {
+      if (!sketchIds.has(feature.sketchId) || !sketchIds.has(feature.pathSketchId)) add(`${base}.sketchId`, 'Sweep wymaga szkicu profilu i osobnego szkicu ścieżki.', 'BROKEN_REFERENCE');
+      if (feature.sketchId === feature.pathSketchId) add(`${base}.pathSketchId`, 'Profil i ścieżka Sweep muszą należeć do różnych szkiców.', 'VALUE');
+      if (!Array.isArray(feature.profileIds) || feature.profileIds.length !== 1 || profileOwners.get(feature.profileIds[0]) !== feature.sketchId) add(`${base}.profileIds`, 'Sweep wymaga jednego zamkniętego profilu.', 'REQUIRED');
+      if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Sweep wymaga ciągłej ścieżki z linii szkicu.', 'REQUIRED');
+      else feature.pathEntityIds.forEach((entityId, index) => {
+        const owner = entityOwners.get(entityId);
+        if (!owner || owner.sketchId !== feature.pathSketchId || owner.type !== 'line') add(`${base}.pathEntityIds[${index}]`, 'Ścieżka Sweep musi składać się z linii wskazanego szkicu.', 'UNSUPPORTED');
+      });
+      if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, `Nieobsługiwana operacja Sweep: ${feature.operation ?? ''}.`, 'UNSUPPORTED');
+      if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
+      else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Nie znaleziono bryły docelowej Sweep.', 'BROKEN_REFERENCE');
     }
 
     if (feature.type === 'primitive') {

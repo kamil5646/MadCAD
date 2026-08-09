@@ -519,6 +519,33 @@ test('Revolve przygotowuje zamknięty profil dla osi bazowej i konstrukcyjnej', 
   assert.throws(() => prepareDocument(perpendicular), /płaszczyźnie szkicu/);
 });
 
+test('Sweep przygotowuje profil i ciągłą ścieżkę osobnego szkicu', () => {
+  const document = createDocument('Sweep');
+  const profile = createCircleProfile({ diameter: 4, x: 0, y: 0 });
+  const profileSketch = createSketch({ name: 'Profil Sweep', plane: 'YZ', profiles: [profile] });
+  const first = createSketchPoint({ x: 0, y: 0 });
+  const second = createSketchPoint({ x: 20, y: 0 });
+  const line = createSketchLine({ startPointId: first.id, endPointId: second.id });
+  const pathSketch = createSketch({ name: 'Ścieżka Sweep', plane: 'XY', entities: [first, second, line] });
+  const sweep = createFeature('sweep', { sketchId: profileSketch.id, profileIds: [profile.id], pathSketchId: pathSketch.id, pathEntityIds: [line.id], operation: 'new' });
+  document.sketches.push(profileSketch, pathSketch);
+  document.features.push(sweep);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[0];
+  assert.equal(prepared.profile.geometry.diameter, 4);
+  assert.deepEqual(prepared.path.geometry.points, [[0, 0], [20, 0]]);
+  assert.ok(buildDependencyGraph(document).edges.some((edge) => edge.from === line.id && edge.to === sweep.id && edge.kind === 'sweep-path'));
+
+  const disconnected = structuredClone(document);
+  const third = createSketchPoint({ x: 30, y: 10 });
+  const fourth = createSketchPoint({ x: 40, y: 10 });
+  const extra = createSketchLine({ startPointId: third.id, endPointId: fourth.id });
+  disconnected.sketches[1].entities.push(third, fourth, extra);
+  disconnected.features[0].pathEntityIds.push(extra.id);
+  assert.throws(() => prepareDocument(disconnected), /jednego ciągłego łańcucha/);
+});
+
 test('Thin Extrude przygotowuje parametryczną grubość wewnętrzną, zewnętrzną i symetryczną', () => {
   for (const wallSide of ['inside', 'outside', 'symmetric']) {
     const document = createDocument(`Thin Extrude ${wallSide}`);
