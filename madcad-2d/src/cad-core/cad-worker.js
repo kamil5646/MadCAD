@@ -251,6 +251,20 @@ function sweepProfile(profile, path) {
   return shape;
 }
 
+function loftProfiles(profiles, loftMode) {
+  const loftDrawings = (drawings) => {
+    const sketches = drawings.map((drawing, index) => drawing.sketchOnPlane(profiles[index].plane || 'XY', Number(profiles[index].planeOffset || 0)));
+    return sketches[0].loftWith(sketches.slice(1), { ruled: loftMode === 'ruled' });
+  };
+  let shape = loftDrawings(profiles.map((profile) => drawingForProfile(profile)));
+  const holeCount = profiles[0].geometry.holes?.length || 0;
+  for (let holeIndex = 0; holeIndex < holeCount; holeIndex += 1) {
+    const cutter = loftDrawings(profiles.map((profile) => drawingForSegments(profile.geometry.holes[holeIndex].segments, profile.id)));
+    shape = shape.cut(cutter);
+  }
+  return shape;
+}
+
 function combineShapes(shapes) {
   if (!shapes.length) throw new Error('Operacja nie zawiera żadnego profilu.');
   return shapes.slice(1).reduce((result, shape) => result.fuse(shape), shapes[0]);
@@ -382,6 +396,23 @@ function runFeature(feature, bodyMap, bodyOrder) {
     else if (feature.operation === 'cut') target.shape = target.shape.cut(tool);
     else if (feature.operation === 'intersect') target.shape = target.shape.intersect(tool);
     else throw new Error(`Nieobsługiwana operacja Sweep: ${feature.operation}.`);
+    return;
+  }
+
+  if (feature.type === 'loft') {
+    const tool = loftProfiles(feature.profiles, feature.loftMode);
+    const bodyId = `body-${feature.id}`;
+    if (feature.operation === 'new' || !feature.targetBodyId) {
+      bodyMap.set(bodyId, { id: bodyId, name: feature.name, sourceFeatureId: feature.id, representation: 'brep', shape: tool });
+      bodyOrder.push(bodyId);
+      return;
+    }
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły docelowej dla ${feature.name}.`);
+    if (feature.operation === 'join') target.shape = target.shape.fuse(tool);
+    else if (feature.operation === 'cut') target.shape = target.shape.cut(tool);
+    else if (feature.operation === 'intersect') target.shape = target.shape.intersect(tool);
+    else throw new Error(`Nieobsługiwana operacja Loft: ${feature.operation}.`);
     return;
   }
 

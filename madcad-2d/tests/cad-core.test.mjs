@@ -546,6 +546,31 @@ test('Sweep przygotowuje profil i ciągłą ścieżkę osobnego szkicu', () => {
   assert.throws(() => prepareDocument(disconnected), /jednego ciągłego łańcucha/);
 });
 
+test('Loft przygotowuje uporządkowane profile z osobnych równoległych szkiców', () => {
+  const document = createDocument('Loft');
+  const bottom = createCircleProfile({ diameter: 8, x: 0, y: 0 });
+  const top = createCircleProfile({ diameter: 4, x: 1, y: 0 });
+  const bottomSketch = createSketch({ name: 'Dolny profil Loft', plane: 'XY', planeOffset: '0', profiles: [bottom] });
+  const topSketch = createSketch({ name: 'Górny profil Loft', plane: 'XY', planeOffset: '10', profiles: [top] });
+  const loft = createFeature('loft', { sketchId: topSketch.id, sketchIds: [topSketch.id, bottomSketch.id], profileIds: [top.id, bottom.id], loftMode: 'smooth', operation: 'new' });
+  document.sketches.push(bottomSketch, topSketch);
+  document.features.push(loft);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[0];
+  assert.deepEqual(prepared.profiles.map((profile) => profile.planeOffset), [0, 10]);
+  assert.deepEqual(prepared.profiles.map((profile) => profile.geometry.diameter), [8, 4]);
+  assert.equal(prepared.loftMode, 'smooth');
+  assert.ok(buildDependencyGraph(document).edges.some((edge) => edge.from === bottomSketch.id && edge.to === loft.id && edge.kind === 'loft-section-sketch'));
+
+  const coincident = structuredClone(document);
+  coincident.sketches[1].planeOffset = '0';
+  assert.throws(() => prepareDocument(coincident), /różnych płaszczyznach/);
+  const perpendicular = structuredClone(document);
+  perpendicular.sketches[1].plane = 'YZ';
+  assert.throws(() => prepareDocument(perpendicular), /równoległych płaszczyznach/);
+});
+
 test('Thin Extrude przygotowuje parametryczną grubość wewnętrzną, zewnętrzną i symetryczną', () => {
   for (const wallSide of ['inside', 'outside', 'symmetric']) {
     const document = createDocument(`Thin Extrude ${wallSide}`);

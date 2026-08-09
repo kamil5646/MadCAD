@@ -302,6 +302,20 @@ export function prepareDocument(document) {
       const path = { ...resolveOpenChainProfile(pathSketch, feature.pathEntityIds, parameterResult.values, feature.id, 'Sweep'), plane: pathSketch.plane || 'XY', planeOffset: evaluateExpression(pathSketch.planeOffset || 0, parameterResult.values) };
       return { ...feature, status: 'ready', diagnostics: [], profile, path };
     }
+    if (feature.type === 'loft') {
+      const profiles = feature.profileIds.map((profileId) => {
+        const match = findProfile(document, profileId);
+        if (!match) throw new Error(`Nie znaleziono profilu Loft ${profileId}.`);
+        return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
+      });
+      if (new Set(profiles.map((profile) => profile.plane)).size !== 1) throw new Error('Profile Loft muszą leżeć na równoległych płaszczyznach szkicu.');
+      const offsets = profiles.map((profile) => Number(profile.planeOffset || 0));
+      if (offsets.some((offset, index) => offsets.some((other, otherIndex) => otherIndex > index && Math.abs(offset - other) <= GEOMETRY_POLICY.linearTolerance))) throw new Error('Profile Loft muszą leżeć na różnych płaszczyznach.');
+      profiles.sort((left, right) => Number(left.planeOffset || 0) - Number(right.planeOffset || 0));
+      const holeCounts = new Set(profiles.map((profile) => profile.geometry.holes?.length || 0));
+      if (holeCounts.size !== 1) throw new Error('Wszystkie profile Loft muszą mieć tę samą liczbę otworów.');
+      return { ...feature, status: 'ready', diagnostics: [], profiles, loftMode: feature.loftMode || 'smooth' };
+    }
     if (feature.type === 'hole') {
       const holeType = feature.holeType || 'simple';
       const extent = feature.extent || 'distance';

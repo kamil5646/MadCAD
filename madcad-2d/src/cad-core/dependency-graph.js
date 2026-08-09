@@ -134,6 +134,7 @@ export function buildDependencyGraph(document) {
     addNode(feature.id, 'feature', feature.name, { featureType: feature.type });
     addEdge(document.id, feature.id, 'contains');
     if (feature.sketchId) addEdge(feature.sketchId, feature.id, 'references');
+    for (const sketchId of feature.sketchIds || []) addEdge(sketchId, feature.id, feature.type === 'loft' ? 'loft-section-sketch' : 'references');
     for (const profileId of feature.profileIds || []) addEdge(profileId, feature.id, 'references');
     for (const entityId of feature.openEntityIds || []) addEdge(entityId, feature.id, 'references-open-chain');
     for (const entityId of feature.pathEntityIds || []) addEdge(entityId, feature.id, 'sweep-path');
@@ -151,7 +152,7 @@ export function buildDependencyGraph(document) {
 
     if (feature.targetBodyId) addEdge(feature.targetBodyId, feature.id, 'modifies');
     if (feature.toolBodyId) addEdge(feature.toolBodyId, feature.id, 'consumes');
-    if ((['extrude', 'revolve', 'sweep'].includes(feature.type) && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
+    if ((['extrude', 'revolve', 'sweep', 'loft'].includes(feature.type) && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
       const bodyId = `body-${feature.id}`;
       addNode(bodyId, 'body', feature.name, { persisted: false, producerFeatureId: feature.id });
       bodyProducerById.set(bodyId, feature.id);

@@ -12,7 +12,7 @@ export const DOCUMENT_SCHEMA_VERSION = 4;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'revolve', 'sweep', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'revolve', 'sweep', 'loft', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -120,7 +120,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', revolve: 'Revolve', sweep: 'Sweep', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -673,6 +673,22 @@ export function validateDocument(document) {
       if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, `Nieobsługiwana operacja Sweep: ${feature.operation ?? ''}.`, 'UNSUPPORTED');
       if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
       else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Nie znaleziono bryły docelowej Sweep.', 'BROKEN_REFERENCE');
+    }
+
+    if (feature.type === 'loft') {
+      if (!Array.isArray(feature.profileIds) || feature.profileIds.length < 2) add(`${base}.profileIds`, 'Loft wymaga co najmniej dwóch zamkniętych profili.', 'REQUIRED');
+      if (!Array.isArray(feature.sketchIds) || feature.sketchIds.length !== feature.profileIds?.length) add(`${base}.sketchIds`, 'Loft wymaga szkicu dla każdego profilu.', 'REQUIRED');
+      else {
+        if (new Set(feature.sketchIds).size !== feature.sketchIds.length) add(`${base}.sketchIds`, 'Każdy profil Loft musi należeć do osobnego szkicu.', 'VALUE');
+        feature.profileIds?.forEach((profileId, index) => {
+          if (!profileOwners.has(profileId) || profileOwners.get(profileId) !== feature.sketchIds[index]) add(`${base}.profileIds[${index}]`, 'Profil Loft musi należeć do odpowiadającego mu szkicu.', 'BROKEN_REFERENCE');
+        });
+      }
+      if (feature.sketchId !== feature.sketchIds?.[0]) add(`${base}.sketchId`, 'Pierwszy szkic Loft musi być szkicem źródłowym.', 'VALUE');
+      if (!['smooth', 'ruled'].includes(feature.loftMode || 'smooth')) add(`${base}.loftMode`, 'Nieobsługiwany tryb Loft.', 'UNSUPPORTED');
+      if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, `Nieobsługiwana operacja Loft: ${feature.operation ?? ''}.`, 'UNSUPPORTED');
+      if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
+      else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Nie znaleziono bryły docelowej Loft.', 'BROKEN_REFERENCE');
     }
 
     if (feature.type === 'primitive') {
