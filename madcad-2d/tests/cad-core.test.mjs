@@ -685,6 +685,33 @@ test('Coil przygotowuje parametryczną helisę na osi bazowej lub konstrukcyjnej
   assert.throws(() => prepareDocument(excessive), /0–200/);
 });
 
+test('Pipe przygotowuje pusty przekrój rurowy na ciągłej ścieżce', () => {
+  const document = createDocument('Pipe');
+  const first = createSketchPoint({ x: 0, y: 0 });
+  const corner = createSketchPoint({ x: 20, y: 0 });
+  const last = createSketchPoint({ x: 20, y: 10 });
+  const horizontal = createSketchLine({ startPointId: first.id, endPointId: corner.id });
+  const vertical = createSketchLine({ startPointId: corner.id, endPointId: last.id });
+  const sketch = createSketch({ entities: [first, corner, last, horizontal, vertical] });
+  const pipe = createFeature('pipe', { pathSketchId: sketch.id, pathEntityIds: [vertical.id, horizontal.id], outsideDiameter: '6', wallThickness: '1', operation: 'new' });
+  document.sketches.push(sketch);
+  document.features.push(pipe);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[0];
+  assert.deepEqual(prepared.path.geometry.points, [[0, 0], [20, 0], [20, 10]]);
+  assert.equal(prepared.outsideDiameterValue, 6);
+  assert.equal(prepared.wallThicknessValue, 1);
+  assert.equal(prepared.insideDiameterValue, 4);
+  const graph = buildDependencyGraph(document);
+  assert.equal(graph.producerOfBody(`body-${pipe.id}`), pipe.id);
+  assert.ok(graph.edges.some((edge) => edge.from === horizontal.id && edge.to === pipe.id && edge.kind === 'pipe-path'));
+
+  const solid = structuredClone(document);
+  solid.features[0].wallThickness = '3';
+  assert.throws(() => prepareDocument(solid), /Podwójna grubość/);
+});
+
 test('Boolean wymaga dwóch brył, konsumuje narzędzie i zapisuje zależności Union/Subtract/Intersect', () => {
   for (const operation of ['union', 'subtract', 'intersect']) {
     const document = createDocument(`Boolean ${operation}`);

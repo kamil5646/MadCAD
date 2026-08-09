@@ -12,7 +12,7 @@ export const DOCUMENT_SCHEMA_VERSION = 4;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -120,7 +120,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -714,6 +714,19 @@ export function validateDocument(document) {
       if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, 'Nieobsługiwana operacja Coil.', 'UNSUPPORTED');
       if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
       else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Nie znaleziono bryły docelowej Coil.', 'BROKEN_REFERENCE');
+    }
+
+    if (feature.type === 'pipe') {
+      if (!sketchIds.has(feature.pathSketchId)) add(`${base}.pathSketchId`, 'Pipe wymaga szkicu ścieżki.', 'BROKEN_REFERENCE');
+      if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Pipe wymaga otwartego łańcucha linii.', 'REQUIRED');
+      else feature.pathEntityIds.forEach((entityId, index) => {
+        const owner = entityOwners.get(entityId);
+        if (!owner || owner.sketchId !== feature.pathSketchId || owner.type !== 'line') add(`${base}.pathEntityIds[${index}]`, 'Pipe obsługuje połączone linie wskazanego szkicu.', 'UNSUPPORTED');
+      });
+      for (const [key, label] of [['outsideDiameter', 'średnicy zewnętrznej'], ['wallThickness', 'grubości ścianki']]) if (typeof feature[key] !== 'string' && typeof feature[key] !== 'number') add(`${base}.${key}`, `Pipe wymaga parametrycznej ${label}.`, 'TYPE');
+      if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, 'Nieobsługiwana operacja Pipe.', 'UNSUPPORTED');
+      if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
+      else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Nie znaleziono bryły docelowej Pipe.', 'BROKEN_REFERENCE');
     }
 
     if (feature.type === 'primitive') {

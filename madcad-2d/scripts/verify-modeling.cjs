@@ -1143,6 +1143,37 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
   await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${coilReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'coil' && window.__madcadVerifyEngineState?.timeline?.[0]?.status === 'ok'`, 'ponownie otwarty Coil', modelingTimeoutMs);
 
+  progress('hollow pipe along an open sketch path');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla Pipe');
+  await clickTool('Utwórz szkic');
+  await pickPlane('Góra');
+  await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view') && [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent === 'Linia')`, 'aktywny szkic ścieżki Pipe');
+  await clickTool('Linia');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'polecenie linii Pipe');
+  await addSketchPoint([-10, 0], 1);
+  await addSketchPoint([10, 0], 3);
+  const pipePathId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(pipePathId)}], 'replace')`);
+  await clickTool('Pipe');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Średnica zewnętrzna') && document.querySelector('.command-dialog')?.textContent.includes('Grubość ścianki')`, 'otwarty Pipe');
+  await waitForUi(window, `window.__madcadVerifyEngineState?.timeline?.[0]?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${35 * Math.PI}) < 0.05`, 'podgląd pustego Pipe', modelingTimeoutMs);
+  await confirmDialog();
+  await waitForUi(window, `(() => { const feature = window.__madcadVerifyDocumentState?.featureData?.[0]; return feature?.type === 'pipe' && feature.pathEntityIds?.[0] === ${JSON.stringify(pipePathId)} && feature.outsideDiameter === '4' && feature.wallThickness === '0.5'; })()`, 'zapisany Pipe', modelingTimeoutMs);
+  await editTimelineFeature(0, 'Pipe');
+  await setCommandField('Średnica zewnętrzna', '6');
+  await setCommandField('Grubość ścianki', '1');
+  await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${100 * Math.PI}) < 0.05`, 'podgląd edycji Pipe', modelingTimeoutMs);
+  await confirmDialog();
+  await clickByTitle('Cofnij');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.outsideDiameter === '4'`, 'undo Pipe', modelingTimeoutMs);
+  await clickByTitle('Ponów');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.outsideDiameter === '6' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${100 * Math.PI}) < 0.05`, 'redo Pipe', modelingTimeoutMs);
+  await waitForUi(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[0]?.outsideDiameter === '6'`, 'autozapis Pipe');
+  const pipeReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${pipeReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'pipe' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${100 * Math.PI}) < 0.05`, 'ponownie otwarty Pipe', modelingTimeoutMs);
+
   progress('split body by construction and base plane');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla Split Body');
@@ -2226,7 +2257,7 @@ async function runUiFlow(window) {
 app.whenReady().then(async () => {
   const performanceBudgets = isCi
     ? { desktopColdStartMs: 60000, desktopWorkflowMs: 180000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 45000 }
-    : { desktopColdStartMs: 30000, desktopWorkflowMs: 85000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
+    : { desktopColdStartMs: 30000, desktopWorkflowMs: 90000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
     width: 1936,

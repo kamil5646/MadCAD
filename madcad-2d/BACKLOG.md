@@ -19,7 +19,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Loft ukończono jako `P1.16` dla dwóch zamkniętych profili na różnych równoległych płaszczyznach, z przejściem gładkim i odcinkowym.
 - [x] Rib/Web ukończono jako `P1.17` dla ciągłych otwartych łańcuchów linii, z rozróżnieniem wzrostu w płaszczyźnie i prostopadle do niej.
 - [x] Coil ukończono jako `P1.18` dla osi bazowych i konstrukcyjnych, parametrów średnicy, przekroju, skoku, liczby zwojów i kierunku.
-- [>] Pipe jest aktywnym etapem `P1.19`; dalej pozostają pattern i zaawansowane Emboss/Deboss.
+- [x] Pipe ukończono jako `P1.19` dla pustego parametrycznego przekroju prowadzonego po ciągłej ścieżce.
+- [>] Pattern operacji/bryły jest aktywnym etapem `P1.20`; dalej pozostaje zaawansowane Emboss/Deboss.
 - Pełne normy gwintów, clearance/tapped/tapered oraz klasy pasowania.
 - Draft Analysis, Interference, Named Views i rozbudowany ViewCube.
 - Zaawansowane profile materiałów/druku, heatmapy, automatyczne ułożenie i naprawa siatki.

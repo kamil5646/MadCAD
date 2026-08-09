@@ -14,6 +14,7 @@ function featureExpressions(feature) {
   if (feature.type === 'revolve') return [feature.angle];
   if (feature.type === 'rib') return [feature.thickness, feature.depth];
   if (feature.type === 'coil') return [feature.coilDiameter, feature.wireDiameter, feature.pitch, feature.turns];
+  if (feature.type === 'pipe') return [feature.outsideDiameter, feature.wallThickness];
   if (feature.type === 'hole') return [feature.diameter, feature.depth, feature.firstOffset, feature.secondOffset, feature.counterboreDiameter, feature.counterboreDepth, feature.countersinkDiameter, feature.countersinkAngle, feature.threadDiameter, feature.threadPitch, feature.threadLength, feature.clearance];
   if (feature.type === 'fillet') return [feature.radius];
   if (feature.type === 'chamfer') return [feature.distance];
@@ -139,8 +140,8 @@ export function buildDependencyGraph(document) {
     for (const sketchId of feature.sketchIds || []) addEdge(sketchId, feature.id, feature.type === 'loft' ? 'loft-section-sketch' : 'references');
     for (const profileId of feature.profileIds || []) addEdge(profileId, feature.id, 'references');
     for (const entityId of feature.openEntityIds || []) addEdge(entityId, feature.id, 'references-open-chain');
-    for (const entityId of feature.pathEntityIds || []) addEdge(entityId, feature.id, 'sweep-path');
-    if (feature.pathSketchId) addEdge(feature.pathSketchId, feature.id, 'sweep-path-sketch');
+    for (const entityId of feature.pathEntityIds || []) addEdge(entityId, feature.id, feature.type === 'pipe' ? 'pipe-path' : 'sweep-path');
+    if (feature.pathSketchId) addEdge(feature.pathSketchId, feature.id, feature.type === 'pipe' ? 'pipe-path-sketch' : 'sweep-path-sketch');
     if (feature.profileId) addEdge(feature.profileId, feature.id, 'references');
     if (feature.pointId) addEdge(feature.pointId, feature.id, 'references');
     for (const referenceId of feature.referenceIds || []) addEdge(referenceId, feature.id, 'references-topology');
@@ -155,7 +156,7 @@ export function buildDependencyGraph(document) {
 
     if (feature.targetBodyId) addEdge(feature.targetBodyId, feature.id, 'modifies');
     if (feature.toolBodyId) addEdge(feature.toolBodyId, feature.id, 'consumes');
-    if ((['extrude', 'revolve', 'sweep', 'loft', 'coil'].includes(feature.type) && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
+    if ((['extrude', 'revolve', 'sweep', 'loft', 'coil', 'pipe'].includes(feature.type) && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
       const bodyId = `body-${feature.id}`;
       addNode(bodyId, 'body', feature.name, { persisted: false, producerFeatureId: feature.id });
       bodyProducerById.set(bodyId, feature.id);

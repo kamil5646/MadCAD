@@ -357,6 +357,14 @@ export function prepareDocument(document) {
         handedness: feature.handedness || 'right',
       };
     }
+    if (feature.type === 'pipe') {
+      const pathSketch = document.sketches.find((sketch) => sketch.id === feature.pathSketchId);
+      const path = { ...resolveOpenChainProfile(pathSketch, feature.pathEntityIds, parameterResult.values, feature.id, 'Pipe'), plane: pathSketch?.plane || 'XY', planeOffset: evaluateExpression(pathSketch?.planeOffset || 0, parameterResult.values) };
+      const outsideDiameterValue = positive(evaluateExpression(feature.outsideDiameter, parameterResult.values), 'Średnica zewnętrzna Pipe');
+      const wallThicknessValue = positive(evaluateExpression(feature.wallThickness, parameterResult.values), 'Grubość ścianki Pipe');
+      if ((2 * wallThicknessValue) >= outsideDiameterValue) throw new Error('Podwójna grubość ścianki Pipe musi być mniejsza od średnicy zewnętrznej.');
+      return { ...feature, status: 'ready', diagnostics: [], path, outsideDiameterValue, wallThicknessValue, insideDiameterValue: outsideDiameterValue - (2 * wallThicknessValue) };
+    }
     if (feature.type === 'hole') {
       const holeType = feature.holeType || 'simple';
       const extent = feature.extent || 'distance';

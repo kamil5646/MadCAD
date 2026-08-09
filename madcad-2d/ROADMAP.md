@@ -79,7 +79,7 @@ Import SVG/DXF został ukończony w `P1.1`.
 - [x] Jeden manipulator dla Extrude, Move/Rotate i Offset Face.
 - [x] Tekst szkicu jako jeden scenariusz `Text → profile → Extrude/Emboss/Deboss`, bez blokowania solvera i zależności od fontów systemowych.
 
-Pipe jest `P1`; Coil ukończono jako `P1.18`.
+Coil i Pipe ukończono jako `P1.18–P1.19`.
 
 ## M7 — otwory i gwinty MVP `P0`
 
@@ -149,7 +149,8 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.16 Loft między dwoma zamkniętymi profilami z osobnych szkiców na różnych równoległych płaszczyznach, z przejściem gładkim/odcinkowym, zgodną liczbą otworów, New/Join/Cut/Intersect, edycją, anulowaniem, undo/redo, autozapisem i ponownym otwarciem.
 - [x] P1.17 Rib/Web z ciągłego otwartego łańcucha linii szkicu: Rib rośnie w płaszczyźnie, Web prostopadle do niej, oba mają parametryczną grubość i zadany zasięg, stronę oraz kierunek, łączą się z istniejącą bryłą i przechodzą edycję, anulowanie, undo/redo, autozapis i ponowne otwarcie.
 - [x] P1.18 Coil jako dokładna bryła helikalna wokół osi bazowej albo konstrukcyjnej, z parametryczną średnicą spirali i przekroju, skokiem, ułamkową liczbą zwojów, kierunkiem prawym/lewym, New/Join/Cut/Intersect, limitem złożoności, kontrolą samoprzecięcia, edycją, anulowaniem, undo/redo, autozapisem i ponownym otwarciem.
-- [>] P1.19 Pipe z parametrycznym przekrojem rurowym prowadzonym po ciągłej ścieżce.
+- [x] P1.19 Pipe jako dokładny pusty przekrój rurowy prowadzony po ciągłej otwartej ścieżce linii, z parametryczną średnicą zewnętrzną i grubością ścianki, New/Join/Cut/Intersect, walidacją ścieżki i kanału wewnętrznego, edycją, undo/redo, autozapisem i ponownym otwarciem.
+- [>] P1.20 Pattern operacji/bryły: prostokątny, kołowy i po ścieżce bez dublowania mechaniki szyków szkicu.
 
 ## Definition of Done
 
@@ -173,4 +174,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.19 — Pipe z parametrycznym przekrojem rurowym prowadzonym po ciągłej ścieżce.`
+`P1.20 — Pattern operacji/bryły: prostokątny, kołowy i po ścieżce.`
