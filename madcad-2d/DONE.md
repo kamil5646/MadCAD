@@ -43,6 +43,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Prostokątny i kołowy szyk szkicu kopiuje punkty, linie, łuki, okręgi i profile, obsługuje listy oraz zakresy pomijanych wystąpień i przechodzi pełny przepływ zapisu.
 - [x] Szyk szkicu po pojedynczej linii lub łuku rozstawia kopie równo, utrzymuje orientację albo obraca je do stycznej i obsługuje ten sam przepływ pomijania, undo/redo oraz zapisu.
 - [x] Płaszczyzny angle/tangent/path, oś normalna do płaszczyzny oraz punkty środkowy i odsunięty na osi są parametryczne, walidowane i zachowują zależności po ponownym otwarciu dokumentu.
+- [x] Więz curvature utrzymuje wspólny okrąg oskulacyjny dwóch połączonych łuków, wykrywa konflikt nieruchomych środków i działa przez przycisk oraz znacznik κ.
 
 ## Podstawowe modyfikacje szkicu M2
 

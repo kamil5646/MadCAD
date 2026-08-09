@@ -26,6 +26,7 @@ export const SUPPORTED_SKETCH_CONSTRAINTS = Object.freeze([
   'coordinateX',
   'coordinateY',
   'arcLength',
+  'curvature',
 ]);
 
 function parameterValues(parameters) {
@@ -385,6 +386,24 @@ function rowForConstraint(constraint, entityMap, variableColumns, values) {
       return { supported: true, rows: [{ row, residual: distance - target }] };
     }
     return { supported: true, error: 'Wiązanie tangent wymaga linii i okręgu albo dwóch okręgów.' };
+  }
+
+  if (constraint.type === 'curvature') {
+    const arcs = referencedEntities(constraint.entityIds, entityMap, 'arc');
+    if (arcs.length !== 2) return { supported: true, error: 'Wiązanie curvature wymaga dokładnie dwóch łuków.' };
+    const sharedPointIds = arcs[0].pointIds.slice(1).filter((pointId) => arcs[1].pointIds.slice(1).includes(pointId));
+    if (sharedPointIds.length !== 1) return { supported: true, error: 'Łuki curvature muszą mieć dokładnie jeden wspólny koniec.' };
+    const centers = arcs.map((arc) => entityMap.get(arc.pointIds[0]));
+    if (centers.some((point) => point?.type !== 'point')) return { supported: true, error: 'Łuk curvature nie ma punktu środka.' };
+    return {
+      supported: true,
+      rows: ['x', 'y'].map((axis) => {
+        const row = makeRow();
+        coefficient(row, centers[0].id, axis, -1);
+        coefficient(row, centers[1].id, axis, 1);
+        return { row, residual: pointValue(centers[1], axis) - pointValue(centers[0], axis) };
+      }),
+    };
   }
 
   if (constraint.type === 'fixed') return { supported: true, rows: [] };
@@ -814,6 +833,20 @@ export function solveSketchConstraints(sketch, parameters = [], options = {}) {
           const centers = circles.map((circle) => entityMap.get(circle.pointIds[0]));
           maximumDelta = Math.max(maximumDelta, setDistance(centers[0], centers[1], radii.get(circles[0].id) + radii.get(circles[1].id)));
         }
+        continue;
+      }
+      if (constraint.type === 'curvature') {
+        const arcs = referencedEntities(constraint.entityIds, entityMap, 'arc');
+        if (arcs.length !== 2) continue;
+        const centers = arcs.map((arc) => coordinates.get(arc.pointIds[0]));
+        const centerIds = arcs.map((arc) => arc.pointIds[0]);
+        if (centers.some((point) => !point)) continue;
+        const firstMovable = !fixedPointIds.has(centerIds[0]);
+        const secondMovable = !fixedPointIds.has(centerIds[1]);
+        const distance = Math.hypot(centers[1].x - centers[0].x, centers[1].y - centers[0].y);
+        if (secondMovable) Object.assign(centers[1], centers[0]);
+        else if (firstMovable) Object.assign(centers[0], centers[1]);
+        maximumDelta = Math.max(maximumDelta, (firstMovable || secondMovable) ? distance : 0);
         continue;
       }
       if (!['coincident', 'horizontal', 'vertical', 'distance', 'distanceX', 'distanceY'].includes(constraint.type)) continue;

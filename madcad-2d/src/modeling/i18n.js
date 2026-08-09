@@ -57,6 +57,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Usuń': 'Delete',
   'Współliniowe': 'Collinear',
   'Symetria': 'Symmetry',
+  'Krzywizna G2': 'G2 curvature',
   'Ordinate X': 'Ordinate X',
   'Ordinate Y': 'Ordinate Y',
   'Długość łuku': 'Arc length',

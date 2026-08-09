@@ -1475,6 +1475,34 @@ test('solver utrzymuje styczność linii z okręgiem oraz dwóch okręgów', () 
   assert.ok(Math.abs(Math.hypot(movedCenter.x, movedCenter.y) - 8) <= GEOMETRY_POLICY.linearTolerance);
 });
 
+test('solver curvature utrzymuje wspólny okrąg dwóch połączonych łuków i wykrywa konflikt', () => {
+  const firstCenter = createSketchPoint({ x: 0, y: 0, fixed: true });
+  const secondCenter = createSketchPoint({ x: 2, y: 1 });
+  const start = createSketchPoint({ x: -10, y: 0 });
+  const joint = createSketchPoint({ x: 10, y: 0 });
+  const end = createSketchPoint({ x: 0, y: 10 });
+  const firstArc = createSketchArc({ centerPointId: firstCenter.id, startPointId: start.id, endPointId: joint.id, direction: 'ccw' });
+  const secondArc = createSketchArc({ centerPointId: secondCenter.id, startPointId: joint.id, endPointId: end.id, direction: 'ccw' });
+  const constraint = createSketchConstraint('curvature', [firstArc.id, secondArc.id]);
+  const sketch = createSketch({ entities: [firstCenter, secondCenter, start, joint, end, firstArc, secondArc], constraints: [constraint] });
+  const solution = solveSketchConstraints(sketch);
+  assert.equal(solution.solved, true);
+  const movedCenter = solution.updates.find((entry) => entry.pointId === secondCenter.id);
+  assert.ok(Math.hypot(movedCenter.x, movedCenter.y) <= GEOMETRY_POLICY.linearTolerance);
+  applySketchConstraintSolution(sketch, solution);
+  const document = { ...createDocument('Curvature'), sketches: [sketch] };
+  assert.equal(validateDocument(document).valid, true);
+  assert.equal(openDocument(JSON.parse(JSON.stringify(document))).document.sketches[0].constraints[0].type, 'curvature');
+
+  const fixedSecondCenter = { ...secondCenter, fixed: true };
+  const conflicting = createSketch({ entities: [firstCenter, fixedSecondCenter, start, joint, end, firstArc, secondArc], constraints: [constraint] });
+  assert.equal(analyzeSketchConstraints(conflicting).status, SKETCH_SOLVER_STATUS.CONFLICT);
+  const separateEnd = createSketchPoint({ x: 10, y: 1 });
+  const separateArc = createSketchArc({ centerPointId: secondCenter.id, startPointId: separateEnd.id, endPointId: end.id });
+  const invalid = createSketch({ entities: [firstCenter, secondCenter, start, joint, end, separateEnd, firstArc, separateArc], constraints: [createSketchConstraint('curvature', [firstArc.id, separateArc.id])] });
+  assert.match(analyzeSketchConstraints(invalid).diagnostics[0].message, /wspólny koniec/);
+});
+
 test('Trim usuwa wskazany środkowy fragment linii i bezpiecznie czyści zależności', () => {
   const document = createDocument('Trim linii');
   const points = [[0, 0], [20, 0], [20, 10], [0, 10]].map(([x, y]) => createSketchPoint({ x, y }));

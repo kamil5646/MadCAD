@@ -352,7 +352,7 @@ async function runUiFlow(window) {
 
   progress('collinear and symmetry constraints');
   await window.webContents.executeJavaScript(`window.__madcadVerifyLoadConstraintFixture?.()`);
-  await waitForUi(window, `window.__madcadConstraintFixtureIds && window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 11`, 'fixture więzów P1');
+  await waitForUi(window, `window.__madcadConstraintFixtureIds && window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 18`, 'fixture więzów P1');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection(window.__madcadConstraintFixtureIds.collinear, 'replace')`);
   await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Współliniowe')?.disabled)`, 'aktywny przycisk współliniowości');
   await clickTool('Współliniowe');
@@ -365,12 +365,18 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.constraints?.some((item) => item.type === 'symmetry')`, 'więz symmetry');
   const symmetrySolved = await window.webContents.executeJavaScript(`(() => { const point = window.__madcadVerifyDocumentState.sketches[0].entityData.find((item) => item.id === window.__madcadConstraintFixtureIds.reflectedPointId); return Math.abs(Number(point.geometry.x) - 3) < 1e-6 && Math.abs(Number(point.geometry.y) - 2) < 1e-6; })()`);
   if (!symmetrySolved) throw new Error('UI symmetry did not reflect target point.');
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection(window.__madcadConstraintFixtureIds.curvature, 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Krzywizna G2')?.disabled)`, 'aktywny przycisk krzywizny G2');
+  await clickTool('Krzywizna G2');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.constraints?.some((item) => item.type === 'curvature')`, 'więz curvature');
+  const curvatureSolved = await window.webContents.executeJavaScript(`(() => { const point = window.__madcadVerifyDocumentState.sketches[0].entityData.find((item) => item.id === window.__madcadConstraintFixtureIds.curvatureCenterId); return Math.abs(Number(point.geometry.x) - 20) < 1e-6 && Math.abs(Number(point.geometry.y)) < 1e-6; })()`);
+  if (!curvatureSolved) throw new Error('UI curvature did not align arc osculating circles.');
   await sendShortcut('z');
-  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.constraints?.length === 1`, 'undo symmetry');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.constraints?.length === 2`, 'undo curvature');
   await sendShortcut('z', true);
-  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.constraints?.length === 2`, 'redo symmetry');
-  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.[0]?.constraints?.some((item) => item.type === 'collinear') && saved.sketches[0].constraints.some((item) => item.type === 'symmetry'); })()`, 'autozapis więzów P1');
-  const constraintFlow = { collinear: collinearSolved, symmetry: symmetrySolved, undoRedo: true };
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.constraints?.length === 3`, 'redo curvature');
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return ['collinear', 'symmetry', 'curvature'].every((type) => saved?.sketches?.[0]?.constraints?.some((item) => item.type === type)); })()`, 'autozapis więzów P1');
+  const constraintFlow = { collinear: collinearSolved, symmetry: symmetrySolved, curvature: curvatureSolved, undoRedo: true };
 
   progress('ordinate and arc length dimensions');
   await window.webContents.executeJavaScript(`window.__madcadVerifyLoadDimensionFixture?.()`);

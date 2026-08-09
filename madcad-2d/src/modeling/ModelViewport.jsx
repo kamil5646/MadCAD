@@ -1664,7 +1664,7 @@ export default function ModelViewport({
             const isDimension = activeSketch.dimensions?.some((dimension) => dimension.constraintId === constraint.id);
             return isDimension ? showSketchDimensions : showSketchConstraints;
           }).map((constraint) => {
-            const labels = { fixed: 'F', coincident: '●', horizontal: 'H', vertical: 'V', distance: '↔', distanceX: 'X', distanceY: 'Y', angle: '∠', radius: 'R', diameter: 'Ø', tangent: 'T', equal: '=', collinear: 'C', symmetry: 'S', coordinateX: 'OX', coordinateY: 'OY', arcLength: '⌒' };
+            const labels = { fixed: 'F', coincident: '●', horizontal: 'H', vertical: 'V', distance: '↔', distanceX: 'X', distanceY: 'Y', angle: '∠', radius: 'R', diameter: 'Ø', tangent: 'T', equal: '=', collinear: 'C', symmetry: 'S', curvature: 'κ', coordinateX: 'OX', coordinateY: 'OY', arcLength: '⌒' };
             const conflicting = solverAnalysis?.conflictConstraintIds?.includes(constraint.id);
             return <button key={constraint.id} className={`${selectedSketchConstraintId === constraint.id ? 'selected' : ''} ${conflicting ? 'conflict' : ''}`} type="button" title={`${constraint.type}${constraint.value !== undefined ? `: ${constraint.value}` : ''}`} onClick={() => onSketchConstraintSelection?.(constraint.id)}>{labels[constraint.type] || '?'}</button>;
           })}

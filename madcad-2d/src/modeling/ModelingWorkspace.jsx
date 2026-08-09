@@ -1049,6 +1049,9 @@ export default function ModelingWorkspace({ onClose }) {
   const canAddSymmetry = selectedSketchEntities.filter((entity) => entity.type === 'point').length === 2
     && selectedSketchEntities.filter((entity) => entity.type === 'line').length === 1
     && selectedSketchEntities.length === 3;
+  const canAddCurvature = selectedSketchEntities.length === 2
+    && selectedSketchEntities.every((entity) => entity.type === 'arc')
+    && selectedSketchEntities[0].pointIds.slice(1).filter((pointId) => selectedSketchEntities[1].pointIds.slice(1).includes(pointId)).length === 1;
   const canAddOrdinate = selectedSketchEntities.length === 1 && selectedSketchEntities[0].type === 'point';
   const canAddArcLength = selectedSketchEntities.length === 1 && selectedSketchEntities[0].type === 'arc';
   const selectedTopologyIds = useMemo(() => (
@@ -1693,9 +1696,9 @@ export default function ModelingWorkspace({ onClose }) {
 
   const addSelectedSketchConstraint = (type) => {
     if (readOnly) return readOnlyNotice();
-    const valid = type === 'collinear' ? canAddCollinear : type === 'symmetry' ? canAddSymmetry : false;
+    const valid = type === 'collinear' ? canAddCollinear : type === 'symmetry' ? canAddSymmetry : type === 'curvature' ? canAddCurvature : false;
     if (!activeSketchId || !valid) {
-      setNotice(type === 'collinear' ? 'Współliniowość wymaga zaznaczenia dwóch linii.' : 'Symetria wymaga zaznaczenia dwóch punktów i jednej linii osi.');
+      setNotice(type === 'collinear' ? 'Współliniowość wymaga zaznaczenia dwóch linii.' : type === 'symmetry' ? 'Symetria wymaga zaznaczenia dwóch punktów i jednej linii osi.' : 'Krzywizna G2 wymaga dwóch łuków z jednym wspólnym końcem.');
       return;
     }
     const constraint = createSketchConstraint(type, selectedSketchEntityIds);
@@ -1714,7 +1717,7 @@ export default function ModelingWorkspace({ onClose }) {
       applyConstraint(checked);
       commit(applyConstraint);
       setSelection({ kind: 'sketchConstraint', id: constraint.id, sketchId: activeSketchId });
-      setNotice(type === 'collinear' ? 'Dodano więz współliniowości. Cofnij przywraca poprzednią geometrię.' : 'Dodano więz symetrii względem wskazanej osi. Cofnij przywraca poprzednią geometrię.');
+      setNotice(type === 'collinear' ? 'Dodano więz współliniowości. Cofnij przywraca poprzednią geometrię.' : type === 'symmetry' ? 'Dodano więz symetrii względem wskazanej osi. Cofnij przywraca poprzednią geometrię.' : 'Dodano ciągłość krzywizny G2 między łukami. Cofnij przywraca poprzednią geometrię.');
     } catch (error) {
       setNotice(`Nie dodano więzu: ${error.message}`);
     }
@@ -2157,13 +2160,21 @@ export default function ModelingWorkspace({ onClose }) {
       const axisPoints = [createSketchPoint({ x: 0, y: -10 }), createSketchPoint({ x: 0, y: 10 })];
       const axisLine = createSketchLine({ startPointId: axisPoints[0].id, endPointId: axisPoints[1].id, fixed: true });
       const symmetryPoints = [createSketchPoint({ x: -3, y: 2, fixed: true }), createSketchPoint({ x: 5, y: 4 })];
-      const sketch = createSketch({ name: 'Szkic więzów P1', plane: 'XY', entities: [...sourcePoints, ...targetPoints, sourceLine, targetLine, ...axisPoints, axisLine, ...symmetryPoints] });
+      const curvatureCenters = [createSketchPoint({ x: 20, y: 0, fixed: true }), createSketchPoint({ x: 22, y: 1 })];
+      const curvaturePoints = [createSketchPoint({ x: 10, y: 0 }), createSketchPoint({ x: 30, y: 0 }), createSketchPoint({ x: 20, y: 10 })];
+      const curvatureArcs = [
+        createSketchArc({ centerPointId: curvatureCenters[0].id, startPointId: curvaturePoints[0].id, endPointId: curvaturePoints[1].id, direction: 'ccw' }),
+        createSketchArc({ centerPointId: curvatureCenters[1].id, startPointId: curvaturePoints[1].id, endPointId: curvaturePoints[2].id, direction: 'ccw' }),
+      ];
+      const sketch = createSketch({ name: 'Szkic więzów P1', plane: 'XY', entities: [...sourcePoints, ...targetPoints, sourceLine, targetLine, ...axisPoints, axisLine, ...symmetryPoints, ...curvatureCenters, ...curvaturePoints, ...curvatureArcs] });
       fixture.sketches.push(sketch);
       window.__madcadConstraintFixtureIds = {
         collinear: [sourceLine.id, targetLine.id],
         symmetry: [symmetryPoints[0].id, symmetryPoints[1].id, axisLine.id],
         targetPointIds: targetPoints.map((point) => point.id),
         reflectedPointId: symmetryPoints[1].id,
+        curvature: curvatureArcs.map((arc) => arc.id),
+        curvatureCenterId: curvatureCenters[1].id,
       };
       history.replace(fixture);
       setActiveSketchId(sketch.id);
@@ -3153,7 +3164,7 @@ export default function ModelingWorkspace({ onClose }) {
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /><ToolButton icon={Upload} label="Import SVG/DXF" onClick={() => sketchImportInputRef.current?.click()} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { setCommand(null); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Maximize2} label="Extend" onClick={() => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' })} primary={command?.type === 'extendSketch'} disabled={readOnly} /><ToolButton icon={Minus} label="Break" onClick={() => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' })} primary={command?.type === 'breakSketch'} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Project" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} /><ToolButton icon={Copy} label="Offset" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} /><ToolButton icon={CircleDotDashed} label="Fillet szkicu" onClick={() => openSketchCorner('fillet')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={Triangle} label="Faza szkicu" onClick={() => openSketchCorner('chamfer')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={RotateCw} label="Transformuj" onClick={openSketchTransform} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Grid2X2} label="Szyk szkicu" onClick={openSketchPattern} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
-                <RibbonGroup label="WIĘZY"><ToolButton icon={Minus} label="Współliniowe" onClick={() => addSelectedSketchConstraint('collinear')} disabled={readOnly || !canAddCollinear} /><ToolButton icon={Frame} label="Symetria" onClick={() => addSelectedSketchConstraint('symmetry')} disabled={readOnly || !canAddSymmetry} /></RibbonGroup>
+                <RibbonGroup label="WIĘZY"><ToolButton icon={Minus} label="Współliniowe" onClick={() => addSelectedSketchConstraint('collinear')} disabled={readOnly || !canAddCollinear} /><ToolButton icon={Frame} label="Symetria" onClick={() => addSelectedSketchConstraint('symmetry')} disabled={readOnly || !canAddSymmetry} /><ToolButton icon={CircleDotDashed} label="Krzywizna G2" onClick={() => addSelectedSketchConstraint('curvature')} disabled={readOnly || !canAddCurvature} /></RibbonGroup>
                 <RibbonGroup label="WYMIARY"><ToolButton icon={Ruler} label="Ordinate X" onClick={() => openSketchDimension('ordinateX')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={Ruler} label="Ordinate Y" onClick={() => openSketchDimension('ordinateY')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={RotateCw} label="Długość łuku" onClick={() => openSketchDimension('arcLength')} disabled={readOnly || !canAddArcLength} /></RibbonGroup>
                 <RibbonGroup label="SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
