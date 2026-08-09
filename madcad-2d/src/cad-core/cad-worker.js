@@ -163,10 +163,19 @@ function extrusionSpan(feature, bodyMap) {
   return { startDelta: startOffset, distance: feature.distanceValue };
 }
 
-function extrudeProfile(profile, span) {
+function thinDrawingForProfile(profile, feature) {
+  const drawing = drawingForProfile(profile);
+  const thickness = feature.wallThicknessValue;
+  const offset = (distance) => drawing.offset(distance, { lineJoinType: 'miter' });
+  if (feature.wallSide === 'outside') return offset(thickness).cut(drawing);
+  if (feature.wallSide === 'inside') return drawing.cut(offset(-thickness));
+  return offset(thickness / 2).cut(offset(-thickness / 2));
+}
+
+function extrudeProfile(profile, span, feature) {
   const plane = profile.plane || 'XY';
   const planeOffset = Number(profile.planeOffset || 0) + span.startDelta;
-  let shape = drawingForProfile(profile).sketchOnPlane(plane, planeOffset).extrude(span.distance);
+  let shape = (feature.thin ? thinDrawingForProfile(profile, feature) : drawingForProfile(profile)).sketchOnPlane(plane, planeOffset).extrude(span.distance);
   for (const hole of profile.geometry.holes || []) {
     const cutter = drawingForSegments(hole.segments, profile.id).sketchOnPlane(plane, planeOffset).extrude(span.distance);
     shape = shape.cut(cutter);
@@ -276,7 +285,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
 
   if (feature.type === 'extrude') {
     const span = extrusionSpan(feature, bodyMap);
-    const tool = combineShapes(feature.profiles.map((profile) => extrudeProfile(profile, span)));
+    const tool = combineShapes(feature.profiles.map((profile) => extrudeProfile(profile, span, feature)));
     const bodyId = `body-${feature.id}`;
     if (feature.operation === 'new' || !feature.targetBodyId) {
       bodyMap.set(bodyId, { id: bodyId, name: feature.name, sourceFeatureId: feature.id, representation: 'brep', shape: tool });

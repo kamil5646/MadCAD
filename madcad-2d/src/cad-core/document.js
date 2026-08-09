@@ -632,6 +632,11 @@ export function validateDocument(document) {
         else if (targetReference.kind === 'topology' && ![targetReference.descriptor?.center, targetReference.descriptor?.normal].every((vector) => Array.isArray(vector) && vector.length === 3 && vector.every((value) => Number.isFinite(value)))) add(`${base}.targetReferenceId`, 'Planarna ściana docelowa wymaga prawidłowego środka i normalnej 3D.', 'TYPE');
       }
       if (feature.startOffset !== undefined && typeof feature.startOffset !== 'string' && typeof feature.startOffset !== 'number') add(`${base}.startOffset`, 'Odsunięcie początku wyciągnięcia musi być wyrażeniem albo liczbą.', 'TYPE');
+      if (feature.thin !== undefined && typeof feature.thin !== 'boolean') add(`${base}.thin`, 'Tryb cienkościenny musi być wartością logiczną.', 'TYPE');
+      if (feature.thin) {
+        if (typeof feature.wallThickness !== 'string' && typeof feature.wallThickness !== 'number') add(`${base}.wallThickness`, 'Thin Extrude wymaga parametrycznej grubości ścianki.', 'TYPE');
+        if (!['inside', 'outside', 'symmetric'].includes(feature.wallSide)) add(`${base}.wallSide`, 'Nieobsługiwana strona grubości Thin Extrude.', 'UNSUPPORTED');
+      }
       if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
       else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono wcześniejszej bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
     }

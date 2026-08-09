@@ -495,6 +495,29 @@ test('Extrude To Object kończy się dokładnie na równoległej płaszczyźnie 
   assert.ok(validateDocument(curvedFace).issues.some((issue) => issue.path.endsWith('.targetReferenceId') && issue.code === 'UNSUPPORTED'));
 });
 
+test('Thin Extrude przygotowuje parametryczną grubość wewnętrzną, zewnętrzną i symetryczną', () => {
+  for (const wallSide of ['inside', 'outside', 'symmetric']) {
+    const document = createDocument(`Thin Extrude ${wallSide}`);
+    document.parameters.push(createParameter('scianka', '2'));
+    const profile = createRectangleProfile({ width: 20, height: 10 });
+    const sketch = createSketch({ profiles: [profile] });
+    const feature = createFeature('extrude', { sketchId: sketch.id, profileIds: [profile.id], distance: '8', operation: 'new', thin: true, wallThickness: 'scianka', wallSide });
+    document.sketches.push(sketch);
+    document.features.push(feature);
+    const prepared = prepareDocument(document).features[0];
+    assert.equal(prepared.wallThicknessValue, 2);
+    assert.equal(prepared.wallSide, wallSide);
+    assert.ok(buildDependencyGraph(document).edges.some((edge) => edge.from === document.parameters[0].id && edge.to === feature.id && edge.kind === 'drives'));
+  }
+
+  const invalid = createDocument('Niepoprawny Thin Extrude');
+  const profile = createRectangleProfile({ width: 20, height: 10 });
+  const sketch = createSketch({ profiles: [profile] });
+  invalid.sketches.push(sketch);
+  invalid.features.push(createFeature('extrude', { sketchId: sketch.id, profileIds: [profile.id], distance: '8', operation: 'new', thin: true, wallThickness: '2', wallSide: 'left' }));
+  assert.ok(validateDocument(invalid).issues.some((issue) => issue.path.endsWith('.wallSide')));
+});
+
 test('Boolean wymaga dwóch brył, konsumuje narzędzie i zapisuje zależności Union/Subtract/Intersect', () => {
   for (const operation of ['union', 'subtract', 'intersect']) {
     const document = createDocument(`Boolean ${operation}`);

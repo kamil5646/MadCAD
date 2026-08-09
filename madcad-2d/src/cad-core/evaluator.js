@@ -224,6 +224,7 @@ export function prepareDocument(document) {
         extent,
         startOffsetValue,
         distanceValue,
+        wallThicknessValue: feature.thin ? positive(evaluateExpression(feature.wallThickness, parameterResult.values), 'Grubość ścianki') : null,
         targetObjectReference: extent === 'to-object' ? document.references.find((reference) => reference.id === feature.targetReferenceId) : null,
         secondDistanceValue: extent === 'two-sides'
           ? positive(evaluateExpression(feature.secondDistance ?? feature.distance, parameterResult.values), 'Odległość drugiej strony')

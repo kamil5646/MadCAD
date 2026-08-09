@@ -647,6 +647,8 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
             {command.extent === 'two-sides' && <Field label="Druga strona" value={command.secondDistance} onChange={(secondDistance) => onChange({ secondDistance })} suffix="mm" />}
             {command.extent === 'to-object' && <label className="command-field"><span>Obiekt docelowy</span><select value={command.targetReferenceId || ''} onChange={(event) => onChange({ targetReferenceId: event.target.value })}>{command.targetOptions.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}</select></label>}
             <Field label="Odsunięcie początku" value={command.startOffset} onChange={(startOffset) => onChange({ startOffset })} suffix="mm" />
+            <label className="command-field"><span>Cienka ścianka</span><input type="checkbox" checked={Boolean(command.thin)} onChange={(event) => onChange({ thin: event.target.checked })} /></label>
+            {command.thin && <><Field label="Grubość ścianki" value={command.wallThickness} onChange={(wallThickness) => onChange({ wallThickness })} suffix="mm" /><label className="command-field"><span>Strona ścianki</span><select value={command.wallSide} onChange={(event) => onChange({ wallSide: event.target.value })}><option value="inside">Do wewnątrz</option><option value="outside">Na zewnątrz</option><option value="symmetric">Symetrycznie</option></select></label></>}
             <label className="command-field">
               <span>Operacja</span>
               <select value={command.operation} onChange={(event) => onChange({ operation: event.target.value })}>
@@ -1182,6 +1184,9 @@ export default function ModelingWorkspace({ onClose }) {
           startOffset: next.startOffset,
           extent: next.extent,
           targetReferenceId: next.extent === 'to-object' ? next.targetReferenceId : undefined,
+          thin: Boolean(next.thin),
+          wallThickness: next.wallThickness,
+          wallSide: next.wallSide,
           operation: next.operation,
           targetBodyId: next.operation === 'new' ? null : targetBodyId,
         });
@@ -2282,7 +2287,7 @@ export default function ModelingWorkspace({ onClose }) {
       })),
       features: document.features.length,
       featureIds: document.features.map((feature) => feature.id),
-      featureData: document.features.map((feature) => ({ id: feature.id, type: feature.type, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, depth: feature.depth, diameter: feature.diameter, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
+      featureData: document.features.map((feature) => ({ id: feature.id, type: feature.type, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, wallSide: feature.wallSide, depth: feature.depth, diameter: feature.diameter, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
       references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, rotationAxis: reference.rotationAxis, angle: reference.angle, surfaceType: reference.surfaceType, center: reference.center, point: reference.point, axis: reference.axis, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, distance: reference.distance, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
@@ -2453,6 +2458,9 @@ export default function ModelingWorkspace({ onClose }) {
         distance: String(distance),
         secondDistance: editing?.secondDistance || '10',
         startOffset: editing?.startOffset || '0',
+        thin: Boolean(editing?.thin),
+        wallThickness: editing?.wallThickness || '2',
+        wallSide: editing?.wallSide || 'inside',
         extent: editing?.extent || 'one-side',
         operation,
         targetOptions,
@@ -2467,6 +2475,9 @@ export default function ModelingWorkspace({ onClose }) {
         startOffset: next.startOffset,
         extent: next.extent,
         targetReferenceId: next.extent === 'to-object' ? next.targetReferenceId : undefined,
+        thin: Boolean(next.thin),
+        wallThickness: next.wallThickness,
+        wallSide: next.wallSide,
         operation,
         targetBodyId: operation === 'new' ? null : targetBodyId,
       });
@@ -2857,7 +2868,7 @@ export default function ModelingWorkspace({ onClose }) {
     if (profile) setSelection({ kind: 'profile', id: profile.id });
     if (feature.type === 'extrude') {
       const targetOptions = createExtrudeTargetOptions(feature.id);
-      setCommand({ type: 'extrude', editId: feature.id, distance: feature.distance, secondDistance: feature.secondDistance || feature.distance, startOffset: feature.startOffset || '0', extent: feature.extent || 'one-side', operation: feature.operation, targetOptions, targetReferenceId: feature.targetReferenceId || targetOptions[0]?.id, previewFeature: feature });
+      setCommand({ type: 'extrude', editId: feature.id, distance: feature.distance, secondDistance: feature.secondDistance || feature.distance, startOffset: feature.startOffset || '0', thin: Boolean(feature.thin), wallThickness: feature.wallThickness || '2', wallSide: feature.wallSide || 'inside', extent: feature.extent || 'one-side', operation: feature.operation, targetOptions, targetReferenceId: feature.targetReferenceId || targetOptions[0]?.id, previewFeature: feature });
     }
     else if (feature.type === 'boolean') setCommand({ type: 'boolean', editId: feature.id, operation: feature.operation, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, targetName: feature.targetBodyId, toolName: feature.toolBodyId, previewFeature: feature });
     else if (feature.type === 'primitive') setCommand({ type: 'primitive', editId: feature.id, name: feature.name, primitiveType: feature.primitiveType, x: feature.x, y: feature.y, z: feature.z, width: feature.width || '20', depth: feature.depth || '20', height: feature.height || '20', radius: feature.radius || '10', majorRadius: feature.majorRadius || '15', minorRadius: feature.minorRadius || '4', previewFeature: feature });

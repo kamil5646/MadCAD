@@ -207,6 +207,20 @@ async function runUiFlow(window) {
       else resolve();
     }, 30)));
   })()`);
+  const setCommandCheckbox = (label, checked) => window.webContents.executeJavaScript(`(() => {
+    const field = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === ${JSON.stringify(label)});
+    const input = field?.querySelector('input[type="checkbox"]');
+    if (!input) throw new Error('Brak pola wyboru: ${label}');
+    const key = Object.keys(input).find((item) => item.startsWith('__reactProps'));
+    const handler = key && input[key]?.onChange;
+    if (typeof handler !== 'function') throw new Error('Brak procedury pola wyboru: ${label}');
+    handler({ target: { checked: ${Boolean(checked)} } });
+    return new Promise((resolve, reject) => requestAnimationFrame(() => setTimeout(() => {
+      const updated = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === ${JSON.stringify(label)})?.querySelector('input[type="checkbox"]');
+      if (Boolean(updated?.checked) !== ${Boolean(checked)}) reject(new Error('Pole wyboru nie przyjęło wartości: ${label}'));
+      else resolve();
+    }, 30)));
+  })()`);
   const confirmDialog = () => window.webContents.executeJavaScript(`(() => {
     const button = document.querySelector('.command-dialog .confirm');
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
@@ -1062,8 +1076,28 @@ async function runUiFlow(window) {
   await confirmDialog();
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.startOffset === '0' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.bounds?.[0]?.[2] || 0) < 1e-5`, 'edycja odsunięcia początku wyciągnięcia', modelingTimeoutMs);
 
+  progress('closed profile thin extrude');
+  await editTimelineFeature(0);
+  await setCommandCheckbox('Cienka ścianka', true);
+  await setCommandField('Grubość ścianki', '2');
+  await setCommandField('Strona ścianki', 'symmetric');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.thin === true && window.__madcadVerifyDocumentState.featureData[0].wallSide === 'symmetric' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 3392) < 0.01`, 'Thin Extrude symetryczny', modelingTimeoutMs);
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.thin === false && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${64 * 42 * 8}) < 0.01`, 'undo Thin Extrude', modelingTimeoutMs);
+  await sendShortcut('y');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.thin === true && window.__madcadVerifyDocumentState.featureData[0].wallSide === 'symmetric'`, 'redo Thin Extrude', modelingTimeoutMs);
+  await waitForUi(window, `(() => { const feature = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[0]; return feature?.thin === true && feature.wallThickness === '2' && feature.wallSide === 'symmetric'; })()`, 'autozapis Thin Extrude');
+  const thinReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${thinReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.thin === true && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 3392) < 0.01`, 'ponownie otwarty Thin Extrude', modelingTimeoutMs);
+  await editTimelineFeature(0);
+  await setCommandCheckbox('Cienka ścianka', false);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.thin === false && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${64 * 42 * 8}) < 0.01`, 'powrót do pełnego Extrude', modelingTimeoutMs);
+
   progress('B-Rep hover, multi-select and box select');
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await new Promise((resolve) => setTimeout(resolve, 50));
   const selectionRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   const topologyIds = await window.webContents.executeJavaScript(`(() => {
     const body = window.__madcadVerifyEngineState.bodies[0];

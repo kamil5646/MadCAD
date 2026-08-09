@@ -46,6 +46,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Więz curvature utrzymuje wspólny okrąg oskulacyjny dwóch połączonych łuków, wykrywa konflikt nieruchomych środków i działa przez przycisk oraz znacznik κ.
 - [x] Extrude ma parametryczne odsunięcie początku uwzględniane przez graf zależności, wszystkie zakresy i dokładny B-Rep; edycja wraca bezpiecznie do zera.
 - [x] Extrude To Object kończy się na równoległej płaszczyźnie konstrukcyjnej albo planarnej ścianie, zapisuje trwałą zależność i śledzi parametryczne przesunięcie ściany źródłowej.
+- [x] Thin Extrude zamkniętego profilu ma parametryczną grubość do wewnątrz, na zewnątrz i symetrycznie oraz dokładny cienkościenny B-Rep.
 
 ## Podstawowe modyfikacje szkicu M2
 
