@@ -432,11 +432,12 @@ test('szkic na planarnej ścianie zachowuje podporę i odsunięcie w przygotowan
   assert.equal(validateDocument(broken).issues.some((issue) => issue.path.endsWith('support.referenceId') && issue.code === 'BROKEN_REFERENCE'), true);
 });
 
-test('Extrude przygotowuje Join, Cut i Intersect z jedną, dwiema, symetryczną oraz Through All', () => {
+test('Extrude przygotowuje odsunięty start, Join, Cut i Intersect z jedną, dwiema, symetryczną oraz Through All', () => {
   const document = createDocument('Zakresy Extrude');
+  document.parameters.push(createParameter('start', '2'));
   const profile = createRectangleProfile({ width: 20, height: 10 });
   const sketch = createSketch({ profiles: [profile] });
-  const base = createFeature('extrude', { sketchId: sketch.id, profileIds: [profile.id], distance: '8', extent: 'one-side', operation: 'new' });
+  const base = createFeature('extrude', { sketchId: sketch.id, profileIds: [profile.id], distance: '8', startOffset: 'start', extent: 'one-side', operation: 'new' });
   const targetBodyId = `body-${base.id}`;
   const twoSides = createFeature('extrude', { sketchId: sketch.id, profileIds: [profile.id], distance: '5', secondDistance: '3', extent: 'two-sides', operation: 'join', targetBodyId });
   const symmetric = createFeature('extrude', { sketchId: sketch.id, profileIds: [profile.id], distance: '6', extent: 'symmetric', operation: 'cut', targetBodyId });
@@ -447,9 +448,11 @@ test('Extrude przygotowuje Join, Cut i Intersect z jedną, dwiema, symetryczną 
   const prepared = prepareDocument(document);
   assert.deepEqual(prepared.features.map((feature) => feature.extent), ['one-side', 'two-sides', 'symmetric', 'through-all']);
   assert.equal(prepared.features[1].distanceValue, 5);
+  assert.equal(prepared.features[0].startOffsetValue, 2);
   assert.equal(prepared.features[1].secondDistanceValue, 3);
   assert.equal(prepared.features[2].distanceValue, 6);
   assert.equal(validateDocument(document).valid, true);
+  assert.ok(buildDependencyGraph(document).edges.some((edge) => edge.from === document.parameters[0].id && edge.to === base.id && edge.kind === 'drives'));
 
   const invalid = structuredClone(document);
   invalid.features[0].extent = 'through-all';

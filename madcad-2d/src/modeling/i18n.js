@@ -146,6 +146,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Wyrażenie': 'Expression',
   'Wartość': 'Value',
   'Odległość': 'Distance',
+  'Odsunięcie początku': 'Start offset',
   'Długość': 'Length',
   'Szerokość': 'Width',
   'Wysokość': 'Height',

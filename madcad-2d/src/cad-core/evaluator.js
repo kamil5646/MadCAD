@@ -196,6 +196,7 @@ export function prepareDocument(document) {
         status: 'ready',
         diagnostics: [],
         extent,
+        startOffsetValue: evaluateExpression(feature.startOffset ?? 0, parameterResult.values),
         distanceValue: positive(evaluateExpression(feature.distance, parameterResult.values), 'Odległość wyciągnięcia'),
         secondDistanceValue: extent === 'two-sides'
           ? positive(evaluateExpression(feature.secondDistance ?? feature.distance, parameterResult.values), 'Odległość drugiej strony')

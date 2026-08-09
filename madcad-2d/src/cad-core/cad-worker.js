@@ -114,10 +114,11 @@ function drawingForProfile(profile) {
 const THROUGH_ALL_DISTANCE = 1_000_000;
 
 function extrusionSpan(feature) {
-  if (feature.extent === 'two-sides') return { startDelta: -feature.secondDistanceValue, distance: feature.distanceValue + feature.secondDistanceValue };
-  if (feature.extent === 'symmetric') return { startDelta: -feature.distanceValue / 2, distance: feature.distanceValue };
-  if (feature.extent === 'through-all') return { startDelta: -THROUGH_ALL_DISTANCE / 2, distance: THROUGH_ALL_DISTANCE };
-  return { startDelta: 0, distance: feature.distanceValue };
+  const startOffset = Number(feature.startOffsetValue || 0);
+  if (feature.extent === 'two-sides') return { startDelta: startOffset - feature.secondDistanceValue, distance: feature.distanceValue + feature.secondDistanceValue };
+  if (feature.extent === 'symmetric') return { startDelta: startOffset - feature.distanceValue / 2, distance: feature.distanceValue };
+  if (feature.extent === 'through-all') return { startDelta: startOffset - THROUGH_ALL_DISTANCE / 2, distance: THROUGH_ALL_DISTANCE };
+  return { startDelta: startOffset, distance: feature.distanceValue };
 }
 
 function extrudeProfile(profile, span) {

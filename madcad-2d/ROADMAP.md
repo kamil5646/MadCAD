@@ -131,6 +131,8 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.6 Parametryczne płaszczyzny tangent/angle/path, oś normalna do płaszczyzny oraz punkty środkowy i odsunięty na osi, z walidacją dokumentu, grafem zależności i pełnym desktop E2E.
 - [x] P1.7 Więz ciągłości krzywizny `curvature` (G2) dla dwóch łuków ze wspólnym końcem, z diagnostyką konfliktu, znacznikiem κ, undo/redo, autozapisem i round-trip dokumentu.
 - [>] P1.8 Extrude To Object i parametryczne odsunięcie początku wyciągnięcia; draft i thin extrude pozostają osobnym kolejnym etapem.
+  - [x] P1.8a Odsunięcie początku działa parametrycznie dla wszystkich zakresów, przechodzi edycję i pełny desktop E2E na przesuniętym B-Rep.
+  - [>] P1.8b To Object do równoległej płaszczyzny konstrukcyjnej lub planarnej ściany.
 
 ## Definition of Done
 

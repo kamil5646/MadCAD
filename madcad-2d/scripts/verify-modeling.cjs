@@ -1032,9 +1032,11 @@ async function runUiFlow(window) {
   await new Promise((resolve) => setTimeout(resolve, 350));
   await fs.writeFile(directOutputPath, (await window.webContents.capturePage()).toPNG());
   await setCommandField('Odległość', '8');
+  await setCommandField('Odsunięcie początku', '2');
   await new Promise((resolve) => setTimeout(resolve, 100));
   await confirmDialog();
   await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 1`, 'dodane wyciągnięcie');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.startOffset === '2'`, 'parametryczne odsunięcie początku wyciągnięcia');
   await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'przeliczona bryła', modelingTimeoutMs);
 
   await waitForUi(
@@ -1050,9 +1052,15 @@ async function runUiFlow(window) {
   goldenBrep.dimensions.forEach((dimension, index) => {
     assertClose(dimension, [64, 42, 8][index], 1e-5, `Golden B-Rep dimension ${index}`);
   });
+  assertClose(goldenBrep.bounds[0][2], 2, 1e-5, 'Golden B-Rep start offset');
+  assertClose(goldenBrep.bounds[1][2], 10, 1e-5, 'Golden B-Rep offset end');
   if (goldenBrep.faceCount !== 6 || goldenBrep.edgeCount !== 12) {
     throw new Error(`Unexpected golden B-Rep topology: ${goldenBrep.faceCount} faces, ${goldenBrep.edgeCount} edges.`);
   }
+  await editTimelineFeature(0);
+  await setCommandField('Odsunięcie początku', '0');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.startOffset === '0' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.bounds?.[0]?.[2] || 0) < 1e-5`, 'edycja odsunięcia początku wyciągnięcia', modelingTimeoutMs);
 
   progress('B-Rep hover, multi-select and box select');
   await new Promise((resolve) => setTimeout(resolve, 500));

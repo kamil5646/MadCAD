@@ -625,6 +625,7 @@ export function validateDocument(document) {
       if (!['one-side', 'two-sides', 'symmetric', 'through-all'].includes(extent)) add(`${base}.extent`, `Nieobsługiwany zakres wyciągnięcia: ${extent}.`, 'UNSUPPORTED');
       if (extent === 'through-all' && !['cut', 'intersect'].includes(feature.operation)) add(`${base}.extent`, 'Through All jest dostępne dla Cut i Intersect.', 'UNSUPPORTED');
       if (extent === 'two-sides' && feature.secondDistance === undefined) add(`${base}.secondDistance`, 'Wyciągnięcie na dwie strony wymaga drugiej odległości.', 'REQUIRED');
+      if (feature.startOffset !== undefined && typeof feature.startOffset !== 'string' && typeof feature.startOffset !== 'number') add(`${base}.startOffset`, 'Odsunięcie początku wyciągnięcia musi być wyrażeniem albo liczbą.', 'TYPE');
       if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
       else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono wcześniejszej bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
     }
