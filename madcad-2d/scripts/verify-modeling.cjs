@@ -988,6 +988,56 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'offsetFace'`, 'zapisany Offset Face', modelingTimeoutMs);
   assertClose(await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume`), 10 * 12 * 16, 0.05, 'Offset Face volume');
 
+  progress('draft planar face about neutral plane');
+  const draftFixture = await window.webContents.executeJavaScript(`(() => {
+    const body = window.__madcadVerifyEngineState.bodies.find((item) => item.id === ${JSON.stringify(primitiveBoxId)});
+    const face = body.topology.faces
+      .filter((item) => item.descriptor.geometry === 'PLANE' && Math.abs(item.descriptor.normal?.[2] || 0) < 0.1)
+      .sort((left, right) => left.descriptor.center[2] - right.descriptor.center[2])[0];
+    const normalAxis = Math.abs(face.descriptor.normal[0]) > Math.abs(face.descriptor.normal[1]) ? 0 : 1;
+    const transverseAxis = normalAxis === 0 ? 1 : 0;
+    return {
+      selection: { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId },
+      transverse: body.metrics.dimensions[transverseAxis],
+      height: body.metrics.dimensions[2],
+    };
+  })()`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(draftFixture.selection)}, 'replace')`);
+  await clickTool('Draft');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna neutralna') && document.querySelector('.command-dialog')?.textContent.includes('Kąt Draft')`, 'okno Draft');
+  await clickDialogButton('Anuluj');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 7 && !document.querySelector('.command-dialog') && Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume - ${10 * 12 * 16}) < 0.05`, 'anulowanie Draft bez częściowego stanu', modelingTimeoutMs);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(draftFixture.selection)}, 'replace')`);
+  await clickTool('Draft');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Kąt Draft')`, 'ponowne otwarcie Draft');
+  const positiveDraftRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await setCommandField('Płaszczyzna neutralna', 'XY');
+  await setCommandField('Kąt Draft', '5');
+  const draftBaseVolume = 10 * 12 * 16;
+  const draftDelta = 0.5 * draftFixture.transverse * draftFixture.height ** 2 * Math.tan(5 * Math.PI / 180);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${positiveDraftRevision} && window.__madcadVerifyEngineState?.timeline?.length === 8 && window.__madcadVerifyEngineState.timeline.at(-1)?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume - ${draftBaseVolume - draftDelta}) < 0.05`, 'podgląd Draft', modelingTimeoutMs);
+  const positiveDraftVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume`);
+  assertClose(Math.abs(positiveDraftVolume - draftBaseVolume), draftDelta, 0.05, 'Positive Draft volume delta');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'draft' && window.__madcadVerifyDocumentState.featureData.at(-1).neutralPlaneId === 'XY' && window.__madcadVerifyDocumentState.featureData.at(-1).referenceIds?.length === 1`, 'zapisany Draft', modelingTimeoutMs);
+  await editTimelineFeature(7, 'Draft');
+  const negativeDraftRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await setCommandField('Kąt Draft', '-5');
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${negativeDraftRevision} && window.__madcadVerifyEngineState?.timeline?.at(-1)?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume - ${draftBaseVolume + draftDelta}) < 0.05`, 'podgląd odwróconego Draft', modelingTimeoutMs);
+  const negativeDraftVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume`);
+  assertClose(Math.abs(negativeDraftVolume - draftBaseVolume), draftDelta, 0.05, 'Negative Draft volume delta');
+  if ((positiveDraftVolume - draftBaseVolume) * (negativeDraftVolume - draftBaseVolume) >= 0) throw new Error(`Draft angle sign did not reverse the taper direction: ${JSON.stringify({ draftBaseVolume, positiveDraftVolume, negativeDraftVolume, draftDelta })}`);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.angle === '-5' && !document.querySelector('.command-dialog')`, 'zapisany odwrócony Draft', modelingTimeoutMs);
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.angle === '5'`, 'undo kierunku Draft', modelingTimeoutMs);
+  await sendShortcut('y');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.angle === '-5'`, 'redo kierunku Draft', modelingTimeoutMs);
+  await waitForUi(window, `(() => { const feature = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.at(-1); return feature?.type === 'draft' && feature.angle === '-5'; })()`, 'autozapis Draft');
+  const draftReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${draftReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.angle === '-5'`, 'ponownie otwarty Draft', modelingTimeoutMs);
+
   progress('text profile extrude emboss deboss');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla tekstu');

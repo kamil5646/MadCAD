@@ -411,6 +411,21 @@ export function prepareDocument(document) {
         thicknessValue: positive(evaluateExpression(feature.thickness, parameterResult.values), 'Grubość Shell'),
       };
     }
+    if (feature.type === 'draft') {
+      const angleValue = evaluateExpression(feature.angle, parameterResult.values);
+      if (Math.abs(angleValue) <= 1e-9 || Math.abs(angleValue) >= 89) throw new Error('Kąt Draft musi być różny od zera i mniejszy niż 89°.');
+      const basePlane = BASE_PLANE_FRAMES[feature.neutralPlaneId];
+      const constructionPlane = document.references.find((reference) => reference.id === feature.neutralPlaneId && reference.kind === 'construction-plane');
+      const neutralPlane = basePlane || resolveConstructionPlane(constructionPlane, parameterResult.values);
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
+        angleValue,
+        neutralPlane: { origin: [...neutralPlane.origin], normal: [...neutralPlane.normal] },
+      };
+    }
     throw new Error(`Nieobsługiwana operacja: ${feature.type}`);
   });
 

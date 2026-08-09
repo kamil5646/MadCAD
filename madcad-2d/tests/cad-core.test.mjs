@@ -600,6 +600,39 @@ test('Shell wymaga wskazanej ściany i przygotowuje parametryczną grubość dla
   assert.ok(validateDocument(missingFace).issues.some((issue) => issue.path.endsWith('.referenceIds') && issue.code === 'REQUIRED'));
 });
 
+test('Draft przygotowuje wskazane ściany, kąt i parametryczną płaszczyznę neutralną', () => {
+  const document = createDocument('Draft');
+  const angle = createParameter('katDraft', '4', 'deg');
+  const box = createFeature('primitive', { primitiveType: 'box', x: '0', y: '0', z: '0', width: '20', depth: '10', height: '12' });
+  const bodyId = `body-${box.id}`;
+  const faceReference = {
+    ...createTopologyReference({ selection: { kind: 'face', id: 'side', bodyId }, descriptor: { geometry: 'PLANE', center: [20, 5, 6], normal: [1, 0, 0] }, label: 'Draft — ściana 1' }),
+    scope: 'feature-input',
+  };
+  const neutralPlane = createOffsetPlane({ name: 'Neutralna', basePlane: 'XY', offset: '2' });
+  const draft = createFeature('draft', { targetBodyId: bodyId, referenceIds: [faceReference.id], neutralPlaneId: neutralPlane.id, angle: 'katDraft' });
+  document.parameters.push(angle);
+  document.references.push(faceReference, neutralPlane);
+  document.features.push(box, draft);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[1];
+  assert.equal(prepared.angleValue, 4);
+  assert.deepEqual(prepared.neutralPlane, { origin: [0, 0, 2], normal: [0, 0, 1] });
+  assert.equal(prepared.topologyReferences[0].id, faceReference.id);
+  const graph = buildDependencyGraph(document);
+  assert.ok(graph.edges.some((edge) => edge.from === faceReference.id && edge.to === draft.id && edge.kind === 'references-topology'));
+  assert.ok(graph.edges.some((edge) => edge.from === neutralPlane.id && edge.to === draft.id && edge.kind === 'neutral-plane'));
+  assert.ok(graph.edges.some((edge) => edge.from === angle.id && edge.to === draft.id && edge.kind === 'drives'));
+
+  const zeroAngle = structuredClone(document);
+  zeroAngle.features[1].angle = '0';
+  assert.throws(() => prepareDocument(zeroAngle), /różny od zera/);
+  const missingPlane = structuredClone(document);
+  missingPlane.features[1].neutralPlaneId = 'missing-plane';
+  assert.ok(validateDocument(missingPlane).issues.some((issue) => issue.path.endsWith('.neutralPlaneId')));
+});
+
 test('Box, Cylinder, Sphere i Torus przygotowują parametryczne bryły oraz osobne ciała', () => {
   const document = createDocument('Prymitywy');
   const primitives = [

@@ -48,6 +48,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Extrude To Object kończy się na równoległej płaszczyźnie konstrukcyjnej albo planarnej ścianie, zapisuje trwałą zależność i śledzi parametryczne przesunięcie ściany źródłowej.
 - [x] Thin Extrude zamkniętego profilu ma parametryczną grubość do wewnątrz, na zewnątrz i symetrycznie oraz dokładny cienkościenny B-Rep.
 - [x] Thin Extrude otwartego łańcucha linii porządkuje segmenty niezależnie od kolejności wyboru, odrzuca rozgałęzienia i tworzy dokładny B-Rep z prostym albo wydłużonym zakończeniem.
+- [x] Draft pochyla wskazane planarne ściany względem bazowej albo konstrukcyjnej płaszczyzny neutralnej; znak kąta steruje stroną materiału, a trwałe referencje przechodzą pełny przepływ historii i zapisu.
 
 ## Podstawowe modyfikacje szkicu M2
 

@@ -79,7 +79,7 @@ Import SVG/DXF został ukończony w `P1.1`.
 - [x] Jeden manipulator dla Extrude, Move/Rotate i Offset Face.
 - [x] Tekst szkicu jako jeden scenariusz `Text → profile → Extrude/Emboss/Deboss`, bez blokowania solvera i zależności od fontów systemowych.
 
-Revolve, Sweep, Loft, Draft, Thin Extrude, Heal/Replace Face, Rib, Coil i Pipe są `P1`.
+Revolve, Sweep, Loft, Heal/Replace Face, Rib, Coil i Pipe są `P1`.
 
 ## M7 — otwory i gwinty MVP `P0`
 
@@ -136,7 +136,8 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.9 Thin Extrude dla zamkniętego i otwartego profilu: parametryczna grubość, strona wewnętrzna/zewnętrzna/symetryczna oraz pełny przepływ B-Rep.
   - [x] P1.9a Zamknięty profil tworzy dokładną cienkościenną bryłę do wewnątrz, na zewnątrz lub symetrycznie; edycja, undo/redo, autozapis i ponowne otwarcie przechodzą desktop E2E.
   - [x] P1.9b Otwarty łańcuch linii szkicu tworzy dokładną cienkościenną bryłę z zakończeniem prostym lub wydłużonym; walidacja rozgałęzień, anulowanie, undo/redo, autozapis i ponowne otwarcie przechodzą testy.
-- [>] P1.10 Draft wskazanych ścian względem płaszczyzny neutralnej.
+- [x] P1.10 Draft wskazanych planarnych ścian względem bazowej albo parametrycznej płaszczyzny neutralnej, z kątem dodatnim/ujemnym, trwałymi referencjami, anulowaniem, edycją, undo/redo, autozapisem i ponownym otwarciem.
+- [>] P1.11 Press Pull jako kontekstowa operacja profilu i planarnej ściany, oparta na istniejących Extrude oraz Offset Face.
 
 ## Definition of Done
 
@@ -160,4 +161,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.10 — Draft wskazanych ścian względem płaszczyzny neutralnej.`
+`P1.11 — Press Pull dla profilu i planarnej ściany.`

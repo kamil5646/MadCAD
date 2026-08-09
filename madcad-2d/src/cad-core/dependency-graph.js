@@ -15,6 +15,7 @@ function featureExpressions(feature) {
   if (feature.type === 'fillet') return [feature.radius];
   if (feature.type === 'chamfer') return [feature.distance];
   if (feature.type === 'shell') return [feature.thickness];
+  if (feature.type === 'draft') return [feature.angle];
   if (feature.type === 'primitive') return [feature.x, feature.y, feature.z, feature.width, feature.depth, feature.height, feature.radius, feature.majorRadius, feature.minorRadius];
   if (feature.type === 'transform') return [feature.x, feature.y, feature.z, feature.angle, feature.originX, feature.originY, feature.originZ];
   if (feature.type === 'offsetFace') return [feature.distance];
@@ -137,6 +138,7 @@ export function buildDependencyGraph(document) {
     if (feature.profileId) addEdge(feature.profileId, feature.id, 'references');
     if (feature.pointId) addEdge(feature.pointId, feature.id, 'references');
     for (const referenceId of feature.referenceIds || []) addEdge(referenceId, feature.id, 'references-topology');
+    if (feature.type === 'draft' && !['XY', 'XZ', 'YZ'].includes(feature.neutralPlaneId)) addEdge(feature.neutralPlaneId, feature.id, 'neutral-plane');
     if (feature.type === 'extrude' && feature.extent === 'to-object') addEdge(feature.targetReferenceId, feature.id, 'to-object');
     for (const value of featureExpressions(feature)) {
       for (const name of expressionDependencies(value)) addEdge(parameterIdsByName.get(name), feature.id, 'drives');

@@ -446,6 +446,43 @@ function runFeature(feature, bodyMap, bodyOrder) {
       thickness: feature.thicknessValue,
       filter: new FaceFinder().when(({ element }) => selectedHashes.has(element.hashCode)),
     });
+    return;
+  }
+
+  if (feature.type === 'draft') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);
+    const faces = target.shape.faces;
+    const oc = getOC();
+    let origin;
+    let direction;
+    let neutralPlane;
+    let drafter;
+    let progress;
+    try {
+      const descriptors = faces.map((face) => faceDescriptor(face));
+      const indices = new Set((feature.topologyReferences || []).map((reference) => matchingFaceIndex(reference, descriptors)));
+      if (!indices.size) throw new Error('Draft wymaga co najmniej jednej wskazanej ściany.');
+      origin = new oc.gp_Pnt_3(...feature.neutralPlane.origin);
+      direction = new oc.gp_Dir_4(...feature.neutralPlane.normal);
+      neutralPlane = new oc.gp_Pln_3(origin, direction);
+      drafter = new oc.BRepOffsetAPI_DraftAngle_2(target.shape.wrapped);
+      for (const index of indices) {
+        drafter.Add(faces[index].wrapped, direction, feature.angleValue * Math.PI / 180, neutralPlane, false);
+        if (!drafter.AddDone()) throw new Error(`OpenCascade odrzucił ścianę Draft (status ${drafter.Status()}).`);
+      }
+      progress = new oc.Message_ProgressRange_1();
+      drafter.Build(progress);
+      if (!drafter.IsDone()) throw new Error(`OpenCascade nie zbudował Draft (status ${drafter.Status()}).`);
+      target.shape = cast(drafter.Shape());
+    } finally {
+      progress?.delete();
+      drafter?.delete();
+      neutralPlane?.delete();
+      direction?.delete();
+      origin?.delete();
+      faces.forEach((face) => face.delete());
+    }
   }
 }
 

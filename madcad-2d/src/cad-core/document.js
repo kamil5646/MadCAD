@@ -12,7 +12,7 @@ export const DOCUMENT_SCHEMA_VERSION = 4;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -120,7 +120,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -719,6 +719,13 @@ export function validateDocument(document) {
     }
     if (feature.type === 'shell' && (!Array.isArray(feature.referenceIds) || !feature.referenceIds.length)) {
       add(`${base}.referenceIds`, 'Shell wymaga co najmniej jednej usuwanej ściany.', 'REQUIRED');
+    }
+    if (feature.type === 'draft') {
+      if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
+      if (!Array.isArray(feature.referenceIds) || !feature.referenceIds.length) add(`${base}.referenceIds`, 'Draft wymaga co najmniej jednej wskazanej ściany.', 'REQUIRED');
+      if (typeof feature.angle !== 'string' && typeof feature.angle !== 'number') add(`${base}.angle`, 'Draft wymaga parametrycznego kąta.', 'TYPE');
+      const neutralPlane = references.find((reference) => reference.id === feature.neutralPlaneId);
+      if (!SUPPORTED_PLANES.has(feature.neutralPlaneId) && neutralPlane?.kind !== 'construction-plane') add(`${base}.neutralPlaneId`, `Nie znaleziono płaszczyzny neutralnej „${feature.neutralPlaneId ?? ''}”.`, 'BROKEN_REFERENCE');
     }
     if (feature.type === 'offsetFace') {
       if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
