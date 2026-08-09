@@ -50,6 +50,11 @@ export function createPlaneIntersectionAxis({ name = 'Oś przecięcia płaszczyz
   return { ...baseAxis('plane-intersection', name, visible), planeIds: [...planeIds] };
 }
 
+export function createPlaneNormalAxis({ name = 'Oś normalna do płaszczyzny', planeId = '', origin = [0, 0, 0], visible = true } = {}) {
+  if (typeof planeId !== 'string' || !planeId) throw new Error('Oś normalna wymaga płaszczyzny konstrukcyjnej.');
+  return { ...baseAxis('plane-normal', name, visible), planeId, origin: vectorExpressions(origin, 'Punkt osi normalnej') };
+}
+
 function resolvedVector(values, parameterValues) {
   return values.map((value) => evaluateExpression(value, parameterValues));
 }
@@ -78,6 +83,12 @@ export function resolveConstructionAxis(axis, references = [], parameters = [], 
     const secondDistance = dot(second.normal, second.origin);
     const weighted = first.normal.map((_value, index) => (firstDistance * second.normal[index]) - (secondDistance * first.normal[index]));
     return { ...axis, origin: cross(weighted, directionVector).map((value) => value / denominator), direction: normalize(directionVector, 'Kierunek przecięcia') };
+  }
+  if (axis.axisType === 'plane-normal') {
+    const plane = references.find((reference) => reference.id === axis.planeId && reference.kind === 'construction-plane');
+    if (!plane) throw new Error('Nie znaleziono płaszczyzny osi normalnej.');
+    const resolvedPlane = resolveConstructionPlane(plane, resolved.values);
+    return { ...axis, origin: resolvedVector(axis.origin, resolved.values), direction: [...resolvedPlane.normal] };
   }
   if (axis.axisType === 'cylinder') {
     const record = topologyRecord(axis, bodies, 'face');

@@ -54,9 +54,9 @@ import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scal
 import { circularSketchPattern, parseSkippedPatternOccurrences, pathSketchPattern, rectangularSketchPattern } from '../src/cad-core/sketch-patterns.js';
 import { edgeGroupVertices, topologyIdForFaceIndex, topologySelectionFromIntersection } from '../src/cad-core/brep-picking.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../src/cad-core/topology-references.js';
-import { createMidplane, createOffsetPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../src/cad-core/construction-planes.js';
-import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../src/cad-core/construction-axes.js';
-import { createCenterPoint, createIntersectionPoint, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../src/cad-core/construction-points.js';
+import { createAnglePlane, createMidplane, createOffsetPlane, createPathPlane, createTangentPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../src/cad-core/construction-planes.js';
+import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createPlaneNormalAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../src/cad-core/construction-axes.js';
+import { createCenterPoint, createIntersectionPoint, createMidpointPoint, createPointOnAxis, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../src/cad-core/construction-points.js';
 import { projectTopologyToSketch, synchronizeProjectedGeometry } from '../src/cad-core/sketch-projection.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import { createTextProfile } from '../src/cad-core/text-profile.js';
@@ -320,7 +320,28 @@ test('midplane wyznacza połowę dwóch położeń, a plane przez trzy punkty od
   assert.throws(() => resolveConstructionPlane(createThreePointPlane({ points: [[0, 0, 0], [1, 1, 1], [2, 2, 2]] }), parameters), /zerowej długości/);
 });
 
-test('osie konstrukcyjne rozwiązują krawędź, walec, dwa punkty i przecięcie płaszczyzn', () => {
+test('płaszczyzny angle, tangent i path tworzą ortonormalne parametryczne układy', () => {
+  const parameters = [createParameter('kat', '30', { name: 'kat' })];
+  const angle = resolveConstructionPlane(createAnglePlane({ basePlane: 'XY', rotationAxis: 'u', angle: 'kat', offset: '5' }), parameters);
+  assert.ok(Math.abs(angle.origin[2] - 5) < 1e-9);
+  assert.ok(Math.abs(angle.normal[1] + 0.5) < 1e-9);
+  assert.ok(Math.abs(angle.normal[2] - Math.sqrt(3) / 2) < 1e-9);
+  assert.ok(Math.abs(angle.normal.reduce((sum, value, index) => sum + value * angle.u[index], 0)) < 1e-9);
+
+  const sphere = resolveConstructionPlane(createTangentPlane({ surfaceType: 'sphere', center: [0, 0, 0], point: [0, 5, 0] }));
+  assert.deepEqual(sphere.origin, [0, 5, 0]);
+  assert.deepEqual(sphere.normal.map((value) => Number(value.toFixed(8))), [0, 1, 0]);
+  const cylinder = resolveConstructionPlane(createTangentPlane({ surfaceType: 'cylinder', center: [0, 0, 0], point: [3, 0, 7], axis: [0, 0, 1] }));
+  assert.deepEqual(cylinder.normal.map((value) => Number(value.toFixed(8))), [1, 0, 0]);
+
+  const path = resolveConstructionPlane(createPathPlane({ point: ['2', '3', '4'], direction: [1, 1, 0] }));
+  assert.deepEqual(path.origin, [2, 3, 4]);
+  assert.ok(Math.abs(path.normal[0] - Math.SQRT1_2) < 1e-9 && Math.abs(path.normal[1] - Math.SQRT1_2) < 1e-9);
+  assert.throws(() => resolveConstructionPlane(createPathPlane({ direction: [0, 0, 0] })), /zerowej długości/);
+  assert.throws(() => resolveConstructionPlane(createTangentPlane({ center: [0, 0, 0], point: [0, 0, 0] })), /zerowej długości/);
+});
+
+test('osie konstrukcyjne rozwiązują krawędź, walec, dwa punkty, przecięcie i normalną płaszczyzny', () => {
   const parameters = [createParameter('H', '12')];
   const edge = createEdgeAxis({ points: [[1, 2, 3], [11, 2, 3]], topologyId: 'edge-1', bodyId: 'body-1' });
   const cylinder = createCylinderAxis({ origin: ['H / 2', 0, 0], direction: [0, 0, -5], topologyId: 'face-1', bodyId: 'body-1' });
@@ -341,12 +362,16 @@ test('osie konstrukcyjne rozwiązują krawędź, walec, dwa punkty i przecięcie
   const resolved = resolveConstructionAxis(intersection, [xFive, zThree, intersection], parameters);
   assert.deepEqual(resolved.origin.map((value) => Object.is(value, -0) ? 0 : value), [5, 0, 3]);
   assert.deepEqual(resolved.direction, [0, -1, 0]);
+  const normal = resolveConstructionAxis(createPlaneNormalAxis({ planeId: zThree.id, origin: ['H', 2, 3] }), [zThree], parameters);
+  assert.deepEqual(normal.origin, [12, 2, 3]);
+  assert.deepEqual(normal.direction, [0, 0, 1]);
   assert.equal(resolveConstructionAxes([xFive, zThree, intersection], parameters)[0].status, 'ok');
   assert.throws(() => resolveConstructionAxis(createTwoPointAxis({ points: [[1, 1, 1], [1, 1, 1]] })), /zerowej długości/);
   assert.throws(() => resolveConstructionAxis(createPlaneIntersectionAxis({ planeIds: [xFive.id, createOffsetPlane({ basePlane: 'YZ', offset: '9' }).id] }), [xFive]), /Nie znaleziono/);
+  assert.throws(() => resolveConstructionAxis(createPlaneNormalAxis({ planeId: 'missing' }), [zThree]), /Nie znaleziono/);
 });
 
-test('punkty konstrukcyjne śledzą wierzchołek, centrum i przecięcie osi z płaszczyzną', () => {
+test('punkty konstrukcyjne śledzą wierzchołek, centrum, środek, oś i przecięcie', () => {
   const vertex = createVertexPoint({ position: ['2 + 3', 4, 5], topologyId: 'vertex-1', bodyId: 'body-1' });
   const center = createCenterPoint({ position: [1, 2, 3], topologyId: 'edge-1', bodyId: 'body-1', topologyKind: 'edge' });
   assert.deepEqual(resolveConstructionPoint(vertex).position, [5, 4, 5]);
@@ -358,9 +383,37 @@ test('punkty konstrukcyjne śledzą wierzchołek, centrum i przecięcie osi z p�
   const plane = createOffsetPlane({ basePlane: 'XY', offset: '3' });
   const intersection = createIntersectionPoint({ axisId: axis.id, planeId: plane.id });
   assert.deepEqual(resolveConstructionPoint(intersection, [axis, plane, intersection]).position, [5, 6, 3]);
+  const midpoint = createMidpointPoint({ points: [[0, 2, 4], ['10', '6', '8']] });
+  assert.deepEqual(resolveConstructionPoint(midpoint).position, [5, 4, 6]);
+  const onAxis = createPointOnAxis({ axisId: axis.id, distance: 'H / 2' });
+  assert.deepEqual(resolveConstructionPoint(onAxis, [axis], [createParameter('H', '12')]).position, [5, 6, -4]);
   assert.equal(resolveConstructionPoints([axis, plane, intersection])[0].status, 'ok');
   const parallel = createTwoPointAxis({ points: [[0, 0, 2], [10, 0, 2]] });
   assert.throws(() => resolveConstructionPoint(createIntersectionPoint({ axisId: parallel.id, planeId: plane.id }), [parallel, plane]), /równoległa/);
+  assert.throws(() => resolveConstructionPoint(createPointOnAxis({ axisId: 'missing' })), /Nie znaleziono/);
+});
+
+test('dokument i graf zależności akceptują rozszerzone płaszczyzny, osie i punkty', () => {
+  const document = createDocument('Rozszerzona konstrukcja');
+  const angle = createAnglePlane({ angle: 'A', offset: 'H' });
+  const tangent = createTangentPlane({ center: [0, 0, 0], point: ['R', 0, 0] });
+  const path = createPathPlane({ point: [0, 'H', 0], direction: [1, 1, 0] });
+  const normal = createPlaneNormalAxis({ planeId: angle.id, origin: [0, 0, 'H'] });
+  const midpoint = createMidpointPoint({ points: [[0, 0, 0], ['H', 0, 0]] });
+  const onAxis = createPointOnAxis({ axisId: normal.id, distance: 'H / 2' });
+  document.parameters.push(createParameter('A', '30'), createParameter('H', '12'), createParameter('R', '5'));
+  document.references.push(angle, tangent, path, normal, midpoint, onAxis);
+  assert.equal(validateDocument(document).valid, true);
+  const graph = buildDependencyGraph(document);
+  assert.ok(graph.edges.some((edge) => edge.from === angle.id && edge.to === normal.id && edge.kind === 'normal-to'));
+  assert.ok(graph.edges.some((edge) => edge.from === normal.id && edge.to === onAxis.id));
+
+  const broken = structuredClone(document);
+  broken.references.find((reference) => reference.id === normal.id).planeId = 'missing-plane';
+  broken.references.find((reference) => reference.id === onAxis.id).axisId = 'missing-axis';
+  const issues = validateDocument(broken).issues;
+  assert.ok(issues.some((issue) => issue.path.endsWith('.planeId') && issue.code === 'BROKEN_REFERENCE'));
+  assert.ok(issues.some((issue) => issue.path.endsWith('.axisId') && issue.code === 'BROKEN_REFERENCE'));
 });
 
 test('szkic na planarnej ścianie zachowuje podporę i odsunięcie w przygotowaniu kernela', () => {

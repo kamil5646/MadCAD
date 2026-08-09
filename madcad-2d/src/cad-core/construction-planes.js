@@ -48,6 +48,26 @@ export function createThreePointPlane({ name = 'Płaszczyzna przez trzy punkty',
   };
 }
 
+function vectorExpressions(values, label) {
+  if (!Array.isArray(values) || values.length !== 3) throw new Error(`${label} wymaga trzech współrzędnych.`);
+  return values.map(String);
+}
+
+export function createAnglePlane({ name = 'Płaszczyzna pod kątem', basePlane = 'XY', rotationAxis = 'u', angle = '45', offset = '0', visible = true } = {}) {
+  if (!BASE_PLANE_FRAMES[basePlane]) throw new Error(`Nieobsługiwana płaszczyzna bazowa: ${basePlane}.`);
+  if (!['u', 'v'].includes(rotationAxis)) throw new Error('Oś obrotu płaszczyzny musi mieć wartość u albo v.');
+  return { id: createId('plane'), kind: 'construction-plane', planeType: 'angle', name, basePlane, rotationAxis, angle: String(angle), offset: String(offset), visible: Boolean(visible) };
+}
+
+export function createTangentPlane({ name = 'Płaszczyzna styczna', surfaceType = 'sphere', center = [0, 0, 0], point = [10, 0, 0], axis = [0, 0, 1], visible = true } = {}) {
+  if (!['sphere', 'cylinder'].includes(surfaceType)) throw new Error('Płaszczyzna styczna obsługuje powierzchnię sferyczną albo walcową.');
+  return { id: createId('plane'), kind: 'construction-plane', planeType: 'tangent', name, surfaceType, center: vectorExpressions(center, 'Środek powierzchni'), point: vectorExpressions(point, 'Punkt styczności'), axis: vectorExpressions(axis, 'Oś powierzchni'), visible: Boolean(visible) };
+}
+
+export function createPathPlane({ name = 'Płaszczyzna na ścieżce', point = [0, 0, 0], direction = [1, 0, 0], visible = true } = {}) {
+  return { id: createId('plane'), kind: 'construction-plane', planeType: 'path', name, point: vectorExpressions(point, 'Punkt ścieżki'), direction: vectorExpressions(direction, 'Kierunek ścieżki'), visible: Boolean(visible) };
+}
+
 function normalized(vector, label) {
   const length = Math.hypot(...vector);
   if (!(length > 1e-9)) throw new Error(`${label} nie może mieć zerowej długości.`);
@@ -60,6 +80,28 @@ function cross(first, second) {
     (first[2] * second[0]) - (first[0] * second[2]),
     (first[0] * second[1]) - (first[1] * second[0]),
   ];
+}
+
+function dot(first, second) {
+  return first.reduce((sum, value, index) => sum + value * second[index], 0);
+}
+
+function rotated(vector, axis, angle) {
+  const cosine = Math.cos(angle); const sine = Math.sin(angle); const projection = dot(axis, vector);
+  const perpendicular = cross(axis, vector);
+  return vector.map((value, index) => value * cosine + perpendicular[index] * sine + axis[index] * projection * (1 - cosine));
+}
+
+function evaluatedVector(vector, values) {
+  return vector.map((value) => evaluateExpression(value, values));
+}
+
+function frameFromNormal(origin, normal, preferred = [0, 0, 1]) {
+  const normalizedNormal = normalized(normal, 'Normalna płaszczyzny');
+  const reference = Math.abs(dot(normalizedNormal, preferred)) > 0.95 ? [0, 1, 0] : preferred;
+  const u = normalized(cross(reference, normalizedNormal), 'Pierwszy kierunek płaszczyzny');
+  const v = normalized(cross(normalizedNormal, u), 'Drugi kierunek płaszczyzny');
+  return { origin, normal: normalizedNormal, u, v };
 }
 
 export function resolveConstructionPlane(plane, parameters = []) {
@@ -82,12 +124,42 @@ export function resolveConstructionPlane(plane, parameters = []) {
       v,
     };
   }
+  if (plane.planeType === 'tangent') {
+    const center = evaluatedVector(plane.center, resolved.values);
+    const point = evaluatedVector(plane.point, resolved.values);
+    let normal = point.map((value, index) => value - center[index]);
+    if (plane.surfaceType === 'cylinder') {
+      const axis = normalized(evaluatedVector(plane.axis, resolved.values), 'Oś walca');
+      const axial = dot(normal, axis);
+      normal = normal.map((value, index) => value - axis[index] * axial);
+    }
+    return { ...plane, centerValue: center, pointValue: point, ...frameFromNormal(point, normal) };
+  }
+  if (plane.planeType === 'path') {
+    const point = evaluatedVector(plane.point, resolved.values);
+    const direction = evaluatedVector(plane.direction, resolved.values);
+    return { ...plane, pointValue: point, directionValue: normalized(direction, 'Kierunek ścieżki'), ...frameFromNormal(point, direction) };
+  }
   const frame = BASE_PLANE_FRAMES[plane.basePlane];
   if (!frame) throw new Error(`Nieobsługiwana płaszczyzna bazowa: ${plane.basePlane}.`);
   const offsetValue = plane.planeType === 'midplane'
     ? (evaluateExpression(plane.firstOffset, resolved.values) + evaluateExpression(plane.secondOffset, resolved.values)) / 2
     : evaluateExpression(plane.offset, resolved.values);
   if (!Number.isFinite(offsetValue)) throw new Error('Odległość płaszczyzny musi być skończoną liczbą.');
+  if (plane.planeType === 'angle') {
+    const radians = evaluateExpression(plane.angle, resolved.values) * Math.PI / 180;
+    if (!Number.isFinite(radians)) throw new Error('Kąt płaszczyzny musi być skończoną liczbą.');
+    const rotationAxis = plane.rotationAxis === 'v' ? frame.v : frame.u;
+    return {
+      ...plane,
+      offsetValue,
+      angleValue: radians * 180 / Math.PI,
+      origin: frame.origin.map((value, axis) => value + frame.normal[axis] * offsetValue),
+      normal: normalized(rotated(frame.normal, rotationAxis, radians), 'Normalna płaszczyzny'),
+      u: normalized(rotated(frame.u, rotationAxis, radians), 'Pierwszy kierunek płaszczyzny'),
+      v: normalized(rotated(frame.v, rotationAxis, radians), 'Drugi kierunek płaszczyzny'),
+    };
+  }
   return {
     ...plane,
     offsetValue,

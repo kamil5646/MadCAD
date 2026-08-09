@@ -1139,6 +1139,37 @@ async function runUiFlow(window) {
   await setCommandField('Punkt 3 Z', '6');
   await confirmDialog();
   await waitForUi(window, `(() => { const plane = window.__madcadConstructionPlaneState?.find((item) => item.name === 'Płaszczyzna punktów'); return plane?.status === 'ok' && plane.origin[2] === 6 && plane.normal[2] === 1; })()`, 'płaszczyzna przez trzy niewspółliniowe punkty');
+  await clickTool('Plane angle');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna pod kątem')`, 'okno plane angle');
+  await setCommandField('Nazwa', 'Płaszczyzna kątowa');
+  await setCommandField('Płaszczyzna bazowa', 'XY');
+  await setCommandField('Oś obrotu', 'u');
+  await setCommandField('Kąt', '30');
+  await setCommandField('Odległość', '5');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const plane = window.__madcadConstructionPlaneState?.find((item) => item.name === 'Płaszczyzna kątowa'); return plane?.status === 'ok' && Math.abs(plane.origin[2] - 5) < 1e-9 && Math.abs(plane.normal[1] + 0.5) < 1e-9; })()`, 'parametryczna płaszczyzna pod kątem');
+  await clickTool('Plane tangent');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna styczna')`, 'okno plane tangent');
+  await setCommandField('Nazwa', 'Płaszczyzna styczna sfery');
+  await setCommandField('Styczność X', '0');
+  await setCommandField('Styczność Y', '5');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const plane = window.__madcadConstructionPlaneState?.find((item) => item.name === 'Płaszczyzna styczna sfery'); return plane?.status === 'ok' && plane.origin[1] === 5 && plane.normal[1] === 1; })()`, 'płaszczyzna styczna');
+  await clickTool('Plane path');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna na ścieżce')`, 'okno plane path');
+  await setCommandField('Nazwa', 'Płaszczyzna normalna ścieżki');
+  await setCommandField('Punkt ścieżki X', '2');
+  await setCommandField('Punkt ścieżki Y', '3');
+  await setCommandField('Punkt ścieżki Z', '4');
+  await setCommandField('Kierunek ścieżki X', '1');
+  await setCommandField('Kierunek ścieżki Y', '1');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const plane = window.__madcadConstructionPlaneState?.find((item) => item.name === 'Płaszczyzna normalna ścieżki'); return plane?.status === 'ok' && plane.origin[0] === 2 && plane.origin[1] === 3 && plane.origin[2] === 4 && Math.abs(plane.normal[0] - Math.SQRT1_2) < 1e-9; })()`, 'płaszczyzna na ścieżce');
+  await sendShortcut('z');
+  await waitForUi(window, `!window.__madcadConstructionPlaneState?.some((item) => item.name === 'Płaszczyzna normalna ścieżki')`, 'undo płaszczyzny na ścieżce');
+  await sendShortcut('z', true);
+  await waitForUi(window, `window.__madcadConstructionPlaneState?.some((item) => item.name === 'Płaszczyzna normalna ścieżki' && item.status === 'ok')`, 'redo płaszczyzny na ścieżce');
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return ['angle', 'tangent', 'path'].every((type) => saved?.references?.some((item) => item.planeType === type)); })()`, 'autozapis nowych płaszczyzn');
 
   progress('construction axes');
   await clickTool('Oś z krawędzi');
@@ -1169,6 +1200,15 @@ async function runUiFlow(window) {
   await setCommandField('Płaszczyzna B', midplaneId);
   await confirmDialog();
   await waitForUi(window, `(() => { const axis = window.__madcadConstructionAxisState?.find((item) => item.name === 'Oś przecięcia testowa'); return axis?.status === 'ok' && axis.origin[0] === 15 && axis.origin[2] === 8 && Math.abs(axis.direction[1]) === 1; })()`, 'oś przecięcia dwóch płaszczyzn');
+  await clickTool('Oś normalna');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Oś normalna do płaszczyzny')`, 'okno osi normalnej');
+  await setCommandField('Nazwa', 'Oś normalna testowa');
+  await setCommandField('Płaszczyzna', midplaneId);
+  await setCommandField('Punkt osi X', '1');
+  await setCommandField('Punkt osi Y', '2');
+  await setCommandField('Punkt osi Z', '3');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const axis = window.__madcadConstructionAxisState?.find((item) => item.name === 'Oś normalna testowa'); return axis?.status === 'ok' && axis.origin.join(',') === '1,2,3' && axis.direction.join(',') === '0,0,1'; })()`, 'oś normalna do płaszczyzny');
 
   progress('construction points');
   await clickTool('Punkt wierzchołka');
@@ -1195,6 +1235,32 @@ async function runUiFlow(window) {
   await setCommandField('Płaszczyzna', constructionPlaneId);
   await confirmDialog();
   await waitForUi(window, `(() => { const point = window.__madcadConstructionPointState?.find((item) => item.name === 'Punkt przecięcia testowy'); return point?.status === 'ok' && point.position.join(',') === '15,0,0'; })()`, 'punkt przecięcia osi i płaszczyzny');
+  await clickTool('Punkt środkowy');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Punkt środkowy')`, 'okno punktu środkowego');
+  await setCommandField('Nazwa', 'Środek odcinka testowy');
+  await setCommandField('Punkt 1 X', '2');
+  await setCommandField('Punkt 1 Y', '4');
+  await setCommandField('Punkt 1 Z', '6');
+  await setCommandField('Punkt 2 X', '10');
+  await setCommandField('Punkt 2 Y', '8');
+  await setCommandField('Punkt 2 Z', '4');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const point = window.__madcadConstructionPointState?.find((item) => item.name === 'Środek odcinka testowy'); return point?.status === 'ok' && point.position.join(',') === '6,6,5'; })()`, 'punkt środkowy dwóch punktów');
+  await clickTool('Punkt na osi');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Punkt na osi')`, 'okno punktu na osi');
+  await setCommandField('Nazwa', 'Punkt odsunięty na osi');
+  await setCommandField('Oś', edgeAxisId);
+  await setCommandField('Odległość na osi', '7');
+  await confirmDialog();
+  await waitForUi(window, `(() => { const point = window.__madcadConstructionPointState?.find((item) => item.name === 'Punkt odsunięty na osi'); return point?.status === 'ok' && point.position.join(',') === '7,0,0'; })()`, 'punkt odsunięty na osi');
+  await sendShortcut('z');
+  await waitForUi(window, `!window.__madcadConstructionPointState?.some((item) => item.name === 'Punkt odsunięty na osi')`, 'undo punktu na osi');
+  await sendShortcut('y');
+  await waitForUi(window, `window.__madcadConstructionPointState?.some((item) => item.name === 'Punkt odsunięty na osi' && item.status === 'ok')`, 'redo punktu na osi');
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.references?.some((item) => item.axisType === 'plane-normal') && ['midpoint', 'on-axis'].every((type) => saved.references.some((item) => item.pointType === type)); })()`, 'autozapis nowych osi i punktów');
+  const constructionReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${constructionReopenRevision} && window.__madcadVerifyEngineState?.status === 'ready' && ['angle', 'tangent', 'path'].every((type) => window.__madcadVerifyDocumentState?.references?.some((item) => item.planeType === type)) && window.__madcadConstructionAxisState?.some((item) => item.axisType === 'plane-normal' && item.status === 'ok') && ['midpoint', 'on-axis'].every((type) => window.__madcadConstructionPointState?.some((item) => item.pointType === type && item.status === 'ok'))`, 'ponowne otwarcie rozszerzonej geometrii konstrukcyjnej', modelingTimeoutMs);
 
   progress('sketch on planar model face');
   const supportFace = await window.webContents.executeJavaScript(`(() => {
@@ -1238,7 +1304,9 @@ async function runUiFlow(window) {
   await clickTool('Project');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.some((entity) => entity.role === 'projected' && entity.fixed && entity.projectionReferenceId)`, 'projekcja krawędzi z trwałym linkiem');
   const brokenProject = await window.webContents.executeJavaScript(`window.__madcadVerifyBreakProjectedReference()`);
-  await waitForUi(window, `document.querySelector('.reference-repair-panel')?.textContent.includes('Project') && window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(brokenProject.entityId)}]?.state === 'error'`, 'czytelny stan utraconego źródła Project', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(brokenProject.referenceId)})?.topologyId.endsWith('-lost')`, 'kontrolowane zerwanie źródła Project');
+  await waitForUi(window, `document.querySelector('.reference-repair-panel')?.textContent.includes('Project')`, 'panel utraconego źródła Project', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(brokenProject.entityId)}]?.state === 'error'`, 'wyróżnienie utraconego źródła Project', modelingTimeoutMs);
   await window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.reference-repair-panel button')].find((item) => item.textContent === 'Kandydat 1');
     if (!button) throw new Error('Brak kandydata naprawy Project.');
@@ -1481,9 +1549,9 @@ async function runUiFlow(window) {
     && autosaveState.features === 5
     && autosaveState.sketches === 4
     && autosaveState.entities === 13
-    && autosaveState.constructionPlanes === 3
-    && autosaveState.constructionAxes === 4
-    && autosaveState.constructionPoints === 3;
+    && autosaveState.constructionPlanes === 6
+    && autosaveState.constructionAxes === 5
+    && autosaveState.constructionPoints === 5;
   if (!autosaveRoundTrip) throw new Error(`Desktop autosave did not preserve the current document: ${JSON.stringify(autosaveState)}`);
 
   const recoveryRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
@@ -1557,8 +1625,8 @@ async function runUiFlow(window) {
 
 app.whenReady().then(async () => {
   const performanceBudgets = isCi
-    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 165000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 45000 }
-    : { desktopColdStartMs: 30000, desktopWorkflowMs: 50000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
+    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 180000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 45000 }
+    : { desktopColdStartMs: 30000, desktopWorkflowMs: 60000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
     width: 1936,

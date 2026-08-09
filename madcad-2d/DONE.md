@@ -35,13 +35,14 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Przebudowa szkicu i zależnej bryły bez zmiany trwałych ID profilu, encji i operacji.
 - [x] W pełni związany wspornik zmienia dwa wymiary, zachowuje poprawną objętość B-Rep i przechodzi autozapis oraz ponowne otwarcie.
 
-## Rozszerzenia szkicu P1.1–P1.3
+## Rozszerzenia szkicu i konstrukcji P1.1–P1.6
 
 - [x] Import SVG/DXF do aktywnego szkicu obsługuje jednostki, podstawowe krzywe, profile, diagnostykę pominiętej geometrii oraz pełny przepływ zapisu.
 - [x] Więzy współliniowości i symetrii działają od solvera do przycisków i znaczników szkicu, z diagnostyką konfliktów.
 - [x] Sterujące wymiary ordinate X/Y i długości łuku mają tworzenie oraz edycję na szkicu, transakcyjne błędy, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
 - [x] Prostokątny i kołowy szyk szkicu kopiuje punkty, linie, łuki, okręgi i profile, obsługuje listy oraz zakresy pomijanych wystąpień i przechodzi pełny przepływ zapisu.
 - [x] Szyk szkicu po pojedynczej linii lub łuku rozstawia kopie równo, utrzymuje orientację albo obraca je do stycznej i obsługuje ten sam przepływ pomijania, undo/redo oraz zapisu.
+- [x] Płaszczyzny angle/tangent/path, oś normalna do płaszczyzny oraz punkty środkowy i odsunięty na osi są parametryczne, walidowane i zachowują zależności po ponownym otwarciu dokumentu.
 
 ## Podstawowe modyfikacje szkicu M2
 

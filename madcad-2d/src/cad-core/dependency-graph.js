@@ -99,18 +99,28 @@ export function buildDependencyGraph(document) {
         ? [reference.firstOffset, reference.secondOffset]
         : reference.planeType === 'three-points'
           ? (reference.points || []).flat()
-          : [reference.offset];
+          : reference.planeType === 'angle'
+            ? [reference.angle, reference.offset]
+            : reference.planeType === 'tangent'
+              ? [...(reference.center || []), ...(reference.point || []), ...(reference.axis || [])]
+              : reference.planeType === 'path'
+                ? [...(reference.point || []), ...(reference.direction || [])]
+                : [reference.offset];
       for (const expression of expressions) for (const name of expressionDependencies(expression)) addEdge(parameterIdsByName.get(name), reference.id, 'drives');
     } else if (reference.kind === 'construction-axis') {
       const expressions = reference.axisType === 'cylinder'
         ? [...(reference.origin || []), ...(reference.direction || [])]
         : ['edge', 'two-points'].includes(reference.axisType)
           ? (reference.points || []).flat()
-          : [];
+          : reference.axisType === 'plane-normal'
+            ? (reference.origin || [])
+            : [];
       for (const expression of expressions) for (const name of expressionDependencies(expression)) addEdge(parameterIdsByName.get(name), reference.id, 'drives');
       for (const planeId of reference.planeIds || []) addEdge(planeId, reference.id, 'intersects');
+      addEdge(reference.planeId, reference.id, 'normal-to');
     } else if (reference.kind === 'construction-point') {
-      for (const expression of reference.position || []) for (const name of expressionDependencies(expression)) addEdge(parameterIdsByName.get(name), reference.id, 'drives');
+      const expressions = reference.pointType === 'midpoint' ? (reference.points || []).flat() : [...(reference.position || []), reference.distance];
+      for (const expression of expressions) for (const name of expressionDependencies(expression)) addEdge(parameterIdsByName.get(name), reference.id, 'drives');
       addEdge(reference.axisId, reference.id, 'intersects');
       addEdge(reference.planeId, reference.id, 'intersects');
     }

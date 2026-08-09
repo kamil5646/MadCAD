@@ -4,10 +4,10 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 
 ## P1 — rozszerzenie modelowania części
 
-- Pozostały zestaw wymiarów i więzów po ukończeniu symmetry/collinear oraz ordinate/długości łuku: curvature.
+- [>] Pozostały więz po ukończeniu symmetry/collinear oraz ordinate/długości łuku: curvature, realizowany jako `P1.7`.
 - [x] Szyki szkicu prostokątny, kołowy i po ścieżce z pomijaniem wystąpień ukończono jako `P1.4–P1.5`.
 - [x] Import SVG/DXF do szkicu — przeniesiony i ukończony jako `P1.1` w aktywnym planie.
-- Rozbudowany UCS, płaszczyzny tangent/angle/path oraz pełny zestaw osi i punktów konstrukcyjnych.
+- [x] Płaszczyzny tangent/angle/path, oś normalna do płaszczyzny oraz punkty środkowy i na osi ukończono jako `P1.6`; rozbudowany UCS pozostaje osobnym późniejszym zakresem.
 - Extrude To Object, offset start, draft i thin extrude.
 - Press Pull, Draft, Split Face/Body, Delete/Heal/Replace Face.
 - Revolve, Sweep, Loft, Rib/Web, Coil, Pipe, pattern i zaawansowane Emboss/Deboss.

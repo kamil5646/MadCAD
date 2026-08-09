@@ -541,25 +541,31 @@ export function validateDocument(document) {
         if (typeof reference.topologyId !== 'string' || !reference.topologyId) add(`${base}.topologyId`, 'Referencja topologii wymaga trwałego ID.', 'REQUIRED');
         if (typeof reference.bodyId !== 'string' || !reference.bodyId) add(`${base}.bodyId`, 'Referencja topologii wymaga ID bryły.', 'REQUIRED');
       } else if (reference.kind === 'construction-plane') {
-        if (!['offset', 'midplane', 'three-points'].includes(reference.planeType)) add(`${base}.planeType`, 'Nieobsługiwany typ płaszczyzny konstrukcyjnej.', 'UNSUPPORTED');
-        if (reference.planeType !== 'three-points' && !SUPPORTED_PLANES.has(reference.basePlane)) add(`${base}.basePlane`, `Nieobsługiwana płaszczyzna bazowa: ${reference.basePlane ?? ''}.`, 'UNSUPPORTED');
+        if (!['offset', 'midplane', 'three-points', 'angle', 'tangent', 'path'].includes(reference.planeType)) add(`${base}.planeType`, 'Nieobsługiwany typ płaszczyzny konstrukcyjnej.', 'UNSUPPORTED');
+        if (['offset', 'midplane', 'angle'].includes(reference.planeType) && !SUPPORTED_PLANES.has(reference.basePlane)) add(`${base}.basePlane`, `Nieobsługiwana płaszczyzna bazowa: ${reference.basePlane ?? ''}.`, 'UNSUPPORTED');
         if (typeof reference.name !== 'string' || !reference.name.trim()) add(`${base}.name`, 'Płaszczyzna konstrukcyjna wymaga nazwy.', 'REQUIRED');
         if (reference.planeType === 'offset' && typeof reference.offset !== 'string' && typeof reference.offset !== 'number') add(`${base}.offset`, 'Odległość płaszczyzny musi być wyrażeniem albo liczbą.', 'TYPE');
         if (reference.planeType === 'midplane' && [reference.firstOffset, reference.secondOffset].some((value) => typeof value !== 'string' && typeof value !== 'number')) add(`${base}.firstOffset`, 'Płaszczyzna środkowa wymaga dwóch położeń.', 'TYPE');
         if (reference.planeType === 'three-points' && (!Array.isArray(reference.points) || reference.points.length !== 3 || reference.points.some((point) => !Array.isArray(point) || point.length !== 3))) add(`${base}.points`, 'Płaszczyzna wymaga trzech punktów 3D.', 'TYPE');
+        if (reference.planeType === 'angle' && (!['u', 'v'].includes(reference.rotationAxis) || [reference.angle, reference.offset].some((value) => typeof value !== 'string' && typeof value !== 'number'))) add(`${base}.angle`, 'Płaszczyzna pod kątem wymaga osi U/V, kąta i odsunięcia.', 'TYPE');
+        if (reference.planeType === 'tangent' && (!['sphere', 'cylinder'].includes(reference.surfaceType) || ![reference.center, reference.point, reference.axis].every((vector) => Array.isArray(vector) && vector.length === 3))) add(`${base}.point`, 'Płaszczyzna styczna wymaga powierzchni oraz trzech wektorów 3D.', 'TYPE');
+        if (reference.planeType === 'path' && ![reference.point, reference.direction].every((vector) => Array.isArray(vector) && vector.length === 3)) add(`${base}.direction`, 'Płaszczyzna ścieżki wymaga punktu i kierunku 3D.', 'TYPE');
         if (typeof reference.visible !== 'boolean') add(`${base}.visible`, 'Widoczność płaszczyzny musi być wartością logiczną.', 'TYPE');
       } else if (reference.kind === 'construction-axis') {
-        if (!['edge', 'cylinder', 'two-points', 'plane-intersection'].includes(reference.axisType)) add(`${base}.axisType`, 'Nieobsługiwany typ osi konstrukcyjnej.', 'UNSUPPORTED');
+        if (!['edge', 'cylinder', 'two-points', 'plane-intersection', 'plane-normal'].includes(reference.axisType)) add(`${base}.axisType`, 'Nieobsługiwany typ osi konstrukcyjnej.', 'UNSUPPORTED');
         if (typeof reference.name !== 'string' || !reference.name.trim()) add(`${base}.name`, 'Oś konstrukcyjna wymaga nazwy.', 'REQUIRED');
         if (['edge', 'two-points'].includes(reference.axisType) && (!Array.isArray(reference.points) || reference.points.length !== 2 || reference.points.some((point) => !Array.isArray(point) || point.length !== 3))) add(`${base}.points`, 'Oś wymaga dwóch punktów 3D.', 'TYPE');
         if (reference.axisType === 'cylinder' && (![reference.origin, reference.direction].every((vector) => Array.isArray(vector) && vector.length === 3))) add(`${base}.direction`, 'Oś walca wymaga środka i kierunku 3D.', 'TYPE');
         if (reference.axisType === 'plane-intersection' && (!Array.isArray(reference.planeIds) || reference.planeIds.length !== 2 || reference.planeIds.some((id) => typeof id !== 'string' || !id))) add(`${base}.planeIds`, 'Oś przecięcia wymaga dwóch ID płaszczyzn.', 'TYPE');
+        if (reference.axisType === 'plane-normal' && (!reference.planeId || !Array.isArray(reference.origin) || reference.origin.length !== 3)) add(`${base}.planeId`, 'Oś normalna wymaga płaszczyzny i punktu 3D.', 'REQUIRED');
         if (typeof reference.visible !== 'boolean') add(`${base}.visible`, 'Widoczność osi musi być wartością logiczną.', 'TYPE');
       } else if (reference.kind === 'construction-point') {
-        if (!['vertex', 'center', 'intersection'].includes(reference.pointType)) add(`${base}.pointType`, 'Nieobsługiwany typ punktu konstrukcyjnego.', 'UNSUPPORTED');
+        if (!['vertex', 'center', 'intersection', 'midpoint', 'on-axis'].includes(reference.pointType)) add(`${base}.pointType`, 'Nieobsługiwany typ punktu konstrukcyjnego.', 'UNSUPPORTED');
         if (typeof reference.name !== 'string' || !reference.name.trim()) add(`${base}.name`, 'Punkt konstrukcyjny wymaga nazwy.', 'REQUIRED');
         if (['vertex', 'center'].includes(reference.pointType) && (!Array.isArray(reference.position) || reference.position.length !== 3)) add(`${base}.position`, 'Punkt wymaga położenia 3D.', 'TYPE');
         if (reference.pointType === 'intersection' && (!reference.axisId || !reference.planeId)) add(`${base}.axisId`, 'Punkt przecięcia wymaga osi i płaszczyzny.', 'REQUIRED');
+        if (reference.pointType === 'midpoint' && (!Array.isArray(reference.points) || reference.points.length !== 2 || reference.points.some((point) => !Array.isArray(point) || point.length !== 3))) add(`${base}.points`, 'Punkt środkowy wymaga dwóch punktów 3D.', 'TYPE');
+        if (reference.pointType === 'on-axis' && (!reference.axisId || (typeof reference.distance !== 'string' && typeof reference.distance !== 'number'))) add(`${base}.axisId`, 'Punkt na osi wymaga osi i odległości.', 'REQUIRED');
         if (typeof reference.visible !== 'boolean') add(`${base}.visible`, 'Widoczność punktu musi być wartością logiczną.', 'TYPE');
       }
     }
@@ -578,9 +584,17 @@ export function validateDocument(document) {
     });
   });
   references.forEach((reference, index) => {
+    if (!isRecord(reference) || reference.kind !== 'construction-axis' || reference.axisType !== 'plane-normal') return;
+    if (!referenceIds.has(reference.planeId)) add(`references[${index}].planeId`, `Nie znaleziono płaszczyzny „${reference.planeId}”.`, 'BROKEN_REFERENCE');
+  });
+  references.forEach((reference, index) => {
     if (!isRecord(reference) || reference.kind !== 'construction-point' || reference.pointType !== 'intersection') return;
     if (!referenceIds.has(reference.axisId)) add(`references[${index}].axisId`, `Nie znaleziono osi „${reference.axisId}”.`, 'BROKEN_REFERENCE');
     if (!referenceIds.has(reference.planeId)) add(`references[${index}].planeId`, `Nie znaleziono płaszczyzny „${reference.planeId}”.`, 'BROKEN_REFERENCE');
+  });
+  references.forEach((reference, index) => {
+    if (!isRecord(reference) || reference.kind !== 'construction-point' || reference.pointType !== 'on-axis') return;
+    if (!referenceIds.has(reference.axisId)) add(`references[${index}].axisId`, `Nie znaleziono osi „${reference.axisId}”.`, 'BROKEN_REFERENCE');
   });
 
   features.forEach((feature, featureIndex) => {

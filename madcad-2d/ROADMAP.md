@@ -128,7 +128,8 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.3 Wymiary ordinate X/Y oraz długości łuku: sterowanie solverem, znaczniki, edycja na szkicu, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
 - [x] P1.4 Prostokątny i kołowy szyk geometrii szkicu z pomijaniem wystąpień, walidacją, undo/redo, autozapisem i ponownym otwarciem w desktop E2E.
 - [x] P1.5 Szyk geometrii szkicu po linii lub łuku z równym rozstawem, stałą orientacją albo orientacją do stycznej, pomijaniem wystąpień i pełnym desktop E2E.
-- [>] P1.6 Płaszczyzny konstrukcyjne tangent, angle i path oraz brakujące warianty osi i punktów.
+- [x] P1.6 Parametryczne płaszczyzny tangent/angle/path, oś normalna do płaszczyzny oraz punkty środkowy i odsunięty na osi, z walidacją dokumentu, grafem zależności i pełnym desktop E2E.
+- [>] P1.7 Więz ciągłości krzywizny `curvature` dla obsługiwanych par krzywych, z diagnostyką konfliktu i przepływem zapisu.
 
 ## Definition of Done
 
@@ -152,4 +153,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.6 — płaszczyzny konstrukcyjne tangent, angle i path oraz brakujące warianty osi i punktów.`
+`P1.7 — więz ciągłości krzywizny curvature dla obsługiwanych par krzywych.`

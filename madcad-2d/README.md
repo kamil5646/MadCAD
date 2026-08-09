@@ -20,6 +20,7 @@ MadCAD rozwija się aktywnie. Jeśli chcesz wesprzeć rozwój aplikacji:
 - Modyfikacje: przesuń, kopiuj, odsuń, duplikuj oraz szyki szkicu prostokątne, kołowe i po linii/łuku z pomijaniem wystąpień.
 - Generator stali: szablony `brama`, `ogrodzenie`, `balkon`.
 - Modeler 3D: szkice z więzami (w tym współliniowość i symetria), historia parametryczna, podstawowe operacje bryłowe, otwory, inspekcja i przygotowanie druku.
+- Geometria konstrukcyjna: płaszczyzny offset/midplane/3-punktowe/angle/tangent/path, osie z geometrii lub normalne do płaszczyzny oraz punkty na geometrii, przecięciu, środku i osi.
 - Import/eksport 3D: `STEP`, `STL`, `3MF`; projekt parametryczny: `.madcad`.
 - Import szkicu: `SVG` i `DXF` z kontrolą jednostek oraz automatycznym wykrywaniem zamkniętych profili.
 - Wbudowany samouczek „Pierwsza część do druku” z jawną listą ograniczeń wersji alpha.

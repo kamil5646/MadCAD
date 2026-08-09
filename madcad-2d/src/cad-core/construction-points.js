@@ -26,6 +26,16 @@ export function createIntersectionPoint({ name = 'Punkt przecięcia', axisId = '
   return { ...basePoint('intersection', name, visible), axisId, planeId, visible: Boolean(visible) };
 }
 
+export function createMidpointPoint({ name = 'Punkt środkowy', points = [[0, 0, 0], [10, 0, 0]], visible = true } = {}) {
+  if (!Array.isArray(points) || points.length !== 2) throw new Error('Punkt środkowy wymaga dokładnie dwóch punktów.');
+  return { ...basePoint('midpoint', name, visible), points: points.map((point) => coordinates(point, 'Koniec odcinka')) };
+}
+
+export function createPointOnAxis({ name = 'Punkt na osi', axisId = '', distance = 0, visible = true } = {}) {
+  if (typeof axisId !== 'string' || !axisId) throw new Error('Punkt na osi wymaga osi konstrukcyjnej.');
+  return { ...basePoint('on-axis', name, visible), axisId, distance: String(distance) };
+}
+
 function topologyPosition(point, bodies) {
   if (!point.topologyId || !point.bodyId || !bodies?.length) return null;
   const body = bodies.find((candidate) => candidate.id === point.bodyId);
@@ -52,6 +62,17 @@ export function resolveConstructionPoint(point, references = [], parameters = []
     const denominator = resolvedPlane.normal.reduce((sum, value, index) => sum + (value * resolvedAxis.direction[index]), 0);
     if (Math.abs(denominator) <= 1e-12) throw new Error('Oś jest równoległa do płaszczyzny i nie wyznacza jednego punktu.');
     const distance = resolvedPlane.normal.reduce((sum, value, index) => sum + (value * (resolvedPlane.origin[index] - resolvedAxis.origin[index])), 0) / denominator;
+    return { ...point, position: resolvedAxis.origin.map((value, index) => value + (resolvedAxis.direction[index] * distance)) };
+  }
+  if (point.pointType === 'midpoint') {
+    const points = point.points.map((entry) => entry.map((value) => evaluateExpression(value, resolved.values)));
+    return { ...point, resolvedPoints: points, position: points[0].map((value, index) => (value + points[1][index]) / 2) };
+  }
+  if (point.pointType === 'on-axis') {
+    const axis = references.find((reference) => reference.id === point.axisId && reference.kind === 'construction-axis');
+    if (!axis) throw new Error('Nie znaleziono osi punktu odsuniętego.');
+    const resolvedAxis = resolveConstructionAxis(axis, references, resolved.values, bodies);
+    const distance = evaluateExpression(point.distance, resolved.values);
     return { ...point, position: resolvedAxis.origin.map((value, index) => value + (resolvedAxis.direction[index] * distance)) };
   }
   if (!['vertex', 'center'].includes(point.pointType)) throw new Error(`Nieobsługiwany wariant punktu: ${point.pointType ?? ''}.`);

@@ -106,9 +106,9 @@ import { applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_ST
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../cad-core/topology-references.js';
-import { createMidplane, createOffsetPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
-import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../cad-core/construction-axes.js';
-import { createCenterPoint, createIntersectionPoint, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../cad-core/construction-points.js';
+import { createAnglePlane, createMidplane, createOffsetPlane, createPathPlane, createTangentPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
+import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createPlaneNormalAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../cad-core/construction-axes.js';
+import { createCenterPoint, createIntersectionPoint, createMidpointPoint, createPointOnAxis, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../cad-core/construction-points.js';
 import { projectTopologyToSketch, synchronizeProjectedGeometry } from '../cad-core/sketch-projection.js';
 import { resolveFaceEdgeHolePlacement } from '../cad-core/face-edge-hole.js';
 import { measureSelection } from '../cad-core/measure-selection.js';
@@ -595,12 +595,15 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
   const isOffsetPlane = command.type === 'offsetPlane';
   const isMidplane = command.type === 'midplanePlane';
   const isThreePointPlane = command.type === 'threePointPlane';
-  const isConstructionPlane = isOffsetPlane || isMidplane || isThreePointPlane;
+  const isAnglePlane = command.type === 'anglePlane';
+  const isTangentPlane = command.type === 'tangentPlane';
+  const isPathPlane = command.type === 'pathPlane';
+  const isConstructionPlane = isOffsetPlane || isMidplane || isThreePointPlane || isAnglePlane || isTangentPlane || isPathPlane;
   const isConstructionAxis = command.type === 'constructionAxis';
-  const axisTitles = { edge: 'Oś z krawędzi', cylinder: 'Oś walca', 'two-points': 'Oś przez dwa punkty', 'plane-intersection': 'Oś przecięcia płaszczyzn' };
+  const axisTitles = { edge: 'Oś z krawędzi', cylinder: 'Oś walca', 'two-points': 'Oś przez dwa punkty', 'plane-intersection': 'Oś przecięcia płaszczyzn', 'plane-normal': 'Oś normalna do płaszczyzny' };
   const isConstructionPoint = command.type === 'constructionPoint';
-  const pointTitles = { vertex: 'Punkt na wierzchołku', center: 'Punkt środka', intersection: 'Punkt przecięcia' };
-  const title = isRectangle ? 'Prostokąt' : isCircle ? 'Okrąg' : isArc ? 'Łuk' : isPolygon ? 'Wielokąt regularny' : isEllipse ? 'Elipsa' : isSlot ? 'Slot' : isSpline ? 'Spline' : isConic ? 'Krzywa conic' : isPoint ? 'Punkt szkicu' : isExtrude ? 'Wyciągnięcie' : isBoolean ? 'Boolean' : isPrimitive ? 'Prymityw 3D' : isTransform ? (command.mode === 'rotate' ? 'Obróć bryłę' : 'Przesuń bryłę') : isOffsetFace ? 'Offset Face' : isTextSolid ? 'Tekst 3D' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : isShell ? 'Shell' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : isSketchOffset ? 'Offset szkicu' : isSketchCorner ? (command.mode === 'fillet' ? 'Fillet szkicu' : 'Chamfer szkicu') : isSketchTransform ? 'Transformuj szkic' : isSketchPattern ? 'Szyk szkicu' : isOffsetPlane ? 'Płaszczyzna odsunięta' : isMidplane ? 'Płaszczyzna środkowa' : isThreePointPlane ? 'Płaszczyzna przez trzy punkty' : isConstructionAxis ? axisTitles[command.axisType] : isConstructionPoint ? pointTitles[command.pointType] : 'Fazowanie';
+  const pointTitles = { vertex: 'Punkt na wierzchołku', center: 'Punkt środka', intersection: 'Punkt przecięcia', midpoint: 'Punkt środkowy', 'on-axis': 'Punkt na osi' };
+  const title = isRectangle ? 'Prostokąt' : isCircle ? 'Okrąg' : isArc ? 'Łuk' : isPolygon ? 'Wielokąt regularny' : isEllipse ? 'Elipsa' : isSlot ? 'Slot' : isSpline ? 'Spline' : isConic ? 'Krzywa conic' : isPoint ? 'Punkt szkicu' : isExtrude ? 'Wyciągnięcie' : isBoolean ? 'Boolean' : isPrimitive ? 'Prymityw 3D' : isTransform ? (command.mode === 'rotate' ? 'Obróć bryłę' : 'Przesuń bryłę') : isOffsetFace ? 'Offset Face' : isTextSolid ? 'Tekst 3D' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : isShell ? 'Shell' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : isSketchOffset ? 'Offset szkicu' : isSketchCorner ? (command.mode === 'fillet' ? 'Fillet szkicu' : 'Chamfer szkicu') : isSketchTransform ? 'Transformuj szkic' : isSketchPattern ? 'Szyk szkicu' : isOffsetPlane ? 'Płaszczyzna odsunięta' : isMidplane ? 'Płaszczyzna środkowa' : isThreePointPlane ? 'Płaszczyzna przez trzy punkty' : isAnglePlane ? 'Płaszczyzna pod kątem' : isTangentPlane ? 'Płaszczyzna styczna' : isPathPlane ? 'Płaszczyzna na ścieżce' : isConstructionAxis ? axisTitles[command.axisType] : isConstructionPoint ? pointTitles[command.pointType] : 'Fazowanie';
   return (
     <section className="command-dialog" aria-label={title}>
       <header><strong>{title}</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
@@ -699,10 +702,13 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
         {isConstructionPlane && (
           <>
             <Field label="Nazwa" value={command.name} onChange={(name) => onChange({ name })} autoFocus />
-            {!isThreePointPlane && <label className="command-field"><span>Płaszczyzna bazowa</span><select value={command.basePlane} onChange={(event) => onChange({ basePlane: event.target.value })}><option value="XY">Góra (XY)</option><option value="XZ">Przód (XZ)</option><option value="YZ">Prawo (YZ)</option></select></label>}
+            {(isOffsetPlane || isMidplane || isAnglePlane) && <label className="command-field"><span>Płaszczyzna bazowa</span><select value={command.basePlane} onChange={(event) => onChange({ basePlane: event.target.value })}><option value="XY">Góra (XY)</option><option value="XZ">Przód (XZ)</option><option value="YZ">Prawo (YZ)</option></select></label>}
             {isOffsetPlane && <Field label="Odległość" value={command.offset} onChange={(offset) => onChange({ offset })} suffix="mm" />}
             {isMidplane && <><Field label="Położenie A" value={command.firstOffset} onChange={(firstOffset) => onChange({ firstOffset })} suffix="mm" /><Field label="Położenie B" value={command.secondOffset} onChange={(secondOffset) => onChange({ secondOffset })} suffix="mm" /></>}
             {isThreePointPlane && <>{[1, 2, 3].map((index) => <React.Fragment key={index}><Field label={`Punkt ${index} X`} value={command[`x${index}`]} onChange={(value) => onChange({ [`x${index}`]: value })} suffix="mm" /><Field label={`Punkt ${index} Y`} value={command[`y${index}`]} onChange={(value) => onChange({ [`y${index}`]: value })} suffix="mm" /><Field label={`Punkt ${index} Z`} value={command[`z${index}`]} onChange={(value) => onChange({ [`z${index}`]: value })} suffix="mm" /></React.Fragment>)}</>}
+            {isAnglePlane && <><label className="command-field"><span>Oś obrotu</span><select value={command.rotationAxis} onChange={(event) => onChange({ rotationAxis: event.target.value })}><option value="u">Oś U</option><option value="v">Oś V</option></select></label><Field label="Kąt" value={command.angle} onChange={(angle) => onChange({ angle })} suffix="°" /><Field label="Odległość" value={command.offset} onChange={(offset) => onChange({ offset })} suffix="mm" /></>}
+            {isTangentPlane && <><label className="command-field"><span>Powierzchnia</span><select value={command.surfaceType} onChange={(event) => onChange({ surfaceType: event.target.value })}><option value="sphere">Sfera</option><option value="cylinder">Walec</option></select></label>{['X', 'Y', 'Z'].map((axis, index) => <React.Fragment key={`tangent-${axis}`}><Field label={`Środek ${axis}`} value={command[`center${index}`]} onChange={(value) => onChange({ [`center${index}`]: value })} suffix="mm" /><Field label={`Styczność ${axis}`} value={command[`point${index}`]} onChange={(value) => onChange({ [`point${index}`]: value })} suffix="mm" />{command.surfaceType === 'cylinder' && <Field label={`Oś ${axis}`} value={command[`axis${index}`]} onChange={(value) => onChange({ [`axis${index}`]: value })} />}</React.Fragment>)}</>}
+            {isPathPlane && <>{['X', 'Y', 'Z'].map((axis, index) => <React.Fragment key={`path-${axis}`}><Field label={`Punkt ścieżki ${axis}`} value={command[`point${index}`]} onChange={(value) => onChange({ [`point${index}`]: value })} suffix="mm" /><Field label={`Kierunek ścieżki ${axis}`} value={command[`direction${index}`]} onChange={(value) => onChange({ [`direction${index}`]: value })} /></React.Fragment>)}</>}
             <label className="command-field"><span>Widoczna</span><select value={command.visible ? 'yes' : 'no'} onChange={(event) => onChange({ visible: event.target.value === 'yes' })}><option value="yes">Tak</option><option value="no">Nie</option></select></label>
           </>
         )}
@@ -712,6 +718,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
             {['edge', 'two-points'].includes(command.axisType) && <>{[1, 2].map((index) => <React.Fragment key={index}><Field label={`Punkt ${index} X`} value={command[`x${index}`]} onChange={(value) => onChange({ [`x${index}`]: value })} suffix="mm" /><Field label={`Punkt ${index} Y`} value={command[`y${index}`]} onChange={(value) => onChange({ [`y${index}`]: value })} suffix="mm" /><Field label={`Punkt ${index} Z`} value={command[`z${index}`]} onChange={(value) => onChange({ [`z${index}`]: value })} suffix="mm" /></React.Fragment>)}</>}
             {command.axisType === 'cylinder' && <>{['X', 'Y', 'Z'].map((axis, index) => <Field key={`origin-${axis}`} label={`Środek ${axis}`} value={command[`origin${index}`]} onChange={(value) => onChange({ [`origin${index}`]: value })} suffix="mm" />)}{['X', 'Y', 'Z'].map((axis, index) => <Field key={`direction-${axis}`} label={`Kierunek ${axis}`} value={command[`direction${index}`]} onChange={(value) => onChange({ [`direction${index}`]: value })} />)}</>}
             {command.axisType === 'plane-intersection' && <><label className="command-field"><span>Płaszczyzna A</span><select value={command.planeId1} onChange={(event) => onChange({ planeId1: event.target.value })}>{command.planeOptions.map((plane) => <option key={plane.id} value={plane.id}>{plane.name}</option>)}</select></label><label className="command-field"><span>Płaszczyzna B</span><select value={command.planeId2} onChange={(event) => onChange({ planeId2: event.target.value })}>{command.planeOptions.map((plane) => <option key={plane.id} value={plane.id}>{plane.name}</option>)}</select></label></>}
+            {command.axisType === 'plane-normal' && <><label className="command-field"><span>Płaszczyzna</span><select value={command.planeId1} onChange={(event) => onChange({ planeId1: event.target.value })}>{command.planeOptions.map((plane) => <option key={plane.id} value={plane.id}>{plane.name}</option>)}</select></label>{['X', 'Y', 'Z'].map((axis, index) => <Field key={`normal-origin-${axis}`} label={`Punkt osi ${axis}`} value={command[`origin${index}`]} onChange={(value) => onChange({ [`origin${index}`]: value })} suffix="mm" />)}</>}
             <label className="command-field"><span>Widoczna</span><select value={command.visible ? 'yes' : 'no'} onChange={(event) => onChange({ visible: event.target.value === 'yes' })}><option value="yes">Tak</option><option value="no">Nie</option></select></label>
           </>
         )}
@@ -720,6 +727,8 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
             <Field label="Nazwa" value={command.name} onChange={(name) => onChange({ name })} autoFocus />
             {['vertex', 'center'].includes(command.pointType) && <>{['X', 'Y', 'Z'].map((axis, index) => <Field key={axis} label={axis} value={command[`position${index}`]} onChange={(value) => onChange({ [`position${index}`]: value })} suffix="mm" />)}</>}
             {command.pointType === 'intersection' && <><label className="command-field"><span>Oś</span><select value={command.axisId} onChange={(event) => onChange({ axisId: event.target.value })}>{command.axisOptions.map((axis) => <option key={axis.id} value={axis.id}>{axis.name}</option>)}</select></label><label className="command-field"><span>Płaszczyzna</span><select value={command.planeId} onChange={(event) => onChange({ planeId: event.target.value })}>{command.planeOptions.map((plane) => <option key={plane.id} value={plane.id}>{plane.name}</option>)}</select></label></>}
+            {command.pointType === 'midpoint' && <>{[1, 2].map((index) => <React.Fragment key={index}>{['X', 'Y', 'Z'].map((axis) => <Field key={`${index}-${axis}`} label={`Punkt ${index} ${axis}`} value={command[`${axis.toLowerCase()}${index}`]} onChange={(value) => onChange({ [`${axis.toLowerCase()}${index}`]: value })} suffix="mm" />)}</React.Fragment>)}</>}
+            {command.pointType === 'on-axis' && <><label className="command-field"><span>Oś</span><select value={command.axisId} onChange={(event) => onChange({ axisId: event.target.value })}>{command.axisOptions.map((axis) => <option key={axis.id} value={axis.id}>{axis.name}</option>)}</select></label><Field label="Odległość na osi" value={command.distance} onChange={(distance) => onChange({ distance })} suffix="mm" /></>}
             <label className="command-field"><span>Widoczny</span><select value={command.visible ? 'yes' : 'no'} onChange={(event) => onChange({ visible: event.target.value === 'yes' })}><option value="yes">Tak</option><option value="no">Nie</option></select></label>
           </>
         )}
@@ -2256,7 +2265,7 @@ export default function ModelingWorkspace({ onClose }) {
       features: document.features.length,
       featureIds: document.features.map((feature) => feature.id),
       featureData: document.features.map((feature) => ({ id: feature.id, type: feature.type, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, depth: feature.depth, diameter: feature.diameter, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
-      references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
+      references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, rotationAxis: reference.rotationAxis, angle: reference.angle, surfaceType: reference.surfaceType, center: reference.center, point: reference.point, axis: reference.axis, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, distance: reference.distance, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
         : { kind: selection?.kind, id: selection?.id, items: selection?.items?.map((item) => ({ kind: item.kind, id: item.id })) || [] },
@@ -2584,8 +2593,9 @@ export default function ModelingWorkspace({ onClose }) {
     if (readOnly) return readOnlyNotice();
     const existing = plane;
     const mode = existing?.planeType || planeType;
-    const commandType = mode === 'midplane' ? 'midplanePlane' : mode === 'three-points' ? 'threePointPlane' : 'offsetPlane';
-    const defaultNames = { offset: 'Płaszczyzna odsunięta', midplane: 'Płaszczyzna środkowa', 'three-points': 'Płaszczyzna przez trzy punkty' };
+    const commandTypes = { offset: 'offsetPlane', midplane: 'midplanePlane', 'three-points': 'threePointPlane', angle: 'anglePlane', tangent: 'tangentPlane', path: 'pathPlane' };
+    const commandType = commandTypes[mode] || 'offsetPlane';
+    const defaultNames = { offset: 'Płaszczyzna odsunięta', midplane: 'Płaszczyzna środkowa', 'three-points': 'Płaszczyzna przez trzy punkty', angle: 'Płaszczyzna pod kątem', tangent: 'Płaszczyzna styczna', path: 'Płaszczyzna na ścieżce' };
     const points = existing?.points || [['0', '0', '0'], ['10', '0', '0'], ['0', '10', '0']];
     setCommand({
       type: commandType,
@@ -2593,9 +2603,15 @@ export default function ModelingWorkspace({ onClose }) {
       editId: existing?.id || null,
       name: existing?.name || `${defaultNames[mode]} ${document.references.filter((reference) => reference.kind === 'construction-plane').length + 1}`,
       basePlane: existing?.basePlane || (selection?.kind === 'plane' && PLANE_LABELS[selection.id] ? selection.id : 'XY'),
-      offset: existing?.offset || '10',
+      offset: existing?.offset || (mode === 'angle' ? '0' : '10'),
       firstOffset: existing?.firstOffset || '0',
       secondOffset: existing?.secondOffset || '10',
+      rotationAxis: existing?.rotationAxis || 'u', angle: existing?.angle || '45',
+      surfaceType: existing?.surfaceType || 'sphere',
+      center0: existing?.center?.[0] || '0', center1: existing?.center?.[1] || '0', center2: existing?.center?.[2] || '0',
+      point0: existing?.point?.[0] || '10', point1: existing?.point?.[1] || '0', point2: existing?.point?.[2] || '0',
+      axis0: existing?.axis?.[0] || '0', axis1: existing?.axis?.[1] || '0', axis2: existing?.axis?.[2] || '1',
+      direction0: existing?.direction?.[0] || '1', direction1: existing?.direction?.[1] || '0', direction2: existing?.direction?.[2] || '0',
       x1: points[0][0], y1: points[0][1], z1: points[0][2],
       x2: points[1][0], y2: points[1][1], z2: points[1][2],
       x3: points[2][0], y3: points[2][1], z3: points[2][2],
@@ -2611,7 +2627,13 @@ export default function ModelingWorkspace({ onClose }) {
         ? createMidplane({ name: command.name, basePlane: command.basePlane, firstOffset: command.firstOffset, secondOffset: command.secondOffset, visible: command.visible })
         : command.planeType === 'three-points'
           ? createThreePointPlane({ name: command.name, points: [[command.x1, command.y1, command.z1], [command.x2, command.y2, command.z2], [command.x3, command.y3, command.z3]], visible: command.visible })
-          : createOffsetPlane({ name: command.name, basePlane: command.basePlane, offset: command.offset, visible: command.visible });
+          : command.planeType === 'angle'
+            ? createAnglePlane({ name: command.name, basePlane: command.basePlane, rotationAxis: command.rotationAxis, angle: command.angle, offset: command.offset, visible: command.visible })
+            : command.planeType === 'tangent'
+              ? createTangentPlane({ name: command.name, surfaceType: command.surfaceType, center: [command.center0, command.center1, command.center2], point: [command.point0, command.point1, command.point2], axis: [command.axis0, command.axis1, command.axis2], visible: command.visible })
+              : command.planeType === 'path'
+                ? createPathPlane({ name: command.name, point: [command.point0, command.point1, command.point2], direction: [command.direction0, command.direction1, command.direction2], visible: command.visible })
+                : createOffsetPlane({ name: command.name, basePlane: command.basePlane, offset: command.offset, visible: command.visible });
       if (command.editId) plane.id = command.editId;
       resolveConstructionPlane(plane, document.parameters);
       commit((next) => {
@@ -2638,7 +2660,7 @@ export default function ModelingWorkspace({ onClose }) {
     const direction = axis?.direction || topologyRecord?.descriptor?.axisDirection || [0, 0, 1];
     const planeOptions = document.references.filter((reference) => reference.kind === 'construction-plane');
     const planeIds = axis?.planeIds || planeOptions.slice(0, 2).map((plane) => plane.id);
-    const defaultNames = { edge: 'Oś z krawędzi', cylinder: 'Oś walca', 'two-points': 'Oś przez dwa punkty', 'plane-intersection': 'Oś przecięcia płaszczyzn' };
+    const defaultNames = { edge: 'Oś z krawędzi', cylinder: 'Oś walca', 'two-points': 'Oś przez dwa punkty', 'plane-intersection': 'Oś przecięcia płaszczyzn', 'plane-normal': 'Oś normalna do płaszczyzny' };
     setCommand({
       type: 'constructionAxis', axisType, editId: axis?.id || null,
       name: axis?.name || `${defaultNames[axisType]} ${document.references.filter((reference) => reference.kind === 'construction-axis').length + 1}`,
@@ -2646,7 +2668,7 @@ export default function ModelingWorkspace({ onClose }) {
       x2: String(points[1][0]), y2: String(points[1][1]), z2: String(points[1][2]),
       origin0: String(origin[0]), origin1: String(origin[1]), origin2: String(origin[2]),
       direction0: String(direction[0]), direction1: String(direction[1]), direction2: String(direction[2]),
-      planeOptions, planeId1: planeIds[0] || '', planeId2: planeIds[1] || planeIds[0] || '',
+      planeOptions, planeId1: axis?.planeId || planeIds[0] || '', planeId2: planeIds[1] || planeIds[0] || '',
       topologyId: axis?.topologyId || topologyRecord?.id || null, bodyId: axis?.bodyId || body?.id || null,
       visible: axis?.visible ?? true,
     });
@@ -2664,7 +2686,9 @@ export default function ModelingWorkspace({ onClose }) {
           ? createCylinderAxis({ ...common, origin: [command.origin0, command.origin1, command.origin2], direction: [command.direction0, command.direction1, command.direction2], topologyId: command.topologyId, bodyId: command.bodyId })
           : command.axisType === 'plane-intersection'
             ? createPlaneIntersectionAxis({ ...common, planeIds: [command.planeId1, command.planeId2] })
-            : createTwoPointAxis({ ...common, points });
+            : command.axisType === 'plane-normal'
+              ? createPlaneNormalAxis({ ...common, planeId: command.planeId1, origin: [command.origin0, command.origin1, command.origin2] })
+              : createTwoPointAxis({ ...common, points });
       if (command.editId) axis.id = command.editId;
       resolveConstructionAxis(axis, document.references, document.parameters);
       commit((next) => {
@@ -2692,14 +2716,17 @@ export default function ModelingWorkspace({ onClose }) {
       || topologyRecord?.descriptor?.center
       || (endpoints?.length === 2 ? endpoints[0].map((value, axis) => (value + endpoints[1][axis]) / 2) : null);
     const position = point?.position || selectedPosition || [0, 0, 0];
+    const points = point?.points || [[0, 0, 0], [10, 0, 0]];
     const topologyCompatible = pointType === 'vertex' ? selectedItem?.kind === 'vertex' : pointType === 'center' && ['face', 'edge'].includes(selectedItem?.kind);
     const axisOptions = document.references.filter((reference) => reference.kind === 'construction-axis');
     const planeOptions = document.references.filter((reference) => reference.kind === 'construction-plane');
-    const defaultNames = { vertex: 'Punkt na wierzchołku', center: 'Punkt środka', intersection: 'Punkt przecięcia' };
+    const defaultNames = { vertex: 'Punkt na wierzchołku', center: 'Punkt środka', intersection: 'Punkt przecięcia', midpoint: 'Punkt środkowy', 'on-axis': 'Punkt na osi' };
     setCommand({
       type: 'constructionPoint', pointType, editId: point?.id || null,
       name: point?.name || `${defaultNames[pointType]} ${document.references.filter((reference) => reference.kind === 'construction-point').length + 1}`,
       position0: String(position[0]), position1: String(position[1]), position2: String(position[2]),
+      x1: String(points[0][0]), y1: String(points[0][1]), z1: String(points[0][2]),
+      x2: String(points[1][0]), y2: String(points[1][1]), z2: String(points[1][2]), distance: String(point?.distance ?? 0),
       axisOptions, planeOptions, axisId: point?.axisId || axisOptions[0]?.id || '', planeId: point?.planeId || planeOptions[0]?.id || '',
       topologyId: point?.topologyId || (topologyCompatible ? topologyRecord?.id : null) || null, bodyId: point?.bodyId || (topologyCompatible ? body?.id : null) || null,
       topologyKind: point?.topologyKind || (selectedItem?.kind === 'edge' ? 'edge' : selectedItem?.kind === 'face' ? 'face' : 'vertex'),
@@ -2717,7 +2744,11 @@ export default function ModelingWorkspace({ onClose }) {
         ? createCenterPoint({ ...common, position, topologyId: command.topologyId, bodyId: command.bodyId, topologyKind: ['face', 'edge'].includes(command.topologyKind) ? command.topologyKind : 'face' })
         : command.pointType === 'intersection'
           ? createIntersectionPoint({ ...common, axisId: command.axisId, planeId: command.planeId })
-          : createVertexPoint({ ...common, position, topologyId: command.topologyId, bodyId: command.bodyId });
+          : command.pointType === 'midpoint'
+            ? createMidpointPoint({ ...common, points: [[command.x1, command.y1, command.z1], [command.x2, command.y2, command.z2]] })
+            : command.pointType === 'on-axis'
+              ? createPointOnAxis({ ...common, axisId: command.axisId, distance: command.distance })
+              : createVertexPoint({ ...common, position, topologyId: command.topologyId, bodyId: command.bodyId });
       if (command.editId) point.id = command.editId;
       resolveConstructionPoint(point, document.references, document.parameters, engine.bodies);
       commit((next) => {
@@ -3135,7 +3166,7 @@ export default function ModelingWorkspace({ onClose }) {
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || !selectedProfile} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={Type} label="Tekst 3D" onClick={openTextSolid} disabled={readOnly} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || selectedBodyIds.length !== 2} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Layers3} label="Shell" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Layers3} label="Offset Face" onClick={openOffsetFace} disabled={readOnly || selectedFaceItems.length !== 1} /><ToolButton icon={Move3d} label="Przesuń bryłę" onClick={() => openTransform('move')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Rotate3d} label="Obróć bryłę" onClick={() => openTransform('rotate')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
-                <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={CircleDotDashed} label="Punkt wierzchołka" onClick={() => openConstructionPoint('vertex')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt centrum" onClick={() => openConstructionPoint('center')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt przecięcia" onClick={() => openConstructionPoint('intersection')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} /></RibbonGroup>
+                <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Rotate3d} label="Plane angle" onClick={() => openConstructionPlane('angle')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Plane tangent" onClick={() => openConstructionPlane('tangent')} disabled={readOnly} /><ToolButton icon={Move3d} label="Plane path" onClick={() => openConstructionPlane('path')} disabled={readOnly} /><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={Move3d} label="Oś normalna" onClick={() => openConstructionAxis('plane-normal')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={CircleDotDashed} label="Punkt wierzchołka" onClick={() => openConstructionPoint('vertex')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt centrum" onClick={() => openConstructionPoint('center')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt przecięcia" onClick={() => openConstructionPoint('intersection')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={CircleDotDashed} label="Punkt środkowy" onClick={() => openConstructionPoint('midpoint')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt na osi" onClick={() => openConstructionPoint('on-axis')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis')} /><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="INSPECT"><ToolButton icon={Ruler} label="Zmierz" onClick={openMeasure} /><ToolButton icon={ScanSearch} label="Przekrój" onClick={openSectionAnalysis} disabled={!engine.bodies.length} /><ToolButton icon={Box} label="Masa" onClick={openMassProperties} disabled={!engine.bodies.length} /><ToolButton icon={AlertTriangle} label="Analiza" onClick={openGeometryInspection} disabled={!engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Import 3D" onClick={() => importInputRef.current?.click()} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="WYBIERZ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
@@ -3216,7 +3247,7 @@ export default function ModelingWorkspace({ onClose }) {
             command={command}
             profileName={selectedProfile?.name || ''}
             onChange={updateCommand}
-            onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
+            onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
             onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => setCommand(null)}
             onUndoSegment={undoSketchSegment}
             onFinishPath={finishSketchPath}
