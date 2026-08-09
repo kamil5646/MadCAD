@@ -138,9 +138,12 @@ Te prace nie czekają na koniec modelowania:
   - [x] P1.9b Otwarty łańcuch linii szkicu tworzy dokładną cienkościenną bryłę z zakończeniem prostym lub wydłużonym; walidacja rozgałęzień, anulowanie, undo/redo, autozapis i ponowne otwarcie przechodzą testy.
 - [x] P1.10 Draft wskazanych planarnych ścian względem bazowej albo parametrycznej płaszczyzny neutralnej, z kątem dodatnim/ujemnym, trwałymi referencjami, anulowaniem, edycją, undo/redo, autozapisem i ponownym otwarciem.
 - [x] P1.11 Press Pull jako kontekstowa operacja profilu i planarnej ściany, oparta na istniejących Extrude oraz Offset Face i sprawdzona w obu kontekstach przez desktop E2E.
-- [>] P1.12 Split Face/Body bez dublowania narzędzi tnących.
+- [x] P1.12 Split Face/Body bez dublowania narzędzi tnących.
   - [x] P1.12a Split Body bazową albo konstrukcyjną płaszczyzną, z zachowaniem obu wynikowych brył, trwałym ID drugiej bryły, edycją, undo/redo, autozapisem i ponownym otwarciem.
-  - [>] P1.12b Split Face zamkniętym profilem szkicu na wskazanej planarnej ścianie.
+  - [x] P1.12b Split Face zamkniętym profilem szkicu na wskazanej planarnej ścianie, bez zmiany objętości, z trwałą referencją, anulowaniem, undo/redo, autozapisem i ponownym otwarciem.
+- [>] P1.13 Naprawa ścian jako osobne, mierzalne etapy.
+  - [>] P1.13a Delete Face + Heal dla wskazanych ścian z kontrolą poprawności wynikowej bryły.
+  - [ ] P1.13b Replace Face wskazaną powierzchnią docelową.
 
 ## Definition of Done
 
@@ -164,4 +167,4 @@ Dodatkowo:
 
 ## Następne pojedyncze zadanie
 
-`P1.12b — Split Face zamkniętym profilem szkicu na planarnej ścianie.`
+`P1.13a — Delete Face + Heal dla wskazanych ścian.`

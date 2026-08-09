@@ -654,6 +654,32 @@ test('Split Body przygotowuje płaszczyznę konstrukcyjną i produkuje drugą tr
   assert.ok(validateDocument(missingPlane).issues.some((issue) => issue.path.endsWith('.planeId') && issue.code === 'BROKEN_REFERENCE'));
 });
 
+test('Split Face wiąże profil szkicu z trwałą referencją planarnej ściany', () => {
+  const document = createDocument('Split Face');
+  const box = createFeature('primitive', { primitiveType: 'box', x: '-10', y: '-10', z: '0', width: '20', depth: '20', height: '10' });
+  const bodyId = `body-${box.id}`;
+  const support = createTopologyReference({ selection: { kind: 'face', id: 'top', bodyId, sourceFeatureId: box.id }, descriptor: { geometry: 'PLANE', center: [0, 0, 10], normal: [0, 0, 1], area: 400 }, label: 'Górna ściana' });
+  const profile = createCircleProfile({ name: 'Region', diameter: '8', x: '0', y: '0' });
+  const sketch = createSketch({ name: 'Profil podziału', plane: 'XY', planeOffset: '10', support: { kind: 'face', referenceId: support.id }, profiles: [profile] });
+  const split = createFeature('splitFace', { targetBodyId: bodyId, sketchId: sketch.id, profileId: profile.id, referenceIds: [support.id] });
+  document.references.push(support);
+  document.sketches.push(sketch);
+  document.features.push(box, split);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[1];
+  assert.equal(prepared.profile.geometry.diameter, 8);
+  assert.equal(prepared.profile.planeOffset, 10);
+  assert.equal(prepared.topologyReferences[0].id, support.id);
+  const graph = buildDependencyGraph(document);
+  assert.ok(graph.edges.some((edge) => edge.from === profile.id && edge.to === split.id && edge.kind === 'references'));
+  assert.ok(graph.edges.some((edge) => edge.from === support.id && edge.to === split.id && edge.kind === 'references-topology'));
+
+  const mismatched = structuredClone(document);
+  mismatched.features[1].referenceIds = ['missing-face'];
+  assert.ok(validateDocument(mismatched).issues.some((issue) => issue.path.includes('.referenceIds')));
+});
+
 test('Box, Cylinder, Sphere i Torus przygotowują parametryczne bryły oraz osobne ciała', () => {
   const document = createDocument('Prymitywy');
   const primitives = [

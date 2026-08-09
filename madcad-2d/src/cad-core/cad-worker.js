@@ -552,6 +552,60 @@ function runFeature(feature, bodyMap, bodyOrder) {
       positivePlane?.delete();
       negativePlane?.delete();
     }
+    return;
+  }
+
+  if (feature.type === 'splitFace') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły dla ${feature.name}.`);
+    const source = target.shape;
+    const faces = source.faces;
+    const boundingBox = source.boundingBox;
+    const sourceNormals = { XY: [0, 0, 1], XZ: [0, -1, 0], YZ: [1, 0, 0] };
+    let tool;
+    let result;
+    let fuser;
+    let progress;
+    let sourceProperties;
+    let resultProperties;
+    try {
+      const descriptors = faces.map((face) => faceDescriptor(face));
+      const faceDescriptorValue = descriptors[matchingFaceIndex(feature.topologyReferences?.[0], descriptors)];
+      if (faceDescriptorValue.geometry !== 'PLANE') throw new Error('Split Face obsługuje wyłącznie ściany planarne.');
+      const sourceNormal = sourceNormals[feature.profile.plane || 'XY'];
+      const alignment = faceDescriptorValue.normal.reduce((sum, value, axis) => sum + value * sourceNormal[axis], 0);
+      if (Math.abs(Math.abs(alignment) - 1) > GEOMETRY_POLICY.angularTolerance) throw new Error('Profil Split Face musi leżeć na dzielonej ścianie.');
+      const dimensions = boundingBox.bounds[1].map((value, axis) => value - boundingBox.bounds[0][axis]).filter((value) => value > GEOMETRY_POLICY.linearTolerance);
+      const depth = Math.max(GEOMETRY_POLICY.linearTolerance * 100, Math.min(...dimensions) * 0.05);
+      tool = extrudeProfile(feature.profile, { startDelta: 0, distance: -Math.sign(alignment) * depth }, feature);
+      sourceProperties = measureShapeVolumeProperties(source);
+      progress = new (getOC().Message_ProgressRange_1)();
+      fuser = new (getOC().BRepAlgoAPI_Fuse_3)(source.wrapped, tool.wrapped, progress);
+      fuser.Build(progress);
+      if (!fuser.IsDone()) throw new Error('OpenCascade nie utworzył podziału ściany.');
+      result = cast(fuser.Shape());
+      const resultFaces = result.faces;
+      resultProperties = measureShapeVolumeProperties(result);
+      try {
+        const volumeTolerance = Math.max(GEOMETRY_POLICY.linearTolerance, Math.abs(sourceProperties.volume) * 1e-9);
+        if (Math.abs(resultProperties.volume - sourceProperties.volume) > volumeTolerance) throw new Error('Split Face zmienił objętość bryły zamiast wyłącznie jej topologię.');
+        if (resultFaces.length <= faces.length) throw new Error('Profil nie utworzył nowego regionu na dzielonej ścianie.');
+      } finally {
+        resultFaces.forEach((face) => face.delete());
+      }
+      target.shape = result;
+      result = null;
+      source.delete();
+    } finally {
+      faces.forEach((face) => face.delete());
+      boundingBox.delete();
+      result?.delete();
+      tool?.delete();
+      fuser?.delete();
+      progress?.delete();
+      resultProperties?.delete();
+      sourceProperties?.delete();
+    }
   }
 }
 

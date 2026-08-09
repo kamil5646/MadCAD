@@ -437,6 +437,17 @@ export function prepareDocument(document) {
         splitPlane: { origin: [...splitPlane.origin], normal: [...splitPlane.normal], u: [...splitPlane.u], v: [...splitPlane.v] },
       };
     }
+    if (feature.type === 'splitFace') {
+      const match = findProfile(document, feature.profileId);
+      if (!match) throw new Error(`Nie znaleziono profilu Split Face ${feature.profileId}.`);
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        profile: { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) },
+        topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
+      };
+    }
     throw new Error(`Nieobsługiwana operacja: ${feature.type}`);
   });
 

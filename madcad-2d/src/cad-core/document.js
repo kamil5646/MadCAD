@@ -12,7 +12,7 @@ export const DOCUMENT_SCHEMA_VERSION = 4;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -120,7 +120,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -732,6 +732,21 @@ export function validateDocument(document) {
       const splitPlane = references.find((reference) => reference.id === feature.planeId);
       if (!SUPPORTED_PLANES.has(feature.planeId) && splitPlane?.kind !== 'construction-plane') add(`${base}.planeId`, `Nie znaleziono płaszczyzny podziału „${feature.planeId ?? ''}”.`, 'BROKEN_REFERENCE');
       bodyIds.add(`body-${feature.id}`);
+    }
+    if (feature.type === 'splitFace') {
+      if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
+      const ownerSketchId = profileOwners.get(feature.profileId);
+      if (!ownerSketchId) add(`${base}.profileId`, `Nie znaleziono profilu „${feature.profileId ?? ''}”.`, 'BROKEN_REFERENCE');
+      else if (ownerSketchId !== feature.sketchId) add(`${base}.profileId`, `Profil „${feature.profileId}” nie należy do szkicu „${feature.sketchId ?? ''}”.`, 'BROKEN_REFERENCE');
+      const sketch = document.sketches.find((item) => item.id === feature.sketchId);
+      if (sketch?.support?.kind !== 'face') add(`${base}.sketchId`, 'Split Face wymaga szkicu założonego na planarnej ścianie.', 'UNSUPPORTED');
+      if (!Array.isArray(feature.referenceIds) || feature.referenceIds.length !== 1) add(`${base}.referenceIds`, 'Split Face wymaga dokładnie jednej referencji ściany.', 'REQUIRED');
+      else {
+        const faceReference = references.find((reference) => reference.id === feature.referenceIds[0]);
+        if (faceReference?.kind !== 'topology' || faceReference.topologyKind !== 'face' || faceReference.descriptor?.geometry !== 'PLANE') add(`${base}.referenceIds[0]`, 'Split Face wymaga trwałej referencji planarnej ściany.', 'UNSUPPORTED');
+        else if (faceReference.bodyId !== feature.targetBodyId) add(`${base}.targetBodyId`, 'Dzielona ściana musi należeć do bryły docelowej Split Face.', 'VALUE');
+        if (sketch?.support?.referenceId !== feature.referenceIds[0]) add(`${base}.referenceIds[0]`, 'Profil Split Face musi należeć do szkicu na dzielonej ścianie.', 'VALUE');
+      }
     }
     if (feature.type === 'offsetFace') {
       if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
