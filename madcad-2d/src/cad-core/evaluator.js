@@ -329,6 +329,34 @@ export function prepareDocument(document) {
         depthValue: positive(evaluateExpression(feature.depth, parameterResult.values), 'Zasięg Rib/Web'),
       };
     }
+    if (feature.type === 'coil') {
+      const baseAxes = {
+        X_AXIS: { id: 'X_AXIS', origin: [0, 0, 0], direction: [1, 0, 0] },
+        Y_AXIS: { id: 'Y_AXIS', origin: [0, 0, 0], direction: [0, 1, 0] },
+        Z_AXIS: { id: 'Z_AXIS', origin: [0, 0, 0], direction: [0, 0, 1] },
+      };
+      const axisReference = document.references.find((reference) => reference.id === feature.axisId);
+      const axis = baseAxes[feature.axisId] || resolveConstructionAxis(axisReference, document.references, parameterResult.values);
+      const coilDiameterValue = positive(evaluateExpression(feature.coilDiameter, parameterResult.values), 'Średnica Coil');
+      const wireDiameterValue = positive(evaluateExpression(feature.wireDiameter, parameterResult.values), 'Średnica przekroju Coil');
+      const pitchValue = positive(evaluateExpression(feature.pitch, parameterResult.values), 'Skok Coil');
+      const turnsValue = evaluateExpression(feature.turns, parameterResult.values);
+      if (!Number.isFinite(turnsValue) || turnsValue <= 0 || turnsValue > 200) throw new Error('Liczba zwojów Coil musi należeć do zakresu 0–200.');
+      if (wireDiameterValue >= coilDiameterValue) throw new Error('Średnica przekroju Coil musi być mniejsza od średnicy Coil.');
+      if (pitchValue + GEOMETRY_POLICY.linearTolerance < wireDiameterValue) throw new Error('Skok Coil nie może być mniejszy od średnicy przekroju.');
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        axis: { origin: axis.origin, direction: axis.direction },
+        coilDiameterValue,
+        wireDiameterValue,
+        pitchValue,
+        turnsValue,
+        heightValue: pitchValue * turnsValue,
+        handedness: feature.handedness || 'right',
+      };
+    }
     if (feature.type === 'hole') {
       const holeType = feature.holeType || 'simple';
       const extent = feature.extent || 'distance';

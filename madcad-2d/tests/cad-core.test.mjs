@@ -654,6 +654,37 @@ test('Rib/Web przygotowuje parametryczne wzmocnienie z otwartego łańcucha', ()
   assert.throws(() => prepareDocument(disconnected), /ciągłego łańcucha/);
 });
 
+test('Coil przygotowuje parametryczną helisę na osi bazowej lub konstrukcyjnej', () => {
+  const document = createDocument('Coil');
+  const diameter = createParameter('srednicaSpirali', '12', 'mm');
+  const axis = createTwoPointAxis({ points: [[2, 3, 0], [2, 3, 20]] });
+  const coil = createFeature('coil', { axisId: axis.id, coilDiameter: 'srednicaSpirali', wireDiameter: '2', pitch: '4', turns: '3.5', handedness: 'left', operation: 'new' });
+  document.parameters.push(diameter);
+  document.references.push(axis);
+  document.features.push(coil);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[0];
+  assert.equal(prepared.coilDiameterValue, 12);
+  assert.equal(prepared.wireDiameterValue, 2);
+  assert.equal(prepared.pitchValue, 4);
+  assert.equal(prepared.turnsValue, 3.5);
+  assert.equal(prepared.heightValue, 14);
+  assert.equal(prepared.handedness, 'left');
+  assert.deepEqual(prepared.axis, { origin: [2, 3, 0], direction: [0, 0, 1] });
+  const graph = buildDependencyGraph(document);
+  assert.equal(graph.producerOfBody(`body-${coil.id}`), coil.id);
+  assert.ok(graph.edges.some((edge) => edge.from === axis.id && edge.to === coil.id && edge.kind === 'coil-axis'));
+  assert.ok(graph.edges.some((edge) => edge.from === diameter.id && edge.to === coil.id && edge.kind === 'drives'));
+
+  const overlapping = structuredClone(document);
+  overlapping.features[0].pitch = '1';
+  assert.throws(() => prepareDocument(overlapping), /nie może być mniejszy/);
+  const excessive = structuredClone(document);
+  excessive.features[0].turns = '201';
+  assert.throws(() => prepareDocument(excessive), /0–200/);
+});
+
 test('Boolean wymaga dwóch brył, konsumuje narzędzie i zapisuje zależności Union/Subtract/Intersect', () => {
   for (const operation of ['union', 'subtract', 'intersect']) {
     const document = createDocument(`Boolean ${operation}`);

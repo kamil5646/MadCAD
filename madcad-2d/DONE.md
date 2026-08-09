@@ -88,6 +88,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 - [x] Otwory proste, Counterbore i Countersink obsługują zakres Distance/Through All oraz dokładną geometrię walcową i stożkową.
 - [x] Gwint metryczny ma tryb kosmetyczny i modelowany z parametrami średnicy, skoku, długości oraz kierunku prawego/lewego; liczba zwojów ma bezpieczny limit.
 - [x] Profil luzu FFF zwiększa wyłącznie wykonawczą średnicę otworu o dwukrotność naddatku promieniowego, zachowując nominalny wymiar i wyrażenie parametryczne.
+- [x] Coil tworzy dokładną parametryczną bryłę helikalną na osi bazowej lub konstrukcyjnej, obsługuje kierunek prawy/lewy i operacje New/Join/Cut/Intersect oraz przechodzi pełny przepływ historii i zapisu.
 - [x] Measure odczytuje długość, odległość, kąt, promień/średnicę, pole i pozycję z trwałego zaznaczenia B-Rep; dla bryły pokazuje też objętość i gabaryt.
 - [x] Section Analysis przycina widok wszystkich brył interaktywną płaszczyzną XY/XZ/YZ z regulowanym położeniem i odwracaniem strony, bez mutowania historii.
 - [x] Właściwości masowe sumują objętość i pole zaznaczonych brył, przyjmują gęstość materiału, liczą masę oraz ważony środek masy.

@@ -17,6 +17,7 @@ import {
   makeBox,
   makeCylinder,
   makeSphere,
+  sketchHelix,
   measureShapeSurfaceProperties,
   measureShapeVolumeProperties,
   setOC,
@@ -272,6 +273,21 @@ function ribProfile(feature) {
   return drawing.sketchOnPlane(feature.profile.plane || 'XY', Number(feature.profile.planeOffset || 0)).extrude(feature.reverse ? -normalDistance : normalDistance);
 }
 
+function coilShape(feature) {
+  const spine = sketchHelix(
+    feature.pitchValue,
+    feature.heightValue,
+    feature.coilDiameterValue / 2,
+    feature.axis.origin,
+    feature.axis.direction,
+    feature.handedness === 'left',
+  );
+  return spine.sweepSketch(
+    (plane) => drawCircle(feature.wireDiameterValue / 2).sketchOnPlane(plane),
+    { transitionMode: 'round' },
+  );
+}
+
 function combineShapes(shapes) {
   if (!shapes.length) throw new Error('Operacja nie zawiera żadnego profilu.');
   return shapes.slice(1).reduce((result, shape) => result.fuse(shape), shapes[0]);
@@ -427,6 +443,23 @@ function runFeature(feature, bodyMap, bodyOrder) {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target) throw new Error(`Nie znaleziono bryły docelowej dla ${feature.name}.`);
     target.shape = target.shape.fuse(ribProfile(feature));
+    return;
+  }
+
+  if (feature.type === 'coil') {
+    const tool = coilShape(feature);
+    const bodyId = `body-${feature.id}`;
+    if (feature.operation === 'new' || !feature.targetBodyId) {
+      bodyMap.set(bodyId, { id: bodyId, name: feature.name, sourceFeatureId: feature.id, representation: 'brep', shape: tool });
+      bodyOrder.push(bodyId);
+      return;
+    }
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target) throw new Error(`Nie znaleziono bryły docelowej dla ${feature.name}.`);
+    if (feature.operation === 'join') target.shape = target.shape.fuse(tool);
+    else if (feature.operation === 'cut') target.shape = target.shape.cut(tool);
+    else if (feature.operation === 'intersect') target.shape = target.shape.intersect(tool);
+    else throw new Error(`Nieobsługiwana operacja Coil: ${feature.operation}.`);
     return;
   }
 

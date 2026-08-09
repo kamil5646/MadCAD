@@ -1114,6 +1114,35 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
   await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${ribReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'rib' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2240) < 0.05`, 'ponownie otwarty Rib Web', modelingTimeoutMs);
 
+  progress('parametric solid coil around a selected axis');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla Coil');
+  await clickTool('Coil');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Średnica Coil') && document.querySelector('.command-dialog')?.textContent.includes('Liczba zwojów')`, 'otwarty Coil');
+  await waitForUi(window, `window.__madcadVerifyEngineState?.timeline?.[0]?.status === 'ok' && window.__madcadVerifyEngineState?.bodies?.length === 1 && window.__madcadVerifyEngineState.bodies[0].metrics.volume > 295 && window.__madcadVerifyEngineState.bodies[0].metrics.volume < 302`, 'podgląd Coil', modelingTimeoutMs);
+  const coilInitialVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`);
+  await confirmDialog();
+  await waitForUi(window, `(() => { const feature = window.__madcadVerifyDocumentState?.featureData?.[0]; return feature?.type === 'coil' && feature.axisId === 'Z_AXIS' && feature.coilDiameter === '10' && feature.wireDiameter === '2' && feature.pitch === '4' && feature.turns === '3' && feature.handedness === 'right'; })()`, 'zapisany Coil', modelingTimeoutMs);
+  await editTimelineFeature(0, 'Coil');
+  await setCommandField('Kierunek zwoju', 'left');
+  await waitForUi(window, `window.__madcadVerifyEngineState?.timeline?.[0]?.status === 'ok'`, 'podgląd lewoskrętnego Coil', modelingTimeoutMs);
+  const coilLeftVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`);
+  assertClose(coilLeftVolume, coilInitialVolume, 0.05, 'Left/right Coil volume');
+  await clickDialogButton('Anuluj');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.handedness === 'right'`, 'anulowanie kierunku Coil');
+  await editTimelineFeature(0, 'Coil');
+  await setCommandField('Liczba zwojów', '4');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.turns === '4' && window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume > ${coilInitialVolume * 1.32} && window.__madcadVerifyEngineState.bodies[0].metrics.volume < ${coilInitialVolume * 1.35}`, 'edycja liczby zwojów Coil', modelingTimeoutMs);
+  await clickByTitle('Cofnij');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.turns === '3'`, 'undo Coil', modelingTimeoutMs);
+  await clickByTitle('Ponów');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.turns === '4'`, 'redo Coil', modelingTimeoutMs);
+  await waitForUi(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[0]?.turns === '4'`, 'autozapis Coil');
+  const coilReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${coilReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'coil' && window.__madcadVerifyEngineState?.timeline?.[0]?.status === 'ok'`, 'ponownie otwarty Coil', modelingTimeoutMs);
+
   progress('split body by construction and base plane');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla Split Body');

@@ -12,7 +12,7 @@ export const DOCUMENT_SCHEMA_VERSION = 4;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'revolve', 'sweep', 'loft', 'rib', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -120,7 +120,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -704,6 +704,16 @@ export function validateDocument(document) {
       if (!['inside', 'outside', 'symmetric'].includes(feature.wallSide || 'symmetric')) add(`${base}.wallSide`, 'Nieobsługiwana strona Rib/Web.', 'UNSUPPORTED');
       if (typeof feature.reverse !== 'boolean') add(`${base}.reverse`, 'Kierunek Rib/Web musi być wartością logiczną.', 'TYPE');
       if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Rib/Web wymaga wcześniejszej bryły docelowej.', 'BROKEN_REFERENCE');
+    }
+
+    if (feature.type === 'coil') {
+      const axisReference = references.find((reference) => reference.id === feature.axisId);
+      if (!['X_AXIS', 'Y_AXIS', 'Z_AXIS'].includes(feature.axisId) && axisReference?.kind !== 'construction-axis') add(`${base}.axisId`, 'Coil wymaga osi bazowej albo konstrukcyjnej.', 'BROKEN_REFERENCE');
+      for (const [key, label] of [['coilDiameter', 'średnicy'], ['wireDiameter', 'średnicy przekroju'], ['pitch', 'skoku'], ['turns', 'liczby zwojów']]) if (typeof feature[key] !== 'string' && typeof feature[key] !== 'number') add(`${base}.${key}`, `Coil wymaga parametrycznej ${label}.`, 'TYPE');
+      if (!['right', 'left'].includes(feature.handedness || 'right')) add(`${base}.handedness`, 'Nieobsługiwany kierunek Coil.', 'UNSUPPORTED');
+      if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, 'Nieobsługiwana operacja Coil.', 'UNSUPPORTED');
+      if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
+      else if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Nie znaleziono bryły docelowej Coil.', 'BROKEN_REFERENCE');
     }
 
     if (feature.type === 'primitive') {

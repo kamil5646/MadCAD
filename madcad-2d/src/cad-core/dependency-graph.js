@@ -13,6 +13,7 @@ function featureExpressions(feature) {
   if (feature.type === 'extrude') return [feature.distance, feature.secondDistance, feature.startOffset, feature.wallThickness];
   if (feature.type === 'revolve') return [feature.angle];
   if (feature.type === 'rib') return [feature.thickness, feature.depth];
+  if (feature.type === 'coil') return [feature.coilDiameter, feature.wireDiameter, feature.pitch, feature.turns];
   if (feature.type === 'hole') return [feature.diameter, feature.depth, feature.firstOffset, feature.secondOffset, feature.counterboreDiameter, feature.counterboreDepth, feature.countersinkDiameter, feature.countersinkAngle, feature.threadDiameter, feature.threadPitch, feature.threadLength, feature.clearance];
   if (feature.type === 'fillet') return [feature.radius];
   if (feature.type === 'chamfer') return [feature.distance];
@@ -147,13 +148,14 @@ export function buildDependencyGraph(document) {
     if (feature.type === 'splitBody' && !['XY', 'XZ', 'YZ'].includes(feature.planeId)) addEdge(feature.planeId, feature.id, 'split-plane');
     if (feature.type === 'extrude' && feature.extent === 'to-object') addEdge(feature.targetReferenceId, feature.id, 'to-object');
     if (feature.type === 'revolve' && !['X_AXIS', 'Y_AXIS', 'Z_AXIS'].includes(feature.axisId)) addEdge(feature.axisId, feature.id, 'revolve-axis');
+    if (feature.type === 'coil' && !['X_AXIS', 'Y_AXIS', 'Z_AXIS'].includes(feature.axisId)) addEdge(feature.axisId, feature.id, 'coil-axis');
     for (const value of featureExpressions(feature)) {
       for (const name of expressionDependencies(value)) addEdge(parameterIdsByName.get(name), feature.id, 'drives');
     }
 
     if (feature.targetBodyId) addEdge(feature.targetBodyId, feature.id, 'modifies');
     if (feature.toolBodyId) addEdge(feature.toolBodyId, feature.id, 'consumes');
-    if ((['extrude', 'revolve', 'sweep', 'loft'].includes(feature.type) && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
+    if ((['extrude', 'revolve', 'sweep', 'loft', 'coil'].includes(feature.type) && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
       const bodyId = `body-${feature.id}`;
       addNode(bodyId, 'body', feature.name, { persisted: false, producerFeatureId: feature.id });
       bodyProducerById.set(bodyId, feature.id);
