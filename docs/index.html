@@ -10,10 +10,10 @@
       src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3602841906587206"
       crossorigin="anonymous"
     ></script>
-    <title>MadCAD 2D - Aplikacja CAD 2D</title>
+    <title>MadCAD 2D - Aplikacja CAD 2D z drukiem 3D</title>
     <meta
       name="description"
-      content="MadCAD 2D - desktopowa aplikacja CAD 2D do projektowania konstrukcji stalowych: bramy, ogrodzenia, balkony."
+      content="MadCAD 2D - desktopowa aplikacja CAD 2D do projektowania konstrukcji stalowych (bramy, ogrodzenia, balkony) z modułem przygotowania modeli do druku 3D i eksportem STL."
     />
     <style>
       :root {
@@ -664,7 +664,7 @@
           <img src="./madcad-512.png" alt="MadCAD 2D" />
           <div>
             <strong>MadCAD 2D</strong>
-            <span>Desktop CAD 2D - konstrukcje stalowe</span>
+            <span>Desktop CAD 2D + druk 3D - konstrukcje stalowe</span>
           </div>
         </div>
         <div class="nav">
@@ -688,19 +688,20 @@
           <div>
             <h1>MadCAD 2D</h1>
             <p class="subtitle">
-              Aplikacja CAD 2D na Windows i macOS do szybkiego projektowania bram, ogrodzeń i balkonów.
-              Lekki interfejs, generator stali i wymiarowanie w jednym miejscu.
+              Aplikacja CAD 2D na Windows i macOS do szybkiego projektowania bram, ogrodzeń i balkonów -
+              teraz z modułem przygotowania modeli do druku 3D i eksportem STL. Lekki interfejs, generator
+              stali i wymiarowanie w jednym miejscu.
             </p>
             <div class="pill-row">
-              <span class="pill">Wersja 5.6.4</span>
+              <span class="pill" id="versionPill">Najnowsza wersja</span>
               <span class="pill">Windows + macOS</span>
-              <span class="pill">Wymiarowanie kątowe</span>
+              <span class="pill">Druk 3D (STL)</span>
               <span class="pill">Generator konstrukcji stalowych</span>
             </div>
             <div class="cta" id="pobierz">
-              <a class="btn" href="https://github.com/kamil5646/MadCAD2D/releases/download/v5.6.4/MadCAD-2D-5.6.4-win-x64.exe">Pobierz Windows (.exe)</a>
-              <a class="btn" href="https://github.com/kamil5646/MadCAD2D/releases/download/v5.6.4/MadCAD-2D-5.6.4-mac-arm64.zip">Pobierz macOS (.zip)</a>
-              <a class="btn secondary" href="https://github.com/kamil5646/MadCAD2D/releases/tag/v5.6.4">Release 5.6.4</a>
+              <a class="btn" id="downloadWinBtn" href="https://github.com/kamil5646/MadCAD2D/releases/latest">Pobierz Windows (.exe)</a>
+              <a class="btn" id="downloadMacBtn" href="https://github.com/kamil5646/MadCAD2D/releases/latest">Pobierz macOS (.zip)</a>
+              <a class="btn secondary" id="releaseTagBtn" href="https://github.com/kamil5646/MadCAD2D/releases/latest">Najnowszy release</a>
               <a class="btn secondary" href="https://github.com/kamil5646/MadCAD2D">Kod źródłowy</a>
             </div>
             <div class="status">
@@ -742,6 +743,10 @@
             <h3>Import / eksport</h3>
             <p>JSON, DXF, SVG oraz druk/PDF. Wygodne przekazywanie projektu do klienta i produkcji.</p>
           </article>
+          <article class="card">
+            <h3>Druk 3D</h3>
+            <p>Wyciąganie zamkniętych figur 2D do brył 3D, podgląd modelu, kontrola stołu drukarki i eksport STL.</p>
+          </article>
         </div>
       </section>
 
@@ -762,7 +767,7 @@
           </article>
           <article class="step">
             <strong>4. Zwymiaruj i wyeksportuj</strong>
-            <p>Dodaj wymiary (także kąty), potem zapisz DXF/SVG lub wydrukuj dokument PDF.</p>
+            <p>Dodaj wymiary (także kąty), potem zapisz DXF/SVG, wydrukuj PDF albo przygotuj model do druku 3D i wyeksportuj STL.</p>
           </article>
         </div>
       </section>
@@ -795,7 +800,8 @@
         <h2>Generator darmowego klucza licencyjnego</h2>
         <p class="lead">
           Ten formularz generuje darmowy klucz licencyjny do aplikacji MadCAD 2D.
-          Token jest przypisany do jednego urządzenia, dlatego najpierw skopiuj <strong>ID urządzenia</strong> z okna aktywacji w aplikacji.
+          Token jest przypisany do jednego urządzenia. <strong>Uwaga:</strong> aktualnie aktywacja licencji
+          jest tymczasowo wyłączona - aplikacja działa od razu po instalacji, bez podawania klucza.
         </p>
 
         <div class="token-form">
@@ -951,25 +957,28 @@
       </section>
 
       <section class="section" id="release">
-        <h2>Wydanie 5.6.4</h2>
+        <h2 id="releaseHeading">Najnowsze wydanie</h2>
         <div class="release">
           <article class="box">
-            <h3>Co zawiera wersja 5.6.4</h3>
+            <h3>Co zawiera bieżący release</h3>
             <ul>
-              <li>aktualne instalatory desktop dla Windows i macOS (release 5.6.4),</li>
-              <li>naprawione przeciąganie okna aplikacji na Windowsie,</li>
-              <li>widoczny górny obszar przeciągania z miejscem na systemowe przyciski okna,</li>
-              <li>odświeżoną dokumentację i linki pobierania zgodne z wersją 5.6.4.</li>
+              <li>aktualne instalatory desktop dla Windows i macOS,</li>
+              <li>moduł druku 3D (eksport modeli do STL) obok narzędzi CAD 2D,</li>
+              <li>generator konstrukcji stalowych (brama, ogrodzenie, balkon),</li>
+              <li>
+                pełna lista zmian w
+                <a href="https://github.com/kamil5646/MadCAD2D/blob/main/madcad-2d/CHANGELOG.md">CHANGELOG.md</a>.
+              </li>
             </ul>
           </article>
           <article class="box">
             <h3>Linki bezpośrednie</h3>
             <ul>
               <li>
-                Windows: <a href="https://github.com/kamil5646/MadCAD2D/releases/download/v5.6.4/MadCAD-2D-5.6.4-win-x64.exe">MadCAD-2D-5.6.4-win-x64.exe</a>
+                Windows: <a id="releaseWinLink" href="https://github.com/kamil5646/MadCAD2D/releases/latest">najnowszy instalator .exe</a>
               </li>
               <li>
-                macOS: <a href="https://github.com/kamil5646/MadCAD2D/releases/download/v5.6.4/MadCAD-2D-5.6.4-mac-arm64.zip">MadCAD-2D-5.6.4-mac-arm64.zip</a>
+                macOS: <a id="releaseMacLink" href="https://github.com/kamil5646/MadCAD2D/releases/latest">najnowsze archiwum .zip</a>
               </li>
               <li>
                 Repo: <a href="https://github.com/kamil5646/MadCAD2D">github.com/kamil5646/MadCAD2D</a>
@@ -1008,6 +1017,13 @@
               który dalej edytujesz ręcznie narzędziami 2D.
             </p>
           </details>
+          <details>
+            <summary>Czy mogę wyeksportować model do druku 3D?</summary>
+            <p>
+              Tak. Zamknięte kształty 2D (prostokąty, okręgi i domknięte obszary) można wyciągnąć do bryły 3D,
+              sprawdzić dopasowanie do stołu drukarki i wyeksportować gotowy plik <strong>STL</strong>.
+            </p>
+          </details>
         </div>
       </section>
 
@@ -1028,6 +1044,8 @@
           return currentLang === "en" ? en : pl;
         }
 
+        let latestReleaseTag = "";
+
         function applyLanguage() {
           document.documentElement.lang = currentLang;
           const setText = (selector, pl, en) => {
@@ -1037,19 +1055,27 @@
             }
           };
 
-          setText(".brand span", "Desktop CAD 2D - konstrukcje stalowe", "Desktop CAD 2D - steel structures");
+          setText(".brand span", "Desktop CAD 2D + druk 3D - konstrukcje stalowe", "Desktop CAD 2D + 3D printing - steel structures");
           setText(".nav a[href='#funkcje']", "Funkcje", "Features");
           setText(".nav a[href='#jak-dziala']", "Jak działa", "How it works");
           setText(".nav a[href='#reklamy']", "Reklamy", "Ads");
           setText(".nav a[href='#token-prywatny']", "Klucz licencyjny", "License key");
           setText(".nav a[href='#wsparcie']", "Wsparcie", "Support");
           setText(".nav a[href='#pobierz']", "Pobierz", "Download");
-          setText(".subtitle", "Aplikacja CAD 2D na Windows i macOS do szybkiego projektowania bram, ogrodzeń i balkonów. Lekki interfejs, generator stali i wymiarowanie w jednym miejscu.", "A 2D CAD app for Windows and macOS to quickly design gates, fences, and balconies. Lightweight UI, steel generator and dimensioning in one place.");
+          setText(
+            ".subtitle",
+            "Aplikacja CAD 2D na Windows i macOS do szybkiego projektowania bram, ogrodzeń i balkonów - teraz z modułem przygotowania modeli do druku 3D i eksportem STL. Lekki interfejs, generator stali i wymiarowanie w jednym miejscu.",
+            "A 2D CAD app for Windows and macOS to quickly design gates, fences, and balconies - now with a module to prepare models for 3D printing and export STL. Lightweight UI, steel generator and dimensioning in one place."
+          );
 
           const pills = Array.from(document.querySelectorAll(".pill-row .pill"));
-          if (pills[0]) pills[0].textContent = t("Wersja 5.6.4", "Version 5.6.4");
+          if (pills[0]) {
+            pills[0].textContent = latestReleaseTag
+              ? t(`Wersja ${latestReleaseTag}`, `Version ${latestReleaseTag}`)
+              : t("Najnowsza wersja", "Latest version");
+          }
           if (pills[1]) pills[1].textContent = t("Windows + macOS", "Windows + macOS");
-          if (pills[2]) pills[2].textContent = t("Wymiarowanie kątowe", "Angular dimensioning");
+          if (pills[2]) pills[2].textContent = t("Druk 3D (STL)", "3D printing (STL)");
           if (pills[3]) pills[3].textContent = t("Generator konstrukcji stalowych", "Steel structure generator");
 
           const ctaButtons = Array.from(document.querySelectorAll("#pobierz .btn"));
@@ -1062,7 +1088,11 @@
           if (statusRows[1]) statusRows[1].textContent = t("Uwaga: buildy macOS są bez podpisu Apple Developer ID.", "Note: macOS builds are unsigned (no Apple Developer ID).");
 
           setText("#funkcje h2", "Najważniejsze funkcje", "Key features");
-          setText("#funkcje .lead", "Interfejs jest przygotowany pod codzienną pracę warsztatową: szybkie rysowanie, poprawki, wymiarowanie oraz generowanie podstawowych układów stalowych.", "The interface is optimized for daily workshop work: quick drawing, edits, dimensioning and generating basic steel layouts.");
+          setText(
+            "#funkcje .lead",
+            "Interfejs jest przygotowany pod codzienną pracę warsztatową: szybkie rysowanie, poprawki, wymiarowanie, generowanie podstawowych układów stalowych oraz przygotowanie modeli do druku 3D.",
+            "The interface is optimized for daily workshop work: quick drawing, edits, dimensioning, generating basic steel layouts, and preparing models for 3D printing."
+          );
           setText("#jak-dziala h2", "Jak wygląda praca w MadCAD 2D", "How work looks in MadCAD 2D");
           setText("#reklamy h2", "Reklamy partnerskie", "Partner ads");
           setText("#adsLead", "Reklamy pomagają finansować rozwój MadCAD 2D. Po podpięciu AdSense w tym miejscu będą wyświetlane sloty reklamowe.", "Ads help fund MadCAD 2D development. After connecting AdSense, ad slots will be shown here.");
@@ -1072,7 +1102,11 @@
           setText("#adSlotBottomPlaceholder", "Miejsce na reklamę", "Ad placement");
           setText("#adsHint", "Aby uruchomić reklamy, wpisz swój identyfikator AdSense (`ca-pub-...`) w skrypcie strony.", "To enable ads, enter your AdSense publisher ID (`ca-pub-...`) in the page script.");
           setText("#token-prywatny h2", "Generator darmowego klucza licencyjnego", "Free license key generator");
-          setText("#token-prywatny .lead", "Ten formularz generuje darmowy klucz licencyjny do aplikacji MadCAD 2D. Token jest przypisany do jednego urządzenia, dlatego najpierw skopiuj ID urządzenia z okna aktywacji w aplikacji.", "This form generates a free license key for MadCAD 2D. The token is bound to one device, so first copy the device ID from the activation window in the app.");
+          setText(
+            "#token-prywatny .lead",
+            "Ten formularz generuje darmowy klucz licencyjny do aplikacji MadCAD 2D. Token jest przypisany do jednego urządzenia. Uwaga: aktualnie aktywacja licencji jest tymczasowo wyłączona - aplikacja działa od razu po instalacji, bez podawania klucza.",
+            "This form generates a free license key for MadCAD 2D. The token is bound to one device. Note: license activation is currently temporarily disabled - the app works right after installation, no key needed."
+          );
 
           setText("label[for='tokenOwnerName']", "Imię i nazwisko", "Full name");
           setText("label[for='tokenEmail']", "E-mail", "Email");
@@ -1095,8 +1129,8 @@
           setText("#syncRegistryApiNowBtn", "Synchronizuj API teraz", "Sync API now");
           setText("#disableRegistryApiSyncBtn", "Wyłącz auto-sync API", "Disable API auto sync");
           setText("#exportPublicRegistryBtn", "Eksport license-registry.json", "Export license-registry.json");
-          setText("#release h2", "Wydanie 5.6.4", "Release 5.6.4");
-          setText("#release .box h3", "Co zawiera wersja 5.6.4", "What version 5.6.4 includes");
+          setText("#release h2", "Najnowsze wydanie", "Latest release");
+          setText("#release .box h3", "Co zawiera bieżący release", "What the current release includes");
           setText("#faq h2", "FAQ", "FAQ");
 
           const faqSummaries = Array.from(document.querySelectorAll("#faq summary"));
@@ -1104,6 +1138,7 @@
           if (faqSummaries[1]) faqSummaries[1].textContent = t("Czy mogę wyeksportować rysunek do DXF?", "Can I export a drawing to DXF?");
           if (faqSummaries[2]) faqSummaries[2].textContent = t("Czy jest wymiarowanie kątów?", "Is angular dimensioning available?");
           if (faqSummaries[3]) faqSummaries[3].textContent = t("Czy mogę używać tego do bram i ogrodzeń na co dzień?", "Can I use it daily for gates and fences?");
+          if (faqSummaries[4]) faqSummaries[4].textContent = t("Czy mogę wyeksportować model do druku 3D?", "Can I export a model for 3D printing?");
 
           const langPlBtn = document.getElementById("langPlBtn");
           const langEnBtn = document.getElementById("langEnBtn");
@@ -1192,6 +1227,45 @@
           });
         }
         applyLanguage();
+
+        (function loadLatestRelease() {
+          const winLinkIds = ["downloadWinBtn", "releaseWinLink"];
+          const macLinkIds = ["downloadMacBtn", "releaseMacLink"];
+          const tagLinkIds = ["releaseTagBtn"];
+
+          fetch("https://api.github.com/repos/kamil5646/MadCAD2D/releases/latest")
+            .then((res) => (res.ok ? res.json() : Promise.reject(new Error("release fetch failed"))))
+            .then((release) => {
+              const assets = Array.isArray(release.assets) ? release.assets : [];
+              const winAsset = assets.find((a) => /win-x64\.exe$/i.test(a.name));
+              const macAsset = assets.find((a) => /mac-arm64\.zip$/i.test(a.name));
+              latestReleaseTag = release.tag_name || "";
+
+              if (winAsset) {
+                winLinkIds.forEach((id) => {
+                  const el = document.getElementById(id);
+                  if (el) el.href = winAsset.browser_download_url;
+                });
+              }
+              if (macAsset) {
+                macLinkIds.forEach((id) => {
+                  const el = document.getElementById(id);
+                  if (el) el.href = macAsset.browser_download_url;
+                });
+              }
+              if (release.html_url) {
+                tagLinkIds.forEach((id) => {
+                  const el = document.getElementById(id);
+                  if (el) el.href = release.html_url;
+                });
+              }
+
+              applyLanguage();
+            })
+            .catch(() => {
+              // Offline or rate-limited: keep the /releases/latest fallback links already in the HTML.
+            });
+        })();
 
         const TOKEN_REGISTRY_KEY = "madcad-token-registry-v1";
         const TOKEN_LAST_PRIVATE_KEY = "madcad-last-private-token-v1";

@@ -7,7 +7,7 @@
 ![UI](https://img.shields.io/badge/interface-PL%20%2F%20EN-2f9e44)
 [![Wsparcie projektu](https://img.shields.io/badge/Support-PayPal-00457C?logo=paypal&logoColor=white)](https://paypal.me/refek1)
 
-MadCAD 2D to desktopowa aplikacja CAD 2D do szybkiego projektowania elementów technicznych i konstrukcji stalowych.
+MadCAD 2D to desktopowa aplikacja CAD 2D do szybkiego projektowania elementów technicznych i konstrukcji stalowych - z wbudowanym modułem przygotowania modeli do druku 3D (eksport STL).
 
 ## Szybkie Linki
 - Najnowszy release: https://github.com/kamil5646/MadCAD2D/releases/latest
@@ -22,7 +22,7 @@ Jeśli MadCAD 2D pomaga Ci w codziennej pracy, możesz wesprzeć rozwój aplikac
 
 ## PL
 ### Co to jest
-MadCAD 2D łączy klasyczne narzędzia CAD 2D z gotowym workflow pod bramy, ogrodzenia i balkony.
+MadCAD 2D łączy klasyczne narzędzia CAD 2D z gotowym workflow pod bramy, ogrodzenia i balkony, a od wersji 5.7.0 pozwala też przygotować model do druku 3D i wyeksportować go do STL.
 
 ### Najważniejsze możliwości
 - Rysowanie: linia, polilinia, prostokąt, okrąg, pomiar, wymiarowanie.
@@ -60,7 +60,7 @@ npm run dist:release:trusted
 
 ## EN
 ### What It Is
-MadCAD 2D is a desktop 2D CAD app focused on technical drawing and steel-structure workflows.
+MadCAD 2D is a desktop 2D CAD app focused on technical drawing and steel-structure workflows, with a built-in module (since 5.7.0) to prepare models for 3D printing and export them as STL.
 
 ### Key Features
 - Drawing tools: line, polyline, rectangle, circle, measure, dimension.
