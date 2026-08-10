@@ -491,7 +491,8 @@
       "Brak zaznaczonego obiektu": "No object selected",
       "Gotowe. Użyj przycisków ze wstążki.": "Ready. Use ribbon buttons.",
       "Przywrócono widoczność warstw z istniejącą geometrią.": "Restored visibility for layers with existing geometry.",
-      "Aktywuj licencję, aby odblokować pracę w MadCAD.": "Activate a license to unlock work in MadCAD.",
+      "Możesz aktywować token licencji lub kontynuować pracę bez blokady.":
+        "You can activate a license token or continue without any lock.",
       "Wybierz plik DXF do importu.": "Choose a DXF file to import.",
       "Wybierz plik JSON do wczytania.": "Choose a JSON file to load.",
       "Wyczyszczono rysunek.": "Drawing cleared.",
@@ -989,9 +990,9 @@
       "Prostokąt: szer.": "Rectangle: width",
       "Prostokąt: wys.": "Rectangle: height",
       "Okrąg: promień": "Circle: radius",
-      "Aktywacja licencji MadCAD": "MadCAD license activation",
+      "Aktywacja licencji MadCAD": "MadCAD license reminder",
       Zamknij: "Close",
-      "Darmowy klucz licencyjny": "Free license key",
+      "Darmowy klucz licencyjny": "Optional license key",
       "Wsparcie projektu": "Project support",
       "ID urządzenia": "Device ID",
       "Wsparcie projektu - PayPal": "Support project - PayPal",
@@ -3010,7 +3011,7 @@
     const token = String(record && record.token ? record.token : "").trim();
     if (!token) {
       setLicenseLocked(true);
-      setLicenseStatus("Wymagana aktywacja. Wygeneruj darmowy token i wklej go tutaj.", "error");
+      setLicenseStatus("Tryb licencjonowany jest aktywny. Wklej token, aby kontynuować.", "error");
       return false;
     }
 
@@ -3236,7 +3237,7 @@
           licenseTokenInput.value = "";
         }
         setLicenseLocked(true);
-        setLicenseStatus("Usunięto zapisany token. Wymagana ponowna aktywacja.", "error");
+        setLicenseStatus("Usunięto zapisany token. Przypomnienie pozostaje aktywne, ale aplikacja działa dalej.", "ok");
         appendPrivateLicenseAudit("Czyszczenie tokenu", "Usunięto lokalnie zapisany token.", {
           deviceId: getLicenseDeviceId()
         });
@@ -10968,7 +10969,7 @@
     const tooltipById = {
       fileMenuBtn: "Menu plików: otwieranie, zapis, import, eksport i ustawienia aplikacji.",
       updateAppBtn: "Sprawdza i instaluje aktualizacje aplikacji.",
-      licenseCategoryBtn: "Otwiera panel informacji o licencji i aktywacji tokenu.",
+      licenseCategoryBtn: "Otwiera przypomnienie o licencji i wsparciu projektu.",
       loadJsonBtn: "Wczytuje projekt z pliku JSON.",
       saveJsonBtn: "Zapisuje projekt do pliku JSON.",
       importDxfBtn: "Importuje geometrię z pliku DXF.",
@@ -12584,10 +12585,8 @@
       setFileMenuOpen(false);
     });
     window.addEventListener("focus", () => {
-      // Entire re-validation flow only applies when licensing is enabled
-      // (see #licenseOverlay); otherwise validateStoredLicenseAtStartup()
-      // would find no stored token and forcibly re-lock the session on every
-      // window focus even though licensing is intentionally disabled.
+      // Re-validation only matters when enforcement is enabled.
+      // In WinRAR-style reminder mode we keep the overlay, but enforcement is off.
       if (!licenseOverlay) {
         return;
       }
@@ -12654,10 +12653,9 @@
     applyTheme("dark");
     let licensedAtBoot = initializeLicenseManager();
     if (licensedAtBoot && licenseOverlay) {
-      // Skip the remote registry check entirely when licensing is disabled
-      // (no #licenseOverlay markup): licenseSession.token stays empty in that
-      // mode, so this call would otherwise always fail and re-trigger the
-      // "activate your license" prompt below even though nothing is locked.
+      // In reminder mode this call no-ops (enforcement disabled), but keeping
+      // the branch shared with enforced mode keeps behavior consistent if
+      // enforcement is enabled again in the future.
       licensedAtBoot = await validateLicenseWithPublicRegistry({
         force: true,
         audit: true,
@@ -12693,7 +12691,7 @@
       echoCommand("Przywrócono widoczność warstw z istniejącą geometrią.");
     }
     if (!licensedAtBoot && licenseOverlay) {
-      echoCommand("Aktywuj licencję, aby odblokować pracę w MadCAD.", true, { toast: false });
+      echoCommand("Możesz aktywować token licencji lub kontynuować pracę bez blokady.", false, { toast: false });
     }
     if (window.desktopApp && typeof window.desktopApp.getOdaStatus === "function") {
       void refreshDwgExportButtonState();

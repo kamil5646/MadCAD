@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Zmieniono model licencji na tryb przypomnienia „jak WinRAR”: aplikacja pozostaje w pełni odblokowana,
+  ale przy starcie pokazuje nieblokujące okno przypominające o wsparciu projektu i opcjonalnej aktywacji tokenu.
+- Ujednolicono opisy/licencję w UI i dokumentacji do nowego modelu przypomnienia.
+
 ## 5.7.2 (2026-08-10)
 
 - Tymczasowo wyłączono wymóg licencji: aplikacja startuje w pełni odblokowana,

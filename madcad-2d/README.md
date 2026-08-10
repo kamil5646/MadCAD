@@ -32,11 +32,10 @@ MadCAD rozwija się aktywnie. Jeśli chcesz wesprzeć rozwój aplikacji:
 - Wybór jest zapamiętywany lokalnie i nie jest pytany ponownie.
 
 ## Licencja Aplikacji (stan bieżący)
-- Od wersji `5.7.2` wymóg aktywacji licencji jest **tymczasowo wyłączony** - aplikacja startuje w pełni
-  odblokowana, bez ekranu aktywacji tokenu.
-- Cały mechanizm licencjonowania (`cad-engine.js`, rejestr w `cloudflare/license-registry-worker/`) pozostaje
-  w repo i jest w pełni sprawny - wyłączenie jest odwracalne.
-- Aby przywrócić wymóg licencji: odkomentuj blok `#licenseOverlay` w `index.html`.
+- Aplikacja działa w modelu **WinRAR-like**: pełna funkcjonalność jest dostępna bez blokady.
+- Przy starcie wyświetla się nieblokujące okno przypomnienia o wsparciu projektu i opcjonalnej aktywacji tokenu.
+- Mechanizm tokenów (`cad-engine.js`, rejestr w `cloudflare/license-registry-worker/`) pozostaje aktywny i może być
+  używany dobrowolnie (np. do rozróżnienia licencji prywatnej/komercyjnej).
 
 ## Struktura Katalogu `madcad-2d/`
 - `app.js` - logika UI i narzędzi CAD.
