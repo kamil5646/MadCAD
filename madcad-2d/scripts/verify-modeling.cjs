@@ -1112,12 +1112,14 @@ async function runUiFlow(window) {
   await addSketchPoint([8, 0], 3);
   const ribLineId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(ribLineId)}], 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Rib/Web')?.disabled)`, 'aktywny przycisk Rib Web');
   await clickTool('Rib/Web');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Otwarty profil') && document.querySelector('.command-dialog')?.textContent.includes('Zasięg')`, 'otwarty Rib Web');
   await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2160) < 0.05 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.bounds[1][2] - 10) < 0.001`, 'podgląd Web', modelingTimeoutMs);
   await clickDialogButton('Anuluj');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 1 && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'anulowanie Rib Web');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(ribLineId)}], 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Rib/Web')?.disabled)`, 'ponownie aktywny przycisk Rib Web');
   await clickTool('Rib/Web');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Rib/Web')`, 'ponownie otwarty Rib Web');
   await confirmDialog();
