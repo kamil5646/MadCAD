@@ -95,6 +95,6 @@ Aplikacja pobiera ten plik dynamicznie, więc nie wymaga nowego buildu po zmiani
 
 ## Uwaga o stanie licencjonowania w aplikacji (madcad-2d)
 
-Aktualnie aplikacja desktop działa w modelu **WinRAR-like**: pełna funkcjonalność bez blokady,
+Aktualnie aplikacja desktop działa w modelu **przypomnienia licencyjnego**: pełna funkcjonalność bez blokady,
 ale z nieblokującym przypomnieniem o wsparciu/aktywacji tokenu (patrz `madcad-2d/README.md`).
 Ten Worker i rejestr tokenów pozostają w pełni funkcjonalne i niezmienione.

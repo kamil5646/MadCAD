@@ -726,7 +726,8 @@ select {
   display: flex;
   align-items: stretch;
   flex-wrap: nowrap;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   gap: 3px;
   padding-top: 1px;
   flex: 1 1 auto;
@@ -2898,8 +2899,8 @@ button:disabled:hover {
   .ribbon {
     gap: 5px;
     flex-wrap: nowrap;
-    overflow-x: hidden;
-    overflow-y: visible;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 
   .ribbon-group {
@@ -2941,6 +2942,47 @@ button:disabled:hover {
 
   .start-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1280px), (max-height: 780px) {
+  .titlebar {
+    min-height: 0;
+    height: auto;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .title-left,
+  .title-right {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .title-center {
+    order: 3;
+    flex: 1 1 100%;
+    min-width: 0;
+    text-align: left;
+    padding-bottom: 2px;
+  }
+
+  .ribbon-tabs {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+  }
+
+  .ribbon-actions {
+    border-left: 0;
+    border-top: 1px solid rgba(123, 148, 188, 0.32);
+    padding: 4px 0 3px;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .ribbon-actions .license-summary-chip {
+    min-width: 0;
+    max-width: 100%;
   }
 }
 

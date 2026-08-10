@@ -992,7 +992,7 @@
       "Okrąg: promień": "Circle: radius",
       "Aktywacja licencji MadCAD": "MadCAD license reminder",
       Zamknij: "Close",
-      "Darmowy klucz licencyjny": "Optional license key",
+      "Token prywatny (opcjonalny)": "Private token (optional)",
       "Wsparcie projektu": "Project support",
       "ID urządzenia": "Device ID",
       "Wsparcie projektu - PayPal": "Support project - PayPal",
@@ -12586,7 +12586,7 @@
     });
     window.addEventListener("focus", () => {
       // Re-validation only matters when enforcement is enabled.
-      // In WinRAR-style reminder mode we keep the overlay, but enforcement is off.
+      // In reminder mode we keep the overlay, but enforcement is off.
       if (!licenseOverlay) {
         return;
       }

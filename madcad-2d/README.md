@@ -32,7 +32,7 @@ MadCAD rozwija się aktywnie. Jeśli chcesz wesprzeć rozwój aplikacji:
 - Wybór jest zapamiętywany lokalnie i nie jest pytany ponownie.
 
 ## Licencja Aplikacji (stan bieżący)
-- Aplikacja działa w modelu **WinRAR-like**: pełna funkcjonalność jest dostępna bez blokady.
+- Aplikacja działa w modelu **przypomnienia licencyjnego**: pełna funkcjonalność jest dostępna bez blokady.
 - Przy starcie wyświetla się nieblokujące okno przypomnienia o wsparciu projektu i opcjonalnej aktywacji tokenu.
 - Mechanizm tokenów (`cad-engine.js`, rejestr w `cloudflare/license-registry-worker/`) pozostaje aktywny i może być
   używany dobrowolnie (np. do rozróżnienia licencji prywatnej/komercyjnej).
