@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
-    <title>MadCAD 2D</title>
+    <title>MadCAD</title>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
@@ -28,7 +29,7 @@
               type="button"
               title="Przygotuj zamknięte figury 2D do druku 3D"
             >
-              Druk 3D
+              Modelowanie
             </button>
           </div>
           <div class="ribbon-actions">
@@ -550,7 +551,7 @@
     <div id="licenseOverlay" class="license-overlay" aria-hidden="true" hidden>
       <div class="license-dialog">
         <div class="license-header-row">
-          <h2 class="has-icon" data-icon="&#128274;">Aktywacja licencji MadCAD 2D</h2>
+          <h2 class="has-icon" data-icon="&#128274;">Aktywacja licencji MadCAD</h2>
           <button id="licenseCloseBtn" class="ribbon-btn has-icon" data-icon="&#10005;" type="button" hidden>Zamknij</button>
         </div>
         <div class="license-terms">
@@ -589,7 +590,7 @@
           <section class="license-card">
             <h3 class="has-icon" data-icon="&#128153;">Wsparcie projektu</h3>
             <p class="license-note">
-              Jeśli MadCAD 2D przyspiesza Twoją codzienną pracę, możesz wesprzeć dalszy rozwój projektu.
+              Jeśli MadCAD przyspiesza Twoją codzienną pracę, możesz wesprzeć dalszy rozwój projektu.
             </p>
             <button id="licenseSupportProjectBtn" class="ribbon-btn has-icon" data-icon="&#128176;">
               Wsparcie projektu - PayPal

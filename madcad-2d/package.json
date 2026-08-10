@@ -1,7 +1,7 @@
 {
-  "name": "madcad-2d-desktop",
-  "version": "5.7.2",
-  "description": "Desktopowa aplikacja CAD 2D MadCAD 2D dla konstrukcji stalowych, z modułem druku 3D (eksport STL).",
+  "name": "madcad-desktop",
+  "version": "6.0.0-alpha.1",
+  "description": "Desktopowa aplikacja CAD 2D/3D MadCAD do projektowania technicznego i druku 3D.",
   "repository": {
     "type": "git",
     "url": "https://github.com/kamil5646/MadCAD2D.git"
@@ -14,8 +14,18 @@
     "serve": "vite",
     "build": "npm run build:ui",
     "build:ui": "vite build",
+    "verify:modeling": "npm run build:ui && electron scripts/verify-modeling.cjs",
+    "verify:electron-security": "electron scripts/verify-electron-security.cjs",
+    "verify:package": "node scripts/verify-package.cjs",
+    "checksums:package": "node scripts/create-package-checksums.cjs",
+    "test:core": "node --test tests/cad-core.test.mjs",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:core": "node --test tests/cad-core.test.mjs",
+    "verify:modeling": "npm run build:ui && electron scripts/verify-modeling.cjs",
+    "verify:electron-security": "electron scripts/verify-electron-security.cjs",
+    "verify:package": "node scripts/verify-package.cjs",
+    "checksums:package": "node scripts/create-package-checksums.cjs",
     "start": "npm run build:ui && env -u ELECTRON_RUN_AS_NODE electron .",
     "dist": "npm run build:ui && electron-builder --mac dir --win nsis --x64",
     "dist:mac": "npm run build:ui && electron-builder --mac dir",
@@ -43,14 +53,15 @@
   },
   "build": {
     "appId": "pl.kamilkasprzak.madcad2d",
-    "productName": "MadCAD 2D",
+    "productName": "MadCAD",
     "asar": true,
-    "artifactName": "MadCAD-2D-${version}-${os}-${arch}.${ext}",
+    "artifactName": "MadCAD-${version}-${os}-${arch}.${ext}",
     "files": [
       "dist/**/*",
       "LICENSE",
       "electron/**/*",
       "README.md",
+      "FIRST_PART.md",
       "package.json"
     ],
     "directories": {
@@ -99,8 +110,11 @@
     "afterSign": "scripts/notarize.js"
   },
   "dependencies": {
+    "lucide-react": "^0.468.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "replicad": "^0.23.1",
+    "replicad-opencascadejs": "^0.23.0",
     "three": "^0.185.1"
   }
 }

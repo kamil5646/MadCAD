@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 2,
+  "id": "document-fixture-v2",
+  "name": "Fixture migracji v2",
+  "units": "mm",
+  "parameters": [
+    {
+      "id": "param-width-v2",
+      "name": "szerokosc",
+      "label": "Szerokość",
+      "expression": "60",
+      "unit": "mm"
+    },
+    {
+      "id": "param-height-v2",
+      "name": "wysokosc",
+      "label": "Wysokość",
+      "expression": "8",
+      "unit": "mm"
+    }
+  ],
+  "sketches": [
+    {
+      "id": "sketch-base-v2",
+      "name": "Szkic podstawy",
+      "type": "sketch",
+      "plane": "XY",
+      "visible": true,
+      "profiles": [
+        {
+          "id": "profile-rectangle-v2",
+          "name": "Podstawa",
+          "type": "rectangle",
+          "construction": false,
+          "geometry": {
+            "width": "szerokosc",
+            "height": "40",
+            "x": "0",
+            "y": "0"
+          }
+        },
+        {
+          "id": "profile-circle-v2",
+          "name": "Otwór",
+          "type": "circle",
+          "construction": false,
+          "geometry": {
+            "diameter": "8",
+            "x": "0",
+            "y": "0"
+          }
+        }
+      ]
+    }
+  ],
+  "features": [
+    {
+      "id": "feature-extrude-v2",
+      "name": "Podstawa",
+      "type": "extrude",
+      "suppressed": false,
+      "sketchId": "sketch-base-v2",
+      "profileIds": [
+        "profile-rectangle-v2"
+      ],
+      "distance": "wysokosc",
+      "operation": "new"
+    },
+    {
+      "id": "feature-hole-v2",
+      "name": "Otwór centralny",
+      "type": "hole",
+      "suppressed": false,
+      "targetBodyId": "body-feature-extrude-v2",
+      "sketchId": "sketch-base-v2",
+      "profileId": "profile-circle-v2",
+      "diameter": "8",
+      "depth": "wysokosc"
+    }
+  ],
+  "print": {
+    "bedWidth": 220,
+    "bedDepth": 220,
+    "bedHeight": 250,
+    "material": "PLA"
+  },
+  "metadata": {
+    "createdAt": "2025-01-02T03:04:05.000Z",
+    "modifiedAt": "2025-01-02T03:04:05.000Z"
+  }
+}

@@ -1,26 +1,60 @@
 const path = require('path');
+const os = require('os');
+const crypto = require('crypto');
+const { pathToFileURL } = require('url');
 const fsRaw = require('fs');
 const fs = require('fs/promises');
 const https = require('https');
 const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
-const { app, BrowserWindow, Menu, shell, nativeImage, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, shell, nativeImage, dialog, ipcMain, screen } = require('electron');
+const { atomicWriteTextFile } = require('./atomic-file.cjs');
+const { normalizeSlicerPayload, windowsCandidates } = require('./slicer-launch.cjs');
+const { isTrustedAppNavigation, isTrustedIpcUrl, normalizeExternalUrl } = require('./security-policy.cjs');
+const {
+  normalizeAuditPayload,
+  normalizeAutosavePayload,
+  normalizeCadConversionPayload,
+  normalizePrintPreviewPayload,
+  normalizeSaveTextPayload,
+  securePrintPreviewHtml,
+} = require('./ipc-policy.cjs');
+const { readRecoverableTextFile, validateJsonText } = require('./recovery-file.cjs');
+const { normalizeWindowBounds } = require('./window-bounds.cjs');
+const updatePolicy = require('./update-policy.cjs');
 
 const execFileAsync = promisify(execFile);
 
 const isMac = process.platform === 'darwin';
 const isWindows = process.platform === 'win32';
-const APP_DISPLAY_NAME = 'MadCAD 2D';
+const APP_DISPLAY_NAME = 'MadCAD';
+const LEGACY_USER_DATA_NAME = 'MadCAD 2D';
 const appIconPng = path.join(__dirname, '..', 'assets', 'icons', 'madcad-512.png');
 const ODA_DOWNLOAD_URL = 'https://www.opendesign.com/guestfiles/oda_file_converter';
 const ODA_DOWNLOAD_PAGE_HOST = 'www.opendesign.com';
-const MADCAD_RELEASE_API_URL = 'https://api.github.com/repos/kamil5646/MadCAD2D/releases/latest';
+const MADCAD_RELEASE_API_URL = 'https://api.github.com/repos/kamil5646/MadCAD2D/releases?per_page=30';
 const MADCAD_RELEASE_LATEST_PAGE_URL = 'https://github.com/kamil5646/MadCAD2D/releases/latest';
 const MADCAD_UPDATE_USER_AGENT = 'MadCAD2D-Updater/1.0';
 let forceCloseForUpdate = false;
 
+function resolveDeviceId() {
+  let machine = `${process.platform}|${process.arch}|fallback`;
+  try {
+    machine = `${process.platform}|${process.arch}|${os.hostname() || 'unknown-host'}|${os.userInfo().username || 'unknown-user'}`;
+  } catch (_error) {}
+  return crypto.createHash('sha256').update(machine).digest('hex').slice(0, 32);
+}
+
+const deviceId = resolveDeviceId();
+
 if (app && typeof app.setName === 'function') {
   app.setName(APP_DISPLAY_NAME);
+  // Zachowujemy dotychczasowy katalog danych, aby aktualizacja po zmianie nazwy
+  // nie utraciła licencji, ustawień ani automatycznych zapisów użytkownika.
+  const isolatedTestUserData = !app.isPackaged && process.env.MADCAD_TEST_USER_DATA_DIR
+    ? path.resolve(process.env.MADCAD_TEST_USER_DATA_DIR)
+    : '';
+  app.setPath('userData', isolatedTestUserData || path.join(app.getPath('appData'), LEGACY_USER_DATA_NAME));
 }
 
 function resolveAppLanguage() {
@@ -76,6 +110,15 @@ function getSavedAppLanguageSync() {
     const raw = fsRaw.readFileSync(configPath, 'utf8');
     const parsed = JSON.parse(raw);
     return normalizeLanguage(parsed && parsed.appLanguage);
+  } catch (_error) {
+    return null;
+  }
+}
+
+function getSavedWindowBoundsSync() {
+  try {
+    const parsed = JSON.parse(fsRaw.readFileSync(getCadConfigPath(), 'utf8'));
+    return parsed && typeof parsed.windowBounds === 'object' ? parsed.windowBounds : null;
   } catch (_error) {
     return null;
   }
@@ -269,42 +312,7 @@ function httpsGetBuffer(url) {
 }
 
 function normalizeVersionText(value) {
-  const cleaned = String(value || '')
-    .trim()
-    .replace(/^v/i, '');
-  const parts = cleaned.split('.');
-  while (parts.length > 2 && parts[parts.length - 1] === '0') {
-    parts.pop();
-  }
-  return parts.join('.');
-}
-
-function parseVersionTuple(versionText) {
-  const parts = normalizeVersionText(versionText)
-    .split('.')
-    .map((part) => parseInt(part, 10));
-  while (parts.length < 3) {
-    parts.push(0);
-  }
-  return parts.slice(0, 3).map((part) => (Number.isFinite(part) ? part : 0));
-}
-
-function isVersionGreater(candidate, current) {
-  const a = parseVersionTuple(candidate);
-  const b = parseVersionTuple(current);
-  for (let i = 0; i < 3; i += 1) {
-    if (a[i] > b[i]) {
-      return true;
-    }
-    if (a[i] < b[i]) {
-      return false;
-    }
-  }
-  return false;
-}
-
-function isUpdateVersionDifferent(candidate, current) {
-  return normalizeVersionText(candidate) !== normalizeVersionText(current);
+  return String(value || '').trim().replace(/^v/i, '');
 }
 
 function selectReleaseAssetForPlatform(assets) {
@@ -398,6 +406,10 @@ function sanitizeFileName(name, fallback) {
 
 function downloadFileWithRedirects(url, destinationPath, redirectCount = 0) {
   return new Promise((resolve, reject) => {
+    if (!updatePolicy.isTrustedUpdateUrl(url)) {
+      reject(new Error('Niezaufany adres pobierania aktualizacji.'));
+      return;
+    }
     if (redirectCount > 8) {
       reject(new Error('Zbyt wiele przekierowań podczas pobierania aktualizacji.'));
       return;
@@ -416,6 +428,10 @@ function downloadFileWithRedirects(url, destinationPath, redirectCount = 0) {
         if ([301, 302, 303, 307, 308].includes(status) && location) {
           response.resume();
           const nextUrl = location.startsWith('http') ? location : new URL(location, url).toString();
+          if (!updatePolicy.isTrustedUpdateUrl(nextUrl)) {
+            reject(new Error('Przekierowanie aktualizacji prowadzi do niezaufanego hosta.'));
+            return;
+          }
           resolve(downloadFileWithRedirects(nextUrl, destinationPath, redirectCount + 1));
           return;
         }
@@ -458,6 +474,7 @@ ZIP_PATH="$1"
 TARGET_APP="$2"
 LOG_PATH="$3"
 APP_EXECUTABLE="$4"
+BACKUP_APP="${'${TARGET_APP}'}.madcad-backup"
 
 exec >>"$LOG_PATH" 2>&1
 
@@ -490,24 +507,20 @@ for attempt in $(seq 1 60); do
   sleep 0.5
 done
 
-for attempt in $(seq 1 20); do
-  echo "Remove target attempt $attempt"
+rollback() {
+  echo "Rolling back previous app"
   /bin/rm -rf "$TARGET_APP" >/dev/null 2>&1 || true
-  if [ ! -e "$TARGET_APP" ]; then
-    break
-  fi
-  sleep 0.5
-done
+  if [ -e "$BACKUP_APP" ]; then /bin/mv "$BACKUP_APP" "$TARGET_APP"; fi
+}
 
-if [ -e "$TARGET_APP" ]; then
-  echo "ERROR: target app still exists after retries"
+/bin/rm -rf "$BACKUP_APP" >/dev/null 2>&1 || true
+if [ -e "$TARGET_APP" ] && ! /bin/mv "$TARGET_APP" "$BACKUP_APP"; then
+  echo "ERROR: cannot create rollback backup"
   exit 1
 fi
 
-if ! /usr/bin/ditto "$NEW_APP" "$TARGET_APP"; then
-  echo "ERROR: copy app failed"
-  exit 1
-fi
+if ! /usr/bin/ditto "$NEW_APP" "$TARGET_APP"; then rollback; exit 1; fi
+if ! /usr/bin/codesign --verify --deep --strict "$TARGET_APP"; then rollback; exit 1; fi
 
 /usr/bin/xattr -dr com.apple.quarantine "$TARGET_APP" >/dev/null 2>&1 || true
 echo "Opening installed app"
@@ -531,10 +544,22 @@ function launchWindowsInstaller(installerPath) {
   child.unref();
 }
 
-async function fetchLatestMadcadRelease() {
+async function verifyWindowsInstallerSignature(installerPath) {
+  if (!isWindows) return;
+  const escapedPath = String(installerPath).replace(/'/g, "''");
+  const command = `$signature = Get-AuthenticodeSignature -LiteralPath '${escapedPath}'; if ($signature.Status -ne 'Valid') { throw \"Invalid Authenticode status: $($signature.Status)\" }`;
+  await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { timeout: 120000 });
+}
+
+async function fetchLatestMadcadRelease(channel = 'stable', currentVersion = app.getVersion()) {
   try {
-    const release = await httpsGetJson(MADCAD_RELEASE_API_URL);
-    const latestVersion = normalizeVersionText(String((release && (release.tag_name || release.name)) || ''));
+    const releases = await httpsGetJson(MADCAD_RELEASE_API_URL);
+    const selected = updatePolicy.selectLatestRelease(releases, channel, currentVersion);
+    if (!selected) {
+      return { latestVersion: normalizeVersionText(currentVersion), asset: null, checksumAsset: null, releaseUrl: '' };
+    }
+    const release = selected.release;
+    const latestVersion = selected.version.raw;
     if (!latestVersion) {
       throw new Error(
         t(
@@ -544,9 +569,14 @@ async function fetchLatestMadcadRelease() {
       );
     }
     const asset = selectReleaseAssetForPlatform(release && release.assets);
+    const checksumAsset = asset
+      ? (release.assets || []).find((item) => String(item?.name || '') === `${asset.name}.sha256`) || null
+      : null;
     return {
       latestVersion,
       asset,
+      checksumAsset: checksumAsset ? { name: checksumAsset.name, url: checksumAsset.browser_download_url } : null,
+      channel,
       releaseUrl: String((release && release.html_url) || '')
     };
   } catch (apiError) {
@@ -584,6 +614,8 @@ async function fetchLatestMadcadRelease() {
       return {
         latestVersion,
         asset,
+        checksumAsset: null,
+        channel: 'stable',
         releaseUrl: `https://github.com/kamil5646/MadCAD2D/releases/tag/v${latestVersion}`
       };
     } catch (_fallbackError) {
@@ -1144,7 +1176,7 @@ async function handleSavePromptBeforeExit(win) {
     defaultId: 0,
     cancelId: 2,
     noLink: true,
-    title: t('Zamykanie MadCAD 2D', 'Closing MadCAD 2D'),
+    title: t('Zamykanie MadCAD', 'Closing MadCAD'),
     message: t('Czy chcesz zapisać rysunek przed wyjściem?', 'Do you want to save the drawing before exit?'),
     detail: t('Po zamknięciu sesja robocza zostanie wyczyszczona.', 'The current runtime session will be cleared after closing.')
   });
@@ -1204,11 +1236,15 @@ async function handleSavePromptBeforeExit(win) {
 }
 
 function createMainWindow() {
+  const initialBounds = normalizeWindowBounds(
+    getSavedWindowBoundsSync(),
+    screen.getAllDisplays().map((display) => ({ workArea: display.workArea, primary: display.id === screen.getPrimaryDisplay().id })),
+    { width: 1680, height: 980 },
+  );
   const win = new BrowserWindow({
-    width: 1680,
-    height: 980,
-    minWidth: 1200,
-    minHeight: 760,
+    ...initialBounds,
+    minWidth: Math.min(1200, initialBounds.width),
+    minHeight: Math.min(760, initialBounds.height),
     backgroundColor: '#111b29',
     title: appLanguage === 'en' ? `${APP_DISPLAY_NAME} EN` : `${APP_DISPLAY_NAME} PL`,
     icon: appIconPng,
@@ -1231,34 +1267,65 @@ function createMainWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      sandbox: false,
+      sandbox: true,
       nodeIntegration: false,
-      devTools: true,
-      additionalArguments: [`--madcad-lang=${appLanguage}`]
+      devTools: !app.isPackaged,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      additionalArguments: [`--madcad-lang=${appLanguage}`, `--madcad-device-id=${deviceId}`]
     }
   });
 
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
-    win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    win.loadFile(
+      path.join(__dirname, '..', 'dist', 'index.html'),
+      process.env.MADCAD_TEST_USER_DATA_DIR ? { query: { verify: '1' } } : undefined,
+    );
   }
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      shell.openExternal(url);
-      return { action: 'deny' };
-    }
-    return { action: 'allow' };
+    const externalUrl = normalizeExternalUrl(url);
+    if (externalUrl) void shell.openExternal(externalUrl);
+    return { action: 'deny' };
   });
 
-  if (!app.isPackaged) {
+  win.webContents.on('will-navigate', (event, url) => {
+    const currentUrl = win.webContents.getURL();
+    const developmentOrigin = process.env.VITE_DEV_SERVER_URL ? new URL(process.env.VITE_DEV_SERVER_URL).origin : '';
+    if (isTrustedAppNavigation(url, currentUrl, developmentOrigin)) return;
+    event.preventDefault();
+    const externalUrl = normalizeExternalUrl(url);
+    if (externalUrl) void shell.openExternal(externalUrl);
+  });
+
+  if (!app.isPackaged && process.argv.includes('--devtools')) {
     win.webContents.openDevTools({ mode: 'detach' });
   }
 
   if (!isMac) {
     win.setMenuBarVisibility(false);
   }
+
+  let windowBoundsSaveTimer = null;
+  const scheduleWindowBoundsSave = () => {
+    if (win.isDestroyed() || win.isMaximized() || win.isFullScreen()) return;
+    if (windowBoundsSaveTimer) clearTimeout(windowBoundsSaveTimer);
+    windowBoundsSaveTimer = setTimeout(() => {
+      windowBoundsSaveTimer = null;
+      void (async () => {
+        const config = await readCadConfig();
+        config.windowBounds = win.getNormalBounds();
+        await writeCadConfig(config);
+      })().catch(() => {});
+    }, 400);
+  };
+  win.on('move', scheduleWindowBoundsSave);
+  win.on('resize', scheduleWindowBoundsSave);
+  win.on('closed', () => {
+    if (windowBoundsSaveTimer) clearTimeout(windowBoundsSaveTimer);
+  });
 
   let closeApproved = false;
   win.on('close', (event) => {
@@ -1410,22 +1477,108 @@ function createMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-ipcMain.handle('madcad:save-text-file', async (event, payload) => {
+function spawnDetached(executable, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(executable, args, { detached: true, stdio: 'ignore' });
+    child.once('error', reject);
+    child.once('spawn', () => {
+      child.unref();
+      resolve();
+    });
+  });
+}
+
+function storageErrorMessage(error, fallbackPl, fallbackEn) {
+  if (error?.code === 'ENOSPC') return t('Brak wolnego miejsca na dysku. Ostatnia poprawna wersja pliku nie została zmieniona.', 'The disk is full. The last valid file version was not changed.');
+  if (error?.code === 'EACCES' || error?.code === 'EPERM') return t('Brak uprawnień do zapisu w wybranym miejscu.', 'Permission denied for the selected location.');
+  return error?.message ? String(error.message) : t(fallbackPl, fallbackEn);
+}
+
+async function openFilesInSlicer(slicer, definition, filePaths) {
+  if (process.platform === 'darwin') {
+    let lastError;
+    for (const applicationName of definition.mac) {
+      try {
+        await execFileAsync('/usr/bin/open', ['-a', applicationName, ...filePaths]);
+        return applicationName;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw new Error(`${definition.label} nie jest zainstalowany albo macOS nie może go uruchomić. ${lastError?.message || ''}`.trim());
+  }
+  if (process.platform === 'win32') {
+    for (const executable of windowsCandidates(slicer)) {
+      if (!(await pathExists(executable))) continue;
+      await spawnDetached(executable, filePaths);
+      return executable;
+    }
+    throw new Error(`${definition.label} nie został znaleziony w standardowych katalogach Windows.`);
+  }
+  let lastError;
+  for (const command of definition.linux) {
+    try {
+      await spawnDetached(command, filePaths);
+      return command;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error(`${definition.label} nie jest dostępny w PATH. ${lastError?.message || ''}`.trim());
+}
+
+function trustedIpcSenderUrl(event) {
+  try {
+    return event?.senderFrame?.url || event?.sender?.getURL?.() || '';
+  } catch (_error) {
+    return '';
+  }
+}
+
+function registerTrustedIpcHandler(channel, handler) {
+  ipcMain.handle(channel, async (event, ...args) => {
+    const appEntryUrl = pathToFileURL(path.join(__dirname, '..', 'dist', 'index.html')).toString();
+    const developmentOrigin = process.env.VITE_DEV_SERVER_URL
+      ? new URL(process.env.VITE_DEV_SERVER_URL).origin
+      : '';
+    if (!isTrustedIpcUrl(trustedIpcSenderUrl(event), appEntryUrl, developmentOrigin)) {
+      const error = new Error(t('Odrzucono żądanie z niezaufanego widoku.', 'Request from an untrusted view was rejected.'));
+      error.code = 'UNTRUSTED_IPC_SENDER';
+      throw error;
+    }
+    return handler(event, ...args);
+  });
+}
+
+registerTrustedIpcHandler('madcad:send-to-slicer', async (_event, payload) => {
+  let filePaths = [];
+  try {
+    const normalized = normalizeSlicerPayload(payload);
+    const root = path.join(app.getPath('temp'), 'madcad-slicer');
+    await fs.mkdir(root, { recursive: true });
+    const jobDirectory = await fs.mkdtemp(path.join(root, 'job-'));
+    filePaths = await Promise.all(normalized.files.map(async (file, index) => {
+      const filePath = path.join(jobDirectory, `${String(index + 1).padStart(2, '0')}-${file.name}`);
+      await fs.writeFile(filePath, Buffer.from(file.bytes));
+      return filePath;
+    }));
+    const launchedWith = await openFilesInSlicer(normalized.slicer, normalized.definition, filePaths);
+    return { ok: true, slicer: normalized.slicer, launchedWith, filePaths };
+  } catch (error) {
+    if (filePaths[0]) shell.showItemInFolder(filePaths[0]);
+    return { ok: false, filePaths, error: error?.message || String(error) };
+  }
+});
+
+registerTrustedIpcHandler('madcad:save-text-file', async (event, payload) => {
   try {
     const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;
-    const defaultName =
-      payload && typeof payload.defaultName === 'string' && payload.defaultName.trim()
-        ? payload.defaultName.trim()
-        : appLanguage === 'en'
-        ? 'drawing.txt'
-        : 'rysunek.txt';
-    const text = payload && typeof payload.text === 'string' ? payload.text : '';
-    const filters = Array.isArray(payload && payload.filters) ? payload.filters : [];
+    const normalized = normalizeSaveTextPayload(payload, appLanguage);
 
     const result = await dialog.showSaveDialog(senderWindow, {
       title: t('Zapisz plik', 'Save file'),
-      defaultPath: defaultName,
-      filters,
+      defaultPath: normalized.defaultName,
+      filters: normalized.filters,
       properties: ['createDirectory', 'showOverwriteConfirmation']
     });
 
@@ -1433,18 +1586,20 @@ ipcMain.handle('madcad:save-text-file', async (event, payload) => {
       return { ok: false, canceled: true };
     }
 
-    await fs.writeFile(result.filePath, text, 'utf8');
-    return { ok: true, canceled: false, filePath: result.filePath };
+    const writeResult = normalized.atomic
+      ? await atomicWriteTextFile(result.filePath, normalized.text, { backup: normalized.createBackup })
+      : (await fs.writeFile(result.filePath, normalized.text, 'utf8'), { filePath: result.filePath, backupPath: null });
+    return { ok: true, canceled: false, ...writeResult };
   } catch (error) {
     return {
       ok: false,
       canceled: false,
-      error: error && error.message ? String(error.message) : t('Nieznany błąd zapisu', 'Unknown save error')
+      error: storageErrorMessage(error, 'Nieznany błąd zapisu', 'Unknown save error')
     };
   }
 });
 
-ipcMain.handle('madcad:check-for-updates', async () => {
+registerTrustedIpcHandler('madcad:check-for-updates', async () => {
   try {
     if (!app.isPackaged) {
       return {
@@ -1460,17 +1615,18 @@ ipcMain.handle('madcad:check-for-updates', async () => {
         )
       };
     }
-    const currentVersion = normalizeVersionText(app.getVersion());
-    const latest = await fetchLatestMadcadRelease();
-    const hasNewerVersion =
-      isVersionGreater(latest.latestVersion, currentVersion) ||
-      isUpdateVersionDifferent(latest.latestVersion, currentVersion);
-    const hasAssetForPlatform = Boolean(latest.asset && latest.asset.url);
+    const currentVersion = String(app.getVersion());
+    const config = await readCadConfig();
+    const channel = updatePolicy.normalizeChannel(config.updateChannel, currentVersion);
+    const latest = await fetchLatestMadcadRelease(channel, currentVersion);
+    const hasNewerVersion = updatePolicy.compareVersions(latest.latestVersion, currentVersion) > 0;
+    const hasAssetForPlatform = Boolean(latest.asset && latest.asset.url && latest.checksumAsset?.url);
     return {
       ok: true,
       available: hasNewerVersion && hasAssetForPlatform,
       supported: hasAssetForPlatform,
       currentVersion,
+      channel,
       latestVersion: latest.latestVersion,
       assetName: latest.asset ? latest.asset.name : null,
       downloadUrl: latest.asset ? latest.asset.url : null,
@@ -1493,7 +1649,7 @@ ipcMain.handle('madcad:check-for-updates', async () => {
   }
 });
 
-ipcMain.handle('madcad:download-and-install-update', async (_event, payload) => {
+registerTrustedIpcHandler('madcad:download-and-install-update', async () => {
   try {
     if (!app.isPackaged) {
       return {
@@ -1506,13 +1662,11 @@ ipcMain.handle('madcad:download-and-install-update', async (_event, payload) => 
       };
     }
 
-    let downloadUrl = String((payload && payload.downloadUrl) || '').trim();
-    let assetName = String((payload && payload.assetName) || '').trim();
-    let latestVersion = normalizeVersionText(String((payload && payload.latestVersion) || ''));
-
-    if (!downloadUrl) {
-      const latest = await fetchLatestMadcadRelease();
-      if (!latest.asset || !latest.asset.url) {
+    const currentVersion = String(app.getVersion());
+    const config = await readCadConfig();
+    const channel = updatePolicy.normalizeChannel(config.updateChannel, currentVersion);
+    const latest = await fetchLatestMadcadRelease(channel, currentVersion);
+    if (!latest.asset?.url || !latest.checksumAsset?.url) {
         return {
           ok: false,
           installing: false,
@@ -1521,22 +1675,14 @@ ipcMain.handle('madcad:download-and-install-update', async (_event, payload) => 
             'No update package is available for this platform.'
           )
         };
-      }
-      downloadUrl = String(latest.asset.url || '').trim();
-      assetName = String(latest.asset.name || '').trim();
-      latestVersion = latest.latestVersion;
     }
-
-    if (!downloadUrl) {
-      return {
-        ok: false,
-        installing: false,
-        error: t('Brak adresu pobierania aktualizacji.', 'Missing update download URL.')
-      };
+    const downloadUrl = String(latest.asset.url).trim();
+    const assetName = String(latest.asset.name).trim();
+    const latestVersion = latest.latestVersion;
+    if (!updatePolicy.isTrustedUpdateUrl(downloadUrl) || !updatePolicy.isTrustedUpdateUrl(latest.checksumAsset.url)) {
+      throw new Error(t('Źródło aktualizacji nie jest zaufane.', 'The update source is not trusted.'));
     }
-
-    const currentVersion = normalizeVersionText(app.getVersion());
-    if (latestVersion && !isUpdateVersionDifferent(latestVersion, currentVersion)) {
+    if (updatePolicy.compareVersions(latestVersion, currentVersion) <= 0) {
       return {
         ok: true,
         installing: false,
@@ -1551,11 +1697,19 @@ ipcMain.handle('madcad:download-and-install-update', async (_event, payload) => 
     const fileBase = sanitizeFileName(assetName, isWindows ? 'madcad-update.exe' : 'madcad-update.zip');
     const downloadedPath = path.join(updateDir, `${Date.now()}-${fileBase}`);
     await downloadFileWithRedirects(downloadUrl, downloadedPath);
+    const checksumText = (await httpsGetBuffer(latest.checksumAsset.url)).toString('utf8');
+    const expectedChecksum = updatePolicy.parseChecksumFile(checksumText, assetName);
+    const downloadedBuffer = await fs.readFile(downloadedPath);
+    if (!expectedChecksum || !updatePolicy.verifyBufferChecksum(downloadedBuffer, expectedChecksum)) {
+      await fs.rm(downloadedPath, { force: true }).catch(() => {});
+      throw new Error(t('Suma SHA-256 paczki aktualizacji jest nieprawidłowa.', 'The update package SHA-256 checksum is invalid.'));
+    }
 
     let installerMeta = null;
     if (isMac) {
       installerMeta = await scheduleMacZipInstall(downloadedPath);
     } else if (isWindows) {
+      await verifyWindowsInstallerSignature(downloadedPath);
       launchWindowsInstaller(downloadedPath);
     } else {
       return {
@@ -1594,48 +1748,34 @@ ipcMain.handle('madcad:download-and-install-update', async (_event, payload) => 
   }
 });
 
-ipcMain.handle('madcad:autosave-write', async (_event, payload) => {
+registerTrustedIpcHandler('madcad:autosave-write', async (_event, payload) => {
   try {
-    const text = payload && typeof payload.text === 'string' ? payload.text : '';
-    if (!text.trim()) {
-      return {
-        ok: false,
-        error: t('Brak danych autozapisu.', 'Missing autosave payload.')
-      };
-    }
+    const { text } = normalizeAutosavePayload(payload);
     const autoSavePath = getAutoSavePath();
     await fs.mkdir(path.dirname(autoSavePath), { recursive: true });
-    await fs.writeFile(autoSavePath, text, 'utf8');
+    const writeResult = await atomicWriteTextFile(autoSavePath, text, { backup: true });
     return {
       ok: true,
-      filePath: autoSavePath,
+      ...writeResult,
       savedAt: new Date().toISOString()
     };
   } catch (error) {
     return {
       ok: false,
-      error:
-        error && error.message ? String(error.message) : t('Nie udało się zapisać autozapisu.', 'Autosave write failed.')
+      error: storageErrorMessage(error, 'Nie udało się zapisać autozapisu.', 'Autosave write failed.')
     };
   }
 });
 
-ipcMain.handle('madcad:autosave-read', async () => {
+registerTrustedIpcHandler('madcad:autosave-read', async () => {
   try {
     const autoSavePath = getAutoSavePath();
-    let stat = null;
-    try {
-      stat = await fs.stat(autoSavePath);
-    } catch (_error) {
-      return { ok: true, exists: false, filePath: autoSavePath };
-    }
-    const text = await fs.readFile(autoSavePath, 'utf8');
+    const recovered = await readRecoverableTextFile(autoSavePath, { validate: validateJsonText });
+    if (!recovered.exists) return { ok: true, ...recovered };
     return {
       ok: true,
-      exists: true,
-      filePath: autoSavePath,
-      text,
-      updatedAt: stat && stat.mtime ? stat.mtime.toISOString() : null
+      ...recovered,
+      warning: recovered.recovered ? t('Główny autozapis był uszkodzony. Odzyskano poprzednią wersję z kopii zapasowej.', 'The main autosave was corrupted. The previous version was recovered from backup.') : null,
     };
   } catch (error) {
     return {
@@ -1647,7 +1787,7 @@ ipcMain.handle('madcad:autosave-read', async () => {
   }
 });
 
-ipcMain.handle('madcad:autosave-clear', async () => {
+registerTrustedIpcHandler('madcad:autosave-clear', async () => {
   try {
     await clearAutoSaveSnapshot();
     return { ok: true };
@@ -1660,20 +1800,9 @@ ipcMain.handle('madcad:autosave-clear', async () => {
   }
 });
 
-ipcMain.handle('madcad:open-print-preview', async (event, payload) => {
+registerTrustedIpcHandler('madcad:open-print-preview', async (event, payload) => {
   try {
-    const html = payload && typeof payload.html === 'string' ? payload.html : '';
-    const windowTitle =
-      payload && typeof payload.title === 'string' && payload.title.trim()
-        ? payload.title.trim()
-        : t('MadCAD 2D - wydruk', 'MadCAD 2D - print');
-
-    if (!html || html.length < 32) {
-      return { ok: false, error: t('Brak danych podglądu wydruku.', 'Missing print preview data.') };
-    }
-    if (html.length > 8_000_000) {
-      return { ok: false, error: t('Podgląd wydruku jest zbyt duży.', 'Print preview payload is too large.') };
-    }
+    const { html, title: windowTitle } = normalizePrintPreviewPayload(payload, appLanguage);
 
     const previewWindow = new BrowserWindow({
       width: 1220,
@@ -1702,9 +1831,13 @@ ipcMain.handle('madcad:open-print-preview', async (event, payload) => {
       previewDir,
       `preview-${Date.now()}-${Math.random().toString(36).slice(2, 10)}.html`
     );
-    await fs.writeFile(previewPath, html, 'utf8');
+    await fs.writeFile(previewPath, securePrintPreviewHtml(html), 'utf8');
     previewWindow.on('closed', () => {
       void fs.unlink(previewPath).catch(() => {});
+    });
+    previewWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    previewWindow.webContents.on('will-navigate', (navigationEvent, url) => {
+      if (url !== previewWindow.webContents.getURL()) navigationEvent.preventDefault();
     });
     await previewWindow.loadFile(previewPath);
     previewWindow.once('ready-to-show', () => {
@@ -1726,7 +1859,7 @@ ipcMain.handle('madcad:open-print-preview', async (event, payload) => {
   }
 });
 
-ipcMain.handle('madcad:get-oda-status', async () => {
+registerTrustedIpcHandler('madcad:get-oda-status', async () => {
   try {
     const converterPath = await resolveOdaConverterPath();
     return {
@@ -1744,7 +1877,7 @@ ipcMain.handle('madcad:get-oda-status', async () => {
   }
 });
 
-ipcMain.handle('madcad:choose-oda-path', async (event) => {
+registerTrustedIpcHandler('madcad:choose-oda-path', async (event) => {
   try {
     const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;
     const result = await dialog.showOpenDialog(senderWindow, {
@@ -1786,7 +1919,7 @@ ipcMain.handle('madcad:choose-oda-path', async (event) => {
   }
 });
 
-ipcMain.handle('madcad:open-oda-download', async () => {
+registerTrustedIpcHandler('madcad:open-oda-download', async () => {
   try {
     await shell.openExternal(ODA_DOWNLOAD_URL);
     return { ok: true, canceled: false, url: ODA_DOWNLOAD_URL };
@@ -1799,7 +1932,7 @@ ipcMain.handle('madcad:open-oda-download', async () => {
   }
 });
 
-ipcMain.handle('madcad:install-oda-addon', async () => {
+registerTrustedIpcHandler('madcad:install-oda-addon', async () => {
   try {
     const installedPath = await autoInstallOdaConverter();
     return {
@@ -1818,10 +1951,11 @@ ipcMain.handle('madcad:install-oda-addon', async () => {
   }
 });
 
-ipcMain.handle('madcad:convert-cad-file', async (event, payload) => {
+registerTrustedIpcHandler('madcad:convert-cad-file', async (event, payload) => {
   let tempRoot = null;
   try {
-    const mode = String(payload && payload.mode ? payload.mode : '');
+    const normalized = normalizeCadConversionPayload(payload, appLanguage);
+    const mode = normalized.mode;
     const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;
     const converterPath = await resolveOdaConverterPath();
     if (!converterPath) {
@@ -1829,8 +1963,8 @@ ipcMain.handle('madcad:convert-cad-file', async (event, payload) => {
         ok: false,
         canceled: false,
         error: t(
-          'Nie znaleziono ODA File Converter. Zainstaluj aplikację i uruchom ponownie MadCAD 2D.',
-          'ODA File Converter not found. Install it and restart MadCAD 2D.'
+          'Nie znaleziono ODA File Converter. Zainstaluj aplikację i uruchom ponownie MadCAD.',
+          'ODA File Converter not found. Install it and restart MadCAD.'
         )
       };
     }
@@ -1842,12 +1976,20 @@ ipcMain.handle('madcad:convert-cad-file', async (event, payload) => {
     await fs.mkdir(outputDir, { recursive: true });
 
     if (mode === 'dwg-to-dxf') {
-      const sourcePath = String(payload && payload.sourcePath ? payload.sourcePath : '');
+      const sourcePath = normalized.sourcePath;
       if (!sourcePath || !(await pathExists(sourcePath))) {
         return {
           ok: false,
           canceled: false,
           error: t('Nieprawidłowa ścieżka pliku DWG.', 'Invalid DWG file path.')
+        };
+      }
+      const sourceStats = await fs.stat(sourcePath);
+      if (!sourceStats.isFile() || sourceStats.size > 512 * 1024 * 1024) {
+        return {
+          ok: false,
+          canceled: false,
+          error: t('Plik DWG jest nieprawidłowy lub przekracza limit 512 MB.', 'The DWG file is invalid or exceeds the 512 MB limit.')
         };
       }
       const sourceName = path.basename(sourcePath);
@@ -1867,7 +2009,7 @@ ipcMain.handle('madcad:convert-cad-file', async (event, payload) => {
     }
 
     if (mode === 'dxf-text-to-dwg') {
-      const dxfText = String(payload && payload.dxfText ? payload.dxfText : '');
+      const dxfText = normalized.dxfText;
       const dxfPath = path.join(inputDir, 'source.dxf');
       await fs.writeFile(dxfPath, dxfText, 'utf8');
       await runOdaFileConverter(converterPath, inputDir, outputDir, 'DWG', '*.*');
@@ -1880,16 +2022,9 @@ ipcMain.handle('madcad:convert-cad-file', async (event, payload) => {
         };
       }
 
-      const defaultName =
-        payload && typeof payload.defaultName === 'string' && payload.defaultName.trim()
-          ? payload.defaultName.trim()
-          : appLanguage === 'en'
-          ? 'drawing.dwg'
-          : 'rysunek.dwg';
-
       const saveResult = await dialog.showSaveDialog(senderWindow, {
         title: t('Zapisz plik DWG', 'Save DWG file'),
-        defaultPath: defaultName,
+        defaultPath: normalized.defaultName,
         filters: [{ name: 'DWG', extensions: ['dwg'] }],
         properties: ['createDirectory', 'showOverwriteConfirmation']
       });
@@ -1925,9 +2060,9 @@ function getPrivateLicenseAuditPath() {
   return path.join(userDataDir, 'private', 'license-audit.jsonl');
 }
 
-ipcMain.handle('madcad:append-license-audit', async (_event, payload) => {
+registerTrustedIpcHandler('madcad:append-license-audit', async (_event, payload) => {
   try {
-    const safePayload = payload && typeof payload === 'object' ? payload : {};
+    const safePayload = normalizeAuditPayload(payload);
     const entry = {
       at: new Date().toISOString(),
       type: String(safePayload.type || 'akcja'),
@@ -1946,7 +2081,7 @@ ipcMain.handle('madcad:append-license-audit', async (_event, payload) => {
   }
 });
 
-ipcMain.handle('madcad:clear-license-storage', async (event) => {
+registerTrustedIpcHandler('madcad:clear-license-storage', async (event) => {
   try {
     const senderSession = event && event.sender ? event.sender.session : null;
     if (!senderSession || typeof senderSession.clearStorageData !== 'function') {
@@ -1972,7 +2107,7 @@ ipcMain.handle('madcad:clear-license-storage', async (event) => {
   }
 });
 
-ipcMain.handle('madcad:set-language', async (_event, payload) => {
+registerTrustedIpcHandler('madcad:set-language', async (_event, payload) => {
   try {
     const requested = normalizeLanguage(payload && payload.language);
     if (!requested) {

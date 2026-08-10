@@ -144,6 +144,8 @@
 
   const LICENSE_STORAGE_KEY = "madcad-license-v1";
   const LICENSE_CLEARED_MARK_KEY = "madcad-license-cleared-at-v1";
+  // Tymczasowy przełącznik produktu. Kod licencji pozostaje gotowy do ponownego włączenia.
+  const LICENSE_ENFORCEMENT_ENABLED = false;
   const UI_LANGUAGE_STORAGE_KEY = "madcad-ui-language";
   const UI_LANGUAGE_ONBOARDING_KEY = "madcad-ui-language-onboarded-v1";
   const LICENSE_TOKEN_PATTERN = /^M2D[0-9]+\.[A-Za-z0-9_-]{8,512}(?:\.[A-Za-z0-9_-]{8,1200})?$/;
@@ -488,7 +490,7 @@
       "Brak zaznaczonego obiektu": "No object selected",
       "Gotowe. Użyj przycisków ze wstążki.": "Ready. Use ribbon buttons.",
       "Przywrócono widoczność warstw z istniejącą geometrią.": "Restored visibility for layers with existing geometry.",
-      "Aktywuj licencję, aby odblokować pracę w MadCAD 2D.": "Activate a license to unlock work in MadCAD 2D.",
+      "Aktywuj licencję, aby odblokować pracę w MadCAD.": "Activate a license to unlock work in MadCAD.",
       "Wybierz plik DXF do importu.": "Choose a DXF file to import.",
       "Wybierz plik JSON do wczytania.": "Choose a JSON file to load.",
       "Wyczyszczono rysunek.": "Drawing cleared.",
@@ -565,7 +567,7 @@
       .replace(/^Warstwa (.+): ukryta\.$/, "Layer $1: hidden.")
       .replace(/^Warstwa (.+): zablokowana\.$/, "Layer $1: locked.")
       .replace(/^Warstwa (.+): odblokowana\.$/, "Layer $1: unlocked.")
-      .replace(/^MadCAD 2D jest aktualny \(v(.+)\)\.$/, "MadCAD 2D is up to date (v$1).")
+      .replace(/^MadCAD jest aktualny \(v(.+)\)\.$/, "MadCAD is up to date (v$1).")
       .replace(/^Automatyczny aktualizator nie jest dostępny w tej wersji\.$/, "Automatic updater is not available in this version.")
       .replace(/^Pobieranie aktualizacji\. Po chwili aplikacja uruchomi instalator\.$/, "Downloading update. The app will launch installer shortly.")
       .replace(
@@ -792,6 +794,13 @@
   }
 
   async function ensureLanguageOnFirstLaunch() {
+    const query = new URLSearchParams(window.location.search);
+    if (query.has("verify")) {
+      APP_LANGUAGE = normalizeAppLanguage(query.get("verifyLanguage")) || "pl";
+      saveUiLanguage(APP_LANGUAGE);
+      markLanguageOnboardingCompleted();
+      return true;
+    }
     const storedLanguage = getStoredUiLanguage();
     if (storedLanguage) {
       markLanguageOnboardingCompleted();
@@ -979,7 +988,7 @@
       "Prostokąt: szer.": "Rectangle: width",
       "Prostokąt: wys.": "Rectangle: height",
       "Okrąg: promień": "Circle: radius",
-      "Aktywacja licencji MadCAD 2D": "MadCAD 2D license activation",
+      "Aktywacja licencji MadCAD": "MadCAD license activation",
       Zamknij: "Close",
       "Darmowy klucz licencyjny": "Free license key",
       "Wsparcie projektu": "Project support",
@@ -990,8 +999,8 @@
       "Wyczyść zapis": "Clear saved token",
       "Kopiuj ID urządzenia": "Copy device ID",
       "Otwórz formularz tokenu na GitHub": "Open token form on GitHub",
-      "Jeśli MadCAD 2D przyspiesza Twoją codzienną pracę, możesz wesprzeć dalszy rozwój projektu.":
-        "If MadCAD 2D speeds up your daily work, you can support further project development.",
+      "Jeśli MadCAD przyspiesza Twoją codzienną pracę, możesz wesprzeć dalszy rozwój projektu.":
+        "If MadCAD speeds up your daily work, you can support further project development.",
       "Link:": "Link:"
     };
     localizeTextNodes(uiTextMap);
@@ -1635,7 +1644,7 @@
       localStorage.setItem("cad-session-v2", JSON.stringify(parsed));
       restoreSession();
       state.autosaveLastPayload = JSON.stringify(parsed);
-      echoCommand("Przywrócono autozapis po awaryjnym zamknięciu.");
+      echoCommand(result.warning || "Przywrócono autozapis po awaryjnym zamknięciu.");
       return true;
     } catch (error) {
       console.warn("Nie udało się przywrócić autozapisu:", error);
@@ -1862,7 +1871,7 @@
 
     setUpdateButtonUi("current", result);
     if (!silent) {
-      echoCommand(`MadCAD 2D jest aktualny (v${result.currentVersion || "?"}).`);
+      echoCommand(`MadCAD jest aktualny (v${result.currentVersion || "?"}).`);
     }
     return result;
   }
@@ -2670,6 +2679,9 @@
   }
 
   function startRemoteLicenseRecheck() {
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      return;
+    }
     if (licenseRemoteRecheckTimer !== null || !licenseSession.active || !licenseSession.token) {
       return;
     }
@@ -2688,6 +2700,9 @@
   }
 
   async function validateLicenseWithPublicRegistry(options) {
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      return true;
+    }
     const opts = options && typeof options === "object" ? options : {};
     if (!licenseSession.active || !licenseSession.token) {
       return false;
@@ -2840,6 +2855,14 @@
     }
     licenseSummaryChip.classList.remove("is-free", "is-commercial", "is-missing");
 
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      licenseSummaryChip.dataset.icon = "\u2713";
+      licenseSummaryChip.textContent = "Licencja: wyłączona";
+      licenseSummaryChip.classList.add("is-free");
+      licenseSummaryChip.title = "Aktywacja licencji jest tymczasowo wyłączona.";
+      return;
+    }
+
     if (!licenseSession.active) {
       licenseSummaryChip.dataset.icon = "\u26A0";
       licenseSummaryChip.textContent = "Licencja: brak";
@@ -2883,6 +2906,9 @@
   }
 
   function enforceLicenseStorageIntegrity(options) {
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      return true;
+    }
     const opts = options && typeof options === "object" ? options : {};
     const storedRecord = readPersistedLicenseRecord();
     const storedToken = String(storedRecord && storedRecord.token ? storedRecord.token : "").trim();
@@ -2911,6 +2937,10 @@
   }
 
   function openLicenseManager() {
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      setLicenseOverlayVisible(false);
+      return;
+    }
     setLicenseOverlayVisible(true);
     if (licenseTokenInput) {
       licenseTokenInput.focus();
@@ -2925,7 +2955,7 @@
   }
 
   function setLicenseLocked(locked) {
-    const isLocked = Boolean(locked);
+    const isLocked = LICENSE_ENFORCEMENT_ENABLED ? Boolean(locked) : false;
     licenseSession.active = !isLocked;
     if (appRoot) {
       appRoot.classList.toggle("license-locked", isLocked);
@@ -2965,6 +2995,10 @@
   }
 
   function validateStoredLicenseAtStartup(storedRecord, options) {
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      setLicenseLocked(false);
+      return true;
+    }
     const opts = options && typeof options === "object" ? options : {};
     const auditEnabled = opts.audit !== false;
     const contextLabel = String(opts.context || "Walidacja przy uruchomieniu");
@@ -3096,6 +3130,19 @@
   }
 
   function initializeLicenseManager() {
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      licenseSession.active = true;
+      stopRemoteLicenseRecheck();
+      setLicenseOverlayVisible(false);
+      if (licenseCategoryBtn) {
+        licenseCategoryBtn.hidden = true;
+      }
+      if (appRoot) {
+        appRoot.classList.remove("license-locked");
+      }
+      updateLicenseSummaryChip();
+      return true;
+    }
     if (!licenseOverlay) {
       licenseSession.active = true;
       updateLicenseSummaryChip();
@@ -10178,7 +10225,7 @@
     });
     const hasSelectionForPrint = getSelectedEntities().some((entity) => isEntityVisible(entity));
     const timestamp = new Date().toLocaleString("pl-PL");
-    const documentTitle = "MadCAD 2D - wydruk";
+    const documentTitle = "MadCAD - wydruk";
     let desktopError = "";
     const html = [
       "<!doctype html>",
@@ -12628,7 +12675,7 @@
       echoCommand("Przywrócono widoczność warstw z istniejącą geometrią.");
     }
     if (!licensedAtBoot && licenseOverlay) {
-      echoCommand("Aktywuj licencję, aby odblokować pracę w MadCAD 2D.", true, { toast: false });
+      echoCommand("Aktywuj licencję, aby odblokować pracę w MadCAD.", true, { toast: false });
     }
     if (window.desktopApp && typeof window.desktopApp.getOdaStatus === "function") {
       void refreshDwgExportButtonState();

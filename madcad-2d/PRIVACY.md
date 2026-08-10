@@ -1,10 +1,10 @@
 # Polityka prywatności
 
-## MadCAD 2D
+## MadCAD
 
 Data aktualizacji: 2026-03-01
 
-MadCAD 2D jest aplikacją desktopową działającą lokalnie na komputerze użytkownika.
+MadCAD jest aplikacją desktopową działającą lokalnie na komputerze użytkownika.
 
 ## 1. Jakie dane są przetwarzane
 

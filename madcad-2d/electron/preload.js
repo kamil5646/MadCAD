@@ -1,62 +1,30 @@
-const os = require('os');
-const crypto = require('crypto');
 const { contextBridge, ipcRenderer } = require('electron');
 
-const LICENSE_PUBLIC_KEY_PEM = [
-  '-----BEGIN PUBLIC KEY-----',
-  'MCowBQYDK2VwAyEA5vwZA4c41mXP0grMhjY1Uwmg0tZH+L02qFi3GZC9CXY=',
-  '-----END PUBLIC KEY-----'
-].join('\n');
-
-function resolveDeviceId() {
-  try {
-    const username = os.userInfo().username || 'unknown-user';
-    const hostname = os.hostname() || 'unknown-host';
-    const machine = `${process.platform}|${process.arch}|${hostname}|${username}`;
-    return crypto.createHash('sha256').update(machine).digest('hex').slice(0, 32);
-  } catch {
-    return crypto
-      .createHash('sha256')
-      .update(`${process.platform}|${process.arch}|fallback`)
-      .digest('hex')
-      .slice(0, 32);
-  }
-}
-
-function base64UrlToBuffer(value) {
-  const raw = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
-  const pad = (4 - (raw.length % 4)) % 4;
-  return Buffer.from(raw + '='.repeat(pad), 'base64');
-}
-
-function verifyLicenseSignature(payloadJson, signatureBase64Url) {
-  try {
-    const publicKey = crypto.createPublicKey(LICENSE_PUBLIC_KEY_PEM);
-    const payload = Buffer.from(String(payloadJson || ''), 'utf8');
-    const signature = base64UrlToBuffer(signatureBase64Url);
-    return crypto.verify(null, payload, publicKey, signature);
-  } catch {
-    return false;
-  }
+function readArgument(name) {
+  const prefix = `--${name}=`;
+  const argument = process.argv.find((value) => typeof value === 'string' && value.startsWith(prefix));
+  return argument ? String(argument.slice(prefix.length)) : '';
 }
 
 contextBridge.exposeInMainWorld('desktopApp', {
   platform: process.platform,
   isDesktop: true,
   appLanguage: (() => {
-    const langArg = process.argv.find((arg) => typeof arg === 'string' && arg.startsWith('--madcad-lang='));
+    const langArg = readArgument('madcad-lang');
     if (langArg) {
-      const value = String(langArg.split('=')[1] || '').toLowerCase();
+      const value = langArg.toLowerCase();
       if (value === 'en' || value === 'pl') {
         return value;
       }
     }
-    return process.env.APP_LANG === 'en' ? 'en' : 'pl';
+    return 'pl';
   })(),
-  deviceId: resolveDeviceId(),
-  verifyLicenseSignature: (payloadJson, signatureBase64Url) =>
-    verifyLicenseSignature(payloadJson, signatureBase64Url),
+  deviceId: (() => {
+    const value = readArgument('madcad-device-id');
+    return /^[a-f0-9]{32}$/.test(value) ? value : '';
+  })(),
   saveTextFile: (payload) => ipcRenderer.invoke('madcad:save-text-file', payload),
+  sendToSlicer: (payload) => ipcRenderer.invoke('madcad:send-to-slicer', payload),
   autosaveWrite: (payload) => ipcRenderer.invoke('madcad:autosave-write', payload),
   autosaveRead: () => ipcRenderer.invoke('madcad:autosave-read'),
   autosaveClear: () => ipcRenderer.invoke('madcad:autosave-clear'),

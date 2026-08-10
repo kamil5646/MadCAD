@@ -1,24 +1,30 @@
-# MadCAD 2D Desktop App
+# MadCAD Desktop App
 
 Aplikacja desktop CAD 2D (Electron) do projektowania technicznego i konstrukcji stalowych, z modułem druku 3D (eksport STL).
 
 ## Szybkie Linki
+- Główny plan rozwoju: [`ROADMAP.md`](./ROADMAP.md)
+- Samouczek pierwszej części i znane ograniczenia: [`FIRST_PART.md`](./FIRST_PART.md)
 - Najnowszy release: https://github.com/kamil5646/MadCAD2D/releases/latest
 - Strona projektu (GitHub Pages): https://kamil5646.github.io/MadCAD2D/
 - README repo (główny): [`../README.md`](../README.md)
 - Wsparcie projektu: https://paypal.me/refek1
 
 ## Wsparcie Projektu
-MadCAD 2D rozwija się aktywnie. Jeśli chcesz wesprzeć rozwój aplikacji:
+MadCAD rozwija się aktywnie. Jeśli chcesz wesprzeć rozwój aplikacji:
 - PayPal: https://paypal.me/refek1
 
 ## Co Jest W Aplikacji
 - Wstążka z zakładkami: `Główne`, `Wymiarowanie`, `Stal`, `Widok`, `Warstwy`.
-- Narzędzia CAD 2D: linia, polilinia, prostokąt, okrąg, pomiar, wymiarowanie.
-- Modyfikacje: przesuń, kopiuj, odsuń, duplikuj, usuwanie, kolejność obiektów.
+- Narzędzia CAD 2D: linia, polilinia, prostokąt, okrąg, pomiar oraz sterujące wymiary liniowe, kątowe, ordinate X/Y i długości łuku.
+- Modyfikacje: przesuń, kopiuj, odsuń, duplikuj oraz szyki szkicu prostokątne, kołowe i po linii/łuku z pomijaniem wystąpień.
 - Generator stali: szablony `brama`, `ogrodzenie`, `balkon`.
-- Moduł druku 3D: dodatkowy widok projektu, wyciąganie prostokątów, okręgów i zamkniętych obszarów oraz eksport STL.
-- Import/eksport: `JSON`, `DXF`, `SVG`, druk/PDF.
+- Modeler 3D: szkice z więzami (w tym współliniowość, symetria i ciągłość krzywizny G2 łuków), historia parametryczna, podstawowe operacje bryłowe, otwory, inspekcja i przygotowanie druku.
+- Geometria konstrukcyjna: płaszczyzny offset/midplane/3-punktowe/angle/tangent/path, osie z geometrii lub normalne do płaszczyzny oraz punkty na geometrii, przecięciu, środku i osi.
+- Wyciągnięcie obsługuje jedną/dwie strony, symetrię, Through All i parametryczne odsunięcie początku.
+- Import/eksport 3D: `STEP`, `STL`, `3MF`; projekt parametryczny: `.madcad`.
+- Import szkicu: `SVG` i `DXF` z kontrolą jednostek oraz automatycznym wykrywaniem zamkniętych profili.
+- Wbudowany samouczek „Pierwsza część do druku” z jawną listą ograniczeń wersji alpha.
 - Aktualizacje z poziomu aplikacji.
 
 ## Język Interfejsu
@@ -93,8 +99,18 @@ npm run dist:release:trusted
 ```
 
 ## Uwaga O Numerze Wersji
-- Techniczna wersja builda jest semver (np. `5.7.0`) i wynika z `package.json`.
-- W komunikacji/release używana jest skrócona forma (np. `5.7`).
+- Techniczna wersja builda jest pełnym semver, np. `6.0.0-alpha.1`, i wynika z `package.json`.
+- Sufiks `alpha`/`beta` wybiera kanał aktualizacji; wersja bez sufiksu używa kanału stabilnego.
+
+## Weryfikacja
+
+```bash
+npm run test:core
+npm run verify:modeling
+npm run verify:electron-security
+```
+
+Ostatnia komenda uruchamia prawdziwe okno główne i potwierdza sandbox, context isolation, preload oraz odrzucenie IPC z obcego dokumentu.
 
 ## ODA File Converter (DWG)
 Jeśli import/eksport DWG nie działa, skonfiguruj ODA ręcznie:
@@ -119,7 +135,7 @@ Strona ODA:
 ## Troubleshooting
 ### macOS - komunikat o uszkodzonej aplikacji
 ```bash
-xattr -dr com.apple.quarantine "/Applications/MadCAD 2D.app" && open -a "/Applications/MadCAD 2D.app"
+xattr -dr com.apple.quarantine "/Applications/MadCAD.app" && open -a "/Applications/MadCAD.app"
 ```
 
 ### Windows - blokada SmartScreen

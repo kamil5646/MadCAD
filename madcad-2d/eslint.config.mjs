@@ -39,10 +39,10 @@ export default [
     },
   },
   {
-    files: ['electron/**/*.js', 'scripts/**/*.js', 'vite.config.js'],
+    files: ['electron/**/*.{js,cjs}', 'scripts/**/*.{js,cjs}', 'vite.config.js'],
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: 'module',
+      sourceType: 'script',
       globals: {
         ...globals.node,
       },
