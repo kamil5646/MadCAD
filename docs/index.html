@@ -671,7 +671,7 @@
           <a href="#funkcje">Funkcje</a>
           <a href="#jak-dziala">Jak działa</a>
           <a href="#reklamy">Reklamy</a>
-          <a href="#token-prywatny">Klucz licencyjny</a>
+          <a href="#token-prywatny">Token prywatny</a>
           <a href="#wsparcie">Wsparcie</a>
           <a href="#pobierz">Pobierz</a>
           <a href="#faq">FAQ</a>
@@ -797,11 +797,11 @@
       </section>
 
       <section class="section" id="token-prywatny">
-        <h2>Generator darmowego klucza licencyjnego</h2>
+        <h2>Generator tokenu prywatnego</h2>
         <p class="lead">
-          Ten formularz generuje darmowy klucz licencyjny do aplikacji MadCAD.
+          Ten formularz generuje prywatny token do aplikacji MadCAD.
           Token jest przypisany do jednego urządzenia. <strong>Uwaga:</strong> aplikacja działa bez blokady
-          (model jak WinRAR), a aktywacja tokenu jest opcjonalna.
+          w modelu przypomnienia licencyjnego, a aktywacja tokenu jest opcjonalna.
         </p>
 
         <div class="token-form">
@@ -825,7 +825,7 @@
           </div>
 
           <div class="token-actions">
-            <button id="generatePrivateTokenBtn" class="btn" type="button">Generuj klucz licencyjny</button>
+            <button id="generatePrivateTokenBtn" class="btn" type="button">Generuj token prywatny</button>
             <button id="buyCommercialTokenBtn" class="btn secondary" type="button">Wsparcie w rozwoju projektu!</button>
             <button id="copyPrivateTokenBtn" class="btn secondary" type="button">Kopiuj token</button>
           </div>
@@ -1059,7 +1059,7 @@
           setText(".nav a[href='#funkcje']", "Funkcje", "Features");
           setText(".nav a[href='#jak-dziala']", "Jak działa", "How it works");
           setText(".nav a[href='#reklamy']", "Reklamy", "Ads");
-          setText(".nav a[href='#token-prywatny']", "Klucz licencyjny", "License key");
+          setText(".nav a[href='#token-prywatny']", "Token prywatny", "Private token");
           setText(".nav a[href='#wsparcie']", "Wsparcie", "Support");
           setText(".nav a[href='#pobierz']", "Pobierz", "Download");
           setText(
@@ -1101,18 +1101,18 @@
           setText("#adSlotTopPlaceholder", "Miejsce na reklamę", "Ad placement");
           setText("#adSlotBottomPlaceholder", "Miejsce na reklamę", "Ad placement");
           setText("#adsHint", "Aby uruchomić reklamy, wpisz swój identyfikator AdSense (`ca-pub-...`) w skrypcie strony.", "To enable ads, enter your AdSense publisher ID (`ca-pub-...`) in the page script.");
-          setText("#token-prywatny h2", "Generator darmowego klucza licencyjnego", "Free license key generator");
+          setText("#token-prywatny h2", "Generator tokenu prywatnego", "Private token generator");
           setText(
             "#token-prywatny .lead",
-            "Ten formularz generuje darmowy klucz licencyjny do aplikacji MadCAD. Token jest przypisany do jednego urządzenia. Uwaga: aplikacja działa bez blokady (model jak WinRAR), a aktywacja tokenu jest opcjonalna.",
-            "This form generates a free license key for MadCAD. The token is bound to one device. Note: the app runs unlocked (WinRAR-like model), and token activation is optional."
+            "Ten formularz generuje prywatny token do aplikacji MadCAD. Token jest przypisany do jednego urządzenia. Uwaga: aplikacja działa bez blokady w modelu przypomnienia licencyjnego, a aktywacja tokenu jest opcjonalna.",
+            "This form generates a private token for MadCAD. The token is bound to one device. Note: the app runs unlocked in a license reminder model, and token activation is optional."
           );
 
           setText("label[for='tokenOwnerName']", "Imię i nazwisko", "Full name");
           setText("label[for='tokenEmail']", "E-mail", "Email");
           setText("label[for='tokenPurpose']", "Cel użycia", "Usage purpose");
           setText("label[for='tokenDeviceId']", "ID urządzenia (z aplikacji)", "Device ID (from app)");
-          setText("#generatePrivateTokenBtn", "Generuj klucz licencyjny", "Generate license key");
+          setText("#generatePrivateTokenBtn", "Generuj token prywatny", "Generate private token");
           setText("#buyCommercialTokenBtn", "Wsparcie w rozwoju projektu!", "Support project development!");
           setText("#copyPrivateTokenBtn", "Kopiuj token", "Copy token");
           setText("#paypalFlowHelpLabel", "Wsparcie w rozwoju projektu:", "Support project development:");

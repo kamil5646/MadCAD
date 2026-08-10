@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { JSDOM } from 'jsdom';
 
-describe('license reminder (winrar-style)', () => {
+describe('license reminder mode', () => {
   it('index.html contains a visible license reminder overlay with close button', () => {
     const indexHtmlPath = path.resolve(
       path.dirname(fileURLToPath(import.meta.url)),
