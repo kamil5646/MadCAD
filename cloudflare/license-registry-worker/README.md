@@ -95,6 +95,6 @@ Aplikacja pobiera ten plik dynamicznie, więc nie wymaga nowego buildu po zmiani
 
 ## Uwaga o stanie licencjonowania w aplikacji (madcad-2d)
 
-Od wersji `5.7.2` aplikacja desktop ma **tymczasowo wyłączony** ekran aktywacji licencji (patrz
-`madcad-2d/README.md`). Ten Worker i rejestr tokenów pozostają w pełni funkcjonalne i niezmienione -
-wyłączenie dotyczy wyłącznie warstwy UI po stronie aplikacji desktop.
+Aktualnie aplikacja desktop działa w modelu **WinRAR-like**: pełna funkcjonalność bez blokady,
+ale z nieblokującym przypomnieniem o wsparciu/aktywacji tokenu (patrz `madcad-2d/README.md`).
+Ten Worker i rejestr tokenów pozostają w pełni funkcjonalne i niezmienione.
