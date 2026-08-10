@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.7.1 (2026-08-10)
+
+- Naprawiono zduplikowany klucz tłumaczenia w silniku CAD (mogło nadpisywać poprawny komunikat).
+- Dodano bramkę jakości w CI (lint + testy dla aplikacji i backendu rejestru licencji) przed wydaniem.
+- Usunięto nieużywane pliki debugowe pozostawione w repozytorium.
+
 ## 5.7.0 (2026-08-04)
 
 - Dodano dodatkowy widok przygotowania projektu do druku 3D bez usuwania narzędzi CAD 2D.

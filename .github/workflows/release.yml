@@ -9,8 +9,48 @@ permissions:
   contents: write
 
 jobs:
+  quality:
+    name: Quality Gate (lint & test)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: madcad-2d/package-lock.json
+
+      - name: Install app dependencies
+        working-directory: madcad-2d
+        run: npm ci
+
+      - name: Lint app
+        working-directory: madcad-2d
+        run: npm run lint
+
+      - name: Test app
+        working-directory: madcad-2d
+        run: npm test
+
+      - name: Build UI
+        working-directory: madcad-2d
+        run: npm run build
+
+      - name: Install worker dependencies
+        working-directory: cloudflare/license-registry-worker
+        run: npm ci
+
+      - name: Test worker
+        working-directory: cloudflare/license-registry-worker
+        run: npm test
+
   release:
     name: Build & Release on ${{ matrix.os }}
+    needs: quality
     runs-on: ${{ matrix.os }}
 
     strategy:

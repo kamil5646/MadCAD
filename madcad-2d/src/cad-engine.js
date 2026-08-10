@@ -504,7 +504,6 @@
       "Instalowanie dodatku ODA (DWG)...": "Installing ODA add-on (DWG)...",
       "Eksport DWG anulowany.": "DWG export canceled.",
       "Brak aktywnego polecenia.": "No active command.",
-      "Polecenie anulowane.": "Command canceled.",
       "Tryb LINIA.": "LINE mode.",
       "Tryb POLILINIA.": "POLYLINE mode.",
       "Tryb PROSTOKĄT.": "RECTANGLE mode.",

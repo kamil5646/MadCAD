@@ -392,6 +392,7 @@ function sanitizeFileName(name, fallback) {
   if (!value) {
     return safeFallback;
   }
+  // eslint-disable-next-line no-control-regex -- intentionally strips control chars from filenames
   return value.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_');
 }
 
