@@ -30,16 +30,17 @@ export default [
     },
     rules: {
       ...react.configs.recommended.rules,
-      ...reactHooks.configs.recommended.rules,
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off',
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'all', caughtErrorsIgnorePattern: '^_' }],
       'no-console': 'off',
       'no-empty': ['error', { allowEmptyCatch: true }],
     },
   },
   {
-    files: ['electron/**/*.{js,cjs}', 'scripts/**/*.{js,cjs}', 'vite.config.js'],
+    files: ['electron/**/*.{js,cjs}', 'scripts/**/*.{js,cjs}'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'script',
@@ -48,12 +49,24 @@ export default [
       },
     },
     rules: {
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'all', caughtErrorsIgnorePattern: '^_' }],
       'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-control-regex': 'off',
+      'no-redeclare': 'off',
     },
   },
   {
-    files: ['src/**/*.test.{js,jsx}'],
+    files: ['vite.config.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+  {
+    files: ['src/**/*.test.{js,jsx}', 'tests/**/*.{js,mjs,cjs}'],
     languageOptions: {
       globals: {
         ...globals.browser,

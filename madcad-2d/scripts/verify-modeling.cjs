@@ -193,19 +193,39 @@ async function runUiFlow(window) {
   })()`);
   const sendKey = (key) => window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, bubbles: true, cancelable: true }))`);
   const setCommandField = (label, value) => window.webContents.executeJavaScript(`(() => {
-    const field = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === ${JSON.stringify(label)});
-    const input = field?.querySelector('input, select');
-    if (!input) throw new Error('Brak pola: ${label}');
-    const key = Object.keys(input).find((item) => item.startsWith('__reactProps'));
-    const handler = key && input[key]?.onChange;
-    if (typeof handler !== 'function') throw new Error('Brak procedury pola: ${label}');
-    handler({ target: { value: ${JSON.stringify(value)} } });
-    return new Promise((resolve, reject) => requestAnimationFrame(() => setTimeout(() => {
-      const updatedField = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === ${JSON.stringify(label)});
-      const updatedInput = updatedField?.querySelector('input, select');
-      if (String(updatedInput?.value) !== ${JSON.stringify(String(value))}) reject(new Error('Pole nie przyjęło wartości: ${label}'));
-      else resolve();
-    }, 30)));
+    const expectedLabel = ${JSON.stringify(label)};
+    const expectedValue = ${JSON.stringify(String(value))};
+    const deadline = performance.now() + 2000;
+    return new Promise((resolve, reject) => {
+      const updateWhenReady = () => {
+        const fields = [...document.querySelectorAll('.command-field')];
+        const field = fields.find((item) => item.firstElementChild?.textContent === expectedLabel);
+        const input = field?.querySelector('input, select');
+        if (!input) {
+          if (performance.now() < deadline) {
+            requestAnimationFrame(updateWhenReady);
+            return;
+          }
+          const available = fields.map((item) => item.firstElementChild?.textContent).filter(Boolean).join(', ');
+          reject(new Error('Brak pola: ${label}. Dostępne: ' + available));
+          return;
+        }
+        const key = Object.keys(input).find((item) => item.startsWith('__reactProps'));
+        const handler = key && input[key]?.onChange;
+        if (typeof handler !== 'function') {
+          reject(new Error('Brak procedury pola: ${label}'));
+          return;
+        }
+        handler({ target: { value: ${JSON.stringify(value)} } });
+        requestAnimationFrame(() => setTimeout(() => {
+          const updatedField = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === expectedLabel);
+          const updatedInput = updatedField?.querySelector('input, select');
+          if (String(updatedInput?.value) !== expectedValue) reject(new Error('Pole nie przyjęło wartości: ${label}'));
+          else resolve();
+        }, 30));
+      };
+      updateWhenReady();
+    });
   })()`);
   const setCommandCheckbox = (label, checked) => window.webContents.executeJavaScript(`(() => {
     const field = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === ${JSON.stringify(label)});
@@ -831,7 +851,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'massProperties' && document.querySelector('.mass-properties-panel')`, 'otwarte właściwości masowe');
   await setCommandField('Gęstość', '1.2');
   await waitForUi(window, `Math.abs(window.__madcadVerifyDocumentState?.command?.massProperties?.result?.volume - 12000) < 0.05 && Math.abs(window.__madcadVerifyDocumentState.command.massProperties.result.area - 3800) < 0.05 && Math.abs(window.__madcadVerifyDocumentState.command.massProperties.result.mass - 14.4) < 0.001 && Math.abs(window.__madcadVerifyDocumentState.command.massProperties.result.centerOfMass[2] - 5) < 0.001`, 'objętość pole masa i środek masy Box');
-  await waitForUi(window, `document.querySelector('.mass-properties-panel')?.textContent.includes('14,4 g') && document.querySelector('.mass-properties-panel')?.textContent.includes('12 000 mm³')`, 'wynik właściwości masowych');
+  await waitForUi(window, `document.querySelector('.mass-properties-panel')?.textContent.includes('14,4 g') && document.querySelector('.mass-properties-panel')?.textContent.includes('12\u00a0000 mm³')`, 'wynik właściwości masowych');
   await window.webContents.executeJavaScript(`(() => {
     const button = document.querySelector('.mass-properties-panel header button');
     const key = button && Object.keys(button).find((item) => item.startsWith('__reactProps'));
@@ -2310,8 +2330,9 @@ app.whenReady().then(async () => {
   });
   window.setContentSize(1936, 1017);
   const rendererMessages = [];
-  window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    rendererMessages.push({ level, message, line, sourceId });
+  window.webContents.on('console-message', (details) => {
+    const level = { debug: 0, info: 1, warning: 2, error: 3 }[details.level] ?? 1;
+    rendererMessages.push({ level, message: details.message, line: details.lineNumber, sourceId: details.sourceId });
   });
   let exitCode = 0;
   try {
@@ -2323,18 +2344,30 @@ app.whenReady().then(async () => {
       throw new Error(`Desktop cold start exceeded budget: ${performance.coldStartMs} ms.`);
     }
     process.stdout.write('[verify] engine ready\n');
-    const licenseBypass = await window.webContents.executeJavaScript(`(() => {
+    const licenseReminder = await window.webContents.executeJavaScript(`(() => {
       const overlay = document.querySelector('#licenseOverlay');
       const root = document.querySelector('.app');
       const entry = document.querySelector('#licenseCategoryBtn');
+      const closeButton = document.querySelector('#licenseCloseBtn');
       return {
         overlayHidden: !overlay || overlay.hidden,
         appUnlocked: !root?.classList.contains('license-locked'),
-        entryHidden: !entry || entry.hidden,
+        entryVisible: Boolean(entry && !entry.hidden),
+        closeVisible: Boolean(closeButton && !closeButton.hidden),
       };
     })()`);
-    if (!licenseBypass.overlayHidden || !licenseBypass.appUnlocked || !licenseBypass.entryHidden) {
-      throw new Error('Aktywacja licencji nadal blokuje interfejs.');
+    if (!licenseReminder.appUnlocked || !licenseReminder.entryVisible || !licenseReminder.closeVisible) {
+      throw new Error('Tryb przypomnienia licencyjnego nie pozostawił interfejsu odblokowanego.');
+    }
+    if (!licenseReminder.overlayHidden) {
+      const reminderClosed = await window.webContents.executeJavaScript(`(() => {
+        const closeButton = document.querySelector('#licenseCloseBtn');
+        closeButton?.click();
+        return Boolean(document.querySelector('#licenseOverlay')?.hidden);
+      })()`);
+      if (!reminderClosed) {
+        throw new Error('Nie można zamknąć przypomnienia licencyjnego.');
+      }
     }
     await new Promise((resolve) => setTimeout(resolve, 600));
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
@@ -2388,7 +2421,7 @@ app.whenReady().then(async () => {
     const slowBody = workerPerformance.bodies?.find((body) => body.durationMs > performanceBudgets.displayMeshPerBodyMs);
     if (slowBody) throw new Error(`Body meshing exceeded budget: ${JSON.stringify(slowBody)}.`);
     performance.worker = workerPerformance;
-    const report = { ...result, licenseBypass, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, englishUi, performance, rendererMessages };
+    const report = { ...result, licenseReminder, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, englishUi, performance, rendererMessages };
     await fs.writeFile(path.join(path.dirname(outputPath), 'verification-report.json'), JSON.stringify(report, null, 2));
     process.stdout.write(`${JSON.stringify(report)}\n`);
     if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.timelineVisible) process.exitCode = 1;

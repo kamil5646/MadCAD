@@ -1592,6 +1592,8 @@ export default function ModelViewport({
       delete window.__madcadConstructionPointState;
       delete window.__madcadSectionViewState;
     };
+  // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode]);
 
   return (

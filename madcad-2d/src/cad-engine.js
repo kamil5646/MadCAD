@@ -2387,11 +2387,6 @@
     return hash.toString(16).padStart(8, "0");
   }
 
-  function encodeBase64Url(text) {
-    const utf8 = unescape(encodeURIComponent(String(text || "")));
-    return btoa(utf8).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  }
-
   function normalizeLicenseEmail(email) {
     return String(email || "").trim().toLowerCase();
   }
@@ -2447,19 +2442,6 @@
       licenseStatus.classList.add("is-error");
     } else if (variant === "ok") {
       licenseStatus.classList.add("is-ok");
-    }
-  }
-
-  function readPersistedLicenseToken() {
-    try {
-      const raw = localStorage.getItem(LICENSE_STORAGE_KEY);
-      if (!raw) {
-        return "";
-      }
-      const record = JSON.parse(raw);
-      return String(record && record.token ? record.token : "").trim();
-    } catch (_error) {
-      return "";
     }
   }
 
@@ -3129,45 +3111,12 @@
     try {
       await navigator.clipboard.writeText(value);
       return true;
-    } catch (error) {
+    } catch (_error) {
       return false;
     }
   }
 
-  function initializeLicenseManager() {
-    if (!LICENSE_ENFORCEMENT_ENABLED) {
-      licenseSession.active = true;
-      stopRemoteLicenseRecheck();
-      setLicenseOverlayVisible(false);
-      if (licenseCategoryBtn) {
-        licenseCategoryBtn.hidden = false;
-      }
-      if (licenseCloseBtn) {
-        licenseCloseBtn.hidden = false;
-      }
-      if (appRoot) {
-        appRoot.classList.remove("license-locked");
-      }
-      if (licenseStatus) {
-        setLicenseStatus(
-          "Tryb przypomnienia: aplikacja działa bez blokady, ale możesz aktywować token lub wesprzeć projekt.",
-          "ok"
-        );
-      }
-      if (LICENSE_NAG_ON_START_ENABLED && licenseOverlay) {
-        window.setTimeout(() => {
-          setLicenseOverlayVisible(true);
-        }, 350);
-      }
-      updateLicenseSummaryChip();
-      return true;
-    }
-    if (!licenseOverlay) {
-      licenseSession.active = true;
-      updateLicenseSummaryChip();
-      return true;
-    }
-
+  function bindLicenseManagerControls() {
     const deviceId = getLicenseDeviceId();
     if (licenseDeviceIdInput) {
       licenseDeviceIdInput.value = deviceId;
@@ -3242,6 +3191,43 @@
           deviceId: getLicenseDeviceId()
         });
       });
+    }
+  }
+
+  function initializeLicenseManager() {
+    bindLicenseManagerControls();
+
+    if (!LICENSE_ENFORCEMENT_ENABLED) {
+      licenseSession.active = true;
+      stopRemoteLicenseRecheck();
+      setLicenseOverlayVisible(false);
+      if (licenseCategoryBtn) {
+        licenseCategoryBtn.hidden = false;
+      }
+      if (licenseCloseBtn) {
+        licenseCloseBtn.hidden = false;
+      }
+      if (appRoot) {
+        appRoot.classList.remove("license-locked");
+      }
+      if (licenseStatus) {
+        setLicenseStatus(
+          "Tryb przypomnienia: aplikacja działa bez blokady, ale możesz aktywować token lub wesprzeć projekt.",
+          "ok"
+        );
+      }
+      if (LICENSE_NAG_ON_START_ENABLED && licenseOverlay) {
+        window.setTimeout(() => {
+          setLicenseOverlayVisible(true);
+        }, 350);
+      }
+      updateLicenseSummaryChip();
+      return true;
+    }
+    if (!licenseOverlay) {
+      licenseSession.active = true;
+      updateLicenseSummaryChip();
+      return true;
     }
 
     updateLicenseSummaryChip();
@@ -4194,7 +4180,6 @@
     const thresholdWorld = OBJECT_SNAP_THRESHOLD_PX / Math.max(0.05, state.view.scale);
     const thresholdSq = thresholdWorld * thresholdWorld;
     let bestPoint = null;
-    let bestPointDistSq = thresholdSq;
     let bestPointScore = Number.POSITIVE_INFINITY;
     let bestIntersection = null;
     let bestIntersectionDistSq = thresholdSq;
@@ -4224,7 +4209,6 @@
         const score = distSq + thresholdSq * 0.18 * priority;
         if (score <= bestPointScore) {
           bestPointScore = score;
-          bestPointDistSq = distSq;
           bestPoint = { x: candidate.x, y: candidate.y };
         }
       }
@@ -8546,10 +8530,6 @@
     }
   }
 
-  function isFinitePositiveNumber(value) {
-    return Number.isFinite(Number(value)) && Number(value) > 0;
-  }
-
   function ensureLayerByName(name) {
     const existing = findLayerByName(name);
     if (existing) {
@@ -10563,7 +10543,7 @@
     let printWindow = null;
     try {
       printWindow = window.open("", "_blank", "width=1200,height=860");
-    } catch (error) {
+    } catch (_error) {
       printWindow = null;
     }
 

@@ -9,7 +9,35 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  quality:
+    name: Code quality and dependency audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: madcad-2d
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: madcad-2d/package-lock.json
+      - name: Install exact dependencies
+        run: npm ci
+      - name: Lint source
+        run: npm run lint
+      - name: Run unit tests
+        run: npm test
+      - name: Audit production and build dependencies
+        run: npm audit --audit-level=high
+
   core:
     name: Core tests and UI build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -22,9 +50,9 @@ jobs:
         working-directory: madcad-2d
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -39,7 +67,7 @@ jobs:
   desktop-e2e:
     name: Desktop modeling E2E (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: core
+    needs: [quality, core]
     strategy:
       fail-fast: false
       matrix:
@@ -49,9 +77,9 @@ jobs:
         working-directory: madcad-2d
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -64,7 +92,7 @@ jobs:
         run: npm run verify:electron-security
       - name: Upload verification artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: modeling-verification-${{ matrix.os }}
           path: madcad-2d/artifacts/
@@ -89,9 +117,9 @@ jobs:
         working-directory: madcad-2d
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -106,7 +134,7 @@ jobs:
         shell: bash
         run: npm run checksums:package && MADCAD_REQUIRE_CHECKSUM=1 npm run verify:package -- ${{ matrix.kind }}
       - name: Upload installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: MadCAD-${{ matrix.kind }}
           path: madcad-2d/release/MadCAD-*

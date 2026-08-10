@@ -400,7 +400,6 @@ function sanitizeFileName(name, fallback) {
   if (!value) {
     return safeFallback;
   }
-  // eslint-disable-next-line no-control-regex -- intentionally strips control chars from filenames
   return value.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_');
 }
 
@@ -547,7 +546,7 @@ function launchWindowsInstaller(installerPath) {
 async function verifyWindowsInstallerSignature(installerPath) {
   if (!isWindows) return;
   const escapedPath = String(installerPath).replace(/'/g, "''");
-  const command = `$signature = Get-AuthenticodeSignature -LiteralPath '${escapedPath}'; if ($signature.Status -ne 'Valid') { throw \"Invalid Authenticode status: $($signature.Status)\" }`;
+  const command = `$signature = Get-AuthenticodeSignature -LiteralPath '${escapedPath}'; if ($signature.Status -ne 'Valid') { throw "Invalid Authenticode status: $($signature.Status)" }`;
   await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { timeout: 120000 });
 }
 

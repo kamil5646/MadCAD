@@ -135,7 +135,6 @@ const ENGLISH_TEXT = Object.freeze({
   'Płaszczyzna pod kątem': 'Angle plane',
   'Płaszczyzna styczna': 'Tangent plane',
   'Płaszczyzna na ścieżce': 'Path plane',
-  'Oś obrotu': 'Rotation axis',
   'Powierzchnia': 'Surface',
   'Sfera': 'Sphere',
   'Walec': 'Cylinder',

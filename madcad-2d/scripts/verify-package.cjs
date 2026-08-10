@@ -30,7 +30,7 @@ async function walk(directory) {
 
 async function verifyPlatformSignature(filePath) {
   if (requestedKind === 'windows') {
-    const command = `$signature = Get-AuthenticodeSignature -LiteralPath '${filePath.replace(/'/g, "''")}'; if ($signature.Status -ne 'Valid') { throw \"Invalid Authenticode status: $($signature.Status)\" }`;
+    const command = `$signature = Get-AuthenticodeSignature -LiteralPath '${filePath.replace(/'/g, "''")}'; if ($signature.Status -ne 'Valid') { throw "Invalid Authenticode status: $($signature.Status)" }`;
     await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { timeout: 120000 });
     return 'authenticode-valid';
   }

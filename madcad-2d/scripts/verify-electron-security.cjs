@@ -46,8 +46,10 @@ app.on('browser-window-created', (_event, mainWindow) => {
   mainWindow.webContents.on('render-process-gone', (_goneEvent, details) => {
     process.stderr.write(`Renderer exited: ${JSON.stringify(details)}\n`);
   });
-  mainWindow.webContents.on('console-message', (_consoleEvent, level, message) => {
-    if (level >= 2) process.stderr.write(`Renderer console: ${message}\n`);
+  mainWindow.webContents.on('console-message', (details) => {
+    if (details.level === 'warning' || details.level === 'error') {
+      process.stderr.write(`Renderer console: ${details.message}\n`);
+    }
   });
   let verificationStarted = false;
   const verifyMainWindow = async () => {

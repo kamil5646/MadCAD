@@ -171,7 +171,7 @@ function orderedLineChain(lines) {
 
 function offsetLineChain(sketch, curvesById, lines, distanceValue, role) {
   const { ordered, closed } = orderedLineChain(lines);
-  const shifted = ordered.map(({ entity, startPointId, endPointId }) => {
+  const shifted = ordered.map(({ entity, startPointId }) => {
     const curve = curvesById.get(entity.id);
     const forward = entity.pointIds[0] === startPointId;
     const start = forward ? curve.start : curve.end;

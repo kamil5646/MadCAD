@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Naprawiono tryb przypomnienia licencyjnego: kontrolki są aktywne, aplikacja pozostaje odblokowana,
+  a test desktopowy potwierdza możliwość zamknięcia przypomnienia na macOS i Windows.
+- Zaktualizowano Electron, electron-builder i Vite do wersji bez znanych podatności z bieżącego audytu npm.
+- Ujednolicono bramki CI i wydania: lint, testy jednostkowe, audyt zależności, testy desktopowe,
+  kontrola wersji tagu oraz kontrola pochodzenia tagu z gałęzi `main`.
+
 ## 6.0.0 (2026-08-10)
 
 - Zmieniono model licencji na tryb przypomnienia licencyjnego: aplikacja pozostaje w pełni odblokowana,

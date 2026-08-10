@@ -23,7 +23,6 @@ import {
   Eye,
   EyeOff,
   Layers3,
-  Lock,
   Maximize2,
   Minus,
   MousePointer2,
@@ -51,7 +50,6 @@ import {
   Variable,
   Upload,
   X,
-  ZoomIn,
 } from 'lucide-react';
 import {
   DOCUMENT_SCHEMA_VERSION,
@@ -1168,7 +1166,10 @@ export default function ModelingWorkspace({ onClose }) {
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
   const targetBodyId = selection?.kind === 'body' ? selection.id : (selection?.bodyId || engine.bodies[0]?.id || firstBodyId || null);
   const topologyReferenceStates = useMemo(() => inspectTopologyReferences(document, actualBodies), [document, actualBodies]);
-  const lostTopologyReferences = engine.status === 'ready' && !command?.previewFeature ? topologyReferenceStates.filter((item) => item.status === 'lost') : [];
+  const lostTopologyReferences = useMemo(
+    () => engine.status === 'ready' && !command?.previewFeature ? topologyReferenceStates.filter((item) => item.status === 'lost') : [],
+    [engine.status, command?.previewFeature, topologyReferenceStates],
+  );
   const lostReferenceOwnerIds = useMemo(() => new Set(lostTopologyReferences.map((item) => item.reference.ownerFeatureId).filter(Boolean)), [lostTopologyReferences]);
   const lostProjectedEntityIds = useMemo(() => {
     const lostIds = new Set(lostTopologyReferences.map((item) => item.reference.id));
@@ -2505,6 +2506,8 @@ export default function ModelingWorkspace({ onClose }) {
       delete window.__madcadVerifyLoadPointHoleFixture;
       delete window.__madcadVerifyDocumentState;
     };
+  // Verification hooks refresh only when the state exposed to the desktop harness changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, massProperties, geometryInspection]);
 
   const confirmProfile = () => {
@@ -3635,6 +3638,8 @@ export default function ModelingWorkspace({ onClose }) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+  // Command state is the stable boundary for the keyboard handler; command helpers are render-local callbacks.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, selectedSketchConstraintId, readOnly, history]);
 
   const timelineStatus = new Map(engine.timeline?.map((item) => [item.id, item]));
@@ -3649,7 +3654,6 @@ export default function ModelingWorkspace({ onClose }) {
     const reference = command.topologyReferences?.[0] || document.references.find((item) => item.id === referenceId);
     directManipulator = { kind: 'offsetFace', value: command.distance, origin: reference?.descriptor?.center || [0, 0, 0], axis: reference?.descriptor?.normal || [0, 0, 1], min: -100000, max: 100000, label: 'Offset Face', hint: 'Przeciągnij wspólny uchwyt, aby odsunąć wskazaną ścianę', onCommit: (value) => updateCommand({ distance: String(value) }) };
   }
-  const sketch = document.sketches.find((item) => item.id === activeSketchId);
   const draftProfile = command?.type === 'rectangle' && command.definition === 'center'
     ? { type: 'rectangle', geometry: { width: command.width, height: command.height, x: command.x, y: command.y } }
     : command?.type === 'circle' && command.definition === 'centerRadius'
