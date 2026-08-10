@@ -624,15 +624,15 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketch'`, 'wyczyszczenie wyboru przed inside');
   const insidePoints = await Promise.all([sketchScreenPoint(editTargets.concavePointId), sketchScreenPoint(editTargets.neighborPointId)]);
   await dragSelectionBox(
-    { x: Math.min(...insidePoints.map((point) => point.x)) - 12, y: Math.min(...insidePoints.map((point) => point.y)) - 12 },
-    { x: Math.max(...insidePoints.map((point) => point.x)) + 12, y: Math.max(...insidePoints.map((point) => point.y)) + 12 },
+    { x: Math.min(...insidePoints.map((point) => point.x)) - 40, y: Math.min(...insidePoints.map((point) => point.y)) - 40 },
+    { x: Math.max(...insidePoints.map((point) => point.x)) + 40, y: Math.max(...insidePoints.map((point) => point.y)) + 40 },
   );
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length >= 2`, 'wybór oknem inside');
 
   await clickTool('Wybierz');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketch'`, 'wyczyszczenie wyboru przed crossing');
   const linePoint = await sketchScreenPoint(editTargets.lineId);
-  await dragSelectionBox({ x: linePoint.x + 14, y: linePoint.y - 22 }, { x: linePoint.x - 14, y: linePoint.y + 22 });
+  await dragSelectionBox({ x: linePoint.x + 48, y: linePoint.y - 48 }, { x: linePoint.x - 48, y: linePoint.y + 48 });
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.includes(${JSON.stringify(editTargets.lineId)})`, 'wybór oknem crossing');
   const crossingPreservedGeometry = await window.webContents.executeJavaScript(`(() => {
     const point = window.__madcadVerifyDocumentState.sketches.at(-1).entityData.find((entity) => entity.id === ${JSON.stringify(editTargets.originPointId)});
