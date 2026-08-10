@@ -1,5 +1,19 @@
 # Changelog
 
+## 5.7.2 (2026-08-10)
+
+- Tymczasowo wyłączono wymóg licencji: aplikacja startuje w pełni odblokowana,
+  bez ekranu aktywacji tokenu (kod licencjonowania pozostaje w repo do
+  ponownego włączenia w przyszłości).
+- Naprawiono komunikat startowy i cykliczną walidację online, aby nie
+  próbowały ponownie blokować sesji, gdy licencjonowanie jest wyłączone.
+
+## 5.7.1 (2026-08-10)
+
+- Naprawiono zduplikowany klucz tłumaczenia w silniku CAD (mogło nadpisywać poprawny komunikat).
+- Dodano bramkę jakości w CI (lint + testy dla aplikacji i backendu rejestru licencji) przed wydaniem.
+- Usunięto nieużywane pliki debugowe pozostawione w repozytorium.
+
 ## 5.7.0 (2026-08-04)
 
 - Dodano dodatkowy widok przygotowania projektu do druku 3D bez usuwania narzędzi CAD 2D.

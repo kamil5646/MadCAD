@@ -506,7 +506,6 @@
       "Instalowanie dodatku ODA (DWG)...": "Installing ODA add-on (DWG)...",
       "Eksport DWG anulowany.": "DWG export canceled.",
       "Brak aktywnego polecenia.": "No active command.",
-      "Polecenie anulowane.": "Command canceled.",
       "Tryb LINIA.": "LINE mode.",
       "Tryb POLILINIA.": "POLYLINE mode.",
       "Tryb PROSTOKĄT.": "RECTANGLE mode.",
@@ -12567,6 +12566,13 @@
       setFileMenuOpen(false);
     });
     window.addEventListener("focus", () => {
+      // Entire re-validation flow only applies when licensing is enabled
+      // (see #licenseOverlay); otherwise validateStoredLicenseAtStartup()
+      // would find no stored token and forcibly re-lock the session on every
+      // window focus even though licensing is intentionally disabled.
+      if (!licenseOverlay) {
+        return;
+      }
       const storedRecord = readPersistedLicenseRecord();
       const isStillValid = validateStoredLicenseAtStartup(storedRecord, {
         audit: false,
@@ -12582,6 +12588,9 @@
       }
     });
     window.addEventListener("storage", (event) => {
+      if (!licenseOverlay) {
+        return;
+      }
       if (
         event.key === LICENSE_STORAGE_KEY ||
         event.key === LICENSE_CLEARED_MARK_KEY
@@ -12626,7 +12635,11 @@
     watchSvgIconMutations();
     applyTheme("dark");
     let licensedAtBoot = initializeLicenseManager();
-    if (licensedAtBoot) {
+    if (licensedAtBoot && licenseOverlay) {
+      // Skip the remote registry check entirely when licensing is disabled
+      // (no #licenseOverlay markup): licenseSession.token stays empty in that
+      // mode, so this call would otherwise always fail and re-trigger the
+      // "activate your license" prompt below even though nothing is locked.
       licensedAtBoot = await validateLicenseWithPublicRegistry({
         force: true,
         audit: true,
@@ -12661,7 +12674,7 @@
     if (restoredHiddenLayers) {
       echoCommand("Przywrócono widoczność warstw z istniejącą geometrią.");
     }
-    if (!licensedAtBoot) {
+    if (!licensedAtBoot && licenseOverlay) {
       echoCommand("Aktywuj licencję, aby odblokować pracę w MadCAD.", true, { toast: false });
     }
     if (window.desktopApp && typeof window.desktopApp.getOdaStatus === "function") {

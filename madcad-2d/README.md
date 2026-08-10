@@ -1,6 +1,6 @@
 # MadCAD Desktop App
 
-Aplikacja desktop CAD 2D (Electron) do projektowania technicznego i konstrukcji stalowych.
+Aplikacja desktop CAD 2D (Electron) do projektowania technicznego i konstrukcji stalowych, z modułem druku 3D (eksport STL).
 
 ## Szybkie Linki
 - Główny plan rozwoju: [`ROADMAP.md`](./ROADMAP.md)
@@ -30,6 +30,13 @@ MadCAD rozwija się aktywnie. Jeśli chcesz wesprzeć rozwój aplikacji:
 ## Język Interfejsu
 - Przy pierwszym uruchomieniu aplikacja pyta o język (`PL` lub `EN`).
 - Wybór jest zapamiętywany lokalnie i nie jest pytany ponownie.
+
+## Licencja Aplikacji (stan bieżący)
+- Od wersji `5.7.2` wymóg aktywacji licencji jest **tymczasowo wyłączony** - aplikacja startuje w pełni
+  odblokowana, bez ekranu aktywacji tokenu.
+- Cały mechanizm licencjonowania (`cad-engine.js`, rejestr w `cloudflare/license-registry-worker/`) pozostaje
+  w repo i jest w pełni sprawny - wyłączenie jest odwracalne.
+- Aby przywrócić wymóg licencji: odkomentuj blok `#licenseOverlay` w `index.html`.
 
 ## Struktura Katalogu `madcad-2d/`
 - `app.js` - logika UI i narzędzi CAD.
