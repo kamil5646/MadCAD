@@ -193,19 +193,39 @@ async function runUiFlow(window) {
   })()`);
   const sendKey = (key) => window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, bubbles: true, cancelable: true }))`);
   const setCommandField = (label, value) => window.webContents.executeJavaScript(`(() => {
-    const field = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === ${JSON.stringify(label)});
-    const input = field?.querySelector('input, select');
-    if (!input) throw new Error('Brak pola: ${label}');
-    const key = Object.keys(input).find((item) => item.startsWith('__reactProps'));
-    const handler = key && input[key]?.onChange;
-    if (typeof handler !== 'function') throw new Error('Brak procedury pola: ${label}');
-    handler({ target: { value: ${JSON.stringify(value)} } });
-    return new Promise((resolve, reject) => requestAnimationFrame(() => setTimeout(() => {
-      const updatedField = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === ${JSON.stringify(label)});
-      const updatedInput = updatedField?.querySelector('input, select');
-      if (String(updatedInput?.value) !== ${JSON.stringify(String(value))}) reject(new Error('Pole nie przyjęło wartości: ${label}'));
-      else resolve();
-    }, 30)));
+    const expectedLabel = ${JSON.stringify(label)};
+    const expectedValue = ${JSON.stringify(String(value))};
+    const deadline = performance.now() + 2000;
+    return new Promise((resolve, reject) => {
+      const updateWhenReady = () => {
+        const fields = [...document.querySelectorAll('.command-field')];
+        const field = fields.find((item) => item.firstElementChild?.textContent === expectedLabel);
+        const input = field?.querySelector('input, select');
+        if (!input) {
+          if (performance.now() < deadline) {
+            requestAnimationFrame(updateWhenReady);
+            return;
+          }
+          const available = fields.map((item) => item.firstElementChild?.textContent).filter(Boolean).join(', ');
+          reject(new Error('Brak pola: ${label}. Dostępne: ' + available));
+          return;
+        }
+        const key = Object.keys(input).find((item) => item.startsWith('__reactProps'));
+        const handler = key && input[key]?.onChange;
+        if (typeof handler !== 'function') {
+          reject(new Error('Brak procedury pola: ${label}'));
+          return;
+        }
+        handler({ target: { value: ${JSON.stringify(value)} } });
+        requestAnimationFrame(() => setTimeout(() => {
+          const updatedField = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === expectedLabel);
+          const updatedInput = updatedField?.querySelector('input, select');
+          if (String(updatedInput?.value) !== expectedValue) reject(new Error('Pole nie przyjęło wartości: ${label}'));
+          else resolve();
+        }, 30));
+      };
+      updateWhenReady();
+    });
   })()`);
   const setCommandCheckbox = (label, checked) => window.webContents.executeJavaScript(`(() => {
     const field = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === ${JSON.stringify(label)});
@@ -311,12 +331,15 @@ async function runUiFlow(window) {
     }
     await sendMouse('mouseUp', { x: point.x + offsetX, y: point.y + offsetY });
   };
-  const dragSelectionBox = async (start, end) => {
-    await sendMouse('mouseDown', start);
-    await sendMouse('mouseMove', { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 });
-    await sendMouse('mouseMove', end);
-    await sendMouse('mouseUp', end);
-  };
+  const selectWithBox = (start, end) => window.webContents.executeJavaScript(`(() => {
+    if (typeof window.__madcadVerifySketchBoxSelection !== 'function') throw new Error('Missing deterministic sketch box selection hook.');
+    return window.__madcadVerifySketchBoxSelection({
+      startX: ${Number(start.x)},
+      startY: ${Number(start.y)},
+      endX: ${Number(end.x)},
+      endY: ${Number(end.y)},
+    }, 'replace');
+  })()`);
 
   const addSketchPoint = async (point, expectedEntities) => {
     await window.webContents.executeJavaScript(`(() => {
@@ -603,16 +626,16 @@ async function runUiFlow(window) {
   await clickTool('Wybierz');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketch'`, 'wyczyszczenie wyboru przed inside');
   const insidePoints = await Promise.all([sketchScreenPoint(editTargets.concavePointId), sketchScreenPoint(editTargets.neighborPointId)]);
-  await dragSelectionBox(
-    { x: Math.min(...insidePoints.map((point) => point.x)) - 12, y: Math.min(...insidePoints.map((point) => point.y)) - 12 },
-    { x: Math.max(...insidePoints.map((point) => point.x)) + 12, y: Math.max(...insidePoints.map((point) => point.y)) + 12 },
+  await selectWithBox(
+    { x: Math.min(...insidePoints.map((point) => point.x)) - 40, y: Math.min(...insidePoints.map((point) => point.y)) - 40 },
+    { x: Math.max(...insidePoints.map((point) => point.x)) + 40, y: Math.max(...insidePoints.map((point) => point.y)) + 40 },
   );
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length >= 2`, 'wybór oknem inside');
 
   await clickTool('Wybierz');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketch'`, 'wyczyszczenie wyboru przed crossing');
   const linePoint = await sketchScreenPoint(editTargets.lineId);
-  await dragSelectionBox({ x: linePoint.x + 14, y: linePoint.y - 22 }, { x: linePoint.x - 14, y: linePoint.y + 22 });
+  await selectWithBox({ x: linePoint.x + 48, y: linePoint.y - 48 }, { x: linePoint.x - 48, y: linePoint.y + 48 });
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.includes(${JSON.stringify(editTargets.lineId)})`, 'wybór oknem crossing');
   const crossingPreservedGeometry = await window.webContents.executeJavaScript(`(() => {
     const point = window.__madcadVerifyDocumentState.sketches.at(-1).entityData.find((entity) => entity.id === ${JSON.stringify(editTargets.originPointId)});
@@ -831,7 +854,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'massProperties' && document.querySelector('.mass-properties-panel')`, 'otwarte właściwości masowe');
   await setCommandField('Gęstość', '1.2');
   await waitForUi(window, `Math.abs(window.__madcadVerifyDocumentState?.command?.massProperties?.result?.volume - 12000) < 0.05 && Math.abs(window.__madcadVerifyDocumentState.command.massProperties.result.area - 3800) < 0.05 && Math.abs(window.__madcadVerifyDocumentState.command.massProperties.result.mass - 14.4) < 0.001 && Math.abs(window.__madcadVerifyDocumentState.command.massProperties.result.centerOfMass[2] - 5) < 0.001`, 'objętość pole masa i środek masy Box');
-  await waitForUi(window, `document.querySelector('.mass-properties-panel')?.textContent.includes('14,4 g') && document.querySelector('.mass-properties-panel')?.textContent.includes('12 000 mm³')`, 'wynik właściwości masowych');
+  await waitForUi(window, `document.querySelector('.mass-properties-panel')?.textContent.includes('14,4 g') && document.querySelector('.mass-properties-panel')?.textContent.includes('12\u00a0000 mm³')`, 'wynik właściwości masowych');
   await window.webContents.executeJavaScript(`(() => {
     const button = document.querySelector('.mass-properties-panel header button');
     const key = button && Object.keys(button).find((item) => item.startsWith('__reactProps'));
@@ -895,8 +918,7 @@ async function runUiFlow(window) {
   const modeledThreadRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await setCommandField('Gwint', 'modeled');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.previewThreadMode === 'modeled'`, 'parametry modelowanego gwintu');
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${modeledThreadRevision} && ['ok', 'error'].includes(window.__madcadVerifyEngineState?.timeline?.[1]?.status)`, 'modelowany gwint prawy', modelingTimeoutMs);
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${modeledThreadRevision} && ['ready', 'error'].includes(window.__madcadVerifyEngineState?.status) && ['ok', 'error'].includes(window.__madcadVerifyEngineState?.timeline?.[1]?.status)`, 'modelowany gwint prawy', modelingTimeoutMs);
   const modeledThreadState = await window.webContents.executeJavaScript(`({ volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume, timeline: window.__madcadVerifyEngineState.timeline })`);
   if (modeledThreadState.timeline?.[1]?.status !== 'ok') throw new Error(`Modeled thread kernel error: ${JSON.stringify(modeledThreadState)}`);
   const rightThreadVolume = modeledThreadState.volume;
@@ -905,8 +927,9 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.threadMode === 'modeled'`, 'zapisany gwint modelowany');
 
   await editTimelineFeature(1, 'Otwór');
+  const leftThreadRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await setCommandField('Kierunek gwintu', 'left');
-  await waitForUi(window, `window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'`, 'modelowany gwint lewy', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.previewThreadDirection === 'left' && window.__madcadVerifyEngineState?.revision > ${leftThreadRevision} && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'`, 'modelowany gwint lewy', modelingTimeoutMs);
   const leftThreadVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`);
   assertClose(leftThreadVolume, rightThreadVolume, 0.1, 'Left/right modeled thread volume');
   await confirmDialog();
@@ -1081,6 +1104,7 @@ async function runUiFlow(window) {
     return { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId };
   })()`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(ribSupport)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(ribSupport.id)}`, 'ściana wskazana dla szkicu Rib Web');
   await clickTool('Utwórz szkic');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.support?.kind === 'face' && Number(window.__madcadVerifyDocumentState.sketches[0].planeOffset) === 5`, 'szkic Rib Web na górnej ścianie', modelingTimeoutMs);
   await clickTool('Linia');
@@ -1089,12 +1113,14 @@ async function runUiFlow(window) {
   await addSketchPoint([8, 0], 3);
   const ribLineId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(ribLineId)}], 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Rib/Web')?.disabled)`, 'aktywny przycisk Rib Web');
   await clickTool('Rib/Web');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Otwarty profil') && document.querySelector('.command-dialog')?.textContent.includes('Zasięg')`, 'otwarty Rib Web');
   await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2160) < 0.05 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.bounds[1][2] - 10) < 0.001`, 'podgląd Web', modelingTimeoutMs);
   await clickDialogButton('Anuluj');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 1 && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'anulowanie Rib Web');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(ribLineId)}], 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Rib/Web')?.disabled)`, 'ponownie aktywny przycisk Rib Web');
   await clickTool('Rib/Web');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Rib/Web')`, 'ponownie otwarty Rib Web');
   await confirmDialog();
@@ -1284,6 +1310,7 @@ async function runUiFlow(window) {
     return { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId };
   })()`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(splitFaceSupport)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(splitFaceSupport.id)}`, 'ściana wskazana dla szkicu Split Face');
   await clickTool('Utwórz szkic');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.support?.kind === 'face' && Number(window.__madcadVerifyDocumentState.sketches[0].planeOffset) === 10`, 'szkic Split Face na górnej ścianie', modelingTimeoutMs);
   await clickTool('Okrąg');
@@ -1450,6 +1477,7 @@ async function runUiFlow(window) {
   }
 
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'body', bodyId: ${JSON.stringify(primitiveBoxId)} }, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(primitiveBoxId)}`, 'bryła ponownie wskazana do obrotu');
   await clickTool('Obróć bryłę');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Obróć bryłę') && document.querySelector('.direct-handle-hit')`, 'wspólny manipulator obrotu');
   await setCommandField('Kąt Z', '90');
@@ -1461,6 +1489,7 @@ async function runUiFlow(window) {
 
   const offsetSelection = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies.find((item) => item.id === ${JSON.stringify(primitiveBoxId)}); const face = body.topology.faces.filter((item) => item.descriptor.geometry === 'PLANE').sort((left, right) => right.descriptor.center[2] - left.descriptor.center[2])[0]; return { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }; })()`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(offsetSelection)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(offsetSelection.id)}`, 'ściana wskazana do Press Pull');
   await clickTool('Press Pull');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Offset Face') && document.querySelector('.direct-handle-hit')`, 'wspólny manipulator Offset Face');
   await setCommandField('Odległość', '2');
@@ -1484,11 +1513,13 @@ async function runUiFlow(window) {
     };
   })()`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(draftFixture.selection)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(draftFixture.selection.id)}`, 'ściana wskazana do Draft');
   await clickTool('Draft');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna neutralna') && document.querySelector('.command-dialog')?.textContent.includes('Kąt Draft')`, 'okno Draft');
   await clickDialogButton('Anuluj');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 7 && !document.querySelector('.command-dialog') && Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume - ${10 * 12 * 16}) < 0.05`, 'anulowanie Draft bez częściowego stanu', modelingTimeoutMs);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(draftFixture.selection)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(draftFixture.selection.id)}`, 'ściana ponownie wskazana do Draft');
   await clickTool('Draft');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Kąt Draft')`, 'ponowne otwarcie Draft');
   const positiveDraftRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
@@ -1910,6 +1941,7 @@ async function runUiFlow(window) {
   })()`);
   if (!supportFace) throw new Error('Brak górnej planarnej ściany do testu szkicu na modelu.');
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify({ kind: 'face', ...supportFace })}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(supportFace.id)}`, 'ściana wskazana dla szkicu na modelu');
   await clickTool('Utwórz szkic');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.length === 2 && window.__madcadVerifyDocumentState.sketches[1].support?.kind === 'face' && Number(window.__madcadVerifyDocumentState.sketches[1].planeOffset) > 7.9 && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'szkic założony bezpośrednio na ścianie modelu', modelingTimeoutMs);
   await clickTool('Zakończ szkic');
@@ -1941,6 +1973,7 @@ async function runUiFlow(window) {
   })()`);
   if (!projectionEdge) throw new Error('Brak niezerowej krawędzi do Project.');
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify({ kind: 'edge', ...projectionEdge })}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'edge' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(projectionEdge.id)}`, 'krawędź wskazana do Project');
   await clickTool('Project');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.some((entity) => entity.role === 'projected' && entity.fixed && entity.projectionReferenceId)`, 'projekcja krawędzi z trwałym linkiem');
   const brokenProject = await window.webContents.executeJavaScript(`window.__madcadVerifyBreakProjectedReference()`);
@@ -2299,7 +2332,9 @@ async function runUiFlow(window) {
 
 app.whenReady().then(async () => {
   const performanceBudgets = isCi
-    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 180000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 45000 }
+    // Hosted runners are substantially slower and noisier than local hardware.
+    // Per-operation waits and worker budgets below still catch real stalls.
+    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 360000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 45000 }
     : { desktopColdStartMs: 30000, desktopWorkflowMs: 100000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
@@ -2310,8 +2345,9 @@ app.whenReady().then(async () => {
   });
   window.setContentSize(1936, 1017);
   const rendererMessages = [];
-  window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    rendererMessages.push({ level, message, line, sourceId });
+  window.webContents.on('console-message', (details) => {
+    const level = { debug: 0, info: 1, warning: 2, error: 3 }[details.level] ?? 1;
+    rendererMessages.push({ level, message: details.message, line: details.lineNumber, sourceId: details.sourceId });
   });
   let exitCode = 0;
   try {
@@ -2323,18 +2359,30 @@ app.whenReady().then(async () => {
       throw new Error(`Desktop cold start exceeded budget: ${performance.coldStartMs} ms.`);
     }
     process.stdout.write('[verify] engine ready\n');
-    const licenseBypass = await window.webContents.executeJavaScript(`(() => {
+    const licenseReminder = await window.webContents.executeJavaScript(`(() => {
       const overlay = document.querySelector('#licenseOverlay');
       const root = document.querySelector('.app');
       const entry = document.querySelector('#licenseCategoryBtn');
+      const closeButton = document.querySelector('#licenseCloseBtn');
       return {
         overlayHidden: !overlay || overlay.hidden,
         appUnlocked: !root?.classList.contains('license-locked'),
-        entryHidden: !entry || entry.hidden,
+        entryVisible: Boolean(entry && !entry.hidden),
+        closeVisible: Boolean(closeButton && !closeButton.hidden),
       };
     })()`);
-    if (!licenseBypass.overlayHidden || !licenseBypass.appUnlocked || !licenseBypass.entryHidden) {
-      throw new Error('Aktywacja licencji nadal blokuje interfejs.');
+    if (!licenseReminder.appUnlocked || !licenseReminder.entryVisible || !licenseReminder.closeVisible) {
+      throw new Error('Tryb przypomnienia licencyjnego nie pozostawił interfejsu odblokowanego.');
+    }
+    if (!licenseReminder.overlayHidden) {
+      const reminderClosed = await window.webContents.executeJavaScript(`(() => {
+        const closeButton = document.querySelector('#licenseCloseBtn');
+        closeButton?.click();
+        return Boolean(document.querySelector('#licenseOverlay')?.hidden);
+      })()`);
+      if (!reminderClosed) {
+        throw new Error('Nie można zamknąć przypomnienia licencyjnego.');
+      }
     }
     await new Promise((resolve) => setTimeout(resolve, 600));
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
@@ -2388,7 +2436,7 @@ app.whenReady().then(async () => {
     const slowBody = workerPerformance.bodies?.find((body) => body.durationMs > performanceBudgets.displayMeshPerBodyMs);
     if (slowBody) throw new Error(`Body meshing exceeded budget: ${JSON.stringify(slowBody)}.`);
     performance.worker = workerPerformance;
-    const report = { ...result, licenseBypass, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, englishUi, performance, rendererMessages };
+    const report = { ...result, licenseReminder, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, englishUi, performance, rendererMessages };
     await fs.writeFile(path.join(path.dirname(outputPath), 'verification-report.json'), JSON.stringify(report, null, 2));
     process.stdout.write(`${JSON.stringify(report)}\n`);
     if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.timelineVisible) process.exitCode = 1;

@@ -1,6 +1,6 @@
 {
   "name": "madcad-desktop",
-  "version": "6.0.0-alpha.4",
+  "version": "6.0.1-alpha.1",
   "description": "Desktopowa aplikacja CAD 2D/3D MadCAD do projektowania technicznego i druku 3D.",
   "repository": {
     "type": "git",
@@ -17,9 +17,10 @@
     "verify:modeling": "npm run build:ui && electron scripts/verify-modeling.cjs",
     "verify:electron-security": "electron scripts/verify-electron-security.cjs",
     "verify:package": "node scripts/verify-package.cjs",
+    "verify:release-version": "node scripts/verify-release-version.cjs",
     "checksums:package": "node scripts/create-package-checksums.cjs",
     "test:core": "node --test tests/cad-core.test.mjs",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
     "start": "npm run build:ui && env -u ELECTRON_RUN_AS_NODE electron .",
     "dist": "npm run build:ui && electron-builder --mac dir --win nsis --x64",
@@ -36,14 +37,14 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
     "@vitejs/plugin-react": "^6.0.1",
-    "electron": "^32.2.0",
-    "electron-builder": "^24.13.3",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9.39.5",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.9.0",
     "jsdom": "^30.0.1",
-    "vite": "^8.0.0",
+    "vite": "^8.2.1",
     "vitest": "^4.1.10"
   },
   "build": {

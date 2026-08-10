@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { JSDOM } from 'jsdom';
 
-describe('license reminder (winrar-style)', () => {
-  it('index.html contains a visible license reminder overlay with close button', () => {
+describe('license reminder mode', () => {
+  it('starts hidden and provides an explicit continue button', () => {
     const indexHtmlPath = path.resolve(
       path.dirname(fileURLToPath(import.meta.url)),
       '..',
@@ -20,6 +20,8 @@ describe('license reminder (winrar-style)', () => {
     const heading = doc.querySelector('.license-header-row h2');
 
     expect(overlay).not.toBeNull();
+    expect(overlay?.hidden).toBe(true);
+    expect(overlay?.getAttribute('aria-hidden')).toBe('true');
     expect(closeButton).not.toBeNull();
     expect(closeButton?.textContent).toMatch(/Kontynuuj używanie/i);
     expect(heading?.textContent).toMatch(/Wersja niezarejestrowana/i);

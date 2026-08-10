@@ -16,7 +16,13 @@ function finish(code, report) {
   if (finished) return;
   finished = true;
   if (report) process.stdout.write(`${JSON.stringify(report)}\n`);
-  fs.rmSync(isolatedUserData, { recursive: true, force: true });
+  try {
+    fs.rmSync(isolatedUserData, { recursive: true, force: true });
+  } catch (error) {
+    // Chromium can keep user-data files locked briefly on Windows. Cleanup is
+    // best-effort and must never prevent the security test process from exiting.
+    process.stderr.write(`Could not remove isolated user data: ${error.message}\n`);
+  }
   app.exit(code);
 }
 
@@ -46,8 +52,10 @@ app.on('browser-window-created', (_event, mainWindow) => {
   mainWindow.webContents.on('render-process-gone', (_goneEvent, details) => {
     process.stderr.write(`Renderer exited: ${JSON.stringify(details)}\n`);
   });
-  mainWindow.webContents.on('console-message', (_consoleEvent, level, message) => {
-    if (level >= 2) process.stderr.write(`Renderer console: ${message}\n`);
+  mainWindow.webContents.on('console-message', (details) => {
+    if (details.level === 'warning' || details.level === 'error') {
+      process.stderr.write(`Renderer console: ${details.message}\n`);
+    }
   });
   let verificationStarted = false;
   const verifyMainWindow = async () => {

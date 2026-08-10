@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   quality:
     name: Quality Gate (tests & build)
@@ -15,10 +19,17 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag belongs to main
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'npm'
@@ -27,6 +38,22 @@ jobs:
       - name: Install app dependencies
         working-directory: madcad-2d
         run: npm ci
+
+      - name: Verify tag matches package version
+        working-directory: madcad-2d
+        run: npm run verify:release-version -- "$GITHUB_REF_NAME"
+
+      - name: Lint source
+        working-directory: madcad-2d
+        run: npm run lint
+
+      - name: Run unit tests
+        working-directory: madcad-2d
+        run: npm test
+
+      - name: Audit app dependencies
+        working-directory: madcad-2d
+        run: npm audit --audit-level=high
 
       - name: Run CAD core tests
         working-directory: madcad-2d
@@ -40,12 +67,16 @@ jobs:
         working-directory: cloudflare/license-registry-worker
         run: npm ci
 
+      - name: Audit worker dependencies
+        working-directory: cloudflare/license-registry-worker
+        run: npm audit --audit-level=high
+
       - name: Test worker
         working-directory: cloudflare/license-registry-worker
         run: npm test
 
   release:
-    name: Signed build on ${{ matrix.os }}
+    name: Verified release build on ${{ matrix.os }}
     needs: quality
     runs-on: ${{ matrix.os }}
 
@@ -55,10 +86,10 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'npm'
@@ -76,7 +107,15 @@ jobs:
         working-directory: madcad-2d
         run: npm run test:core
 
-      - name: Build signed Electron package
+      - name: Run Electron modeling verification
+        working-directory: madcad-2d
+        run: npm run verify:modeling
+
+      - name: Verify Electron sandbox and IPC boundary
+        working-directory: madcad-2d
+        run: npm run verify:electron-security
+
+      - name: Build Electron package
         working-directory: madcad-2d
         shell: bash
         env:
@@ -97,15 +136,15 @@ jobs:
         working-directory: madcad-2d
         run: npm run checksums:package
 
-      - name: Verify signature, format and SHA-256
+      - name: Verify package format, checksum and configured signature
         working-directory: madcad-2d
         env:
           MADCAD_REQUIRE_CHECKSUM: '1'
-          MADCAD_REQUIRE_SIGNATURE: '0'
+          MADCAD_REQUIRE_SIGNATURE: ${{ ((runner.os == 'macOS' && secrets.MAC_CSC_LINK != '') || (runner.os == 'Windows' && secrets.WIN_CSC_LINK != '')) && '1' || '0' }}
         run: npm run verify:package -- ${{ runner.os == 'macOS' && 'mac' || 'windows' }}
 
-      - name: Upload signed release package
-        uses: actions/upload-artifact@v4
+      - name: Upload verified release package
+        uses: actions/upload-artifact@v7
         with:
           name: release-${{ runner.os }}
           path: |
@@ -120,13 +159,13 @@ jobs:
     needs: release
     steps:
       - name: Download verified packages
-        uses: actions/download-artifact@v4.1.3
+        uses: actions/download-artifact@v8
         with:
           pattern: release-*
           path: release-assets
           merge-multiple: true
       - name: Publish release channel
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: release-assets/MadCAD-*
           fail_on_unmatched_files: true

@@ -1501,6 +1501,11 @@ export default function ModelViewport({
             y: Math.round(rect.top + ((1 - point.y) * rect.height) / 2),
           };
         };
+        window.__madcadVerifySketchBoxSelection = (box, mode = 'replace') => {
+          const ids = boxSelectedIds(box);
+          sketchSelectionRef.current?.(ids, mode, { crossing: box.endX < box.startX });
+          return ids;
+        };
         window.__madcadSketchVisibilityState = {
           entityIds: sketchRender.entries.map((entry) => entry.entity.id),
           profileCount: sketchProfileRender?.pickables?.length || 0,
@@ -1584,6 +1589,7 @@ export default function ModelViewport({
       delete window.__madcadDirectHandlePoint;
       delete window.__madcadSketchEntityScreenPoints;
       delete window.__madcadSketchLocalToScreen;
+      delete window.__madcadVerifySketchBoxSelection;
       delete window.__madcadSketchVisibilityState;
       delete window.__madcadModelScreenState;
       delete window.__madcadModelHover;
@@ -1592,6 +1598,8 @@ export default function ModelViewport({
       delete window.__madcadConstructionPointState;
       delete window.__madcadSectionViewState;
     };
+  // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode]);
 
   return (
