@@ -78,6 +78,7 @@ jobs:
 
       - name: Build signed Electron package
         working-directory: madcad-2d
+        shell: bash
         env:
           CSC_LINK: ${{ runner.os == 'macOS' && secrets.MAC_CSC_LINK || secrets.WIN_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.MAC_CSC_KEY_PASSWORD || secrets.WIN_CSC_KEY_PASSWORD }}
