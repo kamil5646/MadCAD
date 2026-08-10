@@ -331,12 +331,15 @@ async function runUiFlow(window) {
     }
     await sendMouse('mouseUp', { x: point.x + offsetX, y: point.y + offsetY });
   };
-  const dragSelectionBox = async (start, end) => {
-    await sendMouse('mouseDown', start);
-    await sendMouse('mouseMove', { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 });
-    await sendMouse('mouseMove', end);
-    await sendMouse('mouseUp', end);
-  };
+  const selectWithBox = (start, end) => window.webContents.executeJavaScript(`(() => {
+    if (typeof window.__madcadVerifySketchBoxSelection !== 'function') throw new Error('Missing deterministic sketch box selection hook.');
+    return window.__madcadVerifySketchBoxSelection({
+      startX: ${Number(start.x)},
+      startY: ${Number(start.y)},
+      endX: ${Number(end.x)},
+      endY: ${Number(end.y)},
+    }, 'replace');
+  })()`);
 
   const addSketchPoint = async (point, expectedEntities) => {
     await window.webContents.executeJavaScript(`(() => {
@@ -623,7 +626,7 @@ async function runUiFlow(window) {
   await clickTool('Wybierz');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketch'`, 'wyczyszczenie wyboru przed inside');
   const insidePoints = await Promise.all([sketchScreenPoint(editTargets.concavePointId), sketchScreenPoint(editTargets.neighborPointId)]);
-  await dragSelectionBox(
+  await selectWithBox(
     { x: Math.min(...insidePoints.map((point) => point.x)) - 40, y: Math.min(...insidePoints.map((point) => point.y)) - 40 },
     { x: Math.max(...insidePoints.map((point) => point.x)) + 40, y: Math.max(...insidePoints.map((point) => point.y)) + 40 },
   );
@@ -632,7 +635,7 @@ async function runUiFlow(window) {
   await clickTool('Wybierz');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketch'`, 'wyczyszczenie wyboru przed crossing');
   const linePoint = await sketchScreenPoint(editTargets.lineId);
-  await dragSelectionBox({ x: linePoint.x + 48, y: linePoint.y - 48 }, { x: linePoint.x - 48, y: linePoint.y + 48 });
+  await selectWithBox({ x: linePoint.x + 48, y: linePoint.y - 48 }, { x: linePoint.x - 48, y: linePoint.y + 48 });
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.includes(${JSON.stringify(editTargets.lineId)})`, 'wybór oknem crossing');
   const crossingPreservedGeometry = await window.webContents.executeJavaScript(`(() => {
     const point = window.__madcadVerifyDocumentState.sketches.at(-1).entityData.find((entity) => entity.id === ${JSON.stringify(editTargets.originPointId)});
