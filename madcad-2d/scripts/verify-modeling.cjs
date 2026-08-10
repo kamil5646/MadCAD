@@ -1104,6 +1104,7 @@ async function runUiFlow(window) {
     return { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId };
   })()`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(ribSupport)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(ribSupport.id)}`, 'ściana wskazana dla szkicu Rib Web');
   await clickTool('Utwórz szkic');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.support?.kind === 'face' && Number(window.__madcadVerifyDocumentState.sketches[0].planeOffset) === 5`, 'szkic Rib Web na górnej ścianie', modelingTimeoutMs);
   await clickTool('Linia');
@@ -1309,6 +1310,7 @@ async function runUiFlow(window) {
     return { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId };
   })()`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(splitFaceSupport)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(splitFaceSupport.id)}`, 'ściana wskazana dla szkicu Split Face');
   await clickTool('Utwórz szkic');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.support?.kind === 'face' && Number(window.__madcadVerifyDocumentState.sketches[0].planeOffset) === 10`, 'szkic Split Face na górnej ścianie', modelingTimeoutMs);
   await clickTool('Okrąg');
@@ -1475,6 +1477,7 @@ async function runUiFlow(window) {
   }
 
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'body', bodyId: ${JSON.stringify(primitiveBoxId)} }, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(primitiveBoxId)}`, 'bryła ponownie wskazana do obrotu');
   await clickTool('Obróć bryłę');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Obróć bryłę') && document.querySelector('.direct-handle-hit')`, 'wspólny manipulator obrotu');
   await setCommandField('Kąt Z', '90');
@@ -1486,6 +1489,7 @@ async function runUiFlow(window) {
 
   const offsetSelection = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies.find((item) => item.id === ${JSON.stringify(primitiveBoxId)}); const face = body.topology.faces.filter((item) => item.descriptor.geometry === 'PLANE').sort((left, right) => right.descriptor.center[2] - left.descriptor.center[2])[0]; return { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }; })()`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(offsetSelection)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(offsetSelection.id)}`, 'ściana wskazana do Press Pull');
   await clickTool('Press Pull');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Offset Face') && document.querySelector('.direct-handle-hit')`, 'wspólny manipulator Offset Face');
   await setCommandField('Odległość', '2');
@@ -1509,11 +1513,13 @@ async function runUiFlow(window) {
     };
   })()`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(draftFixture.selection)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(draftFixture.selection.id)}`, 'ściana wskazana do Draft');
   await clickTool('Draft');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna neutralna') && document.querySelector('.command-dialog')?.textContent.includes('Kąt Draft')`, 'okno Draft');
   await clickDialogButton('Anuluj');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 7 && !document.querySelector('.command-dialog') && Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume - ${10 * 12 * 16}) < 0.05`, 'anulowanie Draft bez częściowego stanu', modelingTimeoutMs);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(draftFixture.selection)}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(draftFixture.selection.id)}`, 'ściana ponownie wskazana do Draft');
   await clickTool('Draft');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Kąt Draft')`, 'ponowne otwarcie Draft');
   const positiveDraftRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
@@ -1935,6 +1941,7 @@ async function runUiFlow(window) {
   })()`);
   if (!supportFace) throw new Error('Brak górnej planarnej ściany do testu szkicu na modelu.');
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify({ kind: 'face', ...supportFace })}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(supportFace.id)}`, 'ściana wskazana dla szkicu na modelu');
   await clickTool('Utwórz szkic');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.length === 2 && window.__madcadVerifyDocumentState.sketches[1].support?.kind === 'face' && Number(window.__madcadVerifyDocumentState.sketches[1].planeOffset) > 7.9 && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'szkic założony bezpośrednio na ścianie modelu', modelingTimeoutMs);
   await clickTool('Zakończ szkic');
@@ -1966,6 +1973,7 @@ async function runUiFlow(window) {
   })()`);
   if (!projectionEdge) throw new Error('Brak niezerowej krawędzi do Project.');
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify({ kind: 'edge', ...projectionEdge })}, 'replace')`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'edge' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(projectionEdge.id)}`, 'krawędź wskazana do Project');
   await clickTool('Project');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.some((entity) => entity.role === 'projected' && entity.fixed && entity.projectionReferenceId)`, 'projekcja krawędzi z trwałym linkiem');
   const brokenProject = await window.webContents.executeJavaScript(`window.__madcadVerifyBreakProjectedReference()`);
