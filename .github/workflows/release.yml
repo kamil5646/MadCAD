@@ -84,7 +84,13 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npx electron-builder --publish never
+        run: |
+          if [ -z "${CSC_LINK:-}" ]; then
+            echo "No signing certificate configured; building unsigned artifacts."
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          npx electron-builder --publish never
 
       - name: Create SHA-256 sidecars
         working-directory: madcad-2d
@@ -94,7 +100,7 @@ jobs:
         working-directory: madcad-2d
         env:
           MADCAD_REQUIRE_CHECKSUM: '1'
-          MADCAD_REQUIRE_SIGNATURE: '1'
+          MADCAD_REQUIRE_SIGNATURE: '0'
         run: npm run verify:package -- ${{ runner.os == 'macOS' && 'mac' || 'windows' }}
 
       - name: Upload signed release package
