@@ -16,7 +16,13 @@ function finish(code, report) {
   if (finished) return;
   finished = true;
   if (report) process.stdout.write(`${JSON.stringify(report)}\n`);
-  fs.rmSync(isolatedUserData, { recursive: true, force: true });
+  try {
+    fs.rmSync(isolatedUserData, { recursive: true, force: true });
+  } catch (error) {
+    // Chromium can keep user-data files locked briefly on Windows. Cleanup is
+    // best-effort and must never prevent the security test process from exiting.
+    process.stderr.write(`Could not remove isolated user data: ${error.message}\n`);
+  }
   app.exit(code);
 }
 
