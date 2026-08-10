@@ -620,9 +620,8 @@ function runFeature(feature, bodyMap, bodyOrder) {
       });
       cutters.push(...grooves);
     }
-    // Cut the main hole and modeled thread grooves as one fused tool. A single
-    // boolean avoids platform-specific no-op cuts when a thin groove overlaps
-    // the already empty cylindrical hole.
+    // Cut the main hole and modeled thread grooves as one fused tool so the
+    // target B-Rep is rebuilt only once for the complete hole operation.
     target.shape = target.shape.cut(combineShapes(cutters));
     return;
   }

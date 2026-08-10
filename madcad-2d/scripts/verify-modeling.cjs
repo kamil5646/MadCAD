@@ -918,8 +918,7 @@ async function runUiFlow(window) {
   const modeledThreadRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await setCommandField('Gwint', 'modeled');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.previewThreadMode === 'modeled'`, 'parametry modelowanego gwintu');
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${modeledThreadRevision} && ['ok', 'error'].includes(window.__madcadVerifyEngineState?.timeline?.[1]?.status)`, 'modelowany gwint prawy', modelingTimeoutMs);
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${modeledThreadRevision} && ['ready', 'error'].includes(window.__madcadVerifyEngineState?.status) && ['ok', 'error'].includes(window.__madcadVerifyEngineState?.timeline?.[1]?.status)`, 'modelowany gwint prawy', modelingTimeoutMs);
   const modeledThreadState = await window.webContents.executeJavaScript(`({ volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume, timeline: window.__madcadVerifyEngineState.timeline })`);
   if (modeledThreadState.timeline?.[1]?.status !== 'ok') throw new Error(`Modeled thread kernel error: ${JSON.stringify(modeledThreadState)}`);
   const rightThreadVolume = modeledThreadState.volume;
@@ -928,8 +927,9 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.threadMode === 'modeled'`, 'zapisany gwint modelowany');
 
   await editTimelineFeature(1, 'Otwór');
+  const leftThreadRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await setCommandField('Kierunek gwintu', 'left');
-  await waitForUi(window, `window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'`, 'modelowany gwint lewy', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.previewThreadDirection === 'left' && window.__madcadVerifyEngineState?.revision > ${leftThreadRevision} && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'`, 'modelowany gwint lewy', modelingTimeoutMs);
   const leftThreadVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`);
   assertClose(leftThreadVolume, rightThreadVolume, 0.1, 'Left/right modeled thread volume');
   await confirmDialog();
