@@ -545,23 +545,20 @@
       </div>
     </div>
 
-    <!-- Licensing temporarily disabled (na razie w kosz): overlay markup commented out so
-         #licenseOverlay resolves to null and initializeLicenseManager() bypasses the gate.
-         Restore by uncommenting this block to re-enable license enforcement.
     <div id="licenseOverlay" class="license-overlay" aria-hidden="true" hidden>
       <div class="license-dialog">
         <div class="license-header-row">
-          <h2 class="has-icon" data-icon="&#128274;">Aktywacja licencji MadCAD</h2>
-          <button id="licenseCloseBtn" class="ribbon-btn has-icon" data-icon="&#10005;" type="button" hidden>Zamknij</button>
+          <h2 class="has-icon" data-icon="&#9432;">Wersja niezarejestrowana - przypomnienie</h2>
+          <button id="licenseCloseBtn" class="ribbon-btn has-icon" data-icon="&#10005;" type="button">Kontynuuj używanie</button>
         </div>
         <div class="license-terms">
-          <p><strong>Skrót zasad licencji</strong></p>
+          <p><strong>Model jak WinRAR</strong></p>
           <ul class="license-terms-list">
-            <li>Możesz korzystać z aplikacji po aktywacji tokenu przypisanego do tego urządzenia.</li>
+            <li>Możesz korzystać z aplikacji bez blokady funkcji.</li>
+            <li>To okno jest przypomnieniem o wsparciu projektu i opcjonalnej aktywacji tokenu.</li>
             <li>Dozwolone jest używanie prywatne i komercyjne zgodnie z typem aktywnego tokenu.</li>
             <li>Modyfikacje kodu aplikacji oraz obejście zabezpieczeń są zabronione.</li>
             <li>Redystrybucja bez pisemnej zgody autora jest zabroniona.</li>
-            <li>Bez aktywnego tokenu edycja i generowanie są zablokowane.</li>
           </ul>
           <p class="license-terms-footer">
             Pełna treść licencji: <a href="./LICENSE.md" target="_blank" rel="noopener">LICENSE.md</a>
@@ -603,7 +600,7 @@
 
         <section class="license-activation">
           <label class="control">
-            <span>Wklej token licencji</span>
+            <span>Opcjonalnie: wklej token licencji</span>
             <textarea id="licenseTokenInput" rows="3" placeholder="M2D2...."></textarea>
           </label>
           <div class="license-actions">
@@ -615,7 +612,6 @@
 
       </div>
     </div>
-    -->
 
     <div id="layerQuickAddOverlay" class="layer-quick-overlay" aria-hidden="true" hidden>
       <div class="layer-quick-dialog" role="dialog" aria-modal="true" aria-labelledby="layerQuickAddTitle">

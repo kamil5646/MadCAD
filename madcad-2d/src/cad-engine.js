@@ -146,6 +146,7 @@
   const LICENSE_CLEARED_MARK_KEY = "madcad-license-cleared-at-v1";
   // Tymczasowy przełącznik produktu. Kod licencji pozostaje gotowy do ponownego włączenia.
   const LICENSE_ENFORCEMENT_ENABLED = false;
+  const LICENSE_NAG_ON_START_ENABLED = true;
   const UI_LANGUAGE_STORAGE_KEY = "madcad-ui-language";
   const UI_LANGUAGE_ONBOARDING_KEY = "madcad-ui-language-onboarded-v1";
   const LICENSE_TOKEN_PATTERN = /^M2D[0-9]+\.[A-Za-z0-9_-]{8,512}(?:\.[A-Za-z0-9_-]{8,1200})?$/;
@@ -2938,7 +2939,10 @@
 
   function openLicenseManager() {
     if (!LICENSE_ENFORCEMENT_ENABLED) {
-      setLicenseOverlayVisible(false);
+      setLicenseOverlayVisible(true);
+      if (licenseTokenInput) {
+        licenseTokenInput.focus();
+      }
       return;
     }
     setLicenseOverlayVisible(true);
@@ -3135,10 +3139,24 @@
       stopRemoteLicenseRecheck();
       setLicenseOverlayVisible(false);
       if (licenseCategoryBtn) {
-        licenseCategoryBtn.hidden = true;
+        licenseCategoryBtn.hidden = false;
+      }
+      if (licenseCloseBtn) {
+        licenseCloseBtn.hidden = false;
       }
       if (appRoot) {
         appRoot.classList.remove("license-locked");
+      }
+      if (licenseStatus) {
+        setLicenseStatus(
+          "Tryb przypomnienia: aplikacja działa bez blokady, ale możesz aktywować token lub wesprzeć projekt.",
+          "ok"
+        );
+      }
+      if (LICENSE_NAG_ON_START_ENABLED && licenseOverlay) {
+        window.setTimeout(() => {
+          setLicenseOverlayVisible(true);
+        }, 350);
       }
       updateLicenseSummaryChip();
       return true;
