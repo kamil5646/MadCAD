@@ -76,17 +76,25 @@ Po pierwszym deployu zaktualizuj plik:
 
 - `docs/license-endpoints.json`
 
-Dodaj tam URL endpointu Workera (na pierwszej pozycji w `registryUrls`), np.:
+Dodaj tam URL endpointu Workera, np.:
 
 ```json
 {
-  "version": 1,
-  "updatedAt": "2026-03-08T18:45:00Z",
-  "registryUrls": [
-    "https://<twoj-worker>.workers.dev/v1/license-registry",
-    "https://kamil5646.github.io/MadCAD2D/license-registry.json"
+  "version": 2,
+  "updatedAt": "2026-03-08T19:03:00Z",
+  "verifyUrls": [
+    "https://<twoj-worker>.workers.dev/v1/license-tokens/verify"
+  ],
+  "registryApiUrls": [
+    "https://<twoj-worker>.workers.dev/v1/license-registry"
   ]
 }
 ```
 
 Aplikacja pobiera ten plik dynamicznie, więc nie wymaga nowego buildu po zmianie URL backendu.
+
+## Uwaga o stanie licencjonowania w aplikacji (madcad-2d)
+
+Od wersji `5.7.2` aplikacja desktop ma **tymczasowo wyłączony** ekran aktywacji licencji (patrz
+`madcad-2d/README.md`). Ten Worker i rejestr tokenów pozostają w pełni funkcjonalne i niezmienione -
+wyłączenie dotyczy wyłącznie warstwy UI po stronie aplikacji desktop.

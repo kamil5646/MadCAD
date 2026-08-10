@@ -1,7 +1,7 @@
 {
   "name": "madcad-2d-desktop",
   "version": "5.7.2",
-  "description": "Desktopowa aplikacja CAD 2D MadCAD 2D, dla konstrukcji stalowych.",
+  "description": "Desktopowa aplikacja CAD 2D MadCAD 2D dla konstrukcji stalowych, z modułem druku 3D (eksport STL).",
   "repository": {
     "type": "git",
     "url": "https://github.com/kamil5646/MadCAD2D.git"
