@@ -2359,31 +2359,35 @@ app.whenReady().then(async () => {
       throw new Error(`Desktop cold start exceeded budget: ${performance.coldStartMs} ms.`);
     }
     process.stdout.write('[verify] engine ready\n');
-    const licenseReminder = await window.webContents.executeJavaScript(`(() => {
-      const overlay = document.querySelector('#licenseOverlay');
-      const root = document.querySelector('.app');
-      const entry = document.querySelector('#licenseCategoryBtn');
-      const closeButton = document.querySelector('#licenseCloseBtn');
+    const licenseUi = await window.webContents.executeJavaScript(`(() => {
+      const entry = document.querySelector('#licenseInfoBtn');
       return {
-        overlayHidden: !overlay || overlay.hidden,
-        appUnlocked: !root?.classList.contains('license-locked'),
+        legacyInterface: Boolean(document.querySelector('.app, #open3dPrintBtn')),
+        legacyOverlay: Boolean(document.querySelector('#licenseOverlay')),
+        legacyTokenControls: Boolean(document.querySelector('#licenseTokenInput, #licenseActivateTokenBtn, #licenseDeviceIdInput')),
         entryVisible: Boolean(entry && !entry.hidden),
-        closeVisible: Boolean(closeButton && !closeButton.hidden),
       };
     })()`);
-    if (!licenseReminder.appUnlocked || !licenseReminder.entryVisible || !licenseReminder.closeVisible) {
-      throw new Error('Tryb przypomnienia licencyjnego nie pozostawił interfejsu odblokowanego.');
+    if (licenseUi.legacyInterface || licenseUi.legacyOverlay || licenseUi.legacyTokenControls || !licenseUi.entryVisible) {
+      throw new Error(`Interfejs nadal zawiera stary widok lub aktywację kluczem: ${JSON.stringify(licenseUi)}.`);
     }
-    if (!licenseReminder.overlayHidden) {
-      const reminderClosed = await window.webContents.executeJavaScript(`(() => {
-        const closeButton = document.querySelector('#licenseCloseBtn');
-        closeButton?.click();
-        return Boolean(document.querySelector('#licenseOverlay')?.hidden);
-      })()`);
-      if (!reminderClosed) {
-        throw new Error('Nie można zamknąć przypomnienia licencyjnego.');
-      }
+    await window.webContents.executeJavaScript(`document.querySelector('#licenseInfoBtn')?.click()`);
+    await waitForUi(window, `Boolean(document.querySelector('.license-info-dialog'))`, 'okno informacji o licencji');
+    const licenseDialog = await window.webContents.executeJavaScript(`(() => {
+      const dialog = document.querySelector('.license-info-dialog');
+      return {
+        visible: Boolean(dialog),
+        explainsNoKey: /bez klucza|without a key/i.test(dialog?.textContent || ''),
+        hasTokenInput: Boolean(dialog?.querySelector('input, textarea')),
+        links: dialog?.querySelectorAll('a').length || 0,
+        closeVisible: Boolean(dialog?.querySelector('button')),
+      };
+    })()`);
+    if (!licenseDialog.visible || !licenseDialog.explainsNoKey || licenseDialog.hasTokenInput || licenseDialog.links < 2 || !licenseDialog.closeVisible) {
+      throw new Error(`Okno licencji nie spełnia wymagań wersji bez klucza: ${JSON.stringify(licenseDialog)}.`);
     }
+    await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button')?.click()`);
+    await waitForUi(window, `!document.querySelector('.license-info-dialog')`, 'zamknięcie okna informacji o licencji');
     await new Promise((resolve) => setTimeout(resolve, 600));
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     const workflowStartedAt = Date.now();
@@ -2436,7 +2440,7 @@ app.whenReady().then(async () => {
     const slowBody = workerPerformance.bodies?.find((body) => body.durationMs > performanceBudgets.displayMeshPerBodyMs);
     if (slowBody) throw new Error(`Body meshing exceeded budget: ${JSON.stringify(slowBody)}.`);
     performance.worker = workerPerformance;
-    const report = { ...result, licenseReminder, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, englishUi, performance, rendererMessages };
+    const report = { ...result, licenseUi, licenseDialog, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, englishUi, performance, rendererMessages };
     await fs.writeFile(path.join(path.dirname(outputPath), 'verification-report.json'), JSON.stringify(report, null, 2));
     process.stdout.write(`${JSON.stringify(report)}\n`);
     if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.timelineVisible) process.exitCode = 1;

@@ -1,6 +1,4 @@
 const path = require('path');
-const os = require('os');
-const crypto = require('crypto');
 const { pathToFileURL } = require('url');
 const fsRaw = require('fs');
 const fs = require('fs/promises');
@@ -12,7 +10,6 @@ const { atomicWriteTextFile } = require('./atomic-file.cjs');
 const { normalizeSlicerPayload, windowsCandidates } = require('./slicer-launch.cjs');
 const { isTrustedAppNavigation, isTrustedIpcUrl, normalizeExternalUrl } = require('./security-policy.cjs');
 const {
-  normalizeAuditPayload,
   normalizeAutosavePayload,
   normalizeCadConversionPayload,
   normalizePrintPreviewPayload,
@@ -37,20 +34,10 @@ const MADCAD_RELEASE_LATEST_PAGE_URL = 'https://github.com/kamil5646/MadCAD2D/re
 const MADCAD_UPDATE_USER_AGENT = 'MadCAD2D-Updater/1.0';
 let forceCloseForUpdate = false;
 
-function resolveDeviceId() {
-  let machine = `${process.platform}|${process.arch}|fallback`;
-  try {
-    machine = `${process.platform}|${process.arch}|${os.hostname() || 'unknown-host'}|${os.userInfo().username || 'unknown-user'}`;
-  } catch (_error) {}
-  return crypto.createHash('sha256').update(machine).digest('hex').slice(0, 32);
-}
-
-const deviceId = resolveDeviceId();
-
 if (app && typeof app.setName === 'function') {
   app.setName(APP_DISPLAY_NAME);
   // Zachowujemy dotychczasowy katalog danych, aby aktualizacja po zmianie nazwy
-  // nie utraciła licencji, ustawień ani automatycznych zapisów użytkownika.
+  // nie utraciła ustawień ani automatycznych zapisów użytkownika.
   const isolatedTestUserData = !app.isPackaged && process.env.MADCAD_TEST_USER_DATA_DIR
     ? path.resolve(process.env.MADCAD_TEST_USER_DATA_DIR)
     : '';
@@ -1176,7 +1163,7 @@ async function handleSavePromptBeforeExit(win) {
     cancelId: 2,
     noLink: true,
     title: t('Zamykanie MadCAD', 'Closing MadCAD'),
-    message: t('Czy chcesz zapisać rysunek przed wyjściem?', 'Do you want to save the drawing before exit?'),
+    message: t('Czy chcesz zapisać projekt przed wyjściem?', 'Do you want to save the project before exit?'),
     detail: t('Po zamknięciu sesja robocza zostanie wyczyszczona.', 'The current runtime session will be cleared after closing.')
   });
 
@@ -1201,9 +1188,9 @@ async function handleSavePromptBeforeExit(win) {
     }
 
     const saveResult = await dialog.showSaveDialog(win, {
-      title: t('Zapisz rysunek przed wyjściem', 'Save Drawing Before Exit'),
-      defaultPath: path.join(app.getPath('documents'), appLanguage === 'en' ? 'drawing.json' : 'rysunek.json'),
-      filters: [{ name: 'JSON', extensions: ['json'] }],
+      title: t('Zapisz projekt przed wyjściem', 'Save Project Before Exit'),
+      defaultPath: path.join(app.getPath('documents'), appLanguage === 'en' ? 'project.madcad' : 'projekt.madcad'),
+      filters: [{ name: 'Projekt MadCAD', extensions: ['madcad'] }, { name: 'JSON', extensions: ['json'] }],
       properties: ['createDirectory', 'showOverwriteConfirmation']
     });
 
@@ -1271,7 +1258,7 @@ function createMainWindow() {
       devTools: !app.isPackaged,
       webSecurity: true,
       allowRunningInsecureContent: false,
-      additionalArguments: [`--madcad-lang=${appLanguage}`, `--madcad-device-id=${deviceId}`]
+      additionalArguments: [`--madcad-lang=${appLanguage}`]
     }
   });
 
@@ -1404,24 +1391,24 @@ function createMenu() {
       label: t('Plik', 'File'),
       submenu: [
         {
-          label: t('Nowy rysunek', 'New drawing'),
+          label: t('Nowy projekt', 'New project'),
           accelerator: 'CmdOrCtrl+N',
-          click: () => executeRendererShortcut({ key: 'n' })
+          click: () => executeRendererShortcut({ id: 'newProjectBtn' })
         },
         {
-          label: t('Wczytaj JSON', 'Open JSON'),
+          label: t('Otwórz projekt', 'Open project'),
           accelerator: 'CmdOrCtrl+O',
-          click: () => executeRendererShortcut({ key: 'o' })
+          click: () => executeRendererShortcut({ id: 'openProjectBtn' })
         },
         {
-          label: t('Zapisz JSON', 'Save JSON'),
+          label: t('Zapisz projekt', 'Save project'),
           accelerator: 'CmdOrCtrl+S',
-          click: () => executeRendererShortcut({ key: 's' })
+          click: () => executeRendererShortcut({ id: 'saveProjectBtn' })
         },
         {
-          label: t('Drukuj / PDF', 'Print / PDF'),
+          label: t('Druk 3D', '3D Print'),
           accelerator: 'CmdOrCtrl+P',
-          click: () => executeRendererShortcut({ key: 'p' })
+          click: () => executeRendererShortcut({ id: 'printWorkspaceBtn' })
         },
         { type: 'separator' },
         {
@@ -1433,8 +1420,8 @@ function createMenu() {
     {
       label: t('Edycja', 'Edit'),
       submenu: [
-        { role: 'undo', label: t('Cofnij', 'Undo') },
-        { role: 'redo', label: t('Ponów', 'Redo') },
+        { label: t('Cofnij', 'Undo'), accelerator: 'CmdOrCtrl+Z', click: () => executeRendererShortcut({ id: 'undoProjectBtn' }) },
+        { label: t('Ponów', 'Redo'), accelerator: 'CmdOrCtrl+Shift+Z', click: () => executeRendererShortcut({ id: 'redoProjectBtn' }) },
         { type: 'separator' },
         { role: 'cut', label: t('Wytnij', 'Cut') },
         { role: 'copy', label: t('Kopiuj', 'Copy') },
@@ -2051,58 +2038,6 @@ registerTrustedIpcHandler('madcad:convert-cad-file', async (event, payload) => {
     if (tempRoot) {
       await fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
     }
-  }
-});
-
-function getPrivateLicenseAuditPath() {
-  const userDataDir = app.getPath('userData');
-  return path.join(userDataDir, 'private', 'license-audit.jsonl');
-}
-
-registerTrustedIpcHandler('madcad:append-license-audit', async (_event, payload) => {
-  try {
-    const safePayload = normalizeAuditPayload(payload);
-    const entry = {
-      at: new Date().toISOString(),
-      type: String(safePayload.type || 'akcja'),
-      details: String(safePayload.details || ''),
-      meta: safePayload.meta && typeof safePayload.meta === 'object' ? safePayload.meta : {}
-    };
-    const auditPath = getPrivateLicenseAuditPath();
-    await fs.mkdir(path.dirname(auditPath), { recursive: true });
-    await fs.appendFile(auditPath, `${JSON.stringify(entry)}\n`, 'utf8');
-    return { ok: true, path: auditPath };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error && error.message ? String(error.message) : t('Nieznany błąd zapisu audytu', 'Unknown audit save error')
-    };
-  }
-});
-
-registerTrustedIpcHandler('madcad:clear-license-storage', async (event) => {
-  try {
-    const senderSession = event && event.sender ? event.sender.session : null;
-    if (!senderSession || typeof senderSession.clearStorageData !== 'function') {
-      return {
-        ok: false,
-        error: t('Brak dostępu do sesji aplikacji.', 'App session is unavailable.')
-      };
-    }
-
-    // Czyścimy localStorage dla sesji renderera (origin file:// dla aplikacji desktop).
-    await senderSession.clearStorageData({
-      storages: ['localstorage']
-    });
-    return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error && error.message
-          ? String(error.message)
-          : t('Nie udało się wyczyścić localStorage licencji.', 'Failed to clear license localStorage.')
-    };
   }
 });
 

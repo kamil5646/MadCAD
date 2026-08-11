@@ -1,0 +1,45 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", Inter, system-ui, sans-serif;
+  background: #2c333e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root,
+.react-ui-layer {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  min-width: 320px;
+  background: #2c333e;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.app-loading {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: #dce5ed;
+  background: #2c333e;
+  font-size: 14px;
+}

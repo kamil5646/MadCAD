@@ -72,10 +72,10 @@ app.on('browser-window-created', (_event, mainWindow) => {
       await new Promise((resolve) => setTimeout(resolve, 1_000));
       const trustedApi = await evaluateWithDebugger(mainWindow.webContents, `({
         api: Boolean(window.desktopApp && window.desktopApp.isDesktop),
-        deviceId: window.desktopApp && window.desktopApp.deviceId
+        legacyLicenseApi: Boolean(window.desktopApp && ('deviceId' in window.desktopApp || 'appendLicenseAudit' in window.desktopApp || 'clearLicenseStorage' in window.desktopApp))
       })`);
       assert.equal(trustedApi.api, true);
-      assert.match(trustedApi.deviceId, /^[a-f0-9]{32}$/);
+      assert.equal(trustedApi.legacyLicenseApi, false);
       phase = 'trusted-ipc';
       const trustedUpdate = await Promise.race([
         evaluateWithDebugger(mainWindow.webContents, 'window.desktopApp.checkForUpdates()', true),
@@ -91,7 +91,7 @@ app.on('browser-window-created', (_event, mainWindow) => {
           contextIsolation: true,
           sandbox: true,
           nodeIntegration: false,
-          additionalArguments: ['--madcad-lang=pl', '--madcad-device-id=00000000000000000000000000000000'],
+          additionalArguments: ['--madcad-lang=pl'],
         },
       });
       await untrustedWindow.loadURL('data:text/html,<html><body>untrusted</body></html>');
