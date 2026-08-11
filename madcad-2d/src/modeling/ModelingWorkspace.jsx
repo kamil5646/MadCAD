@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AppWindow,
   AlertTriangle,
   Box,
   Check,
@@ -18,7 +17,6 @@ import {
   Grid2X2,
   HardDriveDownload,
   Hexagon,
-  Home,
   CircleHelp,
   Eye,
   EyeOff,
@@ -293,6 +291,43 @@ function FirstPartTutorial({ onClose }) {
         <div className="tutorial-body">
           <ol>{content.steps.map(([title, description]) => <li key={title}><strong>{title}</strong><span>{description}</span></li>)}</ol>
           <aside><h3><AlertTriangle size={16} />{content.limitationsTitle}</h3><ul>{content.limitations.map((item) => <li key={item}>{item}</li>)}</ul></aside>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function LicenseInfoDialog({ onClose }) {
+  useEffect(() => {
+    const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="license-info-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="license-info-dialog" role="dialog" aria-modal="true" aria-labelledby="licenseInfoTitle">
+        <header>
+          <div>
+            <strong id="licenseInfoTitle">Licencja i informacje</strong>
+            <span>MadCAD działa bez klucza, tokenu i aktywacji.</span>
+          </div>
+          <button type="button" title="Zamknij" aria-label="Zamknij" onClick={onClose} autoFocus><X size={17} /></button>
+        </header>
+        <div className="license-info-body">
+          <p className="license-info-lead">Wszystkie funkcje aplikacji są dostępne od razu po uruchomieniu. Nie trzeba podawać identyfikatora urządzenia ani żadnego klucza.</p>
+          <div className="license-info-card">
+            <strong>Zasady korzystania</strong>
+            <ul>
+              <li>Możesz używać MadCAD prywatnie i komercyjnie zgodnie z licencją projektu.</li>
+              <li>Redystrybucja i modyfikowanie aplikacji podlegają warunkom pełnej licencji.</li>
+              <li>Aplikacja nie blokuje narzędzi i nie wyświetla przypomnień aktywacyjnych.</li>
+            </ul>
+          </div>
+          <div className="license-info-actions">
+            <a href="https://github.com/kamil5646/MadCAD2D/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Pełna treść licencji</a>
+            <a className="support" href="https://paypal.me/refek1" target="_blank" rel="noopener noreferrer">Wesprzyj rozwój projektu</a>
+          </div>
         </div>
       </section>
     </div>
@@ -1014,11 +1049,14 @@ function featureIcon(type, size = 16) {
   return <Box size={size} />;
 }
 
-export default function ModelingWorkspace({ onClose }) {
+export default function ModelingWorkspace() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [licenseInfoOpen, setLicenseInfoOpen] = useState(false);
   useEffect(() => {
     const root = window.document.querySelector('.modeling-shell');
-    const language = resolveModelingLanguage(window.document.documentElement.lang, window.desktopApp?.appLanguage);
+    const requestedLanguage = new URLSearchParams(window.location.search).get('verifyLanguage') || window.desktopApp?.appLanguage;
+    const language = resolveModelingLanguage(requestedLanguage, window.document.documentElement.lang);
+    window.document.documentElement.lang = language;
     return observeModelingLocalization(root, language);
   }, []);
   const [initialOpen] = useState(loadInitialDocument);
@@ -1192,6 +1230,21 @@ export default function ModelingWorkspace({ onClose }) {
     const timeout = window.setTimeout(() => window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(document)), 300);
     return () => window.clearTimeout(timeout);
   }, [document, readOnly]);
+
+  useEffect(() => {
+    window.__madcadGetSessionExport = () => JSON.stringify(document, null, 2);
+    window.__madcadHasDrawableContent = () => Boolean(
+      document.features.length
+      || document.sketches.some((sketch) => sketch.entities.length || sketch.profiles.length)
+      || document.imports?.length
+    );
+    window.__madcadClearRuntimeSession = () => window.localStorage.removeItem(AUTOSAVE_KEY);
+    return () => {
+      delete window.__madcadGetSessionExport;
+      delete window.__madcadHasDrawableContent;
+      delete window.__madcadClearRuntimeSession;
+    };
+  }, [document]);
 
   useEffect(() => {
     const verifyMode = new URLSearchParams(window.location.search).has('verify');
@@ -3663,19 +3716,19 @@ export default function ModelingWorkspace({ onClose }) {
   return (
     <section className="modeling-shell" aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
-        <div className="app-menu"><div className="brand-mark">M</div><button type="button" title="Dokumentacja" onClick={onClose}><Home size={16} /></button><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button type="button" title="Otwórz projekt" onClick={() => fileInputRef.current?.click()}><FolderOpen size={16} /></button><button type="button" title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : 'Zapisz'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
+        <div className="app-menu"><div className="brand-mark" title="MadCAD">M</div><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button id="newProjectBtn" type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button id="openProjectBtn" type="button" title="Otwórz projekt" onClick={() => fileInputRef.current?.click()}><FolderOpen size={16} /></button><button id="saveProjectBtn" type="button" title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : 'Zapisz'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
         <input ref={importInputRef} hidden type="file" accept=".step,.stp,.stl,.3mf,model/step,model/stl,model/3mf" onChange={chooseModelImport} />
         <input ref={sketchImportInputRef} hidden type="file" accept=".svg,.dxf,image/svg+xml,application/dxf" onChange={chooseSketchImport} />
-        <div className="document-tab"><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" disabled={readOnly} onChange={(event) => commit((next) => { next.name = event.target.value; })} />{readOnly ? <span className="read-only-badge">TYLKO ODCZYT · v{documentAccess.sourceVersion}</span> : <span>*</span>}<button type="button" title="Zamknij dokument" onClick={onClose}><X size={13} /></button></div>
-        <div className="title-actions"><button type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><button type="button" title="Samouczek pierwszej części" aria-label="Samouczek pierwszej części" onClick={() => setTutorialOpen(true)}><CircleHelp size={15} /><span>Samouczek</span></button><button type="button" title="Dokumentacja 2D" onClick={onClose}><AppWindow size={15} /><span>Dokumentacja</span></button></div>
+        <div className="document-tab"><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" disabled={readOnly} onChange={(event) => commit((next) => { next.name = event.target.value; })} />{readOnly ? <span className="read-only-badge">TYLKO ODCZYT · v{documentAccess.sourceVersion}</span> : <span>*</span>}</div>
+        <div className="title-actions"><button id="undoProjectBtn" type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button id="redoProjectBtn" type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><button type="button" title="Samouczek pierwszej części" aria-label="Samouczek pierwszej części" onClick={() => setTutorialOpen(true)}><CircleHelp size={15} /><span>Samouczek</span></button><button id="licenseInfoBtn" type="button" title="Licencja i informacje" onClick={() => setLicenseInfoOpen(true)}><CircleHelp size={15} /><span>Licencja</span></button></div>
       </header>
 
       <section className="command-area">
         <div className="workspace-switcher"><div className="workspace-label"><span>PROJEKT</span></div></div>
         <div className="command-ribbon">
           <nav className="workspace-tabs" aria-label="Obszary robocze">
-            {activeSketchId ? <button className="active" type="button" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item) => <button key={item.id} className={workspace === item.id ? 'active' : ''} type="button" title={item.id === 'solid' ? 'Modelowanie bryłowe i operacje na profilach.' : item.id === 'tools' ? 'Parametry i narzędzia dokumentu.' : 'Kontrola modelu oraz eksport do druku 3D.'} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
+            {activeSketchId ? <button className="active" type="button" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item) => <button id={item.id === 'print' ? 'printWorkspaceBtn' : undefined} key={item.id} className={workspace === item.id ? 'active' : ''} type="button" title={item.id === 'solid' ? 'Modelowanie bryłowe i operacje na profilach.' : item.id === 'tools' ? 'Parametry i narzędzia dokumentu.' : 'Kontrola modelu oraz eksport do druku 3D.'} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
           </nav>
           <div className="modeling-ribbon">
             {activeSketchId ? (
@@ -3771,13 +3824,13 @@ export default function ModelingWorkspace({ onClose }) {
           {!document.sketches.length && !engine.bodies.length && !command && !readOnly && (
             <div className="empty-canvas"><PencilRuler size={28} /><strong>Zacznij od szkicu</strong><span>Wybierz płaszczyznę, narysuj zamknięty profil i wyciągnij go w bryłę.</span><button type="button" onClick={startSketch}>Utwórz szkic</button></div>
           )}
-          {command?.type === 'plane' && <PlanePicker onPick={pickPlane} onCancel={() => { setCommand(null); setWorkspace('solid'); }} />}
+          {command?.type === 'plane' && <PlanePicker onPick={pickPlane} onCancel={() => { setCommand(null); setWorkspace('solid'); setNotice('Anulowano tworzenie szkicu.'); }} />}
           <CommandDialog
             command={command}
             profileName={command?.type === 'pipe' ? `Otwarta ścieżka (${command.previewFeature?.pathEntityIds?.length || command.pathEntityIds?.length || 0})` : command?.openChain ? `Otwarty łańcuch (${command.previewFeature?.openEntityIds?.length || 0})` : commandProfileName}
             onChange={updateCommand}
             onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
-            onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => { if (command?.openChain && command.sourceSketchId) { setActiveSketchId(command.sourceSketchId); setWorkspace('sketch'); } setCommand(null); }}
+            onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => { if (command?.openChain && command.sourceSketchId) { setActiveSketchId(command.sourceSketchId); setWorkspace('sketch'); } setCommand(null); setNotice('Anulowano polecenie.'); }}
             onUndoSegment={undoSketchSegment}
             onFinishPath={finishSketchPath}
           />
@@ -3807,6 +3860,7 @@ export default function ModelingWorkspace({ onClose }) {
         </div>
       </footer>
       {tutorialOpen && <FirstPartTutorial onClose={() => setTutorialOpen(false)} />}
+      {licenseInfoOpen && <LicenseInfoDialog onClose={() => setLicenseInfoOpen(false)} />}
     </section>
   );
 }

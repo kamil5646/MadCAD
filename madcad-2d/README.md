@@ -32,14 +32,14 @@ MadCAD rozwija się aktywnie. Jeśli chcesz wesprzeć rozwój aplikacji:
 - Wybór jest zapamiętywany lokalnie i nie jest pytany ponownie.
 
 ## Licencja Aplikacji (stan bieżący)
-- Aplikacja działa w modelu **przypomnienia licencyjnego**: pełna funkcjonalność jest dostępna bez blokady.
-- Przy starcie wyświetla się nieblokujące okno przypomnienia o wsparciu projektu i opcjonalnej aktywacji tokenu.
-- Mechanizm tokenów (`cad-engine.js`, rejestr w `cloudflare/license-registry-worker/`) pozostaje aktywny i może być
-  używany dobrowolnie (np. do rozróżnienia licencji prywatnej/komercyjnej).
+- Aplikacja działa bez klucza, tokenu i aktywacji; pełna funkcjonalność jest dostępna od razu.
+- Okno `Licencja` ma wyłącznie charakter informacyjny i nie pojawia się przy starcie.
+- Treść licencji jest dostępna w pliku [`LICENSE`](./LICENSE).
 
 ## Struktura Katalogu `madcad-2d/`
-- `app.js` - logika UI i narzędzi CAD.
-- `index.html` + `style.css` - interfejs aplikacji.
+- `src/modeling/` - aktualny interfejs modelowania 2D/3D.
+- `src/cad-core/` - dokument parametryczny, geometria i obliczenia CAD.
+- `index.html` + `src/main.jsx` - punkt startowy interfejsu React.
 - `electron/` - proces main/preload i integracje desktop.
 - `assets/` - ikony i zasoby.
 - `scripts/` - narzędzia pomocnicze (np. notaryzacja).

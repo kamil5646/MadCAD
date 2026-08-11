@@ -25,12 +25,12 @@ Jeśli MadCAD pomaga Ci w codziennej pracy, możesz wesprzeć rozwój aplikacji:
 MadCAD łączy szkice 2D, modelowanie 3D i gotowy workflow pod bramy, ogrodzenia, balkony oraz druk 3D.
 
 ### Najważniejsze możliwości
-- Rysowanie: linia, polilinia, prostokąt, okrąg, pomiar, wymiarowanie.
-- Wymiarowanie: tryby wyrównany, liniowy, obrócony i kątowy.
-- Modyfikacje: przesuń, kopiuj, odsuń, duplikuj, warstwy, kolejność obiektów.
-- Generator stali: szybkie szablony `brama`, `ogrodzenie`, `balkon`.
-- Druk 3D: wyciąganie zamkniętych figur 2D, kontrola stołu drukarki i eksport `STL`.
-- Eksport i wydruk: `JSON`, `DXF`, `SVG`, `PDF`.
+- Parametryczne szkice 2D z więzami, wymiarami, edycją profili oraz importem `SVG` i `DXF`.
+- Modelowanie bryłowe 3D, historia operacji, geometria konstrukcyjna i trwałe referencje B-Rep.
+- Inspekcja geometrii, pomiar, właściwości masowe oraz analiza przekroju.
+- Przygotowanie druku 3D z profilami drukarek, analizą drukowalności i kontrolą stołu.
+- Import i eksport `STEP`, `STL`, `3MF`; zapis projektu parametrycznego `.madcad`.
+- Aplikacja działa bez klucza, tokenu i aktywacji.
 - Aktualizacje aplikacji z poziomu interfejsu.
 
 ### Pobieranie
@@ -53,7 +53,7 @@ npm run dist:release:trusted
 ### Struktura repo
 - `madcad-2d/` - główny kod aplikacji desktop (Electron + UI CAD).
 - `docs/` - strona projektu na GitHub Pages.
-- `cloudflare/license-registry-worker/` - backend API rejestru licencji (Cloudflare Worker + KV).
+- `cloudflare/license-registry-worker/` - starsza, niezależna usługa rejestru; bieżąca aplikacja desktop jej nie używa.
 - katalog główny - pliki prawne i organizacyjne.
 
 ---
@@ -63,12 +63,12 @@ npm run dist:release:trusted
 MadCAD is a desktop 2D/3D CAD app focused on technical design, steel structures, and 3D printing.
 
 ### Key Features
-- Drawing tools: line, polyline, rectangle, circle, measure, dimension.
-- Dimensioning modes: aligned, linear, rotated, angular.
-- Editing: move, copy, offset, duplicate, layers, object order.
-- Steel generator templates: `gate`, `fence`, `balcony`.
-- 3D printing: extrude closed 2D shapes, check printer-bed fit, and export `STL`.
-- Export and print: `JSON`, `DXF`, `SVG`, `PDF`.
+- Parametric 2D sketches with constraints, dimensions, profile editing, and `SVG`/`DXF` import.
+- 3D solid modeling with feature history, construction geometry, and persistent B-Rep references.
+- Geometry inspection, measurement, mass properties, and section analysis.
+- 3D-print preparation with printer profiles, printability checks, and bed-fit validation.
+- `STEP`, `STL`, and `3MF` import/export plus parametric `.madcad` project files.
+- No key, token, or activation is required.
 - Built-in update flow from the app UI.
 
 ### Download
@@ -97,7 +97,7 @@ npm run dist:release:trusted
 ### Repository Layout
 - `madcad-2d/` - main desktop app code (Electron + CAD UI).
 - `docs/` - project website hosted on GitHub Pages.
-- `cloudflare/license-registry-worker/` - license registry backend API (Cloudflare Worker + KV).
+- `cloudflare/license-registry-worker/` - legacy standalone registry service; the current desktop app does not use it.
 - repository root - legal and project files.
 
 ## License

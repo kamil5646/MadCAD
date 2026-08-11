@@ -4,7 +4,6 @@ const MAX_SAVE_TEXT_BYTES = 128 * 1024 * 1024;
 const MAX_AUTOSAVE_TEXT_BYTES = 64 * 1024 * 1024;
 const MAX_CAD_TEXT_BYTES = 64 * 1024 * 1024;
 const MAX_PRINT_HTML_BYTES = 8_000_000;
-const MAX_AUDIT_META_BYTES = 16 * 1024;
 const PRINT_PREVIEW_CSP = "default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
 
 function assertPlainObject(value, label = 'payload') {
@@ -103,24 +102,11 @@ function normalizeCadConversionPayload(payload, language = 'pl') {
   throw new Error('Nieobsługiwany tryb konwersji CAD.');
 }
 
-function normalizeAuditPayload(payload) {
-  const source = assertPlainObject(payload);
-  const meta = source.meta && typeof source.meta === 'object' && !Array.isArray(source.meta) ? source.meta : {};
-  const serializedMeta = JSON.stringify(meta);
-  if (Buffer.byteLength(serializedMeta, 'utf8') > MAX_AUDIT_META_BYTES) throw new Error('Metadane audytu przekraczają limit.');
-  return {
-    type: limitedString(String(source.type || 'akcja'), { label: 'Typ audytu', min: 1, max: 80, trim: true }),
-    details: limitedString(String(source.details || ''), { label: 'Opis audytu', max: 4096 }),
-    meta: JSON.parse(serializedMeta),
-  };
-}
-
 module.exports = {
   MAX_AUTOSAVE_TEXT_BYTES,
   MAX_CAD_TEXT_BYTES,
   MAX_PRINT_HTML_BYTES,
   MAX_SAVE_TEXT_BYTES,
-  normalizeAuditPayload,
   normalizeAutosavePayload,
   normalizeCadConversionPayload,
   normalizePrintPreviewPayload,
