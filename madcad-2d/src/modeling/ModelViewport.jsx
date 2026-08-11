@@ -341,7 +341,9 @@ export default function ModelViewport({
   sketchToolPrompt,
   polylineDraft,
   onSketchPoint,
+  onSketchPointerMove,
   onSketchFinish,
+  sketchDynamicLength = '',
   selectedSketchEntityIds = [],
   lostProjectedEntityIds = [],
   selectedSketchConstraintId = null,
@@ -394,6 +396,7 @@ export default function ModelViewport({
   const topologySelectRef = useRef(onSelectTopology);
   const draftChangeRef = useRef(onDraftChange);
   const sketchPointRef = useRef(onSketchPoint);
+  const sketchPointerMoveRef = useRef(onSketchPointerMove);
   const sketchSelectionRef = useRef(onSketchSelection);
   const sketchProfileSelectionRef = useRef(onSketchProfileSelection);
   const sketchMoveRef = useRef(onSketchMove);
@@ -404,6 +407,7 @@ export default function ModelViewport({
   const [zoomScale, setZoomScale] = useState(1);
   const [dragLabel, setDragLabel] = useState(null);
   const [sketchDragLabel, setSketchDragLabel] = useState(null);
+  const [sketchDynamicLabel, setSketchDynamicLabel] = useState(null);
   const [selectionBox, setSelectionBox] = useState(null);
   const [snapFeedback, setSnapFeedback] = useState(null);
   const [selectionFilter, setSelectionFilter] = useState('auto');
@@ -431,6 +435,7 @@ export default function ModelViewport({
   topologySelectRef.current = onSelectTopology;
   draftChangeRef.current = onDraftChange;
   sketchPointRef.current = onSketchPoint;
+  sketchPointerMoveRef.current = onSketchPointerMove;
   sketchSelectionRef.current = onSketchSelection;
   sketchProfileSelectionRef.current = onSketchProfileSelection;
   sketchMoveRef.current = onSketchMove;
@@ -456,6 +461,8 @@ export default function ModelViewport({
     const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100000);
     camera.up.set(0, 0, 1);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.domElement.tabIndex = 0;
+    renderer.domElement.style.outline = 'none';
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.localClippingEnabled = Boolean((activeSketch && sliceModel) || sectionAnalysis?.enabled);
@@ -1172,8 +1179,11 @@ export default function ModelViewport({
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
         if (!worldPoint) return;
         event.preventDefault();
+        renderer.domElement.focus({ preventScroll: true });
         const point = resolveSnap(event, localPoint(worldPoint), rect, { anchor: polylineDraft?.lastPoint }).point;
-        sketchPointRef.current?.([Number(point[0].toFixed(3)), Number(point[1].toFixed(3))]);
+        const roundedPoint = [Number(point[0].toFixed(3)), Number(point[1].toFixed(3))];
+        sketchPointerMoveRef.current?.(roundedPoint);
+        sketchPointRef.current?.(roundedPoint);
         setSnapFeedback(null);
         return;
       }
@@ -1356,6 +1366,16 @@ export default function ModelViewport({
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
         if (!worldPoint) return;
         const point = resolveSnap(event, localPoint(worldPoint), rect, { anchor: polylineDraft?.lastPoint }).point;
+        const roundedPoint = [Number(point[0].toFixed(3)), Number(point[1].toFixed(3))];
+        sketchPointerMoveRef.current?.(roundedPoint);
+        const deltaX = point[0] - polylineDraft.lastPoint[0];
+        const deltaY = point[1] - polylineDraft.lastPoint[1];
+        setSketchDynamicLabel({
+          x: event.clientX - rect.left + 16,
+          y: event.clientY - rect.top - 12,
+          distance: Math.hypot(deltaX, deltaY),
+          angle: Math.atan2(deltaY, deltaX) * 180 / Math.PI,
+        });
         const position = sketchPreviewLine.geometry.getAttribute('position');
         const mapped = mapPlanePoint(point[0], point[1], activePlane, 0.09, activePlaneOffset);
         position.setXYZ(1, ...mapped);
@@ -1445,6 +1465,7 @@ export default function ModelViewport({
     renderer.domElement.addEventListener('pointercancel', onPointerUp);
     const onPointerLeave = () => {
       if (!sketchInteraction.drag && !sketchInteraction.box) setSnapFeedback(null);
+      setSketchDynamicLabel(null);
       setModelHover(null);
     };
     renderer.domElement.addEventListener('pointerleave', onPointerLeave);
@@ -1653,6 +1674,13 @@ export default function ModelViewport({
       {directEnabled && <div className="direct-extrude-hint">{directManipulator?.hint || 'Przeciągnij niebieską strzałkę, aby wyciągnąć profil'}</div>}
       {dragLabel && <div className="direct-dimension" style={{ left: dragLabel.x, top: dragLabel.y }}>{dragLabel.value.toFixed(1)} mm</div>}
       {sketchDragLabel && <div className="sketch-drag-dimension" style={{ left: sketchDragLabel.x, top: sketchDragLabel.y }}>ΔX {sketchDragLabel.dx.toFixed(1)} · ΔY {sketchDragLabel.dy.toFixed(1)} mm</div>}
+      {sketchDynamicLabel && activeSketchId && ['line', 'polyline'].includes(sketchTool) && polylineDraft?.lastPoint && (
+        <div className={`sketch-dynamic-input ${sketchDynamicLength ? 'typing' : ''}`} style={{ left: sketchDynamicLabel.x, top: sketchDynamicLabel.y }} role="status">
+          <strong>{sketchDynamicLength || sketchDynamicLabel.distance.toFixed(2)}</strong>
+          <span>mm</span>
+          <small>{sketchDynamicLabel.angle.toFixed(1)}°</small>
+        </div>
+      )}
       {snapFeedback && (
         <>
           <svg className="sketch-snap-guides" aria-hidden="true">
@@ -1702,7 +1730,7 @@ export default function ModelViewport({
       {activeSketchId && sliceModel && <div className="sketch-slice-badge">Slice · przekrój na {activePlane}</div>}
       {activeSketchId && draftType && <div className="sketch-pointer-hint">Kliknij środek, a następnie punkt rozmiaru</div>}
       {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
-      {activeSketchId && sketchTool && <div className="sketch-pointer-hint">{sketchToolPrompt || 'Klikaj kolejne punkty'} · Alt chwilowo wyłącza snap · Enter lub prawy przycisk kończy · Escape anuluje</div>}
+      {activeSketchId && sketchTool && <div className="sketch-pointer-hint">{sketchToolPrompt || 'Klikaj kolejne punkty'} · Alt chwilowo wyłącza snap · {sketchTool === 'line' && polylineDraft?.lastPoint ? 'Wpisz długość i Enter albo kliknij koniec' : 'Enter lub prawy przycisk kończy'} · Escape anuluje</div>}
       {activeSketchId && !sketchTool && !draftType && !sketchModifierMode && <div className="sketch-pointer-hint">Kliknij lub przeciągnij geometrię · Ctrl/Shift wybiera wiele · przeciągnij tło, aby wybrać oknem</div>}
     </div>
   );
