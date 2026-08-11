@@ -1,12 +1,11 @@
-# EULA / Binary Notice
+# MadCAD — EULA
 
-Binarne wydania aplikacji MadCAD (np. `.app`, instalator `.exe`) są udostępniane na zasadach MadCAD Private Use License:
+Pełne warunki: [`../LICENSE`](../LICENSE).
 
-- użytek prywatny i niezarobkowy jest bezpłatny,
-- użytek komercyjny wymaga odrębnej pisemnej licencji i opłaty,
-- darowizna nie zastępuje licencji komercyjnej.
+- Bezpłatnie bez limitu czasu dla prywatnego, edukacyjnego i niezarobkowego użytku osoby fizycznej.
+- 40 dni bezpłatnej oceny w firmie lub organizacji.
+- Potem płatna, bezterminowa licencja dla każdego stanowiska używanego zawodowo lub komercyjnie.
+- Bez klucza i aktywacji; dokument zakupu potwierdza licencję.
+- Darowizna nie zastępuje licencji komercyjnej.
 
-Pełny tekst licencji:
-
-- [`LICENSE`](./LICENSE)
-- [`../LICENSE`](../LICENSE)
+Kontakt: [kkasprzak15@icloud.com](mailto:kkasprzak15@icloud.com?subject=MadCAD%20-%20licencja%20komercyjna).

@@ -355,7 +355,7 @@ async function runUiFlow(window) {
 
   progress('first printable part tutorial');
   await clickByTitle('Samouczek pierwszej części');
-  await waitForUi(window, `document.querySelectorAll('.tutorial-body ol li').length === 8 && document.querySelectorAll('.tutorial-body aside li').length >= 6`, 'samouczek i ograniczenia alpha');
+  await waitForUi(window, `document.querySelectorAll('.tutorial-body ol li').length === 8 && document.querySelectorAll('.tutorial-body aside li').length >= 6`, 'samouczek i znane ograniczenia');
   const tutorial = await window.webContents.executeJavaScript(`({ steps: document.querySelectorAll('.tutorial-body ol li').length, limitations: document.querySelectorAll('.tutorial-body aside li').length })`);
   await sendKey('Escape');
   await waitForUi(window, `!document.querySelector('.tutorial-dialog')`, 'zamknięty samouczek');
@@ -2417,17 +2417,20 @@ app.whenReady().then(async () => {
       return {
         visible: Boolean(dialog),
         shownAtStartup: Boolean(dialog),
-        explainsNoKey: /nie wymaga klucza|does not require a key/i.test(text),
-        privateUseOnly: /wyłącznie do użytku prywatnego|only for private/i.test(text),
+        explainsNoKey: /nie ma klucza ani aktywacji|there is no key or activation/i.test(text),
+        privateUseOnly: /bez limitu czasu do użytku prywatnego|free without a time limit for private/i.test(text),
         commercialPaid: /komercyjny jest płatny|commercial use requires payment/i.test(text),
+        commercialTrial: /40 dni|40 days/i.test(text),
+        perpetualPerSeat: /bezterminowej licencji na każde stanowisko|perpetual license for every workstation/i.test(text),
+        purchaseProof: /dokument zakupu|purchase document/i.test(text),
         donationNotCommercial: /darowizna.+nie zastępuje licencji komercyjnej|donation.+does not replace a commercial license/i.test(text),
         hasTokenInput: Boolean(dialog?.querySelector('input, textarea')),
         links: dialog?.querySelectorAll('a').length || 0,
         continueVisible: Boolean([...dialog?.querySelectorAll('button') || []].some((button) => /Przejdź do programu|Continue to MadCAD/i.test(button.textContent))),
       };
     })()`);
-    if (!licenseDialog.visible || !licenseDialog.shownAtStartup || !licenseDialog.explainsNoKey || !licenseDialog.privateUseOnly || !licenseDialog.commercialPaid || !licenseDialog.donationNotCommercial || licenseDialog.hasTokenInput || licenseDialog.links < 2 || !licenseDialog.continueVisible) {
-      throw new Error(`Okno licencji nie wyjaśnia zasad prywatnych, komercyjnych i darowizny: ${JSON.stringify(licenseDialog)}.`);
+    if (!licenseDialog.visible || !licenseDialog.shownAtStartup || !licenseDialog.explainsNoKey || !licenseDialog.privateUseOnly || !licenseDialog.commercialPaid || !licenseDialog.commercialTrial || !licenseDialog.perpetualPerSeat || !licenseDialog.purchaseProof || !licenseDialog.donationNotCommercial || licenseDialog.hasTokenInput || licenseDialog.links < 2 || !licenseDialog.continueVisible) {
+      throw new Error(`Okno licencji nie wyjaśnia zasad prywatnych, 40-dniowej oceny, licencji stanowiskowej i darowizny: ${JSON.stringify(licenseDialog)}.`);
     }
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.license-info-dialog button')].find((button) => /Przejdź do programu|Continue to MadCAD/i.test(button.textContent))?.click()`);
     await waitForUi(window, `!document.querySelector('.license-info-dialog')`, 'zamknięcie okna informacji o licencji');

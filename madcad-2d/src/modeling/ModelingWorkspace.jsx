@@ -386,25 +386,26 @@ export function LicenseInfoDialog({ onClose }) {
       <section className="license-info-dialog" role="dialog" aria-modal="true" aria-labelledby="licenseInfoTitle">
         <header>
           <div>
-            <strong id="licenseInfoTitle">Licencja prywatna i wsparcie</strong>
+            <strong id="licenseInfoTitle">Licencja MadCAD</strong>
             <span>Przed rozpoczęciem pracy sprawdź zasady korzystania z MadCAD.</span>
           </div>
           <button type="button" title="Zamknij" aria-label="Zamknij" onClick={onClose}><X size={17} /></button>
         </header>
         <div className="license-info-body">
-          <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny wyłącznie do użytku prywatnego i niezarobkowego.</p>
+          <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.</p>
           <div className="license-info-card license-info-commercial">
             <strong>Użytek komercyjny jest płatny</strong>
             <ul>
-              <li>Praca zarobkowa, firmowa, usługowa, produkcyjna lub dla klienta wymaga odrębnej pisemnej licencji komercyjnej i opłaty.</li>
+              <li>Firma lub organizacja może bezpłatnie oceniać pełną wersję przez 40 dni.</li>
+              <li>Po okresie oceny praca firmowa, zarobkowa lub dla klienta wymaga bezterminowej licencji na każde stanowisko.</li>
+              <li>Nie ma klucza ani aktywacji — licencję potwierdza dokument zakupu.</li>
               <li>Dobrowolna darowizna wspiera rozwój, ale nie zastępuje licencji komercyjnej.</li>
-              <li>Aplikacja nie wymaga klucza ani tokenu — obowiązują jednak warunki pełnej licencji.</li>
             </ul>
           </div>
           <p className="license-info-support-copy">Jeśli używasz MadCAD prywatnie i program jest dla Ciebie pomocny, możesz wesprzeć jego dalszy rozwój darowizną.</p>
           <div className="license-info-actions">
             <a href="https://github.com/kamil5646/MadCAD2D/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Pełna treść licencji</a>
-            <a href="https://github.com/kamil5646" target="_blank" rel="noopener noreferrer">Licencja komercyjna</a>
+            <a href="mailto:kkasprzak15@icloud.com?subject=MadCAD%20-%20licencja%20komercyjna">Kup licencję komercyjną</a>
             <a className="support" href="https://paypal.me/refek1" target="_blank" rel="noopener noreferrer">Przekaż darowiznę</a>
             <button className="confirm" type="button" onClick={onClose} autoFocus>Przejdź do programu</button>
           </div>

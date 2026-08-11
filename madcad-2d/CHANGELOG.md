@@ -1,15 +1,17 @@
 # Changelog
 
-## Unreleased
+## 6.1.0 (2026-08-11)
 
 - Dodano wejście dynamiczne w stylu AutoCAD dla linii: kliknięcie ustala początek, kursor kierunek, a wpisana długość zatwierdzona Enterem tworzy dokładny odcinek.
 - Dodano podpowiedzi funkcji po najechaniu lub ustawieniu fokusu: każda funkcja pokazuje opis działania i skrót, a aliasy CAD można wpisywać z klawiatury i zatwierdzać Enterem albo spacją.
-- Doprecyzowano licencję: bezpłatny jest wyłącznie użytek prywatny i niezarobkowy, a użytek komercyjny wymaga odrębnej płatnej licencji.
+- Wprowadzono MadCAD Personal and Commercial License 3.0: użytek prywatny jest bezpłatny bez limitu czasu, organizacje otrzymują 40 dni oceny, a późniejszy użytek komercyjny wymaga bezterminowej licencji na stanowisko.
 - Dodano wyświetlane przy każdym uruchomieniu przypomnienie o licencji prywatnej i dobrowolnym wsparciu projektu.
 - Rozszerzono szkicowanie bezpośrednio myszą: figury powstają z kolejnych wskazań na płótnie, a formularz pozostaje opcjonalnym wejściem dokładnym.
 - Usunięto stary interfejs 2D oraz jego nieużywaną warstwę CSS i kod uruchomieniowy.
 - Usunięto aktywację tokenem, identyfikator urządzenia i okno licencyjne wyświetlane przy starcie.
 - Dodano proste okno informacji o licencji bez klucza oraz poprawiono integrację nowego interfejsu z menu desktopowym.
+- Przebudowano stronę GitHub Pages, README, dokumentację prawną i opisy wydania dla stabilnej wersji 6.1.
+- Usunięto nieużywany generator tokenów, panel administratora, rejestr licencji i worker Cloudflare.
 
 ## 6.0.1 (2026-08-11)
 

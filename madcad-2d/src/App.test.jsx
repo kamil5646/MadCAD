@@ -12,13 +12,17 @@ describe('App', () => {
     expect(document.getElementById('licenseTokenInput')).toBeNull();
   });
 
-  it('shows the private-use and commercial-license reminder without a key field', () => {
+  it('shows the private-use, evaluation, and commercial-license terms without a key field', () => {
     render(<LicenseInfoDialog onClose={() => {}} />);
-    const dialog = screen.getByRole('dialog', { name: /Licencja prywatna i wsparcie/i });
-    expect(dialog).toHaveTextContent(/bezpłatny wyłącznie do użytku prywatnego/i);
+    const dialog = screen.getByRole('dialog', { name: /Licencja MadCAD/i });
+    expect(dialog).toHaveTextContent(/bezpłatny bez limitu czasu do użytku prywatnego/i);
+    expect(dialog).toHaveTextContent(/oceniać pełną wersję przez 40 dni/i);
     expect(dialog).toHaveTextContent(/Użytek komercyjny jest płatny/i);
+    expect(dialog).toHaveTextContent(/bezterminowej licencji na każde stanowisko/i);
+    expect(dialog).toHaveTextContent(/licencję potwierdza dokument zakupu/i);
     expect(dialog).toHaveTextContent(/darowizna wspiera rozwój, ale nie zastępuje licencji komercyjnej/i);
     expect(dialog.querySelector('input, textarea')).toBeNull();
+    expect(screen.getByRole('link', { name: /Kup licencję komercyjną/i })).toHaveAttribute('href', expect.stringMatching(/^mailto:kkasprzak15@icloud\.com/));
     expect(screen.getByRole('button', { name: /Przejdź do programu/i })).toBeInTheDocument();
   });
 });

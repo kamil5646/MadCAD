@@ -1,6 +1,6 @@
 {
   "name": "madcad-desktop",
-  "version": "6.1.0-alpha.3",
+  "version": "6.1.0",
   "description": "Desktopowa aplikacja CAD 2D/3D MadCAD do projektowania technicznego i druku 3D.",
   "repository": {
     "type": "git",
@@ -18,6 +18,7 @@
     "verify:electron-security": "electron scripts/verify-electron-security.cjs",
     "verify:package": "node scripts/verify-package.cjs",
     "verify:release-version": "node scripts/verify-release-version.cjs",
+    "verify:repository": "node scripts/verify-repository.cjs",
     "checksums:package": "node scripts/create-package-checksums.cjs",
     "test:core": "node --test tests/cad-core.test.mjs",
     "lint": "eslint . --max-warnings=0",
@@ -55,6 +56,9 @@
     "files": [
       "dist/**/*",
       "LICENSE",
+      "EULA.md",
+      "COPYRIGHT.md",
+      "PRIVACY.md",
       "electron/**/*",
       "README.md",
       "FIRST_PART.md",
@@ -72,6 +76,10 @@
       }
     ],
     "extraResources": [
+      {
+        "from": "../LICENSE",
+        "to": "LICENSE-FULL.txt"
+      },
       {
         "from": "tools/oda",
         "to": "tools/oda",

@@ -43,6 +43,10 @@ jobs:
         working-directory: madcad-2d
         run: npm run verify:release-version -- "$GITHUB_REF_NAME"
 
+      - name: Verify repository, website and licensing metadata
+        working-directory: madcad-2d
+        run: npm run verify:repository
+
       - name: Lint source
         working-directory: madcad-2d
         run: npm run lint
@@ -62,18 +66,6 @@ jobs:
       - name: Build UI
         working-directory: madcad-2d
         run: npm run build:ui
-
-      - name: Install worker dependencies
-        working-directory: cloudflare/license-registry-worker
-        run: npm ci
-
-      - name: Audit worker dependencies
-        working-directory: cloudflare/license-registry-worker
-        run: npm audit --audit-level=high
-
-      - name: Test worker
-        working-directory: cloudflare/license-registry-worker
-        run: npm test
 
   release:
     name: Verified release build on ${{ matrix.os }}

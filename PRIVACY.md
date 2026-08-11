@@ -1,35 +1,27 @@
-# Polityka prywatności
+# Polityka prywatności MadCAD
 
-## MadCAD
+Ostatnia aktualizacja: 11 sierpnia 2026 r.
 
-Data aktualizacji: 2026-03-01
+MadCAD jest aplikacją desktopową działającą lokalnie. Domyślnie nie wymaga
+konta, klucza, aktywacji ani podawania danych osobowych.
 
-MadCAD jest aplikacją desktopową działającą lokalnie na komputerze użytkownika.
+## Dane w aplikacji
 
-## 1. Jakie dane są przetwarzane
+- Projekty `.madcad`, importowane modele, ustawienia i autozapis są przetwarzane lokalnie na urządzeniu użytkownika.
+- MadCAD nie wysyła telemetrii ani treści projektów do autora.
+- Funkcja sprawdzania aktualizacji pobiera publiczne informacje o wydaniach z GitHuba; GitHub może przetwarzać standardowe dane połączenia zgodnie ze swoją polityką.
+- Otwarcie zewnętrznych linków do dokumentacji, zakupu licencji lub darowizny następuje dopiero po działaniu użytkownika i podlega polityce odpowiedniego serwisu.
 
-Aplikacja standardowo przetwarza wyłącznie dane projektowe użytkownika zapisane lokalnie, np.:
+## Strona projektu
 
-- pliki rysunków (`JSON`, `DXF`, `SVG`),
-- ustawienia aplikacji i bieżącej sesji.
+Strona na GitHub Pages jest hostowana przez GitHub i nie zawiera własnej
+analityki, reklam ani formularzy śledzących. GitHub może przetwarzać standardowe
+dane połączenia zgodnie ze swoją polityką. Strona MadCAD nie prowadzi generatora
+kluczy, rejestru urządzeń ani bazy licencji.
 
-## 2. Telemetria i analityka
+## Odpowiedzialność użytkownika
 
-Domyślnie aplikacja nie wysyła telemetrii ani statystyk użytkowania do zewnętrznych serwerów.
+Użytkownik odpowiada za kopie zapasowe, ochronę swojego urządzenia oraz legalność
+danych umieszczanych w projektach.
 
-## 3. Udostępnianie danych
-
-Aplikacja nie udostępnia automatycznie danych projektowych osobom trzecim.
-
-## 4. Odpowiedzialność użytkownika
-
-Użytkownik odpowiada za:
-
-- bezpieczne przechowywanie własnych plików,
-- wykonywanie kopii zapasowych,
-- ochronę danych w swoim środowisku (np. dysk, konto systemowe).
-
-## 5. Kontakt
-
-W razie pytań dotyczących prywatności:  
-https://github.com/kamil5646
+Kontakt w sprawach prywatności: [kkasprzak15@icloud.com](mailto:kkasprzak15@icloud.com).

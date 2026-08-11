@@ -1,12 +1,12 @@
 # MadCAD — aktywny plan rozwoju
 
-Aktualizacja: 2026-08-09
-Wersja: `6.0.0-alpha.1`
-Gałąź: `agent/madcad-vnext-core`
+Aktualizacja: 2026-08-11
+Wersja bazowa: `6.1.0 stable`
+Gałąź wydania: `main`
 
 Ten plik zawiera wyłącznie aktywną ścieżkę do używalnego modelera części przeznaczonych do druku 3D. Historia ukończonych prac znajduje się w [DONE.md](./DONE.md), a dalszy zakres produktu w [BACKLOG.md](./BACKLOG.md).
 
-## Cel najbliższego wydania
+## Osiągnięty zakres wydania 6.1
 
 Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechaniczną, szkicuje również na ścianie, wykonuje podstawowe operacje bryłowe na wskazanej geometrii, sprawdza model i eksportuje go w skali 1:1 do STEP/STL/3MF.
 
@@ -45,7 +45,7 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 | 7 | M7 Otwory i gwinty MVP | `[x]` | M3, M5, M6 | proste/counterbore/countersink otwory i podstawowy gwint metryczny |
 | 8 | M8 Inspect MVP | `[x]` | M3, M6 | Measure, Section, objętość, pole, masa i środek masy |
 | 9 | M9 Przygotowanie druku MVP | `[x]` | M6–M8 | orientacja, STEP/STL/3MF, skala 1:1, manifold, grubość, nawisy i przekazanie do slicera |
-| 10 | M10 Wydanie alpha/beta | `[x]` | M1–M9 | instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS |
+| 10 | M10 Wydanie stabilne | `[x]` | M1–M9 | instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS |
 
 ## M4 — geometria konstrukcyjna MVP `P0`
 
@@ -119,7 +119,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] Budżety wydajności pickingu, meshowania i długiej historii są mierzone w testach core i desktop E2E.
 - [x] PL/EN, dostępność klawiatury i fokusu, DPI 100–200% oraz bezpieczny powrót okna po odłączeniu monitora są testowane.
 - [x] Kanały alpha/beta/stable, SHA-256, wymagany podpis paczek release, rollback instalacji macOS i updater ignorujący niezaufany adres z renderera.
-- [x] Wbudowany samouczek „pierwsza część do druku” ma ścieżkę PL/EN i jawną listę znanych ograniczeń alpha.
+- [x] Wbudowany samouczek „pierwsza część do druku” ma ścieżkę PL/EN i jawną listę znanych ograniczeń.
 
 ## P1 — rozszerzenie modelowania części
 

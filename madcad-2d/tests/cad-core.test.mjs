@@ -1413,7 +1413,7 @@ test('kanały aktualizacji respektują semver, zaufane hosty i integralność SH
   assert.equal(updatePolicy.verifyBufferChecksum(Buffer.from('tampered'), hash), false);
 });
 
-test('samouczek PL/EN prowadzi do eksportu i jawnie wymienia ograniczenia alpha', () => {
+test('samouczek PL/EN prowadzi do eksportu i jawnie wymienia znane ograniczenia', () => {
   for (const language of ['pl', 'en']) {
     const tutorial = tutorialForLanguage(language);
     assert.equal(tutorial.steps.length, 8);
