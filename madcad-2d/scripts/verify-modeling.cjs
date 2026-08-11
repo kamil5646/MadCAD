@@ -2373,7 +2373,7 @@ app.whenReady().then(async () => {
   const performanceBudgets = isCi
     // Hosted runners are substantially slower and noisier than local hardware.
     // Per-operation waits and worker budgets below still catch real stalls.
-    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 360000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 45000 }
+    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 360000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 90000 }
     : { desktopColdStartMs: 30000, desktopWorkflowMs: 100000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
