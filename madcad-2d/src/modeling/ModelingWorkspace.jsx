@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Box,
@@ -141,39 +141,79 @@ const TOOL_DESCRIPTIONS = {
   'Elipsa': 'Utwórz dokładną, obróconą elipsę z dwóch promieni.',
   'Slot': 'Utwórz zamknięty slot przez środki łuków albo długość całkowitą.',
   'Spline': 'Utwórz krzywą przez punkty dopasowania albo punkty kontrolne.',
+  'Conic': 'Utwórz krzywą stożkową przez początek, punkt kontrolny i koniec.',
   'Punkt': 'Dodaj punkt referencyjny otworu albo punkt konstrukcyjny.',
   'Linia': 'Utwórz pojedynczy segment przez dwa punkty albo przez dokładną długość i kąt.',
   'Polilinia': 'Rysuj ciąg segmentów; kliknij punkt początkowy, aby zamknąć profil.',
   'Łuk styczny': 'Kontynuuj polilinię łukiem stycznym do poprzedniego segmentu.',
+  'Thin Extrude': 'Wyciągnij otwarty łańcuch szkicu jako cienkościenną bryłę.',
+  'Rib/Web': 'Utwórz żebro albo ściankę z otwartego profilu szkicu.',
+  'Pipe': 'Utwórz pusty przewód wzdłuż zaznaczonej otwartej ścieżki.',
+  'Import SVG/DXF': 'Wczytaj geometrię SVG lub DXF bezpośrednio do aktywnego szkicu.',
+  'Trim': 'Przytnij wskazany fragment krzywej do najbliższych przecięć.',
+  'Extend': 'Przedłuż wskazany koniec krzywej do najbliższej geometrii.',
+  'Break': 'Podziel wskazaną krzywą w wybranym punkcie.',
   'Przesuń': 'Przesuń zaznaczone punkty lub segmenty przeciągnięciem albo dokładnym ΔX i ΔY.',
   'Offset': 'Utwórz równoległą kopię zaznaczonej krzywej, łańcucha lub profilu; znak odległości wybiera stronę.',
   'Fillet szkicu': 'Zaokrąglij wspólny narożnik dokładnie dwóch zaznaczonych linii.',
   'Faza szkicu': 'Zetnij wspólny narożnik dokładnie dwóch zaznaczonych linii.',
   'Transformuj': 'Obróć, skopiuj, odbij lub przeskaluj zaznaczoną geometrię szkicu.',
+  'Szyk szkicu': 'Powiel zaznaczoną geometrię w szyku prostokątnym, kołowym albo po ścieżce.',
   'Project': 'Przenieś wskazane wierzchołki i krawędzie modelu do szkicu jako trwale powiązaną geometrię.',
   'Usuń': 'Usuń zaznaczoną geometrię oraz bezpiecznie zależne profile i operacje.',
   'Zakończ szkic': 'Zamknij edycję szkicu i wróć do modelowania bryły.',
+  'Współliniowe': 'Wymuś położenie dwóch wybranych linii na jednej prostej.',
+  'Symetria': 'Utwórz więz symetrii dla wybranej geometrii względem osi.',
+  'Krzywizna G2': 'Nadaj ciągłość krzywizny G2 pomiędzy zgodnymi krzywymi.',
+  'Ordinate X': 'Dodaj wymiar współrzędnej X wybranego punktu.',
+  'Ordinate Y': 'Dodaj wymiar współrzędnej Y wybranego punktu.',
+  'Długość łuku': 'Dodaj sterujący wymiar długości wybranego łuku.',
   'Wyciągnij': 'Wyciągnij zaznaczony profil w bryłę; możesz też przeciągnąć niebieską strzałkę.',
+  'Revolve': 'Obróć profil wokół wskazanej osi i utwórz bryłę obrotową.',
+  'Sweep': 'Przeciągnij profil wzdłuż osobnej ścieżki szkicu.',
+  'Loft': 'Połącz dwa profile płynną albo odcinkową bryłą przejściową.',
+  'Coil': 'Utwórz parametryczną spiralę lub sprężynę wokół osi.',
+  'Pattern': 'Powiel wybraną bryłę w szyku prostokątnym, kołowym albo po ścieżce.',
+  'Press Pull': 'Wyciągnij lub wciśnij wybrany profil albo płaską ścianę.',
+  'Prymityw': 'Utwórz dokładny box, walec, sferę albo torus.',
+  'Tekst 3D': 'Utwórz tekst jako nową bryłę, wypukłość albo grawer.',
   'Boolean': 'Połącz, odejmij albo pozostaw część wspólną dwóch wskazanych brył.',
   'Otwór': 'Wytnij cylindryczny otwór z zaznaczonego profilu okręgu.',
   'Zaokrąglij': 'Zaokrąglij krawędzie zaznaczonej bryły podanym promieniem.',
   'Fazuj': 'Zetnij ostre krawędzie zaznaczonej bryły podaną odległością.',
+  'Shell': 'Usuń wskazane ściany i nadaj bryle określoną grubość ścianki.',
+  'Draft': 'Pochyl wskazane ściany względem płaszczyzny neutralnej.',
+  'Split Body': 'Podziel wybraną bryłę wskazaną płaszczyzną.',
+  'Split Face': 'Podziel ścianę geometrią wybranego profilu.',
+  'Delete Face + Heal': 'Usuń wskazane ściany i automatycznie napraw sąsiednią geometrię.',
+  'Replace Face': 'Zastąp jedną ścianę powierzchnią drugiej wskazanej ściany.',
+  'Offset Face': 'Przesuń wskazaną ścianę o dokładną odległość.',
+  'Przesuń bryłę': 'Przesuń wybraną bryłę o dokładny wektor.',
+  'Obróć bryłę': 'Obróć wybraną bryłę o zadany kąt.',
   'Edytuj': 'Otwórz parametry zaznaczonego szkicu, profilu lub kroku historii.',
   'Parametry': 'Dodaj i zmień nazwane wymiary sterujące modelem.',
   'Płaszczyzna offset': 'Utwórz nazwaną płaszczyznę konstrukcyjną w parametrycznej odległości od XY, XZ albo YZ.',
   'Midplane': 'Utwórz płaszczyznę dokładnie pośrodku dwóch równoległych położeń.',
   'Plane 3 punkty': 'Utwórz płaszczyznę przechodzącą przez trzy niewspółliniowe punkty 3D.',
+  'Plane angle': 'Utwórz płaszczyznę obróconą o zadany kąt wokół osi.',
+  'Plane tangent': 'Utwórz płaszczyznę styczną do walca albo sfery.',
+  'Plane path': 'Utwórz płaszczyznę prostopadłą do ścieżki w zadanym punkcie.',
   'Oś z krawędzi': 'Utwórz trwałą oś z wybranej prostej krawędzi albo jej końców.',
   'Oś walca': 'Utwórz oś walca lub cylindrycznej ściany ze środka i kierunku.',
   'Oś 2 punkty': 'Utwórz parametryczną oś przechodzącą przez dwa punkty 3D.',
   'Oś przecięcia': 'Utwórz oś na linii przecięcia dwóch nazwanych płaszczyzn konstrukcyjnych.',
+  'Oś normalna': 'Utwórz oś prostopadłą do wybranej płaszczyzny.',
   'Punkt wierzchołka': 'Utwórz punkt śledzący trwały wierzchołek bryły albo dokładne współrzędne.',
   'Punkt centrum': 'Utwórz punkt w centrum wybranej krawędzi, ściany lub walca.',
   'Punkt przecięcia': 'Utwórz punkt w dokładnym przecięciu osi konstrukcyjnej z płaszczyzną.',
+  'Punkt środkowy': 'Utwórz punkt dokładnie pośrodku dwóch zadanych punktów.',
+  'Punkt na osi': 'Utwórz punkt w podanej odległości wzdłuż osi konstrukcyjnej.',
   'Otwórz': 'Wczytaj zapisany projekt MadCAD z dysku.',
   'Wybierz': 'Wyczyść zaznaczenie i wróć do trybu wyboru obiektów.',
   'STL': 'Eksportuj siatkę gotową do programu przygotowującego druk 3D.',
   'STEP': 'Eksportuj dokładną bryłę B-Rep do wymiany z innymi programami CAD.',
+  '3MF': 'Eksportuj model i jego jednostki do archiwum 3MF.',
+  'Import 3D': 'Wczytaj model STEP, STL albo 3MF do bieżącego projektu.',
   'Druk 3D': 'Otwórz kontrolę gabarytów i ustawień eksportu do druku 3D.',
   'Kontrola druku': 'Sprawdź, czy model mieści się na stole drukarki.',
   'Zmierz': 'Pokaż dokładne wymiary zaznaczonej bryły, ściany, krawędzi, wierzchołka albo pary elementów.',
@@ -181,6 +221,25 @@ const TOOL_DESCRIPTIONS = {
   'Masa': 'Oblicz objętość, pole, masę i środek masy dla zadanej gęstości materiału.',
   'Analiza': 'Sprawdź minimalny promień oraz dokładne kolizje pomiędzy bryłami.',
 };
+
+const TOOL_SHORTCUTS = Object.freeze({
+  'Utwórz szkic': 'SK', 'Linia': 'L', 'Polilinia': 'PL', 'Łuk styczny': 'TA', 'Łuk': 'A', 'Prostokąt': 'REC', 'Okrąg': 'C', 'Wielokąt': 'POL', 'Elipsa': 'EL', 'Slot': 'SL', 'Spline': 'SPL', 'Conic': 'CON', 'Punkt': 'PO',
+  'Thin Extrude': 'TEX', 'Rib/Web': 'RIB', 'Pipe': 'PIPE', 'Import SVG/DXF': 'DXF', 'Wybierz': 'ESC', 'Trim': 'TR', 'Extend': 'EX', 'Break': 'BR', 'Project': 'PR', 'Offset': 'O', 'Fillet szkicu': 'F', 'Faza szkicu': 'CHA', 'Transformuj': 'TRF', 'Szyk szkicu': 'ARRAY', 'Przesuń': 'M', 'Usuń': 'DEL',
+  'Współliniowe': 'COL', 'Symetria': 'SYM', 'Krzywizna G2': 'G2', 'Ordinate X': 'DOX', 'Ordinate Y': 'DOY', 'Długość łuku': 'DAR', 'Zakończ szkic': 'CTRL+ENTER',
+  'Wyciągnij': 'EXT', 'Revolve': 'REV', 'Sweep': 'SW', 'Loft': 'LOFT', 'Coil': 'COIL', 'Pattern': 'ARRAY3D', 'Press Pull': 'PP', 'Prymityw': 'BOX', 'Tekst 3D': 'TXT', 'Boolean': 'BOL', 'Otwór': 'H',
+  'Zaokrąglij': 'FE', 'Fazuj': 'CE', 'Shell': 'SHELL', 'Draft': 'DRAFT', 'Split Body': 'SLICE', 'Split Face': 'SPLITFACE', 'Delete Face + Heal': 'HEAL', 'Replace Face': 'RF', 'Offset Face': 'OF', 'Przesuń bryłę': 'MOVE3D', 'Obróć bryłę': 'ROTATE3D', 'Edytuj': 'ED',
+  'Płaszczyzna offset': 'OP', 'Midplane': 'MID', 'Plane 3 punkty': '3P', 'Plane angle': 'PA', 'Plane tangent': 'PT', 'Plane path': 'PATHP', 'Oś z krawędzi': 'AXE', 'Oś walca': 'AXC', 'Oś 2 punkty': 'AX2', 'Oś przecięcia': 'AXI', 'Oś normalna': 'AXN', 'Punkt wierzchołka': 'PV', 'Punkt centrum': 'PC', 'Punkt przecięcia': 'PI', 'Punkt środkowy': 'PM', 'Punkt na osi': 'PAX', 'Parametry': 'PARAM',
+  'Zmierz': 'DI', 'Przekrój': 'SEC', 'Masa': 'MASSPROP', 'Analiza': 'ANALYZE', 'Import 3D': 'IMPORT', 'STL': 'STL', 'STEP': 'STEP', '3MF': '3MF', 'Druk 3D': 'PRINT3D', 'Kontrola druku': 'CHECK3D',
+});
+
+const ToolHelpContext = React.createContext(null);
+
+function shortcutLabel(shortcut) {
+  if (shortcut === 'ESC') return 'Esc';
+  if (shortcut === 'DEL') return 'Del';
+  if (shortcut === 'CTRL+ENTER') return 'Ctrl+Enter';
+  return `${shortcut} ↵`;
+}
 
 function loadInitialDocument() {
   try {
@@ -253,18 +312,36 @@ function safeName(value) {
 
 function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = false, compact = false, title, description }) {
   const help = description || title || TOOL_DESCRIPTIONS[label] || label;
+  const shortcut = TOOL_SHORTCUTS[label] || null;
+  const toolHelp = React.useContext(ToolHelpContext);
+  useEffect(() => {
+    if (!shortcut || ['ESC', 'DEL', 'CTRL+ENTER'].includes(shortcut)) return undefined;
+    return toolHelp?.registerShortcut(shortcut, { label, onClick, disabled });
+  }, [disabled, label, onClick, shortcut, toolHelp]);
+  const showHelp = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    toolHelp?.setToolHelp({
+      label,
+      help,
+      shortcut: shortcut ? shortcutLabel(shortcut) : 'Brak skrótu',
+      x: Math.min(window.innerWidth - 184, Math.max(184, rect.left + (rect.width / 2))),
+      y: rect.bottom + 8,
+    });
+  };
   return (
-    <button
-      className={`ribbon-tool ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={help}
-      aria-label={`${label}. ${help}`}
-    >
-      <span className="ribbon-icon" aria-hidden="true"><Icon size={compact ? 18 : 25} strokeWidth={1.55} /></span>
-      <span className="ribbon-label">{label}</span>
-    </button>
+    <span className="ribbon-tool-wrap" onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
+      <button
+        className={`ribbon-tool ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        title={`${help}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`}
+        aria-label={`${label}. ${help}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`}
+      >
+        <span className="ribbon-icon" aria-hidden="true"><Icon size={compact ? 18 : 25} strokeWidth={1.55} /></span>
+        <span className="ribbon-label">{label}</span>
+      </button>
+    </span>
   );
 }
 
@@ -1074,6 +1151,8 @@ export default function ModelingWorkspace() {
   const [selection, setSelection] = useState({ kind: 'document', id: document.id });
   const [activeSketchId, setActiveSketchId] = useState(null);
   const [command, setCommand] = useState(null);
+  const [toolHelp, setToolHelp] = useState(null);
+  const [shortcutBuffer, setShortcutBuffer] = useState('');
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(true);
   const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, profiles: true, points: true, dimensions: true, constraints: true, construction: true, projected: true, slice: false, sketch3d: false });
@@ -1083,8 +1162,18 @@ export default function ModelingWorkspace() {
   const sketchImportInputRef = useRef(null);
   const sketchPointerRef = useRef(null);
   const sketchDynamicLengthRef = useRef('');
+  const shortcutBufferRef = useRef('');
+  const shortcutRegistryRef = useRef(new Map());
   const [importDraft, setImportDraft] = useState(null);
   const [sketchImportDraft, setSketchImportDraft] = useState(null);
+  const registerShortcut = useCallback((shortcut, entry) => {
+    const alias = shortcut.toUpperCase();
+    shortcutRegistryRef.current.set(alias, entry);
+    return () => {
+      if (shortcutRegistryRef.current.get(alias) === entry) shortcutRegistryRef.current.delete(alias);
+    };
+  }, []);
+  const toolHelpContext = useMemo(() => ({ setToolHelp, registerShortcut }), [registerShortcut]);
   const readOnly = documentAccess.readOnly;
   useEffect(() => {
     if (command?.type !== 'sectionAnalysis' && sectionAnalysis) setSectionAnalysis(null);
@@ -3786,6 +3875,60 @@ export default function ModelingWorkspace() {
   useEffect(() => {
     const onKeyDown = (event) => {
       const textEntry = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName) || event.target?.isContentEditable;
+      const clearShortcutBuffer = () => {
+        shortcutBufferRef.current = '';
+        setShortcutBuffer('');
+      };
+      if (!textEntry && !command && event.ctrlKey && event.key === 'Enter' && activeSketchId) {
+        event.preventDefault();
+        clearShortcutBuffer();
+        finishSketch();
+        return;
+      }
+      if (!textEntry && !command && event.key === 'Escape') {
+        event.preventDefault();
+        if (shortcutBufferRef.current) {
+          clearShortcutBuffer();
+          setNotice('Anulowano wpisywanie skrótu polecenia.');
+        } else if (activeSketchId) {
+          handleSketchSelection([], 'replace');
+          setNotice('Wyczyszczono zaznaczenie szkicu.');
+        } else {
+          setSelection({ kind: 'document', id: document.id });
+          setNotice('Wyczyszczono zaznaczenie.');
+        }
+        return;
+      }
+      if (!textEntry && !command && (event.key === 'Enter' || event.key === ' ') && shortcutBufferRef.current) {
+        event.preventDefault();
+        const alias = shortcutBufferRef.current;
+        const entry = shortcutRegistryRef.current.get(alias);
+        clearShortcutBuffer();
+        setToolHelp(null);
+        if (!entry) {
+          setNotice(`Nieznany skrót „${alias}”. Najedź na funkcję, aby zobaczyć jej alias.`);
+        } else if (entry.disabled) {
+          setNotice(`Polecenie „${entry.label}” jest teraz niedostępne. Najpierw wybierz wymaganą geometrię.`);
+        } else {
+          entry.onClick?.();
+        }
+        return;
+      }
+      if (!textEntry && !command && event.key === 'Backspace' && shortcutBufferRef.current) {
+        event.preventDefault();
+        const next = shortcutBufferRef.current.slice(0, -1);
+        shortcutBufferRef.current = next;
+        setShortcutBuffer(next);
+        return;
+      }
+      if (!textEntry && !command && !event.ctrlKey && !event.metaKey && !event.altKey && /^[a-z0-9]$/i.test(event.key)) {
+        event.preventDefault();
+        const next = `${shortcutBufferRef.current}${event.key.toUpperCase()}`.slice(0, 16);
+        shortcutBufferRef.current = next;
+        setShortcutBuffer(next);
+        setNotice(`Polecenie: ${next} · Enter lub spacja uruchamia · Escape anuluje.`);
+        return;
+      }
       if (event.key === 'Escape' && command) {
         event.preventDefault();
         if (command.type === 'line' || command.type === 'polyline') finishSketchPath();
@@ -3904,6 +4047,7 @@ export default function ModelingWorkspace() {
       : null;
 
   return (
+    <ToolHelpContext.Provider value={toolHelpContext}>
     <section className="modeling-shell" aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
         <div className="app-menu"><div className="brand-mark" title="MadCAD">M</div><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button id="newProjectBtn" type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button id="openProjectBtn" type="button" title="Otwórz projekt" onClick={() => fileInputRef.current?.click()}><FolderOpen size={16} /></button><button id="saveProjectBtn" type="button" title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : 'Zapisz'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
@@ -4055,6 +4199,15 @@ export default function ModelingWorkspace() {
       </footer>
       {tutorialOpen && <FirstPartTutorial onClose={() => setTutorialOpen(false)} />}
       {licenseInfoOpen && <LicenseInfoDialog onClose={() => setLicenseInfoOpen(false)} />}
+      {toolHelp && (
+        <div className="tool-help-tooltip" role="tooltip" style={{ left: toolHelp.x, top: toolHelp.y }}>
+          <header><strong>{toolHelp.label}</strong><kbd>{toolHelp.shortcut}</kbd></header>
+          <p>{toolHelp.help}</p>
+          <small>Skróty poleceń wpisuj bezpośrednio i zatwierdzaj Enterem.</small>
+        </div>
+      )}
+      {shortcutBuffer && <div className="cad-command-input" role="status"><span>Polecenie</span><strong>{shortcutBuffer}</strong><small>Enter / spacja</small></div>}
     </section>
+    </ToolHelpContext.Provider>
   );
 }

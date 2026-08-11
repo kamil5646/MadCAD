@@ -432,6 +432,12 @@
   gap: 2px;
 }
 
+.ribbon-tool-wrap {
+  display: block;
+  min-width: 64px;
+  height: 61px;
+}
+
 .ribbon-group-label {
   position: absolute;
   right: 0;
@@ -447,6 +453,7 @@
 
 .ribbon-tool {
   display: grid;
+  width: 100%;
   min-width: 64px;
   height: 61px;
   grid-template-rows: 37px 18px;
@@ -457,6 +464,67 @@
   color: white;
   cursor: pointer;
 }
+
+.tool-help-tooltip {
+  position: fixed;
+  z-index: 40;
+  width: min(360px, calc(100vw - 24px));
+  padding: 10px 12px;
+  border: 1px solid #6b7887;
+  border-radius: 4px;
+  background: rgba(31, 40, 50, 0.98);
+  color: #e9f0f5;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.42);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.tool-help-tooltip header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tool-help-tooltip header strong { color: white; font-size: 13px; }
+.tool-help-tooltip kbd {
+  flex: 0 0 auto;
+  min-width: 40px;
+  padding: 3px 7px;
+  border: 1px solid #7594a4;
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: #344958;
+  color: #9ee8ff;
+  font: 700 10px/1.1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: center;
+}
+
+.tool-help-tooltip p { margin: 7px 0 5px; color: #d2dbe2; font-size: 11px; line-height: 1.45; }
+.tool-help-tooltip small { color: #91a1ad; font-size: 9px; }
+
+.cad-command-input {
+  position: fixed;
+  z-index: 35;
+  bottom: 35px;
+  left: 50%;
+  display: flex;
+  min-width: 260px;
+  height: 34px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border: 1px solid #59c5e7;
+  border-radius: 3px;
+  background: rgba(27, 38, 48, 0.97);
+  color: #dce8ee;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.35);
+  transform: translateX(-50%);
+}
+
+.cad-command-input span { color: #8fa0ad; font-size: 9px; text-transform: uppercase; }
+.cad-command-input strong { flex: 1; color: #fff3bc; font: 700 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.cad-command-input small { color: #7ecde6; font-size: 9px; }
 
 .ribbon-tool:hover:not(:disabled) {
   border-color: #65717d;

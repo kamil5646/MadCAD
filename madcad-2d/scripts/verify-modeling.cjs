@@ -1613,7 +1613,17 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny dla linii dynamicznej');
   await pickPlane('XY');
   await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view') && window.__madcadSketchLocalToScreen`, 'szkic linii dynamicznej');
-  await clickTool('Linia');
+  await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].every((button) => button.getAttribute('aria-label')?.includes('Skrót:'))`, 'opisy i skróty funkcji wstążki');
+  const lineToolPoint = await window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Linia');
+    const rect = button.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+  await sendMouse('mouseMove', lineToolPoint);
+  await waitForUi(window, `document.querySelector('.tool-help-tooltip')?.textContent.includes('Utwórz pojedynczy segment') && document.querySelector('.tool-help-tooltip kbd')?.textContent.includes('L')`, 'podpowiedź narzędzia Linia');
+  await sendKey('l');
+  await waitForUi(window, `document.querySelector('.cad-command-input strong')?.textContent === 'L'`, 'alias L w wierszu polecenia');
+  await sendKey('Enter');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'line'`, 'polecenie linii dynamicznej');
   const dynamicLineStart = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(0, 0)`);
   await sendMouse('mouseMove', dynamicLineStart);

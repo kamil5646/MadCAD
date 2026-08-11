@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Dodano wejście dynamiczne w stylu AutoCAD dla linii: kliknięcie ustala początek, kursor kierunek, a wpisana długość zatwierdzona Enterem tworzy dokładny odcinek.
+- Dodano podpowiedzi funkcji po najechaniu lub ustawieniu fokusu: każda funkcja pokazuje opis działania i skrót, a aliasy CAD można wpisywać z klawiatury i zatwierdzać Enterem albo spacją.
 - Doprecyzowano licencję: bezpłatny jest wyłącznie użytek prywatny i niezarobkowy, a użytek komercyjny wymaga odrębnej płatnej licencji.
 - Dodano wyświetlane przy każdym uruchomieniu przypomnienie o licencji prywatnej i dobrowolnym wsparciu projektu.
 - Rozszerzono szkicowanie bezpośrednio myszą: figury powstają z kolejnych wskazań na płótnie, a formularz pozostaje opcjonalnym wejściem dokładnym.
