@@ -1,8 +1,16 @@
-MadCAD Custom License
+MadCAD Personal and Commercial License 3.0
 
-Kanoniczna i aktualna treść licencji znajduje się w pliku:
+Pełna, wiążąca treść licencji jest dostarczana z wydaniem MadCAD i znajduje się
+w głównym pliku LICENSE oficjalnego repozytorium:
 
-- ../LICENSE
+https://github.com/kamil5646/MadCAD2D/blob/main/LICENSE
 
-Ten plik jest pozostawiony wyłącznie dla spójności pakowania aplikacji
-z katalogu madcad-2d.
+Najważniejsze zasady:
+- prywatny, edukacyjny i niezarobkowy użytek osoby fizycznej jest bezpłatny;
+- organizacja może oceniać program przez 40 dni;
+- dalszy użytek komercyjny wymaga płatnej, bezterminowej licencji na stanowisko;
+- program nie wymaga klucza ani aktywacji;
+- darowizna nie zastępuje licencji komercyjnej.
+
+Copyright (c) 2026 Kamil Kasprzak. Wszelkie prawa zastrzeżone.
+Kontakt: kkasprzak15@icloud.com

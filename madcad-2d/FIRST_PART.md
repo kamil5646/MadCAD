@@ -1,6 +1,6 @@
 # MadCAD — pierwsza część do druku / Your first printable part
 
-Aktualne dla `6.0.0-alpha.1`. Interaktywną wersję otwiera przycisk `?` w pasku modelera 3D.
+Aktualne dla `6.1.0`. Interaktywną wersję otwiera przycisk **Samouczek** w górnym pasku modelera.
 
 ## Ścieżka PL
 
@@ -26,9 +26,9 @@ Aktualne dla `6.0.0-alpha.1`. Interaktywną wersję otwiera przycisk `?` w pasku
 
 ## Znane ograniczenia / Known limitations
 
-- Revolve, Sweep, Loft, Draft, Rib, Coil i Pipe nie należą do zakresu P0.
+- Import i eksport DWG wymaga osobno zainstalowanego ODA File Converter.
 - STEP zachowuje dokładną geometrię; parametryczna edycja importowanych siatek STL/3MF jest ograniczona.
 - Analiza drukowalności opisuje ryzyko, a nie gwarancję wydruku.
 - Przekazanie do slicera wymaga zainstalowanego Bambu Studio, PrusaSlicer albo Cura.
 - Złożona zmiana historii może wymagać ręcznej naprawy referencji B-Rep.
-- Instalatory P0 obejmują Windows i macOS. Linux jest objęty testami core/build.
+- Oficjalne instalatory obejmują Windows i macOS. Linux jest objęty testami core/build.

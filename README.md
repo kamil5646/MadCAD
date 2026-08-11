@@ -1,105 +1,105 @@
-# MadCAD Desktop
+# MadCAD 6.1
 
-![MadCAD Banner](./docs/readme-banner.png)
+![MadCAD](./docs/readme-banner.png)
 
-![Release](https://img.shields.io/github/v/release/kamil5646/MadCAD2D?display_name=tag&label=release)
-![Platform](https://img.shields.io/badge/platform-macOS%20ARM64%20%7C%20Windows%20x64-1c7ed6)
-![UI](https://img.shields.io/badge/interface-PL%20%2F%20EN-2f9e44)
-[![Wsparcie projektu](https://img.shields.io/badge/Support-PayPal-00457C?logo=paypal&logoColor=white)](https://paypal.me/refek1)
+[![Release](https://img.shields.io/github/v/release/kamil5646/MadCAD2D?display_name=tag&label=stable)](https://github.com/kamil5646/MadCAD2D/releases/latest)
+[![CI](https://github.com/kamil5646/MadCAD2D/actions/workflows/ci.yml/badge.svg)](https://github.com/kamil5646/MadCAD2D/actions/workflows/ci.yml)
+![Platform](https://img.shields.io/badge/platform-macOS%20ARM64%20%7C%20Windows%20x64-2686a8)
+![Interface](https://img.shields.io/badge/interface-PL%20%7C%20EN-3a9d68)
+[![Support](https://img.shields.io/badge/support-PayPal-ffc439?logo=paypal&logoColor=111)](https://paypal.me/refek1)
 
-MadCAD to desktopowa aplikacja CAD 2D/3D do projektowania technicznego, konstrukcji stalowych i modeli do druku 3D.
+MadCAD to desktopowy CAD 2D/3D dla Windows i macOS. Łączy szybkie
+szkicowanie w stylu klasycznego CAD, parametryczną historię modelu, operacje
+bryłowe i przygotowanie plików do druku 3D.
 
-## Szybkie Linki
-- Najnowszy release: https://github.com/kamil5646/MadCAD2D/releases/latest
-- GitHub Pages: https://kamil5646.github.io/MadCAD2D/
-- Dokumentacja aplikacji: [`madcad-2d/README.md`](./madcad-2d/README.md)
-- Wsparcie projektu: https://paypal.me/refek1
+**[Pobierz najnowsze stabilne wydanie](https://github.com/kamil5646/MadCAD2D/releases/latest)** ·
+**[Strona projektu](https://kamil5646.github.io/MadCAD2D/)** ·
+**[Licencja](./LICENSE)** ·
+**[Zmiany](./madcad-2d/CHANGELOG.md)**
 
-## Wsparcie Projektu
-Jeśli MadCAD pomaga Ci w codziennej pracy, możesz wesprzeć rozwój aplikacji:
-- PayPal: https://paypal.me/refek1
-- Każde wsparcie przyspiesza poprawki, nowe funkcje i kolejne wydania.
+## Najważniejsze możliwości
 
-## PL
-### Co to jest
-MadCAD łączy szkice 2D, modelowanie 3D i gotowy workflow pod bramy, ogrodzenia, balkony oraz druk 3D.
+- Rysowanie bezpośrednio na płótnie oraz dokładne wejście z klawiatury.
+- Linia w stylu AutoCAD: kliknij początek, ustaw kierunek kursorem, wpisz długość i naciśnij `Enter`.
+- Podpowiedzi po najechaniu z opisem działania i skrótem każdej funkcji.
+- Aliasy poleceń CAD, m.in. `L`, `PL`, `REC`, `C`, `TR`, `EX`, `O`, `F` i `EXT`.
+- Szkice parametryczne z więzami, wymiarami, profilami, szykami oraz importem SVG/DXF.
+- Modelowanie 3D: Extrude, Revolve, Sweep, Loft, Coil, Boolean, Shell, Draft, fillet i chamfer.
+- Trwałe referencje B-Rep, historia operacji, geometria konstrukcyjna i pomiary.
+- Import i eksport `STEP`, `STL`, `3MF`; własny parametryczny format `.madcad`.
+- Kontrola drukowalności, gabarytów i dopasowania modelu do stołu drukarki.
+- Interfejs polski i angielski, lokalne pliki, brak konta, telemetrii i aktywacji.
 
-### Najważniejsze możliwości
-- Parametryczne szkice 2D z więzami, wymiarami, edycją profili oraz importem `SVG` i `DXF`.
-- Modelowanie bryłowe 3D, historia operacji, geometria konstrukcyjna i trwałe referencje B-Rep.
-- Inspekcja geometrii, pomiar, właściwości masowe oraz analiza przekroju.
-- Przygotowanie druku 3D z profilami drukarek, analizą drukowalności i kontrolą stołu.
-- Import i eksport `STEP`, `STL`, `3MF`; zapis projektu parametrycznego `.madcad`.
-- Aplikacja działa bez klucza, tokenu i aktywacji.
-- Aktualizacje aplikacji z poziomu interfejsu.
+## Szybki start
 
-### Pobieranie
-- Najnowsze wydanie (Assets): https://github.com/kamil5646/MadCAD2D/releases/latest
-- Buildy: macOS (arm64), Windows (x64)
+1. Pobierz paczkę dla swojego systemu z [Releases](https://github.com/kamil5646/MadCAD2D/releases/latest).
+2. Uruchom instalator Windows albo rozpakuj aplikację macOS.
+3. Wybierz **Utwórz szkic**, wskaż płaszczyznę i zacznij rysować.
+4. Najedź na dowolną funkcję, aby zobaczyć opis i alias klawiaturowy.
 
-### Szybki Start (dev)
+### Linia z dokładną długością
+
+1. Wpisz `L` i naciśnij `Enter` albo kliknij **Linia**.
+2. Kliknij punkt początkowy.
+3. Ustaw kierunek kursorem.
+4. Wpisz długość, np. `125.5`, i naciśnij `Enter`.
+
+## Licencja
+
+MadCAD korzysta z [MadCAD Personal and Commercial License 3.0](./LICENSE):
+
+- **prywatnie:** bezpłatnie bez limitu czasu dla osoby fizycznej, do celów prywatnych, edukacyjnych i niezarobkowych;
+- **ocena w firmie:** pełna wersja przez 40 dni bez opłaty;
+- **komercyjnie:** po ocenie wymagana jest płatna, bezterminowa licencja dla każdego stanowiska;
+- **bez aktywacji:** dowodem licencji komercyjnej jest dokument zakupu, nie klucz programu;
+- **własność projektów:** pliki i rezultaty utworzone przez użytkownika pozostają jego własnością.
+
+Wycena licencji komercyjnej: [kkasprzak15@icloud.com](mailto:kkasprzak15@icloud.com?subject=MadCAD%20-%20licencja%20komercyjna).
+Darowizna przez [PayPal](https://paypal.me/refek1) wspiera rozwój, ale nie zastępuje licencji komercyjnej.
+
+## Rozwój
+
+Wymagany jest Node.js 22 i npm.
+
 ```bash
 cd madcad-2d
-npm install
+npm ci
 npm run dev
 ```
 
-### Build
+Najważniejsze kontrole:
+
 ```bash
-cd madcad-2d
-npm run dist:release:trusted
+npm run lint
+npm test
+npm run test:core
+npm run verify:modeling
+npm run verify:electron-security
 ```
 
-### Struktura repo
-- `madcad-2d/` - główny kod aplikacji desktop (Electron + UI CAD).
-- `docs/` - strona projektu na GitHub Pages.
-- `cloudflare/license-registry-worker/` - starsza, niezależna usługa rejestru; bieżąca aplikacja desktop jej nie używa.
-- katalog główny - pliki prawne i organizacyjne.
+Budowanie paczek:
 
----
-
-## EN
-### What It Is
-MadCAD is a desktop 2D/3D CAD app focused on technical design, steel structures, and 3D printing.
-
-### Key Features
-- Parametric 2D sketches with constraints, dimensions, profile editing, and `SVG`/`DXF` import.
-- 3D solid modeling with feature history, construction geometry, and persistent B-Rep references.
-- Geometry inspection, measurement, mass properties, and section analysis.
-- 3D-print preparation with printer profiles, printability checks, and bed-fit validation.
-- `STEP`, `STL`, and `3MF` import/export plus parametric `.madcad` project files.
-- No key, token, or activation is required.
-- Built-in update flow from the app UI.
-
-### Download
-- Latest release (Assets): https://github.com/kamil5646/MadCAD2D/releases/latest
-- Builds: macOS (arm64), Windows (x64)
-- Support the project: https://paypal.me/refek1
-
-### Support The Project
-If MadCAD helps in your daily work, you can support further development:
-- PayPal: https://paypal.me/refek1
-- Every contribution helps ship fixes, new features, and future releases faster.
-
-### Quick Start (dev)
 ```bash
-cd madcad-2d
-npm install
-npm run dev
+npm run dist:mac:trusted
+npm run dist:win:trusted
 ```
 
-### Build
-```bash
-cd madcad-2d
-npm run dist:release:trusted
-```
+## Struktura repozytorium
 
-### Repository Layout
-- `madcad-2d/` - main desktop app code (Electron + CAD UI).
-- `docs/` - project website hosted on GitHub Pages.
-- `cloudflare/license-registry-worker/` - legacy standalone registry service; the current desktop app does not use it.
-- repository root - legal and project files.
+- [`madcad-2d/`](./madcad-2d/) — aplikacja Electron, interfejs i silnik CAD.
+- [`docs/`](./docs/) — strona projektu publikowana przez GitHub Pages.
+- [`.github/workflows/`](./.github/workflows/) — testy macOS/Windows/Linux i zweryfikowane wydania.
+- [`LICENSE`](./LICENSE), [`EULA.md`](./EULA.md), [`PRIVACY.md`](./PRIVACY.md) — dokumenty prawne.
 
-## License
-Projekt korzysta z licencji niestandardowej. Użytek prywatny i niezarobkowy jest bezpłatny. Użytek komercyjny wymaga odrębnej pisemnej licencji i opłaty; darowizna nie zastępuje licencji komercyjnej. W sprawie licencji komercyjnej skontaktuj się z autorem przez [profil GitHub](https://github.com/kamil5646):
-- [`LICENSE`](./LICENSE)
+## English
+
+MadCAD is a desktop 2D/3D CAD application for Windows and macOS. It combines
+classic CAD-style direct drawing and command aliases with parametric solid
+modeling, STEP/STL/3MF exchange, and 3D-print preparation.
+
+Private, educational, non-profit use by an individual is free without a time
+limit. Businesses may evaluate the complete application for 40 days. Continued
+professional or commercial use requires a perpetual license for each
+workstation. No product key or technical activation is required. See the
+binding Polish [license](./LICENSE) or request a quote at
+[kkasprzak15@icloud.com](mailto:kkasprzak15@icloud.com?subject=MadCAD%20commercial%20license).

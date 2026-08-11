@@ -1,15 +1,10 @@
-# Copyright
+# Copyright i znaki
 
-Copyright (c) 2026 Kamil Kasprzak. All rights reserved.
+Copyright © 2026 Kamil Kasprzak. Wszelkie prawa zastrzeżone.
 
-## Zakres praw
+- Kod, dokumentacja i oficjalne wydania podlegają [MadCAD Personal and Commercial License 3.0](./LICENSE).
+- Nazwa „MadCAD”, logo i identyfikacja wizualna nie mogą być używane do oznaczania nieoficjalnych lub zmodyfikowanych wydań bez pisemnej zgody.
+- Komponenty zewnętrzne zachowują własne informacje o prawach autorskich i licencje.
+- Pliki oraz projekty utworzone przez użytkownika pozostają jego własnością.
 
-- Kod źródłowy i wydania aplikacji podlegają niestandardowej MadCAD Private Use License (zobacz plik `LICENSE`).
-- Użytek prywatny i niezarobkowy jest bezpłatny; użytek komercyjny wymaga odrębnej pisemnej licencji i opłaty.
-- Nazwa produktu „MadCAD”, identyfikacja wizualna, logo i materiały brandingowe mogą podlegać odrębnej ochronie.
-- Pliki binarne publikowane w wydaniach (`Releases`) są udostępniane „as is”, bez gwarancji.
-
-## Kontakt
-
-W sprawach praw autorskich, wykorzystania nazwy/logo lub współpracy komercyjnej skontaktuj się z właścicielem repozytorium:  
-https://github.com/kamil5646
+Kontakt: [kkasprzak15@icloud.com](mailto:kkasprzak15@icloud.com).

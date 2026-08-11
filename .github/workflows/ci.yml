@@ -35,6 +35,8 @@ jobs:
         run: npm run lint
       - name: Run unit tests
         run: npm test
+      - name: Verify repository, website and licensing metadata
+        run: npm run verify:repository
       - name: Audit production and build dependencies
         run: npm audit --audit-level=high
 

@@ -6,6 +6,9 @@ dist/
 .DS_Store
 *.log
 
+# Local duplicate/conflict copies created by sync software (for example "file 2.js")
+**/* 2.*
+
 # Generated assets and local artifacts
 output/
 madcad-2d/artifacts/
