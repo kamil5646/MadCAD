@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Doprecyzowano licencję: bezpłatny jest wyłącznie użytek prywatny i niezarobkowy, a użytek komercyjny wymaga odrębnej płatnej licencji.
+- Dodano wyświetlane przy każdym uruchomieniu przypomnienie o licencji prywatnej i dobrowolnym wsparciu projektu.
+- Rozszerzono szkicowanie bezpośrednio myszą: figury powstają z kolejnych wskazań na płótnie, a formularz pozostaje opcjonalnym wejściem dokładnym.
 - Usunięto stary interfejs 2D oraz jego nieużywaną warstwę CSS i kod uruchomieniowy.
 - Usunięto aktywację tokenem, identyfikator urządzenia i okno licencyjne wyświetlane przy starcie.
 - Dodano proste okno informacji o licencji bez klucza oraz poprawiono integrację nowego interfejsu z menu desktopowym.

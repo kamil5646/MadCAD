@@ -338,8 +338,10 @@ export default function ModelViewport({
   draftType,
   onDraftChange,
   sketchTool,
+  sketchToolPrompt,
   polylineDraft,
   onSketchPoint,
+  onSketchFinish,
   selectedSketchEntityIds = [],
   lostProjectedEntityIds = [],
   selectedSketchConstraintId = null,
@@ -1603,7 +1605,15 @@ export default function ModelViewport({
   }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode]);
 
   return (
-    <div className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`} ref={hostRef}>
+    <div
+      className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`}
+      ref={hostRef}
+      onContextMenu={(event) => {
+        if (!activeSketchId || !sketchTool) return;
+        event.preventDefault();
+        onSketchFinish?.();
+      }}
+    >
       <div className="view-cube" aria-label="Kostka widoku">
         <button className="cube-top" type="button" title="Ustaw kamerę prostopadle do płaszczyzny XY." onClick={() => setView('top')}>GÓRA</button>
         <button className="cube-main" type="button" onClick={() => setView('iso')} title="Widok izometryczny"><Box size={34} strokeWidth={1.2} /></button>
@@ -1692,7 +1702,7 @@ export default function ModelViewport({
       {activeSketchId && sliceModel && <div className="sketch-slice-badge">Slice · przekrój na {activePlane}</div>}
       {activeSketchId && draftType && <div className="sketch-pointer-hint">Kliknij środek, a następnie punkt rozmiaru</div>}
       {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
-      {activeSketchId && sketchTool && <div className="sketch-pointer-hint">Klikaj kolejne punkty · kliknij początek, aby zamknąć · Alt chwilowo wyłącza snap · Enter/Escape kończy</div>}
+      {activeSketchId && sketchTool && <div className="sketch-pointer-hint">{sketchToolPrompt || 'Klikaj kolejne punkty'} · Alt chwilowo wyłącza snap · Enter lub prawy przycisk kończy · Escape anuluje</div>}
       {activeSketchId && !sketchTool && !draftType && !sketchModifierMode && <div className="sketch-pointer-hint">Kliknij lub przeciągnij geometrię · Ctrl/Shift wybiera wiele · przeciągnij tło, aby wybrać oknem</div>}
     </div>
   );

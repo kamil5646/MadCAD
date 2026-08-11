@@ -32,8 +32,10 @@ MadCAD rozwija się aktywnie. Jeśli chcesz wesprzeć rozwój aplikacji:
 - Wybór jest zapamiętywany lokalnie i nie jest pytany ponownie.
 
 ## Licencja Aplikacji (stan bieżący)
-- Aplikacja działa bez klucza, tokenu i aktywacji; pełna funkcjonalność jest dostępna od razu.
-- Okno `Licencja` ma wyłącznie charakter informacyjny i nie pojawia się przy starcie.
+- Aplikacja działa bez klucza, tokenu i aktywacji.
+- Bezpłatna licencja obejmuje wyłącznie użytek prywatny i niezarobkowy.
+- Użytek komercyjny wymaga odrębnej pisemnej licencji i opłaty; darowizna nie zastępuje licencji komercyjnej.
+- Przy każdym uruchomieniu aplikacja pokazuje informacyjne przypomnienie o licencji i możliwości wsparcia projektu.
 - Treść licencji jest dostępna w pliku [`LICENSE`](./LICENSE).
 
 ## Struktura Katalogu `madcad-2d/`

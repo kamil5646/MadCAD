@@ -137,15 +137,21 @@
 .license-info-dialog > header span { color: var(--mc-muted); line-height: 1.45; }
 .license-info-dialog > header button { width: 30px; height: 30px; border: 0; color: white; background: transparent; cursor: pointer; }
 .license-info-body { display: grid; gap: 14px; padding: 18px; }
-.license-info-lead { margin: 0; color: #e6edf3; font-size: 13px; line-height: 1.55; }
+.license-info-lead { display: flex; align-items: flex-start; gap: 9px; margin: 0; color: #ffe0a6; font-size: 13px; font-weight: 600; line-height: 1.55; }
+.license-info-lead svg { flex: 0 0 auto; margin-top: 1px; color: var(--mc-warn); }
 .license-info-card { display: grid; gap: 9px; padding: 14px 15px; border: 1px solid #536171; border-radius: 5px; background: #29333f; }
 .license-info-card strong { color: #78daf5; font-size: 12px; }
 .license-info-card ul { display: grid; gap: 7px; margin: 0; padding-left: 18px; color: #cbd4dc; line-height: 1.45; }
+.license-info-card.license-info-commercial { border-color: rgba(241, 189, 98, 0.55); background: rgba(104, 72, 26, 0.2); }
+.license-info-card.license-info-commercial strong { color: #ffd489; }
+.license-info-support-copy { margin: 0; color: #cbd4dc; line-height: 1.5; }
 .license-info-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
 .license-info-actions a { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; padding: 0 13px; border: 1px solid #627282; border-radius: 4px; color: #e7edf2; background: #354250; text-decoration: none; }
 .license-info-actions a:hover { border-color: #7f93a6; background: #405061; }
 .license-info-actions a.support { border-color: #188eb8; color: white; background: #137da4; }
 .license-info-actions a.support:hover { background: #1594c2; }
+.license-info-actions button { min-height: 34px; padding: 0 14px; border: 1px solid #4abde1; border-radius: 4px; color: white; background: #158bb5; cursor: pointer; }
+.license-info-actions button:hover { background: #18a0cf; }
 
 @media (max-width: 760px), (max-height: 620px) {
   .tutorial-backdrop { padding: 10px; }
@@ -1170,7 +1176,7 @@
 .sketch-pointer-hint {
   position: absolute;
   z-index: 4;
-  top: 11px;
+  top: 50px;
   left: 50%;
   padding: 5px 9px;
   border: 1px solid #5d6976;

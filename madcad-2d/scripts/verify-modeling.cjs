@@ -1615,12 +1615,12 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'tryb szkicu');
   await clickTool('Prostokąt');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Prostokąt')`, 'polecenie prostokąta');
-  await setCommandField('Szerokość', '64');
-  await setCommandField('Wysokość', '42');
+  await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint?.([0, 0])`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'rectangle'`, 'pierwszy narożnik prostokąta z płótna');
+  await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint?.([32, 21])`);
+  await waitForUi(window, `!document.querySelector('.command-dialog') && document.querySelectorAll('.tree-profile').length === 1`, 'prostokąt utworzony dwoma kliknięciami');
   await new Promise((resolve) => setTimeout(resolve, 75));
   await fs.writeFile(sketchOutputPath, (await window.webContents.capturePage()).toPNG());
-  await confirmDialog();
-  await waitForUi(window, `document.querySelectorAll('.tree-profile').length === 1`, 'profil prostokąta');
   await clickTool('Zakończ szkic');
   progress('extrude');
   await waitForUi(window, `document.querySelector('.direct-extrude-hint')`, 'uchwyt bezpośredniego wyciągnięcia');
@@ -2371,23 +2371,31 @@ app.whenReady().then(async () => {
     if (licenseUi.legacyInterface || licenseUi.legacyOverlay || licenseUi.legacyTokenControls || !licenseUi.entryVisible) {
       throw new Error(`Interfejs nadal zawiera stary widok lub aktywację kluczem: ${JSON.stringify(licenseUi)}.`);
     }
-    await window.webContents.executeJavaScript(`document.querySelector('#licenseInfoBtn')?.click()`);
-    await waitForUi(window, `Boolean(document.querySelector('.license-info-dialog'))`, 'okno informacji o licencji');
+    await waitForUi(window, `Boolean(document.querySelector('.license-info-dialog'))`, 'startowe przypomnienie o licencji');
     const licenseDialog = await window.webContents.executeJavaScript(`(() => {
       const dialog = document.querySelector('.license-info-dialog');
+      const text = dialog?.textContent || '';
       return {
         visible: Boolean(dialog),
-        explainsNoKey: /bez klucza|without a key/i.test(dialog?.textContent || ''),
+        shownAtStartup: Boolean(dialog),
+        explainsNoKey: /nie wymaga klucza|does not require a key/i.test(text),
+        privateUseOnly: /wyłącznie do użytku prywatnego|only for private/i.test(text),
+        commercialPaid: /komercyjny jest płatny|commercial use requires payment/i.test(text),
+        donationNotCommercial: /darowizna.+nie zastępuje licencji komercyjnej|donation.+does not replace a commercial license/i.test(text),
         hasTokenInput: Boolean(dialog?.querySelector('input, textarea')),
         links: dialog?.querySelectorAll('a').length || 0,
-        closeVisible: Boolean(dialog?.querySelector('button')),
+        continueVisible: Boolean([...dialog?.querySelectorAll('button') || []].some((button) => /Przejdź do programu|Continue to MadCAD/i.test(button.textContent))),
       };
     })()`);
-    if (!licenseDialog.visible || !licenseDialog.explainsNoKey || licenseDialog.hasTokenInput || licenseDialog.links < 2 || !licenseDialog.closeVisible) {
-      throw new Error(`Okno licencji nie spełnia wymagań wersji bez klucza: ${JSON.stringify(licenseDialog)}.`);
+    if (!licenseDialog.visible || !licenseDialog.shownAtStartup || !licenseDialog.explainsNoKey || !licenseDialog.privateUseOnly || !licenseDialog.commercialPaid || !licenseDialog.donationNotCommercial || licenseDialog.hasTokenInput || licenseDialog.links < 2 || !licenseDialog.continueVisible) {
+      throw new Error(`Okno licencji nie wyjaśnia zasad prywatnych, komercyjnych i darowizny: ${JSON.stringify(licenseDialog)}.`);
     }
-    await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button')?.click()`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.license-info-dialog button')].find((button) => /Przejdź do programu|Continue to MadCAD/i.test(button.textContent))?.click()`);
     await waitForUi(window, `!document.querySelector('.license-info-dialog')`, 'zamknięcie okna informacji o licencji');
+    await window.webContents.executeJavaScript(`document.querySelector('#licenseInfoBtn')?.click()`);
+    await waitForUi(window, `Boolean(document.querySelector('.license-info-dialog'))`, 'ponowne otwarcie informacji o licencji');
+    await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button[aria-label="Zamknij"], .license-info-dialog button[aria-label="Close"]')?.click()`);
+    await waitForUi(window, `!document.querySelector('.license-info-dialog')`, 'ponowne zamknięcie informacji o licencji');
     await new Promise((resolve) => setTimeout(resolve, 600));
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     const workflowStartedAt = Date.now();
