@@ -101,5 +101,5 @@ npm run dist:release:trusted
 - repository root - legal and project files.
 
 ## License
-Projekt korzysta z licencji niestandardowej:
+Projekt korzysta z licencji niestandardowej. Użytek prywatny i niezarobkowy jest bezpłatny. Użytek komercyjny wymaga odrębnej pisemnej licencji i opłaty; darowizna nie zastępuje licencji komercyjnej. W sprawie licencji komercyjnej skontaktuj się z autorem przez [profil GitHub](https://github.com/kamil5646):
 - [`LICENSE`](./LICENSE)

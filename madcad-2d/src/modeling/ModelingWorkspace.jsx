@@ -297,7 +297,7 @@ function FirstPartTutorial({ onClose }) {
   );
 }
 
-function LicenseInfoDialog({ onClose }) {
+export function LicenseInfoDialog({ onClose }) {
   useEffect(() => {
     const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKeyDown);
@@ -309,24 +309,27 @@ function LicenseInfoDialog({ onClose }) {
       <section className="license-info-dialog" role="dialog" aria-modal="true" aria-labelledby="licenseInfoTitle">
         <header>
           <div>
-            <strong id="licenseInfoTitle">Licencja i informacje</strong>
-            <span>MadCAD działa bez klucza, tokenu i aktywacji.</span>
+            <strong id="licenseInfoTitle">Licencja prywatna i wsparcie</strong>
+            <span>Przed rozpoczęciem pracy sprawdź zasady korzystania z MadCAD.</span>
           </div>
-          <button type="button" title="Zamknij" aria-label="Zamknij" onClick={onClose} autoFocus><X size={17} /></button>
+          <button type="button" title="Zamknij" aria-label="Zamknij" onClick={onClose}><X size={17} /></button>
         </header>
         <div className="license-info-body">
-          <p className="license-info-lead">Wszystkie funkcje aplikacji są dostępne od razu po uruchomieniu. Nie trzeba podawać identyfikatora urządzenia ani żadnego klucza.</p>
-          <div className="license-info-card">
-            <strong>Zasady korzystania</strong>
+          <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny wyłącznie do użytku prywatnego i niezarobkowego.</p>
+          <div className="license-info-card license-info-commercial">
+            <strong>Użytek komercyjny jest płatny</strong>
             <ul>
-              <li>Możesz używać MadCAD prywatnie i komercyjnie zgodnie z licencją projektu.</li>
-              <li>Redystrybucja i modyfikowanie aplikacji podlegają warunkom pełnej licencji.</li>
-              <li>Aplikacja nie blokuje narzędzi i nie wyświetla przypomnień aktywacyjnych.</li>
+              <li>Praca zarobkowa, firmowa, usługowa, produkcyjna lub dla klienta wymaga odrębnej pisemnej licencji komercyjnej i opłaty.</li>
+              <li>Dobrowolna darowizna wspiera rozwój, ale nie zastępuje licencji komercyjnej.</li>
+              <li>Aplikacja nie wymaga klucza ani tokenu — obowiązują jednak warunki pełnej licencji.</li>
             </ul>
           </div>
+          <p className="license-info-support-copy">Jeśli używasz MadCAD prywatnie i program jest dla Ciebie pomocny, możesz wesprzeć jego dalszy rozwój darowizną.</p>
           <div className="license-info-actions">
             <a href="https://github.com/kamil5646/MadCAD2D/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Pełna treść licencji</a>
-            <a className="support" href="https://paypal.me/refek1" target="_blank" rel="noopener noreferrer">Wesprzyj rozwój projektu</a>
+            <a href="https://github.com/kamil5646" target="_blank" rel="noopener noreferrer">Licencja komercyjna</a>
+            <a className="support" href="https://paypal.me/refek1" target="_blank" rel="noopener noreferrer">Przekaż darowiznę</a>
+            <button className="confirm" type="button" onClick={onClose} autoFocus>Przejdź do programu</button>
           </div>
         </div>
       </section>
@@ -657,7 +660,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
         {(isRectangle || isCircle || isArc || isPolygon || isEllipse || isSlot || isSpline) && (
           <label className="command-field">
             <span>Metoda</span>
-            <select value={command.definition} onChange={(event) => onChange({ definition: event.target.value })} disabled={Boolean(command.editId)}>
+            <select value={command.definition} onChange={(event) => onChange({ definition: event.target.value, gesturePoints: [] })} disabled={Boolean(command.editId)}>
               {isRectangle && <><option value="center">Środek i wymiary</option><option value="twoPoints">Dwa narożniki</option><option value="threePoints">Trzy punkty</option></>}
               {isCircle && <><option value="centerRadius">Środek i średnica</option><option value="twoPoints">Dwa punkty średnicy</option><option value="threePoints">Trzy punkty</option></>}
               {isArc && <><option value="threePoints">Trzy punkty</option><option value="centerStartEnd">Środek, początek, koniec</option></>}
@@ -833,12 +836,12 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
             <p className="command-hint">Numery oddziel przecinkami lub podaj zakres, np. 3, 5-7. Wystąpienie 1 jest źródłem.</p>
           </>
         )}
-        <div className="command-preview-note"><span className="preview-dot" />{isSketchPath ? 'Klikaj punkty na płótnie lub dodaj następny punkt dokładną długością i kątem.' : isSketchMove ? 'Wpisz dokładne przesunięcie zaznaczenia w osiach szkicu.' : isSketchOffset ? 'Operacja powstanie dopiero po zatwierdzeniu; Anuluj nie zmienia szkicu.' : isSketchCorner ? 'Oryginalne linie zachowają ID; zerwane więzy zostaną jawnie usunięte.' : isSketchTransform ? 'Transformacja jest transakcyjna; Scale odrzuca geometrię z blokującym wymiarem.' : isSketchPattern ? 'Szyk powstanie transakcyjnie; pominięte kopie nie zostaną utworzone.' : isConstructionPlane ? 'Współrzędne i odległości mogą być liczbami albo wyrażeniami z parametrów modelu.' : isPoint ? 'Punkt zwykły może wyznaczać oś otworu; konstrukcyjny służy tylko jako referencja.' : isMechanicalShape ? 'Wpisz dokładne dane konstrukcyjne; po zatwierdzeniu powstanie edytowalna geometria szkicu.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
+        <div className="command-preview-note"><span className="preview-dot" />{isSketchPath ? 'Klikaj punkty na płótnie lub dodaj następny punkt dokładną długością i kątem.' : isSketchMove ? 'Wpisz dokładne przesunięcie zaznaczenia w osiach szkicu.' : isSketchOffset ? 'Operacja powstanie dopiero po zatwierdzeniu; Anuluj nie zmienia szkicu.' : isSketchCorner ? 'Oryginalne linie zachowają ID; zerwane więzy zostaną jawnie usunięte.' : isSketchTransform ? 'Transformacja jest transakcyjna; Scale odrzuca geometrię z blokującym wymiarem.' : isSketchPattern ? 'Szyk powstanie transakcyjnie; pominięte kopie nie zostaną utworzone.' : isConstructionPlane ? 'Współrzędne i odległości mogą być liczbami albo wyrażeniami z parametrów modelu.' : isPoint ? 'Kliknij położenie na płótnie. Pola X/Y są opcjonalnym wejściem dokładnym.' : isMechanicalShape ? 'Klikaj punkty figury na płótnie. Pola pozostają opcjonalnym wejściem dokładnym — jak w wierszu poleceń CAD.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
       </div>
       {isSketchPath ? (
         <footer><button className="secondary" type="button" onClick={onUndoSegment} disabled={!command.pointIds.length}>Cofnij segment</button><button className="secondary" type="button" onClick={onFinishPath}>Zakończ</button><button className="confirm" type="button" onClick={onConfirm} disabled={!command.lastPoint}><Check size={14} /> Dodaj dokładnie</button></footer>
       ) : (
-        <footer><button className="secondary" type="button" onClick={onCancel}>Anuluj</button><button className="confirm" type="button" onClick={onConfirm}><Check size={14} /> OK</button></footer>
+        <footer><button className="secondary" type="button" onClick={onCancel}>Anuluj</button><button className="confirm" type="button" onClick={onConfirm}><Check size={14} /> {isMechanicalShape || isPoint ? 'Utwórz z danych' : 'OK'}</button></footer>
       )}
     </section>
   );
@@ -1051,7 +1054,7 @@ function featureIcon(type, size = 16) {
 
 export default function ModelingWorkspace() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
-  const [licenseInfoOpen, setLicenseInfoOpen] = useState(false);
+  const [licenseInfoOpen, setLicenseInfoOpen] = useState(true);
   useEffect(() => {
     const root = window.document.querySelector('.modeling-shell');
     const requestedLanguage = new URLSearchParams(window.location.search).get('verifyLanguage') || window.desktopApp?.appLanguage;
@@ -1634,11 +1637,11 @@ export default function ModelingWorkspace() {
       return;
     }
     if (type === 'rectangle') {
-      setCommand({ type, definition: 'center', editId: profile?.id || null, name: profile?.name || `Prostokąt ${document.sketches.flatMap((item) => item.profiles).length + 1}`, width: profile?.geometry.width || '40', height: profile?.geometry.height || '30', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', rotation: '0', x1: '-20', y1: '-15', x2: '20', y2: '15', x3: '20', y3: '15' });
+      setCommand({ type, definition: 'center', gesturePoints: [], editId: profile?.id || null, name: profile?.name || `Prostokąt ${document.sketches.flatMap((item) => item.profiles).length + 1}`, width: profile?.geometry.width || '40', height: profile?.geometry.height || '30', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', rotation: '0', x1: '-20', y1: '-15', x2: '20', y2: '15', x3: '20', y3: '15' });
     } else {
-      setCommand({ type, definition: 'centerRadius', editId: profile?.id || null, name: profile?.name || `Okrąg ${document.sketches.flatMap((item) => item.profiles).length + 1}`, diameter: profile?.geometry.diameter || '10', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', x1: '-5', y1: '0', x2: '5', y2: '0', x3: '0', y3: '5' });
+      setCommand({ type, definition: 'centerRadius', gesturePoints: [], editId: profile?.id || null, name: profile?.name || `Okrąg ${document.sketches.flatMap((item) => item.profiles).length + 1}`, diameter: profile?.geometry.diameter || '10', x: profile?.geometry.x || '0', y: profile?.geometry.y || '0', x1: '-5', y1: '0', x2: '5', y2: '0', x3: '0', y3: '5' });
     }
-    setNotice('Ustaw wymiary profilu. Podgląd na płótnie aktualizuje się na bieżąco.');
+    setNotice(profile ? 'Kliknij nowe punkty na płótnie albo wpisz dokładne dane.' : 'Wskaż punkty figury bezpośrednio na płótnie; pola służą do opcjonalnego wpisania dokładnych danych.');
   };
 
   const openMechanicalShape = (type) => {
@@ -1648,14 +1651,14 @@ export default function ModelingWorkspace() {
       return;
     }
     const number = document.sketches.flatMap((item) => item.profiles).length + 1;
-    if (type === 'arc') setCommand({ type, definition: 'threePoints', name: `Łuk ${number}`, x1: '-10', y1: '0', x2: '0', y2: '10', x3: '10', y3: '0', direction: 'ccw' });
-    if (type === 'polygon') setCommand({ type, definition: 'inscribed', name: `Wielokąt ${number}`, sides: '6', radius: '15', x: '0', y: '0', rotation: '0', x1: '-10', y1: '0', x2: '10', y2: '0' });
-    if (type === 'ellipse') setCommand({ type, definition: 'full', name: `Elipsa ${number}`, majorRadius: '20', minorRadius: '10', x: '0', y: '0', rotation: '0', startAngle: '0', endAngle: '180', direction: 'ccw' });
-    if (type === 'slot') setCommand({ type, definition: 'centerToCenter', name: `Slot ${number}`, x1: '-15', y1: '0', x2: '15', y2: '0', x3: '-15', y3: '5', x: '0', y: '0', radius: '25', startAngle: '0', endAngle: '90', direction: 'ccw', width: '10' });
-    if (type === 'spline') setCommand({ type, definition: 'fit', name: `Spline ${number}`, pointsText: '-20,0; -8,15; 8,-15; 20,0' });
-    if (type === 'conic') setCommand({ type, name: `Conic ${number}`, x1: '-20', y1: '0', x2: '0', y2: '20', x3: '20', y3: '0', rho: '0.7071067812', continuity: 'tangent' });
-    if (type === 'point') setCommand({ type, x: '0', y: '0', role: 'standard' });
-    setNotice('Ustaw dokładne dane konstrukcyjne figury i zatwierdź operację.');
+    if (type === 'arc') setCommand({ type, definition: 'threePoints', gesturePoints: [], name: `Łuk ${number}`, x1: '-10', y1: '0', x2: '0', y2: '10', x3: '10', y3: '0', direction: 'ccw' });
+    if (type === 'polygon') setCommand({ type, definition: 'inscribed', gesturePoints: [], name: `Wielokąt ${number}`, sides: '6', radius: '15', x: '0', y: '0', rotation: '0', x1: '-10', y1: '0', x2: '10', y2: '0' });
+    if (type === 'ellipse') setCommand({ type, definition: 'full', gesturePoints: [], name: `Elipsa ${number}`, majorRadius: '20', minorRadius: '10', x: '0', y: '0', rotation: '0', startAngle: '0', endAngle: '180', direction: 'ccw' });
+    if (type === 'slot') setCommand({ type, definition: 'centerToCenter', gesturePoints: [], name: `Slot ${number}`, x1: '-15', y1: '0', x2: '15', y2: '0', x3: '-15', y3: '5', x: '0', y: '0', radius: '25', startAngle: '0', endAngle: '90', direction: 'ccw', width: '10' });
+    if (type === 'spline') setCommand({ type, definition: 'fit', gesturePoints: [], name: `Spline ${number}`, pointsText: '-20,0; -8,15; 8,-15; 20,0' });
+    if (type === 'conic') setCommand({ type, gesturePoints: [], name: `Conic ${number}`, x1: '-20', y1: '0', x2: '0', y2: '20', x3: '20', y3: '0', rho: '0.7071067812', continuity: 'tangent' });
+    if (type === 'point') setCommand({ type, gesturePoints: [], x: '0', y: '0', role: 'standard' });
+    setNotice(type === 'spline' ? 'Klikaj punkty spline na płótnie; Enter lub prawy przycisk kończy.' : 'Wskaż kolejne punkty figury na płótnie albo wpisz dokładne dane w panelu.');
   };
 
   const openSketchPath = (type) => {
@@ -2263,6 +2266,8 @@ export default function ModelingWorkspace() {
     const verifyMode = new URLSearchParams(window.location.search).has('verify');
     if (!verifyMode) return undefined;
     window.__madcadVerifySketchPoint = appendSketchPoint;
+    window.__madcadVerifyCanvasSketchPoint = handleSketchCanvasPoint;
+    window.__madcadVerifyFinishCanvasSketchTool = finishCanvasSketchTool;
     window.__madcadVerifySketchSelection = handleSketchSelection;
     window.__madcadVerifyTopologySelection = handleTopologySelection;
     window.__madcadVerifyCreateLostTopologyReference = () => {
@@ -2542,6 +2547,8 @@ export default function ModelingWorkspace() {
     };
     return () => {
       delete window.__madcadVerifySketchPoint;
+      delete window.__madcadVerifyCanvasSketchPoint;
+      delete window.__madcadVerifyFinishCanvasSketchTool;
       delete window.__madcadVerifySketchSelection;
       delete window.__madcadVerifyTopologySelection;
       delete window.__madcadVerifyCreateLostTopologyReference;
@@ -2563,13 +2570,13 @@ export default function ModelingWorkspace() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, massProperties, geometryInspection]);
 
-  const confirmProfile = () => {
+  const confirmProfile = (sourceCommand = command) => {
     if (readOnly) return readOnlyNotice();
-    if (!command.editId) return confirmMechanicalShape();
-    const profile = command.type === 'rectangle'
-      ? createRectangleProfile({ name: command.name, width: command.width, height: command.height, x: command.x, y: command.y })
-      : createCircleProfile({ name: command.name, diameter: command.diameter, x: command.x, y: command.y });
-    if (command.editId) profile.id = command.editId;
+    if (!sourceCommand.editId) return confirmMechanicalShape(sourceCommand);
+    const profile = sourceCommand.type === 'rectangle'
+      ? createRectangleProfile({ name: sourceCommand.name, width: sourceCommand.width, height: sourceCommand.height, x: sourceCommand.x, y: sourceCommand.y })
+      : createCircleProfile({ name: sourceCommand.name, diameter: sourceCommand.diameter, x: sourceCommand.x, y: sourceCommand.y });
+    if (sourceCommand.editId) profile.id = sourceCommand.editId;
     commit((next) => {
       const sketch = next.sketches.find((item) => item.id === activeSketchId);
       upsertSketchProfile(sketch, profile);
@@ -2579,41 +2586,41 @@ export default function ModelingWorkspace() {
     setNotice(`${profile.name} dodany do szkicu.`);
   };
 
-  const confirmMechanicalShape = () => {
+  const confirmMechanicalShape = (sourceCommand = command) => {
     if (readOnly) return readOnlyNotice();
     const coordinate = (x, y) => [Number(x), Number(y)];
     let shape;
     try {
-      if (command.type === 'rectangle') {
-        if (command.definition === 'twoPoints') shape = rectangleTwoPoints(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2));
-        else if (command.definition === 'threePoints') shape = rectangleThreePoints(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), coordinate(command.x3, command.y3));
-        else shape = rectangleFromCenter(coordinate(command.x, command.y), command.width, command.height, command.rotation);
-      } else if (command.type === 'circle') {
-        if (command.definition === 'twoPoints') shape = circleTwoPoints(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2));
-        else if (command.definition === 'threePoints') shape = circleThreePoints(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), coordinate(command.x3, command.y3));
-        else shape = circleCenterRadius(coordinate(command.x, command.y), Number(command.diameter) / 2);
-      } else if (command.type === 'arc') {
-        shape = command.definition === 'centerStartEnd'
-          ? arcCenterStartEnd(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), coordinate(command.x3, command.y3), command.direction)
-          : arcThroughThreePoints(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), coordinate(command.x3, command.y3));
-      } else if (command.type === 'polygon') {
-        shape = command.definition === 'edge'
-          ? polygonFromEdge(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), command.sides)
-          : regularPolygon({ center: coordinate(command.x, command.y), radius: command.radius, sides: command.sides, rotation: command.rotation, circumscribed: command.definition === 'circumscribed' });
-      } else if (command.type === 'ellipse') {
-        shape = command.definition === 'arc'
-          ? ellipticalArcFromCenter(coordinate(command.x, command.y), command.majorRadius, command.minorRadius, command.startAngle, command.endAngle, command.rotation, command.direction)
-          : ellipseFromCenter(coordinate(command.x, command.y), command.majorRadius, command.minorRadius, command.rotation);
-      } else if (command.type === 'slot') {
-        if (command.definition === 'arc') shape = slotArc({ center: coordinate(command.x, command.y), radius: command.radius, width: command.width, startAngle: command.startAngle, endAngle: command.endAngle, direction: command.direction });
-        else if (command.definition === 'threePoints') shape = slotThreePoints(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), coordinate(command.x3, command.y3));
-        else shape = command.definition === 'overall' ? slotOverall(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), command.width) : slotCenterToCenter(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), command.width);
-      } else if (command.type === 'spline') {
-        const points = command.pointsText.split(';').map((entry) => entry.split(',').map((value) => Number(value.trim())));
+      if (sourceCommand.type === 'rectangle') {
+        if (sourceCommand.definition === 'twoPoints') shape = rectangleTwoPoints(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2));
+        else if (sourceCommand.definition === 'threePoints') shape = rectangleThreePoints(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2), coordinate(sourceCommand.x3, sourceCommand.y3));
+        else shape = rectangleFromCenter(coordinate(sourceCommand.x, sourceCommand.y), sourceCommand.width, sourceCommand.height, sourceCommand.rotation);
+      } else if (sourceCommand.type === 'circle') {
+        if (sourceCommand.definition === 'twoPoints') shape = circleTwoPoints(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2));
+        else if (sourceCommand.definition === 'threePoints') shape = circleThreePoints(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2), coordinate(sourceCommand.x3, sourceCommand.y3));
+        else shape = circleCenterRadius(coordinate(sourceCommand.x, sourceCommand.y), Number(sourceCommand.diameter) / 2);
+      } else if (sourceCommand.type === 'arc') {
+        shape = sourceCommand.definition === 'centerStartEnd'
+          ? arcCenterStartEnd(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2), coordinate(sourceCommand.x3, sourceCommand.y3), sourceCommand.direction)
+          : arcThroughThreePoints(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2), coordinate(sourceCommand.x3, sourceCommand.y3));
+      } else if (sourceCommand.type === 'polygon') {
+        shape = sourceCommand.definition === 'edge'
+          ? polygonFromEdge(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2), sourceCommand.sides)
+          : regularPolygon({ center: coordinate(sourceCommand.x, sourceCommand.y), radius: sourceCommand.radius, sides: sourceCommand.sides, rotation: sourceCommand.rotation, circumscribed: sourceCommand.definition === 'circumscribed' });
+      } else if (sourceCommand.type === 'ellipse') {
+        shape = sourceCommand.definition === 'arc'
+          ? ellipticalArcFromCenter(coordinate(sourceCommand.x, sourceCommand.y), sourceCommand.majorRadius, sourceCommand.minorRadius, sourceCommand.startAngle, sourceCommand.endAngle, sourceCommand.rotation, sourceCommand.direction)
+          : ellipseFromCenter(coordinate(sourceCommand.x, sourceCommand.y), sourceCommand.majorRadius, sourceCommand.minorRadius, sourceCommand.rotation);
+      } else if (sourceCommand.type === 'slot') {
+        if (sourceCommand.definition === 'arc') shape = slotArc({ center: coordinate(sourceCommand.x, sourceCommand.y), radius: sourceCommand.radius, width: sourceCommand.width, startAngle: sourceCommand.startAngle, endAngle: sourceCommand.endAngle, direction: sourceCommand.direction });
+        else if (sourceCommand.definition === 'threePoints') shape = slotThreePoints(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2), coordinate(sourceCommand.x3, sourceCommand.y3));
+        else shape = sourceCommand.definition === 'overall' ? slotOverall(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2), sourceCommand.width) : slotCenterToCenter(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2), sourceCommand.width);
+      } else if (sourceCommand.type === 'spline') {
+        const points = sourceCommand.pointsText.split(';').map((entry) => entry.split(',').map((value) => Number(value.trim())));
         if (points.some((entry) => entry.length !== 2 || entry.some((value) => !Number.isFinite(value)))) throw new Error('Punkty spline wpisz jako x,y; x,y; …');
-        shape = command.definition === 'control' ? controlPointSpline(points) : fitPointSpline(points);
-      } else if (command.type === 'conic') {
-        shape = conicThroughControlPoint(coordinate(command.x1, command.y1), coordinate(command.x2, command.y2), coordinate(command.x3, command.y3), command.rho, command.continuity);
+        shape = sourceCommand.definition === 'control' ? controlPointSpline(points) : fitPointSpline(points);
+      } else if (sourceCommand.type === 'conic') {
+        shape = conicThroughControlPoint(coordinate(sourceCommand.x1, sourceCommand.y1), coordinate(sourceCommand.x2, sourceCommand.y2), coordinate(sourceCommand.x3, sourceCommand.y3), sourceCommand.rho, sourceCommand.continuity);
       }
       if (!shape || shape.entities.some((entity) => entity.type === 'point' && (!Number.isFinite(Number(entity.geometry.x)) || !Number.isFinite(Number(entity.geometry.y))))) throw new Error('Współrzędne figury muszą być liczbami.');
     } catch (error) {
@@ -2622,7 +2629,7 @@ export default function ModelingWorkspace() {
     }
     const curveIds = shape.curves.map((entity) => entity.id);
     const curveIdSet = new Set(curveIds);
-    const shapeName = command.name?.trim() || 'Figura szkicu';
+    const shapeName = sourceCommand.name?.trim() || 'Figura szkicu';
     commit((next) => {
       const sketch = next.sketches.find((item) => item.id === activeSketchId);
       sketch.entities.push(...shape.entities);
@@ -2635,18 +2642,140 @@ export default function ModelingWorkspace() {
     setNotice(`${shapeName} utworzono jako dokładną geometrię szkicu.`);
   };
 
-  const confirmSketchPoint = () => {
-    const x = Number(command.x);
-    const y = Number(command.y);
+  const confirmSketchPoint = (sourceCommand = command) => {
+    const x = Number(sourceCommand.x);
+    const y = Number(sourceCommand.y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
       setNotice('Punkt wymaga prawidłowych współrzędnych X i Y.');
       return;
     }
-    const point = createSketchPoint({ x: String(x), y: String(y), role: command.role });
+    const point = createSketchPoint({ x: String(x), y: String(y), role: sourceCommand.role });
     commit((next) => next.sketches.find((item) => item.id === activeSketchId).entities.push(point));
     setSelection({ kind: 'sketchEntities', ids: [point.id], sketchId: activeSketchId });
     setCommand(null);
-    setNotice(command.role === 'construction' ? 'Dodano punkt konstrukcyjny.' : 'Dodano punkt referencyjny gotowy do utworzenia otworu.');
+    setNotice(sourceCommand.role === 'construction' ? 'Dodano punkt konstrukcyjny.' : 'Dodano punkt referencyjny gotowy do utworzenia otworu.');
+  };
+
+  const directSketchTypes = ['rectangle', 'circle', 'arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic', 'point'];
+  const requiredGesturePoints = (sourceCommand) => {
+    if (!sourceCommand) return 0;
+    if (sourceCommand.type === 'point') return 1;
+    if (sourceCommand.type === 'rectangle') return sourceCommand.definition === 'threePoints' ? 3 : 2;
+    if (sourceCommand.type === 'circle') return sourceCommand.definition === 'threePoints' ? 3 : 2;
+    if (['arc', 'conic', 'ellipse'].includes(sourceCommand.type)) return 3;
+    if (sourceCommand.type === 'polygon') return 2;
+    if (sourceCommand.type === 'slot') return sourceCommand.definition === 'arc' ? 4 : 3;
+    return Number.POSITIVE_INFINITY;
+  };
+  const pointText = ([x, y]) => `${Number(x).toFixed(3)},${Number(y).toFixed(3)}`;
+  const distanceBetween = (first, second) => Math.hypot(second[0] - first[0], second[1] - first[1]);
+  const distanceFromAxis = (point, first, second) => {
+    const length = distanceBetween(first, second);
+    if (length <= 1e-9) return 0;
+    return Math.abs(((second[0] - first[0]) * (first[1] - point[1])) - ((first[0] - point[0]) * (second[1] - first[1]))) / length;
+  };
+  const gesturePatch = (sourceCommand, points) => {
+    const patch = { gesturePoints: points };
+    const [first, second, third, fourth] = points;
+    if (sourceCommand.type === 'rectangle') {
+      if (sourceCommand.definition === 'center') {
+        if (first) Object.assign(patch, { x: String(first[0]), y: String(first[1]) });
+        if (second) Object.assign(patch, { width: String(Math.abs(second[0] - first[0]) * 2), height: String(Math.abs(second[1] - first[1]) * 2) });
+      } else {
+        if (first) Object.assign(patch, { x1: String(first[0]), y1: String(first[1]) });
+        if (second) Object.assign(patch, { x2: String(second[0]), y2: String(second[1]) });
+        if (third) Object.assign(patch, { x3: String(third[0]), y3: String(third[1]) });
+      }
+    } else if (sourceCommand.type === 'circle') {
+      if (sourceCommand.definition === 'centerRadius') {
+        if (first) Object.assign(patch, { x: String(first[0]), y: String(first[1]) });
+        if (second) patch.diameter = String(distanceBetween(first, second) * 2);
+      } else {
+        if (first) Object.assign(patch, { x1: String(first[0]), y1: String(first[1]) });
+        if (second) Object.assign(patch, { x2: String(second[0]), y2: String(second[1]) });
+        if (third) Object.assign(patch, { x3: String(third[0]), y3: String(third[1]) });
+      }
+    } else if (['arc', 'conic'].includes(sourceCommand.type)) {
+      if (first) Object.assign(patch, { x1: String(first[0]), y1: String(first[1]) });
+      if (second) Object.assign(patch, { x2: String(second[0]), y2: String(second[1]) });
+      if (third) Object.assign(patch, { x3: String(third[0]), y3: String(third[1]) });
+    } else if (sourceCommand.type === 'polygon') {
+      if (sourceCommand.definition === 'edge') {
+        if (first) Object.assign(patch, { x1: String(first[0]), y1: String(first[1]) });
+        if (second) Object.assign(patch, { x2: String(second[0]), y2: String(second[1]) });
+      } else {
+        if (first) Object.assign(patch, { x: String(first[0]), y: String(first[1]) });
+        if (second) Object.assign(patch, {
+          radius: String(distanceBetween(first, second)),
+          rotation: String(Math.atan2(second[1] - first[1], second[0] - first[0]) * 180 / Math.PI),
+        });
+      }
+    } else if (sourceCommand.type === 'ellipse') {
+      if (first) Object.assign(patch, { x: String(first[0]), y: String(first[1]) });
+      if (second) Object.assign(patch, {
+        majorRadius: String(distanceBetween(first, second)),
+        rotation: String(Math.atan2(second[1] - first[1], second[0] - first[0]) * 180 / Math.PI),
+      });
+      if (third) patch.minorRadius = String(distanceFromAxis(third, first, second));
+    } else if (sourceCommand.type === 'slot') {
+      if (sourceCommand.definition === 'arc') {
+        if (first) Object.assign(patch, { x: String(first[0]), y: String(first[1]) });
+        if (second) Object.assign(patch, { radius: String(distanceBetween(first, second)), startAngle: String(Math.atan2(second[1] - first[1], second[0] - first[0]) * 180 / Math.PI) });
+        if (third) patch.endAngle = String(Math.atan2(third[1] - first[1], third[0] - first[0]) * 180 / Math.PI);
+        if (fourth) patch.width = String(Math.abs(distanceBetween(first, fourth) - distanceBetween(first, second)) * 2);
+      } else {
+        if (first) Object.assign(patch, { x1: String(first[0]), y1: String(first[1]) });
+        if (second) Object.assign(patch, { x2: String(second[0]), y2: String(second[1]) });
+        if (third) Object.assign(patch, { x3: String(third[0]), y3: String(third[1]), width: String(distanceFromAxis(third, first, second) * 2) });
+      }
+    } else if (sourceCommand.type === 'spline') {
+      patch.pointsText = points.map(pointText).join('; ');
+    } else if (sourceCommand.type === 'point' && first) {
+      Object.assign(patch, { x: String(first[0]), y: String(first[1]) });
+    }
+    return patch;
+  };
+
+  const handleSketchCanvasPoint = (coordinates) => {
+    if (command?.type === 'line' || command?.type === 'polyline') return appendSketchPoint(coordinates);
+    if (!directSketchTypes.includes(command?.type)) return;
+    const point = coordinates.map((value) => Number(value));
+    if (point.some((value) => !Number.isFinite(value))) return;
+    const points = [...(command.gesturePoints || []), point];
+    const patch = gesturePatch(command, points);
+    const nextCommand = { ...command, ...patch };
+    const required = requiredGesturePoints(nextCommand);
+    if (points.length < required) {
+      setCommand(nextCommand);
+      setNotice(nextCommand.type === 'spline'
+        ? `Dodano punkt ${points.length}. Klikaj dalej; Enter lub prawy przycisk zakończy spline.`
+        : `Wskazano ${points.length} z ${required} punktów. Kliknij następny punkt na płótnie.`);
+      return;
+    }
+    if (nextCommand.type === 'point') confirmSketchPoint(nextCommand);
+    else if (nextCommand.type === 'rectangle' || nextCommand.type === 'circle') confirmProfile(nextCommand);
+    else confirmMechanicalShape(nextCommand);
+  };
+
+  const finishCanvasSketchTool = () => {
+    if (command?.type === 'line' || command?.type === 'polyline') return finishSketchPath();
+    if (!directSketchTypes.includes(command?.type)) return;
+    const points = command.gesturePoints || [];
+    if (command.type === 'spline') {
+      if (points.length < 3) {
+        setNotice('Spline wymaga co najmniej trzech punktów. Kliknij kolejne punkty albo naciśnij Escape.');
+        return;
+      }
+      confirmMechanicalShape(command);
+      return;
+    }
+    if (points.length) {
+      setNotice(`Figura wymaga ${requiredGesturePoints(command)} punktów. Dokończ wskazywanie albo naciśnij Escape.`);
+      return;
+    }
+    if (command.type === 'point') confirmSketchPoint(command);
+    else if (command.type === 'rectangle' || command.type === 'circle') confirmProfile(command);
+    else confirmMechanicalShape(command);
   };
 
   const openExtrude = () => {
@@ -3638,6 +3767,11 @@ export default function ModelingWorkspace() {
         finishSketchPath();
         return;
       }
+      if (event.key === 'Enter' && directSketchTypes.includes(command?.type)) {
+        event.preventDefault();
+        finishCanvasSketchTool();
+        return;
+      }
       if (event.key === 'Enter' && command?.previewFeature) {
         event.preventDefault();
         confirmFeature();
@@ -3767,11 +3901,13 @@ export default function ModelingWorkspace() {
             sketches={document.sketches}
             activeSketchId={activeSketchId}
             draftProfile={draftProfile}
-            draftType={(command?.type === 'rectangle' && command.definition === 'center') || (command?.type === 'circle' && command.definition === 'centerRadius') ? command.type : null}
+            draftType={null}
             onDraftChange={readOnly ? undefined : updateCommand}
-            sketchTool={command?.type === 'line' || command?.type === 'polyline' ? command.type : null}
-            polylineDraft={command?.type === 'line' || command?.type === 'polyline' ? { lastPoint: command.lastPoint } : null}
-            onSketchPoint={readOnly ? undefined : appendSketchPoint}
+            sketchTool={command?.type === 'line' || command?.type === 'polyline' || directSketchTypes.includes(command?.type) ? command.type : null}
+            sketchToolPrompt={command?.type === 'rectangle' ? (command.gesturePoints?.length ? 'Wskaż przeciwległy narożnik' : 'Wskaż pierwszy narożnik') : command?.type === 'circle' ? (command.gesturePoints?.length ? 'Wskaż punkt promienia' : 'Wskaż środek') : command?.type === 'arc' ? 'Wskaż trzy punkty łuku' : command?.type === 'polygon' ? 'Wskaż środek i wierzchołek' : command?.type === 'ellipse' ? 'Wskaż środek, oś główną i szerokość' : command?.type === 'slot' ? 'Wskaż oś slotu i jego szerokość' : command?.type === 'spline' ? 'Klikaj punkty spline' : command?.type === 'conic' ? 'Wskaż początek, punkt kontrolny i koniec' : command?.type === 'point' ? 'Wskaż położenie punktu' : command?.type === 'line' ? 'Wskaż początek i koniec linii' : command?.type === 'polyline' ? 'Klikaj kolejne punkty; kliknij początek, aby zamknąć' : null}
+            polylineDraft={command?.type === 'line' || command?.type === 'polyline' ? { lastPoint: command.lastPoint } : directSketchTypes.includes(command?.type) ? { lastPoint: command.gesturePoints?.at(-1) || null } : null}
+            onSketchPoint={readOnly ? undefined : handleSketchCanvasPoint}
+            onSketchFinish={readOnly ? undefined : finishCanvasSketchTool}
             selectedSketchEntityIds={selectedSketchEntityIds}
             lostProjectedEntityIds={lostProjectedEntityIds}
             selectedSketchConstraintId={selectedSketchConstraintId}

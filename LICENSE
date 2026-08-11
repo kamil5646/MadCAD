@@ -1,4 +1,4 @@
-MadCAD Custom License v1.1
+MadCAD Private Use License v2.0
 
 Copyright (c) 2026 Kamil Kasprzak
 Wszelkie prawa zastrzeżone.
@@ -7,32 +7,43 @@ Wszelkie prawa zastrzeżone.
 Niniejsza licencja obejmuje aplikację MadCAD wraz z towarzyszącą dokumentacją,
 zasobami graficznymi i plikami dystrybucyjnymi projektu.
 
-2. Dozwolone używanie
-Użytkownik może korzystać z aplikacji zgodnie z zasadami aktywacji tokenu
-opisanymi w aplikacji i dokumentacji projektu.
+2. Bezpłatne używanie prywatne
+Osoba fizyczna może bezpłatnie instalować i używać aplikacji wyłącznie do
+celów prywatnych, niezarobkowych i niezwiązanych z działalnością gospodarczą,
+zawodową, usługową ani działalnością organizacji.
 
-3. Zakaz modyfikacji
+3. Używanie komercyjne
+Każde używanie aplikacji w celu osiągania przychodu lub korzyści gospodarczej,
+w ramach pracy, działalności gospodarczej, świadczenia usług, produkcji,
+projektów wykonywanych dla klienta albo przez organizację wymaga uprzedniego
+uzyskania od autora odrębnej, pisemnej licencji komercyjnej i wniesienia
+uzgodnionej opłaty.
+
+Darowizna lub dobrowolne wsparcie projektu nie zastępuje licencji komercyjnej
+i samo w sobie nie przyznaje prawa do używania komercyjnego.
+
+4. Zakaz modyfikacji
 Zabronione jest modyfikowanie aplikacji, dekompilacja, reverse engineering,
 tworzenie utworów zależnych, adaptacja, obchodzenie zabezpieczeń oraz
 jakakolwiek ingerencja w kod źródłowy lub binarny.
 
-4. Zakaz redystrybucji bez zgody
+5. Zakaz redystrybucji bez zgody
 Zabroniona jest redystrybucja aplikacji (w całości lub części), odsprzedaż,
 sublicencjonowanie i publiczne udostępnianie kodu lub binariów bez uprzedniej,
 pisemnej zgody autora.
 
-5. Wyłączenie odpowiedzialności
+6. Wyłączenie odpowiedzialności
 Aplikacja jest udostępniana w stanie "as is", bez jakichkolwiek gwarancji,
 w zakresie dopuszczalnym przez obowiązujące prawo.
 Autor nie ponosi odpowiedzialności za szkody bezpośrednie, pośrednie,
 utracone korzyści ani inne skutki wynikające z używania lub braku możliwości
 używania aplikacji.
 
-6. Naruszenie licencji
+7. Naruszenie licencji
 Naruszenie warunków niniejszej licencji skutkuje natychmiastowym wygaśnięciem
 prawa do korzystania z aplikacji.
 
-7. Postanowienia końcowe
+8. Postanowienia końcowe
 Autor może publikować kolejne wersje licencji.
 W przypadku wątpliwości interpretacyjnych wiążąca jest aktualna wersja licencji
 opublikowana w oficjalnym repozytorium projektu.
