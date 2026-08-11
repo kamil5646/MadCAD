@@ -1081,6 +1081,8 @@ export default function ModelingWorkspace() {
   const fileInputRef = useRef(null);
   const importInputRef = useRef(null);
   const sketchImportInputRef = useRef(null);
+  const sketchPointerRef = useRef(null);
+  const sketchDynamicLengthRef = useRef('');
   const [importDraft, setImportDraft] = useState(null);
   const [sketchImportDraft, setSketchImportDraft] = useState(null);
   const readOnly = documentAccess.readOnly;
@@ -1667,6 +1669,8 @@ export default function ModelingWorkspace() {
       startSketch();
       return;
     }
+    sketchPointerRef.current = null;
+    sketchDynamicLengthRef.current = '';
     setCommand({
       type,
       pointIds: [],
@@ -1679,9 +1683,10 @@ export default function ModelingWorkspace() {
       lastTangent: null,
       length: '20',
       angle: '0',
+      dynamicLength: '',
       segmentMode: 'line',
     });
-    setNotice(type === 'line' ? 'Wskaż początek i koniec linii.' : 'Klikaj kolejne punkty polilinii; kliknij początek, aby zamknąć profil.');
+    setNotice(type === 'line' ? 'Wskaż punkt początkowy linii.' : 'Klikaj kolejne punkty polilinii; kliknij początek, aby zamknąć profil.');
   };
 
   const finishSketchPath = () => {
@@ -1711,8 +1716,9 @@ export default function ModelingWorkspace() {
     if (!command.lastPoint) {
       const start = createSketchPoint({ x: point[0].toFixed(3), y: point[1].toFixed(3) });
       commit((next) => next.sketches.find((sketch) => sketch.id === activeSketchId).entities.push(start));
-      setCommand((current) => ({ ...current, pointIds: [start.id], points: [point], firstPoint: point, lastPoint: point }));
-      setNotice('Punkt początkowy ustawiony. Wskaż koniec segmentu.');
+      sketchDynamicLengthRef.current = '';
+      setCommand((current) => ({ ...current, pointIds: [start.id], points: [point], firstPoint: point, lastPoint: point, dynamicLength: '' }));
+      setNotice('Punkt początkowy ustawiony. Ustaw kierunek kursorem, wpisz długość i naciśnij Enter albo kliknij koniec.');
       return;
     }
 
@@ -1795,7 +1801,9 @@ export default function ModelingWorkspace() {
       lastPoint: point,
       lastTangent: endTangent,
       segmentMode: 'line',
+      dynamicLength: '',
     }));
+    sketchDynamicLengthRef.current = '';
     setNotice('Segment dodany. Kliknij kolejny punkt, wybierz łuk styczny albo zamknij profil.');
   };
 
@@ -1812,6 +1820,27 @@ export default function ModelingWorkspace() {
     }
     const radians = angle * Math.PI / 180;
     appendSketchPoint([command.lastPoint[0] + (Math.cos(radians) * length), command.lastPoint[1] + (Math.sin(radians) * length)]);
+  };
+
+  const confirmDynamicSketchSegment = () => {
+    if (!command?.lastPoint) return;
+    const length = Number(sketchDynamicLengthRef.current.replace(',', '.'));
+    if (!(length > 0)) {
+      setNotice('Wpisz dodatnią długość linii.');
+      return;
+    }
+    const pointer = sketchPointerRef.current;
+    const deltaX = Number(pointer?.[0]) - command.lastPoint[0];
+    const deltaY = Number(pointer?.[1]) - command.lastPoint[1];
+    const pointerDistance = Math.hypot(deltaX, deltaY);
+    const radians = pointerDistance > 1e-7
+      ? Math.atan2(deltaY, deltaX)
+      : Number(command.angle || 0) * Math.PI / 180;
+    sketchDynamicLengthRef.current = '';
+    appendSketchPoint([
+      command.lastPoint[0] + (Math.cos(radians) * length),
+      command.lastPoint[1] + (Math.sin(radians) * length),
+    ]);
   };
 
   const undoSketchSegment = () => {
@@ -2539,6 +2568,7 @@ export default function ModelingWorkspace() {
         previewClearanceProfile: command.previewFeature?.clearanceProfile,
         points: command.points?.length || 0,
         segments: command.segmentIds?.length || 0,
+        dynamicLength: command.dynamicLength || '',
         measurement: command.type === 'measure' ? measurement : null,
         sectionAnalysis: command.type === 'sectionAnalysis' ? sectionAnalysis : null,
         massProperties: command.type === 'massProperties' ? massProperties : null,
@@ -3764,8 +3794,34 @@ export default function ModelingWorkspace() {
       }
       if (event.key === 'Enter' && (command?.type === 'line' || command?.type === 'polyline')) {
         event.preventDefault();
-        finishSketchPath();
+        if (textEntry && command.lastPoint) confirmExactSketchSegment();
+        else if (command.lastPoint && sketchDynamicLengthRef.current) confirmDynamicSketchSegment();
+        else finishSketchPath();
         return;
+      }
+      if (!textEntry && command?.lastPoint && (command.type === 'line' || command.type === 'polyline') && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        const current = sketchDynamicLengthRef.current;
+        if (/^[0-9]$/.test(event.key)) {
+          event.preventDefault();
+          const next = `${current}${event.key}`;
+          sketchDynamicLengthRef.current = next;
+          setCommand((value) => ({ ...value, dynamicLength: next }));
+          return;
+        }
+        if ((event.key === '.' || event.key === ',') && !/[.,]/.test(current)) {
+          event.preventDefault();
+          const next = `${current || '0'}${event.key}`;
+          sketchDynamicLengthRef.current = next;
+          setCommand((value) => ({ ...value, dynamicLength: next }));
+          return;
+        }
+        if (event.key === 'Backspace' && current) {
+          event.preventDefault();
+          const next = current.slice(0, -1);
+          sketchDynamicLengthRef.current = next;
+          setCommand((value) => ({ ...value, dynamicLength: next }));
+          return;
+        }
       }
       if (event.key === 'Enter' && directSketchTypes.includes(command?.type)) {
         event.preventDefault();
@@ -3904,10 +3960,12 @@ export default function ModelingWorkspace() {
             draftType={null}
             onDraftChange={readOnly ? undefined : updateCommand}
             sketchTool={command?.type === 'line' || command?.type === 'polyline' || directSketchTypes.includes(command?.type) ? command.type : null}
-            sketchToolPrompt={command?.type === 'rectangle' ? (command.gesturePoints?.length ? 'Wskaż przeciwległy narożnik' : 'Wskaż pierwszy narożnik') : command?.type === 'circle' ? (command.gesturePoints?.length ? 'Wskaż punkt promienia' : 'Wskaż środek') : command?.type === 'arc' ? 'Wskaż trzy punkty łuku' : command?.type === 'polygon' ? 'Wskaż środek i wierzchołek' : command?.type === 'ellipse' ? 'Wskaż środek, oś główną i szerokość' : command?.type === 'slot' ? 'Wskaż oś slotu i jego szerokość' : command?.type === 'spline' ? 'Klikaj punkty spline' : command?.type === 'conic' ? 'Wskaż początek, punkt kontrolny i koniec' : command?.type === 'point' ? 'Wskaż położenie punktu' : command?.type === 'line' ? 'Wskaż początek i koniec linii' : command?.type === 'polyline' ? 'Klikaj kolejne punkty; kliknij początek, aby zamknąć' : null}
+            sketchToolPrompt={command?.type === 'rectangle' ? (command.gesturePoints?.length ? 'Wskaż przeciwległy narożnik' : 'Wskaż pierwszy narożnik') : command?.type === 'circle' ? (command.gesturePoints?.length ? 'Wskaż punkt promienia' : 'Wskaż środek') : command?.type === 'arc' ? 'Wskaż trzy punkty łuku' : command?.type === 'polygon' ? 'Wskaż środek i wierzchołek' : command?.type === 'ellipse' ? 'Wskaż środek, oś główną i szerokość' : command?.type === 'slot' ? 'Wskaż oś slotu i jego szerokość' : command?.type === 'spline' ? 'Klikaj punkty spline' : command?.type === 'conic' ? 'Wskaż początek, punkt kontrolny i koniec' : command?.type === 'point' ? 'Wskaż położenie punktu' : command?.type === 'line' ? (command.lastPoint ? 'Ustaw kierunek kursorem' : 'Wskaż punkt początkowy linii') : command?.type === 'polyline' ? 'Klikaj kolejne punkty; kliknij początek, aby zamknąć' : null}
             polylineDraft={command?.type === 'line' || command?.type === 'polyline' ? { lastPoint: command.lastPoint } : directSketchTypes.includes(command?.type) ? { lastPoint: command.gesturePoints?.at(-1) || null } : null}
             onSketchPoint={readOnly ? undefined : handleSketchCanvasPoint}
+            onSketchPointerMove={(point) => { sketchPointerRef.current = point; }}
             onSketchFinish={readOnly ? undefined : finishCanvasSketchTool}
+            sketchDynamicLength={command?.dynamicLength || ''}
             selectedSketchEntityIds={selectedSketchEntityIds}
             lostProjectedEntityIds={lostProjectedEntityIds}
             selectedSketchConstraintId={selectedSketchConstraintId}

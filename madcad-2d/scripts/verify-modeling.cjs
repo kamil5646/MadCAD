@@ -1608,6 +1608,35 @@ async function runUiFlow(window) {
   await new Promise((resolve) => setTimeout(resolve, 75));
   await fs.writeFile(emptyOutputPath, (await window.webContents.capturePage()).toPNG());
 
+  progress('AutoCAD-style line length input');
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny dla linii dynamicznej');
+  await pickPlane('XY');
+  await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view') && window.__madcadSketchLocalToScreen`, 'szkic linii dynamicznej');
+  await clickTool('Linia');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'line'`, 'polecenie linii dynamicznej');
+  const dynamicLineStart = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(0, 0)`);
+  await sendMouse('mouseMove', dynamicLineStart);
+  await sendMouse('mouseDown', dynamicLineStart);
+  await sendMouse('mouseUp', dynamicLineStart);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 1`, 'punkt początkowy linii dynamicznej');
+  await waitForUi(window, `window.__madcadSketchLocalToScreen`, 'odświeżone płótno linii dynamicznej');
+  const dynamicLineDirection = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(30, 40)`);
+  await sendMouse('mouseMove', dynamicLineDirection);
+  await waitForUi(window, `document.querySelector('.sketch-dynamic-input')?.textContent.includes('50.00')`, 'podgląd kierunku i długości linii');
+  await sendKey('2');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.dynamicLength === '2'`, 'pierwsza cyfra długości linii');
+  await sendKey('5');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.dynamicLength === '25' && document.querySelector('.sketch-dynamic-input.typing')?.textContent.includes('25')`, 'wpisana długość linii');
+  await sendKey('Enter');
+  await waitForUi(window, `!window.__madcadVerifyDocumentState?.command && window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 3`, 'linia zatwierdzona Enterem');
+  const dynamicLinePoints = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.filter((entity) => entity.type === 'point').map((entity) => [Number(entity.geometry.x), Number(entity.geometry.y)])`);
+  assertClose(dynamicLinePoints[1][0], 15, 0.01, 'Dynamic line end X');
+  assertClose(dynamicLinePoints[1][1], 20, 0.01, 'Dynamic line end Y');
+  assertClose(Math.hypot(dynamicLinePoints[1][0] - dynamicLinePoints[0][0], dynamicLinePoints[1][1] - dynamicLinePoints[0][1]), 25, 0.01, 'Dynamic line length');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt po teście linii dynamicznej');
+
   progress('base sketch');
   await clickTool('Utwórz szkic');
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny');
