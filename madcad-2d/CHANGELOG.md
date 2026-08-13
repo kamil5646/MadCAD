@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased (2026-08-13)
+
+- Dodano wspólną ochronę niezapisanych zmian dla Nowy/Otwórz/Zamknij/Aktualizuj oraz prawdziwy stan `dirty` dokumentu.
+- Połączono lokalny i plikowy autozapis z atomowym `primary`/`.bak`, odzyskiwaniem uszkodzonej sesji i czyszczeniem po poprawnym zapisie.
+- Dodano widoczne sprawdzanie aktualizacji, pobieranie i instalację z kontrolą niezapisanych zmian.
+- Wymuszono podpis oficjalnych paczek: Authenticode na Windows oraz Developer ID, Team ID, Gatekeeper i notaryzację na macOS; workflow nie publikuje już paczek unsigned.
+- Usunięto nieużywany instalator ODA, konwersję DWG i pięć zbędnych kanałów IPC, które pozwalały pobrać lub uruchomić zewnętrzny instalator.
+- Naprawiono bezpieczne przejście z okna licencji do strony projektu oraz udostępniono pełną licencję lokalnie w aplikacji.
+- Dodano wybór PL/EN zgodny z językiem systemu oraz test przełączenia najważniejszego przepływu.
+- Przeniesiono dokładną analizę kolizji na żądanie i dodano szeroką fazę AABB.
+- Podzielono duży bundle na ładowane na żądanie fragmenty widoku 3D, importu 3MF i eksportu STL; największy fragment JS ma mniej niż 500 kB.
+- Rozszerzono desktop E2E o utratę danych, dostępność axe, responsywność 100–200%, licencję, tooltipy i zrzuty najważniejszych stanów.
+- Dodano progi pokrycia rdzenia, CodeQL, Dependabot, CODEOWNERS, politykę bezpieczeństwa i przypięte wersje GitHub Actions.
+- Poprawiono panel utraconych referencji i dostępność przewijanej wstążki na wąskim oknie.
+
 ## 6.1.0 (2026-08-11)
 
 - Dodano wejście dynamiczne w stylu AutoCAD dla linii: kliknięcie ustala początek, kursor kierunek, a wpisana długość zatwierdzona Enterem tworzy dokładny odcinek.

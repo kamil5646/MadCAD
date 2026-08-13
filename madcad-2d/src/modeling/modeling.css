@@ -152,6 +152,10 @@
 .license-info-actions a.support:hover { background: #1594c2; }
 .license-info-actions button { min-height: 34px; padding: 0 14px; border: 1px solid #4abde1; border-radius: 4px; color: white; background: #158bb5; cursor: pointer; }
 .license-info-actions button:hover { background: #18a0cf; }
+.full-license-dialog { width: min(820px, 100%); }
+.full-license-dialog pre { max-height: min(62vh, 680px); margin: 0; padding: 18px; overflow: auto; color: #d9e2e9; background: #202934; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; }
+.full-license-dialog > footer { display: flex; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid #566473; }
+.full-license-dialog > footer button { min-height: 34px; padding: 0 16px; border: 1px solid #4abde1; border-radius: 4px; color: white; background: #158bb5; cursor: pointer; }
 
 @media (max-width: 760px), (max-height: 620px) {
   .tutorial-backdrop { padding: 10px; }
@@ -310,6 +314,27 @@
   font-size: 11px;
 }
 
+.language-select select {
+  height: 24px;
+  border: 1px solid #465464;
+  border-radius: 3px;
+  background: #1b232d;
+  color: #d9e3ec;
+  font: inherit;
+  font-size: 11px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .command-area {
   display: grid;
   min-width: 0;
@@ -404,10 +429,15 @@
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 3px 8px 2px;
+  padding: 3px 8px 5px;
+  scrollbar-gutter: stable;
   scrollbar-color: #65717d transparent;
-  scrollbar-width: thin;
+  scrollbar-width: auto;
 }
+
+.modeling-ribbon::-webkit-scrollbar { height: 8px; }
+.modeling-ribbon::-webkit-scrollbar-track { background: #27313d; }
+.modeling-ribbon::-webkit-scrollbar-thumb { border: 2px solid #27313d; border-radius: 8px; background: #71808f; }
 
 .ribbon-group {
   position: relative;
@@ -702,6 +732,16 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
+}
+
+.viewport-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #b8c1ca;
+  background: #171a1d;
+  font-size: 13px;
 }
 
 .model-viewport canvas {
@@ -1059,7 +1099,8 @@
   top: 82px;
   right: 12px;
   width: min(340px, calc(100% - 24px));
-  overflow: hidden;
+  max-height: min(68vh, 620px);
+  overflow: auto;
   border: 1px solid rgba(237, 177, 75, 0.72);
   border-radius: 7px;
   color: #e9f0f4;
@@ -1068,12 +1109,25 @@
 }
 
 .reference-repair-panel header {
+  position: sticky;
+  z-index: 1;
+  top: 0;
   display: flex;
   align-items: center;
   gap: 9px;
   padding: 9px 11px;
   color: #ffd27d;
   background: rgba(134, 91, 29, 0.35);
+}
+
+.reference-repair-panel.collapsed { width: min(270px, calc(100% - 24px)); }
+.reference-repair-panel .reference-repair-toggle {
+  width: 29px;
+  min-height: 29px;
+  margin-left: auto;
+  padding: 0;
+  border-color: rgba(255, 210, 125, 0.5);
+  background: rgba(32, 34, 36, 0.45);
 }
 
 .reference-repair-panel header div,

@@ -9,7 +9,7 @@ CAD i kernelem OpenCascade uruchamianym w workerze.
 
 - `src/modeling/` — aktualny interfejs modelowania i widok 2D/3D.
 - `src/cad-core/` — dokument, szkicownik, solver, topologia, historia i eksporty.
-- `electron/` — bezpieczna integracja desktopowa, zapis, aktualizacje i import DWG.
+- `electron/` — bezpieczna integracja desktopowa, zapis, odzyskiwanie i aktualizacje.
 - `scripts/` — test pełnego interfejsu, kontrola pakietów i sum SHA-256.
 - `tests/` — testy rdzenia CAD i polityk procesu desktopowego.
 - `assets/` — ikony aplikacji.
@@ -29,6 +29,8 @@ npm run dev
 npm run lint
 npm test
 npm run test:core
+npm run test:core:coverage
+npm run verify:repository
 npm run verify:modeling
 npm run verify:electron-security
 npm audit --audit-level=high
@@ -45,9 +47,13 @@ npm run dist:mac:trusted
 npm run dist:win:trusted
 ```
 
-Paczki trafiają do `release/`. Oficjalny workflow dodatkowo tworzy pliki
-`.sha256`, sprawdza format paczki i weryfikuje podpis, jeśli certyfikat jest
-skonfigurowany w sekretach repozytorium.
+Paczki trafiają do `release/`. Oficjalny workflow tworzy pliki `.sha256`,
+sprawdza format paczki i **przerywa publikację**, jeżeli nie ma poprawnego
+podpisu Authenticode (Windows) albo Developer ID i notaryzacji (macOS).
+
+> Opublikowane wcześniej instalatory `v6.1.0` powstały przed wprowadzeniem tej
+> bramki i nie mają podpisu producenta. System może pokazać ostrzeżenie. Nie
+> należy ich używać jako bazowej wersji do automatycznej aktualizacji.
 
 ## Wersje i aktualizacje
 
@@ -55,6 +61,8 @@ skonfigurowany w sekretach repozytorium.
 - wersje bez sufiksu są publikowane w kanale stabilnym;
 - `-beta.N` i `-alpha.N` pozostają obsługiwanymi kanałami testowymi;
 - aktualizator przyjmuje wyłącznie zaufane adresy oficjalnego repozytorium.
+- instalacja aktualizacji jest blokowana, gdy podpis platformowy nie jest
+  poprawny albo plik nie zgadza się z opublikowaną sumą SHA-256.
 
 ## Interakcja CAD
 

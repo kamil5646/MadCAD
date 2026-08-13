@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('desktopApp', {
     return 'pl';
   })(),
   saveTextFile: (payload) => ipcRenderer.invoke('madcad:save-text-file', payload),
+  confirmUnsavedChanges: (payload) => ipcRenderer.invoke('madcad:confirm-unsaved-changes', payload),
   sendToSlicer: (payload) => ipcRenderer.invoke('madcad:send-to-slicer', payload),
   autosaveWrite: (payload) => ipcRenderer.invoke('madcad:autosave-write', payload),
   autosaveRead: () => ipcRenderer.invoke('madcad:autosave-read'),
@@ -27,10 +28,5 @@ contextBridge.exposeInMainWorld('desktopApp', {
   checkForUpdates: () => ipcRenderer.invoke('madcad:check-for-updates'),
   downloadAndInstallUpdate: (payload) => ipcRenderer.invoke('madcad:download-and-install-update', payload),
   openPrintPreviewWindow: (payload) => ipcRenderer.invoke('madcad:open-print-preview', payload),
-  convertCadFile: (payload) => ipcRenderer.invoke('madcad:convert-cad-file', payload),
-  getOdaStatus: () => ipcRenderer.invoke('madcad:get-oda-status'),
-  installOdaAddon: () => ipcRenderer.invoke('madcad:install-oda-addon'),
-  chooseOdaConverterPath: () => ipcRenderer.invoke('madcad:choose-oda-path'),
-  openOdaDownload: () => ipcRenderer.invoke('madcad:open-oda-download'),
   setAppLanguage: (payload) => ipcRenderer.invoke('madcad:set-language', payload)
 });

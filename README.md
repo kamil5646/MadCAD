@@ -17,6 +17,11 @@ bryłowe i przygotowanie plików do druku 3D.
 **[Licencja](./LICENSE)** ·
 **[Zmiany](./madcad-2d/CHANGELOG.md)**
 
+> **Uwaga o wydaniu 6.1.0:** obecne paczki zostały opublikowane bez podpisu
+> producenta, więc Windows lub macOS mogą wyświetlić ostrzeżenie. Kolejne
+> oficjalne wydanie nie przejdzie procesu publikacji bez Authenticode,
+> Developer ID/notaryzacji i kontroli SHA-256.
+
 ## Najważniejsze możliwości
 
 - Rysowanie bezpośrednio na płótnie oraz dokładne wejście z klawiatury.
@@ -73,6 +78,8 @@ Najważniejsze kontrole:
 npm run lint
 npm test
 npm run test:core
+npm run test:core:coverage
+npm run verify:repository
 npm run verify:modeling
 npm run verify:electron-security
 ```

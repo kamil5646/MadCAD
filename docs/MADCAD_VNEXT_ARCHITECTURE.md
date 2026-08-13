@@ -1,111 +1,103 @@
-# MadCAD vNext — architektura rdzenia
+# MadCAD 6.1 — aktualna architektura
 
-## Zasady
+Aktualizacja: 2026-08-13
 
-1. Electron pozostaje powłoką desktopową.
-2. React obsługuje nowe środowiska i panele.
-3. Istniejący silnik 2D działa podczas migracji, ale nie jest źródłem geometrii 3D.
-4. Three.js odpowiada wyłącznie za viewport i wybieranie elementów.
-5. Dokładne bryły B-Rep tworzy OpenCascade uruchomiony w Web Workerze.
-6. Każda operacja jest deklaratywnym wpisem timeline, a wynik można przeliczyć od początku.
-7. Plik projektu przechowuje zamiar projektowy, nie tylko końcową siatkę.
+Ten dokument opisuje działający kod 6.1. Nie jest planem hipotetycznego
+„vNext”. Kierunek dalszego rozwoju znajduje się w
+[`../madcad-2d/ROADMAP.md`](../madcad-2d/ROADMAP.md).
+
+## Granice systemu
+
+1. Electron jest minimalną, uprzywilejowaną powłoką desktopową.
+2. React odpowiada za środowisko modelowania, stan interakcji i dialogi.
+3. Dokument CAD oraz algorytmy szkicu są niezależne od Reacta.
+4. OpenCascade/RepliCAD działa w Web Workerze i tworzy dokładne B-Rep.
+5. Three.js odpowiada za prezentację, picking i manipulatory, nie za prawdę
+   geometryczną dokumentu.
+6. Projekt `.madcad` zapisuje zamiar parametryczny, historię i ustawienia, nie
+   wyłącznie końcową siatkę.
 
 ## Warstwy
 
-### Document Model
+### Dokument i sesja
 
-- metadata,
-- units,
-- parameters,
-- components,
-- sketches,
-- features,
-- bodies,
-- print settings,
-- schema version.
+`src/cad-core/document.js` definiuje wersjonowany schemat projektu, migracje i
+walidację. `src/modeling/document-session.js` utrzymuje zapisaną rewizję,
+wykrywa `dirty` oraz tworzy wspólną bramę Zapisz/Odrzuć/Anuluj dla Nowy,
+Otwórz, zamknięcia aplikacji i aktualizacji.
 
-### Parametric Evaluator
+Sesja ma dwa niezależne zabezpieczenia:
 
-- buduje graf zależności,
-- waliduje parametry i odwołania,
-- przelicza tylko zmienione i zależne features,
-- zachowuje ostatni poprawny rezultat,
-- raportuje pierwszą operację powodującą błąd.
+- szybki autozapis lokalny renderera;
+- atomowy autozapis plikowy `primary` + `.bak` przez wąskie IPC.
 
-### Sketch Engine
+Niepoprawny plik lub przerwany zapis nie zastępuje ostatniego poprawnego
+dokumentu. Udany zapis projektu czyści kopię awaryjną.
 
-- geometria 2D w lokalnym układzie płaszczyzny,
-- solver wymiarów i więzów,
-- analiza profili,
-- stabilne identyfikatory krawędzi i punktów.
+### Szkic i parametry
 
-### CAD Kernel Worker
+Encje 2D żyją w lokalnym układzie płaszczyzny. Solver, analiza profili,
+więzy, wymiary i stabilne ID są osobnymi modułami `src/cad-core`. Interfejs
+obsługuje zarówno wskazywanie myszą, jak i klasyczny przepływ poleceń: alias,
+punkt początkowy, kierunek, wartość i `Enter`.
 
-- OpenCascade.js przez warstwę RepliCAD,
-- extrude/revolve/boolean/hole/fillet/chamfer/shell,
-- triangulacja do viewportu,
-- STEP/STL export,
-- kontrola poprawności B-Rep.
+### Ewaluator i worker CAD
+
+Worker szereguje operacje, oznacza każdą rewizją, odrzuca spóźnione wyniki i
+utrzymuje ograniczony cache. Awaria workera nie niszczy ostatniego poprawnego
+modelu; klient uruchamia worker ponownie. OpenCascade odpowiada za bryły,
+booleany, fillet/chamfer, shell, triangulację i wymianę STEP/STL/3MF.
+
+Kontrola kolizji ma tanią szeroką fazę AABB. Dokładne przecięcie B-Rep jest
+uruchamiane tylko dla par o nakładających się bounds i na jawne żądanie
+narzędzia analizy.
 
 ### Viewport
 
-- Three.js,
-- kamera perspektywiczna i ortograficzna,
-- standardowe widoki,
-- wybieranie brył, ścian i krawędzi,
-- manipulator przesunięcia/obrotu,
-- podgląd operacji przed zatwierdzeniem.
+`ModelViewport` ładuje Three.js na żądanie i obsługuje kamerę, wybieranie,
+widoki standardowe, szkic na płótnie, trwałe referencje oraz manipulatory.
+Ciężkie importery/eksportery są osobnymi dynamicznymi fragmentami, dzięki
+czemu start aplikacji nie pobiera całego stosu 3D w jednym pliku JS.
 
-### Desktop Services
+### Usługi desktopowe
 
-- otwieranie i zapis plików,
-- autozapis i recovery,
-- eksport lokalny,
-- integracja ze slicerem,
-- updater zgodny z istniejącymi instalacjami.
+Preload wystawia tylko wymagane metody poprzez `contextBridge`. Proces główny
+ma 10 zaufanych kanałów IPC; każdy przechodzi tę samą kontrolę źródła oraz
+walidację rozmiaru i kształtu danych. Nie ma API ODA, instalacji zewnętrznych
+pakietów ani konwersji DWG.
 
-## Model operacji
+Aktualizator przyjmuje wyłącznie HTTPS z oficjalnego repozytorium, narzuca
+limit rozmiaru i SHA-256. Windows wymaga poprawnego Authenticode. macOS wymaga
+Developer ID, oczekiwanego Team ID, Gatekeeper i notaryzacji przed atomową
+podmianą z rollbackiem. Renderer nie może podać dowolnego adresu aktualizacji.
 
-Każda operacja ma:
+## Niezmienne bezpieczeństwa
 
-- trwałe `id`,
-- `type`,
-- nazwę widoczną w timeline,
-- parametry liczbowe lub wyrażenia,
-- referencje do profili, brył, ścian i krawędzi,
-- stan `active`, `suppressed`, `error`,
-- zależności upstream,
-- wersję schematu.
+- `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`;
+- CSP i zablokowana nawigacja poza aplikację;
+- zewnętrzne linki są normalizowane do zatwierdzonych adresów HTTPS;
+- brak klucza produktu, fingerprintu urządzenia, telemetrii i zdalnej
+  aktywacji;
+- oficjalny workflow przerywa się bez podpisu platformowego;
+- dokument użytkownika nie jest zastępowany przed udanym parsowaniem i
+  walidacją nowego dokumentu.
 
-Podstawowe typy:
+## Format operacji
 
-- `sketch`,
-- `extrude`,
-- `revolve`,
-- `hole`,
-- `fillet`,
-- `chamfer`,
-- `shell`,
-- `boolean`,
-- `transform`,
-- `mirror`,
-- `pattern`.
+Każda operacja ma trwałe `id`, `type`, nazwę, parametry lub wyrażenia,
+referencje do profili/topologii, zależności, stan oraz wersję schematu. Zmiana
+parametru przelicza zależne elementy i zachowuje ostatni poprawny wynik w razie
+błędu. Trwałe referencje nie mogą opierać się na indeksie pojedynczej
+tessellacji.
 
-## Zgodność
+## Dług techniczny
 
-- nazwa widoczna: `MadCAD`,
-- wewnętrzny `appId` pozostaje bez zmian do czasu migracji instalacji,
-- starsze pliki 2D są importowane jako `Legacy Sketch`,
-- release `5.7.0` pozostaje szkicem i nie jest kanałem aktualizacji,
-- vNext nie otrzyma publicznego release przed testami migracji, zapisu, eksportu i aktualizacji.
+Największym pozostałym punktem koncentracji jest `ModelingWorkspace.jsx`,
+który nadal łączy rejestr poleceń, dialogi, usługi dokumentu i część
+orkiestracji importu/eksportu. Następne wydzielenia powinny zachować obecny test
+desktopowy i przebiegać pionowo: kontroler poleceń, dialogi, persistence,
+import/export, a dopiero potem mniejsze komponenty widoku.
 
-## Kryteria pierwszego checkpointu
-
-1. Utworzenie szkicu na XY.
-2. Prostokąt i okrąg z wymiarami.
-3. Rozpoznanie zamkniętych profili.
-4. Extrude do nowej bryły.
-5. Cut okręgiem przez istniejącą bryłę.
-6. Edycja wymiaru aktualizuje bryłę przez timeline.
-7. Lokalny eksport STEP i STL.
-8. Zapis, ponowne otwarcie i identyczne przeliczenie projektu.
+Pozostałe blokady wydania to rzeczywiste certyfikaty Windows/macOS, test
+aktualizacji między dwiema podpisanymi wersjami, pełny katalog PL/EN oraz
+fixture'y wymiany danych z zewnętrznych programów.

@@ -1635,14 +1635,14 @@ export default function ModelViewport({
         onSketchFinish?.();
       }}
     >
-      <div className="view-cube" aria-label="Kostka widoku">
+      <div className="view-cube" role="toolbar" aria-label="Kostka widoku">
         <button className="cube-top" type="button" title="Ustaw kamerę prostopadle do płaszczyzny XY." onClick={() => setView('top')}>GÓRA</button>
         <button className="cube-main" type="button" onClick={() => setView('iso')} title="Widok izometryczny"><Box size={34} strokeWidth={1.2} /></button>
         <button className="cube-front" type="button" title="Ustaw kamerę na widok z przodu." onClick={() => setView('front')}>PRZÓD</button>
         <button className="cube-right" type="button" title="Ustaw kamerę na widok z prawej strony." onClick={() => setView('right')}>PRAWO</button>
       </div>
       <div className="axis-indicator" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
-      <div className="selection-filter-bar" aria-label="Filtr wyboru geometrii">
+      <div className="selection-filter-bar" role="toolbar" aria-label="Filtr wyboru geometrii">
         {[
           ['auto', 'Auto'],
           ['body', 'Bryła'],
@@ -1665,7 +1665,7 @@ export default function ModelViewport({
           onPointerCancel={(event) => directEventRef.current.up?.(event)}
         />
       )}
-      <div className="navigation-bar" aria-label="Nawigacja widoku">
+      <div className="navigation-bar" role="toolbar" aria-label="Nawigacja widoku">
         <button className={navigationMode === 'orbit' ? 'active' : ''} type="button" title="Orbita: przeciągnij lewym przyciskiem, aby obracać widok." onClick={() => { setNavigationMode('orbit'); setView('iso'); }}><Orbit size={16} /></button>
         <button className={navigationMode === 'pan' ? 'active' : ''} type="button" title="Przesuwanie: przeciągnij lewym przyciskiem, aby przesunąć widok." onClick={() => setNavigationMode((mode) => mode === 'pan' ? 'orbit' : 'pan')}><Move3d size={16} /></button>
         <button type="button" title="Powiększ model w bieżącym widoku." onClick={() => setZoomScale((scale) => Math.max(0.35, scale * 0.78))}><ZoomIn size={16} /></button>

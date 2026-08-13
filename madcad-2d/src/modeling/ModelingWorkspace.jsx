@@ -58,7 +58,6 @@ import {
   createParameter,
   createRectangleProfile,
   createSketch,
-  createStarterDocument,
   openDocument,
   touchDocument,
 } from '../cad-core/document.js';
@@ -116,19 +115,24 @@ import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { observeModelingLocalization, resolveModelingLanguage } from './i18n.js';
-import { tutorialForLanguage } from './tutorial-content.js';
-import { ThreeMFLoader } from 'three/examples/jsm/loaders/3MFLoader.js';
-import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
-import ModelViewport from './ModelViewport.jsx';
+import { FirstPartTutorial, FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './AppDialogs.jsx';
+import {
+  AUTOSAVE_KEY,
+  clearLocalAutosave,
+  documentModifiedAt,
+  loadInitialDocument,
+  writeLocalAutosave,
+} from './document-session.js';
 import './modeling.css';
 
-const AUTOSAVE_KEY = 'madcad:modeling-document:v4';
+const ModelViewport = React.lazy(() => import('./ModelViewport.jsx'));
 
 const MAIN_TABS = [
   { id: 'solid', label: 'BRYŁA' },
   { id: 'tools', label: 'NARZĘDZIA' },
   { id: 'print', label: 'DRUK 3D' },
 ];
+const LANGUAGE_KEY = 'madcad:interface-language';
 
 const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
 
@@ -241,49 +245,34 @@ function shortcutLabel(shortcut) {
   return `${shortcut} ↵`;
 }
 
-function loadInitialDocument() {
-  try {
-    const saved = window.localStorage.getItem(AUTOSAVE_KEY);
-    if (!saved) return { document: createStarterDocument(), readOnly: false, warning: '', sourceVersion: null };
-    return openDocument(JSON.parse(saved));
-  } catch (error) {
-    return {
-      document: createStarterDocument(),
-      readOnly: false,
-      warning: `Nie udało się odtworzyć autozapisu: ${error.message}. Utworzono bezpieczny dokument startowy.`,
-      sourceVersion: null,
-    };
-  }
-}
-
 function useDocumentHistory(initialDocument) {
   const [history, setHistory] = useState({ past: [], present: initialDocument, future: [] });
-  const commit = (mutator) => {
+  const commit = useCallback((mutator) => {
     setHistory((current) => {
       const next = cloneDocument(current.present);
       mutator(next);
       touchDocument(next);
       return { past: [...current.past.slice(-59), current.present], present: next, future: [] };
     });
-  };
-  const replace = (document) => setHistory({ past: [], present: document, future: [] });
-  const synchronize = (mutator) => setHistory((current) => {
+  }, []);
+  const replace = useCallback((document) => setHistory({ past: [], present: document, future: [] }), []);
+  const synchronize = useCallback((mutator) => setHistory((current) => {
     const next = cloneDocument(current.present);
     mutator(next);
     touchDocument(next);
     return { ...current, present: next };
-  });
-  const undo = () => setHistory((current) => current.past.length ? {
+  }), []);
+  const undo = useCallback(() => setHistory((current) => current.past.length ? {
     past: current.past.slice(0, -1),
     present: current.past.at(-1),
     future: [current.present, ...current.future],
-  } : current);
-  const redo = () => setHistory((current) => current.future.length ? {
+  } : current), []);
+  const redo = useCallback(() => setHistory((current) => current.future.length ? {
     past: [...current.past, current.present],
     present: current.future[0],
     future: current.future.slice(1),
-  } : current);
-  return {
+  } : current), []);
+  return useMemo(() => ({
     document: history.present,
     commit,
     replace,
@@ -292,7 +281,7 @@ function useDocumentHistory(initialDocument) {
     redo,
     canUndo: history.past.length > 0,
     canRedo: history.future.length > 0,
-  };
+  }), [commit, history.future.length, history.past.length, history.present, redo, replace, synchronize, undo]);
 }
 
 function downloadBlob(blob, filename) {
@@ -350,67 +339,6 @@ function RibbonGroup({ label, children, end = false }) {
     <div className={`ribbon-group ${end ? 'ribbon-group-end' : ''}`}>
       <div className="ribbon-tools">{children}</div>
       <span className="ribbon-group-label">{label}</span>
-    </div>
-  );
-}
-
-function FirstPartTutorial({ onClose }) {
-  const content = tutorialForLanguage(window.document.documentElement.lang);
-  useEffect(() => {
-    const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-  return (
-    <div className="tutorial-backdrop">
-      <section className="tutorial-dialog" role="dialog" aria-modal="true" aria-labelledby="firstPartTutorialTitle">
-        <header><div><strong id="firstPartTutorialTitle">{content.title}</strong><span>{content.intro}</span></div><button type="button" title={content.close} aria-label={content.close} onClick={onClose} autoFocus><X size={17} /></button></header>
-        <div className="tutorial-body">
-          <ol>{content.steps.map(([title, description]) => <li key={title}><strong>{title}</strong><span>{description}</span></li>)}</ol>
-          <aside><h3><AlertTriangle size={16} />{content.limitationsTitle}</h3><ul>{content.limitations.map((item) => <li key={item}>{item}</li>)}</ul></aside>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-export function LicenseInfoDialog({ onClose }) {
-  useEffect(() => {
-    const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
-  return (
-    <div className="license-info-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="license-info-dialog" role="dialog" aria-modal="true" aria-labelledby="licenseInfoTitle">
-        <header>
-          <div>
-            <strong id="licenseInfoTitle">Licencja MadCAD</strong>
-            <span>Przed rozpoczęciem pracy sprawdź zasady korzystania z MadCAD.</span>
-          </div>
-          <button type="button" title="Zamknij" aria-label="Zamknij" onClick={onClose}><X size={17} /></button>
-        </header>
-        <div className="license-info-body">
-          <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.</p>
-          <div className="license-info-card license-info-commercial">
-            <strong>Użytek komercyjny jest płatny</strong>
-            <ul>
-              <li>Firma lub organizacja może bezpłatnie oceniać pełną wersję przez 40 dni.</li>
-              <li>Po okresie oceny praca firmowa, zarobkowa lub dla klienta wymaga bezterminowej licencji na każde stanowisko.</li>
-              <li>Nie ma klucza ani aktywacji — licencję potwierdza dokument zakupu.</li>
-              <li>Dobrowolna darowizna wspiera rozwój, ale nie zastępuje licencji komercyjnej.</li>
-            </ul>
-          </div>
-          <p className="license-info-support-copy">Jeśli używasz MadCAD prywatnie i program jest dla Ciebie pomocny, możesz wesprzeć jego dalszy rozwój darowizną.</p>
-          <div className="license-info-actions">
-            <a href="https://github.com/kamil5646/MadCAD2D/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Pełna treść licencji</a>
-            <a href="mailto:kkasprzak15@icloud.com?subject=MadCAD%20-%20licencja%20komercyjna">Kup licencję komercyjną</a>
-            <a className="support" href="https://paypal.me/refek1" target="_blank" rel="noopener noreferrer">Przekaż darowiznę</a>
-            <button className="confirm" type="button" onClick={onClose} autoFocus>Przejdź do programu</button>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
@@ -500,12 +428,13 @@ function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect,
 }
 
 function TopologyReferenceRepairPanel({ items, selection, onReassign }) {
+  const [expanded, setExpanded] = useState(true);
   if (!items.length) return null;
   const selectedItem = selection?.items?.at(-1) || selection;
   return (
-    <aside className="reference-repair-panel" role="alert" aria-label="Naprawa utraconych referencji">
-      <header><AlertTriangle size={16} /><div><strong>Utracona referencja</strong><span>{items.length === 1 ? '1 element wymaga przypisania' : `${items.length} elementy wymagają przypisania`}</span></div></header>
-      {items.slice(0, 3).map((item) => {
+    <aside className={`reference-repair-panel ${expanded ? '' : 'collapsed'}`} role="alert" aria-label="Naprawa utraconych referencji">
+      <header><AlertTriangle size={16} /><div><strong>Utracona referencja</strong><span>{items.length === 1 ? '1 element wymaga przypisania' : `${items.length} elementy wymagają przypisania`}</span></div><button className="reference-repair-toggle" type="button" aria-expanded={expanded} title={expanded ? 'Zwiń panel naprawy' : 'Rozwiń panel naprawy'} onClick={() => setExpanded((value) => !value)}>{expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button></header>
+      {expanded && items.map((item) => {
         const canUseSelection = selectedItem && selectedItem.kind === item.reference.topologyKind && selectedItem.id;
         return (
           <section key={item.reference.id}>
@@ -1133,21 +1062,61 @@ function featureIcon(type, size = 16) {
 export default function ModelingWorkspace() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [licenseInfoOpen, setLicenseInfoOpen] = useState(true);
+  const [fullLicenseOpen, setFullLicenseOpen] = useState(false);
+  const [language] = useState(() => {
+    const requestedLanguage = new URLSearchParams(window.location.search).get('verifyLanguage')
+      || window.localStorage.getItem(LANGUAGE_KEY)
+      || window.desktopApp?.appLanguage;
+    return resolveModelingLanguage(requestedLanguage, window.navigator.language);
+  });
+  const [updateState, setUpdateState] = useState({ open: false, status: 'idle', result: null, error: '' });
+  const checkForUpdates = useCallback(async (silent = false) => {
+    if (!window.desktopApp?.checkForUpdates) {
+      if (!silent) setUpdateState({ open: true, status: 'idle', result: null, error: 'Aktualizacje są dostępne w zainstalowanej aplikacji desktopowej.' });
+      return null;
+    }
+    setUpdateState((current) => ({ ...current, open: !silent || current.open, status: 'checking', error: '' }));
+    try {
+      const result = await window.desktopApp.checkForUpdates();
+      setUpdateState({
+        open: !silent || Boolean(result?.available),
+        status: 'idle',
+        result,
+        error: result?.ok === false ? result.error || 'Nie udało się sprawdzić aktualizacji.' : '',
+      });
+      return result;
+    } catch (error) {
+      setUpdateState({ open: !silent, status: 'idle', result: null, error: error.message });
+      return null;
+    }
+  }, []);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => { void checkForUpdates(true); }, 1800);
+    return () => window.clearTimeout(timeout);
+  }, [checkForUpdates]);
   useEffect(() => {
     const root = window.document.querySelector('.modeling-shell');
-    const requestedLanguage = new URLSearchParams(window.location.search).get('verifyLanguage') || window.desktopApp?.appLanguage;
-    const language = resolveModelingLanguage(requestedLanguage, window.document.documentElement.lang);
     window.document.documentElement.lang = language;
     return observeModelingLocalization(root, language);
-  }, []);
+  }, [language]);
   const [initialOpen] = useState(loadInitialDocument);
   const history = useDocumentHistory(initialOpen.document);
   const { document } = history;
+  const replaceDocument = history.replace;
+  const serializedDocument = useMemo(() => JSON.stringify(document), [document]);
+  const initialDocumentTextRef = useRef(JSON.stringify(initialOpen.document));
+  const documentRef = useRef(document);
+  documentRef.current = document;
   const [documentAccess, setDocumentAccess] = useState({
     readOnly: Boolean(initialOpen.readOnly),
     sourceVersion: initialOpen.sourceVersion,
     originalDocument: initialOpen.originalDocument || null,
   });
+  const [savedDocumentText, setSavedDocumentText] = useState(() => (
+    initialOpen.recovered ? null : initialDocumentTextRef.current
+  ));
+  const [currentPath, setCurrentPath] = useState('');
+  const [persistenceReady, setPersistenceReady] = useState(() => !window.desktopApp?.autosaveRead);
   const [workspace, setWorkspace] = useState('solid');
   const [selection, setSelection] = useState({ kind: 'document', id: document.id });
   const [activeSketchId, setActiveSketchId] = useState(null);
@@ -1158,6 +1127,18 @@ export default function ModelingWorkspace() {
   const [browserOpen, setBrowserOpen] = useState(true);
   const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, profiles: true, points: true, dimensions: true, constraints: true, construction: true, projected: true, slice: false, sketch3d: false });
   const [notice, setNotice] = useState(initialOpen.warning || 'Gotowe. Wybierz „Utwórz szkic”, aby rozpocząć modelowanie.');
+  const changeAppLanguage = async (nextLanguage) => {
+    const normalized = nextLanguage === 'en' ? 'en' : 'pl';
+    window.localStorage.setItem(LANGUAGE_KEY, normalized);
+    if (window.desktopApp?.setAppLanguage) {
+      const result = await window.desktopApp.setAppLanguage({ language: normalized });
+      if (result?.ok === false) {
+        setNotice(`Nie udało się zapisać języka: ${result.error || 'nieznany błąd'}`);
+        return;
+      }
+    }
+    window.location.reload();
+  };
   const fileInputRef = useRef(null);
   const importInputRef = useRef(null);
   const sketchImportInputRef = useRef(null);
@@ -1176,6 +1157,51 @@ export default function ModelingWorkspace() {
   }, []);
   const toolHelpContext = useMemo(() => ({ setToolHelp, registerShortcut }), [registerShortcut]);
   const readOnly = documentAccess.readOnly;
+  const dirty = !readOnly && savedDocumentText !== serializedDocument;
+  const clearAutosaveSnapshots = useCallback(async () => {
+    clearLocalAutosave();
+    if (window.desktopApp?.autosaveClear) {
+      const result = await window.desktopApp.autosaveClear();
+      if (result && result.ok === false) throw new Error(result.error || 'Nie udało się usunąć plikowego autozapisu.');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!window.desktopApp?.autosaveRead) return undefined;
+    let active = true;
+    void (async () => {
+      try {
+        const result = await window.desktopApp.autosaveRead();
+        if (!active || !result?.exists || !result.text) return;
+        const opened = openDocument(JSON.parse(result.text));
+        const initialDocumentUnchanged = JSON.stringify(documentRef.current) === initialDocumentTextRef.current;
+        if (!initialDocumentUnchanged) {
+          setNotice('Znaleziono plikowy autozapis, ale bieżący projekt został już zmieniony. Autozapis pozostawiono bez nadpisywania.');
+          return;
+        }
+        const fileIsPreferred = !initialOpen.recovered
+          || documentModifiedAt(opened.document) >= documentModifiedAt(initialOpen.document);
+        if (fileIsPreferred && JSON.stringify(opened.document) !== initialDocumentTextRef.current) {
+          replaceDocument(opened.document);
+          setDocumentAccess({
+            readOnly: opened.readOnly,
+            sourceVersion: opened.sourceVersion,
+            originalDocument: opened.originalDocument || null,
+          });
+          setSavedDocumentText(null);
+          setSelection({ kind: 'document', id: opened.document.id });
+          setNotice(`${result.warning ? `${result.warning} ` : ''}Odzyskano projekt z plikowego autozapisu.`);
+        } else if (result.warning) {
+          setNotice(result.warning);
+        }
+      } catch (error) {
+        if (active) setNotice(`Nie udało się odtworzyć plikowego autozapisu: ${error.message}`);
+      } finally {
+        if (active) setPersistenceReady(true);
+      }
+    })();
+    return () => { active = false; };
+  }, [initialOpen, replaceDocument]);
   useEffect(() => {
     if (command?.type !== 'sectionAnalysis' && sectionAnalysis) setSectionAnalysis(null);
   }, [command?.type, sectionAnalysis]);
@@ -1321,10 +1347,17 @@ export default function ModelingWorkspace() {
   }, [document, actualBodies, command?.previewFeature, engine.status, engine.evaluatedDocument, history, readOnly]);
 
   useEffect(() => {
-    if (readOnly) return undefined;
-    const timeout = window.setTimeout(() => window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(document)), 300);
+    if (!persistenceReady || readOnly || !dirty) return undefined;
+    const timeout = window.setTimeout(() => {
+      writeLocalAutosave(serializedDocument);
+      if (window.desktopApp?.autosaveWrite) {
+        void window.desktopApp.autosaveWrite({ text: serializedDocument }).then((result) => {
+          if (result && result.ok === false) setNotice(`Błąd autozapisu: ${result.error || 'nieznany błąd'}`);
+        }).catch((error) => setNotice(`Błąd autozapisu: ${error.message}`));
+      }
+    }, 300);
     return () => window.clearTimeout(timeout);
-  }, [document, readOnly]);
+  }, [dirty, persistenceReady, readOnly, serializedDocument]);
 
   useEffect(() => {
     window.__madcadGetSessionExport = () => JSON.stringify(document, null, 2);
@@ -1333,13 +1366,15 @@ export default function ModelingWorkspace() {
       || document.sketches.some((sketch) => sketch.entities.length || sketch.profiles.length)
       || document.imports?.length
     );
-    window.__madcadClearRuntimeSession = () => window.localStorage.removeItem(AUTOSAVE_KEY);
+    window.__madcadHasUnsavedChanges = () => dirty;
+    window.__madcadClearRuntimeSession = () => clearLocalAutosave();
     return () => {
       delete window.__madcadGetSessionExport;
       delete window.__madcadHasDrawableContent;
+      delete window.__madcadHasUnsavedChanges;
       delete window.__madcadClearRuntimeSession;
     };
-  }, [document]);
+  }, [dirty, document]);
 
   useEffect(() => {
     const verifyMode = new URLSearchParams(window.location.search).has('verify');
@@ -3173,9 +3208,15 @@ export default function ModelingWorkspace() {
     setNotice('Właściwości masowe liczą zaznaczone bryły albo cały model, gdy nic nie jest wskazane.');
   };
 
-  const openGeometryInspection = () => {
-    setCommand({ type: 'geometryInspection' });
-    setNotice('Analiza geometrii pokazuje najmniejszy promień oraz wspólną objętość kolidujących brył.');
+  const openGeometryInspection = async () => {
+    setNotice('Analiza geometrii: szybki filtr granic i dokładne sprawdzanie możliwych kolizji…');
+    try {
+      const analysis = await engine.analyzeCollisions();
+      setCommand({ type: 'geometryInspection' });
+      setNotice(`Analiza zakończona · ${analysis.exactPairs}/${analysis.candidatePairs} par wymagało dokładnego przecięcia.`);
+    } catch (error) {
+      setNotice(`Nie udało się przeprowadzić analizy kolizji: ${error.message}`);
+    }
   };
 
   const openBoolean = () => {
@@ -3652,19 +3693,11 @@ export default function ModelingWorkspace() {
     else setCommand({ type: feature.type, editId: feature.id, size: feature.type === 'fillet' ? feature.radius : feature.distance, previewFeature: feature });
   };
 
-  const createNew = () => {
-    const blank = createDocument('Bez nazwy');
-    history.replace(blank);
-    setDocumentAccess({ readOnly: false, sourceVersion: DOCUMENT_SCHEMA_VERSION, originalDocument: null });
-    setSelection({ kind: 'document', id: blank.id });
-    setActiveSketchId(null);
-    setCommand(null);
-    setWorkspace('solid');
-    setNotice('Nowy pusty projekt. Utwórz pierwszy szkic.');
-  };
-
   const saveProject = async () => {
-    if (readOnly) return readOnlyNotice();
+    if (readOnly) {
+      readOnlyNotice();
+      return false;
+    }
     const payload = JSON.stringify(document, null, 2);
     if (window.desktopApp?.saveTextFile) {
       const result = await window.desktopApp.saveTextFile({
@@ -3674,20 +3707,96 @@ export default function ModelingWorkspace() {
         atomic: true,
         createBackup: true,
       });
-      setNotice(result?.ok ? `Zapisano projekt atomowo: ${result.filePath}${result.backupPath ? ' · poprzednia wersja: .bak' : ''}` : result?.canceled ? 'Anulowano zapis.' : `Nie udało się zapisać: ${result?.error || 'nieznany błąd'}`);
+      if (!result?.ok) {
+        setNotice(result?.canceled ? 'Anulowano zapis.' : `Nie udało się zapisać: ${result?.error || 'nieznany błąd'}`);
+        return false;
+      }
+      setSavedDocumentText(JSON.stringify(document));
+      setCurrentPath(result.filePath || '');
+      try {
+        await clearAutosaveSnapshots();
+      } catch (error) {
+        setNotice(`Projekt zapisano, ale nie udało się wyczyścić autozapisu: ${error.message}`);
+        return true;
+      }
+      setNotice(`Zapisano projekt atomowo: ${result.filePath}${result.backupPath ? ' · poprzednia wersja: .bak' : ''}`);
+      return true;
+    }
+    downloadBlob(new Blob([payload], { type: 'application/json' }), `${safeName(document.name)}.madcad`);
+    setSavedDocumentText(JSON.stringify(document));
+    clearLocalAutosave();
+    setNotice('Zapisano projekt MadCAD.');
+    return true;
+  };
+
+  const confirmUnsavedChanges = async (reason) => {
+    if (!dirty) return true;
+    let decision = 'cancel';
+    const verifyMode = new URLSearchParams(window.location.search).has('verify');
+    if (verifyMode) {
+      decision = ['save', 'discard', 'cancel'].includes(window.__madcadVerifyUnsavedDecision)
+        ? window.__madcadVerifyUnsavedDecision
+        : 'discard';
+    } else if (window.desktopApp?.confirmUnsavedChanges) {
+      const result = await window.desktopApp.confirmUnsavedChanges({ reason });
+      decision = result?.decision || 'cancel';
     } else {
-      downloadBlob(new Blob([payload], { type: 'application/json' }), `${safeName(document.name)}.madcad`);
-      setNotice('Zapisano projekt MadCAD.');
+      decision = window.confirm('Projekt zawiera niezapisane zmiany. Odrzucić je i kontynuować?') ? 'discard' : 'cancel';
+    }
+    if (decision === 'save') return saveProject();
+    return decision === 'discard';
+  };
+
+  const installAvailableUpdate = async () => {
+    if (!window.desktopApp?.downloadAndInstallUpdate) {
+      setUpdateState((current) => ({ ...current, error: 'Instalowanie aktualizacji jest dostępne tylko w aplikacji desktopowej.' }));
+      return;
+    }
+    if (!(await confirmUnsavedChanges('update'))) return;
+    try {
+      await clearAutosaveSnapshots();
+      setUpdateState((current) => ({ ...current, status: 'installing', error: '' }));
+      const result = await window.desktopApp.downloadAndInstallUpdate();
+      if (!result?.ok || !result.installing) {
+        setUpdateState((current) => ({
+          ...current,
+          status: 'idle',
+          error: result?.error || (result?.upToDate ? 'Masz już aktualną wersję.' : 'Nie udało się rozpocząć instalacji.'),
+        }));
+      }
+    } catch (error) {
+      setUpdateState((current) => ({ ...current, status: 'idle', error: error.message }));
     }
   };
+
+  const createNew = async () => {
+    if (!(await confirmUnsavedChanges('new'))) return;
+    const blank = createDocument('Bez nazwy');
+    await clearAutosaveSnapshots().catch((error) => setNotice(`Nie udało się wyczyścić poprzedniego autozapisu: ${error.message}`));
+    history.replace(blank);
+    setSavedDocumentText(JSON.stringify(blank));
+    setCurrentPath('');
+    setDocumentAccess({ readOnly: false, sourceVersion: DOCUMENT_SCHEMA_VERSION, originalDocument: null });
+    setSelection({ kind: 'document', id: blank.id });
+    setActiveSketchId(null);
+    setCommand(null);
+    setWorkspace('solid');
+    setNotice('Nowy pusty projekt. Utwórz pierwszy szkic.');
+  };
+
+  const requestOpenProject = () => fileInputRef.current?.click();
 
   const openProject = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+    if (!(await confirmUnsavedChanges('open'))) return;
     try {
       const opened = openDocument(JSON.parse(await file.text()));
+      await clearAutosaveSnapshots().catch((error) => setNotice(`Nie udało się wyczyścić poprzedniego autozapisu: ${error.message}`));
       history.replace(opened.document);
+      setSavedDocumentText(JSON.stringify(opened.document));
+      setCurrentPath(file.path || file.name || '');
       setDocumentAccess({ readOnly: opened.readOnly, sourceVersion: opened.sourceVersion, originalDocument: opened.originalDocument });
       setSelection({ kind: 'document', id: opened.document.id });
       setActiveSketchId(null);
@@ -3714,6 +3823,10 @@ export default function ModelingWorkspace() {
       let buffer = sourceBuffer;
       let detectedUnit = 'millimeter';
       if (originalFormat === '3mf') {
+        const [{ ThreeMFLoader }, { STLExporter }] = await Promise.all([
+          import('three/examples/jsm/loaders/3MFLoader.js'),
+          import('three/examples/jsm/exporters/STLExporter.js'),
+        ]);
         detectedUnit = inspectThreeMfArchive(sourceBuffer).unit;
         const group = new ThreeMFLoader().parse(sourceBuffer);
         group.updateMatrixWorld(true);
@@ -4051,12 +4164,12 @@ export default function ModelingWorkspace() {
     <ToolHelpContext.Provider value={toolHelpContext}>
     <section className="modeling-shell" aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
-        <div className="app-menu"><div className="brand-mark" title="MadCAD">M</div><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button id="newProjectBtn" type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button id="openProjectBtn" type="button" title="Otwórz projekt" onClick={() => fileInputRef.current?.click()}><FolderOpen size={16} /></button><button id="saveProjectBtn" type="button" title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : 'Zapisz'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
+        <div className="app-menu"><div className="brand-mark" title="MadCAD">M</div><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button id="newProjectBtn" type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button id="openProjectBtn" type="button" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={16} /></button><button id="saveProjectBtn" type="button" title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
         <input ref={importInputRef} hidden type="file" accept=".step,.stp,.stl,.3mf,model/step,model/stl,model/3mf" onChange={chooseModelImport} />
         <input ref={sketchImportInputRef} hidden type="file" accept=".svg,.dxf,image/svg+xml,application/dxf" onChange={chooseSketchImport} />
-        <div className="document-tab"><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" disabled={readOnly} onChange={(event) => commit((next) => { next.name = event.target.value; })} />{readOnly ? <span className="read-only-badge">TYLKO ODCZYT · v{documentAccess.sourceVersion}</span> : <span>*</span>}</div>
-        <div className="title-actions"><button id="undoProjectBtn" type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button id="redoProjectBtn" type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><button type="button" title="Samouczek pierwszej części" aria-label="Samouczek pierwszej części" onClick={() => setTutorialOpen(true)}><CircleHelp size={15} /><span>Samouczek</span></button><button id="licenseInfoBtn" type="button" title="Licencja i informacje" onClick={() => setLicenseInfoOpen(true)}><CircleHelp size={15} /><span>Licencja</span></button></div>
+        <div className="document-tab" title={currentPath || (dirty ? 'Projekt zawiera niezapisane zmiany' : 'Projekt zapisany')}><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" disabled={readOnly} onChange={(event) => commit((next) => { next.name = event.target.value; })} />{readOnly ? <span className="read-only-badge">TYLKO ODCZYT · v{documentAccess.sourceVersion}</span> : dirty ? <span role="img" aria-label="Niezapisane zmiany">*</span> : null}</div>
+        <div className="title-actions"><button id="undoProjectBtn" type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button id="redoProjectBtn" type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><label className="language-select" title="Język interfejsu"><span className="sr-only">Język interfejsu</span><select aria-label="Język interfejsu" value={language} onChange={(event) => { void changeAppLanguage(event.target.value); }}><option value="pl">PL</option><option value="en">EN</option></select></label><button type="button" title="Samouczek pierwszej części" aria-label="Samouczek pierwszej części" onClick={() => setTutorialOpen(true)}><CircleHelp size={15} /><span>Samouczek</span></button><button id="checkUpdatesBtn" type="button" title="Sprawdź aktualizacje" onClick={() => { void checkForUpdates(false); }}><HardDriveDownload size={15} /><span>Aktualizacje</span></button><button id="licenseInfoBtn" type="button" title="Licencja i informacje" onClick={() => setLicenseInfoOpen(true)}><CircleHelp size={15} /><span>Licencja</span></button></div>
       </header>
 
       <section className="command-area">
@@ -4065,7 +4178,7 @@ export default function ModelingWorkspace() {
           <nav className="workspace-tabs" aria-label="Obszary robocze">
             {activeSketchId ? <button className="active" type="button" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item) => <button id={item.id === 'print' ? 'printWorkspaceBtn' : undefined} key={item.id} className={workspace === item.id ? 'active' : ''} type="button" title={item.id === 'solid' ? 'Modelowanie bryłowe i operacje na profilach.' : item.id === 'tools' ? 'Parametry i narzędzia dokumentu.' : 'Kontrola modelu oraz eksport do druku 3D.'} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
           </nav>
-          <div className="modeling-ribbon">
+          <div className="modeling-ribbon" role="toolbar" aria-label="Narzędzia aktywnego obszaru roboczego" tabIndex="0">
             {activeSketchId ? (
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /><ToolButton icon={Box} label="Thin Extrude" onClick={openExtrude} disabled={readOnly || !canExtrudeOpenChain} /><ToolButton icon={Frame} label="Rib/Web" onClick={openRib} disabled={readOnly || !canCreateRib} /><ToolButton icon={Cylinder} label="Pipe" onClick={openPipe} disabled={readOnly || !canExtrudeOpenChain} /><ToolButton icon={Upload} label="Import SVG/DXF" onClick={() => sketchImportInputRef.current?.click()} disabled={readOnly} /></RibbonGroup>
@@ -4097,6 +4210,7 @@ export default function ModelingWorkspace() {
       <div className={`modeling-content ${workspace === 'print' ? 'with-print-panel' : ''} ${browserOpen ? '' : 'without-browser'}`}>
         {browserOpen && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onClose={() => setBrowserOpen(false)} />}
         <main className="modeling-stage">
+          <React.Suspense fallback={<div className="viewport-loading" role="status">Uruchamianie widoku 3D…</div>}>
           <ModelViewport
             bodies={engine.bodies}
             sketches={document.sketches}
@@ -4154,6 +4268,7 @@ export default function ModelingWorkspace() {
             showBed={workspace === 'print'}
             printLayout={document.print}
           />
+          </React.Suspense>
           <div className={`engine-status ${engine.status}`}><span />{engine.status === 'ready' ? `${command?.previewFeature ? 'Podgląd' : 'Model'} gotowy · ${engine.bodies.length} ${engine.bodies.length === 1 ? 'bryła' : 'brył'}` : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>
           <TopologyReferenceRepairPanel items={lostTopologyReferences} selection={selection} onReassign={repairTopologyReference} />
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
@@ -4184,7 +4299,7 @@ export default function ModelingWorkspace() {
 
       <footer className="modeling-footer">
         <div className="notice" role="status"><span className={`status-dot ${engine.status}`} />{engine.error || notice}</div>
-        <div className="timeline" aria-label="Parametryczna oś czasu">
+        <div className="timeline" role="region" aria-label="Parametryczna oś czasu">
           <div className="timeline-controls"><button type="button" title="Zaznacz pierwszy krok parametrycznej historii." onClick={() => selectTimelineStep('start')}><SkipBack size={14} /></button><button type="button" title="Zaznacz poprzednią operację w historii." onClick={() => selectTimelineStep('previous')}><StepBack size={14} /></button><button type="button" title="Zaznacz następną operację w historii." onClick={() => selectTimelineStep('next')}><StepForward size={14} /></button></div>
           <span className="timeline-start" />
           {document.features.map((feature, index) => {
@@ -4199,7 +4314,9 @@ export default function ModelingWorkspace() {
         </div>
       </footer>
       {tutorialOpen && <FirstPartTutorial onClose={() => setTutorialOpen(false)} />}
-      {licenseInfoOpen && <LicenseInfoDialog onClose={() => setLicenseInfoOpen(false)} />}
+      {licenseInfoOpen && <LicenseInfoDialog onClose={() => setLicenseInfoOpen(false)} onShowFullLicense={() => setFullLicenseOpen(true)} />}
+      {fullLicenseOpen && <FullLicenseDialog onClose={() => setFullLicenseOpen(false)} />}
+      {updateState.open && <UpdateDialog state={updateState} onCheck={checkForUpdates} onInstall={installAvailableUpdate} onClose={() => setUpdateState((current) => ({ ...current, open: false }))} />}
       {toolHelp && (
         <div className="tool-help-tooltip" role="tooltip" style={{ left: toolHelp.x, top: toolHelp.y }}>
           <header><strong>{toolHelp.label}</strong><kbd>{toolHelp.shortcut}</kbd></header>

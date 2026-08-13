@@ -63,7 +63,7 @@ import { createTextProfile } from '../src/cad-core/text-profile.js';
 import { resolveFaceEdgeHolePlacement } from '../src/cad-core/face-edge-hole.js';
 import { measureSelection } from '../src/cad-core/measure-selection.js';
 import { calculateMassProperties } from '../src/cad-core/mass-properties.js';
-import { summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
+import { boundsOverlap, summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-profiles.js';
 import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, transformPrintPoint } from '../src/cad-core/print-layout.js';
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
@@ -1090,6 +1090,12 @@ test('analiza geometrii wybiera minimalny promień i zachowuje dokładne pary ko
   assert.deepEqual(result, { bodyCount: 3, minimumRadius: 3, collisions: [{ firstBodyId: 'a', secondBodyId: 'b', volume: 12 }] });
 });
 
+test('broad-phase kolizji odrzuca rozłączne AABB i zachowuje stykające się granice', () => {
+  assert.equal(boundsOverlap([[0, 0, 0], [10, 10, 10]], [[20, 0, 0], [30, 10, 10]]), false);
+  assert.equal(boundsOverlap([[0, 0, 0], [10, 10, 10]], [[10, 2, 2], [12, 8, 8]]), true);
+  assert.equal(boundsOverlap(null, [[10, 2, 2], [12, 8, 8]]), true);
+});
+
 test('profile Bambu, Prusa i Creality ustawiają stół, a profil własny zachowuje wymiary', () => {
   assert.deepEqual(PRINTER_PROFILES.map((profile) => profile.id), ['bambu-x1-p1', 'prusa-mk4', 'creality-ender3']);
   assert.deepEqual(applyPrinterProfile({ material: 'PLA' }, 'prusa-mk4'), { material: 'PLA', profileId: 'prusa-mk4', bedWidth: 250, bedDepth: 210, bedHeight: 220 });
@@ -1370,6 +1376,10 @@ test('interfejs modelowania rozpoznaje PL/EN i tłumaczy także dynamiczny stan 
   assert.equal(translateModelingText('Model gotowy · 1 bryła', 'en'), 'Model ready · 1 body');
   assert.equal(translateModelingText('Otwarty łańcuch (3)', 'en'), 'Open chain (3)');
   assert.equal(translateModelingText('Przeliczanie historii…', 'en'), 'Recomputing history…');
+  assert.equal(
+    translateModelingText('Linia. Utwórz pojedynczy segment przez dwa punkty albo przez dokładną długość i kąt. Skrót: L ↵.', 'en'),
+    'Line. Create one segment from two points or from an exact length and angle. Shortcut: L ↵.',
+  );
   assert.equal(translateModelingText('Utwórz szkic', 'pl'), 'Utwórz szkic');
 });
 
@@ -3063,10 +3073,12 @@ test('okna Electron i preload utrzymują sandbox oraz jedną bramę IPC', async 
   ]);
   assert.doesNotMatch(mainSource, /sandbox:\s*false/);
   assert.equal((mainSource.match(/sandbox:\s*true/g) || []).length, 2);
-  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 14);
+  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 10);
+  assert.doesNotMatch(mainSource, /ODAFileConverter|install-oda|convert-cad-file|get-oda-status|choose-oda|open-oda/);
   assert.equal((mainSource.match(/ipcMain\.handle\(/g) || []).length, 1);
   assert.doesNotMatch(preloadSource, /require\(['"](?:os|crypto|fs|child_process)['"]\)/);
   assert.doesNotMatch(preloadSource, /verifyLicenseSignature/);
+  assert.doesNotMatch(preloadSource, /installOdaAddon|convertCadFile|getOdaStatus|chooseOdaConverterPath|openOdaDownload/);
 });
 
 test('uszkodzony autozapis jest odzyskiwany z poprawnej kopii .bak', async () => {

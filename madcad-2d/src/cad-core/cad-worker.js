@@ -30,6 +30,7 @@ import { assignStableTopologyIds } from './topology-naming.js';
 import { RevisionCache, SerialTaskQueue, estimateMeshBytes, isStaleRevision } from './worker-runtime.js';
 import { calculatePrintLayout, normalizePrintLayout } from './print-layout.js';
 import { createThreeMfArchive } from './three-mf.js';
+import { boundsOverlap } from './geometry-inspection.js';
 
 let kernelPromise;
 let latestRequestedRevision = 0;
@@ -1221,10 +1222,38 @@ async function evaluateRevision(document, quality) {
   const meshStartedAt = performance.now();
   const meshedBodies = kernelBodies.map((body, index) => meshBody(body, index, quality));
   const meshMs = performance.now() - meshStartedAt;
+  return {
+    kernelBodies,
+    renderBodies: meshedBodies.map((entry) => entry.renderBody),
+    topologyByBody: new Map(meshedBodies.map((entry, index) => [kernelBodies[index].id, entry.topologyState])),
+    timeline,
+    parameters: prepared.parameters,
+    dependencyGraph: prepared.dependencyGraph.toJSON(),
+    quality,
+    analysis: { collisions: [], collisionStatus: 'not-run', candidatePairs: 0, exactPairs: 0 },
+    performance: {
+      totalMs: performance.now() - totalStartedAt,
+      kernelMs,
+      prepareMs,
+      importMs,
+      historyMs,
+      meshMs,
+      collisionMs: 0,
+      bodies: meshedBodies.map((entry) => entry.performance),
+    },
+  };
+}
+
+function analyzeBodyCollisions(kernelBodies, renderBodies) {
   const collisionStartedAt = performance.now();
   const collisions = [];
+  let candidatePairs = 0;
+  let exactPairs = 0;
   for (let first = 0; first < kernelBodies.length; first += 1) {
     for (let second = first + 1; second < kernelBodies.length; second += 1) {
+      candidatePairs += 1;
+      if (!boundsOverlap(renderBodies[first]?.bounds, renderBodies[second]?.bounds, GEOMETRY_POLICY.linearTolerance)) continue;
+      exactPairs += 1;
       let common;
       let volume;
       try {
@@ -1237,26 +1266,12 @@ async function evaluateRevision(document, quality) {
       }
     }
   }
-  const collisionMs = performance.now() - collisionStartedAt;
   return {
-    kernelBodies,
-    renderBodies: meshedBodies.map((entry) => entry.renderBody),
-    topologyByBody: new Map(meshedBodies.map((entry, index) => [kernelBodies[index].id, entry.topologyState])),
-    timeline,
-    parameters: prepared.parameters,
-    dependencyGraph: prepared.dependencyGraph.toJSON(),
-    quality,
-    analysis: { collisions },
-    performance: {
-      totalMs: performance.now() - totalStartedAt,
-      kernelMs,
-      prepareMs,
-      importMs,
-      historyMs,
-      meshMs,
-      collisionMs,
-      bodies: meshedBodies.map((entry) => entry.performance),
-    },
+    collisions,
+    collisionStatus: 'complete',
+    candidatePairs,
+    exactPairs,
+    collisionMs: performance.now() - collisionStartedAt,
   };
 }
 
@@ -1399,6 +1414,16 @@ async function handleMessage(data) {
       performance: evaluated.performance,
     };
     self.postMessage({ id, ok: true, type, result }, transferableBuffers(bodies));
+    return;
+  }
+  if (type === 'analyze-collisions') {
+    const evaluated = await resolveRevision(document, revision, 'display');
+    if (evaluated.analysis.collisionStatus !== 'complete') {
+      const collisionResult = analyzeBodyCollisions(evaluated.kernelBodies, evaluated.renderBodies);
+      evaluated.analysis = collisionResult;
+      evaluated.performance = { ...evaluated.performance, collisionMs: collisionResult.collisionMs };
+    }
+    self.postMessage({ id, ok: true, type, result: { revision, analysis: evaluated.analysis, performance: evaluated.performance } });
     return;
   }
   if (type === 'export') {

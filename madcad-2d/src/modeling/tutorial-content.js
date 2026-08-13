@@ -14,7 +14,7 @@ export const FIRST_PART_TUTORIAL = Object.freeze({
     ]),
     limitationsTitle: 'Znane ograniczenia',
     limitations: Object.freeze([
-      'Import i eksport DWG wymaga osobno zainstalowanego ODA File Converter.',
+      'Import szkicu obsługuje SVG i tekstowy DXF; format DWG nie jest obecnie obsługiwany.',
       'STEP zachowuje dokładną geometrię. STL i 3MF są siatkami, dlatego ich późniejsza edycja parametryczna jest ograniczona.',
       'Analiza drukowalności wskazuje ryzyko, ale nie gwarantuje poprawnego wydruku na konkretnej drukarce i materiale.',
       'Przekazanie do slicera wymaga zainstalowanego Bambu Studio, PrusaSlicer albo Cura.',
@@ -38,7 +38,7 @@ export const FIRST_PART_TUTORIAL = Object.freeze({
     ]),
     limitationsTitle: 'Known limitations',
     limitations: Object.freeze([
-      'DWG import and export require a separately installed ODA File Converter.',
+      'Sketch import supports SVG and text DXF; DWG is not currently supported.',
       'STEP preserves exact geometry. STL and 3MF are meshes, so later parametric editing is limited.',
       'Printability analysis identifies risk; it cannot guarantee a successful print for a specific printer and material.',
       'Slicer handoff requires Bambu Studio, PrusaSlicer, or Cura to be installed.',
