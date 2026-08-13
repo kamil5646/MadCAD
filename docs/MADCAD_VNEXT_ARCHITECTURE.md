@@ -69,7 +69,7 @@ pakietów ani konwersji DWG.
 Aktualizator przyjmuje wyłącznie HTTPS z oficjalnego repozytorium, narzuca
 limit rozmiaru i SHA-256. Automatyczna instalacja nadal wymaga poprawnego
 Authenticode na Windows albo Developer ID, oczekiwanego Team ID i Gatekeeper
-na macOS. Niepodpisane wydanie 6.1.1 jest przeznaczone do ręcznej instalacji.
+na macOS. Niepodpisane wydanie 6.1.2 jest przeznaczone do ręcznej instalacji.
 Renderer nie może podać dowolnego adresu aktualizacji.
 
 ## Niezmienne bezpieczeństwa
