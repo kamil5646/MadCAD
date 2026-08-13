@@ -26,7 +26,7 @@ Aktualne dla `6.1.0`. Interaktywną wersję otwiera przycisk **Samouczek** w gó
 
 ## Znane ograniczenia / Known limitations
 
-- Import i eksport DWG wymaga osobno zainstalowanego ODA File Converter.
+- DWG nie jest obecnie obsługiwany; szkice 2D można importować z SVG lub DXF.
 - STEP zachowuje dokładną geometrię; parametryczna edycja importowanych siatek STL/3MF jest ograniczona.
 - Analiza drukowalności opisuje ryzyko, a nie gwarancję wydruku.
 - Przekazanie do slicera wymaga zainstalowanego Bambu Studio, PrusaSlicer albo Cura.

@@ -11,7 +11,6 @@ const { normalizeSlicerPayload, windowsCandidates } = require('./slicer-launch.c
 const { isTrustedAppNavigation, isTrustedIpcUrl, normalizeExternalUrl } = require('./security-policy.cjs');
 const {
   normalizeAutosavePayload,
-  normalizeCadConversionPayload,
   normalizePrintPreviewPayload,
   normalizeSaveTextPayload,
   securePrintPreviewHtml,
@@ -19,6 +18,7 @@ const {
 const { readRecoverableTextFile, validateJsonText } = require('./recovery-file.cjs');
 const { normalizeWindowBounds } = require('./window-bounds.cjs');
 const updatePolicy = require('./update-policy.cjs');
+const packageMetadata = require('../package.json');
 
 const execFileAsync = promisify(execFile);
 
@@ -27,12 +27,15 @@ const isWindows = process.platform === 'win32';
 const APP_DISPLAY_NAME = 'MadCAD';
 const LEGACY_USER_DATA_NAME = 'MadCAD 2D';
 const appIconPng = path.join(__dirname, '..', 'assets', 'icons', 'madcad-512.png');
-const ODA_DOWNLOAD_URL = 'https://www.opendesign.com/guestfiles/oda_file_converter';
-const ODA_DOWNLOAD_PAGE_HOST = 'www.opendesign.com';
 const MADCAD_RELEASE_API_URL = 'https://api.github.com/repos/kamil5646/MadCAD2D/releases?per_page=30';
 const MADCAD_RELEASE_LATEST_PAGE_URL = 'https://github.com/kamil5646/MadCAD2D/releases/latest';
 const MADCAD_UPDATE_USER_AGENT = 'MadCAD2D-Updater/1.0';
+const MAX_UPDATE_DOWNLOAD_BYTES = 512 * 1024 * 1024;
+const TRUSTED_MAC_TEAM_ID = /^[A-Z0-9]{10}$/.test(String(packageMetadata.madcadMacTeamId || ''))
+  ? String(packageMetadata.madcadMacTeamId)
+  : '';
 let forceCloseForUpdate = false;
+let autosaveOperationQueue = Promise.resolve();
 
 if (app && typeof app.setName === 'function') {
   app.setName(APP_DISPLAY_NAME);
@@ -66,7 +69,8 @@ function resolveAppLanguage() {
   if (appName.includes(' pl')) {
     return 'pl';
   }
-  return 'pl';
+  const systemLocale = String(Intl.DateTimeFormat().resolvedOptions().locale || process.env.LANG || '').toLowerCase();
+  return systemLocale.startsWith('pl') ? 'pl' : 'en';
 }
 
 function normalizeLanguage(value) {
@@ -123,9 +127,20 @@ function getAutoSavePath() {
   return path.join(app.getPath('userData'), 'autosave', 'latest-session.json');
 }
 
-async function clearAutoSaveSnapshot() {
-  const autoSavePath = getAutoSavePath();
-  await fs.rm(autoSavePath, { force: true }).catch(() => {});
+function queueAutosaveOperation(operation) {
+  const result = autosaveOperationQueue.then(operation, operation);
+  autosaveOperationQueue = result.catch(() => {});
+  return result;
+}
+
+function clearAutoSaveSnapshot() {
+  return queueAutosaveOperation(async () => {
+    const autoSavePath = getAutoSavePath();
+    await Promise.all([
+      fs.rm(autoSavePath, { force: true }).catch(() => {}),
+      fs.rm(`${autoSavePath}.bak`, { force: true }).catch(() => {}),
+    ]);
+  });
 }
 
 async function readCadConfig() {
@@ -143,121 +158,6 @@ async function writeCadConfig(config) {
   const configPath = getCadConfigPath();
   await fs.mkdir(path.dirname(configPath), { recursive: true });
   await fs.writeFile(configPath, JSON.stringify(safeConfig, null, 2), 'utf8');
-}
-
-async function getSavedOdaConverterPath() {
-  const config = await readCadConfig();
-  const savedPath = typeof config.odaConverterPath === 'string' ? config.odaConverterPath.trim() : '';
-  if (!savedPath) {
-    return null;
-  }
-  const normalizedPath = await normalizeOdaConverterPath(savedPath);
-  return normalizedPath && (await pathExists(normalizedPath)) ? normalizedPath : null;
-}
-
-async function setSavedOdaConverterPath(filePath) {
-  const config = await readCadConfig();
-  const normalizedPath = await normalizeOdaConverterPath(filePath);
-  config.odaConverterPath = String(normalizedPath || filePath || '').trim();
-  await writeCadConfig(config);
-}
-
-async function normalizeOdaConverterPath(candidatePath) {
-  const rawPath = String(candidatePath || '').trim();
-  if (!rawPath) {
-    return null;
-  }
-
-  if (process.platform === 'win32') {
-    if (!(await pathExists(rawPath))) {
-      return rawPath;
-    }
-    try {
-      const stats = await fs.stat(rawPath);
-      if (stats.isDirectory()) {
-        const nestedExecutable = await findWindowsOdaExecutable(rawPath);
-        return nestedExecutable || rawPath;
-      }
-    } catch (_error) {
-      return rawPath;
-    }
-    return rawPath;
-  }
-
-  if (process.platform !== 'darwin') {
-    return rawPath;
-  }
-
-  if (!(await pathExists(rawPath))) {
-    return rawPath;
-  }
-
-  if (rawPath.toLowerCase().endsWith('.app')) {
-    const nestedExecutable = path.join(rawPath, 'Contents', 'MacOS', 'ODAFileConverter');
-    return (await pathExists(nestedExecutable)) ? nestedExecutable : rawPath;
-  }
-
-  try {
-    const stats = await fs.stat(rawPath);
-    if (stats.isDirectory()) {
-      const appBundle = await findAppBundleInDir(rawPath);
-      if (appBundle) {
-        return path.join(appBundle, 'Contents', 'MacOS', 'ODAFileConverter');
-      }
-    }
-  } catch (_error) {
-    return rawPath;
-  }
-
-  return rawPath;
-}
-
-async function findWindowsOdaExecutable(rootPath, maxDepth = 4) {
-  const normalizedRoot = String(rootPath || '').trim();
-  if (!normalizedRoot || !(await pathExists(normalizedRoot))) {
-    return null;
-  }
-
-  const queue = [{ dir: normalizedRoot, depth: 0 }];
-  const visited = new Set();
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current || visited.has(current.dir)) {
-      continue;
-    }
-    visited.add(current.dir);
-
-    let entries = [];
-    try {
-      entries = await fs.readdir(current.dir, { withFileTypes: true });
-    } catch (_error) {
-      continue;
-    }
-
-    for (const entry of entries) {
-      const fullPath = path.join(current.dir, entry.name);
-      if (entry.isFile() && entry.name.toLowerCase() === 'odafileconverter.exe') {
-        return fullPath;
-      }
-    }
-
-    if (current.depth >= maxDepth) {
-      continue;
-    }
-
-    for (const entry of entries) {
-      if (!entry.isDirectory()) {
-        continue;
-      }
-      const lower = entry.name.toLowerCase();
-      if (!/oda|open design|converter|fileconverter/.test(lower) && current.depth > 0) {
-        continue;
-      }
-      queue.push({ dir: path.join(current.dir, entry.name), depth: current.depth + 1 });
-    }
-  }
-
-  return null;
 }
 
 function httpsGetBuffer(url) {
@@ -427,16 +327,38 @@ function downloadFileWithRedirects(url, destinationPath, redirectCount = 0) {
           return;
         }
 
+        const declaredLength = Number(response.headers['content-length'] || 0);
+        if (declaredLength > MAX_UPDATE_DOWNLOAD_BYTES) {
+          response.resume();
+          reject(new Error('Paczka aktualizacji przekracza limit 512 MB.'));
+          return;
+        }
+
         const stream = fsRaw.createWriteStream(destinationPath);
+        let receivedBytes = 0;
+        let settled = false;
+        const failDownload = (error) => {
+          if (settled) return;
+          settled = true;
+          response.unpipe(stream);
+          response.destroy();
+          stream.destroy();
+          void fs.rm(destinationPath, { force: true }).catch(() => {}).finally(() => reject(error));
+        };
+        response.on('error', failDownload);
+        response.on('data', (chunk) => {
+          receivedBytes += chunk.length;
+          if (receivedBytes > MAX_UPDATE_DOWNLOAD_BYTES) {
+            failDownload(new Error('Paczka aktualizacji przekracza limit 512 MB.'));
+          }
+        });
         response.pipe(stream);
         stream.on('finish', () => {
+          if (settled) return;
+          settled = true;
           stream.close(() => resolve(destinationPath));
         });
-        stream.on('error', async (error) => {
-          response.destroy();
-          await fs.rm(destinationPath, { force: true }).catch(() => {});
-          reject(error);
-        });
+        stream.on('error', failDownload);
       }
     );
     request.on('error', async (error) => {
@@ -450,6 +372,9 @@ function downloadFileWithRedirects(url, destinationPath, redirectCount = 0) {
 }
 
 async function scheduleMacZipInstall(zipPath) {
+  if (!TRUSTED_MAC_TEAM_ID) {
+    throw new Error(t('Pakiet nie zawiera zaufanego identyfikatora zespołu Apple.', 'The package does not contain a trusted Apple Team ID.'));
+  }
   const appPath = path.resolve(process.execPath, '..', '..', '..');
   const executablePath = process.execPath;
   const scriptPath = path.join(app.getPath('temp'), `madcad-update-${Date.now()}.sh`);
@@ -460,6 +385,7 @@ ZIP_PATH="$1"
 TARGET_APP="$2"
 LOG_PATH="$3"
 APP_EXECUTABLE="$4"
+TRUSTED_TEAM="$5"
 BACKUP_APP="${'${TARGET_APP}'}.madcad-backup"
 
 exec >>"$LOG_PATH" 2>&1
@@ -485,6 +411,25 @@ if [ -z "$NEW_APP" ]; then
   exit 1
 fi
 
+if ! /usr/bin/codesign --verify --deep --strict "$NEW_APP"; then
+  echo "ERROR: downloaded app has an invalid signature"
+  exit 1
+fi
+if ! /usr/sbin/spctl --assess --type execute --verbose "$NEW_APP"; then
+  echo "ERROR: downloaded app was not accepted by Gatekeeper"
+  exit 1
+fi
+CURRENT_TEAM="$(/usr/bin/codesign -dv --verbose=4 "$TARGET_APP" 2>&1 | /usr/bin/sed -n 's/^TeamIdentifier=//p')"
+NEW_TEAM="$(/usr/bin/codesign -dv --verbose=4 "$NEW_APP" 2>&1 | /usr/bin/sed -n 's/^TeamIdentifier=//p')"
+if [ -z "$NEW_TEAM" ] || [ "$NEW_TEAM" != "$TRUSTED_TEAM" ]; then
+  echo "ERROR: signing TeamIdentifier mismatch"
+  exit 1
+fi
+if [ -n "$CURRENT_TEAM" ] && [ "$CURRENT_TEAM" != "$TRUSTED_TEAM" ]; then
+  echo "ERROR: installed app belongs to a different signing team"
+  exit 1
+fi
+
 for attempt in $(seq 1 60); do
   if ! /usr/bin/pgrep -f "$APP_EXECUTABLE" >/dev/null 2>&1; then
     echo "App process closed after attempt $attempt"
@@ -507,14 +452,14 @@ fi
 
 if ! /usr/bin/ditto "$NEW_APP" "$TARGET_APP"; then rollback; exit 1; fi
 if ! /usr/bin/codesign --verify --deep --strict "$TARGET_APP"; then rollback; exit 1; fi
+if ! /usr/sbin/spctl --assess --type execute --verbose "$TARGET_APP"; then rollback; exit 1; fi
 
-/usr/bin/xattr -dr com.apple.quarantine "$TARGET_APP" >/dev/null 2>&1 || true
 echo "Opening installed app"
 /usr/bin/open -n "$TARGET_APP"
 echo "== MadCAD updater done: $(date) =="
 `;
   await fs.writeFile(scriptPath, scriptSource, { mode: 0o755 });
-  const child = spawn('/bin/bash', [scriptPath, zipPath, appPath, logPath, executablePath], {
+  const child = spawn('/bin/bash', [scriptPath, zipPath, appPath, logPath, executablePath, TRUSTED_MAC_TEAM_ID], {
     detached: true,
     stdio: 'ignore'
   });
@@ -654,360 +599,6 @@ function mapUpdaterError(error, fallbackPl, fallbackEn) {
   };
 }
 
-async function resolveOdaDmgUrls() {
-  const htmlBuffer = await httpsGetBuffer(ODA_DOWNLOAD_URL);
-  const html = htmlBuffer.toString('utf8');
-
-  // ODA now uses /guestfiles/get?filename=...dmg redirect links
-  // Collect both old-style direct .dmg URLs and new-style /guestfiles/get?filename= links
-  const rawMatches = [
-    ...html.matchAll(/https?:\/\/[^"'\s>]+\.dmg/gi),
-    ...html.matchAll(/href=["']([^"']*\.dmg)["']/gi),
-    ...html.matchAll(/href=["']([^"']*guestfiles[^"']*filename=[^"']*\.dmg[^"']*)["']/gi)
-  ];
-
-  const candidates = rawMatches
-    .map((match) => {
-      const raw = match[1] || match[0] || '';
-      return raw.startsWith('http')
-        ? raw
-        : `https://${ODA_DOWNLOAD_PAGE_HOST}${raw.startsWith('/') ? '' : '/'}${raw}`;
-    })
-    .filter((candidate) => /oda|converter|guestfiles/i.test(candidate));
-
-  if (candidates.length === 0) {
-    throw new Error('Nie znaleziono linku DMG ODA na stronie pobierania.');
-  }
-
-  const normalizedCandidates = candidates.map((item) => item.toLowerCase());
-  const primaryArchTokens = process.arch === 'arm64' ? ['macosx_arm64', 'arm64'] : ['macosx_x64', 'x64'];
-  const fallbackArchTokens = process.arch === 'arm64' ? ['macosx_x64', 'x64'] : ['macosx_arm64', 'arm64'];
-  const result = [];
-  const usedIndexes = new Set();
-
-  const pushMatchesForTokens = (tokens) => {
-    for (const token of tokens) {
-      for (let index = 0; index < normalizedCandidates.length; index += 1) {
-        const value = normalizedCandidates[index];
-        if (usedIndexes.has(index)) {
-          continue;
-        }
-        if (value.includes('macosx') && value.includes(token) && value.includes('.dmg')) {
-          usedIndexes.add(index);
-          result.push(candidates[index]);
-        }
-      }
-    }
-  };
-
-  pushMatchesForTokens(primaryArchTokens);
-  pushMatchesForTokens(fallbackArchTokens);
-
-  for (let index = 0; index < normalizedCandidates.length; index += 1) {
-    const value = normalizedCandidates[index];
-    if (usedIndexes.has(index)) {
-      continue;
-    }
-    if (value.includes('macosx') && value.includes('.dmg')) {
-      usedIndexes.add(index);
-      result.push(candidates[index]);
-    }
-  }
-
-  for (let index = 0; index < candidates.length; index += 1) {
-    if (usedIndexes.has(index)) {
-      continue;
-    }
-    result.push(candidates[index]);
-  }
-
-  return result;
-}
-
-async function resolveOdaWindowsInstallerUrls() {
-  const htmlBuffer = await httpsGetBuffer(ODA_DOWNLOAD_URL);
-  const html = htmlBuffer.toString('utf8');
-
-  // ODA now uses /guestfiles/get?filename=...msi redirect links
-  const rawMatches = [
-    ...html.matchAll(/https?:\/\/[^"'\s>]+\.msi/gi),
-    ...html.matchAll(/href=["']([^"']*\.msi)["']/gi),
-    ...html.matchAll(/href=["']([^"']*guestfiles[^"']*filename=[^"']*\.msi[^"']*)["']/gi)
-  ];
-
-  const candidates = rawMatches
-    .map((match) => {
-      const raw = match[1] || match[0] || '';
-      return raw.startsWith('http')
-        ? raw
-        : `https://${ODA_DOWNLOAD_PAGE_HOST}${raw.startsWith('/') ? '' : '/'}${raw}`;
-    })
-    .filter((candidate) => /oda|converter|guestfiles/i.test(candidate));
-
-  if (candidates.length === 0) {
-    throw new Error('Nie znaleziono instalatora MSI ODA na stronie pobierania.');
-  }
-
-  const normalized = candidates.map((item) => item.toLowerCase());
-  const preferredTokens = ['vc16_amd64', 'amd64', 'win', 'windows'];
-  const result = [];
-  const usedIndexes = new Set();
-
-  for (const token of preferredTokens) {
-    for (let index = 0; index < normalized.length; index += 1) {
-      if (usedIndexes.has(index)) {
-        continue;
-      }
-      const value = normalized[index];
-      if (value.includes(token) && value.includes('.msi')) {
-        usedIndexes.add(index);
-        result.push(candidates[index]);
-      }
-    }
-  }
-
-  for (let index = 0; index < candidates.length; index += 1) {
-    if (usedIndexes.has(index)) {
-      continue;
-    }
-    result.push(candidates[index]);
-  }
-
-  return result;
-}
-
-function normalizeOdaInstallError(error) {
-  const raw = error && error.message ? String(error.message) : '';
-  const lower = raw.toLowerCase();
-  if (lower.includes('enotfound') || lower.includes('could not resolve host') || lower.includes('eai_again')) {
-    return t(
-      'Nie udało się pobrać ODA (problem DNS/sieci). Sprawdź połączenie internetowe albo dodaj lokalnie plik tools/oda/ODAFileConverter.',
-      'Failed to download ODA (DNS/network issue). Check internet connectivity or place tools/oda/ODAFileConverter locally.'
-    );
-  }
-  if (lower.includes('unsupported') || lower.includes('not supported')) {
-    return t(
-      'Pobrany instalator ODA nie wspiera tego środowiska. Aplikacja spróbuje innego wariantu (arm64/x64).',
-      'Downloaded ODA installer does not support this environment. The app will try another variant (arm64/x64).'
-    );
-  }
-  return raw || t('Nie udało się zainstalować ODA.', 'Failed to install ODA.');
-}
-
-async function downloadFile(url, destinationPath) {
-  const data = await httpsGetBuffer(url);
-  await fs.writeFile(destinationPath, data);
-}
-
-async function findAppBundleInDir(dirPath) {
-  const entries = await fs.readdir(dirPath, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory() || !entry.name.toLowerCase().endsWith('.app') || !/oda|converter/i.test(entry.name)) {
-      continue;
-    }
-    const bundlePath = path.join(dirPath, entry.name);
-    const converterPath = path.join(bundlePath, 'Contents', 'MacOS', 'ODAFileConverter');
-    if (await pathExists(converterPath)) {
-      return bundlePath;
-    }
-  }
-  return null;
-}
-
-async function validateOdaRuntime(converterPath) {
-  const tempRoot = await fs.mkdtemp(path.join(app.getPath('temp'), 'madcad-oda-validate-'));
-  try {
-    const inputDir = path.join(tempRoot, 'in');
-    const outputDir = path.join(tempRoot, 'out');
-    await fs.mkdir(inputDir, { recursive: true });
-    await fs.mkdir(outputDir, { recursive: true });
-    const sourceDxf = path.join(inputDir, 'test.dxf');
-    const minimalDxf = [
-      '0', 'SECTION', '2', 'HEADER', '0', 'ENDSEC',
-      '0', 'SECTION', '2', 'TABLES', '0', 'ENDSEC',
-      '0', 'SECTION', '2', 'ENTITIES',
-      '0', 'LINE', '8', '0', '10', '0', '20', '0', '11', '100', '21', '100',
-      '0', 'ENDSEC', '0', 'EOF', ''
-    ].join('\n');
-    await fs.writeFile(sourceDxf, minimalDxf, 'utf8');
-    await runOdaFileConverter(converterPath, inputDir, outputDir, 'DWG', '*.*');
-    const outputDwg = await findFirstWithExtension(outputDir, '.dwg');
-    return Boolean(outputDwg && (await pathExists(outputDwg)));
-  } catch (_error) {
-    return false;
-  } finally {
-    await fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
-  }
-}
-
-async function installOdaFromBundle(bundlePath) {
-  const installTargets = ['/Applications', path.join(app.getPath('home'), 'Applications')];
-  let installedConverterPath = null;
-
-  for (const targetDir of installTargets) {
-    try {
-      await fs.mkdir(targetDir, { recursive: true });
-      const targetBundle = path.join(targetDir, path.basename(bundlePath));
-      await fs.rm(targetBundle, { recursive: true, force: true }).catch(() => {});
-      try {
-        await execFileAsync('ditto', ['--rsrc', '--extattr', '--acl', bundlePath, targetBundle], {
-          timeout: 180000
-        });
-      } catch (_dittoError) {
-        await execFileAsync('cp', ['-R', bundlePath, targetBundle], { timeout: 180000 });
-      }
-      await execFileAsync('xattr', ['-dr', 'com.apple.quarantine', targetBundle], { timeout: 30000 }).catch(
-        () => {}
-      );
-      const converterPath = path.join(targetBundle, 'Contents', 'MacOS', 'ODAFileConverter');
-      if ((await isHealthyOdaConverterPath(converterPath)) && (await validateOdaRuntime(converterPath))) {
-        installedConverterPath = converterPath;
-        break;
-      }
-    } catch (_error) {
-      // Spróbuj kolejny target.
-    }
-  }
-
-  if (!installedConverterPath) {
-    throw new Error('Nie udało się zainstalować poprawnego dodatku ODA.');
-  }
-
-  await setSavedOdaConverterPath(installedConverterPath);
-  return installedConverterPath;
-}
-
-async function tryInstallBundledOdaConverter() {
-  if (isWindows) {
-    const bundledExeCandidates = [
-      path.join(process.resourcesPath, 'tools', 'oda', 'ODAFileConverter.exe'),
-      path.join(__dirname, '..', 'tools', 'oda', 'ODAFileConverter.exe')
-    ];
-    for (const exePath of bundledExeCandidates) {
-      if (!(await isHealthyOdaConverterPath(exePath))) {
-        continue;
-      }
-      await setSavedOdaConverterPath(exePath);
-      return exePath;
-    }
-    return null;
-  }
-
-  const bundledAppCandidates = [
-    path.join(process.resourcesPath, 'tools', 'oda', 'ODAFileConverter.app'),
-    path.join(__dirname, '..', 'tools', 'oda', 'ODAFileConverter.app')
-  ];
-  for (const bundlePath of bundledAppCandidates) {
-    if (!(await pathExists(bundlePath))) {
-      continue;
-    }
-    try {
-      return await installOdaFromBundle(bundlePath);
-    } catch (_error) {
-      // Próbuj kolejną lokalizację.
-    }
-  }
-  return null;
-}
-
-async function installOdaFromDmg(dmgPath) {
-  if (!isMac) {
-    throw new Error('Automatyczna instalacja ODA jest obecnie wspierana tylko na macOS.');
-  }
-  const mountPoint = path.join(app.getPath('temp'), `madcad-oda-mount-${Date.now()}`);
-  await fs.mkdir(mountPoint, { recursive: true });
-
-  let mounted = false;
-  try {
-    await execFileAsync('hdiutil', ['attach', dmgPath, '-nobrowse', '-mountpoint', mountPoint], {
-      timeout: 120000
-    });
-    mounted = true;
-
-    const bundlePath = await findAppBundleInDir(mountPoint);
-    if (!bundlePath) {
-      throw new Error('Instalator ODA nie zawiera aplikacji .app.');
-    }
-
-    return await installOdaFromBundle(bundlePath);
-  } finally {
-    if (mounted) {
-      await execFileAsync('hdiutil', ['detach', mountPoint, '-force'], { timeout: 60000 }).catch(() => {});
-    }
-    await fs.rm(mountPoint, { recursive: true, force: true }).catch(() => {});
-  }
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function installOdaFromMsi(msiPath) {
-  if (!isWindows) {
-    throw new Error('Automatyczna instalacja MSI ODA jest wspierana tylko na Windows.');
-  }
-
-  await execFileAsync('msiexec', ['/i', msiPath, '/qn', '/norestart'], {
-    timeout: 300000,
-    windowsHide: true
-  });
-
-  const retries = 20;
-  for (let attempt = 0; attempt < retries; attempt += 1) {
-    const resolved = await resolveOdaConverterPath();
-    if (resolved && (await isHealthyOdaConverterPath(resolved))) {
-      await setSavedOdaConverterPath(resolved);
-      return resolved;
-    }
-    await sleep(1500);
-  }
-
-  throw new Error('Instalator MSI zakończony, ale nie znaleziono ODAFileConverter.exe.');
-}
-
-async function autoInstallOdaConverter() {
-  const bundledInstalled = await tryInstallBundledOdaConverter();
-  if (bundledInstalled) {
-    return bundledInstalled;
-  }
-
-  let installerUrls = [];
-  let extension = 'bin';
-  if (isMac) {
-    installerUrls = await resolveOdaDmgUrls();
-    extension = 'dmg';
-  } else if (isWindows) {
-    installerUrls = await resolveOdaWindowsInstallerUrls();
-    extension = 'msi';
-  } else {
-    throw new Error('Automatyczna instalacja ODA jest obecnie wspierana na macOS i Windows.');
-  }
-
-  const failures = [];
-
-  for (let index = 0; index < installerUrls.length; index += 1) {
-    const tempDir = await fs.mkdtemp(path.join(app.getPath('temp'), 'madcad-oda-download-'));
-    try {
-      const installerUrl = installerUrls[index];
-      const installerPath = path.join(tempDir, `oda-converter-${index + 1}.${extension}`);
-      await downloadFile(installerUrl, installerPath);
-      if (isMac) {
-        return await installOdaFromDmg(installerPath);
-      }
-      if (isWindows) {
-        return await installOdaFromMsi(installerPath);
-      }
-      throw new Error('Nieobsługiwana platforma instalacji ODA.');
-    } catch (error) {
-      failures.push(normalizeOdaInstallError(error));
-    } finally {
-      await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-    }
-  }
-
-  throw new Error(failures[0] || t('Nie udało się zainstalować ODA.', 'Failed to install ODA.'));
-}
-
 async function pathExists(filePath) {
   try {
     await fs.access(filePath, fsRaw.constants.F_OK);
@@ -1017,135 +608,50 @@ async function pathExists(filePath) {
   }
 }
 
-async function isHealthyOdaConverterPath(candidatePath) {
-  const normalizedPath = await normalizeOdaConverterPath(candidatePath);
-  if (!normalizedPath || !(await pathExists(normalizedPath))) {
-    return false;
-  }
-  if (process.platform !== 'darwin') {
-    return true;
-  }
-  const normalized = String(normalizedPath);
-  const appMarker = '.app/Contents/MacOS/';
-  const markerIndex = normalized.indexOf(appMarker);
-  if (markerIndex === -1) {
-    return true;
-  }
-  const appBundlePath = normalized.slice(0, markerIndex + 4);
-  try {
-    await execFileAsync('codesign', ['--verify', '--deep', appBundlePath], { timeout: 30000 });
-    return true;
-  } catch (_error) {
-    return false;
-  }
-}
-
-async function resolveOdaConverterPath() {
-  const candidates = [];
-  const bundledCandidates = process.platform === 'win32'
-    ? [
-        path.join(process.resourcesPath, 'tools', 'oda', 'ODAFileConverter.exe'),
-        path.join(__dirname, '..', 'tools', 'oda', 'ODAFileConverter.exe')
-      ]
-    : [
-        path.join(process.resourcesPath, 'tools', 'oda', 'ODAFileConverter'),
-        path.join(__dirname, '..', 'tools', 'oda', 'ODAFileConverter')
-      ];
-  candidates.push(...bundledCandidates);
-
-  const savedPath = await getSavedOdaConverterPath();
-  if (savedPath) {
-    candidates.push(savedPath);
-  }
-  if (process.env.ODA_CONVERTER_PATH) {
-    candidates.push(process.env.ODA_CONVERTER_PATH);
-  }
-  if (process.platform === 'darwin') {
-    candidates.push('/Applications/ODA File Converter.app/Contents/MacOS/ODAFileConverter');
-    candidates.push('/Applications/ODAFileConverter.app/Contents/MacOS/ODAFileConverter');
-  } else if (process.platform === 'win32') {
-    candidates.push('C:\\Program Files\\ODA\\ODAFileConverter\\ODAFileConverter.exe');
-    candidates.push('C:\\Program Files (x86)\\ODA\\ODAFileConverter\\ODAFileConverter.exe');
-    candidates.push('C:\\Program Files\\ODA\\ODA File Converter\\ODAFileConverter.exe');
-    candidates.push('C:\\Program Files (x86)\\ODA\\ODA File Converter\\ODAFileConverter.exe');
-    candidates.push('C:\\Program Files\\Open Design Alliance\\ODAFileConverter\\ODAFileConverter.exe');
-    candidates.push('C:\\Program Files (x86)\\Open Design Alliance\\ODAFileConverter\\ODAFileConverter.exe');
-
-    const envRoots = [
-      process.env.ProgramFiles,
-      process.env['ProgramFiles(x86)'],
-      process.env.LOCALAPPDATA
-    ].filter(Boolean);
-    for (const envRoot of envRoots) {
-      candidates.push(envRoot);
-      candidates.push(path.join(envRoot, 'ODA'));
-      candidates.push(path.join(envRoot, 'Open Design Alliance'));
-    }
-  } else {
-    candidates.push('/usr/bin/ODAFileConverter');
-    candidates.push('/usr/local/bin/ODAFileConverter');
-  }
-
-  for (const candidate of candidates) {
-    const normalizedCandidate = await normalizeOdaConverterPath(candidate);
-    if (await isHealthyOdaConverterPath(normalizedCandidate)) {
-      return normalizedCandidate;
-    }
-  }
-  return null;
-}
-
-async function runOdaFileConverter(converterPath, inputDir, outputDir, targetType, sourcePattern) {
-  const args = [inputDir, outputDir, 'ACAD2018', targetType, '0', '1', sourcePattern];
-  await execFileAsync(converterPath, args, { timeout: 120000, windowsHide: true });
-}
-
-async function findFirstWithExtension(dirPath, extension) {
-  const entries = await fs.readdir(dirPath, { withFileTypes: true });
-  for (const entry of entries) {
-    const fullPath = path.join(dirPath, entry.name);
-    if (entry.isDirectory()) {
-      const nested = await findFirstWithExtension(fullPath, extension);
-      if (nested) {
-        return nested;
-      }
-      continue;
-    }
-    if (entry.isFile() && entry.name.toLowerCase().endsWith(extension.toLowerCase())) {
-      return fullPath;
-    }
-  }
-  return null;
-}
-
 async function handleSavePromptBeforeExit(win) {
-  let hasDrawableContent = true;
+  let persistenceReady = false;
   try {
-    hasDrawableContent = await win.webContents.executeJavaScript(
+    persistenceReady = await win.webContents.executeJavaScript(
       `
       (() => {
-        if (typeof window.__madcadHasDrawableContent === 'function') {
-          return !!window.__madcadHasDrawableContent();
-        }
-        if (typeof window.__madcadGetSessionExport === 'function') {
-          try {
-            const raw = window.__madcadGetSessionExport();
-            const parsed = JSON.parse(raw || '{}');
-            return Array.isArray(parsed.entities) && parsed.entities.length > 0;
-          } catch (_error) {
-            return true;
-          }
-        }
+        if (typeof window.__madcadPersistenceReady === 'function') return !!window.__madcadPersistenceReady();
+        return false;
+      })();
+      `,
+      true
+    );
+  } catch (_error) {
+    persistenceReady = false;
+  }
+
+  if (!persistenceReady) {
+    await dialog.showMessageBox(win, {
+      type: 'info',
+      buttons: [t('OK', 'OK')],
+      defaultId: 0,
+      title: t('Odzyskiwanie projektu', 'Project Recovery'),
+      message: t('MadCAD nadal sprawdza autozapis.', 'MadCAD is still checking the autosave.'),
+      detail: t('Poczekaj chwilę i zamknij aplikację ponownie, aby nie utracić odzyskiwanego projektu.', 'Wait a moment and close the application again to avoid losing a recoverable project.')
+    });
+    return false;
+  }
+
+  let hasUnsavedChanges = true;
+  try {
+    hasUnsavedChanges = await win.webContents.executeJavaScript(
+      `
+      (() => {
+        if (typeof window.__madcadHasUnsavedChanges === 'function') return !!window.__madcadHasUnsavedChanges();
         return true;
       })();
       `,
       true
     );
   } catch (_error) {
-    hasDrawableContent = true;
+    hasUnsavedChanges = true;
   }
 
-  if (!hasDrawableContent) {
+  if (!hasUnsavedChanges) {
     try {
       await win.webContents.executeJavaScript(
         'window.__madcadClearRuntimeSession && window.__madcadClearRuntimeSession();',
@@ -1199,7 +705,7 @@ async function handleSavePromptBeforeExit(win) {
     }
 
     try {
-      await fs.writeFile(saveResult.filePath, String(exportedText || ''), 'utf8');
+      await atomicWriteTextFile(saveResult.filePath, String(exportedText || ''), { backup: true });
     } catch (_error) {
       await dialog.showMessageBox(win, {
         type: 'error',
@@ -1585,6 +1091,27 @@ registerTrustedIpcHandler('madcad:save-text-file', async (event, payload) => {
   }
 });
 
+registerTrustedIpcHandler('madcad:confirm-unsaved-changes', async (event, payload) => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;
+  const reason = ['new', 'open', 'update'].includes(payload?.reason) ? payload.reason : 'open';
+  const action = reason === 'new'
+    ? t('utworzeniem nowego projektu', 'creating a new project')
+    : reason === 'update'
+      ? t('zainstalowaniem aktualizacji', 'installing the update')
+      : t('otwarciem innego projektu', 'opening another project');
+  const response = await dialog.showMessageBox(senderWindow, {
+    type: 'warning',
+    buttons: [t('Zapisz', 'Save'), t('Odrzuć zmiany', 'Discard Changes'), t('Anuluj', 'Cancel')],
+    defaultId: 0,
+    cancelId: 2,
+    noLink: true,
+    title: t('Niezapisane zmiany', 'Unsaved Changes'),
+    message: t('Projekt zawiera niezapisane zmiany.', 'The project has unsaved changes.'),
+    detail: t(`Zapisz zmiany przed ${action}?`, `Save changes before ${action}?`),
+  });
+  return { decision: response.response === 0 ? 'save' : response.response === 1 ? 'discard' : 'cancel' };
+});
+
 registerTrustedIpcHandler('madcad:check-for-updates', async () => {
   try {
     if (!app.isPackaged) {
@@ -1635,7 +1162,7 @@ registerTrustedIpcHandler('madcad:check-for-updates', async () => {
   }
 });
 
-registerTrustedIpcHandler('madcad:download-and-install-update', async () => {
+registerTrustedIpcHandler('madcad:download-and-install-update', async (event) => {
   try {
     if (!app.isPackaged) {
       return {
@@ -1705,6 +1232,11 @@ registerTrustedIpcHandler('madcad:download-and-install-update', async () => {
       };
     }
 
+    await event.sender.executeJavaScript(
+      'window.__madcadClearRuntimeSession && window.__madcadClearRuntimeSession();',
+      true
+    );
+    await clearAutoSaveSnapshot();
     forceCloseForUpdate = true;
     setTimeout(() => {
       app.quit();
@@ -1737,9 +1269,11 @@ registerTrustedIpcHandler('madcad:download-and-install-update', async () => {
 registerTrustedIpcHandler('madcad:autosave-write', async (_event, payload) => {
   try {
     const { text } = normalizeAutosavePayload(payload);
-    const autoSavePath = getAutoSavePath();
-    await fs.mkdir(path.dirname(autoSavePath), { recursive: true });
-    const writeResult = await atomicWriteTextFile(autoSavePath, text, { backup: true });
+    const writeResult = await queueAutosaveOperation(async () => {
+      const autoSavePath = getAutoSavePath();
+      await fs.mkdir(path.dirname(autoSavePath), { recursive: true });
+      return atomicWriteTextFile(autoSavePath, text, { backup: true });
+    });
     return {
       ok: true,
       ...writeResult,
@@ -1756,7 +1290,7 @@ registerTrustedIpcHandler('madcad:autosave-write', async (_event, payload) => {
 registerTrustedIpcHandler('madcad:autosave-read', async () => {
   try {
     const autoSavePath = getAutoSavePath();
-    const recovered = await readRecoverableTextFile(autoSavePath, { validate: validateJsonText });
+    const recovered = await queueAutosaveOperation(() => readRecoverableTextFile(autoSavePath, { validate: validateJsonText }));
     if (!recovered.exists) return { ok: true, ...recovered };
     return {
       ok: true,
@@ -1842,202 +1376,6 @@ registerTrustedIpcHandler('madcad:open-print-preview', async (event, payload) =>
       ok: false,
       error: error && error.message ? String(error.message) : t('Nie udało się otworzyć podglądu.', 'Cannot open preview.')
     };
-  }
-});
-
-registerTrustedIpcHandler('madcad:get-oda-status', async () => {
-  try {
-    const converterPath = await resolveOdaConverterPath();
-    return {
-      ok: true,
-      installed: Boolean(converterPath),
-      path: converterPath || null
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      installed: false,
-      path: null,
-      error: error && error.message ? String(error.message) : t('Błąd sprawdzania ODA.', 'ODA status check error.')
-    };
-  }
-});
-
-registerTrustedIpcHandler('madcad:choose-oda-path', async (event) => {
-  try {
-    const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;
-    const result = await dialog.showOpenDialog(senderWindow, {
-      title: t('Wskaż ODA File Converter', 'Choose ODA File Converter'),
-      properties: process.platform === 'win32' || process.platform === 'darwin'
-        ? ['openFile', 'openDirectory']
-        : ['openFile'],
-      buttonLabel: t('Ustaw ścieżkę', 'Set path')
-    });
-
-    if (result.canceled || !Array.isArray(result.filePaths) || result.filePaths.length === 0) {
-      return { ok: false, canceled: true };
-    }
-
-    const selectedPath = result.filePaths[0];
-    const normalizedSelection = await normalizeOdaConverterPath(selectedPath);
-    if (!normalizedSelection || !(await pathExists(normalizedSelection))) {
-      return {
-        ok: false,
-        canceled: false,
-        error: t('Wybrana ścieżka nie istnieje.', 'Selected path does not exist.')
-      };
-    }
-
-    await setSavedOdaConverterPath(normalizedSelection);
-    const converterPath = await resolveOdaConverterPath();
-    return {
-      ok: true,
-      canceled: false,
-      installed: Boolean(converterPath),
-      path: converterPath || normalizedSelection
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      canceled: false,
-      error: error && error.message ? String(error.message) : t('Błąd wyboru ścieżki ODA.', 'ODA path selection error.')
-    };
-  }
-});
-
-registerTrustedIpcHandler('madcad:open-oda-download', async () => {
-  try {
-    await shell.openExternal(ODA_DOWNLOAD_URL);
-    return { ok: true, canceled: false, url: ODA_DOWNLOAD_URL };
-  } catch (error) {
-    return {
-      ok: false,
-      canceled: false,
-      error: error && error.message ? String(error.message) : t('Nie udało się otworzyć strony pobrania ODA.', 'Failed to open ODA download page.')
-    };
-  }
-});
-
-registerTrustedIpcHandler('madcad:install-oda-addon', async () => {
-  try {
-    const installedPath = await autoInstallOdaConverter();
-    return {
-      ok: true,
-      canceled: false,
-      installed: true,
-      path: installedPath || null
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      canceled: false,
-      installed: false,
-      error: error && error.message ? String(error.message) : t('Nie udało się zainstalować ODA.', 'Failed to install ODA.')
-    };
-  }
-});
-
-registerTrustedIpcHandler('madcad:convert-cad-file', async (event, payload) => {
-  let tempRoot = null;
-  try {
-    const normalized = normalizeCadConversionPayload(payload, appLanguage);
-    const mode = normalized.mode;
-    const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;
-    const converterPath = await resolveOdaConverterPath();
-    if (!converterPath) {
-      return {
-        ok: false,
-        canceled: false,
-        error: t(
-          'Nie znaleziono ODA File Converter. Zainstaluj aplikację i uruchom ponownie MadCAD.',
-          'ODA File Converter not found. Install it and restart MadCAD.'
-        )
-      };
-    }
-
-    tempRoot = await fs.mkdtemp(path.join(app.getPath('temp'), 'madcad-oda-'));
-    const inputDir = path.join(tempRoot, 'in');
-    const outputDir = path.join(tempRoot, 'out');
-    await fs.mkdir(inputDir, { recursive: true });
-    await fs.mkdir(outputDir, { recursive: true });
-
-    if (mode === 'dwg-to-dxf') {
-      const sourcePath = normalized.sourcePath;
-      if (!sourcePath || !(await pathExists(sourcePath))) {
-        return {
-          ok: false,
-          canceled: false,
-          error: t('Nieprawidłowa ścieżka pliku DWG.', 'Invalid DWG file path.')
-        };
-      }
-      const sourceStats = await fs.stat(sourcePath);
-      if (!sourceStats.isFile() || sourceStats.size > 512 * 1024 * 1024) {
-        return {
-          ok: false,
-          canceled: false,
-          error: t('Plik DWG jest nieprawidłowy lub przekracza limit 512 MB.', 'The DWG file is invalid or exceeds the 512 MB limit.')
-        };
-      }
-      const sourceName = path.basename(sourcePath);
-      const sourceCopy = path.join(inputDir, sourceName);
-      await fs.copyFile(sourcePath, sourceCopy);
-      await runOdaFileConverter(converterPath, inputDir, outputDir, 'DXF', '*.*');
-      const outputDxf = await findFirstWithExtension(outputDir, '.dxf');
-      if (!outputDxf) {
-        return {
-          ok: false,
-          canceled: false,
-          error: t('Konwersja DWG->DXF nie zwróciła pliku wynikowego.', 'DWG->DXF conversion did not produce an output file.')
-        };
-      }
-      const text = await fs.readFile(outputDxf, 'utf8');
-      return { ok: true, canceled: false, text };
-    }
-
-    if (mode === 'dxf-text-to-dwg') {
-      const dxfText = normalized.dxfText;
-      const dxfPath = path.join(inputDir, 'source.dxf');
-      await fs.writeFile(dxfPath, dxfText, 'utf8');
-      await runOdaFileConverter(converterPath, inputDir, outputDir, 'DWG', '*.*');
-      const outputDwg = await findFirstWithExtension(outputDir, '.dwg');
-      if (!outputDwg) {
-        return {
-          ok: false,
-          canceled: false,
-          error: t('Konwersja DXF->DWG nie zwróciła pliku wynikowego.', 'DXF->DWG conversion did not produce an output file.')
-        };
-      }
-
-      const saveResult = await dialog.showSaveDialog(senderWindow, {
-        title: t('Zapisz plik DWG', 'Save DWG file'),
-        defaultPath: normalized.defaultName,
-        filters: [{ name: 'DWG', extensions: ['dwg'] }],
-        properties: ['createDirectory', 'showOverwriteConfirmation']
-      });
-
-      if (saveResult.canceled || !saveResult.filePath) {
-        return { ok: false, canceled: true };
-      }
-
-      await fs.copyFile(outputDwg, saveResult.filePath);
-      return { ok: true, canceled: false, filePath: saveResult.filePath };
-    }
-
-    return {
-      ok: false,
-      canceled: false,
-      error: t('Nieobsługiwany tryb konwersji CAD.', 'Unsupported CAD conversion mode.')
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      canceled: false,
-      error: error && error.message ? String(error.message) : t('Błąd konwersji CAD.', 'CAD conversion error.')
-    };
-  } finally {
-    if (tempRoot) {
-      await fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
-    }
   }
 });
 

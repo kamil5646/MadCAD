@@ -132,8 +132,8 @@ function arcPoints(center, start, end, direction, steps = 32) {
 }
 
 function sketchEntityColor(entity, selected = false, error = false) {
-  if (selected) return 0xffc857;
   if (error || entity.error) return 0xff5e66;
+  if (selected) return 0xffc857;
   if (entity.role === 'projected') return 0xc388e8;
   if (entity.role === 'construction' || entity.role === 'centerline') return 0x7893a2;
   if (entity.fixed) return 0x67d987;
@@ -141,8 +141,8 @@ function sketchEntityColor(entity, selected = false, error = false) {
 }
 
 function sketchEntityState(entity, selected, error = false) {
-  if (selected) return 'selected';
   if (error || entity.error) return 'error';
+  if (selected) return 'selected';
   if (entity.role === 'projected') return 'projected';
   if (entity.role === 'construction' || entity.role === 'centerline') return 'construction';
   if (entity.fixed) return 'fully-constrained';
@@ -388,6 +388,7 @@ export default function ModelViewport({
   printLayout,
 }) {
   const hostRef = useRef(null);
+  const optionKeyLabel = window.desktopApp?.platform === 'darwin' ? '⌥ Option' : 'Alt';
   const directHandleRef = useRef(null);
   const directEventRef = useRef({});
   const directDragRef = useRef(null);
@@ -1635,14 +1636,14 @@ export default function ModelViewport({
         onSketchFinish?.();
       }}
     >
-      <div className="view-cube" aria-label="Kostka widoku">
+      <div className="view-cube" role="toolbar" aria-label="Kostka widoku">
         <button className="cube-top" type="button" title="Ustaw kamerę prostopadle do płaszczyzny XY." onClick={() => setView('top')}>GÓRA</button>
         <button className="cube-main" type="button" onClick={() => setView('iso')} title="Widok izometryczny"><Box size={34} strokeWidth={1.2} /></button>
         <button className="cube-front" type="button" title="Ustaw kamerę na widok z przodu." onClick={() => setView('front')}>PRZÓD</button>
         <button className="cube-right" type="button" title="Ustaw kamerę na widok z prawej strony." onClick={() => setView('right')}>PRAWO</button>
       </div>
       <div className="axis-indicator" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
-      <div className="selection-filter-bar" aria-label="Filtr wyboru geometrii">
+      <div className="selection-filter-bar" role="toolbar" aria-label="Filtr wyboru geometrii">
         {[
           ['auto', 'Auto'],
           ['body', 'Bryła'],
@@ -1652,7 +1653,7 @@ export default function ModelViewport({
           ['profile', 'Profil'],
         ].map(([id, label]) => <button key={id} className={selectionFilter === id ? 'active' : ''} type="button" disabled={id === 'profile' ? !activeSketchId : Boolean(activeSketchId)} title={`Filtr wyboru: ${label}`} onClick={() => setSelectionFilter(id)}>{label}</button>)}
       </div>
-      {!activeSketchId && <div className="model-selection-hint">Ctrl/Shift: wiele · Alt+klik: przełącz · Shift+przeciągnij tło: obszar</div>}
+      {!activeSketchId && <div className="model-selection-hint">{`Ctrl/Shift: wiele · ${optionKeyLabel}+klik: przełącz · Shift+przeciągnij tło: obszar`}</div>}
       {directEnabled && (
         <div
           ref={directHandleRef}
@@ -1665,7 +1666,7 @@ export default function ModelViewport({
           onPointerCancel={(event) => directEventRef.current.up?.(event)}
         />
       )}
-      <div className="navigation-bar" aria-label="Nawigacja widoku">
+      <div className="navigation-bar" role="toolbar" aria-label="Nawigacja widoku">
         <button className={navigationMode === 'orbit' ? 'active' : ''} type="button" title="Orbita: przeciągnij lewym przyciskiem, aby obracać widok." onClick={() => { setNavigationMode('orbit'); setView('iso'); }}><Orbit size={16} /></button>
         <button className={navigationMode === 'pan' ? 'active' : ''} type="button" title="Przesuwanie: przeciągnij lewym przyciskiem, aby przesunąć widok." onClick={() => setNavigationMode((mode) => mode === 'pan' ? 'orbit' : 'pan')}><Move3d size={16} /></button>
         <button type="button" title="Powiększ model w bieżącym widoku." onClick={() => setZoomScale((scale) => Math.max(0.35, scale * 0.78))}><ZoomIn size={16} /></button>
@@ -1686,7 +1687,7 @@ export default function ModelViewport({
           <svg className="sketch-snap-guides" aria-hidden="true">
             {snapFeedback.guides.map((guide, index) => <line key={`${snapFeedback.type}-${index}`} {...guide} />)}
           </svg>
-          <div className={`sketch-snap-marker ${snapFeedback.type}`} style={{ left: snapFeedback.x, top: snapFeedback.y }}><i /><span>{snapFeedback.label}</span></div>
+          <div className={`sketch-snap-marker ${snapFeedback.type}`} style={{ left: snapFeedback.x, top: snapFeedback.y }} aria-label={`Snap: ${snapFeedback.label}`}><i /><span><b>SNAP</b>{snapFeedback.label}</span></div>
         </>
       )}
       {selectionBox && <div className={`sketch-selection-box ${selectionBox.crossing ? 'crossing' : 'inside'}`} style={{ left: selectionBox.left, top: selectionBox.top, width: selectionBox.width, height: selectionBox.height }} />}
@@ -1730,7 +1731,7 @@ export default function ModelViewport({
       {activeSketchId && sliceModel && <div className="sketch-slice-badge">Slice · przekrój na {activePlane}</div>}
       {activeSketchId && draftType && <div className="sketch-pointer-hint">Kliknij środek, a następnie punkt rozmiaru</div>}
       {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
-      {activeSketchId && sketchTool && <div className="sketch-pointer-hint">{sketchToolPrompt || 'Klikaj kolejne punkty'} · Alt chwilowo wyłącza snap · {sketchTool === 'line' && polylineDraft?.lastPoint ? 'Wpisz długość i Enter albo kliknij koniec' : 'Enter lub prawy przycisk kończy'} · Escape anuluje</div>}
+      {activeSketchId && sketchTool && <div className="sketch-pointer-hint">{`${sketchToolPrompt || 'Klikaj kolejne punkty'} · ${optionKeyLabel} chwilowo wyłącza snap · ${sketchTool === 'line' && polylineDraft?.lastPoint ? 'Wpisz długość i Enter albo kliknij koniec' : 'Enter lub prawy przycisk kończy'} · Escape anuluje`}</div>}
       {activeSketchId && !sketchTool && !draftType && !sketchModifierMode && <div className="sketch-pointer-hint">Kliknij lub przeciągnij geometrię · Ctrl/Shift wybiera wiele · przeciągnij tło, aby wybrać oknem</div>}
     </div>
   );

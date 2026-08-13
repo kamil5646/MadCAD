@@ -3,6 +3,8 @@ const path = require('path');
 const { app, BrowserWindow } = require('electron');
 
 const outputPath = path.join(__dirname, '..', 'artifacts', 'modeling-checkpoint.png');
+const licenseOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-license.png');
+const tooltipOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-tooltip.png');
 const emptyOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-empty.png');
 const sketchOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-sketch.png');
 const directOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-direct-extrude.png');
@@ -32,6 +34,7 @@ async function waitForModel(window, timeoutMs = 30000) {
 async function verifyAccessibilityAndScale(window) {
   const checks = [];
   for (const zoomFactor of [1, 1.5, 2]) {
+    window.focus();
     window.webContents.setZoomFactor(zoomFactor);
     await new Promise((resolve) => setTimeout(resolve, 250));
     await window.webContents.executeJavaScript(`document.querySelector('.modeling-shell button:not([disabled])')?.focus()`);
@@ -44,6 +47,8 @@ async function verifyAccessibilityAndScale(window) {
       if (!shell.contains(document.activeElement) || !document.activeElement.matches('button, input, select, [tabindex]')) buttons[0]?.focus();
       const focusTarget = document.activeElement;
       const focusStyle = focusTarget ? getComputedStyle(focusTarget) : null;
+      const documentFocused = document.hasFocus();
+      const focusOutline = (focusStyle?.outlineWidth || '0') + ' ' + (focusStyle?.outlineStyle || 'none');
       const unnamedButtons = buttons.filter((button) => !((button.getAttribute('aria-label') || button.getAttribute('title') || button.textContent || '').trim())).length;
       return {
         language: document.documentElement.lang,
@@ -56,16 +61,45 @@ async function verifyAccessibilityAndScale(window) {
         unnamedButtons,
         focusReachable: shell.contains(focusTarget) && focusTarget.matches('button, input, select, [tabindex]'),
         focusControl: focusTarget ? focusTarget.tagName + '.' + (focusTarget.className || '') : '',
-        focusOutline: (focusStyle?.outlineWidth || '0') + ' ' + (focusStyle?.outlineStyle || 'none'),
+        documentFocused,
+        focusOutline: documentFocused ? focusOutline : 'not evaluated: verifier window is not focused',
+        focusVisible: !documentFocused || focusOutline.endsWith('solid'),
       };
     })()`);
-    if (state.documentOverflow || state.shellOverflow || !state.toolbarVisible || !state.timelineVisible || state.unnamedButtons || !state.focusReachable) {
+    if (state.documentOverflow || state.shellOverflow || !state.toolbarVisible || !state.timelineVisible || state.unnamedButtons || !state.focusReachable || !state.focusVisible) {
       throw new Error(`Accessibility/DPI check failed at ${zoomFactor * 100}%: ${JSON.stringify(state)}`);
     }
     checks.push({ zoomPercent: zoomFactor * 100, ...state });
   }
   window.webContents.setZoomFactor(1);
   return checks;
+}
+
+async function verifyWcagAccessibility(window) {
+  const axeSource = await fs.readFile(require.resolve('axe-core/axe.min.js'), 'utf8');
+  await window.webContents.executeJavaScript(axeSource);
+  const result = await window.webContents.executeJavaScript(`(async () => {
+    const audit = await axe.run(document.querySelector('.modeling-shell'), {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa'] },
+    });
+    return {
+      passes: audit.passes.length,
+      incomplete: audit.incomplete.map((item) => ({
+        id: item.id,
+        impact: item.impact,
+        nodes: item.nodes.map((node) => ({ target: node.target, summary: node.failureSummary })),
+      })),
+      violations: audit.violations.map((item) => ({
+        id: item.id,
+        impact: item.impact,
+        help: item.help,
+        nodes: item.nodes.map((node) => ({ target: node.target, summary: node.failureSummary })),
+      })),
+    };
+  })()`);
+  const blocking = result.violations.filter((item) => ['critical', 'serious'].includes(item.impact));
+  if (blocking.length) throw new Error(`WCAG accessibility audit failed: ${JSON.stringify(blocking)}`);
+  return result;
 }
 
 async function verifyEnglishModelingUi() {
@@ -79,15 +113,30 @@ async function verifyEnglishModelingUi() {
     await englishWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'en' } });
     await waitForModel(englishWindow);
     await new Promise((resolve) => setTimeout(resolve, 300));
-    const state = await englishWindow.webContents.executeJavaScript(`(() => ({
-      language: document.documentElement.lang,
-      createSketch: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Create sketch'),
-      browser: document.querySelector('.browser-heading strong')?.textContent.trim(),
-      engineReady: document.querySelector('.engine-status')?.textContent.includes('ready'),
-      tutorialButton: Boolean(document.querySelector('button[title="First part tutorial"]')),
-      polishPrimaryLabel: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Utwórz szkic'),
-    }))()`);
-    if (state.language !== 'en' || !state.createSketch || state.browser !== 'BROWSER' || !state.engineReady || !state.tutorialButton || state.polishPrimaryLabel) {
+    const state = await englishWindow.webContents.executeJavaScript(`(() => {
+      const polishPattern = /(?:[ąćęłńóśźż]|\\b(?:Zaznacz|Wybierz|Pokaż|ukryj|Nowy|Otwórz|Zapisz|Cofnij|Ponów|Gotowe|Płaszczyzna|Parametry|Konstrukcja|Szkice|Bryły|Utwórz|Zaokrąglij|Fazuj|Przesuń|Obróć|Edytuj|Zamknij|Anuluj)\\b)/i;
+      const untranslated = new Set();
+      document.querySelectorAll('.modeling-shell *').forEach((element) => {
+        if (!element.children.length) {
+          const text = element.textContent?.trim();
+          if (text && polishPattern.test(text)) untranslated.add(text);
+        }
+        for (const attribute of ['aria-label', 'title', 'placeholder']) {
+          const value = element.getAttribute(attribute)?.trim();
+          if (value && polishPattern.test(value)) untranslated.add(value);
+        }
+      });
+      return {
+        language: document.documentElement.lang,
+        createSketch: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Create sketch'),
+        browser: document.querySelector('.browser-heading strong')?.textContent.trim(),
+        engineReady: document.querySelector('.engine-status')?.textContent.includes('ready'),
+        tutorialButton: Boolean(document.querySelector('button[title="First part tutorial"]')),
+        polishPrimaryLabel: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Utwórz szkic'),
+        untranslatedPolish: [...untranslated].slice(0, 50),
+      };
+    })()`);
+    if (state.language !== 'en' || !state.createSketch || state.browser !== 'BROWSER' || !state.engineReady || !state.tutorialButton || state.polishPrimaryLabel || state.untranslatedPolish.length) {
       throw new Error(`English UI smoke check failed: ${JSON.stringify(state)}`);
     }
     return state;
@@ -257,19 +306,31 @@ async function runUiFlow(window) {
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);
-  const pickPlane = (plane) => window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.plane-options button')].find((item) => item.textContent.includes(${JSON.stringify(plane)}));
-    if (!button) throw new Error('Brak płaszczyzny ${plane}');
-    const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
-    button[key].onClick();
-  })()`);
-  const toggleSketchOption = (label) => window.webContents.executeJavaScript(`(() => {
-    const row = [...document.querySelectorAll('.sketch-palette label')].find((item) => item.querySelector('span')?.textContent === ${JSON.stringify(label)});
-    const input = row?.querySelector('input[type="checkbox"]');
-    if (!input) throw new Error('Brak opcji szkicu: ${label}');
-    const key = Object.keys(input).find((item) => item.startsWith('__reactProps'));
-    input[key].onChange({ target: { checked: !input.checked } });
-  })()`);
+  const pickPlane = async (plane) => {
+    await window.webContents.executeJavaScript(`(() => {
+      const button = [...document.querySelectorAll('.plane-options button')].find((item) => item.textContent.includes(${JSON.stringify(plane)}));
+      if (!button) throw new Error('Brak płaszczyzny ${plane}');
+      const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
+      button[key].onClick();
+    })()`);
+    await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, `tryb szkicu na płaszczyźnie ${plane}`);
+  };
+  const toggleSketchOption = async (label) => {
+    await window.webContents.executeJavaScript(`document.querySelector('.sketch-palette.collapsed .sketch-palette-toggle')?.click()`);
+    await waitForUi(window, `Boolean(document.querySelector('.sketch-palette label'))`, `rozwinięta paleta szkicu dla opcji ${label}`);
+    if (label === 'Geometria Project') return window.webContents.executeJavaScript(`(() => { const input = document.querySelector('.sketch-palette [data-sketch-option="projected"] input[type="checkbox"]'); if (!input) throw new Error('Brak opcji szkicu: projected'); const key = Object.keys(input).find((item) => item.startsWith('__reactProps')); input[key].onChange({ target: { checked: !input.checked } }); })()`);
+    if (label === 'Slice modelu') return window.webContents.executeJavaScript(`(() => { const input = document.querySelector('.sketch-palette [data-sketch-option="slice"] input[type="checkbox"]'); if (!input) throw new Error('Brak opcji szkicu: slice'); const key = Object.keys(input).find((item) => item.startsWith('__reactProps')); input[key].onChange({ target: { checked: !input.checked } }); })()`);
+    if (label === 'Profile') return window.webContents.executeJavaScript(`(() => { const input = document.querySelector('.sketch-palette [data-sketch-option="profiles"] input[type="checkbox"]'); if (!input) throw new Error('Brak opcji szkicu: profiles'); const key = Object.keys(input).find((item) => item.startsWith('__reactProps')); input[key].onChange({ target: { checked: !input.checked } }); })()`);
+    if (label === 'Wiązania') return window.webContents.executeJavaScript(`(() => { const input = document.querySelector('.sketch-palette [data-sketch-option="constraints"] input[type="checkbox"]'); if (!input) throw new Error('Brak opcji szkicu: constraints'); const key = Object.keys(input).find((item) => item.startsWith('__reactProps')); input[key].onChange({ target: { checked: !input.checked } }); })()`);
+    if (label === 'Wymiary') return window.webContents.executeJavaScript(`(() => { const input = document.querySelector('.sketch-palette [data-sketch-option="dimensions"] input[type="checkbox"]'); if (!input) throw new Error('Brak opcji szkicu: dimensions'); const key = Object.keys(input).find((item) => item.startsWith('__reactProps')); input[key].onChange({ target: { checked: !input.checked } }); })()`);
+    if (label === 'Geometrie konstrukcyjne') return window.webContents.executeJavaScript(`(() => { const input = document.querySelector('.sketch-palette [data-sketch-option="construction"] input[type="checkbox"]'); if (!input) throw new Error('Brak opcji szkicu: construction'); const key = Object.keys(input).find((item) => item.startsWith('__reactProps')); input[key].onChange({ target: { checked: !input.checked } }); })()`);
+    throw new Error(`Brak bezpiecznego skryptu opcji szkicu: ${label}`);
+  };
+  const expandReferenceRepair = async () => {
+    await waitForUi(window, `Boolean(document.querySelector('.reference-repair-panel'))`, 'widoczny panel naprawy referencji');
+    await window.webContents.executeJavaScript(`document.querySelector('.reference-repair-panel.collapsed .reference-repair-toggle')?.click()`);
+    await waitForUi(window, `Boolean(document.querySelector('.reference-repair-panel:not(.collapsed)'))`, 'rozwinięty panel naprawy referencji');
+  };
   const editTimelineFeature = async (index, title = 'Wyciągnięcie') => {
     await window.webContents.executeJavaScript(`(() => {
       const button = document.querySelectorAll('.timeline-item')[${index}];
@@ -360,6 +421,55 @@ async function runUiFlow(window) {
   await sendKey('Escape');
   await waitForUi(window, `!document.querySelector('.tutorial-dialog')`, 'zamknięty samouczek');
 
+  progress('unsaved changes guard');
+  await window.webContents.executeJavaScript(`(() => {
+    window.__madcadPreviousDesktopApp = window.desktopApp;
+    window.__madcadVerifierFileAutosave = '';
+    window.desktopApp = {
+      ...(window.desktopApp || {}),
+      autosaveWrite: async ({ text }) => { window.__madcadVerifierFileAutosave = text; return { ok: true }; },
+      autosaveRead: async () => ({ ok: true, exists: Boolean(window.__madcadVerifierFileAutosave), text: window.__madcadVerifierFileAutosave }),
+      autosaveClear: async () => { window.__madcadVerifierFileAutosave = ''; return { ok: true }; },
+    };
+    window.__madcadOriginalStorageSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function setItemWithQuotaFailure(key, value) {
+      if (key === 'madcad:modeling-document:v4') throw new DOMException('Kontrolowany brak miejsca', 'QuotaExceededError');
+      return window.__madcadOriginalStorageSetItem.call(this, key, value);
+    };
+  })()`);
+  await window.webContents.executeJavaScript(`(() => {
+    const input = document.querySelector('input[aria-label="Nazwa projektu"]');
+    const key = input && Object.keys(input).find((item) => item.startsWith('__reactProps'));
+    if (!key || typeof input[key]?.onChange !== 'function') throw new Error('Brak edycji nazwy projektu.');
+    input[key].onChange({ target: { value: 'Niezapisany test' } });
+  })()`);
+  await waitForUi(window, `document.querySelector('.document-tab input')?.value === 'Niezapisany test' && Boolean(document.querySelector('[aria-label="Niezapisane zmiany"]'))`, 'oznaczenie niezapisanych zmian');
+  const fileAutosaveSurvivedQuotaFailure = await window.webContents.executeJavaScript(`(async () => {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const result = await window.desktopApp?.autosaveRead?.();
+      if (result?.ok && result.text?.includes('Niezapisany test')) return true;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return false;
+  })()`);
+  await window.webContents.executeJavaScript(`(() => {
+    if (window.__madcadOriginalStorageSetItem) Storage.prototype.setItem = window.__madcadOriginalStorageSetItem;
+    delete window.__madcadOriginalStorageSetItem;
+    if (window.__madcadPreviousDesktopApp) window.desktopApp = window.__madcadPreviousDesktopApp;
+    else delete window.desktopApp;
+    delete window.__madcadPreviousDesktopApp;
+    delete window.__madcadVerifierFileAutosave;
+  })()`);
+  if (!fileAutosaveSurvivedQuotaFailure) throw new Error('Plikowy autozapis nie przejął projektu po błędzie limitu localStorage.');
+  await window.webContents.executeJavaScript(`window.__madcadVerifyUnsavedDecision = 'cancel'`);
+  await clickByTitle('Nowy projekt');
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  await waitForUi(window, `document.querySelector('.document-tab input')?.value === 'Niezapisany test'`, 'anulowanie utraty zmian');
+  await window.webContents.executeJavaScript(`window.__madcadVerifyUnsavedDecision = 'discard'`);
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.document-tab input')?.value === 'Bez nazwy' && !document.querySelector('[aria-label="Niezapisane zmiany"]')`, 'świadome odrzucenie zmian');
+  await window.webContents.executeJavaScript(`delete window.__madcadVerifyUnsavedDecision`);
+
   progress('SVG sketch import, undo, redo and reopen');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla importu SVG');
@@ -426,6 +536,7 @@ async function runUiFlow(window) {
   await confirmDialog();
   await waitForUi(window, `(() => { const sketch = window.__madcadVerifyDocumentState?.sketches?.[0]; const point = sketch?.entityData?.find((item) => item.id === window.__madcadDimensionFixtureIds.pointId); return sketch?.constraints?.some((item) => item.type === 'coordinateX') && Math.abs(Number(point?.geometry?.x) - 12) < 1e-6; })()`, 'zastosowany ordinate X');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection([window.__madcadDimensionFixtureIds.pointId], 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Ordinate Y')?.disabled)`, 'aktywny wymiar ordinate Y');
   await clickTool('Ordinate Y');
   await waitForUi(window, `document.querySelector('.sketch-dimension-dialog')?.textContent.includes('Wymiar ordinate Y')`, 'dialog ordinate Y');
   await setCommandField('Wartość', '-7');
@@ -543,6 +654,7 @@ async function runUiFlow(window) {
   progress('open chain thin extrude');
   const openThinLineId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(openThinLineId)}], 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Thin Extrude')?.disabled)`, 'aktywny Thin Extrude dla otwartego łańcucha');
   await clickTool('Thin Extrude');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie') && document.querySelector('.command-dialog')?.textContent.includes('Zakończenie')`, 'podgląd otwartego Thin Extrude');
   progress('open chain thin cancel');
@@ -550,6 +662,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 0 && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'anulowanie otwartego Thin Extrude');
   progress('open chain thin reopen');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(openThinLineId)}], 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Thin Extrude')?.disabled)`, 'ponownie aktywny Thin Extrude dla otwartego łańcucha');
   await clickTool('Thin Extrude');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Zakończenie')`, 'ponowny podgląd otwartego Thin Extrude');
   await setCommandField('Odległość', '5');
@@ -674,6 +787,7 @@ async function runUiFlow(window) {
   await sendShortcut('z');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 12`, 'Undo Fillet szkicu');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.(${JSON.stringify(editTargets.originCornerLineIds)}, 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Faza szkicu')?.disabled)`, 'aktywny przycisk Faza szkicu');
   await clickTool('Faza szkicu');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Chamfer szkicu')`, 'okno Chamfer szkicu');
   await setCommandField('Odległość', '3');
@@ -1184,6 +1298,7 @@ async function runUiFlow(window) {
   await addSketchPoint([10, 0], 3);
   const pipePathId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(pipePathId)}], 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Pipe')?.disabled)`, 'aktywny przycisk Pipe');
   await clickTool('Pipe');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Średnica zewnętrzna') && document.querySelector('.command-dialog')?.textContent.includes('Grubość ścianki')`, 'otwarty Pipe');
   await waitForUi(window, `window.__madcadVerifyEngineState?.timeline?.[0]?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${35 * Math.PI}) < 0.05`, 'podgląd pustego Pipe', modelingTimeoutMs);
@@ -1613,14 +1728,24 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny dla linii dynamicznej');
   await pickPlane('XY');
   await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view') && window.__madcadSketchLocalToScreen`, 'szkic linii dynamicznej');
-  await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].every((button) => button.getAttribute('aria-label')?.includes('Skrót:'))`, 'opisy i skróty funkcji wstążki');
-  const lineToolPoint = await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Linia');
-    const rect = button.getBoundingClientRect();
-    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  await waitForUi(window, `document.querySelector('.sketch-palette')?.classList.contains('collapsed')`, 'kompaktowa paleta szkicu na starcie');
+  const platformUi = await window.webContents.executeJavaScript(`(() => {
+    const shell = document.querySelector('.modeling-shell');
+    const hint = document.querySelector('.model-selection-hint, .sketch-pointer-hint')?.textContent || '';
+    return { shellClass: shell?.className || '', hint, platform: window.desktopApp?.platform || 'web' };
   })()`);
-  await sendMouse('mouseMove', lineToolPoint);
+  if (!platformUi.shellClass.includes(`platform-${platformUi.platform}`)) throw new Error(`Brak klasy platformy w interfejsie: ${JSON.stringify(platformUi)}.`);
+  await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].every((button) => button.getAttribute('aria-label')?.includes('Skrót:'))`, 'opisy i skróty funkcji wstążki');
+  await window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Linia');
+    const wrapper = button?.closest('.ribbon-tool-wrap');
+    const key = wrapper && Object.keys(wrapper).find((item) => item.startsWith('__reactProps'));
+    if (!key || typeof wrapper[key]?.onMouseEnter !== 'function') throw new Error('Brak procedury podpowiedzi narzędzia Linia.');
+    wrapper[key].onMouseEnter({ currentTarget: button });
+  })()`);
   await waitForUi(window, `document.querySelector('.tool-help-tooltip')?.textContent.includes('Utwórz pojedynczy segment') && document.querySelector('.tool-help-tooltip kbd')?.textContent.includes('L')`, 'podpowiedź narzędzia Linia');
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  await fs.writeFile(tooltipOutputPath, (await window.webContents.capturePage()).toPNG());
   await sendKey('l');
   await waitForUi(window, `document.querySelector('.cad-command-input strong')?.textContent === 'L'`, 'alias L w wierszu polecenia');
   await sendKey('Enter');
@@ -1655,7 +1780,7 @@ async function runUiFlow(window) {
   await clickTool('Prostokąt');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Prostokąt')`, 'polecenie prostokąta');
   await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint?.([0, 0])`);
-  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'rectangle'`, 'pierwszy narożnik prostokąta z płótna');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'rectangle' && window.__madcadVerifyDocumentState.command.gesturePoints === 1`, 'pierwszy narożnik prostokąta z płótna');
   await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint?.([32, 21])`);
   await waitForUi(window, `!document.querySelector('.command-dialog') && document.querySelectorAll('.tree-profile').length === 1`, 'prostokąt utworzony dwoma kliknięciami');
   await new Promise((resolve) => setTimeout(resolve, 75));
@@ -1773,6 +1898,7 @@ async function runUiFlow(window) {
   const revisionAfterSelection = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   if (revisionAfterSelection !== selectionRevision) throw new Error('Picking uruchomił ponowne przeliczenie bryły.');
   const lostReferenceId = await window.webContents.executeJavaScript(`window.__madcadVerifyCreateLostTopologyReference()`);
+  await expandReferenceRepair();
   await waitForUi(window, `document.querySelector('.reference-repair-panel')?.textContent.includes('Źródło: Wyciągnięcie 1')`, 'komunikat utraconej referencji ze źródłowym feature', modelingTimeoutMs);
   await window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.reference-repair-panel button')].find((item) => item.textContent === 'Kandydat 1');
@@ -2017,8 +2143,10 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.some((entity) => entity.role === 'projected' && entity.fixed && entity.projectionReferenceId)`, 'projekcja krawędzi z trwałym linkiem');
   const brokenProject = await window.webContents.executeJavaScript(`window.__madcadVerifyBreakProjectedReference()`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(brokenProject.referenceId)})?.topologyId.endsWith('-lost')`, 'kontrolowane zerwanie źródła Project');
+  await expandReferenceRepair();
   await waitForUi(window, `document.querySelector('.reference-repair-panel')?.textContent.includes('Project')`, 'panel utraconego źródła Project', modelingTimeoutMs);
   await waitForUi(window, `window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(brokenProject.entityId)}]?.state === 'error'`, 'wyróżnienie utraconego źródła Project', modelingTimeoutMs);
+  await waitForUi(window, `[...document.querySelectorAll('.reference-repair-panel button')].some((item) => item.textContent === 'Kandydat 1')`, 'kandydat naprawy Project', modelingTimeoutMs);
   await window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.reference-repair-panel button')].find((item) => item.textContent === 'Kandydat 1');
     if (!button) throw new Error('Brak kandydata naprawy Project.');
@@ -2370,6 +2498,17 @@ async function runUiFlow(window) {
 }
 
 app.whenReady().then(async () => {
+  if (process.env.MADCAD_VERIFY_ENGLISH_ONLY === '1') {
+    try {
+      const state = await verifyEnglishModelingUi();
+      process.stdout.write(`${JSON.stringify(state)}\n`);
+      app.exit(0);
+    } catch (error) {
+      process.stderr.write(`${error.stack || error.message}\n`);
+      app.exit(1);
+    }
+    return;
+  }
   const performanceBudgets = isCi
     // Hosted runners are substantially slower and noisier than local hardware.
     // Per-operation waits and worker budgets below still catch real stalls.
@@ -2391,7 +2530,10 @@ app.whenReady().then(async () => {
   let exitCode = 0;
   try {
     process.stdout.write('[verify] loading application\n');
-    await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1' } });
+    // The product follows the operating-system locale. Keep the long scenario
+    // deterministic on English GitHub runners; English has its own full-tree
+    // smoke check in verifyEnglishModelingUi().
+    await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
     const result = await waitForModel(window);
     performance.coldStartMs = Date.now() - verificationStartedAt;
     if (performance.coldStartMs > performanceBudgets.desktopColdStartMs) {
@@ -2432,14 +2574,18 @@ app.whenReady().then(async () => {
     if (!licenseDialog.visible || !licenseDialog.shownAtStartup || !licenseDialog.explainsNoKey || !licenseDialog.privateUseOnly || !licenseDialog.commercialPaid || !licenseDialog.commercialTrial || !licenseDialog.perpetualPerSeat || !licenseDialog.purchaseProof || !licenseDialog.donationNotCommercial || licenseDialog.hasTokenInput || licenseDialog.links < 2 || !licenseDialog.continueVisible) {
       throw new Error(`Okno licencji nie wyjaśnia zasad prywatnych, 40-dniowej oceny, licencji stanowiskowej i darowizny: ${JSON.stringify(licenseDialog)}.`);
     }
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.license-info-dialog button')].find((button) => /Przejdź do programu|Continue to MadCAD/i.test(button.textContent))?.click()`);
+    await fs.mkdir(path.dirname(outputPath), { recursive: true });
+    await fs.writeFile(licenseOutputPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.license-info-dialog button')].find((button) => /Pełna treść licencji|Full license text/i.test(button.textContent))?.click()`);
+    await waitForUi(window, `Boolean(document.querySelector('.full-license-dialog')) && document.querySelectorAll('[role="dialog"][aria-modal="true"]').length === 1 && document.querySelector('.full-license-dialog')?.contains(document.activeElement)`, 'pojedyncze aktywne okno pełnej licencji');
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     await waitForUi(window, `!document.querySelector('.license-info-dialog')`, 'zamknięcie okna informacji o licencji');
     await window.webContents.executeJavaScript(`document.querySelector('#licenseInfoBtn')?.click()`);
     await waitForUi(window, `Boolean(document.querySelector('.license-info-dialog'))`, 'ponowne otwarcie informacji o licencji');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button[aria-label="Zamknij"], .license-info-dialog button[aria-label="Close"]')?.click()`);
     await waitForUi(window, `!document.querySelector('.license-info-dialog')`, 'ponowne zamknięcie informacji o licencji');
     await new Promise((resolve) => setTimeout(resolve, 600));
-    await fs.mkdir(path.dirname(outputPath), { recursive: true });
     const workflowStartedAt = Date.now();
     const uiFlow = await runUiFlow(window);
     performance.workflowMs = Date.now() - workflowStartedAt;
@@ -2474,6 +2620,7 @@ app.whenReady().then(async () => {
       horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       coreToolbarVisible: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent === 'Utwórz szkic'),
       timelineVisible: Boolean(document.querySelector('.timeline')),
+      repairPanelCompact: !document.querySelector('.reference-repair-panel') || document.querySelector('.reference-repair-panel')?.classList.contains('collapsed'),
     })`);
     window.setContentSize(1936, 1017);
     process.stdout.write('[verify] exporting STL, STEP and 3MF\n');
@@ -2482,6 +2629,7 @@ app.whenReady().then(async () => {
     const threeMf = await verifyThreeMfExport(window);
     const threeMfImport = await verifyThreeMfImport(window);
     const accessibility = await verifyAccessibilityAndScale(window);
+    const wcag = await verifyWcagAccessibility(window);
     const englishUi = await verifyEnglishModelingUi();
     const workerPerformance = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.performance || null`);
     if (!workerPerformance || workerPerformance.totalMs > performanceBudgets.displayEvaluationMs) {
@@ -2490,10 +2638,10 @@ app.whenReady().then(async () => {
     const slowBody = workerPerformance.bodies?.find((body) => body.durationMs > performanceBudgets.displayMeshPerBodyMs);
     if (slowBody) throw new Error(`Body meshing exceeded budget: ${JSON.stringify(slowBody)}.`);
     performance.worker = workerPerformance;
-    const report = { ...result, licenseUi, licenseDialog, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, englishUi, performance, rendererMessages };
+    const report = { ...result, licenseUi, licenseDialog, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, wcag, englishUi, performance, rendererMessages };
     await fs.writeFile(path.join(path.dirname(outputPath), 'verification-report.json'), JSON.stringify(report, null, 2));
     process.stdout.write(`${JSON.stringify(report)}\n`);
-    if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.timelineVisible) process.exitCode = 1;
+    if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.timelineVisible || !narrowViewport.repairPanelCompact) process.exitCode = 1;
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);
     exitCode = 1;

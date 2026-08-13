@@ -1,16 +1,126 @@
 MadCAD Personal and Commercial License 3.0
 
-Pełna, wiążąca treść licencji jest dostarczana z wydaniem MadCAD i znajduje się
-w głównym pliku LICENSE oficjalnego repozytorium:
-
-https://github.com/kamil5646/MadCAD2D/blob/main/LICENSE
-
-Najważniejsze zasady:
-- prywatny, edukacyjny i niezarobkowy użytek osoby fizycznej jest bezpłatny;
-- organizacja może oceniać program przez 40 dni;
-- dalszy użytek komercyjny wymaga płatnej, bezterminowej licencji na stanowisko;
-- program nie wymaga klucza ani aktywacji;
-- darowizna nie zastępuje licencji komercyjnej.
-
 Copyright (c) 2026 Kamil Kasprzak. Wszelkie prawa zastrzeżone.
-Kontakt: kkasprzak15@icloud.com
+
+Niniejsza umowa („Licencja”) jest zawierana pomiędzy Kamilem Kasprzakiem
+(„Licencjodawca”) a osobą lub podmiotem instalującym, kopiującym albo używającym
+oprogramowania MadCAD („Użytkownik”). Instalacja lub używanie MadCAD oznacza
+akceptację Licencji. Jeżeli Użytkownik nie akceptuje warunków, powinien usunąć
+oprogramowanie i zaprzestać jego używania.
+
+1. Zakres
+
+Licencja obejmuje aplikację MadCAD, jej kod źródłowy, dokumentację, zasoby,
+oficjalne instalatory i aktualizacje, z wyłączeniem komponentów osób trzecich,
+które pozostają objęte własnymi licencjami.
+
+2. Bezpłatna licencja prywatna
+
+Osoba fizyczna może bezterminowo i bezpłatnie instalować oraz używać MadCAD na
+własnych urządzeniach wyłącznie do celów prywatnych, edukacyjnych i
+niezarobkowych, niezwiązanych z pracą, działalnością gospodarczą, organizacją,
+świadczeniem usług, produkcją ani projektem wykonywanym dla klienta.
+
+Licencja prywatna nie wymaga klucza, rejestracji ani aktywacji. Dobrowolna
+darowizna wspiera rozwój projektu, lecz nie rozszerza zakresu licencji i nie
+przyznaje prawa do używania komercyjnego.
+
+3. Czterdziestodniowa ocena w organizacji
+
+Firma, przedsiębiorca, instytucja albo inna organizacja może przez maksymalnie
+40 kolejnych dni od pierwszego uruchomienia oceniać pełną funkcjonalność MadCAD
+bez opłaty. Okres służy podjęciu decyzji o zakupie. Po jego upływie organizacja
+musi kupić odpowiednią liczbę licencji komercyjnych albo zaprzestać używania i
+usunąć oprogramowanie ze stanowisk bez licencji.
+
+Ponowna instalacja, aktualizacja lub zmiana urządzenia nie rozpoczyna nowego
+okresu oceny dla tej samej organizacji.
+
+4. Licencja komercyjna
+
+Każde używanie MadCAD w pracy, działalności gospodarczej, organizacji,
+produkcji, świadczeniu usług, w celu osiągnięcia przychodu lub korzyści
+gospodarczej albo przy projekcie dla klienta wymaga płatnej licencji
+komercyjnej po okresie oceny.
+
+Jedna licencja komercyjna uprawnia do używania MadCAD na jednym stanowisku
+roboczym lub urządzeniu. Dostęp z wielu stanowisk, także do instalacji
+sieciowej, wirtualnej lub zdalnej, wymaga jednej licencji dla każdego
+stanowiska lub urządzenia uzyskującego dostęp. Licencje wielostanowiskowe mogą
+zostać udzielone w jednym dokumencie zakupu.
+
+Licencja komercyjna jest bezterminowa dla zakupionej głównej wersji MadCAD i
+obejmuje jej aktualizacje podrzędne (na przykład 6.x). Przyszła główna wersja
+może wymagać płatnego uaktualnienia. Dowodem udzielenia licencji jest pisemne
+potwierdzenie Licencjodawcy, faktura albo inny dokument zakupu określający
+licencjobiorcę i liczbę stanowisk. Program nie wymaga technicznej aktywacji.
+
+Warunki zakupu i wycena licencji komercyjnej:
+mailto:kkasprzak15@icloud.com?subject=MadCAD%20-%20licencja%20komercyjna
+
+5. Projekty i pliki Użytkownika
+
+Licencjodawca nie nabywa praw do projektów, modeli, rysunków ani plików
+utworzonych przez Użytkownika w MadCAD. Posiadacz właściwej licencji może
+używać i rozpowszechniać własne rezultaty bez dodatkowych opłat licencyjnych na
+rzecz Licencjodawcy.
+
+6. Dozwolone kopie i modyfikacje prywatne
+
+Użytkownik może wykonać kopie zapasowe oraz analizować publicznie dostępny kod
+źródłowy. Osoba korzystająca z licencji prywatnej może tworzyć modyfikacje
+wyłącznie na własny, niekomercyjny użytek. Publiczne rozpowszechnianie
+zmodyfikowanych wersji, używanie nazwy lub logo MadCAD dla wersji pochodnej,
+sprzedaż, sublicencjonowanie albo oferowanie MadCAD jako usługi wymaga
+uprzedniej pisemnej zgody Licencjodawcy.
+
+7. Redystrybucja
+
+Dozwolone jest przekazywanie linku do oficjalnej strony wydania MadCAD.
+Oficjalny, niezmodyfikowany instalator może być kopiowany bez opłat, jeżeli nie
+jest przepakowany, łączony z innym oprogramowaniem, sprzedawany ani udostępniany
+za pobraniem danych osobowych. Nie wolno rozpowszechniać części pakietu ani
+przedstawiać nieoficjalnej kopii jako wydania Licencjodawcy.
+
+8. Ograniczenia
+
+Z wyjątkiem działań wyraźnie dozwolonych przez Licencję lub bezwzględnie
+obowiązujące prawo zabronione jest obchodzenie zabezpieczeń, usuwanie informacji
+o prawach autorskich, wykorzystywanie kodu albo plików binarnych do stworzenia
+konkurencyjnego produktu, wynajem, leasing, odsprzedaż oraz udzielanie dalszych
+licencji. Prawa do nazwy MadCAD, logo i identyfikacji wizualnej nie są
+przenoszone.
+
+9. Brak gwarancji i odpowiedzialność
+
+MadCAD jest dostarczany „tak jak jest” i „w miarę dostępności”. W maksymalnym
+zakresie dozwolonym przez prawo Licencjodawca nie udziela gwarancji poprawności,
+przydatności do określonego celu ani nieprzerwanego działania. Użytkownik ma
+obowiązek sprawdzić wymiary i rezultaty przed produkcją oraz wykonywać kopie
+zapasowe. Licencjodawca nie odpowiada za utratę danych, utracone korzyści ani
+szkody pośrednie wynikające z używania MadCAD. Postanowienie nie ogranicza praw,
+których nie można wyłączyć na mocy obowiązującego prawa.
+
+10. Wygaśnięcie
+
+Istotne naruszenie Licencji powoduje wygaśnięcie prawa do używania MadCAD, jeżeli
+Użytkownik nie usunie naruszenia w ciągu 14 dni od otrzymania wezwania, chyba że
+naruszenie jest nieusuwalne albo obowiązujące prawo pozwala na natychmiastowe
+zakończenie. Po wygaśnięciu Użytkownik musi zaprzestać używania i usunąć kopie,
+zachowując własne pliki projektowe.
+
+11. Prawo właściwe i wersje językowe
+
+Licencja podlega prawu polskiemu. Spory rozstrzygane są przez sąd właściwy według
+bezwzględnie obowiązujących przepisów. Prawa konsumentów wynikające z prawa nie
+są ograniczane. W razie rozbieżności wiążąca jest polska wersja Licencji.
+
+12. Kontakt i aktualna wersja
+
+Licencjodawca: Kamil Kasprzak
+E-mail: kkasprzak15@icloud.com
+Repozytorium: https://github.com/kamil5646/MadCAD2D
+
+Warunki obowiązujące dla danej wersji MadCAD są utrwalone w pliku LICENSE
+dołączonym do tej wersji. Późniejsza zmiana Licencji nie zmienia wstecz warunków
+już pobranej wersji.

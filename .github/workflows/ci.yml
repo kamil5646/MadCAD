@@ -22,9 +22,9 @@ jobs:
         working-directory: madcad-2d
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
@@ -52,16 +52,20 @@ jobs:
         working-directory: madcad-2d
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: madcad-2d/package-lock.json
       - name: Install exact dependencies
         run: npm ci
+      - name: Run CAD core tests with coverage gate
+        if: runner.os == 'Linux'
+        run: npm run test:core:coverage
       - name: Run CAD core tests
+        if: runner.os != 'Linux'
         run: npm run test:core
       - name: Build desktop renderer
         run: npm run build:ui
@@ -79,9 +83,9 @@ jobs:
         working-directory: madcad-2d
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
@@ -94,7 +98,7 @@ jobs:
         run: npm run verify:electron-security
       - name: Upload verification artifacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: modeling-verification-${{ matrix.os }}
           path: madcad-2d/artifacts/
@@ -119,9 +123,9 @@ jobs:
         working-directory: madcad-2d
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
@@ -136,7 +140,7 @@ jobs:
         shell: bash
         run: npm run checksums:package && MADCAD_REQUIRE_CHECKSUM=1 npm run verify:package -- ${{ matrix.kind }}
       - name: Upload installer
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: MadCAD-${{ matrix.kind }}
           path: madcad-2d/release/MadCAD-*

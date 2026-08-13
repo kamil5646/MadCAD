@@ -24,7 +24,7 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     revision: 0,
     cache: { entries: 0, bytes: 0 },
     diagnostics: [],
-    analysis: { collisions: [] },
+    analysis: { collisions: [], collisionStatus: 'not-run', candidatePairs: 0, exactPairs: 0 },
     performance: null,
     error: '',
     evaluatedDocument: null,
@@ -146,6 +146,18 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     return validateRoundTrip ? result : result.buffers;
   }, [document, send]);
 
+  const analyzeCollisions = useCallback(async () => {
+    const revision = revisionRef.current;
+    setState((current) => ({
+      ...current,
+      analysis: { ...current.analysis, collisionStatus: 'running' },
+    }));
+    const result = await send({ type: 'analyze-collisions', document, revision });
+    if (result.revision !== revision || revisionRef.current !== revision) throw engineError('Silnik zwrócił analizę z innej rewizji dokumentu.', 'ANALYSIS_REVISION_MISMATCH');
+    setState((current) => ({ ...current, analysis: result.analysis, performance: result.performance }));
+    return result.analysis;
+  }, [document, send]);
+
   const restartWorkerForTest = useCallback(() => {
     if (!workerRef.current) throw engineError('Silnik CAD nie jest gotowy do testu odtwarzania.', 'WORKER_NOT_READY');
     const crash = engineError('Kontrolowana awaria workera w teście desktopowym.', 'WORKER_CRASH');
@@ -160,5 +172,5 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     setWorkerGeneration((generation) => generation + 1);
   }, [rejectPending]);
 
-  return { ...state, exportModel, restartWorkerForTest };
+  return { ...state, analyzeCollisions, exportModel, restartWorkerForTest };
 }

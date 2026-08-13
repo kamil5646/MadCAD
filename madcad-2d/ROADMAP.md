@@ -1,6 +1,6 @@
 # MadCAD — aktywny plan rozwoju
 
-Aktualizacja: 2026-08-11
+Aktualizacja: 2026-08-13
 Wersja bazowa: `6.1.0 stable`
 Gałąź wydania: `main`
 
@@ -45,7 +45,7 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 | 7 | M7 Otwory i gwinty MVP | `[x]` | M3, M5, M6 | proste/counterbore/countersink otwory i podstawowy gwint metryczny |
 | 8 | M8 Inspect MVP | `[x]` | M3, M6 | Measure, Section, objętość, pole, masa i środek masy |
 | 9 | M9 Przygotowanie druku MVP | `[x]` | M6–M8 | orientacja, STEP/STL/3MF, skala 1:1, manifold, grubość, nawisy i przekazanie do slicera |
-| 10 | M10 Wydanie stabilne | `[x]` | M1–M9 | instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS |
+| 10 | M10 Wydanie stabilne | `[>]` | M1–M9 | podpisana, instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS |
 
 ## M4 — geometria konstrukcyjna MVP `P0`
 
@@ -115,10 +115,10 @@ Te prace nie czekają na koniec modelowania:
 
 - [x] CI: test core i build na Linux/macOS/Windows, desktop E2E na macOS/Windows oraz smoke test paczek ZIP/NSIS.
 - [x] Awaria workera, pełny dysk, uszkodzony projekt, kopia autozapisu i odzyskanie sesji są testowane.
-- [x] Electron ma context isolation, sandbox, CSP, bezpieczne linki, wspólną kontrolę źródła dla wszystkich 16 kanałów IPC oraz test odrzucenia obcego widoku.
+- [x] Electron ma context isolation, sandbox, CSP, bezpieczne linki, wspólną kontrolę źródła dla wszystkich 10 kanałów IPC oraz test odrzucenia obcego widoku.
 - [x] Budżety wydajności pickingu, meshowania i długiej historii są mierzone w testach core i desktop E2E.
-- [x] PL/EN, dostępność klawiatury i fokusu, DPI 100–200% oraz bezpieczny powrót okna po odłączeniu monitora są testowane.
-- [x] Kanały alpha/beta/stable, SHA-256, wymagany podpis paczek release, rollback instalacji macOS i updater ignorujący niezaufany adres z renderera.
+- [~] Przełącznik PL/EN i smoke test EN działają; pełne przeniesienie tekstów interfejsu do katalogu tłumaczeń nadal trwa. Dostępność klawiatury i fokusu oraz DPI 100–200% są testowane.
+- [>] Kanały alpha/beta/stable, SHA-256, obowiązkowy podpis paczek release, rollback instalacji macOS i updater ignorujący niezaufany adres z renderera są zaimplementowane; publikacja wymaga skonfigurowania certyfikatów Authenticode i Apple Developer ID/notaryzacji.
 - [x] Wbudowany samouczek „pierwsza część do druku” ma ścieżkę PL/EN i jawną listę znanych ograniczeń.
 
 ## P1 — rozszerzenie modelowania części
@@ -172,7 +172,15 @@ Dodatkowo:
 - [!] Brakujące operacje Replicad wymagają kontrolowanego adaptera OpenCascade.
 - [!] Import musi być sprawdzany na plikach z różnych programów, nie tylko na własnym eksporcie.
 - [!] Zmiana `appId` i instalatora wymaga migracji danych i ciągłości aktualizacji.
+- [!] Kolejne wydanie stabilne jest zablokowane do czasu dostarczenia sekretów podpisu Windows i macOS oraz testu aktualizacji między dwiema podpisanymi wersjami.
+- [!] Pełna zgodność EN wymaga usunięcia pozostałych tekstów zakodowanych bezpośrednio w komponentach.
+- [!] Kontrast gęstego interfejsu CAD wymaga ręcznej weryfikacji wyników `axe` i testu z czytnikiem ekranu; automatyczna kontrola nie wykrywa obecnie naruszeń blokujących.
 
-## Następne pojedyncze zadanie
+## Najbliższe zadania
 
-Brak otwartych zadań w aktywnej ścieżce `P1.1–P1.21`. Dalsze pomysły produktowe pozostają w [BACKLOG.md](./BACKLOG.md) i wymagają nowej priorytetyzacji.
+1. Skonfigurować certyfikaty podpisu i notaryzację, zbudować dwie podpisane wersje testowe oraz przejść aktualizację między nimi.
+2. Dokończyć katalog kluczy PL/EN i dodać bramkę wykrywającą nieprzetłumaczone teksty w renderowanym interfejsie.
+3. Wydzielić kontroler poleceń, dialogi i usługi dokumentu z `ModelingWorkspace`, zachowując obecny test pełnego przepływu.
+4. Sprawdzić import/eksport na fixture'ach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny test technologii asystujących.
+
+Dalsze pomysły produktowe pozostają w [BACKLOG.md](./BACKLOG.md) i wymagają osobnej priorytetyzacji.

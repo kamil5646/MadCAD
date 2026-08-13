@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -29,7 +29,7 @@ jobs:
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
 
       - name: Install Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: '22'
           cache: 'npm'
@@ -78,10 +78,10 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: '22'
           cache: 'npm'
@@ -118,11 +118,18 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           if [ -z "${CSC_LINK:-}" ]; then
-            echo "No signing certificate configured; building unsigned artifacts."
-            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
-            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "A signing certificate is mandatory for an official release."
+            exit 1
           fi
-          npx electron-builder --publish never
+          if [ "$RUNNER_OS" = "macOS" ] && { [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] || [ -z "${APPLE_TEAM_ID:-}" ]; }; then
+            echo "APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID are mandatory for notarized macOS releases."
+            exit 1
+          fi
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            npx electron-builder --publish never --config.extraMetadata.madcadMacTeamId="$APPLE_TEAM_ID"
+          else
+            npx electron-builder --publish never
+          fi
 
       - name: Create SHA-256 sidecars
         working-directory: madcad-2d
@@ -132,11 +139,11 @@ jobs:
         working-directory: madcad-2d
         env:
           MADCAD_REQUIRE_CHECKSUM: '1'
-          MADCAD_REQUIRE_SIGNATURE: ${{ ((runner.os == 'macOS' && secrets.MAC_CSC_LINK != '') || (runner.os == 'Windows' && secrets.WIN_CSC_LINK != '')) && '1' || '0' }}
+          MADCAD_REQUIRE_SIGNATURE: '1'
         run: npm run verify:package -- ${{ runner.os == 'macOS' && 'mac' || 'windows' }}
 
       - name: Upload verified release package
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-${{ runner.os }}
           path: |
@@ -151,13 +158,13 @@ jobs:
     needs: release
     steps:
       - name: Download verified packages
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: release-*
           path: release-assets
           merge-multiple: true
       - name: Publish release channel
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@c12583777ecdfd3be55c69cf75464299dc01057e # v3
         with:
           files: release-assets/MadCAD-*
           fail_on_unmatched_files: true
