@@ -501,6 +501,7 @@ async function runUiFlow(window) {
   await confirmDialog();
   await waitForUi(window, `(() => { const sketch = window.__madcadVerifyDocumentState?.sketches?.[0]; const point = sketch?.entityData?.find((item) => item.id === window.__madcadDimensionFixtureIds.pointId); return sketch?.constraints?.some((item) => item.type === 'coordinateX') && Math.abs(Number(point?.geometry?.x) - 12) < 1e-6; })()`, 'zastosowany ordinate X');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection([window.__madcadDimensionFixtureIds.pointId], 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Ordinate Y')?.disabled)`, 'aktywny wymiar ordinate Y');
   await clickTool('Ordinate Y');
   await waitForUi(window, `document.querySelector('.sketch-dimension-dialog')?.textContent.includes('Wymiar ordinate Y')`, 'dialog ordinate Y');
   await setCommandField('Wartość', '-7');
@@ -751,6 +752,7 @@ async function runUiFlow(window) {
   await sendShortcut('z');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 12`, 'Undo Fillet szkicu');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.(${JSON.stringify(editTargets.originCornerLineIds)}, 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Faza szkicu')?.disabled)`, 'aktywny przycisk Faza szkicu');
   await clickTool('Faza szkicu');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Chamfer szkicu')`, 'okno Chamfer szkicu');
   await setCommandField('Odległość', '3');
@@ -1261,6 +1263,7 @@ async function runUiFlow(window) {
   await addSketchPoint([10, 0], 3);
   const pipePathId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(pipePathId)}], 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Pipe')?.disabled)`, 'aktywny przycisk Pipe');
   await clickTool('Pipe');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Średnica zewnętrzna') && document.querySelector('.command-dialog')?.textContent.includes('Grubość ścianki')`, 'otwarty Pipe');
   await waitForUi(window, `window.__madcadVerifyEngineState?.timeline?.[0]?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${35 * Math.PI}) < 0.05`, 'podgląd pustego Pipe', modelingTimeoutMs);
