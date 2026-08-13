@@ -17,10 +17,10 @@ bryłowe i przygotowanie plików do druku 3D.
 **[Licencja](./LICENSE)** ·
 **[Zmiany](./madcad-2d/CHANGELOG.md)**
 
-> **Uwaga o wydaniu 6.1.0:** obecne paczki zostały opublikowane bez podpisu
-> producenta, więc Windows lub macOS mogą wyświetlić ostrzeżenie. Kolejne
-> oficjalne wydanie nie przejdzie procesu publikacji bez Authenticode,
-> Developer ID/notaryzacji i kontroli SHA-256.
+> **Uwaga o wydaniu 6.1.1:** paczki są publikowane bez podpisu producenta,
+> dlatego Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie.
+> Pobieraj je wyłącznie z oficjalnego GitHub Release i sprawdź sumę SHA-256.
+> Automatyczna instalacja tej niepodpisanej wersji jest wyłączona — użyj paczki ręcznie.
 
 ## Najważniejsze możliwości
 

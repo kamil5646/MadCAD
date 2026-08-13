@@ -1,7 +1,7 @@
 # MadCAD — aktywny plan rozwoju
 
 Aktualizacja: 2026-08-13
-Wersja bazowa: `6.1.0 stable`
+Wersja bazowa: `6.1.1 stable`
 Gałąź wydania: `main`
 
 Ten plik zawiera wyłącznie aktywną ścieżkę do używalnego modelera części przeznaczonych do druku 3D. Historia ukończonych prac znajduje się w [DONE.md](./DONE.md), a dalszy zakres produktu w [BACKLOG.md](./BACKLOG.md).
@@ -118,7 +118,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] Electron ma context isolation, sandbox, CSP, bezpieczne linki, wspólną kontrolę źródła dla wszystkich 10 kanałów IPC oraz test odrzucenia obcego widoku.
 - [x] Budżety wydajności pickingu, meshowania i długiej historii są mierzone w testach core i desktop E2E.
 - [~] Przełącznik PL/EN i smoke test EN działają; pełne przeniesienie tekstów interfejsu do katalogu tłumaczeń nadal trwa. Dostępność klawiatury i fokusu oraz DPI 100–200% są testowane.
-- [>] Kanały alpha/beta/stable, SHA-256, obowiązkowy podpis paczek release, rollback instalacji macOS i updater ignorujący niezaufany adres z renderera są zaimplementowane; publikacja wymaga skonfigurowania certyfikatów Authenticode i Apple Developer ID/notaryzacji.
+- [x] Kanały alpha/beta/stable, SHA-256, testy paczek, rollback instalacji macOS i updater ignorujący niezaufany adres z renderera są zaimplementowane. Wydanie 6.1.1 jest świadomie publikowane bez certyfikatu, z ostrzeżeniem i ręczną instalacją.
 - [x] Wbudowany samouczek „pierwsza część do druku” ma ścieżkę PL/EN i jawną listę znanych ograniczeń.
 
 ## P1 — rozszerzenie modelowania części
@@ -172,13 +172,13 @@ Dodatkowo:
 - [!] Brakujące operacje Replicad wymagają kontrolowanego adaptera OpenCascade.
 - [!] Import musi być sprawdzany na plikach z różnych programów, nie tylko na własnym eksporcie.
 - [!] Zmiana `appId` i instalatora wymaga migracji danych i ciągłości aktualizacji.
-- [!] Kolejne wydanie stabilne jest zablokowane do czasu dostarczenia sekretów podpisu Windows i macOS oraz testu aktualizacji między dwiema podpisanymi wersjami.
+- [!] Niepodpisane wydanie 6.1.1 wywołuje ostrzeżenia SmartScreen/Gatekeeper i nie może być instalowane przez bezpieczny wbudowany aktualizator.
 - [!] Pełna zgodność EN wymaga usunięcia pozostałych tekstów zakodowanych bezpośrednio w komponentach.
 - [!] Kontrast gęstego interfejsu CAD wymaga ręcznej weryfikacji wyników `axe` i testu z czytnikiem ekranu; automatyczna kontrola nie wykrywa obecnie naruszeń blokujących.
 
 ## Najbliższe zadania
 
-1. Skonfigurować certyfikaty podpisu i notaryzację, zbudować dwie podpisane wersje testowe oraz przejść aktualizację między nimi.
+1. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 2. Dokończyć katalog kluczy PL/EN i dodać bramkę wykrywającą nieprzetłumaczone teksty w renderowanym interfejsie.
 3. Wydzielić kontroler poleceń, dialogi i usługi dokumentu z `ModelingWorkspace`, zachowując obecny test pełnego przepływu.
 4. Sprawdzić import/eksport na fixture'ach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny test technologii asystujących.
