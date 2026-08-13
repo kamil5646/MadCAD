@@ -126,6 +126,9 @@ import {
 import './modeling.css';
 
 const ModelViewport = React.lazy(() => import('./ModelViewport.jsx'));
+const DESKTOP_PLATFORM = ['darwin', 'win32', 'linux'].includes(window.desktopApp?.platform)
+  ? window.desktopApp.platform
+  : 'web';
 
 const MAIN_TABS = [
   { id: 'solid', label: 'BRYŁA' },
@@ -428,7 +431,15 @@ function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect,
 }
 
 function TopologyReferenceRepairPanel({ items, selection, onReassign }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    const collapseForCompactViewport = () => {
+      if (window.innerWidth <= 1200) setExpanded(false);
+    };
+    collapseForCompactViewport();
+    window.addEventListener('resize', collapseForCompactViewport);
+    return () => window.removeEventListener('resize', collapseForCompactViewport);
+  }, []);
   if (!items.length) return null;
   const selectedItem = selection?.items?.at(-1) || selection;
   return (
@@ -895,6 +906,7 @@ function ParametersDialog({ document, commit, onClose }) {
 }
 
 function SketchPalette({ options, onChange, onFinish }) {
+  const [expanded, setExpanded] = useState(false);
   const items = [
     ['grid', 'Siatka szkicu'],
     ['snap', 'Przyciąganie'],
@@ -908,9 +920,12 @@ function SketchPalette({ options, onChange, onFinish }) {
     ['sketch3d', 'Szkic 3D'],
   ];
   return (
-    <aside className="sketch-palette">
-      <header><strong>PALETA SZKICU</strong><Settings2 size={13} /></header>
-      <div className="sketch-palette-body">
+    <aside className={`sketch-palette ${expanded ? '' : 'collapsed'}`}>
+      <header>
+        <div className="sketch-palette-heading"><strong>PALETA SZKICU</strong><span className={options.snap ? 'active' : ''}>{options.snap ? `SNAP ${options.snapDistance}px` : 'SNAP WYŁ.'}</span></div>
+        <button className="sketch-palette-toggle" type="button" title={expanded ? 'Zwiń paletę szkicu' : 'Rozwiń paletę szkicu'} aria-label={expanded ? 'Zwiń paletę szkicu' : 'Rozwiń paletę szkicu'} aria-expanded={expanded} onClick={() => setExpanded((current) => !current)}>{expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>
+      </header>
+      {expanded && <div className="sketch-palette-body">
         <h3>Opcje</h3>
         {items.map(([key, label]) => (
           <label key={key}><span>{label}</span><input type="checkbox" checked={Boolean(options[key])} onChange={(event) => onChange(key, event.target.checked)} /></label>
@@ -928,8 +943,8 @@ function SketchPalette({ options, onChange, onFinish }) {
           <span><i className="selected" /> Zaznaczona</span>
           <span><i className="error" /> Błąd geometrii</span>
         </div>
-      </div>
-      <footer><button type="button" onClick={onFinish}>Zakończ szkic</button></footer>
+      </div>}
+      {expanded && <footer><button type="button" onClick={onFinish}>Zakończ szkic</button></footer>}
     </aside>
   );
 }
@@ -4162,7 +4177,7 @@ export default function ModelingWorkspace() {
 
   return (
     <ToolHelpContext.Provider value={toolHelpContext}>
-    <section className="modeling-shell" aria-label="Modelowanie parametryczne MadCAD">
+    <section className={`modeling-shell platform-${DESKTOP_PLATFORM}`} aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
         <div className="app-menu"><div className="brand-mark" title="MadCAD">M</div><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button id="newProjectBtn" type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button id="openProjectBtn" type="button" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={16} /></button><button id="saveProjectBtn" type="button" title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />

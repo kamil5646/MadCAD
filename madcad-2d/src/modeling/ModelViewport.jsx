@@ -388,6 +388,7 @@ export default function ModelViewport({
   printLayout,
 }) {
   const hostRef = useRef(null);
+  const optionKeyLabel = window.desktopApp?.platform === 'darwin' ? '⌥ Option' : 'Alt';
   const directHandleRef = useRef(null);
   const directEventRef = useRef({});
   const directDragRef = useRef(null);
@@ -1652,7 +1653,7 @@ export default function ModelViewport({
           ['profile', 'Profil'],
         ].map(([id, label]) => <button key={id} className={selectionFilter === id ? 'active' : ''} type="button" disabled={id === 'profile' ? !activeSketchId : Boolean(activeSketchId)} title={`Filtr wyboru: ${label}`} onClick={() => setSelectionFilter(id)}>{label}</button>)}
       </div>
-      {!activeSketchId && <div className="model-selection-hint">Ctrl/Shift: wiele · Alt+klik: przełącz · Shift+przeciągnij tło: obszar</div>}
+      {!activeSketchId && <div className="model-selection-hint">{`Ctrl/Shift: wiele · ${optionKeyLabel}+klik: przełącz · Shift+przeciągnij tło: obszar`}</div>}
       {directEnabled && (
         <div
           ref={directHandleRef}
@@ -1686,7 +1687,7 @@ export default function ModelViewport({
           <svg className="sketch-snap-guides" aria-hidden="true">
             {snapFeedback.guides.map((guide, index) => <line key={`${snapFeedback.type}-${index}`} {...guide} />)}
           </svg>
-          <div className={`sketch-snap-marker ${snapFeedback.type}`} style={{ left: snapFeedback.x, top: snapFeedback.y }}><i /><span>{snapFeedback.label}</span></div>
+          <div className={`sketch-snap-marker ${snapFeedback.type}`} style={{ left: snapFeedback.x, top: snapFeedback.y }} aria-label={`Snap: ${snapFeedback.label}`}><i /><span><b>SNAP</b>{snapFeedback.label}</span></div>
         </>
       )}
       {selectionBox && <div className={`sketch-selection-box ${selectionBox.crossing ? 'crossing' : 'inside'}`} style={{ left: selectionBox.left, top: selectionBox.top, width: selectionBox.width, height: selectionBox.height }} />}
@@ -1730,7 +1731,7 @@ export default function ModelViewport({
       {activeSketchId && sliceModel && <div className="sketch-slice-badge">Slice · przekrój na {activePlane}</div>}
       {activeSketchId && draftType && <div className="sketch-pointer-hint">Kliknij środek, a następnie punkt rozmiaru</div>}
       {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
-      {activeSketchId && sketchTool && <div className="sketch-pointer-hint">{sketchToolPrompt || 'Klikaj kolejne punkty'} · Alt chwilowo wyłącza snap · {sketchTool === 'line' && polylineDraft?.lastPoint ? 'Wpisz długość i Enter albo kliknij koniec' : 'Enter lub prawy przycisk kończy'} · Escape anuluje</div>}
+      {activeSketchId && sketchTool && <div className="sketch-pointer-hint">{`${sketchToolPrompt || 'Klikaj kolejne punkty'} · ${optionKeyLabel} chwilowo wyłącza snap · ${sketchTool === 'line' && polylineDraft?.lastPoint ? 'Wpisz długość i Enter albo kliknij koniec' : 'Enter lub prawy przycisk kończy'} · Escape anuluje`}</div>}
       {activeSketchId && !sketchTool && !draftType && !sketchModifierMode && <div className="sketch-pointer-hint">Kliknij lub przeciągnij geometrię · Ctrl/Shift wybiera wiele · przeciągnij tło, aby wybrać oknem</div>}
     </div>
   );

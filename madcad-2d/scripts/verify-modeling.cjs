@@ -312,13 +312,22 @@ async function runUiFlow(window) {
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);
-  const toggleSketchOption = (label) => window.webContents.executeJavaScript(`(() => {
+  const toggleSketchOption = async (label) => {
+    await window.webContents.executeJavaScript(`document.querySelector('.sketch-palette.collapsed .sketch-palette-toggle')?.click()`);
+    await waitForUi(window, `[...document.querySelectorAll('.sketch-palette label')].some((item) => item.querySelector('span')?.textContent === ${JSON.stringify(label)})`, `rozwinięta paleta szkicu dla opcji ${label}`);
+    return window.webContents.executeJavaScript(`(() => {
     const row = [...document.querySelectorAll('.sketch-palette label')].find((item) => item.querySelector('span')?.textContent === ${JSON.stringify(label)});
     const input = row?.querySelector('input[type="checkbox"]');
     if (!input) throw new Error('Brak opcji szkicu: ${label}');
     const key = Object.keys(input).find((item) => item.startsWith('__reactProps'));
     input[key].onChange({ target: { checked: !input.checked } });
   })()`);
+  };
+  const expandReferenceRepair = async () => {
+    await waitForUi(window, `Boolean(document.querySelector('.reference-repair-panel'))`, 'widoczny panel naprawy referencji');
+    await window.webContents.executeJavaScript(`document.querySelector('.reference-repair-panel.collapsed .reference-repair-toggle')?.click()`);
+    await waitForUi(window, `Boolean(document.querySelector('.reference-repair-panel:not(.collapsed)'))`, 'rozwinięty panel naprawy referencji');
+  };
   const editTimelineFeature = async (index, title = 'Wyciągnięcie') => {
     await window.webContents.executeJavaScript(`(() => {
       const button = document.querySelectorAll('.timeline-item')[${index}];
@@ -1679,6 +1688,13 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny dla linii dynamicznej');
   await pickPlane('XY');
   await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view') && window.__madcadSketchLocalToScreen`, 'szkic linii dynamicznej');
+  await waitForUi(window, `document.querySelector('.sketch-palette')?.classList.contains('collapsed')`, 'kompaktowa paleta szkicu na starcie');
+  const platformUi = await window.webContents.executeJavaScript(`(() => {
+    const shell = document.querySelector('.modeling-shell');
+    const hint = document.querySelector('.model-selection-hint, .sketch-pointer-hint')?.textContent || '';
+    return { shellClass: shell?.className || '', hint, platform: window.desktopApp?.platform || 'web' };
+  })()`);
+  if (!platformUi.shellClass.includes(`platform-${platformUi.platform}`)) throw new Error(`Brak klasy platformy w interfejsie: ${JSON.stringify(platformUi)}.`);
   await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].every((button) => button.getAttribute('aria-label')?.includes('Skrót:'))`, 'opisy i skróty funkcji wstążki');
   await window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Linia');
@@ -1842,6 +1858,7 @@ async function runUiFlow(window) {
   const revisionAfterSelection = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   if (revisionAfterSelection !== selectionRevision) throw new Error('Picking uruchomił ponowne przeliczenie bryły.');
   const lostReferenceId = await window.webContents.executeJavaScript(`window.__madcadVerifyCreateLostTopologyReference()`);
+  await expandReferenceRepair();
   await waitForUi(window, `document.querySelector('.reference-repair-panel')?.textContent.includes('Źródło: Wyciągnięcie 1')`, 'komunikat utraconej referencji ze źródłowym feature', modelingTimeoutMs);
   await window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.reference-repair-panel button')].find((item) => item.textContent === 'Kandydat 1');
@@ -2086,6 +2103,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.some((entity) => entity.role === 'projected' && entity.fixed && entity.projectionReferenceId)`, 'projekcja krawędzi z trwałym linkiem');
   const brokenProject = await window.webContents.executeJavaScript(`window.__madcadVerifyBreakProjectedReference()`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(brokenProject.referenceId)})?.topologyId.endsWith('-lost')`, 'kontrolowane zerwanie źródła Project');
+  await expandReferenceRepair();
   await waitForUi(window, `document.querySelector('.reference-repair-panel')?.textContent.includes('Project')`, 'panel utraconego źródła Project', modelingTimeoutMs);
   await waitForUi(window, `window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(brokenProject.entityId)}]?.state === 'error'`, 'wyróżnienie utraconego źródła Project', modelingTimeoutMs);
   await window.webContents.executeJavaScript(`(() => {
@@ -2558,6 +2576,7 @@ app.whenReady().then(async () => {
       horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       coreToolbarVisible: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent === 'Utwórz szkic'),
       timelineVisible: Boolean(document.querySelector('.timeline')),
+      repairPanelCompact: !document.querySelector('.reference-repair-panel') || document.querySelector('.reference-repair-panel')?.classList.contains('collapsed'),
     })`);
     window.setContentSize(1936, 1017);
     process.stdout.write('[verify] exporting STL, STEP and 3MF\n');
@@ -2578,7 +2597,7 @@ app.whenReady().then(async () => {
     const report = { ...result, licenseUi, licenseDialog, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, wcag, englishUi, performance, rendererMessages };
     await fs.writeFile(path.join(path.dirname(outputPath), 'verification-report.json'), JSON.stringify(report, null, 2));
     process.stdout.write(`${JSON.stringify(report)}\n`);
-    if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.timelineVisible) process.exitCode = 1;
+    if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.timelineVisible || !narrowViewport.repairPanelCompact) process.exitCode = 1;
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);
     exitCode = 1;
