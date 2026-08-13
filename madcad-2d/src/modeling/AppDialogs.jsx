@@ -42,6 +42,7 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense }) {
         </header>
         <div className="license-info-body">
           <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.</p>
+          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.1.1 nie ma podpisu producenta. Pobieraj je wyłącznie z oficjalnego GitHub Release i sprawdź sumę SHA-256.</p>
           <div className="license-info-card license-info-commercial">
             <strong>Użytek komercyjny jest płatny</strong>
             <ul>

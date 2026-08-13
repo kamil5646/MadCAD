@@ -1,11 +1,11 @@
 # Changelog
 
-## Unreleased (2026-08-13)
+## 6.1.1 (2026-08-13)
 
 - Dodano wspólną ochronę niezapisanych zmian dla Nowy/Otwórz/Zamknij/Aktualizuj oraz prawdziwy stan `dirty` dokumentu.
 - Połączono lokalny i plikowy autozapis z atomowym `primary`/`.bak`, odzyskiwaniem uszkodzonej sesji i czyszczeniem po poprawnym zapisie.
 - Dodano widoczne sprawdzanie aktualizacji, pobieranie i instalację z kontrolą niezapisanych zmian.
-- Wymuszono podpis oficjalnych paczek: Authenticode na Windows oraz Developer ID, Team ID, Gatekeeper i notaryzację na macOS; workflow nie publikuje już paczek unsigned.
+- Paczki Windows i macOS są publikowane bez certyfikatu producenta na wyraźną decyzję właściciela; zachowano pełne testy platformowe i sumy SHA-256, a dokumentacja oraz aplikacja ostrzegają o komunikatach SmartScreen/Gatekeeper.
 - Usunięto nieużywany instalator ODA, konwersję DWG i pięć zbędnych kanałów IPC, które pozwalały pobrać lub uruchomić zewnętrzny instalator.
 - Naprawiono bezpieczne przejście z okna licencji do strony projektu oraz udostępniono pełną licencję lokalnie w aplikacji.
 - Dodano wybór PL/EN zgodny z językiem systemu oraz test przełączenia najważniejszego przepływu.

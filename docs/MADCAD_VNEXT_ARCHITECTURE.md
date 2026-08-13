@@ -67,9 +67,10 @@ walidację rozmiaru i kształtu danych. Nie ma API ODA, instalacji zewnętrznych
 pakietów ani konwersji DWG.
 
 Aktualizator przyjmuje wyłącznie HTTPS z oficjalnego repozytorium, narzuca
-limit rozmiaru i SHA-256. Windows wymaga poprawnego Authenticode. macOS wymaga
-Developer ID, oczekiwanego Team ID, Gatekeeper i notaryzacji przed atomową
-podmianą z rollbackiem. Renderer nie może podać dowolnego adresu aktualizacji.
+limit rozmiaru i SHA-256. Automatyczna instalacja nadal wymaga poprawnego
+Authenticode na Windows albo Developer ID, oczekiwanego Team ID i Gatekeeper
+na macOS. Niepodpisane wydanie 6.1.1 jest przeznaczone do ręcznej instalacji.
+Renderer nie może podać dowolnego adresu aktualizacji.
 
 ## Niezmienne bezpieczeństwa
 
@@ -78,7 +79,8 @@ podmianą z rollbackiem. Renderer nie może podać dowolnego adresu aktualizacji
 - zewnętrzne linki są normalizowane do zatwierdzonych adresów HTTPS;
 - brak klucza produktu, fingerprintu urządzenia, telemetrii i zdalnej
   aktywacji;
-- oficjalny workflow przerywa się bez podpisu platformowego;
+- wydanie bez podpisu musi mieć obowiązkowe SHA-256, test paczki i jawne
+  ostrzeżenie, a wbudowany aktualizator nie może obchodzić kontroli podpisu;
 - dokument użytkownika nie jest zastępowany przed udanym parsowaniem i
   walidacją nowego dokumentu.
 

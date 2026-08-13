@@ -111,35 +111,24 @@ jobs:
         working-directory: madcad-2d
         shell: bash
         env:
-          CSC_LINK: ${{ runner.os == 'macOS' && secrets.MAC_CSC_LINK || secrets.WIN_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.MAC_CSC_KEY_PASSWORD || secrets.WIN_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
-          if [ -z "${CSC_LINK:-}" ]; then
-            echo "A signing certificate is mandatory for an official release."
-            exit 1
-          fi
-          if [ "$RUNNER_OS" = "macOS" ] && { [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] || [ -z "${APPLE_TEAM_ID:-}" ]; }; then
-            echo "APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID are mandatory for notarized macOS releases."
-            exit 1
-          fi
+          echo "Building unsigned packages by repository-owner decision; SHA-256 and platform tests remain mandatory."
           if [ "$RUNNER_OS" = "macOS" ]; then
-            npx electron-builder --publish never --config.extraMetadata.madcadMacTeamId="$APPLE_TEAM_ID"
+            npx electron-builder --mac zip --arm64 --publish never
           else
-            npx electron-builder --publish never
+            npx electron-builder --win nsis --x64 --publish never
           fi
 
       - name: Create SHA-256 sidecars
         working-directory: madcad-2d
         run: npm run checksums:package
 
-      - name: Verify package format, checksum and configured signature
+      - name: Verify package format and checksum
         working-directory: madcad-2d
         env:
           MADCAD_REQUIRE_CHECKSUM: '1'
-          MADCAD_REQUIRE_SIGNATURE: '1'
+          MADCAD_REQUIRE_SIGNATURE: '0'
         run: npm run verify:package -- ${{ runner.os == 'macOS' && 'mac' || 'windows' }}
 
       - name: Upload verified release package
@@ -170,3 +159,9 @@ jobs:
           fail_on_unmatched_files: true
           prerelease: ${{ contains(github.ref_name, '-alpha.') || contains(github.ref_name, '-beta.') }}
           generate_release_notes: true
+          body: |
+            ## Ważne — wydanie bez podpisu producenta
+
+            Paczki Windows i macOS nie mają podpisu Authenticode ani Apple Developer ID/notaryzacji. Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie.
+
+            Pobieraj pliki wyłącznie z tego oficjalnego wydania, sprawdź odpowiadający plik `.sha256` i wykonaj instalację ręcznie. Wbudowany aktualizator celowo nie instaluje paczek bez prawidłowego podpisu platformowego.

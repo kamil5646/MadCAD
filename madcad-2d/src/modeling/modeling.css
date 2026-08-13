@@ -139,6 +139,8 @@
 .license-info-body { display: grid; gap: 10px; padding: 13px 14px 14px; }
 .license-info-lead { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: #ffe0a6; font-size: 12px; font-weight: 600; line-height: 1.4; }
 .license-info-lead svg { flex: 0 0 auto; margin-top: 1px; color: var(--mc-warn); }
+.license-info-release-warning { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 8px 10px; border: 1px solid rgba(241, 189, 98, 0.5); border-radius: 4px; color: #ffe0a6; background: rgba(104, 72, 26, 0.18); font-size: 11px; line-height: 1.4; }
+.license-info-release-warning svg { flex: 0 0 auto; margin-top: 1px; color: var(--mc-warn); }
 .license-info-card { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid #536171; border-radius: 5px; background: #29333f; }
 .license-info-card strong { color: #78daf5; font-size: 12px; }
 .license-info-card ul { display: grid; gap: 4px; margin: 0; padding-left: 17px; color: #cbd4dc; line-height: 1.35; }
