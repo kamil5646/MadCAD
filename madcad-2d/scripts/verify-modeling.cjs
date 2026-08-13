@@ -314,14 +314,14 @@ async function runUiFlow(window) {
   })()`);
   const toggleSketchOption = async (label) => {
     await window.webContents.executeJavaScript(`document.querySelector('.sketch-palette.collapsed .sketch-palette-toggle')?.click()`);
-    await waitForUi(window, `[...document.querySelectorAll('.sketch-palette label')].some((item) => item.querySelector('span')?.textContent === ${JSON.stringify(label)})`, `rozwinięta paleta szkicu dla opcji ${label}`);
-    return window.webContents.executeJavaScript(`(() => {
-    const row = [...document.querySelectorAll('.sketch-palette label')].find((item) => item.querySelector('span')?.textContent === ${JSON.stringify(label)});
-    const input = row?.querySelector('input[type="checkbox"]');
-    if (!input) throw new Error('Brak opcji szkicu: ${label}');
-    const key = Object.keys(input).find((item) => item.startsWith('__reactProps'));
-    input[key].onChange({ target: { checked: !input.checked } });
-  })()`);
+    await waitForUi(window, `Boolean(document.querySelector('.sketch-palette label'))`, `rozwinięta paleta szkicu dla opcji ${label}`);
+    if (label === 'Geometria Project') return window.webContents.executeJavaScript(`(() => { const input = document.querySelector('.sketch-palette [data-sketch-option="projected"] input[type="checkbox"]'); if (!input) throw new Error('Brak opcji szkicu: projected'); const key = Object.keys(input).find((item) => item.startsWith('__reactProps')); input[key].onChange({ target: { checked: !input.checked } }); })()`);
+    if (label === 'Slice modelu') return window.webContents.executeJavaScript(`(() => { const input = document.querySelector('.sketch-palette [data-sketch-option="slice"] input[type="checkbox"]'); if (!input) throw new Error('Brak opcji szkicu: slice'); const key = Object.keys(input).find((item) => item.startsWith('__reactProps')); input[key].onChange({ target: { checked: !input.checked } }); })()`);
+    if (label === 'Profile') return window.webContents.executeJavaScript(`(() => { const input = document.querySelector('.sketch-palette [data-sketch-option="profiles"] input[type="checkbox"]'); if (!input) throw new Error('Brak opcji szkicu: profiles'); const key = Object.keys(input).find((item) => item.startsWith('__reactProps')); input[key].onChange({ target: { checked: !input.checked } }); })()`);
+    if (label === 'Wiązania') return window.webContents.executeJavaScript(`(() => { const input = document.querySelector('.sketch-palette [data-sketch-option="constraints"] input[type="checkbox"]'); if (!input) throw new Error('Brak opcji szkicu: constraints'); const key = Object.keys(input).find((item) => item.startsWith('__reactProps')); input[key].onChange({ target: { checked: !input.checked } }); })()`);
+    if (label === 'Wymiary') return window.webContents.executeJavaScript(`(() => { const input = document.querySelector('.sketch-palette [data-sketch-option="dimensions"] input[type="checkbox"]'); if (!input) throw new Error('Brak opcji szkicu: dimensions'); const key = Object.keys(input).find((item) => item.startsWith('__reactProps')); input[key].onChange({ target: { checked: !input.checked } }); })()`);
+    if (label === 'Geometrie konstrukcyjne') return window.webContents.executeJavaScript(`(() => { const input = document.querySelector('.sketch-palette [data-sketch-option="construction"] input[type="checkbox"]'); if (!input) throw new Error('Brak opcji szkicu: construction'); const key = Object.keys(input).find((item) => item.startsWith('__reactProps')); input[key].onChange({ target: { checked: !input.checked } }); })()`);
+    throw new Error(`Brak bezpiecznego skryptu opcji szkicu: ${label}`);
   };
   const expandReferenceRepair = async () => {
     await waitForUi(window, `Boolean(document.querySelector('.reference-repair-panel'))`, 'widoczny panel naprawy referencji');

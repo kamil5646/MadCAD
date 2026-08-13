@@ -928,7 +928,7 @@ function SketchPalette({ options, onChange, onFinish }) {
       {expanded && <div className="sketch-palette-body">
         <h3>Opcje</h3>
         {items.map(([key, label]) => (
-          <label key={key}><span>{label}</span><input type="checkbox" checked={Boolean(options[key])} onChange={(event) => onChange(key, event.target.checked)} /></label>
+          <label key={key} data-sketch-option={key}><span>{label}</span><input type="checkbox" checked={Boolean(options[key])} onChange={(event) => onChange(key, event.target.checked)} /></label>
         ))}
         <label className="sketch-snap-threshold">
           <span>Próg snap <output>{options.snapDistance}px</output></span>
