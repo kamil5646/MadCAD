@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import App from './App.jsx';
-import { LicenseInfoDialog, UpdateDialog } from './modeling/AppDialogs.jsx';
+import { FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './modeling/AppDialogs.jsx';
 
 describe('App', () => {
   it('renders the current modeling workspace as the only application interface', () => {
@@ -25,6 +25,15 @@ describe('App', () => {
     expect(screen.getByRole('link', { name: /Kup licencję komercyjną/i })).toHaveAttribute('href', 'https://kamil5646.github.io/MadCAD2D/#licencja');
     expect(screen.getByRole('button', { name: /Pełna treść licencji/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Przejdź do programu/i })).toBeInTheDocument();
+  });
+
+  it('focuses the full-license dialog and closes it with Escape', () => {
+    const onClose = vi.fn();
+    render(<FullLicenseDialog onClose={onClose} />);
+    const dialog = screen.getByRole('dialog', { name: /Pełna treść licencji MadCAD/i });
+    expect(dialog).toContainElement(document.activeElement);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('shows only a verified available update as installable', () => {

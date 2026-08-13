@@ -3076,6 +3076,8 @@ test('okna Electron i preload utrzymują sandbox oraz jedną bramę IPC', async 
   assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 10);
   assert.doesNotMatch(mainSource, /ODAFileConverter|install-oda|convert-cad-file|get-oda-status|choose-oda|open-oda/);
   assert.equal((mainSource.match(/ipcMain\.handle\(/g) || []).length, 1);
+  assert.match(mainSource, /queueAutosaveOperation/);
+  assert.match(mainSource, /response\.on\('error', failDownload\)/);
   assert.doesNotMatch(preloadSource, /require\(['"](?:os|crypto|fs|child_process)['"]\)/);
   assert.doesNotMatch(preloadSource, /verifyLicenseSignature/);
   assert.doesNotMatch(preloadSource, /installOdaAddon|convertCadFile|getOdaStatus|chooseOdaConverterPath|openOdaDownload/);

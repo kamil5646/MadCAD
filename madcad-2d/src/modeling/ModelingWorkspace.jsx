@@ -120,6 +120,7 @@ import {
   AUTOSAVE_KEY,
   clearLocalAutosave,
   documentModifiedAt,
+  hasUnsavedSession,
   loadInitialDocument,
   writeLocalAutosave,
 } from './document-session.js';
@@ -1142,18 +1143,6 @@ export default function ModelingWorkspace() {
   const [browserOpen, setBrowserOpen] = useState(true);
   const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, profiles: true, points: true, dimensions: true, constraints: true, construction: true, projected: true, slice: false, sketch3d: false });
   const [notice, setNotice] = useState(initialOpen.warning || 'Gotowe. Wybierz „Utwórz szkic”, aby rozpocząć modelowanie.');
-  const changeAppLanguage = async (nextLanguage) => {
-    const normalized = nextLanguage === 'en' ? 'en' : 'pl';
-    window.localStorage.setItem(LANGUAGE_KEY, normalized);
-    if (window.desktopApp?.setAppLanguage) {
-      const result = await window.desktopApp.setAppLanguage({ language: normalized });
-      if (result?.ok === false) {
-        setNotice(`Nie udało się zapisać języka: ${result.error || 'nieznany błąd'}`);
-        return;
-      }
-    }
-    window.location.reload();
-  };
   const fileInputRef = useRef(null);
   const importInputRef = useRef(null);
   const sketchImportInputRef = useRef(null);
@@ -1161,6 +1150,8 @@ export default function ModelingWorkspace() {
   const sketchDynamicLengthRef = useRef('');
   const shortcutBufferRef = useRef('');
   const shortcutRegistryRef = useRef(new Map());
+  const autosaveQueueRef = useRef(Promise.resolve());
+  const autosaveSuspendedRef = useRef(false);
   const [importDraft, setImportDraft] = useState(null);
   const [sketchImportDraft, setSketchImportDraft] = useState(null);
   const registerShortcut = useCallback((shortcut, entry) => {
@@ -1172,14 +1163,69 @@ export default function ModelingWorkspace() {
   }, []);
   const toolHelpContext = useMemo(() => ({ setToolHelp, registerShortcut }), [registerShortcut]);
   const readOnly = documentAccess.readOnly;
-  const dirty = !readOnly && savedDocumentText !== serializedDocument;
+  const dirty = hasUnsavedSession({ readOnly, savedDocumentText, serializedDocument });
+  const queueDesktopAutosave = useCallback((text) => {
+    if (!window.desktopApp?.autosaveWrite) return Promise.resolve(false);
+    const write = autosaveQueueRef.current.catch(() => {}).then(async () => {
+      const result = await window.desktopApp.autosaveWrite({ text });
+      if (result && result.ok === false) throw new Error(result.error || 'Nie udało się zapisać plikowego autozapisu.');
+      return true;
+    });
+    autosaveQueueRef.current = write;
+    return write;
+  }, []);
+  const persistAutosaveNow = useCallback(async (text) => {
+    let localError = null;
+    try {
+      writeLocalAutosave(text);
+    } catch (error) {
+      localError = error;
+    }
+    let desktopSaved = false;
+    try {
+      desktopSaved = await queueDesktopAutosave(text);
+    } catch (error) {
+      if (localError) throw new Error(`Lokalny autozapis: ${localError.message}; plikowy autozapis: ${error.message}`);
+      throw error;
+    }
+    if (localError && !desktopSaved) throw localError;
+    if (localError) setNotice(`Pamięć lokalna jest pełna (${localError.message}). Projekt zabezpieczono w plikowym autozapisie.`);
+    return { localSaved: !localError, desktopSaved };
+  }, [queueDesktopAutosave]);
   const clearAutosaveSnapshots = useCallback(async () => {
-    clearLocalAutosave();
-    if (window.desktopApp?.autosaveClear) {
-      const result = await window.desktopApp.autosaveClear();
-      if (result && result.ok === false) throw new Error(result.error || 'Nie udało się usunąć plikowego autozapisu.');
+    autosaveSuspendedRef.current = true;
+    try {
+      await autosaveQueueRef.current.catch(() => {});
+      clearLocalAutosave();
+      if (window.desktopApp?.autosaveClear) {
+        const result = await window.desktopApp.autosaveClear();
+        if (result && result.ok === false) throw new Error(result.error || 'Nie udało się usunąć plikowego autozapisu.');
+      }
+    } finally {
+      autosaveSuspendedRef.current = false;
     }
   }, []);
+  const changeAppLanguage = async (nextLanguage) => {
+    const normalized = nextLanguage === 'en' ? 'en' : 'pl';
+    if (normalized === language) return;
+    if (dirty && !readOnly) {
+      try {
+        await persistAutosaveNow(serializedDocument);
+      } catch (error) {
+        setNotice(`Nie zmieniono języka, ponieważ nie udało się zabezpieczyć projektu: ${error.message}`);
+        return;
+      }
+    }
+    if (window.desktopApp?.setAppLanguage) {
+      const result = await window.desktopApp.setAppLanguage({ language: normalized });
+      if (result?.ok === false) {
+        setNotice(`Nie udało się zapisać języka: ${result.error || 'nieznany błąd'}`);
+        return;
+      }
+    }
+    window.localStorage.setItem(LANGUAGE_KEY, normalized);
+    window.location.reload();
+  };
 
   useEffect(() => {
     if (!window.desktopApp?.autosaveRead) return undefined;
@@ -1187,7 +1233,12 @@ export default function ModelingWorkspace() {
     void (async () => {
       try {
         const result = await window.desktopApp.autosaveRead();
-        if (!active || !result?.exists || !result.text) return;
+        if (!active) return;
+        if (result?.ok === false) {
+          setNotice(`Nie udało się odczytać plikowego autozapisu: ${result.error || 'nieznany błąd'}`);
+          return;
+        }
+        if (!result?.exists || !result.text) return;
         const opened = openDocument(JSON.parse(result.text));
         const initialDocumentUnchanged = JSON.stringify(documentRef.current) === initialDocumentTextRef.current;
         if (!initialDocumentUnchanged) {
@@ -1364,18 +1415,14 @@ export default function ModelingWorkspace() {
   useEffect(() => {
     if (!persistenceReady || readOnly || !dirty) return undefined;
     const timeout = window.setTimeout(() => {
-      writeLocalAutosave(serializedDocument);
-      if (window.desktopApp?.autosaveWrite) {
-        void window.desktopApp.autosaveWrite({ text: serializedDocument }).then((result) => {
-          if (result && result.ok === false) setNotice(`Błąd autozapisu: ${result.error || 'nieznany błąd'}`);
-        }).catch((error) => setNotice(`Błąd autozapisu: ${error.message}`));
-      }
+      if (autosaveSuspendedRef.current) return;
+      void persistAutosaveNow(serializedDocument).catch((error) => setNotice(`Błąd autozapisu: ${error.message}`));
     }, 300);
     return () => window.clearTimeout(timeout);
-  }, [dirty, persistenceReady, readOnly, serializedDocument]);
+  }, [dirty, persistenceReady, persistAutosaveNow, readOnly, serializedDocument]);
 
   useEffect(() => {
-    window.__madcadGetSessionExport = () => JSON.stringify(document, null, 2);
+    window.__madcadGetSessionExport = () => JSON.stringify(readOnly && documentAccess.originalDocument ? documentAccess.originalDocument : document, null, 2);
     window.__madcadHasDrawableContent = () => Boolean(
       document.features.length
       || document.sketches.some((sketch) => sketch.entities.length || sketch.profiles.length)
@@ -1389,7 +1436,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadHasUnsavedChanges;
       delete window.__madcadClearRuntimeSession;
     };
-  }, [dirty, document]);
+  }, [dirty, document, documentAccess.originalDocument, readOnly]);
 
   useEffect(() => {
     const verifyMode = new URLSearchParams(window.location.search).has('verify');
@@ -3770,7 +3817,6 @@ export default function ModelingWorkspace() {
     }
     if (!(await confirmUnsavedChanges('update'))) return;
     try {
-      await clearAutosaveSnapshots();
       setUpdateState((current) => ({ ...current, status: 'installing', error: '' }));
       const result = await window.desktopApp.downloadAndInstallUpdate();
       if (!result?.ok || !result.installing) {
@@ -3779,6 +3825,7 @@ export default function ModelingWorkspace() {
           status: 'idle',
           error: result?.error || (result?.upToDate ? 'Masz już aktualną wersję.' : 'Nie udało się rozpocząć instalacji.'),
         }));
+        return;
       }
     } catch (error) {
       setUpdateState((current) => ({ ...current, status: 'idle', error: error.message }));
@@ -4330,7 +4377,7 @@ export default function ModelingWorkspace() {
         </div>
       </footer>
       {tutorialOpen && <FirstPartTutorial onClose={() => setTutorialOpen(false)} />}
-      {licenseInfoOpen && <LicenseInfoDialog onClose={() => setLicenseInfoOpen(false)} onShowFullLicense={() => setFullLicenseOpen(true)} />}
+      {licenseInfoOpen && <LicenseInfoDialog onClose={() => setLicenseInfoOpen(false)} onShowFullLicense={() => { setLicenseInfoOpen(false); setFullLicenseOpen(true); }} />}
       {fullLicenseOpen && <FullLicenseDialog onClose={() => setFullLicenseOpen(false)} />}
       {updateState.open && <UpdateDialog state={updateState} onCheck={checkForUpdates} onInstall={installAvailableUpdate} onClose={() => setUpdateState((current) => ({ ...current, open: false }))} />}
       {toolHelp && (

@@ -4,6 +4,7 @@ import {
   AUTOSAVE_BACKUP_KEY,
   AUTOSAVE_KEY,
   clearLocalAutosave,
+  hasUnsavedSession,
   loadInitialDocument,
   writeLocalAutosave,
 } from './document-session.js';
@@ -46,5 +47,11 @@ describe('document session persistence', () => {
     expect(opened.recovered).toBe(true);
     expect(opened.recoverySource).toBe('local-backup');
     expect(opened.warning).toMatch(/Odzyskano poprzednią wersję/);
+  });
+
+  it('preserves recovered read-only sessions until the user explicitly discards them', () => {
+    expect(hasUnsavedSession({ readOnly: true, savedDocumentText: null, serializedDocument: '{"projected":true}' })).toBe(true);
+    expect(hasUnsavedSession({ readOnly: true, savedDocumentText: '{"saved":true}', serializedDocument: '{"projected":true}' })).toBe(false);
+    expect(hasUnsavedSession({ readOnly: false, savedDocumentText: '{"saved":true}', serializedDocument: '{"changed":true}' })).toBe(true);
   });
 });

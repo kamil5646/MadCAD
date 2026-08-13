@@ -92,3 +92,7 @@ export function documentModifiedAt(document) {
   const value = Date.parse(document?.metadata?.modifiedAt || '');
   return Number.isFinite(value) ? value : 0;
 }
+
+export function hasUnsavedSession({ readOnly = false, savedDocumentText = '', serializedDocument = '' } = {}) {
+  return savedDocumentText === null || (!readOnly && savedDocumentText !== serializedDocument);
+}

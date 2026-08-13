@@ -31,6 +31,7 @@ const MADCAD_RELEASE_LATEST_PAGE_URL = 'https://github.com/kamil5646/MadCAD2D/re
 const MADCAD_UPDATE_USER_AGENT = 'MadCAD2D-Updater/1.0';
 const MAX_UPDATE_DOWNLOAD_BYTES = 512 * 1024 * 1024;
 let forceCloseForUpdate = false;
+let autosaveOperationQueue = Promise.resolve();
 
 if (app && typeof app.setName === 'function') {
   app.setName(APP_DISPLAY_NAME);
@@ -122,12 +123,20 @@ function getAutoSavePath() {
   return path.join(app.getPath('userData'), 'autosave', 'latest-session.json');
 }
 
-async function clearAutoSaveSnapshot() {
-  const autoSavePath = getAutoSavePath();
-  await Promise.all([
-    fs.rm(autoSavePath, { force: true }).catch(() => {}),
-    fs.rm(`${autoSavePath}.bak`, { force: true }).catch(() => {}),
-  ]);
+function queueAutosaveOperation(operation) {
+  const result = autosaveOperationQueue.then(operation, operation);
+  autosaveOperationQueue = result.catch(() => {});
+  return result;
+}
+
+function clearAutoSaveSnapshot() {
+  return queueAutosaveOperation(async () => {
+    const autoSavePath = getAutoSavePath();
+    await Promise.all([
+      fs.rm(autoSavePath, { force: true }).catch(() => {}),
+      fs.rm(`${autoSavePath}.bak`, { force: true }).catch(() => {}),
+    ]);
+  });
 }
 
 async function readCadConfig() {
@@ -323,22 +332,29 @@ function downloadFileWithRedirects(url, destinationPath, redirectCount = 0) {
 
         const stream = fsRaw.createWriteStream(destinationPath);
         let receivedBytes = 0;
+        let settled = false;
+        const failDownload = (error) => {
+          if (settled) return;
+          settled = true;
+          response.unpipe(stream);
+          response.destroy();
+          stream.destroy();
+          void fs.rm(destinationPath, { force: true }).catch(() => {}).finally(() => reject(error));
+        };
+        response.on('error', failDownload);
         response.on('data', (chunk) => {
           receivedBytes += chunk.length;
           if (receivedBytes > MAX_UPDATE_DOWNLOAD_BYTES) {
-            response.destroy(new Error('Paczka aktualizacji przekracza limit 512 MB.'));
-            stream.destroy();
+            failDownload(new Error('Paczka aktualizacji przekracza limit 512 MB.'));
           }
         });
         response.pipe(stream);
         stream.on('finish', () => {
+          if (settled) return;
+          settled = true;
           stream.close(() => resolve(destinationPath));
         });
-        stream.on('error', async (error) => {
-          response.destroy();
-          await fs.rm(destinationPath, { force: true }).catch(() => {});
-          reject(error);
-        });
+        stream.on('error', failDownload);
       }
     );
     request.on('error', async (error) => {
@@ -1177,6 +1193,7 @@ registerTrustedIpcHandler('madcad:download-and-install-update', async () => {
       };
     }
 
+    await clearAutoSaveSnapshot();
     forceCloseForUpdate = true;
     setTimeout(() => {
       app.quit();
@@ -1209,9 +1226,11 @@ registerTrustedIpcHandler('madcad:download-and-install-update', async () => {
 registerTrustedIpcHandler('madcad:autosave-write', async (_event, payload) => {
   try {
     const { text } = normalizeAutosavePayload(payload);
-    const autoSavePath = getAutoSavePath();
-    await fs.mkdir(path.dirname(autoSavePath), { recursive: true });
-    const writeResult = await atomicWriteTextFile(autoSavePath, text, { backup: true });
+    const writeResult = await queueAutosaveOperation(async () => {
+      const autoSavePath = getAutoSavePath();
+      await fs.mkdir(path.dirname(autoSavePath), { recursive: true });
+      return atomicWriteTextFile(autoSavePath, text, { backup: true });
+    });
     return {
       ok: true,
       ...writeResult,
@@ -1228,7 +1247,7 @@ registerTrustedIpcHandler('madcad:autosave-write', async (_event, payload) => {
 registerTrustedIpcHandler('madcad:autosave-read', async () => {
   try {
     const autoSavePath = getAutoSavePath();
-    const recovered = await readRecoverableTextFile(autoSavePath, { validate: validateJsonText });
+    const recovered = await queueAutosaveOperation(() => readRecoverableTextFile(autoSavePath, { validate: validateJsonText }));
     if (!recovered.exists) return { ok: true, ...recovered };
     return {
       ok: true,

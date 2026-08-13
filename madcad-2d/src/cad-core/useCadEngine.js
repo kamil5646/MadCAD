@@ -153,7 +153,7 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
       analysis: { ...current.analysis, collisionStatus: 'running' },
     }));
     const result = await send({ type: 'analyze-collisions', document, revision });
-    if (result.revision !== revision) throw engineError('Silnik zwrócił analizę z innej rewizji dokumentu.', 'ANALYSIS_REVISION_MISMATCH');
+    if (result.revision !== revision || revisionRef.current !== revision) throw engineError('Silnik zwrócił analizę z innej rewizji dokumentu.', 'ANALYSIS_REVISION_MISMATCH');
     setState((current) => ({ ...current, analysis: result.analysis, performance: result.performance }));
     return result.analysis;
   }, [document, send]);

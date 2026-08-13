@@ -65,12 +65,18 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense }) {
 }
 
 export function FullLicenseDialog({ onClose }) {
+  useEffect(() => {
+    const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   return (
     <div className="license-info-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section className="license-info-dialog full-license-dialog" role="dialog" aria-modal="true" aria-labelledby="fullLicenseTitle">
         <header><div><strong id="fullLicenseTitle">Pełna treść licencji MadCAD</strong><span>Wiążąca kopia dołączona bezpośrednio do tej wersji aplikacji.</span></div><button type="button" title="Zamknij" aria-label="Zamknij" onClick={onClose}><X size={17} /></button></header>
         <pre tabIndex="0">{fullLicenseText}</pre>
-        <footer><button className="confirm" type="button" onClick={onClose}>Zamknij</button></footer>
+        <footer><button className="confirm" type="button" onClick={onClose} autoFocus>Zamknij</button></footer>
       </section>
     </div>
   );

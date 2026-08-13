@@ -420,12 +420,44 @@ async function runUiFlow(window) {
 
   progress('unsaved changes guard');
   await window.webContents.executeJavaScript(`(() => {
+    window.__madcadPreviousDesktopApp = window.desktopApp;
+    window.__madcadVerifierFileAutosave = '';
+    window.desktopApp = {
+      ...(window.desktopApp || {}),
+      autosaveWrite: async ({ text }) => { window.__madcadVerifierFileAutosave = text; return { ok: true }; },
+      autosaveRead: async () => ({ ok: true, exists: Boolean(window.__madcadVerifierFileAutosave), text: window.__madcadVerifierFileAutosave }),
+      autosaveClear: async () => { window.__madcadVerifierFileAutosave = ''; return { ok: true }; },
+    };
+    window.__madcadOriginalStorageSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function setItemWithQuotaFailure(key, value) {
+      if (key === 'madcad:modeling-document:v4') throw new DOMException('Kontrolowany brak miejsca', 'QuotaExceededError');
+      return window.__madcadOriginalStorageSetItem.call(this, key, value);
+    };
+  })()`);
+  await window.webContents.executeJavaScript(`(() => {
     const input = document.querySelector('input[aria-label="Nazwa projektu"]');
     const key = input && Object.keys(input).find((item) => item.startsWith('__reactProps'));
     if (!key || typeof input[key]?.onChange !== 'function') throw new Error('Brak edycji nazwy projektu.');
     input[key].onChange({ target: { value: 'Niezapisany test' } });
   })()`);
   await waitForUi(window, `document.querySelector('.document-tab input')?.value === 'Niezapisany test' && Boolean(document.querySelector('[aria-label="Niezapisane zmiany"]'))`, 'oznaczenie niezapisanych zmian');
+  const fileAutosaveSurvivedQuotaFailure = await window.webContents.executeJavaScript(`(async () => {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const result = await window.desktopApp?.autosaveRead?.();
+      if (result?.ok && result.text?.includes('Niezapisany test')) return true;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return false;
+  })()`);
+  await window.webContents.executeJavaScript(`(() => {
+    if (window.__madcadOriginalStorageSetItem) Storage.prototype.setItem = window.__madcadOriginalStorageSetItem;
+    delete window.__madcadOriginalStorageSetItem;
+    if (window.__madcadPreviousDesktopApp) window.desktopApp = window.__madcadPreviousDesktopApp;
+    else delete window.desktopApp;
+    delete window.__madcadPreviousDesktopApp;
+    delete window.__madcadVerifierFileAutosave;
+  })()`);
+  if (!fileAutosaveSurvivedQuotaFailure) throw new Error('Plikowy autozapis nie przejął projektu po błędzie limitu localStorage.');
   await window.webContents.executeJavaScript(`window.__madcadVerifyUnsavedDecision = 'cancel'`);
   await clickByTitle('Nowy projekt');
   await new Promise((resolve) => setTimeout(resolve, 150));
@@ -2541,7 +2573,10 @@ app.whenReady().then(async () => {
     }
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     await fs.writeFile(licenseOutputPath, (await window.webContents.capturePage()).toPNG());
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.license-info-dialog button')].find((button) => /Przejdź do programu|Continue to MadCAD/i.test(button.textContent))?.click()`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.license-info-dialog button')].find((button) => /Pełna treść licencji|Full license text/i.test(button.textContent))?.click()`);
+    await waitForUi(window, `Boolean(document.querySelector('.full-license-dialog')) && document.querySelectorAll('[role="dialog"][aria-modal="true"]').length === 1 && document.querySelector('.full-license-dialog')?.contains(document.activeElement)`, 'pojedyncze aktywne okno pełnej licencji');
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     await waitForUi(window, `!document.querySelector('.license-info-dialog')`, 'zamknięcie okna informacji o licencji');
     await window.webContents.executeJavaScript(`document.querySelector('#licenseInfoBtn')?.click()`);
     await waitForUi(window, `Boolean(document.querySelector('.license-info-dialog'))`, 'ponowne otwarcie informacji o licencji');
