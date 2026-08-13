@@ -306,12 +306,15 @@ async function runUiFlow(window) {
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);
-  const pickPlane = (plane) => window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.plane-options button')].find((item) => item.textContent.includes(${JSON.stringify(plane)}));
-    if (!button) throw new Error('Brak płaszczyzny ${plane}');
-    const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
-    button[key].onClick();
-  })()`);
+  const pickPlane = async (plane) => {
+    await window.webContents.executeJavaScript(`(() => {
+      const button = [...document.querySelectorAll('.plane-options button')].find((item) => item.textContent.includes(${JSON.stringify(plane)}));
+      if (!button) throw new Error('Brak płaszczyzny ${plane}');
+      const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
+      button[key].onClick();
+    })()`);
+    await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, `tryb szkicu na płaszczyźnie ${plane}`);
+  };
   const toggleSketchOption = async (label) => {
     await window.webContents.executeJavaScript(`document.querySelector('.sketch-palette.collapsed .sketch-palette-toggle')?.click()`);
     await waitForUi(window, `Boolean(document.querySelector('.sketch-palette label'))`, `rozwinięta paleta szkicu dla opcji ${label}`);
