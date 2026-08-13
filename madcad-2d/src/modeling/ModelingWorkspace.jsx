@@ -138,6 +138,14 @@ const MAIN_TABS = [
 ];
 const LANGUAGE_KEY = 'madcad:interface-language';
 
+function readStoredLanguage() {
+  try {
+    return window.localStorage.getItem(LANGUAGE_KEY);
+  } catch (_error) {
+    return null;
+  }
+}
+
 const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
 
 const TOOL_DESCRIPTIONS = {
@@ -1081,28 +1089,29 @@ export default function ModelingWorkspace() {
   const [fullLicenseOpen, setFullLicenseOpen] = useState(false);
   const [language] = useState(() => {
     const requestedLanguage = new URLSearchParams(window.location.search).get('verifyLanguage')
-      || window.localStorage.getItem(LANGUAGE_KEY)
+      || readStoredLanguage()
       || window.desktopApp?.appLanguage;
     return resolveModelingLanguage(requestedLanguage, window.navigator.language);
   });
-  const [updateState, setUpdateState] = useState({ open: false, status: 'idle', result: null, error: '' });
+  const [updateState, setUpdateState] = useState({ open: false, promptPending: false, status: 'idle', result: null, error: '' });
   const checkForUpdates = useCallback(async (silent = false) => {
     if (!window.desktopApp?.checkForUpdates) {
-      if (!silent) setUpdateState({ open: true, status: 'idle', result: null, error: 'Aktualizacje są dostępne w zainstalowanej aplikacji desktopowej.' });
+      if (!silent) setUpdateState({ open: true, promptPending: false, status: 'idle', result: null, error: 'Aktualizacje są dostępne w zainstalowanej aplikacji desktopowej.' });
       return null;
     }
     setUpdateState((current) => ({ ...current, open: !silent || current.open, status: 'checking', error: '' }));
     try {
       const result = await window.desktopApp.checkForUpdates();
       setUpdateState({
-        open: !silent || Boolean(result?.available),
+        open: !silent,
+        promptPending: silent && Boolean(result?.available),
         status: 'idle',
         result,
         error: result?.ok === false ? result.error || 'Nie udało się sprawdzić aktualizacji.' : '',
       });
       return result;
     } catch (error) {
-      setUpdateState({ open: !silent, status: 'idle', result: null, error: error.message });
+      setUpdateState({ open: !silent, promptPending: false, status: 'idle', result: null, error: error.message });
       return null;
     }
   }, []);
@@ -1110,6 +1119,11 @@ export default function ModelingWorkspace() {
     const timeout = window.setTimeout(() => { void checkForUpdates(true); }, 1800);
     return () => window.clearTimeout(timeout);
   }, [checkForUpdates]);
+  const updatePromptBlocked = tutorialOpen || licenseInfoOpen || fullLicenseOpen;
+  useEffect(() => {
+    if (updatePromptBlocked || !updateState.promptPending) return;
+    setUpdateState((current) => ({ ...current, open: true, promptPending: false }));
+  }, [updatePromptBlocked, updateState.promptPending]);
   useEffect(() => {
     const root = window.document.querySelector('.modeling-shell');
     window.document.documentElement.lang = language;
@@ -1223,7 +1237,14 @@ export default function ModelingWorkspace() {
         return;
       }
     }
-    window.localStorage.setItem(LANGUAGE_KEY, normalized);
+    try {
+      window.localStorage.setItem(LANGUAGE_KEY, normalized);
+    } catch (error) {
+      if (!window.desktopApp?.setAppLanguage) {
+        setNotice(`Nie udało się zapisać języka: ${error.message}`);
+        return;
+      }
+    }
     window.location.reload();
   };
 
@@ -1414,11 +1435,21 @@ export default function ModelingWorkspace() {
 
   useEffect(() => {
     if (!persistenceReady || readOnly || !dirty) return undefined;
-    const timeout = window.setTimeout(() => {
-      if (autosaveSuspendedRef.current) return;
+    let canceled = false;
+    let timeout;
+    const persistWhenReady = () => {
+      if (canceled) return;
+      if (autosaveSuspendedRef.current) {
+        timeout = window.setTimeout(persistWhenReady, 100);
+        return;
+      }
       void persistAutosaveNow(serializedDocument).catch((error) => setNotice(`Błąd autozapisu: ${error.message}`));
-    }, 300);
-    return () => window.clearTimeout(timeout);
+    };
+    timeout = window.setTimeout(persistWhenReady, 300);
+    return () => {
+      canceled = true;
+      window.clearTimeout(timeout);
+    };
   }, [dirty, persistenceReady, persistAutosaveNow, readOnly, serializedDocument]);
 
   useEffect(() => {
@@ -1429,14 +1460,16 @@ export default function ModelingWorkspace() {
       || document.imports?.length
     );
     window.__madcadHasUnsavedChanges = () => dirty;
+    window.__madcadPersistenceReady = () => persistenceReady;
     window.__madcadClearRuntimeSession = () => clearLocalAutosave();
     return () => {
       delete window.__madcadGetSessionExport;
       delete window.__madcadHasDrawableContent;
       delete window.__madcadHasUnsavedChanges;
+      delete window.__madcadPersistenceReady;
       delete window.__madcadClearRuntimeSession;
     };
-  }, [dirty, document, documentAccess.originalDocument, readOnly]);
+  }, [dirty, document, documentAccess.originalDocument, persistenceReady, readOnly]);
 
   useEffect(() => {
     const verifyMode = new URLSearchParams(window.location.search).has('verify');
@@ -3794,6 +3827,10 @@ export default function ModelingWorkspace() {
   };
 
   const confirmUnsavedChanges = async (reason) => {
+    if (!persistenceReady) {
+      setNotice('Poczekaj na zakończenie odzyskiwania autozapisu przed zmianą projektu lub aktualizacją.');
+      return false;
+    }
     if (!dirty) return true;
     let decision = 'cancel';
     const verifyMode = new URLSearchParams(window.location.search).has('verify');
@@ -4380,7 +4417,7 @@ export default function ModelingWorkspace() {
       {tutorialOpen && <FirstPartTutorial onClose={() => setTutorialOpen(false)} />}
       {licenseInfoOpen && <LicenseInfoDialog onClose={() => setLicenseInfoOpen(false)} onShowFullLicense={() => { setLicenseInfoOpen(false); setFullLicenseOpen(true); }} />}
       {fullLicenseOpen && <FullLicenseDialog onClose={() => setFullLicenseOpen(false)} />}
-      {updateState.open && <UpdateDialog state={updateState} onCheck={checkForUpdates} onInstall={installAvailableUpdate} onClose={() => setUpdateState((current) => ({ ...current, open: false }))} />}
+      {updateState.open && !updatePromptBlocked && <UpdateDialog state={updateState} onCheck={checkForUpdates} onInstall={installAvailableUpdate} onClose={() => setUpdateState((current) => ({ ...current, open: false, promptPending: false }))} />}
       {toolHelp && (
         <div className="tool-help-tooltip" role="tooltip" style={{ left: toolHelp.x, top: toolHelp.y }}>
           <header><strong>{toolHelp.label}</strong><kbd>{toolHelp.shortcut}</kbd></header>

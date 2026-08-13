@@ -34,9 +34,16 @@ rejectText(site, /license-registry|issue-private|token-admin|generatePrivateToke
 const rootReadme = read('README.md');
 expectText(rootReadme, /Uwaga o wydaniu 6\.1\.0/, 'ostrzeżenie wydania w README');
 rejectText(rootReadme, /import(?:em|uj)? DWG/i, 'nieobsługiwana obietnica importu DWG');
+const firstPart = read('madcad-2d/FIRST_PART.md');
+expectText(firstPart, /DWG nie jest obecnie obsługiwany/, 'ograniczenie DWG w samouczku');
+rejectText(firstPart, /ODA File Converter/i, 'wycofana instrukcja ODA w samouczku');
 
 const appUi = read('madcad-2d/src/modeling/ModelingWorkspace.jsx');
 rejectText(appUi, /licenseTokenInput|licenseDeviceIdInput|licenseActivateTokenBtn/, 'kontrolki aktywacji w aplikacji');
+expectText(appUi, /function readStoredLanguage\(\)[\s\S]*?catch \(_error\)/, 'bezpieczny odczyt języka bez Web Storage');
+expectText(appUi, /autosaveSuspendedRef\.current[\s\S]*?setTimeout\(persistWhenReady, 100\)/, 'ponowienie autozapisu po wstrzymaniu');
+expectText(appUi, /promptPending: silent && Boolean\(result\?\.available\)/, 'odroczony automatyczny dialog aktualizacji');
+expectText(appUi, /if \(!persistenceReady\)[\s\S]*?zakończenie odzyskiwania autozapisu/, 'blokada destrukcyjnych akcji podczas odzyskiwania');
 const appDialogs = read('madcad-2d/src/modeling/AppDialogs.jsx');
 expectText(appDialogs, /oceniać pełną wersję przez 40 dni/, 'ocena w oknie aplikacji');
 expectText(appDialogs, /bezterminowej licencji na każde stanowisko/, 'licencja stanowiskowa w aplikacji');
@@ -46,6 +53,7 @@ const preload = read('madcad-2d/electron/preload.js');
 const main = read('madcad-2d/electron/main.js');
 rejectText(preload, /installOdaAddon|convertCadFile|getOdaStatus|chooseOdaConverterPath|openOdaDownload/, 'nieużywane API ODA w preload');
 rejectText(main, /ODAFileConverter|install-oda|convert-cad-file|get-oda-status|choose-oda|open-oda/, 'wycofany instalator i kanały ODA w procesie głównym');
+expectText(main, /__madcadPersistenceReady[\s\S]*?MadCAD nadal sprawdza autozapis/, 'blokada zamknięcia podczas odzyskiwania');
 
 const notices = read('madcad-2d/THIRD_PARTY_NOTICES.md');
 for (const dependency of Object.keys(packageJson.dependencies || {})) {

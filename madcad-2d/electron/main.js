@@ -597,6 +597,33 @@ async function pathExists(filePath) {
 }
 
 async function handleSavePromptBeforeExit(win) {
+  let persistenceReady = false;
+  try {
+    persistenceReady = await win.webContents.executeJavaScript(
+      `
+      (() => {
+        if (typeof window.__madcadPersistenceReady === 'function') return !!window.__madcadPersistenceReady();
+        return false;
+      })();
+      `,
+      true
+    );
+  } catch (_error) {
+    persistenceReady = false;
+  }
+
+  if (!persistenceReady) {
+    await dialog.showMessageBox(win, {
+      type: 'info',
+      buttons: [t('OK', 'OK')],
+      defaultId: 0,
+      title: t('Odzyskiwanie projektu', 'Project Recovery'),
+      message: t('MadCAD nadal sprawdza autozapis.', 'MadCAD is still checking the autosave.'),
+      detail: t('Poczekaj chwilę i zamknij aplikację ponownie, aby nie utracić odzyskiwanego projektu.', 'Wait a moment and close the application again to avoid losing a recoverable project.')
+    });
+    return false;
+  }
+
   let hasUnsavedChanges = true;
   try {
     hasUnsavedChanges = await win.webContents.executeJavaScript(
