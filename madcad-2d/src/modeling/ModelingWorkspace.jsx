@@ -252,7 +252,7 @@ const ToolHelpContext = React.createContext(null);
 
 function shortcutLabel(shortcut) {
   if (shortcut === 'ESC') return 'Esc';
-  if (shortcut === 'DEL') return 'Del';
+  if (shortcut === 'DEL') return window.desktopApp?.platform === 'darwin' ? '⌫' : 'Del';
   if (shortcut === 'CTRL+ENTER') return 'Ctrl+Enter';
   return `${shortcut} ↵`;
 }
@@ -4227,7 +4227,7 @@ export default function ModelingWorkspace() {
         else history.undo();
         return;
       }
-      if (event.key === 'Delete' && !textEntry && !command && activeSketchId && (selectedSketchEntityIds.length || selectedSketchConstraintId) && !readOnly) {
+      if ((event.key === 'Delete' || event.key === 'Backspace') && !textEntry && !command && activeSketchId && (selectedSketchEntityIds.length || selectedSketchConstraintId) && !readOnly) {
         event.preventDefault();
         deleteSelectedSketchEntities();
         return;
@@ -4332,6 +4332,7 @@ export default function ModelingWorkspace() {
             onSketchSelection={handleSketchSelection}
             onSketchConstraintSelection={(constraintId) => setSelection({ kind: 'sketchConstraint', id: constraintId, sketchId: activeSketchId })}
             onSketchConstraintValueChange={updateSketchConstraintValue}
+            onDeleteSketchSelection={readOnly ? undefined : deleteSelectedSketchEntities}
             sketchModifierMode={command?.type === 'trimSketch' ? 'trim' : command?.type === 'extendSketch' ? 'extend' : command?.type === 'breakSketch' ? 'break' : command?.type === 'projectSketch' ? 'project' : null}
             onSketchModify={modifySketchAtPoint}
             onSketchProfileSelection={(profileId) => setSelection({ kind: 'profile', id: profileId, sketchId: activeSketchId })}
