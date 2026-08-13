@@ -1,5 +1,12 @@
 # Changelog
 
+## 6.1.2 (2026-08-13)
+
+- Naprawiono widoczność snapu przed pierwszym kliknięciem i po zatwierdzeniu punktu; znacznik pokazuje teraz typ przyciągania, ma wyższy kontrast i pozostaje w granicach widoku.
+- Dodano kontekstowy przycisk **Usuń** dla zaznaczonej geometrii szkicu.
+- Dodano usuwanie zaznaczonych elementów klawiszami `Delete` oraz `Backspace`/`⌫` na macOS.
+- Dodano automatyczny test widoczności snapu i usuwania linii z klawiatury.
+
 ## 6.1.1 (2026-08-13)
 
 - Dodano wspólną ochronę niezapisanych zmian dla Nowy/Otwórz/Zamknij/Aktualizuj oraz prawdziwy stan `dirty` dokumentu.
