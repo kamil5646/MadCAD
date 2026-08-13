@@ -1780,7 +1780,7 @@ async function runUiFlow(window) {
   await clickTool('Prostokąt');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Prostokąt')`, 'polecenie prostokąta');
   await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint?.([0, 0])`);
-  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'rectangle' && window.__madcadVerifyDocumentState.command.gesturePoints?.length === 1`, 'pierwszy narożnik prostokąta z płótna');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'rectangle' && window.__madcadVerifyDocumentState.command.gesturePoints === 1`, 'pierwszy narożnik prostokąta z płótna');
   await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint?.([32, 21])`);
   await waitForUi(window, `!document.querySelector('.command-dialog') && document.querySelectorAll('.tree-profile').length === 1`, 'prostokąt utworzony dwoma kliknięciami');
   await new Promise((resolve) => setTimeout(resolve, 75));

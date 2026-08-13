@@ -2756,6 +2756,7 @@ export default function ModelingWorkspace() {
         previewClearanceProfile: command.previewFeature?.clearanceProfile,
         points: command.points?.length || 0,
         segments: command.segmentIds?.length || 0,
+        gesturePoints: command.gesturePoints?.length || 0,
         dynamicLength: command.dynamicLength || '',
         measurement: command.type === 'measure' ? measurement : null,
         sectionAnalysis: command.type === 'sectionAnalysis' ? sectionAnalysis : null,
