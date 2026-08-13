@@ -2471,7 +2471,10 @@ app.whenReady().then(async () => {
   let exitCode = 0;
   try {
     process.stdout.write('[verify] loading application\n');
-    await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1' } });
+    // The product follows the operating-system locale. Keep the long scenario
+    // deterministic on English GitHub runners; English has its own full-tree
+    // smoke check in verifyEnglishModelingUi().
+    await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
     const result = await waitForModel(window);
     performance.coldStartMs = Date.now() - verificationStartedAt;
     if (performance.coldStartMs > performanceBudgets.desktopColdStartMs) {
