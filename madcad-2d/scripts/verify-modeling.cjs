@@ -2108,6 +2108,7 @@ async function runUiFlow(window) {
   await expandReferenceRepair();
   await waitForUi(window, `document.querySelector('.reference-repair-panel')?.textContent.includes('Project')`, 'panel utraconego źródła Project', modelingTimeoutMs);
   await waitForUi(window, `window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(brokenProject.entityId)}]?.state === 'error'`, 'wyróżnienie utraconego źródła Project', modelingTimeoutMs);
+  await waitForUi(window, `[...document.querySelectorAll('.reference-repair-panel button')].some((item) => item.textContent === 'Kandydat 1')`, 'kandydat naprawy Project', modelingTimeoutMs);
   await window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.reference-repair-panel button')].find((item) => item.textContent === 'Kandydat 1');
     if (!button) throw new Error('Brak kandydata naprawy Project.');
