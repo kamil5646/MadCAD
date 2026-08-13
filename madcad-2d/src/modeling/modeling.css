@@ -1056,19 +1056,22 @@
 
 .sketch-snap-marker {
   position: absolute;
-  z-index: 10;
+  z-index: 12;
   pointer-events: none;
   transform: translate(-50%, -50%);
 }
 
 .sketch-snap-marker i {
-  display: block;
-  width: 18px;
-  height: 18px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
   border: 3px solid #87efff;
   border-radius: 3px;
   background: rgba(10, 34, 44, 0.88);
+  color: #eaffff;
   box-shadow: 0 0 0 4px rgba(36, 181, 211, 0.28), 0 0 16px rgba(55, 225, 255, 0.92);
+  animation: snap-marker-pulse 850ms ease-in-out infinite alternate;
 }
 
 .sketch-snap-marker::before {
@@ -1080,10 +1083,7 @@
 }
 
 .sketch-snap-marker.center i,
-.sketch-snap-marker.midpoint i,
-.sketch-snap-marker.quadrant i,
-.sketch-snap-marker.tangent i,
-.sketch-snap-marker.intersection i {
+.sketch-snap-marker.tangent i {
   border-radius: 50%;
 }
 
@@ -1108,6 +1108,73 @@
   color: #7cecff;
   font-size: 9px;
   letter-spacing: 0.07em;
+}
+
+.sketch-snap-marker.left span {
+  right: 20px;
+  left: auto;
+}
+
+.sketch-snap-marker.above span {
+  top: auto;
+  bottom: 20px;
+}
+
+@keyframes snap-marker-pulse {
+  from { box-shadow: 0 0 0 3px rgba(36, 181, 211, 0.24), 0 0 9px rgba(55, 225, 255, 0.72); }
+  to { box-shadow: 0 0 0 6px rgba(36, 181, 211, 0.34), 0 0 20px rgba(55, 225, 255, 1); }
+}
+
+.sketch-selection-actions {
+  position: absolute;
+  z-index: 11;
+  bottom: 43px;
+  left: 50%;
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px 3px 9px;
+  border: 1px solid #6b7d8c;
+  border-radius: 5px;
+  background: rgba(31, 40, 50, 0.96);
+  color: #cfdae1;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34);
+  font-size: 10px;
+  transform: translateX(-50%);
+}
+
+.sketch-selection-actions button {
+  display: flex;
+  min-height: 25px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px;
+  border: 1px solid #e26a70;
+  border-radius: 3px;
+  background: #71373c;
+  color: #fff2f3;
+  font: 700 10px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.sketch-selection-actions button:hover,
+.sketch-selection-actions button:focus-visible {
+  border-color: #ff959a;
+  background: #8a4147;
+}
+
+.sketch-selection-actions kbd {
+  padding: 2px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.22);
+  color: #ffd9dc;
+  font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sketch-snap-marker i { animation: none; }
 }
 
 .sketch-selection-box {

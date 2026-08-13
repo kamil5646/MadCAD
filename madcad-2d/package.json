@@ -15,6 +15,7 @@
     "build": "npm run build:ui",
     "build:ui": "vite build",
     "verify:modeling": "npm run build:ui && electron scripts/verify-modeling.cjs",
+    "verify:snap-feedback": "npm run build:ui && electron scripts/verify-snap-feedback.cjs",
     "verify:electron-security": "electron scripts/verify-electron-security.cjs",
     "verify:package": "node scripts/verify-package.cjs",
     "verify:release-version": "node scripts/verify-release-version.cjs",

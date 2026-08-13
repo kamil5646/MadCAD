@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Maximize2, Move3d, Orbit, Square, ZoomIn } from 'lucide-react';
+import { Box, CircleDot, Crosshair, Diamond, Grid2X2, Magnet, Maximize2, Move3d, Orbit, Square, Trash2, Triangle, ZoomIn } from 'lucide-react';
 import * as THREE from 'three';
 import { calculatePrintLayout } from '../cad-core/print-layout.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -14,6 +14,21 @@ const VIEW_DIRECTIONS = {
   front: [0, -2, 0],
   right: [2, 0, 0],
 };
+
+const SNAP_ICONS = Object.freeze({
+  endpoint: Square,
+  center: CircleDot,
+  intersection: Crosshair,
+  quadrant: Diamond,
+  midpoint: Triangle,
+  tangent: CircleDot,
+  horizontal: Crosshair,
+  vertical: Crosshair,
+  alignment: Crosshair,
+  extension: Crosshair,
+  nearest: Magnet,
+  grid: Grid2X2,
+});
 
 function disposeObject(object) {
   object.traverse((child) => {
@@ -350,6 +365,7 @@ export default function ModelViewport({
   onSketchSelection,
   onSketchConstraintSelection,
   onSketchConstraintValueChange,
+  onDeleteSketchSelection,
   sketchModifierMode = null,
   onSketchModify,
   onSketchProfileSelection,
@@ -417,6 +433,9 @@ export default function ModelViewport({
   const activeSketch = sketches.find((sketch) => sketch.id === activeSketchId);
   const activePlane = activeSketch?.plane || 'XY';
   const activePlaneOffset = numericValue(activeSketch?.planeOffset || 0, parameters);
+  useEffect(() => {
+    if (!activeSketchId || !sketchTool || !snapEnabled) setSnapFeedback(null);
+  }, [activeSketchId, sketchTool, snapEnabled]);
   const solverAnalysis = useMemo(() => {
     if (!activeSketch) return null;
     try {
@@ -950,7 +969,14 @@ export default function ModelViewport({
         }
         return null;
       }).filter(Boolean);
-      setSnapFeedback({ x, y, label: result.label, type: result.type, guides });
+      setSnapFeedback({
+        x,
+        y,
+        label: result.label,
+        type: result.type,
+        guides,
+        placement: `${x > rect.width - 170 ? 'left' : 'right'} ${y > rect.height - 70 ? 'above' : 'below'}`,
+      });
     };
     const resolveSnap = (event, rawPoint, rect, options = {}) => {
       const result = snapSketchPoint(activeSketch, rawPoint, {
@@ -1185,7 +1211,6 @@ export default function ModelViewport({
         const roundedPoint = [Number(point[0].toFixed(3)), Number(point[1].toFixed(3))];
         sketchPointerMoveRef.current?.(roundedPoint);
         sketchPointRef.current?.(roundedPoint);
-        setSnapFeedback(null);
         return;
       }
       if (activeSketch && draftType) {
@@ -1362,26 +1387,28 @@ export default function ModelViewport({
         });
         return;
       }
-      if (sketchPreviewLine && activeSketch && sketchTool) {
+      if (activeSketch && sketchTool) {
         const rect = setRayFromEvent(event);
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
         if (!worldPoint) return;
         const point = resolveSnap(event, localPoint(worldPoint), rect, { anchor: polylineDraft?.lastPoint }).point;
         const roundedPoint = [Number(point[0].toFixed(3)), Number(point[1].toFixed(3))];
         sketchPointerMoveRef.current?.(roundedPoint);
-        const deltaX = point[0] - polylineDraft.lastPoint[0];
-        const deltaY = point[1] - polylineDraft.lastPoint[1];
-        setSketchDynamicLabel({
-          x: event.clientX - rect.left + 16,
-          y: event.clientY - rect.top - 12,
-          distance: Math.hypot(deltaX, deltaY),
-          angle: Math.atan2(deltaY, deltaX) * 180 / Math.PI,
-        });
-        const position = sketchPreviewLine.geometry.getAttribute('position');
-        const mapped = mapPlanePoint(point[0], point[1], activePlane, 0.09, activePlaneOffset);
-        position.setXYZ(1, ...mapped);
-        position.needsUpdate = true;
-        sketchPreviewLine.computeLineDistances();
+        if (sketchPreviewLine && polylineDraft?.lastPoint) {
+          const deltaX = point[0] - polylineDraft.lastPoint[0];
+          const deltaY = point[1] - polylineDraft.lastPoint[1];
+          setSketchDynamicLabel({
+            x: event.clientX - rect.left + 16,
+            y: event.clientY - rect.top - 12,
+            distance: Math.hypot(deltaX, deltaY),
+            angle: Math.atan2(deltaY, deltaX) * 180 / Math.PI,
+          });
+          const position = sketchPreviewLine.geometry.getAttribute('position');
+          const mapped = mapPlanePoint(point[0], point[1], activePlane, 0.09, activePlaneOffset);
+          position.setXYZ(1, ...mapped);
+          position.needsUpdate = true;
+          sketchPreviewLine.computeLineDistances();
+        }
         return;
       }
       if (activeSketch && draftType) {
@@ -1682,13 +1709,22 @@ export default function ModelViewport({
           <small>{sketchDynamicLabel.angle.toFixed(1)}°</small>
         </div>
       )}
-      {snapFeedback && (
+      {snapFeedback && (() => {
+        const SnapIcon = SNAP_ICONS[snapFeedback.type] || Crosshair;
+        return (
         <>
           <svg className="sketch-snap-guides" aria-hidden="true">
             {snapFeedback.guides.map((guide, index) => <line key={`${snapFeedback.type}-${index}`} {...guide} />)}
           </svg>
-          <div className={`sketch-snap-marker ${snapFeedback.type}`} style={{ left: snapFeedback.x, top: snapFeedback.y }} aria-label={`Snap: ${snapFeedback.label}`}><i /><span><b>SNAP</b>{snapFeedback.label}</span></div>
+          <div className={`sketch-snap-marker ${snapFeedback.type} ${snapFeedback.placement}`} style={{ left: snapFeedback.x, top: snapFeedback.y }} data-snap-type={snapFeedback.type} role="status" aria-live="polite" aria-label={`Snap: ${snapFeedback.label}`}><i><SnapIcon size={13} strokeWidth={2.4} /></i><span><b>SNAP</b>{snapFeedback.label}</span></div>
         </>
+        );
+      })()}
+      {activeSketchId && selectedSketchEntityIds.length > 0 && onDeleteSketchSelection && (
+        <div className="sketch-selection-actions" role="toolbar" aria-label="Akcje zaznaczenia szkicu">
+          <span>{selectedSketchEntityIds.length === 1 ? '1 element zaznaczony' : `${selectedSketchEntityIds.length} elementy zaznaczone`}</span>
+          <button type="button" title={`Usuń zaznaczenie (${window.desktopApp?.platform === 'darwin' ? '⌫' : 'Delete'})`} onClick={onDeleteSketchSelection}><Trash2 size={14} /> Usuń <kbd>{window.desktopApp?.platform === 'darwin' ? '⌫' : 'Del'}</kbd></button>
+        </div>
       )}
       {selectionBox && <div className={`sketch-selection-box ${selectionBox.crossing ? 'crossing' : 'inside'}`} style={{ left: selectionBox.left, top: selectionBox.top, width: selectionBox.width, height: selectionBox.height }} />}
       {activeSketch?.diagnostics?.length > 0 && (
