@@ -618,6 +618,7 @@ async function runUiFlow(window) {
   progress('open chain thin extrude');
   const openThinLineId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(openThinLineId)}], 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Thin Extrude')?.disabled)`, 'aktywny Thin Extrude dla otwartego łańcucha');
   await clickTool('Thin Extrude');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie') && document.querySelector('.command-dialog')?.textContent.includes('Zakończenie')`, 'podgląd otwartego Thin Extrude');
   progress('open chain thin cancel');
@@ -625,6 +626,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 0 && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'anulowanie otwartego Thin Extrude');
   progress('open chain thin reopen');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(openThinLineId)}], 'replace')`);
+  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Thin Extrude')?.disabled)`, 'ponownie aktywny Thin Extrude dla otwartego łańcucha');
   await clickTool('Thin Extrude');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Zakończenie')`, 'ponowny podgląd otwartego Thin Extrude');
   await setCommandField('Odległość', '5');
