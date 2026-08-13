@@ -132,8 +132,8 @@ function arcPoints(center, start, end, direction, steps = 32) {
 }
 
 function sketchEntityColor(entity, selected = false, error = false) {
-  if (selected) return 0xffc857;
   if (error || entity.error) return 0xff5e66;
+  if (selected) return 0xffc857;
   if (entity.role === 'projected') return 0xc388e8;
   if (entity.role === 'construction' || entity.role === 'centerline') return 0x7893a2;
   if (entity.fixed) return 0x67d987;
@@ -141,8 +141,8 @@ function sketchEntityColor(entity, selected = false, error = false) {
 }
 
 function sketchEntityState(entity, selected, error = false) {
-  if (selected) return 'selected';
   if (error || entity.error) return 'error';
+  if (selected) return 'selected';
   if (entity.role === 'projected') return 'projected';
   if (entity.role === 'construction' || entity.role === 'centerline') return 'construction';
   if (entity.fixed) return 'fully-constrained';

@@ -2240,7 +2240,7 @@ export default function ModelingWorkspace() {
     try {
       const checked = cloneDocument(document);
       const result = applyOffset(checked);
-      commit(applyOffset);
+      commit((next) => Object.assign(next, checked));
       setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: result.createdEntityIds });
       setCommand(null);
       setNotice(`Offset utworzył ${result.createdEntityIds.length} ${result.createdEntityIds.length === 1 ? 'krzywą' : 'krzywe'} w odległości ${result.distance} mm. Cofnij przywraca stan.`);
@@ -2264,7 +2264,7 @@ export default function ModelingWorkspace() {
     try {
       const checked = cloneDocument(document);
       const result = applyCorner(checked);
-      commit(applyCorner);
+      commit((next) => Object.assign(next, checked));
       setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: [result.connectorEntityId] });
       setCommand(null);
       setNotice(`${command.mode === 'fillet' ? 'Fillet' : 'Chamfer'} szkicu wykonany${result.removedConstraintIds.length ? `; usunięto ${result.removedConstraintIds.length} zerwanych więzów` : ''}. Cofnij przywraca cały narożnik.`);
@@ -2294,7 +2294,7 @@ export default function ModelingWorkspace() {
     try {
       const checked = cloneDocument(document);
       const result = applyTransform(checked);
-      commit(applyTransform);
+      commit((next) => Object.assign(next, checked));
       const resultIds = result.createdEntityIds || result.transformedEntityIds;
       setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: resultIds });
       setCommand(null);
@@ -2326,7 +2326,7 @@ export default function ModelingWorkspace() {
     try {
       const checked = cloneDocument(document);
       const result = applyPattern(checked);
-      commit(applyPattern);
+      commit((next) => Object.assign(next, checked));
       setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: result.createdEntityIds });
       setCommand(null);
       setNotice(`${command.mode === 'circular' ? 'Szyk kołowy' : command.mode === 'path' ? 'Szyk po ścieżce' : 'Szyk prostokątny'} utworzył ${result.occurrences.length} ${result.occurrences.length === 1 ? 'kopię' : 'kopie'}${result.skippedOccurrences.length ? `; pominięto: ${result.skippedOccurrences.join(', ')}` : ''}. Cofnij przywraca stan.`);
@@ -2351,8 +2351,9 @@ export default function ModelingWorkspace() {
         if (!record) throw new Error(`Nie znaleziono źródła ${item.kind}.`);
         return { selection: { ...item, sourceFeatureId: item.sourceFeatureId || body.sourceFeatureId }, descriptor: record.descriptor };
       });
-      let result;
-      commit((next) => { result = projectTopologyToSketch(next, activeSketchId, sources); });
+      const checked = cloneDocument(document);
+      const result = projectTopologyToSketch(checked, activeSketchId, sources);
+      commit((next) => Object.assign(next, checked));
       setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: result.createdEntityIds });
       setCommand(null);
       setNotice(`Project utworzył ${result.createdEntityIds.length} elementów z ${result.createdReferenceIds.length} trwałych referencji.`);
