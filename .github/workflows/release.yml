@@ -125,7 +125,11 @@ jobs:
             echo "APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID are mandatory for notarized macOS releases."
             exit 1
           fi
-          npx electron-builder --publish never
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            npx electron-builder --publish never --config.extraMetadata.madcadMacTeamId="$APPLE_TEAM_ID"
+          else
+            npx electron-builder --publish never
+          fi
 
       - name: Create SHA-256 sidecars
         working-directory: madcad-2d

@@ -14,12 +14,18 @@ function parseCandidate(raw, source) {
 }
 
 export function loadInitialDocument(storage = window.localStorage) {
-  const primary = storage.getItem(AUTOSAVE_KEY);
+  let primary = null;
+  let backup = null;
+  try {
+    primary = storage.getItem(AUTOSAVE_KEY);
+    backup = storage.getItem(AUTOSAVE_BACKUP_KEY);
+  } catch (_storageError) {
+    // Niedostępny Web Storage nie może blokować plikowego odzyskiwania w aplikacji desktopowej.
+  }
   if (primary) {
     try {
       return parseCandidate(primary, 'local-primary');
     } catch (primaryError) {
-      const backup = storage.getItem(AUTOSAVE_BACKUP_KEY);
       if (backup) {
         try {
           const recovered = parseCandidate(backup, 'local-backup');
@@ -51,7 +57,6 @@ export function loadInitialDocument(storage = window.localStorage) {
     }
   }
 
-  const backup = storage.getItem(AUTOSAVE_BACKUP_KEY);
   if (backup) {
     try {
       const recovered = parseCandidate(backup, 'local-backup');

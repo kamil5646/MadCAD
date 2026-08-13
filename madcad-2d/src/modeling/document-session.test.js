@@ -54,4 +54,15 @@ describe('document session persistence', () => {
     expect(hasUnsavedSession({ readOnly: true, savedDocumentText: '{"saved":true}', serializedDocument: '{"projected":true}' })).toBe(false);
     expect(hasUnsavedSession({ readOnly: false, savedDocumentText: '{"saved":true}', serializedDocument: '{"changed":true}' })).toBe(true);
   });
+
+  it('starts safely when Web Storage is unavailable', () => {
+    const unavailableStorage = {
+      getItem: () => { throw new DOMException('Storage denied', 'SecurityError'); },
+    };
+
+    const opened = loadInitialDocument(unavailableStorage);
+
+    expect(opened.recovered).toBe(false);
+    expect(opened.document).toBeTruthy();
+  });
 });

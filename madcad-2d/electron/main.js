@@ -18,6 +18,7 @@ const {
 const { readRecoverableTextFile, validateJsonText } = require('./recovery-file.cjs');
 const { normalizeWindowBounds } = require('./window-bounds.cjs');
 const updatePolicy = require('./update-policy.cjs');
+const packageMetadata = require('../package.json');
 
 const execFileAsync = promisify(execFile);
 
@@ -30,6 +31,9 @@ const MADCAD_RELEASE_API_URL = 'https://api.github.com/repos/kamil5646/MadCAD2D/
 const MADCAD_RELEASE_LATEST_PAGE_URL = 'https://github.com/kamil5646/MadCAD2D/releases/latest';
 const MADCAD_UPDATE_USER_AGENT = 'MadCAD2D-Updater/1.0';
 const MAX_UPDATE_DOWNLOAD_BYTES = 512 * 1024 * 1024;
+const TRUSTED_MAC_TEAM_ID = /^[A-Z0-9]{10}$/.test(String(packageMetadata.madcadMacTeamId || ''))
+  ? String(packageMetadata.madcadMacTeamId)
+  : '';
 let forceCloseForUpdate = false;
 let autosaveOperationQueue = Promise.resolve();
 
@@ -368,6 +372,9 @@ function downloadFileWithRedirects(url, destinationPath, redirectCount = 0) {
 }
 
 async function scheduleMacZipInstall(zipPath) {
+  if (!TRUSTED_MAC_TEAM_ID) {
+    throw new Error(t('Pakiet nie zawiera zaufanego identyfikatora zespołu Apple.', 'The package does not contain a trusted Apple Team ID.'));
+  }
   const appPath = path.resolve(process.execPath, '..', '..', '..');
   const executablePath = process.execPath;
   const scriptPath = path.join(app.getPath('temp'), `madcad-update-${Date.now()}.sh`);
@@ -378,6 +385,7 @@ ZIP_PATH="$1"
 TARGET_APP="$2"
 LOG_PATH="$3"
 APP_EXECUTABLE="$4"
+TRUSTED_TEAM="$5"
 BACKUP_APP="${'${TARGET_APP}'}.madcad-backup"
 
 exec >>"$LOG_PATH" 2>&1
@@ -413,8 +421,12 @@ if ! /usr/sbin/spctl --assess --type execute --verbose "$NEW_APP"; then
 fi
 CURRENT_TEAM="$(/usr/bin/codesign -dv --verbose=4 "$TARGET_APP" 2>&1 | /usr/bin/sed -n 's/^TeamIdentifier=//p')"
 NEW_TEAM="$(/usr/bin/codesign -dv --verbose=4 "$NEW_APP" 2>&1 | /usr/bin/sed -n 's/^TeamIdentifier=//p')"
-if [ -z "$CURRENT_TEAM" ] || [ -z "$NEW_TEAM" ] || [ "$CURRENT_TEAM" != "$NEW_TEAM" ]; then
+if [ -z "$NEW_TEAM" ] || [ "$NEW_TEAM" != "$TRUSTED_TEAM" ]; then
   echo "ERROR: signing TeamIdentifier mismatch"
+  exit 1
+fi
+if [ -n "$CURRENT_TEAM" ] && [ "$CURRENT_TEAM" != "$TRUSTED_TEAM" ]; then
+  echo "ERROR: installed app belongs to a different signing team"
   exit 1
 fi
 
@@ -447,7 +459,7 @@ echo "Opening installed app"
 echo "== MadCAD updater done: $(date) =="
 `;
   await fs.writeFile(scriptPath, scriptSource, { mode: 0o755 });
-  const child = spawn('/bin/bash', [scriptPath, zipPath, appPath, logPath, executablePath], {
+  const child = spawn('/bin/bash', [scriptPath, zipPath, appPath, logPath, executablePath, TRUSTED_MAC_TEAM_ID], {
     detached: true,
     stdio: 'ignore'
   });
@@ -1150,7 +1162,7 @@ registerTrustedIpcHandler('madcad:check-for-updates', async () => {
   }
 });
 
-registerTrustedIpcHandler('madcad:download-and-install-update', async () => {
+registerTrustedIpcHandler('madcad:download-and-install-update', async (event) => {
   try {
     if (!app.isPackaged) {
       return {
@@ -1220,6 +1232,10 @@ registerTrustedIpcHandler('madcad:download-and-install-update', async () => {
       };
     }
 
+    await event.sender.executeJavaScript(
+      'window.__madcadClearRuntimeSession && window.__madcadClearRuntimeSession();',
+      true
+    );
     await clearAutoSaveSnapshot();
     forceCloseForUpdate = true;
     setTimeout(() => {

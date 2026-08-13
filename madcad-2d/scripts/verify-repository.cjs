@@ -54,6 +54,8 @@ const main = read('madcad-2d/electron/main.js');
 rejectText(preload, /installOdaAddon|convertCadFile|getOdaStatus|chooseOdaConverterPath|openOdaDownload/, 'nieużywane API ODA w preload');
 rejectText(main, /ODAFileConverter|install-oda|convert-cad-file|get-oda-status|choose-oda|open-oda/, 'wycofany instalator i kanały ODA w procesie głównym');
 expectText(main, /__madcadPersistenceReady[\s\S]*?MadCAD nadal sprawdza autozapis/, 'blokada zamknięcia podczas odzyskiwania');
+expectText(main, /NEW_TEAM[\s\S]*?TRUSTED_TEAM[\s\S]*?installed app belongs to a different signing team/, 'zaufany Team ID aktualizatora macOS');
+expectText(main, /__madcadClearRuntimeSession[\s\S]*?clearAutoSaveSnapshot\(\)[\s\S]*?forceCloseForUpdate = true/, 'czyszczenie obu autozapisów przed aktualizacją');
 
 const notices = read('madcad-2d/THIRD_PARTY_NOTICES.md');
 for (const dependency of Object.keys(packageJson.dependencies || {})) {
@@ -62,6 +64,7 @@ for (const dependency of Object.keys(packageJson.dependencies || {})) {
 
 const releaseWorkflow = read('.github/workflows/release.yml');
 expectText(releaseWorkflow, /MADCAD_REQUIRE_SIGNATURE:\s*'1'/, 'obowiązkowa weryfikacja podpisu wydania');
+expectText(releaseWorkflow, /extraMetadata\.madcadMacTeamId="\$APPLE_TEAM_ID"/, 'Team ID osadzony w oficjalnym buildzie macOS');
 rejectText(releaseWorkflow, /building unsigned artifacts/i, 'publikacja niepodpisanych artefaktów');
 
 const codeqlWorkflow = read('.github/workflows/codeql.yml');
