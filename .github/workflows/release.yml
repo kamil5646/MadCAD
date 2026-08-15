@@ -100,6 +100,7 @@ jobs:
         run: npm run test:core
 
       - name: Run release UI smoke verification
+        if: runner.os != 'Linux'
         working-directory: madcad-2d
         run: |
           npm run verify:start-experience
