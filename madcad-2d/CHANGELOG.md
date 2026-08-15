@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 6.1.3 (2026-08-15)
 
 - Dodano właściwą stronę startową prowadzącą najpierw do rysunku 2D albo otwarcia projektu, z czytelnym przepływem `Szkic 2D → model parametryczny → eksport`.
 - Nowa instalacja otwiera pusty projekt zamiast przykładowej części, dzięki czemu strona startowa jest faktycznym pierwszym ekranem.
