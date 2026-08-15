@@ -1,5 +1,7 @@
 import opencascade from 'replicad-opencascadejs';
 import opencascadeWasm from 'replicad-opencascadejs/src/replicad_single.wasm?url';
+import manifoldModule from 'manifold-3d';
+import manifoldWasm from 'manifold-3d/manifold.wasm?url';
 import {
   Curve2D,
   FaceFinder,
@@ -12,7 +14,7 @@ import {
   drawRectangle,
   getOC,
   importSTEP,
-  importSTL,
+  importSTLAsMesh,
   makeAx2,
   makeBox,
   makeCylinder,
@@ -21,6 +23,7 @@ import {
   measureShapeSurfaceProperties,
   measureShapeVolumeProperties,
   setOC,
+  setManifold,
 } from 'replicad';
 import { FEATURE_STATUS, prepareDocument } from './evaluator.js';
 import { evaluateFeatureHistory } from './feature-history.js';
@@ -31,8 +34,10 @@ import { RevisionCache, SerialTaskQueue, estimateMeshBytes, isStaleRevision } fr
 import { calculatePrintLayout, normalizePrintLayout } from './print-layout.js';
 import { createThreeMfArchive } from './three-mf.js';
 import { boundsOverlap } from './geometry-inspection.js';
+import { parseStlMesh } from './model-import.js';
 
 let kernelPromise;
+let manifoldPromise;
 let latestRequestedRevision = 0;
 const requestQueue = new SerialTaskQueue();
 const revisionCache = new RevisionCache({
@@ -52,6 +57,131 @@ async function ensureKernel() {
     });
   }
   return kernelPromise;
+}
+
+async function ensureMeshKernel() {
+  await ensureKernel();
+  if (!manifoldPromise) {
+    manifoldPromise = manifoldModule({ locateFile: () => manifoldWasm }).then((manifold) => {
+      setManifold(manifold);
+      return manifold;
+    });
+  }
+  return manifoldPromise;
+}
+
+function rawMeshMetrics(vertices, triangles) {
+  const bounds = [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]];
+  const normals = new Array(vertices.length).fill(0);
+  const weightedCenter = [0, 0, 0];
+  let signedVolume = 0;
+  let area = 0;
+  for (let index = 0; index < vertices.length; index += 3) {
+    for (let axis = 0; axis < 3; axis += 1) {
+      bounds[0][axis] = Math.min(bounds[0][axis], vertices[index + axis]);
+      bounds[1][axis] = Math.max(bounds[1][axis], vertices[index + axis]);
+    }
+  }
+  for (let index = 0; index < triangles.length; index += 3) {
+    const first = triangles[index] * 3;
+    const second = triangles[index + 1] * 3;
+    const third = triangles[index + 2] * 3;
+    const ax = vertices[first]; const ay = vertices[first + 1]; const az = vertices[first + 2];
+    const bx = vertices[second]; const by = vertices[second + 1]; const bz = vertices[second + 2];
+    const cx = vertices[third]; const cy = vertices[third + 1]; const cz = vertices[third + 2];
+    const ab = [bx - ax, by - ay, bz - az];
+    const ac = [cx - ax, cy - ay, cz - az];
+    const cross = [ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0]];
+    const crossLength = Math.hypot(...cross);
+    area += crossLength / 2;
+    const normal = crossLength > 0 ? cross.map((value) => value / crossLength) : [0, 0, 1];
+    for (const offset of [first, second, third]) {
+      normals[offset] = normal[0];
+      normals[offset + 1] = normal[1];
+      normals[offset + 2] = normal[2];
+    }
+    const tetrahedronVolume = (ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6;
+    signedVolume += tetrahedronVolume;
+    weightedCenter[0] += tetrahedronVolume * (ax + bx + cx) / 4;
+    weightedCenter[1] += tetrahedronVolume * (ay + by + cy) / 4;
+    weightedCenter[2] += tetrahedronVolume * (az + bz + cz) / 4;
+  }
+  const centerOfMass = Math.abs(signedVolume) > GEOMETRY_POLICY.linearTolerance ** 3
+    ? weightedCenter.map((value) => value / signedVolume)
+    : bounds[0].map((value, axis) => (value + bounds[1][axis]) / 2);
+  return { area, bounds, centerOfMass, normals, volume: Math.abs(signedVolume) };
+}
+
+class RawMeshShape {
+  constructor(vertices, triangles) {
+    this.vertices = Array.from(vertices);
+    this.triangles = Array.from(triangles);
+    this.metrics = rawMeshMetrics(this.vertices, this.triangles);
+  }
+
+  clone() { return new RawMeshShape(this.vertices, this.triangles); }
+
+  mapVertices(transform) {
+    const vertices = this.vertices.slice();
+    for (let index = 0; index < vertices.length; index += 3) {
+      const point = transform([vertices[index], vertices[index + 1], vertices[index + 2]]);
+      vertices[index] = point[0];
+      vertices[index + 1] = point[1];
+      vertices[index + 2] = point[2];
+    }
+    return new RawMeshShape(vertices, this.triangles);
+  }
+
+  translate(x, y = 0, z = 0) {
+    const vector = Array.isArray(x) ? x : [x, y, z];
+    return this.mapVertices((point) => point.map((value, axis) => value + vector[axis]));
+  }
+
+  scale(factor, center = [0, 0, 0]) {
+    return this.mapVertices((point) => point.map((value, axis) => center[axis] + (value - center[axis]) * factor));
+  }
+
+  rotate(angle, position = [0, 0, 0], direction = [0, 0, 1]) {
+    const radians = angle * Math.PI / 180;
+    const length = Math.hypot(...direction) || 1;
+    const axis = direction.map((value) => value / length);
+    const cosine = Math.cos(radians);
+    const sine = Math.sin(radians);
+    return this.mapVertices((point) => {
+      const vector = point.map((value, index) => value - position[index]);
+      const dot = vector.reduce((total, value, index) => total + value * axis[index], 0);
+      const cross = [axis[1] * vector[2] - axis[2] * vector[1], axis[2] * vector[0] - axis[0] * vector[2], axis[0] * vector[1] - axis[1] * vector[0]];
+      return vector.map((value, index) => position[index] + value * cosine + cross[index] * sine + axis[index] * dot * (1 - cosine));
+    });
+  }
+
+  mesh() { return { vertices: this.vertices, triangles: this.triangles, normals: this.metrics.normals }; }
+  volume() { return this.metrics.volume; }
+  surfaceArea() { return this.metrics.area; }
+  numTri() { return this.triangles.length / 3; }
+  numVert() { return this.vertices.length / 3; }
+  numEdge() { return this.triangles.length; }
+  get isEmpty() { return !this.triangles.length; }
+  fuse() { throw new Error('Otwarta siatka STL/3MF nie obsługuje operacji Boolean.'); }
+  cut() { throw new Error('Otwarta siatka STL/3MF nie obsługuje operacji Boolean.'); }
+  intersect() { throw new Error('Otwarta siatka STL/3MF nie obsługuje operacji Boolean.'); }
+  delete() {}
+
+  blobSTL() {
+    const buffer = new ArrayBuffer(84 + this.numTri() * 50);
+    const view = new DataView(buffer);
+    view.setUint32(80, this.numTri(), true);
+    for (let triangle = 0; triangle < this.numTri(); triangle += 1) {
+      const output = 84 + triangle * 50;
+      const vertexIndices = this.triangles.slice(triangle * 3, triangle * 3 + 3);
+      const normalOffset = vertexIndices[0] * 3;
+      for (let axis = 0; axis < 3; axis += 1) view.setFloat32(output + axis * 4, this.metrics.normals[normalOffset + axis], true);
+      vertexIndices.forEach((vertexIndex, pointIndex) => {
+        for (let axis = 0; axis < 3; axis += 1) view.setFloat32(output + 12 + pointIndex * 12 + axis * 4, this.vertices[vertexIndex * 3 + axis], true);
+      });
+    }
+    return new Blob([buffer], { type: 'model/stl' });
+  }
 }
 
 function rationalConicCurve(segment) {
@@ -346,7 +476,14 @@ function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.type === 'importedModel') {
     if (!feature.importedShape) throw new Error(`Nie załadowano geometrii ${feature.name}.`);
     const bodyId = `body-${feature.id}`;
-    bodyMap.set(bodyId, { id: bodyId, name: feature.name, sourceFeatureId: feature.id, representation: feature.importFormat === 'step' ? 'brep' : 'mesh-import', shape: feature.importedShape });
+    bodyMap.set(bodyId, {
+      id: bodyId,
+      name: feature.name,
+      sourceFeatureId: feature.id,
+      representation: feature.importFormat === 'step' ? 'brep' : 'mesh-import',
+      meshBooleanCapable: feature.importFormat === 'step' || feature.meshBooleanCapable !== false,
+      shape: feature.importedShape,
+    });
     bodyOrder.push(bodyId);
     return;
   }
@@ -631,6 +768,9 @@ function runFeature(feature, bodyMap, bodyOrder) {
     const target = bodyMap.get(feature.targetBodyId);
     const tool = bodyMap.get(feature.toolBodyId);
     if (!target || !tool || target.id === tool.id) throw new Error(`Boolean ${feature.name} wymaga dwóch różnych brył.`);
+    if (target.representation !== tool.representation || target.meshBooleanCapable === false || tool.meshBooleanCapable === false) {
+      throw new Error('Boolean wymaga dwóch zgodnych brył B-Rep albo dwóch zamkniętych siatek manifold.');
+    }
     if (feature.operation === 'union') target.shape = target.shape.fuse(tool.shape);
     else if (feature.operation === 'subtract') target.shape = target.shape.cut(tool.shape);
     else if (feature.operation === 'intersect') target.shape = target.shape.intersect(tool.shape);
@@ -1129,8 +1269,87 @@ function measureBodyShape(shape) {
   }
 }
 
+function measureMeshShape(shape, sourceMesh = null) {
+  const mesh = sourceMesh || shape.mesh();
+  const bounds = [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]];
+  for (let index = 0; index < mesh.vertices.length; index += 3) {
+    for (let axis = 0; axis < 3; axis += 1) {
+      const value = mesh.vertices[index + axis];
+      bounds[0][axis] = Math.min(bounds[0][axis], value);
+      bounds[1][axis] = Math.max(bounds[1][axis], value);
+    }
+  }
+  let signedVolume = 0;
+  const weightedCenter = [0, 0, 0];
+  for (let index = 0; index < mesh.triangles.length; index += 3) {
+    const first = mesh.triangles[index] * 3;
+    const second = mesh.triangles[index + 1] * 3;
+    const third = mesh.triangles[index + 2] * 3;
+    const ax = mesh.vertices[first];
+    const ay = mesh.vertices[first + 1];
+    const az = mesh.vertices[first + 2];
+    const bx = mesh.vertices[second];
+    const by = mesh.vertices[second + 1];
+    const bz = mesh.vertices[second + 2];
+    const cx = mesh.vertices[third];
+    const cy = mesh.vertices[third + 1];
+    const cz = mesh.vertices[third + 2];
+    const tetrahedronVolume = (
+      ax * (by * cz - bz * cy)
+      - ay * (bx * cz - bz * cx)
+      + az * (bx * cy - by * cx)
+    ) / 6;
+    signedVolume += tetrahedronVolume;
+    weightedCenter[0] += tetrahedronVolume * (ax + bx + cx) / 4;
+    weightedCenter[1] += tetrahedronVolume * (ay + by + cy) / 4;
+    weightedCenter[2] += tetrahedronVolume * (az + bz + cz) / 4;
+  }
+  const centerOfMass = Math.abs(signedVolume) > GEOMETRY_POLICY.linearTolerance ** 3
+    ? weightedCenter.map((value) => value / signedVolume)
+    : bounds[0].map((value, axis) => (value + bounds[1][axis]) / 2);
+  return {
+    volume: shape.volume(),
+    area: shape.surfaceArea(),
+    centerOfMass,
+    bounds,
+    dimensions: bounds[0].map((value, axis) => bounds[1][axis] - value),
+    faceCount: shape.numTri(),
+    edgeCount: shape.numEdge(),
+    minimumRadius: null,
+  };
+}
+
 function meshBody(body, index, quality = 'display') {
   const startedAt = performance.now();
+  if (body.representation === 'mesh-import') {
+    const mesh = body.shape.mesh();
+    const renderBody = {
+      id: body.id,
+      name: body.name,
+      sourceFeatureId: body.sourceFeatureId,
+      representation: 'mesh-import',
+      meshBooleanCapable: body.meshBooleanCapable !== false,
+      color: ['#55b7db', '#81c784', '#ffb95c', '#c49cff'][index % 4],
+      vertices: Float32Array.from(mesh.vertices),
+      normals: Float32Array.from(mesh.normals),
+      triangles: Uint32Array.from(mesh.triangles),
+      lines: new Float32Array(),
+      faceGroups: [],
+      edgeGroups: [],
+      topology: { faces: [], edges: [], vertices: [] },
+      metrics: measureMeshShape(body.shape, mesh),
+    };
+    renderBody.bounds = renderBody.metrics.bounds;
+    return {
+      renderBody,
+      topologyState: { faces: [], edges: [], vertices: [] },
+      performance: {
+        bodyId: body.id,
+        durationMs: performance.now() - startedAt,
+        triangleCount: renderBody.triangles.length / 3,
+      },
+    };
+  }
   const meshPolicy = quality === 'preview' ? GEOMETRY_POLICY.previewMesh : GEOMETRY_POLICY.displayMesh;
   const mesh = body.shape.mesh({
     tolerance: meshPolicy.linearTolerance,
@@ -1155,7 +1374,7 @@ function meshBody(body, index, quality = 'display') {
     id: body.id,
     name: body.name,
     sourceFeatureId: body.sourceFeatureId,
-    representation: 'mesh',
+    representation: body.representation || 'brep',
     color: ['#55b7db', '#81c784', '#ffb95c', '#c49cff'][index % 4],
     vertices: Float32Array.from(mesh.vertices),
     normals: Float32Array.from(mesh.normals),
@@ -1203,15 +1422,35 @@ async function evaluateRevision(document, quality) {
   const prepared = prepareDocument(document);
   const prepareMs = performance.now() - prepareStartedAt;
   const importStartedAt = performance.now();
-  const features = await Promise.all(prepared.features.map(async (feature) => {
-    if (feature.type !== 'importedModel' || feature.status === FEATURE_STATUS.SUPPRESSED) return feature;
+  const features = [];
+  for (const feature of prepared.features) {
+    if (feature.type !== 'importedModel' || feature.status === FEATURE_STATUS.SUPPRESSED) {
+      features.push(feature);
+      continue;
+    }
     const bytes = Uint8Array.from(atob(feature.dataBase64), (character) => character.charCodeAt(0));
     const blob = new Blob([bytes], { type: feature.importFormat === 'step' ? 'model/step' : 'model/stl' });
-    let importedShape = feature.importFormat === 'step' ? await importSTEP(blob) : await importSTL(blob);
+    let importedShape;
+    let meshBooleanCapable = true;
+    if (feature.importFormat === 'step') importedShape = await importSTEP(blob);
+    else {
+      try {
+        await ensureMeshKernel();
+        importedShape = await importSTLAsMesh(blob);
+      } catch (_error) {
+        const parsedMesh = parseStlMesh(bytes);
+        importedShape = new RawMeshShape(parsedMesh.vertices, parsedMesh.triangles);
+        meshBooleanCapable = false;
+      }
+    }
     const unitScale = Number(feature.unitScale) || 1;
-    if (Math.abs(unitScale - 1) > 1e-12) importedShape = importedShape.scale(unitScale, [0, 0, 0]);
-    return { ...feature, importedShape };
-  }));
+    if (Math.abs(unitScale - 1) > 1e-12) {
+      const unscaledShape = importedShape;
+      importedShape = importedShape.scale(unitScale, [0, 0, 0]);
+      unscaledShape.delete?.();
+    }
+    features.push({ ...feature, importedShape, meshBooleanCapable });
+  }
   const importMs = performance.now() - importStartedAt;
   const historyStartedAt = performance.now();
   const history = evaluateFeatureHistory(features, runFeature);
@@ -1249,17 +1488,24 @@ function analyzeBodyCollisions(kernelBodies, renderBodies) {
   const collisions = [];
   let candidatePairs = 0;
   let exactPairs = 0;
+  let skippedPairs = 0;
   for (let first = 0; first < kernelBodies.length; first += 1) {
     for (let second = first + 1; second < kernelBodies.length; second += 1) {
       candidatePairs += 1;
       if (!boundsOverlap(renderBodies[first]?.bounds, renderBodies[second]?.bounds, GEOMETRY_POLICY.linearTolerance)) continue;
+      if (kernelBodies[first].representation !== kernelBodies[second].representation
+        || kernelBodies[first].meshBooleanCapable === false
+        || kernelBodies[second].meshBooleanCapable === false) {
+        skippedPairs += 1;
+        continue;
+      }
       exactPairs += 1;
       let common;
       let volume;
       try {
         common = kernelBodies[first].shape.intersect(kernelBodies[second].shape);
-        volume = measureShapeVolumeProperties(common);
-        if (volume.volume > GEOMETRY_POLICY.linearTolerance ** 3) collisions.push({ firstBodyId: kernelBodies[first].id, secondBodyId: kernelBodies[second].id, volume: volume.volume });
+        const volumeValue = kernelBodies[first].representation === 'mesh-import' ? common.volume() : (volume = measureShapeVolumeProperties(common)).volume;
+        if (volumeValue > GEOMETRY_POLICY.linearTolerance ** 3) collisions.push({ firstBodyId: kernelBodies[first].id, secondBodyId: kernelBodies[second].id, volume: volumeValue });
       } finally {
         volume?.delete();
         common?.delete();
@@ -1268,9 +1514,10 @@ function analyzeBodyCollisions(kernelBodies, renderBodies) {
   }
   return {
     collisions,
-    collisionStatus: 'complete',
+    collisionStatus: skippedPairs ? 'partial' : 'complete',
     candidatePairs,
     exactPairs,
+    skippedPairs,
     collisionMs: performance.now() - collisionStartedAt,
   };
 }
@@ -1352,14 +1599,25 @@ async function validateExportRoundTrip(kernelBodies, blobs, format) {
   const tolerance = format === 'step'
     ? GEOMETRY_POLICY.roundTrip.stepRelativeTolerance
     : GEOMETRY_POLICY.roundTrip.stlRelativeTolerance;
-  return Promise.all(blobs.map(async (blob, index) => {
-    const imported = format === 'step' ? await importSTEP(blob) : await importSTL(blob);
+  const results = [];
+  for (let index = 0; index < blobs.length; index += 1) {
+    let imported;
+    if (format === 'step') imported = await importSTEP(blobs[index]);
+    else {
+      const mesh = parseStlMesh(new Uint8Array(await blobs[index].arrayBuffer()));
+      imported = new RawMeshShape(mesh.vertices, mesh.triangles);
+    }
     try {
-      return compareRoundTrip(measureBodyShape(kernelBodies[index].shape), measureBodyShape(imported), tolerance);
+      const sourceMetrics = kernelBodies[index].representation === 'mesh-import'
+        ? measureMeshShape(kernelBodies[index].shape)
+        : measureBodyShape(kernelBodies[index].shape);
+      const importedMetrics = format === 'step' ? measureBodyShape(imported) : measureMeshShape(imported);
+      results.push(compareRoundTrip(sourceMetrics, importedMetrics, tolerance));
     } finally {
       imported.delete?.();
     }
-  }));
+  }
+  return results;
 }
 
 function preparePrintBodies(kernelBodies, renderBodies, print) {
@@ -1379,6 +1637,9 @@ function preparePrintBodies(kernelBodies, renderBodies, print) {
 async function exportBodies(kernelBodies, format, validateRoundTrip = false) {
   if (!kernelBodies.length) throw new Error('Brak bryły do eksportu.');
   if (!['step', 'stl', '3mf'].includes(format)) throw new Error(`Nieobsługiwany format eksportu: ${format}.`);
+  if (format === 'step' && kernelBodies.some((body) => body.representation === 'mesh-import')) {
+    throw new Error('Eksport STEP wymaga dokładnej bryły B-Rep. Zaimportowany STL/3MF można zapisać jako STL lub 3MF.');
+  }
   if (format === '3mf') {
     const meshes = kernelBodies.map(({ name, shape }) => ({ name, ...shape.mesh({ tolerance: GEOMETRY_POLICY.exportMesh.linearTolerance, angularTolerance: GEOMETRY_POLICY.exportMesh.angularTolerance }) }));
     const archive = createThreeMfArchive(meshes);
@@ -1418,7 +1679,7 @@ async function handleMessage(data) {
   }
   if (type === 'analyze-collisions') {
     const evaluated = await resolveRevision(document, revision, 'display');
-    if (evaluated.analysis.collisionStatus !== 'complete') {
+    if (evaluated.analysis.collisionStatus === 'not-run') {
       const collisionResult = analyzeBodyCollisions(evaluated.kernelBodies, evaluated.renderBodies);
       evaluated.analysis = collisionResult;
       evaluated.performance = { ...evaluated.performance, collisionMs: collisionResult.collisionMs };

@@ -68,6 +68,7 @@ import { boundsOverlap, summarizeGeometryInspection } from '../src/cad-core/geom
 import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-profiles.js';
 import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, transformPrintPoint } from '../src/cad-core/print-layout.js';
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
+import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../src/cad-core/model-import.js';
 import { analyzePrintability } from '../src/cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../src/cad-core/sketch-import.js';
 import { resolveModelingLanguage, translateModelingText } from '../src/modeling/i18n.js';
@@ -1088,7 +1089,14 @@ test('analiza geometrii wybiera minimalny promień i zachowuje dokładne pary ko
     { metrics: { minimumRadius: 3 } },
     { metrics: { minimumRadius: null } },
   ], { collisions: [{ firstBodyId: 'a', secondBodyId: 'b', volume: 12 }] });
-  assert.deepEqual(result, { bodyCount: 3, minimumRadius: 3, collisions: [{ firstBodyId: 'a', secondBodyId: 'b', volume: 12 }] });
+  assert.deepEqual(result, {
+    bodyCount: 3,
+    minimumRadius: 3,
+    collisions: [{ firstBodyId: 'a', secondBodyId: 'b', volume: 12 }],
+    collisionStatus: 'not-run',
+    skippedPairs: 0,
+  });
+  assert.equal(summarizeGeometryInspection([], { collisionStatus: 'partial', skippedPairs: 2 }).skippedPairs, 2);
 });
 
 test('broad-phase kolizji odrzuca rozłączne AABB i zachowuje stykające się granice', () => {
@@ -2980,6 +2988,42 @@ test('eksport 3MF zapisuje milimetry, obiekty i trójkąty w poprawnym archiwum'
   assert.equal(inspection.objectCount, 1);
   assert.equal(inspection.triangleCount, 1);
   assert.ok(archive.byteLength > 300);
+});
+
+test('kontrola importu 3D rozpoznaje STEP, binarny STL i archiwum 3MF przed uruchomieniem silnika', () => {
+  const step = new TextEncoder().encode('ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;');
+  assert.deepEqual(inspectModelImportBuffer(step, 'stp'), {
+    format: 'step', bytes: step.byteLength, triangleCount: null, importMode: 'brep',
+  });
+
+  const stl = new Uint8Array(84 + 50);
+  new DataView(stl.buffer).setUint32(80, 1, true);
+  assert.deepEqual(inspectModelImportBuffer(stl, 'stl'), {
+    format: 'stl', bytes: stl.byteLength, triangleCount: 1, importMode: 'mesh',
+  });
+  const parsedBinary = parseStlMesh(stl);
+  assert.equal(parsedBinary.vertices.length, 9);
+  assert.deepEqual(parsedBinary.triangles, [0, 1, 2]);
+
+  const asciiStl = new TextEncoder().encode('solid open\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid open');
+  assert.deepEqual(parseStlMesh(asciiStl), { vertices: [0, 0, 0, 1, 0, 0, 0, 1, 0], triangles: [0, 1, 2] });
+
+  const archive = createThreeMfArchive([{
+    vertices: [0, 0, 0, 1, 0, 0, 0, 1, 0],
+    triangles: [0, 1, 2],
+  }]);
+  assert.equal(inspectModelImportBuffer(archive, '3mf').importMode, 'mesh');
+  assert.throws(() => inspectModelImportBuffer(new Uint8Array([1, 2, 3]), '3mf'), /archiwum ZIP/i);
+  assert.throws(() => inspectModelImportBuffer(step, 'step', 10), /Maksymalny rozmiar/i);
+});
+
+test('import 3D normalizuje jednostki 3MF i czytelnie pokazuje rozmiar pliku', () => {
+  assert.equal(normalizeModelUnit('micrometer'), 'micron');
+  assert.equal(normalizeModelUnit('metre'), 'meter');
+  assert.equal(normalizeModelUnit('foot'), 'foot');
+  assert.equal(normalizeModelUnit('nieznana'), 'millimeter');
+  assert.equal(formatModelFileSize(1536), '1.5 KB');
+  assert.equal(formatModelFileSize(5 * 1024 * 1024), '5.0 MB');
 });
 
 test('dokument przechowuje import STEP/STL/3MF z jawną skalą jednostki', () => {

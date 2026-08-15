@@ -27,7 +27,7 @@ Aktualne dla `6.3.0`. Interaktywną wersję otwiera przycisk **Samouczek** w gó
 ## Znane ograniczenia / Known limitations
 
 - DWG jest konwertowany lokalnie do DXF przez zainstalowany GNU LibreDWG lub ODA File Converter; złożone obiekty niestandardowe mogą zostać pominięte przez wybrany konwerter.
-- STEP zachowuje dokładną geometrię; parametryczna edycja importowanych siatek STL/3MF jest ograniczona.
+- STEP zachowuje dokładną geometrię B-Rep. STL/3MF wczytują się jako natywne siatki do pomiaru, transformacji i eksportu; narzędzia ścian i krawędzi wymagają B-Rep.
 - Analiza drukowalności opisuje ryzyko, a nie gwarancję wydruku.
 - Przekazanie do slicera wymaga zainstalowanego Bambu Studio, PrusaSlicer albo Cura.
 - Złożona zmiana historii może wymagać ręcznej naprawy referencji B-Rep.

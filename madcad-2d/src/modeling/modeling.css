@@ -748,6 +748,13 @@
   font-size: 9px;
 }
 
+.body-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
 .tree-root {
   min-height: 31px;
   border-bottom: 1px solid #39434f;

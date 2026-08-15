@@ -114,6 +114,7 @@ import { summarizeGeometryInspection } from '../cad-core/geometry-inspection.js'
 import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profiles.js';
 import { calculatePrintLayout, orientationForBedFace } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
+import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit } from '../cad-core/model-import.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { observeModelingLocalization, resolveModelingLanguage } from './i18n.js';
@@ -489,10 +490,12 @@ function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect,
           className={`tree-row tree-grandchild ${selection?.kind === 'body' && selection.id === body.id ? 'selected' : ''}`}
           key={body.id}
           type="button"
-          title={`Zaznacz bryłę ${body.name} do dalszych operacji.`}
+          title={body.representation === 'mesh-import'
+            ? `${body.name}: ${body.meshBooleanCapable === false ? 'otwarta siatka do pomiaru, transformacji i eksportu' : 'zamknięta siatka 3D'}.`
+            : `Zaznacz dokładną bryłę B-Rep ${body.name} do dalszych operacji.`}
           onClick={() => onSelect({ kind: 'body', id: body.id })}
         >
-          <span /><Box size={13} /><span>{body.name}</span><i className="body-color" style={{ background: body.color }} />
+          <span /><Box size={13} /><span>{body.name}</span><span className="body-kind"><small>{body.representation === 'mesh-import' ? (body.meshBooleanCapable === false ? 'SIATKA OTW.' : 'SIATKA') : 'B-REP'}</small><i className="body-color" style={{ background: body.color }} /></span>
         </button>
       ))}
     </aside>
@@ -664,8 +667,9 @@ function GeometryInspectionPanel({ result, onClose }) {
         <div className="measure-row"><span>Bryły</span><strong>{result.bodyCount}</strong></div>
         <div className="measure-row"><span>Min. promień</span><strong>{result.minimumRadius === null ? 'Brak powierzchni krzywoliniowych' : measureValue(result.minimumRadius, 'mm')}</strong></div>
         <div className="measure-row"><span>Kolizje</span><strong>{result.collisions.length}</strong></div>
+        {result.skippedPairs > 0 && <div className="measure-row"><span>Pominięte pary</span><strong>{result.skippedPairs} · niezgodna/otwarta siatka</strong></div>}
         {result.collisions.map((collision) => <div className="collision-row" key={`${collision.firstBodyId}:${collision.secondBodyId}`}><span>{collision.firstBodyId} ↔ {collision.secondBodyId}</span><strong>{measureValue(collision.volume, 'mm³')}</strong></div>)}
-        {!result.collisions.length && <p>Nie wykryto wspólnej objętości pomiędzy bryłami.</p>}
+        {!result.collisions.length && <p>{result.skippedPairs ? 'Nie wykryto kolizji w sprawdzonych parach; pominięte pary nie mają dokładnego wyniku.' : 'Nie wykryto wspólnej objętości pomiędzy bryłami.'}</p>}
       </div>
     </aside>
   );
@@ -678,6 +682,7 @@ const IMPORT_UNIT_OPTIONS = [
   ['inch', 'Cale (in)'],
   ['meter', 'Metry (m)'],
   ['micron', 'Mikrometry (µm)'],
+  ['foot', 'Stopy (ft)'],
 ];
 
 function ImportModelDialog({ draft, onChange, onConfirm, onCancel }) {
@@ -688,8 +693,14 @@ function ImportModelDialog({ draft, onChange, onConfirm, onCancel }) {
       <div className="command-dialog-body">
         <Field label="Plik" value={draft.fileName} disabled />
         <Field label="Format" value={draft.originalFormat.toUpperCase()} disabled />
+        <Field label="Rozmiar" value={formatModelFileSize(draft.sourceBytes)} disabled />
+        {draft.storedBytes !== draft.sourceBytes && <Field label="Dane projektu" value={formatModelFileSize(draft.storedBytes)} disabled />}
+        <Field label="Tryb" value={draft.importMode === 'brep' ? 'Dokładna geometria B-Rep' : 'Natywna siatka trójkątów'} disabled />
+        {Number.isFinite(draft.objectCount) && <Field label="Obiekty" value={String(draft.objectCount)} disabled />}
+        {Number.isFinite(draft.triangleCount) && <Field label="Trójkąty" value={draft.triangleCount.toLocaleString('pl-PL')} disabled />}
+        {draft.originalFormat === '3mf' && <Field label="Wykryta jedn." value={IMPORT_UNIT_OPTIONS.find(([value]) => value === draft.detectedUnit)?.[1] || draft.detectedUnit} disabled />}
         <label className="command-field"><span>Jednostka źródłowa</span><select value={draft.sourceUnit} onChange={(event) => onChange({ sourceUnit: event.target.value })}>{IMPORT_UNIT_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <div className="command-preview-note"><span className="preview-dot" />Model zostanie przeliczony do milimetrów. STEP zachowuje dokładną geometrię; STL i 3MF są importowane jako siatka.</div>
+        <div className="command-preview-note"><span className="preview-dot" />{draft.importMode === 'brep' ? 'STEP zachowa dokładne powierzchnie, krawędzie i operacje CAD.' : 'STL/3MF zostanie zachowany jako szybka siatka: można go oglądać, mierzyć, przesuwać i eksportować bez zawodnej konwersji do B-Rep.'}</div>
       </div>
       <footer><button className="secondary" type="button" onClick={onCancel}>Anuluj</button><button className="confirm" type="button" onClick={onConfirm}><Check size={14} /> Importuj</button></footer>
     </section>
@@ -1292,6 +1303,7 @@ export default function ModelingWorkspace() {
   const autosaveQueueRef = useRef(Promise.resolve());
   const autosaveSuspendedRef = useRef(false);
   const [importDraft, setImportDraft] = useState(null);
+  const [modelImportBusy, setModelImportBusy] = useState(false);
   const [sketchImportDraft, setSketchImportDraft] = useState(null);
   const registerShortcut = useCallback((shortcut, entry) => {
     const normalizedShortcut = shortcut.toUpperCase();
@@ -1499,6 +1511,13 @@ export default function ModelingWorkspace() {
     return next;
   }, [document, command]);
   const engine = useCadEngine(previewDocument, { quality: command?.previewFeature ? 'preview' : 'display' });
+  const selectedBodies = selectedBodyIds.map((bodyId) => engine.bodies.find((body) => body.id === bodyId)).filter(Boolean);
+  const selectedBodyRepresentations = selectedBodies.map((body) => body.representation);
+  const canBooleanSelectedBodies = selectedBodyIds.length === 2
+    && selectedBodyRepresentations.length === 2
+    && new Set(selectedBodyRepresentations).size === 1
+    && selectedBodies.every((body) => body.meshBooleanCapable !== false);
+  const containsImportedMesh = engine.bodies.some((body) => body.representation === 'mesh-import');
   const canCreateRib = Boolean(canExtrudeOpenChain && engine.bodies.length);
   const pressPullFace = selectedFaceItems.length === 1
     ? engine.bodies.find((body) => body.id === selectedFaceItems[0].bodyId)?.topology?.faces?.find((face) => face.id === selectedFaceItems[0].id)
@@ -1537,6 +1556,7 @@ export default function ModelingWorkspace() {
   const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => (['extrude', 'revolve', 'sweep', 'loft', 'coil', 'pipe'].includes(feature.type) && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')).map((feature) => `body-${feature.id}`)), [document.features]);
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
   const targetBodyId = selection?.kind === 'body' ? selection.id : (selection?.bodyId || engine.bodies[0]?.id || firstBodyId || null);
+  const targetBodySupportsSolidOperations = engine.bodies.find((body) => body.id === targetBodyId)?.meshBooleanCapable !== false;
   const topologyReferenceStates = useMemo(() => inspectTopologyReferences(document, actualBodies), [document, actualBodies]);
   const lostTopologyReferences = useMemo(
     () => engine.status === 'ready' && !command?.previewFeature ? topologyReferenceStates.filter((item) => item.status === 'lost') : [],
@@ -3438,7 +3458,9 @@ export default function ModelingWorkspace() {
     try {
       const analysis = await engine.analyzeCollisions();
       setCommand({ type: 'geometryInspection' });
-      setNotice(`Analiza zakończona · ${analysis.exactPairs}/${analysis.candidatePairs} par wymagało dokładnego przecięcia.`);
+      setNotice(analysis.skippedPairs
+        ? `Analiza częściowa · sprawdzono ${analysis.exactPairs}/${analysis.candidatePairs} par; pominięto ${analysis.skippedPairs} par mieszanych lub otwartych siatek.`
+        : `Analiza zakończona · ${analysis.exactPairs}/${analysis.candidatePairs} par wymagało dokładnego przecięcia.`);
     } catch (error) {
       setNotice(`Nie udało się przeprowadzić analizy kolizji: ${error.message}`);
     }
@@ -3448,6 +3470,10 @@ export default function ModelingWorkspace() {
     if (readOnly) return readOnlyNotice();
     if (selectedBodyIds.length !== 2) {
       setNotice('Wybierz dokładnie dwie bryły, używając Ctrl lub Shift. Ostatnia wskazana będzie narzędziem.');
+      return;
+    }
+    if (!canBooleanSelectedBodies) {
+      setNotice('Boolean wymaga dwóch zgodnych brył B-Rep albo dwóch zamkniętych siatek. Otwarta lub mieszana geometria nie może zostać połączona bryłowo.');
       return;
     }
     const [targetBodyId, toolBodyId] = selectedBodyIds;
@@ -4054,21 +4080,31 @@ export default function ModelingWorkspace() {
       setNotice('Import obsługuje pliki STEP, STL i 3MF.');
       return;
     }
+    setModelImportBusy(true);
+    setNotice(`Sprawdzanie i przygotowywanie pliku ${file.name}…`);
     try {
       const sourceBuffer = await file.arrayBuffer();
+      const normalizedFormat = originalFormat === 'stp' ? 'step' : originalFormat;
+      const inspection = inspectModelImportBuffer(sourceBuffer, normalizedFormat);
       let importFormat = originalFormat === 'step' || originalFormat === 'stp' ? 'step' : 'stl';
       let buffer = sourceBuffer;
       let detectedUnit = 'millimeter';
+      let objectCount = null;
+      let triangleCount = inspection.triangleCount;
       if (originalFormat === '3mf') {
         const [{ ThreeMFLoader }, { STLExporter }] = await Promise.all([
           import('three/examples/jsm/loaders/3MFLoader.js'),
           import('three/examples/jsm/exporters/STLExporter.js'),
         ]);
-        detectedUnit = inspectThreeMfArchive(sourceBuffer).unit;
+        const archiveInfo = inspectThreeMfArchive(sourceBuffer);
+        detectedUnit = normalizeModelUnit(archiveInfo.unit);
+        objectCount = archiveInfo.objectCount;
+        triangleCount = archiveInfo.triangleCount;
         const group = new ThreeMFLoader().parse(sourceBuffer);
         group.updateMatrixWorld(true);
         const exported = new STLExporter().parse(group, { binary: true });
         buffer = exported.buffer.slice(exported.byteOffset, exported.byteOffset + exported.byteLength);
+        inspectModelImportBuffer(buffer, 'stl');
       }
       const bytes = new Uint8Array(buffer);
       let binary = '';
@@ -4080,16 +4116,24 @@ export default function ModelingWorkspace() {
         importFormat,
         dataBase64: btoa(binary),
         sourceUnit: originalFormat === '3mf' ? detectedUnit : 'auto',
+        detectedUnit,
+        sourceBytes: inspection.bytes,
+        storedBytes: buffer.byteLength,
+        objectCount,
+        triangleCount,
+        importMode: inspection.importMode,
       });
-      setNotice(`Wczytano ${file.name}. Potwierdź jednostkę źródłową.`);
+      setNotice(`Wczytano ${file.name} · ${formatModelFileSize(inspection.bytes)}${Number.isFinite(triangleCount) ? ` · ${triangleCount.toLocaleString('pl-PL')} trójkątów` : ''}. Potwierdź jednostkę źródłową.`);
     } catch (error) {
       setNotice(`Nie udało się odczytać modelu: ${error.message}`);
+    } finally {
+      setModelImportBusy(false);
     }
   };
 
   const confirmModelImport = () => {
     if (!importDraft || readOnly) return;
-    const unitScale = { auto: 1, millimeter: 1, centimeter: 10, inch: 25.4, meter: 1000, micron: 0.001 }[importDraft.sourceUnit] || 1;
+    const unitScale = { auto: 1, millimeter: 1, centimeter: 10, inch: 25.4, meter: 1000, micron: 0.001, foot: 304.8 }[importDraft.sourceUnit] || 1;
     const feature = createFeature('importedModel', {
       name: importDraft.name || 'Model importowany',
       originalFormat: importDraft.originalFormat,
@@ -4097,12 +4141,15 @@ export default function ModelingWorkspace() {
       dataBase64: importDraft.dataBase64,
       sourceUnit: importDraft.sourceUnit,
       unitScale,
+      sourceBytes: importDraft.sourceBytes,
+      objectCount: importDraft.objectCount,
+      triangleCount: importDraft.triangleCount,
     });
     commit((next) => next.features.push(feature));
     setSelection({ kind: 'feature', id: feature.id });
     setImportDraft(null);
     setWorkspace('solid');
-    setNotice(`Zaimportowano ${importDraft.fileName} i przeliczono geometrię do milimetrów.`);
+    setNotice(`Importowanie ${importDraft.fileName} w silniku CAD… Model zostanie pokazany i dopasowany do widoku automatycznie.`);
   };
 
   const chooseSketchImport = async (event) => {
@@ -4192,7 +4239,9 @@ export default function ModelingWorkspace() {
       const extension = format === 'step' ? 'step' : format;
       const mime = format === 'stl' ? 'model/stl' : format === '3mf' ? 'model/3mf' : 'model/step';
       buffers.forEach((buffer, index) => downloadBlob(new Blob([buffer], { type: mime }), `${safeName(document.name)}${buffers.length > 1 ? `-${index + 1}` : ''}.${extension}`));
-      setNotice(`Wyeksportowano ${format.toUpperCase()} z dokładnej bryły B-Rep.`);
+      setNotice(format === 'step'
+        ? 'Wyeksportowano STEP z dokładnej bryły B-Rep.'
+        : `Wyeksportowano ${format.toUpperCase()} jako siatkę 3D.`);
     } catch (error) {
       setNotice(`Eksport nie powiódł się: ${error.message}`);
     }
@@ -4454,18 +4503,18 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="PŁASZCZYZNY"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Rotate3d} label="Plane angle" onClick={() => openConstructionPlane('angle')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Plane tangent" onClick={() => openConstructionPlane('tangent')} disabled={readOnly} /><ToolButton icon={Move3d} label="Plane path" onClick={() => openConstructionPlane('path')} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="OSIE"><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={Move3d} label="Oś normalna" onClick={() => openConstructionAxis('plane-normal')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-plane')} /></RibbonGroup>
                 <RibbonGroup label="PUNKTY"><ToolButton icon={CircleDotDashed} label="Punkt wierzchołka" onClick={() => openConstructionPoint('vertex')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt centrum" onClick={() => openConstructionPoint('center')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt przecięcia" onClick={() => openConstructionPoint('intersection')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={CircleDotDashed} label="Punkt środkowy" onClick={() => openConstructionPoint('midpoint')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt na osi" onClick={() => openConstructionPoint('on-axis')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis')} /></RibbonGroup>
-                <RibbonGroup label="IMPORT MODELU 3D" end><ToolButton icon={Upload} label="Import 3D" onClick={() => importInputRef.current?.click()} disabled={readOnly} /></RibbonGroup>
+                <RibbonGroup label="IMPORT MODELU 3D" end><ToolButton icon={Upload} label="Import 3D" onClick={() => importInputRef.current?.click()} disabled={readOnly || modelImportBusy} description={modelImportBusy ? 'Trwa przygotowywanie wybranego modelu.' : 'Importuj dokładny STEP albo siatkę STL/3MF.'} /></RibbonGroup>
               </>
             ) : workspace === 'print' ? (
               <>
-                <RibbonGroup label="DOKŁADNY CAD"><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
+                <RibbonGroup label="DOKŁADNY CAD"><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready' || containsImportedMesh} description={containsImportedMesh ? 'STEP jest dostępny wyłącznie dla dokładnych brył B-Rep. Zaimportowaną siatkę zapisz jako STL lub 3MF.' : 'Eksportuj dokładną geometrię CAD do STEP.'} /></RibbonGroup>
                 <RibbonGroup label="SIATKI 3D"><ToolButton icon={HardDriveDownload} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="3MF" onClick={() => exportModel('3mf')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
                 <RibbonGroup label="DRUK 3D · DODATEK"><ToolButton icon={Printer} label="Kontrola druku" onClick={() => setPrintPanelOpen(true)} /></RibbonGroup>
               </>
             ) : (
               <>
                 <RibbonGroup label="SZKIC 2D"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /></RibbonGroup>
-                <RibbonGroup label="UTWÓRZ BRYŁĘ 3D"><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || (!selectedProfile && !canExtrudeOpenChain)} /><ToolButton icon={Rotate3d} label="Revolve" onClick={openRevolve} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Move3d} label="Sweep" onClick={openSweep} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Layers3} label="Loft" onClick={openLoft} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={RotateCw} label="Coil" onClick={openCoil} disabled={readOnly || Boolean(activeSketchId)} /><ToolButton icon={Grid2X2} label="Pattern" onClick={openPattern} disabled={readOnly || !targetBodyId || Boolean(activeSketchId)} /><ToolButton icon={Move3d} label="Press Pull" onClick={openPressPull} disabled={readOnly || !canPressPull} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={Type} label="Tekst 3D" onClick={openTextSolid} disabled={readOnly} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || selectedBodyIds.length !== 2} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length} /></RibbonGroup>
+                <RibbonGroup label="UTWÓRZ BRYŁĘ 3D"><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || (!selectedProfile && !canExtrudeOpenChain)} /><ToolButton icon={Rotate3d} label="Revolve" onClick={openRevolve} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Move3d} label="Sweep" onClick={openSweep} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Layers3} label="Loft" onClick={openLoft} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={RotateCw} label="Coil" onClick={openCoil} disabled={readOnly || Boolean(activeSketchId)} /><ToolButton icon={Grid2X2} label="Pattern" onClick={openPattern} disabled={readOnly || !targetBodyId || !targetBodySupportsSolidOperations || Boolean(activeSketchId)} description={!targetBodySupportsSolidOperations ? 'Otwarta siatka nie obsługuje bryłowego szyku z łączeniem.' : undefined} /><ToolButton icon={Move3d} label="Press Pull" onClick={openPressPull} disabled={readOnly || !canPressPull} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={Type} label="Tekst 3D" onClick={openTextSolid} disabled={readOnly} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || !canBooleanSelectedBodies} description={!canBooleanSelectedBodies && selectedBodyIds.length === 2 ? 'Boolean wymaga zgodnych brył B-Rep albo dwóch zamkniętych siatek.' : undefined} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="MODYFIKUJ BRYŁĘ 3D"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Layers3} label="Shell" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Triangle} label="Draft" onClick={openDraft} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Scissors} label="Split Body" onClick={openSplitBody} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Scissors} label="Split Face" onClick={openSplitFace} disabled={readOnly || !canSplitFace} /><ToolButton icon={X} label="Delete Face + Heal" onClick={openDeleteFace} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Layers3} label="Replace Face" onClick={openReplaceFace} disabled={readOnly || selectedFaceItems.length !== 2} /><ToolButton icon={Layers3} label="Offset Face" onClick={openOffsetFace} disabled={readOnly || selectedFaceItems.length !== 1} /><ToolButton icon={Move3d} label="Przesuń bryłę" onClick={() => openTransform('move')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Rotate3d} label="Obróć bryłę" onClick={() => openTransform('rotate')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
                 <RibbonGroup label="WYBÓR" end><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
               </>

@@ -16,5 +16,7 @@ export function summarizeGeometryInspection(bodies, analysis = {}) {
     bodyCount: bodies.length,
     minimumRadius: radii.length ? Math.min(...radii) : null,
     collisions: (analysis.collisions || []).map((collision) => ({ ...collision })),
+    collisionStatus: analysis.collisionStatus || 'not-run',
+    skippedPairs: Number(analysis.skippedPairs) || 0,
   };
 }
