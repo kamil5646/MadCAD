@@ -477,8 +477,8 @@
   display: flex;
   flex: 0 0 auto;
   align-items: stretch;
-  height: 70px;
-  padding: 3px 5px 17px;
+  height: 56px;
+  padding: 3px 5px;
   overflow: hidden;
   border: 1px solid #4b5968;
   border-radius: 5px;
@@ -505,35 +505,16 @@
 
 .ribbon-tool-wrap {
   display: block;
-  width: 84px;
-  min-width: 84px;
+  width: auto;
+  min-width: 96px;
   height: 24px;
 }
 
 .ribbon-tool-wrap.featured {
-  width: 68px;
-  min-width: 68px;
+  width: auto;
+  min-width: 88px;
   height: 50px;
   grid-row: 1 / span 2;
-}
-
-.ribbon-group-label {
-  position: absolute;
-  right: 1px;
-  bottom: 0;
-  left: 1px;
-  height: 15px;
-  padding-top: 2px;
-  overflow: hidden;
-  border-top: 1px solid rgba(112, 129, 146, 0.32);
-  background: rgba(20, 27, 35, 0.28);
-  color: #aebbc6;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.095em;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .ribbon-tool {
@@ -547,9 +528,9 @@
   position: relative;
   display: grid;
   width: 100%;
-  min-width: 84px;
+  min-width: 96px;
   height: 24px;
-  padding: 1px 6px;
+  padding: 1px 8px;
   grid-template-columns: 20px minmax(0, 1fr);
   align-items: center;
   border: 1px solid rgba(100, 116, 135, 0.64);
@@ -563,7 +544,7 @@
 }
 
 .ribbon-tool.featured {
-  min-width: 68px;
+  min-width: 88px;
   height: 50px;
   padding: 2px 4px;
   grid-template-columns: 1fr;
@@ -673,16 +654,15 @@
 }
 
 .ribbon-label {
-  max-width: 58px;
-  overflow: hidden;
-  font-size: 9px;
+  max-width: none;
+  overflow: visible;
+  font-size: 9.5px;
   font-weight: 560;
   text-align: left;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.ribbon-tool.featured .ribbon-label { max-width: 64px; text-align: center; }
+.ribbon-tool.featured .ribbon-label { max-width: none; text-align: center; }
 
 .modeling-content {
   display: grid;

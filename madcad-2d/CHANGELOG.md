@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.1.9 (2026-08-15)
+
+- Usunięto dolne paski z nazwami grup narzędzi, które zabierały wysokość obszaru roboczego i tworzyły zbędne wizualne podziały.
+- Przyciski wstążki dopasowują teraz szerokość do pełnej nazwy polecenia; zwiększono minimalną szerokość, odstępy i czytelność etykiet bez pokazywania skrótów na powierzchni przycisków.
+
 ## 6.1.8 (2026-08-15)
 
 - Usunięto wiersz poleceń z interfejsu; linia zachowuje bezpośredni przepływ `L` → klik początku → kierunek → długość → `Enter` z kompaktowym polem przy aktywnym narzędziu.
