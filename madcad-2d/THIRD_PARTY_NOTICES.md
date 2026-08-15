@@ -1,6 +1,6 @@
 # Third-party notices
 
-MadCAD contains third-party components. They are not covered by the proprietary MadCAD license; each remains available under its own license. The list below is generated from the production entries of `package-lock.json` for MadCAD 6.1.
+MadCAD contains third-party components. They are not covered by the proprietary MadCAD license; each remains available under its own license. The list below is generated from the production entries of `package-lock.json` for MadCAD 6.3.
 
 | Package | Version | Declared license |
 |---|---:|---|
@@ -8,6 +8,7 @@ MadCAD contains third-party components. They are not covered by the proprietary 
 | `flatbush` | 4.6.2 | ISC |
 | `flatqueue` | 3.1.0 | ISC |
 | `lucide-react` | 0.468.0 | ISC |
+| `manifold-3d` | 3.5.1 | Apache-2.0 |
 | `opentype.js` | 1.3.4 | MIT |
 | `react` | 19.2.8 | MIT |
 | `react-dom` | 19.2.8 | MIT |

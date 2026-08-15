@@ -15,7 +15,7 @@ export const FIRST_PART_TUTORIAL = Object.freeze({
     limitationsTitle: 'Znane ograniczenia',
     limitations: Object.freeze([
       'DWG jest konwertowany lokalnie do DXF przez zainstalowany GNU LibreDWG lub ODA File Converter; złożone obiekty niestandardowe mogą zostać pominięte przez wybrany konwerter.',
-      'STEP zachowuje dokładną geometrię. STL i 3MF są siatkami, dlatego ich późniejsza edycja parametryczna jest ograniczona.',
+      'STEP zachowuje dokładną geometrię B-Rep. STL i 3MF wczytują się jako natywne siatki do pomiaru, transformacji i eksportu; operacje na ścianach i krawędziach wymagają B-Rep.',
       'Analiza drukowalności wskazuje ryzyko, ale nie gwarantuje poprawnego wydruku na konkretnej drukarce i materiale.',
       'Przekazanie do slicera wymaga zainstalowanego Bambu Studio, PrusaSlicer albo Cura.',
       'Bardzo złożona zmiana historii może wymagać ręcznego przypisania utraconej referencji B-Rep.',
@@ -38,7 +38,7 @@ export const FIRST_PART_TUTORIAL = Object.freeze({
     limitationsTitle: 'Known limitations',
     limitations: Object.freeze([
       'DWG is converted locally to DXF through an installed GNU LibreDWG or ODA File Converter; complex custom entities may be skipped by the selected converter.',
-      'STEP preserves exact geometry. STL and 3MF are meshes, so later parametric editing is limited.',
+      'STEP preserves exact B-Rep geometry. STL and 3MF load as native meshes for measurement, transforms, and export; face and edge operations require B-Rep.',
       'Printability analysis identifies risk; it cannot guarantee a successful print for a specific printer and material.',
       'Slicer handoff requires Bambu Studio, PrusaSlicer, or Cura to be installed.',
       'A very complex history change may require manual reassignment of a lost B-Rep reference.',

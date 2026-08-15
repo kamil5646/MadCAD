@@ -5,6 +5,8 @@
 - Przebudowano wstążkę w stylu Worda i klasycznego AutoCAD-a: małe nazwy grup znajdują się na dole, sekcje rozdzielają lekkie pionowe linie, a druk 3D jest wyraźnie opisany jako dodatek.
 - Usunięto kafelki nagłówków, panelowe gradienty oraz ciężkie ramki i cienie przycisków. Narzędzia mają płaski stan normalny, czytelne podświetlenie po najechaniu i bardziej warstwowe, kolorowe ikony.
 - Odzyskany po awarii projekt jest teraz oznaczony stałym, czytelnym komunikatem z czasem autozapisu, informacją o użyciu kopii zapasowej i bezpośrednim przyciskiem zapisu projektu.
+- Import 3D rozdziela teraz dokładny STEP od natywnych siatek STL/3MF. Siatki nie są już przepuszczane przez zawodną konwersję do B-Rep, dzięki czemu wczytują się szybciej, zachowują trójkąty i pozostają dostępne do pomiaru, transformacji oraz eksportu; otwarte i nie-manifoldowe STL mają bezpieczny tryb podglądu zamiast błędu importu.
+- Przed importem sprawdzany jest format i rozmiar pliku, a okno pokazuje tryb geometrii, jednostkę, liczbę obiektów i trójkątów. Mieszane operacje B-Rep/siatka oraz niedostępny eksport STEP są blokowane z jasnym wyjaśnieniem.
 
 ## 6.3.0 (2026-08-15)
 
