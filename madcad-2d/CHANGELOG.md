@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Przebudowano wstążkę w stylu Worda i klasycznego AutoCAD-a: małe nazwy grup znajdują się na dole, sekcje rozdzielają lekkie pionowe linie, a druk 3D jest wyraźnie opisany jako dodatek.
+- Usunięto kafelki nagłówków, panelowe gradienty oraz ciężkie ramki i cienie przycisków. Narzędzia mają płaski stan normalny, czytelne podświetlenie po najechaniu i bardziej warstwowe, kolorowe ikony.
+
 ## 6.3.0 (2026-08-15)
 
 - Dodano lokalny import DWG do aktywnego szkicu przez wykryty GNU LibreDWG (`dwgread` lub `dwg2dxf`) albo ODA File Converter, bez wysyłania projektu do usługi sieciowej.
