@@ -69,7 +69,7 @@ pakietów ani konwersji DWG.
 Aktualizator przyjmuje wyłącznie HTTPS z oficjalnego repozytorium, narzuca
 limit rozmiaru i SHA-256. Cicha instalacja nadal wymaga poprawnego
 Authenticode na Windows albo Developer ID, oczekiwanego Team ID i Gatekeeper
-na macOS. Dla niepodpisanego wydania 6.1.4 aktualizator zapisuje zweryfikowaną
+na macOS. Dla niepodpisanego wydania 6.1.5 aktualizator zapisuje zweryfikowaną
 paczkę w Pobranych i otwiera ją do potwierdzonej instalacji systemowej.
 Renderer nie może podać dowolnego adresu aktualizacji.
 

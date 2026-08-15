@@ -343,6 +343,7 @@ function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = fa
       >
         <span className="ribbon-icon" aria-hidden="true"><Icon size={compact ? 18 : 25} strokeWidth={1.55} /></span>
         <span className="ribbon-label">{label}</span>
+        {shortcut && <span className="ribbon-shortcut" aria-hidden="true">{shortcutLabel(shortcut)}</span>}
       </button>
     </span>
   );

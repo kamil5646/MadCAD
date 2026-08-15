@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.1.5 (2026-08-15)
+
+- Przebudowano płaską wstążkę na warstwowy interfejs CAD z osobnymi panelami narzędzi, subtelną głębią, czytelniejszymi granicami grup i mocniejszą hierarchią.
+- Wyróżniono aktywny obszar roboczy oraz główne polecenia turkusowym akcentem, zachowując ciemną, techniczną stylistykę MadCAD.
+- Dodano widoczne aliasy klawiaturowe bezpośrednio na przyciskach poleceń, niezależnie od pełnych opisów pokazywanych po najechaniu.
+- Poprawiono stany aktywne, wciśnięte, najechane i wyłączone, nie zwiększając wysokości wstążki ani nie ograniczając pola roboczego.
+- Sprawdzono układ w szerokim i wąskim oknie, przy powiększeniu 100–200% oraz w pełnym teście operacji CAD.
+
 ## 6.1.4 (2026-08-15)
 
 - Poszerzono stronę startową, aby lepiej wykorzystywała szerokie okno i eksponowała podstawowe działania CAD.
