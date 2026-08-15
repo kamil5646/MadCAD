@@ -84,6 +84,12 @@ function selectReleaseAsset(assets, platform, architecture) {
     if (targetArch === 'x64') return windowsPackages.find((asset) => /(?:x64|x86_64)/.test(asset.lower) && !asset.lower.includes('arm64'))?.raw || null;
     return null;
   }
+  if (targetPlatform === 'linux') {
+    const linuxPackages = candidates.filter((asset) => asset.lower.includes('linux') && asset.lower.endsWith('.appimage'));
+    if (targetArch === 'arm64') return linuxPackages.find((asset) => /(?:arm64|aarch64)/.test(asset.lower))?.raw || null;
+    if (targetArch === 'x64') return linuxPackages.find((asset) => /(?:x64|x86_64|amd64)/.test(asset.lower) && !/(?:arm64|aarch64)/.test(asset.lower))?.raw || null;
+    return null;
+  }
   return null;
 }
 

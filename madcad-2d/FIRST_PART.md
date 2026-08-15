@@ -1,6 +1,6 @@
 # MadCAD — pierwsza część do druku / Your first printable part
 
-Aktualne dla `6.1.9`. Interaktywną wersję otwiera przycisk **Samouczek** w górnym pasku modelera.
+Aktualne dla `6.2.0`. Interaktywną wersję otwiera przycisk **Samouczek** w górnym pasku modelera.
 
 ## Ścieżka PL
 
@@ -31,4 +31,5 @@ Aktualne dla `6.1.9`. Interaktywną wersję otwiera przycisk **Samouczek** w gó
 - Analiza drukowalności opisuje ryzyko, a nie gwarancję wydruku.
 - Przekazanie do slicera wymaga zainstalowanego Bambu Studio, PrusaSlicer albo Cura.
 - Złożona zmiana historii może wymagać ręcznej naprawy referencji B-Rep.
-- Oficjalne instalatory obejmują Windows i macOS. Linux jest objęty testami core/build.
+
+MadCAD jest publikowany dla Windows x64, macOS Apple Silicon i Linux x64 (AppImage). Każda paczka ma sumę SHA-256.

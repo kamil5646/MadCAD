@@ -485,7 +485,8 @@ echo "== MadCAD updater done: $(date) =="
 async function moveVerifiedUpdateToDownloads(sourcePath, assetName) {
   const downloadsDir = app.getPath('downloads');
   await fs.mkdir(downloadsDir, { recursive: true });
-  const safeName = sanitizeFileName(assetName, isWindows ? 'madcad-update.exe' : 'madcad-update.zip');
+  const fallbackName = isWindows ? 'madcad-update.exe' : isMac ? 'madcad-update.zip' : 'madcad-update.AppImage';
+  const safeName = sanitizeFileName(assetName, fallbackName);
   const parsed = path.parse(safeName);
   for (let index = 0; index < 100; index += 1) {
     const suffix = index === 0 ? '' : ` (${index})`;
@@ -503,6 +504,9 @@ async function moveVerifiedUpdateToDownloads(sourcePath, assetName) {
 }
 
 async function openVerifiedUpdatePackage(filePath) {
+  if (process.platform === 'linux' && filePath.toLowerCase().endsWith('.appimage')) {
+    await fs.chmod(filePath, 0o755);
+  }
   const openError = await shell.openPath(filePath);
   if (!openError) return { opened: true, openError: '' };
   shell.showItemInFolder(filePath);
@@ -1235,7 +1239,8 @@ registerTrustedIpcHandler('madcad:download-and-install-update', async (event) =>
 
     const updateDir = path.join(app.getPath('temp'), 'madcad-updater');
     await fs.mkdir(updateDir, { recursive: true });
-    const fileBase = sanitizeFileName(assetName, isWindows ? 'madcad-update.exe' : 'madcad-update.zip');
+    const fallbackName = isWindows ? 'madcad-update.exe' : isMac ? 'madcad-update.zip' : 'madcad-update.AppImage';
+    const fileBase = sanitizeFileName(assetName, fallbackName);
     const downloadedPath = path.join(updateDir, `${Date.now()}-${fileBase}`);
     await downloadFileWithRedirects(downloadUrl, downloadedPath);
     const checksumText = (await httpsGetBuffer(latest.checksumAsset.url)).toString('utf8');
@@ -1249,7 +1254,7 @@ registerTrustedIpcHandler('madcad:download-and-install-update', async (event) =>
     let installerMeta = null;
     if (isMac && TRUSTED_MAC_TEAM_ID) {
       installerMeta = await scheduleMacZipInstall(downloadedPath);
-    } else if (isMac || isWindows) {
+    } else if (isMac || isWindows || process.platform === 'linux') {
       const packagePath = await moveVerifiedUpdateToDownloads(downloadedPath, assetName);
       const handoff = await openVerifiedUpdatePackage(packagePath);
       return {

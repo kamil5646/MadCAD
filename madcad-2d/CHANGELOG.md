@@ -1,5 +1,12 @@
 # Changelog
 
+## 6.2.0 (2026-08-15)
+
+- Dodano oficjalną paczkę Linux x64 w formacie AppImage, budowaną i sprawdzaną na Ubuntu razem z paczkami Windows i macOS.
+- Rozszerzono aktualizator o wybór właściwego AppImage, obowiązkową weryfikację SHA-256, nadanie prawa uruchomienia i bezpieczne przekazanie pobranej paczki.
+- Dodano test formatu ELF, minimalnego rozmiaru i sumy kontrolnej AppImage oraz smoke test instalatora Linux w CI.
+- Usunięto brak instalatora Linux z listy ograniczeń i uzupełniono stronę projektu, README oraz plan wydania o trzecią oficjalną platformę.
+
 ## 6.1.9 (2026-08-15)
 
 - Usunięto dolne paski z nazwami grup narzędzi, które zabierały wysokość obszaru roboczego i tworzyły zbędne wizualne podziały.

@@ -1,7 +1,8 @@
 {
   "name": "madcad-desktop",
-  "version": "6.1.9",
+  "version": "6.2.0",
   "description": "Desktopowy CAD 2D/3D: klasyczne szkicowanie, parametryczna historia i modelowanie bryłowe.",
+  "desktopName": "MadCAD",
   "repository": {
     "type": "git",
     "url": "https://github.com/kamil5646/MadCAD2D.git"
@@ -31,7 +32,8 @@
     "dist:mac": "npm run build:ui && electron-builder --mac dir",
     "dist:mac:trusted": "npm run build:ui && electron-builder --mac zip --arm64 --publish never",
     "dist:win:trusted": "npm run build:ui && electron-builder --win nsis --x64 --publish never",
-    "dist:release:trusted": "npm run dist:mac:trusted && npm run dist:win:trusted",
+    "dist:linux:trusted": "npm run build:ui && electron-builder --linux AppImage --x64 --publish never",
+    "dist:release:trusted": "npm run dist:mac:trusted && npm run dist:win:trusted && npm run dist:linux:trusted",
     "dist:win": "npm run build:ui && electron-builder --win nsis --x64",
     "dist:dir": "npm run build:ui && electron-builder --dir"
   },
@@ -96,6 +98,14 @@
         "nsis"
       ],
       "icon": "assets/icons/madcad.ico"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "assets/icons/madcad-512.png",
+      "category": "Graphics",
+      "syncDesktopName": true
     },
     "nsis": {
       "oneClick": false,
