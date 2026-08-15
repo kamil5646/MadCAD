@@ -1,14 +1,14 @@
-# MadCAD 6.1
+# MadCAD 6.2
 
 ![MadCAD](./docs/readme-banner.png)
 
 [![Release](https://img.shields.io/github/v/release/kamil5646/MadCAD2D?display_name=tag&label=stable)](https://github.com/kamil5646/MadCAD2D/releases/latest)
 [![CI](https://github.com/kamil5646/MadCAD2D/actions/workflows/ci.yml/badge.svg)](https://github.com/kamil5646/MadCAD2D/actions/workflows/ci.yml)
-![Platform](https://img.shields.io/badge/platform-macOS%20ARM64%20%7C%20Windows%20x64-2686a8)
+![Platform](https://img.shields.io/badge/platform-macOS%20ARM64%20%7C%20Windows%20x64%20%7C%20Linux%20x64-2686a8)
 ![Interface](https://img.shields.io/badge/interface-PL%20%7C%20EN-3a9d68)
 [![Support](https://img.shields.io/badge/support-PayPal-ffc439?logo=paypal&logoColor=111)](https://paypal.me/refek1)
 
-MadCAD to desktopowy CAD 2D/3D dla Windows i macOS. Jego rdzeniem jest szybkie
+MadCAD to desktopowy CAD 2D/3D dla Windows, macOS i Linux. Jego rdzeniem jest szybkie
 szkicowanie w stylu klasycznego CAD połączone z parametryczną historią oraz
 modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodatkiem.
 
@@ -17,7 +17,7 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 **[Licencja](./LICENSE)** ·
 **[Zmiany](./madcad-2d/CHANGELOG.md)**
 
-> **Uwaga o wydaniu 6.1.9:** paczki są publikowane bez podpisu producenta,
+> **Uwaga o wydaniu 6.2.0:** paczki są publikowane bez podpisu producenta,
 > dlatego Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie.
 > Pobieraj je wyłącznie z oficjalnego GitHub Release i sprawdź sumę SHA-256.
 > Wbudowany aktualizator pobiera paczkę z oficjalnego wydania, sprawdza SHA-256
@@ -40,7 +40,7 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 ## Szybki start
 
 1. Pobierz paczkę dla swojego systemu z [Releases](https://github.com/kamil5646/MadCAD2D/releases/latest).
-2. Uruchom instalator Windows albo rozpakuj aplikację macOS.
+2. Uruchom instalator Windows, rozpakuj aplikację macOS albo nadaj pobranemu AppImage prawo uruchomienia na Linux.
 3. Wybierz **Utwórz szkic**, wskaż płaszczyznę i zacznij rysować.
 4. Najedź na funkcję, aby zobaczyć opis; skrót podstawowego narzędzia pojawi się w podpowiedzi, a nie na przycisku.
 
@@ -91,6 +91,7 @@ Budowanie paczek:
 ```bash
 npm run dist:mac:trusted
 npm run dist:win:trusted
+npm run dist:linux:trusted
 ```
 
 ## Struktura repozytorium
@@ -102,7 +103,7 @@ npm run dist:win:trusted
 
 ## English
 
-MadCAD is a desktop 2D/3D CAD application for Windows and macOS. It combines
+MadCAD is a desktop 2D/3D CAD application for Windows, macOS, and Linux. It combines
 classic CAD-style direct drawing and basic keyboard shortcuts with parametric solid
 modeling and exact STEP exchange. STL/3MF export and 3D-print checks are optional
 add-ons, not the center of the product.

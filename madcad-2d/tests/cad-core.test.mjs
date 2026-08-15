@@ -1426,11 +1426,12 @@ test('kanały aktualizacji respektują semver, zaufane hosty i integralność SH
     { name: 'MadCAD-6.2.0-mac-arm64.zip.sha256', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-mac-arm64.zip.sha256' },
     { name: 'MadCAD-6.2.0-mac-x64.zip', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-mac-x64.zip' },
     { name: 'MadCAD-6.2.0-win-x64.exe', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-win-x64.exe' },
+    { name: 'MadCAD-6.2.0-linux-x86_64.AppImage', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-linux-x86_64.AppImage' },
   ];
   assert.equal(updatePolicy.selectReleaseAsset(assets, 'darwin', 'arm64')?.name, 'MadCAD-6.2.0-mac-arm64.zip');
   assert.equal(updatePolicy.selectReleaseAsset(assets, 'darwin', 'x64')?.name, 'MadCAD-6.2.0-mac-x64.zip');
   assert.equal(updatePolicy.selectReleaseAsset(assets, 'win32', 'x64')?.name, 'MadCAD-6.2.0-win-x64.exe');
-  assert.equal(updatePolicy.selectReleaseAsset(assets, 'linux', 'x64'), null);
+  assert.equal(updatePolicy.selectReleaseAsset(assets, 'linux', 'x64')?.name, 'MadCAD-6.2.0-linux-x86_64.AppImage');
   assert.equal(updatePolicy.selectChecksumAsset(assets, 'MadCAD-6.2.0-mac-arm64.zip')?.name, 'MadCAD-6.2.0-mac-arm64.zip.sha256');
   assert.equal(updatePolicy.selectReleaseAsset([{ ...assets[0], browser_download_url: 'https://example.com/fake.zip' }], 'darwin', 'arm64'), null);
 });
@@ -1440,9 +1441,9 @@ test('samouczek PL/EN prowadzi do eksportu i jawnie wymienia znane ograniczenia'
     const tutorial = tutorialForLanguage(language);
     assert.equal(tutorial.steps.length, 8);
     assert.ok(tutorial.steps.at(-1)[1].includes(language === 'en' ? 'export' : 'wyeksportuj'));
-    assert.ok(tutorial.limitations.length >= 6);
+    assert.ok(tutorial.limitations.length >= 5);
     assert.ok(tutorial.limitations.some((item) => item.includes('STEP')));
-    assert.ok(tutorial.limitations.some((item) => item.includes('Linux')));
+    assert.ok(!tutorial.limitations.some((item) => item.includes('Linux')));
   }
 });
 

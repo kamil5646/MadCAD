@@ -74,7 +74,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos-latest, windows-latest, ubuntu-latest]
 
     steps:
       - name: Check out Git repository
@@ -118,8 +118,10 @@ jobs:
           echo "Building unsigned packages by repository-owner decision; SHA-256 and platform tests remain mandatory."
           if [ "$RUNNER_OS" = "macOS" ]; then
             npx electron-builder --mac zip --arm64 --publish never
-          else
+          elif [ "$RUNNER_OS" = "Windows" ]; then
             npx electron-builder --win nsis --x64 --publish never
+          else
+            npx electron-builder --linux AppImage --x64 --publish never
           fi
 
       - name: Create SHA-256 sidecars
@@ -131,7 +133,14 @@ jobs:
         env:
           MADCAD_REQUIRE_CHECKSUM: '1'
           MADCAD_REQUIRE_SIGNATURE: '0'
-        run: npm run verify:package -- ${{ runner.os == 'macOS' && 'mac' || 'windows' }}
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            macOS) package_kind=mac ;;
+            Windows) package_kind=windows ;;
+            Linux) package_kind=linux ;;
+          esac
+          npm run verify:package -- "$package_kind"
 
       - name: Upload verified release package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -140,6 +149,7 @@ jobs:
           path: |
             madcad-2d/release/MadCAD-*.zip
             madcad-2d/release/MadCAD-*.exe
+            madcad-2d/release/MadCAD-*.AppImage
             madcad-2d/release/MadCAD-*.sha256
           if-no-files-found: error
 
@@ -164,6 +174,6 @@ jobs:
           body: |
             ## Ważne — wydanie bez podpisu producenta
 
-            Paczki Windows i macOS nie mają podpisu Authenticode ani Apple Developer ID/notaryzacji. Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie.
+            Paczki Windows i macOS nie mają podpisu Authenticode ani Apple Developer ID/notaryzacji. Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie. Linux jest publikowany jako przenośny AppImage x64.
 
             Wbudowany aktualizator pobiera paczkę wyłącznie z oficjalnego wydania, sprawdza odpowiadającą sumę SHA-256 i otwiera plik do instalacji systemowej. Bez certyfikatu platformowego system nadal wymaga ręcznego potwierdzenia i może wyświetlić ostrzeżenie.

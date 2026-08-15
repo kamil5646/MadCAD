@@ -15,9 +15,11 @@ const expected = requestedKind === 'windows'
   ? { extension: '.exe', signature: [0x4d, 0x5a], minimumBytes: 20 * 1024 * 1024 }
   : requestedKind === 'mac'
     ? { extension: '.zip', signature: [0x50, 0x4b], minimumBytes: 20 * 1024 * 1024 }
-    : null;
+    : requestedKind === 'linux'
+      ? { extension: '.appimage', signature: [0x7f, 0x45, 0x4c, 0x46], minimumBytes: 20 * 1024 * 1024 }
+      : null;
 
-if (!expected) throw new Error('Podaj rodzaj paczki: mac albo windows.');
+if (!expected) throw new Error('Podaj rodzaj paczki: mac, windows albo linux.');
 
 async function walk(directory) {
   const entries = await fs.readdir(directory, { withFileTypes: true });
@@ -29,6 +31,7 @@ async function walk(directory) {
 }
 
 async function verifyPlatformSignature(filePath) {
+  if (requestedKind === 'linux') return 'appimage-elf-valid';
   if (requestedKind === 'windows') {
     const command = `$signature = Get-AuthenticodeSignature -LiteralPath '${filePath.replace(/'/g, "''")}'; if ($signature.Status -ne 'Valid') { throw "Invalid Authenticode status: $($signature.Status)" }`;
     await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { timeout: 120000 });

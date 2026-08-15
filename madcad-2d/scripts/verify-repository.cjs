@@ -12,7 +12,7 @@ const rejectText = (source, pattern, label) => {
 };
 
 const packageJson = JSON.parse(read('madcad-2d/package.json'));
-if (packageJson.version !== '6.1.9') throw new Error(`Wersja stabilna musi wynosić 6.1.9, jest ${packageJson.version}.`);
+if (packageJson.version !== '6.2.0') throw new Error(`Wersja stabilna musi wynosić 6.2.0, jest ${packageJson.version}.`);
 
 const license = read('LICENSE');
 const packagedLicense = read('madcad-2d/LICENSE');
@@ -24,15 +24,16 @@ expectText(license, /jednym stanowisku\s+roboczym lub urządzeniu/, 'licencja na
 expectText(license, /kkasprzak15@icloud\.com/, 'kontakt handlowy');
 
 const site = read('docs/index.html');
-expectText(site, /Oficjalne wydanie 6\.1/, 'stabilne wydanie na stronie');
+expectText(site, /Oficjalne wydanie 6\.2/, 'stabilne wydanie na stronie');
 expectText(site, /40 dni bezpłatnej oceny/, 'ocena komercyjna na stronie');
 expectText(site, /licencja bezterminowa na stanowisko/, 'licencja stanowiskowa na stronie');
 expectText(site, /mailto:kkasprzak15@icloud\.com/, 'zakup licencji na stronie');
-expectText(site, /paczki 6\.1\.9 są publikowane bez podpisu producenta/, 'ostrzeżenie o niepodpisanym wydaniu 6.1.9');
+expectText(site, /paczki 6\.2\.0 są publikowane bez podpisu producenta/, 'ostrzeżenie o niepodpisanym wydaniu 6.2.0');
+expectText(site, /Linux · x64/, 'oficjalna paczka Linux na stronie');
 rejectText(site, /license-registry|issue-private|token-admin|generatePrivateToken/i, 'stary system tokenów na stronie');
 
 const rootReadme = read('README.md');
-expectText(rootReadme, /Uwaga o wydaniu 6\.1\.9/, 'ostrzeżenie wydania w README');
+expectText(rootReadme, /Uwaga o wydaniu 6\.2\.0/, 'ostrzeżenie wydania w README');
 rejectText(rootReadme, /import(?:em|uj)? DWG/i, 'nieobsługiwana obietnica importu DWG');
 const firstPart = read('madcad-2d/FIRST_PART.md');
 expectText(firstPart, /DWG nie jest obecnie obsługiwany/, 'ograniczenie DWG w samouczku');
@@ -48,7 +49,7 @@ const appDialogs = read('madcad-2d/src/modeling/AppDialogs.jsx');
 expectText(appDialogs, /oceniać pełną wersję przez 40 dni/, 'ocena w oknie aplikacji');
 expectText(appDialogs, /bezterminowej licencji na każde stanowisko/, 'licencja stanowiskowa w aplikacji');
 expectText(appDialogs, /fullLicenseText/, 'lokalna pełna licencja w aplikacji');
-expectText(appDialogs, /Wydanie 6\.1\.9 nie ma podpisu producenta/, 'ostrzeżenie o podpisie w aplikacji');
+expectText(appDialogs, /Wydanie 6\.2\.0 nie ma podpisu producenta/, 'ostrzeżenie o podpisie w aplikacji');
 
 const preload = read('madcad-2d/electron/preload.js');
 const main = read('madcad-2d/electron/main.js');
@@ -70,6 +71,7 @@ expectText(releaseWorkflow, /CSC_IDENTITY_AUTO_DISCOVERY:\s*'false'/, 'jawnie ni
 expectText(releaseWorkflow, /MADCAD_REQUIRE_SIGNATURE:\s*'0'/, 'wyłączony wymóg certyfikatu wydania');
 expectText(releaseWorkflow, /Ważne — wydanie bez podpisu producenta/, 'ostrzeżenie w GitHub Release');
 expectText(releaseWorkflow, /MADCAD_REQUIRE_CHECKSUM:\s*'1'/, 'obowiązkowa suma SHA-256 wydania');
+expectText(releaseWorkflow, /electron-builder --linux AppImage --x64/, 'oficjalny build Linux AppImage');
 
 const codeqlWorkflow = read('.github/workflows/codeql.yml');
 expectText(codeqlWorkflow, /github\/codeql-action\/analyze@[a-f0-9]{40}/, 'przypięta analiza CodeQL');
