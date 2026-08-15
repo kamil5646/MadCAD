@@ -458,11 +458,9 @@
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  gap: 5px;
-  padding: 12px 8px 4px;
-  background:
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 72px),
-    linear-gradient(180deg, rgba(58, 70, 84, 0.46), rgba(38, 47, 59, 0.5));
+  gap: 0;
+  padding: 4px 8px 2px;
+  background: #293440;
   scrollbar-gutter: stable;
   scrollbar-color: #65717d transparent;
   scrollbar-width: auto;
@@ -473,58 +471,43 @@
 .modeling-ribbon::-webkit-scrollbar-thumb { border: 2px solid #27313d; border-radius: 8px; background: #71808f; }
 
 .ribbon-group {
-  --group-accent: #8da0b3;
   position: relative;
   display: flex;
   flex: 0 0 auto;
   align-items: stretch;
-  height: 56px;
-  padding: 3px 5px;
+  height: 68px;
+  padding: 2px 8px 14px 5px;
   overflow: visible;
-  border: 1px solid #4b5968;
-  border-radius: 5px;
-  background: linear-gradient(180deg, rgba(62, 75, 90, 0.88), rgba(42, 52, 64, 0.92));
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.055), 0 2px 5px rgba(11, 16, 22, 0.2);
+  border: 0;
+  border-right: 1px solid #465360;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .ribbon-group-heading {
   position: absolute;
   z-index: 2;
-  top: -11px;
-  left: 7px;
+  right: 5px;
+  bottom: 0;
+  left: 2px;
   display: flex;
-  height: 15px;
-  padding: 0 6px 0 5px;
+  height: 12px;
+  padding: 0;
   align-items: center;
-  gap: 5px;
-  border: 1px solid #4b5968;
-  border-radius: 3px;
-  background: #34414e;
-  color: #c9d2dc;
-  box-shadow: 0 1px 2px rgba(6, 10, 15, 0.22);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.09em;
-  line-height: 13px;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #8f9dab;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+  line-height: 12px;
   white-space: nowrap;
 }
 
-.ribbon-group-heading span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--group-accent) 58%, #7e8a96);
-}
-
-.ribbon-group.tone-create { --group-accent: #56c8e8; }
-.ribbon-group.tone-modify { --group-accent: #f1ad53; }
-.ribbon-group.tone-constrain { --group-accent: #b798f4; }
-.ribbon-group.tone-inspect { --group-accent: #72d79e; }
-.ribbon-group.tone-construct { --group-accent: #9bc3f0; }
-.ribbon-group.tone-exchange { --group-accent: #dc8fdb; }
-
 .ribbon-group:first-child {
-  border-color: #526273;
+  padding-left: 0;
 }
 
 .ribbon-group-end {

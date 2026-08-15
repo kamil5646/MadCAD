@@ -394,21 +394,10 @@ function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = fa
   );
 }
 
-function ribbonGroupTone(label) {
-  if (/RYSUJ|SZKIC 2D|UTWÓRZ BRYŁĘ|UTWÓRZ 3D/.test(label)) return 'create';
-  if (/MODYFIKUJ|EDYTUJ/.test(label)) return 'modify';
-  if (/WIĘZY|WYMIARY/.test(label)) return 'constrain';
-  if (/SPRAWDŹ|POMIAR|ANALIZA/.test(label)) return 'inspect';
-  if (/PŁASZCZYZNY|OSIE|PUNKTY|GEOMETRIA POMOCNICZA/.test(label)) return 'construct';
-  if (/IMPORT|CAD|SIATKI|DRUK/.test(label)) return 'exchange';
-  return 'neutral';
-}
-
 function RibbonGroup({ children, end = false, label }) {
-  const tone = ribbonGroupTone(label || '');
   return (
-    <div className={`ribbon-group tone-${tone} ${end ? 'ribbon-group-end' : ''}`} aria-label={label}>
-      <div className="ribbon-group-heading"><span aria-hidden="true" />{label}</div>
+    <div className={`ribbon-group ${end ? 'ribbon-group-end' : ''}`} aria-label={label}>
+      <div className="ribbon-group-heading">{label}</div>
       <div className="ribbon-tools">{children}</div>
     </div>
   );
