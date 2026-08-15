@@ -16,7 +16,7 @@ describe('App', () => {
     render(<LicenseInfoDialog onClose={() => {}} />);
     const dialog = screen.getByRole('dialog', { name: /Licencja MadCAD/i });
     expect(dialog).toHaveTextContent(/bezpłatny bez limitu czasu do użytku prywatnego/i);
-    expect(dialog).toHaveTextContent(/Wydanie 6.1.5 nie ma podpisu producenta/i);
+    expect(dialog).toHaveTextContent(/Wydanie 6.1.6 nie ma podpisu producenta/i);
     expect(dialog).toHaveTextContent(/oceniać pełną wersję przez 40 dni/i);
     expect(dialog).toHaveTextContent(/Użytek komercyjny jest płatny/i);
     expect(dialog).toHaveTextContent(/bezterminowej licencji na każde stanowisko/i);
@@ -58,6 +58,18 @@ describe('App', () => {
       onClose={() => {}}
     />);
     expect(screen.getByText(/Masz aktualną wersję MadCAD \(6.1.0\)/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Pobierz i otwórz/i })).toBeNull();
+  });
+
+  it('links to the release when a newer version has no compatible package', () => {
+    render(<UpdateDialog
+      state={{ status: 'idle', error: '', result: { newerVersion: true, supported: false, currentVersion: '6.1.6', latestVersion: '6.2.0', releaseUrl: 'https://github.com/kamil5646/MadCAD2D/releases/tag/v6.2.0' } }}
+      onCheck={() => {}}
+      onInstall={() => {}}
+      onClose={() => {}}
+    />);
+    expect(screen.getByText(/Wersja 6.2.0 nie ma paczki dla tego komputera/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Strona wydania/i })).toHaveAttribute('href', 'https://github.com/kamil5646/MadCAD2D/releases/tag/v6.2.0');
     expect(screen.queryByRole('button', { name: /Pobierz i otwórz/i })).toBeNull();
   });
 

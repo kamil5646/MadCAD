@@ -61,6 +61,41 @@ function selectLatestRelease(releases, channel, currentVersion) {
     .sort((left, right) => compareVersions(right.version, left.version))[0] || null;
 }
 
+function selectReleaseAsset(assets, platform, architecture) {
+  const candidates = (Array.isArray(assets) ? assets : [])
+    .map((asset) => ({
+      raw: asset,
+      name: String(asset?.name || ''),
+      lower: String(asset?.name || '').toLowerCase(),
+      url: String(asset?.browser_download_url || asset?.url || ''),
+    }))
+    .filter((asset) => asset.name && asset.url && isTrustedUpdateUrl(asset.url));
+  const targetPlatform = String(platform || '').toLowerCase();
+  const targetArch = String(architecture || '').toLowerCase();
+  if (targetPlatform === 'darwin') {
+    const macPackages = candidates.filter((asset) => asset.lower.includes('mac') && asset.lower.endsWith('.zip'));
+    if (targetArch === 'arm64') return macPackages.find((asset) => /(?:arm64|aarch64)/.test(asset.lower))?.raw || null;
+    if (targetArch === 'x64') return macPackages.find((asset) => /(?:x64|x86_64|universal)/.test(asset.lower) && !asset.lower.includes('arm64'))?.raw || null;
+    return null;
+  }
+  if (targetPlatform === 'win32') {
+    const windowsPackages = candidates.filter((asset) => asset.lower.includes('win') && asset.lower.endsWith('.exe'));
+    if (targetArch === 'arm64') return windowsPackages.find((asset) => /(?:arm64|aarch64)/.test(asset.lower))?.raw || null;
+    if (targetArch === 'x64') return windowsPackages.find((asset) => /(?:x64|x86_64)/.test(asset.lower) && !asset.lower.includes('arm64'))?.raw || null;
+    return null;
+  }
+  return null;
+}
+
+function selectChecksumAsset(assets, assetName) {
+  const expectedName = `${String(assetName || '').trim()}.sha256`;
+  if (expectedName === '.sha256') return null;
+  return (Array.isArray(assets) ? assets : []).find((asset) => (
+    String(asset?.name || '').trim() === expectedName
+    && isTrustedUpdateUrl(asset?.browser_download_url || asset?.url)
+  )) || null;
+}
+
 function isTrustedUpdateUrl(value) {
   try {
     const url = new URL(String(value || ''));
@@ -98,7 +133,9 @@ module.exports = {
   normalizeChannel,
   parseChecksumFile,
   parseVersion,
+  selectChecksumAsset,
   selectLatestRelease,
+  selectReleaseAsset,
   sha256Buffer,
   verifyBufferChecksum,
 };

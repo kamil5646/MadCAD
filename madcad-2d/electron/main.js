@@ -224,39 +224,13 @@ function normalizeVersionText(value) {
 }
 
 function selectReleaseAssetForPlatform(assets) {
-  const list = Array.isArray(assets) ? assets : [];
-  const normalized = list
-    .map((asset) => {
-      const name = String(asset && asset.name ? asset.name : '');
-      return {
-        raw: asset,
-        name,
-        lower: name.toLowerCase(),
-        url: String(asset && asset.browser_download_url ? asset.browser_download_url : '')
-      };
-    })
-    .filter((item) => item.name && item.url);
-
-  if (isMac && process.arch === 'arm64') {
-    return (
-      normalized.find(
-        (item) => item.lower.includes('mac') && item.lower.includes('arm64') && item.lower.endsWith('.zip')
-      ) || null
-    );
-  }
-  if (isMac) {
-    return (
-      normalized.find((item) => item.lower.includes('mac') && item.lower.endsWith('.zip')) || null
-    );
-  }
-  if (isWindows) {
-    return (
-      normalized.find(
-        (item) => item.lower.includes('win') && item.lower.includes('x64') && item.lower.endsWith('.exe')
-      ) || null
-    );
-  }
-  return null;
+  const asset = updatePolicy.selectReleaseAsset(assets, process.platform, process.arch);
+  return asset ? {
+    raw: asset,
+    name: String(asset.name || ''),
+    lower: String(asset.name || '').toLowerCase(),
+    url: String(asset.browser_download_url || asset.url || ''),
+  } : null;
 }
 
 function httpsGetJson(url, redirectCount = 0) {
@@ -553,9 +527,7 @@ async function fetchLatestMadcadRelease(channel = 'stable', currentVersion = app
       );
     }
     const asset = selectReleaseAssetForPlatform(release && release.assets);
-    const checksumAsset = asset
-      ? (release.assets || []).find((item) => String(item?.name || '') === `${asset.name}.sha256`) || null
-      : null;
+    const checksumAsset = asset ? updatePolicy.selectChecksumAsset(release.assets, asset.name) : null;
     return {
       latestVersion,
       asset,
@@ -595,10 +567,11 @@ async function fetchLatestMadcadRelease(channel = 'stable', currentVersion = app
         .filter((asset) => asset.name && asset.browser_download_url);
 
       const asset = selectReleaseAssetForPlatform(assets);
+      const checksumAsset = asset ? updatePolicy.selectChecksumAsset(assets, asset.name) : null;
       return {
         latestVersion,
         asset,
-        checksumAsset: null,
+        checksumAsset: checksumAsset ? { name: checksumAsset.name, url: checksumAsset.browser_download_url } : null,
         channel: 'stable',
         releaseUrl: `https://github.com/kamil5646/MadCAD2D/releases/tag/v${latestVersion}`
       };
@@ -1190,6 +1163,7 @@ registerTrustedIpcHandler('madcad:check-for-updates', async () => {
     return {
       ok: true,
       available: hasNewerVersion && hasAssetForPlatform,
+      newerVersion: hasNewerVersion,
       supported: hasAssetForPlatform,
       installMode: isMac && TRUSTED_MAC_TEAM_ID ? 'automatic' : 'verified-package',
       currentVersion,

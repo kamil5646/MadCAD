@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.1.6 (2026-08-15)
+
+- Dodano stały, klikalny wiersz poleceń CAD: alias uruchamia polecenie po `Enter`, a po wskazaniu początku linii można wpisać jej długość i zatwierdzić ją `Enterem`.
+- Zmniejszono paletę linii i polilinii; dokładne pola długości i kąta przeniesiono do zwijanej sekcji opcjonalnej, aby nie zasłaniała rysunku.
+- Wzmocniono widoczną informację o snapie oraz zachowano kontekstowy przycisk **Usuń** i obsługę `Delete`/`Backspace` (`⌫` na macOS).
+- Zmieniono mylący komunikat pustego szkicu z „W pełni związany” na „Pusty szkic · Dodaj geometrię”.
+- Uporządkowano obszary **Projektuj / Narzędzia / Eksport**, skróty na wstążce, kompaktowe panele, samouczek CAD-first oraz nazewnictwo PL/EN.
+- Naprawiono dobór paczki aktualizacji według platformy i architektury, w tym rozróżnienie macOS ARM64/x64, oraz odnajdywanie sumy SHA-256 w awaryjnym odczycie strony wydania.
+- Aktualizator pokazuje prawidłowy komunikat, gdy istnieje nowsza wersja bez paczki dla bieżącej architektury, zamiast błędnie informować o aktualnej wersji.
+- Rozszerzono testy aktualizatora i pełny test desktopowy o wiersz poleceń, wejście długości linii, widoczny snap, usuwanie, angielski interfejs, dostępność i eksporty STEP/STL/3MF.
+
 ## 6.1.5 (2026-08-15)
 
 - Przebudowano płaską wstążkę na warstwowy interfejs CAD z osobnymi panelami narzędzi, subtelną głębią, czytelniejszymi granicami grup i mocniejszą hierarchią.

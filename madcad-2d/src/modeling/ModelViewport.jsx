@@ -444,6 +444,7 @@ export default function ModelViewport({
       return { status: SKETCH_SOLVER_STATUS.CONFLICT, degreesOfFreedom: null, diagnostics: [{ message: error.message }], conflictConstraintIds: [] };
     }
   }, [activeSketch, parameters]);
+  const isEmptySketch = Boolean(activeSketch && (activeSketch.entities || []).length === 0);
   useEffect(() => {
     if (!activeSketchId && selectionFilter === 'profile') setSelectionFilter('auto');
   }, [activeSketchId, selectionFilter]);
@@ -1670,7 +1671,7 @@ export default function ModelViewport({
         <button className="cube-right" type="button" title="Ustaw kamerę na widok z prawej strony." onClick={() => setView('right')}>PRAWO</button>
       </div>
       <div className="axis-indicator" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
-      <div className="selection-filter-bar" role="toolbar" aria-label="Filtr wyboru geometrii">
+      {!activeSketchId && bodies.length > 0 && <div className="selection-filter-bar" role="toolbar" aria-label="Filtr wyboru geometrii">
         {[
           ['auto', 'Auto'],
           ['body', 'Bryła'],
@@ -1678,9 +1679,9 @@ export default function ModelViewport({
           ['edge', 'Krawędź'],
           ['vertex', 'Wierzchołek'],
           ['profile', 'Profil'],
-        ].map(([id, label]) => <button key={id} className={selectionFilter === id ? 'active' : ''} type="button" disabled={id === 'profile' ? !activeSketchId : Boolean(activeSketchId)} title={`Filtr wyboru: ${label}`} onClick={() => setSelectionFilter(id)}>{label}</button>)}
-      </div>
-      {!activeSketchId && <div className="model-selection-hint">{`Ctrl/Shift: wiele · ${optionKeyLabel}+klik: przełącz · Shift+przeciągnij tło: obszar`}</div>}
+        ].filter(([id]) => id !== 'profile').map(([id, label]) => <button key={id} className={selectionFilter === id ? 'active' : ''} type="button" title={`Filtr wyboru: ${label}`} onClick={() => setSelectionFilter(id)}>{label}</button>)}
+      </div>}
+      {!activeSketchId && bodies.length > 0 && <div className="model-selection-hint">{`Ctrl/Shift: wiele · ${optionKeyLabel}+klik: przełącz · Shift+przeciągnij tło: obszar`}</div>}
       {directEnabled && (
         <div
           ref={directHandleRef}
@@ -1735,10 +1736,10 @@ export default function ModelViewport({
         </div>
       )}
       {solverAnalysis && (
-        <div className={`sketch-solver-status ${solverAnalysis.status}`} role="status">
+        <div className={`sketch-solver-status ${isEmptySketch ? 'empty' : solverAnalysis.status}`} role="status">
           <i />
-          <strong>{solverAnalysis.status === SKETCH_SOLVER_STATUS.FULLY_CONSTRAINED ? 'W pełni związany' : solverAnalysis.status === SKETCH_SOLVER_STATUS.CONFLICT ? 'Konflikt więzów' : solverAnalysis.status === SKETCH_SOLVER_STATUS.OVER_CONSTRAINED ? 'Nadmiar więzów' : 'Niedowiązany'}</strong>
-          <span>{solverAnalysis.degreesOfFreedom === null ? '—' : `${solverAnalysis.degreesOfFreedom} DOF`}</span>
+          <strong>{isEmptySketch ? 'Pusty szkic' : solverAnalysis.status === SKETCH_SOLVER_STATUS.FULLY_CONSTRAINED ? 'W pełni związany' : solverAnalysis.status === SKETCH_SOLVER_STATUS.CONFLICT ? 'Konflikt więzów' : solverAnalysis.status === SKETCH_SOLVER_STATUS.OVER_CONSTRAINED ? 'Nadmiar więzów' : 'Niedowiązany'}</strong>
+          <span>{isEmptySketch ? 'Dodaj geometrię' : solverAnalysis.degreesOfFreedom === null ? '—' : `${solverAnalysis.degreesOfFreedom} DOF`}</span>
         </div>
       )}
       {activeSketchId && activeSketch?.constraints?.length > 0 && (showSketchConstraints || showSketchDimensions) && (

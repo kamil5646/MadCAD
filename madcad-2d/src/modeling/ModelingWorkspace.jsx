@@ -244,10 +244,10 @@ const TOOL_SHORTCUTS = Object.freeze({
   'Utwórz szkic': 'SK', 'Linia': 'L', 'Polilinia': 'PL', 'Łuk styczny': 'TA', 'Łuk': 'A', 'Prostokąt': 'REC', 'Okrąg': 'C', 'Wielokąt': 'POL', 'Elipsa': 'EL', 'Slot': 'SL', 'Spline': 'SPL', 'Conic': 'CON', 'Punkt': 'PO',
   'Thin Extrude': 'TEX', 'Rib/Web': 'RIB', 'Pipe': 'PIPE', 'Import SVG/DXF': 'DXF', 'Wybierz': 'ESC', 'Trim': 'TR', 'Extend': 'EX', 'Break': 'BR', 'Project': 'PR', 'Offset': 'O', 'Fillet szkicu': 'F', 'Faza szkicu': 'CHA', 'Transformuj': 'TRF', 'Szyk szkicu': 'ARRAY', 'Przesuń': 'M', 'Usuń': 'DEL',
   'Współliniowe': 'COL', 'Symetria': 'SYM', 'Krzywizna G2': 'G2', 'Ordinate X': 'DOX', 'Ordinate Y': 'DOY', 'Długość łuku': 'DAR', 'Zakończ szkic': 'CTRL+ENTER',
-  'Wyciągnij': 'EXT', 'Revolve': 'REV', 'Sweep': 'SW', 'Loft': 'LOFT', 'Coil': 'COIL', 'Pattern': 'ARRAY3D', 'Press Pull': 'PP', 'Prymityw': 'BOX', 'Tekst 3D': 'TXT', 'Boolean': 'BOL', 'Otwór': 'H',
-  'Zaokrąglij': 'FE', 'Fazuj': 'CE', 'Shell': 'SHELL', 'Draft': 'DRAFT', 'Split Body': 'SLICE', 'Split Face': 'SPLITFACE', 'Delete Face + Heal': 'HEAL', 'Replace Face': 'RF', 'Offset Face': 'OF', 'Przesuń bryłę': 'MOVE3D', 'Obróć bryłę': 'ROTATE3D', 'Edytuj': 'ED',
+  'Wyciągnij': 'EXT', 'Revolve': 'REV', 'Sweep': 'SW', 'Loft': 'LOFT', 'Coil': 'COIL', 'Pattern': 'AR3', 'Press Pull': 'PP', 'Prymityw': 'BOX', 'Tekst 3D': 'TXT', 'Boolean': 'BOL', 'Otwór': 'H',
+  'Zaokrąglij': 'FE', 'Fazuj': 'CE', 'Shell': 'SH', 'Draft': 'DR', 'Split Body': 'SB', 'Split Face': 'SF', 'Delete Face + Heal': 'HEAL', 'Replace Face': 'RF', 'Offset Face': 'OF', 'Przesuń bryłę': 'M3', 'Obróć bryłę': 'R3', 'Edytuj': 'ED',
   'Płaszczyzna offset': 'OP', 'Midplane': 'MID', 'Plane 3 punkty': '3P', 'Plane angle': 'PA', 'Plane tangent': 'PT', 'Plane path': 'PATHP', 'Oś z krawędzi': 'AXE', 'Oś walca': 'AXC', 'Oś 2 punkty': 'AX2', 'Oś przecięcia': 'AXI', 'Oś normalna': 'AXN', 'Punkt wierzchołka': 'PV', 'Punkt centrum': 'PC', 'Punkt przecięcia': 'PI', 'Punkt środkowy': 'PM', 'Punkt na osi': 'PAX', 'Parametry': 'PARAM',
-  'Zmierz': 'DI', 'Przekrój': 'SEC', 'Masa': 'MASSPROP', 'Analiza': 'ANALYZE', 'Import 3D': 'IMPORT', 'STL': 'STL', 'STEP': 'STEP', '3MF': '3MF', 'Druk 3D': 'PRINT3D', 'Kontrola druku': 'CHECK3D',
+  'Zmierz': 'DI', 'Przekrój': 'SEC', 'Masa': 'MP', 'Analiza': 'AN', 'Import 3D': 'IMP', 'STL': 'STL', 'STEP': 'STEP', '3MF': '3MF', 'Druk 3D': 'P3', 'Kontrola druku': 'CHK3',
 });
 
 const ToolHelpContext = React.createContext(null);
@@ -255,8 +255,89 @@ const ToolHelpContext = React.createContext(null);
 function shortcutLabel(shortcut) {
   if (shortcut === 'ESC') return 'Esc';
   if (shortcut === 'DEL') return window.desktopApp?.platform === 'darwin' ? '⌫' : 'Del';
-  if (shortcut === 'CTRL+ENTER') return 'Ctrl+Enter';
-  return `${shortcut} ↵`;
+  if (shortcut === 'CTRL+ENTER') return window.desktopApp?.platform === 'darwin' ? '⌘ Enter' : 'Ctrl+Enter';
+  return shortcut;
+}
+
+const COMMAND_NAMES = Object.freeze({
+  plane: 'NOWY SZKIC',
+  line: 'LINIA',
+  polyline: 'POLILINIA',
+  rectangle: 'PROSTOKĄT',
+  circle: 'OKRĄG',
+  arc: 'ŁUK',
+  polygon: 'WIELOKĄT',
+  ellipse: 'ELIPSA',
+  slot: 'SLOT',
+  spline: 'SPLINE',
+  conic: 'CONIC',
+  point: 'PUNKT',
+  parameters: 'PARAMETRY',
+  measure: 'POMIAR',
+  sectionAnalysis: 'PRZEKRÓJ',
+  massProperties: 'MASA',
+  geometryInspection: 'ANALIZA',
+});
+
+function commandLineState(command, shortcutBuffer, activeSketchId, notice, error = '') {
+  if (error) return { name: 'BŁĄD', value: error, prompt: 'Zmień parametry albo naciśnij Esc' };
+  if (shortcutBuffer) return { name: 'POLECENIE', value: shortcutBuffer, prompt: 'Enter lub spacja uruchamia · Esc anuluje' };
+  if (command?.type === 'line' || command?.type === 'polyline') return {
+    name: COMMAND_NAMES[command.type],
+    value: command.lastPoint ? 'Podaj długość lub wskaż następny punkt' : 'Wskaż pierwszy punkt',
+    prompt: command.lastPoint ? 'Enter kończy · Esc anuluje' : 'Kliknij w obszarze rysunku',
+  };
+  if (command) return {
+    name: COMMAND_NAMES[command.type] || String(command.type || 'POLECENIE').replaceAll(/([a-z])([A-Z])/g, '$1 $2').toUpperCase(),
+    value: command.previewFeature ? 'Ustaw parametry operacji' : 'Wykonaj wskazaną czynność',
+    prompt: 'Enter zatwierdza · Esc anuluje',
+  };
+  return {
+    name: activeSketchId ? 'SZKIC' : 'GOTOWE',
+    value: notice,
+    prompt: 'Wpisz alias polecenia',
+  };
+}
+
+function CadCommandLine({ state, engineStatus, entry }) {
+  return (
+    <form
+      className={`cad-command-line ${entry ? 'editable' : ''}`}
+      aria-label="Wiersz poleceń CAD"
+      onSubmit={(event) => {
+        event.preventDefault();
+        entry?.onSubmit?.();
+      }}
+    >
+      <span className={`status-dot ${engineStatus}`} />
+      <strong>{state.name}</strong>
+      <span className="cad-command-value">{state.value}</span>
+      {entry && (
+        <label className="cad-command-entry">
+          <span className="sr-only">{entry.label}</span>
+          <input
+            type="text"
+            inputMode={entry.inputMode || 'text'}
+            autoComplete="off"
+            spellCheck="false"
+            aria-label={entry.label}
+            placeholder={entry.placeholder}
+            value={entry.value}
+            onChange={(event) => entry.onChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                entry.onCancel?.();
+                event.currentTarget.blur();
+              }
+            }}
+          />
+          <kbd>Enter</kbd>
+        </label>
+      )}
+      <small>{state.prompt}</small>
+    </form>
+  );
 }
 
 function useDocumentHistory(initialDocument) {
@@ -727,7 +808,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
   const pointTitles = { vertex: 'Punkt na wierzchołku', center: 'Punkt środka', intersection: 'Punkt przecięcia', midpoint: 'Punkt środkowy', 'on-axis': 'Punkt na osi' };
   const title = isRectangle ? 'Prostokąt' : isCircle ? 'Okrąg' : isArc ? 'Łuk' : isPolygon ? 'Wielokąt regularny' : isEllipse ? 'Elipsa' : isSlot ? 'Slot' : isSpline ? 'Spline' : isConic ? 'Krzywa conic' : isPoint ? 'Punkt szkicu' : isExtrude ? 'Wyciągnięcie' : isRevolve ? 'Revolve' : isSweep ? 'Sweep' : isLoft ? 'Loft' : isRib ? 'Rib/Web' : isCoil ? 'Coil' : isPipe ? 'Pipe' : isPattern ? 'Pattern' : isBoolean ? 'Boolean' : isPrimitive ? 'Prymityw 3D' : isTransform ? (command.mode === 'rotate' ? 'Obróć bryłę' : 'Przesuń bryłę') : isOffsetFace ? 'Offset Face' : isTextSolid ? 'Tekst 3D' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : isShell ? 'Shell' : isDraftFeature ? 'Draft' : isSplitBody ? 'Split Body' : isSplitFace ? 'Split Face' : isDeleteFace ? 'Delete Face + Heal' : isReplaceFace ? 'Replace Face' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : isSketchOffset ? 'Offset szkicu' : isSketchCorner ? (command.mode === 'fillet' ? 'Fillet szkicu' : 'Chamfer szkicu') : isSketchTransform ? 'Transformuj szkic' : isSketchPattern ? 'Szyk szkicu' : isOffsetPlane ? 'Płaszczyzna odsunięta' : isMidplane ? 'Płaszczyzna środkowa' : isThreePointPlane ? 'Płaszczyzna przez trzy punkty' : isAnglePlane ? 'Płaszczyzna pod kątem' : isTangentPlane ? 'Płaszczyzna styczna' : isPathPlane ? 'Płaszczyzna na ścieżce' : isConstructionAxis ? axisTitles[command.axisType] : isConstructionPoint ? pointTitles[command.pointType] : 'Fazowanie';
   return (
-    <section className="command-dialog" aria-label={title}>
+    <section className={`command-dialog ${isSketchPath ? 'sketch-path-dialog' : ''}`} aria-label={title}>
       <header><strong>{title}</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
       <div className="command-dialog-body">
         {isMechanicalShape && <Field label="Nazwa" value={command.name} onChange={(name) => onChange({ name })} />}
@@ -871,17 +952,20 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
           </>
         )}
         {isSketchPath && (
-          <>
-            <Field label="Długość" value={command.length} onChange={(length) => onChange({ length })} suffix="mm" autoFocus />
-            <Field label="Kąt" value={command.angle} onChange={(angle) => onChange({ angle })} suffix="°" />
-            <label className="command-field">
-              <span>Segment</span>
-              <select value={command.segmentMode} onChange={(event) => onChange({ segmentMode: event.target.value })}>
-                <option value="line">Linia</option>
-                <option value="tangentArc" disabled={!command.segmentIds.length}>Łuk styczny</option>
-              </select>
-            </label>
-          </>
+          <details className="sketch-path-exact">
+            <summary><span>Dokładna długość i kąt</span><small>opcjonalnie</small></summary>
+            <div>
+              <Field label="Długość" value={command.length} onChange={(length) => onChange({ length })} suffix="mm" />
+              <Field label="Kąt" value={command.angle} onChange={(angle) => onChange({ angle })} suffix="°" />
+              <label className="command-field">
+                <span>Segment</span>
+                <select value={command.segmentMode} onChange={(event) => onChange({ segmentMode: event.target.value })}>
+                  <option value="line">Linia</option>
+                  <option value="tangentArc" disabled={!command.segmentIds.length}>Łuk styczny</option>
+                </select>
+              </label>
+            </div>
+          </details>
         )}
         {isSketchMove && (
           <>
@@ -910,7 +994,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
             <p className="command-hint">Numery oddziel przecinkami lub podaj zakres, np. 3, 5-7. Wystąpienie 1 jest źródłem.</p>
           </>
         )}
-        <div className="command-preview-note"><span className="preview-dot" />{isSketchPath ? 'Klikaj punkty na płótnie lub dodaj następny punkt dokładną długością i kątem.' : isSketchMove ? 'Wpisz dokładne przesunięcie zaznaczenia w osiach szkicu.' : isSketchOffset ? 'Operacja powstanie dopiero po zatwierdzeniu; Anuluj nie zmienia szkicu.' : isSketchCorner ? 'Oryginalne linie zachowają ID; zerwane więzy zostaną jawnie usunięte.' : isSketchTransform ? 'Transformacja jest transakcyjna; Scale odrzuca geometrię z blokującym wymiarem.' : isSketchPattern ? 'Szyk powstanie transakcyjnie; pominięte kopie nie zostaną utworzone.' : isConstructionPlane ? 'Współrzędne i odległości mogą być liczbami albo wyrażeniami z parametrów modelu.' : isPoint ? 'Kliknij położenie na płótnie. Pola X/Y są opcjonalnym wejściem dokładnym.' : isMechanicalShape ? 'Klikaj punkty figury na płótnie. Pola pozostają opcjonalnym wejściem dokładnym — jak w wierszu poleceń CAD.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>
+        {!isSketchPath && <div className="command-preview-note"><span className="preview-dot" />{isSketchMove ? 'Wpisz dokładne przesunięcie zaznaczenia w osiach szkicu.' : isSketchOffset ? 'Operacja powstanie dopiero po zatwierdzeniu; Anuluj nie zmienia szkicu.' : isSketchCorner ? 'Oryginalne linie zachowają ID; zerwane więzy zostaną jawnie usunięte.' : isSketchTransform ? 'Transformacja jest transakcyjna; Scale odrzuca geometrię z blokującym wymiarem.' : isSketchPattern ? 'Szyk powstanie transakcyjnie; pominięte kopie nie zostaną utworzone.' : isConstructionPlane ? 'Współrzędne i odległości mogą być liczbami albo wyrażeniami z parametrów modelu.' : isPoint ? 'Kliknij położenie na płótnie. Pola X/Y są opcjonalnym wejściem dokładnym.' : isMechanicalShape ? 'Klikaj punkty figury na płótnie. Pola pozostają opcjonalnym wejściem dokładnym — jak w wierszu poleceń CAD.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>}
       </div>
       {isSketchPath ? (
         <footer><button className="secondary" type="button" onClick={onUndoSegment} disabled={!command.pointIds.length}>Cofnij segment</button><button className="secondary" type="button" onClick={onFinishPath}>Zakończ</button><button className="confirm" type="button" onClick={onConfirm} disabled={!command.lastPoint}><Check size={14} /> Dodaj dokładnie</button></footer>
@@ -963,13 +1047,15 @@ function ParametersDialog({ document, commit, onClose }) {
 
 function SketchPalette({ options, onChange, onFinish }) {
   const [expanded, setExpanded] = useState(false);
-  const items = [
+  const basicItems = [
     ['grid', 'Siatka szkicu'],
     ['snap', 'Przyciąganie'],
     ['profiles', 'Profile'],
     ['points', 'Punkty'],
     ['dimensions', 'Wymiary'],
     ['constraints', 'Wiązania'],
+  ];
+  const advancedItems = [
     ['construction', 'Geometrie konstrukcyjne'],
     ['projected', 'Geometria Project'],
     ['slice', 'Slice modelu'],
@@ -982,14 +1068,20 @@ function SketchPalette({ options, onChange, onFinish }) {
         <button className="sketch-palette-toggle" type="button" title={expanded ? 'Zwiń paletę szkicu' : 'Rozwiń paletę szkicu'} aria-label={expanded ? 'Zwiń paletę szkicu' : 'Rozwiń paletę szkicu'} aria-expanded={expanded} onClick={() => setExpanded((current) => !current)}>{expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>
       </header>
       {expanded && <div className="sketch-palette-body">
-        <h3>Opcje</h3>
-        {items.map(([key, label]) => (
+        <h3>Widok i snap</h3>
+        {basicItems.map(([key, label]) => (
           <label key={key} data-sketch-option={key}><span>{label}</span><input type="checkbox" checked={Boolean(options[key])} onChange={(event) => onChange(key, event.target.checked)} /></label>
         ))}
         <label className="sketch-snap-threshold">
           <span>Próg snap <output>{options.snapDistance}px</output></span>
           <input type="range" min="4" max="24" step="1" value={options.snapDistance} disabled={!options.snap} onChange={(event) => onChange('snapDistance', Number(event.target.value))} />
         </label>
+        <details className="sketch-advanced-options">
+          <summary>Opcje zaawansowane</summary>
+          {advancedItems.map(([key, label]) => (
+            <label key={key} data-sketch-option={key}><span>{label}</span><input type="checkbox" checked={Boolean(options[key])} onChange={(event) => onChange(key, event.target.checked)} /></label>
+          ))}
+        </details>
         <div className="sketch-state-legend" aria-label="Legenda stanów geometrii szkicu">
           <h3>Stany geometrii</h3>
           <span><i className="under" /> Niedowiązana</span>
@@ -1203,6 +1295,7 @@ export default function ModelingWorkspace() {
   const [shortcutBuffer, setShortcutBuffer] = useState('');
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(true);
+  const [printPanelOpen, setPrintPanelOpen] = useState(false);
   const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, profiles: true, points: true, dimensions: true, constraints: true, construction: true, projected: true, slice: false, sketch3d: false });
   const [notice, setNotice] = useState(initialOpen.warning || 'Gotowe. Zacznij od rysunku 2D albo otwórz projekt.');
   const fileInputRef = useRef(null);
@@ -4094,16 +4187,15 @@ export default function ModelingWorkspace() {
   };
 
   const switchWorkspace = (id) => {
-    if (id === 'tools') {
-      if (readOnly) return readOnlyNotice();
-      setCommand({ type: 'parameters' });
-      setWorkspace('solid');
-      return;
-    }
     setCommand(null);
     setActiveSketchId(null);
     setWorkspace(id);
-    setNotice(id === 'print' ? 'Sprawdź gabaryty i przygotuj plik do druku 3D.' : 'Obszar modelowania bryłowego.');
+    setPrintPanelOpen(false);
+    setNotice(id === 'print'
+      ? 'Eksportuj dokładny model CAD albo otwórz opcjonalną kontrolę druku 3D.'
+      : id === 'tools'
+        ? 'Parametry, geometria konstrukcyjna, pomiary i analiza modelu.'
+        : 'Obszar projektowania CAD.');
   };
 
   const selectTimelineStep = (direction) => {
@@ -4139,14 +4231,40 @@ export default function ModelingWorkspace() {
     setSelection(nextSelection);
   };
 
+  const clearShortcutBuffer = useCallback(() => {
+    shortcutBufferRef.current = '';
+    setShortcutBuffer('');
+  }, []);
+
+  const updateShortcutBuffer = useCallback((value) => {
+    const next = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
+    shortcutBufferRef.current = next;
+    setShortcutBuffer(next);
+    if (next) setNotice(`Polecenie: ${next} · Enter lub spacja uruchamia · Escape anuluje.`);
+  }, []);
+
+  const executeShortcutAlias = useCallback((rawAlias) => {
+    const alias = String(rawAlias || '').trim().toUpperCase();
+    if (!alias) return false;
+    const entry = shortcutRegistryRef.current.get(alias);
+    clearShortcutBuffer();
+    setToolHelp(null);
+    if (!entry) {
+      setNotice(`Nieznany skrót „${alias}”. Najedź na funkcję, aby zobaczyć jej alias.`);
+      return false;
+    }
+    if (entry.disabled) {
+      setNotice(`Polecenie „${entry.label}” jest teraz niedostępne. Najpierw wybierz wymaganą geometrię.`);
+      return false;
+    }
+    entry.onClick?.();
+    return true;
+  }, [clearShortcutBuffer]);
+
   useEffect(() => {
     const onKeyDown = (event) => {
       const textEntry = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName) || event.target?.isContentEditable;
-      const clearShortcutBuffer = () => {
-        shortcutBufferRef.current = '';
-        setShortcutBuffer('');
-      };
-      if (!textEntry && !command && event.ctrlKey && event.key === 'Enter' && activeSketchId) {
+      if (!textEntry && !command && (event.ctrlKey || event.metaKey) && event.key === 'Enter' && activeSketchId) {
         event.preventDefault();
         clearShortcutBuffer();
         finishSketch();
@@ -4168,17 +4286,7 @@ export default function ModelingWorkspace() {
       }
       if (!textEntry && !command && (event.key === 'Enter' || event.key === ' ') && shortcutBufferRef.current) {
         event.preventDefault();
-        const alias = shortcutBufferRef.current;
-        const entry = shortcutRegistryRef.current.get(alias);
-        clearShortcutBuffer();
-        setToolHelp(null);
-        if (!entry) {
-          setNotice(`Nieznany skrót „${alias}”. Najedź na funkcję, aby zobaczyć jej alias.`);
-        } else if (entry.disabled) {
-          setNotice(`Polecenie „${entry.label}” jest teraz niedostępne. Najpierw wybierz wymaganą geometrię.`);
-        } else {
-          entry.onClick?.();
-        }
+        executeShortcutAlias(shortcutBufferRef.current);
         return;
       }
       if (!textEntry && !command && event.key === 'Backspace' && shortcutBufferRef.current) {
@@ -4190,10 +4298,7 @@ export default function ModelingWorkspace() {
       }
       if (!textEntry && !command && !event.ctrlKey && !event.metaKey && !event.altKey && /^[a-z0-9]$/i.test(event.key)) {
         event.preventDefault();
-        const next = `${shortcutBufferRef.current}${event.key.toUpperCase()}`.slice(0, 16);
-        shortcutBufferRef.current = next;
-        setShortcutBuffer(next);
-        setNotice(`Polecenie: ${next} · Enter lub spacja uruchamia · Escape anuluje.`);
+        updateShortcutBuffer(`${shortcutBufferRef.current}${event.key}`);
         return;
       }
       if (event.key === 'Escape' && command) {
@@ -4293,9 +4398,34 @@ export default function ModelingWorkspace() {
     return () => window.removeEventListener('keydown', onKeyDown);
   // Command state is the stable boundary for the keyboard handler; command helpers are render-local callbacks.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, selectedSketchConstraintId, readOnly, history]);
+  }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, selectedSketchConstraintId, readOnly, history, clearShortcutBuffer, executeShortcutAlias, updateShortcutBuffer]);
 
   const timelineStatus = new Map(engine.timeline?.map((item) => [item.id, item]));
+  const commandLine = commandLineState(command, shortcutBuffer, activeSketchId, notice, engine.error);
+  const commandLineEntry = !command ? {
+    label: 'Wpisz alias polecenia CAD',
+    placeholder: 'np. L, REC, C…',
+    value: shortcutBuffer,
+    onChange: updateShortcutBuffer,
+    onSubmit: () => executeShortcutAlias(shortcutBufferRef.current),
+    onCancel: () => {
+      clearShortcutBuffer();
+      setNotice('Anulowano wpisywanie skrótu polecenia.');
+    },
+  } : (command.type === 'line' || command.type === 'polyline') && command.lastPoint ? {
+    label: 'Długość następnego odcinka',
+    placeholder: 'Długość w mm',
+    inputMode: 'decimal',
+    value: command.dynamicLength || '',
+    onChange: (value) => {
+      const normalized = String(value || '').replace(',', '.');
+      if (!/^\d*(?:\.\d*)?$/.test(normalized)) return;
+      sketchDynamicLengthRef.current = normalized;
+      setCommand((current) => ({ ...current, dynamicLength: normalized }));
+    },
+    onSubmit: confirmDynamicSketchSegment,
+    onCancel: finishSketchPath,
+  } : null;
   let directManipulator = null;
   if (command?.type === 'transform') {
     const body = engine.bodies.find((item) => item.id === command.targetBodyId) || engine.bodies[0];
@@ -4315,18 +4445,17 @@ export default function ModelingWorkspace() {
 
   return (
     <ToolHelpContext.Provider value={toolHelpContext}>
-    <section className={`modeling-shell platform-${DESKTOP_PLATFORM}`} aria-label="Modelowanie parametryczne MadCAD">
+    <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${document.features.length ? '' : 'timeline-empty'}`} aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
         <div className="app-menu"><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button id="newProjectBtn" type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button id="openProjectBtn" type="button" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={16} /></button><button id="saveProjectBtn" type="button" title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
         <input ref={importInputRef} hidden type="file" accept=".step,.stp,.stl,.3mf,model/step,model/stl,model/3mf" onChange={chooseModelImport} />
         <input ref={sketchImportInputRef} hidden type="file" accept=".svg,.dxf,image/svg+xml,application/dxf" onChange={chooseSketchImport} />
         <div className="document-tab" title={currentPath || (dirty ? 'Projekt zawiera niezapisane zmiany' : 'Projekt zapisany')}><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" disabled={readOnly} onChange={(event) => commit((next) => { next.name = event.target.value; })} />{readOnly ? <span className="read-only-badge">TYLKO ODCZYT · v{documentAccess.sourceVersion}</span> : dirty ? <span role="img" aria-label="Niezapisane zmiany">*</span> : null}</div>
-        <div className="title-actions"><button id="undoProjectBtn" type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button id="redoProjectBtn" type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><label className="language-select" title="Język interfejsu"><span className="sr-only">Język interfejsu</span><select aria-label="Język interfejsu" value={language} onChange={(event) => { void changeAppLanguage(event.target.value); }}><option value="pl">PL</option><option value="en">EN</option></select></label><button type="button" title="Samouczek pierwszej części" aria-label="Samouczek pierwszej części" onClick={() => setTutorialOpen(true)}><CircleHelp size={15} /><span>Samouczek</span></button><button id="checkUpdatesBtn" type="button" title="Sprawdź aktualizacje" onClick={() => { void checkForUpdates(false); }}><HardDriveDownload size={15} /><span>Aktualizacje</span></button><button id="licenseInfoBtn" type="button" title="Licencja i informacje" onClick={() => setLicenseInfoOpen(true)}><CircleHelp size={15} /><span>Licencja</span></button><div className="brand-mark" title="MadCAD"><img src={madcadIconUrl} alt="MadCAD" /></div></div>
+        <div className="title-actions"><button id="undoProjectBtn" type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button id="redoProjectBtn" type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><label className="language-select" title="Język interfejsu"><span className="sr-only">Język interfejsu</span><select aria-label="Język interfejsu" value={language} onChange={(event) => { void changeAppLanguage(event.target.value); }}><option value="pl">PL</option><option value="en">EN</option></select></label><button type="button" title="Samouczek pierwszego projektu CAD" aria-label="Samouczek pierwszego projektu CAD" onClick={() => setTutorialOpen(true)}><CircleHelp size={15} /><span>Samouczek</span></button><button id="checkUpdatesBtn" type="button" title="Sprawdź aktualizacje" onClick={() => { void checkForUpdates(false); }}><HardDriveDownload size={15} /><span>Aktualizacje</span></button><button id="licenseInfoBtn" type="button" title="Licencja i informacje" onClick={() => setLicenseInfoOpen(true)}><CircleHelp size={15} /><span>Licencja</span></button><div className="brand-mark" title="MadCAD"><img src={madcadIconUrl} alt="MadCAD" /></div></div>
       </header>
 
       <section className="command-area">
-        <div className="workspace-switcher"><div className="workspace-label"><span>PROJEKT</span></div></div>
         <div className="command-ribbon">
           <nav className="workspace-tabs" aria-label="Obszary robocze">
             {activeSketchId ? <button className="active" type="button" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item) => <button id={item.id === 'print' ? 'printWorkspaceBtn' : undefined} key={item.id} className={workspace === item.id ? 'active' : ''} type="button" title={item.id === 'solid' ? 'Szkicowanie 2D i modelowanie parametryczne 3D.' : item.id === 'tools' ? 'Parametry i narzędzia dokumentu.' : 'Eksport CAD oraz opcjonalne przygotowanie druku 3D.'} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
@@ -4340,28 +4469,33 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="WYMIARY"><ToolButton icon={Ruler} label="Ordinate X" onClick={() => openSketchDimension('ordinateX')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={Ruler} label="Ordinate Y" onClick={() => openSketchDimension('ordinateY')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={RotateCw} label="Długość łuku" onClick={() => openSketchDimension('arcLength')} disabled={readOnly || !canAddArcLength} /></RibbonGroup>
                 <RibbonGroup label="SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
+            ) : workspace === 'tools' ? (
+              <>
+                <RibbonGroup label="PARAMETRY"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} primary /></RibbonGroup>
+                <RibbonGroup label="POMIAR I ANALIZA"><ToolButton icon={Ruler} label="Zmierz" onClick={openMeasure} /><ToolButton icon={ScanSearch} label="Przekrój" onClick={openSectionAnalysis} disabled={!engine.bodies.length} /><ToolButton icon={Box} label="Masa" onClick={openMassProperties} disabled={!engine.bodies.length} /><ToolButton icon={AlertTriangle} label="Analiza" onClick={openGeometryInspection} disabled={!engine.bodies.length} /></RibbonGroup>
+                <RibbonGroup label="PŁASZCZYZNY"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Rotate3d} label="Plane angle" onClick={() => openConstructionPlane('angle')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Plane tangent" onClick={() => openConstructionPlane('tangent')} disabled={readOnly} /><ToolButton icon={Move3d} label="Plane path" onClick={() => openConstructionPlane('path')} disabled={readOnly} /></RibbonGroup>
+                <RibbonGroup label="OSIE"><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={Move3d} label="Oś normalna" onClick={() => openConstructionAxis('plane-normal')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-plane')} /></RibbonGroup>
+                <RibbonGroup label="PUNKTY"><ToolButton icon={CircleDotDashed} label="Punkt wierzchołka" onClick={() => openConstructionPoint('vertex')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt centrum" onClick={() => openConstructionPoint('center')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt przecięcia" onClick={() => openConstructionPoint('intersection')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={CircleDotDashed} label="Punkt środkowy" onClick={() => openConstructionPoint('midpoint')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt na osi" onClick={() => openConstructionPoint('on-axis')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis')} /></RibbonGroup>
+                <RibbonGroup label="WSTAW" end><ToolButton icon={Upload} label="Import 3D" onClick={() => importInputRef.current?.click()} disabled={readOnly} /></RibbonGroup>
+              </>
             ) : workspace === 'print' ? (
               <>
                 <RibbonGroup label="WYMIANA CAD"><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
                 <RibbonGroup label="SIATKI"><ToolButton icon={HardDriveDownload} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="3MF" onClick={() => exportModel('3mf')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
-                <RibbonGroup label="DRUK 3D · DODATEK"><ToolButton icon={Printer} label="Kontrola druku" onClick={() => setWorkspace('print')} /></RibbonGroup>
+                <RibbonGroup label="DRUK 3D · DODATEK"><ToolButton icon={Printer} label="Kontrola druku" onClick={() => setPrintPanelOpen(true)} /></RibbonGroup>
               </>
             ) : (
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || (!selectedProfile && !canExtrudeOpenChain)} /><ToolButton icon={Rotate3d} label="Revolve" onClick={openRevolve} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Move3d} label="Sweep" onClick={openSweep} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Layers3} label="Loft" onClick={openLoft} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={RotateCw} label="Coil" onClick={openCoil} disabled={readOnly || Boolean(activeSketchId)} /><ToolButton icon={Grid2X2} label="Pattern" onClick={openPattern} disabled={readOnly || !targetBodyId || Boolean(activeSketchId)} /><ToolButton icon={Move3d} label="Press Pull" onClick={openPressPull} disabled={readOnly || !canPressPull} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={Type} label="Tekst 3D" onClick={openTextSolid} disabled={readOnly} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || selectedBodyIds.length !== 2} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="ZMIANA"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Layers3} label="Shell" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Triangle} label="Draft" onClick={openDraft} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Scissors} label="Split Body" onClick={openSplitBody} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Scissors} label="Split Face" onClick={openSplitFace} disabled={readOnly || !canSplitFace} /><ToolButton icon={X} label="Delete Face + Heal" onClick={openDeleteFace} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Layers3} label="Replace Face" onClick={openReplaceFace} disabled={readOnly || selectedFaceItems.length !== 2} /><ToolButton icon={Layers3} label="Offset Face" onClick={openOffsetFace} disabled={readOnly || selectedFaceItems.length !== 1} /><ToolButton icon={Move3d} label="Przesuń bryłę" onClick={() => openTransform('move')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Rotate3d} label="Obróć bryłę" onClick={() => openTransform('rotate')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
-                <RibbonGroup label="KONSTRUKCJA"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Rotate3d} label="Plane angle" onClick={() => openConstructionPlane('angle')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Plane tangent" onClick={() => openConstructionPlane('tangent')} disabled={readOnly} /><ToolButton icon={Move3d} label="Plane path" onClick={() => openConstructionPlane('path')} disabled={readOnly} /><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={Move3d} label="Oś normalna" onClick={() => openConstructionAxis('plane-normal')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={CircleDotDashed} label="Punkt wierzchołka" onClick={() => openConstructionPoint('vertex')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt centrum" onClick={() => openConstructionPoint('center')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt przecięcia" onClick={() => openConstructionPoint('intersection')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={CircleDotDashed} label="Punkt środkowy" onClick={() => openConstructionPoint('midpoint')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt na osi" onClick={() => openConstructionPoint('on-axis')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis')} /><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} /></RibbonGroup>
-                <RibbonGroup label="INSPECT"><ToolButton icon={Ruler} label="Zmierz" onClick={openMeasure} /><ToolButton icon={ScanSearch} label="Przekrój" onClick={openSectionAnalysis} disabled={!engine.bodies.length} /><ToolButton icon={Box} label="Masa" onClick={openMassProperties} disabled={!engine.bodies.length} /><ToolButton icon={AlertTriangle} label="Analiza" onClick={openGeometryInspection} disabled={!engine.bodies.length} /></RibbonGroup>
-                <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Import 3D" onClick={() => importInputRef.current?.click()} disabled={readOnly} /></RibbonGroup>
-                <RibbonGroup label="WYBIERZ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
-                <RibbonGroup label="EKSPORT" end><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="3MF" onClick={() => exportModel('3mf')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={Printer} label="Kontrola druku" onClick={() => switchWorkspace('print')} /></RibbonGroup>
+                <RibbonGroup label="WYBIERZ" end><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
               </>
             )}
           </div>
         </div>
       </section>
 
-      <div className={`modeling-content ${workspace === 'print' ? 'with-print-panel' : ''} ${browserOpen ? '' : 'without-browser'}`}>
+      <div className={`modeling-content ${workspace === 'print' && printPanelOpen ? 'with-print-panel' : ''} ${browserOpen ? '' : 'without-browser'}`}>
         {browserOpen && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onClose={() => setBrowserOpen(false)} />}
         <main className="modeling-stage">
           <React.Suspense fallback={<div className="viewport-loading" role="status">Uruchamianie widoku 3D…</div>}>
@@ -4420,7 +4554,7 @@ export default function ModelingWorkspace() {
             snapEnabled={sketchOptions.snap}
             snapThresholdPx={sketchOptions.snapDistance}
             bed={document.print}
-            showBed={workspace === 'print'}
+            showBed={workspace === 'print' && printPanelOpen}
             printLayout={document.print}
           />
           </React.Suspense>
@@ -4447,13 +4581,13 @@ export default function ModelingWorkspace() {
           {command?.type === 'parameters' && <ParametersDialog document={document} commit={commit} onClose={() => setCommand(null)} />}
           {activeSketchId && <SketchPalette options={sketchOptions} onChange={(key, value) => setSketchOptions((current) => ({ ...current, [key]: value }))} onFinish={finishSketch} />}
         </main>
-        {workspace === 'print' && <PrintPanel document={document} bodies={engine.bodies} engine={engine} selectedFace={selectedPrintFace} commit={commit} onSelectIssue={(item) => setSelection(item?.kind === 'document' ? { kind: 'document', id: document.id } : item)} onExport={exportModel} onSendToSlicer={sendToSlicer} onClose={() => switchWorkspace('solid')} readOnly={readOnly} />}
+        {workspace === 'print' && printPanelOpen && <PrintPanel document={document} bodies={engine.bodies} engine={engine} selectedFace={selectedPrintFace} commit={commit} onSelectIssue={(item) => setSelection(item?.kind === 'document' ? { kind: 'document', id: document.id } : item)} onExport={exportModel} onSendToSlicer={sendToSlicer} onClose={() => setPrintPanelOpen(false)} readOnly={readOnly} />}
       </div>
 
       <footer className="modeling-footer">
-        <div className="notice" role="status"><span className={`status-dot ${engine.status}`} />{engine.error || notice}</div>
+        <CadCommandLine state={commandLine} engineStatus={engine.status} entry={commandLineEntry} />
         <div className="timeline" role="region" aria-label="Parametryczna oś czasu">
-          <div className="timeline-controls"><button type="button" title="Zaznacz pierwszy krok parametrycznej historii." onClick={() => selectTimelineStep('start')}><SkipBack size={14} /></button><button type="button" title="Zaznacz poprzednią operację w historii." onClick={() => selectTimelineStep('previous')}><StepBack size={14} /></button><button type="button" title="Zaznacz następną operację w historii." onClick={() => selectTimelineStep('next')}><StepForward size={14} /></button></div>
+          {document.features.length ? <><div className="timeline-controls"><button type="button" title="Zaznacz pierwszy krok parametrycznej historii." onClick={() => selectTimelineStep('start')}><SkipBack size={14} /></button><button type="button" title="Zaznacz poprzednią operację w historii." onClick={() => selectTimelineStep('previous')}><StepBack size={14} /></button><button type="button" title="Zaznacz następną operację w historii." onClick={() => selectTimelineStep('next')}><StepForward size={14} /></button></div>
           <span className="timeline-start" />
           {document.features.map((feature, index) => {
             const result = timelineStatus.get(feature.id);
@@ -4463,7 +4597,7 @@ export default function ModelingWorkspace() {
               </button>
             );
           })}
-          <span className="timeline-end" />
+          <span className="timeline-end" /></> : <span className="timeline-empty-label">Historia operacji pojawi się po utworzeniu pierwszej bryły.</span>}
         </div>
       </footer>
       {tutorialOpen && <FirstPartTutorial onClose={() => setTutorialOpen(false)} />}
@@ -4477,7 +4611,6 @@ export default function ModelingWorkspace() {
           <small>Skróty poleceń wpisuj bezpośrednio i zatwierdzaj Enterem.</small>
         </div>
       )}
-      {shortcutBuffer && <div className="cad-command-input" role="status"><span>Polecenie</span><strong>{shortcutBuffer}</strong><small>Enter / spacja</small></div>}
     </section>
     </ToolHelpContext.Provider>
   );

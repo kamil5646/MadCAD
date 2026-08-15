@@ -1,7 +1,7 @@
 export const FIRST_PART_TUTORIAL = Object.freeze({
   pl: Object.freeze({
-    title: 'Pierwsza część do druku',
-    intro: 'Przejdź tę ścieżkę od pustego dokumentu do sprawdzonego pliku 3MF w skali 1:1.',
+    title: 'Pierwszy projekt CAD',
+    intro: 'Przejdź drogę od dokładnego szkicu 2D do parametrycznego modelu i pliku STEP. Druk 3D jest opcjonalnym dodatkiem.',
     steps: Object.freeze([
       ['1. Nowy projekt', 'Utwórz nowy projekt i nadaj mu rozpoznawalną nazwę.'],
       ['2. Szkic bazowy', 'Wybierz XY, narysuj zamknięty prostokąt i wpisz dokładne wymiary w milimetrach.'],
@@ -9,8 +9,8 @@ export const FIRST_PART_TUTORIAL = Object.freeze({
       ['4. Bryła', 'Zakończ szkic, zaznacz profil i użyj Wyciągnij. Wpisz odległość oraz zatwierdź operację.'],
       ['5. Otwór', 'Zaznacz górną płaską ścianę i dwie prostopadłe krawędzie. Utwórz otwór z parametrycznymi odsunięciami.'],
       ['6. Kontrola', 'Użyj Zmierz, Masa i Analiza. Napraw błędy historii lub utracone referencje przed eksportem.'],
-      ['7. Eksport projektu', 'Zapisz dokładną bryłę jako STEP. Jeśli chcesz drukować model, opcjonalnie otwórz Eksport, wybierz profil drukarki i uruchom kontrolę wydruku.'],
-      ['8. Zapis i eksport', 'Zapisz projekt .madcad, otwórz go ponownie, a następnie wyeksportuj 3MF lub STL w skali 1:1.'],
+      ['7. Eksport CAD', 'Zapisz dokładną bryłę jako STEP do dalszej pracy i wymiany z innymi programami CAD.'],
+      ['8. Opcjonalny druk 3D', 'Jeśli chcesz drukować model, otwórz Eksport, wybierz Kontrolę druku i dopiero wtedy wyeksportuj 3MF lub STL.'],
     ]),
     limitationsTitle: 'Znane ograniczenia',
     limitations: Object.freeze([
@@ -24,8 +24,8 @@ export const FIRST_PART_TUTORIAL = Object.freeze({
     close: 'Zamknij samouczek',
   }),
   en: Object.freeze({
-    title: 'Your first printable part',
-    intro: 'Follow this path from an empty document to a checked, full-scale 3MF file.',
+    title: 'Your first CAD project',
+    intro: 'Go from an exact 2D sketch to a parametric model and STEP file. 3D printing remains an optional extra.',
     steps: Object.freeze([
       ['1. New project', 'Create a new project and give it a recognizable name.'],
       ['2. Base sketch', 'Choose XY, draw a closed rectangle, and enter exact dimensions in millimeters.'],
@@ -33,8 +33,8 @@ export const FIRST_PART_TUTORIAL = Object.freeze({
       ['4. Body', 'Finish the sketch, select the profile, and use Extrude. Enter the distance and confirm the operation.'],
       ['5. Hole', 'Select the top planar face and two perpendicular edges. Create a hole with parametric offsets.'],
       ['6. Inspect', 'Use Measure, Mass, and Analysis. Repair history errors or lost references before export.'],
-      ['7. Prepare for printing', 'Open 3D Print, choose a printer profile, place a planar face on the bed, and run printability analysis.'],
-      ['8. Save and export', 'Save the .madcad project, reopen it, then export 3MF or STL at 1:1 scale.'],
+      ['7. CAD export', 'Save the exact solid as STEP for continued work and exchange with other CAD applications.'],
+      ['8. Optional 3D print', 'If you want to print the model, open Export, choose Print Check, and only then export 3MF or STL.'],
     ]),
     limitationsTitle: 'Known limitations',
     limitations: Object.freeze([
