@@ -1,7 +1,7 @@
 # MadCAD — aktywny plan rozwoju
 
 Aktualizacja: 2026-08-15
-Wersja bazowa: `6.1.7 stable`
+Wersja bazowa: `6.1.8 stable`
 Gałąź wydania: `main`
 
 Ten plik opisuje aktywną ścieżkę do CAD 2D/3D: bezpośrednie szkicowanie i polecenia znane z klasycznego CAD są podstawą, a parametryczna historia i modelowanie bryłowe rozwijają rysunek w model 3D. Przygotowanie do druku 3D pozostaje opcjonalnym dodatkiem eksportowym. Historia ukończonych prac znajduje się w [DONE.md](./DONE.md), a dalszy zakres produktu w [BACKLOG.md](./BACKLOG.md).
@@ -118,7 +118,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] Electron ma context isolation, sandbox, CSP, bezpieczne linki, wspólną kontrolę źródła dla wszystkich 10 kanałów IPC oraz test odrzucenia obcego widoku.
 - [x] Budżety wydajności pickingu, meshowania i długiej historii są mierzone w testach core i desktop E2E.
 - [~] Przełącznik PL/EN i smoke test EN działają; pełne przeniesienie tekstów interfejsu do katalogu tłumaczeń nadal trwa. Dostępność klawiatury i fokusu oraz DPI 100–200% są testowane.
-- [x] Kanały alpha/beta/stable, SHA-256, testy paczek, rollback podpisanej instalacji macOS i updater ignorujący niezaufany adres z renderera są zaimplementowane. Wydanie 6.1.7 bez certyfikatu pobiera, sprawdza i przekazuje paczkę do instalatora systemowego.
+- [x] Kanały alpha/beta/stable, SHA-256, testy paczek, rollback podpisanej instalacji macOS i updater ignorujący niezaufany adres z renderera są zaimplementowane. Wydanie 6.1.8 bez certyfikatu pobiera, sprawdza i przekazuje paczkę do instalatora systemowego.
 - [x] Wbudowany samouczek prowadzi od szkicu do modelu i eksportu, ma ścieżkę PL/EN oraz jawną listę znanych ograniczeń.
 
 ## P1 — rozszerzenie modelowania części
@@ -172,7 +172,7 @@ Dodatkowo:
 - [!] Brakujące operacje Replicad wymagają kontrolowanego adaptera OpenCascade.
 - [!] Import musi być sprawdzany na plikach z różnych programów, nie tylko na własnym eksporcie.
 - [!] Zmiana `appId` i instalatora wymaga migracji danych i ciągłości aktualizacji.
-- [!] Niepodpisane wydanie 6.1.7 nadal wywołuje ostrzeżenia SmartScreen/Gatekeeper; aktualizator może bezpiecznie zweryfikować i otworzyć paczkę, lecz cicha instalacja wymaga certyfikatu platformowego.
+- [!] Niepodpisane wydanie 6.1.8 nadal wywołuje ostrzeżenia SmartScreen/Gatekeeper; aktualizator może bezpiecznie zweryfikować i otworzyć paczkę, lecz cicha instalacja wymaga certyfikatu platformowego.
 - [!] Pełna zgodność EN wymaga usunięcia pozostałych tekstów zakodowanych bezpośrednio w komponentach.
 - [!] Kontrast gęstego interfejsu CAD wymaga ręcznej weryfikacji wyników `axe` i testu z czytnikiem ekranu; automatyczna kontrola nie wykrywa obecnie naruszeń blokujących.
 

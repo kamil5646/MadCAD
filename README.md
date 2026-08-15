@@ -17,7 +17,7 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 **[Licencja](./LICENSE)** ·
 **[Zmiany](./madcad-2d/CHANGELOG.md)**
 
-> **Uwaga o wydaniu 6.1.7:** paczki są publikowane bez podpisu producenta,
+> **Uwaga o wydaniu 6.1.8:** paczki są publikowane bez podpisu producenta,
 > dlatego Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie.
 > Pobieraj je wyłącznie z oficjalnego GitHub Release i sprawdź sumę SHA-256.
 > Wbudowany aktualizator pobiera paczkę z oficjalnego wydania, sprawdza SHA-256
@@ -27,25 +27,26 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 
 - Rysowanie bezpośrednio na płótnie oraz dokładne wejście z klawiatury.
 - Linia w stylu AutoCAD: kliknij początek, ustaw kierunek kursorem, wpisz długość i naciśnij `Enter`.
-- Podpowiedzi po najechaniu z opisem działania i skrótem każdej funkcji.
-- Aliasy poleceń CAD, m.in. `L`, `PL`, `REC`, `C`, `TR`, `EX`, `O`, `F` i `EXT`.
+- Podpowiedzi po najechaniu z opisem działania; skróty podstawowych funkcji są pokazywane tylko w podpowiedzi.
+- Podstawowe skróty zgodne z Autodesk Fusion: `L`, `R`, `C`, `T`, `O`, `P`, `M`, `I`, `E` i `Del`.
 - Szkice parametryczne z więzami, wymiarami, profilami, szykami oraz importem SVG/DXF.
 - Modelowanie 3D: Extrude, Revolve, Sweep, Loft, Coil, Boolean, Shell, Draft, fillet i chamfer.
 - Trwałe referencje B-Rep, historia operacji, geometria konstrukcyjna i pomiary.
 - Import i eksport `STEP`, `STL`, `3MF`; własny parametryczny format `.madcad`.
 - Kontrola drukowalności, gabarytów i dopasowania modelu do stołu drukarki.
 - Interfejs polski i angielski, lokalne pliki, brak konta, telemetrii i aktywacji.
+- Przeglądarka projektu jest domyślnie zwinięta, aby maksymalizować obszar rysowania.
 
 ## Szybki start
 
 1. Pobierz paczkę dla swojego systemu z [Releases](https://github.com/kamil5646/MadCAD2D/releases/latest).
 2. Uruchom instalator Windows albo rozpakuj aplikację macOS.
 3. Wybierz **Utwórz szkic**, wskaż płaszczyznę i zacznij rysować.
-4. Najedź na dowolną funkcję, aby zobaczyć opis i alias klawiaturowy.
+4. Najedź na funkcję, aby zobaczyć opis; skrót podstawowego narzędzia pojawi się w podpowiedzi, a nie na przycisku.
 
 ### Linia z dokładną długością
 
-1. Wpisz `L` i naciśnij `Enter` albo kliknij **Linia**.
+1. Naciśnij `L` albo kliknij **Linia**.
 2. Kliknij punkt początkowy.
 3. Ustaw kierunek kursorem.
 4. Wpisz długość, np. `125.5`, i naciśnij `Enter`.
@@ -102,7 +103,7 @@ npm run dist:win:trusted
 ## English
 
 MadCAD is a desktop 2D/3D CAD application for Windows and macOS. It combines
-classic CAD-style direct drawing and command aliases with parametric solid
+classic CAD-style direct drawing and basic keyboard shortcuts with parametric solid
 modeling and exact STEP exchange. STL/3MF export and 3D-print checks are optional
 add-ons, not the center of the product.
 

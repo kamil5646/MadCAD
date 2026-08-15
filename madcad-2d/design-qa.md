@@ -10,7 +10,7 @@ Automatyczny test zapisuje aktualne zrzuty w ignorowanym katalogu `artifacts/`:
 
 1. `madcad-qa-license.png` — komunikat startowy o licencji i darowiźnie.
 2. `madcad-qa-empty.png` — pusty dokument i główne wezwanie do szkicu.
-3. `madcad-qa-tooltip.png` — opis narzędzia wraz z aliasem klawiaturowym.
+3. `madcad-qa-tooltip.png` — opis narzędzia wraz ze skrótem klawiaturowym.
 4. `madcad-qa-sketch.png` — szkic XY, osie, paleta i narzędzia kontekstowe.
 5. `madcad-direct-extrude.png` — bezpośredni uchwyt oraz dokładny wymiar.
 6. `modeling-checkpoint.png` — gotowa część i panel naprawy referencji.
@@ -24,8 +24,8 @@ Electron. Nie są atrapami ani statycznymi makietami.
 | Krok | Stan | Ocena | Ustalenia |
 |---:|---|---:|---|
 | 1 | Start i licencja | dobry | Komunikat nie blokuje aplikacji, jasno oddziela użytek prywatny, 40-dniową ocenę firmy, licencję płatną i darowiznę. Nie ma klucza ani aktywacji. |
-| 2 | Pusty dokument | dobry | Hierarchia jest czytelna, centralne „Utwórz szkic” prowadzi do podstawowego zadania, a drzewo i timeline nie dominują płótna. |
-| 3 | Tooltip i alias | dobry | Narzędzia pokazują opis, alias oraz sposób użycia po najechaniu i fokusie. Aktywne przyciski mają rzeczywiste handlery. |
+| 2 | Pusty dokument | dobry | Hierarchia jest czytelna, centralne „Utwórz szkic” prowadzi do podstawowego zadania, a domyślnie zwinięta przeglądarka i timeline nie dominują płótna. |
+| 3 | Tooltip i skrót | dobry | Narzędzia pokazują opis po najechaniu i fokusie. Tylko podstawowe narzędzia pokazują skrót w podpowiedzi; przyciski pozostają czyste. |
 | 4 | Szkic | dobry z ryzykiem gęstości | Osie, profil, paleta i stan aktywnego narzędzia są czytelne. Linia działa jako klik początku → kierunek → długość → `Enter`. Duża liczba narzędzi i drobna typografia wymagają dalszego testu na słabszym wzroku. |
 | 5 | Direct Extrude | dobry | Manipulator, podgląd bryły, jednostka i pole dokładnej wartości tworzą jeden spójny przepływ. |
 | 6 | Utracone referencje | poprawiony | Panel pokazuje wszystkie problemy, ma własne przewijanie, przyklejony nagłówek i możliwość zwinięcia, więc nie zasłania trwale modelu. |
@@ -38,7 +38,7 @@ Electron. Nie są atrapami ani statycznymi makietami.
   jednoznacznie ocenić przez nakładanie elementów, obrazy i krótkie etykiety;
   wymagają oceny ręcznej i nie są pełną certyfikacją WCAG.
 - Każdy przycisk w testowanych stanach ma dostępną nazwę.
-- Najważniejsze akcje, dialogi, tooltipy, aliasy, anulowanie i zakończenie
+- Najważniejsze akcje, dialogi, tooltipy, podstawowe skróty, anulowanie i zakończenie
   szkicu są osiągalne z klawiatury.
 - Przy skali 100%, 150% i 200% test nie wykrywa przepełnienia dokumentu.
 - Test czytnikiem ekranu, sterowania głosowego i alternatywnych schematów
@@ -46,7 +46,7 @@ Electron. Nie są atrapami ani statycznymi makietami.
 
 ## Świadome różnice względem AutoCAD/Fusion
 
-- Zachowano klasyczne aliasy i dynamiczne wprowadzanie wymiaru, ale nie
+- Zachowano skróty Autodesk Fusion i dynamiczne wprowadzanie wymiaru, ale nie
   kopiowano znaków, ikon ani brandingu Autodesk.
 - Fusion jest punktem odniesienia dla modelowania parametrycznego i układu 3D;
   szkicowanie pozostaje bezpośrednie i klawiaturowe jak w klasycznym CAD.

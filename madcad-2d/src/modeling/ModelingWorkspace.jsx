@@ -241,14 +241,47 @@ const TOOL_DESCRIPTIONS = {
 };
 
 const TOOL_SHORTCUTS = Object.freeze({
-  'Utwórz szkic': 'SK', 'Linia': 'L', 'Polilinia': 'PL', 'Łuk styczny': 'TA', 'Łuk': 'A', 'Prostokąt': 'REC', 'Okrąg': 'C', 'Wielokąt': 'POL', 'Elipsa': 'EL', 'Slot': 'SL', 'Spline': 'SPL', 'Conic': 'CON', 'Punkt': 'PO',
-  'Thin Extrude': 'TEX', 'Rib/Web': 'RIB', 'Pipe': 'PIPE', 'Import SVG/DXF': 'DXF', 'Wybierz': 'ESC', 'Trim': 'TR', 'Extend': 'EX', 'Break': 'BR', 'Project': 'PR', 'Offset': 'O', 'Fillet szkicu': 'F', 'Faza szkicu': 'CHA', 'Transformuj': 'TRF', 'Szyk szkicu': 'ARRAY', 'Przesuń': 'M', 'Usuń': 'DEL',
-  'Współliniowe': 'COL', 'Symetria': 'SYM', 'Krzywizna G2': 'G2', 'Ordinate X': 'DOX', 'Ordinate Y': 'DOY', 'Długość łuku': 'DAR', 'Zakończ szkic': 'CTRL+ENTER',
-  'Wyciągnij': 'EXT', 'Revolve': 'REV', 'Sweep': 'SW', 'Loft': 'LOFT', 'Coil': 'COIL', 'Pattern': 'AR3', 'Press Pull': 'PP', 'Prymityw': 'BOX', 'Tekst 3D': 'TXT', 'Boolean': 'BOL', 'Otwór': 'H',
-  'Zaokrąglij': 'FE', 'Fazuj': 'CE', 'Shell': 'SH', 'Draft': 'DR', 'Split Body': 'SB', 'Split Face': 'SF', 'Delete Face + Heal': 'HEAL', 'Replace Face': 'RF', 'Offset Face': 'OF', 'Przesuń bryłę': 'M3', 'Obróć bryłę': 'R3', 'Edytuj': 'ED',
-  'Płaszczyzna offset': 'OP', 'Midplane': 'MID', 'Plane 3 punkty': '3P', 'Plane angle': 'PA', 'Plane tangent': 'PT', 'Plane path': 'PATHP', 'Oś z krawędzi': 'AXE', 'Oś walca': 'AXC', 'Oś 2 punkty': 'AX2', 'Oś przecięcia': 'AXI', 'Oś normalna': 'AXN', 'Punkt wierzchołka': 'PV', 'Punkt centrum': 'PC', 'Punkt przecięcia': 'PI', 'Punkt środkowy': 'PM', 'Punkt na osi': 'PAX', 'Parametry': 'PARAM',
-  'Zmierz': 'DI', 'Przekrój': 'SEC', 'Masa': 'MP', 'Analiza': 'AN', 'Import 3D': 'IMP', 'STL': 'STL', 'STEP': 'STEP', '3MF': '3MF', 'Druk 3D': 'P3', 'Kontrola druku': 'CHK3',
+  'Linia': 'L',
+  'Prostokąt': 'R',
+  'Okrąg': 'C',
+  'Trim': 'T',
+  'Offset': 'O',
+  'Fillet szkicu': 'F',
+  'Zaokrąglij': 'F',
+  'Project': 'P',
+  'Przesuń': 'M',
+  'Przesuń bryłę': 'M',
+  'Zmierz': 'I',
+  'Usuń': 'DEL',
+  'Wyciągnij': 'E',
 });
+
+const TOOL_COLOR_GROUPS = Object.freeze({
+  sketch: new Set(['Utwórz szkic', 'Linia', 'Polilinia', 'Łuk styczny', 'Łuk', 'Prostokąt', 'Okrąg', 'Wielokąt', 'Elipsa', 'Slot', 'Spline', 'Conic', 'Punkt', 'Zakończ szkic']),
+  solid: new Set(['Wyciągnij', 'Thin Extrude', 'Rib/Web', 'Pipe', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Pattern', 'Press Pull', 'Prymityw', 'Tekst 3D', 'Boolean', 'Otwór']),
+  edit: new Set(['Trim', 'Extend', 'Break', 'Offset', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu', 'Przesuń', 'Zaokrąglij', 'Fazuj', 'Shell', 'Draft', 'Split Body', 'Split Face', 'Replace Face', 'Offset Face', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj']),
+  reference: new Set(['Project', 'Współliniowe', 'Symetria', 'Krzywizna G2', 'Ordinate X', 'Ordinate Y', 'Długość łuku', 'Płaszczyzna offset', 'Midplane', 'Plane 3 punkty', 'Plane angle', 'Plane tangent', 'Plane path', 'Oś z krawędzi', 'Oś walca', 'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum', 'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi']),
+  inspect: new Set(['Parametry', 'Zmierz', 'Przekrój', 'Masa', 'Analiza', 'Wybierz']),
+  output: new Set(['Import SVG/DXF', 'Import 3D', 'STEP', 'STL', '3MF', 'Kontrola druku']),
+  destructive: new Set(['Usuń', 'Delete Face + Heal']),
+});
+
+const TOOL_GROUP_HUES = Object.freeze({ sketch: 190, solid: 218, edit: 38, reference: 166, inspect: 274, output: 138, destructive: 356, neutral: 208 });
+const FEATURED_TOOL_LABELS = new Set(['Utwórz szkic', 'Linia', 'Wyciągnij', 'Wybierz', 'Trim', 'Zakończ szkic', 'Parametry', 'STEP']);
+
+function toolColorStyle(label) {
+  const group = Object.entries(TOOL_COLOR_GROUPS).find(([, labels]) => labels.has(label))?.[0] || 'neutral';
+  const hue = TOOL_GROUP_HUES[group];
+  return {
+    '--tool-accent': `hsl(${hue} 84% 68%)`,
+    '--tool-surface-top': '#4b5866',
+    '--tool-surface-bottom': '#34404c',
+    '--tool-surface-hover-top': '#596979',
+    '--tool-surface-hover-bottom': '#3d4d5b',
+    '--tool-surface-disabled-top': '#303a45',
+    '--tool-surface-disabled-bottom': '#28313b',
+  };
+}
 
 const ToolHelpContext = React.createContext(null);
 
@@ -257,87 +290,6 @@ function shortcutLabel(shortcut) {
   if (shortcut === 'DEL') return window.desktopApp?.platform === 'darwin' ? '⌫' : 'Del';
   if (shortcut === 'CTRL+ENTER') return window.desktopApp?.platform === 'darwin' ? '⌘ Enter' : 'Ctrl+Enter';
   return shortcut;
-}
-
-const COMMAND_NAMES = Object.freeze({
-  plane: 'NOWY SZKIC',
-  line: 'LINIA',
-  polyline: 'POLILINIA',
-  rectangle: 'PROSTOKĄT',
-  circle: 'OKRĄG',
-  arc: 'ŁUK',
-  polygon: 'WIELOKĄT',
-  ellipse: 'ELIPSA',
-  slot: 'SLOT',
-  spline: 'SPLINE',
-  conic: 'CONIC',
-  point: 'PUNKT',
-  parameters: 'PARAMETRY',
-  measure: 'POMIAR',
-  sectionAnalysis: 'PRZEKRÓJ',
-  massProperties: 'MASA',
-  geometryInspection: 'ANALIZA',
-});
-
-function commandLineState(command, shortcutBuffer, activeSketchId, notice, error = '') {
-  if (error) return { name: 'BŁĄD', value: error, prompt: 'Zmień parametry albo naciśnij Esc' };
-  if (shortcutBuffer) return { name: 'POLECENIE', value: shortcutBuffer, prompt: 'Enter lub spacja uruchamia · Esc anuluje' };
-  if (command?.type === 'line' || command?.type === 'polyline') return {
-    name: COMMAND_NAMES[command.type],
-    value: command.lastPoint ? 'Podaj długość lub wskaż następny punkt' : 'Wskaż pierwszy punkt',
-    prompt: command.lastPoint ? 'Enter kończy · Esc anuluje' : 'Kliknij w obszarze rysunku',
-  };
-  if (command) return {
-    name: COMMAND_NAMES[command.type] || String(command.type || 'POLECENIE').replaceAll(/([a-z])([A-Z])/g, '$1 $2').toUpperCase(),
-    value: command.previewFeature ? 'Ustaw parametry operacji' : 'Wykonaj wskazaną czynność',
-    prompt: 'Enter zatwierdza · Esc anuluje',
-  };
-  return {
-    name: activeSketchId ? 'SZKIC' : 'GOTOWE',
-    value: notice,
-    prompt: 'Wpisz alias polecenia',
-  };
-}
-
-function CadCommandLine({ state, engineStatus, entry }) {
-  return (
-    <form
-      className={`cad-command-line ${entry ? 'editable' : ''}`}
-      aria-label="Wiersz poleceń CAD"
-      onSubmit={(event) => {
-        event.preventDefault();
-        entry?.onSubmit?.();
-      }}
-    >
-      <span className={`status-dot ${engineStatus}`} />
-      <strong>{state.name}</strong>
-      <span className="cad-command-value">{state.value}</span>
-      {entry && (
-        <label className="cad-command-entry">
-          <span className="sr-only">{entry.label}</span>
-          <input
-            type="text"
-            inputMode={entry.inputMode || 'text'}
-            autoComplete="off"
-            spellCheck="false"
-            aria-label={entry.label}
-            placeholder={entry.placeholder}
-            value={entry.value}
-            onChange={(event) => entry.onChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault();
-                entry.onCancel?.();
-                event.currentTarget.blur();
-              }
-            }}
-          />
-          <kbd>Enter</kbd>
-        </label>
-      )}
-      <small>{state.prompt}</small>
-    </form>
-  );
 }
 
 function useDocumentHistory(initialDocument) {
@@ -394,9 +346,20 @@ function safeName(value) {
   return value.trim().replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-|-$/g, '') || 'model';
 }
 
+function ToolGlyph({ icon: Icon, compact = false }) {
+  const size = compact ? 18 : 25;
+  return (
+    <span className="ribbon-glyph">
+      <Icon className="ribbon-glyph-depth" size={size} strokeWidth={2.4} fill="currentColor" aria-hidden="true" />
+      <Icon className="ribbon-glyph-face" size={size} strokeWidth={1.65} fill="currentColor" fillOpacity={0.14} aria-hidden="true" />
+    </span>
+  );
+}
+
 function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = false, compact = false, title, description }) {
   const help = description || title || TOOL_DESCRIPTIONS[label] || label;
   const shortcut = TOOL_SHORTCUTS[label] || null;
+  const featured = FEATURED_TOOL_LABELS.has(label);
   const toolHelp = React.useContext(ToolHelpContext);
   useEffect(() => {
     if (!shortcut || ['ESC', 'DEL', 'CTRL+ENTER'].includes(shortcut)) return undefined;
@@ -407,24 +370,24 @@ function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = fa
     toolHelp?.setToolHelp({
       label,
       help,
-      shortcut: shortcut ? shortcutLabel(shortcut) : 'Brak skrótu',
+      shortcut: shortcut ? shortcutLabel(shortcut) : null,
       x: Math.min(window.innerWidth - 184, Math.max(184, rect.left + (rect.width / 2))),
       y: rect.bottom + 8,
     });
   };
   return (
-    <span className="ribbon-tool-wrap" onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
+    <span className={`ribbon-tool-wrap ${featured ? 'featured' : ''}`} onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
       <button
-        className={`ribbon-tool ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
+        className={`ribbon-tool ${featured ? 'featured' : ''} ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
+        style={toolColorStyle(label)}
         type="button"
         onClick={onClick}
         disabled={disabled}
         title={`${help}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`}
         aria-label={`${label}. ${help}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`}
       >
-        <span className="ribbon-icon" aria-hidden="true"><Icon size={compact ? 18 : 25} strokeWidth={1.55} /></span>
+        <span className="ribbon-icon" aria-hidden="true"><ToolGlyph icon={Icon} compact={compact} /></span>
         <span className="ribbon-label">{label}</span>
-        {shortcut && <span className="ribbon-shortcut" aria-hidden="true">{shortcutLabel(shortcut)}</span>}
       </button>
     </span>
   );
@@ -549,7 +512,7 @@ function StartPage({ onStartSketch, onOpenProject }) {
           <div className="start-page-shortcuts" role="group" aria-label="Szybki start">
             <strong>Szybki start</strong>
             <span><kbd>L</kbd> Linia</span>
-            <span><kbd>REC</kbd> Prostokąt</span>
+            <span><kbd>R</kbd> Prostokąt</span>
             <span><kbd>C</kbd> Okrąg</span>
           </div>
         </div>
@@ -756,7 +719,7 @@ function SketchDimensionDialog({ command, onChange, onConfirm, onCancel }) {
   );
 }
 
-function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, onUndoSegment, onFinishPath }) {
+function CommandDialog({ command, profileName, onChange, onConfirm, onConfirmDynamic, onCancel, onUndoSegment, onFinishPath }) {
   if (!command || command.type === 'plane' || command.type === 'parameters' || command.type === 'measure' || command.type === 'sectionAnalysis' || command.type === 'massProperties' || command.type === 'geometryInspection' || command.type === 'sketchDimension' || ['trimSketch', 'extendSketch', 'breakSketch', 'projectSketch'].includes(command.type)) return null;
   const isRectangle = command.type === 'rectangle';
   const isCircle = command.type === 'circle';
@@ -954,6 +917,8 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
           </>
         )}
         {isSketchPath && (
+          <>
+          {command.lastPoint && <label className="sketch-length-entry"><span>Długość następnego odcinka</span><div><input type="text" inputMode="decimal" value={command.dynamicLength || ''} placeholder="np. 25" onChange={(event) => { const value = event.target.value.replace(',', '.'); if (/^\d*(?:\.\d*)?$/.test(value)) onChange({ dynamicLength: value }); }} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); onConfirmDynamic?.(); } }} /><span>mm</span><kbd>Enter</kbd></div></label>}
           <details className="sketch-path-exact">
             <summary><span>Dokładna długość i kąt</span><small>opcjonalnie</small></summary>
             <div>
@@ -968,6 +933,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
               </label>
             </div>
           </details>
+          </>
         )}
         {isSketchMove && (
           <>
@@ -996,7 +962,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
             <p className="command-hint">Numery oddziel przecinkami lub podaj zakres, np. 3, 5-7. Wystąpienie 1 jest źródłem.</p>
           </>
         )}
-        {!isSketchPath && <div className="command-preview-note"><span className="preview-dot" />{isSketchMove ? 'Wpisz dokładne przesunięcie zaznaczenia w osiach szkicu.' : isSketchOffset ? 'Operacja powstanie dopiero po zatwierdzeniu; Anuluj nie zmienia szkicu.' : isSketchCorner ? 'Oryginalne linie zachowają ID; zerwane więzy zostaną jawnie usunięte.' : isSketchTransform ? 'Transformacja jest transakcyjna; Scale odrzuca geometrię z blokującym wymiarem.' : isSketchPattern ? 'Szyk powstanie transakcyjnie; pominięte kopie nie zostaną utworzone.' : isConstructionPlane ? 'Współrzędne i odległości mogą być liczbami albo wyrażeniami z parametrów modelu.' : isPoint ? 'Kliknij położenie na płótnie. Pola X/Y są opcjonalnym wejściem dokładnym.' : isMechanicalShape ? 'Klikaj punkty figury na płótnie. Pola pozostają opcjonalnym wejściem dokładnym — jak w wierszu poleceń CAD.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>}
+        {!isSketchPath && <div className="command-preview-note"><span className="preview-dot" />{isSketchMove ? 'Wpisz dokładne przesunięcie zaznaczenia w osiach szkicu.' : isSketchOffset ? 'Operacja powstanie dopiero po zatwierdzeniu; Anuluj nie zmienia szkicu.' : isSketchCorner ? 'Oryginalne linie zachowają ID; zerwane więzy zostaną jawnie usunięte.' : isSketchTransform ? 'Transformacja jest transakcyjna; Scale odrzuca geometrię z blokującym wymiarem.' : isSketchPattern ? 'Szyk powstanie transakcyjnie; pominięte kopie nie zostaną utworzone.' : isConstructionPlane ? 'Współrzędne i odległości mogą być liczbami albo wyrażeniami z parametrów modelu.' : isPoint ? 'Kliknij położenie na płótnie. Pola X/Y są opcjonalnym wejściem dokładnym.' : isMechanicalShape ? 'Klikaj punkty figury na płótnie. Pola pozostają opcjonalnym wejściem dokładnym.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>}
       </div>
       {isSketchPath ? (
         <footer><button className="secondary" type="button" onClick={onUndoSegment} disabled={!command.pointIds.length}>Cofnij segment</button><button className="secondary" type="button" onClick={onFinishPath}>Zakończ</button><button className="confirm" type="button" onClick={onConfirm} disabled={!command.lastPoint}><Check size={14} /> Dodaj dokładnie</button></footer>
@@ -1294,9 +1260,8 @@ export default function ModelingWorkspace() {
   const [activeSketchId, setActiveSketchId] = useState(null);
   const [command, setCommand] = useState(null);
   const [toolHelp, setToolHelp] = useState(null);
-  const [shortcutBuffer, setShortcutBuffer] = useState('');
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
-  const [browserOpen, setBrowserOpen] = useState(true);
+  const [browserOpen, setBrowserOpen] = useState(false);
   const [printPanelOpen, setPrintPanelOpen] = useState(false);
   const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, profiles: true, points: true, dimensions: true, constraints: true, construction: true, projected: true, slice: false, sketch3d: false });
   const [notice, setNotice] = useState(initialOpen.warning || 'Gotowe. Zacznij od rysunku 2D albo otwórz projekt.');
@@ -1305,17 +1270,16 @@ export default function ModelingWorkspace() {
   const sketchImportInputRef = useRef(null);
   const sketchPointerRef = useRef(null);
   const sketchDynamicLengthRef = useRef('');
-  const shortcutBufferRef = useRef('');
   const shortcutRegistryRef = useRef(new Map());
   const autosaveQueueRef = useRef(Promise.resolve());
   const autosaveSuspendedRef = useRef(false);
   const [importDraft, setImportDraft] = useState(null);
   const [sketchImportDraft, setSketchImportDraft] = useState(null);
   const registerShortcut = useCallback((shortcut, entry) => {
-    const alias = shortcut.toUpperCase();
-    shortcutRegistryRef.current.set(alias, entry);
+    const normalizedShortcut = shortcut.toUpperCase();
+    shortcutRegistryRef.current.set(normalizedShortcut, entry);
     return () => {
-      if (shortcutRegistryRef.current.get(alias) === entry) shortcutRegistryRef.current.delete(alias);
+      if (shortcutRegistryRef.current.get(normalizedShortcut) === entry) shortcutRegistryRef.current.delete(normalizedShortcut);
     };
   }, []);
   const toolHelpContext = useMemo(() => ({ setToolHelp, registerShortcut }), [registerShortcut]);
@@ -1641,6 +1605,7 @@ export default function ModelingWorkspace() {
   }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline, engine.diagnostics, engine.performance]);
 
   const updateCommand = (patch) => {
+    if (Object.hasOwn(patch, 'dynamicLength')) sketchDynamicLengthRef.current = patch.dynamicLength;
     setCommand((current) => {
       const next = { ...current, ...patch };
       if (next.type === 'extrude') {
@@ -4237,51 +4202,31 @@ export default function ModelingWorkspace() {
     setSelection(nextSelection);
   };
 
-  const clearShortcutBuffer = useCallback(() => {
-    shortcutBufferRef.current = '';
-    setShortcutBuffer('');
-  }, []);
-
-  const updateShortcutBuffer = useCallback((value) => {
-    const next = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
-    shortcutBufferRef.current = next;
-    setShortcutBuffer(next);
-    if (next) setNotice(`Polecenie: ${next} · Enter lub spacja uruchamia · Escape anuluje.`);
-  }, []);
-
-  const executeShortcutAlias = useCallback((rawAlias) => {
-    const alias = String(rawAlias || '').trim().toUpperCase();
-    if (!alias) return false;
-    const entry = shortcutRegistryRef.current.get(alias);
-    clearShortcutBuffer();
+  const executeBasicShortcut = useCallback((rawShortcut) => {
+    const shortcut = String(rawShortcut || '').trim().toUpperCase();
+    if (!shortcut) return false;
+    const entry = shortcutRegistryRef.current.get(shortcut);
+    if (!entry) return false;
     setToolHelp(null);
-    if (!entry) {
-      setNotice(`Nieznany skrót „${alias}”. Najedź na funkcję, aby zobaczyć jej alias.`);
-      return false;
-    }
     if (entry.disabled) {
-      setNotice(`Polecenie „${entry.label}” jest teraz niedostępne. Najpierw wybierz wymaganą geometrię.`);
-      return false;
+      setNotice(`Narzędzie „${entry.label}” jest teraz niedostępne. Najpierw wybierz wymaganą geometrię.`);
+      return true;
     }
     entry.onClick?.();
     return true;
-  }, [clearShortcutBuffer]);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event) => {
       const textEntry = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName) || event.target?.isContentEditable;
       if (!textEntry && !command && (event.ctrlKey || event.metaKey) && event.key === 'Enter' && activeSketchId) {
         event.preventDefault();
-        clearShortcutBuffer();
         finishSketch();
         return;
       }
       if (!textEntry && !command && event.key === 'Escape') {
         event.preventDefault();
-        if (shortcutBufferRef.current) {
-          clearShortcutBuffer();
-          setNotice('Anulowano wpisywanie skrótu polecenia.');
-        } else if (activeSketchId) {
+        if (activeSketchId) {
           handleSketchSelection([], 'replace');
           setNotice('Wyczyszczono zaznaczenie szkicu.');
         } else {
@@ -4290,21 +4235,8 @@ export default function ModelingWorkspace() {
         }
         return;
       }
-      if (!textEntry && !command && (event.key === 'Enter' || event.key === ' ') && shortcutBufferRef.current) {
-        event.preventDefault();
-        executeShortcutAlias(shortcutBufferRef.current);
-        return;
-      }
-      if (!textEntry && !command && event.key === 'Backspace' && shortcutBufferRef.current) {
-        event.preventDefault();
-        const next = shortcutBufferRef.current.slice(0, -1);
-        shortcutBufferRef.current = next;
-        setShortcutBuffer(next);
-        return;
-      }
       if (!textEntry && !command && !event.ctrlKey && !event.metaKey && !event.altKey && /^[a-z0-9]$/i.test(event.key)) {
-        event.preventDefault();
-        updateShortcutBuffer(`${shortcutBufferRef.current}${event.key}`);
+        if (executeBasicShortcut(event.key)) event.preventDefault();
         return;
       }
       if (event.key === 'Escape' && command) {
@@ -4404,34 +4336,9 @@ export default function ModelingWorkspace() {
     return () => window.removeEventListener('keydown', onKeyDown);
   // Command state is the stable boundary for the keyboard handler; command helpers are render-local callbacks.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, selectedSketchConstraintId, readOnly, history, clearShortcutBuffer, executeShortcutAlias, updateShortcutBuffer]);
+  }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, selectedSketchConstraintId, readOnly, history, executeBasicShortcut]);
 
   const timelineStatus = new Map(engine.timeline?.map((item) => [item.id, item]));
-  const commandLine = commandLineState(command, shortcutBuffer, activeSketchId, notice, engine.error);
-  const commandLineEntry = !command ? {
-    label: 'Wpisz alias polecenia CAD',
-    placeholder: 'np. L, REC, C…',
-    value: shortcutBuffer,
-    onChange: updateShortcutBuffer,
-    onSubmit: () => executeShortcutAlias(shortcutBufferRef.current),
-    onCancel: () => {
-      clearShortcutBuffer();
-      setNotice('Anulowano wpisywanie skrótu polecenia.');
-    },
-  } : (command.type === 'line' || command.type === 'polyline') && command.lastPoint ? {
-    label: 'Długość następnego odcinka',
-    placeholder: 'Długość w mm',
-    inputMode: 'decimal',
-    value: command.dynamicLength || '',
-    onChange: (value) => {
-      const normalized = String(value || '').replace(',', '.');
-      if (!/^\d*(?:\.\d*)?$/.test(normalized)) return;
-      sketchDynamicLengthRef.current = normalized;
-      setCommand((current) => ({ ...current, dynamicLength: normalized }));
-    },
-    onSubmit: confirmDynamicSketchSegment,
-    onCancel: finishSketchPath,
-  } : null;
   let directManipulator = null;
   if (command?.type === 'transform') {
     const body = engine.bodies.find((item) => item.id === command.targetBodyId) || engine.bodies[0];
@@ -4565,6 +4472,7 @@ export default function ModelingWorkspace() {
           />
           </React.Suspense>
           <div className={`engine-status ${engine.status}`}><span />{engine.status === 'ready' ? `${command?.previewFeature ? 'Podgląd' : 'Model'} gotowy · ${engine.bodies.length} ${engine.bodies.length === 1 ? 'bryła' : 'brył'}` : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>
+          {notice && <div className="workspace-notice" role="status">{notice}</div>}
           <TopologyReferenceRepairPanel items={lostTopologyReferences} selection={selection} onReassign={repairTopologyReference} />
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
@@ -4577,6 +4485,7 @@ export default function ModelingWorkspace() {
             profileName={command?.type === 'pipe' ? `Otwarta ścieżka (${command.previewFeature?.pathEntityIds?.length || command.pathEntityIds?.length || 0})` : command?.openChain ? `Otwarty łańcuch (${command.previewFeature?.openEntityIds?.length || 0})` : commandProfileName}
             onChange={updateCommand}
             onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
+            onConfirmDynamic={confirmDynamicSketchSegment}
             onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => { if (command?.openChain && command.sourceSketchId) { setActiveSketchId(command.sourceSketchId); setWorkspace('sketch'); } setCommand(null); setNotice('Anulowano polecenie.'); }}
             onUndoSegment={undoSketchSegment}
             onFinishPath={finishSketchPath}
@@ -4591,7 +4500,6 @@ export default function ModelingWorkspace() {
       </div>
 
       <footer className="modeling-footer">
-        <CadCommandLine state={commandLine} engineStatus={engine.status} entry={commandLineEntry} />
         <div className="timeline" role="region" aria-label="Parametryczna oś czasu">
           {document.features.length ? <><div className="timeline-controls"><button type="button" title="Zaznacz pierwszy krok parametrycznej historii." onClick={() => selectTimelineStep('start')}><SkipBack size={14} /></button><button type="button" title="Zaznacz poprzednią operację w historii." onClick={() => selectTimelineStep('previous')}><StepBack size={14} /></button><button type="button" title="Zaznacz następną operację w historii." onClick={() => selectTimelineStep('next')}><StepForward size={14} /></button></div>
           <span className="timeline-start" />
@@ -4612,9 +4520,9 @@ export default function ModelingWorkspace() {
       {updateState.open && !updatePromptBlocked && <UpdateDialog state={updateState} onCheck={checkForUpdates} onInstall={installAvailableUpdate} onClose={() => setUpdateState((current) => ({ ...current, open: false, promptPending: false }))} />}
       {toolHelp && (
         <div className="tool-help-tooltip" role="tooltip" style={{ left: toolHelp.x, top: toolHelp.y }}>
-          <header><strong>{toolHelp.label}</strong><kbd>{toolHelp.shortcut}</kbd></header>
+          <header><strong>{toolHelp.label}</strong>{toolHelp.shortcut && <kbd>{toolHelp.shortcut}</kbd>}</header>
           <p>{toolHelp.help}</p>
-          <small>Skróty poleceń wpisuj bezpośrednio i zatwierdzaj Enterem.</small>
+          <small>Podstawowe narzędzia uruchomisz jednym klawiszem; pozostałe wybierz przyciskiem.</small>
         </div>
       )}
     </section>

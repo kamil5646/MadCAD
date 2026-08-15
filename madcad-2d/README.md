@@ -1,6 +1,6 @@
 # MadCAD Desktop — dokumentacja techniczna
 
-Aktualna stabilna wersja: **6.1.7**.
+Aktualna stabilna wersja: **6.1.8**.
 
 MadCAD jest aplikacją Electron z interfejsem React, parametrycznym dokumentem
 CAD i kernelem OpenCascade uruchamianym w workerze. Główny przepływ zaczyna się
@@ -53,7 +53,7 @@ npm run dist:win:trusted
 Paczki trafiają do `release/`. Oficjalny workflow tworzy pliki `.sha256`,
 sprawdza format paczki i wykonuje pełne testy na Windows oraz macOS.
 
-> Instalatory `v6.1.7` nie mają podpisu producenta. Windows SmartScreen lub
+> Instalatory `v6.1.8` nie mają podpisu producenta. Windows SmartScreen lub
 > macOS Gatekeeper mogą pokazać ostrzeżenie. Pobieraj paczki wyłącznie z
 > oficjalnego GitHub Release i porównaj dołączoną sumę SHA-256. Aktualizacja tej
 > wersja aktualizatora pobiera jednak paczkę z oficjalnego wydania, sprawdza
@@ -61,7 +61,7 @@ sprawdza format paczki i wykonuje pełne testy na Windows oraz macOS.
 
 ## Wersje i aktualizacje
 
-- tag `v6.1.7` odpowiada wersji `6.1.7` w `package.json`;
+- tag `v6.1.8` odpowiada wersji `6.1.8` w `package.json`;
 - wersje bez sufiksu są publikowane w kanale stabilnym;
 - `-beta.N` i `-alpha.N` pozostają obsługiwanymi kanałami testowymi;
 - aktualizator przyjmuje wyłącznie zaufane adresy oficjalnego repozytorium.
@@ -72,10 +72,12 @@ sprawdza format paczki i wykonuje pełne testy na Windows oraz macOS.
 
 ## Interakcja CAD
 
-- Funkcje wstążki pokazują po najechaniu opis i alias.
-- Alias wpisuje się bezpośrednio, a `Enter` lub spacja uruchamia polecenie.
+- Funkcje wstążki pokazują po najechaniu opis; skróty podstawowych narzędzi są widoczne tylko w podpowiedzi, nie na przyciskach.
+- Podstawowe skróty uruchamiają narzędzie natychmiast, bez osobnego wiersza poleceń.
+- Układ podstawowych klawiszy jest zgodny z Autodesk Fusion: `L`, `R`, `C`, `T`, `O`, `P`, `M`, `I`, `E` i `Del`.
+- Przeglądarka projektu startuje zwinięta; pierwszy przycisk górnego paska rozwija ją w razie potrzeby.
 - Linia: `L`, klik początku, kierunek kursorem, długość, `Enter`.
-- `Escape` anuluje alias lub aktywne polecenie; `Ctrl+Enter` kończy szkic.
+- `Escape` anuluje aktywne narzędzie; `Ctrl+Enter` kończy szkic.
 
 ## Licencja
 

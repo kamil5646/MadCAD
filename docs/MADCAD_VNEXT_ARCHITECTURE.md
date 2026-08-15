@@ -38,8 +38,9 @@ dokumentu. Udany zapis projektu czyści kopię awaryjną.
 
 Encje 2D żyją w lokalnym układzie płaszczyzny. Solver, analiza profili,
 więzy, wymiary i stabilne ID są osobnymi modułami `src/cad-core`. Interfejs
-obsługuje zarówno wskazywanie myszą, jak i klasyczny przepływ poleceń: alias,
-punkt początkowy, kierunek, wartość i `Enter`.
+obsługuje zarówno wskazywanie myszą, jak i klasyczny przepływ rysowania:
+podstawowy skrót, punkt początkowy, kierunek, wartość i `Enter` — bez osobnego
+wiersza poleceń.
 
 ### Ewaluator i worker CAD
 
@@ -69,7 +70,7 @@ pakietów ani konwersji DWG.
 Aktualizator przyjmuje wyłącznie HTTPS z oficjalnego repozytorium, narzuca
 limit rozmiaru i SHA-256. Cicha instalacja nadal wymaga poprawnego
 Authenticode na Windows albo Developer ID, oczekiwanego Team ID i Gatekeeper
-na macOS. Dla niepodpisanego wydania 6.1.7 aktualizator zapisuje zweryfikowaną
+na macOS. Dla niepodpisanego wydania 6.1.8 aktualizator zapisuje zweryfikowaną
 paczkę w Pobranych i otwiera ją do potwierdzonej instalacji systemowej.
 Renderer nie może podać dowolnego adresu aktualizacji.
 

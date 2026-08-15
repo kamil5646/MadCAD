@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.1.8 (2026-08-15)
+
+- Usunięto wiersz poleceń z interfejsu; linia zachowuje bezpośredni przepływ `L` → klik początku → kierunek → długość → `Enter` z kompaktowym polem przy aktywnym narzędziu.
+- Ograniczono skróty do podstawowego zestawu Autodesk Fusion (`L`, `R`, `C`, `T`, `O`, `P`, `M`, `I`, `E`, `Del`) i przeniesiono ich oznaczenia wyłącznie do podpowiedzi, bez etykiet na przyciskach.
+- Przebudowano wstążkę zgodnie z hierarchią AutoCAD: najważniejsze polecenia mają duże przyciski, pozostałe mieszczą się w dwóch kompaktowych rzędach, a panele zachowują spokojne wspólne tło i kolorowe ikony bez ramek wokół symboli.
+- Ikony narzędzi dostały techniczny styl duotone z wypełnieniem powierzchni, światłem i cieniem zamiast płaskiego jednoliniowego rysunku.
+- Przeglądarka projektu jest domyślnie zwinięta, aby nowy dokument od razu oddawał więcej miejsca płótnu.
+- Zmniejszono dolny obszar interfejsu po usunięciu wiersza poleceń i zachowano komunikaty jako małą nakładkę nad płótnem.
+- Naprawiono pełne tłumaczenie angielskich etykiet dostępności po uproszczeniu podpowiedzi oraz rozszerzono automatyczny test przepływu szkicowania i skrótów.
+
 ## 6.1.7 (2026-08-15)
 
 - Zablokowano przedwczesne zatwierdzanie operacji bryłowej do czasu ukończenia dokładnego podglądu B-Rep; przycisk pokazuje stan „Obliczanie…”, a test Rib/Web czeka na gotowy wynik zamiast zależeć od szybkości komputera.
