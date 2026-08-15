@@ -11,6 +11,7 @@ import ipcPolicy from '../electron/ipc-policy.cjs';
 import recoveryFile from '../electron/recovery-file.cjs';
 import windowBounds from '../electron/window-bounds.cjs';
 import updatePolicy from '../electron/update-policy.cjs';
+import dwgConverter from '../electron/dwg-converter.cjs';
 import * as fsPromises from 'node:fs/promises';
 import {
   DOCUMENT_SCHEMA_VERSION,
@@ -3060,6 +3061,39 @@ test('polityka Electron przepuszcza tylko HTTPS i nawigację wewnątrz aplikacji
   assert.equal(securityPolicy.isTrustedIpcUrl('https://example.com/', 'file:///Applications/MadCAD/dist/index.html', 'http://localhost:5173'), false);
 });
 
+test('lokalny import DWG wybiera LibreDWG lub ODA i buduje bezpieczne argumenty', () => {
+  assert.equal(dwgConverter.converterKind('/usr/bin/dwg2dxf'), 'libredwg');
+  assert.equal(dwgConverter.converterKind('/usr/bin/dwgread'), 'libredwg');
+  assert.equal(dwgConverter.converterKind('C:\\Program Files\\ODA\\ODAFileConverter.exe'), 'oda');
+  assert.ok(dwgConverter.pathCandidates('darwin', { PATH: '/bin' }).includes('/opt/homebrew/bin/dwg2dxf'));
+  assert.ok(dwgConverter.pathCandidates('linux', { PATH: '/bin' }).includes('/usr/bin/dwg2dxf'));
+  assert.ok(dwgConverter.pathCandidates('win32', { PATH: 'C:\\Tools', ProgramFiles: 'C:\\Program Files' }).some((candidate) => candidate.endsWith('dwg2dxf.exe')));
+  const libre = dwgConverter.buildConverterInvocation(
+    { kind: 'libredwg', executablePath: '/usr/bin/dwg2dxf' },
+    '/tmp/input/model.dwg',
+    '/tmp/output/model.dxf',
+    '/tmp/input',
+    '/tmp/output',
+  );
+  assert.deepEqual(libre.args, ['--overwrite', '--minimal', '--as', 'r2013', '--file', '/tmp/output/model.dxf', '/tmp/input/model.dwg']);
+  const reader = dwgConverter.buildConverterInvocation(
+    { kind: 'libredwg', executablePath: '/usr/bin/dwgread' },
+    '/tmp/input/model.dwg',
+    '/tmp/output/model.dxf',
+    '/tmp/input',
+    '/tmp/output',
+  );
+  assert.deepEqual(reader.args, ['--format', 'DXF', '--file', '/tmp/output/model.dxf', '/tmp/input/model.dwg']);
+  const oda = dwgConverter.buildConverterInvocation(
+    { kind: 'oda', executablePath: '/Applications/ODAFileConverter' },
+    '/tmp/input/model.dwg',
+    '/tmp/output/model.dxf',
+    '/tmp/input',
+    '/tmp/output',
+  );
+  assert.deepEqual(oda.args, ['/tmp/input', '/tmp/output', 'ACAD2018', 'DXF', '0', '1', '*.dwg']);
+});
+
 test('polityka IPC ogranicza nazwy, filtry, konwersje i podgląd wydruku', () => {
   const save = ipcPolicy.normalizeSaveTextPayload({
     text: 'projekt',
@@ -3086,8 +3120,9 @@ test('okna Electron i preload utrzymują sandbox oraz jedną bramę IPC', async 
   ]);
   assert.doesNotMatch(mainSource, /sandbox:\s*false/);
   assert.equal((mainSource.match(/sandbox:\s*true/g) || []).length, 2);
-  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 10);
-  assert.doesNotMatch(mainSource, /ODAFileConverter|install-oda|convert-cad-file|get-oda-status|choose-oda|open-oda/);
+  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 11);
+  assert.doesNotMatch(mainSource, /install-oda-addon|convert-cad-file|get-oda-status|choose-oda|open-oda/);
+  assert.match(mainSource, /import-dwg-sketch/);
   assert.equal((mainSource.match(/ipcMain\.handle\(/g) || []).length, 1);
   assert.match(mainSource, /queueAutosaveOperation/);
   assert.match(mainSource, /response\.on\('error', failDownload\)/);

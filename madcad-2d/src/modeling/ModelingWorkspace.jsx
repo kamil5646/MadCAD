@@ -168,6 +168,7 @@ const TOOL_DESCRIPTIONS = {
   'Rib/Web': 'Utwórz żebro albo ściankę z otwartego profilu szkicu.',
   'Pipe': 'Utwórz pusty przewód wzdłuż zaznaczonej otwartej ścieżki.',
   'Import SVG/DXF': 'Wczytaj geometrię SVG lub DXF bezpośrednio do aktywnego szkicu.',
+  'Import DWG': 'Wybierz plik DWG, przekształć go lokalnie do DXF i dodaj geometrię do aktywnego szkicu.',
   'Trim': 'Przytnij wskazany fragment krzywej do najbliższych przecięć.',
   'Extend': 'Przedłuż wskazany koniec krzywej do najbliższej geometrii.',
   'Break': 'Podziel wskazaną krzywą w wybranym punkcie.',
@@ -262,7 +263,7 @@ const TOOL_COLOR_GROUPS = Object.freeze({
   edit: new Set(['Trim', 'Extend', 'Break', 'Offset', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu', 'Przesuń', 'Zaokrąglij', 'Fazuj', 'Shell', 'Draft', 'Split Body', 'Split Face', 'Replace Face', 'Offset Face', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj']),
   reference: new Set(['Project', 'Współliniowe', 'Symetria', 'Krzywizna G2', 'Ordinate X', 'Ordinate Y', 'Długość łuku', 'Płaszczyzna offset', 'Midplane', 'Plane 3 punkty', 'Plane angle', 'Plane tangent', 'Plane path', 'Oś z krawędzi', 'Oś walca', 'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum', 'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi']),
   inspect: new Set(['Parametry', 'Zmierz', 'Przekrój', 'Masa', 'Analiza', 'Wybierz']),
-  output: new Set(['Import SVG/DXF', 'Import 3D', 'STEP', 'STL', '3MF', 'Kontrola druku']),
+  output: new Set(['Import SVG/DXF', 'Import DWG', 'Import 3D', 'STEP', 'STL', '3MF', 'Kontrola druku']),
   destructive: new Set(['Usuń', 'Delete Face + Heal']),
 });
 
@@ -685,11 +686,11 @@ function ImportModelDialog({ draft, onChange, onConfirm, onCancel }) {
 function ImportSketchDialog({ draft, onChange, onConfirm, onCancel }) {
   if (!draft) return null;
   return (
-    <section className="command-dialog import-sketch-dialog" aria-label="Import SVG lub DXF do szkicu">
+    <section className="command-dialog import-sketch-dialog" aria-label="Import SVG, DXF lub DWG do szkicu">
       <header><strong>Import geometrii szkicu</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
       <div className="command-dialog-body">
         <Field label="Plik" value={draft.fileName} disabled />
-        <Field label="Format" value={draft.format.toUpperCase()} disabled />
+        <Field label="Format" value={(draft.sourceFormat || draft.format).toUpperCase()} disabled />
         <Field label="Wykryta jednostka" value={IMPORT_UNIT_OPTIONS.find(([value]) => value === draft.detectedUnit)?.[1] || draft.detectedUnit} disabled />
         <label className="command-field"><span>Jednostka źródłowa</span><select value={draft.sourceUnit} onChange={(event) => onChange({ sourceUnit: event.target.value })}>{IMPORT_UNIT_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <div className="command-preview-note"><span className="preview-dot" />Linie, polilinie, prostokąty, okręgi i łuki zostaną dodane do aktywnego szkicu w milimetrach. Zamknięte pętle utworzą profile.</div>
@@ -4103,6 +4104,49 @@ export default function ModelingWorkspace() {
     }
   };
 
+  const prepareDwgSketchImport = useCallback((result) => {
+    if (result?.canceled) {
+      setNotice('Anulowano import DWG.');
+      return false;
+    }
+    if (result?.setupRequired) {
+      setNotice('Otworzono stronę lokalnego konwertera DWG. Po instalacji ponownie wybierz Import DWG.');
+      return false;
+    }
+    if (!result?.ok || !result.text) throw new Error(result?.error || 'Konwerter nie zwrócił danych DXF.');
+    const inspected = inspectSketchImport(result.text, 'dxf');
+    setSketchImportDraft({
+      fileName: result.fileName || 'import.dwg',
+      sourceFormat: 'dwg',
+      format: 'dxf',
+      text: result.text,
+      detectedUnit: inspected.detectedUnit,
+      sourceUnit: 'auto',
+    });
+    setNotice(`Przekonwertowano ${result.fileName || 'DWG'} lokalnie przez ${result.converter === 'libredwg' ? 'GNU LibreDWG' : 'ODA'}. Potwierdź jednostkę.`);
+    return true;
+  }, []);
+
+  const chooseDwgSketchImport = async () => {
+    if (!activeSketchId || readOnly) return;
+    if (!window.desktopApp?.importDwgSketch) {
+      setNotice('Import DWG jest dostępny w zainstalowanej aplikacji desktopowej.');
+      return;
+    }
+    setNotice('Wybierz plik DWG. Konwersja zostanie wykonana lokalnie.');
+    try {
+      prepareDwgSketchImport(await window.desktopApp.importDwgSketch());
+    } catch (error) {
+      setNotice(`Import DWG nie powiódł się: ${error.message}`);
+    }
+  };
+
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has('verify')) return undefined;
+    window.__madcadVerifyDwgImport = prepareDwgSketchImport;
+    return () => { delete window.__madcadVerifyDwgImport; };
+  }, [prepareDwgSketchImport]);
+
   const confirmSketchImport = () => {
     if (!sketchImportDraft || !activeSketchId || readOnly) return;
     try {
@@ -4375,7 +4419,7 @@ export default function ModelingWorkspace() {
           <div className="modeling-ribbon" role="toolbar" aria-label="Narzędzia aktywnego obszaru roboczego" tabIndex="0">
             {activeSketchId ? (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /><ToolButton icon={Box} label="Thin Extrude" onClick={openExtrude} disabled={readOnly || !canExtrudeOpenChain} /><ToolButton icon={Frame} label="Rib/Web" onClick={openRib} disabled={readOnly || !canCreateRib} /><ToolButton icon={Cylinder} label="Pipe" onClick={openPipe} disabled={readOnly || !canExtrudeOpenChain} /><ToolButton icon={Upload} label="Import SVG/DXF" onClick={() => sketchImportInputRef.current?.click()} disabled={readOnly} /></RibbonGroup>
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /><ToolButton icon={Box} label="Thin Extrude" onClick={openExtrude} disabled={readOnly || !canExtrudeOpenChain} /><ToolButton icon={Frame} label="Rib/Web" onClick={openRib} disabled={readOnly || !canCreateRib} /><ToolButton icon={Cylinder} label="Pipe" onClick={openPipe} disabled={readOnly || !canExtrudeOpenChain} /><ToolButton icon={Upload} label="Import SVG/DXF" onClick={() => sketchImportInputRef.current?.click()} disabled={readOnly} /><ToolButton icon={Upload} label="Import DWG" onClick={() => { void chooseDwgSketchImport(); }} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { setCommand(null); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Maximize2} label="Extend" onClick={() => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' })} primary={command?.type === 'extendSketch'} disabled={readOnly} /><ToolButton icon={Minus} label="Break" onClick={() => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' })} primary={command?.type === 'breakSketch'} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Project" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} /><ToolButton icon={Copy} label="Offset" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} /><ToolButton icon={CircleDotDashed} label="Fillet szkicu" onClick={() => openSketchCorner('fillet')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={Triangle} label="Faza szkicu" onClick={() => openSketchCorner('chamfer')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={RotateCw} label="Transformuj" onClick={openSketchTransform} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Grid2X2} label="Szyk szkicu" onClick={openSketchPattern} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
                 <RibbonGroup label="WIĘZY"><ToolButton icon={Minus} label="Współliniowe" onClick={() => addSelectedSketchConstraint('collinear')} disabled={readOnly || !canAddCollinear} /><ToolButton icon={Frame} label="Symetria" onClick={() => addSelectedSketchConstraint('symmetry')} disabled={readOnly || !canAddSymmetry} /><ToolButton icon={CircleDotDashed} label="Krzywizna G2" onClick={() => addSelectedSketchConstraint('curvature')} disabled={readOnly || !canAddCurvature} /></RibbonGroup>
                 <RibbonGroup label="WYMIARY"><ToolButton icon={Ruler} label="Ordinate X" onClick={() => openSketchDimension('ordinateX')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={Ruler} label="Ordinate Y" onClick={() => openSketchDimension('ordinateY')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={RotateCw} label="Długość łuku" onClick={() => openSketchDimension('arcLength')} disabled={readOnly || !canAddArcLength} /></RibbonGroup>

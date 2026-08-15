@@ -18,6 +18,7 @@ const {
 const { readRecoverableTextFile, validateJsonText } = require('./recovery-file.cjs');
 const { normalizeWindowBounds } = require('./window-bounds.cjs');
 const updatePolicy = require('./update-policy.cjs');
+const dwgConverter = require('./dwg-converter.cjs');
 const packageMetadata = require('../package.json');
 
 const execFileAsync = promisify(execFile);
@@ -32,6 +33,7 @@ const MADCAD_RELEASE_LATEST_PAGE_URL = 'https://github.com/kamil5646/MadCAD2D/re
 const MADCAD_UPDATE_USER_AGENT = 'MadCAD2D-Updater/1.0';
 const MAX_UPDATE_DOWNLOAD_BYTES = 512 * 1024 * 1024;
 const MAX_UPDATE_METADATA_BYTES = 4 * 1024 * 1024;
+const DWG_CONVERTER_DOWNLOAD_URL = 'https://www.opendesign.com/guestFiles/oda_file_converter';
 const TRUSTED_MAC_TEAM_ID = /^[A-Z0-9]{10}$/.test(String(packageMetadata.madcadMacTeamId || ''))
   ? String(packageMetadata.madcadMacTeamId)
   : '';
@@ -159,6 +161,32 @@ async function writeCadConfig(config) {
   const configPath = getCadConfigPath();
   await fs.mkdir(path.dirname(configPath), { recursive: true });
   await fs.writeFile(configPath, JSON.stringify(safeConfig, null, 2), 'utf8');
+}
+
+async function readSavedDwgConverterPath() {
+  const config = await readCadConfig();
+  return typeof config.dwgConverterPath === 'string' ? config.dwgConverterPath.trim() : '';
+}
+
+async function saveDwgConverterPath(converterPath) {
+  const config = await readCadConfig();
+  config.dwgConverterPath = String(converterPath || '').trim();
+  await writeCadConfig(config);
+}
+
+async function chooseDwgConverterPath(ownerWindow) {
+  const result = await dialog.showOpenDialog(ownerWindow, {
+    title: t('Wskaż lokalny konwerter DWG', 'Choose a local DWG converter'),
+    buttonLabel: t('Użyj konwertera', 'Use converter'),
+    properties: ['openFile', 'openDirectory'],
+  });
+  if (result.canceled || !result.filePaths?.[0]) return null;
+  const normalized = await dwgConverter.normalizeConverterPath(result.filePaths[0], process.platform);
+  if (!(await dwgConverter.isUsableConverter(normalized, process.platform))) {
+    throw new Error(t('Wybrany plik nie jest obsługiwanym konwerterem DWG.', 'The selected file is not a supported DWG converter.'));
+  }
+  await saveDwgConverterPath(normalized);
+  return { executablePath: normalized, kind: dwgConverter.converterKind(normalized) };
 }
 
 function httpsGetBuffer(url, redirectCount = 0) {
@@ -1089,6 +1117,70 @@ registerTrustedIpcHandler('madcad:send-to-slicer', async (_event, payload) => {
   } catch (error) {
     if (filePaths[0]) shell.showItemInFolder(filePaths[0]);
     return { ok: false, filePaths, error: error?.message || String(error) };
+  }
+});
+
+registerTrustedIpcHandler('madcad:import-dwg-sketch', async (event) => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;
+  let temporaryRoot = null;
+  try {
+    const selection = await dialog.showOpenDialog(senderWindow, {
+      title: t('Importuj DWG do aktywnego szkicu', 'Import DWG into the active sketch'),
+      buttonLabel: t('Importuj DWG', 'Import DWG'),
+      filters: [{ name: 'AutoCAD DWG', extensions: ['dwg'] }],
+      properties: ['openFile'],
+    });
+    if (selection.canceled || !selection.filePaths?.[0]) return { ok: false, canceled: true };
+    const sourcePath = selection.filePaths[0];
+    if (path.extname(sourcePath).toLowerCase() !== '.dwg') {
+      throw new Error(t('Wybrany plik nie ma rozszerzenia DWG.', 'The selected file does not have a DWG extension.'));
+    }
+
+    let converter = await dwgConverter.resolveConverter({ savedPath: await readSavedDwgConverterPath() });
+    if (!converter) {
+      const setup = await dialog.showMessageBox(senderWindow, {
+        type: 'info',
+        title: t('Lokalny silnik DWG', 'Local DWG engine'),
+        message: t('MadCAD potrzebuje lokalnego konwertera DWG.', 'MadCAD needs a local DWG converter.'),
+        detail: t(
+          'Możesz wskazać zainstalowany program dwg2dxf (GNU LibreDWG) albo ODA File Converter. Plik pozostaje na tym komputerze.',
+          'Choose an installed dwg2dxf (GNU LibreDWG) or ODA File Converter. The file stays on this computer.'
+        ),
+        buttons: [t('Wskaż konwerter', 'Choose converter'), t('Pobierz ODA', 'Download ODA'), t('Anuluj', 'Cancel')],
+        defaultId: 0,
+        cancelId: 2,
+        noLink: true,
+      });
+      if (setup.response === 0) {
+        converter = await chooseDwgConverterPath(senderWindow);
+        if (!converter) return { ok: false, canceled: true };
+      } else if (setup.response === 1) {
+        const trustedDownloadUrl = normalizeExternalUrl(DWG_CONVERTER_DOWNLOAD_URL);
+        if (!trustedDownloadUrl) throw new Error(t('Nieprawidłowy adres pobierania konwertera.', 'Invalid converter download URL.'));
+        await shell.openExternal(trustedDownloadUrl);
+        return { ok: false, canceled: false, setupRequired: true, downloadOpened: true };
+      } else {
+        return { ok: false, canceled: true };
+      }
+    }
+
+    temporaryRoot = await fs.mkdtemp(path.join(app.getPath('temp'), 'madcad-dwg-'));
+    const text = await dwgConverter.convertDwgToDxf(converter, sourcePath, temporaryRoot);
+    return {
+      ok: true,
+      canceled: false,
+      fileName: path.basename(sourcePath),
+      text,
+      converter: converter.kind,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      canceled: false,
+      error: error?.message || t('Import DWG nie powiódł się.', 'DWG import failed.'),
+    };
+  } finally {
+    if (temporaryRoot) await fs.rm(temporaryRoot, { recursive: true, force: true }).catch(() => {});
   }
 });
 

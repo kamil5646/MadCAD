@@ -1,0 +1,6 @@
+# MadCAD local DWG import round-trip fixture: rectangle 40 x 20 mm.
+HEADER.INSUNITS = 4
+line (0 0 0) (40 0 0)
+line (40 0 0) (40 20 0)
+line (40 20 0) (0 20 0)
+line (0 20 0) (0 0 0)

@@ -391,6 +391,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Analiza': 'Analysis',
   'Import 3D': 'Import 3D',
   'Import SVG/DXF': 'Import SVG/DXF',
+  'Import DWG': 'Import DWG',
   'Import geometrii szkicu': 'Import sketch geometry',
   'Import SVG lub DXF do szkicu': 'Import SVG or DXF into sketch',
   'Plik': 'File',

@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('desktopApp', {
   saveTextFile: (payload) => ipcRenderer.invoke('madcad:save-text-file', payload),
   confirmUnsavedChanges: (payload) => ipcRenderer.invoke('madcad:confirm-unsaved-changes', payload),
   sendToSlicer: (payload) => ipcRenderer.invoke('madcad:send-to-slicer', payload),
+  importDwgSketch: () => ipcRenderer.invoke('madcad:import-dwg-sketch'),
   autosaveWrite: (payload) => ipcRenderer.invoke('madcad:autosave-write', payload),
   autosaveRead: () => ipcRenderer.invoke('madcad:autosave-read'),
   autosaveClear: () => ipcRenderer.invoke('madcad:autosave-clear'),

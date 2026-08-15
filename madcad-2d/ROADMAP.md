@@ -124,6 +124,7 @@ Te prace nie czekają na koniec modelowania:
 ## P1 — rozszerzenie modelowania części
 
 - [x] P1.1 Import SVG/DXF do aktywnego szkicu: wykrywanie i wybór jednostek, profile, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
+- [x] P1.1a Lokalny import DWG przez wykryty GNU LibreDWG albo ODA File Converter: bez przesyłania projektu do chmury, z bezpiecznym wyborem pliku, limitami rozmiaru i ponownym użyciem sprawdzonego importera DXF.
 - [x] P1.2 Więzy `collinear` i `symmetry` od solvera do interfejsu, z diagnostyką konfliktów, undo/redo, autozapisem i round-trip projektu.
 - [x] P1.3 Wymiary ordinate X/Y oraz długości łuku: sterowanie solverem, znaczniki, edycja na szkicu, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
 - [x] P1.4 Prostokątny i kołowy szyk geometrii szkicu z pomijaniem wystąpień, walidacją, undo/redo, autozapisem i ponownym otwarciem w desktop E2E.

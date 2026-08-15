@@ -34,10 +34,9 @@ rejectText(site, /license-registry|issue-private|token-admin|generatePrivateToke
 
 const rootReadme = read('README.md');
 expectText(rootReadme, /Uwaga o wydaniu 6\.2\.0/, 'ostrzeżenie wydania w README');
-rejectText(rootReadme, /import(?:em|uj)? DWG/i, 'nieobsługiwana obietnica importu DWG');
+expectText(rootReadme, /Importuj DWG/, 'lokalny import DWG w README');
 const firstPart = read('madcad-2d/FIRST_PART.md');
-expectText(firstPart, /DWG nie jest obecnie obsługiwany/, 'ograniczenie DWG w samouczku');
-rejectText(firstPart, /ODA File Converter/i, 'wycofana instrukcja ODA w samouczku');
+expectText(firstPart, /DWG jest konwertowany lokalnie/, 'lokalny przepływ DWG w samouczku');
 
 const appUi = read('madcad-2d/src/modeling/ModelingWorkspace.jsx');
 rejectText(appUi, /licenseTokenInput|licenseDeviceIdInput|licenseActivateTokenBtn/, 'kontrolki aktywacji w aplikacji');
@@ -54,7 +53,8 @@ expectText(appDialogs, /Wydanie 6\.2\.0 nie ma podpisu producenta/, 'ostrzeżeni
 const preload = read('madcad-2d/electron/preload.js');
 const main = read('madcad-2d/electron/main.js');
 rejectText(preload, /installOdaAddon|convertCadFile|getOdaStatus|chooseOdaConverterPath|openOdaDownload/, 'nieużywane API ODA w preload');
-rejectText(main, /ODAFileConverter|install-oda|convert-cad-file|get-oda-status|choose-oda|open-oda/, 'wycofany instalator i kanały ODA w procesie głównym');
+rejectText(main, /install-oda-addon|convert-cad-file|get-oda-status|choose-oda|open-oda/, 'wycofany automatyczny instalator i stare kanały ODA w procesie głównym');
+expectText(main, /import-dwg-sketch/, 'zaufany kanał lokalnego importu DWG');
 expectText(main, /__madcadPersistenceReady[\s\S]*?MadCAD nadal sprawdza autozapis/, 'blokada zamknięcia podczas odzyskiwania');
 expectText(main, /NEW_TEAM[\s\S]*?TRUSTED_TEAM[\s\S]*?installed app belongs to a different signing team/, 'zaufany Team ID aktualizatora macOS');
 expectText(main, /__madcadClearRuntimeSession[\s\S]*?clearAutoSaveSnapshot\(\)[\s\S]*?forceCloseForUpdate = true/, 'czyszczenie obu autozapisów przed aktualizacją');

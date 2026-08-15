@@ -63,9 +63,11 @@ czemu start aplikacji nie pobiera całego stosu 3D w jednym pliku JS.
 ### Usługi desktopowe
 
 Preload wystawia tylko wymagane metody poprzez `contextBridge`. Proces główny
-ma 10 zaufanych kanałów IPC; każdy przechodzi tę samą kontrolę źródła oraz
-walidację rozmiaru i kształtu danych. Nie ma API ODA, instalacji zewnętrznych
-pakietów ani konwersji DWG.
+ma 11 zaufanych kanałów IPC; każdy przechodzi tę samą kontrolę źródła oraz
+walidację rozmiaru i kształtu danych. Jeden ograniczony kanał importu DWG
+wybiera plik w procesie głównym, uruchamia wyłącznie wskazany lokalny `dwg2dxf`
+albo ODA File Converter i zwraca tekst DXF. Renderer nie przekazuje ścieżki
+programu ani pliku i nie instaluje dodatków.
 
 Aktualizator przyjmuje wyłącznie HTTPS z oficjalnego repozytorium, narzuca
 limit rozmiaru i SHA-256. Cicha instalacja nadal wymaga poprawnego
