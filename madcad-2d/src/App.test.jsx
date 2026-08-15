@@ -16,7 +16,7 @@ describe('App', () => {
     render(<LicenseInfoDialog onClose={() => {}} />);
     const dialog = screen.getByRole('dialog', { name: /Licencja MadCAD/i });
     expect(dialog).toHaveTextContent(/bezpłatny bez limitu czasu do użytku prywatnego/i);
-    expect(dialog).toHaveTextContent(/Wydanie 6.1.4 nie ma podpisu producenta/i);
+    expect(dialog).toHaveTextContent(/Wydanie 6.1.5 nie ma podpisu producenta/i);
     expect(dialog).toHaveTextContent(/oceniać pełną wersję przez 40 dni/i);
     expect(dialog).toHaveTextContent(/Użytek komercyjny jest płatny/i);
     expect(dialog).toHaveTextContent(/bezterminowej licencji na każde stanowisko/i);
@@ -63,12 +63,12 @@ describe('App', () => {
 
   it('confirms that a verified update package was opened for installation', () => {
     render(<UpdateDialog
-      state={{ status: 'idle', error: '', result: { available: true }, handoff: { latestVersion: '6.1.4', opened: true, downloadedPath: '/Downloads/MadCAD.zip' } }}
+      state={{ status: 'idle', error: '', result: { available: true }, handoff: { latestVersion: '6.1.6', opened: true, downloadedPath: '/Downloads/MadCAD.zip' } }}
       onCheck={() => {}}
       onInstall={() => {}}
       onClose={() => {}}
     />);
-    expect(screen.getByText(/Paczka wersji 6.1.4 jest gotowa/i)).toBeInTheDocument();
+    expect(screen.getByText(/Paczka wersji 6.1.6 jest gotowa/i)).toBeInTheDocument();
     expect(screen.getByText(/MadCAD otworzył zweryfikowaną paczkę/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Pobierz i otwórz/i })).toBeNull();
   });
