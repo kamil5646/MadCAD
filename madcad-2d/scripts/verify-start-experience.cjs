@@ -5,6 +5,7 @@ const { app, BrowserWindow } = require('electron');
 const artifactsDir = path.join(__dirname, '..', 'artifacts', 'start-experience-audit');
 const wideScreenshotPath = path.join(artifactsDir, '02-after-start.png');
 const narrowScreenshotPath = path.join(artifactsDir, '03-narrow-start.png');
+const recoveryScreenshotPath = path.join(artifactsDir, '04-crash-recovery.png');
 
 async function waitFor(window, expression, label, timeoutMs = 20000) {
   const startedAt = Date.now();
@@ -36,6 +37,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `!document.querySelector('.license-info-dialog')`, 'zamknięcie informacji licencyjnej');
     await waitFor(window, `document.querySelector('.start-page')`, 'strona startowa');
     await waitFor(window, `document.querySelector('.engine-status.ready')`, 'gotowy silnik CAD', 40000);
+    const recoveryDocumentText = await window.webContents.executeJavaScript(`window.__madcadGetSessionExport()`);
 
     const wide = await window.webContents.executeJavaScript(`(() => {
       const page = document.querySelector('.start-page');
@@ -106,7 +108,35 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.start-page-action.primary')?.click()`);
     await waitFor(window, `document.querySelector('.plane-picker')`, 'przejście ze strony startowej do wyboru płaszczyzny');
 
-    process.stdout.write(`${JSON.stringify({ ok: true, wideScreenshotPath, narrowScreenshotPath, wide, narrow, accessibility }, null, 2)}\n`);
+    await window.webContents.executeJavaScript(`(() => {
+      const recovered = JSON.parse(${JSON.stringify(recoveryDocumentText)});
+      recovered.name = 'Projekt po awarii';
+      recovered.metadata.modifiedAt = '2026-08-15T20:30:00.000Z';
+      localStorage.setItem('madcad:modeling-document:v4', JSON.stringify(recovered));
+    })()`);
+    await window.webContents.reload();
+    await waitFor(window, `document.querySelector('.modeling-shell')`, 'ponowne uruchomienie interfejsu');
+    await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
+    await waitFor(window, `document.querySelector('.crash-recovery-banner')`, 'widoczny komunikat odzyskania po awarii');
+    const recovery = await window.webContents.executeJavaScript(`(() => {
+      const banner = document.querySelector('.crash-recovery-banner');
+      const save = [...banner.querySelectorAll('button')].find((item) => item.textContent.includes('Zapisz odzyskany projekt'));
+      const dismiss = banner.querySelector('button[aria-label="Zamknij komunikat odzyskiwania"]');
+      const rect = banner.getBoundingClientRect();
+      const stage = document.querySelector('.modeling-stage').getBoundingClientRect();
+      return {
+        text: banner.textContent.replace(/\\s+/g, ' ').trim(),
+        saveVisible: Boolean(save && !save.disabled),
+        dismissVisible: Boolean(dismiss),
+        insideStage: rect.left >= stage.left && rect.right <= stage.right + 1 && rect.top >= stage.top && rect.bottom <= stage.bottom + 1,
+      };
+    })()`);
+    if (!recovery.text.includes('Odzyskano projekt po nieoczekiwanym zamknięciu') || !recovery.saveVisible || !recovery.dismissVisible || !recovery.insideStage) {
+      throw new Error(`Nieprawidłowy komunikat odzyskiwania po awarii: ${JSON.stringify(recovery)}`);
+    }
+    await capture(window, recoveryScreenshotPath);
+
+    process.stdout.write(`${JSON.stringify({ ok: true, wideScreenshotPath, narrowScreenshotPath, recoveryScreenshotPath, wide, narrow, recovery, accessibility }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

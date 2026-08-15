@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import App from './App.jsx';
 import { FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './modeling/AppDialogs.jsx';
+import { CrashRecoveryBanner } from './modeling/ModelingWorkspace.jsx';
 
 describe('App', () => {
   it('renders the current modeling workspace as the only application interface', () => {
@@ -83,5 +84,18 @@ describe('App', () => {
     expect(screen.getByText(/Paczka wersji 6.1.9 jest gotowa/i)).toBeInTheDocument();
     expect(screen.getByText(/MadCAD otworzył zweryfikowaną paczkę/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Pobierz i otwórz/i })).toBeNull();
+  });
+
+  it('shows a clear recovery banner after an interrupted application session', () => {
+    const onSave = vi.fn();
+    const onDismiss = vi.fn();
+    render(<CrashRecoveryBanner info={{ backup: true, updatedAt: '2026-08-15T20:30:00.000Z' }} onSave={onSave} onDismiss={onDismiss} />);
+    const banner = screen.getByRole('alert', { name: /Odzyskiwanie projektu po awarii/i });
+    expect(banner).toHaveTextContent(/Odzyskano projekt po nieoczekiwanym zamknięciu/i);
+    expect(banner).toHaveTextContent(/poprzedniej poprawnej kopii autozapisu/i);
+    fireEvent.click(screen.getByRole('button', { name: /Zapisz odzyskany projekt/i }));
+    expect(onSave).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: /Zamknij komunikat odzyskiwania/i }));
+    expect(onDismiss).toHaveBeenCalledOnce();
   });
 });
