@@ -45,6 +45,7 @@ app.whenReady().then(async () => {
       const startBrand = page?.querySelector('.start-page-brand img');
       const shell = page?.querySelector('.start-page-shell');
       const primary = page?.querySelector('.start-page-action.primary');
+      const browserToggle = document.querySelector('.app-menu button[title="Pokaż lub ukryj przeglądarkę"]');
       const labels = [...document.querySelectorAll('.workspace-tabs button')].map((item) => item.textContent.trim());
       const rect = page?.getBoundingClientRect();
       const stageRect = document.querySelector('.modeling-stage')?.getBoundingClientRect();
@@ -55,13 +56,15 @@ app.whenReady().then(async () => {
         tabs: labels,
         sharedIcon: Boolean(brand?.src && brand.src === startBrand?.src && brand.naturalWidth >= 512),
         logoAtRightEnd: Boolean(brandMark && titleActions && brandMark.parentElement === titleActions && titleActions.lastElementChild === brandMark),
+        browserHiddenByDefault: !document.querySelector('.model-browser') && document.querySelector('.modeling-content')?.classList.contains('without-browser'),
+        browserToggleAvailable: Boolean(browserToggle && !browserToggle.classList.contains('active')),
         shellWidth: shell?.getBoundingClientRect().width || 0,
         pageInsideStage: Boolean(rect && stageRect && rect.left >= stageRect.left && rect.top >= stageRect.top && rect.right <= stageRect.right + 1 && rect.bottom <= stageRect.bottom + 1),
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth || page.scrollWidth > page.clientWidth + 1,
       };
     })()`);
 
-    if (!wide.title.includes('Rysuj 2D') || !wide.primaryText.includes('Nowy rysunek 2D') || !wide.workflowText.includes('Szkic 2D') || !wide.workflowText.includes('Model parametryczny') || !wide.workflowText.includes('STEP do wymiany CAD') || wide.tabs.join('|') !== 'PROJEKTUJ|NARZĘDZIA|EKSPORT' || !wide.sharedIcon || !wide.logoAtRightEnd || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
+    if (!wide.title.includes('Rysuj 2D') || !wide.primaryText.includes('Nowy rysunek 2D') || !wide.workflowText.includes('Szkic 2D') || !wide.workflowText.includes('Model parametryczny') || !wide.workflowText.includes('STEP do wymiany CAD') || wide.tabs.join('|') !== 'PROJEKTUJ|NARZĘDZIA|EKSPORT' || !wide.sharedIcon || !wide.logoAtRightEnd || !wide.browserHiddenByDefault || !wide.browserToggleAvailable || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
       throw new Error(`Nieprawidłowa hierarchia strony startowej: ${JSON.stringify(wide)}`);
     }
 

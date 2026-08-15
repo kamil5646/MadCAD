@@ -35,6 +35,7 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 - Import i eksport `STEP`, `STL`, `3MF`; własny parametryczny format `.madcad`.
 - Kontrola drukowalności, gabarytów i dopasowania modelu do stołu drukarki.
 - Interfejs polski i angielski, lokalne pliki, brak konta, telemetrii i aktywacji.
+- Przeglądarka projektu jest domyślnie zwinięta, aby maksymalizować obszar rysowania.
 
 ## Szybki start
 

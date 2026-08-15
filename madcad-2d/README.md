@@ -75,6 +75,7 @@ sprawdza format paczki i wykonuje pełne testy na Windows oraz macOS.
 - Funkcje wstążki pokazują po najechaniu opis; skróty podstawowych narzędzi są widoczne tylko w podpowiedzi, nie na przyciskach.
 - Podstawowe skróty uruchamiają narzędzie natychmiast, bez osobnego wiersza poleceń.
 - Układ podstawowych klawiszy jest zgodny z Autodesk Fusion: `L`, `R`, `C`, `T`, `O`, `P`, `M`, `I`, `E` i `Del`.
+- Przeglądarka projektu startuje zwinięta; pierwszy przycisk górnego paska rozwija ją w razie potrzeby.
 - Linia: `L`, klik początku, kierunek kursorem, długość, `Enter`.
 - `Escape` anuluje aktywne narzędzie; `Ctrl+Enter` kończy szkic.
 

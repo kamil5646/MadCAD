@@ -256,17 +256,31 @@ const TOOL_SHORTCUTS = Object.freeze({
   'Wyciągnij': 'E',
 });
 
-const TOOL_TONES = Object.freeze({
-  cyan: new Set(['Utwórz szkic', 'Linia', 'Polilinia', 'Łuk styczny', 'Łuk', 'Prostokąt', 'Okrąg', 'Wielokąt', 'Elipsa', 'Slot', 'Spline', 'Conic', 'Punkt']),
-  blue: new Set(['Wyciągnij', 'Thin Extrude', 'Rib/Web', 'Pipe', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Pattern', 'Press Pull', 'Prymityw', 'Tekst 3D', 'Boolean', 'Otwór']),
-  amber: new Set(['Trim', 'Extend', 'Break', 'Project', 'Offset', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu', 'Przesuń', 'Zaokrąglij', 'Fazuj', 'Shell', 'Draft', 'Split Body', 'Split Face', 'Replace Face', 'Offset Face', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj']),
-  green: new Set(['Zakończ szkic', 'STEP', 'STL', '3MF']),
-  violet: new Set(['Parametry', 'Zmierz', 'Przekrój', 'Masa', 'Analiza']),
-  red: new Set(['Usuń', 'Delete Face + Heal']),
+const TOOL_COLOR_GROUPS = Object.freeze({
+  sketch: new Set(['Utwórz szkic', 'Linia', 'Polilinia', 'Łuk styczny', 'Łuk', 'Prostokąt', 'Okrąg', 'Wielokąt', 'Elipsa', 'Slot', 'Spline', 'Conic', 'Punkt', 'Zakończ szkic']),
+  solid: new Set(['Wyciągnij', 'Thin Extrude', 'Rib/Web', 'Pipe', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Pattern', 'Press Pull', 'Prymityw', 'Tekst 3D', 'Boolean', 'Otwór']),
+  edit: new Set(['Trim', 'Extend', 'Break', 'Offset', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu', 'Przesuń', 'Zaokrąglij', 'Fazuj', 'Shell', 'Draft', 'Split Body', 'Split Face', 'Replace Face', 'Offset Face', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj']),
+  reference: new Set(['Project', 'Współliniowe', 'Symetria', 'Krzywizna G2', 'Ordinate X', 'Ordinate Y', 'Długość łuku', 'Płaszczyzna offset', 'Midplane', 'Plane 3 punkty', 'Plane angle', 'Plane tangent', 'Plane path', 'Oś z krawędzi', 'Oś walca', 'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum', 'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi']),
+  inspect: new Set(['Parametry', 'Zmierz', 'Przekrój', 'Masa', 'Analiza', 'Wybierz']),
+  output: new Set(['Import SVG/DXF', 'Import 3D', 'STEP', 'STL', '3MF', 'Kontrola druku']),
+  destructive: new Set(['Usuń', 'Delete Face + Heal']),
 });
 
-function toolTone(label) {
-  return Object.entries(TOOL_TONES).find(([, labels]) => labels.has(label))?.[0] || 'neutral';
+const TOOL_GROUP_HUES = Object.freeze({ sketch: 190, solid: 218, edit: 38, reference: 166, inspect: 274, output: 138, destructive: 356, neutral: 208 });
+const FEATURED_TOOL_LABELS = new Set(['Utwórz szkic', 'Linia', 'Wyciągnij', 'Wybierz', 'Trim', 'Zakończ szkic', 'Parametry', 'STEP']);
+
+function toolColorStyle(label) {
+  const group = Object.entries(TOOL_COLOR_GROUPS).find(([, labels]) => labels.has(label))?.[0] || 'neutral';
+  const hue = TOOL_GROUP_HUES[group];
+  return {
+    '--tool-accent': `hsl(${hue} 84% 68%)`,
+    '--tool-surface-top': '#4b5866',
+    '--tool-surface-bottom': '#34404c',
+    '--tool-surface-hover-top': '#596979',
+    '--tool-surface-hover-bottom': '#3d4d5b',
+    '--tool-surface-disabled-top': '#303a45',
+    '--tool-surface-disabled-bottom': '#28313b',
+  };
 }
 
 const ToolHelpContext = React.createContext(null);
@@ -332,9 +346,20 @@ function safeName(value) {
   return value.trim().replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-|-$/g, '') || 'model';
 }
 
+function ToolGlyph({ icon: Icon, compact = false }) {
+  const size = compact ? 18 : 25;
+  return (
+    <span className="ribbon-glyph">
+      <Icon className="ribbon-glyph-depth" size={size} strokeWidth={2.4} fill="currentColor" aria-hidden="true" />
+      <Icon className="ribbon-glyph-face" size={size} strokeWidth={1.65} fill="currentColor" fillOpacity={0.14} aria-hidden="true" />
+    </span>
+  );
+}
+
 function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = false, compact = false, title, description }) {
   const help = description || title || TOOL_DESCRIPTIONS[label] || label;
   const shortcut = TOOL_SHORTCUTS[label] || null;
+  const featured = FEATURED_TOOL_LABELS.has(label);
   const toolHelp = React.useContext(ToolHelpContext);
   useEffect(() => {
     if (!shortcut || ['ESC', 'DEL', 'CTRL+ENTER'].includes(shortcut)) return undefined;
@@ -351,16 +376,17 @@ function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = fa
     });
   };
   return (
-    <span className="ribbon-tool-wrap" onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
+    <span className={`ribbon-tool-wrap ${featured ? 'featured' : ''}`} onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
       <button
-        className={`ribbon-tool tone-${toolTone(label)} ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
+        className={`ribbon-tool ${featured ? 'featured' : ''} ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
+        style={toolColorStyle(label)}
         type="button"
         onClick={onClick}
         disabled={disabled}
         title={`${help}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`}
         aria-label={`${label}. ${help}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`}
       >
-        <span className="ribbon-icon" aria-hidden="true"><Icon size={compact ? 18 : 25} strokeWidth={1.55} /></span>
+        <span className="ribbon-icon" aria-hidden="true"><ToolGlyph icon={Icon} compact={compact} /></span>
         <span className="ribbon-label">{label}</span>
       </button>
     </span>
@@ -1235,7 +1261,7 @@ export default function ModelingWorkspace() {
   const [command, setCommand] = useState(null);
   const [toolHelp, setToolHelp] = useState(null);
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
-  const [browserOpen, setBrowserOpen] = useState(true);
+  const [browserOpen, setBrowserOpen] = useState(false);
   const [printPanelOpen, setPrintPanelOpen] = useState(false);
   const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, profiles: true, points: true, dimensions: true, constraints: true, construction: true, projected: true, slice: false, sketch3d: false });
   const [notice, setNotice] = useState(initialOpen.warning || 'Gotowe. Zacznij od rysunku 2D albo otwórz projekt.');

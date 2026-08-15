@@ -24,7 +24,7 @@ Electron. Nie są atrapami ani statycznymi makietami.
 | Krok | Stan | Ocena | Ustalenia |
 |---:|---|---:|---|
 | 1 | Start i licencja | dobry | Komunikat nie blokuje aplikacji, jasno oddziela użytek prywatny, 40-dniową ocenę firmy, licencję płatną i darowiznę. Nie ma klucza ani aktywacji. |
-| 2 | Pusty dokument | dobry | Hierarchia jest czytelna, centralne „Utwórz szkic” prowadzi do podstawowego zadania, a drzewo i timeline nie dominują płótna. |
+| 2 | Pusty dokument | dobry | Hierarchia jest czytelna, centralne „Utwórz szkic” prowadzi do podstawowego zadania, a domyślnie zwinięta przeglądarka i timeline nie dominują płótna. |
 | 3 | Tooltip i skrót | dobry | Narzędzia pokazują opis po najechaniu i fokusie. Tylko podstawowe narzędzia pokazują skrót w podpowiedzi; przyciski pozostają czyste. |
 | 4 | Szkic | dobry z ryzykiem gęstości | Osie, profil, paleta i stan aktywnego narzędzia są czytelne. Linia działa jako klik początku → kierunek → długość → `Enter`. Duża liczba narzędzi i drobna typografia wymagają dalszego testu na słabszym wzroku. |
 | 5 | Direct Extrude | dobry | Manipulator, podgląd bryły, jednostka i pole dokładnej wartości tworzą jeden spójny przepływ. |

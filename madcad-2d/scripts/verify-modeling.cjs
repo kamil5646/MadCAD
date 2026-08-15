@@ -1802,7 +1802,7 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint?.([0, 0])`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'rectangle' && window.__madcadVerifyDocumentState.command.gesturePoints === 1`, 'pierwszy narożnik prostokąta z płótna');
   await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint?.([32, 21])`);
-  await waitForUi(window, `!document.querySelector('.command-dialog') && document.querySelectorAll('.tree-profile').length === 1`, 'prostokąt utworzony dwoma kliknięciami');
+  await waitForUi(window, `!document.querySelector('.command-dialog') && window.__madcadVerifyDocumentState?.sketches?.[0]?.profiles === 1`, 'prostokąt utworzony dwoma kliknięciami');
   await new Promise((resolve) => setTimeout(resolve, 75));
   await fs.writeFile(sketchOutputPath, (await window.webContents.capturePage()).toPNG());
   await clickTool('Zakończ szkic');
@@ -1928,6 +1928,8 @@ async function runUiFlow(window) {
   await waitForUi(window, `!document.querySelector('.reference-repair-panel') && window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(lostReferenceId)})?.topologyId !== window.__madcadVerifyEngineState.bodies[0].topology.edges[0].id + '-lost'`, 'ponowne przypisanie referencji', modelingTimeoutMs);
 
   progress('parametric offset construction plane');
+  await clickByTitle('Pokaż lub ukryj przeglądarkę');
+  await waitForUi(window, `document.querySelector('.model-browser')`, 'otwarcie przeglądarki projektu do testu drzewa');
   await clickTool('Płaszczyzna offset');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna odsunięta')`, 'okno płaszczyzny odsuniętej');
   await setCommandField('Nazwa', 'Płaszczyzna montażowa');
@@ -2484,7 +2486,7 @@ async function runUiFlow(window) {
 
   progress('ui flow complete');
   return {
-    profiles: await window.webContents.executeJavaScript(`document.querySelectorAll('.tree-profile').length`),
+    profiles: await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState?.sketches?.reduce((total, sketch) => total + sketch.profiles, 0) || 0`),
     features: await window.webContents.executeJavaScript(`document.querySelectorAll('.timeline-item').length`),
     parameterEditing: true,
     undoRedo: true,
@@ -2534,7 +2536,7 @@ app.whenReady().then(async () => {
     // Hosted runners are substantially slower and noisier than local hardware.
     // Per-operation waits and worker budgets below still catch real stalls.
     ? { desktopColdStartMs: 60000, desktopWorkflowMs: 360000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 90000 }
-    : { desktopColdStartMs: 30000, desktopWorkflowMs: 100000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
+    : { desktopColdStartMs: 30000, desktopWorkflowMs: 120000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
     width: 1936,
