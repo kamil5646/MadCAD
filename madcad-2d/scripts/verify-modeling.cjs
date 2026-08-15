@@ -129,14 +129,15 @@ async function verifyEnglishModelingUi() {
       return {
         language: document.documentElement.lang,
         createSketch: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Create sketch'),
-        browser: document.querySelector('.browser-heading strong')?.textContent.trim(),
+        browserHiddenByDefault: !document.querySelector('.model-browser') && document.querySelector('.modeling-content')?.classList.contains('without-browser'),
+        browserToggle: Boolean([...document.querySelectorAll('.app-menu button')].find((button) => /browser/i.test(button.title))),
         engineReady: document.querySelector('.engine-status')?.textContent.includes('ready'),
         tutorialButton: Boolean(document.querySelector('button[title="First CAD project tutorial"]')),
         polishPrimaryLabel: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Utwórz szkic'),
         untranslatedPolish: [...untranslated].slice(0, 50),
       };
     })()`);
-    if (state.language !== 'en' || !state.createSketch || state.browser !== 'BROWSER' || !state.engineReady || !state.tutorialButton || state.polishPrimaryLabel || state.untranslatedPolish.length) {
+    if (state.language !== 'en' || !state.createSketch || !state.browserHiddenByDefault || !state.browserToggle || !state.engineReady || !state.tutorialButton || state.polishPrimaryLabel || state.untranslatedPolish.length) {
       throw new Error(`English UI smoke check failed: ${JSON.stringify(state)}`);
     }
     return state;
