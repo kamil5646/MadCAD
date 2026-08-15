@@ -16,7 +16,7 @@ describe('App', () => {
     render(<LicenseInfoDialog onClose={() => {}} />);
     const dialog = screen.getByRole('dialog', { name: /Licencja MadCAD/i });
     expect(dialog).toHaveTextContent(/bezpłatny bez limitu czasu do użytku prywatnego/i);
-    expect(dialog).toHaveTextContent(/Wydanie 6.1.6 nie ma podpisu producenta/i);
+    expect(dialog).toHaveTextContent(/Wydanie 6.1.7 nie ma podpisu producenta/i);
     expect(dialog).toHaveTextContent(/oceniać pełną wersję przez 40 dni/i);
     expect(dialog).toHaveTextContent(/Użytek komercyjny jest płatny/i);
     expect(dialog).toHaveTextContent(/bezterminowej licencji na każde stanowisko/i);
@@ -63,7 +63,7 @@ describe('App', () => {
 
   it('links to the release when a newer version has no compatible package', () => {
     render(<UpdateDialog
-      state={{ status: 'idle', error: '', result: { newerVersion: true, supported: false, currentVersion: '6.1.6', latestVersion: '6.2.0', releaseUrl: 'https://github.com/kamil5646/MadCAD2D/releases/tag/v6.2.0' } }}
+      state={{ status: 'idle', error: '', result: { newerVersion: true, supported: false, currentVersion: '6.1.7', latestVersion: '6.2.0', releaseUrl: 'https://github.com/kamil5646/MadCAD2D/releases/tag/v6.2.0' } }}
       onCheck={() => {}}
       onInstall={() => {}}
       onClose={() => {}}
@@ -75,12 +75,12 @@ describe('App', () => {
 
   it('confirms that a verified update package was opened for installation', () => {
     render(<UpdateDialog
-      state={{ status: 'idle', error: '', result: { available: true }, handoff: { latestVersion: '6.1.6', opened: true, downloadedPath: '/Downloads/MadCAD.zip' } }}
+      state={{ status: 'idle', error: '', result: { available: true }, handoff: { latestVersion: '6.1.7', opened: true, downloadedPath: '/Downloads/MadCAD.zip' } }}
       onCheck={() => {}}
       onInstall={() => {}}
       onClose={() => {}}
     />);
-    expect(screen.getByText(/Paczka wersji 6.1.6 jest gotowa/i)).toBeInTheDocument();
+    expect(screen.getByText(/Paczka wersji 6.1.7 jest gotowa/i)).toBeInTheDocument();
     expect(screen.getByText(/MadCAD otworzył zweryfikowaną paczkę/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Pobierz i otwórz/i })).toBeNull();
   });

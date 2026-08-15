@@ -1,6 +1,6 @@
 # Changelog
 
-## Następne wydanie
+## 6.1.7 (2026-08-15)
 
 - Zablokowano przedwczesne zatwierdzanie operacji bryłowej do czasu ukończenia dokładnego podglądu B-Rep; przycisk pokazuje stan „Obliczanie…”, a test Rib/Web czeka na gotowy wynik zamiast zależeć od szybkości komputera.
 

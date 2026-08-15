@@ -12,7 +12,7 @@ const rejectText = (source, pattern, label) => {
 };
 
 const packageJson = JSON.parse(read('madcad-2d/package.json'));
-if (packageJson.version !== '6.1.6') throw new Error(`Wersja stabilna musi wynosić 6.1.6, jest ${packageJson.version}.`);
+if (packageJson.version !== '6.1.7') throw new Error(`Wersja stabilna musi wynosić 6.1.7, jest ${packageJson.version}.`);
 
 const license = read('LICENSE');
 const packagedLicense = read('madcad-2d/LICENSE');
@@ -28,11 +28,11 @@ expectText(site, /Oficjalne wydanie 6\.1/, 'stabilne wydanie na stronie');
 expectText(site, /40 dni bezpłatnej oceny/, 'ocena komercyjna na stronie');
 expectText(site, /licencja bezterminowa na stanowisko/, 'licencja stanowiskowa na stronie');
 expectText(site, /mailto:kkasprzak15@icloud\.com/, 'zakup licencji na stronie');
-expectText(site, /paczki 6\.1\.6 są publikowane bez podpisu producenta/, 'ostrzeżenie o niepodpisanym wydaniu 6.1.6');
+expectText(site, /paczki 6\.1\.7 są publikowane bez podpisu producenta/, 'ostrzeżenie o niepodpisanym wydaniu 6.1.7');
 rejectText(site, /license-registry|issue-private|token-admin|generatePrivateToken/i, 'stary system tokenów na stronie');
 
 const rootReadme = read('README.md');
-expectText(rootReadme, /Uwaga o wydaniu 6\.1\.6/, 'ostrzeżenie wydania w README');
+expectText(rootReadme, /Uwaga o wydaniu 6\.1\.7/, 'ostrzeżenie wydania w README');
 rejectText(rootReadme, /import(?:em|uj)? DWG/i, 'nieobsługiwana obietnica importu DWG');
 const firstPart = read('madcad-2d/FIRST_PART.md');
 expectText(firstPart, /DWG nie jest obecnie obsługiwany/, 'ograniczenie DWG w samouczku');
@@ -48,7 +48,7 @@ const appDialogs = read('madcad-2d/src/modeling/AppDialogs.jsx');
 expectText(appDialogs, /oceniać pełną wersję przez 40 dni/, 'ocena w oknie aplikacji');
 expectText(appDialogs, /bezterminowej licencji na każde stanowisko/, 'licencja stanowiskowa w aplikacji');
 expectText(appDialogs, /fullLicenseText/, 'lokalna pełna licencja w aplikacji');
-expectText(appDialogs, /Wydanie 6\.1\.6 nie ma podpisu producenta/, 'ostrzeżenie o podpisie w aplikacji');
+expectText(appDialogs, /Wydanie 6\.1\.7 nie ma podpisu producenta/, 'ostrzeżenie o podpisie w aplikacji');
 
 const preload = read('madcad-2d/electron/preload.js');
 const main = read('madcad-2d/electron/main.js');
