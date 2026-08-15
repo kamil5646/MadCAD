@@ -1421,6 +1421,18 @@ test('kanały aktualizacji respektują semver, zaufane hosty i integralność SH
   assert.equal(updatePolicy.parseChecksumFile(`${hash}  MadCAD.zip\n`, 'MadCAD.zip'), hash);
   assert.equal(updatePolicy.verifyBufferChecksum(payload, hash), true);
   assert.equal(updatePolicy.verifyBufferChecksum(Buffer.from('tampered'), hash), false);
+  const assets = [
+    { name: 'MadCAD-6.2.0-mac-arm64.zip', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-mac-arm64.zip' },
+    { name: 'MadCAD-6.2.0-mac-arm64.zip.sha256', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-mac-arm64.zip.sha256' },
+    { name: 'MadCAD-6.2.0-mac-x64.zip', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-mac-x64.zip' },
+    { name: 'MadCAD-6.2.0-win-x64.exe', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-win-x64.exe' },
+  ];
+  assert.equal(updatePolicy.selectReleaseAsset(assets, 'darwin', 'arm64')?.name, 'MadCAD-6.2.0-mac-arm64.zip');
+  assert.equal(updatePolicy.selectReleaseAsset(assets, 'darwin', 'x64')?.name, 'MadCAD-6.2.0-mac-x64.zip');
+  assert.equal(updatePolicy.selectReleaseAsset(assets, 'win32', 'x64')?.name, 'MadCAD-6.2.0-win-x64.exe');
+  assert.equal(updatePolicy.selectReleaseAsset(assets, 'linux', 'x64'), null);
+  assert.equal(updatePolicy.selectChecksumAsset(assets, 'MadCAD-6.2.0-mac-arm64.zip')?.name, 'MadCAD-6.2.0-mac-arm64.zip.sha256');
+  assert.equal(updatePolicy.selectReleaseAsset([{ ...assets[0], browser_download_url: 'https://example.com/fake.zip' }], 'darwin', 'arm64'), null);
 });
 
 test('samouczek PL/EN prowadzi do eksportu i jawnie wymienia znane ograniczenia', () => {

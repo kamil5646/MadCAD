@@ -42,7 +42,7 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense }) {
         </header>
         <div className="license-info-body">
           <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.</p>
-          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.1.5 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
+          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.1.6 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
           <div className="license-info-card license-info-commercial">
             <strong>Użytek komercyjny jest płatny</strong>
             <ul>
@@ -86,6 +86,8 @@ export function FullLicenseDialog({ onClose }) {
 export function UpdateDialog({ state, onCheck, onInstall, onClose }) {
   const result = state.result;
   const handoff = state.handoff;
+  const hasNewerVersion = Boolean(result?.newerVersion || result?.available);
+  const supportsThisComputer = Boolean(result?.supported ?? result?.available);
   const checking = state.status === 'checking';
   const installing = state.status === 'installing';
   return (
@@ -112,10 +114,17 @@ export function UpdateDialog({ state, onCheck, onInstall, onClose }) {
               <p>Masz wersję {result.currentVersion}. Paczka zostanie pobrana z oficjalnego wydania GitHub oraz sprawdzona przed uruchomieniem.</p>
             </div>
           )}
-          {!checking && !installing && !state.error && !handoff && result && !result.available && (
+          {!checking && !installing && !state.error && !handoff && hasNewerVersion && !supportsThisComputer && (
+            <div className="license-info-card license-info-commercial">
+              <strong>Wersja {result.latestVersion} nie ma paczki dla tego komputera</strong>
+              <p>Zainstalowana wersja to {result.currentVersion}. Otwórz stronę wydania, aby sprawdzić dostępne platformy i architektury.</p>
+            </div>
+          )}
+          {!checking && !installing && !state.error && !handoff && result && !hasNewerVersion && (
             <p className="license-info-lead">Masz aktualną wersję MadCAD{result.currentVersion ? ` (${result.currentVersion})` : ''}.</p>
           )}
           <div className="license-info-actions">
+            {hasNewerVersion && !supportsThisComputer && result?.releaseUrl && <a href={result.releaseUrl} target="_blank" rel="noopener noreferrer">Strona wydania</a>}
             <button className="secondary" type="button" disabled={checking || installing} onClick={() => onCheck(false)}>Sprawdź ponownie</button>
             {result?.available && !handoff && <button className="confirm" type="button" disabled={checking || installing} onClick={onInstall}>Pobierz i otwórz</button>}
             <button type="button" disabled={installing} onClick={onClose}>Później</button>

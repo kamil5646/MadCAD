@@ -131,7 +131,7 @@ async function verifyEnglishModelingUi() {
         createSketch: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Create sketch'),
         browser: document.querySelector('.browser-heading strong')?.textContent.trim(),
         engineReady: document.querySelector('.engine-status')?.textContent.includes('ready'),
-        tutorialButton: Boolean(document.querySelector('button[title="First part tutorial"]')),
+        tutorialButton: Boolean(document.querySelector('button[title="First CAD project tutorial"]')),
         polishPrimaryLabel: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Utwórz szkic'),
         untranslatedPolish: [...untranslated].slice(0, 50),
       };
@@ -213,7 +213,26 @@ async function waitForUi(window, expression, label, timeoutMs = 12000) {
 
 async function runUiFlow(window) {
   const progress = (message) => process.stdout.write(`[verify] ${message}\n`);
-  const clickTool = (label) => window.webContents.executeJavaScript(`(() => {
+  const toolsWorkspaceLabels = new Set([
+    'Parametry', 'Zmierz', 'Przekrój', 'Masa', 'Analiza', 'Płaszczyzna offset', 'Midplane',
+    'Plane 3 punkty', 'Plane angle', 'Plane tangent', 'Plane path', 'Oś z krawędzi', 'Oś walca',
+    'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum',
+    'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi', 'Import 3D',
+  ]);
+  const exportWorkspaceLabels = new Set(['STEP', 'STL', '3MF', 'Kontrola druku']);
+  const ribbonHasTool = (label) => window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)})`);
+  const clickWorkspace = (workspaceLabel) => window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === ${JSON.stringify(workspaceLabel)});
+    if (!button) throw new Error('Brak obszaru roboczego: ${workspaceLabel}');
+    button.click();
+  })()`);
+  const clickTool = async (label) => {
+    if (!await ribbonHasTool(label)) {
+      const workspaceLabel = toolsWorkspaceLabels.has(label) ? 'NARZĘDZIA' : exportWorkspaceLabels.has(label) ? 'EKSPORT' : 'PROJEKTUJ';
+      await clickWorkspace(workspaceLabel);
+      await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)})`, `narzędzie ${label} w obszarze ${workspaceLabel}`);
+    }
+    return window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)});
     if (!button) throw new Error('Brak przycisku: ${label}');
     if (button.disabled) throw new Error('Przycisk jest nieaktywny: ${label}');
@@ -222,6 +241,7 @@ async function runUiFlow(window) {
     if (typeof handler !== 'function') throw new Error('Brak procedury przycisku: ${label}');
     handler({ currentTarget: button, target: button });
   })()`);
+  };
 
   const clickByTitle = (title) => window.webContents.executeJavaScript(`(() => {
     const button = document.querySelector('.modeling-shell button[title=${JSON.stringify(title)}]');
@@ -414,8 +434,8 @@ async function runUiFlow(window) {
     );
   };
 
-  progress('first printable part tutorial');
-  await clickByTitle('Samouczek pierwszej części');
+  progress('first CAD project tutorial');
+  await clickByTitle('Samouczek pierwszego projektu CAD');
   await waitForUi(window, `document.querySelectorAll('.tutorial-body ol li').length === 8 && document.querySelectorAll('.tutorial-body aside li').length >= 6`, 'samouczek i znane ograniczenia');
   const tutorial = await window.webContents.executeJavaScript(`({ steps: document.querySelectorAll('.tutorial-body ol li').length, limitations: document.querySelectorAll('.tutorial-body aside li').length })`);
   await sendKey('Escape');
@@ -1086,7 +1106,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Kąt Revolve')`, 'otwarty Revolve');
   await waitForUi(window, `window.__madcadVerifyEngineState?.timeline?.at(-1)?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${300 * Math.PI}) < 0.05`, 'podgląd Revolve wokół osi bazowej Y', modelingTimeoutMs);
   await setCommandField('Oś obrotu', 'Z_AXIS');
-  await waitForUi(window, `window.__madcadVerifyEngineState?.status === 'error' && document.querySelector('.notice')?.textContent.includes('płaszczyźnie szkicu')`, 'Revolve odrzuca oś prostopadłą do szkicu', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.status === 'error' && document.querySelector('.cad-command-line')?.textContent.includes('płaszczyźnie szkicu')`, 'Revolve odrzuca oś prostopadłą do szkicu', modelingTimeoutMs);
   await setCommandField('Oś obrotu', revolveAxisId);
   await waitForUi(window, `window.__madcadVerifyEngineState?.timeline?.at(-1)?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${300 * Math.PI}) < 0.05`, 'Revolve wokół osi konstrukcyjnej Y', modelingTimeoutMs);
   await confirmDialog();
@@ -1746,8 +1766,9 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.tool-help-tooltip')?.textContent.includes('Utwórz pojedynczy segment') && document.querySelector('.tool-help-tooltip kbd')?.textContent.includes('L')`, 'podpowiedź narzędzia Linia');
   await new Promise((resolve) => setTimeout(resolve, 100));
   await fs.writeFile(tooltipOutputPath, (await window.webContents.capturePage()).toPNG());
+  await window.webContents.executeJavaScript(`document.querySelector('.cad-command-entry input')?.focus()`);
   await sendKey('l');
-  await waitForUi(window, `document.querySelector('.cad-command-input strong')?.textContent === 'L'`, 'alias L w wierszu polecenia');
+  await waitForUi(window, `document.querySelector('.cad-command-line .cad-command-value')?.textContent === 'L' && document.querySelector('.cad-command-entry input')?.value === 'L'`, 'alias L wpisany w wierszu polecenia');
   await sendKey('Enter');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'line'`, 'polecenie linii dynamicznej');
   const dynamicLineStart = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(0, 0)`);
@@ -1759,6 +1780,8 @@ async function runUiFlow(window) {
   const dynamicLineDirection = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(30, 40)`);
   await sendMouse('mouseMove', dynamicLineDirection);
   await waitForUi(window, `document.querySelector('.sketch-dynamic-input')?.textContent.includes('50.00')`, 'podgląd kierunku i długości linii');
+  await window.webContents.executeJavaScript(`document.querySelector('.cad-command-entry input')?.focus()`);
+  await waitForUi(window, `document.activeElement === document.querySelector('.cad-command-entry input')`, 'aktywne pole długości w wierszu polecenia');
   await sendKey('2');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.dynamicLength === '2'`, 'pierwsza cyfra długości linii');
   await sendKey('5');
@@ -2370,6 +2393,7 @@ async function runUiFlow(window) {
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);
+  await clickTool('Kontrola druku');
   await waitForUi(window, `document.querySelector('.print-inspector')`, 'obszar przygotowania druku');
 
   await window.webContents.executeJavaScript(`(() => {
@@ -2402,7 +2426,7 @@ async function runUiFlow(window) {
     automatic[autoKey].onClick();
     return { count: buttons.length, switched: true };
   })()`);
-  if (selectionFilters.count !== 6 || !selectionFilters.switched) throw new Error(`Niepełne filtry wyboru B-Rep: ${JSON.stringify(selectionFilters)}`);
+  if (selectionFilters.count !== 5 || !selectionFilters.switched) throw new Error(`Niepełne filtry wyboru B-Rep: ${JSON.stringify(selectionFilters)}`);
   const autosaveState = await window.webContents.executeJavaScript(`(() => {
     const raw = window.localStorage.getItem('madcad:modeling-document:v4');
     if (!raw) return { available: false };
@@ -2646,7 +2670,7 @@ app.whenReady().then(async () => {
     process.stderr.write(`${error.stack || error.message}\n`);
     exitCode = 1;
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
-    const notice = window.isDestroyed() ? '' : await window.webContents.executeJavaScript(`document.querySelector('.notice')?.textContent?.trim() || ''`);
+    const notice = window.isDestroyed() ? '' : await window.webContents.executeJavaScript(`document.querySelector('.cad-command-line')?.textContent?.trim() || ''`);
     await fs.writeFile(
       path.join(path.dirname(outputPath), 'verification-report.json'),
       JSON.stringify({ ok: false, error: error.stack || error.message, notice, rendererMessages }, null, 2),
