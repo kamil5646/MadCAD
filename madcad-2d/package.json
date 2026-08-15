@@ -1,7 +1,7 @@
 {
   "name": "madcad-desktop",
   "version": "6.1.2",
-  "description": "Desktopowa aplikacja CAD 2D/3D MadCAD do projektowania technicznego i druku 3D.",
+  "description": "Desktopowy CAD 2D/3D: klasyczne szkicowanie, parametryczna historia i modelowanie bryłowe.",
   "repository": {
     "type": "git",
     "url": "https://github.com/kamil5646/MadCAD2D.git"
@@ -15,6 +15,7 @@
     "build": "npm run build:ui",
     "build:ui": "vite build",
     "verify:modeling": "npm run build:ui && electron scripts/verify-modeling.cjs",
+    "verify:start-experience": "npm run build:ui && electron scripts/verify-start-experience.cjs",
     "verify:snap-feedback": "npm run build:ui && electron scripts/verify-snap-feedback.cjs",
     "verify:electron-security": "electron scripts/verify-electron-security.cjs",
     "verify:package": "node scripts/verify-package.cjs",

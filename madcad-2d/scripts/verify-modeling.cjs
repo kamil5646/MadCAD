@@ -2365,15 +2365,15 @@ async function runUiFlow(window) {
   await confirmParameters();
 
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === 'DRUK 3D');
-    if (!button) throw new Error('Brak obszaru DRUK 3D');
+    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === 'EKSPORT');
+    if (!button) throw new Error('Brak obszaru EKSPORT');
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);
   await waitForUi(window, `document.querySelector('.print-inspector')`, 'obszar przygotowania druku');
 
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === 'BRYŁA');
+    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === 'PROJEKTUJ');
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);

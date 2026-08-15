@@ -64,5 +64,17 @@ describe('document session persistence', () => {
 
     expect(opened.recovered).toBe(false);
     expect(opened.document).toBeTruthy();
+    expect(opened.document.name).toBe('Bez nazwy');
+    expect(opened.document.sketches).toHaveLength(0);
+    expect(opened.document.features).toHaveLength(0);
+  });
+
+  it('opens a blank CAD-first start project when there is no autosave', () => {
+    const opened = loadInitialDocument(memoryStorage());
+
+    expect(opened.recovered).toBe(false);
+    expect(opened.document.name).toBe('Bez nazwy');
+    expect(opened.document.sketches).toHaveLength(0);
+    expect(opened.document.features).toHaveLength(0);
   });
 });

@@ -8,9 +8,9 @@
 ![Interface](https://img.shields.io/badge/interface-PL%20%7C%20EN-3a9d68)
 [![Support](https://img.shields.io/badge/support-PayPal-ffc439?logo=paypal&logoColor=111)](https://paypal.me/refek1)
 
-MadCAD to desktopowy CAD 2D/3D dla Windows i macOS. Łączy szybkie
-szkicowanie w stylu klasycznego CAD, parametryczną historię modelu, operacje
-bryłowe i przygotowanie plików do druku 3D.
+MadCAD to desktopowy CAD 2D/3D dla Windows i macOS. Jego rdzeniem jest szybkie
+szkicowanie w stylu klasycznego CAD połączone z parametryczną historią oraz
+modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodatkiem.
 
 **[Pobierz najnowsze stabilne wydanie](https://github.com/kamil5646/MadCAD2D/releases/latest)** ·
 **[Strona projektu](https://kamil5646.github.io/MadCAD2D/)** ·
@@ -102,7 +102,8 @@ npm run dist:win:trusted
 
 MadCAD is a desktop 2D/3D CAD application for Windows and macOS. It combines
 classic CAD-style direct drawing and command aliases with parametric solid
-modeling, STEP/STL/3MF exchange, and 3D-print preparation.
+modeling and exact STEP exchange. STL/3MF export and 3D-print checks are optional
+add-ons, not the center of the product.
 
 Private, educational, non-profit use by an individual is free without a time
 limit. Businesses may evaluate the complete application for 40 days. Continued

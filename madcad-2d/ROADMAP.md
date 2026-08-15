@@ -1,10 +1,10 @@
 # MadCAD — aktywny plan rozwoju
 
-Aktualizacja: 2026-08-13
+Aktualizacja: 2026-08-15
 Wersja bazowa: `6.1.2 stable`
 Gałąź wydania: `main`
 
-Ten plik zawiera wyłącznie aktywną ścieżkę do używalnego modelera części przeznaczonych do druku 3D. Historia ukończonych prac znajduje się w [DONE.md](./DONE.md), a dalszy zakres produktu w [BACKLOG.md](./BACKLOG.md).
+Ten plik opisuje aktywną ścieżkę do CAD 2D/3D: bezpośrednie szkicowanie i polecenia znane z klasycznego CAD są podstawą, a parametryczna historia i modelowanie bryłowe rozwijają rysunek w model 3D. Przygotowanie do druku 3D pozostaje opcjonalnym dodatkiem eksportowym. Historia ukończonych prac znajduje się w [DONE.md](./DONE.md), a dalszy zakres produktu w [BACKLOG.md](./BACKLOG.md).
 
 ## Osiągnięty zakres wydania 6.1
 
@@ -44,7 +44,7 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 | 6 | M6 Modelowanie części MVP | `[x]` | M3, M5 | pełniejsze Extrude, Boolean, wskazane Fillet/Chamfer, Shell i podstawowe prymitywy |
 | 7 | M7 Otwory i gwinty MVP | `[x]` | M3, M5, M6 | proste/counterbore/countersink otwory i podstawowy gwint metryczny |
 | 8 | M8 Inspect MVP | `[x]` | M3, M6 | Measure, Section, objętość, pole, masa i środek masy |
-| 9 | M9 Przygotowanie druku MVP | `[x]` | M6–M8 | orientacja, STEP/STL/3MF, skala 1:1, manifold, grubość, nawisy i przekazanie do slicera |
+| 9 | M9 Wymiana danych i dodatki eksportowe | `[x]` | M6–M8 | STEP jako wymiana CAD; opcjonalnie STL/3MF, analiza drukowalności i slicer |
 | 10 | M10 Wydanie stabilne | `[>]` | M1–M9 | podpisana, instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS |
 
 ## M4 — geometria konstrukcyjna MVP `P0`
@@ -98,7 +98,7 @@ Tapered threads, wiele norm i klasy pasowania są `P1`.
 - [x] Objętość, pole, gęstość, masa i środek masy.
 - [x] Minimum Radius oraz podstawowa kontrola kolizji wielu brył.
 
-## M9 — przygotowanie druku MVP `P0`
+## M9 — wymiana danych i opcjonalny druk 3D `P0`
 
 - [x] Profile stołu Bambu/Prusa/Creality i własny profil.
 - [x] Pozycja, obrót, skala, kopie i orientacja względem płaskiej ściany.
@@ -119,7 +119,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] Budżety wydajności pickingu, meshowania i długiej historii są mierzone w testach core i desktop E2E.
 - [~] Przełącznik PL/EN i smoke test EN działają; pełne przeniesienie tekstów interfejsu do katalogu tłumaczeń nadal trwa. Dostępność klawiatury i fokusu oraz DPI 100–200% są testowane.
 - [x] Kanały alpha/beta/stable, SHA-256, testy paczek, rollback instalacji macOS i updater ignorujący niezaufany adres z renderera są zaimplementowane. Wydanie 6.1.2 jest świadomie publikowane bez certyfikatu, z ostrzeżeniem i ręczną instalacją.
-- [x] Wbudowany samouczek „pierwsza część do druku” ma ścieżkę PL/EN i jawną listę znanych ograniczeń.
+- [x] Wbudowany samouczek prowadzi od szkicu do modelu i eksportu, ma ścieżkę PL/EN oraz jawną listę znanych ograniczeń.
 
 ## P1 — rozszerzenie modelowania części
 
