@@ -393,11 +393,10 @@ function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = fa
   );
 }
 
-function RibbonGroup({ label, children, end = false }) {
+function RibbonGroup({ children, end = false }) {
   return (
     <div className={`ribbon-group ${end ? 'ribbon-group-end' : ''}`}>
       <div className="ribbon-tools">{children}</div>
-      <span className="ribbon-group-label">{label}</span>
     </div>
   );
 }

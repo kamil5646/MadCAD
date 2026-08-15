@@ -99,9 +99,11 @@ jobs:
         working-directory: madcad-2d
         run: npm run test:core
 
-      - name: Run Electron modeling verification
+      - name: Run release UI smoke verification
         working-directory: madcad-2d
-        run: npm run verify:modeling
+        run: |
+          npm run verify:start-experience
+          npm run verify:snap-feedback
 
       - name: Verify Electron sandbox and IPC boundary
         working-directory: madcad-2d
