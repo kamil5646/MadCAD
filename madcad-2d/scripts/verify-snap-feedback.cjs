@@ -65,22 +65,25 @@ app.whenReady().then(async () => {
 
     sendKey(window, 'L');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'line'`, 'polecenie linii');
-    const origin = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(0, 0)`);
-    movePointer(window, origin);
-    await new Promise((resolve) => setTimeout(resolve, 150));
-
-    const state = await window.webContents.executeJavaScript(`(() => {
-      const marker = document.querySelector('.sketch-snap-marker');
-      const canvas = document.querySelector('.model-viewport canvas');
-      const markerRect = marker?.getBoundingClientRect();
-      const canvasRect = canvas?.getBoundingClientRect();
-      return {
-        markerVisible: Boolean(marker && getComputedStyle(marker).visibility !== 'hidden' && markerRect?.width && markerRect?.height),
-        text: marker?.textContent?.trim() || '',
-        type: marker?.dataset.snapType || '',
-        insideViewport: Boolean(markerRect && canvasRect && markerRect.left >= canvasRect.left && markerRect.top >= canvasRect.top && markerRect.right <= canvasRect.right && markerRect.bottom <= canvasRect.bottom),
-      };
-    })()`);
+    let state = null;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const origin = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(0, 0)`);
+      movePointer(window, origin);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      state = await window.webContents.executeJavaScript(`(() => {
+        const marker = document.querySelector('.sketch-snap-marker');
+        const canvas = document.querySelector('.model-viewport canvas');
+        const markerRect = marker?.getBoundingClientRect();
+        const canvasRect = canvas?.getBoundingClientRect();
+        return {
+          markerVisible: Boolean(marker && getComputedStyle(marker).visibility !== 'hidden' && markerRect?.width && markerRect?.height),
+          text: marker?.textContent?.trim() || '',
+          type: marker?.dataset.snapType || '',
+          insideViewport: Boolean(markerRect && canvasRect && markerRect.left >= canvasRect.left && markerRect.top >= canvasRect.top && markerRect.right <= canvasRect.right && markerRect.bottom <= canvasRect.bottom),
+        };
+      })()`);
+      if (state.markerVisible && state.text.includes('SNAP') && state.type && state.insideViewport) break;
+    }
 
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     if (!baselineOnly && (!state.markerVisible || !state.text.includes('SNAP') || !state.type || !state.insideViewport)) {
