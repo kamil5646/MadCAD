@@ -1,5 +1,9 @@
 # Changelog
 
+## Następne wydanie
+
+- Zablokowano przedwczesne zatwierdzanie operacji bryłowej do czasu ukończenia dokładnego podglądu B-Rep; przycisk pokazuje stan „Obliczanie…”, a test Rib/Web czeka na gotowy wynik zamiast zależeć od szybkości komputera.
+
 ## 6.1.6 (2026-08-15)
 
 - Dodano stały, klikalny wiersz poleceń CAD: alias uruchamia polecenie po `Enter`, a po wskazaniu początku linii można wpisać jej długość i zatwierdzić ją `Enterem`.

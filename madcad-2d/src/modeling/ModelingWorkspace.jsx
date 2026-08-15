@@ -789,6 +789,8 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
   const isSplitFace = command.type === 'splitFace';
   const isDeleteFace = command.type === 'deleteFace';
   const isReplaceFace = command.type === 'replaceFace';
+  const requiresFeaturePreview = isExtrude || isRevolve || isSweep || isLoft || isRib || isCoil || isPipe || isPattern || isBoolean || isPrimitive || isTransform || isOffsetFace || isTextSolid || isHole || isFillet || isShell || isDraftFeature || isSplitBody || isSplitFace || isDeleteFace || isReplaceFace;
+  const featurePreviewPending = requiresFeaturePreview && !command.previewFeature;
   const isSketchPath = command.type === 'line' || command.type === 'polyline';
   const isSketchMove = command.type === 'moveSketch';
   const isSketchOffset = command.type === 'offsetSketch';
@@ -999,7 +1001,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onCancel, on
       {isSketchPath ? (
         <footer><button className="secondary" type="button" onClick={onUndoSegment} disabled={!command.pointIds.length}>Cofnij segment</button><button className="secondary" type="button" onClick={onFinishPath}>Zakończ</button><button className="confirm" type="button" onClick={onConfirm} disabled={!command.lastPoint}><Check size={14} /> Dodaj dokładnie</button></footer>
       ) : (
-        <footer><button className="secondary" type="button" onClick={onCancel}>Anuluj</button><button className="confirm" type="button" onClick={onConfirm}><Check size={14} /> {isMechanicalShape || isPoint ? 'Utwórz z danych' : 'OK'}</button></footer>
+        <footer><button className="secondary" type="button" onClick={onCancel}>Anuluj</button><button className="confirm" type="button" onClick={onConfirm} disabled={featurePreviewPending} aria-busy={featurePreviewPending} title={featurePreviewPending ? 'Trwa obliczanie podglądu operacji' : undefined}><Check size={14} /> {featurePreviewPending ? 'Obliczanie…' : isMechanicalShape || isPoint ? 'Utwórz z danych' : 'OK'}</button></footer>
       )}
     </section>
   );
@@ -2925,6 +2927,7 @@ export default function ModelingWorkspace() {
         : { kind: selection?.kind, id: selection?.id, items: selection?.items?.map((item) => ({ kind: item.kind, id: item.id })) || [] },
       command: command ? {
         type: command.type,
+        previewReady: Boolean(command.previewFeature),
         previewThreadMode: command.previewFeature?.threadMode,
         previewThreadDirection: command.previewFeature?.threadDirection,
         previewClearanceProfile: command.previewFeature?.clearanceProfile,
@@ -3854,7 +3857,10 @@ export default function ModelingWorkspace() {
 
   const confirmFeature = () => {
     if (readOnly) return readOnlyNotice();
-    if (!command?.previewFeature) return;
+    if (!command?.previewFeature) {
+      setNotice('Podgląd operacji jest jeszcze obliczany. Poczekaj chwilę i spróbuj ponownie.');
+      return;
+    }
     commit((next) => {
       if (command.editId) {
         const index = next.features.findIndex((feature) => feature.id === command.editId);
