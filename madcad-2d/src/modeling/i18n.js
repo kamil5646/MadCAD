@@ -92,11 +92,8 @@ const ENGLISH_TEXT = Object.freeze({
   'Parametry i narzędzia dokumentu.': 'Document parameters and tools.',
   'Parametryczna oś czasu': 'Parametric timeline',
   'Historia operacji pojawi się po utworzeniu pierwszej bryły.': 'The feature history will appear after the first solid is created.',
-  'Wpisz alias polecenia': 'Type a command alias',
-  'Wiersz poleceń CAD': 'CAD command line',
   'Pusty szkic': 'Empty sketch',
   'Dodaj geometrię': 'Add geometry',
-  'Wpisz alias polecenia CAD': 'Type a CAD command alias',
   'Długość następnego odcinka': 'Next segment length',
   'Długość w mm': 'Length in mm',
   'Dokładna długość i kąt': 'Exact length and angle',
@@ -142,7 +139,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Licencja MadCAD': 'MadCAD license',
   'Przed rozpoczęciem pracy sprawdź zasady korzystania z MadCAD.': 'Before you begin, review the MadCAD terms of use.',
   'MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.': 'MadCAD is free without a time limit for private, educational, non-profit use.',
-  'Wydanie 6.1.7 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.': 'Release 6.1.7 is not vendor-signed. The built-in updater downloads it from the official GitHub Release and verifies its SHA-256 checksum before opening it.',
+  'Wydanie 6.1.8 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.': 'Release 6.1.8 is not vendor-signed. The built-in updater downloads it from the official GitHub Release and verifies its SHA-256 checksum before opening it.',
   'Użytek komercyjny jest płatny': 'Commercial use requires payment',
   'Firma lub organizacja może bezpłatnie oceniać pełną wersję przez 40 dni.': 'A business or organization may evaluate the full version free of charge for 40 days.',
   'Po okresie oceny praca firmowa, zarobkowa lub dla klienta wymaga bezterminowej licencji na każde stanowisko.': 'After evaluation, business, paid, or client work requires a perpetual license for every workstation.',
@@ -166,7 +163,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Wskaż punkt początkowy linii.': 'Pick the line start point.',
   'Punkt początkowy ustawiony. Ustaw kierunek kursorem, wpisz długość i naciśnij Enter albo kliknij koniec.': 'Start point set. Aim with the pointer, type a length, and press Enter, or click the endpoint.',
   'Wpisz dodatnią długość linii.': 'Enter a positive line length.',
-  'Skróty poleceń wpisuj bezpośrednio i zatwierdzaj Enterem.': 'Type command aliases directly and confirm with Enter.',
+  'Podstawowe narzędzia uruchomisz jednym klawiszem; pozostałe wybierz przyciskiem.': 'Launch basic tools with one key; choose the remaining tools with their buttons.',
   'Polecenie': 'Command',
   'Enter / spacja': 'Enter / Space',
   'Brak skrótu': 'No shortcut',
@@ -259,7 +256,6 @@ const ENGLISH_TEXT = Object.freeze({
   'Włącz interaktywną płaszczyznę przekroju bez zmiany historii modelu.': 'Enable an interactive section plane without changing model history.',
   'Oblicz objętość, pole, masę i środek masy dla zadanej gęstości materiału.': 'Calculate volume, area, mass, and center of mass for the specified material density.',
   'Sprawdź minimalny promień oraz dokładne kolizje pomiędzy bryłami.': 'Check the minimum radius and exact collisions between bodies.',
-  'Anulowano wpisywanie skrótu polecenia.': 'Command alias entry canceled.',
   'Wyczyszczono zaznaczenie.': 'Selection cleared.',
   'Polilinia': 'Polyline',
   'Łuk styczny': 'Tangent arc',
@@ -555,6 +551,16 @@ export function translateModelingText(value, language = 'pl') {
       ? `${translateModelingText(shortcut[1].slice(0, separator), language).trim()}. ${translateModelingText(shortcut[1].slice(separator + 2), language).trim()}`
       : translateModelingText(shortcut[1], language).trim();
     return `${leading}${content} Shortcut: ${shortcut[2]}.${trailing}`;
+  }
+  const separator = normalized.indexOf('. ');
+  if (separator > 0) {
+    const first = normalized.slice(0, separator);
+    const rest = normalized.slice(separator + 2);
+    const translatedFirst = translateModelingText(first, language).trim();
+    const translatedRest = translateModelingText(rest, language).trim();
+    if (translatedFirst !== first || translatedRest !== rest) {
+      return `${leading}${translatedFirst}. ${translatedRest}${trailing}`;
+    }
   }
   return ENGLISH_PHRASES.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), source);
 }

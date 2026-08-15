@@ -64,7 +64,6 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.model-viewport.sketch-view') && window.__madcadSketchLocalToScreen`, 'aktywny szkic');
 
     sendKey(window, 'L');
-    sendKey(window, 'Enter');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'line'`, 'polecenie linii');
     const origin = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(0, 0)`);
     movePointer(window, origin);

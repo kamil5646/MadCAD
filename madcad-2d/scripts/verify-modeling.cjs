@@ -1106,7 +1106,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Kąt Revolve')`, 'otwarty Revolve');
   await waitForUi(window, `window.__madcadVerifyEngineState?.timeline?.at(-1)?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${300 * Math.PI}) < 0.05`, 'podgląd Revolve wokół osi bazowej Y', modelingTimeoutMs);
   await setCommandField('Oś obrotu', 'Z_AXIS');
-  await waitForUi(window, `window.__madcadVerifyEngineState?.status === 'error' && document.querySelector('.cad-command-line')?.textContent.includes('płaszczyźnie szkicu')`, 'Revolve odrzuca oś prostopadłą do szkicu', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.status === 'error' && document.querySelector('.engine-status')?.textContent.includes('płaszczyźnie szkicu')`, 'Revolve odrzuca oś prostopadłą do szkicu', modelingTimeoutMs);
   await setCommandField('Oś obrotu', revolveAxisId);
   await waitForUi(window, `window.__madcadVerifyEngineState?.timeline?.at(-1)?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${300 * Math.PI}) < 0.05`, 'Revolve wokół osi konstrukcyjnej Y', modelingTimeoutMs);
   await confirmDialog();
@@ -1756,7 +1756,7 @@ async function runUiFlow(window) {
     return { shellClass: shell?.className || '', hint, platform: window.desktopApp?.platform || 'web' };
   })()`);
   if (!platformUi.shellClass.includes(`platform-${platformUi.platform}`)) throw new Error(`Brak klasy platformy w interfejsie: ${JSON.stringify(platformUi)}.`);
-  await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].every((button) => button.getAttribute('aria-label')?.includes('Skrót:'))`, 'opisy i skróty funkcji wstążki');
+  await waitForUi(window, `(() => { const buttons = [...document.querySelectorAll('.ribbon-tool')]; const basics = ['Linia', 'Prostokąt', 'Okrąg', 'Trim', 'Project', 'Offset', 'Fillet szkicu', 'Przesuń', 'Usuń']; return basics.every((label) => buttons.find((item) => item.querySelector('.ribbon-label')?.textContent === label)?.getAttribute('aria-label')?.includes('Skrót:')) && buttons.some((item) => !item.getAttribute('aria-label')?.includes('Skrót:')) && !document.querySelector('.ribbon-shortcut'); })()`, 'autodeskowe skróty podstawowych funkcji wyłącznie w podpowiedziach');
   await window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Linia');
     const wrapper = button?.closest('.ribbon-tool-wrap');
@@ -1767,11 +1767,8 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.tool-help-tooltip')?.textContent.includes('Utwórz pojedynczy segment') && document.querySelector('.tool-help-tooltip kbd')?.textContent.includes('L')`, 'podpowiedź narzędzia Linia');
   await new Promise((resolve) => setTimeout(resolve, 100));
   await fs.writeFile(tooltipOutputPath, (await window.webContents.capturePage()).toPNG());
-  await window.webContents.executeJavaScript(`document.querySelector('.cad-command-entry input')?.focus()`);
   await sendKey('l');
-  await waitForUi(window, `document.querySelector('.cad-command-line .cad-command-value')?.textContent === 'L' && document.querySelector('.cad-command-entry input')?.value === 'L'`, 'alias L wpisany w wierszu polecenia');
-  await sendKey('Enter');
-  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'line'`, 'polecenie linii dynamicznej');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'line' && !document.querySelector('.cad-command-line')`, 'bezpośredni skrót L bez wiersza poleceń');
   const dynamicLineStart = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(0, 0)`);
   await sendMouse('mouseMove', dynamicLineStart);
   await sendMouse('mouseDown', dynamicLineStart);
@@ -1781,8 +1778,7 @@ async function runUiFlow(window) {
   const dynamicLineDirection = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(30, 40)`);
   await sendMouse('mouseMove', dynamicLineDirection);
   await waitForUi(window, `document.querySelector('.sketch-dynamic-input')?.textContent.includes('50.00')`, 'podgląd kierunku i długości linii');
-  await window.webContents.executeJavaScript(`document.querySelector('.cad-command-entry input')?.focus()`);
-  await waitForUi(window, `document.activeElement === document.querySelector('.cad-command-entry input')`, 'aktywne pole długości w wierszu polecenia');
+  await waitForUi(window, `document.querySelector('.sketch-length-entry input')`, 'kontekstowe pole długości linii');
   await sendKey('2');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.dynamicLength === '2'`, 'pierwsza cyfra długości linii');
   await sendKey('5');
@@ -2671,7 +2667,7 @@ app.whenReady().then(async () => {
     process.stderr.write(`${error.stack || error.message}\n`);
     exitCode = 1;
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
-    const notice = window.isDestroyed() ? '' : await window.webContents.executeJavaScript(`document.querySelector('.cad-command-line')?.textContent?.trim() || ''`);
+    const notice = window.isDestroyed() ? '' : await window.webContents.executeJavaScript(`document.querySelector('.workspace-notice, .engine-status')?.textContent?.trim() || ''`);
     await fs.writeFile(
       path.join(path.dirname(outputPath), 'verification-report.json'),
       JSON.stringify({ ok: false, error: error.stack || error.message, notice, rendererMessages }, null, 2),
