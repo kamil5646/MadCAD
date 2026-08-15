@@ -1,6 +1,6 @@
 # MadCAD — pierwsza część do druku / Your first printable part
 
-Aktualne dla `6.2.0`. Interaktywną wersję otwiera przycisk **Samouczek** w górnym pasku modelera.
+Aktualne dla `6.3.0`. Interaktywną wersję otwiera przycisk **Samouczek** w górnym pasku modelera.
 
 ## Ścieżka PL
 
@@ -26,7 +26,7 @@ Aktualne dla `6.2.0`. Interaktywną wersję otwiera przycisk **Samouczek** w gó
 
 ## Znane ograniczenia / Known limitations
 
-- DWG nie jest obecnie obsługiwany; szkice 2D można importować z SVG lub DXF.
+- DWG jest konwertowany lokalnie do DXF przez zainstalowany GNU LibreDWG lub ODA File Converter; złożone obiekty niestandardowe mogą zostać pominięte przez wybrany konwerter.
 - STEP zachowuje dokładną geometrię; parametryczna edycja importowanych siatek STL/3MF jest ograniczona.
 - Analiza drukowalności opisuje ryzyko, a nie gwarancję wydruku.
 - Przekazanie do slicera wymaga zainstalowanego Bambu Studio, PrusaSlicer albo Cura.

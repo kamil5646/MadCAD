@@ -513,10 +513,23 @@ async function runUiFlow(window) {
   await sendShortcut('z', true);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 8`, 'redo importu SVG');
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.at(-1)?.entities?.length === 8; })()`, 'autozapis importu SVG');
-  const importedRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  progress('local DWG sketch import through converted DXF');
+  const dwgDxfFixture = ['0', 'SECTION', '2', 'HEADER', '9', '$INSUNITS', '70', '4', '0', 'ENDSEC', '0', 'SECTION', '2', 'ENTITIES', '0', 'LINE', '10', '50', '20', '0', '11', '70', '21', '0', '0', 'LINE', '10', '70', '20', '0', '11', '70', '21', '10', '0', 'LINE', '10', '70', '20', '10', '11', '50', '21', '10', '0', 'LINE', '10', '50', '20', '10', '11', '50', '21', '0', '0', 'ENDSEC', '0', 'EOF'].join('\n');
+  await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === 'Import DWG')`, 'przycisk lokalnego importu DWG');
+  await waitForUi(window, `typeof window.__madcadVerifyDwgImport === 'function'`, 'testowy interfejs importu DWG');
+  await window.webContents.executeJavaScript(`window.__madcadVerifyDwgImport({ ok: true, canceled: false, fileName: 'fixture.dwg', converter: 'libredwg', text: ${JSON.stringify(dwgDxfFixture)} })`);
+  await waitForUi(window, `document.querySelector('.import-sketch-dialog .confirm') && [...document.querySelectorAll('.import-sketch-dialog input')].some((input) => input.value === 'DWG')`, 'dialog lokalnego importu DWG');
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 16 && window.__madcadVerifyDocumentState?.sketches?.at(-1)?.profiles === 2`, 'zaimportowany profil DWG');
+  await sendShortcut('z');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 8`, 'undo importu DWG');
+  await sendShortcut('z', true);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 16`, 'redo importu DWG');
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.at(-1)?.entities?.length === 16; })()`, 'autozapis importu DWG');
+  const dwgImportedRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${importedRevision} && window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 8`, 'ponownie otwarty import SVG', modelingTimeoutMs);
-  const sketchImport = { format: 'svg', entities: 8, profiles: 1, undoRedo: true, reopened: true };
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${dwgImportedRevision} && window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 16`, 'ponownie otwarty import DWG', modelingTimeoutMs);
+  const sketchImport = { format: 'svg/dwg', entities: 16, profiles: 2, undoRedo: true, reopened: true };
 
   progress('collinear and symmetry constraints');
   await window.webContents.executeJavaScript(`window.__madcadVerifyLoadConstraintFixture?.()`);

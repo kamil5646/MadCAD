@@ -1,7 +1,7 @@
 # MadCAD — aktywny plan rozwoju
 
 Aktualizacja: 2026-08-15
-Wersja bazowa: `6.2.0 stable`
+Wersja bazowa: `6.3.0 stable`
 Gałąź wydania: `main`
 
 Ten plik opisuje aktywną ścieżkę do CAD 2D/3D: bezpośrednie szkicowanie i polecenia znane z klasycznego CAD są podstawą, a parametryczna historia i modelowanie bryłowe rozwijają rysunek w model 3D. Przygotowanie do druku 3D pozostaje opcjonalnym dodatkiem eksportowym. Historia ukończonych prac znajduje się w [DONE.md](./DONE.md), a dalszy zakres produktu w [BACKLOG.md](./BACKLOG.md).
@@ -124,6 +124,7 @@ Te prace nie czekają na koniec modelowania:
 ## P1 — rozszerzenie modelowania części
 
 - [x] P1.1 Import SVG/DXF do aktywnego szkicu: wykrywanie i wybór jednostek, profile, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
+- [x] P1.1a Lokalny import DWG przez wykryty GNU LibreDWG albo ODA File Converter: bez przesyłania projektu do chmury, z bezpiecznym wyborem pliku, limitami rozmiaru i ponownym użyciem sprawdzonego importera DXF.
 - [x] P1.2 Więzy `collinear` i `symmetry` od solvera do interfejsu, z diagnostyką konfliktów, undo/redo, autozapisem i round-trip projektu.
 - [x] P1.3 Wymiary ordinate X/Y oraz długości łuku: sterowanie solverem, znaczniki, edycja na szkicu, undo/redo, autozapis i ponowne otwarcie w desktop E2E.
 - [x] P1.4 Prostokątny i kołowy szyk geometrii szkicu z pomijaniem wystąpień, walidacją, undo/redo, autozapisem i ponownym otwarciem w desktop E2E.

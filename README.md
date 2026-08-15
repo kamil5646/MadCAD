@@ -1,4 +1,4 @@
-# MadCAD 6.2
+# MadCAD 6.3
 
 ![MadCAD](./docs/readme-banner.png)
 
@@ -17,7 +17,7 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 **[Licencja](./LICENSE)** ·
 **[Zmiany](./madcad-2d/CHANGELOG.md)**
 
-> **Uwaga o wydaniu 6.2.0:** paczki są publikowane bez podpisu producenta,
+> **Uwaga o wydaniu 6.3.0:** paczki są publikowane bez podpisu producenta,
 > dlatego Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie.
 > Pobieraj je wyłącznie z oficjalnego GitHub Release i sprawdź sumę SHA-256.
 > Wbudowany aktualizator pobiera paczkę z oficjalnego wydania, sprawdza SHA-256
@@ -29,10 +29,10 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 - Linia w stylu AutoCAD: kliknij początek, ustaw kierunek kursorem, wpisz długość i naciśnij `Enter`.
 - Podpowiedzi po najechaniu z opisem działania; skróty podstawowych funkcji są pokazywane tylko w podpowiedzi.
 - Podstawowe skróty zgodne z Autodesk Fusion: `L`, `R`, `C`, `T`, `O`, `P`, `M`, `I`, `E` i `Del`.
-- Szkice parametryczne z więzami, wymiarami, profilami, szykami oraz importem SVG/DXF.
+- Szkice parametryczne z więzami, wymiarami, profilami i szykami. Importuj DWG lokalnie przez GNU LibreDWG lub ODA, a także SVG i DXF.
 - Modelowanie 3D: Extrude, Revolve, Sweep, Loft, Coil, Boolean, Shell, Draft, fillet i chamfer.
 - Trwałe referencje B-Rep, historia operacji, geometria konstrukcyjna i pomiary.
-- Import i eksport `STEP`, `STL`, `3MF`; własny parametryczny format `.madcad`.
+- Import i eksport `STEP`, `STL`, `3MF`; import szkicu `DWG`, `DXF`, `SVG`; własny parametryczny format `.madcad`.
 - Kontrola drukowalności, gabarytów i dopasowania modelu do stołu drukarki.
 - Interfejs polski i angielski, lokalne pliki, brak konta, telemetrii i aktywacji.
 - Przeglądarka projektu jest domyślnie zwinięta, aby maksymalizować obszar rysowania.

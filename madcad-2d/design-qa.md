@@ -50,8 +50,8 @@ Electron. Nie są atrapami ani statycznymi makietami.
   kopiowano znaków, ikon ani brandingu Autodesk.
 - Fusion jest punktem odniesienia dla modelowania parametrycznego i układu 3D;
   szkicowanie pozostaje bezpośrednie i klawiaturowe jak w klasycznym CAD.
-- Nie jest obiecywana obsługa DWG. Obsługiwany przepływ 2D obejmuje SVG/DXF,
-  a 3D STEP/STL/3MF.
+- DWG jest importowany lokalnie przez GNU LibreDWG albo ODA do sprawdzonego
+  przepływu DXF. Obsługiwany przepływ 2D obejmuje DWG/SVG/DXF, a 3D STEP/STL/3MF.
 
 ## Wynik
 

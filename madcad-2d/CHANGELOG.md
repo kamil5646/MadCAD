@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.3.0 (2026-08-15)
+
+- Dodano lokalny import DWG do aktywnego szkicu przez wykryty GNU LibreDWG (`dwgread` lub `dwg2dxf`) albo ODA File Converter, bez wysyłania projektu do usługi sieciowej.
+- Import DWG korzysta z bezpiecznego systemowego wyboru pliku, limitów 512 MB/64 MB, izolowanego katalogu tymczasowego i istniejącego importera DXF z kontrolą jednostek.
+
 ## 6.2.0 (2026-08-15)
 
 - Dodano oficjalną paczkę Linux x64 w formacie AppImage, budowaną i sprawdzaną na Ubuntu razem z paczkami Windows i macOS.
