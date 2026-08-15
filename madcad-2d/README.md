@@ -3,7 +3,9 @@
 Aktualna stabilna wersja: **6.1.2**.
 
 MadCAD jest aplikacją Electron z interfejsem React, parametrycznym dokumentem
-CAD i kernelem OpenCascade uruchamianym w workerze.
+CAD i kernelem OpenCascade uruchamianym w workerze. Główny przepływ zaczyna się
+od precyzyjnego rysunku 2D, a następnie przechodzi do modelu bryłowego z historią.
+Przygotowanie do druku 3D jest opcjonalnym dodatkiem w obszarze eksportu.
 
 ## Katalogi
 
@@ -31,6 +33,7 @@ npm test
 npm run test:core
 npm run test:core:coverage
 npm run verify:repository
+npm run verify:start-experience
 npm run verify:modeling
 npm run verify:electron-security
 npm audit --audit-level=high

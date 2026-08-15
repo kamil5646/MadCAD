@@ -1,4 +1,4 @@
-import { createStarterDocument, openDocument } from '../cad-core/document.js';
+import { createDocument, openDocument } from '../cad-core/document.js';
 
 export const AUTOSAVE_KEY = 'madcad:modeling-document:v4';
 export const AUTOSAVE_BACKUP_KEY = `${AUTOSAVE_KEY}:backup`;
@@ -35,7 +35,7 @@ export function loadInitialDocument(storage = window.localStorage) {
           };
         } catch (_backupError) {
           return {
-            document: createStarterDocument(),
+            document: createDocument('Bez nazwy'),
             readOnly: false,
             warning: `Nie udało się odtworzyć autozapisu: ${primaryError.message}. Utworzono bezpieczny dokument startowy.`,
             sourceVersion: null,
@@ -46,7 +46,7 @@ export function loadInitialDocument(storage = window.localStorage) {
         }
       }
       return {
-        document: createStarterDocument(),
+        document: createDocument('Bez nazwy'),
         readOnly: false,
         warning: `Nie udało się odtworzyć autozapisu: ${primaryError.message}. Utworzono bezpieczny dokument startowy.`,
         sourceVersion: null,
@@ -70,7 +70,7 @@ export function loadInitialDocument(storage = window.localStorage) {
   }
 
   return {
-    document: createStarterDocument(),
+    document: createDocument('Bez nazwy'),
     readOnly: false,
     warning: '',
     sourceVersion: null,

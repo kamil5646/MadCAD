@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Dodano właściwą stronę startową prowadzącą najpierw do rysunku 2D albo otwarcia projektu, z czytelnym przepływem `Szkic 2D → model parametryczny → eksport`.
+- Nowa instalacja otwiera pusty projekt zamiast przykładowej części, dzięki czemu strona startowa jest faktycznym pierwszym ekranem.
+- Ujednolicono ikonę w aplikacji z oficjalną różową ikoną MadCAD używaną przez paczki macOS, Windows, stronę i favicon.
+- Zmieniono hierarchię obszarów na **Projektuj / Narzędzia / Eksport**. STEP jest podstawową wymianą CAD, a STL, 3MF i kontrola druku pozostają dodatkami eksportowymi.
+- Zaktualizowano komunikację produktu, stronę projektu, samouczek i plan rozwoju zgodnie z kierunkiem: klasyczne szkicowanie CAD uzupełnione parametrycznym modelowaniem 3D.
+- Dodano test startowego doświadczenia obejmujący hierarchię treści, responsywność, dostępność, wspólną ikonę i przejście do szkicu.
+
 ## 6.1.2 (2026-08-13)
 
 - Naprawiono widoczność snapu przed pierwszym kliknięciem i po zatwierdzeniu punktu; znacznik pokazuje teraz typ przyciągania, ma wyższy kontrast i pozostaje w granicach widoku.

@@ -9,7 +9,7 @@ export const FIRST_PART_TUTORIAL = Object.freeze({
       ['4. Bryła', 'Zakończ szkic, zaznacz profil i użyj Wyciągnij. Wpisz odległość oraz zatwierdź operację.'],
       ['5. Otwór', 'Zaznacz górną płaską ścianę i dwie prostopadłe krawędzie. Utwórz otwór z parametrycznymi odsunięciami.'],
       ['6. Kontrola', 'Użyj Zmierz, Masa i Analiza. Napraw błędy historii lub utracone referencje przed eksportem.'],
-      ['7. Przygotowanie druku', 'Otwórz Druk 3D, wybierz profil drukarki, ustaw część płaską ścianą na stole i uruchom analizę drukowalności.'],
+      ['7. Eksport projektu', 'Zapisz dokładną bryłę jako STEP. Jeśli chcesz drukować model, opcjonalnie otwórz Eksport, wybierz profil drukarki i uruchom kontrolę wydruku.'],
       ['8. Zapis i eksport', 'Zapisz projekt .madcad, otwórz go ponownie, a następnie wyeksportuj 3MF lub STL w skali 1:1.'],
     ]),
     limitationsTitle: 'Znane ograniczenia',

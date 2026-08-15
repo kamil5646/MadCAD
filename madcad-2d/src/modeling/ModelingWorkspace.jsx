@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowRight,
   Box,
   Check,
   ChevronDown,
@@ -49,6 +50,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import madcadIconUrl from '../../assets/icons/madcad-512.png';
 import {
   DOCUMENT_SCHEMA_VERSION,
   cloneDocument,
@@ -132,9 +134,9 @@ const DESKTOP_PLATFORM = ['darwin', 'win32', 'linux'].includes(window.desktopApp
   : 'web';
 
 const MAIN_TABS = [
-  { id: 'solid', label: 'BRYŁA' },
+  { id: 'solid', label: 'PROJEKTUJ' },
   { id: 'tools', label: 'NARZĘDZIA' },
-  { id: 'print', label: 'DRUK 3D' },
+  { id: 'print', label: 'EKSPORT' },
 ];
 const LANGUAGE_KEY = 'madcad:interface-language';
 
@@ -436,6 +438,50 @@ function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect,
         </button>
       ))}
     </aside>
+  );
+}
+
+function StartPage({ onStartSketch, onOpenProject }) {
+  return (
+    <section className="empty-canvas start-page" aria-labelledby="start-page-title">
+      <div className="start-page-shell">
+        <div className="start-page-intro">
+          <div className="start-page-brand">
+            <img src={madcadIconUrl} alt="MadCAD" />
+            <span>MadCAD · CAD 2D/3D</span>
+          </div>
+          <h1 id="start-page-title">Rysuj 2D. Modeluj parametrycznie w 3D.</h1>
+          <p>Zacznij od precyzyjnego szkicu jak w klasycznym CAD. Narzędzia bryłowe rozwijają projekt, a druk 3D pozostaje opcjonalnym etapem eksportu.</p>
+          <div className="start-page-actions">
+            <button className="start-page-action primary" type="button" onClick={onStartSketch}>
+              <PencilRuler size={22} />
+              <span><strong>Nowy rysunek 2D</strong><small>Wybierz płaszczyznę, rysuj myszą i wpisuj dokładne wymiary.</small></span>
+              <ArrowRight size={18} />
+            </button>
+            <button className="start-page-action" type="button" onClick={onOpenProject}>
+              <FolderOpen size={22} />
+              <span><strong>Otwórz istniejący projekt</strong><small>Wczytaj plik .madcad i kontynuuj historię modelu.</small></span>
+              <ArrowRight size={18} />
+            </button>
+          </div>
+          <div className="start-page-shortcuts" role="group" aria-label="Szybki start">
+            <strong>Szybki start</strong>
+            <span><kbd>L</kbd> Linia</span>
+            <span><kbd>REC</kbd> Prostokąt</span>
+            <span><kbd>C</kbd> Okrąg</span>
+          </div>
+        </div>
+
+        <aside className="start-page-flow" aria-label="Przepływ pracy">
+          <strong>Przepływ pracy</strong>
+          <ol>
+            <li><span>1</span><div><PencilRuler size={18} /><strong>Szkic 2D</strong><small>Linie, łuki, snap, trim, offset, więzy i wymiary.</small></div></li>
+            <li><span>2</span><div><Layers3 size={18} /><strong>Model parametryczny</strong><small>Wyciągnięcia, operacje bryłowe i edytowalna historia.</small></div></li>
+            <li><span>3</span><div><FileBox size={18} /><strong>Eksport</strong><small>STEP do wymiany CAD; STL, 3MF i kontrola druku jako dodatki.</small></div></li>
+          </ol>
+        </aside>
+      </div>
+    </section>
   );
 }
 
@@ -1000,7 +1046,7 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, onSelectIs
   });
   return (
     <aside className="print-panel print-inspector">
-      <header><div><strong>DRUK 3D</strong><span>Sprawdź model i wyeksportuj siatkę.</span></div><button type="button" onClick={onClose} title="Zamknij"><X size={16} /></button></header>
+      <header><div><strong>EKSPORT I DRUK 3D</strong><span>Wymiana CAD, eksport siatek i opcjonalna kontrola wydruku.</span></div><button type="button" onClick={onClose} title="Zamknij"><X size={16} /></button></header>
       <div className="print-section">
         <h3>Objętość robocza</h3>
         <label className="command-field"><span>Profil drukarki</span><select value={document.print.profileId || 'custom'} onChange={(event) => selectProfile(event.target.value)} disabled={readOnly}>{PRINTER_PROFILES.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}<option value="custom">Własny</option></select></label>
@@ -1156,7 +1202,7 @@ export default function ModelingWorkspace() {
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(true);
   const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, profiles: true, points: true, dimensions: true, constraints: true, construction: true, projected: true, slice: false, sketch3d: false });
-  const [notice, setNotice] = useState(initialOpen.warning || 'Gotowe. Wybierz „Utwórz szkic”, aby rozpocząć modelowanie.');
+  const [notice, setNotice] = useState(initialOpen.warning || 'Gotowe. Zacznij od rysunku 2D albo otwórz projekt.');
   const fileInputRef = useRef(null);
   const importInputRef = useRef(null);
   const sketchImportInputRef = useRef(null);
@@ -4265,7 +4311,7 @@ export default function ModelingWorkspace() {
     <ToolHelpContext.Provider value={toolHelpContext}>
     <section className={`modeling-shell platform-${DESKTOP_PLATFORM}`} aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
-        <div className="app-menu"><div className="brand-mark" title="MadCAD">M</div><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button id="newProjectBtn" type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button id="openProjectBtn" type="button" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={16} /></button><button id="saveProjectBtn" type="button" title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
+        <div className="app-menu"><div className="brand-mark" title="MadCAD"><img src={madcadIconUrl} alt="MadCAD" /></div><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button id="newProjectBtn" type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button id="openProjectBtn" type="button" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={16} /></button><button id="saveProjectBtn" type="button" title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
         <input ref={importInputRef} hidden type="file" accept=".step,.stp,.stl,.3mf,model/step,model/stl,model/3mf" onChange={chooseModelImport} />
         <input ref={sketchImportInputRef} hidden type="file" accept=".svg,.dxf,image/svg+xml,application/dxf" onChange={chooseSketchImport} />
@@ -4277,7 +4323,7 @@ export default function ModelingWorkspace() {
         <div className="workspace-switcher"><div className="workspace-label"><span>PROJEKT</span></div></div>
         <div className="command-ribbon">
           <nav className="workspace-tabs" aria-label="Obszary robocze">
-            {activeSketchId ? <button className="active" type="button" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item) => <button id={item.id === 'print' ? 'printWorkspaceBtn' : undefined} key={item.id} className={workspace === item.id ? 'active' : ''} type="button" title={item.id === 'solid' ? 'Modelowanie bryłowe i operacje na profilach.' : item.id === 'tools' ? 'Parametry i narzędzia dokumentu.' : 'Kontrola modelu oraz eksport do druku 3D.'} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
+            {activeSketchId ? <button className="active" type="button" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item) => <button id={item.id === 'print' ? 'printWorkspaceBtn' : undefined} key={item.id} className={workspace === item.id ? 'active' : ''} type="button" title={item.id === 'solid' ? 'Szkicowanie 2D i modelowanie parametryczne 3D.' : item.id === 'tools' ? 'Parametry i narzędzia dokumentu.' : 'Eksport CAD oraz opcjonalne przygotowanie druku 3D.'} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
           </nav>
           <div className="modeling-ribbon" role="toolbar" aria-label="Narzędzia aktywnego obszaru roboczego" tabIndex="0">
             {activeSketchId ? (
@@ -4290,8 +4336,9 @@ export default function ModelingWorkspace() {
               </>
             ) : workspace === 'print' ? (
               <>
-                <RibbonGroup label="PRZYGOTUJ"><ToolButton icon={Printer} label="Kontrola druku" primary onClick={() => setWorkspace('print')} /></RibbonGroup>
-                <RibbonGroup label="EKSPORT"><ToolButton icon={HardDriveDownload} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="3MF" onClick={() => exportModel('3mf')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
+                <RibbonGroup label="WYMIANA CAD"><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
+                <RibbonGroup label="SIATKI"><ToolButton icon={HardDriveDownload} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="3MF" onClick={() => exportModel('3mf')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
+                <RibbonGroup label="DRUK 3D · DODATEK"><ToolButton icon={Printer} label="Kontrola druku" onClick={() => setWorkspace('print')} /></RibbonGroup>
               </>
             ) : (
               <>
@@ -4301,7 +4348,7 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="INSPECT"><ToolButton icon={Ruler} label="Zmierz" onClick={openMeasure} /><ToolButton icon={ScanSearch} label="Przekrój" onClick={openSectionAnalysis} disabled={!engine.bodies.length} /><ToolButton icon={Box} label="Masa" onClick={openMassProperties} disabled={!engine.bodies.length} /><ToolButton icon={AlertTriangle} label="Analiza" onClick={openGeometryInspection} disabled={!engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Import 3D" onClick={() => importInputRef.current?.click()} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="WYBIERZ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
-                <RibbonGroup label="EKSPORT" end><ToolButton icon={FileDown} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="3MF" onClick={() => exportModel('3mf')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={Printer} label="Druk 3D" onClick={() => switchWorkspace('print')} /></RibbonGroup>
+                <RibbonGroup label="EKSPORT" end><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="3MF" onClick={() => exportModel('3mf')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={Printer} label="Kontrola druku" onClick={() => switchWorkspace('print')} /></RibbonGroup>
               </>
             )}
           </div>
@@ -4377,9 +4424,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} onClose={() => setCommand(null)} />}
-          {!document.sketches.length && !engine.bodies.length && !command && !readOnly && (
-            <div className="empty-canvas"><PencilRuler size={28} /><strong>Zacznij od szkicu</strong><span>Wybierz płaszczyznę, narysuj zamknięty profil i wyciągnij go w bryłę.</span><button type="button" onClick={startSketch}>Utwórz szkic</button></div>
-          )}
+          {!document.sketches.length && !engine.bodies.length && !command && !readOnly && <StartPage onStartSketch={startSketch} onOpenProject={requestOpenProject} />}
           {command?.type === 'plane' && <PlanePicker onPick={pickPlane} onCancel={() => { setCommand(null); setWorkspace('solid'); setNotice('Anulowano tworzenie szkicu.'); }} />}
           <CommandDialog
             command={command}
