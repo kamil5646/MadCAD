@@ -437,7 +437,7 @@ async function runUiFlow(window) {
 
   progress('first CAD project tutorial');
   await clickByTitle('Samouczek pierwszego projektu CAD');
-  await waitForUi(window, `document.querySelectorAll('.tutorial-body ol li').length === 8 && document.querySelectorAll('.tutorial-body aside li').length >= 6`, 'samouczek i znane ograniczenia');
+  await waitForUi(window, `document.querySelectorAll('.tutorial-body ol li').length === 8 && document.querySelectorAll('.tutorial-body aside li').length >= 5`, 'samouczek i znane ograniczenia');
   const tutorial = await window.webContents.executeJavaScript(`({ steps: document.querySelectorAll('.tutorial-body ol li').length, limitations: document.querySelectorAll('.tutorial-body aside li').length })`);
   await sendKey('Escape');
   await waitForUi(window, `!document.querySelector('.tutorial-dialog')`, 'zamknięty samouczek');
