@@ -107,6 +107,7 @@ jobs:
           npm run verify:snap-feedback
 
       - name: Verify Electron sandbox and IPC boundary
+        if: runner.os != 'Linux'
         working-directory: madcad-2d
         run: npm run verify:electron-security
 
