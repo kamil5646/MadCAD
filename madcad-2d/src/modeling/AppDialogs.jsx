@@ -42,7 +42,7 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense }) {
         </header>
         <div className="license-info-body">
           <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.</p>
-          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.1.3 nie ma podpisu producenta. Pobieraj je wyłącznie z oficjalnego GitHub Release i sprawdź sumę SHA-256.</p>
+          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.1.4 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
           <div className="license-info-card license-info-commercial">
             <strong>Użytek komercyjny jest płatny</strong>
             <ul>
@@ -85,31 +85,39 @@ export function FullLicenseDialog({ onClose }) {
 
 export function UpdateDialog({ state, onCheck, onInstall, onClose }) {
   const result = state.result;
+  const handoff = state.handoff;
   const checking = state.status === 'checking';
   const installing = state.status === 'installing';
   return (
     <div className="license-info-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !installing) onClose(); }}>
       <section className="license-info-dialog" role="dialog" aria-modal="true" aria-labelledby="updateDialogTitle">
         <header>
-          <div><strong id="updateDialogTitle">Aktualizacje MadCAD</strong><span>Sprawdź i bezpiecznie zainstaluj najnowsze wydanie.</span></div>
+          <div><strong id="updateDialogTitle">Aktualizacje MadCAD</strong><span>Pobierz oficjalną paczkę, sprawdź SHA-256 i uruchom instalator.</span></div>
           <button type="button" title="Zamknij" aria-label="Zamknij" disabled={installing} onClick={onClose}><X size={17} /></button>
         </header>
         <div className="license-info-body">
           {checking && <p className="license-info-lead">Sprawdzanie aktualizacji…</p>}
-          {installing && <p className="license-info-lead">Pobieranie, weryfikacja podpisu i instalowanie aktualizacji…</p>}
+          {installing && <p className="license-info-lead">Pobieranie i sprawdzanie sumy SHA-256…</p>}
           {!checking && !installing && state.error && <p className="license-info-lead"><AlertTriangle size={17} /> {state.error}</p>}
-          {!checking && !installing && !state.error && result?.available && (
+          {!checking && !installing && !state.error && handoff && (
+            <div className="license-info-card license-info-commercial update-handoff">
+              <strong>Paczka wersji {handoff.latestVersion} jest gotowa</strong>
+              <p>{handoff.opened ? 'MadCAD otworzył zweryfikowaną paczkę. Dokończ instalację w systemie, a następnie uruchom nową wersję.' : 'Paczka została zweryfikowana i zapisana w folderze Pobrane. Otwórz ją, aby dokończyć instalację.'}</p>
+              {handoff.downloadedPath && <small title={handoff.downloadedPath}>{handoff.downloadedPath}</small>}
+            </div>
+          )}
+          {!checking && !installing && !state.error && !handoff && result?.available && (
             <div className="license-info-card license-info-commercial">
               <strong>Dostępna jest wersja {result.latestVersion}</strong>
               <p>Masz wersję {result.currentVersion}. Paczka zostanie pobrana z oficjalnego wydania GitHub oraz sprawdzona przed uruchomieniem.</p>
             </div>
           )}
-          {!checking && !installing && !state.error && result && !result.available && (
+          {!checking && !installing && !state.error && !handoff && result && !result.available && (
             <p className="license-info-lead">Masz aktualną wersję MadCAD{result.currentVersion ? ` (${result.currentVersion})` : ''}.</p>
           )}
           <div className="license-info-actions">
             <button className="secondary" type="button" disabled={checking || installing} onClick={() => onCheck(false)}>Sprawdź ponownie</button>
-            {result?.available && <button className="confirm" type="button" disabled={checking || installing} onClick={onInstall}>Pobierz i zainstaluj</button>}
+            {result?.available && !handoff && <button className="confirm" type="button" disabled={checking || installing} onClick={onInstall}>Pobierz i otwórz</button>}
             <button type="button" disabled={installing} onClick={onClose}>Później</button>
           </div>
         </div>

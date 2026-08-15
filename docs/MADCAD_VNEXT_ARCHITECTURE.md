@@ -67,9 +67,10 @@ walidację rozmiaru i kształtu danych. Nie ma API ODA, instalacji zewnętrznych
 pakietów ani konwersji DWG.
 
 Aktualizator przyjmuje wyłącznie HTTPS z oficjalnego repozytorium, narzuca
-limit rozmiaru i SHA-256. Automatyczna instalacja nadal wymaga poprawnego
+limit rozmiaru i SHA-256. Cicha instalacja nadal wymaga poprawnego
 Authenticode na Windows albo Developer ID, oczekiwanego Team ID i Gatekeeper
-na macOS. Niepodpisane wydanie 6.1.3 jest przeznaczone do ręcznej instalacji.
+na macOS. Dla niepodpisanego wydania 6.1.4 aktualizator zapisuje zweryfikowaną
+paczkę w Pobranych i otwiera ją do potwierdzonej instalacji systemowej.
 Renderer nie może podać dowolnego adresu aktualizacji.
 
 ## Niezmienne bezpieczeństwa

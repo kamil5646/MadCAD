@@ -40,7 +40,10 @@ app.whenReady().then(async () => {
     const wide = await window.webContents.executeJavaScript(`(() => {
       const page = document.querySelector('.start-page');
       const brand = document.querySelector('.brand-mark img');
+      const brandMark = brand?.closest('.brand-mark');
+      const titleActions = document.querySelector('.title-actions');
       const startBrand = page?.querySelector('.start-page-brand img');
+      const shell = page?.querySelector('.start-page-shell');
       const primary = page?.querySelector('.start-page-action.primary');
       const labels = [...document.querySelectorAll('.workspace-tabs button')].map((item) => item.textContent.trim());
       const rect = page?.getBoundingClientRect();
@@ -51,12 +54,14 @@ app.whenReady().then(async () => {
         workflowText: page?.querySelector('.start-page-flow')?.textContent.trim() || '',
         tabs: labels,
         sharedIcon: Boolean(brand?.src && brand.src === startBrand?.src && brand.naturalWidth >= 512),
+        logoAtRightEnd: Boolean(brandMark && titleActions && brandMark.parentElement === titleActions && titleActions.lastElementChild === brandMark),
+        shellWidth: shell?.getBoundingClientRect().width || 0,
         pageInsideStage: Boolean(rect && stageRect && rect.left >= stageRect.left && rect.top >= stageRect.top && rect.right <= stageRect.right + 1 && rect.bottom <= stageRect.bottom + 1),
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth || page.scrollWidth > page.clientWidth + 1,
       };
     })()`);
 
-    if (!wide.title.includes('Rysuj 2D') || !wide.primaryText.includes('Nowy rysunek 2D') || !wide.workflowText.includes('Szkic 2D') || !wide.workflowText.includes('Model parametryczny') || !wide.workflowText.includes('STEP do wymiany CAD') || wide.tabs.join('|') !== 'PROJEKTUJ|NARZĘDZIA|EKSPORT' || !wide.sharedIcon || !wide.pageInsideStage || wide.horizontalOverflow) {
+    if (!wide.title.includes('Rysuj 2D') || !wide.primaryText.includes('Nowy rysunek 2D') || !wide.workflowText.includes('Szkic 2D') || !wide.workflowText.includes('Model parametryczny') || !wide.workflowText.includes('STEP do wymiany CAD') || wide.tabs.join('|') !== 'PROJEKTUJ|NARZĘDZIA|EKSPORT' || !wide.sharedIcon || !wide.logoAtRightEnd || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
       throw new Error(`Nieprawidłowa hierarchia strony startowej: ${JSON.stringify(wide)}`);
     }
 

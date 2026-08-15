@@ -164,4 +164,4 @@ jobs:
 
             Paczki Windows i macOS nie mają podpisu Authenticode ani Apple Developer ID/notaryzacji. Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie.
 
-            Pobieraj pliki wyłącznie z tego oficjalnego wydania, sprawdź odpowiadający plik `.sha256` i wykonaj instalację ręcznie. Wbudowany aktualizator celowo nie instaluje paczek bez prawidłowego podpisu platformowego.
+            Wbudowany aktualizator pobiera paczkę wyłącznie z oficjalnego wydania, sprawdza odpowiadającą sumę SHA-256 i otwiera plik do instalacji systemowej. Bez certyfikatu platformowego system nadal wymaga ręcznego potwierdzenia i może wyświetlić ostrzeżenie.

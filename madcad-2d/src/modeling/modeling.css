@@ -255,7 +255,7 @@
   display: block;
   width: 23px;
   height: 23px;
-  margin-right: 3px;
+  margin-left: 6px;
   overflow: hidden;
   border: 1px solid rgba(127, 158, 188, 0.42);
   border-radius: 5px;
@@ -1547,11 +1547,11 @@
 
 .start-page-shell {
   display: grid;
-  width: min(1040px, 100%);
+  width: min(1240px, 100%);
   margin: auto;
-  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.85fr);
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.72fr);
   align-items: center;
-  gap: clamp(28px, 5vw, 72px);
+  gap: clamp(32px, 4vw, 64px);
 }
 
 .start-page-intro { min-width: 0; }
@@ -1594,7 +1594,7 @@
 
 .start-page-actions {
   display: grid;
-  max-width: 680px;
+  max-width: 780px;
   margin-top: 26px;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
@@ -1676,6 +1676,15 @@
 .start-page-flow li svg { color: #68cae7; }
 .start-page-flow li strong { color: #e8eef3; font-size: 13px; }
 .start-page-flow li small { grid-column: 1 / -1; color: #aeb9c3; font-size: 10px; line-height: 1.45; }
+
+.update-handoff small {
+  display: block;
+  overflow: hidden;
+  color: #b7c6d2;
+  font: 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 @media (max-width: 1120px) {
   .start-page-shell { grid-template-columns: 1fr; align-items: start; gap: 24px; }

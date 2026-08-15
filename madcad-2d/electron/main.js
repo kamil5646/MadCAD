@@ -31,6 +31,7 @@ const MADCAD_RELEASE_API_URL = 'https://api.github.com/repos/kamil5646/MadCAD2D/
 const MADCAD_RELEASE_LATEST_PAGE_URL = 'https://github.com/kamil5646/MadCAD2D/releases/latest';
 const MADCAD_UPDATE_USER_AGENT = 'MadCAD2D-Updater/1.0';
 const MAX_UPDATE_DOWNLOAD_BYTES = 512 * 1024 * 1024;
+const MAX_UPDATE_METADATA_BYTES = 4 * 1024 * 1024;
 const TRUSTED_MAC_TEAM_ID = /^[A-Z0-9]{10}$/.test(String(packageMetadata.madcadMacTeamId || ''))
   ? String(packageMetadata.madcadMacTeamId)
   : '';
@@ -160,8 +161,16 @@ async function writeCadConfig(config) {
   await fs.writeFile(configPath, JSON.stringify(safeConfig, null, 2), 'utf8');
 }
 
-function httpsGetBuffer(url) {
+function httpsGetBuffer(url, redirectCount = 0) {
   return new Promise((resolve, reject) => {
+    if (!updatePolicy.isTrustedUpdateUrl(url)) {
+      reject(new Error('Niezaufany adres metadanych aktualizacji.'));
+      return;
+    }
+    if (redirectCount > 8) {
+      reject(new Error('Zbyt wiele przekierowań metadanych aktualizacji.'));
+      return;
+    }
     const request = https.get(
       url,
       {
@@ -178,7 +187,11 @@ function httpsGetBuffer(url) {
       if ([301, 302, 303, 307, 308].includes(status) && location) {
         response.resume();
         const nextUrl = location.startsWith('http') ? location : new URL(location, url).toString();
-        resolve(httpsGetBuffer(nextUrl));
+        if (!updatePolicy.isTrustedUpdateUrl(nextUrl)) {
+          reject(new Error('Przekierowanie metadanych aktualizacji prowadzi do niezaufanego hosta.'));
+          return;
+        }
+        resolve(httpsGetBuffer(nextUrl, redirectCount + 1));
         return;
       }
       if (status < 200 || status >= 300) {
@@ -187,7 +200,15 @@ function httpsGetBuffer(url) {
         return;
       }
       const chunks = [];
-      response.on('data', (chunk) => chunks.push(chunk));
+      let receivedBytes = 0;
+      response.on('data', (chunk) => {
+        receivedBytes += chunk.length;
+        if (receivedBytes > MAX_UPDATE_METADATA_BYTES) {
+          request.destroy(new Error('Metadane aktualizacji przekraczają limit 4 MB.'));
+          return;
+        }
+        chunks.push(chunk);
+      });
       response.on('end', () => resolve(Buffer.concat(chunks)));
       }
     );
@@ -238,8 +259,16 @@ function selectReleaseAssetForPlatform(assets) {
   return null;
 }
 
-function httpsGetJson(url) {
+function httpsGetJson(url, redirectCount = 0) {
   return new Promise((resolve, reject) => {
+    if (!updatePolicy.isTrustedUpdateUrl(url)) {
+      reject(new Error('Niezaufany adres API aktualizacji.'));
+      return;
+    }
+    if (redirectCount > 8) {
+      reject(new Error('Zbyt wiele przekierowań API aktualizacji.'));
+      return;
+    }
     const request = https.get(
       url,
       {
@@ -254,7 +283,11 @@ function httpsGetJson(url) {
         if ([301, 302, 303, 307, 308].includes(status) && location) {
           response.resume();
           const nextUrl = location.startsWith('http') ? location : new URL(location, url).toString();
-          resolve(httpsGetJson(nextUrl));
+          if (!updatePolicy.isTrustedUpdateUrl(nextUrl)) {
+            reject(new Error('Przekierowanie API aktualizacji prowadzi do niezaufanego hosta.'));
+            return;
+          }
+          resolve(httpsGetJson(nextUrl, redirectCount + 1));
           return;
         }
         if (status < 200 || status >= 300) {
@@ -263,7 +296,15 @@ function httpsGetJson(url) {
           return;
         }
         const chunks = [];
-        response.on('data', (chunk) => chunks.push(chunk));
+        let receivedBytes = 0;
+        response.on('data', (chunk) => {
+          receivedBytes += chunk.length;
+          if (receivedBytes > MAX_UPDATE_METADATA_BYTES) {
+            request.destroy(new Error('Odpowiedź API aktualizacji przekracza limit 4 MB.'));
+            return;
+          }
+          chunks.push(chunk);
+        });
         response.on('end', () => {
           try {
             const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
@@ -467,19 +508,31 @@ echo "== MadCAD updater done: $(date) =="
   return { logPath, scriptPath };
 }
 
-function launchWindowsInstaller(installerPath) {
-  const child = spawn(installerPath, [], {
-    detached: true,
-    stdio: 'ignore'
-  });
-  child.unref();
+async function moveVerifiedUpdateToDownloads(sourcePath, assetName) {
+  const downloadsDir = app.getPath('downloads');
+  await fs.mkdir(downloadsDir, { recursive: true });
+  const safeName = sanitizeFileName(assetName, isWindows ? 'madcad-update.exe' : 'madcad-update.zip');
+  const parsed = path.parse(safeName);
+  for (let index = 0; index < 100; index += 1) {
+    const suffix = index === 0 ? '' : ` (${index})`;
+    const destinationPath = path.join(downloadsDir, `${parsed.name}${suffix}${parsed.ext}`);
+    try {
+      await fs.copyFile(sourcePath, destinationPath, fsRaw.constants.COPYFILE_EXCL);
+      await fs.rm(sourcePath, { force: true });
+      return destinationPath;
+    } catch (error) {
+      if (error && error.code === 'EEXIST') continue;
+      throw error;
+    }
+  }
+  throw new Error(t('Nie udało się utworzyć pliku aktualizacji w folderze Pobrane.', 'Cannot create the update file in Downloads.'));
 }
 
-async function verifyWindowsInstallerSignature(installerPath) {
-  if (!isWindows) return;
-  const escapedPath = String(installerPath).replace(/'/g, "''");
-  const command = `$signature = Get-AuthenticodeSignature -LiteralPath '${escapedPath}'; if ($signature.Status -ne 'Valid') { throw "Invalid Authenticode status: $($signature.Status)" }`;
-  await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { timeout: 120000 });
+async function openVerifiedUpdatePackage(filePath) {
+  const openError = await shell.openPath(filePath);
+  if (!openError) return { opened: true, openError: '' };
+  shell.showItemInFolder(filePath);
+  return { opened: false, openError: String(openError) };
 }
 
 async function fetchLatestMadcadRelease(channel = 'stable', currentVersion = app.getVersion()) {
@@ -1138,6 +1191,7 @@ registerTrustedIpcHandler('madcad:check-for-updates', async () => {
       ok: true,
       available: hasNewerVersion && hasAssetForPlatform,
       supported: hasAssetForPlatform,
+      installMode: isMac && TRUSTED_MAC_TEAM_ID ? 'automatic' : 'verified-package',
       currentVersion,
       channel,
       latestVersion: latest.latestVersion,
@@ -1219,12 +1273,23 @@ registerTrustedIpcHandler('madcad:download-and-install-update', async (event) =>
     }
 
     let installerMeta = null;
-    if (isMac) {
+    if (isMac && TRUSTED_MAC_TEAM_ID) {
       installerMeta = await scheduleMacZipInstall(downloadedPath);
-    } else if (isWindows) {
-      await verifyWindowsInstallerSignature(downloadedPath);
-      launchWindowsInstaller(downloadedPath);
+    } else if (isMac || isWindows) {
+      const packagePath = await moveVerifiedUpdateToDownloads(downloadedPath, assetName);
+      const handoff = await openVerifiedUpdatePackage(packagePath);
+      return {
+        ok: true,
+        installing: false,
+        handoff: true,
+        opened: handoff.opened,
+        openError: handoff.openError || null,
+        downloadedPath: packagePath,
+        latestVersion: latestVersion || null,
+        platform: process.platform
+      };
     } else {
+      await fs.rm(downloadedPath, { force: true }).catch(() => {});
       return {
         ok: false,
         installing: false,
@@ -1253,8 +1318,8 @@ registerTrustedIpcHandler('madcad:download-and-install-update', async (event) =>
     forceCloseForUpdate = false;
     const mapped = mapUpdaterError(
       error,
-      'Nie udało się pobrać lub zainstalować aktualizacji.',
-      'Failed to download or install update.'
+      'Nie udało się pobrać lub otworzyć aktualizacji.',
+      'Failed to download or open the update.'
     );
     return {
       ok: false,
