@@ -275,12 +275,6 @@ function toolColorStyle(label) {
   const hue = TOOL_GROUP_HUES[group];
   return {
     '--tool-accent': `hsl(${hue} 84% 68%)`,
-    '--tool-surface-top': '#4b5866',
-    '--tool-surface-bottom': '#34404c',
-    '--tool-surface-hover-top': '#596979',
-    '--tool-surface-hover-bottom': '#3d4d5b',
-    '--tool-surface-disabled-top': '#303a45',
-    '--tool-surface-disabled-bottom': '#28313b',
   };
 }
 
@@ -351,8 +345,8 @@ function ToolGlyph({ icon: Icon, compact = false }) {
   const size = compact ? 18 : 25;
   return (
     <span className="ribbon-glyph">
-      <Icon className="ribbon-glyph-depth" size={size} strokeWidth={2.4} fill="currentColor" aria-hidden="true" />
-      <Icon className="ribbon-glyph-face" size={size} strokeWidth={1.65} fill="currentColor" fillOpacity={0.14} aria-hidden="true" />
+      <Icon className="ribbon-glyph-depth" size={size} strokeWidth={2.7} fill="currentColor" fillOpacity={0.32} aria-hidden="true" />
+      <Icon className="ribbon-glyph-face" size={size} strokeWidth={1.8} fill="currentColor" fillOpacity={0.24} aria-hidden="true" />
     </span>
   );
 }
