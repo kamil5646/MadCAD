@@ -12,7 +12,7 @@ const rejectText = (source, pattern, label) => {
 };
 
 const packageJson = JSON.parse(read('madcad-2d/package.json'));
-if (packageJson.version !== '6.3.0') throw new Error(`Wersja stabilna musi wynosić 6.3.0, jest ${packageJson.version}.`);
+if (packageJson.version !== '6.3.1') throw new Error(`Wersja stabilna musi wynosić 6.3.1, jest ${packageJson.version}.`);
 
 const license = read('LICENSE');
 const packagedLicense = read('madcad-2d/LICENSE');
@@ -28,18 +28,22 @@ expectText(site, /Oficjalne wydanie 6\.3/, 'stabilne wydanie na stronie');
 expectText(site, /40 dni bezpłatnej oceny/, 'ocena komercyjna na stronie');
 expectText(site, /licencja bezterminowa na stanowisko/, 'licencja stanowiskowa na stronie');
 expectText(site, /mailto:kkasprzak15@icloud\.com/, 'zakup licencji na stronie');
-expectText(site, /paczki 6\.3\.0 są publikowane bez podpisu producenta/, 'ostrzeżenie o niepodpisanym wydaniu 6.3.0');
+expectText(site, /paczki 6\.3\.1 są publikowane bez podpisu producenta/, 'ostrzeżenie o niepodpisanym wydaniu 6.3.1');
 expectText(site, /Linux · x64/, 'oficjalna paczka Linux na stronie');
 rejectText(site, /license-registry|issue-private|token-admin|generatePrivateToken/i, 'stary system tokenów na stronie');
 
 const rootReadme = read('README.md');
-expectText(rootReadme, /Uwaga o wydaniu 6\.3\.0/, 'ostrzeżenie wydania w README');
+expectText(rootReadme, /Uwaga o wydaniu 6\.3\.1/, 'ostrzeżenie wydania w README');
 expectText(rootReadme, /Importuj DWG/, 'lokalny import DWG w README');
 const firstPart = read('madcad-2d/FIRST_PART.md');
 expectText(firstPart, /DWG jest konwertowany lokalnie/, 'lokalny przepływ DWG w samouczku');
 
 const appUi = read('madcad-2d/src/modeling/ModelingWorkspace.jsx');
 rejectText(appUi, /licenseTokenInput|licenseDeviceIdInput|licenseActivateTokenBtn/, 'kontrolki aktywacji w aplikacji');
+expectText(appUi, /function RibbonGroup\([\s\S]*?ribbon-group-heading[\s\S]*?\{label\}/, 'widoczne nagłówki grup wstążki');
+for (const groupLabel of ['RYSUJ 2D', 'MODYFIKUJ 2D', 'WIĘZY', 'WYMIARY', 'UTWÓRZ BRYŁĘ 3D', 'MODYFIKUJ BRYŁĘ 3D', 'SPRAWDŹ MODEL', 'DOKŁADNY CAD', 'DRUK 3D · DODATEK']) {
+  expectText(appUi, new RegExp(`label=["']${groupLabel}["']`), `grupa wstążki ${groupLabel}`);
+}
 expectText(appUi, /function readStoredLanguage\(\)[\s\S]*?catch \(_error\)/, 'bezpieczny odczyt języka bez Web Storage');
 expectText(appUi, /autosaveSuspendedRef\.current[\s\S]*?setTimeout\(persistWhenReady, 100\)/, 'ponowienie autozapisu po wstrzymaniu');
 expectText(appUi, /promptPending: silent && Boolean\(result\?\.available\)/, 'odroczony automatyczny dialog aktualizacji');
@@ -48,7 +52,7 @@ const appDialogs = read('madcad-2d/src/modeling/AppDialogs.jsx');
 expectText(appDialogs, /oceniać pełną wersję przez 40 dni/, 'ocena w oknie aplikacji');
 expectText(appDialogs, /bezterminowej licencji na każde stanowisko/, 'licencja stanowiskowa w aplikacji');
 expectText(appDialogs, /fullLicenseText/, 'lokalna pełna licencja w aplikacji');
-expectText(appDialogs, /Wydanie 6\.3\.0 nie ma podpisu producenta/, 'ostrzeżenie o podpisie w aplikacji');
+expectText(appDialogs, /Wydanie 6\.3\.1 nie ma podpisu producenta/, 'ostrzeżenie o podpisie w aplikacji');
 
 const preload = read('madcad-2d/electron/preload.js');
 const main = read('madcad-2d/electron/main.js');

@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.3.1 (2026-08-15)
+
+- Przywrócono czytelną hierarchię wstążki: narzędzia są jawnie podzielone na szkicowanie 2D, tworzenie i modyfikację 3D, więzy, wymiary, wybór, kontrolę modelu oraz eksport.
+- Nagłówki grup mają kompaktowe, płaskie grafitowe tło i dyskretny kolorowy znacznik zamiast dominujących pasków, ramek lub gradientu.
+- Rozdzielono podstawowy przepływ CAD od dodatków związanych z siatkami i drukiem 3D, zachowując maksymalną wysokość obszaru roboczego.
+
 ## 6.3.0 (2026-08-15)
 
 - Dodano lokalny import DWG do aktywnego szkicu przez wykryty GNU LibreDWG (`dwgread` lub `dwg2dxf`) albo ODA File Converter, bez wysyłania projektu do usługi sieciowej.
