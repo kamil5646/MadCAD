@@ -1257,6 +1257,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Rib/Web')?.disabled)`, 'ponownie aktywny przycisk Rib Web');
   await clickTool('Rib/Web');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Rib/Web')`, 'ponownie otwarty Rib Web');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.previewReady === true && !document.querySelector('.command-dialog .confirm')?.disabled`, 'gotowy podgląd przed zapisaniem Web', modelingTimeoutMs);
   await confirmDialog();
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'rib' && window.__madcadVerifyDocumentState.featureData[1].ribMode === 'web' && window.__madcadVerifyDocumentState.featureData[1].openEntityIds?.[0] === ${JSON.stringify(ribLineId)} && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2160) < 0.05`, 'zapisany Web', modelingTimeoutMs);
   await editTimelineFeature(1, 'Rib/Web');
