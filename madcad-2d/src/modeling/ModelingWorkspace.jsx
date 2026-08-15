@@ -397,6 +397,24 @@ function RibbonGroup({ children, end = false, label }) {
   );
 }
 
+export function CrashRecoveryBanner({ info, onSave, onDismiss }) {
+  if (!info) return null;
+  const parsedTime = Date.parse(info.updatedAt || '');
+  const savedAt = Number.isFinite(parsedTime)
+    ? new Date(parsedTime).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'medium' })
+    : null;
+  return (
+    <section className="crash-recovery-banner" role="alert" aria-label="Odzyskiwanie projektu po awarii">
+      <div>
+        <strong>Odzyskano projekt po nieoczekiwanym zamknięciu MadCAD</strong>
+        <span>{info.backup ? 'Użyto poprzedniej poprawnej kopii autozapisu' : 'Użyto ostatniego poprawnego autozapisu'}{savedAt ? ` · ${savedAt}` : ''}.</span>
+      </div>
+      <button type="button" onClick={onSave}>Zapisz odzyskany projekt</button>
+      <button className="icon-only" type="button" aria-label="Zamknij komunikat odzyskiwania" title="Zamknij komunikat" onClick={onDismiss}><X size={15} /></button>
+    </section>
+  );
+}
+
 function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onClose }) {
   const [expanded, setExpanded] = useState({ origin: true, construction: true, sketches: true, bodies: true });
   const toggle = (key) => setExpanded((current) => ({ ...current, [key]: !current[key] }));
@@ -1258,6 +1276,11 @@ export default function ModelingWorkspace() {
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(false);
   const [printPanelOpen, setPrintPanelOpen] = useState(false);
+  const [recoveryInfo, setRecoveryInfo] = useState(() => initialOpen.recovered ? {
+    source: initialOpen.recoverySource || 'local-primary',
+    backup: initialOpen.recoverySource === 'local-backup',
+    updatedAt: initialOpen.document?.metadata?.modifiedAt || null,
+  } : null);
   const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, profiles: true, points: true, dimensions: true, constraints: true, construction: true, projected: true, slice: false, sketch3d: false });
   const [notice, setNotice] = useState(initialOpen.warning || 'Gotowe. Zacznij od rysunku 2D albo otwórz projekt.');
   const fileInputRef = useRef(null);
@@ -1379,7 +1402,8 @@ export default function ModelingWorkspace() {
           });
           setSavedDocumentText(null);
           setSelection({ kind: 'document', id: opened.document.id });
-          setNotice(`${result.warning ? `${result.warning} ` : ''}Odzyskano projekt z plikowego autozapisu.`);
+          setRecoveryInfo({ source: result.recovered ? 'file-backup' : 'file-primary', backup: Boolean(result.recovered), updatedAt: result.updatedAt || opened.document?.metadata?.modifiedAt || null });
+          setNotice(`${result.warning ? `${result.warning} ` : ''}Odzyskano projekt po nieoczekiwanym zamknięciu aplikacji.`);
         } else if (result.warning) {
           setNotice(result.warning);
         }
@@ -3923,6 +3947,7 @@ export default function ModelingWorkspace() {
         setNotice(`Projekt zapisano, ale nie udało się wyczyścić autozapisu: ${error.message}`);
         return true;
       }
+      setRecoveryInfo(null);
       setNotice(`Zapisano projekt atomowo: ${result.filePath}${result.backupPath ? ' · poprzednia wersja: .bak' : ''}`);
       return true;
     }
@@ -4514,6 +4539,11 @@ export default function ModelingWorkspace() {
           </React.Suspense>
           <div className={`engine-status ${engine.status}`}><span />{engine.status === 'ready' ? `${command?.previewFeature ? 'Podgląd' : 'Model'} gotowy · ${engine.bodies.length} ${engine.bodies.length === 1 ? 'bryła' : 'brył'}` : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>
           {notice && <div className="workspace-notice" role="status">{notice}</div>}
+          <CrashRecoveryBanner
+            info={recoveryInfo}
+            onSave={() => { void saveProject(); }}
+            onDismiss={() => setRecoveryInfo(null)}
+          />
           <TopologyReferenceRepairPanel items={lostTopologyReferences} selection={selection} onReassign={repairTopologyReference} />
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
