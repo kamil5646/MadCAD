@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.1.4 (2026-08-15)
+
+- Poszerzono stronę startową, aby lepiej wykorzystywała szerokie okno i eksponowała podstawowe działania CAD.
+- Przeniesiono logo MadCAD na sam koniec prawej strony górnego paska, z zachowaniem miejsca na systemowe przyciski okna.
+- Naprawiono aktualizację wydań bez certyfikatu: aplikacja pobiera paczkę wyłącznie z zaufanego GitHub Release, sprawdza SHA-256, zapisuje ją w folderze Pobrane i otwiera do instalacji.
+- Zachowano automatyczną podmianę podpisanej aplikacji macOS jako tryb dostępny po skonfigurowaniu Apple Team ID.
+- Dodano test położenia logo, zwiększonej szerokości strony startowej i komunikatu przekazania zweryfikowanej paczki do instalatora systemu.
+
 ## 6.1.3 (2026-08-15)
 
 - Dodano właściwą stronę startową prowadzącą najpierw do rysunku 2D albo otwarcia projektu, z czytelnym przepływem `Szkic 2D → model parametryczny → eksport`.

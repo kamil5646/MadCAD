@@ -12,7 +12,7 @@ const rejectText = (source, pattern, label) => {
 };
 
 const packageJson = JSON.parse(read('madcad-2d/package.json'));
-if (packageJson.version !== '6.1.3') throw new Error(`Wersja stabilna musi wynosić 6.1.3, jest ${packageJson.version}.`);
+if (packageJson.version !== '6.1.4') throw new Error(`Wersja stabilna musi wynosić 6.1.4, jest ${packageJson.version}.`);
 
 const license = read('LICENSE');
 const packagedLicense = read('madcad-2d/LICENSE');
@@ -28,11 +28,11 @@ expectText(site, /Oficjalne wydanie 6\.1/, 'stabilne wydanie na stronie');
 expectText(site, /40 dni bezpłatnej oceny/, 'ocena komercyjna na stronie');
 expectText(site, /licencja bezterminowa na stanowisko/, 'licencja stanowiskowa na stronie');
 expectText(site, /mailto:kkasprzak15@icloud\.com/, 'zakup licencji na stronie');
-expectText(site, /paczki 6\.1\.3 są publikowane bez podpisu producenta/, 'ostrzeżenie o niepodpisanym wydaniu 6.1.3');
+expectText(site, /paczki 6\.1\.4 są publikowane bez podpisu producenta/, 'ostrzeżenie o niepodpisanym wydaniu 6.1.4');
 rejectText(site, /license-registry|issue-private|token-admin|generatePrivateToken/i, 'stary system tokenów na stronie');
 
 const rootReadme = read('README.md');
-expectText(rootReadme, /Uwaga o wydaniu 6\.1\.3/, 'ostrzeżenie wydania w README');
+expectText(rootReadme, /Uwaga o wydaniu 6\.1\.4/, 'ostrzeżenie wydania w README');
 rejectText(rootReadme, /import(?:em|uj)? DWG/i, 'nieobsługiwana obietnica importu DWG');
 const firstPart = read('madcad-2d/FIRST_PART.md');
 expectText(firstPart, /DWG nie jest obecnie obsługiwany/, 'ograniczenie DWG w samouczku');
@@ -48,7 +48,7 @@ const appDialogs = read('madcad-2d/src/modeling/AppDialogs.jsx');
 expectText(appDialogs, /oceniać pełną wersję przez 40 dni/, 'ocena w oknie aplikacji');
 expectText(appDialogs, /bezterminowej licencji na każde stanowisko/, 'licencja stanowiskowa w aplikacji');
 expectText(appDialogs, /fullLicenseText/, 'lokalna pełna licencja w aplikacji');
-expectText(appDialogs, /Wydanie 6\.1\.3 nie ma podpisu producenta/, 'ostrzeżenie o podpisie w aplikacji');
+expectText(appDialogs, /Wydanie 6\.1\.4 nie ma podpisu producenta/, 'ostrzeżenie o podpisie w aplikacji');
 
 const preload = read('madcad-2d/electron/preload.js');
 const main = read('madcad-2d/electron/main.js');
@@ -57,6 +57,8 @@ rejectText(main, /ODAFileConverter|install-oda|convert-cad-file|get-oda-status|c
 expectText(main, /__madcadPersistenceReady[\s\S]*?MadCAD nadal sprawdza autozapis/, 'blokada zamknięcia podczas odzyskiwania');
 expectText(main, /NEW_TEAM[\s\S]*?TRUSTED_TEAM[\s\S]*?installed app belongs to a different signing team/, 'zaufany Team ID aktualizatora macOS');
 expectText(main, /__madcadClearRuntimeSession[\s\S]*?clearAutoSaveSnapshot\(\)[\s\S]*?forceCloseForUpdate = true/, 'czyszczenie obu autozapisów przed aktualizacją');
+expectText(main, /verifyBufferChecksum[\s\S]*?moveVerifiedUpdateToDownloads[\s\S]*?openVerifiedUpdatePackage/, 'zweryfikowane przekazanie niepodpisanej paczki aktualizacji');
+expectText(main, /handoff:\s*true[\s\S]*?downloadedPath:\s*packagePath/, 'wynik przekazania paczki do instalatora systemu');
 
 const notices = read('madcad-2d/THIRD_PARTY_NOTICES.md');
 for (const dependency of Object.keys(packageJson.dependencies || {})) {

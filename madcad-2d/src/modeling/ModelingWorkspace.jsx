@@ -1139,7 +1139,7 @@ export default function ModelingWorkspace() {
       || window.desktopApp?.appLanguage;
     return resolveModelingLanguage(requestedLanguage, window.navigator.language);
   });
-  const [updateState, setUpdateState] = useState({ open: false, promptPending: false, status: 'idle', result: null, error: '' });
+  const [updateState, setUpdateState] = useState({ open: false, promptPending: false, status: 'idle', result: null, handoff: null, error: '' });
   const checkForUpdates = useCallback(async (silent = false) => {
     if (!window.desktopApp?.checkForUpdates) {
       if (!silent) setUpdateState({ open: true, promptPending: false, status: 'idle', result: null, error: 'Aktualizacje są dostępne w zainstalowanej aplikacji desktopowej.' });
@@ -1153,6 +1153,7 @@ export default function ModelingWorkspace() {
         promptPending: silent && Boolean(result?.available),
         status: 'idle',
         result,
+        handoff: null,
         error: result?.ok === false ? result.error || 'Nie udało się sprawdzić aktualizacji.' : '',
       });
       return result;
@@ -3899,10 +3900,14 @@ export default function ModelingWorkspace() {
       setUpdateState((current) => ({ ...current, error: 'Instalowanie aktualizacji jest dostępne tylko w aplikacji desktopowej.' }));
       return;
     }
-    if (!(await confirmUnsavedChanges('update'))) return;
+    if (updateState.result?.installMode === 'automatic' && !(await confirmUnsavedChanges('update'))) return;
     try {
       setUpdateState((current) => ({ ...current, status: 'installing', error: '' }));
       const result = await window.desktopApp.downloadAndInstallUpdate();
+      if (result?.ok && result.handoff) {
+        setUpdateState((current) => ({ ...current, status: 'idle', handoff: result, error: '' }));
+        return;
+      }
       if (!result?.ok || !result.installing) {
         setUpdateState((current) => ({
           ...current,
@@ -4311,12 +4316,12 @@ export default function ModelingWorkspace() {
     <ToolHelpContext.Provider value={toolHelpContext}>
     <section className={`modeling-shell platform-${DESKTOP_PLATFORM}`} aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
-        <div className="app-menu"><div className="brand-mark" title="MadCAD"><img src={madcadIconUrl} alt="MadCAD" /></div><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button id="newProjectBtn" type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button id="openProjectBtn" type="button" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={16} /></button><button id="saveProjectBtn" type="button" title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
+        <div className="app-menu"><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button id="newProjectBtn" type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button id="openProjectBtn" type="button" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={16} /></button><button id="saveProjectBtn" type="button" title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
         <input ref={importInputRef} hidden type="file" accept=".step,.stp,.stl,.3mf,model/step,model/stl,model/3mf" onChange={chooseModelImport} />
         <input ref={sketchImportInputRef} hidden type="file" accept=".svg,.dxf,image/svg+xml,application/dxf" onChange={chooseSketchImport} />
         <div className="document-tab" title={currentPath || (dirty ? 'Projekt zawiera niezapisane zmiany' : 'Projekt zapisany')}><Box size={15} /><input value={document.name} aria-label="Nazwa projektu" disabled={readOnly} onChange={(event) => commit((next) => { next.name = event.target.value; })} />{readOnly ? <span className="read-only-badge">TYLKO ODCZYT · v{documentAccess.sourceVersion}</span> : dirty ? <span role="img" aria-label="Niezapisane zmiany">*</span> : null}</div>
-        <div className="title-actions"><button id="undoProjectBtn" type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button id="redoProjectBtn" type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><label className="language-select" title="Język interfejsu"><span className="sr-only">Język interfejsu</span><select aria-label="Język interfejsu" value={language} onChange={(event) => { void changeAppLanguage(event.target.value); }}><option value="pl">PL</option><option value="en">EN</option></select></label><button type="button" title="Samouczek pierwszej części" aria-label="Samouczek pierwszej części" onClick={() => setTutorialOpen(true)}><CircleHelp size={15} /><span>Samouczek</span></button><button id="checkUpdatesBtn" type="button" title="Sprawdź aktualizacje" onClick={() => { void checkForUpdates(false); }}><HardDriveDownload size={15} /><span>Aktualizacje</span></button><button id="licenseInfoBtn" type="button" title="Licencja i informacje" onClick={() => setLicenseInfoOpen(true)}><CircleHelp size={15} /><span>Licencja</span></button></div>
+        <div className="title-actions"><button id="undoProjectBtn" type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button><button id="redoProjectBtn" type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button><label className="language-select" title="Język interfejsu"><span className="sr-only">Język interfejsu</span><select aria-label="Język interfejsu" value={language} onChange={(event) => { void changeAppLanguage(event.target.value); }}><option value="pl">PL</option><option value="en">EN</option></select></label><button type="button" title="Samouczek pierwszej części" aria-label="Samouczek pierwszej części" onClick={() => setTutorialOpen(true)}><CircleHelp size={15} /><span>Samouczek</span></button><button id="checkUpdatesBtn" type="button" title="Sprawdź aktualizacje" onClick={() => { void checkForUpdates(false); }}><HardDriveDownload size={15} /><span>Aktualizacje</span></button><button id="licenseInfoBtn" type="button" title="Licencja i informacje" onClick={() => setLicenseInfoOpen(true)}><CircleHelp size={15} /><span>Licencja</span></button><div className="brand-mark" title="MadCAD"><img src={madcadIconUrl} alt="MadCAD" /></div></div>
       </header>
 
       <section className="command-area">
