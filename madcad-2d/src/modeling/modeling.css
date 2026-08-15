@@ -497,11 +497,11 @@
   padding: 0 6px 0 5px;
   align-items: center;
   gap: 5px;
-  border: 1px solid color-mix(in srgb, var(--group-accent) 52%, #43515f);
+  border: 1px solid #4b5968;
   border-radius: 3px;
-  background: #2b3643;
-  color: color-mix(in srgb, var(--group-accent) 78%, white);
-  box-shadow: 0 1px 2px rgba(6, 10, 15, 0.32);
+  background: #34414e;
+  color: #c9d2dc;
+  box-shadow: 0 1px 2px rgba(6, 10, 15, 0.22);
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.09em;
@@ -513,8 +513,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--group-accent);
-  box-shadow: 0 0 5px color-mix(in srgb, var(--group-accent) 70%, transparent);
+  background: color-mix(in srgb, var(--group-accent) 58%, #7e8a96);
 }
 
 .ribbon-group.tone-create { --group-accent: #56c8e8; }
