@@ -64,6 +64,38 @@ function matrixRank(matrix, tolerance = 1e-9) {
   return rank;
 }
 
+function matrixNullspace(matrix, columnCount, tolerance = 1e-9) {
+  if (!columnCount) return [];
+  const work = matrix.length ? matrix.map((row) => [...row]) : [];
+  const pivotColumns = [];
+  let pivotRow = 0;
+  for (let column = 0; column < columnCount && pivotRow < work.length; column += 1) {
+    let bestRow = pivotRow;
+    for (let row = pivotRow + 1; row < work.length; row += 1) {
+      if (Math.abs(work[row][column]) > Math.abs(work[bestRow][column])) bestRow = row;
+    }
+    if (Math.abs(work[bestRow]?.[column] || 0) <= tolerance) continue;
+    [work[pivotRow], work[bestRow]] = [work[bestRow], work[pivotRow]];
+    const divisor = work[pivotRow][column];
+    for (let index = 0; index < columnCount; index += 1) work[pivotRow][index] /= divisor;
+    for (let row = 0; row < work.length; row += 1) {
+      if (row === pivotRow) continue;
+      const factor = work[row][column];
+      if (Math.abs(factor) <= tolerance) continue;
+      for (let index = 0; index < columnCount; index += 1) work[row][index] -= factor * work[pivotRow][index];
+    }
+    pivotColumns.push(column);
+    pivotRow += 1;
+  }
+  const pivotSet = new Set(pivotColumns);
+  return Array.from({ length: columnCount }, (_, column) => column).filter((column) => !pivotSet.has(column)).map((freeColumn) => {
+    const vector = Array(columnCount).fill(0);
+    vector[freeColumn] = 1;
+    pivotColumns.forEach((pivotColumn, row) => { vector[pivotColumn] = -(work[row]?.[freeColumn] || 0); });
+    return vector;
+  });
+}
+
 function equationsAreInconsistent(equations) {
   if (!equations.length) return false;
   const coefficientRank = matrixRank(equations.map((equation) => equation.row));
@@ -464,6 +496,22 @@ export function analyzeSketchConstraints(sketch, parameters = []) {
   const jacobian = activeEquations.map((equation) => equation.row);
   const rank = matrixRank(jacobian);
   const degreesOfFreedom = Math.max(0, variableColumns.size - rank);
+  const variableEntries = [...variableColumns.entries()].sort((first, second) => first[1] - second[1]).map(([key, column]) => {
+    const separator = key.lastIndexOf(':');
+    const entityId = key.slice(0, separator);
+    const axis = key.slice(separator + 1);
+    return { key, column, entityId, axis, kind: axis === 'radius' ? 'scalar' : 'point' };
+  });
+  const freedomModes = matrixNullspace(jacobian, variableColumns.size).map((vector, index) => ({
+    id: `dof-${index + 1}`,
+    variables: variableEntries.filter((entry) => Math.abs(vector[entry.column]) > 1e-7).map((entry) => ({
+      kind: entry.kind,
+      entityId: entry.entityId,
+      axis: entry.axis,
+      contribution: vector[entry.column],
+    })),
+  }));
+  const freeVariableKeys = new Set(freedomModes.flatMap((mode) => mode.variables.map((variable) => `${variable.entityId}:${variable.axis}`)));
   const immovableConflicts = equations.filter((equation) => equation.row.every((value) => Math.abs(value) <= 1e-12) && Math.abs(equation.residual) > residualTolerance);
   if (immovableConflicts.length) diagnostics.push({
     code: 'CONFLICTING_FIXED_GEOMETRY',
@@ -501,13 +549,14 @@ export function analyzeSketchConstraints(sketch, parameters = []) {
     points: points.map((point) => ({
       id: point.id,
       fixed: explicitlyFixed.has(point.id),
-      variables: explicitlyFixed.has(point.id) ? [] : ['x', 'y'],
+      variables: explicitlyFixed.has(point.id) ? [] : ['x', 'y'].filter((axis) => freeVariableKeys.has(`${point.id}:${axis}`)),
     })),
     scalars: entities.filter((entity) => entity.type === 'circle').map((circle) => ({
       entityId: circle.id,
       key: 'radius',
-      fixed: fixedEntityIds.has(circle.id),
+      fixed: fixedEntityIds.has(circle.id) || !freeVariableKeys.has(`${circle.id}:radius`),
     })),
+    freedomModes,
     constraints: constraintStates,
     conflictConstraintIds,
     diagnostics,

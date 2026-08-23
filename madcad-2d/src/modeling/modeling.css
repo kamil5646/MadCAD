@@ -1666,8 +1666,14 @@
   border-radius: 2px;
   background: rgba(39, 49, 60, 0.92);
   color: #d8e3ea;
+  font-family: inherit;
   font-size: 10px;
+  cursor: pointer;
 }
+
+.sketch-solver-status:disabled { opacity: 1; cursor: default; }
+.sketch-solver-status:not(:disabled):hover,
+.sketch-solver-status[aria-expanded='true'] { border-color: #f1b85b; background: #333d46; }
 
 .sketch-solver-status i {
   width: 7px;
@@ -1681,6 +1687,80 @@
 .sketch-solver-status.conflict i,
 .sketch-solver-status.over-constrained i { background: #ff6d75; }
 .sketch-solver-status span { color: #9fb0bc; }
+
+.sketch-freedom-panel {
+  position: absolute;
+  z-index: 13;
+  bottom: 76px;
+  left: 12px;
+  width: min(310px, calc(100% - 24px));
+  overflow: hidden;
+  border: 1px solid #6b7d8b;
+  border-radius: 3px;
+  background: #2c353e;
+  color: #e5ebef;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.42);
+  font-size: 11px;
+}
+
+.sketch-freedom-panel > header {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 7px 6px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  background: #36414b;
+}
+
+.sketch-freedom-panel > header div { display: grid; gap: 2px; }
+.sketch-freedom-panel > header span { color: #f1c46f; font-size: 9px; font-weight: 700; letter-spacing: 0.05em; }
+.sketch-freedom-panel > header button {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: #c9d3da;
+}
+.sketch-freedom-panel > header button:hover { border-color: #718694; background: #44515c; color: #fff; }
+
+.sketch-freedom-modes {
+  display: grid;
+  max-height: 168px;
+  gap: 3px;
+  overflow: auto;
+  padding: 7px;
+}
+
+.sketch-freedom-modes button {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 7px;
+  border: 1px solid #4f616e;
+  border-radius: 2px;
+  background: #313c46;
+  color: #dde5ea;
+  font: inherit;
+  text-align: left;
+}
+.sketch-freedom-modes button:not(:disabled):hover { border-color: #71c9df; background: #394853; }
+.sketch-freedom-modes button:disabled { opacity: 1; cursor: default; }
+.sketch-freedom-modes b { display: grid; flex: 0 0 19px; height: 19px; place-items: center; border-radius: 2px; background: #d9a84e; color: #202830; font-size: 9px; }
+
+.sketch-freedom-panel > footer {
+  display: grid;
+  gap: 3px;
+  padding: 7px 10px 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: #29323a;
+}
+.sketch-freedom-panel > footer strong { color: #f1c46f; font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; }
+.sketch-freedom-panel > footer span { color: #bfcbd3; line-height: 1.35; }
 
 .sketch-constraint-badges {
   position: absolute;

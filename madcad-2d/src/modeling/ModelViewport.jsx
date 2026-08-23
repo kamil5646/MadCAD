@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { alternateModifierPressed, formatShortcut, multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
-import { Box, CircleDot, Crosshair, Diamond, Grid2X2, Magnet, Maximize2, Move3d, Orbit, Square, Trash2, Triangle, ZoomIn } from 'lucide-react';
+import { Box, CircleDot, Crosshair, Diamond, Grid2X2, Magnet, Maximize2, Move3d, Orbit, Square, Trash2, Triangle, X, ZoomIn } from 'lucide-react';
 import * as THREE from 'three';
 import { calculatePrintLayout } from '../cad-core/print-layout.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -10,6 +10,7 @@ import { DEFAULT_SNAP_THRESHOLD_PX, snapSketchPoint } from '../cad-core/sketch-s
 import { edgeGroupVertices, topologySelectionFromIntersection } from '../cad-core/brep-picking.js';
 import { lineTypeDefinition, resolveEntityAppearance } from '../cad-core/layers.js';
 import { inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-suggestions.js';
+import { describeSketchDegreesOfFreedom } from '../cad-core/sketch-freedom-diagnostics.js';
 
 const VIEW_DIRECTIONS = {
   iso: [1.25, -1.45, 1.15],
@@ -175,11 +176,13 @@ function addSketchEntities(group, sketch, parameters, plane, {
   showProjected = true,
   planeOffset = 0,
   layers = [],
+  underConstrainedPointIds = [],
 } = {}) {
   const appearanceFor = (entity) => resolveEntityAppearance({ layers }, entity);
   const entityMap = new Map(sketch.entities.map((entity) => [entity.id, entity]));
   const selected = new Set(selectedIds);
   const errors = new Set(errorIds);
+  const underConstrainedPoints = new Set(underConstrainedPointIds);
   const roleVisible = (entity) => (showConstruction || !['construction', 'centerline'].includes(entity.role))
     && (showProjected || entity.role !== 'projected');
   const visibleCurves = sketch.entities.filter((entity) => entity.type !== 'point' && roleVisible(entity) && appearanceFor(entity).visible);
@@ -304,9 +307,11 @@ function addSketchEntities(group, sketch, parameters, plane, {
       if (entity.type !== 'point' || !coordinates.has(entity.id) || !roleVisible(entity) || !appearance.visible) continue;
       if (allReferencedPointIds.has(entity.id) && !visibleReferencedPointIds.has(entity.id)) continue;
       const hasError = errors.has(entity.id);
-      const baseColor = sketchEntityColor(entity, selected.has(entity.id), hasError, appearance.color);
+      const baseColor = underConstrainedPoints.has(entity.id) && !selected.has(entity.id) && !hasError
+        ? 0xf1b85b
+        : sketchEntityColor(entity, selected.has(entity.id), hasError, appearance.color);
       const point = new THREE.Mesh(
-        new THREE.SphereGeometry(selected.has(entity.id) ? 1.25 : 0.9, 14, 10),
+        new THREE.SphereGeometry(selected.has(entity.id) ? 1.25 : underConstrainedPoints.has(entity.id) ? 1.05 : 0.9, 14, 10),
         new THREE.MeshBasicMaterial({ color: baseColor, depthTest: false }),
       );
       point.position.set(...mapPlanePoint(...coordinates.get(entity.id), plane, 0.18, planeOffset));
@@ -442,6 +447,7 @@ export default function ModelViewport({
   const [sketchDragLabel, setSketchDragLabel] = useState(null);
   const [sketchDynamicLabel, setSketchDynamicLabel] = useState(null);
   const [constraintSuggestion, setConstraintSuggestion] = useState(null);
+  const [freedomPanelOpen, setFreedomPanelOpen] = useState(false);
   const [selectionBox, setSelectionBox] = useState(null);
   const [snapFeedback, setSnapFeedback] = useState(null);
   const [selectionFilter, setSelectionFilter] = useState('auto');
@@ -464,6 +470,10 @@ export default function ModelViewport({
       return { status: SKETCH_SOLVER_STATUS.CONFLICT, degreesOfFreedom: null, diagnostics: [{ message: error.message }], conflictConstraintIds: [] };
     }
   }, [activeSketch, parameters]);
+  const freedomDiagnostics = useMemo(() => describeSketchDegreesOfFreedom(activeSketch, solverAnalysis), [activeSketch, solverAnalysis]);
+  useEffect(() => {
+    if (solverAnalysis?.status !== SKETCH_SOLVER_STATUS.UNDER_CONSTRAINED || !freedomDiagnostics.total) setFreedomPanelOpen(false);
+  }, [solverAnalysis?.status, freedomDiagnostics.total]);
   const isEmptySketch = Boolean(activeSketch && (activeSketch.entities || []).length === 0);
   useEffect(() => {
     if (!activeSketchId && selectionFilter === 'profile') setSelectionFilter('auto');
@@ -855,6 +865,7 @@ export default function ModelViewport({
         showProjected: showProjectedGeometry,
         planeOffset: activePlaneOffset,
         layers,
+        underConstrainedPointIds: freedomDiagnostics.affectedPointIds,
       });
       if (draftProfile) addSketchLine(sketchGroup, draftProfile, parameters, activePlane, true, activePlaneOffset);
       if (sketchTool && polylineDraft?.lastPoint) {
@@ -1702,7 +1713,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode]);
+  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds]);
 
   return (
     <div
@@ -1800,11 +1811,22 @@ export default function ModelViewport({
         </div>
       )}
       {solverAnalysis && (
-        <div className={`sketch-solver-status ${isEmptySketch ? 'empty' : solverAnalysis.status}`} role="status">
+        <button className={`sketch-solver-status ${isEmptySketch ? 'empty' : solverAnalysis.status}`} type="button" disabled={isEmptySketch || solverAnalysis.status !== SKETCH_SOLVER_STATUS.UNDER_CONSTRAINED || !freedomDiagnostics.total} aria-expanded={freedomPanelOpen} aria-controls="sketch-freedom-panel" title={freedomDiagnostics.total ? 'Pokaż pozostałe stopnie swobody i podpowiedzi wiązań.' : undefined} onClick={() => setFreedomPanelOpen((current) => !current)}>
           <i />
           <strong>{isEmptySketch ? 'Pusty szkic' : solverAnalysis.status === SKETCH_SOLVER_STATUS.FULLY_CONSTRAINED ? 'W pełni związany' : solverAnalysis.status === SKETCH_SOLVER_STATUS.CONFLICT ? 'Konflikt więzów' : solverAnalysis.status === SKETCH_SOLVER_STATUS.OVER_CONSTRAINED ? 'Nadmiar więzów' : 'Niedowiązany'}</strong>
           <span>{isEmptySketch ? 'Dodaj geometrię' : solverAnalysis.degreesOfFreedom === null ? '—' : `${solverAnalysis.degreesOfFreedom} DOF`}</span>
-        </div>
+        </button>
+      )}
+      {freedomPanelOpen && freedomDiagnostics.total > 0 && (
+        <section className="sketch-freedom-panel" id="sketch-freedom-panel" aria-label="Diagnostyka niedowiązanego szkicu">
+          <header><div><strong>Pozostałe stopnie swobody</strong><span>{freedomDiagnostics.total} DOF</span></div><button type="button" aria-label="Zamknij diagnostykę" title="Zamknij diagnostykę" onClick={() => setFreedomPanelOpen(false)}><X size={14} /></button></header>
+          <div className="sketch-freedom-modes">
+            {freedomDiagnostics.modes.map((mode, index) => (
+              <button key={mode.id} type="button" disabled={!mode.pointIds.length} title={mode.pointIds.length ? 'Zaznacz pierwszy punkt związany z tym stopniem swobody.' : 'Ten stopień swobody dotyczy parametru geometrii.'} onClick={() => mode.pointIds[0] && onSketchSelection?.([mode.pointIds[0]], 'replace')}><b>{index + 1}</b><span>{mode.label}</span></button>
+            ))}
+          </div>
+          {freedomDiagnostics.suggestions.length > 0 && <footer><strong>Co dodać</strong>{freedomDiagnostics.suggestions.map((suggestion) => <span key={suggestion}>{suggestion}</span>)}</footer>}
+        </section>
       )}
       {activeSketchId && activeSketch?.constraints?.length > 0 && (showSketchConstraints || showSketchDimensions) && (
         <div className="sketch-constraint-badges" aria-label="Wiązania szkicu">

@@ -1662,6 +1662,8 @@ test('solver szkicu wyznacza stopnie swobody, fixed, pełne związanie i konflik
   assert.equal(under.rank, 1);
   assert.equal(under.degreesOfFreedom, 3);
   assert.equal(under.solved, true);
+  assert.equal(under.freedomModes.length, 3);
+  assert.ok(under.freedomModes.some((mode) => mode.variables.some((variable) => variable.entityId === start.id && variable.axis === 'x')));
 
   sketch.entities.find((entity) => entity.id === start.id).fixed = true;
   sketch.entities.find((entity) => entity.id === end.id).fixed = true;
