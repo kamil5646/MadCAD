@@ -159,8 +159,8 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.22 Warstwy szkicu: aktywna warstwa, kolor, typ i grubość linii, widoczność, blokada, drukowanie oraz nadpisania `ByLayer`; starsze dokumenty są normalizowane bez zmiany wersji schematu, a zapis, undo/redo i desktop E2E zachowują właściwości.
 - [x] P1.23 Bloki 2D: tworzenie definicji z połączonej geometrii, wybór całego wystąpienia, biblioteka dokumentu, wstawianie z pozycją/obrotem/skalą, atrybuty definicji i wystąpienia, rozbijanie, usuwanie, undo/redo oraz zapis/otwarcie.
 - [x] P1.24 Konfigurowalne aliasy i bezpośrednie klawisze podstawowych poleceń: ustawienia ogólne aplikacji, walidacja konfliktów i nazw zarezerwowanych, przywracanie układu Autodesk, dynamiczne tooltipy, podpowiedzi linii poleceń oraz zapis lokalny.
-- [>] P1.25 Automatyczne sugestie więzów podczas szkicowania.
-- [ ] P1.26 Diagnostyka niedowiązania wskazująca pozostałe stopnie swobody.
+- [x] P1.25 Automatyczne sugestie więzów podczas szkicowania: czytelny podgląd `H/V` przy kursorze, automatyczne wyrównanie i zapis więzu poziomego/pionowego oraz zbieżności punktów, możliwość wyłączenia w palecie szkicu i regresja desktopowa.
+- [>] P1.26 Diagnostyka niedowiązania wskazująca pozostałe stopnie swobody.
 - [ ] P1.27 Raport naprawy importu z jawną listą zmienionych i pominiętych elementów.
 - [ ] P1.28 Zapisywane obszary robocze i układy paneli.
 

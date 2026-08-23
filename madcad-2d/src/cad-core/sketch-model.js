@@ -103,6 +103,7 @@ export function createSketchConstraint(type, entityIds, options = {}) {
     entityIds: [...entityIds],
     ...(options.value !== undefined ? { value: String(options.value) } : {}),
     ...(options.driving !== undefined ? { driving: Boolean(options.driving) } : {}),
+    ...(options.automatic !== undefined ? { automatic: Boolean(options.automatic) } : {}),
   };
 }
 

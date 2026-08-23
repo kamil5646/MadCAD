@@ -530,6 +530,7 @@ export function validateDocument(document) {
       registerId(constraint.id, `${constraintBase}.id`);
       if (typeof constraint.id === 'string') constraintIds.add(constraint.id);
       if (typeof constraint.type !== 'string' || !constraint.type.trim()) add(`${constraintBase}.type`, 'Wiązanie musi mieć typ.', 'REQUIRED');
+      if (constraint.automatic !== undefined && typeof constraint.automatic !== 'boolean') add(`${constraintBase}.automatic`, 'Flaga automatycznego więzu musi być wartością logiczną.', 'TYPE');
       validateEntityReferences(constraint, constraintBase);
       if (constraint.value !== undefined) {
         if (typeof constraint.value !== 'string' && typeof constraint.value !== 'number') add(`${constraintBase}.value`, 'Wartość więzu musi być wyrażeniem tekstowym albo liczbą.', 'TYPE');

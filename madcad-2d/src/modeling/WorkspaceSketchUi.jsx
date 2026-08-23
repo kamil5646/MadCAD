@@ -49,6 +49,7 @@ export function SketchPalette({ options, onChange, onFinish }) {
   const basicItems = [
     ['grid', 'Siatka szkicu'],
     ['snap', 'Przyciąganie'],
+    ['autoConstraints', 'Automatyczne więzy'],
     ['profiles', 'Profile'],
     ['points', 'Punkty'],
     ['dimensions', 'Wymiary'],
@@ -95,4 +96,3 @@ export function SketchPalette({ options, onChange, onFinish }) {
     </aside>
   );
 }
-

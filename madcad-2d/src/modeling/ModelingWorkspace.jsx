@@ -98,6 +98,7 @@ import {
   slotThreePoints,
 } from '../cad-core/sketch-primitives.js';
 import { refreshDetectedSketchProfiles } from '../cad-core/sketch-topology.js';
+import { addAutomaticConstraintsForLine, inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-suggestions.js';
 import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketchLines, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../cad-core/sketch-modifiers.js';
 import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../cad-core/sketch-transforms.js';
 import { circularSketchPattern, pathSketchPattern, rectangularSketchPattern } from '../cad-core/sketch-patterns.js';
@@ -411,7 +412,7 @@ export default function ModelingWorkspace() {
     backup: initialOpen.recoverySource === 'local-backup',
     updatedAt: initialOpen.document?.metadata?.modifiedAt || null,
   } : null);
-  const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, profiles: true, points: true, dimensions: true, constraints: true, construction: true, projected: true, slice: false, sketch3d: false });
+  const [sketchOptions, setSketchOptions] = useState({ grid: true, snap: true, snapDistance: 12, autoConstraints: true, profiles: true, points: true, dimensions: true, constraints: true, construction: true, projected: true, slice: false, sketch3d: false });
   const [notice, setNotice] = useState(initialOpen.warning || 'Gotowe. Zacznij od rysunku 2D albo otwórz projekt.');
   const fileInputRef = useRef(null);
   const importInputRef = useRef(null);
@@ -1361,9 +1362,12 @@ export default function ModelingWorkspace() {
       return;
     }
 
-    const targetPoint = closes ? null : createSketchPoint({ x: point[0].toFixed(3), y: point[1].toFixed(3) });
+    const suggestion = !closes && command.segmentMode === 'line' && sketchOptions.autoConstraints
+      ? inferLineConstraintSuggestion(start, point)
+      : null;
+    const end = closes ? command.firstPoint : (suggestion?.adjustedEnd || point);
+    const targetPoint = closes ? null : createSketchPoint({ x: end[0].toFixed(3), y: end[1].toFixed(3) });
     const targetPointId = closes ? command.pointIds[0] : targetPoint.id;
-    const end = closes ? command.firstPoint : point;
     let segment;
     let auxiliaryPoint = null;
     let endTangent;
@@ -1393,6 +1397,9 @@ export default function ModelingWorkspace() {
     if (targetPoint) detectionSketch.entities.push(targetPoint);
     if (auxiliaryPoint) detectionSketch.entities.push(auxiliaryPoint);
     detectionSketch.entities.push(segment);
+    const automaticConstraints = sketchOptions.autoConstraints && segment.type === 'line'
+      ? addAutomaticConstraintsForLine(detectionSketch, segment.id, document.parameters)
+      : [];
     const topology = refreshDetectedSketchProfiles(detectionSketch, document.parameters);
     const detectedProfile = topology.profiles.find((profile) => profile.entityIds.includes(segment.id)) || null;
     commit((next) => {
@@ -1400,6 +1407,7 @@ export default function ModelingWorkspace() {
       if (targetPoint) sketch.entities.push(targetPoint);
       if (auxiliaryPoint) sketch.entities.push(auxiliaryPoint);
       sketch.entities.push(segment);
+      sketch.constraints = structuredClone(detectionSketch.constraints || []);
       sketch.profiles = structuredClone(detectionSketch.profiles);
       sketch.diagnostics = structuredClone(detectionSketch.diagnostics || []);
     });
@@ -1417,7 +1425,9 @@ export default function ModelingWorkspace() {
       if (detectedProfile) {
         setSelection({ kind: 'profile', id: detectedProfile.id, sketchId: activeSketchId });
         setNotice('Linia zamknęła obrys. Utworzono profil gotowy do wyciągnięcia.');
-      } else setNotice('Linia została dodana.');
+      } else setNotice(automaticConstraints.length
+        ? `Linia została dodana · automatyczny więz: ${automaticConstraints.map((constraint) => constraint.type === 'horizontal' ? 'poziomo' : constraint.type === 'vertical' ? 'pionowo' : 'zbieżność').join(', ')}.`
+        : 'Linia została dodana.');
       return;
     }
     setCommand((current) => ({
@@ -1425,15 +1435,17 @@ export default function ModelingWorkspace() {
       pointIds: [...current.pointIds, targetPoint.id],
       segmentIds: [...current.segmentIds, segment.id],
       auxiliaryPointIds: [...current.auxiliaryPointIds, auxiliaryPoint?.id || null],
-      points: [...current.points, point],
+      points: [...current.points, end],
       tangents: [...current.tangents, endTangent],
-      lastPoint: point,
+      lastPoint: end,
       lastTangent: endTangent,
       segmentMode: 'line',
       dynamicLength: '',
     }));
     sketchDynamicLengthRef.current = '';
-    setNotice('Segment dodany. Kliknij kolejny punkt, wybierz łuk styczny albo zamknij profil.');
+    setNotice(automaticConstraints.length
+      ? `Segment dodany · automatyczny więz: ${automaticConstraints.map((constraint) => constraint.type === 'horizontal' ? 'poziomo' : constraint.type === 'vertical' ? 'pionowo' : 'zbieżność').join(', ')}.`
+      : 'Segment dodany. Kliknij kolejny punkt, wybierz łuk styczny albo zamknij profil.');
   };
 
   const confirmExactSketchSegment = () => {
@@ -2209,7 +2221,7 @@ export default function ModelingWorkspace() {
         entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, role: entity.role, fixed: entity.fixed, layerId: entity.layerId, color: entity.color, lineType: entity.lineType, lineWeight: entity.lineWeight, projectionReferenceId: entity.projectionReferenceId, pointIds: entity.pointIds, geometry: entity.geometry })),
         profiles: sketch.profiles.length,
         profileIds: sketch.profiles.map((profile) => profile.id),
-        constraints: sketch.constraints.map((constraint) => ({ id: constraint.id, type: constraint.type, value: constraint.value })),
+        constraints: sketch.constraints.map((constraint) => ({ id: constraint.id, type: constraint.type, value: constraint.value, automatic: constraint.automatic })),
         dimensions: sketch.dimensions.map((dimension) => ({ id: dimension.id, type: dimension.type, entityIds: dimension.entityIds, constraintId: dimension.constraintId, expression: dimension.expression })),
         blockInstances: (sketch.blockInstances || []).map((instance) => ({ ...instance, attributes: { ...instance.attributes } })),
       })),
@@ -4022,6 +4034,7 @@ export default function ModelingWorkspace() {
             onSketchPointerMove={(point) => { sketchPointerRef.current = point; }}
             onSketchFinish={readOnly ? undefined : finishCanvasSketchTool}
             sketchDynamicLength={command?.dynamicLength || ''}
+            autoConstraints={sketchOptions.autoConstraints}
             selectedSketchEntityIds={selectedSketchEntityIds}
             lostProjectedEntityIds={lostProjectedEntityIds}
             selectedSketchConstraintId={selectedSketchConstraintId}

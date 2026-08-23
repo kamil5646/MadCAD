@@ -26,6 +26,7 @@
     "verify:layers": "npm run build:ui && electron scripts/verify-layers.cjs",
     "verify:blocks": "npm run build:ui && electron scripts/verify-blocks.cjs",
     "verify:command-customization": "npm run build:ui && electron scripts/verify-command-customization.cjs",
+    "verify:constraint-suggestions": "npm run build:ui && electron scripts/verify-constraint-suggestions.cjs",
     "verify:snap-feedback": "npm run build:ui && electron scripts/verify-snap-feedback.cjs",
     "verify:electron-security": "electron scripts/verify-electron-security.cjs",
     "verify:package": "node scripts/verify-package.cjs",

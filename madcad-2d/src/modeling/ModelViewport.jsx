@@ -9,6 +9,7 @@ import { analyzeSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sket
 import { DEFAULT_SNAP_THRESHOLD_PX, snapSketchPoint } from '../cad-core/sketch-snap.js';
 import { edgeGroupVertices, topologySelectionFromIntersection } from '../cad-core/brep-picking.js';
 import { lineTypeDefinition, resolveEntityAppearance } from '../cad-core/layers.js';
+import { inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-suggestions.js';
 
 const VIEW_DIRECTIONS = {
   iso: [1.25, -1.45, 1.15],
@@ -411,6 +412,7 @@ export default function ModelViewport({
   directManipulator = null,
   snapEnabled = true,
   snapThresholdPx = DEFAULT_SNAP_THRESHOLD_PX,
+  autoConstraints = true,
   bed,
   showBed,
   printLayout,
@@ -439,6 +441,7 @@ export default function ModelViewport({
   const [dragLabel, setDragLabel] = useState(null);
   const [sketchDragLabel, setSketchDragLabel] = useState(null);
   const [sketchDynamicLabel, setSketchDynamicLabel] = useState(null);
+  const [constraintSuggestion, setConstraintSuggestion] = useState(null);
   const [selectionBox, setSelectionBox] = useState(null);
   const [snapFeedback, setSnapFeedback] = useState(null);
   const [selectionFilter, setSelectionFilter] = useState('auto');
@@ -450,6 +453,9 @@ export default function ModelViewport({
   useEffect(() => {
     if (!activeSketchId || !sketchTool || !snapEnabled) setSnapFeedback(null);
   }, [activeSketchId, sketchTool, snapEnabled]);
+  useEffect(() => {
+    if (!activeSketchId || !['line', 'polyline'].includes(sketchTool) || !autoConstraints) setConstraintSuggestion(null);
+  }, [activeSketchId, sketchTool, autoConstraints]);
   const solverAnalysis = useMemo(() => {
     if (!activeSketch) return null;
     try {
@@ -1422,6 +1428,12 @@ export default function ModelViewport({
         if (sketchPreviewLine && polylineDraft?.lastPoint) {
           const deltaX = point[0] - polylineDraft.lastPoint[0];
           const deltaY = point[1] - polylineDraft.lastPoint[1];
+          const suggestion = autoConstraints ? inferLineConstraintSuggestion(polylineDraft.lastPoint, point) : null;
+          setConstraintSuggestion(suggestion ? {
+            ...suggestion,
+            x: event.clientX - rect.left + 34,
+            y: event.clientY - rect.top + 58,
+          } : null);
           setSketchDynamicLabel({
             x: event.clientX - rect.left + 16,
             y: event.clientY - rect.top - 12,
@@ -1755,6 +1767,11 @@ export default function ModelViewport({
           <strong>{sketchDynamicLength || sketchDynamicLabel.distance.toFixed(2)}</strong>
           <span>mm</span>
           <small>{sketchDynamicLabel.angle.toFixed(1)}°</small>
+        </div>
+      )}
+      {constraintSuggestion && activeSketchId && autoConstraints && (
+        <div className="sketch-constraint-suggestion" style={{ left: constraintSuggestion.x, top: constraintSuggestion.y }} data-constraint-suggestion={constraintSuggestion.type} role="status" aria-live="polite">
+          <b>{constraintSuggestion.code}</b><span>{constraintSuggestion.label}</span><small>więz automatyczny</small>
         </div>
       )}
       {snapFeedback && (() => {
