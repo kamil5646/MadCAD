@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import App from './App.jsx';
 import { FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './modeling/AppDialogs.jsx';
-import { CrashRecoveryBanner } from './modeling/ModelingWorkspace.jsx';
+import { CrashRecoveryBanner } from './modeling/WorkspaceOverlays.jsx';
 
 describe('App', () => {
   it('renders the current modeling workspace as the only application interface', () => {

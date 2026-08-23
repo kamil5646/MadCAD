@@ -1,0 +1,364 @@
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { MoreHorizontal } from 'lucide-react';
+import { formatShortcut } from './platform-shortcuts.js';
+
+const TOOL_DESCRIPTIONS = {
+  'Utwórz szkic': 'Wybierz płaszczyznę i rozpocznij rysowanie profilu 2D.',
+  'Prostokąt': 'Narysuj prostokątny profil, klikając środek i punkt rozmiaru.',
+  'Okrąg': 'Narysuj okrąg, klikając środek i punkt promienia.',
+  'Łuk': 'Utwórz dokładny łuk przez trzy punkty albo przez środek, początek i koniec.',
+  'Wielokąt': 'Utwórz regularny wielokąt wpisany, opisany albo z zadanej krawędzi.',
+  'Elipsa': 'Utwórz dokładną, obróconą elipsę z dwóch promieni.',
+  'Slot': 'Utwórz zamknięty slot przez środki łuków albo długość całkowitą.',
+  'Spline': 'Utwórz krzywą przez punkty dopasowania albo punkty kontrolne.',
+  'Conic': 'Utwórz krzywą stożkową przez początek, punkt kontrolny i koniec.',
+  'Punkt': 'Dodaj punkt referencyjny otworu albo punkt konstrukcyjny.',
+  'Linia': 'Utwórz pojedynczy segment przez dwa punkty albo przez dokładną długość i kąt.',
+  'Polilinia': 'Rysuj ciąg segmentów; kliknij punkt początkowy, aby zamknąć profil.',
+  'Łuk styczny': 'Kontynuuj polilinię łukiem stycznym do poprzedniego segmentu.',
+  'Thin Extrude': 'Wyciągnij otwarty łańcuch szkicu jako cienkościenną bryłę.',
+  'Rib/Web': 'Utwórz żebro albo ściankę z otwartego profilu szkicu.',
+  'Pipe': 'Utwórz pusty przewód wzdłuż zaznaczonej otwartej ścieżki.',
+  'Import SVG/DXF': 'Wczytaj geometrię SVG lub DXF bezpośrednio do aktywnego szkicu.',
+  'Import DWG': 'Wybierz plik DWG, przekształć go lokalnie do DXF i dodaj geometrię do aktywnego szkicu.',
+  'Trim': 'Przytnij wskazany fragment krzywej do najbliższych przecięć.',
+  'Extend': 'Przedłuż wskazany koniec krzywej do najbliższej geometrii.',
+  'Break': 'Podziel wskazaną krzywą w wybranym punkcie.',
+  'Przesuń': 'Przesuń zaznaczone punkty lub segmenty przeciągnięciem albo dokładnym ΔX i ΔY.',
+  'Offset': 'Utwórz równoległą kopię zaznaczonej krzywej, łańcucha lub profilu; znak odległości wybiera stronę.',
+  'Fillet szkicu': 'Zaokrąglij wspólny narożnik dokładnie dwóch zaznaczonych linii.',
+  'Faza szkicu': 'Zetnij wspólny narożnik dokładnie dwóch zaznaczonych linii.',
+  'Transformuj': 'Obróć, skopiuj, odbij lub przeskaluj zaznaczoną geometrię szkicu.',
+  'Szyk szkicu': 'Powiel zaznaczoną geometrię w szyku prostokątnym, kołowym albo po ścieżce.',
+  'Project': 'Przenieś wskazane wierzchołki i krawędzie modelu do szkicu jako trwale powiązaną geometrię.',
+  'Usuń': 'Usuń zaznaczoną geometrię oraz bezpiecznie zależne profile i operacje.',
+  'Zakończ szkic': 'Zamknij edycję szkicu i wróć do modelowania bryły.',
+  'Współliniowe': 'Wymuś położenie dwóch wybranych linii na jednej prostej.',
+  'Symetria': 'Utwórz więz symetrii dla wybranej geometrii względem osi.',
+  'Krzywizna G2': 'Nadaj ciągłość krzywizny G2 pomiędzy zgodnymi krzywymi.',
+  'Ordinate X': 'Dodaj wymiar współrzędnej X wybranego punktu.',
+  'Ordinate Y': 'Dodaj wymiar współrzędnej Y wybranego punktu.',
+  'Długość łuku': 'Dodaj sterujący wymiar długości wybranego łuku.',
+  'Wyciągnij': 'Wyciągnij zaznaczony profil w bryłę; możesz też przeciągnąć niebieską strzałkę.',
+  'Revolve': 'Obróć profil wokół wskazanej osi i utwórz bryłę obrotową.',
+  'Sweep': 'Przeciągnij profil wzdłuż osobnej ścieżki szkicu.',
+  'Loft': 'Połącz dwa profile płynną albo odcinkową bryłą przejściową.',
+  'Coil': 'Utwórz parametryczną spiralę lub sprężynę wokół osi.',
+  'Pattern': 'Powiel wybraną bryłę w szyku prostokątnym, kołowym albo po ścieżce.',
+  'Press Pull': 'Wyciągnij lub wciśnij wybrany profil albo płaską ścianę.',
+  'Prymityw': 'Utwórz dokładny box, walec, sferę albo torus.',
+  'Tekst 3D': 'Utwórz tekst jako nową bryłę, wypukłość albo grawer.',
+  'Boolean': 'Połącz, odejmij albo pozostaw część wspólną dwóch wskazanych brył.',
+  'Otwór': 'Wytnij cylindryczny otwór z zaznaczonego profilu okręgu.',
+  'Zaokrąglij': 'Zaokrąglij krawędzie zaznaczonej bryły podanym promieniem.',
+  'Fazuj': 'Zetnij ostre krawędzie zaznaczonej bryły podaną odległością.',
+  'Shell': 'Usuń wskazane ściany i nadaj bryle określoną grubość ścianki.',
+  'Draft': 'Pochyl wskazane ściany względem płaszczyzny neutralnej.',
+  'Split Body': 'Podziel wybraną bryłę wskazaną płaszczyzną.',
+  'Split Face': 'Podziel ścianę geometrią wybranego profilu.',
+  'Delete Face + Heal': 'Usuń wskazane ściany i automatycznie napraw sąsiednią geometrię.',
+  'Replace Face': 'Zastąp jedną ścianę powierzchnią drugiej wskazanej ściany.',
+  'Offset Face': 'Przesuń wskazaną ścianę o dokładną odległość.',
+  'Przesuń bryłę': 'Przesuń wybraną bryłę o dokładny wektor.',
+  'Obróć bryłę': 'Obróć wybraną bryłę o zadany kąt.',
+  'Edytuj': 'Otwórz parametry zaznaczonego szkicu, profilu lub kroku historii.',
+  'Parametry': 'Dodaj i zmień nazwane wymiary sterujące modelem.',
+  'Płaszczyzna offset': 'Utwórz nazwaną płaszczyznę konstrukcyjną w parametrycznej odległości od XY, XZ albo YZ.',
+  'Midplane': 'Utwórz płaszczyznę dokładnie pośrodku dwóch równoległych położeń.',
+  'Plane 3 punkty': 'Utwórz płaszczyznę przechodzącą przez trzy niewspółliniowe punkty 3D.',
+  'Plane angle': 'Utwórz płaszczyznę obróconą o zadany kąt wokół osi.',
+  'Plane tangent': 'Utwórz płaszczyznę styczną do walca albo sfery.',
+  'Plane path': 'Utwórz płaszczyznę prostopadłą do ścieżki w zadanym punkcie.',
+  'Oś z krawędzi': 'Utwórz trwałą oś z wybranej prostej krawędzi albo jej końców.',
+  'Oś walca': 'Utwórz oś walca lub cylindrycznej ściany ze środka i kierunku.',
+  'Oś 2 punkty': 'Utwórz parametryczną oś przechodzącą przez dwa punkty 3D.',
+  'Oś przecięcia': 'Utwórz oś na linii przecięcia dwóch nazwanych płaszczyzn konstrukcyjnych.',
+  'Oś normalna': 'Utwórz oś prostopadłą do wybranej płaszczyzny.',
+  'Punkt wierzchołka': 'Utwórz punkt śledzący trwały wierzchołek bryły albo dokładne współrzędne.',
+  'Punkt centrum': 'Utwórz punkt w centrum wybranej krawędzi, ściany lub walca.',
+  'Punkt przecięcia': 'Utwórz punkt w dokładnym przecięciu osi konstrukcyjnej z płaszczyzną.',
+  'Punkt środkowy': 'Utwórz punkt dokładnie pośrodku dwóch zadanych punktów.',
+  'Punkt na osi': 'Utwórz punkt w podanej odległości wzdłuż osi konstrukcyjnej.',
+  'Otwórz': 'Wczytaj zapisany projekt MadCAD z dysku.',
+  'Wybierz': 'Wyczyść zaznaczenie i wróć do trybu wyboru obiektów.',
+  'STL': 'Eksportuj siatkę gotową do programu przygotowującego druk 3D.',
+  'STEP': 'Eksportuj dokładną bryłę B-Rep do wymiany z innymi programami CAD.',
+  '3MF': 'Eksportuj model i jego jednostki do archiwum 3MF.',
+  'Import 3D': 'Wczytaj model STEP, STL albo 3MF do bieżącego projektu.',
+  'Druk 3D': 'Otwórz kontrolę gabarytów i ustawień eksportu do druku 3D.',
+  'Kontrola druku': 'Sprawdź, czy model mieści się na stole drukarki.',
+  'Zmierz': 'Pokaż dokładne wymiary zaznaczonej bryły, ściany, krawędzi, wierzchołka albo pary elementów.',
+  'Przekrój': 'Włącz interaktywną płaszczyznę przekroju bez zmiany historii modelu.',
+  'Masa': 'Oblicz objętość, pole, masę i środek masy dla zadanej gęstości materiału.',
+  'Analiza': 'Sprawdź minimalny promień oraz dokładne kolizje pomiędzy bryłami.',
+};
+
+const TOOL_SHORTCUTS = Object.freeze({
+  'Linia': 'L',
+  'Polilinia': 'PL',
+  'Prostokąt': 'R',
+  'Okrąg': 'C',
+  'Trim': 'T',
+  'Extend': 'EX',
+  'Break': 'BR',
+  'Offset': 'O',
+  'Fillet szkicu': 'F',
+  'Faza szkicu': 'CHA',
+  'Zaokrąglij': 'F',
+  'Fazuj': 'CHA',
+  'Project': 'P',
+  'Przesuń': 'M',
+  'Przesuń bryłę': 'M',
+  'Zmierz': 'I',
+  'Usuń': 'DEL',
+  'Wyciągnij': 'E',
+});
+
+const TOOL_COLOR_GROUPS = Object.freeze({
+  sketch: new Set(['Utwórz szkic', 'Linia', 'Polilinia', 'Łuk styczny', 'Łuk', 'Prostokąt', 'Okrąg', 'Wielokąt', 'Elipsa', 'Slot', 'Spline', 'Conic', 'Punkt', 'Zakończ szkic']),
+  solid: new Set(['Wyciągnij', 'Thin Extrude', 'Rib/Web', 'Pipe', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Pattern', 'Press Pull', 'Prymityw', 'Tekst 3D', 'Boolean', 'Otwór']),
+  edit: new Set(['Trim', 'Extend', 'Break', 'Offset', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu', 'Przesuń', 'Zaokrąglij', 'Fazuj', 'Shell', 'Draft', 'Split Body', 'Split Face', 'Replace Face', 'Offset Face', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj']),
+  reference: new Set(['Project', 'Współliniowe', 'Symetria', 'Krzywizna G2', 'Ordinate X', 'Ordinate Y', 'Długość łuku', 'Płaszczyzna offset', 'Midplane', 'Plane 3 punkty', 'Plane angle', 'Plane tangent', 'Plane path', 'Oś z krawędzi', 'Oś walca', 'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum', 'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi']),
+  inspect: new Set(['Parametry', 'Zmierz', 'Przekrój', 'Masa', 'Analiza', 'Wybierz']),
+  output: new Set(['Import SVG/DXF', 'Import DWG', 'Import 3D', 'STEP', 'STL', '3MF', 'Kontrola druku']),
+  destructive: new Set(['Usuń', 'Delete Face + Heal']),
+});
+
+const TOOL_GROUP_HUES = Object.freeze({ sketch: 190, solid: 218, edit: 38, reference: 166, inspect: 274, output: 138, destructive: 356, neutral: 208 });
+const FEATURED_TOOL_LABELS = new Set(['Utwórz szkic', 'Linia', 'Wyciągnij', 'Wybierz', 'Trim', 'Zakończ szkic', 'Parametry', 'STEP']);
+
+function toolColorStyle(label) {
+  const group = Object.entries(TOOL_COLOR_GROUPS).find(([, labels]) => labels.has(label))?.[0] || 'neutral';
+  const hue = TOOL_GROUP_HUES[group];
+  return {
+    '--tool-accent': `hsl(${hue} 84% 68%)`,
+  };
+}
+
+export const ToolHelpContext = React.createContext(null);
+
+function shortcutLabel(shortcut) {
+  return formatShortcut(shortcut, window.desktopApp?.platform);
+}
+
+
+function ToolGlyph({ icon: Icon, compact = false }) {
+  const size = compact ? 18 : 25;
+  return (
+    <span className="ribbon-glyph">
+      <Icon className="ribbon-glyph-depth" size={size} strokeWidth={2.7} fill="currentColor" fillOpacity={0.32} aria-hidden="true" />
+      <Icon className="ribbon-glyph-face" size={size} strokeWidth={1.8} fill="currentColor" fillOpacity={0.24} aria-hidden="true" />
+    </span>
+  );
+}
+
+export function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = false, compact = false, title, description }) {
+  const help = description || title || TOOL_DESCRIPTIONS[label] || label;
+  const shortcut = TOOL_SHORTCUTS[label] || null;
+  const featured = FEATURED_TOOL_LABELS.has(label);
+  const toolHelp = React.useContext(ToolHelpContext);
+  useEffect(() => {
+    if (!shortcut || ['ESC', 'DEL', 'CTRL+ENTER'].includes(shortcut)) return undefined;
+    return toolHelp?.registerShortcut(shortcut, { label, onClick, disabled });
+  }, [disabled, label, onClick, shortcut, toolHelp]);
+  const showHelp = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    toolHelp?.setToolHelp({
+      label,
+      help,
+      shortcut: shortcut ? shortcutLabel(shortcut) : null,
+      x: Math.min(window.innerWidth - 184, Math.max(184, rect.left + (rect.width / 2))),
+      y: rect.bottom + 8,
+    });
+  };
+  return (
+    <span className={`ribbon-tool-wrap ${featured ? 'featured' : ''}`} onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
+      <button
+        className={`ribbon-tool ${featured ? 'featured' : ''} ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
+        style={toolColorStyle(label)}
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        title={`${help}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`}
+        aria-label={`${label}. ${help}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`}
+      >
+        <span className="ribbon-icon" aria-hidden="true"><ToolGlyph icon={Icon} compact={compact} /></span>
+        <span className="ribbon-label">{label}</span>
+      </button>
+    </span>
+  );
+}
+
+export const RibbonGroup = React.forwardRef(function RibbonGroup({ children, end = false, hidden = false, label }, ref) {
+  return (
+    <div ref={ref} className={`ribbon-group ${end ? 'ribbon-group-end' : ''}`} role="group" aria-label={label} hidden={hidden}>
+      <div className="ribbon-group-heading">{label}</div>
+      <div className="ribbon-tools">{children}</div>
+    </div>
+  );
+});
+
+function flattenRibbonGroups(children) {
+  const groups = [];
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return;
+    if (child.type === React.Fragment) groups.push(...flattenRibbonGroups(child.props.children));
+    else groups.push(child);
+  });
+  return groups;
+}
+
+export function calculateVisibleRibbonGroups(widths, availableWidth, stickyIndices = [], overflowWidth = 78) {
+  const sticky = new Set(stickyIndices);
+  const normalIndices = widths.map((_, index) => index).filter((index) => !sticky.has(index));
+  const stickyWidth = stickyIndices.reduce((total, index) => total + (widths[index] || 0), 0);
+  const fullWidth = widths.reduce((total, width) => total + width, 0);
+  if (fullWidth <= availableWidth) return { visible: normalIndices, hidden: [] };
+
+  const budget = Math.max(0, availableWidth - stickyWidth - overflowWidth);
+  const visible = [];
+  let used = 0;
+  for (const index of normalIndices) {
+    const width = widths[index] || 0;
+    if (used + width > budget) break;
+    visible.push(index);
+    used += width;
+  }
+  return { visible, hidden: normalIndices.filter((index) => !visible.includes(index)) };
+}
+
+function RibbonOverflowTool({ tool, onSelect }) {
+  if (!React.isValidElement(tool)) return null;
+  const { disabled = false, icon: Icon, label, onClick, description, title } = tool.props;
+  const help = description || title || TOOL_DESCRIPTIONS[label] || label;
+  return (
+    <button
+      className="ribbon-overflow-tool"
+      style={toolColorStyle(label)}
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      title={help}
+      onClick={(event) => {
+        onClick?.(event);
+        onSelect();
+      }}
+    >
+      {Icon && <span className="ribbon-overflow-icon" aria-hidden="true"><ToolGlyph icon={Icon} compact /></span>}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function RibbonOverflow({ groups }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (event) => {
+      if (!menuRef.current?.contains(event.target)) setOpen(false);
+    };
+    const closeWithEscape = (event) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', closeWithEscape);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', closeWithEscape);
+    };
+  }, [open]);
+  if (!groups.length) return null;
+  return (
+    <div className="ribbon-overflow" ref={menuRef}>
+      <button
+        className={`ribbon-overflow-trigger ${open ? 'active' : ''}`}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Pokaż pozostałe narzędzia"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <MoreHorizontal size={20} aria-hidden="true" />
+        <span>Więcej</span>
+      </button>
+      {open && (
+        <div className={`ribbon-overflow-menu ${groups.length === 1 ? 'single-group' : ''}`} role="menu" aria-label="Pozostałe narzędzia">
+          {groups.map((group, groupIndex) => (
+            <section className="ribbon-overflow-section" key={`${group.props.label}-${groupIndex}`} role="none">
+              <strong>{group.props.label}</strong>
+              <div>
+                {React.Children.map(group.props.children, (tool) => (
+                  <RibbonOverflowTool tool={tool} onSelect={() => setOpen(false)} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ResponsiveRibbon({ children }) {
+  const groups = flattenRibbonGroups(children);
+  const groupSignature = groups.map((group) => `${group.props.label}:${group.props.end ? '1' : '0'}`).join('|');
+  const groupCount = groups.length;
+  const stickyKey = groups.map((group, index) => (group.props.end ? index : -1)).filter((index) => index >= 0).join(',');
+  const containerRef = useRef(null);
+  const groupRefs = useRef([]);
+  const measuredWidths = useRef([]);
+  const [layout, setLayout] = useState({ visible: groups.map((_, index) => index), hidden: [] });
+
+  useLayoutEffect(() => {
+    measuredWidths.current = [];
+    setLayout({ visible: Array.from({ length: groupCount }, (_, index) => index), hidden: [] });
+  }, [groupCount, groupSignature]);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+    const update = () => {
+      groupRefs.current.forEach((node, index) => {
+        if (!node) return;
+        const width = Math.ceil(node.getBoundingClientRect().width);
+        if (width > 0) measuredWidths.current[index] = width;
+      });
+      if (measuredWidths.current.length < groupCount || measuredWidths.current.some((width) => !width)) return;
+      const stickyIndices = stickyKey ? stickyKey.split(',').map(Number) : [];
+      const next = calculateVisibleRibbonGroups(measuredWidths.current, container.clientWidth, stickyIndices);
+      setLayout((current) => (
+        current.visible.join(',') === next.visible.join(',') && current.hidden.join(',') === next.hidden.join(',')
+          ? current
+          : next
+      ));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(container);
+    groupRefs.current.forEach((node) => { if (node) observer.observe(node); });
+    return () => observer.disconnect();
+  }, [groupCount, groupSignature, stickyKey]);
+
+  const stickyIndices = new Set(stickyKey ? stickyKey.split(',').map(Number) : []);
+  const visibleIndices = new Set(layout.visible);
+  const hiddenGroups = layout.hidden.map((index) => groups[index]);
+  return (
+    <div ref={containerRef} className="modeling-ribbon" role="toolbar" aria-label="Narzędzia aktywnego obszaru roboczego" tabIndex="0">
+      <div className="ribbon-visible-groups">
+        {groups.map((group, index) => stickyIndices.has(index) ? null : React.cloneElement(group, {
+          key: group.key || `${group.props.label}-${index}`,
+          ref: (node) => { groupRefs.current[index] = node; },
+          hidden: !visibleIndices.has(index),
+        }))}
+      </div>
+      <RibbonOverflow groups={hiddenGroups} />
+      <div className="ribbon-sticky-groups">
+        {groups.map((group, index) => stickyIndices.has(index) ? React.cloneElement(group, {
+          key: `sticky-${group.key || `${group.props.label}-${index}`}`,
+          ref: (node) => { groupRefs.current[index] = node; },
+        }) : null)}
+      </div>
+    </div>
+  );
+}

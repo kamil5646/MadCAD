@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateVisibleRibbonGroups } from './ModelingWorkspace.jsx';
+import { calculateVisibleRibbonGroups } from './WorkspaceRibbon.jsx';
 
 describe('responsive ribbon layout', () => {
   it('keeps every regular group visible when all groups fit', () => {
