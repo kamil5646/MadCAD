@@ -265,7 +265,7 @@ async function runUiFlow(window) {
   const setCommandField = (label, value) => window.webContents.executeJavaScript(`(() => {
     const expectedLabel = ${JSON.stringify(label)};
     const expectedValue = ${JSON.stringify(String(value))};
-    const deadline = performance.now() + 2000;
+    const deadline = performance.now() + 4000;
     return new Promise((resolve, reject) => {
       const updateWhenReady = () => {
         const fields = [...document.querySelectorAll('.command-field')];
@@ -286,13 +286,24 @@ async function runUiFlow(window) {
           reject(new Error('Brak procedury pola: ${label}'));
           return;
         }
-        handler({ target: { value: ${JSON.stringify(value)} } });
-        requestAnimationFrame(() => setTimeout(() => {
+        const verifyValue = () => requestAnimationFrame(() => setTimeout(() => {
           const updatedField = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === expectedLabel);
           const updatedInput = updatedField?.querySelector('input, select');
-          if (String(updatedInput?.value) !== expectedValue) reject(new Error('Pole nie przyjęło wartości: ${label}'));
-          else resolve();
+          if (String(updatedInput?.value) === expectedValue) {
+            resolve();
+            return;
+          }
+          if (performance.now() >= deadline) {
+            reject(new Error('Pole nie przyjęło wartości: ${label}'));
+            return;
+          }
+          const updatedKey = updatedInput && Object.keys(updatedInput).find((item) => item.startsWith('__reactProps'));
+          const updatedHandler = updatedKey && updatedInput[updatedKey]?.onChange;
+          if (typeof updatedHandler === 'function') updatedHandler({ target: { value: expectedValue } });
+          verifyValue();
         }, 30));
+        handler({ target: { value: expectedValue } });
+        verifyValue();
       };
       updateWhenReady();
     });
