@@ -31,11 +31,15 @@
     "start": "npm run build:ui && env -u ELECTRON_RUN_AS_NODE electron .",
     "dist": "npm run build:ui && electron-builder --mac dir --win nsis --x64",
     "dist:mac": "npm run build:ui && electron-builder --mac dir",
-    "dist:mac:trusted": "npm run build:ui && electron-builder --mac zip --arm64 --publish never",
-    "dist:win:trusted": "npm run build:ui && electron-builder --win nsis --x64 --publish never",
+    "dist:mac:trusted": "npm run dist:mac:unsigned",
+    "dist:mac:unsigned": "npm run build:ui && electron-builder --mac dmg zip --arm64 --publish never",
+    "dist:mac:dmg": "npm run build:ui && electron-builder --mac dmg --arm64 --publish never",
+    "dist:win:trusted": "npm run dist:win:unsigned",
+    "dist:win:unsigned": "npm run build:ui && electron-builder --win nsis zip --x64 --publish never",
+    "dist:win:portable": "npm run build:ui && electron-builder --win zip --x64 --publish never",
     "dist:linux:trusted": "npm run build:ui && electron-builder --linux AppImage --x64 --publish never",
     "dist:release:trusted": "npm run dist:mac:trusted && npm run dist:win:trusted && npm run dist:linux:trusted",
-    "dist:win": "npm run build:ui && electron-builder --win nsis --x64",
+    "dist:win": "npm run dist:win:unsigned",
     "dist:dir": "npm run build:ui && electron-builder --dir"
   },
   "devDependencies": {
@@ -85,6 +89,7 @@
     ],
     "mac": {
       "target": [
+        "dmg",
         "zip"
       ],
       "icon": "assets/icons/madcad.icns",
@@ -96,7 +101,8 @@
     },
     "win": {
       "target": [
-        "nsis"
+        "nsis",
+        "zip"
       ],
       "icon": "assets/icons/madcad.ico"
     },
@@ -109,10 +115,15 @@
       "syncDesktopName": true
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "MadCAD",
+      "uninstallDisplayName": "MadCAD",
+      "deleteAppDataOnUninstall": false
     },
     "afterSign": "scripts/notarize.js"
   },

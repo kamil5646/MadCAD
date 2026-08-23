@@ -40,7 +40,7 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 ## Szybki start
 
 1. Pobierz paczkę dla swojego systemu z [Releases](https://github.com/kamil5646/MadCAD2D/releases/latest).
-2. Uruchom instalator Windows, rozpakuj aplikację macOS albo nadaj pobranemu AppImage prawo uruchomienia na Linux.
+2. Windows: uruchom polecany instalator jednym kliknięciem albo rozpakuj przenośny ZIP. macOS: otwórz polecany DMG i przeciągnij MadCAD do Aplikacji. Linux: nadaj AppImage prawo uruchomienia.
 3. Wybierz **Utwórz szkic**, wskaż płaszczyznę i zacznij rysować.
 4. Najedź na funkcję, aby zobaczyć opis; skrót podstawowego narzędzia pojawi się w podpowiedzi, a nie na przycisku.
 
@@ -89,10 +89,14 @@ npm run verify:electron-security
 Budowanie paczek:
 
 ```bash
-npm run dist:mac:trusted
-npm run dist:win:trusted
+npm run dist:mac:unsigned
+npm run dist:mac:dmg
+npm run dist:win:unsigned
+npm run dist:win:portable
 npm run dist:linux:trusted
 ```
+
+Dokładna instrukcja uruchomienia niepodpisanych paczek: [INSTALL.md](./INSTALL.md).
 
 ## Struktura repozytorium
 

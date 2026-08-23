@@ -46,8 +46,10 @@ kontrolę responsywności.
 ## Budowanie
 
 ```bash
-npm run dist:mac:trusted
-npm run dist:win:trusted
+npm run dist:mac:unsigned
+npm run dist:mac:dmg
+npm run dist:win:unsigned
+npm run dist:win:portable
 npm run dist:linux:trusted
 ```
 
@@ -59,6 +61,14 @@ sprawdza format paczki i wykonuje testy na Windows, macOS oraz Linux.
 > oficjalnego GitHub Release i porównaj dołączoną sumę SHA-256. Aktualizacja tej
 > wersja aktualizatora pobiera jednak paczkę z oficjalnego wydania, sprawdza
 > sumę SHA-256 i otwiera ją do dokończenia instalacji w systemie.
+
+Windows otrzymuje dwa warianty: instalator jednym kliknięciem działający na
+koncie użytkownika bez uprawnień administratora oraz przenośną paczkę ZIP,
+która nie wymaga instalacji.
+
+macOS otrzymuje polecany obraz DMG z przeciągnięciem MadCAD do Aplikacji oraz
+awaryjną paczkę ZIP. Przy pierwszym uruchomieniu niepodpisanej aplikacji należy
+użyć `Control` + klik i wybrać **Otwórz**.
 
 ## Wersje i aktualizacje
 

@@ -1434,6 +1434,7 @@ test('kanały aktualizacji respektują semver, zaufane hosty i integralność SH
     { name: 'MadCAD-6.2.0-mac-arm64.zip', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-mac-arm64.zip' },
     { name: 'MadCAD-6.2.0-mac-arm64.zip.sha256', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-mac-arm64.zip.sha256' },
     { name: 'MadCAD-6.2.0-mac-x64.zip', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-mac-x64.zip' },
+    { name: 'MadCAD-6.2.0-win-x64-portable.exe', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-win-x64-portable.exe' },
     { name: 'MadCAD-6.2.0-win-x64.exe', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-win-x64.exe' },
     { name: 'MadCAD-6.2.0-linux-x86_64.AppImage', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-linux-x86_64.AppImage' },
   ];

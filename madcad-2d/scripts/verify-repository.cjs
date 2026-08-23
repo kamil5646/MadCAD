@@ -30,6 +30,9 @@ expectText(site, /licencja bezterminowa na stanowisko/, 'licencja stanowiskowa n
 expectText(site, /mailto:kkasprzak15@icloud\.com/, 'zakup licencji na stronie');
 expectText(site, /paczki 6\.3\.0 są publikowane bez podpisu producenta/, 'ostrzeżenie o niepodpisanym wydaniu 6.3.0');
 expectText(site, /Linux · x64/, 'oficjalna paczka Linux na stronie');
+expectText(site, /data-release-asset="windows-installer"/, 'bezpośredni instalator Windows na stronie');
+expectText(site, /data-release-asset="windows-portable"/, 'przenośna paczka Windows na stronie');
+expectText(site, /data-release-asset="mac-dmg"/, 'bezpośredni obraz DMG na stronie');
 rejectText(site, /license-registry|issue-private|token-admin|generatePrivateToken/i, 'stary system tokenów na stronie');
 
 const rootReadme = read('README.md');
@@ -72,6 +75,17 @@ expectText(releaseWorkflow, /MADCAD_REQUIRE_SIGNATURE:\s*'0'/, 'wyłączony wym�
 expectText(releaseWorkflow, /Ważne — wydanie bez podpisu producenta/, 'ostrzeżenie w GitHub Release');
 expectText(releaseWorkflow, /MADCAD_REQUIRE_CHECKSUM:\s*'1'/, 'obowiązkowa suma SHA-256 wydania');
 expectText(releaseWorkflow, /electron-builder --linux AppImage --x64/, 'oficjalny build Linux AppImage');
+expectText(releaseWorkflow, /electron-builder --win nsis zip --x64/, 'instalator i przenośna paczka Windows');
+expectText(releaseWorkflow, /electron-builder --mac dmg zip --arm64/, 'obraz DMG i awaryjny ZIP dla macOS');
+if (packageJson.build?.nsis?.oneClick !== true || packageJson.build?.nsis?.perMachine !== false || packageJson.build?.nsis?.allowElevation !== false) {
+  throw new Error('Niepodpisany instalator Windows ma działać jednym kliknięciem, bez administratora.');
+}
+if (!Array.isArray(packageJson.build?.win?.target) || !packageJson.build.win.target.includes('zip')) {
+  throw new Error('Brak przenośnej paczki ZIP dla Windows.');
+}
+if (!Array.isArray(packageJson.build?.mac?.target) || !packageJson.build.mac.target.includes('dmg')) {
+  throw new Error('Brak łatwego obrazu DMG dla macOS.');
+}
 
 const codeqlWorkflow = read('.github/workflows/codeql.yml');
 expectText(codeqlWorkflow, /github\/codeql-action\/analyze@[a-f0-9]{40}/, 'przypięta analiza CodeQL');
