@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 6.3.2 (2026-08-23)
+
 - Uproszczono instalację bez certyfikatów: Windows otrzymuje instalator jednym kliknięciem bez uprawnień administratora i przenośny ZIP, a macOS polecany obraz DMG z przeciągnięciem aplikacji oraz awaryjny ZIP. Strona pobierania prowadzi bezpośrednio do właściwych paczek.
 - Przebudowano wstążkę w stylu Worda i klasycznego AutoCAD-a: małe nazwy grup znajdują się na dole, sekcje rozdzielają lekkie pionowe linie, a druk 3D jest wyraźnie opisany jako dodatek.
 - Usunięto kafelki nagłówków, panelowe gradienty oraz ciężkie ramki i cienie przycisków. Narzędzia mają płaski stan normalny, czytelne podświetlenie po najechaniu i bardziej warstwowe, kolorowe ikony.

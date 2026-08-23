@@ -12,7 +12,7 @@ const rejectText = (source, pattern, label) => {
 };
 
 const packageJson = JSON.parse(read('madcad-2d/package.json'));
-if (packageJson.version !== '6.3.0') throw new Error(`Wersja stabilna musi wynosić 6.3.0, jest ${packageJson.version}.`);
+if (packageJson.version !== '6.3.2') throw new Error(`Wersja stabilna musi wynosić 6.3.2, jest ${packageJson.version}.`);
 
 const license = read('LICENSE');
 const packagedLicense = read('madcad-2d/LICENSE');
@@ -28,7 +28,7 @@ expectText(site, /Oficjalne wydanie 6\.3/, 'stabilne wydanie na stronie');
 expectText(site, /40 dni bezpłatnej oceny/, 'ocena komercyjna na stronie');
 expectText(site, /licencja bezterminowa na stanowisko/, 'licencja stanowiskowa na stronie');
 expectText(site, /mailto:kkasprzak15@icloud\.com/, 'zakup licencji na stronie');
-expectText(site, /paczki 6\.3\.0 są publikowane bez podpisu producenta/, 'ostrzeżenie o niepodpisanym wydaniu 6.3.0');
+expectText(site, /paczki 6\.3\.2 są publikowane bez podpisu producenta/, 'ostrzeżenie o niepodpisanym wydaniu 6.3.2');
 expectText(site, /Linux · x64/, 'oficjalna paczka Linux na stronie');
 expectText(site, /data-release-asset="windows-installer"/, 'bezpośredni instalator Windows na stronie');
 expectText(site, /data-release-asset="windows-portable"/, 'przenośna paczka Windows na stronie');
@@ -36,7 +36,7 @@ expectText(site, /data-release-asset="mac-dmg"/, 'bezpośredni obraz DMG na stro
 rejectText(site, /license-registry|issue-private|token-admin|generatePrivateToken/i, 'stary system tokenów na stronie');
 
 const rootReadme = read('README.md');
-expectText(rootReadme, /Uwaga o wydaniu 6\.3\.0/, 'ostrzeżenie wydania w README');
+expectText(rootReadme, /Uwaga o wydaniu 6\.3\.2/, 'ostrzeżenie wydania w README');
 expectText(rootReadme, /Importuj DWG/, 'lokalny import DWG w README');
 const firstPart = read('madcad-2d/FIRST_PART.md');
 expectText(firstPart, /DWG jest konwertowany lokalnie/, 'lokalny przepływ DWG w samouczku');
@@ -51,7 +51,7 @@ const appDialogs = read('madcad-2d/src/modeling/AppDialogs.jsx');
 expectText(appDialogs, /oceniać pełną wersję przez 40 dni/, 'ocena w oknie aplikacji');
 expectText(appDialogs, /bezterminowej licencji na każde stanowisko/, 'licencja stanowiskowa w aplikacji');
 expectText(appDialogs, /fullLicenseText/, 'lokalna pełna licencja w aplikacji');
-expectText(appDialogs, /Wydanie 6\.3\.0 nie ma podpisu producenta/, 'ostrzeżenie o podpisie w aplikacji');
+expectText(appDialogs, /Wydanie 6\.3\.2 nie ma podpisu producenta/, 'ostrzeżenie o podpisie w aplikacji');
 
 const preload = read('madcad-2d/electron/preload.js');
 const main = read('madcad-2d/electron/main.js');
