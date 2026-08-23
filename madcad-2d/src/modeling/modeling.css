@@ -817,22 +817,17 @@
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: 252px minmax(0, 1fr);
+  grid-template-areas: "browser stage command print";
+  grid-template-columns: var(--browser-column, 0) minmax(0, 1fr) var(--command-column, 0) var(--print-column, 0);
 }
 
-.modeling-content.with-print-panel {
-  grid-template-columns: 252px minmax(0, 1fr) 286px;
-}
-
-.modeling-content.without-browser {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.modeling-content.without-browser.with-print-panel {
-  grid-template-columns: minmax(0, 1fr) 286px;
+.modeling-content.command-dock-left {
+  grid-template-areas: "browser command stage print";
+  grid-template-columns: var(--browser-column, 0) var(--command-column, 0) minmax(0, 1fr) var(--print-column, 0);
 }
 
 .model-browser {
+  grid-area: browser;
   min-width: 0;
   overflow: auto;
   border-right: 1px solid #202833;
@@ -957,6 +952,10 @@
   position: relative;
   min-width: 0;
   min-height: 0;
+}
+
+.modeling-stage {
+  grid-area: stage;
 }
 
 .model-viewport {
@@ -2069,6 +2068,69 @@
   overflow: visible;
 }
 
+.command-dialog.docked {
+  position: relative;
+  z-index: 5;
+  grid-area: command;
+  top: auto;
+  left: auto;
+  width: auto;
+  height: 100%;
+  max-height: none;
+  border-width: 0 0 0 1px;
+  border-color: #202833;
+  border-radius: 0;
+  overflow: auto;
+  box-shadow: none;
+}
+
+.command-dialog.docked.dock-left {
+  border-width: 0 1px 0 0;
+}
+
+.command-dialog.docked.sketch-path-dialog {
+  width: auto;
+  overflow: auto;
+}
+
+.dock-panel-actions {
+  display: flex !important;
+  flex: 0 0 auto;
+  grid-auto-flow: column;
+  gap: 1px !important;
+}
+
+.command-dialog.docked.collapsed,
+.print-panel.collapsed {
+  overflow: hidden;
+}
+
+.command-dialog.docked.collapsed > header,
+.print-panel.collapsed > header {
+  width: 38px;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 5px 4px 8px;
+  border-bottom: 0;
+}
+
+.command-dialog.docked.collapsed > header strong,
+.print-panel.collapsed > header strong {
+  order: 2;
+  color: #c9d3dc;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  writing-mode: vertical-rl;
+}
+
+.command-dialog.docked.collapsed > header .dock-panel-actions,
+.print-panel.collapsed > header .dock-panel-actions {
+  order: 1;
+}
+
 .sketch-path-dialog .command-dialog-body {
   padding: 6px 8px;
 }
@@ -2595,6 +2657,7 @@
 }
 
 .print-panel {
+  grid-area: print;
   min-width: 0;
   overflow: auto;
   border-left: 1px solid #202833;
@@ -3075,22 +3138,6 @@
 }
 
 @media (max-width: 1180px) {
-  .modeling-content,
-  .modeling-content.with-print-panel {
-    grid-template-columns: 226px minmax(0, 1fr);
-  }
-
-  .print-panel {
-    position: absolute;
-    z-index: 6;
-    top: 138px;
-    right: 0;
-    bottom: 35px;
-    width: 286px;
-  }
-
-  .timeline-empty .print-panel { bottom: 1px; }
-
   .workspace-tabs button {
     padding: 0 8px;
   }
@@ -3104,15 +3151,5 @@
   .ribbon-overflow-menu {
     width: min(340px, calc(100vw - 16px));
     grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 1180px) {
-  .modeling-content.without-browser {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .modeling-content.without-browser.with-print-panel {
-    grid-template-columns: minmax(0, 1fr);
   }
 }

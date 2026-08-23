@@ -20,6 +20,7 @@
     "verify:start-experience": "npm run build:ui && electron scripts/verify-start-experience.cjs",
     "verify:ribbon": "npm run build:ui && electron scripts/verify-ribbon-overflow.cjs",
     "verify:command-line": "npm run build:ui && electron scripts/verify-command-line.cjs",
+    "verify:panels": "npm run build:ui && electron scripts/verify-docked-panels.cjs",
     "verify:snap-feedback": "npm run build:ui && electron scripts/verify-snap-feedback.cjs",
     "verify:electron-security": "electron scripts/verify-electron-security.cjs",
     "verify:package": "node scripts/verify-package.cjs",

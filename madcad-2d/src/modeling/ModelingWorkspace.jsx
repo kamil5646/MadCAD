@@ -28,7 +28,9 @@ import {
   MousePointer2,
   Move,
   Move3d,
+  PanelLeft,
   PanelLeftClose,
+  PanelRight,
   PencilRuler,
   Printer,
   Redo2,
@@ -122,6 +124,7 @@ import { observeModelingLocalization, resolveModelingLanguage } from './i18n.js'
 import { FirstPartTutorial, FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './AppDialogs.jsx';
 import { CommandLine } from './CommandLine.jsx';
 import { parseCommandLineInput } from './command-controller.js';
+import { isDockableCommand, panelScreenKey, readPanelLayout, writePanelLayout } from './panel-layout.js';
 import {
   AUTOSAVE_KEY,
   clearLocalAutosave,
@@ -916,8 +919,8 @@ function SketchDimensionDialog({ command, onChange, onConfirm, onCancel }) {
   );
 }
 
-function CommandDialog({ command, profileName, onChange, onConfirm, onConfirmDynamic, onCancel, onUndoSegment, onFinishPath }) {
-  if (!command || command.type === 'plane' || command.type === 'parameters' || command.type === 'measure' || command.type === 'sectionAnalysis' || command.type === 'massProperties' || command.type === 'geometryInspection' || command.type === 'sketchDimension' || ['trimSketch', 'extendSketch', 'breakSketch', 'projectSketch'].includes(command.type)) return null;
+function CommandDialog({ command, profileName, collapsed, dock, onChange, onConfirm, onConfirmDynamic, onCancel, onUndoSegment, onFinishPath, onToggleCollapsed, onToggleDock }) {
+  if (!isDockableCommand(command)) return null;
   const isRectangle = command.type === 'rectangle';
   const isCircle = command.type === 'circle';
   const isArc = command.type === 'arc';
@@ -970,8 +973,16 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onConfirmDyn
   const pointTitles = { vertex: 'Punkt na wierzchołku', center: 'Punkt środka', intersection: 'Punkt przecięcia', midpoint: 'Punkt środkowy', 'on-axis': 'Punkt na osi' };
   const title = isRectangle ? 'Prostokąt' : isCircle ? 'Okrąg' : isArc ? 'Łuk' : isPolygon ? 'Wielokąt regularny' : isEllipse ? 'Elipsa' : isSlot ? 'Slot' : isSpline ? 'Spline' : isConic ? 'Krzywa conic' : isPoint ? 'Punkt szkicu' : isExtrude ? 'Wyciągnięcie' : isRevolve ? 'Revolve' : isSweep ? 'Sweep' : isLoft ? 'Loft' : isRib ? 'Rib/Web' : isCoil ? 'Coil' : isPipe ? 'Pipe' : isPattern ? 'Pattern' : isBoolean ? 'Boolean' : isPrimitive ? 'Prymityw 3D' : isTransform ? (command.mode === 'rotate' ? 'Obróć bryłę' : 'Przesuń bryłę') : isOffsetFace ? 'Offset Face' : isTextSolid ? 'Tekst 3D' : isHole ? 'Otwór' : isFillet ? 'Zaokrąglenie' : isShell ? 'Shell' : isDraftFeature ? 'Draft' : isSplitBody ? 'Split Body' : isSplitFace ? 'Split Face' : isDeleteFace ? 'Delete Face + Heal' : isReplaceFace ? 'Replace Face' : command.type === 'line' ? 'Linia' : command.type === 'polyline' ? 'Polilinia' : isSketchMove ? 'Przesuń geometrię' : isSketchOffset ? 'Offset szkicu' : isSketchCorner ? (command.mode === 'fillet' ? 'Fillet szkicu' : 'Chamfer szkicu') : isSketchTransform ? 'Transformuj szkic' : isSketchPattern ? 'Szyk szkicu' : isOffsetPlane ? 'Płaszczyzna odsunięta' : isMidplane ? 'Płaszczyzna środkowa' : isThreePointPlane ? 'Płaszczyzna przez trzy punkty' : isAnglePlane ? 'Płaszczyzna pod kątem' : isTangentPlane ? 'Płaszczyzna styczna' : isPathPlane ? 'Płaszczyzna na ścieżce' : isConstructionAxis ? axisTitles[command.axisType] : isConstructionPoint ? pointTitles[command.pointType] : 'Fazowanie';
   return (
-    <section className={`command-dialog ${isSketchPath ? 'sketch-path-dialog' : ''}`} aria-label={title}>
-      <header><strong>{title}</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
+    <section className={`command-dialog docked dock-${dock} ${collapsed ? 'collapsed' : ''} ${isSketchPath ? 'sketch-path-dialog' : ''}`} aria-label={`${title} — panel polecenia`}>
+      <header>
+        <strong>{title}</strong>
+        <div className="dock-panel-actions">
+          {!collapsed && <button type="button" data-panel-action="dock" onClick={onToggleDock} title={dock === 'right' ? 'Przenieś panel na lewą stronę' : 'Przenieś panel na prawą stronę'} aria-label={dock === 'right' ? 'Przenieś panel na lewą stronę' : 'Przenieś panel na prawą stronę'}>{dock === 'right' ? <PanelLeft size={15} /> : <PanelRight size={15} />}</button>}
+          <button type="button" data-panel-action="collapse" onClick={onToggleCollapsed} title={collapsed ? 'Rozwiń panel polecenia' : 'Zwiń panel polecenia'} aria-label={collapsed ? 'Rozwiń panel polecenia' : 'Zwiń panel polecenia'} aria-expanded={!collapsed}>{collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</button>
+          {!collapsed && <button type="button" onClick={onCancel} title="Zamknij polecenie" aria-label="Zamknij polecenie"><X size={15} /></button>}
+        </div>
+      </header>
+      {!collapsed && <>
       <div className="command-dialog-body">
         {isMechanicalShape && <Field label="Nazwa" value={command.name} onChange={(name) => onChange({ name })} />}
         {(isRectangle || isCircle || isArc || isPolygon || isEllipse || isSlot || isSpline) && (
@@ -1166,6 +1177,7 @@ function CommandDialog({ command, profileName, onChange, onConfirm, onConfirmDyn
       ) : (
         <footer><button className="secondary" type="button" onClick={onCancel}>Anuluj</button><button className="confirm" type="button" onClick={onConfirm} disabled={featurePreviewPending} aria-busy={featurePreviewPending} title={featurePreviewPending ? 'Trwa obliczanie podglądu operacji' : undefined}><Check size={14} /> {featurePreviewPending ? 'Obliczanie…' : isMechanicalShape || isPoint ? 'Utwórz z danych' : 'OK'}</button></footer>
       )}
+      </>}
     </section>
   );
 }
@@ -1262,7 +1274,7 @@ function SketchPalette({ options, onChange, onFinish }) {
   );
 }
 
-function PrintPanel({ document, bodies, engine, selectedFace, commit, onSelectIssue, onExport, onSendToSlicer, onClose, readOnly = false }) {
+function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed, onSelectIssue, onExport, onSendToSlicer, onClose, onToggleCollapsed, readOnly = false }) {
   const layoutResult = useMemo(() => calculatePrintLayout(bodies, document.print), [bodies, document.print]);
   const printAnalysis = useMemo(() => analyzePrintability(bodies, document.print), [bodies, document.print]);
   const bounds = layoutResult.dimensions;
@@ -1303,8 +1315,15 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, onSelectIs
     });
   });
   return (
-    <aside className="print-panel print-inspector">
-      <header><div><strong>EKSPORT I DRUK 3D</strong><span>Wymiana CAD, eksport siatek i opcjonalna kontrola wydruku.</span></div><button type="button" onClick={onClose} title="Zamknij"><X size={16} /></button></header>
+    <aside className={`print-panel print-inspector ${collapsed ? 'collapsed' : ''}`}>
+      <header>
+        <div><strong>EKSPORT I DRUK 3D</strong>{!collapsed && <span>Wymiana CAD, eksport siatek i opcjonalna kontrola wydruku.</span>}</div>
+        <div className="dock-panel-actions">
+          <button type="button" data-panel-action="collapse" onClick={onToggleCollapsed} title={collapsed ? 'Rozwiń panel eksportu' : 'Zwiń panel eksportu'} aria-label={collapsed ? 'Rozwiń panel eksportu' : 'Zwiń panel eksportu'} aria-expanded={!collapsed}>{collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</button>
+          {!collapsed && <button type="button" onClick={onClose} title="Zamknij panel eksportu" aria-label="Zamknij panel eksportu"><X size={16} /></button>}
+        </div>
+      </header>
+      {!collapsed && <>
       <div className="print-section">
         <h3>Objętość robocza</h3>
         <label className="command-field"><span>Profil drukarki</span><select value={document.print.profileId || 'custom'} onChange={(event) => selectProfile(event.target.value)} disabled={readOnly}>{PRINTER_PROFILES.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}<option value="custom">Własny</option></select></label>
@@ -1357,6 +1376,7 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, onSelectIs
         <label className="command-field slicer-field"><span>Program tnący</span><select value={document.print.slicer || 'bambu'} onChange={(event) => commit((next) => { next.print.slicer = event.target.value; })} disabled={readOnly}><option value="bambu">Bambu Studio</option><option value="prusa">PrusaSlicer</option><option value="cura">UltiMaker Cura</option></select></label>
         <button className="send-slicer" type="button" onClick={() => onSendToSlicer(document.print.slicer || 'bambu')} disabled={!bodies.length || engine.status !== 'ready'}><Printer size={16} /> Otwórz STL w slicerze</button>
       </div>
+      </>}
     </aside>
   );
 }
@@ -1461,6 +1481,8 @@ export default function ModelingWorkspace() {
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(false);
   const [printPanelOpen, setPrintPanelOpen] = useState(false);
+  const panelScreenKeyRef = useRef(panelScreenKey(window.screen));
+  const [panelLayout, setPanelLayout] = useState(() => readPanelLayout(window.localStorage, window.screen));
   const [recoveryInfo, setRecoveryInfo] = useState(() => initialOpen.recovered ? {
     source: initialOpen.recoverySource || 'local-primary',
     backup: initialOpen.recoverySource === 'local-backup',
@@ -1479,6 +1501,19 @@ export default function ModelingWorkspace() {
   const [importDraft, setImportDraft] = useState(null);
   const [modelImportBusy, setModelImportBusy] = useState(false);
   const [sketchImportDraft, setSketchImportDraft] = useState(null);
+  useEffect(() => {
+    writePanelLayout(panelLayout, window.localStorage, window.screen);
+  }, [panelLayout]);
+  useEffect(() => {
+    const restoreLayoutForCurrentMonitor = () => {
+      const nextKey = panelScreenKey(window.screen);
+      if (nextKey === panelScreenKeyRef.current) return;
+      panelScreenKeyRef.current = nextKey;
+      setPanelLayout(readPanelLayout(window.localStorage, window.screen));
+    };
+    window.addEventListener('resize', restoreLayoutForCurrentMonitor);
+    return () => window.removeEventListener('resize', restoreLayoutForCurrentMonitor);
+  }, []);
   const registerShortcut = useCallback((shortcut, entry) => {
     const normalizedShortcut = shortcut.toUpperCase();
     shortcutRegistryRef.current.set(normalizedShortcut, entry);
@@ -4759,8 +4794,29 @@ export default function ModelingWorkspace() {
         </div>
       </section>
 
-      <div className={`modeling-content ${workspace === 'print' && printPanelOpen ? 'with-print-panel' : ''} ${browserOpen ? '' : 'without-browser'}`}>
+      <div
+        className={`modeling-content command-dock-${panelLayout.commandDock} ${browserOpen ? '' : 'without-browser'} ${workspace === 'print' && printPanelOpen ? 'with-print-panel' : ''}`}
+        style={{
+          '--browser-column': browserOpen ? '252px' : '0px',
+          '--command-column': isDockableCommand(command) ? (panelLayout.commandCollapsed ? '38px' : '280px') : '0px',
+          '--print-column': workspace === 'print' && printPanelOpen ? (panelLayout.printCollapsed ? '38px' : '286px') : '0px',
+        }}
+      >
         {browserOpen && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onClose={() => setBrowserOpen(false)} />}
+        <CommandDialog
+          command={command}
+          profileName={command?.type === 'pipe' ? `Otwarta ścieżka (${command.previewFeature?.pathEntityIds?.length || command.pathEntityIds?.length || 0})` : command?.openChain ? `Otwarty łańcuch (${command.previewFeature?.openEntityIds?.length || 0})` : commandProfileName}
+          collapsed={panelLayout.commandCollapsed}
+          dock={panelLayout.commandDock}
+          onChange={updateCommand}
+          onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
+          onConfirmDynamic={confirmDynamicSketchSegment}
+          onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => { if (command?.openChain && command.sourceSketchId) { setActiveSketchId(command.sourceSketchId); setWorkspace('sketch'); } setCommand(null); setNotice('Anulowano polecenie.'); }}
+          onUndoSegment={undoSketchSegment}
+          onFinishPath={finishSketchPath}
+          onToggleCollapsed={() => setPanelLayout((current) => ({ ...current, commandCollapsed: !current.commandCollapsed }))}
+          onToggleDock={() => setPanelLayout((current) => ({ ...current, commandDock: current.commandDock === 'right' ? 'left' : 'right' }))}
+        />
         <main className="modeling-stage">
           <React.Suspense fallback={<div className="viewport-loading" role="status">Uruchamianie widoku 3D…</div>}>
           <ModelViewport
@@ -4836,23 +4892,13 @@ export default function ModelingWorkspace() {
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} onClose={() => setCommand(null)} />}
           {!document.sketches.length && !engine.bodies.length && !command && !readOnly && <StartPage onStartSketch={startSketch} onOpenProject={requestOpenProject} />}
           {command?.type === 'plane' && <PlanePicker onPick={pickPlane} onCancel={() => { setCommand(null); setWorkspace('solid'); setNotice('Anulowano tworzenie szkicu.'); }} />}
-          <CommandDialog
-            command={command}
-            profileName={command?.type === 'pipe' ? `Otwarta ścieżka (${command.previewFeature?.pathEntityIds?.length || command.pathEntityIds?.length || 0})` : command?.openChain ? `Otwarty łańcuch (${command.previewFeature?.openEntityIds?.length || 0})` : commandProfileName}
-            onChange={updateCommand}
-            onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
-            onConfirmDynamic={confirmDynamicSketchSegment}
-            onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => { if (command?.openChain && command.sourceSketchId) { setActiveSketchId(command.sourceSketchId); setWorkspace('sketch'); } setCommand(null); setNotice('Anulowano polecenie.'); }}
-            onUndoSegment={undoSketchSegment}
-            onFinishPath={finishSketchPath}
-          />
           <ImportModelDialog draft={importDraft} onChange={(patch) => setImportDraft((current) => ({ ...current, ...patch }))} onConfirm={confirmModelImport} onCancel={() => setImportDraft(null)} />
           <ImportSketchDialog draft={sketchImportDraft} onChange={(patch) => setSketchImportDraft((current) => ({ ...current, ...patch }))} onConfirm={confirmSketchImport} onCancel={() => setSketchImportDraft(null)} />
           <SketchDimensionDialog command={command} onChange={updateCommand} onConfirm={confirmSketchDimension} onCancel={() => setCommand(null)} />
           {command?.type === 'parameters' && <ParametersDialog document={document} commit={commit} onClose={() => setCommand(null)} />}
           {activeSketchId && <SketchPalette options={sketchOptions} onChange={(key, value) => setSketchOptions((current) => ({ ...current, [key]: value }))} onFinish={finishSketch} />}
         </main>
-        {workspace === 'print' && printPanelOpen && <PrintPanel document={document} bodies={engine.bodies} engine={engine} selectedFace={selectedPrintFace} commit={commit} onSelectIssue={(item) => setSelection(item?.kind === 'document' ? { kind: 'document', id: document.id } : item)} onExport={exportModel} onSendToSlicer={sendToSlicer} onClose={() => setPrintPanelOpen(false)} readOnly={readOnly} />}
+        {workspace === 'print' && printPanelOpen && <PrintPanel document={document} bodies={engine.bodies} engine={engine} selectedFace={selectedPrintFace} commit={commit} collapsed={panelLayout.printCollapsed} onSelectIssue={(item) => setSelection(item?.kind === 'document' ? { kind: 'document', id: document.id } : item)} onExport={exportModel} onSendToSlicer={sendToSlicer} onClose={() => setPrintPanelOpen(false)} onToggleCollapsed={() => setPanelLayout((current) => ({ ...current, printCollapsed: !current.printCollapsed }))} readOnly={readOnly} />}
       </div>
 
       <footer className="modeling-footer">
