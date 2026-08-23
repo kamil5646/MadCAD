@@ -136,6 +136,7 @@ import { FirstPartTutorial, FullLicenseDialog, LicenseInfoDialog, UpdateDialog }
 import { CommandLine } from './CommandLine.jsx';
 import { parseCommandLineInput } from './command-controller.js';
 import { isDockableCommand, panelScreenKey, readPanelLayout, writePanelLayout } from './panel-layout.js';
+import { formatShortcut, multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
 import {
   AUTOSAVE_KEY,
   clearLocalAutosave,
@@ -304,10 +305,7 @@ function toolColorStyle(label) {
 const ToolHelpContext = React.createContext(null);
 
 function shortcutLabel(shortcut) {
-  if (shortcut === 'ESC') return 'Esc';
-  if (shortcut === 'DEL') return window.desktopApp?.platform === 'darwin' ? '⌫' : 'Del';
-  if (shortcut === 'CTRL+ENTER') return window.desktopApp?.platform === 'darwin' ? '⌘ Enter' : 'Ctrl+Enter';
-  return shortcut;
+  return formatShortcut(shortcut, DESKTOP_PLATFORM);
 }
 
 function useDocumentHistory(initialDocument) {
@@ -835,7 +833,7 @@ function MeasurePanel({ measurement, onClose }) {
     <aside className="measure-panel" aria-label="Wynik pomiaru">
       <header><div><Ruler size={16} /><strong>Measure</strong></div><button type="button" title="Zamknij pomiar" onClick={onClose}><X size={15} /></button></header>
       <div className="measure-panel-body">
-        {!measurement?.selectionCount && <p>Zaznacz bryłę, ścianę, krawędź lub wierzchołek. Ctrl/Shift wybiera drugi element.</p>}
+        {!measurement?.selectionCount && <p>Zaznacz bryłę, ścianę, krawędź lub wierzchołek. {multipleSelectionLabel(DESKTOP_PLATFORM)} wybiera drugi element.</p>}
         {rows.map(([label, value]) => <div className="measure-row" key={label}><span>{label}</span><strong>{value}</strong></div>)}
       </div>
     </aside>
@@ -2519,7 +2517,7 @@ export default function ModelingWorkspace() {
         : { kind: 'sketch', id: activeSketchId };
     });
     if (candidates.length) {
-      setNotice(`${details.crossing ? 'Wybór przecinający' : 'Zaznaczenie'}: ${candidates.length} ${candidates.length === 1 ? 'element' : 'elementy'}. Ctrl/Shift dodaje kolejne.`);
+      setNotice(`${details.crossing ? 'Wybór przecinający' : 'Zaznaczenie'}: ${candidates.length} ${candidates.length === 1 ? 'element' : 'elementy'}. ${multipleSelectionLabel(DESKTOP_PLATFORM)} dodaje kolejne.`);
     } else setNotice('Wyczyszczono zaznaczenie szkicu.');
   };
 
@@ -2543,7 +2541,7 @@ export default function ModelingWorkspace() {
       return { ...items.at(-1), items };
     });
     const label = topology.kind === 'face' ? 'Ściana' : topology.kind === 'edge' ? 'Krawędź' : topology.kind === 'vertex' ? 'Wierzchołek' : 'Bryła';
-    setNotice(`${label} zaznaczona przez trwałe ID: ${topology.id}.${mode === 'replace' ? '' : ' Ctrl/Shift utrzymuje wybór wielokrotny.'}`);
+    setNotice(`${label} zaznaczona przez trwałe ID: ${topology.id}.${mode === 'replace' ? '' : ` ${multipleSelectionLabel(DESKTOP_PLATFORM)} utrzymuje wybór wielokrotny.`}`);
   };
 
   const repairTopologyReference = (referenceId, topology, descriptor = null) => {
@@ -2825,7 +2823,7 @@ export default function ModelingWorkspace() {
     const selected = (selection?.items || (['edge', 'vertex'].includes(selection?.kind) ? [selection] : [])).filter((item) => ['edge', 'vertex'].includes(item.kind));
     if (command?.type !== 'projectSketch' || !selected.length) {
       setCommand({ type: 'projectSketch' });
-      setNotice('Project: kliknij wierzchołek albo krawędź modelu. Ctrl/Shift dodaje kolejne; ponownie wybierz Project, aby zatwierdzić.');
+      setNotice(`Project: kliknij wierzchołek albo krawędź modelu. ${multipleSelectionLabel(DESKTOP_PLATFORM)} dodaje kolejne; ponownie wybierz Project, aby zatwierdzić.`);
       return;
     }
     try {
@@ -3704,7 +3702,7 @@ export default function ModelingWorkspace() {
 
   const openMeasure = () => {
     setCommand({ type: 'measure' });
-    setNotice('Measure jest aktywny. Zaznacz element; Ctrl/Shift dodaje drugi do pomiaru odległości i kąta.');
+    setNotice(`Measure jest aktywny. Zaznacz element; ${multipleSelectionLabel(DESKTOP_PLATFORM)} dodaje drugi do pomiaru odległości i kąta.`);
   };
 
   const openSectionAnalysis = () => {
@@ -4832,12 +4830,12 @@ export default function ModelingWorkspace() {
           return;
         }
       }
-      if (event.ctrlKey && command?.type === 'polyline' && event.key.toLowerCase() === 'z') {
+      if (primaryModifierPressed(event, DESKTOP_PLATFORM) && command?.type === 'polyline' && event.key.toLowerCase() === 'z') {
         event.preventDefault();
         undoSketchSegment();
         return;
       }
-      if (event.ctrlKey && !command && !readOnly && (event.key.toLowerCase() === 'z' || event.key.toLowerCase() === 'y')) {
+      if (primaryModifierPressed(event, DESKTOP_PLATFORM) && !command && !readOnly && (event.key.toLowerCase() === 'z' || event.key.toLowerCase() === 'y')) {
         event.preventDefault();
         if (event.key.toLowerCase() === 'y' || event.shiftKey) history.redo();
         else history.undo();
@@ -4853,7 +4851,7 @@ export default function ModelingWorkspace() {
         requestTimelineDelete();
         return;
       }
-      if (event.ctrlKey && event.key.toLowerCase() === 'e' && selectedProfile && !activeSketchId && !readOnly) {
+      if (primaryModifierPressed(event, DESKTOP_PLATFORM) && event.key.toLowerCase() === 'e' && selectedProfile && !activeSketchId && !readOnly) {
         event.preventDefault();
         openExtrude();
       }

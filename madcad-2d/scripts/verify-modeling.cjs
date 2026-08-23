@@ -254,9 +254,11 @@ async function runUiFlow(window) {
     handler({ currentTarget: button, target: button });
   })()`);
   const sendShortcut = (key, shiftKey = false) => window.webContents.executeJavaScript(`(() => {
+    const isMac = window.desktopApp?.platform === 'darwin';
     window.dispatchEvent(new KeyboardEvent('keydown', {
       key: ${JSON.stringify(key)},
-      ctrlKey: true,
+      ctrlKey: !isMac,
+      metaKey: isMac,
       shiftKey: ${Boolean(shiftKey)},
       bubbles: true,
       cancelable: true,

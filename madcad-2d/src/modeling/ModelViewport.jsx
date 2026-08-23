@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { alternateModifierPressed, formatShortcut, multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
 import { Box, CircleDot, Crosshair, Diamond, Grid2X2, Magnet, Maximize2, Move3d, Orbit, Square, Trash2, Triangle, ZoomIn } from 'lucide-react';
 import * as THREE from 'three';
 import { calculatePrintLayout } from '../cad-core/print-layout.js';
@@ -404,7 +405,9 @@ export default function ModelViewport({
   printLayout,
 }) {
   const hostRef = useRef(null);
-  const optionKeyLabel = window.desktopApp?.platform === 'darwin' ? '⌥ Option' : 'Alt';
+  const desktopPlatform = window.desktopApp?.platform;
+  const optionKeyLabel = formatShortcut('ALT', desktopPlatform);
+  const multiSelectKeyLabel = multipleSelectionLabel(desktopPlatform);
   const directHandleRef = useRef(null);
   const directEventRef = useRef({});
   const directDragRef = useRef(null);
@@ -987,7 +990,7 @@ export default function ModelViewport({
         gridSize: 1,
         pixelsPerUnit: pixelsPerSketchUnit(rawPoint, rect),
         thresholdPx: directRef.current.snapThresholdPx,
-        disabled: !directRef.current.snapEnabled || event.altKey,
+        disabled: !directRef.current.snapEnabled || alternateModifierPressed(event),
       });
       updateSnapFeedback(result, rect);
       return result;
@@ -1011,7 +1014,7 @@ export default function ModelViewport({
     const pickSketchProfile = () => sketchProfileRender
       ? raycaster.intersectObjects(sketchProfileRender.pickables, false)[0] || null
       : null;
-    const selectionMode = (event) => event.ctrlKey ? 'toggle' : event.shiftKey ? 'add' : 'replace';
+    const selectionMode = (event) => primaryModifierPressed(event, desktopPlatform) ? 'toggle' : event.shiftKey ? 'add' : 'replace';
     const movingPointIds = (entityIds) => {
       const selected = new Set(entityIds);
       const ids = new Set();
@@ -1288,7 +1291,7 @@ export default function ModelViewport({
         return;
       }
       if (activeSketch) return;
-      const hit = pickModel(event, event.altKey);
+      const hit = pickModel(event, alternateModifierPressed(event));
       if (event.shiftKey && !hit) {
         event.preventDefault();
         controls.enabled = false;
@@ -1317,7 +1320,7 @@ export default function ModelViewport({
         event.preventDefault();
         const delta = new THREE.Vector2(event.clientX - directDrag.startX, event.clientY - directDrag.startY);
         const raw = directDrag.startDistance + delta.dot(directDrag.screenAxis) / directDrag.pixelsPerUnit;
-        const step = directRef.current.snapEnabled && !event.altKey ? 1 : 0.1;
+        const step = directRef.current.snapEnabled && !alternateModifierPressed(event) ? 1 : 0.1;
         const value = Math.min(directRef.current.max, Math.max(directRef.current.min, Math.round(raw / step) * step));
         directDrag.value = value;
         updateDirectVisual(value, true);
@@ -1354,7 +1357,7 @@ export default function ModelViewport({
         const snappedReference = referencePoint
           ? resolveSnap(event, [referencePoint[0] + rawDx, referencePoint[1] + rawDy], rect, { excludePointIds: sketchDrag.pointIds }).point
           : current;
-        const step = directRef.current.snapEnabled && !event.altKey && !referencePoint ? 1 : 0.1;
+        const step = directRef.current.snapEnabled && !alternateModifierPressed(event) && !referencePoint ? 1 : 0.1;
         const dx = referencePoint ? snappedReference[0] - referencePoint[0] : Math.round(rawDx / step) * step;
         const dy = referencePoint ? snappedReference[1] - referencePoint[1] : Math.round(rawDy / step) * step;
         sketchDrag.dx = dx;
@@ -1687,7 +1690,7 @@ export default function ModelViewport({
           ['profile', 'Profil'],
         ].filter(([id]) => id !== 'profile').map(([id, label]) => <button key={id} className={selectionFilter === id ? 'active' : ''} type="button" title={`Filtr wyboru: ${label}`} onClick={() => setSelectionFilter(id)}>{label}</button>)}
       </div>}
-      {!activeSketchId && bodies.length > 0 && <div className="model-selection-hint">{`Ctrl/Shift: wiele · ${optionKeyLabel}+klik: przełącz · Shift+przeciągnij tło: obszar`}</div>}
+      {!activeSketchId && bodies.length > 0 && <div className="model-selection-hint">{`${multiSelectKeyLabel}: wiele · ${optionKeyLabel}+klik: przełącz · Shift+przeciągnij tło: obszar`}</div>}
       {directEnabled && (
         <div
           ref={directHandleRef}
@@ -1775,7 +1778,7 @@ export default function ModelViewport({
       {activeSketchId && draftType && <div className="sketch-pointer-hint">Kliknij środek, a następnie punkt rozmiaru</div>}
       {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
       {activeSketchId && sketchTool && <div className="sketch-pointer-hint">{`${sketchToolPrompt || 'Klikaj kolejne punkty'} · ${optionKeyLabel} chwilowo wyłącza snap · ${sketchTool === 'line' && polylineDraft?.lastPoint ? 'Wpisz długość i Enter albo kliknij koniec' : 'Enter lub prawy przycisk kończy'} · Escape anuluje`}</div>}
-      {activeSketchId && !sketchTool && !draftType && !sketchModifierMode && <div className="sketch-pointer-hint">Kliknij lub przeciągnij geometrię · Ctrl/Shift wybiera wiele · przeciągnij tło, aby wybrać oknem</div>}
+      {activeSketchId && !sketchTool && !draftType && !sketchModifierMode && <div className="sketch-pointer-hint">Kliknij lub przeciągnij geometrię · {multiSelectKeyLabel} wybiera wiele · przeciągnij tło, aby wybrać oknem</div>}
     </div>
   );
 }
