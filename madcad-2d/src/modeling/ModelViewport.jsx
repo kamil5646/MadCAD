@@ -1635,9 +1635,15 @@ export default function ModelViewport({
       if (plate) disposeObject(plate);
       grid.geometry.dispose();
       grid.material.dispose();
-      renderer.forceContextLoss();
       renderer.dispose();
       renderer.domElement.remove();
+      // Chromium's macOS compositor can still own the last WebGL mailbox for a
+      // frame after React replaces the viewport. Losing the context before the
+      // canvas leaves the compositor produces repeated "Invalid mailbox"
+      // errors and, on affected Electron builds, can terminate the renderer.
+      // Release the DOM surface first and defer the explicit context loss until
+      // the compositor has observed two animation frames without that canvas.
+      requestAnimationFrame(() => requestAnimationFrame(() => renderer.forceContextLoss()));
       delete window.__madcadDirectHandlePoint;
       delete window.__madcadSketchEntityScreenPoints;
       delete window.__madcadSketchLocalToScreen;

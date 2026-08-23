@@ -89,7 +89,14 @@ app.whenReady().then(async () => {
     const geometry = await window.webContents.executeJavaScript(`(() => {
       const entities = window.__madcadVerifyDocumentState.sketches.at(-1).entityData;
       const points = entities.filter((entity) => entity.type === 'point');
-      return { points: points.map((point) => [Number(point.geometry.x), Number(point.geometry.y)]), historyRows: document.querySelectorAll('.command-history button').length };
+      const canvas = document.querySelector('.model-viewport canvas');
+      const gl = canvas?.getContext('webgl2') || canvas?.getContext('webgl');
+      const debug = gl?.getExtension('WEBGL_debug_renderer_info');
+      return {
+        points: points.map((point) => [Number(point.geometry.x), Number(point.geometry.y)]),
+        historyRows: document.querySelectorAll('.command-history button').length,
+        webglRenderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl?.getParameter(gl.RENDERER) || '',
+      };
     })()`);
     const distance = Math.hypot(geometry.points[1][0] - geometry.points[0][0], geometry.points[1][1] - geometry.points[0][1]);
 
@@ -97,8 +104,8 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.command-history')`, 'historia poleceń');
     const historyRows = await window.webContents.executeJavaScript(`document.querySelectorAll('.command-history button').length`);
 
-    const result = { screenshotPath, ...visual, distance, historyRows };
-    if (!visual.visible || !visual.insideViewport || visual.value !== '25' || !visual.prompt.includes('wpisz długość') || visual.horizontalOverflow || Math.abs(distance - 25) > 0.001 || historyRows < 2) {
+    const result = { screenshotPath, ...visual, distance, historyRows, webglRenderer: geometry.webglRenderer, gpuFeatures: app.getGPUFeatureStatus() };
+    if (!visual.visible || !visual.insideViewport || visual.value !== '25' || !visual.prompt.includes('wpisz długość') || visual.horizontalOverflow || Math.abs(distance - 25) > 0.001 || historyRows < 2 || !geometry.webglRenderer || !String(result.gpuFeatures.webgl).startsWith('enabled')) {
       throw new Error(`Niepoprawna linia poleceń: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
