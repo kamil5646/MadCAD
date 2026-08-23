@@ -129,7 +129,8 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
   );
 }
 
-export function StartPage({ onStartSketch, onOpenProject }) {
+export function StartPage({ onStartSketch, onOpenProject, commandCustomization = null }) {
+  const shortcut = (label, fallback) => commandCustomization?.commands?.[label]?.shortcut || commandCustomization?.commands?.[label]?.alias || fallback;
   return (
     <section className="empty-canvas start-page" aria-labelledby="start-page-title">
       <div className="start-page-shell">
@@ -154,9 +155,9 @@ export function StartPage({ onStartSketch, onOpenProject }) {
           </div>
           <div className="start-page-shortcuts" role="group" aria-label="Szybki start">
             <strong>Szybki start</strong>
-            <span><kbd>L</kbd> Linia</span>
-            <span><kbd>R</kbd> Prostokąt</span>
-            <span><kbd>C</kbd> Okrąg</span>
+            <span><kbd>{shortcut('Linia', 'L')}</kbd> Linia</span>
+            <span><kbd>{shortcut('Prostokąt', 'R')}</kbd> Prostokąt</span>
+            <span><kbd>{shortcut('Okrąg', 'C')}</kbd> Okrąg</span>
           </div>
         </div>
 

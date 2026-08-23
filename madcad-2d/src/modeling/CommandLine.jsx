@@ -2,12 +2,12 @@ import React, { useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, History, SquareTerminal } from 'lucide-react';
 import { commandSuggestions, describeActiveCommand } from './command-controller.js';
 
-export function CommandLine({ command, history = [], notice, onCancel, onSubmit }) {
+export function CommandLine({ command, history = [], notice, customization = null, onCancel, onSubmit }) {
   const [value, setValue] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const inputRef = useRef(null);
-  const suggestions = useMemo(() => commandSuggestions(value), [value]);
+  const suggestions = useMemo(() => commandSuggestions(value, 6, customization), [customization, value]);
   const activePrompt = describeActiveCommand(command);
 
   const submit = () => {
@@ -74,7 +74,7 @@ export function CommandLine({ command, history = [], notice, onCancel, onSubmit 
       {suggestions.length > 0 && value && (
         <div className="command-suggestions" role="listbox" aria-label="Podpowiedzi poleceń">
           {suggestions.map((suggestion) => (
-            <button key={suggestion.shortcut} type="button" role="option" onClick={() => { setValue(suggestion.command); inputRef.current?.focus(); }}>
+            <button key={suggestion.label} type="button" role="option" onClick={() => { setValue(suggestion.command); inputRef.current?.focus(); }}>
               <strong>{suggestion.command}</strong><span>{suggestion.label}</span><kbd>{suggestion.shortcut}</kbd>
             </button>
           ))}

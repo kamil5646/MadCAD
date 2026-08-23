@@ -154,13 +154,20 @@ function ToolGlyph({ icon: Icon, compact = false }) {
 
 export function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = false, compact = false, title, description }) {
   const help = description || title || TOOL_DESCRIPTIONS[label] || label;
-  const shortcut = TOOL_SHORTCUTS[label] || null;
   const featured = FEATURED_TOOL_LABELS.has(label);
   const toolHelp = React.useContext(ToolHelpContext);
+  const customCommand = toolHelp?.customizationForTool?.(label) || null;
+  const shortcut = customCommand ? (customCommand.shortcut || customCommand.alias) : (TOOL_SHORTCUTS[label] || null);
+  const registryShortcuts = customCommand
+    ? [...new Set([customCommand.alias, customCommand.shortcut].filter(Boolean))]
+    : [shortcut].filter(Boolean);
+  const registryKey = registryShortcuts.join('|');
   useEffect(() => {
-    if (!shortcut || ['ESC', 'DEL', 'CTRL+ENTER'].includes(shortcut)) return undefined;
-    return toolHelp?.registerShortcut(shortcut, { label, onClick, disabled });
-  }, [disabled, label, onClick, shortcut, toolHelp]);
+    const cleanups = registryShortcuts.filter((value) => !['ESC', 'CTRL+ENTER'].includes(value)).map((value) => toolHelp?.registerShortcut(value, { label, onClick, disabled })).filter(Boolean);
+    return () => cleanups.forEach((cleanup) => cleanup());
+  // registryKey is the stable scalar representation of registryShortcuts.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disabled, label, onClick, registryKey, toolHelp]);
   const showHelp = (event) => {
     const rect = event.currentTarget.getBoundingClientRect();
     toolHelp?.setToolHelp({

@@ -1,7 +1,8 @@
 import React from 'react';
-import { Blocks, Box, Check, Eye, EyeOff, Layers3, Lock, LockOpen, Plus, Printer, Ruler, ScanSearch, Trash2, Ungroup, X } from 'lucide-react';
+import { Blocks, Box, Check, Eye, EyeOff, Keyboard, Layers3, Lock, LockOpen, Plus, Printer, RotateCcw, Ruler, ScanSearch, Trash2, Ungroup, X } from 'lucide-react';
 import { formatModelFileSize } from '../cad-core/model-import.js';
 import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
+import { commandCustomizationRows, validateCommandCustomization } from './command-customization.js';
 import { multipleSelectionLabel } from './platform-shortcuts.js';
 
 export function Field({ label, value, onChange, suffix = '', type = 'text', disabled = false, autoFocus = false }) {
@@ -103,6 +104,27 @@ export function BlocksPanel({ document, selectedEntities = [], selectedInstance 
         {!instanceBlock.attributeDefinitions.length && <p>Ten blok nie ma atrybutów.</p>}
         <div><button type="button" disabled={readOnly} onClick={() => onExplode(selectedInstance.id)}><Ungroup size={14} /> Rozbij</button><button type="button" className="danger" disabled={readOnly} onClick={() => onDeleteInstance(selectedInstance.id)}><Trash2 size={14} /> Usuń</button></div>
       </div>}
+    </aside>
+  );
+}
+
+export function CommandCustomizationPanel({ customization, onSave, onReset, onClose }) {
+  const [draft, setDraft] = React.useState(() => structuredClone(customization));
+  const validation = validateCommandCustomization(draft);
+  const rows = commandCustomizationRows(draft);
+  const update = (label, key, value) => setDraft((current) => ({
+    ...current,
+    commands: { ...current.commands, [label]: { ...current.commands[label], [key]: value.toUpperCase().replace(/\s+/g, '') } },
+  }));
+  return (
+    <aside className="measure-panel command-customization-panel" aria-label="Aliasy i skróty poleceń">
+      <header><div><Keyboard size={16} /><strong>Aliasy i skróty</strong></div><button type="button" title="Zamknij ustawienia skrótów" aria-label="Zamknij ustawienia skrótów" onClick={onClose}><X size={15} /></button></header>
+      <div className="command-customization-intro"><p>Alias wpisujesz w linii poleceń. Klawisz uruchamia narzędzie bezpośrednio, gdy nie edytujesz pola tekstowego.</p><div><span>Polecenie</span><span>Alias</span><span>Klawisz</span></div></div>
+      <div className="command-customization-list">
+        {rows.map((row) => <div className="command-customization-row" key={row.label}><strong>{row.label}</strong><input aria-label={`Alias polecenia ${row.label}`} value={row.alias} maxLength={16} onChange={(event) => update(row.label, 'alias', event.target.value)} /><input aria-label={`Klawisz polecenia ${row.label}`} value={row.shortcut} maxLength={3} placeholder="—" onChange={(event) => update(row.label, 'shortcut', event.target.value)} /></div>)}
+      </div>
+      {!!validation.errors.length && <div className="command-customization-errors" role="alert">{validation.errors.slice(0, 4).map((error) => <span key={error}>{error}</span>)}</div>}
+      <footer><button type="button" onClick={() => { const reset = onReset(); setDraft(structuredClone(reset)); }}><RotateCcw size={14} /> Autodesk</button><button className="confirm" type="button" disabled={!validation.valid} onClick={() => onSave(validation.customization)}><Check size={14} /> Zapisz</button></footer>
     </aside>
   );
 }

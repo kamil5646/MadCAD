@@ -2629,6 +2629,105 @@
 .block-instance-section > div button { flex: 1; }
 .block-instance-section > div button.danger { border-color: #925b60; color: #ffdadd; }
 
+.command-customization-panel {
+  top: 14px;
+  right: 14px;
+  width: min(440px, calc(100% - 28px));
+  max-height: calc(100% - 28px);
+  overflow: hidden;
+}
+
+.command-customization-intro {
+  padding: 9px 10px 6px;
+  border-bottom: 1px solid #596573;
+  background: #36414f;
+}
+
+.command-customization-intro p {
+  margin: 0 0 8px;
+  color: #b8c4cd;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.command-customization-intro > div,
+.command-customization-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 90px 70px;
+  gap: 6px;
+  align-items: center;
+}
+
+.command-customization-intro span {
+  color: #91a0ac;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.command-customization-list {
+  max-height: 405px;
+  overflow: auto;
+  padding: 6px 10px;
+  background: #2f3946;
+}
+
+.command-customization-row {
+  min-height: 34px;
+  border-bottom: 1px solid rgba(112, 126, 139, 0.3);
+}
+
+.command-customization-row strong { color: #dde6ec; font-size: 10px; }
+.command-customization-row input {
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid #647381;
+  border-radius: 2px;
+  background: #26313d;
+  color: #eef3f7;
+  font: 10px/1.2 inherit;
+  text-transform: uppercase;
+}
+
+.command-customization-errors {
+  display: grid;
+  gap: 3px;
+  padding: 7px 10px;
+  border-top: 1px solid #8d5960;
+  background: #4b343a;
+  color: #ffd4d8;
+  font-size: 9px;
+}
+
+.command-customization-panel > footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  padding: 8px 10px;
+  border-top: 1px solid #596573;
+  background: #3b4654;
+}
+
+.command-customization-panel > footer button {
+  display: inline-flex;
+  min-height: 29px;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid #687785;
+  border-radius: 3px;
+  background: #465463;
+  color: #edf3f7;
+  font: 10px/1.2 inherit;
+  cursor: pointer;
+}
+
+.command-customization-panel > footer button.confirm { border-color: #5ebcdd; background: #315a6a; }
+.command-customization-panel > footer button:disabled { cursor: default; opacity: 0.4; }
+
 .measure-row {
   display: grid;
   grid-template-columns: 112px minmax(0, 1fr);

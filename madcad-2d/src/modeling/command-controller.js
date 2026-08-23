@@ -1,19 +1,19 @@
 const COMMAND_DEFINITIONS = Object.freeze([
-  { shortcut: 'L', label: 'Linia', aliases: ['L', 'LINE', 'LINIA'] },
-  { shortcut: 'PL', label: 'Polilinia', aliases: ['PL', 'PLINE', 'POLYLINE', 'POLILINIA'] },
-  { shortcut: 'R', label: 'Prostokąt', aliases: ['R', 'REC', 'RECTANG', 'RECTANGLE', 'PROSTOKAT', 'PROSTOKĄT'] },
-  { shortcut: 'C', label: 'Okrąg', aliases: ['C', 'CIRCLE', 'OKRAG', 'OKRĄG'] },
-  { shortcut: 'T', label: 'Trim', aliases: ['T', 'TR', 'TRIM', 'PRZYTNIJ'] },
-  { shortcut: 'EX', label: 'Extend', aliases: ['EX', 'EXTEND', 'PRZEDLUZ', 'PRZEDŁUŻ'] },
-  { shortcut: 'BR', label: 'Break', aliases: ['BR', 'BREAK', 'PODZIEL'] },
-  { shortcut: 'O', label: 'Offset', aliases: ['O', 'OFFSET', 'ODSUN'] },
-  { shortcut: 'F', label: 'Fillet', aliases: ['F', 'FILLET', 'ZAOKRAGLIJ', 'ZAOKRĄGLIJ'] },
-  { shortcut: 'CHA', label: 'Faza', aliases: ['CHA', 'CHAMFER', 'FAZA', 'FAZUJ'] },
-  { shortcut: 'M', label: 'Przesuń', aliases: ['M', 'MOVE', 'PRZESUN', 'PRZESUŃ'] },
-  { shortcut: 'P', label: 'Project', aliases: ['P', 'PROJECT', 'RZUTUJ'] },
-  { shortcut: 'E', label: 'Wyciągnij', aliases: ['E', 'EXTRUDE', 'WYCIAGNIJ', 'WYCIĄGNIJ'] },
-  { shortcut: 'I', label: 'Zmierz', aliases: ['I', 'DI', 'DIST', 'MEASURE', 'ZMIERZ'] },
-  { shortcut: 'DEL', label: 'Usuń', aliases: ['DEL', 'DELETE', 'ERASE', 'USUN', 'USUŃ'] },
+  { shortcut: 'L', label: 'Linia', toolLabel: 'Linia', aliases: ['L', 'LINE', 'LINIA'] },
+  { shortcut: 'PL', label: 'Polilinia', toolLabel: 'Polilinia', aliases: ['PL', 'PLINE', 'POLYLINE', 'POLILINIA'] },
+  { shortcut: 'R', label: 'Prostokąt', toolLabel: 'Prostokąt', aliases: ['R', 'REC', 'RECTANG', 'RECTANGLE', 'PROSTOKAT', 'PROSTOKĄT'] },
+  { shortcut: 'C', label: 'Okrąg', toolLabel: 'Okrąg', aliases: ['C', 'CIRCLE', 'OKRAG', 'OKRĄG'] },
+  { shortcut: 'T', label: 'Trim', toolLabel: 'Trim', aliases: ['T', 'TR', 'TRIM', 'PRZYTNIJ'] },
+  { shortcut: 'EX', label: 'Extend', toolLabel: 'Extend', aliases: ['EX', 'EXTEND', 'PRZEDLUZ', 'PRZEDŁUŻ'] },
+  { shortcut: 'BR', label: 'Break', toolLabel: 'Break', aliases: ['BR', 'BREAK', 'PODZIEL'] },
+  { shortcut: 'O', label: 'Offset', toolLabel: 'Offset', aliases: ['O', 'OFFSET', 'ODSUN'] },
+  { shortcut: 'F', label: 'Fillet', toolLabel: 'Fillet szkicu', aliases: ['F', 'FILLET', 'ZAOKRAGLIJ', 'ZAOKRĄGLIJ'] },
+  { shortcut: 'CHA', label: 'Faza', toolLabel: 'Faza szkicu', aliases: ['CHA', 'CHAMFER', 'FAZA', 'FAZUJ'] },
+  { shortcut: 'M', label: 'Przesuń', toolLabel: 'Przesuń', aliases: ['M', 'MOVE', 'PRZESUN', 'PRZESUŃ'] },
+  { shortcut: 'P', label: 'Project', toolLabel: 'Project', aliases: ['P', 'PROJECT', 'RZUTUJ'] },
+  { shortcut: 'E', label: 'Wyciągnij', toolLabel: 'Wyciągnij', aliases: ['E', 'EXTRUDE', 'WYCIAGNIJ', 'WYCIĄGNIJ'] },
+  { shortcut: 'I', label: 'Zmierz', toolLabel: 'Zmierz', aliases: ['I', 'DI', 'DIST', 'MEASURE', 'ZMIERZ'] },
+  { shortcut: 'DEL', label: 'Usuń', toolLabel: 'Usuń', aliases: ['DEL', 'DELETE', 'ERASE', 'USUN', 'USUŃ'] },
 ]);
 
 const COMMAND_LOOKUP = new Map(COMMAND_DEFINITIONS.flatMap((definition) => (
@@ -49,18 +49,25 @@ export function normalizeCommandText(value) {
   return String(value || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('pl-PL');
 }
 
-export function resolveCommandAlias(value) {
-  return COMMAND_LOOKUP.get(normalizeCommandText(value)) || null;
+function customDefinition(value, customization) {
+  const normalized = normalizeCommandText(value);
+  if (!normalized || !customization?.commands) return null;
+  const match = COMMAND_DEFINITIONS.find((definition) => normalizeCommandText(customization.commands[definition.label]?.alias) === normalized);
+  return match || null;
 }
 
-export function parseCommandLineInput(value) {
+export function resolveCommandAlias(value, customization = null) {
+  return customDefinition(value, customization) || COMMAND_LOOKUP.get(normalizeCommandText(value)) || null;
+}
+
+export function parseCommandLineInput(value, customization = null) {
   const normalized = normalizeCommandText(value);
   if (!normalized) return { type: 'empty', raw: '' };
   if (['ESC', 'ESCAPE', 'CANCEL', 'ANULUJ'].includes(normalized)) return { type: 'cancel', raw: normalized };
   if (/^[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)$/.test(normalized)) {
     return { type: 'number', raw: normalized, value: Number(normalized.replace(',', '.')) };
   }
-  const command = resolveCommandAlias(normalized);
+  const command = resolveCommandAlias(normalized, customization);
   if (command) return { type: 'command', raw: normalized, command };
   return { type: 'unknown', raw: normalized };
 }
@@ -75,13 +82,20 @@ export function describeActiveCommand(command) {
   return `${name}: ustaw parametry i zatwierdź Enterem`;
 }
 
-export function commandSuggestions(value, limit = 6) {
+export function commandSuggestions(value, limit = 6, customization = null) {
   const normalized = normalizeCommandText(value);
   if (!normalized) return [];
   return COMMAND_DEFINITIONS
-    .filter((definition) => definition.aliases.some((alias) => alias.startsWith(normalized)))
+    .filter((definition) => {
+      const customAlias = normalizeCommandText(customization?.commands?.[definition.label]?.alias);
+      return customAlias.startsWith(normalized) || definition.aliases.some((alias) => alias.startsWith(normalized));
+    })
     .slice(0, limit)
-    .map(({ shortcut, label, aliases }) => ({ shortcut, label, command: aliases[1] || aliases[0] }));
+    .map(({ shortcut, label, aliases }) => ({
+      shortcut: customization?.commands?.[label]?.shortcut || shortcut,
+      label,
+      command: customization?.commands?.[label]?.alias || aliases[1] || aliases[0],
+    }));
 }
 
 export { COMMAND_DEFINITIONS };

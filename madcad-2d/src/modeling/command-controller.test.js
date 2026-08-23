@@ -24,4 +24,10 @@ describe('CAD command controller', () => {
     expect(describeActiveCommand({ type: 'line', lastPoint: { x: 0, y: 0 } })).toContain('wpisz długość');
     expect(commandSuggestions('li')[0]).toMatchObject({ shortcut: 'L', label: 'Linia' });
   });
+
+  it('prioritizes a configured alias without removing built-in command names', () => {
+    const customization = { commands: { Linia: { alias: 'XL', shortcut: 'G' } } };
+    expect(resolveCommandAlias('XL', customization)).toMatchObject({ label: 'Linia' });
+    expect(resolveCommandAlias('LINE', customization)).toMatchObject({ label: 'Linia' });
+  });
 });

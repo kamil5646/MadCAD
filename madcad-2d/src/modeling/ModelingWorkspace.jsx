@@ -24,6 +24,7 @@ import {
   Eye,
   EyeOff,
   Layers3,
+  Keyboard,
   Maximize2,
   Minus,
   MousePointer2,
@@ -140,12 +141,18 @@ import { FirstPartTutorial, FullLicenseDialog, LicenseInfoDialog, UpdateDialog }
 import { CommandLine } from './CommandLine.jsx';
 import { CommandDialog } from './CommandDialog.jsx';
 import { parseCommandLineInput } from './command-controller.js';
+import {
+  createDefaultCommandCustomization,
+  customizationForTool,
+  loadCommandCustomization,
+  saveCommandCustomization,
+} from './command-customization.js';
 import { isDockableCommand, panelScreenKey, readPanelLayout, writePanelLayout } from './panel-layout.js';
 import { multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
 import { downloadBlob, safeName, useDocumentHistory } from './workspace-document.js';
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext } from './WorkspaceRibbon.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
-import { BlocksPanel, Field, GeometryInspectionPanel, ImportModelDialog, ImportSketchDialog, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel, SketchDimensionDialog } from './WorkspacePanels.jsx';
+import { BlocksPanel, CommandCustomizationPanel, Field, GeometryInspectionPanel, ImportModelDialog, ImportSketchDialog, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel, SketchDimensionDialog } from './WorkspacePanels.jsx';
 import { ParametersDialog, PlanePicker, SketchPalette } from './WorkspaceSketchUi.jsx';
 import {
   AUTOSAVE_KEY,
@@ -392,6 +399,8 @@ export default function ModelingWorkspace() {
   const [browserOpen, setBrowserOpen] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
   const [blocksOpen, setBlocksOpen] = useState(false);
+  const [commandCustomizationOpen, setCommandCustomizationOpen] = useState(false);
+  const [commandCustomization, setCommandCustomization] = useState(() => loadCommandCustomization(window.localStorage));
   const [printPanelOpen, setPrintPanelOpen] = useState(false);
   const [timelineRename, setTimelineRename] = useState(null);
   const [timelineDeleteId, setTimelineDeleteId] = useState(null);
@@ -442,7 +451,8 @@ export default function ModelingWorkspace() {
       message,
     }, ...current].slice(0, 30));
   }, []);
-  const toolHelpContext = useMemo(() => ({ setToolHelp, registerShortcut }), [registerShortcut]);
+  const resolveToolCustomization = useCallback((label) => customizationForTool(commandCustomization, label), [commandCustomization]);
+  const toolHelpContext = useMemo(() => ({ setToolHelp, registerShortcut, customizationForTool: resolveToolCustomization }), [registerShortcut, resolveToolCustomization]);
   const readOnly = documentAccess.readOnly;
   const dirty = hasUnsavedSession({ readOnly, savedDocumentText, serializedDocument });
   const queueDesktopAutosave = useCallback((text) => {
@@ -652,6 +662,15 @@ export default function ModelingWorkspace() {
     if (!sketch) return;
     sketch.entities = sketch.entities.map((entity) => selected.has(entity.id) ? { ...entity, ...patch } : entity);
   });
+  const saveCommandSettings = (nextCustomization) => {
+    try {
+      const saved = saveCommandCustomization(nextCustomization, window.localStorage);
+      setCommandCustomization(saved);
+      setNotice('Zapisano aliasy i klawisze poleceń. Nowe ustawienia działają od razu.');
+    } catch (error) {
+      setNotice(`Nie zapisano skrótów: ${error.message}`);
+    }
+  };
   const createBlockFromSelection = (options) => {
     try {
       const checked = cloneDocument(document);
@@ -3736,7 +3755,7 @@ export default function ModelingWorkspace() {
   };
 
   const handleCommandLineSubmit = (rawInput) => {
-    const parsed = parseCommandLineInput(rawInput);
+    const parsed = parseCommandLineInput(rawInput, commandCustomization);
     if (parsed.type === 'cancel') {
       handleCommandLineCancel();
       return true;
@@ -3765,7 +3784,7 @@ export default function ModelingWorkspace() {
       return true;
     }
     if (parsed.type === 'command') {
-      const result = executeBasicShortcut(parsed.command.shortcut);
+      const result = executeBasicShortcut(commandCustomization.commands?.[parsed.command.label]?.alias || parsed.command.shortcut);
       if (!result) {
         const message = `Polecenie „${parsed.command.label}” nie jest dostępne w bieżącym obszarze.`;
         setNotice(message);
@@ -3938,7 +3957,7 @@ export default function ModelingWorkspace() {
               </>
             ) : workspace === 'tools' ? (
               <>
-                <RibbonGroup label="DOKUMENT"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} primary /><ToolButton icon={Layers3} label="Warstwy" onClick={() => { setBlocksOpen(false); setLayersOpen(true); }} primary={layersOpen} /><ToolButton icon={Blocks} label="Bloki" onClick={() => { setLayersOpen(false); setBlocksOpen(true); }} primary={blocksOpen} disabled={!activeSketchId} /></RibbonGroup>
+                <RibbonGroup label="DOKUMENT"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} primary /><ToolButton icon={Layers3} label="Warstwy" onClick={() => { setBlocksOpen(false); setCommandCustomizationOpen(false); setLayersOpen(true); }} primary={layersOpen} /><ToolButton icon={Blocks} label="Bloki" onClick={() => { setLayersOpen(false); setCommandCustomizationOpen(false); setBlocksOpen(true); }} primary={blocksOpen} disabled={!activeSketchId} /><ToolButton icon={Keyboard} label="Aliasy" onClick={() => { setLayersOpen(false); setBlocksOpen(false); setCommandCustomizationOpen(true); }} primary={commandCustomizationOpen} /></RibbonGroup>
                 <RibbonGroup label="SPRAWDŹ MODEL"><ToolButton icon={Ruler} label="Zmierz" onClick={openMeasure} /><ToolButton icon={ScanSearch} label="Przekrój" onClick={openSectionAnalysis} disabled={!engine.bodies.length} /><ToolButton icon={Box} label="Masa" onClick={openMassProperties} disabled={!engine.bodies.length} /><ToolButton icon={AlertTriangle} label="Analiza" onClick={openGeometryInspection} disabled={!engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="PŁASZCZYZNY"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Rotate3d} label="Plane angle" onClick={() => openConstructionPlane('angle')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Plane tangent" onClick={() => openConstructionPlane('tangent')} disabled={readOnly} /><ToolButton icon={Move3d} label="Plane path" onClick={() => openConstructionPlane('path')} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="OSIE"><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={Move3d} label="Oś normalna" onClick={() => openConstructionAxis('plane-normal')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-plane')} /></RibbonGroup>
@@ -4062,7 +4081,8 @@ export default function ModelingWorkspace() {
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} onClose={() => setCommand(null)} />}
           {layersOpen && <LayersPanel document={document} selectedEntities={selectedSketchEntities} readOnly={readOnly} onAdd={addDocumentLayer} onUpdate={updateDocumentLayer} onDelete={removeDocumentLayer} onActivate={activateDocumentLayer} onAssign={assignSelectionToLayer} onStyleSelected={styleSelectedEntities} onClose={() => setLayersOpen(false)} />}
           {blocksOpen && activeSketchId && <BlocksPanel document={document} selectedEntities={selectedSketchEntities} selectedInstance={selectedBlockInstance} readOnly={readOnly} onCreate={createBlockFromSelection} onInsert={insertDocumentBlock} onDeleteDefinition={removeBlockDefinition} onAddAttribute={addDocumentBlockAttribute} onUpdateInstanceAttribute={updateDocumentBlockAttribute} onExplode={explodeDocumentBlock} onDeleteInstance={removeDocumentBlockInstance} onClose={() => setBlocksOpen(false)} />}
-          {!document.sketches.length && !engine.bodies.length && !command && !readOnly && <StartPage onStartSketch={startSketch} onOpenProject={requestOpenProject} />}
+          {commandCustomizationOpen && <CommandCustomizationPanel customization={commandCustomization} onSave={saveCommandSettings} onReset={createDefaultCommandCustomization} onClose={() => setCommandCustomizationOpen(false)} />}
+          {!document.sketches.length && !engine.bodies.length && !command && !readOnly && <StartPage onStartSketch={startSketch} onOpenProject={requestOpenProject} commandCustomization={commandCustomization} />}
           {command?.type === 'plane' && <PlanePicker onPick={pickPlane} onCancel={() => { setCommand(null); setWorkspace('solid'); setNotice('Anulowano tworzenie szkicu.'); }} />}
           <ImportModelDialog draft={importDraft} onChange={(patch) => setImportDraft((current) => ({ ...current, ...patch }))} onConfirm={confirmModelImport} onCancel={() => setImportDraft(null)} />
           <ImportSketchDialog draft={sketchImportDraft} onChange={(patch) => setSketchImportDraft((current) => ({ ...current, ...patch }))} onConfirm={confirmSketchImport} onCancel={() => setSketchImportDraft(null)} />
@@ -4078,6 +4098,7 @@ export default function ModelingWorkspace() {
           command={command}
           history={commandHistory}
           notice={notice}
+          customization={commandCustomization}
           onCancel={handleCommandLineCancel}
           onSubmit={handleCommandLineSubmit}
         />
