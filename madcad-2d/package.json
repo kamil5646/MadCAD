@@ -33,6 +33,7 @@
     "dist:mac": "npm run build:ui && electron-builder --mac dir",
     "dist:mac:trusted": "npm run build:ui && electron-builder --mac zip --arm64 --publish never",
     "dist:win:trusted": "npm run build:ui && electron-builder --win nsis --x64 --publish never",
+    "dist:win:store": "npm run build:ui && node scripts/build-windows-store.cjs",
     "dist:linux:trusted": "npm run build:ui && electron-builder --linux AppImage --x64 --publish never",
     "dist:release:trusted": "npm run dist:mac:trusted && npm run dist:win:trusted && npm run dist:linux:trusted",
     "dist:win": "npm run build:ui && electron-builder --win nsis --x64",
@@ -52,6 +53,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "17.11.0",
     "jsdom": "^30.0.1",
+    "unzipper": "^0.12.5",
     "vite": "^8.2.1",
     "vitest": "^4.1.10"
   },
@@ -113,6 +115,24 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
+    },
+    "appx": {
+      "applicationId": "MadCAD",
+      "displayName": "MadCAD",
+      "publisherDisplayName": "Kamil Kasprzak",
+      "backgroundColor": "#263343",
+      "languages": [
+        "pl-PL",
+        "en-US"
+      ],
+      "showNameOnTiles": true,
+      "setBuildNumber": true,
+      "minVersion": "10.0.17763.0",
+      "maxVersionTested": "10.0.26100.0",
+      "electronUpdaterAware": false,
+      "capabilities": [
+        "runFullTrust"
+      ]
     },
     "afterSign": "scripts/notarize.js"
   },

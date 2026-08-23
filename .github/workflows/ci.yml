@@ -118,6 +118,9 @@ jobs:
           - os: windows-latest
             kind: windows
             build: npm run dist:win:trusted
+          - os: windows-latest
+            kind: windows-store
+            build: npm run dist:win:store
           - os: ubuntu-latest
             kind: linux
             build: npm run dist:linux:trusted

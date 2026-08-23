@@ -21,4 +21,8 @@ DerivedData/
 *.xcuserstate
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
-build/
+build/*
+!madcad-2d/build/
+madcad-2d/build/*
+!madcad-2d/build/appx/
+!madcad-2d/build/appx/*.png

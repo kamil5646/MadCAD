@@ -8,6 +8,7 @@ function readArgument(name) {
 
 contextBridge.exposeInMainWorld('desktopApp', {
   platform: process.platform,
+  distributionChannel: process.windowsStore === true ? 'microsoft-store' : 'direct',
   isDesktop: true,
   appLanguage: (() => {
     const langArg = readArgument('madcad-lang');

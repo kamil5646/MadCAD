@@ -24,6 +24,7 @@ export function FirstPartTutorial({ onClose }) {
 }
 
 export function LicenseInfoDialog({ onClose, onShowFullLicense }) {
+  const isMicrosoftStore = window.desktopApp?.distributionChannel === 'microsoft-store';
   useEffect(() => {
     const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKeyDown);
@@ -42,7 +43,7 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense }) {
         </header>
         <div className="license-info-body">
           <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.</p>
-          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.3.0 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
+          <p className="license-info-release-warning"><AlertTriangle size={17} /> {isMicrosoftStore ? 'Wersja Microsoft Store jest podpisana przez Microsoft, a aktualizacje instaluje Store.' : 'Wydanie 6.3.0 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.'}</p>
           <div className="license-info-card license-info-commercial">
             <strong>Użytek komercyjny jest płatny</strong>
             <ul>
@@ -94,7 +95,7 @@ export function UpdateDialog({ state, onCheck, onInstall, onClose }) {
     <div className="license-info-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !installing) onClose(); }}>
       <section className="license-info-dialog" role="dialog" aria-modal="true" aria-labelledby="updateDialogTitle">
         <header>
-          <div><strong id="updateDialogTitle">Aktualizacje MadCAD</strong><span>Pobierz oficjalną paczkę, sprawdź SHA-256 i uruchom instalator.</span></div>
+          <div><strong id="updateDialogTitle">Aktualizacje MadCAD</strong><span>{result?.managedByStore ? 'Aktualizacje tej wersji obsługuje Microsoft Store.' : 'Pobierz oficjalną paczkę, sprawdź SHA-256 i uruchom instalator.'}</span></div>
           <button type="button" title="Zamknij" aria-label="Zamknij" disabled={installing} onClick={onClose}><X size={17} /></button>
         </header>
         <div className="license-info-body">
@@ -114,18 +115,24 @@ export function UpdateDialog({ state, onCheck, onInstall, onClose }) {
               <p>Masz wersję {result.currentVersion}. Paczka zostanie pobrana z oficjalnego wydania GitHub oraz sprawdzona przed uruchomieniem.</p>
             </div>
           )}
+          {!checking && !installing && !state.error && !handoff && result?.managedByStore && (
+            <div className="license-info-card license-info-commercial">
+              <strong>Aktualizacje instaluje Microsoft Store</strong>
+              <p>MadCAD otrzyma podpisane aktualizacje automatycznie przez mechanizm Store. Zainstalowana wersja to {result.currentVersion}.</p>
+            </div>
+          )}
           {!checking && !installing && !state.error && !handoff && hasNewerVersion && !supportsThisComputer && (
             <div className="license-info-card license-info-commercial">
               <strong>Wersja {result.latestVersion} nie ma paczki dla tego komputera</strong>
               <p>Zainstalowana wersja to {result.currentVersion}. Otwórz stronę wydania, aby sprawdzić dostępne platformy i architektury.</p>
             </div>
           )}
-          {!checking && !installing && !state.error && !handoff && result && !hasNewerVersion && (
+          {!checking && !installing && !state.error && !handoff && result && !hasNewerVersion && !result.managedByStore && (
             <p className="license-info-lead">Masz aktualną wersję MadCAD{result.currentVersion ? ` (${result.currentVersion})` : ''}.</p>
           )}
           <div className="license-info-actions">
             {hasNewerVersion && !supportsThisComputer && result?.releaseUrl && <a href={result.releaseUrl} target="_blank" rel="noopener noreferrer">Strona wydania</a>}
-            <button className="secondary" type="button" disabled={checking || installing} onClick={() => onCheck(false)}>Sprawdź ponownie</button>
+            {!result?.managedByStore && <button className="secondary" type="button" disabled={checking || installing} onClick={() => onCheck(false)}>Sprawdź ponownie</button>}
             {result?.available && !handoff && <button className="confirm" type="button" disabled={checking || installing} onClick={onInstall}>Pobierz i otwórz</button>}
             <button type="button" disabled={installing} onClick={onClose}>Później</button>
           </div>

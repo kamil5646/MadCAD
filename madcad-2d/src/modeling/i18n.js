@@ -65,6 +65,10 @@ const ENGLISH_TEXT = Object.freeze({
   'Aktualizacje są dostępne w zainstalowanej aplikacji desktopowej.': 'Updates are available in the installed desktop application.',
   'Aktualizacje MadCAD': 'MadCAD updates',
   'Pobierz oficjalną paczkę, sprawdź SHA-256 i uruchom instalator.': 'Download the official package, verify SHA-256, and open the installer.',
+  'Aktualizacje tej wersji obsługuje Microsoft Store.': 'Updates for this version are managed by Microsoft Store.',
+  'Aktualizacje instaluje Microsoft Store': 'Updates are installed by Microsoft Store',
+  'MadCAD otrzyma podpisane aktualizacje automatycznie przez mechanizm Store.': 'MadCAD will receive signed updates automatically through Store.',
+  'Wersja Microsoft Store jest podpisana przez Microsoft, a aktualizacje instaluje Store.': 'The Microsoft Store version is signed by Microsoft, and Store installs its updates.',
   'Sprawdzanie aktualizacji…': 'Checking for updates…',
   'Pobieranie i sprawdzanie sumy SHA-256…': 'Downloading and verifying the SHA-256 checksum…',
   'Sprawdź ponownie': 'Check again',
@@ -525,6 +529,7 @@ const ENGLISH_TEXT = Object.freeze({
 });
 
 const ENGLISH_PHRASES = Object.freeze([
+  [/Zainstalowana wersja to ([\w.-]+)\./g, 'The installed version is $1.'],
   [/Wersja ([\w.-]+) nie ma paczki dla tego komputera/g, 'Version $1 has no package for this computer'],
   [/Zainstalowana wersja to ([\w.-]+)\. Otwórz stronę wydania, aby sprawdzić dostępne platformy i architektury\./g, 'The installed version is $1. Open the release page to check available platforms and architectures.'],
   [/Otwarty łańcuch \((\d+)\)/g, 'Open chain ($1)'],

@@ -62,6 +62,20 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: /Pobierz i otwórz/i })).toBeNull();
   });
 
+  it('delegates signed updates to Microsoft Store without offering a GitHub installer', () => {
+    render(<UpdateDialog
+      state={{ status: 'idle', error: '', result: { available: false, supported: true, managedByStore: true, installMode: 'store', currentVersion: '6.3.0' } }}
+      onCheck={() => {}}
+      onInstall={() => {}}
+      onClose={() => {}}
+    />);
+    const dialog = screen.getByRole('dialog', { name: /Aktualizacje MadCAD/i });
+    expect(dialog).toHaveTextContent(/Aktualizacje instaluje Microsoft Store/i);
+    expect(dialog).toHaveTextContent(/Zainstalowana wersja to 6.3.0/i);
+    expect(screen.queryByRole('button', { name: /Pobierz i otwórz/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Sprawdź ponownie/i })).toBeNull();
+  });
+
   it('links to the release when a newer version has no compatible package', () => {
     render(<UpdateDialog
       state={{ status: 'idle', error: '', result: { newerVersion: true, supported: false, currentVersion: '6.1.9', latestVersion: '6.2.0', releaseUrl: 'https://github.com/kamil5646/MadCAD2D/releases/tag/v6.2.0' } }}

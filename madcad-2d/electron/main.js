@@ -25,6 +25,7 @@ const execFileAsync = promisify(execFile);
 
 const isMac = process.platform === 'darwin';
 const isWindows = process.platform === 'win32';
+const isWindowsStore = isWindows && process.windowsStore === true;
 const APP_DISPLAY_NAME = 'MadCAD';
 const LEGACY_USER_DATA_NAME = 'MadCAD 2D';
 const appIconPng = path.join(__dirname, '..', 'assets', 'icons', 'madcad-512.png');
@@ -1250,6 +1251,19 @@ registerTrustedIpcHandler('madcad:check-for-updates', async () => {
         )
       };
     }
+    if (isWindowsStore) {
+      return {
+        ok: true,
+        available: false,
+        newerVersion: false,
+        supported: true,
+        managedByStore: true,
+        installMode: 'store',
+        currentVersion: normalizeVersionText(app.getVersion()),
+        latestVersion: null,
+        releaseUrl: '',
+      };
+    }
     const currentVersion = String(app.getVersion());
     const config = await readCadConfig();
     const channel = updatePolicy.normalizeChannel(config.updateChannel, currentVersion);
@@ -1296,6 +1310,15 @@ registerTrustedIpcHandler('madcad:download-and-install-update', async (event) =>
           'Aktualizator działa tylko w wersji zainstalowanej (build release).',
           'Updater works only in installed release builds.'
         )
+      };
+    }
+    if (isWindowsStore) {
+      return {
+        ok: true,
+        installing: false,
+        managedByStore: true,
+        upToDate: true,
+        currentVersion: normalizeVersionText(app.getVersion()),
       };
     }
 

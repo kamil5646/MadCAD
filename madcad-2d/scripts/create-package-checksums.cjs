@@ -17,7 +17,7 @@ async function walk(directory) {
 (async () => {
   const files = (await walk(releaseRoot)).filter((filePath) => {
     const name = path.basename(filePath);
-    return name.startsWith('MadCAD-') && (name.endsWith('.zip') || name.endsWith('.exe') || name.endsWith('.AppImage'));
+    return name.startsWith('MadCAD-') && (name.endsWith('.zip') || name.endsWith('.exe') || name.endsWith('.appx') || name.endsWith('.AppImage'));
   });
   if (!files.length) throw new Error('Nie znaleziono paczek MadCAD do obliczenia SHA-256.');
   const reports = [];

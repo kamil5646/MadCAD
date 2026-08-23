@@ -73,6 +73,17 @@ expectText(releaseWorkflow, /Ważne — wydanie bez podpisu producenta/, 'ostrze
 expectText(releaseWorkflow, /MADCAD_REQUIRE_CHECKSUM:\s*'1'/, 'obowiązkowa suma SHA-256 wydania');
 expectText(releaseWorkflow, /electron-builder --linux AppImage --x64/, 'oficjalny build Linux AppImage');
 
+const ciWorkflow = read('.github/workflows/ci.yml');
+expectText(ciWorkflow, /kind:\s*windows-store[\s\S]*?npm run dist:win:store/, 'test paczki Microsoft Store na Windows');
+if (!packageJson.scripts?.['dist:win:store']) throw new Error('Brak komendy budowania paczki Microsoft Store.');
+if (packageJson.build?.appx?.electronUpdaterAware !== false) throw new Error('Paczka Store nie może używać aktualizatora GitHub.');
+if (JSON.stringify(packageJson.build?.appx?.capabilities) !== JSON.stringify(['runFullTrust'])) {
+  throw new Error('Paczka Store może deklarować wyłącznie wymagane runFullTrust.');
+}
+const preloadSource = read('madcad-2d/electron/preload.js');
+expectText(preloadSource, /distributionChannel:\s*process\.windowsStore === true \? 'microsoft-store' : 'direct'/, 'kanał dystrybucji Store w preload');
+expectText(main, /isWindowsStore[\s\S]*?managedByStore:\s*true[\s\S]*?installMode:\s*'store'/, 'aktualizacje zarządzane przez Microsoft Store');
+
 const codeqlWorkflow = read('.github/workflows/codeql.yml');
 expectText(codeqlWorkflow, /github\/codeql-action\/analyze@[a-f0-9]{40}/, 'przypięta analiza CodeQL');
 
