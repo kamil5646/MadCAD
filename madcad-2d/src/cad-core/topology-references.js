@@ -16,6 +16,50 @@ function descriptorDistance(referenceDescriptor, candidateDescriptor) {
   return Math.hypot(...referencePoint.map((value, axis) => Number(value) - Number(candidatePoint[axis] || 0)));
 }
 
+function vectorAngle(first, second) {
+  if (!Array.isArray(first) || !Array.isArray(second) || first.length < 3 || second.length < 3) return null;
+  const firstLength = Math.hypot(...first);
+  const secondLength = Math.hypot(...second);
+  if (!firstLength || !secondLength) return null;
+  const dot = first.reduce((sum, value, index) => sum + Number(value) * Number(second[index] || 0), 0) / (firstLength * secondLength);
+  return Math.acos(Math.max(-1, Math.min(1, Math.abs(dot)))) * 180 / Math.PI;
+}
+
+function relativeDifference(first, second) {
+  const left = Number(first);
+  const right = Number(second);
+  if (!Number.isFinite(left) || !Number.isFinite(right)) return null;
+  return Math.abs(left - right) / Math.max(Math.abs(left), Math.abs(right), 1) * 100;
+}
+
+export function describeTopologyCandidate(referenceDescriptor, candidateDescriptor) {
+  const distance = descriptorDistance(referenceDescriptor, candidateDescriptor);
+  const geometryMatch = !referenceDescriptor?.geometry || !candidateDescriptor?.geometry || referenceDescriptor.geometry === candidateDescriptor.geometry;
+  const sizeDifference = relativeDifference(
+    referenceDescriptor?.area ?? referenceDescriptor?.length ?? referenceDescriptor?.radius,
+    candidateDescriptor?.area ?? candidateDescriptor?.length ?? candidateDescriptor?.radius,
+  );
+  const orientationDifference = vectorAngle(
+    referenceDescriptor?.normal ?? referenceDescriptor?.axisDirection,
+    candidateDescriptor?.normal ?? candidateDescriptor?.axisDirection,
+  );
+  let score = 100;
+  if (!geometryMatch) score -= 35;
+  if (Number.isFinite(distance)) score -= Math.min(40, distance * 4);
+  else score -= 25;
+  if (sizeDifference !== null) score -= Math.min(20, sizeDifference * 0.4);
+  if (orientationDifference !== null) score -= Math.min(20, orientationDifference * 0.5);
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  return {
+    distance,
+    geometryMatch,
+    sizeDifference,
+    orientationDifference,
+    score,
+    confidence: score >= 80 ? 'high' : score >= 55 ? 'medium' : 'low',
+  };
+}
+
 export function createTopologyReference({ selection, ownerFeatureId = null, descriptor = null, label = null }) {
   if (!selection || !TOPOLOGY_KINDS.includes(selection.kind) || !selection.id || !selection.bodyId) {
     throw new Error('Referencja topologii wymaga wskazanej ściany, krawędzi albo wierzchołka.');
@@ -53,8 +97,8 @@ export function inspectTopologyReferences(document, bodies) {
     const candidates = candidateBodies.flatMap((candidateBody) => topologyRecords(candidateBody, reference.topologyKind).map((record) => ({
       ...topologySelectionForRecord(candidateBody, reference.topologyKind, record),
       descriptor: record.descriptor,
-      distance: descriptorDistance(reference.descriptor, record.descriptor),
-    }))).sort((left, right) => left.distance - right.distance || left.id.localeCompare(right.id));
+      ...describeTopologyCandidate(reference.descriptor, record.descriptor),
+    }))).sort((left, right) => right.score - left.score || left.distance - right.distance || left.id.localeCompare(right.id));
     return {
       reference,
       status: resolvedRecord ? 'resolved' : 'lost',

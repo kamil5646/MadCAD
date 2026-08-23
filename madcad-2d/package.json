@@ -22,6 +22,7 @@
     "verify:command-line": "npm run build:ui && electron scripts/verify-command-line.cjs",
     "verify:panels": "npm run build:ui && electron scripts/verify-docked-panels.cjs",
     "verify:timeline": "npm run build:ui && electron scripts/verify-timeline-management.cjs",
+    "verify:reference-repair": "npm run build:ui && electron scripts/verify-reference-repair-wizard.cjs",
     "verify:snap-feedback": "npm run build:ui && electron scripts/verify-snap-feedback.cjs",
     "verify:electron-security": "electron scripts/verify-electron-security.cjs",
     "verify:package": "node scripts/verify-package.cjs",

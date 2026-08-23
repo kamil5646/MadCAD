@@ -282,6 +282,9 @@ test('utracona referencja topologii wskazuje feature źródłowy i pozwala na po
   assert.equal(lost.sourceFeature.name, 'Bryła źródłowa');
   assert.equal(lost.ownerFeature.name, 'Operacja zależna');
   assert.equal(lost.candidates[0].id, 'edge-current');
+  assert.equal(lost.candidates[0].confidence, 'high');
+  assert.ok(lost.candidates[0].score >= 80);
+  assert.ok(lost.candidates[0].distance <= 1);
 
   document.references[0] = reassignTopologyReference(reference, lost.candidates[0], lost.candidates[0].descriptor);
   const [resolved] = inspectTopologyReferences(document, [body]);

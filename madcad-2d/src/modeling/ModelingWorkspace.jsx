@@ -733,8 +733,9 @@ function StartPage({ onStartSketch, onOpenProject }) {
   );
 }
 
-function TopologyReferenceRepairPanel({ items, selection, onReassign }) {
+function TopologyReferenceRepairPanel({ items, selection, onReassign, onPreview }) {
   const [expanded, setExpanded] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   useEffect(() => {
     const collapseForCompactViewport = () => {
       if (window.innerWidth <= 1200) setExpanded(false);
@@ -743,27 +744,55 @@ function TopologyReferenceRepairPanel({ items, selection, onReassign }) {
     window.addEventListener('resize', collapseForCompactViewport);
     return () => window.removeEventListener('resize', collapseForCompactViewport);
   }, []);
+  useEffect(() => {
+    setActiveIndex((current) => Math.max(0, Math.min(current, items.length - 1)));
+  }, [items.length]);
   if (!items.length) return null;
   const selectedItem = selection?.items?.at(-1) || selection;
+  const item = items[activeIndex] || items[0];
+  const canUseSelection = selectedItem && selectedItem.kind === item.reference.topologyKind && selectedItem.id;
+  const topologyKindLabel = { face: 'ściana', edge: 'krawędź', vertex: 'wierzchołek' }[item.reference.topologyKind] || item.reference.topologyKind;
+  const highConfidenceRepairs = items.map((entry) => ({ entry, candidate: entry.candidates.find((candidate) => candidate.confidence === 'high') })).filter(({ candidate }) => candidate);
+  const formatDifference = (value, suffix, fallback = 'brak danych') => Number.isFinite(value) ? `${value.toFixed(value >= 10 ? 1 : 2)}${suffix}` : fallback;
+  const confidenceLabel = { high: 'wysoka', medium: 'średnia', low: 'niska' };
+  const autoRepair = () => highConfidenceRepairs.forEach(({ entry, candidate }) => onReassign(entry.reference.id, candidate, candidate.descriptor));
   return (
-    <aside className={`reference-repair-panel ${expanded ? '' : 'collapsed'}`} role="alert" aria-label="Naprawa utraconych referencji">
-      <header><AlertTriangle size={16} /><div><strong>Utracona referencja</strong><span>{items.length === 1 ? '1 element wymaga przypisania' : `${items.length} elementy wymagają przypisania`}</span></div><button className="reference-repair-toggle" type="button" aria-expanded={expanded} title={expanded ? 'Zwiń panel naprawy' : 'Rozwiń panel naprawy'} onClick={() => setExpanded((value) => !value)}>{expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button></header>
-      {expanded && items.map((item) => {
-        const canUseSelection = selectedItem && selectedItem.kind === item.reference.topologyKind && selectedItem.id;
-        return (
-          <section key={item.reference.id}>
+    <aside className={`reference-repair-panel ${expanded ? '' : 'collapsed'}`} role="region" aria-live="polite" aria-label="Kreator naprawy utraconych referencji">
+      <header><AlertTriangle size={16} /><div><strong>Kreator naprawy referencji</strong><span>{items.length === 1 ? '1 element wymaga przypisania' : `${items.length} elementy wymagają przypisania`}</span></div><button className="reference-repair-toggle" type="button" aria-expanded={expanded} title={expanded ? 'Zwiń kreator naprawy' : 'Rozwiń kreator naprawy'} aria-label={expanded ? 'Zwiń kreator naprawy' : 'Rozwiń kreator naprawy'} onClick={() => setExpanded((value) => !value)}>{expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button></header>
+      {expanded && <>
+        <div className="reference-repair-progress"><span>Krok {activeIndex + 1} z {items.length}</span><progress max={items.length} value={activeIndex + 1} /></div>
+        <section key={item.reference.id}>
+          <div className="reference-repair-summary">
             <strong>{item.ownerFeature?.name || item.reference.label || 'Operacja zależna'}</strong>
             <span>Źródło: {item.sourceFeature?.name || item.reference.sourceFeatureId || 'nieznane'}</span>
             <small>{item.reason}</small>
-            <div>
-              <button type="button" disabled={!canUseSelection} onClick={() => onReassign(item.reference.id, selectedItem)}>Przypisz zaznaczenie</button>
-              {item.candidates.slice(0, 2).map((candidate, index) => (
-                <button className="secondary" key={candidate.id} type="button" onClick={() => onReassign(item.reference.id, candidate, candidate.descriptor)}>{`Kandydat ${index + 1}`}</button>
-              ))}
-            </div>
-          </section>
-        );
-      })}
+            <small>Oczekiwany typ: <b>{topologyKindLabel}</b> · poprzednie ID: <code>{item.reference.topologyId}</code></small>
+          </div>
+          <div className="reference-repair-selection">
+            <span>Wskaż {topologyKindLabel} w modelu albo wybierz dopasowanie poniżej.</span>
+            <button type="button" disabled={!canUseSelection} onClick={() => onReassign(item.reference.id, selectedItem)}>Przypisz zaznaczenie</button>
+          </div>
+          <div className="reference-candidates" aria-label="Sugerowane dopasowania">
+            {item.candidates.slice(0, 3).map((candidate, index) => (
+              <article className={`reference-candidate confidence-${candidate.confidence}`} key={`${candidate.bodyId}:${candidate.id}`}>
+                <div><strong>{confidenceLabel[candidate.confidence]} · {candidate.score}%</strong><span>{candidate.id}</span></div>
+                <small>Odległość {formatDifference(candidate.distance, ' mm')} · rozmiar {formatDifference(candidate.sizeDifference, '%')} · orientacja {formatDifference(candidate.orientationDifference, '°')}</small>
+                <div className="reference-candidate-actions">
+                  <button className="secondary" type="button" onClick={() => onPreview(candidate)}>Pokaż</button>
+                  <button type="button" data-reference-action={`candidate-${index + 1}`} onClick={() => onReassign(item.reference.id, candidate, candidate.descriptor)}>{`Kandydat ${index + 1}`}</button>
+                </div>
+              </article>
+            ))}
+            {!item.candidates.length && <p>Brak automatycznych kandydatów. Zaznacz zgodny element bezpośrednio w modelu.</p>}
+          </div>
+        </section>
+        <footer>
+          <button className="secondary" type="button" disabled={activeIndex === 0} onClick={() => setActiveIndex((index) => Math.max(0, index - 1))}>Wstecz</button>
+          <button className="secondary" type="button" disabled={activeIndex >= items.length - 1} onClick={() => setActiveIndex((index) => Math.min(items.length - 1, index + 1))}>Dalej</button>
+          <button type="button" data-reference-action="repair-certain" disabled={!highConfidenceRepairs.length} onClick={autoRepair}>Napraw pewne ({highConfidenceRepairs.length})</button>
+          <small>Każdą naprawę można cofnąć przez {shortcutLabel('CTRL+Z')}.</small>
+        </footer>
+      </>}
     </aside>
   );
 }
@@ -3168,7 +3197,7 @@ export default function ModelingWorkspace() {
       features: document.features.length,
       featureIds: document.features.map((feature) => feature.id),
       featureData: document.features.map((feature) => ({ id: feature.id, name: feature.name, type: feature.type, suppressed: feature.suppressed, sketchId: feature.sketchId, sketchIds: feature.sketchIds, profileId: feature.profileId, profileIds: feature.profileIds, pathSketchId: feature.pathSketchId, pathEntityIds: feature.pathEntityIds, loftMode: feature.loftMode, ribMode: feature.ribMode, patternType: feature.patternType, countX: feature.countX, countY: feature.countY, spacingX: feature.spacingX, spacingY: feature.spacingY, occurrences: feature.occurrences, totalAngle: feature.totalAngle, thickness: feature.thickness, reverse: feature.reverse, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, outsideDiameter: feature.outsideDiameter, wallSide: feature.wallSide, endCap: feature.endCap, openEntityIds: feature.openEntityIds, depth: feature.depth, diameter: feature.diameter, coilDiameter: feature.coilDiameter, wireDiameter: feature.wireDiameter, pitch: feature.pitch, turns: feature.turns, handedness: feature.handedness, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, neutralPlaneId: feature.neutralPlaneId, planeId: feature.planeId, axisId: feature.axisId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
-      references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, rotationAxis: reference.rotationAxis, angle: reference.angle, surfaceType: reference.surfaceType, center: reference.center, point: reference.point, axis: reference.axis, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, distance: reference.distance, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
+      references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, rotationAxis: reference.rotationAxis, angle: reference.angle, surfaceType: reference.surfaceType, center: reference.center, point: reference.point, axis: reference.axis, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, distance: reference.distance, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId, repairedAt: reference.repairedAt })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
         : { kind: selection?.kind, id: selection?.id, items: selection?.items?.map((item) => ({ kind: item.kind, id: item.id })) || [] },
@@ -5008,7 +5037,7 @@ export default function ModelingWorkspace() {
             onSave={() => { void saveProject(); }}
             onDismiss={() => setRecoveryInfo(null)}
           />
-          <TopologyReferenceRepairPanel items={lostTopologyReferences} selection={selection} onReassign={repairTopologyReference} />
+          <TopologyReferenceRepairPanel items={lostTopologyReferences} selection={selection} onReassign={repairTopologyReference} onPreview={(candidate) => handleTopologySelection(candidate)} />
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
