@@ -12,14 +12,18 @@ const requestedKind = String(process.env.MADCAD_PACKAGE_KIND || process.argv[2] 
 const requireChecksum = process.env.MADCAD_REQUIRE_CHECKSUM === '1';
 const requireSignature = process.env.MADCAD_REQUIRE_SIGNATURE === '1';
 const expected = requestedKind === 'windows'
-  ? { extension: '.exe', signature: [0x4d, 0x5a], minimumBytes: 20 * 1024 * 1024 }
+  ? { extension: '.exe', signature: [0x4d, 0x5a], minimumBytes: 20 * 1024 * 1024, nameIncludes: 'win' }
+  : requestedKind === 'windows-portable'
+    ? { extension: '.zip', signature: [0x50, 0x4b], minimumBytes: 20 * 1024 * 1024, nameIncludes: 'win' }
   : requestedKind === 'mac'
-    ? { extension: '.zip', signature: [0x50, 0x4b], minimumBytes: 20 * 1024 * 1024 }
+    ? { extension: '.zip', signature: [0x50, 0x4b], minimumBytes: 20 * 1024 * 1024, nameIncludes: 'mac' }
+    : requestedKind === 'mac-dmg'
+      ? { extension: '.dmg', trailerSignature: [0x6b, 0x6f, 0x6c, 0x79], trailerOffset: 512, minimumBytes: 20 * 1024 * 1024, nameIncludes: 'mac' }
     : requestedKind === 'linux'
       ? { extension: '.appimage', signature: [0x7f, 0x45, 0x4c, 0x46], minimumBytes: 20 * 1024 * 1024 }
       : null;
 
-if (!expected) throw new Error('Podaj rodzaj paczki: mac, windows albo linux.');
+if (!expected) throw new Error('Podaj rodzaj paczki: mac, mac-dmg, windows, windows-portable albo linux.');
 
 async function walk(directory) {
   const entries = await fs.readdir(directory, { withFileTypes: true });
@@ -54,20 +58,26 @@ async function verifyPlatformSignature(filePath) {
 
 (async () => {
   const files = await walk(releaseRoot);
-  const candidates = files.filter((filePath) => filePath.toLowerCase().endsWith(expected.extension) && path.basename(filePath).startsWith('MadCAD-'));
+  const candidates = files.filter((filePath) => {
+    const name = path.basename(filePath);
+    const lower = name.toLowerCase();
+    return lower.endsWith(expected.extension) && name.startsWith('MadCAD-') && (!expected.nameIncludes || lower.includes(expected.nameIncludes));
+  });
   if (!candidates.length) throw new Error(`Nie znaleziono paczki ${expected.extension} w ${releaseRoot}.`);
   const reports = [];
   for (const filePath of candidates) {
     const stat = await fs.stat(filePath);
     const handle = await fs.open(filePath, 'r');
-    const signature = Buffer.alloc(expected.signature.length);
+    const expectedSignature = expected.signature || expected.trailerSignature;
+    const signature = Buffer.alloc(expectedSignature.length);
     try {
-      await handle.read(signature, 0, signature.length, 0);
+      const position = expected.trailerSignature ? stat.size - expected.trailerOffset : 0;
+      await handle.read(signature, 0, signature.length, position);
     } finally {
       await handle.close();
     }
     if (stat.size < expected.minimumBytes) throw new Error(`${path.basename(filePath)} jest podejrzanie mały: ${stat.size} B.`);
-    if (!expected.signature.every((byte, index) => signature[index] === byte)) throw new Error(`${path.basename(filePath)} ma nieprawidłową sygnaturę pliku.`);
+    if (!expectedSignature.every((byte, index) => signature[index] === byte)) throw new Error(`${path.basename(filePath)} ma nieprawidłową sygnaturę pliku.`);
     const data = await fs.readFile(filePath);
     const sha256 = crypto.createHash('sha256').update(data).digest('hex');
     const checksumPath = `${filePath}.sha256`;

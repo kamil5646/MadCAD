@@ -114,10 +114,16 @@ jobs:
         include:
           - os: macos-latest
             kind: mac
-            build: npm run dist:mac:trusted
+            build: npm run dist:mac:unsigned
+          - os: macos-latest
+            kind: mac-dmg
+            build: npm run dist:mac:dmg
           - os: windows-latest
             kind: windows
-            build: npm run dist:win:trusted
+            build: npm run dist:win:unsigned
+          - os: windows-latest
+            kind: windows-portable
+            build: npm run dist:win:portable
           - os: ubuntu-latest
             kind: linux
             build: npm run dist:linux:trusted

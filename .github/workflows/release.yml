@@ -119,9 +119,9 @@ jobs:
         run: |
           echo "Building unsigned packages by repository-owner decision; SHA-256 and platform tests remain mandatory."
           if [ "$RUNNER_OS" = "macOS" ]; then
-            npx electron-builder --mac zip --arm64 --publish never
+            npx electron-builder --mac dmg zip --arm64 --publish never
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            npx electron-builder --win nsis --x64 --publish never
+            npx electron-builder --win nsis zip --x64 --publish never
           else
             npx electron-builder --linux AppImage --x64 --publish never
           fi
@@ -143,6 +143,12 @@ jobs:
             Linux) package_kind=linux ;;
           esac
           npm run verify:package -- "$package_kind"
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            npm run verify:package -- mac-dmg
+          fi
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            npm run verify:package -- windows-portable
+          fi
 
       - name: Upload verified release package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -150,6 +156,7 @@ jobs:
           name: release-${{ runner.os }}
           path: |
             madcad-2d/release/MadCAD-*.zip
+            madcad-2d/release/MadCAD-*.dmg
             madcad-2d/release/MadCAD-*.exe
             madcad-2d/release/MadCAD-*.AppImage
             madcad-2d/release/MadCAD-*.sha256
@@ -176,6 +183,6 @@ jobs:
           body: |
             ## Ważne — wydanie bez podpisu producenta
 
-            Paczki Windows i macOS nie mają podpisu Authenticode ani Apple Developer ID/notaryzacji. Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie. Linux jest publikowany jako przenośny AppImage x64.
+            Paczki Windows i macOS nie mają podpisu Authenticode ani Apple Developer ID/notaryzacji. Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie. Windows zawiera instalator jednym kliknięciem oraz paczkę przenośną ZIP; macOS zawiera polecany obraz DMG i awaryjny ZIP; Linux jest publikowany jako przenośny AppImage x64.
 
             Wbudowany aktualizator pobiera paczkę wyłącznie z oficjalnego wydania, sprawdza odpowiadającą sumę SHA-256 i otwiera plik do instalacji systemowej. Bez certyfikatu platformowego system nadal wymaga ręcznego potwierdzenia i może wyświetlić ostrzeżenie.

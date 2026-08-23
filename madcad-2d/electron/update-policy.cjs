@@ -79,7 +79,7 @@ function selectReleaseAsset(assets, platform, architecture) {
     return null;
   }
   if (targetPlatform === 'win32') {
-    const windowsPackages = candidates.filter((asset) => asset.lower.includes('win') && asset.lower.endsWith('.exe'));
+    const windowsPackages = candidates.filter((asset) => asset.lower.includes('win') && asset.lower.endsWith('.exe') && !asset.lower.includes('portable'));
     if (targetArch === 'arm64') return windowsPackages.find((asset) => /(?:arm64|aarch64)/.test(asset.lower))?.raw || null;
     if (targetArch === 'x64') return windowsPackages.find((asset) => /(?:x64|x86_64)/.test(asset.lower) && !asset.lower.includes('arm64'))?.raw || null;
     return null;
