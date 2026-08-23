@@ -7,6 +7,7 @@ import {
   ensureDocumentLayers,
   isSupportedLineType,
 } from './layers.js';
+import { ensureDocumentBlocks } from './blocks.js';
 import {
   SKETCH_ENTITY_ROLES,
   SKETCH_ENTITY_TYPES,
@@ -110,7 +111,7 @@ export function createCircleProfile({ name = 'Okrąg', diameter = 'srednicaOtwor
   };
 }
 
-export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', support = null, entities = [], profiles = [], constraints = [], dimensions = [] } = {}) {
+export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', support = null, entities = [], profiles = [], constraints = [], dimensions = [], blockInstances = [] } = {}) {
   return normalizeSketchModel({
     id: createId('sketch'),
     name,
@@ -123,6 +124,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
     profiles,
     constraints,
     dimensions,
+    blockInstances,
   });
 }
 
@@ -149,6 +151,7 @@ export function createDocument(name = 'Nowy projekt') {
     bodies: [],
     components: [],
     references: [],
+    blocks: [],
     layers: [createDefaultLayer()],
     activeLayerId: 'layer-0',
     print: {
@@ -231,11 +234,11 @@ export function migrateDocument(source, { now = new Date().toISOString() } = {})
     document = migration(document, now);
     version = readSchemaVersion(document);
   }
-  return ensureDocumentLayers(document);
+  return ensureDocumentBlocks(ensureDocumentLayers(document));
 }
 
 function projectFutureDocument(source) {
-  const projected = ensureDocumentLayers(ensureV3Collections(cloneDocument(source)));
+  const projected = ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source))));
   projected.schemaVersion = DOCUMENT_SCHEMA_VERSION;
   projected.metadata = {
     ...(isRecord(projected.metadata) ? projected.metadata : {}),
@@ -309,6 +312,7 @@ export function validateDocument(document) {
   const components = requireArray(document, 'components');
   const references = requireArray(document, 'references');
   const layers = requireArray(document, 'layers');
+  const blocks = requireArray(document, 'blocks');
   if (!isRecord(document.print)) add('print', 'Wymagane są ustawienia druku.', 'TYPE');
   if (!isRecord(document.metadata)) add('metadata', 'Wymagane są metadane dokumentu.', 'TYPE');
 
@@ -344,6 +348,40 @@ export function validateDocument(document) {
   if (!layers.length) add('layers', 'Dokument musi zawierać co najmniej jedną warstwę.', 'REQUIRED');
   if (!layerIds.has(document.activeLayerId)) add('activeLayerId', 'Aktywna warstwa musi istnieć w dokumencie.', 'BROKEN_REFERENCE');
 
+  const blockIds = new Set();
+  const blockNames = new Set();
+  blocks.forEach((block, index) => {
+    const base = `blocks[${index}]`;
+    if (!isRecord(block)) {
+      add(base, 'Definicja bloku musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(block.id, `${base}.id`);
+    if (typeof block.id === 'string') blockIds.add(block.id);
+    if (typeof block.name !== 'string' || !block.name.trim()) add(`${base}.name`, 'Blok wymaga nazwy.', 'REQUIRED');
+    else if (blockNames.has(block.name.toLocaleLowerCase())) add(`${base}.name`, `Powtórzona nazwa bloku: ${block.name}`, 'DUPLICATE');
+    else blockNames.add(block.name.toLocaleLowerCase());
+    if (!Array.isArray(block.basePoint) || block.basePoint.length !== 2 || block.basePoint.some((value) => !Number.isFinite(Number(value)))) add(`${base}.basePoint`, 'Punkt bazowy bloku wymaga dwóch liczb.', 'TYPE');
+    const templateEntities = requireArray(block, 'entities', `${base}.entities`);
+    requireArray(block, 'constraints', `${base}.constraints`);
+    requireArray(block, 'dimensions', `${base}.dimensions`);
+    const attributes = requireArray(block, 'attributeDefinitions', `${base}.attributeDefinitions`);
+    const templateIds = new Set();
+    templateEntities.forEach((entity, entityIndex) => {
+      if (!isRecord(entity) || typeof entity.id !== 'string' || !entity.id) add(`${base}.entities[${entityIndex}]`, 'Encja definicji bloku wymaga ID.', 'REQUIRED');
+      else if (templateIds.has(entity.id)) add(`${base}.entities[${entityIndex}].id`, 'Powtórzone ID encji definicji bloku.', 'DUPLICATE');
+      else templateIds.add(entity.id);
+    });
+    const attributeTags = new Set();
+    attributes.forEach((attribute, attributeIndex) => {
+      const attributeBase = `${base}.attributeDefinitions[${attributeIndex}]`;
+      if (!isRecord(attribute)) add(attributeBase, 'Atrybut bloku musi być obiektem.', 'TYPE');
+      else if (!/^[A-Z_][A-Z0-9_]*$/.test(attribute.tag || '')) add(`${attributeBase}.tag`, 'Nieprawidłowy tag atrybutu.', 'FORMAT');
+      else if (attributeTags.has(attribute.tag)) add(`${attributeBase}.tag`, `Powtórzony tag: ${attribute.tag}`, 'DUPLICATE');
+      else attributeTags.add(attribute.tag);
+    });
+  });
+
   const parameterNames = new Set();
   parameters.forEach((parameter, index) => {
     const base = `parameters[${index}]`;
@@ -378,6 +416,7 @@ export function validateDocument(document) {
     const entities = requireArray(sketch, 'entities', `${base}.entities`);
     const constraints = requireArray(sketch, 'constraints', `${base}.constraints`);
     const dimensions = requireArray(sketch, 'dimensions', `${base}.dimensions`);
+    const blockInstances = requireArray(sketch, 'blockInstances', `${base}.blockInstances`);
     const entityIds = new Set();
     const entityMap = new Map();
     entities.forEach((entity, entityIndex) => {
@@ -436,6 +475,31 @@ export function validateDocument(document) {
         if (pointCount !== 1) add(`${entityBase}.pointIds`, 'Okrąg wymaga punktu środka.', 'VALUE');
         if (typeof entity.geometry?.radius !== 'string' && typeof entity.geometry?.radius !== 'number') add(`${entityBase}.geometry.radius`, 'Okrąg wymaga promienia.', 'REQUIRED');
       }
+    });
+    const blockInstanceIds = new Set();
+    blockInstances.forEach((instance, instanceIndex) => {
+      const instanceBase = `${base}.blockInstances[${instanceIndex}]`;
+      if (!isRecord(instance)) {
+        add(instanceBase, 'Wystąpienie bloku musi być obiektem.', 'TYPE');
+        return;
+      }
+      registerId(instance.id, `${instanceBase}.id`);
+      if (typeof instance.id === 'string') blockInstanceIds.add(instance.id);
+      if (!blockIds.has(instance.blockId)) add(`${instanceBase}.blockId`, `Nie znaleziono definicji bloku „${instance.blockId ?? ''}”.`, 'BROKEN_REFERENCE');
+      if (!Array.isArray(instance.insertionPoint) || instance.insertionPoint.length !== 2 || instance.insertionPoint.some((value) => !Number.isFinite(Number(value)))) add(`${instanceBase}.insertionPoint`, 'Punkt wstawienia bloku wymaga dwóch liczb.', 'TYPE');
+      if (!Number.isFinite(Number(instance.rotation))) add(`${instanceBase}.rotation`, 'Obrót bloku musi być liczbą.', 'TYPE');
+      if (!(Number(instance.scale) > 0)) add(`${instanceBase}.scale`, 'Skala bloku musi być dodatnia.', 'VALUE');
+      if (!Array.isArray(instance.entityIds) || !instance.entityIds.length) add(`${instanceBase}.entityIds`, 'Wystąpienie bloku wymaga geometrii.', 'REQUIRED');
+      if (!isRecord(instance.attributes)) add(`${instanceBase}.attributes`, 'Atrybuty wystąpienia muszą być obiektem.', 'TYPE');
+    });
+    blockInstances.forEach((instance, instanceIndex) => (instance.entityIds || []).forEach((entityId, entityIndex) => {
+      if (!entityIds.has(entityId)) add(`${base}.blockInstances[${instanceIndex}].entityIds[${entityIndex}]`, `Nie znaleziono encji bloku „${entityId}”.`, 'BROKEN_REFERENCE');
+      const entity = entityMap.get(entityId);
+      if (entity?.blockInstanceId !== instance.id) add(`${base}.blockInstances[${instanceIndex}].entityIds[${entityIndex}]`, 'Encja nie wskazuje zgodnego wystąpienia bloku.', 'VALUE');
+    }));
+    entities.forEach((entity, entityIndex) => {
+      if (entity.blockInstanceId !== undefined && !blockInstanceIds.has(entity.blockInstanceId)) add(`${base}.entities[${entityIndex}].blockInstanceId`, `Nie znaleziono wystąpienia bloku „${entity.blockInstanceId}”.`, 'BROKEN_REFERENCE');
+      if (entity.blockDefinitionId !== undefined && !blockIds.has(entity.blockDefinitionId)) add(`${base}.entities[${entityIndex}].blockDefinitionId`, `Nie znaleziono definicji bloku „${entity.blockDefinitionId}”.`, 'BROKEN_REFERENCE');
     });
     entities.forEach((entity, entityIndex) => {
       if (!Array.isArray(entity?.pointIds)) return;

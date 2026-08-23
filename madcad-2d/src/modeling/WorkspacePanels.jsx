@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Check, Eye, EyeOff, Layers3, Lock, LockOpen, Plus, Printer, Ruler, ScanSearch, Trash2, X } from 'lucide-react';
+import { Blocks, Box, Check, Eye, EyeOff, Layers3, Lock, LockOpen, Plus, Printer, Ruler, ScanSearch, Trash2, Ungroup, X } from 'lucide-react';
 import { formatModelFileSize } from '../cad-core/model-import.js';
 import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
 import { multipleSelectionLabel } from './platform-shortcuts.js';
@@ -57,6 +57,52 @@ export function LayersPanel({ document, selectedEntities = [], readOnly = false,
         <label><span>Grubość</span><select value={selectedLineWeight} disabled={readOnly || !selectedEntities.length} onChange={(event) => onStyleSelected({ lineWeight: event.target.value === BY_LAYER ? BY_LAYER : Number(event.target.value) })}>{selectedLineWeight === 'mixed' && <option value="mixed" disabled>Różne</option>}<option value={BY_LAYER}>ByLayer</option>{LINE_WEIGHTS.map((weight) => <option key={weight} value={weight}>{weight.toFixed(2)} mm</option>)}</select></label>
         <label className="layer-color-override"><span>Kolor</span><select value={selectedColor === 'mixed' ? 'mixed' : selectedColor === BY_LAYER ? BY_LAYER : 'custom'} disabled={readOnly || !selectedEntities.length} onChange={(event) => onStyleSelected({ color: event.target.value === BY_LAYER ? BY_LAYER : customColor })}>{selectedColor === 'mixed' && <option value="mixed" disabled>Różne</option>}<option value={BY_LAYER}>ByLayer</option><option value="custom">Własny</option></select><input aria-label="Własny kolor wybranych elementów" type="color" value={customColor} disabled={readOnly || !selectedEntities.length || selectedColor === BY_LAYER} onChange={(event) => onStyleSelected({ color: event.target.value })} /></label>
       </div>
+    </aside>
+  );
+}
+
+export function BlocksPanel({ document, selectedEntities = [], selectedInstance = null, readOnly = false, onCreate, onInsert, onDeleteDefinition, onAddAttribute, onUpdateInstanceAttribute, onExplode, onDeleteInstance, onClose }) {
+  const [selectedBlockId, setSelectedBlockId] = React.useState(document.blocks[0]?.id || '');
+  const [name, setName] = React.useState(`Blok ${document.blocks.length + 1}`);
+  const [baseX, setBaseX] = React.useState('0');
+  const [baseY, setBaseY] = React.useState('0');
+  const [insertX, setInsertX] = React.useState('0');
+  const [insertY, setInsertY] = React.useState('0');
+  const [rotation, setRotation] = React.useState('0');
+  const [scale, setScale] = React.useState('1');
+  const [attributeTag, setAttributeTag] = React.useState('NUMER');
+  const [attributeDefault, setAttributeDefault] = React.useState('');
+  const selectedBlock = document.blocks.find((block) => block.id === selectedBlockId) || document.blocks[0] || null;
+  const instanceBlock = selectedInstance ? document.blocks.find((block) => block.id === selectedInstance.blockId) : null;
+  const usageCount = (blockId) => document.sketches.reduce((total, sketch) => total + (sketch.blockInstances || []).filter((instance) => instance.blockId === blockId).length, 0);
+  return (
+    <aside className="measure-panel blocks-panel" aria-label="Biblioteka bloków">
+      <header><div><Blocks size={16} /><strong>Bloki 2D</strong></div><button type="button" title="Zamknij bloki" aria-label="Zamknij bloki" onClick={onClose}><X size={15} /></button></header>
+      <div className="block-create-section">
+        <strong>Utwórz z zaznaczenia · {selectedEntities.length}</strong>
+        <input aria-label="Nazwa nowego bloku" value={name} onChange={(event) => setName(event.target.value)} placeholder="Nazwa bloku" />
+        <div className="block-coordinate-row"><label><span>Baza X</span><input value={baseX} onChange={(event) => setBaseX(event.target.value)} /></label><label><span>Baza Y</span><input value={baseY} onChange={(event) => setBaseY(event.target.value)} /></label></div>
+        <button type="button" disabled={readOnly || !selectedEntities.length || !name.trim()} onClick={() => onCreate({ name, basePoint: [baseX, baseY] })}><Plus size={14} /> Utwórz blok</button>
+      </div>
+      <div className="block-library" aria-label="Biblioteka dokumentu">
+        <strong>Biblioteka dokumentu · {document.blocks.length}</strong>
+        {!document.blocks.length && <p>Zaznacz zamknięty lub połączony fragment szkicu i utwórz pierwszy blok.</p>}
+        {document.blocks.map((block) => <div className={`block-library-row ${selectedBlock?.id === block.id ? 'active' : ''}`} key={block.id}><button type="button" onClick={() => setSelectedBlockId(block.id)}><Blocks size={15} /><span><strong>{block.name}</strong><small>{block.entities.filter((entity) => entity.type !== 'point').length} elementów · {usageCount(block.id)} wyst.</small></span></button><button type="button" aria-label={`Usuń definicję ${block.name}`} disabled={readOnly || usageCount(block.id) > 0} onClick={() => onDeleteDefinition(block.id)}><Trash2 size={14} /></button></div>)}
+      </div>
+      {selectedBlock && <div className="block-insert-section">
+        <strong>Wstaw „{selectedBlock.name}”</strong>
+        <div className="block-coordinate-row"><label><span>X</span><input value={insertX} onChange={(event) => setInsertX(event.target.value)} /></label><label><span>Y</span><input value={insertY} onChange={(event) => setInsertY(event.target.value)} /></label></div>
+        <div className="block-coordinate-row"><label><span>Obrót °</span><input value={rotation} onChange={(event) => setRotation(event.target.value)} /></label><label><span>Skala</span><input value={scale} onChange={(event) => setScale(event.target.value)} /></label></div>
+        <button type="button" disabled={readOnly} onClick={() => onInsert(selectedBlock.id, { insertionPoint: [insertX, insertY], rotation, scale })}><Plus size={14} /> Wstaw wystąpienie</button>
+        <div className="block-attribute-add"><input aria-label="Tag nowego atrybutu" value={attributeTag} onChange={(event) => setAttributeTag(event.target.value.toUpperCase())} /><input aria-label="Wartość domyślna atrybutu" value={attributeDefault} onChange={(event) => setAttributeDefault(event.target.value)} placeholder="Wartość domyślna" /><button type="button" disabled={readOnly || !attributeTag.trim()} onClick={() => onAddAttribute(selectedBlock.id, { tag: attributeTag, prompt: attributeTag, defaultValue: attributeDefault })}><Plus size={14} /> Atrybut</button></div>
+        {!!selectedBlock.attributeDefinitions.length && <div className="block-attribute-tags">{selectedBlock.attributeDefinitions.map((attribute) => <span key={attribute.id}>{attribute.tag} · {attribute.defaultValue || '—'}</span>)}</div>}
+      </div>}
+      {selectedInstance && instanceBlock && <div className="block-instance-section">
+        <strong>Zaznaczone wystąpienie · {instanceBlock.name}</strong>
+        {instanceBlock.attributeDefinitions.map((attribute) => <label key={attribute.id}><span>{attribute.prompt || attribute.tag}</span><input value={selectedInstance.attributes[attribute.tag] ?? ''} disabled={readOnly} onChange={(event) => onUpdateInstanceAttribute(selectedInstance.id, attribute.tag, event.target.value)} /></label>)}
+        {!instanceBlock.attributeDefinitions.length && <p>Ten blok nie ma atrybutów.</p>}
+        <div><button type="button" disabled={readOnly} onClick={() => onExplode(selectedInstance.id)}><Ungroup size={14} /> Rozbij</button><button type="button" className="danger" disabled={readOnly} onClick={() => onDeleteInstance(selectedInstance.id)}><Trash2 size={14} /> Usuń</button></div>
+      </div>}
     </aside>
   );
 }

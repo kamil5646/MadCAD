@@ -80,6 +80,15 @@ import {
   ensureDocumentLayers,
   resolveEntityAppearance,
 } from '../src/cad-core/layers.js';
+import {
+  addBlockAttributeDefinition,
+  createBlockDefinition,
+  deleteBlockDefinition,
+  deleteBlockInstance,
+  explodeBlockInstance,
+  insertBlockInstance,
+  updateBlockInstanceAttributes,
+} from '../src/cad-core/blocks.js';
 import { resolveModelingLanguage, translateModelingText } from '../src/modeling/i18n.js';
 import { tutorialForLanguage } from '../src/modeling/tutorial-content.js';
 import {
@@ -157,6 +166,52 @@ test('normalizacja bieżącego dokumentu uzupełnia warstwę 0 i właściwości 
   assert.equal(legacy.sketches[0].entities[0].lineType, BY_LAYER);
   assert.equal(legacy.sketches[0].entities[0].lineWeight, BY_LAYER);
   assert.equal(validateDocument(legacy).valid, true);
+});
+
+test('blok 2D zachowuje definicję, atrybuty, transformację wystąpienia i eksplozję', () => {
+  const document = createDocument('Bloki');
+  const pointA = createSketchPoint({ x: 0, y: 0 });
+  const pointB = createSketchPoint({ x: 20, y: 0 });
+  const line = createSketchLine({ startPointId: pointA.id, endPointId: pointB.id });
+  const sketch = createSketch({ entities: [pointA, pointB, line] });
+  document.sketches.push(sketch);
+  const created = createBlockDefinition(document, sketch.id, [line.id], { name: 'Oś 20', basePoint: [0, 0] });
+  assert.equal(document.blocks.length, 1);
+  assert.equal(sketch.blockInstances.length, 1);
+  assert.ok(sketch.entities.find((entity) => entity.id === line.id).blockInstanceId);
+  addBlockAttributeDefinition(document, created.block.id, { tag: 'NUMER', prompt: 'Numer elementu', defaultValue: 'A-01' });
+  assert.equal(created.instance.attributes.NUMER, 'A-01');
+
+  const inserted = insertBlockInstance(document, sketch.id, created.block.id, { insertionPoint: [100, 50], rotation: 90, scale: 2 });
+  updateBlockInstanceAttributes(document, sketch.id, inserted.instance.id, { NUMER: 'A-02', NIEZNANY: 'x' });
+  assert.deepEqual(inserted.instance.attributes, { NUMER: 'A-02' });
+  const insertedPoints = inserted.entities.filter((entity) => entity.type === 'point');
+  const coordinates = insertedPoints.map((point) => [evaluateExpression(point.geometry.x), evaluateExpression(point.geometry.y)]);
+  assert.deepEqual(coordinates, [[100, 50], [100, 90]]);
+  assert.equal(validateDocument(document).valid, true);
+
+  const reopened = openDocument(JSON.parse(JSON.stringify(document))).document;
+  const reopenedInstance = reopened.sketches[0].blockInstances.find((instance) => instance.id === inserted.instance.id);
+  assert.equal(reopenedInstance.attributes.NUMER, 'A-02');
+  assert.equal(reopened.sketches[0].entities.filter((entity) => entity.blockInstanceId === inserted.instance.id).length, 3);
+  assert.equal(explodeBlockInstance(reopened, sketch.id, inserted.instance.id).length, 3);
+  assert.equal(reopened.sketches[0].entities.some((entity) => entity.blockInstanceId === inserted.instance.id), false);
+  assert.equal(validateDocument(reopened).valid, true);
+});
+
+test('biblioteka bloków chroni używaną definicję i usuwa ją po usunięciu wystąpienia', () => {
+  const document = createDocument('Biblioteka bloków');
+  const pointA = createSketchPoint({ x: 0, y: 0 });
+  const pointB = createSketchPoint({ x: 10, y: 0 });
+  const line = createSketchLine({ startPointId: pointA.id, endPointId: pointB.id });
+  const sketch = createSketch({ entities: [pointA, pointB, line] });
+  document.sketches.push(sketch);
+  const { block, instance } = createBlockDefinition(document, sketch.id, [line.id], { name: 'Linia 10' });
+  assert.throws(() => deleteBlockDefinition(document, block.id), /używanej/);
+  assert.equal(deleteBlockInstance(document, sketch.id, instance.id).entityIds.length, 3);
+  assert.equal(deleteBlockDefinition(document, block.id), true);
+  assert.equal(document.blocks.length, 0);
+  assert.equal(validateDocument(document).valid, true);
 });
 
 test('bezpiecznie oblicza wyrażenia parametryczne', () => {

@@ -157,8 +157,8 @@ Te prace nie czekają na koniec modelowania:
 ## P1 — organizacja dokumentu i produktywność klasycznego CAD
 
 - [x] P1.22 Warstwy szkicu: aktywna warstwa, kolor, typ i grubość linii, widoczność, blokada, drukowanie oraz nadpisania `ByLayer`; starsze dokumenty są normalizowane bez zmiany wersji schematu, a zapis, undo/redo i desktop E2E zachowują właściwości.
-- [>] P1.23 Bloki 2D, atrybuty i biblioteka wielokrotnego użycia.
-- [ ] P1.24 Konfigurowalne aliasy poleceń i skróty klawiszowe.
+- [x] P1.23 Bloki 2D: tworzenie definicji z połączonej geometrii, wybór całego wystąpienia, biblioteka dokumentu, wstawianie z pozycją/obrotem/skalą, atrybuty definicji i wystąpienia, rozbijanie, usuwanie, undo/redo oraz zapis/otwarcie.
+- [>] P1.24 Konfigurowalne aliasy poleceń i skróty klawiszowe.
 - [ ] P1.25 Automatyczne sugestie więzów podczas szkicowania.
 - [ ] P1.26 Diagnostyka niedowiązania wskazująca pozostałe stopnie swobody.
 - [ ] P1.27 Raport naprawy importu z jawną listą zmienionych i pominiętych elementów.

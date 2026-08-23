@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  Blocks,
   Box,
   Check,
   ChevronDown,
@@ -119,6 +120,15 @@ import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import {
+  addBlockAttributeDefinition,
+  createBlockDefinition,
+  deleteBlockDefinition,
+  deleteBlockInstance,
+  explodeBlockInstance,
+  insertBlockInstance,
+  updateBlockInstanceAttributes,
+} from '../cad-core/blocks.js';
+import {
   deleteTimelineFeatureCascade,
   dependentTimelineFeatureIds,
   moveTimelineFeature,
@@ -135,7 +145,7 @@ import { multipleSelectionLabel, primaryModifierPressed } from './platform-short
 import { downloadBlob, safeName, useDocumentHistory } from './workspace-document.js';
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext } from './WorkspaceRibbon.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
-import { Field, GeometryInspectionPanel, ImportModelDialog, ImportSketchDialog, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel, SketchDimensionDialog } from './WorkspacePanels.jsx';
+import { BlocksPanel, Field, GeometryInspectionPanel, ImportModelDialog, ImportSketchDialog, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel, SketchDimensionDialog } from './WorkspacePanels.jsx';
 import { ParametersDialog, PlanePicker, SketchPalette } from './WorkspaceSketchUi.jsx';
 import {
   AUTOSAVE_KEY,
@@ -381,6 +391,7 @@ export default function ModelingWorkspace() {
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
+  const [blocksOpen, setBlocksOpen] = useState(false);
   const [printPanelOpen, setPrintPanelOpen] = useState(false);
   const [timelineRename, setTimelineRename] = useState(null);
   const [timelineDeleteId, setTimelineDeleteId] = useState(null);
@@ -595,6 +606,11 @@ export default function ModelingWorkspace() {
     : null;
   const selectedSketchEntities = (document.sketches.find((item) => item.id === activeSketchId)?.entities || [])
     .filter((entity) => selectedSketchEntityIds.includes(entity.id));
+  const selectedBlockInstance = (() => {
+    const instanceIds = [...new Set(selectedSketchEntities.map((entity) => entity.blockInstanceId).filter(Boolean))];
+    if (instanceIds.length !== 1) return null;
+    return document.sketches.find((item) => item.id === activeSketchId)?.blockInstances?.find((instance) => instance.id === instanceIds[0]) || null;
+  })();
   const canExtrudeOpenChain = Boolean(activeSketchId && selectedSketchEntities.length && selectedSketchEntities.every((entity) => entity.type === 'line'));
   const canAddCollinear = selectedSketchEntities.length === 2 && selectedSketchEntities.every((entity) => entity.type === 'line');
   const canAddSymmetry = selectedSketchEntities.filter((entity) => entity.type === 'point').length === 2
@@ -636,6 +652,75 @@ export default function ModelingWorkspace() {
     if (!sketch) return;
     sketch.entities = sketch.entities.map((entity) => selected.has(entity.id) ? { ...entity, ...patch } : entity);
   });
+  const createBlockFromSelection = (options) => {
+    try {
+      const checked = cloneDocument(document);
+      const result = createBlockDefinition(checked, activeSketchId, selectedSketchEntityIds, options);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: result.instance.entityIds });
+      setNotice(`Utworzono blok „${result.block.name}” i dodano go do biblioteki dokumentu.`);
+    } catch (error) {
+      setNotice(`Nie utworzono bloku: ${error.message}`);
+    }
+  };
+  const insertDocumentBlock = (blockId, options) => {
+    try {
+      const checked = cloneDocument(document);
+      const result = insertBlockInstance(checked, activeSketchId, blockId, { ...options, layerId: checked.activeLayerId });
+      refreshDetectedSketchProfiles(checked.sketches.find((item) => item.id === activeSketchId), checked.parameters);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: result.instance.entityIds });
+      setNotice(`Wstawiono blok z ${result.entities.filter((entity) => entity.type !== 'point').length} elementami.`);
+    } catch (error) {
+      setNotice(`Nie wstawiono bloku: ${error.message}`);
+    }
+  };
+  const removeBlockDefinition = (blockId) => {
+    try {
+      const checked = cloneDocument(document);
+      deleteBlockDefinition(checked, blockId);
+      commit((next) => Object.assign(next, checked));
+      setNotice('Usunięto nieużywaną definicję z biblioteki bloków.');
+    } catch (error) {
+      setNotice(`Nie usunięto definicji: ${error.message}`);
+    }
+  };
+  const addDocumentBlockAttribute = (blockId, attribute) => {
+    try {
+      const checked = cloneDocument(document);
+      addBlockAttributeDefinition(checked, blockId, attribute);
+      commit((next) => Object.assign(next, checked));
+      setNotice(`Dodano atrybut ${attribute.tag.toUpperCase()} do definicji bloku.`);
+    } catch (error) {
+      setNotice(`Nie dodano atrybutu: ${error.message}`);
+    }
+  };
+  const updateDocumentBlockAttribute = (instanceId, tag, value) => commit((next) => {
+    updateBlockInstanceAttributes(next, activeSketchId, instanceId, { [tag]: value });
+  });
+  const explodeDocumentBlock = (instanceId) => {
+    try {
+      const checked = cloneDocument(document);
+      const entityIds = explodeBlockInstance(checked, activeSketchId, instanceId);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: entityIds });
+      setNotice('Rozbito blok na zwykłą edytowalną geometrię. Cofnij przywraca wystąpienie.');
+    } catch (error) {
+      setNotice(`Nie rozbito bloku: ${error.message}`);
+    }
+  };
+  const removeDocumentBlockInstance = (instanceId) => {
+    try {
+      const checked = cloneDocument(document);
+      deleteBlockInstance(checked, activeSketchId, instanceId);
+      refreshDetectedSketchProfiles(checked.sketches.find((item) => item.id === activeSketchId), checked.parameters);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'sketch', id: activeSketchId });
+      setNotice('Usunięto wystąpienie bloku. Cofnij przywraca cały blok.');
+    } catch (error) {
+      setNotice(`Nie usunięto bloku: ${error.message}`);
+    }
+  };
   const selectedTopologyIds = useMemo(() => (
     selection?.items || (['face', 'edge', 'vertex'].includes(selection?.kind) ? [selection] : [])
   ).filter((item) => ['face', 'edge', 'vertex'].includes(item.kind)).map((item) => item.id), [selection]);
@@ -1404,7 +1489,12 @@ export default function ModelingWorkspace() {
   };
 
   const handleSketchSelection = (ids, mode = 'replace', details = {}) => {
-    const candidates = [...new Set(ids || [])];
+    const sketch = document.sketches.find((item) => item.id === activeSketchId);
+    const expanded = new Set(ids || []);
+    for (const instance of sketch?.blockInstances || []) {
+      if (instance.entityIds.some((entityId) => expanded.has(entityId))) instance.entityIds.forEach((entityId) => expanded.add(entityId));
+    }
+    const candidates = [...expanded];
     setSelection((current) => {
       const existing = current?.kind === 'sketchEntities' && current.sketchId === activeSketchId ? current.ids : [];
       let nextIds;
@@ -2102,10 +2192,12 @@ export default function ModelingWorkspace() {
         profileIds: sketch.profiles.map((profile) => profile.id),
         constraints: sketch.constraints.map((constraint) => ({ id: constraint.id, type: constraint.type, value: constraint.value })),
         dimensions: sketch.dimensions.map((dimension) => ({ id: dimension.id, type: dimension.type, entityIds: dimension.entityIds, constraintId: dimension.constraintId, expression: dimension.expression })),
+        blockInstances: (sketch.blockInstances || []).map((instance) => ({ ...instance, attributes: { ...instance.attributes } })),
       })),
       features: document.features.length,
       activeLayerId: document.activeLayerId,
       layers: document.layers.map((layer) => ({ ...layer })),
+      blocks: document.blocks.map((block) => ({ id: block.id, name: block.name, entities: block.entities.length, attributeDefinitions: block.attributeDefinitions.map((attribute) => ({ ...attribute })) })),
       featureIds: document.features.map((feature) => feature.id),
       featureData: document.features.map((feature) => ({ id: feature.id, name: feature.name, type: feature.type, suppressed: feature.suppressed, sketchId: feature.sketchId, sketchIds: feature.sketchIds, profileId: feature.profileId, profileIds: feature.profileIds, pathSketchId: feature.pathSketchId, pathEntityIds: feature.pathEntityIds, loftMode: feature.loftMode, ribMode: feature.ribMode, patternType: feature.patternType, countX: feature.countX, countY: feature.countY, spacingX: feature.spacingX, spacingY: feature.spacingY, occurrences: feature.occurrences, totalAngle: feature.totalAngle, thickness: feature.thickness, reverse: feature.reverse, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, outsideDiameter: feature.outsideDiameter, wallSide: feature.wallSide, endCap: feature.endCap, openEntityIds: feature.openEntityIds, depth: feature.depth, diameter: feature.diameter, coilDiameter: feature.coilDiameter, wireDiameter: feature.wireDiameter, pitch: feature.pitch, turns: feature.turns, handedness: feature.handedness, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, neutralPlaneId: feature.neutralPlaneId, planeId: feature.planeId, axisId: feature.axisId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
       references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, rotationAxis: reference.rotationAxis, angle: reference.angle, surfaceType: reference.surfaceType, center: reference.center, point: reference.point, axis: reference.axis, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, distance: reference.distance, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId, repairedAt: reference.repairedAt })),
@@ -3841,12 +3933,12 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="MODYFIKUJ 2D"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { setCommand(null); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Maximize2} label="Extend" onClick={() => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' })} primary={command?.type === 'extendSketch'} disabled={readOnly} /><ToolButton icon={Minus} label="Break" onClick={() => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' })} primary={command?.type === 'breakSketch'} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Project" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} /><ToolButton icon={Copy} label="Offset" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} /><ToolButton icon={CircleDotDashed} label="Fillet szkicu" onClick={() => openSketchCorner('fillet')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={Triangle} label="Faza szkicu" onClick={() => openSketchCorner('chamfer')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={RotateCw} label="Transformuj" onClick={openSketchTransform} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Grid2X2} label="Szyk szkicu" onClick={openSketchPattern} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
                 <RibbonGroup label="WIĘZY"><ToolButton icon={Minus} label="Współliniowe" onClick={() => addSelectedSketchConstraint('collinear')} disabled={readOnly || !canAddCollinear} /><ToolButton icon={Frame} label="Symetria" onClick={() => addSelectedSketchConstraint('symmetry')} disabled={readOnly || !canAddSymmetry} /><ToolButton icon={CircleDotDashed} label="Krzywizna G2" onClick={() => addSelectedSketchConstraint('curvature')} disabled={readOnly || !canAddCurvature} /></RibbonGroup>
                 <RibbonGroup label="WYMIARY"><ToolButton icon={Ruler} label="Ordinate X" onClick={() => openSketchDimension('ordinateX')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={Ruler} label="Ordinate Y" onClick={() => openSketchDimension('ordinateY')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={RotateCw} label="Długość łuku" onClick={() => openSketchDimension('arcLength')} disabled={readOnly || !canAddArcLength} /></RibbonGroup>
-                <RibbonGroup label="WARSTWY"><ToolButton icon={Layers3} label="Warstwy" onClick={() => setLayersOpen(true)} primary={layersOpen} /></RibbonGroup>
+                <RibbonGroup label="ORGANIZUJ"><ToolButton icon={Layers3} label="Warstwy" onClick={() => { setBlocksOpen(false); setLayersOpen(true); }} primary={layersOpen} /><ToolButton icon={Blocks} label="Bloki" onClick={() => { setLayersOpen(false); setBlocksOpen(true); }} primary={blocksOpen} /></RibbonGroup>
                 <RibbonGroup label="ZAKOŃCZ SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
             ) : workspace === 'tools' ? (
               <>
-                <RibbonGroup label="DOKUMENT"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} primary /><ToolButton icon={Layers3} label="Warstwy" onClick={() => setLayersOpen(true)} primary={layersOpen} /></RibbonGroup>
+                <RibbonGroup label="DOKUMENT"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} primary /><ToolButton icon={Layers3} label="Warstwy" onClick={() => { setBlocksOpen(false); setLayersOpen(true); }} primary={layersOpen} /><ToolButton icon={Blocks} label="Bloki" onClick={() => { setLayersOpen(false); setBlocksOpen(true); }} primary={blocksOpen} disabled={!activeSketchId} /></RibbonGroup>
                 <RibbonGroup label="SPRAWDŹ MODEL"><ToolButton icon={Ruler} label="Zmierz" onClick={openMeasure} /><ToolButton icon={ScanSearch} label="Przekrój" onClick={openSectionAnalysis} disabled={!engine.bodies.length} /><ToolButton icon={Box} label="Masa" onClick={openMassProperties} disabled={!engine.bodies.length} /><ToolButton icon={AlertTriangle} label="Analiza" onClick={openGeometryInspection} disabled={!engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="PŁASZCZYZNY"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Rotate3d} label="Plane angle" onClick={() => openConstructionPlane('angle')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Plane tangent" onClick={() => openConstructionPlane('tangent')} disabled={readOnly} /><ToolButton icon={Move3d} label="Plane path" onClick={() => openConstructionPlane('path')} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="OSIE"><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={Move3d} label="Oś normalna" onClick={() => openConstructionAxis('plane-normal')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-plane')} /></RibbonGroup>
@@ -3969,6 +4061,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} onClose={() => setCommand(null)} />}
           {layersOpen && <LayersPanel document={document} selectedEntities={selectedSketchEntities} readOnly={readOnly} onAdd={addDocumentLayer} onUpdate={updateDocumentLayer} onDelete={removeDocumentLayer} onActivate={activateDocumentLayer} onAssign={assignSelectionToLayer} onStyleSelected={styleSelectedEntities} onClose={() => setLayersOpen(false)} />}
+          {blocksOpen && activeSketchId && <BlocksPanel document={document} selectedEntities={selectedSketchEntities} selectedInstance={selectedBlockInstance} readOnly={readOnly} onCreate={createBlockFromSelection} onInsert={insertDocumentBlock} onDeleteDefinition={removeBlockDefinition} onAddAttribute={addDocumentBlockAttribute} onUpdateInstanceAttribute={updateDocumentBlockAttribute} onExplode={explodeDocumentBlock} onDeleteInstance={removeDocumentBlockInstance} onClose={() => setBlocksOpen(false)} />}
           {!document.sketches.length && !engine.bodies.length && !command && !readOnly && <StartPage onStartSketch={startSketch} onOpenProject={requestOpenProject} />}
           {command?.type === 'plane' && <PlanePicker onPick={pickPlane} onCancel={() => { setCommand(null); setWorkspace('solid'); setNotice('Anulowano tworzenie szkicu.'); }} />}
           <ImportModelDialog draft={importDraft} onChange={(patch) => setImportDraft((current) => ({ ...current, ...patch }))} onConfirm={confirmModelImport} onCancel={() => setImportDraft(null)} />

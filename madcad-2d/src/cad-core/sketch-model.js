@@ -59,6 +59,9 @@ function commonEntity(type, options = {}) {
     color: options.color,
     lineType: options.lineType,
     lineWeight: options.lineWeight,
+    ...(options.blockDefinitionId ? { blockDefinitionId: options.blockDefinitionId } : {}),
+    ...(options.blockInstanceId ? { blockInstanceId: options.blockInstanceId } : {}),
+    ...(options.blockSourceEntityId ? { blockSourceEntityId: options.blockSourceEntityId } : {}),
     ...(role === 'projected' ? { sourceReferenceId: options.sourceReferenceId || null } : {}),
   }, options.layerId);
 }
@@ -281,6 +284,10 @@ export function translateSketchSelection(sketch, selectedIds, { dx = 0, dy = 0 }
     point.geometry.x = String(evaluatedCoordinate(point, 'x', values) + deltaX);
     point.geometry.y = String(evaluatedCoordinate(point, 'y', values) + deltaY);
   }
+  for (const instance of sketch.blockInstances || []) {
+    if (!instance.entityIds.every((entityId) => selected.has(entityId))) continue;
+    instance.insertionPoint = [Number(instance.insertionPoint?.[0] || 0) + deltaX, Number(instance.insertionPoint?.[1] || 0) + deltaY];
+  }
   const touchedIds = new Set([
     ...selectedEntities.map((entity) => entity.id),
     ...pointIds,
@@ -297,6 +304,9 @@ export function deleteSketchSelection(document, sketchId, selectedIds) {
   const sketch = (document.sketches || []).find((item) => item.id === sketchId);
   if (!sketch) throw new Error(`Nie znaleziono szkicu ${sketchId}.`);
   const selected = new Set(selectedIds || []);
+  for (const instance of sketch.blockInstances || []) {
+    if (instance.entityIds.some((entityId) => selected.has(entityId))) instance.entityIds.forEach((entityId) => selected.add(entityId));
+  }
   const selectedPoints = new Set((sketch.entities || [])
     .filter((entity) => selected.has(entity.id) && entity.type === 'point')
     .map((entity) => entity.id));
@@ -309,6 +319,7 @@ export function deleteSketchSelection(document, sketchId, selectedIds) {
     .filter((profile) => (profile.entityIds || []).some((entityId) => removedEntityIds.has(entityId)))
     .map((profile) => profile.id));
   sketch.entities = (sketch.entities || []).filter((entity) => !removedEntityIds.has(entity.id));
+  sketch.blockInstances = (sketch.blockInstances || []).filter((instance) => !instance.entityIds.some((entityId) => removedEntityIds.has(entityId)));
   sketch.profiles = (sketch.profiles || []).filter((profile) => !removedProfileIds.has(profile.id));
   sketch.constraints = (sketch.constraints || []).filter((constraint) => !(constraint.entityIds || []).some((id) => removedEntityIds.has(id)));
   sketch.dimensions = (sketch.dimensions || []).filter((dimension) => !(dimension.entityIds || []).some((id) => removedEntityIds.has(id)));
@@ -493,6 +504,7 @@ export function normalizeSketchModel(sketch) {
     profiles: [],
     constraints: [...(sketch.constraints || [])],
     dimensions: [...(sketch.dimensions || [])],
+    blockInstances: [...(sketch.blockInstances || [])],
   };
   for (const profile of sketch.profiles || []) upsertSketchProfile(normalized, profile);
   return normalized;
