@@ -120,6 +120,8 @@ import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { observeModelingLocalization, resolveModelingLanguage } from './i18n.js';
 import { FirstPartTutorial, FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './AppDialogs.jsx';
+import { CommandLine } from './CommandLine.jsx';
+import { parseCommandLineInput } from './command-controller.js';
 import {
   AUTOSAVE_KEY,
   clearLocalAutosave,
@@ -245,12 +247,17 @@ const TOOL_DESCRIPTIONS = {
 
 const TOOL_SHORTCUTS = Object.freeze({
   'Linia': 'L',
+  'Polilinia': 'PL',
   'Prostokąt': 'R',
   'Okrąg': 'C',
   'Trim': 'T',
+  'Extend': 'EX',
+  'Break': 'BR',
   'Offset': 'O',
   'Fillet szkicu': 'F',
+  'Faza szkicu': 'CHA',
   'Zaokrąglij': 'F',
+  'Fazuj': 'CHA',
   'Project': 'P',
   'Przesuń': 'M',
   'Przesuń bryłę': 'M',
@@ -1449,6 +1456,7 @@ export default function ModelingWorkspace() {
   const [selection, setSelection] = useState({ kind: 'document', id: document.id });
   const [activeSketchId, setActiveSketchId] = useState(null);
   const [command, setCommand] = useState(null);
+  const [commandHistory, setCommandHistory] = useState([]);
   const [toolHelp, setToolHelp] = useState(null);
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(false);
@@ -1477,6 +1485,13 @@ export default function ModelingWorkspace() {
     return () => {
       if (shortcutRegistryRef.current.get(normalizedShortcut) === entry) shortcutRegistryRef.current.delete(normalizedShortcut);
     };
+  }, []);
+  const appendCommandHistory = useCallback((input, message) => {
+    setCommandHistory((current) => [{
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      input: String(input || '').trim(),
+      message,
+    }, ...current].slice(0, 30));
   }, []);
   const toolHelpContext = useMemo(() => ({ setToolHelp, registerShortcut }), [registerShortcut]);
   const readOnly = documentAccess.readOnly;
@@ -4488,11 +4503,105 @@ export default function ModelingWorkspace() {
     setToolHelp(null);
     if (entry.disabled) {
       setNotice(`Narzędzie „${entry.label}” jest teraz niedostępne. Najpierw wybierz wymaganą geometrię.`);
-      return true;
+      return { handled: true, disabled: true, label: entry.label };
     }
     entry.onClick?.();
-    return true;
+    return { handled: true, disabled: false, label: entry.label };
   }, []);
+
+  const cancelActiveCommand = () => {
+    if (!command) return false;
+    if (command.type === 'line' || command.type === 'polyline') finishSketchPath();
+    else {
+      if (command.openChain && command.sourceSketchId) {
+        setActiveSketchId(command.sourceSketchId);
+        setWorkspace('sketch');
+      }
+      setCommand(null);
+      setNotice('Anulowano polecenie.');
+    }
+    return true;
+  };
+
+  const executeCommandEnter = ({ preferExact = false } = {}) => {
+    if (!command) return false;
+    if (command.type === 'line' || command.type === 'polyline') {
+      if (preferExact && command.lastPoint) confirmExactSketchSegment();
+      else if (command.lastPoint && sketchDynamicLengthRef.current) confirmDynamicSketchSegment();
+      else finishSketchPath();
+      return true;
+    }
+    if (directSketchTypes.includes(command.type)) finishCanvasSketchTool();
+    else if (command.previewFeature) confirmFeature();
+    else if (command.type === 'moveSketch') confirmSketchMove();
+    else if (command.type === 'offsetSketch') confirmSketchOffset();
+    else if (command.type === 'cornerSketch') confirmSketchCorner();
+    else if (command.type === 'transformSketch') confirmSketchTransform();
+    else if (command.type === 'patternSketch') confirmSketchPattern();
+    else return false;
+    return true;
+  };
+
+  const handleCommandLineCancel = () => {
+    if (cancelActiveCommand()) {
+      appendCommandHistory('ESC', 'Anulowano aktywne polecenie.');
+      return;
+    }
+    if (activeSketchId) {
+      handleSketchSelection([], 'replace');
+      setNotice('Wyczyszczono zaznaczenie szkicu.');
+    } else {
+      setSelection({ kind: 'document', id: document.id });
+      setNotice('Wyczyszczono zaznaczenie.');
+    }
+  };
+
+  const handleCommandLineSubmit = (rawInput) => {
+    const parsed = parseCommandLineInput(rawInput);
+    if (parsed.type === 'cancel') {
+      handleCommandLineCancel();
+      return true;
+    }
+    if (parsed.type === 'empty') {
+      const handled = executeCommandEnter();
+      appendCommandHistory('', handled ? 'Zatwierdzono aktywne polecenie.' : 'Brak aktywnego polecenia.');
+      if (!handled) setNotice('Wpisz polecenie albo uruchom narzędzie z wstążki.');
+      return true;
+    }
+    if (parsed.type === 'number') {
+      if ((command?.type === 'line' || command?.type === 'polyline') && command.lastPoint) {
+        if (!(parsed.value > 0)) {
+          setNotice('Długość linii musi być dodatnia.');
+          appendCommandHistory(parsed.raw, 'Odrzucono: długość musi być dodatnia.');
+          return true;
+        }
+        sketchDynamicLengthRef.current = String(parsed.value);
+        setCommand((current) => ({ ...current, dynamicLength: String(parsed.value) }));
+        appendCommandHistory(parsed.raw, `Długość segmentu: ${parsed.value} mm.`);
+        confirmDynamicSketchSegment();
+        return true;
+      }
+      setNotice('Wartość liczbowa działa po wskazaniu pierwszego punktu linii lub polilinii.');
+      appendCommandHistory(parsed.raw, 'Brak polecenia oczekującego na długość.');
+      return true;
+    }
+    if (parsed.type === 'command') {
+      const result = executeBasicShortcut(parsed.command.shortcut);
+      if (!result) {
+        const message = `Polecenie „${parsed.command.label}” nie jest dostępne w bieżącym obszarze.`;
+        setNotice(message);
+        appendCommandHistory(parsed.raw, message);
+        return true;
+      }
+      appendCommandHistory(parsed.raw, result.disabled
+        ? `Narzędzie „${result.label}” jest teraz niedostępne.`
+        : `Uruchomiono: ${result.label}.`);
+      return true;
+    }
+    setNotice(`Nieznane polecenie „${parsed.raw}”. Wpisz np. LINE, PLINE, CIRCLE, OFFSET albo TRIM.`);
+    appendCommandHistory(parsed.raw, 'Nieznane polecenie.');
+    return true;
+  };
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -4519,16 +4628,12 @@ export default function ModelingWorkspace() {
       }
       if (event.key === 'Escape' && command) {
         event.preventDefault();
-        if (command.type === 'line' || command.type === 'polyline') finishSketchPath();
-        else setCommand(null);
+        cancelActiveCommand();
         return;
       }
-      if (event.key === 'Enter' && (command?.type === 'line' || command?.type === 'polyline')) {
+      if (event.key === 'Enter' && command) {
         event.preventDefault();
-        if (textEntry && command.lastPoint) confirmExactSketchSegment();
-        else if (command.lastPoint && sketchDynamicLengthRef.current) confirmDynamicSketchSegment();
-        else finishSketchPath();
-        return;
+        if (executeCommandEnter({ preferExact: textEntry })) return;
       }
       if (!textEntry && command?.lastPoint && (command.type === 'line' || command.type === 'polyline') && !event.ctrlKey && !event.metaKey && !event.altKey) {
         const current = sketchDynamicLengthRef.current;
@@ -4553,41 +4658,6 @@ export default function ModelingWorkspace() {
           setCommand((value) => ({ ...value, dynamicLength: next }));
           return;
         }
-      }
-      if (event.key === 'Enter' && directSketchTypes.includes(command?.type)) {
-        event.preventDefault();
-        finishCanvasSketchTool();
-        return;
-      }
-      if (event.key === 'Enter' && command?.previewFeature) {
-        event.preventDefault();
-        confirmFeature();
-        return;
-      }
-      if (event.key === 'Enter' && command?.type === 'moveSketch') {
-        event.preventDefault();
-        confirmSketchMove();
-        return;
-      }
-      if (event.key === 'Enter' && command?.type === 'offsetSketch') {
-        event.preventDefault();
-        confirmSketchOffset();
-        return;
-      }
-      if (event.key === 'Enter' && command?.type === 'cornerSketch') {
-        event.preventDefault();
-        confirmSketchCorner();
-        return;
-      }
-      if (event.key === 'Enter' && command?.type === 'transformSketch') {
-        event.preventDefault();
-        confirmSketchTransform();
-        return;
-      }
-      if (event.key === 'Enter' && command?.type === 'patternSketch') {
-        event.preventDefault();
-        confirmSketchPattern();
-        return;
       }
       if (event.ctrlKey && command?.type === 'polyline' && event.key.toLowerCase() === 'z') {
         event.preventDefault();
@@ -4786,6 +4856,13 @@ export default function ModelingWorkspace() {
       </div>
 
       <footer className="modeling-footer">
+        <CommandLine
+          command={command}
+          history={commandHistory}
+          notice={notice}
+          onCancel={handleCommandLineCancel}
+          onSubmit={handleCommandLineSubmit}
+        />
         <div className="timeline" role="region" aria-label="Parametryczna oś czasu">
           {document.features.length ? <><div className="timeline-controls"><button type="button" title="Zaznacz pierwszy krok parametrycznej historii." onClick={() => selectTimelineStep('start')}><SkipBack size={14} /></button><button type="button" title="Zaznacz poprzednią operację w historii." onClick={() => selectTimelineStep('previous')}><StepBack size={14} /></button><button type="button" title="Zaznacz następną operację w historii." onClick={() => selectTimelineStep('next')}><StepForward size={14} /></button></div>
           <span className="timeline-start" />

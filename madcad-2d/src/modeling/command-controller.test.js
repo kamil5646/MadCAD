@@ -1,0 +1,27 @@
+import { describe, expect, it } from 'vitest';
+import { commandSuggestions, describeActiveCommand, parseCommandLineInput, resolveCommandAlias } from './command-controller.js';
+
+describe('CAD command controller', () => {
+  it('resolves Autodesk-style aliases and Polish command names', () => {
+    expect(resolveCommandAlias('line')).toMatchObject({ shortcut: 'L', label: 'Linia' });
+    expect(resolveCommandAlias('PL')).toMatchObject({ shortcut: 'PL', label: 'Polilinia' });
+    expect(resolveCommandAlias('usuń')).toMatchObject({ shortcut: 'DEL', label: 'Usuń' });
+  });
+
+  it('parses decimal lengths with a dot or comma', () => {
+    expect(parseCommandLineInput('25,5')).toEqual({ type: 'number', raw: '25,5', value: 25.5 });
+    expect(parseCommandLineInput('-4.25')).toEqual({ type: 'number', raw: '-4.25', value: -4.25 });
+  });
+
+  it('distinguishes cancel, blank and unknown input', () => {
+    expect(parseCommandLineInput('esc').type).toBe('cancel');
+    expect(parseCommandLineInput(' ').type).toBe('empty');
+    expect(parseCommandLineInput('xyz').type).toBe('unknown');
+  });
+
+  it('describes point-first line input and suggests matching commands', () => {
+    expect(describeActiveCommand({ type: 'line' })).toContain('pierwszy punkt');
+    expect(describeActiveCommand({ type: 'line', lastPoint: { x: 0, y: 0 } })).toContain('wpisz długość');
+    expect(commandSuggestions('li')[0]).toMatchObject({ shortcut: 'L', label: 'Linia' });
+  });
+});
