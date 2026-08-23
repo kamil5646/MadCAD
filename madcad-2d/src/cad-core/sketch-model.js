@@ -297,8 +297,27 @@ export function translateSketchSelection(sketch, selectedIds, { dx = 0, dy = 0 }
   const removedConstraintIds = new Set((sketch.constraints || []).filter((constraint) => constraint.entityIds?.some((id) => touchedIds.has(id))).map((constraint) => constraint.id));
   sketch.constraints = (sketch.constraints || []).filter((constraint) => !removedConstraintIds.has(constraint.id));
   sketch.dimensions = (sketch.dimensions || []).filter((dimension) => !dimension.entityIds?.some((id) => touchedIds.has(id)) && !removedConstraintIds.has(dimension.constraintId));
+  pruneDanglingSketchRelations(sketch);
   synchronizeSketchProfiles(sketch, values);
   return [...pointIds];
+}
+
+export function pruneDanglingSketchRelations(sketch) {
+  const entityIds = new Set((sketch?.entities || []).map((entity) => entity.id));
+  const removedConstraintIds = new Set((sketch?.constraints || [])
+    .filter((constraint) => !(constraint.entityIds || []).every((entityId) => entityIds.has(entityId)))
+    .map((constraint) => constraint.id));
+  sketch.constraints = (sketch.constraints || []).filter((constraint) => !removedConstraintIds.has(constraint.id));
+  const validConstraintIds = new Set(sketch.constraints.map((constraint) => constraint.id));
+  const removedDimensionIds = [];
+  sketch.dimensions = (sketch.dimensions || []).filter((dimension) => {
+    const validEntities = (dimension.entityIds || []).every((entityId) => entityIds.has(entityId));
+    const validConstraint = !dimension.constraintId || validConstraintIds.has(dimension.constraintId);
+    if (validEntities && validConstraint) return true;
+    removedDimensionIds.push(dimension.id);
+    return false;
+  });
+  return { removedConstraintIds: [...removedConstraintIds], removedDimensionIds };
 }
 
 export function deleteSketchSelection(document, sketchId, selectedIds) {

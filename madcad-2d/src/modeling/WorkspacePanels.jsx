@@ -267,7 +267,7 @@ export function ImportRepairReportDialog({ report, onSave, onClose }) {
     <section className="command-dialog import-repair-report" aria-label="Raport naprawy importu">
       <header><strong>Raport importu</strong><button type="button" onClick={onClose} title="Zamknij raport" aria-label="Zamknij raport"><X size={15} /></button></header>
       <div className="import-report-heading"><div><strong>{report.fileName}</strong><span>{report.format.toUpperCase()} · {report.sourceUnit || 'jednostka automatyczna'}</span></div><CheckCircle2 size={20} /></div>
-      <div className="import-report-summary" aria-label="Podsumowanie raportu">
+      <div className="import-report-summary" role="group" aria-label="Podsumowanie raportu">
         <span><b>{report.imported}</b> dodano</span>
         <span className="changed"><b>{report.changed}</b> zmieniono</span>
         <span className="skipped"><b>{report.skipped}</b> pominięto</span>

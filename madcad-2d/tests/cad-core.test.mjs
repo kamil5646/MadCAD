@@ -45,6 +45,7 @@ import {
   createSketchPoint,
   createTangentArcContinuation,
   deleteSketchSelection,
+  pruneDanglingSketchRelations,
   translateSketchSelection,
   upsertSketchProfile,
 } from '../src/cad-core/sketch-model.js';
@@ -1510,6 +1511,15 @@ test('interfejs modelowania rozpoznaje PL/EN i tłumaczy także dynamiczny stan 
     'Line. Create one segment from two points or from an exact length and angle. Shortcut: L ↵.',
   );
   assert.equal(translateModelingText('Utwórz szkic', 'pl'), 'Utwórz szkic');
+  for (const label of [
+    'Układy obszaru roboczego',
+    'Zastosuj albo zapisz układ obszaru roboczego',
+    'Klasyczny CAD',
+    'Automatyczne więzy',
+    'Pozostałe stopnie swobody',
+    'Raport naprawy importu',
+    'Pominięto nieobsługiwany element SVG: text.',
+  ]) assert.notEqual(translateModelingText(label, 'en'), label, `Brak tłumaczenia: ${label}`);
 });
 
 test('okno wraca na dostępny monitor po odłączeniu ekranu i zachowuje ujemne współrzędne', () => {
@@ -2651,6 +2661,20 @@ test('przesunięcie wierzchołka zachowuje ID i aktualizuje profil zależny', ()
   assert.equal(sketch.dimensions.length, 0);
   assert.equal(validateDocument(document).valid, true);
   assert.deepEqual(prepareDocument(document).features[0].profiles[0].geometry.points[3], [15, 10]);
+});
+
+test('czyszczenie relacji usuwa więzy i wymiary wskazujące nieistniejącą geometrię', () => {
+  const point = createSketchPoint({ x: 0, y: 0 });
+  const sketch = createSketch({ entities: [point] });
+  const valid = createSketchConstraint('fixed', [point.id]);
+  const broken = createSketchConstraint('horizontal', ['missing-line']);
+  sketch.constraints.push(valid, broken);
+  sketch.dimensions.push(createSketchDimension('aligned', ['missing-line'], { expression: '10', constraintId: broken.id }));
+  const result = pruneDanglingSketchRelations(sketch);
+  assert.deepEqual(result.removedConstraintIds, [broken.id]);
+  assert.equal(result.removedDimensionIds.length, 1);
+  assert.deepEqual(sketch.constraints.map((constraint) => constraint.id), [valid.id]);
+  assert.equal(sketch.dimensions.length, 0);
 });
 
 test('usunięcie punktu usuwa zależny profil i operację bez zerwanych referencji', () => {

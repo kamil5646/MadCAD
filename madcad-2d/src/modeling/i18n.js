@@ -99,6 +99,56 @@ const ENGLISH_TEXT = Object.freeze({
   'Pokaż lub ukryj utworzone bryły.': 'Show or hide created bodies.',
   'Zaznacz bryłę Podstawa do dalszych operacji.': 'Select the Base body for further operations.',
   'Obszary robocze': 'Workspaces',
+  'Układy obszaru roboczego': 'Workspace layouts',
+  'Zastosuj albo zapisz układ obszaru roboczego': 'Apply or save a workspace layout',
+  'Zapisane obszary robocze': 'Saved workspaces',
+  'Panele i widok aplikacji': 'Application panels and view',
+  'Zamknij obszary robocze': 'Close workspaces',
+  'Gotowe układy': 'Built-in layouts',
+  'Moje układy': 'My layouts',
+  'Zapisz bieżący układ': 'Save current layout',
+  'np. Mój szkic': 'e.g. My sketch',
+  'Nazwa nowego układu': 'New layout name',
+  'Zapisz bieżący układ paneli': 'Save current panel layout',
+  'Klasyczny CAD': 'Classic CAD',
+  'Drzewo projektu po lewej i właściwości polecenia po prawej.': 'Project tree on the left and command properties on the right.',
+  'Czyste płótno': 'Clean canvas',
+  'Maksymalny obszar rysowania bez paneli bocznych.': 'Maximum drawing area without side panels.',
+  'Dokument i warstwy': 'Document and layers',
+  'Narzędzia dokumentu, drzewo projektu i menedżer warstw.': 'Document tools, project tree, and layer manager.',
+  'Eksport i druk': 'Export and print',
+  'Eksport CAD z panelem przygotowania druku jako dodatkiem.': 'CAD export with the print preparation panel as an add-on.',
+  'Własny układ': 'Custom layout',
+  'Zapisany układ użytkownika.': 'Saved user layout.',
+  'Automatyczne więzy': 'Automatic constraints',
+  'więz automatyczny': 'automatic constraint',
+  'Poziomo': 'Horizontal',
+  'Pionowo': 'Vertical',
+  'Pokaż pozostałe stopnie swobody i podpowiedzi wiązań.': 'Show remaining degrees of freedom and constraint suggestions.',
+  'Pozostałe stopnie swobody': 'Remaining degrees of freedom',
+  'Diagnostyka niedowiązanego szkicu': 'Under-constrained sketch diagnostics',
+  'Zamknij diagnostykę': 'Close diagnostics',
+  'Zaznacz pierwszy punkt związany z tym stopniem swobody.': 'Select the first point related to this degree of freedom.',
+  'Ten stopień swobody dotyczy parametru geometrii.': 'This degree of freedom applies to a geometry parameter.',
+  'Co dodać': 'What to add',
+  'Unieruchom punkt bazowy albo nadaj mu wymiary X i Y.': 'Fix a base point or add X and Y dimensions.',
+  'Dodaj długość, kąt albo więz kierunkowy do swobodnych linii.': 'Add a length, angle, or directional constraint to free lines.',
+  'Nadaj promień lub średnicę swobodnemu okręgowi.': 'Add a radius or diameter to the free circle.',
+  'Raport naprawy importu': 'Import repair report',
+  'Raport importu': 'Import report',
+  'Zamknij raport': 'Close report',
+  'jednostka automatyczna': 'automatic unit',
+  'Podsumowanie raportu': 'Report summary',
+  'dodano': 'added',
+  'zmieniono': 'changed',
+  'pominięto': 'skipped',
+  'ostrzeżeń': 'warnings',
+  'Zmiany i pominięcia': 'Changes and skipped items',
+  'Zmieniono': 'Changed',
+  'Pominięto': 'Skipped',
+  'Sprawdź': 'Review',
+  'Nie zmieniono ani nie pominięto żadnego elementu.': 'No items were changed or skipped.',
+  'Zapisz JSON': 'Save JSON',
   'Narzędzia aktywnego obszaru roboczego': 'Active workspace tools',
   'Pokaż pozostałe narzędzia': 'Show more tools',
   'Więcej': 'More',
@@ -554,6 +604,20 @@ const ENGLISH_TEXT = Object.freeze({
 });
 
 const ENGLISH_PHRASES = Object.freeze([
+  [/Usuń układ (.+)/g, 'Delete layout $1'],
+  [/Układ „(.+)” już istnieje\./g, 'Layout “$1” already exists.'],
+  [/Punkt (\d+) — ([XY](?: i [XY])?)/g, 'Point $1 — $2'],
+  [/Okrąg (\d+) — promień/g, 'Circle $1 — radius'],
+  [/Przesunięcie po osi ([XY])/g, 'Movement along $1 axis'],
+  [/Ruch geometrii (\d+):/g, 'Geometry movement $1:'],
+  [/Pominięto odcinek o zerowej długości\./g, 'A zero-length segment was skipped.'],
+  [/Pominięto ścieżkę z poleceniem ([A-Za-z]+)\./g, 'A path using command $1 was skipped.'],
+  [/Pominięto nieobsługiwany element SVG: ([\w:-]+)\./g, 'Unsupported SVG element skipped: $1.'],
+  [/Pominięto ([\w:-]+) z transformacją SVG\./g, 'A $1 element with an SVG transform was skipped.'],
+  [/Zaokrąglenie prostokąta SVG uproszczono do ostrych narożników\./g, 'The rounded SVG rectangle was simplified to sharp corners.'],
+  [/Łuki bulge w polilinii DXF zostały zastąpione odcinkami\./g, 'DXF polyline bulge arcs were replaced with line segments.'],
+  [/Pominięto nieobsługiwaną encję DXF: ([\w:-]+)\./g, 'Unsupported DXF entity skipped: $1.'],
+  [/Import wymaga sprawdzenia\./g, 'The import requires review.'],
   [/Wersja ([\w.-]+) nie ma paczki dla tego komputera/g, 'Version $1 has no package for this computer'],
   [/Zainstalowana wersja to ([\w.-]+)\. Otwórz stronę wydania, aby sprawdzić dostępne platformy i architektury\./g, 'The installed version is $1. Open the release page to check available platforms and architectures.'],
   [/Otwarty łańcuch \((\d+)\)/g, 'Open chain ($1)'],
@@ -607,6 +671,23 @@ export function translateModelingText(value, language = 'pl') {
     }
   }
   return ENGLISH_PHRASES.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), source);
+}
+
+const POLISH_INTERFACE_PATTERN = /(?:[ąćęłńóśźż]|\b(?:Zaznacz|Wybierz|Pokaż|Ukryj|Nowy|Otwórz|Zapisz|Usuń|Cofnij|Ponów|Gotowe|Płaszczyzna|Parametry|Konstrukcja|Szkice|Bryły|Utwórz|Zaokrąglij|Fazuj|Przesuń|Obróć|Edytuj|Zamknij|Anuluj|Dodaj|Pominięto|Zmieniono|Sprawdź|Pozostałe|Niedowiązany|więz|układ|obszaru)\b)/i;
+
+export function findUntranslatedModelingText(root) {
+  if (!root?.querySelectorAll) return [];
+  const untranslated = new Set();
+  const inspect = (value) => {
+    const normalized = String(value || '').trim();
+    if (normalized && POLISH_INTERFACE_PATTERN.test(normalized)) untranslated.add(normalized);
+  };
+  root.querySelectorAll('*').forEach((element) => {
+    if (element.closest('[data-i18n-ignore="true"]')) return;
+    if (!element.children.length && !['SCRIPT', 'STYLE'].includes(element.tagName)) inspect(element.textContent);
+    for (const attribute of ['aria-label', 'title', 'placeholder']) inspect(element.getAttribute(attribute));
+  });
+  return [...untranslated];
 }
 
 function localizeElementAttributes(element, language) {

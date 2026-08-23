@@ -139,7 +139,7 @@ import {
   renameTimelineFeature,
   setTimelineFeatureSuppressed,
 } from '../cad-core/timeline-operations.js';
-import { observeModelingLocalization, resolveModelingLanguage } from './i18n.js';
+import { findUntranslatedModelingText, observeModelingLocalization, resolveModelingLanguage } from './i18n.js';
 import { FirstPartTutorial, FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './AppDialogs.jsx';
 import { CommandLine } from './CommandLine.jsx';
 import { CommandDialog } from './CommandDialog.jsx';
@@ -434,6 +434,9 @@ export default function ModelingWorkspace() {
   const [modelImportBusy, setModelImportBusy] = useState(false);
   const [sketchImportDraft, setSketchImportDraft] = useState(null);
   const [importRepairReport, setImportRepairReport] = useState(null);
+  useEffect(() => {
+    if (command) setImportRepairReport(null);
+  }, [command]);
   useEffect(() => {
     writePanelLayout(panelLayout, window.localStorage, window.screen);
   }, [panelLayout]);
@@ -2274,7 +2277,7 @@ export default function ModelingWorkspace() {
         entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, role: entity.role, fixed: entity.fixed, layerId: entity.layerId, color: entity.color, lineType: entity.lineType, lineWeight: entity.lineWeight, projectionReferenceId: entity.projectionReferenceId, pointIds: entity.pointIds, geometry: entity.geometry })),
         profiles: sketch.profiles.length,
         profileIds: sketch.profiles.map((profile) => profile.id),
-        constraints: sketch.constraints.map((constraint) => ({ id: constraint.id, type: constraint.type, value: constraint.value, automatic: constraint.automatic })),
+        constraints: sketch.constraints.map((constraint) => ({ id: constraint.id, type: constraint.type, entityIds: constraint.entityIds, value: constraint.value, automatic: constraint.automatic })),
         dimensions: sketch.dimensions.map((dimension) => ({ id: dimension.id, type: dimension.type, entityIds: dimension.entityIds, constraintId: dimension.constraintId, expression: dimension.expression })),
         blockInstances: (sketch.blockInstances || []).map((instance) => ({ ...instance, attributes: { ...instance.attributes } })),
       })),
@@ -3586,12 +3589,13 @@ export default function ModelingWorkspace() {
   useEffect(() => {
     if (!new URLSearchParams(window.location.search).has('verify')) return undefined;
     window.__madcadVerifyDwgImport = prepareDwgSketchImport;
+    window.__madcadVerifyFindUntranslatedText = () => findUntranslatedModelingText(globalThis.document.querySelector('.modeling-shell'));
     window.__madcadVerifyShowImportRepairReport = () => {
       const imported = parseSketchImport('<svg width="40mm" height="20mm"><rect x="0" y="0" width="20" height="10" rx="2"/><path d="M 0 0 C 1 1 2 2 3 3"/><text x="2" y="2">opis</text></svg>', 'svg');
       setImportRepairReport({ fileName: 'test-naprawy.svg', format: 'svg', sourceUnit: imported.sourceUnit, ...imported.repairReport, createdAt: new Date().toISOString() });
       return imported.repairReport;
     };
-    return () => { delete window.__madcadVerifyDwgImport; delete window.__madcadVerifyShowImportRepairReport; };
+    return () => { delete window.__madcadVerifyDwgImport; delete window.__madcadVerifyShowImportRepairReport; delete window.__madcadVerifyFindUntranslatedText; };
   }, [prepareDwgSketchImport]);
 
   const confirmSketchImport = () => {

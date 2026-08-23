@@ -156,19 +156,12 @@ async function verifyEnglishModelingUi() {
     await englishWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'en' } });
     await waitForModel(englishWindow);
     await new Promise((resolve) => setTimeout(resolve, 300));
+    await englishWindow.webContents.executeJavaScript(`(() => {
+      document.querySelector('button[aria-label="Workspace layouts"]')?.click();
+      window.__madcadVerifyShowImportRepairReport?.();
+    })()`);
+    await new Promise((resolve) => setTimeout(resolve, 150));
     const state = await englishWindow.webContents.executeJavaScript(`(() => {
-      const polishPattern = /(?:[ąćęłńóśźż]|\\b(?:Zaznacz|Wybierz|Pokaż|ukryj|Nowy|Otwórz|Zapisz|Cofnij|Ponów|Gotowe|Płaszczyzna|Parametry|Konstrukcja|Szkice|Bryły|Utwórz|Zaokrąglij|Fazuj|Przesuń|Obróć|Edytuj|Zamknij|Anuluj)\\b)/i;
-      const untranslated = new Set();
-      document.querySelectorAll('.modeling-shell *').forEach((element) => {
-        if (!element.children.length) {
-          const text = element.textContent?.trim();
-          if (text && polishPattern.test(text)) untranslated.add(text);
-        }
-        for (const attribute of ['aria-label', 'title', 'placeholder']) {
-          const value = element.getAttribute(attribute)?.trim();
-          if (value && polishPattern.test(value)) untranslated.add(value);
-        }
-      });
       return {
         language: document.documentElement.lang,
         createSketch: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Create sketch'),
@@ -177,7 +170,7 @@ async function verifyEnglishModelingUi() {
         engineReady: document.querySelector('.engine-status')?.textContent.includes('ready'),
         tutorialButton: Boolean(document.querySelector('button[title="First CAD project tutorial"]')),
         polishPrimaryLabel: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Utwórz szkic'),
-        untranslatedPolish: [...untranslated].slice(0, 50),
+        untranslatedPolish: (window.__madcadVerifyFindUntranslatedText?.() || ['translation gate unavailable']).slice(0, 50),
       };
     })()`);
     if (state.language !== 'en' || !state.createSketch || !state.browserHiddenByDefault || !state.browserToggle || !state.engineReady || !state.tutorialButton || state.polishPrimaryLabel || state.untranslatedPolish.length) {
@@ -916,7 +909,6 @@ async function runUiFlow(window) {
   await setCommandField('Przesunięcie Y', '0');
   await confirmDialog();
   await waitForUi(window, `(() => { const point = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData?.find((entity) => entity.id === ${JSON.stringify(editTargets.concavePointId)}); return Number(point?.geometry?.x) === 15; })()`, 'dokładna zmiana wierzchołka');
-
   await clickTool('Zakończ szkic');
   await clickTool('Press Pull');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'wyciągnięcie profilu L');

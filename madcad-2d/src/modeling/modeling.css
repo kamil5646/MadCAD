@@ -2051,9 +2051,9 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: 1px solid #1d9dca;
+  border: 1px solid #39b7df;
   border-radius: 2px;
-  background: #148fbc;
+  background: #08769b;
   color: white;
   padding: 5px 13px;
   font-weight: 600;
@@ -2063,7 +2063,7 @@
 .empty-canvas button:hover,
 .confirm:hover,
 .print-actions > button:first-child:hover:not(:disabled) {
-  background: #1aa6d6;
+  background: #0b7196;
 }
 
 .start-page.empty-canvas {
@@ -3294,7 +3294,7 @@
 .import-report-entry div { display: grid; min-width: 0; gap: 2px; }
 .import-report-entry strong { color: #e5ebef; font-size: 10px; }
 .import-report-entry span { color: #bdc8cf; font-size: 10px; line-height: 1.35; }
-.import-report-entry small { color: #81929e; font-size: 8px; }
+.import-report-entry small { color: #acbbc5; font-size: 8px; }
 .import-report-clean { display: flex; align-items: center; gap: 7px; padding: 9px; border: 1px solid #557966; border-radius: 2px; background: #2d3d36; color: #cbe8d5; font-size: 10px; }
 .import-report-clean svg { color: #6fdb91; }
 

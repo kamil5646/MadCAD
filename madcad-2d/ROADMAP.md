@@ -117,7 +117,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] Awaria workera, pełny dysk, uszkodzony projekt, kopia autozapisu i odzyskanie sesji są testowane.
 - [x] Electron ma context isolation, sandbox, CSP, bezpieczne linki, wspólną kontrolę źródła dla wszystkich 10 kanałów IPC oraz test odrzucenia obcego widoku.
 - [x] Budżety wydajności pickingu, meshowania i długiej historii są mierzone w testach core i desktop E2E.
-- [~] Przełącznik PL/EN i smoke test EN działają; pełne przeniesienie tekstów interfejsu do katalogu tłumaczeń nadal trwa. Dostępność klawiatury i fokusu oraz DPI 100–200% są testowane.
+- [x] Przełącznik PL/EN, katalog tekstów nowych przepływów oraz bramka wykrywająca polskie teksty w renderowanym interfejsie EN działają. Dostępność klawiatury i fokusu oraz DPI 100–200% są testowane.
 - [x] Kanały alpha/beta/stable, SHA-256, testy paczek, rollback podpisanej instalacji macOS i updater ignorujący niezaufany adres z renderera są zaimplementowane. Wydanie 6.2.0 bez certyfikatu pobiera, sprawdza i przekazuje właściwą paczkę na Windows, macOS i Linux.
 - [x] Wbudowany samouczek prowadzi od szkicu do modelu i eksportu, ma ścieżkę PL/EN oraz jawną listę znanych ograniczeń.
 
@@ -184,13 +184,13 @@ Dodatkowo:
 - [!] Import musi być sprawdzany na plikach z różnych programów, nie tylko na własnym eksporcie.
 - [!] Zmiana `appId` i instalatora wymaga migracji danych i ciągłości aktualizacji.
 - [!] Niepodpisane wydanie 6.2.0 nadal wywołuje ostrzeżenia SmartScreen/Gatekeeper; aktualizator może bezpiecznie zweryfikować i otworzyć paczkę, lecz cicha instalacja wymaga certyfikatu platformowego.
-- [!] Pełna zgodność EN wymaga usunięcia pozostałych tekstów zakodowanych bezpośrednio w komponentach.
+- [x] Zgodność EN ma automatyczną bramkę renderowanego tekstu, a nowe przepływy układów, więzów, diagnostyki i raportu importu mają komplet kluczy.
 - [!] Kontrast gęstego interfejsu CAD wymaga ręcznej weryfikacji wyników `axe` i testu z czytnikiem ekranu; automatyczna kontrola nie wykrywa obecnie naruszeń blokujących.
 
 ## Najbliższe zadania
 
 1. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
-2. Dokończyć katalog kluczy PL/EN i dodać bramkę wykrywającą nieprzetłumaczone teksty w renderowanym interfejsie.
+2. [x] Dokończyć katalog kluczy PL/EN i dodać bramkę wykrywającą nieprzetłumaczone teksty w renderowanym interfejsie.
 3. Wydzielić kontroler poleceń, dialogi i usługi dokumentu z `ModelingWorkspace`, zachowując obecny test pełnego przepływu.
 4. Sprawdzić import/eksport na fixture'ach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny test technologii asystujących.
 
