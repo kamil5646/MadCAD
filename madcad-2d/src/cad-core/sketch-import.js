@@ -15,7 +15,7 @@ function number(value, label) {
   return parsed;
 }
 
-function builder(scale, flipY = false) {
+function builder(scale, flipY = false, diagnostics = []) {
   const entities = [];
   const points = new Map();
   const coordinate = ([x, y]) => [number(x, 'X') * scale, number(y, 'Y') * scale * (flipY ? -1 : 1)];
@@ -33,7 +33,10 @@ function builder(scale, flipY = false) {
     line(start, end) {
       const first = point(start);
       const last = point(end);
-      if (first.id === last.id) return;
+      if (first.id === last.id) {
+        diagnostics.push({ code: 'ZERO_LENGTH_SKIPPED', status: 'skipped', message: 'Pominięto odcinek o zerowej długości.' });
+        return;
+      }
       entities.push(createSketchLine({ startPointId: first.id, endPointId: last.id }));
     },
     circle(center, radius) {
@@ -85,7 +88,7 @@ function importSvgPath(data, target, diagnostics) {
       continue;
     }
     if (!['M', 'L', 'H', 'V'].includes(upper)) {
-      diagnostics.push({ code: 'SVG_PATH_UNSUPPORTED', message: `Pominięto ścieżkę z poleceniem ${command}.` });
+      diagnostics.push({ code: 'SVG_PATH_UNSUPPORTED', status: 'skipped', message: `Pominięto ścieżkę z poleceniem ${command}.` });
       return;
     }
     let next;
@@ -130,11 +133,15 @@ function inspectSvgUnit(text) {
 }
 
 function parseSvg(text, target, diagnostics) {
-  for (const match of String(text).matchAll(/<(line|rect|circle|polyline|polygon|path)\b([^>]*)\/?\s*>/gi)) {
+  for (const match of String(text).matchAll(/<(line|rect|circle|polyline|polygon|path|ellipse|text|use|image)\b([^>]*)\/?\s*>/gi)) {
     const type = match[1].toLowerCase();
     const attr = attributes(match[2]);
+    if (['ellipse', 'text', 'use', 'image'].includes(type)) {
+      diagnostics.push({ code: 'SVG_ELEMENT_UNSUPPORTED', status: 'skipped', message: `Pominięto nieobsługiwany element SVG: ${type}.` });
+      continue;
+    }
     if (attr.transform) {
-      diagnostics.push({ code: 'SVG_TRANSFORM_UNSUPPORTED', message: `Pominięto ${type} z transformacją SVG.` });
+      diagnostics.push({ code: 'SVG_TRANSFORM_UNSUPPORTED', status: 'skipped', message: `Pominięto ${type} z transformacją SVG.` });
       continue;
     }
     if (type === 'line') target.line([attr.x1 || 0, attr.y1 || 0], [attr.x2 || 0, attr.y2 || 0]);
@@ -142,7 +149,7 @@ function parseSvg(text, target, diagnostics) {
       const x = number(attr.x || 0, 'x'); const y = number(attr.y || 0, 'y');
       const width = number(attr.width, 'szerokości'); const height = number(attr.height, 'wysokości');
       [[x, y], [x + width, y], [x + width, y + height], [x, y + height]].forEach((point, index, list) => target.line(point, list[(index + 1) % list.length]));
-      if (attr.rx || attr.ry) diagnostics.push({ code: 'SVG_ROUNDED_RECT', message: 'Zaokrąglenie prostokąta SVG uproszczono do ostrych narożników.' });
+      if (attr.rx || attr.ry) diagnostics.push({ code: 'SVG_ROUNDED_RECT', status: 'changed', message: 'Zaokrąglenie prostokąta SVG uproszczono do ostrych narożników.' });
     } else if (type === 'circle') target.circle([attr.cx || 0, attr.cy || 0], attr.r);
     else if (type === 'polyline' || type === 'polygon') {
       const points = coordinateList(attr.points);
@@ -207,9 +214,26 @@ function parseDxf(pairs, target, diagnostics) {
       }
       points.slice(1).forEach((point, index) => target.line(points[index], point));
       if ((Number(first(values, 70, 0)) & 1) && points.length > 2) target.line(points.at(-1), points[0]);
-      if (values.some(([code, value]) => code === 42 && Number(value))) diagnostics.push({ code: 'DXF_BULGE_UNSUPPORTED', message: 'Łuki bulge w polilinii DXF zostały zastąpione odcinkami.' });
-    }
+      if (values.some(([code, value]) => code === 42 && Number(value))) diagnostics.push({ code: 'DXF_BULGE_UNSUPPORTED', status: 'changed', message: 'Łuki bulge w polilinii DXF zostały zastąpione odcinkami.' });
+    } else diagnostics.push({ code: 'DXF_ENTITY_UNSUPPORTED', status: 'skipped', message: `Pominięto nieobsługiwaną encję DXF: ${entity.type}.` });
   }
+}
+
+function repairReport(diagnostics, curveCount, profileCount) {
+  const entries = diagnostics.map((entry, index) => ({
+    id: `import-${index + 1}`,
+    status: entry.status || (String(entry.code || '').includes('UNSUPPORTED') ? 'skipped' : 'warning'),
+    code: entry.code || 'IMPORT_DIAGNOSTIC',
+    message: entry.message || 'Import wymaga sprawdzenia.',
+  }));
+  return {
+    imported: curveCount,
+    profiles: profileCount,
+    changed: entries.filter((entry) => entry.status === 'changed').length,
+    skipped: entries.filter((entry) => entry.status === 'skipped').length,
+    warnings: entries.filter((entry) => entry.status === 'warning').length,
+    entries,
+  };
 }
 
 export function inspectSketchImport(text, format) {
@@ -231,13 +255,14 @@ export function parseSketchImport(text, format, options = {}) {
   const scale = automatic ? inspected.autoScale : SKETCH_IMPORT_UNITS[sourceUnit];
   if (!scale) throw new Error('Nieobsługiwana jednostka importu szkicu.');
   const diagnostics = [];
-  const target = builder(scale, inspected.format === 'svg');
+  const target = builder(scale, inspected.format === 'svg', diagnostics);
   if (inspected.format === 'svg') parseSvg(text, target, diagnostics);
   else parseDxf(dxfPairs(text), target, diagnostics);
   const curves = target.entities.filter((entity) => entity.type !== 'point');
   if (!curves.length) throw new Error('Plik nie zawiera obsługiwanej geometrii szkicu.');
   const sketch = { entities: target.entities, profiles: [], constraints: [], dimensions: [] };
   const topology = refreshDetectedSketchProfiles(sketch);
+  const combinedDiagnostics = [...diagnostics, ...(topology.diagnostics || []).map((entry) => ({ ...entry, status: entry.status || 'warning' }))];
   return {
     format: inspected.format,
     detectedUnit: inspected.detectedUnit,
@@ -245,7 +270,8 @@ export function parseSketchImport(text, format, options = {}) {
     scale,
     entities: sketch.entities,
     profiles: sketch.profiles,
-    diagnostics: [...diagnostics, ...(topology.diagnostics || [])],
+    diagnostics: combinedDiagnostics,
+    repairReport: repairReport(combinedDiagnostics, curves.length, sketch.profiles.length),
     curveCount: curves.length,
   };
 }

@@ -153,7 +153,7 @@ import { multipleSelectionLabel, primaryModifierPressed } from './platform-short
 import { downloadBlob, safeName, useDocumentHistory } from './workspace-document.js';
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext } from './WorkspaceRibbon.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
-import { BlocksPanel, CommandCustomizationPanel, Field, GeometryInspectionPanel, ImportModelDialog, ImportSketchDialog, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel, SketchDimensionDialog } from './WorkspacePanels.jsx';
+import { BlocksPanel, CommandCustomizationPanel, Field, GeometryInspectionPanel, ImportModelDialog, ImportRepairReportDialog, ImportSketchDialog, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel, SketchDimensionDialog } from './WorkspacePanels.jsx';
 import { ParametersDialog, PlanePicker, SketchPalette } from './WorkspaceSketchUi.jsx';
 import {
   AUTOSAVE_KEY,
@@ -425,6 +425,7 @@ export default function ModelingWorkspace() {
   const [importDraft, setImportDraft] = useState(null);
   const [modelImportBusy, setModelImportBusy] = useState(false);
   const [sketchImportDraft, setSketchImportDraft] = useState(null);
+  const [importRepairReport, setImportRepairReport] = useState(null);
   useEffect(() => {
     writePanelLayout(panelLayout, window.localStorage, window.screen);
   }, [panelLayout]);
@@ -3454,6 +3455,20 @@ export default function ModelingWorkspace() {
       triangleCount: importDraft.triangleCount,
     });
     commit((next) => next.features.push(feature));
+    const modelEntries = [];
+    if (importDraft.originalFormat === '3mf') modelEntries.push({ id: 'model-conversion', status: 'changed', code: '3MF_MESH_NORMALIZED', message: 'Obiekty 3MF połączono w wewnętrzną siatkę STL z zachowaniem położenia i skali.' });
+    if (importDraft.sourceUnit !== 'auto' && unitScale !== 1) modelEntries.push({ id: 'model-unit-scale', status: 'changed', code: 'UNIT_SCALE_APPLIED', message: `Przeskalowano geometrię współczynnikiem ${unitScale} do milimetrów.` });
+    setImportRepairReport({
+      fileName: importDraft.fileName,
+      format: importDraft.originalFormat,
+      sourceUnit: importDraft.sourceUnit,
+      imported: Number.isFinite(importDraft.objectCount) ? importDraft.objectCount : 1,
+      changed: modelEntries.filter((entry) => entry.status === 'changed').length,
+      skipped: 0,
+      warnings: 0,
+      entries: modelEntries,
+      createdAt: new Date().toISOString(),
+    });
     setSelection({ kind: 'feature', id: feature.id });
     setImportDraft(null);
     setWorkspace('solid');
@@ -3519,7 +3534,12 @@ export default function ModelingWorkspace() {
   useEffect(() => {
     if (!new URLSearchParams(window.location.search).has('verify')) return undefined;
     window.__madcadVerifyDwgImport = prepareDwgSketchImport;
-    return () => { delete window.__madcadVerifyDwgImport; };
+    window.__madcadVerifyShowImportRepairReport = () => {
+      const imported = parseSketchImport('<svg width="40mm" height="20mm"><rect x="0" y="0" width="20" height="10" rx="2"/><path d="M 0 0 C 1 1 2 2 3 3"/><text x="2" y="2">opis</text></svg>', 'svg');
+      setImportRepairReport({ fileName: 'test-naprawy.svg', format: 'svg', sourceUnit: imported.sourceUnit, ...imported.repairReport, createdAt: new Date().toISOString() });
+      return imported.repairReport;
+    };
+    return () => { delete window.__madcadVerifyDwgImport; delete window.__madcadVerifyShowImportRepairReport; };
   }, [prepareDwgSketchImport]);
 
   const confirmSketchImport = () => {
@@ -3532,12 +3552,32 @@ export default function ModelingWorkspace() {
         targetSketch.entities.push(...imported.entities);
         refreshDetectedSketchProfiles(targetSketch, next.parameters);
       });
+      setImportRepairReport({
+        fileName: sketchImportDraft.fileName,
+        format: sketchImportDraft.sourceFormat || imported.format,
+        sourceUnit: imported.sourceUnit,
+        ...imported.repairReport,
+        createdAt: new Date().toISOString(),
+      });
       setSketchImportDraft(null);
       setSelection({ kind: 'sketch', id: activeSketchId });
       setNotice(`Zaimportowano ${imported.curveCount} elementów z ${sketchImportDraft.fileName} · ${imported.profiles.length} profili · jednostka ${imported.sourceUnit}.`);
     } catch (error) {
       setNotice(`Import szkicu nie powiódł się: ${error.message}`);
     }
+  };
+
+  const saveImportRepairReport = async () => {
+    if (!importRepairReport) return;
+    const payload = JSON.stringify(importRepairReport, null, 2);
+    const defaultName = `${safeName(importRepairReport.fileName.replace(/\.[^.]+$/, ''))}-raport-importu.json`;
+    if (window.desktopApp?.saveTextFile) {
+      const result = await window.desktopApp.saveTextFile({ defaultName, text: payload, filters: [{ name: 'Raport JSON', extensions: ['json'] }], atomic: true, createBackup: false });
+      setNotice(result?.ok ? `Zapisano raport importu: ${result.filePath}` : result?.canceled ? 'Anulowano zapis raportu.' : `Nie udało się zapisać raportu: ${result?.error || 'nieznany błąd'}`);
+      return;
+    }
+    downloadBlob(new Blob([payload], { type: 'application/json' }), defaultName);
+    setNotice('Pobrano raport importu JSON.');
   };
 
   const exportModel = async (format) => {
@@ -4099,6 +4139,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'plane' && <PlanePicker onPick={pickPlane} onCancel={() => { setCommand(null); setWorkspace('solid'); setNotice('Anulowano tworzenie szkicu.'); }} />}
           <ImportModelDialog draft={importDraft} onChange={(patch) => setImportDraft((current) => ({ ...current, ...patch }))} onConfirm={confirmModelImport} onCancel={() => setImportDraft(null)} />
           <ImportSketchDialog draft={sketchImportDraft} onChange={(patch) => setSketchImportDraft((current) => ({ ...current, ...patch }))} onConfirm={confirmSketchImport} onCancel={() => setSketchImportDraft(null)} />
+          <ImportRepairReportDialog report={importRepairReport} onSave={() => { void saveImportRepairReport(); }} onClose={() => setImportRepairReport(null)} />
           <SketchDimensionDialog command={command} onChange={updateCommand} onConfirm={confirmSketchDimension} onCancel={() => setCommand(null)} />
           {command?.type === 'parameters' && <ParametersDialog document={document} commit={commit} onClose={() => setCommand(null)} />}
           {activeSketchId && <SketchPalette options={sketchOptions} onChange={(key, value) => setSketchOptions((current) => ({ ...current, [key]: value }))} onFinish={finishSketch} />}

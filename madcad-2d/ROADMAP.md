@@ -161,8 +161,8 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.24 Konfigurowalne aliasy i bezpośrednie klawisze podstawowych poleceń: ustawienia ogólne aplikacji, walidacja konfliktów i nazw zarezerwowanych, przywracanie układu Autodesk, dynamiczne tooltipy, podpowiedzi linii poleceń oraz zapis lokalny.
 - [x] P1.25 Automatyczne sugestie więzów podczas szkicowania: czytelny podgląd `H/V` przy kursorze, automatyczne wyrównanie i zapis więzu poziomego/pionowego oraz zbieżności punktów, możliwość wyłączenia w palecie szkicu i regresja desktopowa.
 - [x] P1.26 Diagnostyka niedowiązania: solver wyznacza bazę przestrzeni swobodnej, wskazuje osie i parametry pozostające do związania, podświetla swobodne punkty oraz udostępnia kompaktowy panel z wyborem geometrii i podpowiedziami następnego więzu.
-- [>] P1.27 Raport naprawy importu z jawną listą zmienionych i pominiętych elementów.
-- [ ] P1.28 Zapisywane obszary robocze i układy paneli.
+- [x] P1.27 Raport naprawy importu: SVG/DXF/DWG jawnie zlicza dodane, zmienione i pominięte elementy, raportuje uproszczenia i nieobsługiwane encje, a import 3D rejestruje konwersję 3MF i skalowanie; wynik ma zwarty podgląd oraz zapis JSON.
+- [>] P1.28 Zapisywane obszary robocze i układy paneli.
 
 ## Definition of Done
 

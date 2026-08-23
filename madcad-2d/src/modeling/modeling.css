@@ -3179,6 +3179,46 @@
   background: #303945;
 }
 
+.command-dialog.import-repair-report {
+  width: min(440px, calc(100% - 28px));
+  max-height: calc(100% - 28px);
+}
+
+.import-report-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 7px;
+}
+.import-report-heading div { display: grid; min-width: 0; gap: 2px; }
+.import-report-heading strong { overflow: hidden; color: #edf2f5; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.import-report-heading span { color: #9eadb8; font-size: 9px; }
+.import-report-heading > svg { flex: 0 0 auto; color: #6fdb91; }
+
+.import-report-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 0 9px 8px;
+}
+.import-report-summary span { display: grid; gap: 1px; padding: 6px; border: 1px solid #596b78; border-radius: 2px; background: #2d3741; color: #aebac3; font-size: 8px; text-align: center; }
+.import-report-summary b { color: #edf4f7; font-size: 14px; }
+.import-report-summary .changed b { color: #f1c46f; }
+.import-report-summary .skipped b { color: #ff8b91; }
+
+.import-report-list { border-top: 1px solid rgba(255, 255, 255, 0.08); padding: 8px 9px; }
+.import-report-list h3 { margin: 0 0 6px; color: #c8d2d9; font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; }
+.import-report-entry { display: flex; gap: 8px; margin-bottom: 5px; padding: 7px; border: 1px solid #586a77; border-radius: 2px; background: #303b45; }
+.import-report-entry > svg { flex: 0 0 auto; margin-top: 1px; color: #8fbbc8; }
+.import-report-entry.changed > svg { color: #f1c46f; }
+.import-report-entry.skipped > svg { color: #ff858d; }
+.import-report-entry div { display: grid; min-width: 0; gap: 2px; }
+.import-report-entry strong { color: #e5ebef; font-size: 10px; }
+.import-report-entry span { color: #bdc8cf; font-size: 10px; line-height: 1.35; }
+.import-report-entry small { color: #81929e; font-size: 8px; }
+.import-report-clean { display: flex; align-items: center; gap: 7px; padding: 9px; border: 1px solid #557966; border-radius: 2px; background: #2d3d36; color: #cbe8d5; font-size: 10px; }
+.import-report-clean svg { color: #6fdb91; }
+
 .secondary {
   display: inline-flex;
   min-height: 29px;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Blocks, Box, Check, Eye, EyeOff, Keyboard, Layers3, Lock, LockOpen, Plus, Printer, RotateCcw, Ruler, ScanSearch, Trash2, Ungroup, X } from 'lucide-react';
+import { AlertTriangle, Blocks, Box, Check, CheckCircle2, Eye, EyeOff, FileDown, Keyboard, Layers3, Lock, LockOpen, Plus, Printer, RotateCcw, Ruler, ScanSearch, Trash2, Ungroup, X, XCircle } from 'lucide-react';
 import { formatModelFileSize } from '../cad-core/model-import.js';
 import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
 import { commandCustomizationRows, validateCommandCustomization } from './command-customization.js';
@@ -256,6 +256,31 @@ export function ImportSketchDialog({ draft, onChange, onConfirm, onCancel }) {
         <div className="command-preview-note"><span className="preview-dot" />Linie, polilinie, prostokąty, okręgi i łuki zostaną dodane do aktywnego szkicu w milimetrach. Zamknięte pętle utworzą profile.</div>
       </div>
       <footer><button className="secondary" type="button" onClick={onCancel}>Anuluj</button><button className="confirm" type="button" onClick={onConfirm}><Check size={14} /> Importuj do szkicu</button></footer>
+    </section>
+  );
+}
+
+export function ImportRepairReportDialog({ report, onSave, onClose }) {
+  if (!report) return null;
+  const iconFor = (status) => status === 'changed' ? AlertTriangle : status === 'skipped' ? XCircle : CheckCircle2;
+  return (
+    <section className="command-dialog import-repair-report" aria-label="Raport naprawy importu">
+      <header><strong>Raport importu</strong><button type="button" onClick={onClose} title="Zamknij raport" aria-label="Zamknij raport"><X size={15} /></button></header>
+      <div className="import-report-heading"><div><strong>{report.fileName}</strong><span>{report.format.toUpperCase()} · {report.sourceUnit || 'jednostka automatyczna'}</span></div><CheckCircle2 size={20} /></div>
+      <div className="import-report-summary" aria-label="Podsumowanie raportu">
+        <span><b>{report.imported}</b> dodano</span>
+        <span className="changed"><b>{report.changed}</b> zmieniono</span>
+        <span className="skipped"><b>{report.skipped}</b> pominięto</span>
+        <span><b>{report.warnings}</b> ostrzeżeń</span>
+      </div>
+      <div className="import-report-list">
+        <h3>Zmiany i pominięcia</h3>
+        {report.entries.length ? report.entries.map((entry) => {
+          const StatusIcon = iconFor(entry.status);
+          return <div key={entry.id} className={`import-report-entry ${entry.status}`}><StatusIcon size={15} /><div><strong>{entry.status === 'changed' ? 'Zmieniono' : entry.status === 'skipped' ? 'Pominięto' : 'Sprawdź'}</strong><span>{entry.message}</span><small>{entry.code}</small></div></div>;
+        }) : <div className="import-report-clean"><CheckCircle2 size={17} /><span>Nie zmieniono ani nie pominięto żadnego elementu.</span></div>}
+      </div>
+      <footer><button className="secondary" type="button" onClick={onSave}><FileDown size={14} /> Zapisz JSON</button><button className="confirm" type="button" onClick={onClose}><Check size={14} /> Gotowe</button></footer>
     </section>
   );
 }

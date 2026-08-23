@@ -1596,6 +1596,16 @@ test('automatyczna skala SVG uwzględnia relację fizycznego rozmiaru do viewBox
   assert.equal(Math.max(...xs), 100);
 });
 
+test('raport importu jawnie rozdziela elementy zmienione i pominięte', () => {
+  const imported = parseSketchImport('<svg width="40mm" height="20mm"><rect x="0" y="0" width="20" height="10" rx="2"/><path d="M 0 0 C 1 1 2 2 3 3"/><text x="2" y="2">opis</text></svg>', 'svg');
+  assert.equal(imported.repairReport.imported, 4);
+  assert.equal(imported.repairReport.changed, 1);
+  assert.equal(imported.repairReport.skipped, 2);
+  assert.ok(imported.repairReport.entries.some((entry) => entry.status === 'changed' && entry.code === 'SVG_ROUNDED_RECT'));
+  assert.ok(imported.repairReport.entries.some((entry) => entry.status === 'skipped' && entry.code === 'SVG_PATH_UNSUPPORTED'));
+  assert.ok(imported.repairReport.entries.some((entry) => entry.status === 'skipped' && entry.code === 'SVG_ELEMENT_UNSUPPORTED'));
+});
+
 test('import DXF obsługuje jednostki, LINE, zamkniętą LWPOLYLINE, CIRCLE i ARC', () => {
   const dxf = ['0','SECTION','2','HEADER','9','$INSUNITS','70','4','0','ENDSEC','0','SECTION','2','ENTITIES','0','LINE','10','0','20','0','11','5','21','0','0','LWPOLYLINE','70','1','10','0','20','0','10','10','20','0','10','10','20','10','10','0','20','10','0','CIRCLE','10','4','20','4','40','2','0','ARC','10','20','20','20','40','5','50','0','51','90','0','ENDSEC','0','EOF'].join('\n');
   const imported = parseSketchImport(dxf, '.dxf');
