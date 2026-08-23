@@ -1002,7 +1002,7 @@
   padding: 5px 8px;
   border: 1px solid #56616e;
   border-radius: 2px;
-  background: rgba(45, 53, 64, 0.9);
+  background: #2d3540;
   color: #d0d7de;
   font-size: 10px;
   text-overflow: ellipsis;
@@ -1019,7 +1019,7 @@
   padding: 5px 9px;
   border: 1px solid rgba(116, 138, 154, 0.58);
   border-radius: 4px;
-  background: rgba(31, 40, 50, 0.88);
+  background: #1f2832;
   color: #dce5eb;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
   font-size: 9px;
@@ -1107,7 +1107,7 @@
 
 .view-cube button {
   border: 1px solid #697480;
-  background: rgba(72, 81, 92, 0.9);
+  background: #48515c;
   color: #cfd7df;
   font-size: 8px;
   cursor: pointer;
@@ -1145,7 +1145,7 @@
   padding: 3px;
   border: 1px solid rgba(162, 187, 202, 0.28);
   border-radius: 6px;
-  background: rgba(31, 39, 49, 0.9);
+  background: #1f2731;
   transform: translateX(-50%);
   box-shadow: 0 5px 16px rgba(0, 0, 0, 0.2);
 }
@@ -1180,7 +1180,7 @@
   padding: 3px 8px;
   border-radius: 4px;
   color: #9fb4c0;
-  background: rgba(31, 39, 49, 0.72);
+  background: #1f2731;
   font-size: 9px;
   pointer-events: none;
   transform: translateX(-50%);
@@ -1480,7 +1480,7 @@
   border: 1px solid rgba(237, 177, 75, 0.72);
   border-radius: 7px;
   color: #e9f0f4;
-  background: rgba(43, 45, 47, 0.96);
+  background: #2b2d2f;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
 }
 
@@ -1493,7 +1493,7 @@
   gap: 9px;
   padding: 9px 11px;
   color: #ffd27d;
-  background: rgba(134, 91, 29, 0.35);
+  background: #5a4527;
 }
 
 .reference-repair-panel.collapsed { width: min(244px, calc(100% - 24px)); }
@@ -1503,7 +1503,7 @@
   margin-left: auto;
   padding: 0;
   border-color: rgba(255, 210, 125, 0.5);
-  background: rgba(32, 34, 36, 0.45);
+  background: #202224;
 }
 
 .reference-repair-panel header > div,

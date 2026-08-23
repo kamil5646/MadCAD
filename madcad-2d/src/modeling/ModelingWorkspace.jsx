@@ -4552,6 +4552,18 @@ export default function ModelingWorkspace() {
         : 'Obszar projektowania CAD.');
   };
 
+  const handleWorkspaceTabKeyDown = (event, index) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? MAIN_TABS.length - 1
+        : (index + (event.key === 'ArrowRight' ? 1 : -1) + MAIN_TABS.length) % MAIN_TABS.length;
+    switchWorkspace(MAIN_TABS[nextIndex].id);
+    window.requestAnimationFrame(() => document.querySelectorAll('.workspace-tabs [role="tab"]')[nextIndex]?.focus());
+  };
+
   const selectTimelineStep = (direction) => {
     if (!document.features.length) return;
     const currentIndex = selection?.kind === 'feature'
@@ -4893,7 +4905,7 @@ export default function ModelingWorkspace() {
     <ToolHelpContext.Provider value={toolHelpContext}>
     <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${document.features.length ? '' : 'timeline-empty'}`} aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
-        <div className="app-menu"><button className={browserOpen ? 'active' : ''} type="button" title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button id="newProjectBtn" type="button" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button id="openProjectBtn" type="button" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={16} /></button><button id="saveProjectBtn" type="button" title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
+        <div className="app-menu" role="toolbar" aria-label="Plik i przeglądarka projektu"><button className={browserOpen ? 'active' : ''} type="button" aria-label="Pokaż lub ukryj przeglądarkę" aria-pressed={browserOpen} title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button id="newProjectBtn" type="button" aria-label="Nowy projekt" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button id="openProjectBtn" type="button" aria-label="Otwórz projekt" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={16} /></button><button id="saveProjectBtn" type="button" aria-label={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
         <input ref={importInputRef} hidden type="file" accept=".step,.stp,.stl,.3mf,model/step,model/stl,model/3mf" onChange={chooseModelImport} />
         <input ref={sketchImportInputRef} hidden type="file" accept=".svg,.dxf,image/svg+xml,application/dxf" onChange={chooseSketchImport} />
@@ -4903,8 +4915,8 @@ export default function ModelingWorkspace() {
 
       <section className="command-area">
         <div className="command-ribbon">
-          <nav className="workspace-tabs" aria-label="Obszary robocze">
-            {activeSketchId ? <button className="active" type="button" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item) => <button id={item.id === 'print' ? 'printWorkspaceBtn' : undefined} key={item.id} className={workspace === item.id ? 'active' : ''} type="button" title={item.id === 'solid' ? 'Szkicowanie 2D i modelowanie parametryczne 3D.' : item.id === 'tools' ? 'Parametry i narzędzia dokumentu.' : 'Eksport CAD oraz opcjonalne przygotowanie druku 3D.'} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
+          <nav className="workspace-tabs" aria-label="Obszary robocze" role="tablist">
+            {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item, index) => <button id={item.id === 'print' ? 'printWorkspaceBtn' : undefined} key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Szkicowanie 2D i modelowanie parametryczne 3D.' : item.id === 'tools' ? 'Parametry i narzędzia dokumentu.' : 'Eksport CAD oraz opcjonalne przygotowanie druku 3D.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
           </nav>
           <ResponsiveRibbon>
             {activeSketchId ? (
@@ -5028,8 +5040,8 @@ export default function ModelingWorkspace() {
             printLayout={document.print}
           />
           </React.Suspense>
-          <div className={`engine-status ${engine.status}`}><span />{engine.status === 'ready' ? `${command?.previewFeature ? 'Podgląd' : 'Model'} gotowy · ${engine.bodies.length} ${engine.bodies.length === 1 ? 'bryła' : 'brył'}` : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>
-          {notice && <div className="workspace-notice" role="status">{notice}</div>}
+          <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? `${command?.previewFeature ? 'Podgląd' : 'Model'} gotowy · ${engine.bodies.length} ${engine.bodies.length === 1 ? 'bryła' : 'brył'}` : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>
+          {notice && <div className="workspace-notice" role="status" aria-live="polite" aria-atomic="true">{notice}</div>}
           <CrashRecoveryBanner
             info={recoveryInfo}
             onSave={() => { void saveProject(); }}
@@ -5060,7 +5072,7 @@ export default function ModelingWorkspace() {
           onSubmit={handleCommandLineSubmit}
         />
         <div className="timeline" role="region" aria-label="Parametryczna oś czasu">
-          {document.features.length ? <><div className="timeline-controls"><button type="button" title="Zaznacz pierwszy krok parametrycznej historii." onClick={() => selectTimelineStep('start')}><SkipBack size={14} /></button><button type="button" title="Zaznacz poprzednią operację w historii." onClick={() => selectTimelineStep('previous')}><StepBack size={14} /></button><button type="button" title="Zaznacz następną operację w historii." onClick={() => selectTimelineStep('next')}><StepForward size={14} /></button></div>
+          {document.features.length ? <><div className="timeline-controls" role="toolbar" aria-label="Nawigacja osi czasu"><button type="button" aria-label="Pierwszy krok historii" title="Zaznacz pierwszy krok parametrycznej historii." onClick={() => selectTimelineStep('start')}><SkipBack size={14} /></button><button type="button" aria-label="Poprzednia operacja" title="Zaznacz poprzednią operację w historii." onClick={() => selectTimelineStep('previous')}><StepBack size={14} /></button><button type="button" aria-label="Następna operacja" title="Zaznacz następną operację w historii." onClick={() => selectTimelineStep('next')}><StepForward size={14} /></button></div>
           {selectedTimelineFeature && <div className="timeline-selection-tools" role="toolbar" aria-label={`Zarządzaj operacją ${selectedTimelineFeature.name}`}>
             {timelineRename?.id === selectedTimelineFeature.id ? (
               <div className="timeline-rename">
@@ -5088,8 +5100,8 @@ export default function ModelingWorkspace() {
           {document.features.map((feature, index) => {
             const result = timelineStatus.get(feature.id);
             return (
-              <button key={feature.id} className={`timeline-item ${selection?.kind === 'feature' && selection.id === feature.id ? 'selected' : ''} ${feature.suppressed ? 'suppressed' : ''} ${lostReferenceOwnerIds.has(feature.id) ? 'warning reference-lost' : result?.status || ''}`} type="button" aria-current={selection?.kind === 'feature' && selection.id === feature.id ? 'step' : undefined} aria-label={`${index + 1}. ${feature.name}${feature.suppressed ? ', operacja wyłączona' : ''}`} onClick={() => selectTimelineFeature(feature, index)} onDoubleClick={editSelection} title={`${index + 1}. ${feature.name}${feature.suppressed ? ' — wyłączona' : lostReferenceOwnerIds.has(feature.id) ? ' — utracona referencja topologii' : result?.error ? ` — ${result.error}` : ''}`}>
-                {featureIcon(feature.type, 16)}<span>{index + 1}</span>
+              <button id={`timeline-${feature.id}`} key={feature.id} className={`timeline-item ${selection?.kind === 'feature' && selection.id === feature.id ? 'selected' : ''} ${feature.suppressed ? 'suppressed' : ''} ${lostReferenceOwnerIds.has(feature.id) ? 'warning reference-lost' : result?.status || ''}`} type="button" aria-pressed={selection?.kind === 'feature' && selection.id === feature.id} aria-label={`${index + 1}. ${feature.name}${feature.suppressed ? ', operacja wyłączona' : ''}`} onClick={() => selectTimelineFeature(feature, index)} onDoubleClick={editSelection} title={`${index + 1}. ${feature.name}${feature.suppressed ? ' — wyłączona' : lostReferenceOwnerIds.has(feature.id) ? ' — utracona referencja topologii' : result?.error ? ` — ${result.error}` : ''}`}>
+                {featureIcon(feature.type, 16)}<span aria-hidden="true">{index + 1}</span>
               </button>
             );
           })}

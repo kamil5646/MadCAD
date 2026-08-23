@@ -475,6 +475,15 @@ export default function ModelViewport({
     snapEnabled,
     snapThresholdPx,
   };
+  const adjustDirectHandleFromKeyboard = (event) => {
+    if (!['ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowUp'].includes(event.key)) return;
+    event.preventDefault();
+    const direction = ['ArrowRight', 'ArrowUp'].includes(event.key) ? 1 : -1;
+    const step = event.shiftKey ? 10 : 1;
+    const current = Number(directRef.current.distance || 0);
+    const next = Math.min(directRef.current.max, Math.max(directRef.current.min, current + direction * step));
+    directRef.current.onCommit?.(Number(next.toFixed(1)));
+  };
 
   useEffect(() => {
     const host = hostRef.current;
@@ -1667,6 +1676,8 @@ export default function ModelViewport({
     <div
       className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`}
       ref={hostRef}
+      role="region"
+      aria-label={activeSketchId ? 'Obszar rysowania szkicu 2D' : 'Obszar modelu 3D'}
       onContextMenu={(event) => {
         if (!activeSketchId || !sketchTool) return;
         event.preventDefault();
@@ -1674,10 +1685,10 @@ export default function ModelViewport({
       }}
     >
       <div className="view-cube" role="toolbar" aria-label="Kostka widoku">
-        <button className="cube-top" type="button" title="Ustaw kamerę prostopadle do płaszczyzny XY." onClick={() => setView('top')}>GÓRA</button>
-        <button className="cube-main" type="button" onClick={() => setView('iso')} title="Widok izometryczny"><Box size={34} strokeWidth={1.2} /></button>
-        <button className="cube-front" type="button" title="Ustaw kamerę na widok z przodu." onClick={() => setView('front')}>PRZÓD</button>
-        <button className="cube-right" type="button" title="Ustaw kamerę na widok z prawej strony." onClick={() => setView('right')}>PRAWO</button>
+        <button className="cube-top" type="button" aria-pressed={view === 'top'} title="Ustaw kamerę prostopadle do płaszczyzny XY." onClick={() => setView('top')}>GÓRA</button>
+        <button className="cube-main" type="button" aria-label="Widok izometryczny" aria-pressed={view === 'iso'} onClick={() => setView('iso')} title="Widok izometryczny"><Box size={34} strokeWidth={1.2} /></button>
+        <button className="cube-front" type="button" aria-pressed={view === 'front'} title="Ustaw kamerę na widok z przodu." onClick={() => setView('front')}>PRZÓD</button>
+        <button className="cube-right" type="button" aria-pressed={view === 'right'} title="Ustaw kamerę na widok z prawej strony." onClick={() => setView('right')}>PRAWO</button>
       </div>
       <div className="axis-indicator" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
       {!activeSketchId && bodies.length > 0 && <div className="selection-filter-bar" role="toolbar" aria-label="Filtr wyboru geometrii">
@@ -1688,7 +1699,7 @@ export default function ModelViewport({
           ['edge', 'Krawędź'],
           ['vertex', 'Wierzchołek'],
           ['profile', 'Profil'],
-        ].filter(([id]) => id !== 'profile').map(([id, label]) => <button key={id} className={selectionFilter === id ? 'active' : ''} type="button" title={`Filtr wyboru: ${label}`} onClick={() => setSelectionFilter(id)}>{label}</button>)}
+        ].filter(([id]) => id !== 'profile').map(([id, label]) => <button key={id} className={selectionFilter === id ? 'active' : ''} type="button" aria-pressed={selectionFilter === id} title={`Filtr wyboru: ${label}`} onClick={() => setSelectionFilter(id)}>{label}</button>)}
       </div>}
       {!activeSketchId && bodies.length > 0 && <div className="model-selection-hint">{`${multiSelectKeyLabel}: wiele · ${optionKeyLabel}+klik: przełącz · Shift+przeciągnij tło: obszar`}</div>}
       {directEnabled && (
@@ -1697,6 +1708,13 @@ export default function ModelViewport({
           className="direct-handle-hit"
           title={directManipulator?.hint || 'Przeciągnij strzałkę, aby ustawić odległość wyciągnięcia.'}
           aria-label={directManipulator?.label || 'Przeciągnij wyciągnięcie'}
+          aria-valuemin={directRef.current.min}
+          aria-valuemax={Number.isFinite(directRef.current.max) ? directRef.current.max : undefined}
+          aria-valuenow={directRef.current.distance}
+          aria-valuetext={`${Number(directRef.current.distance || 0).toFixed(1)} mm`}
+          role="slider"
+          tabIndex={0}
+          onKeyDown={adjustDirectHandleFromKeyboard}
           onPointerDown={(event) => directEventRef.current.down?.(event)}
           onPointerMove={(event) => directEventRef.current.move?.(event)}
           onPointerUp={(event) => directEventRef.current.up?.(event)}
@@ -1704,10 +1722,10 @@ export default function ModelViewport({
         />
       )}
       <div className="navigation-bar" role="toolbar" aria-label="Nawigacja widoku">
-        <button className={navigationMode === 'orbit' ? 'active' : ''} type="button" title="Orbita: przeciągnij lewym przyciskiem, aby obracać widok." onClick={() => { setNavigationMode('orbit'); setView('iso'); }}><Orbit size={16} /></button>
-        <button className={navigationMode === 'pan' ? 'active' : ''} type="button" title="Przesuwanie: przeciągnij lewym przyciskiem, aby przesunąć widok." onClick={() => setNavigationMode((mode) => mode === 'pan' ? 'orbit' : 'pan')}><Move3d size={16} /></button>
-        <button type="button" title="Powiększ model w bieżącym widoku." onClick={() => setZoomScale((scale) => Math.max(0.35, scale * 0.78))}><ZoomIn size={16} /></button>
-        <button type="button" title="Dopasuj cały model do dostępnego obszaru." onClick={() => { setZoomScale(1); setView(activeSketchId ? (activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top') : 'iso'); }}><Maximize2 size={16} /></button>
+        <button className={navigationMode === 'orbit' ? 'active' : ''} type="button" aria-pressed={navigationMode === 'orbit'} title="Orbita: przeciągnij lewym przyciskiem, aby obracać widok." onClick={() => { setNavigationMode('orbit'); setView('iso'); }}><Orbit size={16} /></button>
+        <button className={navigationMode === 'pan' ? 'active' : ''} type="button" aria-pressed={navigationMode === 'pan'} title="Przesuwanie: przeciągnij lewym przyciskiem, aby przesunąć widok." onClick={() => setNavigationMode((mode) => mode === 'pan' ? 'orbit' : 'pan')}><Move3d size={16} /></button>
+        <button type="button" aria-label="Powiększ model" title="Powiększ model w bieżącym widoku." onClick={() => setZoomScale((scale) => Math.max(0.35, scale * 0.78))}><ZoomIn size={16} /></button>
+        <button type="button" aria-label="Dopasuj cały model" title="Dopasuj cały model do dostępnego obszaru." onClick={() => { setZoomScale(1); setView(activeSketchId ? (activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top') : 'iso'); }}><Maximize2 size={16} /></button>
       </div>
       {directEnabled && <div className="direct-extrude-hint">{directManipulator?.hint || 'Przeciągnij niebieską strzałkę, aby wyciągnąć profil'}</div>}
       {dragLabel && <div className="direct-dimension" style={{ left: dragLabel.x, top: dragLabel.y }}>{dragLabel.value.toFixed(1)} mm</div>}

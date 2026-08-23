@@ -83,8 +83,45 @@ async function verifyWcagAccessibility(window) {
     const audit = await axe.run(document.querySelector('.modeling-shell'), {
       runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa'] },
     });
+    const rgb = (value) => (String(value).match(/[0-9.]+/g) || []).slice(0, 3).map(Number);
+    const luminance = (value) => {
+      const channels = rgb(value).map((channel) => {
+        const normalized = channel / 255;
+        return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+    };
+    const contrast = (foreground, background) => {
+      const first = luminance(foreground);
+      const second = luminance(background);
+      return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+    };
+    const contrastPairs = [
+      ['engine', '.engine-status', '.engine-status'],
+      ['notice', '.workspace-notice', '.workspace-notice'],
+      ['selectionHint', '.model-selection-hint', '.model-selection-hint'],
+      ['viewCube', '.view-cube .cube-top', '.view-cube .cube-top'],
+      ['selectionFilter', '.selection-filter-bar button.active', '.selection-filter-bar button.active'],
+      ['repairTitle', '.reference-repair-panel header strong', '.reference-repair-panel header'],
+      ['repairDescription', '.reference-repair-panel header span', '.reference-repair-panel header'],
+    ];
+    const contrastRatios = Object.fromEntries(contrastPairs.map(([name, textSelector, backgroundSelector]) => {
+      const textNode = document.querySelector(textSelector);
+      const backgroundNode = document.querySelector(backgroundSelector);
+      if (!textNode || !backgroundNode) return [name, null];
+      return [name, Number(contrast(getComputedStyle(textNode).color, getComputedStyle(backgroundNode).backgroundColor).toFixed(2))];
+    }));
+    const semantics = {
+      tablist: Boolean(document.querySelector('.workspace-tabs[role="tablist"]')),
+      selectedTabs: document.querySelectorAll('.workspace-tabs [role="tab"][aria-selected="true"]').length,
+      selectedFilters: document.querySelectorAll('.selection-filter-bar button[aria-pressed="true"]').length,
+      liveRegions: document.querySelectorAll('.engine-status[role="status"][aria-live], .workspace-notice[role="status"][aria-live]').length,
+      timelineToolbar: Boolean(document.querySelector('.timeline-controls[role="toolbar"]')),
+    };
     return {
       passes: audit.passes.length,
+      contrastRatios,
+      semantics,
       incomplete: audit.incomplete.map((item) => ({
         id: item.id,
         impact: item.impact,
@@ -100,6 +137,11 @@ async function verifyWcagAccessibility(window) {
   })()`);
   const blocking = result.violations.filter((item) => ['critical', 'serious'].includes(item.impact));
   if (blocking.length) throw new Error(`WCAG accessibility audit failed: ${JSON.stringify(blocking)}`);
+  const weakContrast = Object.entries(result.contrastRatios).filter(([, ratio]) => ratio !== null && ratio < 4.5);
+  if (weakContrast.length) throw new Error(`Manual contrast verification failed: ${JSON.stringify(weakContrast)}`);
+  if (!result.semantics.tablist || result.semantics.selectedTabs !== 1 || result.semantics.selectedFilters !== 1 || result.semantics.liveRegions < 2 || !result.semantics.timelineToolbar) {
+    throw new Error(`ARIA semantics verification failed: ${JSON.stringify(result.semantics)}`);
+  }
   return result;
 }
 
@@ -1825,6 +1867,7 @@ async function runUiFlow(window) {
   await clickTool('Zakończ szkic');
   progress('extrude');
   await waitForUi(window, `document.querySelector('.direct-extrude-hint')`, 'uchwyt bezpośredniego wyciągnięcia');
+  await waitForUi(window, `(() => { const handle = document.querySelector('.direct-handle-hit[role="slider"]'); return handle && handle.tabIndex === 0 && handle.hasAttribute('aria-valuenow') && handle.getAttribute('aria-label'); })()`, 'klawiaturowo dostępny uchwyt bezpośredni');
   await waitForUi(window, `window.__madcadDirectHandlePoint`, 'pozycja uchwytu wyciągnięcia');
   progress(`direct point ${JSON.stringify(await window.webContents.executeJavaScript(`window.__madcadDirectHandlePoint`))}`);
   const directHandleIsVisible = await window.webContents.executeJavaScript(`(() => {
