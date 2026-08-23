@@ -164,6 +164,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.27 Raport naprawy importu: SVG/DXF/DWG jawnie zlicza dodane, zmienione i pominięte elementy, raportuje uproszczenia i nieobsługiwane encje, a import 3D rejestruje konwersję 3MF i skalowanie; wynik ma zwarty podgląd oraz zapis JSON.
 - [x] P1.28 Zapisywane obszary robocze i układy paneli: cztery gotowe presety CAD, czyste płótno, narzędzia dokumentu i eksport/druk, do ośmiu nazwanych układów użytkownika, trwały zapis lokalny, usuwanie oraz bezpieczne zastosowanie podczas aktywnego szkicu.
 - [x] P1.29 Porządkowanie architektury obszaru modelowania: decyzje linii poleceń są planowane w testowalnym kontrolerze, zapis i odczyt projektu korzystają ze wspólnej usługi dokumentu, a modalne narzędzia szkicu/importu są renderowane przez osobny stos dialogów.
+- [x] P1.30 Korpus zgodności wymiany danych: deterministyczne fixture profili AutoCAD 2013 DXF, Fusion sketch DXF, FreeCAD/OpenCascade STEP oraz ASCII STL dla PrusaSlicer/Cura/Bambu mają testy jednostek, profili, trybu B-Rep/mesh i siatki; osobna regresja sprawdza drzewo AX, nazwy kontrolek i kolejność fokusu.
 
 ## Definition of Done
 
@@ -186,13 +187,13 @@ Dodatkowo:
 - [!] Zmiana `appId` i instalatora wymaga migracji danych i ciągłości aktualizacji.
 - [!] Niepodpisane wydanie 6.2.0 nadal wywołuje ostrzeżenia SmartScreen/Gatekeeper; aktualizator może bezpiecznie zweryfikować i otworzyć paczkę, lecz cicha instalacja wymaga certyfikatu platformowego.
 - [x] Zgodność EN ma automatyczną bramkę renderowanego tekstu, a nowe przepływy układów, więzów, diagnostyki i raportu importu mają komplet kluczy.
-- [!] Kontrast gęstego interfejsu CAD wymaga ręcznej weryfikacji wyników `axe` i testu z czytnikiem ekranu; automatyczna kontrola nie wykrywa obecnie naruszeń blokujących.
+- [!] Automatyczne kontrole axe, kontrastu, drzewa AX i klawiatury nie wykrywają naruszeń blokujących; odsłuch pełnego przepływu w VoiceOver pozostaje ręczną bramką kandydata wydania.
 
 ## Najbliższe zadania
 
 1. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 2. [x] Dokończyć katalog kluczy PL/EN i dodać bramkę wykrywającą nieprzetłumaczone teksty w renderowanym interfejsie.
 3. [x] Wydzielić kontroler poleceń, dialogi i usługi dokumentu z `ModelingWorkspace`, zachowując obecny test pełnego przepływu.
-4. Sprawdzić import/eksport na fixture'ach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny test technologii asystujących.
+4. [~] Sprawdzić import/eksport na fixture'ach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny test technologii asystujących. Korpus formatów i automatyczny test drzewa AX są gotowe; ręczny odsłuch VoiceOver pozostaje bramką wydania.
 
 Dalsze pomysły produktowe pozostają w [BACKLOG.md](./BACKLOG.md) i wymagają osobnej priorytetyzacji.

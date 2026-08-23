@@ -1,0 +1,30 @@
+solid slicer_compatibility_tetrahedron
+  facet normal 0 0 -1
+    outer loop
+      vertex 0 0 0
+      vertex 20 0 0
+      vertex 0 20 0
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex 0 0 0
+      vertex 0 0 20
+      vertex 20 0 0
+    endloop
+  endfacet
+  facet normal -1 0 0
+    outer loop
+      vertex 0 0 0
+      vertex 0 20 0
+      vertex 0 0 20
+    endloop
+  endfacet
+  facet normal 0.577350269 0.577350269 0.577350269
+    outer loop
+      vertex 20 0 0
+      vertex 0 0 20
+      vertex 0 20 0
+    endloop
+  endfacet
+endsolid slicer_compatibility_tetrahedron

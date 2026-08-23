@@ -1,0 +1,11 @@
+ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION(('FreeCAD compatibility fixture'),'2;1');
+FILE_NAME('freecad-step-envelope.step','2026-08-24T00:00:00',('MadCAD QA'),(''),'Open CASCADE STEP processor','FreeCAD compatibility','Unknown');
+FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));
+ENDSEC;
+DATA;
+#1=APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,#2);
+#2=APPLICATION_CONTEXT('core data for automotive mechanical design processes');
+ENDSEC;
+END-ISO-10303-21;

@@ -1,0 +1,15 @@
+{
+  "purpose": "Minimal cross-application compatibility corpus based on documented interchange formats; files are deterministic QA fixtures, not vendor-owned sample assets.",
+  "references": {
+    "autocadDxf": "https://help.autodesk.com/cloudhelp/2024/ENU/AutoCAD-DXF/files/GUID-A85E8E67-27CD-4C59-BE61-4DC9FADBE74A.htm",
+    "fusionFormats": "https://help.autodesk.com/view/fusion360/ENU/?guid=TPD-SUPPORTED-FILE-FORMATS",
+    "freecadStep": "https://github.com/FreeCAD/FreeCAD-documentation/blob/main/wiki/Topological_data_scripting.md",
+    "prusaFormats": "https://help.prusa3d.com/article/supported-file-formats_1772"
+  },
+  "fixtures": [
+    { "file": "autocad-2013-rectangle.dxf", "format": "dxf", "producerProfile": "AutoCAD 2013 / AC1027", "expectedCurves": 5, "expectedProfiles": 1 },
+    { "file": "fusion-sketch-mm.dxf", "format": "dxf", "producerProfile": "Autodesk Fusion sketch DXF", "expectedCurves": 4, "expectedProfiles": 1 },
+    { "file": "freecad-step-envelope.step", "format": "step", "producerProfile": "FreeCAD / OpenCascade STEP envelope", "expectedImportMode": "brep" },
+    { "file": "slicer-tetrahedron-ascii.stl", "format": "stl", "producerProfile": "PrusaSlicer, Cura and Bambu Studio ASCII STL compatibility", "expectedImportMode": "mesh", "expectedTriangles": 4 }
+  ]
+}
