@@ -24,6 +24,7 @@ import {
   Eye,
   EyeOff,
   Layers3,
+  LayoutPanelTop,
   Keyboard,
   Maximize2,
   Minus,
@@ -32,6 +33,7 @@ import {
   Move3d,
   Pencil,
   PencilRuler,
+  Plus,
   Printer,
   Redo2,
   Rotate3d,
@@ -149,6 +151,7 @@ import {
   saveCommandCustomization,
 } from './command-customization.js';
 import { isDockableCommand, panelScreenKey, readPanelLayout, writePanelLayout } from './panel-layout.js';
+import { BUILT_IN_WORKSPACE_LAYOUTS, captureWorkspaceView, createCustomWorkspaceLayout, loadCustomWorkspaceLayouts, saveCustomWorkspaceLayouts } from './workspace-layouts.js';
 import { multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
 import { downloadBlob, safeName, useDocumentHistory } from './workspace-document.js';
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext } from './WorkspaceRibbon.jsx';
@@ -407,6 +410,11 @@ export default function ModelingWorkspace() {
   const [timelineDeleteId, setTimelineDeleteId] = useState(null);
   const panelScreenKeyRef = useRef(panelScreenKey(window.screen));
   const [panelLayout, setPanelLayout] = useState(() => readPanelLayout(window.localStorage, window.screen));
+  const [workspaceLayoutMenuOpen, setWorkspaceLayoutMenuOpen] = useState(false);
+  const [workspaceLayoutName, setWorkspaceLayoutName] = useState('');
+  const [customWorkspaceLayouts, setCustomWorkspaceLayouts] = useState(() => loadCustomWorkspaceLayouts(window.localStorage));
+  const [activeWorkspaceLayoutId, setActiveWorkspaceLayoutId] = useState('classic-cad');
+  const workspaceLayoutMenuRef = useRef(null);
   const [recoveryInfo, setRecoveryInfo] = useState(() => initialOpen.recovered ? {
     source: initialOpen.recoverySource || 'local-primary',
     backup: initialOpen.recoverySource === 'local-backup',
@@ -439,6 +447,50 @@ export default function ModelingWorkspace() {
     window.addEventListener('resize', restoreLayoutForCurrentMonitor);
     return () => window.removeEventListener('resize', restoreLayoutForCurrentMonitor);
   }, []);
+  useEffect(() => {
+    if (!workspaceLayoutMenuOpen) return undefined;
+    const closeMenu = (event) => {
+      if (event.key === 'Escape' || (event.type === 'pointerdown' && !workspaceLayoutMenuRef.current?.contains(event.target))) setWorkspaceLayoutMenuOpen(false);
+    };
+    window.addEventListener('keydown', closeMenu);
+    window.addEventListener('pointerdown', closeMenu);
+    return () => { window.removeEventListener('keydown', closeMenu); window.removeEventListener('pointerdown', closeMenu); };
+  }, [workspaceLayoutMenuOpen]);
+  const currentWorkspaceView = () => captureWorkspaceView({ workspace, browserOpen, layersOpen, blocksOpen, commandCustomizationOpen, printPanelOpen, panelLayout });
+  const applyWorkspaceLayout = (layout) => {
+    const view = layout.view;
+    if (!activeSketchId) setWorkspace(view.workspace);
+    setBrowserOpen(view.browserOpen);
+    setLayersOpen(view.layersOpen);
+    setBlocksOpen(Boolean(view.blocksOpen && activeSketchId));
+    setCommandCustomizationOpen(view.commandCustomizationOpen);
+    setPrintPanelOpen(view.printPanelOpen);
+    setPanelLayout(view.panelLayout);
+    setActiveWorkspaceLayoutId(layout.id);
+    setWorkspaceLayoutMenuOpen(false);
+    setNotice(activeSketchId && view.workspace !== workspace
+      ? `Zastosowano układ „${layout.name}”. Obszar poleceń pozostaje w szkicu do jego zakończenia.`
+      : `Zastosowano obszar roboczy „${layout.name}”.`);
+  };
+  const saveCurrentWorkspaceLayout = () => {
+    try {
+      const created = createCustomWorkspaceLayout(workspaceLayoutName, currentWorkspaceView(), customWorkspaceLayouts);
+      const next = saveCustomWorkspaceLayouts([...customWorkspaceLayouts, created], window.localStorage);
+      setCustomWorkspaceLayouts(next);
+      setActiveWorkspaceLayoutId(created.id);
+      setWorkspaceLayoutName('');
+      setNotice(`Zapisano układ obszaru roboczego „${created.name}”.`);
+    } catch (error) {
+      setNotice(error.message);
+    }
+  };
+  const deleteCustomWorkspaceLayout = (layoutId) => {
+    const layout = customWorkspaceLayouts.find((item) => item.id === layoutId);
+    const next = saveCustomWorkspaceLayouts(customWorkspaceLayouts.filter((item) => item.id !== layoutId), window.localStorage);
+    setCustomWorkspaceLayouts(next);
+    if (activeWorkspaceLayoutId === layoutId) setActiveWorkspaceLayoutId('classic-cad');
+    setNotice(`Usunięto zapisany układ „${layout?.name || 'bez nazwy'}”.`);
+  };
   const registerShortcut = useCallback((shortcut, entry) => {
     const normalizedShortcut = shortcut.toUpperCase();
     shortcutRegistryRef.current.set(normalizedShortcut, entry);
@@ -3982,7 +4034,24 @@ export default function ModelingWorkspace() {
     <ToolHelpContext.Provider value={toolHelpContext}>
     <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${document.features.length ? '' : 'timeline-empty'}`} aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
-        <div className="app-menu" role="toolbar" aria-label="Plik i przeglądarka projektu"><button className={browserOpen ? 'active' : ''} type="button" aria-label="Pokaż lub ukryj przeglądarkę" aria-pressed={browserOpen} title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button><button id="newProjectBtn" type="button" aria-label="Nowy projekt" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button><button id="openProjectBtn" type="button" aria-label="Otwórz projekt" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={16} /></button><button id="saveProjectBtn" type="button" aria-label={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button></div>
+        <div className="app-menu" role="toolbar" aria-label="Plik i przeglądarka projektu">
+          <button className={browserOpen ? 'active' : ''} type="button" aria-label="Pokaż lub ukryj przeglądarkę" aria-pressed={browserOpen} title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button>
+          <div className="workspace-layout-control" ref={workspaceLayoutMenuRef}>
+            <button className={workspaceLayoutMenuOpen ? 'active' : ''} type="button" aria-label="Układy obszaru roboczego" aria-expanded={workspaceLayoutMenuOpen} aria-controls="workspace-layout-menu" title="Zastosuj albo zapisz układ obszaru roboczego" onClick={() => setWorkspaceLayoutMenuOpen((open) => !open)}><LayoutPanelTop size={16} /></button>
+            {workspaceLayoutMenuOpen && <section className="workspace-layout-menu" id="workspace-layout-menu" aria-label="Zapisane obszary robocze">
+              <header><div><strong>Obszary robocze</strong><span>Panele i widok aplikacji</span></div><button type="button" aria-label="Zamknij obszary robocze" title="Zamknij" onClick={() => setWorkspaceLayoutMenuOpen(false)}><X size={14} /></button></header>
+              <div className="workspace-layout-list">
+                <h3>Gotowe układy</h3>
+                {BUILT_IN_WORKSPACE_LAYOUTS.map((layout) => <button key={layout.id} className={activeWorkspaceLayoutId === layout.id ? 'active' : ''} type="button" aria-pressed={activeWorkspaceLayoutId === layout.id} onClick={() => applyWorkspaceLayout(layout)}><LayoutPanelTop size={15} /><span><strong>{layout.name}</strong><small>{layout.description}</small></span>{activeWorkspaceLayoutId === layout.id && <Check size={14} />}</button>)}
+                {customWorkspaceLayouts.length > 0 && <><h3>Moje układy</h3>{customWorkspaceLayouts.map((layout) => <div className="workspace-layout-saved" key={layout.id}><button className={activeWorkspaceLayoutId === layout.id ? 'active' : ''} type="button" aria-pressed={activeWorkspaceLayoutId === layout.id} onClick={() => applyWorkspaceLayout(layout)}><LayoutPanelTop size={15} /><span><strong>{layout.name}</strong><small>{layout.description}</small></span>{activeWorkspaceLayoutId === layout.id && <Check size={14} />}</button><button type="button" aria-label={`Usuń układ ${layout.name}`} title={`Usuń układ ${layout.name}`} onClick={() => deleteCustomWorkspaceLayout(layout.id)}><Trash2 size={13} /></button></div>)}</>}
+              </div>
+              <form onSubmit={(event) => { event.preventDefault(); saveCurrentWorkspaceLayout(); }}><label><span>Zapisz bieżący układ</span><input value={workspaceLayoutName} maxLength={40} placeholder="np. Mój szkic" aria-label="Nazwa nowego układu" onChange={(event) => setWorkspaceLayoutName(event.target.value)} /></label><button type="submit" disabled={!workspaceLayoutName.trim()} title="Zapisz bieżący układ paneli"><Plus size={14} /> Zapisz</button></form>
+            </section>}
+          </div>
+          <button id="newProjectBtn" type="button" aria-label="Nowy projekt" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button>
+          <button id="openProjectBtn" type="button" aria-label="Otwórz projekt" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={16} /></button>
+          <button id="saveProjectBtn" type="button" aria-label={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button>
+        </div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
         <input ref={importInputRef} hidden type="file" accept=".step,.stp,.stl,.3mf,model/step,model/stl,model/3mf" onChange={chooseModelImport} />
         <input ref={sketchImportInputRef} hidden type="file" accept=".svg,.dxf,image/svg+xml,application/dxf" onChange={chooseSketchImport} />

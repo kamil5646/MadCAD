@@ -251,6 +251,85 @@
   cursor: default;
 }
 
+.workspace-layout-control { position: relative; height: 28px; -webkit-app-region: no-drag; }
+
+.workspace-layout-menu {
+  position: absolute;
+  z-index: 80;
+  top: 32px;
+  left: 0;
+  width: min(370px, calc(100vw - 24px));
+  overflow: hidden;
+  border: 1px solid #667786;
+  border-radius: 4px;
+  background: #2b3540;
+  color: #e6edf2;
+  box-shadow: 0 16px 38px rgba(5, 10, 16, 0.56);
+}
+
+.workspace-layout-menu > header {
+  display: flex;
+  min-height: 43px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 7px 6px 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  background: #394552;
+}
+.workspace-layout-menu > header div { display: grid; gap: 2px; }
+.workspace-layout-menu > header strong { font-size: 12px; }
+.workspace-layout-menu > header span { color: #aab7c1; font-size: 9px; }
+.app-menu .workspace-layout-menu > header button { width: 28px; height: 28px; }
+
+.workspace-layout-list { display: grid; max-height: min(440px, calc(100vh - 190px)); gap: 3px; overflow: auto; padding: 7px; }
+.workspace-layout-list h3 { margin: 3px 4px 2px; color: #91a2ae; font-size: 8px; letter-spacing: 0.07em; text-transform: uppercase; }
+.app-menu .workspace-layout-list > button,
+.app-menu .workspace-layout-saved > button:first-child {
+  display: grid;
+  width: 100%;
+  min-height: 44px;
+  height: auto;
+  padding: 5px 7px;
+  grid-template-columns: 20px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: #313c47;
+  color: #dae3e9;
+  text-align: left;
+}
+.app-menu .workspace-layout-list > button:hover,
+.app-menu .workspace-layout-saved > button:first-child:hover { border-color: #617b8c; background: #3a4854; }
+.app-menu .workspace-layout-list > button.active,
+.app-menu .workspace-layout-saved > button:first-child.active { border-color: #4bbad8; background: #334b58; }
+.workspace-layout-list button > span { display: grid; min-width: 0; gap: 2px; }
+.workspace-layout-list button strong { color: #edf3f6; font-size: 10px; }
+.workspace-layout-list button small { overflow: hidden; color: #aab7c0; font-size: 8px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-layout-list button > svg:first-child { color: #6dd3ee; }
+.workspace-layout-list button > svg:last-child { color: #7de29a; }
+
+.workspace-layout-saved { display: grid; grid-template-columns: minmax(0, 1fr) 30px; gap: 3px; }
+.app-menu .workspace-layout-saved > button:last-child { width: 30px; height: 44px; color: #c1cbd2; }
+.app-menu .workspace-layout-saved > button:last-child:hover { background: #583d44; color: #ff9ba0; }
+
+.workspace-layout-menu > form {
+  display: grid;
+  padding: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  background: #28313a;
+}
+.workspace-layout-menu > form label { display: grid; gap: 3px; }
+.workspace-layout-menu > form label span { color: #a9b6c0; font-size: 8px; font-weight: 700; text-transform: uppercase; }
+.workspace-layout-menu > form input { width: 100%; height: 29px; border: 1px solid #60717f; border-radius: 2px; outline: 0; background: #202932; color: #eef3f6; padding: 0 7px; font: inherit; font-size: 10px; }
+.workspace-layout-menu > form input:focus { border-color: #62cae6; box-shadow: 0 0 0 1px rgba(98, 202, 230, 0.24); }
+.app-menu .workspace-layout-menu > form button { width: auto; min-width: 78px; height: 29px; padding: 0 8px; border: 1px solid #4bbad8; background: #197fa2; color: white; font-size: 9px; }
+.app-menu .workspace-layout-menu > form button:hover:not(:disabled) { background: #2095bc; }
+.app-menu .workspace-layout-menu > form button:disabled { border-color: #4a5965; background: #35404a; color: #7f8b94; }
+
 .brand-mark {
   display: block;
   width: 23px;
