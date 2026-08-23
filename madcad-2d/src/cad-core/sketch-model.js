@@ -1,5 +1,6 @@
 import { createId } from './ids.js';
 import { evaluateExpression, resolveParameters } from './expressions.js';
+import { normalizeEntityLayerStyle } from './layers.js';
 
 export const SKETCH_ENTITY_TYPES = Object.freeze([
   'point',
@@ -46,7 +47,7 @@ function commonEntity(type, options = {}) {
   if (!ENTITY_TYPE_SET.has(type)) throw new Error(`Nieobsługiwany typ encji szkicu: ${type}.`);
   const role = options.role || (options.construction ? 'construction' : 'standard');
   if (!ENTITY_ROLE_SET.has(role)) throw new Error(`Nieobsługiwana rola encji szkicu: ${role}.`);
-  return {
+  return normalizeEntityLayerStyle({
     id: options.id || createId('entity'),
     type,
     role,
@@ -54,8 +55,12 @@ function commonEntity(type, options = {}) {
     pointIds: [...(options.pointIds || [])],
     geometry: { ...(options.geometry || {}) },
     expressionKeys: [...(options.expressionKeys || DEFAULT_EXPRESSION_KEYS[type] || [])],
+    layerId: options.layerId,
+    color: options.color,
+    lineType: options.lineType,
+    lineWeight: options.lineWeight,
     ...(role === 'projected' ? { sourceReferenceId: options.sourceReferenceId || null } : {}),
-  };
+  }, options.layerId);
 }
 
 export function createSketchEntity(type, options = {}) {

@@ -8,6 +8,7 @@ import { evaluateExpression, resolveParameters } from '../cad-core/expressions.j
 import { analyzeSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { DEFAULT_SNAP_THRESHOLD_PX, snapSketchPoint } from '../cad-core/sketch-snap.js';
 import { edgeGroupVertices, topologySelectionFromIntersection } from '../cad-core/brep-picking.js';
+import { lineTypeDefinition, resolveEntityAppearance } from '../cad-core/layers.js';
 
 const VIEW_DIRECTIONS = {
   iso: [1.25, -1.45, 1.15],
@@ -147,13 +148,13 @@ function arcPoints(center, start, end, direction, steps = 32) {
   });
 }
 
-function sketchEntityColor(entity, selected = false, error = false) {
+function sketchEntityColor(entity, selected = false, error = false, layerColor = '#74cef0') {
   if (error || entity.error) return 0xff5e66;
   if (selected) return 0xffc857;
   if (entity.role === 'projected') return 0xc388e8;
   if (entity.role === 'construction' || entity.role === 'centerline') return 0x7893a2;
   if (entity.fixed) return 0x67d987;
-  return 0x74cef0;
+  return layerColor;
 }
 
 function sketchEntityState(entity, selected, error = false) {
@@ -172,13 +173,15 @@ function addSketchEntities(group, sketch, parameters, plane, {
   showConstruction = true,
   showProjected = true,
   planeOffset = 0,
+  layers = [],
 } = {}) {
+  const appearanceFor = (entity) => resolveEntityAppearance({ layers }, entity);
   const entityMap = new Map(sketch.entities.map((entity) => [entity.id, entity]));
   const selected = new Set(selectedIds);
   const errors = new Set(errorIds);
   const roleVisible = (entity) => (showConstruction || !['construction', 'centerline'].includes(entity.role))
     && (showProjected || entity.role !== 'projected');
-  const visibleCurves = sketch.entities.filter((entity) => entity.type !== 'point' && roleVisible(entity));
+  const visibleCurves = sketch.entities.filter((entity) => entity.type !== 'point' && roleVisible(entity) && appearanceFor(entity).visible);
   const allReferencedPointIds = new Set(sketch.entities.flatMap((entity) => entity.pointIds || []));
   const visibleReferencedPointIds = new Set(visibleCurves.flatMap((entity) => entity.pointIds || []));
   const coordinates = new Map();
@@ -280,31 +283,37 @@ function addSketchEntities(group, sketch, parameters, plane, {
           : false);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(localPoints.flatMap((point) => mapPlanePoint(point[0], point[1], plane, 0.12, planeOffset)), 3));
-    const baseColor = sketchEntityColor(entity, selected.has(entity.id), hasError);
-    const material = new THREE.LineBasicMaterial({ color: baseColor, transparent: true, opacity: 0.96 });
+    const appearance = appearanceFor(entity);
+    const baseColor = sketchEntityColor(entity, selected.has(entity.id), hasError, appearance.color);
+    const lineType = lineTypeDefinition(appearance.lineType);
+    const material = lineType.id === 'continuous'
+      ? new THREE.LineBasicMaterial({ color: baseColor, linewidth: appearance.lineWeight, transparent: true, opacity: 0.96 })
+      : new THREE.LineDashedMaterial({ color: baseColor, linewidth: appearance.lineWeight, dashSize: lineType.dashSize, gapSize: lineType.gapSize, transparent: true, opacity: 0.96 });
     const line = new THREE.Line(geometry, material);
-    line.userData = { sketchEntityId: entity.id, sketchEntityType: entity.type, sketchState: sketchEntityState(entity, selected.has(entity.id), hasError), baseColor };
+    if (lineType.id !== 'continuous') line.computeLineDistances();
+    line.userData = { sketchEntityId: entity.id, sketchEntityType: entity.type, sketchState: sketchEntityState(entity, selected.has(entity.id), hasError), baseColor, layerId: appearance.layer.id, layerLocked: appearance.locked };
     group.add(line);
     entries.push({ entity, object: line });
-    pickables.push(line);
+    if (!appearance.locked) pickables.push(line);
   }
 
   if (showPoints) {
     for (const entity of sketch.entities) {
-      if (entity.type !== 'point' || !coordinates.has(entity.id) || !roleVisible(entity)) continue;
+      const appearance = appearanceFor(entity);
+      if (entity.type !== 'point' || !coordinates.has(entity.id) || !roleVisible(entity) || !appearance.visible) continue;
       if (allReferencedPointIds.has(entity.id) && !visibleReferencedPointIds.has(entity.id)) continue;
       const hasError = errors.has(entity.id);
-      const baseColor = sketchEntityColor(entity, selected.has(entity.id), hasError);
+      const baseColor = sketchEntityColor(entity, selected.has(entity.id), hasError, appearance.color);
       const point = new THREE.Mesh(
         new THREE.SphereGeometry(selected.has(entity.id) ? 1.25 : 0.9, 14, 10),
         new THREE.MeshBasicMaterial({ color: baseColor, depthTest: false }),
       );
       point.position.set(...mapPlanePoint(...coordinates.get(entity.id), plane, 0.18, planeOffset));
       point.renderOrder = 5;
-      point.userData = { sketchEntityId: entity.id, sketchEntityType: 'point', sketchState: sketchEntityState(entity, selected.has(entity.id), hasError), baseColor };
+      point.userData = { sketchEntityId: entity.id, sketchEntityType: 'point', sketchState: sketchEntityState(entity, selected.has(entity.id), hasError), baseColor, layerId: appearance.layer.id, layerLocked: appearance.locked };
       group.add(point);
       entries.push({ entity, object: point });
-      pickables.unshift(point);
+      if (!appearance.locked) pickables.unshift(point);
     }
   }
 
@@ -321,6 +330,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
         3,
       ));
       entry.object.geometry.computeBoundingSphere();
+      if (entry.object.material?.isLineDashedMaterial) entry.object.computeLineDistances();
     }
   };
   return { coordinates, entries, pickables, update };
@@ -349,6 +359,7 @@ function configureGrid(grid, plane, planeOffset = 0) {
 export default function ModelViewport({
   bodies,
   sketches = [],
+  layers = [],
   activeSketchId,
   draftProfile,
   draftType,
@@ -837,6 +848,7 @@ export default function ModelViewport({
         showConstruction: showConstructionGeometry,
         showProjected: showProjectedGeometry,
         planeOffset: activePlaneOffset,
+        layers,
       });
       if (draftProfile) addSketchLine(sketchGroup, draftProfile, parameters, activePlane, true, activePlaneOffset);
       if (sketchTool && polylineDraft?.lastPoint) {
@@ -1572,6 +1584,14 @@ export default function ModelViewport({
         };
         window.__madcadSketchVisibilityState = {
           entityIds: sketchRender.entries.map((entry) => entry.entity.id),
+          pickableEntityIds: sketchRender.pickables.map((object) => object.userData.sketchEntityId),
+          renderedEntities: sketchRender.entries.map((entry) => ({
+            id: entry.entity.id,
+            layerId: entry.object.userData.layerId,
+            locked: entry.object.userData.layerLocked,
+            dashed: Boolean(entry.object.material?.isLineDashedMaterial),
+            color: entry.object.material?.color?.getHexString?.() || '',
+          })),
           profileCount: sketchProfileRender?.pickables?.length || 0,
           showSketchProfiles,
           showSketchConstraints,
@@ -1670,7 +1690,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode]);
+  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode]);
 
   return (
     <div

@@ -1,6 +1,6 @@
 # MadCAD — aktywny plan rozwoju
 
-Aktualizacja: 2026-08-15
+Aktualizacja: 2026-08-23
 Wersja bazowa: `6.3.2 stable`
 Gałąź wydania: `main`
 
@@ -153,6 +153,16 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.19 Pipe jako dokładny pusty przekrój rurowy prowadzony po ciągłej otwartej ścieżce linii, z parametryczną średnicą zewnętrzną i grubością ścianki, New/Join/Cut/Intersect, walidacją ścieżki i kanału wewnętrznego, edycją, undo/redo, autozapisem i ponownym otwarciem.
 - [x] P1.20 Pattern bryły w jednym wspólnym narzędziu: prostokątny z parametrycznymi wierszami/kolumnami i odstępami, kołowy wokół osi bazowej/konstrukcyjnej oraz równomierny po ciągłej ścieżce, z limitem 100 wystąpień, edycją trybu, undo/redo i autozapisem.
 - [x] P1.21 Zaawansowane Emboss/Deboss tekstu na wskazanej planarnej ścianie: trwała referencja topologii, lokalny układ powierzchni, kierunek zgodny z normalną dla Emboss i przeciwny dla Deboss, edycja, undo/redo, autozapis i ponowne otwarcie.
+
+## P1 — organizacja dokumentu i produktywność klasycznego CAD
+
+- [x] P1.22 Warstwy szkicu: aktywna warstwa, kolor, typ i grubość linii, widoczność, blokada, drukowanie oraz nadpisania `ByLayer`; starsze dokumenty są normalizowane bez zmiany wersji schematu, a zapis, undo/redo i desktop E2E zachowują właściwości.
+- [>] P1.23 Bloki 2D, atrybuty i biblioteka wielokrotnego użycia.
+- [ ] P1.24 Konfigurowalne aliasy poleceń i skróty klawiszowe.
+- [ ] P1.25 Automatyczne sugestie więzów podczas szkicowania.
+- [ ] P1.26 Diagnostyka niedowiązania wskazująca pozostałe stopnie swobody.
+- [ ] P1.27 Raport naprawy importu z jawną listą zmienionych i pominiętych elementów.
+- [ ] P1.28 Zapisywane obszary robocze i układy paneli.
 
 ## Definition of Done
 

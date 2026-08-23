@@ -117,6 +117,7 @@ import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit } from '../cad-core/model-import.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
+import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import {
   deleteTimelineFeatureCascade,
   dependentTimelineFeatureIds,
@@ -134,7 +135,7 @@ import { multipleSelectionLabel, primaryModifierPressed } from './platform-short
 import { downloadBlob, safeName, useDocumentHistory } from './workspace-document.js';
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext } from './WorkspaceRibbon.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
-import { Field, GeometryInspectionPanel, ImportModelDialog, ImportSketchDialog, MassPropertiesPanel, MeasurePanel, SectionPanel, SketchDimensionDialog } from './WorkspacePanels.jsx';
+import { Field, GeometryInspectionPanel, ImportModelDialog, ImportSketchDialog, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel, SketchDimensionDialog } from './WorkspacePanels.jsx';
 import { ParametersDialog, PlanePicker, SketchPalette } from './WorkspaceSketchUi.jsx';
 import {
   AUTOSAVE_KEY,
@@ -379,6 +380,7 @@ export default function ModelingWorkspace() {
   const [toolHelp, setToolHelp] = useState(null);
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(false);
+  const [layersOpen, setLayersOpen] = useState(false);
   const [printPanelOpen, setPrintPanelOpen] = useState(false);
   const [timelineRename, setTimelineRename] = useState(null);
   const [timelineDeleteId, setTimelineDeleteId] = useState(null);
@@ -553,7 +555,15 @@ export default function ModelingWorkspace() {
       readOnlyNotice();
       return;
     }
-    history.commit(mutator);
+    history.commit((next) => {
+      const existingEntityIds = new Set(next.sketches.flatMap((sketch) => sketch.entities.map((entity) => entity.id)));
+      mutator(next);
+      for (const sketch of next.sketches) {
+        sketch.entities = sketch.entities.map((entity) => existingEntityIds.has(entity.id)
+          ? entity
+          : { ...entity, layerId: next.activeLayerId });
+      }
+    });
   };
 
   const selectedProfileMatch = document.sketches
@@ -595,6 +605,37 @@ export default function ModelingWorkspace() {
     && selectedSketchEntities[0].pointIds.slice(1).filter((pointId) => selectedSketchEntities[1].pointIds.slice(1).includes(pointId)).length === 1;
   const canAddOrdinate = selectedSketchEntities.length === 1 && selectedSketchEntities[0].type === 'point';
   const canAddArcLength = selectedSketchEntities.length === 1 && selectedSketchEntities[0].type === 'arc';
+  const addDocumentLayer = () => commit((next) => {
+    const usedNames = new Set(next.layers.map((layer) => layer.name.toLocaleLowerCase()));
+    let index = next.layers.length;
+    let name = `Warstwa ${index}`;
+    while (usedNames.has(name.toLocaleLowerCase())) name = `Warstwa ${++index}`;
+    const layer = createLayer({ name });
+    next.layers.push(layer);
+    next.activeLayerId = layer.id;
+    setNotice(`Utworzono i aktywowano warstwę „${name}”.`);
+  });
+  const updateDocumentLayer = (layerId, patch) => commit((next) => {
+    const layer = next.layers.find((item) => item.id === layerId);
+    if (!layer) return;
+    Object.assign(layer, patch);
+  });
+  const removeDocumentLayer = (layerId) => commit((next) => {
+    const layer = next.layers.find((item) => item.id === layerId);
+    const reassigned = deleteLayer(next, layerId);
+    setNotice(`Usunięto warstwę „${layer?.name || layerId}”; przeniesiono ${reassigned} elementów na warstwę 0.`);
+  });
+  const activateDocumentLayer = (layerId) => commit((next) => { next.activeLayerId = layerId; });
+  const assignSelectionToLayer = (layerId) => commit((next) => {
+    const changed = assignEntitiesToLayer(next, activeSketchId, selectedSketchEntityIds, layerId);
+    setNotice(`Przypisano ${changed} elementów do wybranej warstwy.`);
+  });
+  const styleSelectedEntities = (patch) => commit((next) => {
+    const selected = new Set(selectedSketchEntityIds);
+    const sketch = next.sketches.find((item) => item.id === activeSketchId);
+    if (!sketch) return;
+    sketch.entities = sketch.entities.map((entity) => selected.has(entity.id) ? { ...entity, ...patch } : entity);
+  });
   const selectedTopologyIds = useMemo(() => (
     selection?.items || (['face', 'edge', 'vertex'].includes(selection?.kind) ? [selection] : [])
   ).filter((item) => ['face', 'edge', 'vertex'].includes(item.kind)).map((item) => item.id), [selection]);
@@ -1811,6 +1852,15 @@ export default function ModelingWorkspace() {
     };
     window.__madcadVerifyMoveSketch = moveSketchEntities;
     window.__madcadVerifyDeleteSketch = deleteSelectedSketchEntities;
+    window.__madcadVerifyOpenFirstSketch = () => {
+      const sketch = document.sketches[0];
+      if (!sketch) throw new Error('Brak szkicu do otwarcia.');
+      setActiveSketchId(sketch.id);
+      setWorkspace('sketch');
+      setSelection({ kind: 'sketch', id: sketch.id });
+      setCommand(null);
+      return sketch.id;
+    };
     window.__madcadVerifyLoadTopologyFixture = (plane = 'XY') => {
       const fixture = createDocument(`Topologia ${plane}`);
       const loopEntities = (coordinates) => {
@@ -2047,13 +2097,15 @@ export default function ModelingWorkspace() {
         planeOffset: sketch.planeOffset,
         support: sketch.support,
         entities: sketch.entities.length,
-        entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, role: entity.role, fixed: entity.fixed, projectionReferenceId: entity.projectionReferenceId, pointIds: entity.pointIds, geometry: entity.geometry })),
+        entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, role: entity.role, fixed: entity.fixed, layerId: entity.layerId, color: entity.color, lineType: entity.lineType, lineWeight: entity.lineWeight, projectionReferenceId: entity.projectionReferenceId, pointIds: entity.pointIds, geometry: entity.geometry })),
         profiles: sketch.profiles.length,
         profileIds: sketch.profiles.map((profile) => profile.id),
         constraints: sketch.constraints.map((constraint) => ({ id: constraint.id, type: constraint.type, value: constraint.value })),
         dimensions: sketch.dimensions.map((dimension) => ({ id: dimension.id, type: dimension.type, entityIds: dimension.entityIds, constraintId: dimension.constraintId, expression: dimension.expression })),
       })),
       features: document.features.length,
+      activeLayerId: document.activeLayerId,
+      layers: document.layers.map((layer) => ({ ...layer })),
       featureIds: document.features.map((feature) => feature.id),
       featureData: document.features.map((feature) => ({ id: feature.id, name: feature.name, type: feature.type, suppressed: feature.suppressed, sketchId: feature.sketchId, sketchIds: feature.sketchIds, profileId: feature.profileId, profileIds: feature.profileIds, pathSketchId: feature.pathSketchId, pathEntityIds: feature.pathEntityIds, loftMode: feature.loftMode, ribMode: feature.ribMode, patternType: feature.patternType, countX: feature.countX, countY: feature.countY, spacingX: feature.spacingX, spacingY: feature.spacingY, occurrences: feature.occurrences, totalAngle: feature.totalAngle, thickness: feature.thickness, reverse: feature.reverse, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, outsideDiameter: feature.outsideDiameter, wallSide: feature.wallSide, endCap: feature.endCap, openEntityIds: feature.openEntityIds, depth: feature.depth, diameter: feature.diameter, coilDiameter: feature.coilDiameter, wireDiameter: feature.wireDiameter, pitch: feature.pitch, turns: feature.turns, handedness: feature.handedness, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, neutralPlaneId: feature.neutralPlaneId, planeId: feature.planeId, axisId: feature.axisId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
       references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, rotationAxis: reference.rotationAxis, angle: reference.angle, surfaceType: reference.surfaceType, center: reference.center, point: reference.point, axis: reference.axis, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, distance: reference.distance, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId, repairedAt: reference.repairedAt })),
@@ -2086,6 +2138,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyBreakProjectedReference;
       delete window.__madcadVerifyMoveSketch;
       delete window.__madcadVerifyDeleteSketch;
+      delete window.__madcadVerifyOpenFirstSketch;
       delete window.__madcadVerifyLoadTopologyFixture;
       delete window.__madcadVerifyLoadMechanicalFixture;
       delete window.__madcadVerifyLoadParametricBracketFixture;
@@ -3788,11 +3841,12 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="MODYFIKUJ 2D"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { setCommand(null); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Maximize2} label="Extend" onClick={() => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' })} primary={command?.type === 'extendSketch'} disabled={readOnly} /><ToolButton icon={Minus} label="Break" onClick={() => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' })} primary={command?.type === 'breakSketch'} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Project" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} /><ToolButton icon={Copy} label="Offset" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} /><ToolButton icon={CircleDotDashed} label="Fillet szkicu" onClick={() => openSketchCorner('fillet')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={Triangle} label="Faza szkicu" onClick={() => openSketchCorner('chamfer')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={RotateCw} label="Transformuj" onClick={openSketchTransform} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Grid2X2} label="Szyk szkicu" onClick={openSketchPattern} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
                 <RibbonGroup label="WIĘZY"><ToolButton icon={Minus} label="Współliniowe" onClick={() => addSelectedSketchConstraint('collinear')} disabled={readOnly || !canAddCollinear} /><ToolButton icon={Frame} label="Symetria" onClick={() => addSelectedSketchConstraint('symmetry')} disabled={readOnly || !canAddSymmetry} /><ToolButton icon={CircleDotDashed} label="Krzywizna G2" onClick={() => addSelectedSketchConstraint('curvature')} disabled={readOnly || !canAddCurvature} /></RibbonGroup>
                 <RibbonGroup label="WYMIARY"><ToolButton icon={Ruler} label="Ordinate X" onClick={() => openSketchDimension('ordinateX')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={Ruler} label="Ordinate Y" onClick={() => openSketchDimension('ordinateY')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={RotateCw} label="Długość łuku" onClick={() => openSketchDimension('arcLength')} disabled={readOnly || !canAddArcLength} /></RibbonGroup>
+                <RibbonGroup label="WARSTWY"><ToolButton icon={Layers3} label="Warstwy" onClick={() => setLayersOpen(true)} primary={layersOpen} /></RibbonGroup>
                 <RibbonGroup label="ZAKOŃCZ SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
             ) : workspace === 'tools' ? (
               <>
-                <RibbonGroup label="PARAMETRY MODELU"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} primary /></RibbonGroup>
+                <RibbonGroup label="DOKUMENT"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} primary /><ToolButton icon={Layers3} label="Warstwy" onClick={() => setLayersOpen(true)} primary={layersOpen} /></RibbonGroup>
                 <RibbonGroup label="SPRAWDŹ MODEL"><ToolButton icon={Ruler} label="Zmierz" onClick={openMeasure} /><ToolButton icon={ScanSearch} label="Przekrój" onClick={openSectionAnalysis} disabled={!engine.bodies.length} /><ToolButton icon={Box} label="Masa" onClick={openMassProperties} disabled={!engine.bodies.length} /><ToolButton icon={AlertTriangle} label="Analiza" onClick={openGeometryInspection} disabled={!engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="PŁASZCZYZNY"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Rotate3d} label="Plane angle" onClick={() => openConstructionPlane('angle')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Plane tangent" onClick={() => openConstructionPlane('tangent')} disabled={readOnly} /><ToolButton icon={Move3d} label="Plane path" onClick={() => openConstructionPlane('path')} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="OSIE"><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={Move3d} label="Oś normalna" onClick={() => openConstructionAxis('plane-normal')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-plane')} /></RibbonGroup>
@@ -3845,6 +3899,7 @@ export default function ModelingWorkspace() {
           <ModelViewport
             bodies={engine.bodies}
             sketches={document.sketches}
+            layers={document.layers}
             activeSketchId={activeSketchId}
             draftProfile={draftProfile}
             draftType={null}
@@ -3913,6 +3968,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} onClose={() => setCommand(null)} />}
+          {layersOpen && <LayersPanel document={document} selectedEntities={selectedSketchEntities} readOnly={readOnly} onAdd={addDocumentLayer} onUpdate={updateDocumentLayer} onDelete={removeDocumentLayer} onActivate={activateDocumentLayer} onAssign={assignSelectionToLayer} onStyleSelected={styleSelectedEntities} onClose={() => setLayersOpen(false)} />}
           {!document.sketches.length && !engine.bodies.length && !command && !readOnly && <StartPage onStartSketch={startSketch} onOpenProject={requestOpenProject} />}
           {command?.type === 'plane' && <PlanePicker onPick={pickPlane} onCancel={() => { setCommand(null); setWorkspace('solid'); setNotice('Anulowano tworzenie szkicu.'); }} />}
           <ImportModelDialog draft={importDraft} onChange={(patch) => setImportDraft((current) => ({ ...current, ...patch }))} onConfirm={confirmModelImport} onCancel={() => setImportDraft(null)} />

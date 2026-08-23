@@ -71,6 +71,15 @@ import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/thr
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../src/cad-core/model-import.js';
 import { analyzePrintability } from '../src/cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../src/cad-core/sketch-import.js';
+import {
+  BY_LAYER,
+  DEFAULT_LAYER_ID,
+  assignEntitiesToLayer,
+  createLayer,
+  deleteLayer,
+  ensureDocumentLayers,
+  resolveEntityAppearance,
+} from '../src/cad-core/layers.js';
 import { resolveModelingLanguage, translateModelingText } from '../src/modeling/i18n.js';
 import { tutorialForLanguage } from '../src/modeling/tutorial-content.js';
 import {
@@ -96,6 +105,59 @@ import {
 } from '../src/cad-core/sketch-primitives.js';
 
 const { atomicWriteTextFile } = atomicFile;
+
+test('warstwy zapewniają ByLayer, aktywną warstwę i bezpieczne przenoszenie geometrii', () => {
+  const document = createDocument('Warstwy');
+  const pointA = createSketchPoint({ x: 0, y: 0 });
+  const pointB = createSketchPoint({ x: 20, y: 0 });
+  const line = createSketchLine({ startPointId: pointA.id, endPointId: pointB.id });
+  const sketch = createSketch({ entities: [pointA, pointB, line] });
+  document.sketches.push(sketch);
+  const centerLayer = createLayer({ name: 'Osie', color: '#ff8800', lineType: 'center', lineWeight: 0.35, locked: true });
+  document.layers.push(centerLayer);
+  document.activeLayerId = centerLayer.id;
+  assert.equal(assignEntitiesToLayer(document, sketch.id, [line.id], centerLayer.id), 1);
+  const storedLine = sketch.entities.find((entity) => entity.id === line.id);
+  assert.deepEqual(resolveEntityAppearance(document, storedLine), {
+    layer: centerLayer,
+    color: '#ff8800',
+    lineType: 'center',
+    lineWeight: 0.35,
+    visible: true,
+    locked: true,
+    printable: true,
+  });
+  storedLine.color = '#33aa44';
+  storedLine.lineType = 'dashed';
+  storedLine.lineWeight = 0.5;
+  const overridden = resolveEntityAppearance(document, storedLine);
+  assert.equal(overridden.color, '#33aa44');
+  assert.equal(overridden.lineType, 'dashed');
+  assert.equal(overridden.lineWeight, 0.5);
+  assert.equal(deleteLayer(document, centerLayer.id), 1);
+  assert.equal(sketch.entities.find((entity) => entity.id === line.id).layerId, DEFAULT_LAYER_ID);
+  assert.equal(document.activeLayerId, DEFAULT_LAYER_ID);
+  assert.equal(validateDocument(document).valid, true);
+});
+
+test('normalizacja bieżącego dokumentu uzupełnia warstwę 0 i właściwości ByLayer', () => {
+  const legacy = createDocument('Starszy zapis bez warstw');
+  const point = createSketchPoint({ x: 2, y: 4 });
+  legacy.sketches.push(createSketch({ entities: [point] }));
+  delete legacy.layers;
+  delete legacy.activeLayerId;
+  delete legacy.sketches[0].entities[0].layerId;
+  delete legacy.sketches[0].entities[0].color;
+  delete legacy.sketches[0].entities[0].lineType;
+  delete legacy.sketches[0].entities[0].lineWeight;
+  ensureDocumentLayers(legacy);
+  assert.equal(legacy.layers[0].id, DEFAULT_LAYER_ID);
+  assert.equal(legacy.sketches[0].entities[0].layerId, DEFAULT_LAYER_ID);
+  assert.equal(legacy.sketches[0].entities[0].color, BY_LAYER);
+  assert.equal(legacy.sketches[0].entities[0].lineType, BY_LAYER);
+  assert.equal(legacy.sketches[0].entities[0].lineWeight, BY_LAYER);
+  assert.equal(validateDocument(legacy).valid, true);
+});
 
 test('bezpiecznie oblicza wyrażenia parametryczne', () => {
   assert.equal(evaluateExpression('szerokosc / 2 + 3', { szerokosc: 60 }), 33);

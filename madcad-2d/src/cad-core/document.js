@@ -1,6 +1,13 @@
 import { createId } from './ids.js';
 import { listExpressionIdentifiers } from './expressions.js';
 import {
+  BY_LAYER,
+  LINE_WEIGHTS,
+  createDefaultLayer,
+  ensureDocumentLayers,
+  isSupportedLineType,
+} from './layers.js';
+import {
   SKETCH_ENTITY_ROLES,
   SKETCH_ENTITY_TYPES,
   SKETCH_DIMENSION_TYPES,
@@ -142,6 +149,8 @@ export function createDocument(name = 'Nowy projekt') {
     bodies: [],
     components: [],
     references: [],
+    layers: [createDefaultLayer()],
+    activeLayerId: 'layer-0',
     print: {
       profileId: 'creality-ender3', bedWidth: 220, bedDepth: 220, bedHeight: 250, material: 'PLA',
       positionX: 0, positionY: 0, positionZ: 0,
@@ -222,11 +231,11 @@ export function migrateDocument(source, { now = new Date().toISOString() } = {})
     document = migration(document, now);
     version = readSchemaVersion(document);
   }
-  return document;
+  return ensureDocumentLayers(document);
 }
 
 function projectFutureDocument(source) {
-  const projected = ensureV3Collections(cloneDocument(source));
+  const projected = ensureDocumentLayers(ensureV3Collections(cloneDocument(source)));
   projected.schemaVersion = DOCUMENT_SCHEMA_VERSION;
   projected.metadata = {
     ...(isRecord(projected.metadata) ? projected.metadata : {}),
@@ -299,6 +308,7 @@ export function validateDocument(document) {
   const bodies = requireArray(document, 'bodies');
   const components = requireArray(document, 'components');
   const references = requireArray(document, 'references');
+  const layers = requireArray(document, 'layers');
   if (!isRecord(document.print)) add('print', 'Wymagane są ustawienia druku.', 'TYPE');
   if (!isRecord(document.metadata)) add('metadata', 'Wymagane są metadane dokumentu.', 'TYPE');
 
@@ -312,6 +322,27 @@ export function validateDocument(document) {
     else allIds.set(value, path);
   };
   registerId(document.id, 'id');
+
+  const layerIds = new Set();
+  const layerNames = new Set();
+  layers.forEach((layer, index) => {
+    const base = `layers[${index}]`;
+    if (!isRecord(layer)) {
+      add(base, 'Warstwa musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(layer.id, `${base}.id`);
+    if (typeof layer.id === 'string') layerIds.add(layer.id);
+    if (typeof layer.name !== 'string' || !layer.name.trim()) add(`${base}.name`, 'Warstwa wymaga nazwy.', 'REQUIRED');
+    else if (layerNames.has(layer.name.toLocaleLowerCase())) add(`${base}.name`, `Powtórzona nazwa warstwy: ${layer.name}`, 'DUPLICATE');
+    else layerNames.add(layer.name.toLocaleLowerCase());
+    if (!/^#[0-9a-f]{6}$/i.test(layer.color || '')) add(`${base}.color`, 'Kolor warstwy musi mieć zapis #RRGGBB.', 'FORMAT');
+    if (!isSupportedLineType(layer.lineType)) add(`${base}.lineType`, `Nieobsługiwany typ linii: ${layer.lineType ?? ''}.`, 'UNSUPPORTED');
+    if (!LINE_WEIGHTS.includes(Number(layer.lineWeight))) add(`${base}.lineWeight`, `Nieobsługiwana grubość linii: ${layer.lineWeight ?? ''}.`, 'UNSUPPORTED');
+    for (const key of ['visible', 'locked', 'printable']) if (typeof layer[key] !== 'boolean') add(`${base}.${key}`, 'Wymagana jest wartość logiczna.', 'TYPE');
+  });
+  if (!layers.length) add('layers', 'Dokument musi zawierać co najmniej jedną warstwę.', 'REQUIRED');
+  if (!layerIds.has(document.activeLayerId)) add('activeLayerId', 'Aktywna warstwa musi istnieć w dokumencie.', 'BROKEN_REFERENCE');
 
   const parameterNames = new Set();
   parameters.forEach((parameter, index) => {
@@ -364,6 +395,10 @@ export function validateDocument(document) {
       if (typeof entity.type !== 'string' || !entity.type.trim()) add(`${entityBase}.type`, 'Encja musi mieć typ.', 'REQUIRED');
       else if (!ENTITY_TYPES.has(entity.type)) add(`${entityBase}.type`, `Nieobsługiwany typ encji: ${entity.type}.`, 'UNSUPPORTED');
       if (!ENTITY_ROLES.has(entity.role)) add(`${entityBase}.role`, `Nieobsługiwana rola encji: ${entity.role ?? ''}.`, 'UNSUPPORTED');
+      if (!layerIds.has(entity.layerId)) add(`${entityBase}.layerId`, `Nie znaleziono warstwy „${entity.layerId ?? ''}”.`, 'BROKEN_REFERENCE');
+      if (entity.color !== BY_LAYER && !/^#[0-9a-f]{6}$/i.test(entity.color || '')) add(`${entityBase}.color`, 'Kolor encji musi mieć wartość ByLayer albo #RRGGBB.', 'FORMAT');
+      if (entity.lineType !== BY_LAYER && !isSupportedLineType(entity.lineType)) add(`${entityBase}.lineType`, `Nieobsługiwany typ linii: ${entity.lineType ?? ''}.`, 'UNSUPPORTED');
+      if (entity.lineWeight !== BY_LAYER && !LINE_WEIGHTS.includes(Number(entity.lineWeight))) add(`${entityBase}.lineWeight`, `Nieobsługiwana grubość linii: ${entity.lineWeight ?? ''}.`, 'UNSUPPORTED');
       if (typeof entity.fixed !== 'boolean') add(`${entityBase}.fixed`, 'Pole fixed musi być logiczne.', 'TYPE');
       if (!Array.isArray(entity.pointIds)) add(`${entityBase}.pointIds`, 'Encja musi zawierać tablicę stabilnych referencji punktów.', 'TYPE');
       if (!isRecord(entity.geometry)) add(`${entityBase}.geometry`, 'Encja musi zawierać geometrię.', 'TYPE');

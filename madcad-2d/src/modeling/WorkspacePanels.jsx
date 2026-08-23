@@ -1,6 +1,7 @@
 import React from 'react';
-import { Box, Check, Ruler, ScanSearch, X } from 'lucide-react';
+import { Box, Check, Eye, EyeOff, Layers3, Lock, LockOpen, Plus, Printer, Ruler, ScanSearch, Trash2, X } from 'lucide-react';
 import { formatModelFileSize } from '../cad-core/model-import.js';
+import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
 import { multipleSelectionLabel } from './platform-shortcuts.js';
 
 export function Field({ label, value, onChange, suffix = '', type = 'text', disabled = false, autoFocus = false }) {
@@ -12,6 +13,51 @@ export function Field({ label, value, onChange, suffix = '', type = 'text', disa
         {suffix && <em>{suffix}</em>}
       </div>
     </label>
+  );
+}
+
+function commonSelectionValue(entities, key, fallback = BY_LAYER) {
+  if (!entities.length) return fallback;
+  const values = [...new Set(entities.map((entity) => entity[key] ?? fallback))];
+  return values.length === 1 ? values[0] : 'mixed';
+}
+
+export function LayersPanel({ document, selectedEntities = [], readOnly = false, onAdd, onUpdate, onDelete, onActivate, onAssign, onStyleSelected, onClose }) {
+  const selectedLayerId = commonSelectionValue(selectedEntities, 'layerId', document.activeLayerId);
+  const selectedColor = commonSelectionValue(selectedEntities, 'color');
+  const selectedLineType = commonSelectionValue(selectedEntities, 'lineType');
+  const selectedLineWeight = commonSelectionValue(selectedEntities, 'lineWeight');
+  const customColor = selectedColor !== BY_LAYER && selectedColor !== 'mixed' ? selectedColor : '#ffffff';
+  return (
+    <aside className="measure-panel layers-panel" aria-label="Menedżer warstw">
+      <header><div><Layers3 size={16} /><strong>Warstwy</strong></div><button type="button" title="Zamknij warstwy" aria-label="Zamknij warstwy" onClick={onClose}><X size={15} /></button></header>
+      <div className="layers-toolbar">
+        <button type="button" onClick={onAdd} disabled={readOnly}><Plus size={14} /> Nowa warstwa</button>
+        <span>{document.layers.length} {document.layers.length === 1 ? 'warstwa' : 'warstw'}</span>
+      </div>
+      <div className="layers-list" role="radiogroup" aria-label="Aktywna warstwa">
+        {document.layers.map((layer) => (
+          <div className={`layer-row ${layer.id === document.activeLayerId ? 'active' : ''}`} key={layer.id}>
+            <button className="layer-active" type="button" role="radio" aria-checked={layer.id === document.activeLayerId} title="Ustaw jako aktywną" onClick={() => onActivate(layer.id)}><span style={{ backgroundColor: layer.color }} /></button>
+            <input aria-label={`Nazwa warstwy ${layer.name}`} value={layer.name} disabled={readOnly || layer.id === DEFAULT_LAYER_ID} onChange={(event) => onUpdate(layer.id, { name: event.target.value })} />
+            <input className="layer-color" aria-label={`Kolor warstwy ${layer.name}`} type="color" value={layer.color} disabled={readOnly} onChange={(event) => onUpdate(layer.id, { color: event.target.value })} />
+            <button type="button" className={layer.visible ? 'enabled' : ''} aria-label={`${layer.visible ? 'Ukryj' : 'Pokaż'} warstwę ${layer.name}`} aria-pressed={layer.visible} onClick={() => onUpdate(layer.id, { visible: !layer.visible })}>{layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+            <button type="button" className={layer.locked ? 'enabled' : ''} aria-label={`${layer.locked ? 'Odblokuj' : 'Zablokuj'} warstwę ${layer.name}`} aria-pressed={layer.locked} onClick={() => onUpdate(layer.id, { locked: !layer.locked })}>{layer.locked ? <Lock size={14} /> : <LockOpen size={14} />}</button>
+            <button type="button" className={layer.printable ? 'enabled' : ''} aria-label={`${layer.printable ? 'Wyłącz' : 'Włącz'} drukowanie warstwy ${layer.name}`} aria-pressed={layer.printable} onClick={() => onUpdate(layer.id, { printable: !layer.printable })}><Printer size={14} /></button>
+            <button type="button" aria-label={`Usuń warstwę ${layer.name}`} title="Usuń i przenieś elementy na warstwę 0" disabled={readOnly || layer.id === DEFAULT_LAYER_ID} onClick={() => onDelete(layer.id)}><Trash2 size={14} /></button>
+            <select aria-label={`Typ linii warstwy ${layer.name}`} value={layer.lineType} disabled={readOnly} onChange={(event) => onUpdate(layer.id, { lineType: event.target.value })}>{LINE_TYPES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
+            <select aria-label={`Grubość linii warstwy ${layer.name}`} value={layer.lineWeight} disabled={readOnly} onChange={(event) => onUpdate(layer.id, { lineWeight: Number(event.target.value) })}>{LINE_WEIGHTS.map((weight) => <option key={weight} value={weight}>{weight.toFixed(2)} mm</option>)}</select>
+          </div>
+        ))}
+      </div>
+      <div className="layer-selection-properties">
+        <strong>Wybrane elementy · {selectedEntities.length}</strong>
+        <label><span>Warstwa</span><select value={selectedLayerId} disabled={readOnly || !selectedEntities.length} onChange={(event) => onAssign(event.target.value)}>{selectedLayerId === 'mixed' && <option value="mixed" disabled>Różne</option>}{document.layers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</select></label>
+        <label><span>Typ linii</span><select value={selectedLineType} disabled={readOnly || !selectedEntities.length} onChange={(event) => onStyleSelected({ lineType: event.target.value })}>{selectedLineType === 'mixed' && <option value="mixed" disabled>Różne</option>}<option value={BY_LAYER}>ByLayer</option>{LINE_TYPES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+        <label><span>Grubość</span><select value={selectedLineWeight} disabled={readOnly || !selectedEntities.length} onChange={(event) => onStyleSelected({ lineWeight: event.target.value === BY_LAYER ? BY_LAYER : Number(event.target.value) })}>{selectedLineWeight === 'mixed' && <option value="mixed" disabled>Różne</option>}<option value={BY_LAYER}>ByLayer</option>{LINE_WEIGHTS.map((weight) => <option key={weight} value={weight}>{weight.toFixed(2)} mm</option>)}</select></label>
+        <label className="layer-color-override"><span>Kolor</span><select value={selectedColor === 'mixed' ? 'mixed' : selectedColor === BY_LAYER ? BY_LAYER : 'custom'} disabled={readOnly || !selectedEntities.length} onChange={(event) => onStyleSelected({ color: event.target.value === BY_LAYER ? BY_LAYER : customColor })}>{selectedColor === 'mixed' && <option value="mixed" disabled>Różne</option>}<option value={BY_LAYER}>ByLayer</option><option value="custom">Własny</option></select><input aria-label="Własny kolor wybranych elementów" type="color" value={customColor} disabled={readOnly || !selectedEntities.length || selectedColor === BY_LAYER} onChange={(event) => onStyleSelected({ color: event.target.value })} /></label>
+      </div>
+    </aside>
   );
 }
 
