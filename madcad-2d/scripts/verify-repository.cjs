@@ -67,11 +67,23 @@ for (const dependency of Object.keys(packageJson.dependencies || {})) {
 }
 
 const releaseWorkflow = read('.github/workflows/release.yml');
-expectText(releaseWorkflow, /CSC_IDENTITY_AUTO_DISCOVERY:\s*'false'/, 'jawnie niepodpisany build wydania');
-expectText(releaseWorkflow, /MADCAD_REQUIRE_SIGNATURE:\s*'0'/, 'wyłączony wymóg certyfikatu wydania');
-expectText(releaseWorkflow, /Ważne — wydanie bez podpisu producenta/, 'ostrzeżenie w GitHub Release');
+expectText(releaseWorkflow, /MACOS_CERTIFICATE_P12_BASE64/, 'certyfikat Developer ID przekazywany wyłącznie przez sekret');
+expectText(releaseWorkflow, /APPLE_API_KEY_P8/, 'klucz notaryzacji przekazywany wyłącznie przez sekret');
+expectText(releaseWorkflow, /MADCAD_REQUIRE_NOTARIZATION:\s*'1'/, 'obowiązkowa notaryzacja macOS');
+expectText(releaseWorkflow, /macOS\)[\s\S]*?MADCAD_REQUIRE_SIGNATURE=1/, 'obowiązkowa weryfikacja podpisu macOS');
+expectText(releaseWorkflow, /podpisana certyfikatem Apple Developer ID Application/, 'informacja o podpisanym wydaniu macOS');
 expectText(releaseWorkflow, /MADCAD_REQUIRE_CHECKSUM:\s*'1'/, 'obowiązkowa suma SHA-256 wydania');
 expectText(releaseWorkflow, /electron-builder --linux AppImage --x64/, 'oficjalny build Linux AppImage');
+
+const notarizeScript = read('madcad-2d/scripts/notarize.js');
+expectText(notarizeScript, /APPLE_API_KEY[\s\S]*?APPLE_API_KEY_ID[\s\S]*?APPLE_API_ISSUER/, 'notaryzacja przez App Store Connect API');
+expectText(notarizeScript, /MADCAD_REQUIRE_NOTARIZATION === '1'/, 'tryb wymaganej notaryzacji');
+const packageVerifier = read('madcad-2d/scripts/verify-package.cjs');
+expectText(packageVerifier, /Authority=Developer ID Application:/, 'kontrola urzędu certyfikacji Apple');
+expectText(packageVerifier, /xcrun', \['stapler', 'validate'/, 'kontrola biletu notaryzacji Apple');
+expectText(packageVerifier, /spctl', \['--assess'/, 'ocena Gatekeepera');
+const entitlements = read('madcad-2d/electron/entitlements.mac.plist');
+rejectText(entitlements, /allow-unsigned-executable-memory/, 'zbędne uprawnienie do niepodpisanej pamięci wykonywalnej');
 
 const codeqlWorkflow = read('.github/workflows/codeql.yml');
 expectText(codeqlWorkflow, /github\/codeql-action\/analyze@[a-f0-9]{40}/, 'przypięta analiza CodeQL');

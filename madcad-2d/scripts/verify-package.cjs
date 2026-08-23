@@ -40,13 +40,22 @@ async function verifyPlatformSignature(filePath) {
   const tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'madcad-signature-'));
   try {
     await execFileAsync('/usr/bin/ditto', ['-x', '-k', filePath, tempDirectory], { timeout: 120000 });
-    const extracted = await walk(tempDirectory);
-    const appExecutable = extracted.find((entry) => entry.includes('.app/Contents/MacOS/'));
-    if (!appExecutable) throw new Error('Archiwum nie zawiera podpisanej aplikacji .app.');
-    const appIndex = appExecutable.indexOf('.app/') + 4;
-    const appPath = appExecutable.slice(0, appIndex);
+    const topLevelEntries = await fs.readdir(tempDirectory, { withFileTypes: true });
+    const appEntry = topLevelEntries.find((entry) => entry.isDirectory() && entry.name.endsWith('.app'));
+    if (!appEntry) throw new Error('Archiwum nie zawiera aplikacji .app na najwyższym poziomie.');
+    const appPath = path.join(tempDirectory, appEntry.name);
     await execFileAsync('/usr/bin/codesign', ['--verify', '--deep', '--strict', appPath], { timeout: 120000 });
-    return 'codesign-valid';
+    const signatureDetails = await execFileAsync('/usr/bin/codesign', ['-dv', '--verbose=4', appPath], { timeout: 120000 });
+    const signatureOutput = `${signatureDetails.stdout || ''}\n${signatureDetails.stderr || ''}`;
+    if (!/^Authority=Developer ID Application:/m.test(signatureOutput)) {
+      throw new Error('Aplikacja nie została podpisana certyfikatem Developer ID Application.');
+    }
+    if (!/^TeamIdentifier=[A-Z0-9]{10}$/m.test(signatureOutput)) {
+      throw new Error('Podpis aplikacji nie zawiera prawidłowego Apple Team ID.');
+    }
+    await execFileAsync('/usr/bin/xcrun', ['stapler', 'validate', appPath], { timeout: 120000 });
+    await execFileAsync('/usr/sbin/spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath], { timeout: 120000 });
+    return 'developer-id-notarized';
   } finally {
     await fs.rm(tempDirectory, { recursive: true, force: true });
   }

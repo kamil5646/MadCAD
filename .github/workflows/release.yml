@@ -111,16 +111,38 @@ jobs:
         working-directory: madcad-2d
         run: npm run verify:electron-security
 
-      - name: Build Electron package
+      - name: Build signed and notarized macOS package
+        if: runner.os == 'macOS'
+        working-directory: madcad-2d
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
+          MADCAD_REQUIRE_NOTARIZATION: '1'
+        run: |
+          for required_secret in CSC_LINK CSC_KEY_PASSWORD APPLE_API_KEY_CONTENT APPLE_API_KEY_ID APPLE_API_ISSUER; do
+            if [ -z "${!required_secret}" ]; then
+              echo "Missing required macOS signing secret: $required_secret" >&2
+              exit 1
+            fi
+          done
+          api_key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          printf '%s' "$APPLE_API_KEY_CONTENT" > "$api_key_path"
+          chmod 600 "$api_key_path"
+          export APPLE_API_KEY="$api_key_path"
+          npx electron-builder --mac zip --arm64 --publish never
+
+      - name: Build unsigned Windows or Linux package
+        if: runner.os != 'macOS'
         working-directory: madcad-2d
         shell: bash
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
-          echo "Building unsigned packages by repository-owner decision; SHA-256 and platform tests remain mandatory."
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            npx electron-builder --mac zip --arm64 --publish never
-          elif [ "$RUNNER_OS" = "Windows" ]; then
+          if [ "$RUNNER_OS" = "Windows" ]; then
             npx electron-builder --win nsis --x64 --publish never
           else
             npx electron-builder --linux AppImage --x64 --publish never
@@ -134,13 +156,21 @@ jobs:
         working-directory: madcad-2d
         env:
           MADCAD_REQUIRE_CHECKSUM: '1'
-          MADCAD_REQUIRE_SIGNATURE: '0'
         shell: bash
         run: |
           case "$RUNNER_OS" in
-            macOS) package_kind=mac ;;
-            Windows) package_kind=windows ;;
-            Linux) package_kind=linux ;;
+            macOS)
+              package_kind=mac
+              export MADCAD_REQUIRE_SIGNATURE=1
+              ;;
+            Windows)
+              package_kind=windows
+              export MADCAD_REQUIRE_SIGNATURE=0
+              ;;
+            Linux)
+              package_kind=linux
+              export MADCAD_REQUIRE_SIGNATURE=0
+              ;;
           esac
           npm run verify:package -- "$package_kind"
 
@@ -174,8 +204,8 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-alpha.') || contains(github.ref_name, '-beta.') }}
           generate_release_notes: true
           body: |
-            ## Ważne — wydanie bez podpisu producenta
+            ## Weryfikacja wydania
 
-            Paczki Windows i macOS nie mają podpisu Authenticode ani Apple Developer ID/notaryzacji. Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie. Linux jest publikowany jako przenośny AppImage x64.
+            Paczka macOS jest podpisana certyfikatem Apple Developer ID Application, zaakceptowana przez usługę notaryzacji Apple i zawiera dołączony bilet Gatekeepera. Paczka Windows nie ma jeszcze podpisu Authenticode i SmartScreen może wyświetlić ostrzeżenie. Linux jest publikowany jako przenośny AppImage x64.
 
-            Wbudowany aktualizator pobiera paczkę wyłącznie z oficjalnego wydania, sprawdza odpowiadającą sumę SHA-256 i otwiera plik do instalacji systemowej. Bez certyfikatu platformowego system nadal wymaga ręcznego potwierdzenia i może wyświetlić ostrzeżenie.
+            Wbudowany aktualizator pobiera paczkę wyłącznie z oficjalnego wydania, sprawdza odpowiadającą sumę SHA-256 i otwiera plik do instalacji systemowej. Workflow odrzuca wydanie macOS, jeśli podpis Developer ID, Team ID, bilet notaryzacji albo ocena Gatekeepera są nieprawidłowe.
