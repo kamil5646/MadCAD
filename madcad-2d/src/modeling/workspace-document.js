@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { cloneDocument, touchDocument } from '../cad-core/document.js';
+import { cloneDocument, openDocument, touchDocument } from '../cad-core/document.js';
 
 export function useDocumentHistory(initialDocument) {
   const [history, setHistory] = useState({ past: [], present: initialDocument, future: [] });
@@ -55,3 +55,18 @@ export function safeName(value) {
   return value.trim().replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-|-$/g, '') || 'model';
 }
 
+export function prepareProjectSave(document) {
+  const text = JSON.stringify(document, null, 2);
+  return {
+    text,
+    snapshot: JSON.stringify(document),
+    defaultName: `${safeName(document.name)}.madcad`,
+    filters: [{ name: 'Projekt MadCAD', extensions: ['madcad'] }, { name: 'JSON', extensions: ['json'] }],
+  };
+}
+
+export async function readProjectFile(file) {
+  if (!file?.text) throw new Error('Nie wybrano pliku projektu.');
+  const opened = openDocument(JSON.parse(await file.text()));
+  return { ...opened, filePath: file.path || file.name || '' };
+}

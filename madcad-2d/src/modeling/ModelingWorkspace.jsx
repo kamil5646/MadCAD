@@ -143,7 +143,7 @@ import { findUntranslatedModelingText, observeModelingLocalization, resolveModel
 import { FirstPartTutorial, FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './AppDialogs.jsx';
 import { CommandLine } from './CommandLine.jsx';
 import { CommandDialog } from './CommandDialog.jsx';
-import { parseCommandLineInput } from './command-controller.js';
+import { planCommandLineSubmission } from './command-controller.js';
 import {
   createDefaultCommandCustomization,
   customizationForTool,
@@ -153,11 +153,11 @@ import {
 import { isDockableCommand, panelScreenKey, readPanelLayout, writePanelLayout } from './panel-layout.js';
 import { BUILT_IN_WORKSPACE_LAYOUTS, captureWorkspaceView, createCustomWorkspaceLayout, loadCustomWorkspaceLayouts, saveCustomWorkspaceLayouts } from './workspace-layouts.js';
 import { multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
-import { downloadBlob, safeName, useDocumentHistory } from './workspace-document.js';
+import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumentHistory } from './workspace-document.js';
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext } from './WorkspaceRibbon.jsx';
+import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
-import { BlocksPanel, CommandCustomizationPanel, Field, GeometryInspectionPanel, ImportModelDialog, ImportRepairReportDialog, ImportSketchDialog, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel, SketchDimensionDialog } from './WorkspacePanels.jsx';
-import { ParametersDialog, PlanePicker, SketchPalette } from './WorkspaceSketchUi.jsx';
+import { BlocksPanel, CommandCustomizationPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
   clearLocalAutosave,
@@ -3316,12 +3316,12 @@ export default function ModelingWorkspace() {
       readOnlyNotice();
       return false;
     }
-    const payload = JSON.stringify(document, null, 2);
+    const saveRequest = prepareProjectSave(document);
     if (window.desktopApp?.saveTextFile) {
       const result = await window.desktopApp.saveTextFile({
-        defaultName: `${safeName(document.name)}.madcad`,
-        text: payload,
-        filters: [{ name: 'Projekt MadCAD', extensions: ['madcad'] }, { name: 'JSON', extensions: ['json'] }],
+        defaultName: saveRequest.defaultName,
+        text: saveRequest.text,
+        filters: saveRequest.filters,
         atomic: true,
         createBackup: true,
       });
@@ -3329,7 +3329,7 @@ export default function ModelingWorkspace() {
         setNotice(result?.canceled ? 'Anulowano zapis.' : `Nie udało się zapisać: ${result?.error || 'nieznany błąd'}`);
         return false;
       }
-      setSavedDocumentText(JSON.stringify(document));
+      setSavedDocumentText(saveRequest.snapshot);
       setCurrentPath(result.filePath || '');
       try {
         await clearAutosaveSnapshots();
@@ -3341,8 +3341,8 @@ export default function ModelingWorkspace() {
       setNotice(`Zapisano projekt atomowo: ${result.filePath}${result.backupPath ? ' · poprzednia wersja: .bak' : ''}`);
       return true;
     }
-    downloadBlob(new Blob([payload], { type: 'application/json' }), `${safeName(document.name)}.madcad`);
-    setSavedDocumentText(JSON.stringify(document));
+    downloadBlob(new Blob([saveRequest.text], { type: 'application/json' }), saveRequest.defaultName);
+    setSavedDocumentText(saveRequest.snapshot);
     clearLocalAutosave();
     setNotice('Zapisano projekt MadCAD.');
     return true;
@@ -3419,11 +3419,11 @@ export default function ModelingWorkspace() {
     if (!file) return;
     if (!(await confirmUnsavedChanges('open'))) return;
     try {
-      const opened = openDocument(JSON.parse(await file.text()));
+      const opened = await readProjectFile(file);
       await clearAutosaveSnapshots().catch((error) => setNotice(`Nie udało się wyczyścić poprzedniego autozapisu: ${error.message}`));
       history.replace(opened.document);
       setSavedDocumentText(JSON.stringify(opened.document));
-      setCurrentPath(file.path || file.name || '');
+      setCurrentPath(opened.filePath);
       setDocumentAccess({ readOnly: opened.readOnly, sourceVersion: opened.sourceVersion, originalDocument: opened.originalDocument });
       setSelection({ kind: 'document', id: opened.document.id });
       setActiveSketchId(null);
@@ -3863,36 +3863,37 @@ export default function ModelingWorkspace() {
   };
 
   const handleCommandLineSubmit = (rawInput) => {
-    const parsed = parseCommandLineInput(rawInput, commandCustomization);
-    if (parsed.type === 'cancel') {
+    const plan = planCommandLineSubmission(rawInput, { command, customization: commandCustomization });
+    const { parsed } = plan;
+    if (plan.action === 'cancel') {
       handleCommandLineCancel();
       return true;
     }
-    if (parsed.type === 'empty') {
+    if (plan.action === 'confirm-active') {
       const handled = executeCommandEnter();
       appendCommandHistory('', handled ? 'Zatwierdzono aktywne polecenie.' : 'Brak aktywnego polecenia.');
       if (!handled) setNotice('Wpisz polecenie albo uruchom narzędzie z wstążki.');
       return true;
     }
-    if (parsed.type === 'number') {
-      if ((command?.type === 'line' || command?.type === 'polyline') && command.lastPoint) {
-        if (!(parsed.value > 0)) {
-          setNotice('Długość linii musi być dodatnia.');
-          appendCommandHistory(parsed.raw, 'Odrzucono: długość musi być dodatnia.');
-          return true;
-        }
-        sketchDynamicLengthRef.current = String(parsed.value);
-        setCommand((current) => ({ ...current, dynamicLength: String(parsed.value) }));
-        appendCommandHistory(parsed.raw, `Długość segmentu: ${parsed.value} mm.`);
-        confirmDynamicSketchSegment();
-        return true;
-      }
+    if (plan.action === 'invalid-length') {
+      setNotice('Długość linii musi być dodatnia.');
+      appendCommandHistory(parsed.raw, 'Odrzucono: długość musi być dodatnia.');
+      return true;
+    }
+    if (plan.action === 'confirm-segment-length') {
+      sketchDynamicLengthRef.current = String(plan.length);
+      setCommand((current) => ({ ...current, dynamicLength: String(plan.length) }));
+      appendCommandHistory(parsed.raw, `Długość segmentu: ${plan.length} mm.`);
+      confirmDynamicSketchSegment();
+      return true;
+    }
+    if (plan.action === 'number-unavailable') {
       setNotice('Wartość liczbowa działa po wskazaniu pierwszego punktu linii lub polilinii.');
       appendCommandHistory(parsed.raw, 'Brak polecenia oczekującego na długość.');
       return true;
     }
-    if (parsed.type === 'command') {
-      const result = executeBasicShortcut(commandCustomization.commands?.[parsed.command.label]?.alias || parsed.command.shortcut);
+    if (plan.action === 'execute-command') {
+      const result = executeBasicShortcut(plan.shortcut);
       if (!result) {
         const message = `Polecenie „${parsed.command.label}” nie jest dostępne w bieżącym obszarze.`;
         setNotice(message);
@@ -4209,13 +4210,27 @@ export default function ModelingWorkspace() {
           {blocksOpen && activeSketchId && <BlocksPanel document={document} selectedEntities={selectedSketchEntities} selectedInstance={selectedBlockInstance} readOnly={readOnly} onCreate={createBlockFromSelection} onInsert={insertDocumentBlock} onDeleteDefinition={removeBlockDefinition} onAddAttribute={addDocumentBlockAttribute} onUpdateInstanceAttribute={updateDocumentBlockAttribute} onExplode={explodeDocumentBlock} onDeleteInstance={removeDocumentBlockInstance} onClose={() => setBlocksOpen(false)} />}
           {commandCustomizationOpen && <CommandCustomizationPanel customization={commandCustomization} onSave={saveCommandSettings} onReset={createDefaultCommandCustomization} onClose={() => setCommandCustomizationOpen(false)} />}
           {!document.sketches.length && !engine.bodies.length && !command && !readOnly && <StartPage onStartSketch={startSketch} onOpenProject={requestOpenProject} commandCustomization={commandCustomization} />}
-          {command?.type === 'plane' && <PlanePicker onPick={pickPlane} onCancel={() => { setCommand(null); setWorkspace('solid'); setNotice('Anulowano tworzenie szkicu.'); }} />}
-          <ImportModelDialog draft={importDraft} onChange={(patch) => setImportDraft((current) => ({ ...current, ...patch }))} onConfirm={confirmModelImport} onCancel={() => setImportDraft(null)} />
-          <ImportSketchDialog draft={sketchImportDraft} onChange={(patch) => setSketchImportDraft((current) => ({ ...current, ...patch }))} onConfirm={confirmSketchImport} onCancel={() => setSketchImportDraft(null)} />
-          <ImportRepairReportDialog report={importRepairReport} onSave={() => { void saveImportRepairReport(); }} onClose={() => setImportRepairReport(null)} />
-          <SketchDimensionDialog command={command} onChange={updateCommand} onConfirm={confirmSketchDimension} onCancel={() => setCommand(null)} />
-          {command?.type === 'parameters' && <ParametersDialog document={document} commit={commit} onClose={() => setCommand(null)} />}
-          {activeSketchId && <SketchPalette options={sketchOptions} onChange={(key, value) => setSketchOptions((current) => ({ ...current, [key]: value }))} onFinish={finishSketch} />}
+          <WorkspaceDialogStack
+            state={{ activeSketchId, command, document, importDraft, importRepairReport, sketchImportDraft, sketchOptions }}
+            actions={{
+              cancelCommand: () => setCommand(null),
+              cancelModelImport: () => setImportDraft(null),
+              cancelPlane: () => { setCommand(null); setWorkspace('solid'); setNotice('Anulowano tworzenie szkicu.'); },
+              cancelSketchImport: () => setSketchImportDraft(null),
+              changeModelImport: (patch) => setImportDraft((current) => ({ ...current, ...patch })),
+              changeSketchImport: (patch) => setSketchImportDraft((current) => ({ ...current, ...patch })),
+              changeSketchOption: (key, value) => setSketchOptions((current) => ({ ...current, [key]: value })),
+              closeImportReport: () => setImportRepairReport(null),
+              commit,
+              confirmModelImport,
+              confirmSketchDimension,
+              confirmSketchImport,
+              finishSketch,
+              pickPlane,
+              saveImportReport: () => { void saveImportRepairReport(); },
+              updateCommand,
+            }}
+          />
         </main>
         {workspace === 'print' && printPanelOpen && <PrintPanel document={document} bodies={engine.bodies} engine={engine} selectedFace={selectedPrintFace} commit={commit} collapsed={panelLayout.printCollapsed} onSelectIssue={(item) => setSelection(item?.kind === 'document' ? { kind: 'document', id: document.id } : item)} onExport={exportModel} onSendToSlicer={sendToSlicer} onClose={() => setPrintPanelOpen(false)} onToggleCollapsed={() => setPanelLayout((current) => ({ ...current, printCollapsed: !current.printCollapsed }))} readOnly={readOnly} />}
       </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { commandSuggestions, describeActiveCommand, parseCommandLineInput, resolveCommandAlias } from './command-controller.js';
+import { commandSuggestions, describeActiveCommand, parseCommandLineInput, planCommandLineSubmission, resolveCommandAlias } from './command-controller.js';
 
 describe('CAD command controller', () => {
   it('resolves Autodesk-style aliases and Polish command names', () => {
@@ -29,5 +29,15 @@ describe('CAD command controller', () => {
     const customization = { commands: { Linia: { alias: 'XL', shortcut: 'G' } } };
     expect(resolveCommandAlias('XL', customization)).toMatchObject({ label: 'Linia' });
     expect(resolveCommandAlias('LINE', customization)).toMatchObject({ label: 'Linia' });
+  });
+
+  it('plans command-line effects without coupling parsing to the workspace component', () => {
+    expect(planCommandLineSubmission('esc').action).toBe('cancel');
+    expect(planCommandLineSubmission('')).toMatchObject({ action: 'confirm-active' });
+    expect(planCommandLineSubmission('25', { command: { type: 'line' } }).action).toBe('number-unavailable');
+    expect(planCommandLineSubmission('-2', { command: { type: 'line', lastPoint: [0, 0] } }).action).toBe('invalid-length');
+    expect(planCommandLineSubmission('25,5', { command: { type: 'polyline', lastPoint: [0, 0] } })).toMatchObject({ action: 'confirm-segment-length', length: 25.5 });
+    expect(planCommandLineSubmission('line')).toMatchObject({ action: 'execute-command', shortcut: 'L' });
+    expect(planCommandLineSubmission('niewiadome').action).toBe('unknown-command');
   });
 });

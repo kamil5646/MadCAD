@@ -163,6 +163,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.26 Diagnostyka niedowiązania: solver wyznacza bazę przestrzeni swobodnej, wskazuje osie i parametry pozostające do związania, podświetla swobodne punkty oraz udostępnia kompaktowy panel z wyborem geometrii i podpowiedziami następnego więzu.
 - [x] P1.27 Raport naprawy importu: SVG/DXF/DWG jawnie zlicza dodane, zmienione i pominięte elementy, raportuje uproszczenia i nieobsługiwane encje, a import 3D rejestruje konwersję 3MF i skalowanie; wynik ma zwarty podgląd oraz zapis JSON.
 - [x] P1.28 Zapisywane obszary robocze i układy paneli: cztery gotowe presety CAD, czyste płótno, narzędzia dokumentu i eksport/druk, do ośmiu nazwanych układów użytkownika, trwały zapis lokalny, usuwanie oraz bezpieczne zastosowanie podczas aktywnego szkicu.
+- [x] P1.29 Porządkowanie architektury obszaru modelowania: decyzje linii poleceń są planowane w testowalnym kontrolerze, zapis i odczyt projektu korzystają ze wspólnej usługi dokumentu, a modalne narzędzia szkicu/importu są renderowane przez osobny stos dialogów.
 
 ## Definition of Done
 
@@ -191,7 +192,7 @@ Dodatkowo:
 
 1. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 2. [x] Dokończyć katalog kluczy PL/EN i dodać bramkę wykrywającą nieprzetłumaczone teksty w renderowanym interfejsie.
-3. Wydzielić kontroler poleceń, dialogi i usługi dokumentu z `ModelingWorkspace`, zachowując obecny test pełnego przepływu.
+3. [x] Wydzielić kontroler poleceń, dialogi i usługi dokumentu z `ModelingWorkspace`, zachowując obecny test pełnego przepływu.
 4. Sprawdzić import/eksport na fixture'ach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny test technologii asystujących.
 
 Dalsze pomysły produktowe pozostają w [BACKLOG.md](./BACKLOG.md) i wymagają osobnej priorytetyzacji.

@@ -72,6 +72,26 @@ export function parseCommandLineInput(value, customization = null) {
   return { type: 'unknown', raw: normalized };
 }
 
+export function planCommandLineSubmission(value, { command = null, customization = null } = {}) {
+  const parsed = parseCommandLineInput(value, customization);
+  if (parsed.type === 'cancel') return { action: 'cancel', parsed };
+  if (parsed.type === 'empty') return { action: 'confirm-active', parsed };
+  if (parsed.type === 'number') {
+    const acceptsLength = ['line', 'polyline'].includes(command?.type) && Boolean(command?.lastPoint);
+    if (!acceptsLength) return { action: 'number-unavailable', parsed };
+    if (!(parsed.value > 0)) return { action: 'invalid-length', parsed };
+    return { action: 'confirm-segment-length', parsed, length: parsed.value };
+  }
+  if (parsed.type === 'command') {
+    return {
+      action: 'execute-command',
+      parsed,
+      shortcut: customization?.commands?.[parsed.command.label]?.alias || parsed.command.shortcut,
+    };
+  }
+  return { action: 'unknown-command', parsed };
+}
+
 export function describeActiveCommand(command) {
   if (!command?.type) return 'Gotowe';
   const name = ACTIVE_COMMAND_LABELS[command.type] || command.type;
