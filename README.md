@@ -2,8 +2,8 @@
 
 ![MadCAD](./docs/readme-banner.png)
 
-[![Release](https://img.shields.io/github/v/release/kamil5646/MadCAD2D?display_name=tag&label=stable)](https://github.com/kamil5646/MadCAD2D/releases/latest)
-[![CI](https://github.com/kamil5646/MadCAD2D/actions/workflows/ci.yml/badge.svg)](https://github.com/kamil5646/MadCAD2D/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/kamil5646/MadCAD?display_name=tag&label=stable)](https://github.com/kamil5646/MadCAD/releases/latest)
+[![CI](https://github.com/kamil5646/MadCAD/actions/workflows/ci.yml/badge.svg)](https://github.com/kamil5646/MadCAD/actions/workflows/ci.yml)
 ![Platform](https://img.shields.io/badge/platform-macOS%20ARM64%20%7C%20Windows%20x64%20%7C%20Linux%20x64-2686a8)
 ![Interface](https://img.shields.io/badge/interface-PL%20%7C%20EN-3a9d68)
 [![Support](https://img.shields.io/badge/support-PayPal-ffc439?logo=paypal&logoColor=111)](https://paypal.me/refek1)
@@ -12,8 +12,8 @@ MadCAD to desktopowy CAD 2D/3D dla Windows, macOS i Linux. Jego rdzeniem jest sz
 szkicowanie w stylu klasycznego CAD połączone z parametryczną historią oraz
 modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodatkiem.
 
-**[Pobierz najnowsze stabilne wydanie](https://github.com/kamil5646/MadCAD2D/releases/latest)** ·
-**[Strona projektu](https://kamil5646.github.io/MadCAD2D/)** ·
+**[Pobierz najnowsze stabilne wydanie](https://github.com/kamil5646/MadCAD/releases/latest)** ·
+**[Strona projektu](https://kamil5646.github.io/MadCAD/)** ·
 **[Licencja](./LICENSE)** ·
 **[Zmiany](./madcad-2d/CHANGELOG.md)**
 
@@ -39,7 +39,7 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 
 ## Szybki start
 
-1. Pobierz paczkę dla swojego systemu z [Releases](https://github.com/kamil5646/MadCAD2D/releases/latest).
+1. Pobierz paczkę dla swojego systemu z [Releases](https://github.com/kamil5646/MadCAD/releases/latest).
 2. Windows: uruchom polecany instalator jednym kliknięciem albo rozpakuj przenośny ZIP. macOS: otwórz polecany DMG i przeciągnij MadCAD do Aplikacji. Linux: nadaj AppImage prawo uruchomienia.
 3. Wybierz **Utwórz szkic**, wskaż płaszczyznę i zacznij rysować.
 4. Najedź na funkcję, aby zobaczyć opis; skrót podstawowego narzędzia pojawi się w podpowiedzi, a nie na przycisku.

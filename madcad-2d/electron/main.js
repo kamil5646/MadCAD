@@ -28,9 +28,9 @@ const isWindows = process.platform === 'win32';
 const APP_DISPLAY_NAME = 'MadCAD';
 const LEGACY_USER_DATA_NAME = 'MadCAD 2D';
 const appIconPng = path.join(__dirname, '..', 'assets', 'icons', 'madcad-512.png');
-const MADCAD_RELEASE_API_URL = 'https://api.github.com/repos/kamil5646/MadCAD2D/releases?per_page=30';
-const MADCAD_RELEASE_LATEST_PAGE_URL = 'https://github.com/kamil5646/MadCAD2D/releases/latest';
-const MADCAD_UPDATE_USER_AGENT = 'MadCAD2D-Updater/1.0';
+const MADCAD_RELEASE_API_URL = 'https://api.github.com/repos/kamil5646/MadCAD/releases?per_page=30';
+const MADCAD_RELEASE_LATEST_PAGE_URL = 'https://github.com/kamil5646/MadCAD/releases/latest';
+const MADCAD_UPDATE_USER_AGENT = 'MadCAD-Updater/1.0';
 const MAX_UPDATE_DOWNLOAD_BYTES = 512 * 1024 * 1024;
 const MAX_UPDATE_METADATA_BYTES = 4 * 1024 * 1024;
 const DWG_CONVERTER_DOWNLOAD_URL = 'https://www.opendesign.com/guestFiles/oda_file_converter';
@@ -605,7 +605,7 @@ async function fetchLatestMadcadRelease(channel = 'stable', currentVersion = app
         asset,
         checksumAsset: checksumAsset ? { name: checksumAsset.name, url: checksumAsset.browser_download_url } : null,
         channel: 'stable',
-        releaseUrl: `https://github.com/kamil5646/MadCAD2D/releases/tag/v${latestVersion}`
+        releaseUrl: `https://github.com/kamil5646/MadCAD/releases/tag/v${latestVersion}`
       };
     } catch (_fallbackError) {
       throw apiError;

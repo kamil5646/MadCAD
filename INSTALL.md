@@ -1,6 +1,6 @@
 # Instalacja MadCAD bez certyfikatu
 
-Pobieraj MadCAD wyłącznie z [oficjalnych wydań GitHub](https://github.com/kamil5646/MadCAD2D/releases/latest). Każda paczka ma obok plik `.sha256`, a wbudowany aktualizator sprawdza sumę przed jej otwarciem.
+Pobieraj MadCAD wyłącznie z [oficjalnych wydań GitHub](https://github.com/kamil5646/MadCAD/releases/latest). Każda paczka ma obok plik `.sha256`, a wbudowany aktualizator sprawdza sumę przed jej otwarciem.
 
 ## Windows 10/11
 

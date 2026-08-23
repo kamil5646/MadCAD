@@ -1423,7 +1423,7 @@ test('kanały aktualizacji respektują semver, zaufane hosty i integralność SH
   assert.equal(updatePolicy.selectLatestRelease(releases, 'alpha', '6.0.0-alpha.1')?.version.raw, '6.1.0-beta.1');
   assert.equal(updatePolicy.compareVersions('6.0.0', '6.0.0-beta.9'), 1);
   assert.equal(updatePolicy.normalizeChannel('', '6.0.0-alpha.1'), 'alpha');
-  assert.equal(updatePolicy.isTrustedUpdateUrl('https://github.com/kamil5646/MadCAD2D/releases/download/v6/MadCAD.zip'), true);
+  assert.equal(updatePolicy.isTrustedUpdateUrl('https://github.com/kamil5646/MadCAD/releases/download/v6/MadCAD.zip'), true);
   assert.equal(updatePolicy.isTrustedUpdateUrl('https://example.com/MadCAD.zip'), false);
   const payload = Buffer.from('signed package bytes');
   const hash = updatePolicy.sha256Buffer(payload);
@@ -1431,12 +1431,12 @@ test('kanały aktualizacji respektują semver, zaufane hosty i integralność SH
   assert.equal(updatePolicy.verifyBufferChecksum(payload, hash), true);
   assert.equal(updatePolicy.verifyBufferChecksum(Buffer.from('tampered'), hash), false);
   const assets = [
-    { name: 'MadCAD-6.2.0-mac-arm64.zip', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-mac-arm64.zip' },
-    { name: 'MadCAD-6.2.0-mac-arm64.zip.sha256', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-mac-arm64.zip.sha256' },
-    { name: 'MadCAD-6.2.0-mac-x64.zip', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-mac-x64.zip' },
-    { name: 'MadCAD-6.2.0-win-x64-portable.exe', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-win-x64-portable.exe' },
-    { name: 'MadCAD-6.2.0-win-x64.exe', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-win-x64.exe' },
-    { name: 'MadCAD-6.2.0-linux-x86_64.AppImage', browser_download_url: 'https://github.com/kamil5646/MadCAD2D/releases/download/v6.2.0/MadCAD-6.2.0-linux-x86_64.AppImage' },
+    { name: 'MadCAD-6.2.0-mac-arm64.zip', browser_download_url: 'https://github.com/kamil5646/MadCAD/releases/download/v6.2.0/MadCAD-6.2.0-mac-arm64.zip' },
+    { name: 'MadCAD-6.2.0-mac-arm64.zip.sha256', browser_download_url: 'https://github.com/kamil5646/MadCAD/releases/download/v6.2.0/MadCAD-6.2.0-mac-arm64.zip.sha256' },
+    { name: 'MadCAD-6.2.0-mac-x64.zip', browser_download_url: 'https://github.com/kamil5646/MadCAD/releases/download/v6.2.0/MadCAD-6.2.0-mac-x64.zip' },
+    { name: 'MadCAD-6.2.0-win-x64-portable.exe', browser_download_url: 'https://github.com/kamil5646/MadCAD/releases/download/v6.2.0/MadCAD-6.2.0-win-x64-portable.exe' },
+    { name: 'MadCAD-6.2.0-win-x64.exe', browser_download_url: 'https://github.com/kamil5646/MadCAD/releases/download/v6.2.0/MadCAD-6.2.0-win-x64.exe' },
+    { name: 'MadCAD-6.2.0-linux-x86_64.AppImage', browser_download_url: 'https://github.com/kamil5646/MadCAD/releases/download/v6.2.0/MadCAD-6.2.0-linux-x86_64.AppImage' },
   ];
   assert.equal(updatePolicy.selectReleaseAsset(assets, 'darwin', 'arm64')?.name, 'MadCAD-6.2.0-mac-arm64.zip');
   assert.equal(updatePolicy.selectReleaseAsset(assets, 'darwin', 'x64')?.name, 'MadCAD-6.2.0-mac-x64.zip');

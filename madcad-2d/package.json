@@ -5,7 +5,7 @@
   "desktopName": "MadCAD",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kamil5646/MadCAD2D.git"
+    "url": "https://github.com/kamil5646/MadCAD.git"
   },
   "main": "electron/main.js",
   "author": "Kamil Kasprzak",
@@ -83,7 +83,7 @@
       {
         "provider": "github",
         "owner": "kamil5646",
-        "repo": "MadCAD2D",
+        "repo": "MadCAD",
         "releaseType": "release"
       }
     ],

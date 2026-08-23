@@ -24,7 +24,7 @@ describe('App', () => {
     expect(dialog).toHaveTextContent(/licencję potwierdza dokument zakupu/i);
     expect(dialog).toHaveTextContent(/darowizna wspiera rozwój, ale nie zastępuje licencji komercyjnej/i);
     expect(dialog.querySelector('input, textarea')).toBeNull();
-    expect(screen.getByRole('link', { name: /Kup licencję komercyjną/i })).toHaveAttribute('href', 'https://kamil5646.github.io/MadCAD2D/#licencja');
+    expect(screen.getByRole('link', { name: /Kup licencję komercyjną/i })).toHaveAttribute('href', 'https://kamil5646.github.io/MadCAD/#licencja');
     expect(screen.getByRole('button', { name: /Pełna treść licencji/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Przejdź do programu/i })).toBeInTheDocument();
   });
@@ -64,13 +64,13 @@ describe('App', () => {
 
   it('links to the release when a newer version has no compatible package', () => {
     render(<UpdateDialog
-      state={{ status: 'idle', error: '', result: { newerVersion: true, supported: false, currentVersion: '6.1.9', latestVersion: '6.2.0', releaseUrl: 'https://github.com/kamil5646/MadCAD2D/releases/tag/v6.2.0' } }}
+      state={{ status: 'idle', error: '', result: { newerVersion: true, supported: false, currentVersion: '6.1.9', latestVersion: '6.2.0', releaseUrl: 'https://github.com/kamil5646/MadCAD/releases/tag/v6.2.0' } }}
       onCheck={() => {}}
       onInstall={() => {}}
       onClose={() => {}}
     />);
     expect(screen.getByText(/Wersja 6.2.0 nie ma paczki dla tego komputera/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Strona wydania/i })).toHaveAttribute('href', 'https://github.com/kamil5646/MadCAD2D/releases/tag/v6.2.0');
+    expect(screen.getByRole('link', { name: /Strona wydania/i })).toHaveAttribute('href', 'https://github.com/kamil5646/MadCAD/releases/tag/v6.2.0');
     expect(screen.queryByRole('button', { name: /Pobierz i otwórz/i })).toBeNull();
   });
 

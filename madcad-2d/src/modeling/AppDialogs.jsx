@@ -55,7 +55,7 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense }) {
           <p className="license-info-support-copy">Jeśli używasz MadCAD prywatnie i program jest dla Ciebie pomocny, możesz wesprzeć jego dalszy rozwój darowizną.</p>
           <div className="license-info-actions">
             <button type="button" onClick={onShowFullLicense}>Pełna treść licencji</button>
-            <a href="https://kamil5646.github.io/MadCAD2D/#licencja" target="_blank" rel="noopener noreferrer">Kup licencję komercyjną</a>
+            <a href="https://kamil5646.github.io/MadCAD/#licencja" target="_blank" rel="noopener noreferrer">Kup licencję komercyjną</a>
             <a className="support" href="https://paypal.me/refek1" target="_blank" rel="noopener noreferrer">Przekaż darowiznę</a>
             <button className="confirm" type="button" onClick={onClose} autoFocus>Przejdź do programu</button>
           </div>
