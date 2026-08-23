@@ -380,6 +380,8 @@
 }
 
 .command-area {
+  position: relative;
+  z-index: 12;
   display: grid;
   min-width: 0;
   grid-template-columns: minmax(0, 1fr);
@@ -452,21 +454,160 @@
 }
 
 .modeling-ribbon {
+  position: relative;
   display: flex;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   gap: 0;
   padding: 4px 8px 2px;
   background: #293440;
-  scrollbar-gutter: stable;
-  scrollbar-color: #65717d transparent;
-  scrollbar-width: auto;
 }
 
-.modeling-ribbon::-webkit-scrollbar { height: 8px; }
-.modeling-ribbon::-webkit-scrollbar-track { background: #27313d; }
-.modeling-ribbon::-webkit-scrollbar-thumb { border: 2px solid #27313d; border-radius: 8px; background: #71808f; }
+.ribbon-visible-groups {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  flex: 1 1 auto;
+}
+
+.ribbon-sticky-groups {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.ribbon-group[hidden] {
+  display: none;
+}
+
+.ribbon-overflow {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex: 0 0 72px;
+  min-width: 72px;
+  height: 68px;
+  padding: 2px 5px 14px;
+  align-items: stretch;
+  border-right: 1px solid #465360;
+}
+
+.ribbon-overflow-trigger {
+  display: grid;
+  width: 62px;
+  min-width: 62px;
+  height: 50px;
+  padding: 4px 3px 3px;
+  grid-template-rows: 28px 14px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: #e4eaf0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ribbon-overflow-trigger:hover,
+.ribbon-overflow-trigger.active {
+  border-color: #617489;
+  background: #435363;
+  color: white;
+}
+
+.ribbon-overflow-trigger span {
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.ribbon-overflow-menu {
+  position: absolute;
+  z-index: 30;
+  top: 58px;
+  right: 4px;
+  display: grid;
+  width: min(520px, calc(100vw - 24px));
+  max-height: min(520px, calc(100vh - 160px));
+  padding: 8px;
+  overflow: auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 8px;
+  border: 1px solid #667789;
+  border-radius: 5px;
+  background: #27323e;
+  box-shadow: 0 16px 42px rgba(4, 9, 14, 0.56);
+}
+
+.ribbon-overflow-menu.single-group {
+  width: min(270px, calc(100vw - 24px));
+  grid-template-columns: 1fr;
+}
+
+.ribbon-overflow-section {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid #465463;
+  border-radius: 4px;
+  background: #303b48;
+}
+
+.ribbon-overflow-section > strong {
+  color: #9eacba;
+  font-size: 8px;
+  letter-spacing: 0.075em;
+}
+
+.ribbon-overflow-section > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.ribbon-overflow-tool {
+  --tool-accent: #8ea1b2;
+  display: grid;
+  min-width: 0;
+  min-height: 30px;
+  padding: 3px 7px;
+  grid-template-columns: 21px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: #e4eaf0;
+  background: #35414e;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ribbon-overflow-tool:hover:not(:disabled) {
+  border-color: var(--tool-accent);
+  background: #435363;
+}
+
+.ribbon-overflow-tool:disabled {
+  color: #8f9ba8;
+  background: #2c3641;
+  cursor: default;
+}
+
+.ribbon-overflow-icon {
+  position: relative;
+  display: grid;
+  width: 19px;
+  height: 19px;
+  place-items: center;
+  color: var(--tool-accent);
+}
+
+.ribbon-overflow-tool > span:last-child {
+  overflow: hidden;
+  font-size: 9.5px;
+  font-weight: 560;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .ribbon-group {
   position: relative;
@@ -2772,6 +2913,13 @@
 
   .ribbon-tool {
     min-width: 54px;
+  }
+}
+
+@media (max-width: 720px) {
+  .ribbon-overflow-menu {
+    width: min(340px, calc(100vw - 16px));
+    grid-template-columns: 1fr;
   }
 }
 

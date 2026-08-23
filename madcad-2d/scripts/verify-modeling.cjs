@@ -9,6 +9,7 @@ const emptyOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-empty
 const sketchOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-sketch.png');
 const directOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-direct-extrude.png');
 const narrowOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-narrow.png');
+const ribbonOverflowOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-ribbon-overflow.png');
 const verificationStartedAt = Date.now();
 const isCi = Boolean(process.env.CI);
 const modelingTimeoutMs = isCi ? 60000 : 20000;
@@ -2656,9 +2657,20 @@ app.whenReady().then(async () => {
       height: innerHeight,
       horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       coreToolbarVisible: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent === 'Utwórz szkic'),
+      ribbonOverflowVisible: Boolean(document.querySelector('.ribbon-overflow-trigger')),
+      ribbonHasHiddenGroups: document.querySelectorAll('.ribbon-group[hidden]').length > 0,
       timelineVisible: Boolean(document.querySelector('.timeline')),
       repairPanelCompact: !document.querySelector('.reference-repair-panel') || document.querySelector('.reference-repair-panel')?.classList.contains('collapsed'),
     })`);
+    await window.webContents.executeJavaScript(`document.querySelector('.ribbon-overflow-trigger')?.click()`);
+    await waitForUi(window, `Boolean(document.querySelector('.ribbon-overflow-menu'))`, 'menu przepełnienia wstążki');
+    const ribbonOverflow = await window.webContents.executeJavaScript(`({
+      groups: [...document.querySelectorAll('.ribbon-overflow-section > strong')].map((item) => item.textContent.trim()),
+      tools: document.querySelectorAll('.ribbon-overflow-tool').length,
+      disabledTools: document.querySelectorAll('.ribbon-overflow-tool:disabled').length,
+    })`);
+    await fs.writeFile(ribbonOverflowOutputPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`document.querySelector('.ribbon-overflow-trigger')?.click()`);
     window.setContentSize(1936, 1017);
     process.stdout.write('[verify] exporting STL, STEP and 3MF\n');
     const stl = await verifyExport(window, 'STL');
@@ -2675,10 +2687,10 @@ app.whenReady().then(async () => {
     const slowBody = workerPerformance.bodies?.find((body) => body.durationMs > performanceBudgets.displayMeshPerBodyMs);
     if (slowBody) throw new Error(`Body meshing exceeded budget: ${JSON.stringify(slowBody)}.`);
     performance.worker = workerPerformance;
-    const report = { ...result, licenseUi, licenseDialog, screenshot: outputPath, narrowScreenshot: narrowOutputPath, narrowViewport, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, wcag, englishUi, performance, rendererMessages };
+    const report = { ...result, licenseUi, licenseDialog, screenshot: outputPath, narrowScreenshot: narrowOutputPath, ribbonOverflowScreenshot: ribbonOverflowOutputPath, narrowViewport, ribbonOverflow, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, wcag, englishUi, performance, rendererMessages };
     await fs.writeFile(path.join(path.dirname(outputPath), 'verification-report.json'), JSON.stringify(report, null, 2));
     process.stdout.write(`${JSON.stringify(report)}\n`);
-    if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.timelineVisible || !narrowViewport.repairPanelCompact) process.exitCode = 1;
+    if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.ribbonOverflowVisible || !narrowViewport.ribbonHasHiddenGroups || !ribbonOverflow.groups.length || !ribbonOverflow.tools || !narrowViewport.timelineVisible || !narrowViewport.repairPanelCompact) process.exitCode = 1;
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);
     exitCode = 1;

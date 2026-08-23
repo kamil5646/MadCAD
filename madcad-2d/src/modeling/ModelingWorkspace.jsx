@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -24,6 +24,7 @@ import {
   Layers3,
   Maximize2,
   Minus,
+  MoreHorizontal,
   MousePointer2,
   Move,
   Move3d,
@@ -389,11 +390,176 @@ function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = fa
   );
 }
 
-function RibbonGroup({ children, end = false, label }) {
+const RibbonGroup = React.forwardRef(function RibbonGroup({ children, end = false, hidden = false, label }, ref) {
   return (
-    <div className={`ribbon-group ${end ? 'ribbon-group-end' : ''}`} aria-label={label}>
+    <div ref={ref} className={`ribbon-group ${end ? 'ribbon-group-end' : ''}`} role="group" aria-label={label} hidden={hidden}>
       <div className="ribbon-group-heading">{label}</div>
       <div className="ribbon-tools">{children}</div>
+    </div>
+  );
+});
+
+function flattenRibbonGroups(children) {
+  const groups = [];
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return;
+    if (child.type === React.Fragment) groups.push(...flattenRibbonGroups(child.props.children));
+    else groups.push(child);
+  });
+  return groups;
+}
+
+export function calculateVisibleRibbonGroups(widths, availableWidth, stickyIndices = [], overflowWidth = 78) {
+  const sticky = new Set(stickyIndices);
+  const normalIndices = widths.map((_, index) => index).filter((index) => !sticky.has(index));
+  const stickyWidth = stickyIndices.reduce((total, index) => total + (widths[index] || 0), 0);
+  const fullWidth = widths.reduce((total, width) => total + width, 0);
+  if (fullWidth <= availableWidth) return { visible: normalIndices, hidden: [] };
+
+  const budget = Math.max(0, availableWidth - stickyWidth - overflowWidth);
+  const visible = [];
+  let used = 0;
+  for (const index of normalIndices) {
+    const width = widths[index] || 0;
+    if (used + width > budget) break;
+    visible.push(index);
+    used += width;
+  }
+  return { visible, hidden: normalIndices.filter((index) => !visible.includes(index)) };
+}
+
+function RibbonOverflowTool({ tool, onSelect }) {
+  if (!React.isValidElement(tool)) return null;
+  const { disabled = false, icon: Icon, label, onClick, description, title } = tool.props;
+  const help = description || title || TOOL_DESCRIPTIONS[label] || label;
+  return (
+    <button
+      className="ribbon-overflow-tool"
+      style={toolColorStyle(label)}
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      title={help}
+      onClick={(event) => {
+        onClick?.(event);
+        onSelect();
+      }}
+    >
+      {Icon && <span className="ribbon-overflow-icon" aria-hidden="true"><ToolGlyph icon={Icon} compact /></span>}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function RibbonOverflow({ groups }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (event) => {
+      if (!menuRef.current?.contains(event.target)) setOpen(false);
+    };
+    const closeWithEscape = (event) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', closeWithEscape);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', closeWithEscape);
+    };
+  }, [open]);
+  if (!groups.length) return null;
+  return (
+    <div className="ribbon-overflow" ref={menuRef}>
+      <button
+        className={`ribbon-overflow-trigger ${open ? 'active' : ''}`}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Pokaż pozostałe narzędzia"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <MoreHorizontal size={20} aria-hidden="true" />
+        <span>Więcej</span>
+      </button>
+      {open && (
+        <div className={`ribbon-overflow-menu ${groups.length === 1 ? 'single-group' : ''}`} role="menu" aria-label="Pozostałe narzędzia">
+          {groups.map((group, groupIndex) => (
+            <section className="ribbon-overflow-section" key={`${group.props.label}-${groupIndex}`} role="none">
+              <strong>{group.props.label}</strong>
+              <div>
+                {React.Children.map(group.props.children, (tool) => (
+                  <RibbonOverflowTool tool={tool} onSelect={() => setOpen(false)} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResponsiveRibbon({ children }) {
+  const groups = flattenRibbonGroups(children);
+  const groupSignature = groups.map((group) => `${group.props.label}:${group.props.end ? '1' : '0'}`).join('|');
+  const groupCount = groups.length;
+  const stickyKey = groups.map((group, index) => (group.props.end ? index : -1)).filter((index) => index >= 0).join(',');
+  const containerRef = useRef(null);
+  const groupRefs = useRef([]);
+  const measuredWidths = useRef([]);
+  const [layout, setLayout] = useState({ visible: groups.map((_, index) => index), hidden: [] });
+
+  useLayoutEffect(() => {
+    measuredWidths.current = [];
+    setLayout({ visible: Array.from({ length: groupCount }, (_, index) => index), hidden: [] });
+  }, [groupCount, groupSignature]);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+    const update = () => {
+      groupRefs.current.forEach((node, index) => {
+        if (!node) return;
+        const width = Math.ceil(node.getBoundingClientRect().width);
+        if (width > 0) measuredWidths.current[index] = width;
+      });
+      if (measuredWidths.current.length < groupCount || measuredWidths.current.some((width) => !width)) return;
+      const stickyIndices = stickyKey ? stickyKey.split(',').map(Number) : [];
+      const next = calculateVisibleRibbonGroups(measuredWidths.current, container.clientWidth, stickyIndices);
+      setLayout((current) => (
+        current.visible.join(',') === next.visible.join(',') && current.hidden.join(',') === next.hidden.join(',')
+          ? current
+          : next
+      ));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(container);
+    groupRefs.current.forEach((node) => { if (node) observer.observe(node); });
+    return () => observer.disconnect();
+  }, [groupCount, groupSignature, stickyKey]);
+
+  const stickyIndices = new Set(stickyKey ? stickyKey.split(',').map(Number) : []);
+  const visibleIndices = new Set(layout.visible);
+  const hiddenGroups = layout.hidden.map((index) => groups[index]);
+  return (
+    <div ref={containerRef} className="modeling-ribbon" role="toolbar" aria-label="Narzędzia aktywnego obszaru roboczego" tabIndex="0">
+      <div className="ribbon-visible-groups">
+        {groups.map((group, index) => stickyIndices.has(index) ? null : React.cloneElement(group, {
+          key: group.key || `${group.props.label}-${index}`,
+          ref: (node) => { groupRefs.current[index] = node; },
+          hidden: !visibleIndices.has(index),
+        }))}
+      </div>
+      <RibbonOverflow groups={hiddenGroups} />
+      <div className="ribbon-sticky-groups">
+        {groups.map((group, index) => stickyIndices.has(index) ? React.cloneElement(group, {
+          key: `sticky-${group.key || `${group.props.label}-${index}`}`,
+          ref: (node) => { groupRefs.current[index] = node; },
+        }) : null)}
+      </div>
     </div>
   );
 }
@@ -4485,7 +4651,7 @@ export default function ModelingWorkspace() {
           <nav className="workspace-tabs" aria-label="Obszary robocze">
             {activeSketchId ? <button className="active" type="button" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item) => <button id={item.id === 'print' ? 'printWorkspaceBtn' : undefined} key={item.id} className={workspace === item.id ? 'active' : ''} type="button" title={item.id === 'solid' ? 'Szkicowanie 2D i modelowanie parametryczne 3D.' : item.id === 'tools' ? 'Parametry i narzędzia dokumentu.' : 'Eksport CAD oraz opcjonalne przygotowanie druku 3D.'} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
           </nav>
-          <div className="modeling-ribbon" role="toolbar" aria-label="Narzędzia aktywnego obszaru roboczego" tabIndex="0">
+          <ResponsiveRibbon>
             {activeSketchId ? (
               <>
                 <RibbonGroup label="RYSUJ 2D"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /></RibbonGroup>
@@ -4519,7 +4685,7 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="WYBÓR" end><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
               </>
             )}
-          </div>
+          </ResponsiveRibbon>
         </div>
       </section>
 

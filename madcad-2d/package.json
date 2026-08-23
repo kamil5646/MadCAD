@@ -18,6 +18,7 @@
     "verify:modeling": "npm run build:ui && electron scripts/verify-modeling.cjs",
     "verify:model-import": "npm run build:ui && electron scripts/verify-model-import.cjs",
     "verify:start-experience": "npm run build:ui && electron scripts/verify-start-experience.cjs",
+    "verify:ribbon": "npm run build:ui && electron scripts/verify-ribbon-overflow.cjs",
     "verify:snap-feedback": "npm run build:ui && electron scripts/verify-snap-feedback.cjs",
     "verify:electron-security": "electron scripts/verify-electron-security.cjs",
     "verify:package": "node scripts/verify-package.cjs",
