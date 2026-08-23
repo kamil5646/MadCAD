@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowLeft,
   ArrowRight,
   Box,
   Check,
@@ -31,6 +32,7 @@ import {
   PanelLeft,
   PanelLeftClose,
   PanelRight,
+  Pencil,
   PencilRuler,
   Printer,
   Redo2,
@@ -47,6 +49,7 @@ import {
   StepBack,
   StepForward,
   Triangle,
+  Trash2,
   Type,
   Undo2,
   Variable,
@@ -63,6 +66,7 @@ import {
   createParameter,
   createRectangleProfile,
   createSketch,
+  createStarterDocument,
   openDocument,
   touchDocument,
 } from '../cad-core/document.js';
@@ -120,6 +124,13 @@ import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit } from '../cad-core/model-import.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
+import {
+  deleteTimelineFeatureCascade,
+  dependentTimelineFeatureIds,
+  moveTimelineFeature,
+  renameTimelineFeature,
+  setTimelineFeatureSuppressed,
+} from '../cad-core/timeline-operations.js';
 import { observeModelingLocalization, resolveModelingLanguage } from './i18n.js';
 import { FirstPartTutorial, FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './AppDialogs.jsx';
 import { CommandLine } from './CommandLine.jsx';
@@ -1481,6 +1492,8 @@ export default function ModelingWorkspace() {
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(false);
   const [printPanelOpen, setPrintPanelOpen] = useState(false);
+  const [timelineRename, setTimelineRename] = useState(null);
+  const [timelineDeleteId, setTimelineDeleteId] = useState(null);
   const panelScreenKeyRef = useRef(panelScreenKey(window.screen));
   const [panelLayout, setPanelLayout] = useState(() => readPanelLayout(window.localStorage, window.screen));
   const [recoveryInfo, setRecoveryInfo] = useState(() => initialOpen.recovered ? {
@@ -3124,6 +3137,20 @@ export default function ModelingWorkspace() {
       setSelection({ kind: 'sketchPoint', id: referencePoint.id, sketchId: pointSketch.id });
       setCommand(null);
     };
+    window.__madcadVerifyLoadTimelineFixture = () => {
+      const fixture = createStarterDocument();
+      fixture.features.push(createFeature('primitive', {
+        name: 'Niezależny korpus',
+        primitiveType: 'box',
+        x: '70', y: '0', z: '0',
+        width: '12', depth: '12', height: '12',
+      }));
+      history.replace(fixture);
+      setActiveSketchId(null);
+      setWorkspace('solid');
+      setSelection({ kind: 'document', id: fixture.id });
+      setCommand(null);
+    };
     window.__madcadVerifyDocumentState = {
       schemaVersion: document.schemaVersion,
       sketches: document.sketches.map((sketch) => ({
@@ -3140,7 +3167,7 @@ export default function ModelingWorkspace() {
       })),
       features: document.features.length,
       featureIds: document.features.map((feature) => feature.id),
-      featureData: document.features.map((feature) => ({ id: feature.id, type: feature.type, sketchId: feature.sketchId, sketchIds: feature.sketchIds, profileId: feature.profileId, profileIds: feature.profileIds, pathSketchId: feature.pathSketchId, pathEntityIds: feature.pathEntityIds, loftMode: feature.loftMode, ribMode: feature.ribMode, patternType: feature.patternType, countX: feature.countX, countY: feature.countY, spacingX: feature.spacingX, spacingY: feature.spacingY, occurrences: feature.occurrences, totalAngle: feature.totalAngle, thickness: feature.thickness, reverse: feature.reverse, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, outsideDiameter: feature.outsideDiameter, wallSide: feature.wallSide, endCap: feature.endCap, openEntityIds: feature.openEntityIds, depth: feature.depth, diameter: feature.diameter, coilDiameter: feature.coilDiameter, wireDiameter: feature.wireDiameter, pitch: feature.pitch, turns: feature.turns, handedness: feature.handedness, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, neutralPlaneId: feature.neutralPlaneId, planeId: feature.planeId, axisId: feature.axisId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
+      featureData: document.features.map((feature) => ({ id: feature.id, name: feature.name, type: feature.type, suppressed: feature.suppressed, sketchId: feature.sketchId, sketchIds: feature.sketchIds, profileId: feature.profileId, profileIds: feature.profileIds, pathSketchId: feature.pathSketchId, pathEntityIds: feature.pathEntityIds, loftMode: feature.loftMode, ribMode: feature.ribMode, patternType: feature.patternType, countX: feature.countX, countY: feature.countY, spacingX: feature.spacingX, spacingY: feature.spacingY, occurrences: feature.occurrences, totalAngle: feature.totalAngle, thickness: feature.thickness, reverse: feature.reverse, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, outsideDiameter: feature.outsideDiameter, wallSide: feature.wallSide, endCap: feature.endCap, openEntityIds: feature.openEntityIds, depth: feature.depth, diameter: feature.diameter, coilDiameter: feature.coilDiameter, wireDiameter: feature.wireDiameter, pitch: feature.pitch, turns: feature.turns, handedness: feature.handedness, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, neutralPlaneId: feature.neutralPlaneId, planeId: feature.planeId, axisId: feature.axisId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
       references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, rotationAxis: reference.rotationAxis, angle: reference.angle, surfaceType: reference.surfaceType, center: reference.center, point: reference.point, axis: reference.axis, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, distance: reference.distance, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
@@ -3180,6 +3207,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyUpdateConstraint;
       delete window.__madcadVerifyReopenAutosave;
       delete window.__madcadVerifyLoadPointHoleFixture;
+      delete window.__madcadVerifyLoadTimelineFixture;
       delete window.__madcadVerifyDocumentState;
     };
   // Verification hooks refresh only when the state exposed to the desktop harness changes.
@@ -4509,7 +4537,78 @@ export default function ModelingWorkspace() {
         : Math.min(document.features.length - 1, currentIndex + 1);
     const feature = document.features[nextIndex];
     setSelection({ kind: 'feature', id: feature.id });
+    setTimelineRename(null);
+    setTimelineDeleteId(null);
     setNotice(`${nextIndex + 1}. ${feature.name}`);
+  };
+
+  const selectTimelineFeature = (feature, index) => {
+    setSelection({ kind: 'feature', id: feature.id });
+    setTimelineRename(null);
+    setTimelineDeleteId(null);
+    setNotice(`${index + 1}. ${feature.name}`);
+  };
+
+  const moveSelectedTimelineFeature = (delta) => {
+    if (readOnly || selection?.kind !== 'feature') return readOnly ? readOnlyNotice() : undefined;
+    const result = moveTimelineFeature(document, selection.id, delta);
+    if (!result.ok) {
+      setNotice(`Nie można zmienić kolejności: ${result.reason}`);
+      return;
+    }
+    commit((next) => { next.features = result.features; });
+    setTimelineDeleteId(null);
+    setNotice(`Przeniesiono operację na pozycję ${result.toIndex + 1}. Zależności modelu pozostały poprawne.`);
+  };
+
+  const toggleSelectedTimelineFeature = () => {
+    if (readOnly || selection?.kind !== 'feature') return readOnly ? readOnlyNotice() : undefined;
+    const feature = document.features.find((item) => item.id === selection.id);
+    if (!feature) return;
+    const suppressed = !feature.suppressed;
+    commit((next) => { setTimelineFeatureSuppressed(next, feature.id, suppressed); });
+    setTimelineDeleteId(null);
+    setNotice(suppressed ? `Wyłączono „${feature.name}”. Operacje zależne zostaną oznaczone na osi czasu.` : `Włączono „${feature.name}” i uruchomiono ponowne przeliczenie historii.`);
+  };
+
+  const beginTimelineRename = () => {
+    if (readOnly || selection?.kind !== 'feature') return readOnly ? readOnlyNotice() : undefined;
+    const feature = document.features.find((item) => item.id === selection.id);
+    if (!feature) return;
+    setTimelineDeleteId(null);
+    setTimelineRename({ id: feature.id, value: feature.name });
+  };
+
+  const confirmTimelineRename = () => {
+    const nextName = String(timelineRename?.value || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+    if (!timelineRename?.id || !nextName) {
+      setNotice('Nazwa operacji nie może być pusta.');
+      return;
+    }
+    commit((next) => { renameTimelineFeature(next, timelineRename.id, nextName); });
+    setTimelineRename(null);
+    setNotice(`Zmieniono nazwę operacji na „${nextName}”.`);
+  };
+
+  const requestTimelineDelete = () => {
+    if (readOnly || selection?.kind !== 'feature') return readOnly ? readOnlyNotice() : undefined;
+    setTimelineRename(null);
+    setTimelineDeleteId(selection.id);
+  };
+
+  const confirmTimelineDelete = () => {
+    if (!timelineDeleteId) return;
+    const deletedIds = dependentTimelineFeatureIds(document, timelineDeleteId);
+    const deletedSet = new Set(deletedIds);
+    const deletedIndex = document.features.findIndex((feature) => feature.id === timelineDeleteId);
+    const nextSelection = document.features.slice(deletedIndex + 1).find((feature) => !deletedSet.has(feature.id))
+      || [...document.features.slice(0, deletedIndex)].reverse().find((feature) => !deletedSet.has(feature.id));
+    commit((next) => { deleteTimelineFeatureCascade(next, timelineDeleteId); });
+    setTimelineDeleteId(null);
+    setTimelineRename(null);
+    setCommand(null);
+    setSelection(nextSelection ? { kind: 'feature', id: nextSelection.id } : { kind: 'document', id: document.id });
+    setNotice(`Usunięto ${deletedIds.length} ${deletedIds.length === 1 ? 'operację' : 'operacje'} z osi czasu wraz z zależnościami.`);
   };
 
   const handleBrowserSelection = (nextSelection) => {
@@ -4641,6 +4740,16 @@ export default function ModelingWorkspace() {
   useEffect(() => {
     const onKeyDown = (event) => {
       const textEntry = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName) || event.target?.isContentEditable;
+      if (timelineRename && event.key === 'Escape') {
+        event.preventDefault();
+        setTimelineRename(null);
+        return;
+      }
+      if (!textEntry && !command && selection?.kind === 'feature' && event.key === 'F2' && !readOnly) {
+        event.preventDefault();
+        beginTimelineRename();
+        return;
+      }
       if (!textEntry && !command && (event.ctrlKey || event.metaKey) && event.key === 'Enter' && activeSketchId) {
         event.preventDefault();
         finishSketch();
@@ -4710,6 +4819,11 @@ export default function ModelingWorkspace() {
         deleteSelectedSketchEntities();
         return;
       }
+      if ((event.key === 'Delete' || event.key === 'Backspace') && !textEntry && !command && selection?.kind === 'feature' && !readOnly) {
+        event.preventDefault();
+        requestTimelineDelete();
+        return;
+      }
       if (event.ctrlKey && event.key.toLowerCase() === 'e' && selectedProfile && !activeSketchId && !readOnly) {
         event.preventDefault();
         openExtrude();
@@ -4722,6 +4836,15 @@ export default function ModelingWorkspace() {
   }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, selectedSketchConstraintId, readOnly, history, executeBasicShortcut]);
 
   const timelineStatus = new Map(engine.timeline?.map((item) => [item.id, item]));
+  const selectedTimelineFeature = selection?.kind === 'feature'
+    ? document.features.find((feature) => feature.id === selection.id)
+    : null;
+  const selectedTimelineIndex = selectedTimelineFeature
+    ? document.features.findIndex((feature) => feature.id === selectedTimelineFeature.id)
+    : -1;
+  const timelineDeleteCount = timelineDeleteId
+    ? dependentTimelineFeatureIds(document, timelineDeleteId).length
+    : 0;
   let directManipulator = null;
   if (command?.type === 'transform') {
     const body = engine.bodies.find((item) => item.id === command.targetBodyId) || engine.bodies[0];
@@ -4911,11 +5034,34 @@ export default function ModelingWorkspace() {
         />
         <div className="timeline" role="region" aria-label="Parametryczna oś czasu">
           {document.features.length ? <><div className="timeline-controls"><button type="button" title="Zaznacz pierwszy krok parametrycznej historii." onClick={() => selectTimelineStep('start')}><SkipBack size={14} /></button><button type="button" title="Zaznacz poprzednią operację w historii." onClick={() => selectTimelineStep('previous')}><StepBack size={14} /></button><button type="button" title="Zaznacz następną operację w historii." onClick={() => selectTimelineStep('next')}><StepForward size={14} /></button></div>
+          {selectedTimelineFeature && <div className="timeline-selection-tools" role="toolbar" aria-label={`Zarządzaj operacją ${selectedTimelineFeature.name}`}>
+            {timelineRename?.id === selectedTimelineFeature.id ? (
+              <div className="timeline-rename">
+                <input autoFocus aria-label="Nowa nazwa operacji" maxLength={80} value={timelineRename.value} onChange={(event) => setTimelineRename((current) => ({ ...current, value: event.target.value }))} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); confirmTimelineRename(); } }} />
+                <button type="button" data-timeline-action="confirm-rename" title="Zapisz nazwę" aria-label="Zapisz nazwę" onClick={confirmTimelineRename}><Check size={13} /></button>
+                <button type="button" title="Anuluj zmianę nazwy" aria-label="Anuluj zmianę nazwy" onClick={() => setTimelineRename(null)}><X size={13} /></button>
+              </div>
+            ) : timelineDeleteId === selectedTimelineFeature.id ? (
+              <div className="timeline-delete-confirm" role="alert">
+                <span>Usunąć {timelineDeleteCount === 1 ? 'operację' : `${timelineDeleteCount} operacje`}?</span>
+                <button className="danger" type="button" data-timeline-action="confirm-delete" onClick={confirmTimelineDelete}>Usuń</button>
+                <button type="button" onClick={() => setTimelineDeleteId(null)}>Anuluj</button>
+              </div>
+            ) : <>
+              <strong title={selectedTimelineFeature.name}>{selectedTimelineIndex + 1}. {selectedTimelineFeature.name}</strong>
+              <button type="button" data-timeline-action="edit" title="Edytuj parametry operacji" aria-label="Edytuj parametry operacji" disabled={readOnly} onClick={editSelection}><PencilRuler size={13} /></button>
+              <button type="button" data-timeline-action="rename" title="Zmień nazwę (F2)" aria-label="Zmień nazwę operacji" disabled={readOnly} onClick={beginTimelineRename}><Pencil size={13} /></button>
+              <button type="button" data-timeline-action="move-left" title="Przenieś wcześniej" aria-label="Przenieś operację wcześniej" disabled={readOnly || selectedTimelineIndex === 0} onClick={() => moveSelectedTimelineFeature(-1)}><ArrowLeft size={13} /></button>
+              <button type="button" data-timeline-action="move-right" title="Przenieś później" aria-label="Przenieś operację później" disabled={readOnly || selectedTimelineIndex === document.features.length - 1} onClick={() => moveSelectedTimelineFeature(1)}><ArrowRight size={13} /></button>
+              <button type="button" data-timeline-action="suppress" title={selectedTimelineFeature.suppressed ? 'Włącz operację' : 'Wyłącz operację'} aria-label={selectedTimelineFeature.suppressed ? 'Włącz operację' : 'Wyłącz operację'} disabled={readOnly} onClick={toggleSelectedTimelineFeature}>{selectedTimelineFeature.suppressed ? <Eye size={13} /> : <EyeOff size={13} />}</button>
+              <button className="danger" type="button" data-timeline-action="delete" title="Usuń operację i zależności" aria-label="Usuń operację i zależności" disabled={readOnly} onClick={requestTimelineDelete}><Trash2 size={13} /></button>
+            </>}
+          </div>}
           <span className="timeline-start" />
           {document.features.map((feature, index) => {
             const result = timelineStatus.get(feature.id);
             return (
-              <button key={feature.id} className={`timeline-item ${selection?.kind === 'feature' && selection.id === feature.id ? 'selected' : ''} ${lostReferenceOwnerIds.has(feature.id) ? 'warning reference-lost' : result?.status || ''}`} type="button" onClick={() => setSelection({ kind: 'feature', id: feature.id })} onDoubleClick={editSelection} title={`${index + 1}. ${feature.name}${lostReferenceOwnerIds.has(feature.id) ? ' — utracona referencja topologii' : result?.error ? ` — ${result.error}` : ''}`}>
+              <button key={feature.id} className={`timeline-item ${selection?.kind === 'feature' && selection.id === feature.id ? 'selected' : ''} ${feature.suppressed ? 'suppressed' : ''} ${lostReferenceOwnerIds.has(feature.id) ? 'warning reference-lost' : result?.status || ''}`} type="button" aria-current={selection?.kind === 'feature' && selection.id === feature.id ? 'step' : undefined} aria-label={`${index + 1}. ${feature.name}${feature.suppressed ? ', operacja wyłączona' : ''}`} onClick={() => selectTimelineFeature(feature, index)} onDoubleClick={editSelection} title={`${index + 1}. ${feature.name}${feature.suppressed ? ' — wyłączona' : lostReferenceOwnerIds.has(feature.id) ? ' — utracona referencja topologii' : result?.error ? ` — ${result.error}` : ''}`}>
                 {featureIcon(feature.type, 16)}<span>{index + 1}</span>
               </button>
             );

@@ -3056,6 +3056,7 @@
 
 .timeline-controls {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 1px;
   margin-right: 5px;
@@ -3075,6 +3076,95 @@
 .timeline-controls button:hover {
   background: #46515f;
   color: white;
+}
+
+.timeline-selection-tools {
+  display: flex;
+  height: 29px;
+  max-width: min(455px, 48vw);
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1px;
+  margin-right: 4px;
+  padding: 2px 3px 2px 7px;
+  border: 1px solid #52606d;
+  border-radius: 2px;
+  background: #26313d;
+}
+
+.timeline-selection-tools > strong {
+  width: 128px;
+  overflow: hidden;
+  color: #d9e2e9;
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-selection-tools button {
+  display: grid;
+  min-width: 24px;
+  height: 23px;
+  place-items: center;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #bac5ce;
+  padding: 0 5px;
+  cursor: pointer;
+}
+
+.timeline-selection-tools button:hover:not(:disabled) {
+  background: #465563;
+  color: white;
+}
+
+.timeline-selection-tools button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.timeline-selection-tools button.danger {
+  color: #ffaaa5;
+}
+
+.timeline-selection-tools button.danger:hover:not(:disabled) {
+  background: #713f43;
+}
+
+.timeline-rename,
+.timeline-delete-confirm {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.timeline-rename input {
+  width: 172px;
+  height: 23px;
+  border: 1px solid #31b8e4;
+  border-radius: 2px;
+  outline: 0;
+  background: #18222c;
+  color: white;
+  padding: 2px 6px;
+  font-size: 10px;
+}
+
+.timeline-delete-confirm span {
+  max-width: 146px;
+  overflow: hidden;
+  color: #ffd1ce;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-delete-confirm button {
+  min-width: auto;
+  font-size: 9px;
 }
 
 .timeline-start,
@@ -3135,6 +3225,15 @@
 
 .timeline-item.suppressed {
   opacity: 0.5;
+}
+
+.timeline-item.suppressed::after {
+  position: absolute;
+  width: 34px;
+  height: 1px;
+  background: #f0a7a2;
+  content: "";
+  transform: rotate(-39deg);
 }
 
 @media (max-width: 1180px) {
