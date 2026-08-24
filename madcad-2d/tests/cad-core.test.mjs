@@ -141,6 +141,7 @@ import {
   insertBlockInstance,
   updateBlockInstanceAttributes,
 } from '../src/cad-core/blocks.js';
+import { calculateExplodedOffsets } from '../src/cad-core/exploded-view.js';
 import { resolveModelingLanguage, translateModelingText } from '../src/modeling/i18n.js';
 import { tutorialForLanguage } from '../src/modeling/tutorial-content.js';
 import {
@@ -166,6 +167,16 @@ import {
 } from '../src/cad-core/sketch-primitives.js';
 
 const { atomicWriteTextFile } = atomicFile;
+
+test('widok rozstrzelony wyznacza deterministyczne przesunięcia bez zmiany położeń złożenia', () => {
+  const occurrences = [{ id: 'left', position: [-10, 0, 0] }, { id: 'right', position: [10, 0, 0] }];
+  assert.deepEqual(calculateExplodedOffsets(occurrences, 0.5, 40), { left: [-20, 0, 0], right: [20, 0, 0] });
+  assert.deepEqual(occurrences[0].position, [-10, 0, 0]);
+  const coincident = calculateExplodedOffsets([{ id: 'a' }, { id: 'b' }], 1, 25);
+  assert.ok(Math.abs(Math.hypot(...coincident.a) - 25) < 1e-9);
+  assert.notDeepEqual(coincident.a, coincident.b);
+  assert.deepEqual(calculateExplodedOffsets([{ id: 'a' }], 0, 25), { a: [0, 0, 0] });
+});
 
 test('komponenty budują bezpieczną hierarchię części i złożeń z własnością brył', () => {
   const document = createDocument('Złożenie');

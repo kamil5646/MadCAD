@@ -73,7 +73,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 ### Render, Animation, Simulation i Generative
 
 - [x] Appearance: presety i parametry wyglądu komponentów ukończono jako `P1.35a`; światło, decals i render lokalny pozostają późniejszym zakresem.
-- Exploded views, storyboard i animacja.
+- [x] Roboczy Exploded View złożeń ukończono jako `P1.35b`; storyboard i animacja pozostają późniejszym zakresem.
 - Walidowane analizy statyczne/termiczne oraz późniejsza optymalizacja topologii.
 
 ### Manufacture / CAM

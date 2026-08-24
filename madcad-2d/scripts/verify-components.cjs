@@ -4,6 +4,7 @@ const { app, BrowserWindow } = require('electron');
 
 const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-components.png');
 const appearanceScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-component-appearance.png');
+const explodedScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-exploded-view.png');
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
   const startedAt = Date.now();
@@ -96,6 +97,13 @@ app.whenReady().then(async () => {
     if (!(await clickByText(window, '.component-instance-properties .component-actions button', 'Powiel'))) throw new Error('Nie znaleziono polecenia Powiel wystąpienie.');
     await waitFor(window, `window.__madcadVerifyDocumentState.componentInstances.length === 3 && window.__madcadVerifyDocumentState.selection.kind === 'componentInstance'`, 'powielone wystąpienie');
     const duplicateId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.selection.id`);
+    await setInput(window, 'input[aria-label="Stopień rozstrzelenia złożenia"]', '0.8');
+    await waitFor(window, `window.__madcadModelVisualState?.filter((item) => item.occurrenceId && Math.hypot(...item.explodedOffset) > 1).length >= 2`, 'rozstrzelony widok dwóch wystąpień');
+    await window.webContents.executeJavaScript(`document.querySelector('.component-exploded-view')?.scrollIntoView({ block: 'start' })`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'`, 'gotowy model widoku rozstrzelonego');
+    await fs.writeFile(explodedScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    await clickByText(window, '.component-exploded-view button', 'Złóż');
+    await waitFor(window, `window.__madcadModelVisualState?.every((item) => Math.hypot(...item.explodedOffset) < 1e-6)`, 'złożony widok projektowy');
     await window.webContents.executeJavaScript(`(() => {
       const select = document.querySelector('select[aria-label="Drugie wystąpienie grupy sztywnej"]');
       const option = [...select.options].find((item) => item.value);
@@ -245,7 +253,7 @@ app.whenReady().then(async () => {
     if (result.schemaVersion !== 15 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.appearance?.preset !== 'brass' || result.appearance?.color !== '#c49a49' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.interferenceStatus !== 'exact' || !result.interferenceBounds.includes('Nakładanie obwiedni:') || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
       throw new Error(`Niepoprawny przepływ komponentów: ${JSON.stringify(result)}`);
     }
-    process.stdout.write(`${JSON.stringify({ screenshotPath, appearanceScreenshotPath, ...result }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ screenshotPath, appearanceScreenshotPath, explodedScreenshotPath, ...result }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

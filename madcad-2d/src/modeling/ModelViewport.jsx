@@ -12,6 +12,7 @@ import { lineTypeDefinition, resolveEntityAppearance } from '../cad-core/layers.
 import { inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-suggestions.js';
 import { describeSketchDegreesOfFreedom } from '../cad-core/sketch-freedom-diagnostics.js';
 import { normalizeComponentAppearance } from '../cad-core/components.js';
+import { calculateExplodedOffsets } from '../cad-core/exploded-view.js';
 
 const VIEW_DIRECTIONS = {
   iso: [1.25, -1.45, 1.15],
@@ -412,6 +413,7 @@ export default function ModelViewport({
   selectedJointId = null,
   collisionInstanceIds = [],
   exactCollisionInstanceIds = [],
+  explodeAmount = 0,
   cameraRequest = null,
   onCameraStateChange,
   onSelectBody,
@@ -447,6 +449,7 @@ export default function ModelViewport({
   const directDragRef = useRef(null);
   const cameraApiRef = useRef(null);
   const cameraSnapshotRef = useRef(null);
+  const lastExplodeAmountRef = useRef(explodeAmount);
   const lastCameraRequestIdRef = useRef('');
   const cameraChangeRef = useRef(onCameraStateChange);
   const sketchInteractionRef = useRef({ activeSketchId: null, start: null, drag: null, box: null });
@@ -542,6 +545,8 @@ export default function ModelViewport({
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return undefined;
+    const explodeAmountChanged = lastExplodeAmountRef.current !== explodeAmount;
+    lastExplodeAmountRef.current = explodeAmount;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#2c333e');
@@ -644,6 +649,14 @@ export default function ModelViewport({
       matrixCache.set(instance.id, world.clone());
       return world;
     };
+    const bodyIdSet = new Set(bodies.map((body) => body.id));
+    const explodedSpacing = Math.max(20, ...bodies.flatMap((body) => body.metrics?.dimensions || [])) * 0.85;
+    const explodedOffsets = calculateExplodedOffsets(componentInstances
+      .filter((instance) => instance.visible && components.find((component) => component.id === instance.componentId)?.bodyIds?.some((bodyId) => bodyIdSet.has(bodyId)))
+      .map((instance) => {
+        const matrix = occurrenceMatrix(instance);
+        return { id: instance.id, position: [matrix.elements[12], matrix.elements[13], matrix.elements[14]] };
+      }), explodeAmount, explodedSpacing);
     for (const body of bodies) {
       const component = componentByBodyId.get(body.id);
       const knownOccurrences = component ? occurrencesByComponent.get(component.id) || [] : [];
@@ -653,7 +666,10 @@ export default function ModelViewport({
       for (const placement of placements) {
       const placeObject = (object) => {
         if (placement.matrix) object.applyMatrix4(placement.matrix);
+        const explodedOffset = explodedOffsets[placement.occurrenceId];
+        if (explodedOffset) object.position.add(new THREE.Vector3(...explodedOffset));
         object.userData.occurrenceId = placement.occurrenceId;
+        object.userData.explodedOffset = explodedOffset || [0, 0, 0];
         return object;
       };
       const geometry = new THREE.BufferGeometry();
@@ -664,13 +680,14 @@ export default function ModelViewport({
       const selected = selectedBodySet.has(body.id) || placement.occurrenceId === selectedComponentInstanceId;
       const colliding = collisionInstanceSet.has(placement.occurrenceId);
       const exactCollision = exactCollisionInstanceSet.has(placement.occurrenceId);
+      const showCollisionColor = explodeAmount <= 0;
       const appearance = normalizeComponentAppearance(component?.appearance);
       const material = new THREE.MeshStandardMaterial({
-        color: exactCollision ? '#ef6a6a' : colliding ? '#f09a52' : selected ? '#72c9eb' : component ? appearance.color : body.color,
+        color: showCollisionColor && exactCollision ? '#ef6a6a' : showCollisionColor && colliding ? '#f09a52' : selected ? '#72c9eb' : component ? appearance.color : body.color,
         metalness: appearance.metalness,
         roughness: appearance.roughness,
-        emissive: exactCollision ? '#5a1111' : colliding ? '#5b2d0c' : selected ? '#10394a' : '#000000',
-        emissiveIntensity: exactCollision ? 0.9 : colliding ? 0.75 : selected ? 0.7 : 0,
+        emissive: showCollisionColor && exactCollision ? '#5a1111' : showCollisionColor && colliding ? '#5b2d0c' : selected ? '#10394a' : '#000000',
+        emissiveIntensity: showCollisionColor && exactCollision ? 0.9 : showCollisionColor && colliding ? 0.75 : selected ? 0.7 : 0,
         transparent: Boolean(activeSketchId),
         opacity: activeSketchId ? 0.38 : 1,
         side: THREE.DoubleSide,
@@ -1083,7 +1100,7 @@ export default function ModelViewport({
     if ((activeSketch ? sketchView : view) === 'top') camera.up.set(0, 1, 0);
     camera.position.set(center.x + direction[0] * radius * 1.7 * zoomScale, center.y + direction[1] * radius * 1.7 * zoomScale, center.z + direction[2] * radius * 1.7 * zoomScale);
     controls.target.copy(center);
-    if (!activeSketch && cameraSnapshotRef.current) {
+    if (!activeSketch && cameraSnapshotRef.current && !explodeAmountChanged) {
       camera.position.fromArray(cameraSnapshotRef.current.position);
       camera.up.fromArray(cameraSnapshotRef.current.up);
       controls.target.fromArray(cameraSnapshotRef.current.target);
@@ -1811,6 +1828,7 @@ export default function ModelViewport({
           color: `#${object.material.color.getHexString()}`,
           metalness: object.material.metalness,
           roughness: object.material.roughness,
+          explodedOffset: object.userData.explodedOffset,
         }));
       }
     };
@@ -1873,7 +1891,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

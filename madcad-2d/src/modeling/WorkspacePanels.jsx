@@ -83,7 +83,7 @@ export function LayersPanel({ document, selectedEntities = [], readOnly = false,
   );
 }
 
-export function ComponentPanel({ document, bodies = [], collisionResult = { collisions: [], contactSets: [], checkedPairs: 0 }, selectedComponentId = '', selectedInstanceId = '', selectedJointId = '', selectedMotionLinkId = '', selectedConfigurationId = '', selectedContactSetId = '', selectedBodyIds = [], linkedProjectStatuses = {}, readOnly = false, onCreate, onLinkProject, onPackAndGo, onRefreshLinkedProject, onRepairLinkedProject, onUpdate, onAssignBodies, onMove, onDelete, onSelect, onSelectInstance, onCreateInstance, onUpdateInstance, onDuplicateInstance, onDeleteInstance, onCreateRigidGroup, onDeleteRigidGroup, onSelectJoint, onCreateJoint, onUpdateJoint, onSetJointValue, onDeleteJoint, onSelectMotionLink, onCreateMotionLink, onUpdateMotionLink, onDeleteMotionLink, onSelectConfiguration, onCreateConfiguration, onUpdateConfiguration, onApplyConfiguration, onDeleteConfiguration, onSelectContactSet, onCreateContactSet, onUpdateContactSet, onDeleteContactSet, onClose }) {
+export function ComponentPanel({ document, bodies = [], collisionResult = { collisions: [], contactSets: [], checkedPairs: 0 }, selectedComponentId = '', selectedInstanceId = '', selectedJointId = '', selectedMotionLinkId = '', selectedConfigurationId = '', selectedContactSetId = '', selectedBodyIds = [], linkedProjectStatuses = {}, readOnly = false, explodeAmount = 0, onExplodeAmountChange, onCreate, onLinkProject, onPackAndGo, onRefreshLinkedProject, onRepairLinkedProject, onUpdate, onAssignBodies, onMove, onDelete, onSelect, onSelectInstance, onCreateInstance, onUpdateInstance, onDuplicateInstance, onDeleteInstance, onCreateRigidGroup, onDeleteRigidGroup, onSelectJoint, onCreateJoint, onUpdateJoint, onSetJointValue, onDeleteJoint, onSelectMotionLink, onCreateMotionLink, onUpdateMotionLink, onDeleteMotionLink, onSelectConfiguration, onCreateConfiguration, onUpdateConfiguration, onApplyConfiguration, onDeleteConfiguration, onSelectContactSet, onCreateContactSet, onUpdateContactSet, onDeleteContactSet, onClose }) {
   const [rigidMateId, setRigidMateId] = React.useState('');
   const [jointMateId, setJointMateId] = React.useState('');
   const [jointType, setJointType] = React.useState('revolute');
@@ -118,6 +118,7 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
   };
   componentInstanceTree(document).forEach((instance) => collectInstanceRows(instance));
   const instances = React.useMemo(() => document.componentInstances || [], [document.componentInstances]);
+  const explodedOccurrenceCount = instances.filter((instance) => instance.visible && document.components.find((component) => component.id === instance.componentId)?.bodyIds?.length).length;
   const interferenceResult = React.useMemo(() => (
     interferencePair.length === 2 && interferencePair.every((instanceId) => instances.some((instance) => instance.id === instanceId))
       ? detectAssemblyCollisions(document, bodies, { instanceIds: interferencePair })
@@ -156,6 +157,11 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
         <button type="button" data-component-action="create-assembly" disabled={readOnly} onClick={() => onCreate('assembly')}><Boxes size={14} /> Nowe złożenie</button>
         <button type="button" data-component-action="link-project" disabled={readOnly || !onLinkProject} onClick={onLinkProject}><Link2 size={14} /> Linkuj projekt</button>
         <button type="button" data-component-action="pack-and-go" disabled={!onPackAndGo} onClick={onPackAndGo}><PackageOpen size={14} /> Pack &amp; Go</button>
+      </div>
+      <div className={`component-exploded-view ${explodeAmount > 0 ? 'active' : ''}`}>
+        <div><Ungroup size={15} /><span><strong>Widok rozstrzelony</strong><small>{explodeAmount > 0 ? `${Math.round(explodeAmount * 100)}% rozłożenia` : 'Położenia projektowe'}</small></span><button type="button" disabled={!explodeAmount} onClick={() => onExplodeAmountChange?.(0)}>Złóż</button></div>
+        <label><span>Rozłożenie</span><input aria-label="Stopień rozstrzelenia złożenia" type="range" min="0" max="1" step="0.05" value={explodeAmount} disabled={explodedOccurrenceCount < 2} onChange={(event) => onExplodeAmountChange?.(Number(event.target.value))} /><output>{Math.round(explodeAmount * 100)}%</output></label>
+        <p>{explodedOccurrenceCount < 2 ? 'Wstaw co najmniej dwa wystąpienia części.' : 'Tylko podgląd: położenia, jointy i historia modelu pozostają bez zmian.'}</p>
       </div>
       <div className="component-list" aria-label="Struktura dokumentu">
         <div className="component-section-title"><strong>Definicje</strong><span>{document.components.length}</span></div>

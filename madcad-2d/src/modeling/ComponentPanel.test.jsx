@@ -25,6 +25,8 @@ function panelProps(overrides = {}) {
     bodies: [{ id: 'body-1', name: 'Bryła ramy' }, { id: 'body-2', name: 'Pokrywa' }],
     selectedComponentId: 'part-1',
     selectedBodyIds: ['body-2'],
+    explodeAmount: 0,
+    onExplodeAmountChange: vi.fn(),
     onCreate: vi.fn(),
     onUpdate: vi.fn(),
     onAssignBodies: vi.fn(),
@@ -96,6 +98,16 @@ describe('ComponentPanel', () => {
     expect(props.onAssignBodies).toHaveBeenCalledWith('part-1', ['body-2']);
     fireEvent.click(screen.getByRole('button', { name: /^Usuń$/i }));
     expect(props.onDelete).toHaveBeenCalledWith('part-1');
+  });
+
+  it('controls a non-destructive exploded assembly preview', () => {
+    const props = panelProps({ explodeAmount: 0.4 });
+    render(<ComponentPanel {...props} />);
+    fireEvent.change(screen.getByRole('slider', { name: /Stopień rozstrzelenia złożenia/i }), { target: { value: '0.7' } });
+    expect(props.onExplodeAmountChange).toHaveBeenCalledWith(0.7);
+    fireEvent.click(screen.getByRole('button', { name: /^Złóż$/i }));
+    expect(props.onExplodeAmountChange).toHaveBeenCalledWith(0);
+    expect(screen.getByText(/jointy i historia modelu pozostają bez zmian/i)).toBeInTheDocument();
   });
 
   it('creates a revolute joint between sibling occurrences', () => {

@@ -222,6 +222,13 @@ const ENGLISH_TEXT = Object.freeze({
   'Stal szczotkowana': 'Brushed steel',
   'Mosiądz': 'Brass',
   'Tworzywo matowe': 'Matte plastic',
+  'Widok rozstrzelony': 'Exploded view',
+  'Położenia projektowe': 'Design positions',
+  'Złóż': 'Collapse',
+  'Rozłożenie': 'Separation',
+  'Stopień rozstrzelenia złożenia': 'Assembly explosion amount',
+  'Wstaw co najmniej dwa wystąpienia części.': 'Insert at least two part occurrences.',
+  'Tylko podgląd: położenia, jointy i historia modelu pozostają bez zmian.': 'Preview only: positions, joints, and model history remain unchanged.',
   'Ilość komponentu': 'Component quantity',
   'Złożenie nadrzędne': 'Parent assembly',
   'Opis komponentu': 'Component description',
@@ -1037,6 +1044,7 @@ const ENGLISH_TEXT = Object.freeze({
 });
 
 const ENGLISH_PHRASES = Object.freeze([
+  [/(\d+)% rozłożenia/g, '$1% separation'],
   [/(\d+)% metal · (\d+)% chropowatości/g, '$1% metal · $2% roughness'],
   [/(\d+) krytycznych · (\d+) ostrzeżeń · (\d+) informacji/g, '$1 critical · $2 warnings · $3 information'],
   [/Wyłączona operacja: (.+)/g, 'Suppressed feature: $1'],

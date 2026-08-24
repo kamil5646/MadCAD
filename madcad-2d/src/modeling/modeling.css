@@ -3283,6 +3283,18 @@
 }
 
 .component-toolbar button { width: 100%; }
+.component-exploded-view { display: grid; gap: 6px; padding: 8px 10px; border-bottom: 1px solid #4b5967; background: #303b47; }
+.component-exploded-view.active { box-shadow: inset 3px 0 #63cae7; background: #2f414d; }
+.component-exploded-view > div { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 6px; color: #dce5eb; }
+.component-exploded-view > div > svg { color: #68d0ec; }
+.component-exploded-view > div span { display: grid; }
+.component-exploded-view > div small { color: #9eafbb; font-size: 8px; }
+.component-exploded-view button { min-height: 24px; padding: 2px 8px; border: 1px solid #647585; border-radius: 3px; background: #3e4d5b; color: #edf3f6; font: inherit; cursor: pointer; }
+.component-exploded-view button:disabled { opacity: .42; cursor: default; }
+.component-exploded-view label { display: grid; grid-template-columns: 72px minmax(0, 1fr) 32px; align-items: center; gap: 6px; color: #b8c4cd; font-size: 9px; }
+.component-exploded-view input[type='range'] { min-width: 0; accent-color: var(--mc-accent); }
+.component-exploded-view output { color: #e3ebef; font-size: 9px; text-align: right; }
+.component-exploded-view p { margin: 0; color: #9eafbb; font-size: 8px; line-height: 1.35; }
 
 .component-toolbar button:disabled,
 .component-actions button:disabled { opacity: .45; cursor: default; }
