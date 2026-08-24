@@ -1759,9 +1759,15 @@ export default function ModelingWorkspace() {
       timeline: engine.timeline,
       diagnostics: engine.diagnostics,
       performance: engine.performance,
+      evaluatedFeatureData: engine.evaluatedDocument?.features?.map((feature) => ({
+        id: feature.id,
+        type: feature.type,
+        threadMode: feature.threadMode,
+        threadDirection: feature.threadDirection,
+      })) || [],
     };
     return () => { delete window.__madcadVerifyEngineState; };
-  }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline, engine.diagnostics, engine.performance]);
+  }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline, engine.diagnostics, engine.performance, engine.evaluatedDocument]);
 
   const updateCommand = (patch) => {
     if (Object.hasOwn(patch, 'dynamicLength')) sketchDynamicLengthRef.current = patch.dynamicLength;
