@@ -9,6 +9,8 @@ import {
   ChevronRight,
   Circle,
   CircleDotDashed,
+  CheckCircle2,
+  Download,
   Eye,
   EyeOff,
   FileBox,
@@ -24,12 +26,14 @@ import {
   PencilRuler,
   Save,
   Settings2,
+  ShieldCheck,
   Square,
   Trash2,
   X,
 } from 'lucide-react';
 import madcadIconUrl from '../../assets/icons/madcad-512.png';
 import { componentInstanceTree } from '../cad-core/components.js';
+import { translateModelingText } from './i18n.js';
 import { formatShortcut } from './platform-shortcuts.js';
 
 const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
@@ -137,6 +141,51 @@ export function ProjectComparisonPanel({ snapshots = [], comparison = null, sour
           {!comparison.categories.some((category) => category.items.some((item) => !states || states.has(item.state))) && <div className="project-comparison-empty"><GitCompareArrows size={22} /><strong>Brak zmian dla wybranego filtra</strong></div>}
         </div>
       </> : <div className="project-comparison-empty"><GitCompareArrows size={24} /><strong>Wybierz wersję do porównania</strong><span>Możesz użyć lokalnego punktu zapisu albo zewnętrznego projektu .madcad.</span></div>}
+    </aside>
+  );
+}
+
+export function ProjectHealthPanel({ report, language = 'pl', onNavigate, onExport, onClose }) {
+  const [severity, setSeverity] = useState('all');
+  const [category, setCategory] = useState('all');
+  const issues = (report?.issues || []).filter((issue) => (severity === 'all' || issue.severity === severity) && (category === 'all' || issue.category === category));
+  const severityLabels = { critical: 'KRYTYCZNY', warning: 'OSTRZEŻENIE', info: 'INFORMACJA' };
+  const categoryLabels = { document: 'Dokument', history: 'Historia', references: 'Referencje B-Rep', links: 'Linki', engine: 'Silnik CAD', storage: 'Dane' };
+  const statusLabel = report?.status === 'critical' ? 'Wymaga działania' : report?.status === 'warning' ? 'Wymaga uwagi' : 'Projekt zdrowy';
+  const issueSummary = language === 'en'
+    ? `${report?.counts?.critical || 0} critical · ${report?.counts?.warning || 0} warnings · ${report?.counts?.info || 0} information`
+    : `${report?.counts?.critical || 0} krytycznych · ${report?.counts?.warning || 0} ostrzeżeń · ${report?.counts?.info || 0} informacji`;
+  return (
+    <aside className="project-health-panel" role="dialog" aria-modal="false" aria-label="Kondycja projektu">
+      <header><div><ShieldCheck size={16} /><span><strong>KONDYCJA PROJEKTU</strong><small>Raport tylko do odczytu</small></span></div><button type="button" aria-label="Zamknij kondycję projektu" title="Zamknij" onClick={onClose}><X size={15} /></button></header>
+      <section className={`project-health-score ${report?.status || 'healthy'}`}>
+        <div><strong>{report?.score ?? 100}</strong><span>/ 100</span></div>
+        <p><strong>{statusLabel}</strong><span>{issueSummary}</span></p>
+        <button type="button" data-health-action="export" onClick={onExport}><Download size={13} /> Eksportuj JSON</button>
+      </section>
+      <section className="project-health-metrics" aria-label="Metryki projektu">
+        <div><span>Rozmiar</span><strong>{report?.metrics?.serializedSize || '0 B'}</strong></div>
+        <div><span>Operacje</span><strong>{report?.metrics?.featureCount || 0}</strong></div>
+        <div><span>Szkice</span><strong>{report?.metrics?.sketchCount || 0}</strong></div>
+        <div><span>Bryły</span><strong>{report?.metrics?.bodyCount || 0}</strong></div>
+      </section>
+      <section className="project-health-checks" aria-label="Kontrole kondycji">
+        {(report?.checks || []).map((check) => <div className={check.passed ? 'passed' : 'failed'} key={check.id}><CheckCircle2 size={12} /><span>{check.label}</span></div>)}
+      </section>
+      <nav className="project-health-filters" aria-label="Filtry raportu kondycji">
+        <select aria-label="Priorytet problemu" value={severity} onChange={(event) => setSeverity(event.target.value)}><option value="all">Wszystkie priorytety</option><option value="critical">Krytyczne</option><option value="warning">Ostrzeżenia</option><option value="info">Informacje</option></select>
+        <select aria-label="Kategoria problemu" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">Wszystkie kategorie</option>{Object.entries(categoryLabels).map(([id, label]) => <option value={id} key={id}>{label}</option>)}</select>
+      </nav>
+      <div className="project-health-list" aria-live="polite">
+        {issues.length ? issues.map((issue) => (
+          <button className={issue.severity} type="button" data-health-issue={issue.code} key={issue.id} onClick={() => onNavigate(issue)}>
+            <span>{severityLabels[issue.severity]}</span>
+            <div><strong>{translateModelingText(issue.title, language)}</strong><small>{categoryLabels[issue.category] || issue.category}{issue.message ? ` · ${translateModelingText(issue.message, language)}` : ''}</small></div>
+            <ArrowRight size={13} />
+          </button>
+        )) : <div className="project-health-empty"><ShieldCheck size={24} /><strong>{report?.issues?.length ? 'Brak wyników dla wybranego filtra' : 'Nie wykryto problemów'}</strong><span>{report?.issues?.length ? 'Zmień priorytet albo kategorię.' : 'Wszystkie kontrole zakończyły się poprawnie.'}</span></div>}
+      </div>
+      <p className="project-health-hint">Kliknij problem, aby przejść do powiązanego obiektu. Raport nie zmienia modelu.</p>
     </aside>
   );
 }

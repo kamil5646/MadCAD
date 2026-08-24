@@ -1570,9 +1570,79 @@
 .project-comparison-empty { display: flex; min-height: 110px; align-items: center; justify-content: center; padding: 12px; color: #9fb0bd; text-align: center; flex-direction: column; gap: 5px; font-size: 10px; }
 .project-comparison-empty strong { color: #dbe5eb; }
 
+.project-health-panel {
+  position: absolute;
+  z-index: 19;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  width: min(440px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow: hidden;
+  border: 1px solid #526576;
+  border-radius: 7px;
+  background: #263442;
+  box-shadow: 0 12px 28px rgb(5 12 18 / 42%);
+  color: #e8f0f5;
+  grid-template-rows: auto auto auto auto auto minmax(92px, 1fr) auto;
+}
+.project-health-panel > header { display: flex; min-height: 44px; align-items: center; justify-content: space-between; padding: 7px 8px 7px 11px; border-bottom: 1px solid #415365; background: #303f4e; }
+.project-health-panel > header > div,
+.project-health-panel > header span { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.project-health-panel > header span { align-items: flex-start; flex-direction: column; gap: 1px; }
+.project-health-panel > header strong { font-size: 11px; letter-spacing: .08em; }
+.project-health-panel > header small { color: #aebdca; font-size: 9px; }
+.project-health-panel button,
+.project-health-panel select { border: 1px solid #536779; border-radius: 4px; background: #354757; color: #e6eef4; font: inherit; }
+.project-health-panel button { display: inline-flex; min-height: 28px; align-items: center; justify-content: center; gap: 5px; padding: 0 8px; cursor: pointer; }
+.project-health-panel button:hover { border-color: #70b9d6; background: #3d586b; }
+.project-health-panel > header button { width: 30px; padding: 0; border-color: transparent; background: transparent; }
+.project-health-score { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 8px 10px; border-bottom: 1px solid #415365; border-left: 3px solid #48b982; background: #293847; }
+.project-health-score.warning { border-left-color: #d29a45; }
+.project-health-score.critical { border-left-color: #d46672; }
+.project-health-score > div { display: flex; align-items: baseline; gap: 2px; }
+.project-health-score > div strong { color: #7fe0ae; font-size: 22px; line-height: 1; }
+.project-health-score.warning > div strong { color: #ffd27d; }
+.project-health-score.critical > div strong { color: #ff9ca6; }
+.project-health-score > div span { color: #91a6b6; font-size: 8px; }
+.project-health-score p { display: grid; min-width: 0; margin: 0; gap: 2px; }
+.project-health-score p strong { font-size: 10px; }
+.project-health-score p span { overflow: hidden; color: #9fb0bd; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.project-health-score button { min-height: 26px; font-size: 9px; }
+.project-health-metrics { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid #415365; }
+.project-health-metrics div { display: grid; min-width: 0; gap: 2px; padding: 6px 8px; }
+.project-health-metrics div + div { border-left: 1px solid #415365; }
+.project-health-metrics span { color: #91a6b6; font-size: 8px; }
+.project-health-metrics strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.project-health-checks { display: flex; flex-wrap: wrap; gap: 4px 9px; padding: 6px 9px; border-bottom: 1px solid #415365; background: #2b3947; }
+.project-health-checks div { display: flex; align-items: center; gap: 4px; color: #b7c7d2; font-size: 8px; }
+.project-health-checks .passed svg { color: #65c995; }
+.project-health-checks .failed { color: #ffc0c6; }
+.project-health-checks .failed svg { color: #e17782; }
+.project-health-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 6px 8px; border-bottom: 1px solid #415365; }
+.project-health-filters select { width: 100%; min-width: 0; height: 26px; padding: 0 5px; font-size: 9px; }
+.project-health-list { min-height: 0; overflow: auto; padding: 7px; }
+.project-health-list > button { display: grid; width: 100%; min-height: 0; grid-template-columns: 68px minmax(0, 1fr) auto; align-items: center; gap: 7px; padding: 7px; border-left: 3px solid #73808c; border-radius: 3px; text-align: left; }
+.project-health-list > button + button { margin-top: 4px; }
+.project-health-list > button.critical { border-left-color: #d46672; }
+.project-health-list > button.warning { border-left-color: #d29a45; }
+.project-health-list > button.info { border-left-color: #579ac0; }
+.project-health-list > button > span { color: #aebbc5; font-size: 7px; font-weight: 800; }
+.project-health-list > button.critical > span { color: #ff9ca6; }
+.project-health-list > button.warning > span { color: #ffd27d; }
+.project-health-list > button.info > span { color: #83cbed; }
+.project-health-list > button > div { display: grid; min-width: 0; gap: 2px; }
+.project-health-list > button strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.project-health-list > button small { display: -webkit-box; overflow: hidden; color: #9fb0bd; font-size: 8px; line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.project-health-empty { display: flex; min-height: 110px; align-items: center; justify-content: center; color: #9fb0bd; text-align: center; flex-direction: column; gap: 5px; font-size: 10px; }
+.project-health-empty svg { color: #65c995; }
+.project-health-empty strong { color: #dbe5eb; }
+.project-health-hint { margin: 0; padding: 7px 10px; border-top: 1px solid #415365; color: #a8bac7; font-size: 8px; }
+
 @media (max-width: 780px) {
   .project-snapshots-panel { top: 8px; right: 8px; width: min(340px, calc(100% - 16px)); max-height: calc(100% - 16px); }
   .project-comparison-panel { top: 8px; right: 8px; width: min(400px, calc(100% - 16px)); max-height: calc(100% - 16px); }
+  .project-health-panel { top: 8px; right: 8px; width: min(410px, calc(100% - 16px)); max-height: calc(100% - 16px); }
   .project-comparison-source { grid-template-columns: 1fr 1fr; }
   .project-comparison-source label { grid-column: 1 / -1; }
 }

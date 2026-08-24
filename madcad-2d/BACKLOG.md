@@ -33,7 +33,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Linkowane zależności projektu ukończono jako `P4.3`: względne ścieżki, kontrola tożsamości i zmiany źródła, stabilne proxy STEP, ręczne odświeżanie oraz naprawa brakującego łącza.
 - [x] Pack & Go ukończono jako `P4.4`: graf zależności bez cykli, komplet plików, przenośne ścieżki i manifest integralności SHA-256.
 - [x] Strukturalne porównanie bieżącego projektu z punktem zapisu lub zewnętrznym `.madcad` ukończono jako `P4.5`.
-- Raport kondycji dokumentu, historii, referencji B-Rep, linków i rozmiaru danych jest aktywnym etapem `P4.6`.
+- [x] Raport kondycji dokumentu, historii, referencji B-Rep, linków i rozmiaru danych ukończono jako `P4.6` z priorytetami, nawigacją i eksportem JSON.
+- Widok „Gdzie używane” i wpływ zmiany w grafie zależności jest aktywnym etapem `P4.7`.
 - [x] Komponenty, podkomponenty, origin, numer części i właściwości ukończono jako `P3.1`.
 - [x] Wystąpienia komponentów, transformacje, Ground i Rigid Group ukończono jako `P3.2`.
 - [x] Joints rigid, revolute i slider z osiami oraz limitami ukończono jako `P3.3`.

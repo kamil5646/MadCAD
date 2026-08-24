@@ -49,6 +49,7 @@ import {
 import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../src/cad-core/assembly-joints.js';
 import { createLinkedProject, linkedProjectState } from '../src/cad-core/linked-projects.js';
 import { compareProjectDocuments } from '../src/cad-core/project-diff.js';
+import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/project-health.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
@@ -4084,6 +4085,72 @@ test('porównanie proxy STEP wykrywa zmianę danych także przy identycznym rozm
   const item = diff.categories.find((category) => category.id === 'features').items[0];
   assert.equal(item.state, 'modified');
   assert.deepEqual(item.changedFields, ['dataBase64']);
+});
+
+test('raport kondycji potwierdza zdrowy projekt i podaje metryki bez modyfikowania dokumentu', () => {
+  const document = createStarterDocument();
+  const before = structuredClone(document);
+  const report = createProjectHealthReport({
+    document,
+    timeline: document.features.map((feature) => ({ id: feature.id, status: 'ok', diagnostics: [] })),
+    serializedBytes: 1536,
+    bodyCount: 1,
+  });
+  assert.equal(report.status, 'healthy');
+  assert.equal(report.score, 100);
+  assert.deepEqual(report.counts, { critical: 0, warning: 0, info: 0, total: 0 });
+  assert.equal(report.metrics.serializedSize, '2 KB');
+  assert.equal(report.metrics.bodyCount, 1);
+  assert.equal(report.checks.every((check) => check.passed), true);
+  assert.deepEqual(document, before);
+});
+
+test('raport kondycji łączy historię, B-Rep, linki, silnik i rozmiar z priorytetami', () => {
+  const document = createDocument('Diagnostyka');
+  const failed = createFeature('primitive', { name: 'Uszkodzona bryła', primitiveType: 'box', width: '10', depth: '10', height: '10' });
+  const suppressed = createFeature('primitive', { name: 'Opcjonalny detal', primitiveType: 'sphere', radius: '2' });
+  document.features.push(failed, suppressed);
+  document.linkedProjects.push({ id: 'linked-source', sourceName: 'Silnik', fileName: 'silnik.madcad', relativePath: 'parts/silnik.madcad', linkedComponentId: 'component-engine' });
+  const report = createProjectHealthReport({
+    document,
+    validation: { valid: true, issues: [], errors: [] },
+    timeline: [
+      { id: failed.id, status: 'error', error: 'Kernel odmówił operacji.' },
+      { id: suppressed.id, status: 'suppressed', diagnostics: [] },
+    ],
+    lostReferences: [{ reference: { id: 'reference-lost', label: 'Górna ściana', ownerFeatureId: failed.id }, reason: 'Nie znaleziono trwałego ID.' }],
+    linkedProjectStatuses: { 'linked-source': { state: 'changed' } },
+    engineDiagnostics: [{ code: 'WORKER_CRASH', message: 'Worker został odtworzony.', attempt: 1 }],
+    serializedBytes: 33 * 1024 * 1024,
+  });
+  assert.equal(report.status, 'critical');
+  assert.deepEqual(report.counts, { critical: 2, warning: 3, info: 1, total: 6 });
+  assert.equal(report.score, 25);
+  assert.equal(report.issues.find((issue) => issue.code === 'FEATURE_ERROR').target.id, failed.id);
+  assert.equal(report.issues.find((issue) => issue.code === 'LINK_SOURCE_CHANGED').target.id, 'component-engine');
+  assert.equal(report.issues.find((issue) => issue.code === 'TOPOLOGY_REFERENCE_LOST').target.referenceId, 'reference-lost');
+  assert.equal(report.issues.some((issue) => issue.code === 'DOCUMENT_SIZE_HIGH'), true);
+});
+
+test('raport kondycji mapuje błędy walidacji na obiekty i klasyfikuje brakujące linki', () => {
+  const document = createDocument('Cele raportu');
+  const sketch = createSketch({ name: 'Szkic celu' });
+  document.sketches.push(sketch);
+  document.linkedProjects.push({ id: 'linked-missing', sourceName: 'Podzespół', relativePath: '../podzespol.madcad', linkedComponentId: 'component-missing' });
+  const report = createProjectHealthReport({
+    document,
+    validation: { valid: false, errors: [], issues: [{ path: 'sketches[0].plane', code: 'UNSUPPORTED', message: 'Nieznana płaszczyzna.' }] },
+    linkedProjectStatuses: { 'linked-missing': { state: 'missing', error: 'Plik nie istnieje.' } },
+    engineStatus: 'error',
+    engineError: 'Nie można przeliczyć dokumentu.',
+    serializedBytes: 65 * 1024 * 1024,
+  });
+  assert.equal(report.issues.find((issue) => issue.code === 'UNSUPPORTED').target.id, sketch.id);
+  assert.equal(report.issues.find((issue) => issue.code === 'LINK_SOURCE_MISSING').target.id, 'component-missing');
+  assert.equal(report.issues.some((issue) => issue.code === 'ENGINE_ERROR'), true);
+  assert.equal(report.issues.some((issue) => issue.code === 'DOCUMENT_SIZE_CRITICAL'), true);
+  assert.equal(formatProjectBytes(10 * 1024 * 1024), '10.0 MB');
+  assert.doesNotThrow(() => JSON.stringify(report));
 });
 
 test('nazwane punkty zapisu projektu są atomowe, limitowane i możliwe do przywrócenia', async () => {

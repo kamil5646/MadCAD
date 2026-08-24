@@ -48,6 +48,7 @@ import {
   Save,
   ScanSearch,
   Scissors,
+  ShieldCheck,
   Shapes,
   SkipBack,
   Square,
@@ -77,6 +78,7 @@ import {
 } from '../cad-core/document.js';
 import { createLinkedProject, linkedProjectState } from '../cad-core/linked-projects.js';
 import { compareProjectDocuments } from '../cad-core/project-diff.js';
+import { createProjectHealthReport } from '../cad-core/project-health.js';
 import {
   addDrivingSketchDimension,
   createSketchArc,
@@ -177,7 +179,7 @@ import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumen
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext } from './WorkspaceRibbon.jsx';
 import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
-import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
+import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectHealthPanel, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
 import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
@@ -453,6 +455,7 @@ export default function ModelingWorkspace() {
   const [projectComparisonBaseline, setProjectComparisonBaseline] = useState(null);
   const [projectComparisonLoading, setProjectComparisonLoading] = useState(false);
   const [projectComparisonError, setProjectComparisonError] = useState('');
+  const [projectHealthOpen, setProjectHealthOpen] = useState(false);
   const panelScreenKeyRef = useRef(panelScreenKey(window.screen));
   const [panelLayout, setPanelLayout] = useState(() => readPanelLayout(window.localStorage, window.screen));
   const [workspaceLayoutMenuOpen, setWorkspaceLayoutMenuOpen] = useState(false);
@@ -620,12 +623,14 @@ export default function ModelingWorkspace() {
   }, []);
   const openProjectSnapshots = () => {
     setProjectComparisonOpen(false);
+    setProjectHealthOpen(false);
     setProjectSnapshotsOpen(true);
     void refreshProjectSnapshots();
   };
   const projectComparison = useMemo(() => projectComparisonBaseline ? compareProjectDocuments(projectComparisonBaseline.document, document) : null, [projectComparisonBaseline, document]);
   const openProjectComparison = () => {
     setProjectSnapshotsOpen(false);
+    setProjectHealthOpen(false);
     setProjectComparisonOpen(true);
     setProjectComparisonError('');
     void refreshProjectSnapshots();
@@ -1157,7 +1162,7 @@ export default function ModelingWorkspace() {
     }
   };
   useEffect(() => {
-    if (!componentsOpen || !currentPath || !window.desktopApp?.readLinkedProject) return;
+    if ((!componentsOpen && !projectHealthOpen) || !currentPath || !window.desktopApp?.readLinkedProject) return;
     for (const link of document.linkedProjects) {
       window.desktopApp.readLinkedProject({ baseProjectPath: currentPath, relativePath: link.relativePath }).then((result) => {
         setLinkedProjectStatuses((current) => ({ ...current, [link.id]: {
@@ -1168,7 +1173,7 @@ export default function ModelingWorkspace() {
         } }));
       });
     }
-  }, [componentsOpen, currentPath, document.linkedProjects]);
+  }, [componentsOpen, projectHealthOpen, currentPath, document.linkedProjects]);
   const createDocumentComponent = (type = 'part') => {
     try {
       const checked = cloneDocument(document);
@@ -1508,6 +1513,50 @@ export default function ModelingWorkspace() {
       .filter((entity) => entity.role === 'projected' && lostIds.has(entity.projectionReferenceId || entity.sourceReferenceId))
       .map((entity) => entity.id));
   }, [document.sketches, lostTopologyReferences]);
+  const projectHealthReport = useMemo(() => createProjectHealthReport({
+    document,
+    validation: validateDocument(document),
+    timeline: engine.timeline,
+    lostReferences: lostTopologyReferences,
+    linkedProjectStatuses,
+    engineStatus: engine.status,
+    engineError: engine.error,
+    engineDiagnostics: engine.diagnostics,
+    serializedBytes: new TextEncoder().encode(serializedDocument).byteLength,
+    bodyCount: actualBodies.length,
+  }), [document, engine.timeline, engine.status, engine.error, engine.diagnostics, linkedProjectStatuses, lostTopologyReferences, serializedDocument, actualBodies.length]);
+  const openProjectHealth = () => {
+    setProjectSnapshotsOpen(false);
+    setProjectComparisonOpen(false);
+    setProjectHealthOpen(true);
+  };
+  const navigateProjectHealthIssue = (issue) => {
+    const target = issue?.target;
+    if (!target) return;
+    setProjectHealthOpen(false);
+    if (target.kind === 'feature') {
+      setWorkspace('solid');
+      setActiveSketchId(null);
+      setSelection({ kind: 'feature', id: target.id });
+    } else if (target.kind === 'sketch') {
+      setBrowserOpen(true);
+      setSelection({ kind: 'sketch', id: target.id });
+    } else if (target.kind === 'component') {
+      if (target.id) setSelection({ kind: 'component', id: target.id });
+      openComponentManager();
+    } else if (target.kind === 'settings') {
+      setCommand({ type: 'parameters' });
+    } else {
+      setSelection({ kind: 'document', id: document.id });
+      setBrowserOpen(true);
+    }
+    setNotice(`Przejście z raportu kondycji: ${issue.title}`);
+  };
+  const exportProjectHealthReport = () => {
+    const payload = JSON.stringify({ ...projectHealthReport, generatedAt: new Date().toISOString() }, null, 2);
+    downloadBlob(new Blob([payload], { type: 'application/json;charset=utf-8' }), `${safeName(document.name)}-kondycja.json`);
+    setNotice('Wyeksportowano raport kondycji projektu JSON.');
+  };
 
   useEffect(() => {
     if (readOnly || command?.previewFeature || engine.status !== 'ready' || engine.evaluatedDocument !== document) return;
@@ -2905,6 +2954,7 @@ export default function ModelingWorkspace() {
       projectSnapshots: projectSnapshots.map((snapshot) => ({ ...snapshot })),
       linkedProjects: document.linkedProjects.map((link) => ({ ...link, proxyFeatureIds: [...link.proxyFeatureIds] })),
       linkedProjectStatuses: structuredClone(linkedProjectStatuses),
+      projectHealth: structuredClone(projectHealthReport),
       timelineRollbackFeatureId: document.timelineRollbackFeatureId,
       featureGroups: document.featureGroups.map((group) => ({ ...group, featureIds: [...group.featureIds] })),
       activeLayerId: document.activeLayerId,
@@ -2968,7 +3018,7 @@ export default function ModelingWorkspace() {
     };
   // Verification hooks refresh only when the state exposed to the desktop harness changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, massProperties, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses]);
+  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, massProperties, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses, projectHealthReport]);
 
   const confirmProfile = (sourceCommand = command) => {
     if (readOnly) return readOnlyNotice();
@@ -5045,6 +5095,7 @@ export default function ModelingWorkspace() {
           <button id="saveProjectBtn" type="button" aria-label={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button>
           <button id="projectSnapshotsBtn" className={projectSnapshotsOpen ? 'active' : ''} type="button" aria-label="Punkty zapisu projektu" aria-pressed={projectSnapshotsOpen} title="Utwórz lub przywróć lokalny punkt zapisu projektu" onClick={() => { if (projectSnapshotsOpen) setProjectSnapshotsOpen(false); else openProjectSnapshots(); }}><History size={16} /></button>
           <button id="projectComparisonBtn" className={projectComparisonOpen ? 'active' : ''} type="button" aria-label="Porównaj wersje projektu" aria-pressed={projectComparisonOpen} title="Porównaj bieżący projekt z punktem zapisu lub plikiem" onClick={() => { if (projectComparisonOpen) setProjectComparisonOpen(false); else openProjectComparison(); }}><GitCompareArrows size={16} /></button>
+          <button id="projectHealthBtn" className={projectHealthOpen ? 'active' : ''} type="button" aria-label="Kondycja projektu" aria-pressed={projectHealthOpen} title="Sprawdź integralność projektu i przejdź do wykrytych problemów" onClick={() => { if (projectHealthOpen) setProjectHealthOpen(false); else openProjectHealth(); }}><ShieldCheck size={16} /></button>
         </div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
         <input ref={importInputRef} hidden type="file" accept=".step,.stp,.stl,.3mf,model/step,model/stl,model/3mf" onChange={chooseModelImport} />
@@ -5240,6 +5291,7 @@ export default function ModelingWorkspace() {
           />
           {projectSnapshotsOpen && <ProjectSnapshotsPanel snapshots={projectSnapshots} loading={projectSnapshotsLoading} error={projectSnapshotsError} readOnly={readOnly} onCreate={createProjectSnapshot} onRestore={restoreProjectSnapshot} onDelete={deleteProjectSnapshot} onClose={() => setProjectSnapshotsOpen(false)} />}
           {projectComparisonOpen && <ProjectComparisonPanel snapshots={projectSnapshots} comparison={projectComparison} sourceLabel={projectComparisonBaseline?.label || ''} loading={projectComparisonLoading || projectSnapshotsLoading} error={projectComparisonError || projectSnapshotsError} onCompareSnapshot={compareProjectSnapshot} onCompareFile={compareExternalProject} onClose={() => setProjectComparisonOpen(false)} />}
+          {projectHealthOpen && <ProjectHealthPanel report={projectHealthReport} language={language} onNavigate={navigateProjectHealthIssue} onExport={exportProjectHealthReport} onClose={() => setProjectHealthOpen(false)} />}
           <TopologyReferenceRepairPanel items={lostTopologyReferences} selection={selection} onReassign={repairTopologyReference} onPreview={(candidate) => handleTopologySelection(candidate)} />
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
