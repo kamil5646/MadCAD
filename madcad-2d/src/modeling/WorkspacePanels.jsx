@@ -5,6 +5,7 @@ import { formatModelFileSize } from '../cad-core/model-import.js';
 import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
 import { commandCustomizationRows, validateCommandCustomization } from './command-customization.js';
 import { multipleSelectionLabel } from './platform-shortcuts.js';
+import { useDialogFocus } from './use-dialog-focus.js';
 
 export function Field({ label, value, onChange, suffix = '', type = 'text', disabled = false, autoFocus = false }) {
   return (
@@ -369,10 +370,11 @@ const IMPORT_UNIT_OPTIONS = [
 ];
 
 export function ImportModelDialog({ draft, onChange, onConfirm, onCancel }) {
+  const dialogRef = useDialogFocus(Boolean(draft));
   if (!draft) return null;
   return (
-    <section className="command-dialog import-model-dialog" aria-label="Import modelu 3D">
-      <header><strong>Import modelu 3D</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
+    <section ref={dialogRef} className="command-dialog import-model-dialog" role="dialog" aria-modal="true" aria-labelledby="importModelDialogTitle" tabIndex="-1">
+      <header><strong id="importModelDialogTitle">Import modelu 3D</strong><button type="button" onClick={onCancel} title="Zamknij" aria-label="Zamknij import modelu 3D"><X size={15} /></button></header>
       <div className="command-dialog-body">
         <Field label="Plik" value={draft.fileName} disabled />
         <Field label="Format" value={draft.originalFormat.toUpperCase()} disabled />
@@ -391,10 +393,11 @@ export function ImportModelDialog({ draft, onChange, onConfirm, onCancel }) {
 }
 
 export function ImportSketchDialog({ draft, onChange, onConfirm, onCancel }) {
+  const dialogRef = useDialogFocus(Boolean(draft));
   if (!draft) return null;
   return (
-    <section className="command-dialog import-sketch-dialog" aria-label="Import SVG, DXF lub DWG do szkicu">
-      <header><strong>Import geometrii szkicu</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
+    <section ref={dialogRef} className="command-dialog import-sketch-dialog" role="dialog" aria-modal="true" aria-labelledby="importSketchDialogTitle" tabIndex="-1">
+      <header><strong id="importSketchDialogTitle">Import geometrii szkicu</strong><button type="button" onClick={onCancel} title="Zamknij" aria-label="Zamknij import geometrii szkicu"><X size={15} /></button></header>
       <div className="command-dialog-body">
         <Field label="Plik" value={draft.fileName} disabled />
         <Field label="Format" value={(draft.sourceFormat || draft.format).toUpperCase()} disabled />
@@ -408,11 +411,12 @@ export function ImportSketchDialog({ draft, onChange, onConfirm, onCancel }) {
 }
 
 export function ImportRepairReportDialog({ report, onSave, onClose }) {
+  const dialogRef = useDialogFocus(Boolean(report));
   if (!report) return null;
   const iconFor = (status) => status === 'changed' ? AlertTriangle : status === 'skipped' ? XCircle : CheckCircle2;
   return (
-    <section className="command-dialog import-repair-report" aria-label="Raport naprawy importu">
-      <header><strong>Raport importu</strong><button type="button" onClick={onClose} title="Zamknij raport" aria-label="Zamknij raport"><X size={15} /></button></header>
+    <section ref={dialogRef} className="command-dialog import-repair-report" role="dialog" aria-modal="true" aria-labelledby="importRepairReportTitle" tabIndex="-1">
+      <header><strong id="importRepairReportTitle">Raport importu</strong><button type="button" onClick={onClose} title="Zamknij raport" aria-label="Zamknij raport"><X size={15} /></button></header>
       <div className="import-report-heading"><div><strong>{report.fileName}</strong><span>{report.format.toUpperCase()} · {report.sourceUnit || 'jednostka automatyczna'}</span></div><CheckCircle2 size={20} /></div>
       <div className="import-report-summary" role="group" aria-label="Podsumowanie raportu">
         <span><b>{report.imported}</b> dodano</span>
@@ -433,6 +437,7 @@ export function ImportRepairReportDialog({ report, onSave, onClose }) {
 }
 
 export function SketchDimensionDialog({ command, onChange, onConfirm, onCancel }) {
+  const dialogRef = useDialogFocus(command?.type === 'sketchDimension');
   if (command?.type !== 'sketchDimension') return null;
   const titles = {
     ordinateX: 'Wymiar ordinate X',
@@ -440,8 +445,8 @@ export function SketchDimensionDialog({ command, onChange, onConfirm, onCancel }
     arcLength: 'Wymiar długości łuku',
   };
   return (
-    <section className="command-dialog sketch-dimension-dialog" aria-label={titles[command.dimensionType]}>
-      <header><strong>{titles[command.dimensionType]}</strong><button type="button" onClick={onCancel} title="Zamknij"><X size={15} /></button></header>
+    <section ref={dialogRef} className="command-dialog sketch-dimension-dialog" role="dialog" aria-modal="true" aria-labelledby="sketchDimensionDialogTitle" tabIndex="-1">
+      <header><strong id="sketchDimensionDialogTitle">{titles[command.dimensionType]}</strong><button type="button" onClick={onCancel} title="Zamknij" aria-label="Zamknij wymiar szkicu"><X size={15} /></button></header>
       <div className="command-dialog-body">
         <Field label="Wartość" value={command.value} onChange={(value) => onChange({ value })} suffix="mm" autoFocus />
         <div className="command-preview-note"><span className="preview-dot" />Wymiar steruje geometrią i można go później zmienić bezpośrednio na szkicu.</div>

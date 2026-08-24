@@ -10,6 +10,7 @@
     { "file": "autocad-2013-rectangle.dxf", "format": "dxf", "producerProfile": "AutoCAD 2013 / AC1027", "expectedCurves": 5, "expectedProfiles": 1 },
     { "file": "fusion-sketch-mm.dxf", "format": "dxf", "producerProfile": "Autodesk Fusion sketch DXF", "expectedCurves": 4, "expectedProfiles": 1 },
     { "file": "freecad-step-envelope.step", "format": "step", "producerProfile": "FreeCAD / OpenCascade STEP envelope", "expectedImportMode": "brep" },
-    { "file": "slicer-tetrahedron-ascii.stl", "format": "stl", "producerProfile": "PrusaSlicer, Cura and Bambu Studio ASCII STL compatibility", "expectedImportMode": "mesh", "expectedTriangles": 4 }
+    { "file": "slicer-tetrahedron-ascii.stl", "format": "stl", "producerProfile": "PrusaSlicer, Cura and Bambu Studio ASCII STL compatibility", "expectedImportMode": "mesh", "expectedTriangles": 4 },
+    { "file": "bambu-studio-2.8.2-tetrahedron.3mf.b64", "format": "3mf-base64", "producerProfile": "Bambu Studio 02.08.02.61 CLI output", "sha256": "56af580d355b7c3f27922cbfa8e1f38c63d671c43f5a9831aed2646eba7b0b60", "expectedObjects": 1, "expectedTriangles": 4, "expectedModelFiles": 2 }
   ]
 }

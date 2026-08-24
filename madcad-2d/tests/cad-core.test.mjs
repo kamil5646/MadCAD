@@ -4,6 +4,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { strToU8, zipSync } from 'three/examples/jsm/libs/fflate.module.js';
 import atomicFile from '../electron/atomic-file.cjs';
 import slicerLaunch from '../electron/slicer-launch.cjs';
 import securityPolicy from '../electron/security-policy.cjs';
@@ -3787,6 +3788,13 @@ test('eksport 3MF zapisuje milimetry, obiekty i trójkąty w poprawnym archiwum'
   assert.equal(inspection.objectCount, 1);
   assert.equal(inspection.triangleCount, 1);
   assert.ok(archive.byteLength > 300);
+});
+
+test('inspekcja 3MF odczytuje zewnętrzne modele produkcyjne Bambu Studio', () => {
+  const main = '<?xml version="1.0"?><model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" requiredextensions="p"><resources><object id="2" type="model"><components><component p:path="/3D/Objects/object_1.model" objectid="1"/></components></object></resources><build><item objectid="2"/></build></model>';
+  const object = '<?xml version="1.0"?><model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources><object id="1" type="model"><mesh><vertices><vertex x="0" y="0" z="0"/><vertex x="20" y="0" z="0"/><vertex x="0" y="20" z="0"/><vertex x="0" y="0" z="20"/></vertices><triangles><triangle v1="0" v2="2" v3="1"/><triangle v1="0" v2="1" v3="3"/><triangle v1="1" v2="2" v3="3"/><triangle v1="2" v2="0" v3="3"/></triangles></mesh></object></resources><build/></model>';
+  const archive = zipSync({ '3D/3dmodel.model': strToU8(main), '3D/Objects/object_1.model': strToU8(object) });
+  assert.deepEqual(inspectThreeMfArchive(archive), { unit: 'millimeter', objectCount: 1, triangleCount: 4, modelFileCount: 2 });
 });
 
 test('kontrola importu 3D rozpoznaje STEP, binarny STL i archiwum 3MF przed uruchomieniem silnika', () => {

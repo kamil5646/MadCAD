@@ -35,13 +35,23 @@ export function createThreeMfArchive(meshes = []) {
 
 export function inspectThreeMfArchive(data) {
   const files = unzipSync(data instanceof Uint8Array ? data : new Uint8Array(data));
-  const modelEntry = Object.entries(files).find(([name]) => /^3D\/.*\.model$/i.test(name));
-  if (!modelEntry) throw new Error('Archiwum 3MF nie zawiera modelu 3D.');
-  const xml = new TextDecoder().decode(modelEntry[1]);
+  const decoder = new TextDecoder();
+  const modelEntries = Object.entries(files)
+    .filter(([name]) => /^3D\/.*\.model$/i.test(name))
+    .map(([name, bytes]) => ({ name, xml: decoder.decode(bytes) }));
+  if (!modelEntries.length) throw new Error('Archiwum 3MF nie zawiera modelu 3D.');
+  const mainModel = modelEntries.find(({ name }) => /^3D\/3dmodel\.model$/i.test(name)) || modelEntries[0];
+  let objectCount = 0;
+  let triangleCount = 0;
+  for (const { xml } of modelEntries) {
+    const objects = xml.match(/<object\b[\s\S]*?<\/object>/gi) || [];
+    objectCount += objects.filter((objectXml) => /<mesh\b/i.test(objectXml)).length;
+    triangleCount += (xml.match(/<triangle\b/gi) || []).length;
+  }
   return {
-    unit: xml.match(/<model[^>]*\bunit="([^"]+)"/i)?.[1] || 'millimeter',
-    objectCount: (xml.match(/<object\b/gi) || []).length,
-    triangleCount: (xml.match(/<triangle\b/gi) || []).length,
+    unit: mainModel.xml.match(/<model[^>]*\bunit="([^"]+)"/i)?.[1] || 'millimeter',
+    objectCount,
+    triangleCount,
+    modelFileCount: modelEntries.length,
   };
 }
-

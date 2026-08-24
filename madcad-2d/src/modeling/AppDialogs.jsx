@@ -2,9 +2,11 @@ import { useEffect } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import fullLicenseText from '../../LICENSE?raw';
 import { tutorialForLanguage } from './tutorial-content.js';
+import { useDialogFocus } from './use-dialog-focus.js';
 
 export function FirstPartTutorial({ onClose }) {
   const content = tutorialForLanguage(window.document.documentElement.lang);
+  const dialogRef = useDialogFocus();
   useEffect(() => {
     const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKeyDown);
@@ -12,7 +14,7 @@ export function FirstPartTutorial({ onClose }) {
   }, [onClose]);
   return (
     <div className="tutorial-backdrop">
-      <section className="tutorial-dialog" role="dialog" aria-modal="true" aria-labelledby="firstPartTutorialTitle">
+      <section ref={dialogRef} className="tutorial-dialog" role="dialog" aria-modal="true" aria-labelledby="firstPartTutorialTitle" tabIndex="-1">
         <header><div><strong id="firstPartTutorialTitle">{content.title}</strong><span>{content.intro}</span></div><button type="button" title={content.close} aria-label={content.close} onClick={onClose} autoFocus><X size={17} /></button></header>
         <div className="tutorial-body">
           <ol>{content.steps.map(([title, description]) => <li key={title}><strong>{title}</strong><span>{description}</span></li>)}</ol>
@@ -24,6 +26,7 @@ export function FirstPartTutorial({ onClose }) {
 }
 
 export function LicenseInfoDialog({ onClose, onShowFullLicense }) {
+  const dialogRef = useDialogFocus();
   useEffect(() => {
     const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKeyDown);
@@ -32,7 +35,7 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense }) {
 
   return (
     <div className="license-info-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="license-info-dialog" role="dialog" aria-modal="true" aria-labelledby="licenseInfoTitle">
+      <section ref={dialogRef} className="license-info-dialog" role="dialog" aria-modal="true" aria-labelledby="licenseInfoTitle" tabIndex="-1">
         <header>
           <div>
             <strong id="licenseInfoTitle">Licencja MadCAD</strong>
@@ -66,6 +69,7 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense }) {
 }
 
 export function FullLicenseDialog({ onClose }) {
+  const dialogRef = useDialogFocus();
   useEffect(() => {
     const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKeyDown);
@@ -74,7 +78,7 @@ export function FullLicenseDialog({ onClose }) {
 
   return (
     <div className="license-info-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="license-info-dialog full-license-dialog" role="dialog" aria-modal="true" aria-labelledby="fullLicenseTitle">
+      <section ref={dialogRef} className="license-info-dialog full-license-dialog" role="dialog" aria-modal="true" aria-labelledby="fullLicenseTitle" tabIndex="-1">
         <header><div><strong id="fullLicenseTitle">Pełna treść licencji MadCAD</strong><span>Wiążąca kopia dołączona bezpośrednio do tej wersji aplikacji.</span></div><button type="button" title="Zamknij" aria-label="Zamknij" onClick={onClose}><X size={17} /></button></header>
         <pre tabIndex="0">{fullLicenseText}</pre>
         <footer><button className="confirm" type="button" onClick={onClose} autoFocus>Zamknij</button></footer>
@@ -84,6 +88,7 @@ export function FullLicenseDialog({ onClose }) {
 }
 
 export function UpdateDialog({ state, onCheck, onInstall, onClose }) {
+  const dialogRef = useDialogFocus();
   const result = state.result;
   const handoff = state.handoff;
   const hasNewerVersion = Boolean(result?.newerVersion || result?.available);
@@ -92,7 +97,7 @@ export function UpdateDialog({ state, onCheck, onInstall, onClose }) {
   const installing = state.status === 'installing';
   return (
     <div className="license-info-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !installing) onClose(); }}>
-      <section className="license-info-dialog" role="dialog" aria-modal="true" aria-labelledby="updateDialogTitle">
+      <section ref={dialogRef} className="license-info-dialog" role="dialog" aria-modal="true" aria-labelledby="updateDialogTitle" tabIndex="-1">
         <header>
           <div><strong id="updateDialogTitle">Aktualizacje MadCAD</strong><span>Pobierz oficjalną paczkę, sprawdź SHA-256 i uruchom instalator.</span></div>
           <button type="button" title="Zamknij" aria-label="Zamknij" disabled={installing} onClick={onClose}><X size={17} /></button>
