@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, FolderOpen, GitCompareArrows, Keyboard, Layers3, Link2, Lock, LockOpen, Magnet, PackageOpen, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Trash2, Ungroup, X, XCircle } from 'lucide-react';
+import { detectAssemblyCollisions } from '../cad-core/assembly-motion.js';
 import { componentDescendantIds, componentInstanceDescendantIds, componentInstanceTree, componentParentMap, componentTree } from '../cad-core/components.js';
 import { formatModelFileSize } from '../cad-core/model-import.js';
 import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
@@ -76,6 +77,9 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
   const [configurationName, setConfigurationName] = React.useState('');
   const [contactFirstId, setContactFirstId] = React.useState('');
   const [contactSecondId, setContactSecondId] = React.useState('');
+  const [interferenceFirstId, setInterferenceFirstId] = React.useState('');
+  const [interferenceSecondId, setInterferenceSecondId] = React.useState('');
+  const [interferencePair, setInterferencePair] = React.useState([]);
   const selected = document.components.find((component) => component.id === selectedComponentId) || null;
   const selectedLink = selected?.linkedProjectId ? document.linkedProjects.find((link) => link.id === selected.linkedProjectId) : null;
   const selectedLinkStatus = selectedLink ? linkedProjectStatuses[selectedLink.id] || { state: 'checking' } : null;
@@ -95,7 +99,15 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
     instance.children.forEach((child) => collectInstanceRows(child, depth + 1));
   };
   componentInstanceTree(document).forEach((instance) => collectInstanceRows(instance));
-  const instances = document.componentInstances || [];
+  const instances = React.useMemo(() => document.componentInstances || [], [document.componentInstances]);
+  const interferenceResult = React.useMemo(() => (
+    interferencePair.length === 2 && interferencePair.every((instanceId) => instances.some((instance) => instance.id === instanceId))
+      ? detectAssemblyCollisions(document, bodies, { instanceIds: interferencePair })
+      : null
+  ), [document, bodies, instances, interferencePair]);
+  const interferenceCollision = interferenceResult?.collisions?.[0] || null;
+  const interferenceStatus = !interferenceResult ? 'idle' : interferenceCollision?.status || 'clear';
+  const interferenceStatusLabel = interferenceStatus === 'exact' ? 'POTWIERDZONA KOLIZJA' : interferenceStatus === 'broad-phase' ? 'RYZYKO — TYLKO OBWIEDNIE' : interferenceStatus === 'clear' ? 'BRAK KOLIZJI' : 'WYBIERZ PARĘ';
   const rigidGroups = document.rigidGroups || [];
   const instanceDescendants = selectedInstance ? componentInstanceDescendantIds(instances, selectedInstance.id) : new Set();
   const assemblyInstances = instances.filter((instance) => document.components.find((component) => component.id === instance.componentId)?.type === 'assembly' && instance.id !== selectedInstance?.id && !instanceDescendants.has(instance.id));
@@ -179,9 +191,22 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
         {instances.length >= 2 && !selectedContactSet && <div className="component-contact-create"><select aria-label="Pierwsze wystąpienie Contact Set" value={contactFirstId} disabled={readOnly} onChange={(event) => setContactFirstId(event.target.value)}><option value="">Pierwsze wystąpienie</option>{instances.map((instance) => <option key={instance.id} value={instance.id}>{instance.name}</option>)}</select><select aria-label="Drugie wystąpienie Contact Set" value={contactSecondId} disabled={readOnly} onChange={(event) => setContactSecondId(event.target.value)}><option value="">Drugie wystąpienie</option>{instances.map((instance) => <option key={instance.id} value={instance.id}>{instance.name}</option>)}</select><button type="button" disabled={readOnly || !contactFirstId || !contactSecondId || contactFirstId === contactSecondId} onClick={() => { onCreateContactSet({ firstInstanceId: contactFirstId, secondInstanceId: contactSecondId }); setContactSecondId(''); }}><Plus size={14} /> Utwórz Contact Set</button></div>}
         {selectedContactSet && <div className="component-contact-properties"><label><span>Nazwa</span><input aria-label="Nazwa Contact Set" value={selectedContactSet.name} disabled={readOnly} onChange={(event) => onUpdateContactSet(selectedContactSet.id, { name: event.target.value })} /></label><div className="component-instance-toggles"><label><input type="checkbox" checked={selectedContactSet.enabled} disabled={readOnly} onChange={(event) => onUpdateContactSet(selectedContactSet.id, { enabled: event.target.checked })} /> Monitorowanie kontaktu aktywne</label></div><div className="component-actions"><button type="button" onClick={() => onSelectContactSet('')}><X size={14} /> Zamknij edycję</button><button className="danger" type="button" disabled={readOnly} onClick={() => { onDeleteContactSet(selectedContactSet.id); onSelectContactSet(''); }}><Trash2 size={14} /> Usuń Contact Set</button></div></div>}
       </div>
+      <div className={`component-interference ${interferenceStatus}`} aria-label="Analiza kolizji wskazanych komponentów">
+        <div className="component-section-title"><strong>Interference</strong><span>{interferenceStatusLabel}</span></div>
+        <div className="component-interference-pair">
+          <select aria-label="Pierwsze wystąpienie analizy Interference" value={interferenceFirstId} onChange={(event) => setInterferenceFirstId(event.target.value)}><option value="">Pierwszy komponent</option>{instances.map((instance) => <option key={instance.id} value={instance.id}>{instance.name}</option>)}</select>
+          <select aria-label="Drugie wystąpienie analizy Interference" value={interferenceSecondId} onChange={(event) => setInterferenceSecondId(event.target.value)}><option value="">Drugi komponent</option>{instances.map((instance) => <option key={instance.id} value={instance.id}>{instance.name}</option>)}</select>
+          <button type="button" disabled={!interferenceFirstId || !interferenceSecondId || interferenceFirstId === interferenceSecondId} onClick={() => { setInterferencePair([interferenceFirstId, interferenceSecondId]); onSelectInstance(interferenceFirstId); }}><ScanSearch size={14} /> Analizuj parę</button>
+        </div>
+        {interferenceResult && <div className="component-interference-result" role="status">
+          {interferenceStatus === 'exact' ? <AlertOctagon size={16} /> : interferenceStatus === 'broad-phase' ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+          <div><strong>{interferenceStatusLabel}</strong><small>{interferenceCollision ? `Nakładanie obwiedni: ${interferenceCollision.overlap.map((value) => value.toFixed(2)).join(' × ')} mm` : 'Dokładny test siatek nie wykrył przecięcia.'}</small></div>
+        </div>}
+        <p>Niebieskie zaznaczenie wskazuje pierwszy element pary. Czerwień potwierdza przecięcie siatek, a pomarańczowy oznacza wynik ograniczony do obwiedni.</p>
+      </div>
       <div className={`component-collision-status ${collisionResult.collisions.length ? 'warning' : 'clear'}`} aria-label="Kontrola kolizji w ruchu" role="status">
         <div className="component-section-title"><strong>Kolizje w ruchu</strong><span>{collisionResult.collisions.length}</span></div>
-        {collisionResult.collisions.length ? <><p><AlertOctagon size={15} /> Czerwony oznacza potwierdzone przecięcie siatek, a pomarańczowy ryzyko wykryte tylko przez obwiednie.</p>{collisionResult.collisions.slice(0, 4).map((collision) => <button className={collision.status === 'exact' ? 'exact' : 'risk'} type="button" key={`${collision.firstInstanceId}:${collision.secondInstanceId}`} onClick={() => onSelectInstance(collision.firstInstanceId)}><span>{collision.firstName} ↔ {collision.secondName}</span><strong>{collision.status === 'exact' ? 'KOLIZJA' : 'RYZYKO'} · {collision.overlapVolume.toFixed(2)} mm³</strong></button>)}</> : <p><CheckCircle2 size={15} /> Brak kolizji w {collisionResult.checkedPairs || 0} sprawdzonych parach.</p>}
+        {collisionResult.collisions.length ? <><p><AlertOctagon size={15} /> Czerwony oznacza potwierdzone przecięcie siatek, a pomarańczowy ryzyko wykryte tylko przez obwiednie.</p>{collisionResult.collisions.slice(0, 4).map((collision) => <button className={collision.status === 'exact' ? 'exact' : 'risk'} type="button" key={`${collision.firstInstanceId}:${collision.secondInstanceId}`} onClick={() => onSelectInstance(collision.firstInstanceId)}><span>{collision.firstName} ↔ {collision.secondName}</span><strong>{collision.status === 'exact' ? 'KOLIZJA' : 'RYZYKO'} · obwiednia {collision.overlap.map((value) => value.toFixed(1)).join('×')} mm</strong></button>)}</> : <p><CheckCircle2 size={15} /> Brak kolizji w {collisionResult.checkedPairs || 0} sprawdzonych parach.</p>}
       </div>
       {selected ? <div className="component-properties">
         <div className="component-section-title"><strong>Właściwości</strong><span>{selected.type === 'assembly' ? 'ZŁOŻENIE' : 'CZĘŚĆ'}</span></div>

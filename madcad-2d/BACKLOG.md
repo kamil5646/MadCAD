@@ -27,7 +27,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Wspólne otwory przejściowe ISO 273 i gwinty metryczne M2–M24 z klasami wewnętrznymi 5H/6H/7H ukończono jako `P1.32a`.
 - P1.32b: gwinty stożkowe NPT/BSPT, dodatkowe rozmiary i tolerancje wykonawcze wymagają osobnego, legalnie licencjonowanego źródła danych normatywnych.
 - [x] Draft Analysis z mapą kątów ścian ukończono jako `P1.33`.
-- Interference dla wskazanych komponentów, Named Views i rozbudowany ViewCube.
+- [x] Interference dla wskazanej pary wystąpień ukończono jako `P1.34a`.
+- Named Views i rozbudowany ViewCube.
 - Zaawansowane profile materiałów/druku, heatmapy, automatyczne ułożenie i naprawa siatki.
 
 ## Historia, projekty i zespoły

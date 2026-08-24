@@ -3226,6 +3226,7 @@
 .component-motion-links,
 .component-configurations,
 .component-contact-sets,
+.component-interference,
 .component-collision-status,
 .component-properties { flex: 0 0 auto; }
 
@@ -3350,7 +3351,21 @@
 .component-motion-links,
 .component-configurations,
 .component-contact-sets,
+.component-interference,
 .component-collision-status { display: grid; gap: 6px; padding: 7px 10px; border-bottom: 1px solid #596573; background: #303a46; }
+
+.component-interference-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.component-interference-pair select,
+.component-interference-pair button { min-width: 0; min-height: 28px; padding: 4px 6px; border: 1px solid #667482; border-radius: 3px; background: #27313c; color: #f0f4f7; font: inherit; }
+.component-interference-pair button { grid-column: 1 / -1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: #465362; cursor: pointer; }
+.component-interference-pair button:disabled { opacity: .45; cursor: default; }
+.component-interference-result { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 6px; padding: 6px 7px; border: 1px solid #66808a; border-radius: 3px; background: #263c43; color: #8be8e4; }
+.component-interference-result > div { display: grid; gap: 1px; }
+.component-interference-result strong { font-size: 9px; letter-spacing: .05em; }
+.component-interference-result small { color: #c6d6db; font-size: 8px; }
+.component-interference.exact .component-interference-result { border-color: #a95c60; background: #4b292b; color: #ff9494; }
+.component-interference.broad-phase .component-interference-result { border-color: #a77842; background: #4a3422; color: #ffc273; }
+.component-interference > p { margin: 0; color: #aeb9c3; font-size: 9px; line-height: 1.4; }
 .component-motion-list,
 .component-contact-list { display: grid; max-height: 110px; overflow: auto; gap: 2px; }
 .component-motion-list > p,

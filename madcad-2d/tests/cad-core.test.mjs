@@ -400,6 +400,13 @@ test('kontrola kolizji złożenia uwzględnia transformacje wystąpień i zagnie
   assert.equal(collision.activeContactPairs, 1);
   assert.equal(collision.collisions[0].contactSetId, contactSet.id);
   assert.equal(collision.contactSets[0].status, 'exact');
+  const selectedCollision = detectAssemblyCollisions(document, bodies, { instanceIds: [second.id, first.id, second.id] });
+  assert.deepEqual(selectedCollision.selectedInstanceIds, [second.id, first.id]);
+  assert.equal(selectedCollision.checkedPairs, 1);
+  assert.equal(selectedCollision.collisions[0].status, 'exact');
+  assert.throws(() => detectAssemblyCollisions(document, bodies, { instanceIds: [first.id] }), /co najmniej dwóch/);
+  assert.throws(() => detectAssemblyCollisions(document, bodies, { instanceIds: [first.id, 'missing'] }), /Nie znaleziono wszystkich/);
+  assert.throws(() => detectAssemblyCollisions(document, bodies, { instanceIds: 'all' }), /musi być tablicą/);
   const boundedCollision = detectAssemblyCollisions(document, bodies, { maxExactTriangleTests: 1 });
   assert.equal(boundedCollision.status, 'partial');
   assert.equal(boundedCollision.collisions[0].status, 'broad-phase');

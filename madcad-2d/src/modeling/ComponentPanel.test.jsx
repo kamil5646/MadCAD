@@ -128,9 +128,25 @@ describe('ComponentPanel', () => {
   });
 
   it('reports moving assembly collisions and selects the first occurrence', () => {
-    const props = panelProps({ collisionResult: { checkedPairs: 1, collisions: [{ firstInstanceId: 'occurrence-part', secondInstanceId: 'occurrence-part-2', firstName: 'Rama:1', secondName: 'Rama:2', overlapVolume: 125 }] } });
+    const props = panelProps({ collisionResult: { checkedPairs: 1, collisions: [{ firstInstanceId: 'occurrence-part', secondInstanceId: 'occurrence-part-2', firstName: 'Rama:1', secondName: 'Rama:2', overlap: [5, 5, 5], overlapVolume: 125, status: 'exact' }] } });
     render(<ComponentPanel {...props} />);
     fireEvent.click(screen.getByRole('button', { name: /Rama:1.*Rama:2/i }));
+    expect(props.onSelectInstance).toHaveBeenCalledWith('occurrence-part');
+  });
+
+  it('runs Interference only for the two indicated occurrences', () => {
+    const cube = {
+      id: 'body-1',
+      metrics: { bounds: [[0, 0, 0], [10, 10, 10]] },
+      vertices: [0, 0, 0, 10, 0, 0, 10, 10, 0, 0, 10, 0, 0, 0, 10, 10, 0, 10, 10, 10, 10, 0, 10, 10],
+      triangles: [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7],
+    };
+    const props = panelProps({ bodies: [cube] });
+    render(<ComponentPanel {...props} />);
+    fireEvent.change(screen.getByRole('combobox', { name: /Pierwsze wystąpienie analizy Interference/i }), { target: { value: 'occurrence-part' } });
+    fireEvent.change(screen.getByRole('combobox', { name: /Drugie wystąpienie analizy Interference/i }), { target: { value: 'occurrence-part-2' } });
+    fireEvent.click(screen.getByRole('button', { name: /Analizuj parę/i }));
+    expect(screen.getAllByText(/BRAK KOLIZJI/i).length).toBeGreaterThan(0);
     expect(props.onSelectInstance).toHaveBeenCalledWith('occurrence-part');
   });
 

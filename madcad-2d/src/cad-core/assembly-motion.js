@@ -404,9 +404,14 @@ function exactMeshCollision(firstMesh, secondMesh, tolerance, maxTriangleTests) 
   return Boolean((firstPoint && pointInsideMesh(firstPoint, secondMesh.triangles, tolerance)) || (secondPoint && pointInsideMesh(secondPoint, firstMesh.triangles, tolerance)));
 }
 
-export function detectAssemblyCollisions(document, bodies = [], { tolerance = 1e-7, maxExactTriangleTests = 250000 } = {}) {
+export function detectAssemblyCollisions(document, bodies = [], { tolerance = 1e-7, maxExactTriangleTests = 250000, instanceIds = [] } = {}) {
   ensureDocumentAssemblyMotion(document);
-  const occurrences = assemblyOccurrenceBounds(document, bodies);
+  if (!Array.isArray(instanceIds)) throw new Error('Lista wystąpień analizy kolizji musi być tablicą.');
+  const requestedInstanceIds = [...new Set(instanceIds.filter(Boolean))];
+  if (requestedInstanceIds.length === 1) throw new Error('Analiza kolizji wymaga co najmniej dwóch wystąpień.');
+  const requestedInstanceSet = new Set(requestedInstanceIds);
+  const occurrences = assemblyOccurrenceBounds(document, bodies).filter((occurrence) => !requestedInstanceSet.size || requestedInstanceSet.has(occurrence.instanceId));
+  if (requestedInstanceSet.size && occurrences.length !== requestedInstanceSet.size) throw new Error('Nie znaleziono wszystkich wystąpień wskazanych do analizy kolizji.');
   const triangleMeshes = occurrenceTriangleMeshes(document, bodies);
   const collisions = [];
   let broadPhasePairs = 0;
@@ -444,5 +449,5 @@ export function detectAssemblyCollisions(document, bodies = [], { tolerance = 1e
       overlapVolume: collision?.overlapVolume || 0,
     };
   });
-  return { status: collisions.some((collision) => collision.status === 'broad-phase') ? 'partial' : 'complete', occurrences: occurrences.length, checkedPairs: occurrences.length * (occurrences.length - 1) / 2, broadPhasePairs, exactPairs, activeContactPairs: contactSets.filter((item) => item.status === 'exact' || item.status === 'broad-phase').length, contactSets, collisions };
+  return { status: collisions.some((collision) => collision.status === 'broad-phase') ? 'partial' : 'complete', occurrences: occurrences.length, selectedInstanceIds: requestedInstanceIds, checkedPairs: occurrences.length * (occurrences.length - 1) / 2, broadPhasePairs, exactPairs, activeContactPairs: contactSets.filter((item) => item.status === 'exact' || item.status === 'broad-phase').length, contactSets, collisions };
 }

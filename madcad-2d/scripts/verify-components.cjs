@@ -160,6 +160,14 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('button[aria-label="Aktywuj konfigurację Robocza"]').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.activeAssemblyConfigurationId === ${JSON.stringify(workingConfigurationId)} && window.__madcadVerifyDocumentState.joints.find((item) => item.id === ${JSON.stringify(jointId)})?.value === 35 && window.__madcadVerifyDocumentState.joints.find((item) => item.id === ${JSON.stringify(sliderJointId)})?.value === 17.5`, 'przywrócona konfiguracja Robocza');
     await waitFor(window, `window.__madcadVerifyDocumentState.assemblyCollisions.length >= 1`, 'wizualna kontrola kolizji');
+    const interferencePair = await window.webContents.executeJavaScript(`(() => {
+      const collision = window.__madcadVerifyDocumentState.assemblyCollisions.find((item) => item.status === 'exact');
+      return [collision.firstInstanceId, collision.secondInstanceId];
+    })()`);
+    await setSelect(window, 'select[aria-label="Pierwsze wystąpienie analizy Interference"]', interferencePair[0]);
+    await setSelect(window, 'select[aria-label="Drugie wystąpienie analizy Interference"]', interferencePair[1]);
+    if (!(await clickByText(window, '.component-interference button', 'Analizuj parę'))) throw new Error('Nie znaleziono analizy Interference.');
+    await waitFor(window, `document.querySelector('.component-interference-result')?.textContent.includes('POTWIERDZONA KOLIZJA')`, 'Interference wybranej pary');
     await setSelect(window, 'select[aria-label="Pierwsze wystąpienie Contact Set"]', duplicateId);
     await setSelect(window, 'select[aria-label="Drugie wystąpienie Contact Set"]', sliderOccurrenceId);
     if (!(await clickByText(window, '.component-contact-create button', 'Utwórz Contact Set'))) throw new Error('Nie znaleziono tworzenia Contact Set.');
@@ -208,6 +216,8 @@ app.whenReady().then(async () => {
         sliderX: state.componentInstances.find((item) => item.id === ${JSON.stringify(sliderOccurrenceId)})?.transform.x,
         assemblyCollisions: state.assemblyCollisions.length,
         exactCollisions: state.assemblyCollisions.filter((item) => item.status === 'exact').length,
+        interferenceStatus: document.querySelector('.component-interference')?.classList.contains('exact') ? 'exact' : 'missing',
+        interferenceBounds: document.querySelector('.component-interference-result small')?.textContent || '',
         grounded: state.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.grounded,
         duplicateX: state.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.transform.x,
         duplicateRotationZ: state.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.transform.rotationZ,
@@ -221,7 +231,7 @@ app.whenReady().then(async () => {
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
-    if (result.schemaVersion !== 15 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
+    if (result.schemaVersion !== 15 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.interferenceStatus !== 'exact' || !result.interferenceBounds.includes('Nakładanie obwiedni:') || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
       throw new Error(`Niepoprawny przepływ komponentów: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...result }, null, 2)}\n`);
