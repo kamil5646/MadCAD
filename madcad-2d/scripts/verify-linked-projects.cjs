@@ -64,15 +64,17 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('[data-linked-project-state="missing"]')`, 'brakujący plik źródłowy');
     await click(window, '[data-linked-project-action="repair"]');
     await waitFor(window, `document.querySelector('[data-linked-project-state="current"]') && window.__madcadVerifyDocumentState.bodyIds.length === 1`, 'naprawione łącze');
+    await click(window, '[data-component-action="pack-and-go"]');
+    await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('manifest SHA-256')`, 'utworzona paczka Pack & Go');
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
 
     const result = await window.webContents.executeJavaScript(`(() => {
       const panel = document.querySelector('.component-panel');
       const rect = panel.getBoundingClientRect();
-      return { linkedProjects: window.__madcadVerifyDocumentState.linkedProjects.length, bodies: window.__madcadVerifyDocumentState.bodyIds.length, state: document.querySelector('.linked-project-card')?.dataset.linkedProjectState, horizontalOverflow: document.documentElement.scrollWidth > innerWidth, panelVisible: rect.width > 0 && rect.height > 0 };
+      return { linkedProjects: window.__madcadVerifyDocumentState.linkedProjects.length, bodies: window.__madcadVerifyDocumentState.bodyIds.length, state: document.querySelector('.linked-project-card')?.dataset.linkedProjectState, packAndGo: document.querySelector('.workspace-notice')?.textContent.includes('manifest SHA-256') || false, horizontalOverflow: document.documentElement.scrollWidth > innerWidth, panelVisible: rect.width > 0 && rect.height > 0 };
     })()`);
     Object.assign(result, { stableProxyId: refreshedId === initial.featureId, screenshotPath });
-    if (result.linkedProjects !== 1 || result.bodies !== 1 || result.state !== 'current' || result.horizontalOverflow || !result.panelVisible || !result.stableProxyId) throw new Error(`Niepoprawny przepływ linkowanego projektu: ${JSON.stringify(result)}`);
+    if (result.linkedProjects !== 1 || result.bodies !== 1 || result.state !== 'current' || !result.packAndGo || result.horizontalOverflow || !result.panelVisible || !result.stableProxyId) throw new Error(`Niepoprawny przepływ linkowanego projektu: ${JSON.stringify(result)}`);
 
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'en' } });
     await waitFor(window, `typeof window.__madcadVerifyDocumentState === 'object'`, 'angielski interfejs modelowania');
@@ -82,9 +84,9 @@ app.whenReady().then(async () => {
     const englishPanel = await window.webContents.executeJavaScript(`(() => {
       const panel = document.querySelector('.component-panel');
       const text = panel?.textContent || '';
-      return { visible: Boolean(panel), linkAction: document.querySelector('[data-component-action="link-project"]')?.textContent.trim() || '', polishLeak: /Linkuj projekt|Projekt linkowany|Napraw łącze/.test(text) };
+      return { visible: Boolean(panel), linkAction: document.querySelector('[data-component-action="link-project"]')?.textContent.trim() || '', packAndGo: document.querySelector('[data-component-action="pack-and-go"]')?.textContent.trim() || '', polishLeak: /Linkuj projekt|Projekt linkowany|Napraw łącze/.test(text) };
     })()`);
-    if (!englishPanel.visible || englishPanel.polishLeak || !englishPanel.linkAction.includes('Link project')) throw new Error(`Niepełne tłumaczenie panelu linków: ${JSON.stringify(englishPanel)}`);
+    if (!englishPanel.visible || englishPanel.polishLeak || !englishPanel.linkAction.includes('Link project') || !englishPanel.packAndGo.includes('Pack & Go')) throw new Error(`Niepełne tłumaczenie panelu linków: ${JSON.stringify(englishPanel)}`);
     result.englishPanel = englishPanel;
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     app.exit(0);

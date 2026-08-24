@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld('desktopApp', {
   autosaveClear: async () => ({ ok: true }),
   selectLinkedProject: async () => { missing = false; return result(); },
   readLinkedProject: async () => result(),
+  packAndGoProject: async () => ({ ok: true, canceled: false, destinationDirectory: '/tmp/Korpus-Pack-and-Go', manifest: { files: [{ path: 'main.madcad' }, { path: 'dependencies/korpus.madcad' }] } }),
   verifyLinkedProjectChange: async () => { version = 2; missing = false; return true; },
   verifyLinkedProjectMissing: async () => { missing = true; return true; },
 });

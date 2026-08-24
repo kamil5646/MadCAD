@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, FolderOpen, GitCompareArrows, Keyboard, Layers3, Link2, Lock, LockOpen, Magnet, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Trash2, Ungroup, X, XCircle } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, FolderOpen, GitCompareArrows, Keyboard, Layers3, Link2, Lock, LockOpen, Magnet, PackageOpen, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Trash2, Ungroup, X, XCircle } from 'lucide-react';
 import { componentDescendantIds, componentInstanceDescendantIds, componentInstanceTree, componentParentMap, componentTree } from '../cad-core/components.js';
 import { formatModelFileSize } from '../cad-core/model-import.js';
 import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
@@ -63,7 +63,7 @@ export function LayersPanel({ document, selectedEntities = [], readOnly = false,
   );
 }
 
-export function ComponentPanel({ document, bodies = [], collisionResult = { collisions: [], contactSets: [], checkedPairs: 0 }, selectedComponentId = '', selectedInstanceId = '', selectedJointId = '', selectedMotionLinkId = '', selectedConfigurationId = '', selectedContactSetId = '', selectedBodyIds = [], linkedProjectStatuses = {}, readOnly = false, onCreate, onLinkProject, onRefreshLinkedProject, onRepairLinkedProject, onUpdate, onAssignBodies, onMove, onDelete, onSelect, onSelectInstance, onCreateInstance, onUpdateInstance, onDuplicateInstance, onDeleteInstance, onCreateRigidGroup, onDeleteRigidGroup, onSelectJoint, onCreateJoint, onUpdateJoint, onSetJointValue, onDeleteJoint, onSelectMotionLink, onCreateMotionLink, onUpdateMotionLink, onDeleteMotionLink, onSelectConfiguration, onCreateConfiguration, onUpdateConfiguration, onApplyConfiguration, onDeleteConfiguration, onSelectContactSet, onCreateContactSet, onUpdateContactSet, onDeleteContactSet, onClose }) {
+export function ComponentPanel({ document, bodies = [], collisionResult = { collisions: [], contactSets: [], checkedPairs: 0 }, selectedComponentId = '', selectedInstanceId = '', selectedJointId = '', selectedMotionLinkId = '', selectedConfigurationId = '', selectedContactSetId = '', selectedBodyIds = [], linkedProjectStatuses = {}, readOnly = false, onCreate, onLinkProject, onPackAndGo, onRefreshLinkedProject, onRepairLinkedProject, onUpdate, onAssignBodies, onMove, onDelete, onSelect, onSelectInstance, onCreateInstance, onUpdateInstance, onDuplicateInstance, onDeleteInstance, onCreateRigidGroup, onDeleteRigidGroup, onSelectJoint, onCreateJoint, onUpdateJoint, onSetJointValue, onDeleteJoint, onSelectMotionLink, onCreateMotionLink, onUpdateMotionLink, onDeleteMotionLink, onSelectConfiguration, onCreateConfiguration, onUpdateConfiguration, onApplyConfiguration, onDeleteConfiguration, onSelectContactSet, onCreateContactSet, onUpdateContactSet, onDeleteContactSet, onClose }) {
   const [rigidMateId, setRigidMateId] = React.useState('');
   const [jointMateId, setJointMateId] = React.useState('');
   const [jointType, setJointType] = React.useState('revolute');
@@ -121,6 +121,7 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
         <button type="button" data-component-action="create-part" disabled={readOnly} onClick={() => onCreate('part')}><Box size={14} /> Nowa część</button>
         <button type="button" data-component-action="create-assembly" disabled={readOnly} onClick={() => onCreate('assembly')}><Boxes size={14} /> Nowe złożenie</button>
         <button type="button" data-component-action="link-project" disabled={readOnly || !onLinkProject} onClick={onLinkProject}><Link2 size={14} /> Linkuj projekt</button>
+        <button type="button" data-component-action="pack-and-go" disabled={!onPackAndGo} onClick={onPackAndGo}><PackageOpen size={14} /> Pack &amp; Go</button>
       </div>
       <div className="component-list" aria-label="Struktura dokumentu">
         <div className="component-section-title"><strong>Definicje</strong><span>{document.components.length}</span></div>

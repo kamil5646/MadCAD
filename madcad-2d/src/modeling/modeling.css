@@ -2938,8 +2938,8 @@
 }
 
 .component-toolbar {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   padding: 8px;
   border-bottom: 1px solid #596573;
@@ -2972,6 +2972,8 @@
   font: inherit;
   cursor: pointer;
 }
+
+.component-toolbar button { width: 100%; }
 
 .component-toolbar button:disabled,
 .component-actions button:disabled { opacity: .45; cursor: default; }

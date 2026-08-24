@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import atomicFile from '../electron/atomic-file.cjs';
 import slicerLaunch from '../electron/slicer-launch.cjs';
@@ -10,6 +10,7 @@ import securityPolicy from '../electron/security-policy.cjs';
 import ipcPolicy from '../electron/ipc-policy.cjs';
 import recoveryFile from '../electron/recovery-file.cjs';
 import projectSnapshotStore from '../electron/project-snapshots.cjs';
+import packAndGo from '../electron/pack-and-go.cjs';
 import windowBounds from '../electron/window-bounds.cjs';
 import updatePolicy from '../electron/update-policy.cjs';
 import dwgConverter from '../electron/dwg-converter.cjs';
@@ -3968,8 +3969,9 @@ test('okna Electron i preload utrzymują sandbox oraz jedną bramę IPC', async 
   ]);
   assert.doesNotMatch(mainSource, /sandbox:\s*false/);
   assert.equal((mainSource.match(/sandbox:\s*true/g) || []).length, 3);
-  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 19);
+  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 20);
   assert.match(preloadSource, /openProjectFile/);
+  assert.match(preloadSource, /packAndGoProject/);
   assert.doesNotMatch(mainSource, /install-oda-addon|convert-cad-file|get-oda-status|choose-oda|open-oda/);
   assert.match(mainSource, /import-dwg-sketch/);
   assert.equal((mainSource.match(/ipcMain\.handle\(/g) || []).length, 1);
@@ -3978,6 +3980,75 @@ test('okna Electron i preload utrzymują sandbox oraz jedną bramę IPC', async 
   assert.doesNotMatch(preloadSource, /require\(['"](?:os|crypto|fs|child_process)['"]\)/);
   assert.doesNotMatch(preloadSource, /verifyLicenseSignature/);
   assert.doesNotMatch(preloadSource, /installOdaAddon|convertCadFile|getOdaStatus|chooseOdaConverterPath|openOdaDownload/);
+});
+
+test('Pack & Go zbiera graf linków, przepisuje ścieżki i zapisuje manifest integralności', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'madcad-pack-and-go-'));
+  try {
+    const leafPath = join(directory, 'korpus.madcad');
+    const childPath = join(directory, 'podzespol.madcad');
+    const rootPath = join(directory, 'maszyna.madcad');
+    const destination = join(directory, 'Maszyna-Pack-and-Go');
+    const leaf = createDocument('Korpus');
+    const leafText = JSON.stringify(leaf, null, 2);
+    await writeFile(leafPath, leafText, 'utf8');
+    const child = createDocument('Podzespół');
+    child.linkedProjects.push({ relativePath: 'korpus.madcad', fileName: 'korpus.madcad', sourceDocumentId: leaf.id, sourceHash: packAndGo.sha256(leafText) });
+    const childText = JSON.stringify(child, null, 2);
+    await writeFile(childPath, childText, 'utf8');
+    const root = createDocument('Maszyna');
+    root.linkedProjects.push({ relativePath: 'podzespol.madcad', fileName: 'podzespol.madcad', sourceDocumentId: child.id, sourceHash: packAndGo.sha256(childText) });
+    await writeFile(rootPath, JSON.stringify(root, null, 2), 'utf8');
+
+    const result = await packAndGo.createPackAndGo(rootPath, destination, {
+      now: () => '2026-08-24T12:00:00.000Z',
+      randomId: () => 'test',
+    });
+    assert.equal(result.manifest.files.length, 3);
+    assert.equal(result.manifest.rootProject, 'maszyna.madcad');
+    const manifest = JSON.parse(await readFile(join(destination, 'madcad-pack.json'), 'utf8'));
+    for (const file of manifest.files) {
+      const text = await readFile(join(destination, ...file.path.split('/')), 'utf8');
+      assert.equal(packAndGo.sha256(text), file.sha256);
+    }
+    const packedRoot = JSON.parse(await readFile(join(destination, manifest.rootProject), 'utf8'));
+    const packedChildPath = join(destination, packedRoot.linkedProjects[0].relativePath);
+    const packedChildText = await readFile(packedChildPath, 'utf8');
+    assert.equal(packAndGo.sha256(packedChildText), packedRoot.linkedProjects[0].sourceHash);
+    const packedChild = JSON.parse(packedChildText);
+    const packedLeafPath = join(dirname(packedChildPath), packedChild.linkedProjects[0].relativePath);
+    assert.equal(packAndGo.sha256(await readFile(packedLeafPath, 'utf8')), packedChild.linkedProjects[0].sourceHash);
+    await assert.rejects(() => packAndGo.createPackAndGo(rootPath, destination), /już istnieje/i);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('Pack & Go odrzuca brak, zmianę źródła i cykl bez częściowej paczki', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'madcad-pack-errors-'));
+  try {
+    const rootPath = join(directory, 'root.madcad');
+    const childPath = join(directory, 'child.madcad');
+    const root = createDocument('Root');
+    const child = createDocument('Child');
+    root.linkedProjects.push({ relativePath: 'missing.madcad', fileName: 'missing.madcad', sourceDocumentId: 'missing', sourceHash: '0'.repeat(64) });
+    await writeFile(rootPath, JSON.stringify(root), 'utf8');
+    await assert.rejects(() => packAndGo.createPackAndGo(rootPath, join(directory, 'missing-pack')), /Brakuje/i);
+
+    root.linkedProjects[0] = { relativePath: 'child.madcad', fileName: 'child.madcad', sourceDocumentId: child.id, sourceHash: '0'.repeat(64) };
+    await writeFile(rootPath, JSON.stringify(root), 'utf8');
+    await writeFile(childPath, JSON.stringify(child), 'utf8');
+    await assert.rejects(() => packAndGo.createPackAndGo(rootPath, join(directory, 'changed-pack')), /zmienił się/i);
+
+    child.linkedProjects.push({ relativePath: 'root.madcad', fileName: 'root.madcad', sourceDocumentId: root.id, sourceHash: '0'.repeat(64) });
+    root.linkedProjects[0].sourceHash = packAndGo.sha256(JSON.stringify(child));
+    await writeFile(rootPath, JSON.stringify(root), 'utf8');
+    await writeFile(childPath, JSON.stringify(child), 'utf8');
+    await assert.rejects(() => packAndGo.createPackAndGo(rootPath, join(directory, 'cycle-pack')), /cykl/i);
+    assert.deepEqual((await readdir(directory)).filter((name) => name.endsWith('-pack')), []);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('nazwane punkty zapisu projektu są atomowe, limitowane i możliwe do przywrócenia', async () => {

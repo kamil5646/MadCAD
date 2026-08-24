@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('desktopApp', {
   projectSnapshotDelete: (payload) => ipcRenderer.invoke('madcad:project-snapshot-delete', payload),
   selectLinkedProject: (payload) => ipcRenderer.invoke('madcad:select-linked-project', payload),
   readLinkedProject: (payload) => ipcRenderer.invoke('madcad:read-linked-project', payload),
+  packAndGoProject: (payload) => ipcRenderer.invoke('madcad:pack-and-go', payload),
   checkForUpdates: () => ipcRenderer.invoke('madcad:check-for-updates'),
   downloadAndInstallUpdate: (payload) => ipcRenderer.invoke('madcad:download-and-install-update', payload),
   openPrintPreviewWindow: (payload) => ipcRenderer.invoke('madcad:open-print-preview', payload),

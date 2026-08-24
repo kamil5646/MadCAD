@@ -24,6 +24,7 @@
     "verify:timeline": "npm run build:ui && electron scripts/verify-timeline-management.cjs",
     "verify:snapshots": "npm run build:ui && electron scripts/verify-project-snapshots.cjs",
     "verify:linked-projects": "npm run build:ui && electron scripts/verify-linked-projects.cjs",
+    "verify:pack-and-go": "npm run build:ui && electron scripts/verify-linked-projects.cjs",
     "verify:reference-repair": "npm run build:ui && electron scripts/verify-reference-repair-wizard.cjs",
     "verify:layers": "npm run build:ui && electron scripts/verify-layers.cjs",
     "verify:blocks": "npm run build:ui && electron scripts/verify-blocks.cjs",

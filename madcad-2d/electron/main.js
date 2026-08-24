@@ -22,6 +22,7 @@ const {
   securePrintPreviewHtml,
 } = require('./ipc-policy.cjs');
 const { createProjectSnapshot, deleteProjectSnapshot, listProjectSnapshots, readProjectSnapshot } = require('./project-snapshots.cjs');
+const { createPackAndGo, portableName } = require('./pack-and-go.cjs');
 const { readRecoverableTextFile, validateJsonText } = require('./recovery-file.cjs');
 const { normalizeWindowBounds } = require('./window-bounds.cjs');
 const updatePolicy = require('./update-policy.cjs');
@@ -1582,6 +1583,26 @@ registerTrustedIpcHandler('madcad:read-linked-project', async (_event, payload) 
   } catch (error) {
     if (error?.code === 'ENOENT') return { ok: false, missing: true, error: t('Nie znaleziono linkowanego projektu.', 'The linked project was not found.') };
     return { ok: false, missing: false, error: storageErrorMessage(error, 'Nie udało się odczytać linkowanego projektu.', 'Failed to read the linked project.') };
+  }
+});
+
+registerTrustedIpcHandler('madcad:pack-and-go', async (event, payload) => {
+  try {
+    const { baseProjectPath } = normalizeLinkedProjectBasePayload(payload);
+    const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;
+    const projectName = portableName(path.basename(baseProjectPath, '.madcad'), 'MadCAD-project');
+    const selection = await dialog.showSaveDialog(senderWindow, {
+      title: t('Pack & Go — przenośna paczka projektu', 'Pack & Go — portable project package'),
+      buttonLabel: t('Utwórz paczkę', 'Create package'),
+      defaultPath: path.join(path.dirname(baseProjectPath), `${projectName}-Pack-and-Go`),
+      nameFieldLabel: t('Nazwa folderu paczki:', 'Package folder name:'),
+      showsTagField: false,
+    });
+    if (selection.canceled || !selection.filePath) return { ok: false, canceled: true };
+    const result = await createPackAndGo(baseProjectPath, selection.filePath);
+    return { ok: true, canceled: false, destinationDirectory: result.destinationDirectory, manifest: result.manifest };
+  } catch (error) {
+    return { ok: false, canceled: false, error: storageErrorMessage(error, 'Nie udało się utworzyć paczki Pack & Go.', 'Failed to create the Pack & Go package.') };
   }
 });
 
