@@ -73,17 +73,20 @@ import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, pars
 import { analyzePrintability } from '../src/cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../src/cad-core/sketch-import.js';
 import {
+  createBalloonDrawingAnnotation,
   createBaseDrawingView,
   createCenterMarkDrawingAnnotation,
   createCenterlineDrawingAnnotation,
   createDetailDrawingView,
   createDrawingRevision,
   createDrawingSheet,
+  createDrawingTable,
   createFeatureControlFrameDrawingAnnotation,
   createHoleNoteDrawingAnnotation,
   createLinearDrawingDimension,
   createProjectedDrawingView,
   createSectionDrawingView,
+  drawingBomItemNumber,
   drawingSheetHtml,
   drawingSheetDxf,
   drawingSheetScene,
@@ -1497,12 +1500,13 @@ test('migracja v5 zachowuje istniejące widoki bazowe i dodaje kolekcje dokument
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 5;
   const opened = openDocument(legacy, { now: '2026-08-24T03:30:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 8);
+  assert.equal(opened.document.schemaVersion, 9);
   assert.equal(opened.document.drawings[0].views[0].type, 'base');
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 5 && entry.to === 6));
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 6 && entry.to === 7));
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 7 && entry.to === 8));
+  assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 8 && entry.to === 9));
 });
 
 test('migracja v6 dodaje adnotacje arkusza bez zmiany widoków', () => {
@@ -1514,7 +1518,7 @@ test('migracja v6 dodaje adnotacje arkusza bez zmiany widoków', () => {
   legacy.schemaVersion = 6;
   const views = structuredClone(sheet.views);
   const opened = openDocument(legacy, { now: '2026-08-24T06:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 8);
+  assert.equal(opened.document.schemaVersion, 9);
   assert.deepEqual(opened.document.drawings[0].views, views);
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.equal(validateDocument(opened.document).valid, true);
@@ -1531,7 +1535,7 @@ test('migracja v7 dodaje tabliczkę i rewizje, a GD&T oraz DXF zachowują geomet
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 7;
   const opened = openDocument(legacy, { now: '2026-08-24T07:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 8);
+  assert.equal(opened.document.schemaVersion, 9);
   assert.deepEqual(opened.document.drawings[0].revisions, []);
   assert.equal(opened.document.drawings[0].titleBlock.revision, 'A');
 
@@ -1548,6 +1552,58 @@ test('migracja v7 dodaje tabliczkę i rewizje, a GD&T oraz DXF zachowują geomet
   assert.match(dxf, /0\nLINE/);
   assert.match(dxf, /0\nTEXT/);
   assert.match(dxf, /0\nEOF/);
+});
+
+test('migracja v8 dodaje tabele, a BOM, balony i tabela otworów pozostają skojarzone z modelem', () => {
+  const legacy = createDocument('Dokumentacja v8');
+  const sheet = createDrawingSheet();
+  const body = {
+    id: 'body-v8',
+    name: 'Korpus',
+    partNumber: 'MC-100',
+    material: 'S235',
+    lines: Float32Array.from([0, 0, 0, 40, 0, 0, 40, 0, 0, 40, 0, 30]),
+    metrics: { bounds: [[0, 0, 0], [40, 20, 30]] },
+    topology: { faces: [
+      { descriptor: { geometry: 'CYLINDRE', radius: 4, orientation: 'REVERSED' } },
+      { descriptor: { geometry: 'CYLINDRE', radius: 4, orientation: 'REVERSED' } },
+      { descriptor: { geometry: 'CYLINDRE', radius: 2, orientation: 'REVERSED' } },
+    ] },
+  };
+  const view = createBaseDrawingView({ bodyIds: [body.id], x: 90, y: 70, sheet });
+  sheet.views.push(view);
+  delete sheet.tables;
+  legacy.drawings.push(sheet);
+  legacy.schemaVersion = 8;
+
+  const opened = openDocument(legacy, { now: '2026-08-24T08:00:00.000Z' });
+  assert.equal(opened.document.schemaVersion, 9);
+  assert.deepEqual(opened.document.drawings[0].tables, []);
+  assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 8 && entry.to === 9));
+
+  const currentSheet = opened.document.drawings[0];
+  currentSheet.annotations.push(createBalloonDrawingAnnotation({ viewId: view.id, bodyId: body.id, itemNumber: 1 }));
+  currentSheet.tables.push(createDrawingTable({ type: 'bom', sheet: currentSheet }));
+  currentSheet.tables.push(createDrawingTable({ type: 'hole-table', viewId: view.id, sheet: currentSheet }));
+  opened.document.components.push({ id: 'component-v8', name: 'Korpus', partNumber: 'MC-100', material: 'S235', quantity: 2, bodyIds: [body.id] });
+
+  assert.equal(validateDocument(opened.document).valid, true);
+  const scene = drawingSheetScene(currentSheet, [body], { components: opened.document.components });
+  assert.equal(scene.annotations.at(-1).type, 'balloon');
+  assert.equal(scene.annotations.at(-1).text, '1');
+  assert.deepEqual(scene.tables[0].rows, [['1', 'MC-100', 'Korpus', '2', 'S235']]);
+  assert.equal(drawingBomItemNumber(body.id, [body], opened.document.components), 1);
+  assert.deepEqual(scene.tables[1].rows, [['1', '⌀4', '1', 'Otwór walcowy'], ['2', '⌀8', '2', 'Otwór walcowy']]);
+  const inferredHoleBody = { ...body, topology: { faces: [] }, metrics: { ...body.metrics, minimumRadius: 3 } };
+  assert.deepEqual(drawingSheetScene(currentSheet, [inferredHoleBody], { components: opened.document.components }).tables[1].rows, [['1', '⌀6', '1', 'Otwór walcowy']]);
+  const html = drawingSheetHtml(currentSheet, [body], { components: opened.document.components });
+  assert.match(html, /ZESTAWIENIE CZĘŚCI/);
+  assert.match(html, /TABELA OTWORÓW/);
+  assert.match(html, /drawing-balloon/);
+  const dxf = drawingSheetDxf(currentSheet, [body], { components: opened.document.components });
+  assert.match(dxf, /8\nBALLOON/);
+  assert.match(dxf, /8\nTABLE/);
+  assert.deepEqual(openDocument(JSON.parse(JSON.stringify(opened.document))).document.drawings, opened.document.drawings);
 });
 
 test('otwiera zgodny dokument z nowszej wersji wyłącznie do odczytu', () => {

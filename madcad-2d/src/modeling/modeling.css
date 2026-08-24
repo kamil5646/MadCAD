@@ -1230,6 +1230,10 @@
 .drawing-view.selected text { fill: #007da6; font-weight: 700; }
 .drawing-title-block text { fill: #111; stroke: none; font-size: 3px; }
 .drawing-title-block .drawing-project-name { font-size: 5px; font-weight: 700; }
+.drawing-table rect,
+.drawing-table line { fill: none; stroke: #111; stroke-width: .25; }
+.drawing-table text { fill: #111; stroke: none; font-size: 2.3px; }
+.drawing-table .drawing-table-title { font-weight: 700; }
 
 .drawing-properties {
   display: flex;
@@ -1271,6 +1275,11 @@
 .drawing-sheet-details .drawing-property-row label:first-child { padding-left: 9px; }
 .drawing-sheet-details .drawing-property-row label:last-child { padding-right: 9px; }
 .drawing-revision { display: grid; gap: 6px; padding: 7px 0; border-top: 1px solid #46515e; }
+.drawing-table-control { display: grid; gap: 6px; padding: 7px 0; border-top: 1px solid #46515e; }
+.drawing-table-control > strong { padding: 0 9px; color: #9bdff1; font-size: 10px; }
+.drawing-table-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 0 9px; }
+.drawing-table-actions button { display: inline-flex; min-height: 28px; align-items: center; justify-content: center; gap: 5px; border: 1px solid #28a9d4; background: #157fa5; color: #fff; cursor: pointer; }
+.drawing-table-actions button:disabled { opacity: .45; cursor: default; }
 .drawing-revision-delete,
 .drawing-add-revision { display: inline-flex; min-height: 27px; align-items: center; justify-content: center; gap: 5px; margin: 0 9px; border: 1px solid #5a6875; background: #35414d; color: #e4ebef; cursor: pointer; }
 .drawing-revision-delete { border-color: #84545a; color: #ffd8d7; background: #51383d; }

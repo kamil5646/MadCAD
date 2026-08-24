@@ -8,7 +8,8 @@ export const DRAWING_PAGE_SIZES = Object.freeze({
 export const DRAWING_VIEW_ORIENTATIONS = Object.freeze(['front', 'top', 'right', 'isometric']);
 export const DRAWING_VIEW_TYPES = Object.freeze(['base', 'projected', 'section', 'detail']);
 export const DRAWING_VIEW_ALIGNMENTS = Object.freeze(['horizontal', 'vertical', 'free']);
-export const DRAWING_ANNOTATION_TYPES = Object.freeze(['linear-dimension', 'centerline', 'center-mark', 'hole-note', 'feature-control-frame']);
+export const DRAWING_ANNOTATION_TYPES = Object.freeze(['linear-dimension', 'centerline', 'center-mark', 'hole-note', 'feature-control-frame', 'balloon']);
+export const DRAWING_TABLE_TYPES = Object.freeze(['bom', 'hole-table']);
 
 const PAGE_MARGIN = 10;
 const TITLE_BLOCK_HEIGHT = 24;
@@ -32,6 +33,7 @@ export function createDrawingSheet({ name = 'Arkusz 1', pageSize = 'A4', orienta
     annotations: [],
     titleBlock: { title: '', partNumber: '', material: '', author: '', company: '', revision: 'A' },
     revisions: [],
+    tables: [],
   };
 }
 
@@ -108,6 +110,31 @@ export function createFeatureControlFrameDrawingAnnotation({ viewId, center = [0
     symbol: ['position', 'flatness', 'parallelism', 'perpendicularity', 'circularity'].includes(symbol) ? symbol : 'position',
     tolerance: Math.max(0.001, Math.min(100, Number(tolerance) || 0.1)),
     datum: String(datum || '').trim().toUpperCase().slice(0, 8),
+  };
+}
+
+export function createBalloonDrawingAnnotation({ viewId, bodyId = '', center = [0.5, 0.5], labelOffset = [16, -16], itemNumber = 1 } = {}) {
+  return {
+    id: createId('drawing-annotation'),
+    type: 'balloon',
+    viewId,
+    bodyId: String(bodyId || ''),
+    center: normalizedPoint(center),
+    labelOffset: [Number(labelOffset?.[0]) || 16, Number(labelOffset?.[1]) || -16],
+    itemNumber: Math.max(1, Math.min(999, Math.trunc(Number(itemNumber) || 1))),
+  };
+}
+
+export function createDrawingTable({ type = 'bom', viewId = '', x, y, sheet } = {}) {
+  const page = pageDimensions(sheet?.pageSize, sheet?.orientation);
+  const normalizedType = type === 'hole-table' ? 'hole-table' : 'bom';
+  const width = normalizedType === 'bom' ? 86 : 69;
+  return {
+    id: createId('drawing-table'),
+    type: normalizedType,
+    ...(normalizedType === 'hole-table' ? { viewId } : {}),
+    x: Number.isFinite(Number(x)) ? Number(x) : normalizedType === 'bom' ? page.width - PAGE_MARGIN - width : PAGE_MARGIN + 2,
+    y: Number.isFinite(Number(y)) ? Number(y) : PAGE_MARGIN + 2,
   };
 }
 
@@ -197,6 +224,7 @@ export function ensureDocumentDrawings(document) {
       annotations: Array.isArray(sheet.annotations) ? sheet.annotations : [],
       titleBlock: sheet.titleBlock && typeof sheet.titleBlock === 'object' && !Array.isArray(sheet.titleBlock) ? sheet.titleBlock : { title: '', partNumber: '', material: '', author: '', company: '', revision: 'A' },
       revisions: Array.isArray(sheet.revisions) ? sheet.revisions : [],
+      tables: Array.isArray(sheet.tables) ? sheet.tables : [],
     }
     : sheet);
   return document;
@@ -516,10 +544,80 @@ function renderedAnnotation(source, view, bodies) {
     const cellWidth = 11;
     return { ...source, cells, frame: { x: labelX, y: labelY - 4, width: cells.length * cellWidth, height: 6, cellWidth }, segments: [[[x, y], [labelX, labelY - 1]]] };
   }
+  if (source.type === 'balloon') {
+    const labelX = x + (Number(source.labelOffset?.[0]) || 16);
+    const labelY = y + (Number(source.labelOffset?.[1]) || -16);
+    return { ...source, text: String(source.itemNumber || 1), textX: labelX, textY: labelY + 1, circle: { x: labelX, y: labelY, radius: 4.2 }, segments: [[[x, y], [labelX - 3, labelY + 3]]] };
+  }
   return null;
 }
 
-export function drawingSheetScene(sheet, bodies = []) {
+function bomRows(bodies, components) {
+  if (components?.length) return components.map((component, index) => {
+    const ownedBodies = bodies.filter((body) => (component.bodyIds || []).includes(body.id));
+    return [String(index + 1), component.partNumber || `C-${String(index + 1).padStart(3, '0')}`, component.name || `Komponent ${index + 1}`, String(Math.max(1, Number(component.quantity) || 1)), component.material || '—', ownedBodies.map((body) => body.id)];
+  });
+  const groups = new Map();
+  bodies.forEach((body) => {
+    const key = `${body.name || body.id}|${body.representation || 'brep'}`;
+    const group = groups.get(key) || { body, quantity: 0, bodyIds: [] };
+    group.quantity += 1;
+    group.bodyIds.push(body.id);
+    groups.set(key, group);
+  });
+  return [...groups.values()].map(({ body, quantity, bodyIds }, index) => [String(index + 1), body.partNumber || `P-${String(index + 1).padStart(3, '0')}`, body.name || `Część ${index + 1}`, String(quantity), body.material || '—', bodyIds]);
+}
+
+export function drawingBomItemNumber(bodyId, bodies = [], components = []) {
+  const index = bomRows(bodies, components).findIndex((row) => row.at(-1).includes(bodyId));
+  return index < 0 ? null : index + 1;
+}
+
+function fitDrawingTableCell(value, width) {
+  const text = String(value ?? '');
+  const maximumLength = Math.max(2, Math.floor((Number(width) - 2) / 1.25));
+  return text.length <= maximumLength ? text : `${text.slice(0, maximumLength - 1)}…`;
+}
+
+function holeTableRows(view, bodies) {
+  const sourceBodies = sourceBodiesForView(view, bodies);
+  const descriptors = sourceBodies.flatMap((body) => (body?.topology?.faces || []).map((face) => ({ ...face?.descriptor, bodyId: body.id })))
+    .filter((descriptor) => descriptor.geometry === 'CYLINDRE' && Number(descriptor.radius) > 0);
+  const internal = descriptors.filter((descriptor) => String(descriptor.orientation).toUpperCase().includes('REVERSED'));
+  const inferred = sourceBodies.flatMap((body) => Number(body?.metrics?.minimumRadius) > 0
+    ? [{ geometry: 'CYLINDRE', radius: Number(body.metrics.minimumRadius), bodyId: body.id }]
+    : []);
+  const holes = internal.length ? internal : descriptors.length ? descriptors : inferred;
+  const groups = new Map();
+  holes.forEach((descriptor) => {
+    const diameter = Number(descriptor.radius) * 2;
+    const key = diameter.toFixed(4);
+    const group = groups.get(key) || { diameter, count: 0 };
+    group.count += 1;
+    groups.set(key, group);
+  });
+  return [...groups.values()].sort((left, right) => left.diameter - right.diameter)
+    .map((group, index) => [String(index + 1), `⌀${Number(group.diameter.toFixed(3))}`, String(group.count), 'Otwór walcowy']);
+}
+
+function renderedTable(source, resolvedViews, bodies, components) {
+  const bom = source.type === 'bom';
+  const columns = bom
+    ? [{ label: 'Poz.', width: 8 }, { label: 'Nr części', width: 20 }, { label: 'Nazwa', width: 30 }, { label: 'Ilość', width: 8 }, { label: 'Materiał', width: 20 }]
+    : [{ label: 'Poz.', width: 8 }, { label: 'Średnica', width: 16 }, { label: 'Ilość', width: 10 }, { label: 'Opis', width: 35 }];
+  const rawRows = bom ? bomRows(bodies, components) : holeTableRows(resolvedViews.get(source.viewId), bodies);
+  return {
+    ...source,
+    title: bom ? 'ZESTAWIENIE CZĘŚCI' : 'TABELA OTWORÓW',
+    columns,
+    rows: rawRows.map((row) => row.slice(0, columns.length).map((cell, index) => fitDrawingTableCell(cell, columns[index].width))),
+    rowMetadata: bom ? rawRows.map((row) => ({ bodyIds: row.at(-1) })) : [],
+    width: columns.reduce((sum, column) => sum + column.width, 0),
+    rowHeight: 5,
+  };
+}
+
+export function drawingSheetScene(sheet, bodies = [], { components = [] } = {}) {
   const page = pageDimensions(sheet?.pageSize, sheet?.orientation);
   const resolved = new Map();
   const views = (sheet?.views || []).map((sourceView) => {
@@ -574,7 +672,8 @@ export function drawingSheetScene(sheet, bodies = []) {
     return [];
   });
   const annotations = [...viewAnnotations, ...(sheet?.annotations || []).map((annotation) => renderedAnnotation(annotation, resolved.get(annotation.viewId), bodies)).filter(Boolean)];
-  return { ...page, margin: PAGE_MARGIN, titleBlockHeight: TITLE_BLOCK_HEIGHT, views, annotations };
+  const tables = (sheet?.tables || []).map((table) => renderedTable(table, resolved, bodies, components));
+  return { ...page, margin: PAGE_MARGIN, titleBlockHeight: TITLE_BLOCK_HEIGHT, views, annotations, tables };
 }
 
 export function formatDrawingScale(scale) {
@@ -589,8 +688,8 @@ function escapeHtml(value) {
   })[character]);
 }
 
-export function drawingSheetHtml(sheet, bodies = [], { documentName = 'Projekt', author = '', revision = 'A' } = {}) {
-  const scene = drawingSheetScene(sheet, bodies);
+export function drawingSheetHtml(sheet, bodies = [], { documentName = 'Projekt', author = '', revision = 'A', components = [] } = {}) {
+  const scene = drawingSheetScene(sheet, bodies, { components });
   const line = ([first, second], className = '') => `<line${className ? ` class="${className}"` : ''} x1="${first[0]}" y1="${first[1]}" x2="${second[0]}" y2="${second[1]}" />`;
   const lineMarkup = scene.views.map((view) => `<g class="geometry ${escapeHtml(view.type)}">${view.segments.map((segment) => line(segment)).join('')}${view.hatchSegments.map((segment) => line(segment, 'hatch')).join('')}${view.type === 'detail' ? `<circle class="detail-border" cx="${view.x}" cy="${view.y}" r="${Math.max(5, view.detailRadiusSheet)}" />` : ''}</g>`).join('');
   const annotationMarkup = scene.annotations.map((annotation) => {
@@ -599,7 +698,18 @@ export function drawingSheetHtml(sheet, bodies = [], { documentName = 'Projekt',
     const segments = (annotation.segments || []).map((segment) => line(segment)).join('');
     const text = annotation.text ? `<text x="${annotation.textX}" y="${annotation.textY}"${annotation.textRotation ? ` transform="rotate(${annotation.textRotation} ${annotation.textX} ${annotation.textY})"` : ''}>${escapeHtml(annotation.text)}</text>` : '';
     const frame = annotation.frame ? `<rect x="${annotation.frame.x}" y="${annotation.frame.y}" width="${annotation.frame.width}" height="${annotation.frame.height}"/>${annotation.cells.slice(1).map((_, index) => `<line x1="${annotation.frame.x + (index + 1) * annotation.frame.cellWidth}" y1="${annotation.frame.y}" x2="${annotation.frame.x + (index + 1) * annotation.frame.cellWidth}" y2="${annotation.frame.y + annotation.frame.height}"/>`).join('')}${annotation.cells.map((cell, index) => `<text x="${annotation.frame.x + index * annotation.frame.cellWidth + annotation.frame.cellWidth / 2}" y="${annotation.frame.y + 4.2}" text-anchor="middle">${escapeHtml(cell)}</text>`).join('')}` : '';
-    return `<g class="annotation drawing-${escapeHtml(annotation.type)}">${segments}${text}${frame}</g>`;
+    const circle = annotation.circle ? `<circle cx="${annotation.circle.x}" cy="${annotation.circle.y}" r="${annotation.circle.radius}"/>` : '';
+    return `<g class="annotation drawing-${escapeHtml(annotation.type)}">${segments}${text}${frame}${circle}</g>`;
+  }).join('');
+  const tableMarkup = scene.tables.map((table) => {
+    const headerY = table.y + 5;
+    const columnStarts = table.columns.reduce((values, column) => [...values, values.at(-1) + column.width], [table.x]);
+    const height = 10 + table.rows.length * table.rowHeight;
+    const horizontal = Array.from({ length: table.rows.length + 2 }, (_, index) => `<line x1="${table.x}" y1="${table.y + index * table.rowHeight}" x2="${table.x + table.width}" y2="${table.y + index * table.rowHeight}"/>`).join('');
+    const vertical = columnStarts.map((x) => `<line x1="${x}" y1="${headerY}" x2="${x}" y2="${table.y + height}"/>`).join('');
+    const headers = table.columns.map((column, index) => `<text x="${columnStarts[index] + 1}" y="${table.y + 8.5}">${escapeHtml(column.label)}</text>`).join('');
+    const rows = table.rows.flatMap((row, rowIndex) => row.map((cell, columnIndex) => `<text x="${columnStarts[columnIndex] + 1}" y="${table.y + 13.5 + rowIndex * table.rowHeight}">${escapeHtml(cell)}</text>`)).join('');
+    return `<g class="drawing-table"><rect x="${table.x}" y="${table.y}" width="${table.width}" height="${height}"/>${horizontal}${vertical}<text class="table-title" x="${table.x + table.width / 2}" y="${table.y + 3.7}" text-anchor="middle">${escapeHtml(table.title)}</text>${headers}${rows}</g>`;
   }).join('');
   const viewLabels = scene.views.map((view) => `<text x="${view.x}" y="${Math.min(scene.height - scene.titleBlockHeight - 3, view.y + (view.modelHeight * view.scale) / 2 + 6)}" text-anchor="middle">${escapeHtml(view.name)} · ${formatDrawingScale(view.scale)}</text>`).join('');
   const titleTop = scene.height - scene.titleBlockHeight;
@@ -607,7 +717,7 @@ export function drawingSheetHtml(sheet, bodies = [], { documentName = 'Projekt',
   const latestRevision = sheet?.revisions?.at(-1);
   const revisionValue = latestRevision?.code || block.revision || revision;
   const revisionRows = (sheet?.revisions || []).slice(-3).map((item, index) => `<text x="${scene.width - 191}" y="${titleTop + 4 + index * 4}">${escapeHtml(item.code)} · ${escapeHtml(item.date)}</text>`).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(sheet?.name || 'Arkusz')}</title><style>@page{size:${escapeHtml(sheet?.pageSize || 'A4')} ${escapeHtml(sheet?.orientation || 'landscape')};margin:0}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:white;font-family:Arial,sans-serif}svg{display:block;width:${scene.width}mm;height:${scene.height}mm}.border,.title,.annotation rect{fill:none;stroke:#111;stroke-width:.35}.geometry{fill:none;stroke:#111;stroke-width:.28;stroke-linecap:round;stroke-linejoin:round}.geometry.section{stroke-width:.5}.geometry .hatch{stroke-width:.16}.detail-border,.annotation circle{fill:none;stroke:#111;stroke-width:.25}.annotation line{stroke:#111;stroke-width:.25}.section-callout line,.detail-callout line,.drawing-centerline line,.drawing-center-mark line{stroke-dasharray:3 1}.drawing-linear-dimension line,.drawing-hole-note line{stroke-width:.2}.annotation text{font-weight:700}text{fill:#111;font-size:3px}.project{font-size:5px;font-weight:700}</style></head><body><svg viewBox="0 0 ${scene.width} ${scene.height}" xmlns="http://www.w3.org/2000/svg"><rect class="border" x="${scene.margin}" y="${scene.margin}" width="${scene.width - scene.margin * 2}" height="${scene.height - scene.margin * 2}"/>${lineMarkup}${annotationMarkup}${viewLabels}<g class="title"><rect x="${scene.width - 192}" y="${titleTop}" width="60" height="14"/><rect x="${scene.width - 132}" y="${titleTop}" width="122" height="14"/><line x1="${scene.width - 55}" y1="${titleTop}" x2="${scene.width - 55}" y2="${scene.height - 10}"/><line x1="${scene.width - 28}" y1="${titleTop}" x2="${scene.width - 28}" y2="${scene.height - 10}"/></g>${revisionRows}<text class="project" x="${scene.width - 129}" y="${titleTop + 5}">${escapeHtml(block.title || documentName)}</text><text x="${scene.width - 129}" y="${titleTop + 9}">${escapeHtml(block.partNumber || sheet?.name || 'Arkusz')} · ${escapeHtml(block.material || '—')}</text><text x="${scene.width - 129}" y="${titleTop + 12.5}">${escapeHtml(block.company || '')}</text><text x="${scene.width - 53}" y="${titleTop + 5}">Autor</text><text x="${scene.width - 53}" y="${titleTop + 11}">${escapeHtml(block.author || author || '—')}</text><text x="${scene.width - 26}" y="${titleTop + 5}">Rew.</text><text x="${scene.width - 26}" y="${titleTop + 11}">${escapeHtml(revisionValue)}</text></svg></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(sheet?.name || 'Arkusz')}</title><style>@page{size:${escapeHtml(sheet?.pageSize || 'A4')} ${escapeHtml(sheet?.orientation || 'landscape')};margin:0}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:white;font-family:Arial,sans-serif}svg{display:block;width:${scene.width}mm;height:${scene.height}mm}.border,.title,.annotation rect,.drawing-table rect{fill:none;stroke:#111;stroke-width:.35}.geometry{fill:none;stroke:#111;stroke-width:.28;stroke-linecap:round;stroke-linejoin:round}.geometry.section{stroke-width:.5}.geometry .hatch{stroke-width:.16}.detail-border,.annotation circle{fill:none;stroke:#111;stroke-width:.25}.annotation line,.drawing-table line{stroke:#111;stroke-width:.25}.section-callout line,.detail-callout line,.drawing-centerline line,.drawing-center-mark line{stroke-dasharray:3 1}.drawing-linear-dimension line,.drawing-hole-note line{stroke-width:.2}.annotation text{font-weight:700}text{fill:#111;font-size:3px}.project{font-size:5px;font-weight:700}.drawing-table text{font-size:2.3px}.drawing-table .table-title{font-weight:700}</style></head><body><svg viewBox="0 0 ${scene.width} ${scene.height}" xmlns="http://www.w3.org/2000/svg"><rect class="border" x="${scene.margin}" y="${scene.margin}" width="${scene.width - scene.margin * 2}" height="${scene.height - scene.margin * 2}"/>${lineMarkup}${annotationMarkup}${tableMarkup}${viewLabels}<g class="title"><rect x="${scene.width - 192}" y="${titleTop}" width="60" height="14"/><rect x="${scene.width - 132}" y="${titleTop}" width="122" height="14"/><line x1="${scene.width - 55}" y1="${titleTop}" x2="${scene.width - 55}" y2="${scene.height - 10}"/><line x1="${scene.width - 28}" y1="${titleTop}" x2="${scene.width - 28}" y2="${scene.height - 10}"/></g>${revisionRows}<text class="project" x="${scene.width - 129}" y="${titleTop + 5}">${escapeHtml(block.title || documentName)}</text><text x="${scene.width - 129}" y="${titleTop + 9}">${escapeHtml(block.partNumber || sheet?.name || 'Arkusz')} · ${escapeHtml(block.material || '—')}</text><text x="${scene.width - 129}" y="${titleTop + 12.5}">${escapeHtml(block.company || '')}</text><text x="${scene.width - 53}" y="${titleTop + 5}">Autor</text><text x="${scene.width - 53}" y="${titleTop + 11}">${escapeHtml(block.author || author || '—')}</text><text x="${scene.width - 26}" y="${titleTop + 5}">Rew.</text><text x="${scene.width - 26}" y="${titleTop + 11}">${escapeHtml(revisionValue)}</text></svg></body></html>`;
 }
 
 function dxfNumber(value) {
@@ -618,8 +728,8 @@ function dxfText(value) {
   return String(value || '').replaceAll('⌀', '%%c').replaceAll('±', '%%p').replaceAll('×', 'x').replaceAll('−', '-').replace(/[\r\n]/g, ' ');
 }
 
-export function drawingSheetDxf(sheet, bodies = []) {
-  const scene = drawingSheetScene(sheet, bodies);
+export function drawingSheetDxf(sheet, bodies = [], { components = [] } = {}) {
+  const scene = drawingSheetScene(sheet, bodies, { components });
   const entities = [];
   const addLine = ([first, second], layer = 'GEOMETRY') => entities.push(`0\nLINE\n8\n${layer}\n10\n${dxfNumber(first[0])}\n20\n${dxfNumber(scene.height - first[1])}\n30\n0\n11\n${dxfNumber(second[0])}\n21\n${dxfNumber(scene.height - second[1])}\n31\n0`);
   const addCircle = (x, y, radius, layer = 'ANNOTATION') => entities.push(`0\nCIRCLE\n8\n${layer}\n10\n${dxfNumber(x)}\n20\n${dxfNumber(scene.height - y)}\n30\n0\n40\n${dxfNumber(radius)}`);
@@ -636,6 +746,7 @@ export function drawingSheetDxf(sheet, bodies = []) {
     else {
       (annotation.segments || []).forEach((segment) => addLine(segment, 'ANNOTATION'));
       if (annotation.text) addText(annotation.text, annotation.textX, annotation.textY);
+      if (annotation.circle) addCircle(annotation.circle.x, annotation.circle.y, annotation.circle.radius, 'BALLOON');
       if (annotation.frame) {
         const { x, y, width, height, cellWidth } = annotation.frame;
         [[[x, y], [x + width, y]], [[x + width, y], [x + width, y + height]], [[x + width, y + height], [x, y + height]], [[x, y + height], [x, y]]].forEach((segment) => addLine(segment, 'GD&T'));
@@ -643,6 +754,16 @@ export function drawingSheetDxf(sheet, bodies = []) {
         annotation.cells.forEach((cell, index) => addText(cell, x + index * cellWidth + 2, y + 4, 2.5, 'GD&T'));
       }
     }
+  });
+  scene.tables.forEach((table) => {
+    const height = 10 + table.rows.length * table.rowHeight;
+    const starts = table.columns.reduce((values, column) => [...values, values.at(-1) + column.width], [table.x]);
+    [[[table.x, table.y], [table.x + table.width, table.y]], [[table.x + table.width, table.y], [table.x + table.width, table.y + height]], [[table.x + table.width, table.y + height], [table.x, table.y + height]], [[table.x, table.y + height], [table.x, table.y]]].forEach((segment) => addLine(segment, 'TABLE'));
+    Array.from({ length: table.rows.length + 1 }, (_, index) => table.y + (index + 1) * table.rowHeight).forEach((y) => addLine([[table.x, y], [table.x + table.width, y]], 'TABLE'));
+    starts.slice(1, -1).forEach((x) => addLine([[x, table.y + 5], [x, table.y + height]], 'TABLE'));
+    addText(table.title, table.x + 2, table.y + 3.7, 2.5, 'TABLE');
+    table.columns.forEach((column, index) => addText(column.label, starts[index] + 1, table.y + 8.5, 2.2, 'TABLE'));
+    table.rows.forEach((row, rowIndex) => row.forEach((cell, columnIndex) => addText(cell, starts[columnIndex] + 1, table.y + 13.5 + rowIndex * table.rowHeight, 2.2, 'TABLE')));
   });
   return `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1027\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities.join('\n')}\n0\nENDSEC\n0\nEOF\n`;
 }

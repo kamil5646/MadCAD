@@ -124,7 +124,7 @@ import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit } from '../cad-core/model-import.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
-import { createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
+import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import {
   addBlockAttributeDefinition,
@@ -3773,6 +3773,7 @@ export default function ModelingWorkspace() {
       if (sheet) {
         sheet.views = sheet.views.filter((view) => !deletedIds.has(view.id));
         sheet.annotations = (sheet.annotations || []).filter((annotation) => !deletedIds.has(annotation.viewId));
+        sheet.tables = (sheet.tables || []).filter((table) => !deletedIds.has(table.viewId));
       }
     });
     setSelectedDrawingViewId(null);
@@ -3788,9 +3789,13 @@ export default function ModelingWorkspace() {
     else if (type === 'dimension-vertical') annotation = createLinearDrawingDimension({ viewId, axis: 'vertical', offset: 10, precision: 2 });
     else if (type === 'centerline') annotation = createCenterlineDrawingAnnotation({ viewId });
     else if (type === 'center-mark') annotation = createCenterMarkDrawingAnnotation({ viewId });
-    else if (type === 'hole-note') annotation = createHoleNoteDrawingAnnotation({ viewId });
-    else if (type === 'thread-note') annotation = createHoleNoteDrawingAnnotation({ viewId, noteMode: 'thread', labelOffset: [18, -22] });
-    else if (type === 'feature-control-frame') annotation = createFeatureControlFrameDrawingAnnotation({ viewId });
+    else if (type === 'hole-note') annotation = createHoleNoteDrawingAnnotation({ viewId, center: [0.7, 0.3], labelOffset: [12, -12] });
+    else if (type === 'thread-note') annotation = createHoleNoteDrawingAnnotation({ viewId, center: [0.2, 0.25], noteMode: 'thread', labelOffset: [10, -18] });
+    else if (type === 'feature-control-frame') annotation = createFeatureControlFrameDrawingAnnotation({ viewId, center: [0.7, 0.7], labelOffset: [12, 12] });
+    else if (type === 'balloon') {
+      const bodyId = selectedDrawingView.bodyIds[0];
+      annotation = createBalloonDrawingAnnotation({ viewId, bodyId, center: [0.25, 0.2], labelOffset: [-10, -10], itemNumber: drawingBomItemNumber(bodyId, engine.bodies, document.components) || (activeDrawingSheet.annotations || []).filter((item) => item.type === 'balloon').length + 1 });
+    }
     if (!annotation) return;
     commit((next) => {
       const sheet = next.drawings.find((item) => item.id === activeDrawingSheet.id);
@@ -3844,16 +3849,44 @@ export default function ModelingWorkspace() {
     setNotice('Usunięto wpis rewizji.');
   };
 
+  const addDrawingTable = (type) => {
+    if (!activeDrawingSheet || readOnly || (type === 'hole-table' && !selectedDrawingView)) return;
+    if ((activeDrawingSheet.tables || []).some((table) => table.type === type && (type === 'bom' || table.viewId === selectedDrawingView?.id))) {
+      setNotice(type === 'bom' ? 'Arkusz ma już zestawienie części.' : 'Wybrany widok ma już tabelę otworów.');
+      return;
+    }
+    const table = createDrawingTable({ type, viewId: selectedDrawingView?.id, sheet: activeDrawingSheet });
+    commit((next) => { next.drawings.find((sheet) => sheet.id === activeDrawingSheet.id)?.tables.push(table); });
+    setNotice(type === 'bom' ? 'Dodano skojarzone zestawienie części.' : 'Dodano skojarzoną tabelę otworów.');
+  };
+
+  const updateDrawingTable = (tableId, patch) => {
+    if (!activeDrawingSheet || readOnly) return;
+    commit((next) => {
+      const table = next.drawings.find((sheet) => sheet.id === activeDrawingSheet.id)?.tables.find((item) => item.id === tableId);
+      if (table) Object.assign(table, patch);
+    });
+  };
+
+  const deleteDrawingTable = (tableId) => {
+    if (!activeDrawingSheet || readOnly) return;
+    commit((next) => {
+      const sheet = next.drawings.find((item) => item.id === activeDrawingSheet.id);
+      if (sheet) sheet.tables = sheet.tables.filter((table) => table.id !== tableId);
+    });
+    setNotice('Usunięto tabelę z arkusza.');
+  };
+
   const exportActiveDrawingDxf = () => {
     if (!activeDrawingSheet?.views.length) return;
-    const dxf = drawingSheetDxf(activeDrawingSheet, engine.bodies);
+    const dxf = drawingSheetDxf(activeDrawingSheet, engine.bodies, { components: document.components });
     downloadBlob(new Blob([dxf], { type: 'application/dxf;charset=utf-8' }), `${safeName(document.name)}-${safeName(activeDrawingSheet.name)}.dxf`);
     setNotice('Wyeksportowano arkusz DXF w jednostkach mm.');
   };
 
   const exportActiveDrawingPdf = async () => {
     if (!activeDrawingSheet?.views.length) return;
-    const html = drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name });
+    const html = drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name, components: document.components });
     setNotice(`Przygotowywanie ${activeDrawingSheet.pageSize} PDF…`);
     if (window.desktopApp?.saveDrawingPdf) {
       const result = await window.desktopApp.saveDrawingPdf({
@@ -3877,7 +3910,7 @@ export default function ModelingWorkspace() {
 
   const previewActiveDrawing = async () => {
     if (!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow) return;
-    const result = await window.desktopApp.openPrintPreviewWindow({ html: drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name }), title: `${document.name} · ${activeDrawingSheet.name}` });
+    const result = await window.desktopApp.openPrintPreviewWindow({ html: drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name, components: document.components }), title: `${document.name} · ${activeDrawingSheet.name}` });
     setNotice(result?.ok ? 'Otworzono podgląd arkusza 1:1.' : `Podgląd nie powiódł się: ${result?.error || 'nieznany błąd'}`);
   };
 
@@ -4317,7 +4350,8 @@ export default function ModelingWorkspace() {
               <>
                 <RibbonGroup label="ARKUSZE"><ToolButton icon={FilePlus2} label="Nowy arkusz" onClick={createDrawingSheetInDocument} disabled={readOnly} primary /><ToolButton icon={Trash2} label="Usuń arkusz" onClick={deleteActiveDrawingSheet} disabled={readOnly || !activeDrawingSheet} /></RibbonGroup>
                 <RibbonGroup label="WIDOKI"><ToolButton icon={Frame} label="Widok bazowy" onClick={addBaseDrawingView} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Utwórz pierwszy skojarzony rzut modelu." /><ToolButton icon={FileText} label="Rzut" onClick={() => addDerivedDrawingView('projected')} disabled={readOnly || !selectedDrawingView} description="Utwórz wyrównany rzut od zaznaczonego widoku." /><ToolButton icon={Scissors} label="Przekrój" onClick={() => addDerivedDrawingView('section')} disabled={readOnly || !selectedDrawingView || selectedDrawingView.orientation === 'isometric'} description="Utwórz przekrój A-A z rzeczywistego przecięcia modelu." /><ToolButton icon={ScanSearch} label="Detal" onClick={() => addDerivedDrawingView('detail')} disabled={readOnly || !selectedDrawingView} description="Utwórz powiększony detal zaznaczonego widoku." /><ToolButton icon={Trash2} label="Usuń widok" onClick={deleteSelectedDrawingView} disabled={readOnly || !selectedDrawingViewId} /></RibbonGroup>
-                <RibbonGroup label="OZNACZENIA"><ToolButton icon={Ruler} label="Wymiar X" onClick={() => addDrawingAnnotation('dimension-horizontal')} disabled={readOnly || !selectedDrawingView} description="Dodaj skojarzony wymiar szerokości." /><ToolButton icon={Ruler} label="Wymiar Y" onClick={() => addDrawingAnnotation('dimension-vertical')} disabled={readOnly || !selectedDrawingView} description="Dodaj skojarzony wymiar wysokości." /><ToolButton icon={Minus} label="Oś" onClick={() => addDrawingAnnotation('centerline')} disabled={readOnly || !selectedDrawingView} description="Dodaj oś symetrii widoku." /><ToolButton icon={CircleDotDashed} label="Środek" onClick={() => addDrawingAnnotation('center-mark')} disabled={readOnly || !selectedDrawingView} description="Dodaj znacznik środka." /><ToolButton icon={Cylinder} label="Opis otworu" onClick={() => addDrawingAnnotation('hole-note')} disabled={readOnly || !selectedDrawingView} description="Dodaj opis średnicy odczytanej z modelu." /><ToolButton icon={Cylinder} label="Opis gwintu" onClick={() => addDrawingAnnotation('thread-note')} disabled={readOnly || !selectedDrawingView} description="Dodaj opis gwintu metrycznego i klasy tolerancji." /><ToolButton icon={Crosshair} label="GD&amp;T" onClick={() => addDrawingAnnotation('feature-control-frame')} disabled={readOnly || !selectedDrawingView} description="Dodaj ramkę tolerancji geometrycznej." /><ToolButton icon={Trash2} label="Usuń oznaczenie" onClick={deleteSelectedDrawingAnnotation} disabled={readOnly || !selectedDrawingAnnotation} /></RibbonGroup>
+                <RibbonGroup label="OZNACZENIA"><ToolButton icon={Ruler} label="Wymiar X" onClick={() => addDrawingAnnotation('dimension-horizontal')} disabled={readOnly || !selectedDrawingView} description="Dodaj skojarzony wymiar szerokości." /><ToolButton icon={Ruler} label="Wymiar Y" onClick={() => addDrawingAnnotation('dimension-vertical')} disabled={readOnly || !selectedDrawingView} description="Dodaj skojarzony wymiar wysokości." /><ToolButton icon={Minus} label="Oś" onClick={() => addDrawingAnnotation('centerline')} disabled={readOnly || !selectedDrawingView} description="Dodaj oś symetrii widoku." /><ToolButton icon={CircleDotDashed} label="Środek" onClick={() => addDrawingAnnotation('center-mark')} disabled={readOnly || !selectedDrawingView} description="Dodaj znacznik środka." /><ToolButton icon={Cylinder} label="Opis otworu" onClick={() => addDrawingAnnotation('hole-note')} disabled={readOnly || !selectedDrawingView} description="Dodaj opis średnicy odczytanej z modelu." /><ToolButton icon={Cylinder} label="Opis gwintu" onClick={() => addDrawingAnnotation('thread-note')} disabled={readOnly || !selectedDrawingView} description="Dodaj opis gwintu metrycznego i klasy tolerancji." /><ToolButton icon={Crosshair} label="GD&amp;T" onClick={() => addDrawingAnnotation('feature-control-frame')} disabled={readOnly || !selectedDrawingView} description="Dodaj ramkę tolerancji geometrycznej." /><ToolButton icon={CircleDotDashed} label="Balon" onClick={() => addDrawingAnnotation('balloon')} disabled={readOnly || !selectedDrawingView} description="Dodaj numer pozycji skojarzony z zestawieniem części." /><ToolButton icon={Trash2} label="Usuń oznaczenie" onClick={deleteSelectedDrawingAnnotation} disabled={readOnly || !selectedDrawingAnnotation} /></RibbonGroup>
+                <RibbonGroup label="TABELE"><ToolButton icon={Grid2X2} label="BOM" onClick={() => addDrawingTable('bom')} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Dodaj automatyczne zestawienie części." /><ToolButton icon={Grid2X2} label="Tabela otworów" onClick={() => addDrawingTable('hole-table')} disabled={readOnly || !selectedDrawingView} description="Dodaj tabelę średnic z zaznaczonego widoku." /></RibbonGroup>
                 <RibbonGroup label="WYJŚCIE" end><ToolButton icon={Eye} label="Podgląd 1:1" onClick={() => { void previewActiveDrawing(); }} disabled={!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow} /><ToolButton icon={FileText} label="DXF" onClick={exportActiveDrawingDxf} disabled={!activeDrawingSheet?.views.length} /><ToolButton icon={FileText} label="PDF" onClick={() => { void exportActiveDrawingPdf(); }} disabled={!activeDrawingSheet?.views.length} primary /></RibbonGroup>
               </>
             ) : workspace === 'tools' ? (
@@ -4394,6 +4428,9 @@ export default function ModelingWorkspace() {
             onAddRevision={addDrawingRevision}
             onUpdateRevision={updateDrawingRevision}
             onDeleteRevision={deleteDrawingRevision}
+            onAddTable={addDrawingTable}
+            onUpdateTable={updateDrawingTable}
+            onDeleteTable={deleteDrawingTable}
             onExportPdf={() => { void exportActiveDrawingPdf(); }}
             onExportDxf={exportActiveDrawingDxf}
           /> : <React.Suspense fallback={<div className="viewport-loading" role="status">Uruchamianie widoku 3D…</div>}>

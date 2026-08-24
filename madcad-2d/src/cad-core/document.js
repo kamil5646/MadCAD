@@ -8,7 +8,7 @@ import {
   isSupportedLineType,
 } from './layers.js';
 import { ensureDocumentBlocks } from './blocks.js';
-import { DRAWING_ANNOTATION_TYPES, DRAWING_PAGE_SIZES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
+import { DRAWING_ANNOTATION_TYPES, DRAWING_PAGE_SIZES, DRAWING_TABLE_TYPES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
 import {
   SKETCH_ENTITY_ROLES,
   SKETCH_ENTITY_TYPES,
@@ -17,7 +17,7 @@ import {
   normalizeSketchModel,
 } from './sketch-model.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 8;
+export const DOCUMENT_SCHEMA_VERSION = 9;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -151,6 +151,22 @@ function migrateV7ToV8(source, now) {
   return migrated;
 }
 
+function migrateV8ToV9(source, now) {
+  const migrated = ensureDocumentDrawings(ensureV3Collections(cloneDocument(source)));
+  migrated.schemaVersion = 9;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 8,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 8, to: 9, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
@@ -158,6 +174,7 @@ const MIGRATIONS = new Map([
   [5, migrateV5ToV6],
   [6, migrateV6ToV7],
   [7, migrateV7ToV8],
+  [8, migrateV8ToV9],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -1066,6 +1083,7 @@ export function validateDocument(document) {
     const views = requireArray(sheet, 'views', `${base}.views`);
     const annotations = requireArray(sheet, 'annotations', `${base}.annotations`);
     const revisions = requireArray(sheet, 'revisions', `${base}.revisions`);
+    const tables = requireArray(sheet, 'tables', `${base}.tables`);
     const viewIds = new Set(views.filter(isRecord).map((view) => view.id).filter((id) => typeof id === 'string' && id));
     const viewIndexById = new Map(views.map((view, index) => [view?.id, index]).filter(([id]) => typeof id === 'string' && id));
     const viewParents = new Map();
@@ -1135,7 +1153,7 @@ export function validateDocument(document) {
         if (!['horizontal', 'vertical'].includes(annotation.axis)) add(`${annotationBase}.axis`, 'Oś musi być pozioma albo pionowa.', 'UNSUPPORTED');
         if (!Number.isFinite(Number(annotation.offset)) || Math.abs(Number(annotation.offset)) > 1) add(`${annotationBase}.offset`, 'Położenie osi musi mieścić się między -1 i 1.', 'VALUE');
       }
-      if (annotation.type === 'center-mark' || annotation.type === 'hole-note') {
+      if (annotation.type === 'center-mark' || annotation.type === 'hole-note' || annotation.type === 'balloon') {
         if (!Array.isArray(annotation.center) || annotation.center.length !== 2 || annotation.center.some((value) => !(Number(value) >= 0 && Number(value) <= 1))) add(`${annotationBase}.center`, 'Położenie znacznika wymaga dwóch współrzędnych względnych 0–1.', 'VALUE');
       }
       if (annotation.type === 'center-mark' && !(Number(annotation.size) >= 2 && Number(annotation.size) <= 20)) add(`${annotationBase}.size`, 'Rozmiar znacznika środka musi mieścić się między 2 i 20 mm.', 'VALUE');
@@ -1155,6 +1173,15 @@ export function validateDocument(document) {
         if (!(Number(annotation.tolerance) > 0 && Number(annotation.tolerance) <= 100)) add(`${annotationBase}.tolerance`, 'Tolerancja geometryczna musi być dodatnia i nie większa niż 100 mm.', 'VALUE');
         if (typeof annotation.datum !== 'string' || annotation.datum.length > 8) add(`${annotationBase}.datum`, 'Baza tolerancji musi być krótkim tekstem.', 'TYPE');
       }
+      if (annotation.type === 'balloon') {
+        if (!Array.isArray(annotation.labelOffset) || annotation.labelOffset.length !== 2 || annotation.labelOffset.some((value) => !Number.isFinite(Number(value)))) add(`${annotationBase}.labelOffset`, 'Odnośnik oznaczenia pozycji wymaga dwóch liczbowych współrzędnych.', 'TYPE');
+        if (typeof annotation.bodyId !== 'string' || !annotation.bodyId) add(`${annotationBase}.bodyId`, 'Oznaczenie pozycji wymaga ID bryły.', 'REQUIRED');
+        else {
+          const ownerView = views.find((view) => view?.id === annotation.viewId);
+          if (ownerView && !ownerView.bodyIds?.includes(annotation.bodyId)) add(`${annotationBase}.bodyId`, 'Oznaczona bryła nie należy do wskazanego widoku.', 'BROKEN_REFERENCE');
+        }
+        if (!Number.isInteger(Number(annotation.itemNumber)) || Number(annotation.itemNumber) < 1 || Number(annotation.itemNumber) > 999) add(`${annotationBase}.itemNumber`, 'Numer pozycji musi mieścić się między 1 i 999.', 'VALUE');
+      }
     });
     revisions.forEach((revision, revisionIndex) => {
       const revisionBase = `${base}.revisions[${revisionIndex}]`;
@@ -1166,6 +1193,17 @@ export function validateDocument(document) {
       if (typeof revision.code !== 'string' || !revision.code.trim()) add(`${revisionBase}.code`, 'Rewizja wymaga oznaczenia.', 'REQUIRED');
       if (typeof revision.description !== 'string') add(`${revisionBase}.description`, 'Opis rewizji musi być tekstem.', 'TYPE');
       if (typeof revision.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(revision.date)) add(`${revisionBase}.date`, 'Data rewizji musi mieć format RRRR-MM-DD.', 'VALUE');
+    });
+    tables.forEach((table, tableIndex) => {
+      const tableBase = `${base}.tables[${tableIndex}]`;
+      if (!isRecord(table)) {
+        add(tableBase, 'Tabela rysunkowa musi być obiektem.', 'TYPE');
+        return;
+      }
+      registerId(table.id, `${tableBase}.id`);
+      if (!DRAWING_TABLE_TYPES.includes(table.type)) add(`${tableBase}.type`, 'Nieobsługiwany typ tabeli rysunkowej.', 'UNSUPPORTED');
+      if (!Number.isFinite(Number(table.x)) || !Number.isFinite(Number(table.y))) add(tableBase, 'Położenie tabeli musi być liczbowe.', 'TYPE');
+      if (table.type === 'hole-table' && (typeof table.viewId !== 'string' || !viewIds.has(table.viewId))) add(`${tableBase}.viewId`, 'Tabela otworów wymaga istniejącego widoku.', 'BROKEN_REFERENCE');
     });
   });
 

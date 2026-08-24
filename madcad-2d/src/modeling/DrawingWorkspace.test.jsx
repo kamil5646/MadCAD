@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createBaseDrawingView, createDrawingSheet, createLinearDrawingDimension } from '../cad-core/drawing-sheets.js';
+import { createBalloonDrawingAnnotation, createBaseDrawingView, createDrawingSheet, createLinearDrawingDimension } from '../cad-core/drawing-sheets.js';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
 
 function props(overrides = {}) {
@@ -30,6 +30,9 @@ function props(overrides = {}) {
     onAddRevision: vi.fn(),
     onUpdateRevision: vi.fn(),
     onDeleteRevision: vi.fn(),
+    onAddTable: vi.fn(),
+    onUpdateTable: vi.fn(),
+    onDeleteTable: vi.fn(),
     onExportPdf: vi.fn(),
     onExportDxf: vi.fn(),
     ...overrides,
@@ -72,7 +75,8 @@ describe('DrawingWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: /Opis otworu/i }));
     fireEvent.click(screen.getByRole('button', { name: /Opis gwintu/i }));
     fireEvent.click(screen.getByRole('button', { name: /GD&T/i }));
-    expect(current.onAddAnnotation.mock.calls.map(([type]) => type)).toEqual(['dimension-horizontal', 'centerline', 'hole-note', 'thread-note', 'feature-control-frame']);
+    fireEvent.click(screen.getByRole('button', { name: /Balon/i }));
+    expect(current.onAddAnnotation.mock.calls.map(([type]) => type)).toEqual(['dimension-horizontal', 'centerline', 'hole-note', 'thread-note', 'feature-control-frame', 'balloon']);
 
     const sheet = current.document.drawings[0];
     const annotation = createLinearDrawingDimension({ viewId: sheet.views[0].id, toleranceMode: 'symmetric', upperTolerance: 0.1, lowerTolerance: 0.1 });
@@ -83,6 +87,28 @@ describe('DrawingWorkspace', () => {
     fireEvent.change(screen.getAllByRole('spinbutton', { name: /± \[mm\]/i }).at(-1), { target: { value: '0.25' } });
     expect(current.onUpdateAnnotation).toHaveBeenCalledWith({ upperTolerance: 0.25, lowerTolerance: 0.25 });
     unmount();
+  });
+
+  it('adds associative BOM and hole tables', () => {
+    const current = props();
+    render(<DrawingWorkspace {...current} />);
+    fireEvent.click(screen.getByText(/Tabele \(0\)/i));
+    fireEvent.click(screen.getByRole('button', { name: /^BOM$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Otwory$/i }));
+    expect(current.onAddTable.mock.calls.map(([type]) => type)).toEqual(['bom', 'hole-table']);
+  });
+
+  it('keeps a balloon item number associated with the selected BOM body', () => {
+    const current = props();
+    const sheet = current.document.drawings[0];
+    const secondBody = { id: 'body-2', name: 'Pokrywa', lines: Float32Array.from([0, 0, 0, 20, 0, 0]) };
+    current.bodies.push(secondBody);
+    sheet.views[0].bodyIds.push(secondBody.id);
+    const balloon = createBalloonDrawingAnnotation({ viewId: sheet.views[0].id, bodyId: 'body-1', itemNumber: 1 });
+    sheet.annotations.push(balloon);
+    render(<DrawingWorkspace {...current} selectedViewId={null} selectedAnnotationId={balloon.id} />);
+    fireEvent.change(screen.getByRole('combobox', { name: /Część/i }), { target: { value: secondBody.id } });
+    expect(current.onUpdateAnnotation).toHaveBeenCalledWith({ bodyId: secondBody.id, itemNumber: 2 });
   });
 
   it('edits the title block and creates a revision', () => {

@@ -172,7 +172,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P2.2 Skojarzone widoki rzutowane, przekroje z rzeczywistego przecięcia modelu i kreskowaniem oraz powiększone detale tworzone od widoku bazowego; kontrola wyrównania, zależności rodzic–dziecko, automatyczna aktualizacja po przebudowie, bezpieczne usuwanie kaskadowe i układ arkusza 2×2.
 - [x] P2.3 Skojarzone wymiary gabarytowe poziome/pionowe, osie i znaczniki środka, automatyczne opisy średnicy otworu, opisy gwintu z klasą oraz tolerancje symetryczne i odchyłkowe; adnotacje aktualizują się z widokiem, zapisują w projekcie, przechodzą undo/redo, autozapis, round-trip, PDF i desktop E2E.
 - [x] P2.4 Podstawowe ramki GD&T (pozycja, płaskość, równoległość, prostopadłość, okrągłość), konfigurowalna tabliczka, zapisywana historia rewizji oraz eksport geometrii, tekstów i oznaczeń arkusza do DXF w milimetrach; schemat v8 ma migrację v7 i pełną walidację.
-- [>] P2.5 BOM, balloons i tabela otworów po wprowadzeniu komponentów.
+- [x] P2.5 Automatyczne BOM z komponentów lub brył, skojarzone balony pozycji oraz tabela średnic i liczby otworów z topologii modelu; czytelne numery części, edycja położenia, usuwanie kaskadowe, migracja schematu v8→v9, zapis/otwarcie, undo/redo, autozapis oraz eksport PDF/DXF są objęte testami core, UI i desktop E2E.
 
 ## Definition of Done
 
@@ -199,9 +199,8 @@ Dodatkowo:
 
 ## Najbliższe zadania
 
-1. [>] P2.5: BOM, balloons i tabela otworów po wprowadzeniu komponentów.
-2. [ ] Rozszerzyć komponenty i złożenia po zamknięciu dokumentacji części.
-3. [~] Sprawdzić import/eksport na rzeczywistych plikach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny odsłuch VoiceOver. Korpus formatów i automatyczny test drzewa AX są gotowe.
-4. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
+1. [>] Rozszerzyć komponenty i złożenia po zamknięciu dokumentacji części.
+2. [~] Sprawdzić import/eksport na rzeczywistych plikach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny odsłuch VoiceOver. Korpus formatów i automatyczny test drzewa AX są gotowe.
+3. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 
 Dalsze pomysły produktowe pozostają w [BACKLOG.md](./BACKLOG.md) i wymagają osobnej priorytetyzacji.

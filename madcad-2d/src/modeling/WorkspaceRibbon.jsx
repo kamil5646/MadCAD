@@ -349,7 +349,7 @@ export function ResponsiveRibbon({ children }) {
 
   const stickyIndices = new Set(stickyKey ? stickyKey.split(',').map(Number) : []);
   const visibleIndices = new Set(layout.visible);
-  const hiddenGroups = layout.hidden.map((index) => groups[index]);
+  const hiddenGroups = groups.filter((_, index) => !stickyIndices.has(index) && !visibleIndices.has(index));
   return (
     <div ref={containerRef} className="modeling-ribbon" role="toolbar" aria-label="Narzędzia aktywnego obszaru roboczego" tabIndex="0">
       <div className="ribbon-visible-groups">
