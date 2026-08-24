@@ -52,4 +52,23 @@ describe('CommandDialog standard holes', () => {
     expect(screen.getByRole('textbox', { name: /^Średnica.*mm/ })).toHaveValue('9');
     expect(screen.queryByLabelText('Gwint')).not.toBeInTheDocument();
   });
+
+  it('shows NPT/BSPT taper, TPI, preparation and explicit manufacturing tolerances', () => {
+    render(<HoleDialogHarness />);
+    fireEvent.change(screen.getByLabelText('Zastosowanie'), { target: { value: 'npt-tapped' } });
+    expect(screen.getByLabelText('Rozmiar śruby / gwintu')).toHaveValue('npt-1-8');
+    expect(screen.getByRole('textbox', { name: /Średnica przy wejściu/ })).toHaveValue('8.74');
+    expect(screen.getByRole('textbox', { name: /Stożek średnicy/ })).toHaveValue('1:16');
+    expect(screen.getByRole('textbox', { name: /Zwoje na cal/ })).toHaveValue('27');
+    expect(screen.getByRole('textbox', { name: /Sprawdzian/ })).toHaveValue('ASME B1.20.1');
+    fireEvent.change(screen.getByLabelText('Przygotowanie otworu'), { target: { value: 'cylindrical' } });
+    expect(screen.getByRole('textbox', { name: /Średnica przy wejściu/ })).toHaveValue('8.4');
+    fireEvent.change(screen.getByLabelText('Zastosowanie'), { target: { value: 'bspt-tapped' } });
+    expect(screen.getByLabelText('Rozmiar śruby / gwintu')).toHaveValue('bspt-1-8');
+    expect(screen.getByRole('textbox', { name: /Sprawdzian/ })).toHaveValue('ISO 7-2');
+    expect(screen.getByRole('textbox', { name: /Odchyłka dolna/ })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /Odchyłka górna/ })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Zastosowanie'), { target: { value: 'tapped' } });
+    expect(screen.getByLabelText('Rozmiar śruby / gwintu')).toHaveValue('M6');
+  });
 });

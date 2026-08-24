@@ -1587,6 +1587,26 @@ test('standardowy otwór ISO zachowuje rozmiar, pasowanie i klasę gwintu po rou
   assert.equal(prepareDocument(document).features.find((feature) => feature.id === hole.id).diameterValue, 11);
 });
 
+test('stożkowy gwint NPT zachowuje geometrię 1:16, kontrolę i tolerancję produkcyjną po round-trip', () => {
+  const document = createStarterDocument();
+  const hole = document.features.find((feature) => feature.type === 'hole');
+  Object.assign(hole, {
+    ...applyHoleStandard({ threadMode: 'modeled', pipePreparation: 'conical', diameterToleranceLower: '-0.05', diameterToleranceUpper: '0.1' }, 'npt-tapped', 'npt-1-8'),
+    threadDirection: 'right',
+  });
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features.find((feature) => feature.id === hole.id);
+  assert.deepEqual(
+    [prepared.diameterValue, prepared.threadDiameterValue, prepared.threadPitchValue, prepared.threadTaperValue, prepared.diameterToleranceLowerValue, prepared.diameterToleranceUpperValue],
+    [8.74, 10.24, 0.940741, 0.0625, -0.05, 0.1],
+  );
+  const reopenedHole = openDocument(JSON.parse(JSON.stringify(document))).document.features.find((feature) => feature.id === hole.id);
+  assert.deepEqual(
+    ['holeStandard', 'standardSize', 'pipePreparation', 'threadDesignation', 'threadInspection', 'diameterToleranceLower', 'diameterToleranceUpper'].map((key) => reopenedHole[key]),
+    ['asme-b1.20.1', 'npt-1-8', 'conical', '1/8-27 NPT', 'sprawdzian ASME B1.20.1', '-0.05', '0.1'],
+  );
+});
+
 test('Measure zwraca długość, odległość, kąt, promień, średnicę, pole i pozycję zaznaczenia', () => {
   const body = {
     id: 'body-a',
@@ -2014,6 +2034,8 @@ test('migracja v8 dodaje tabele, a BOM, balony i tabela otworów pozostają skoj
   assert.deepEqual(scene.tables[1].rows, [['1', '⌀4', '1', 'Otwór walcowy'], ['2', '⌀8', '2', 'Otwór walcowy']]);
   const standardizedHoleBody = { ...body, manufacturingHoles: [{ diameter: 6.75, quantity: 1, holeStandard: 'iso-metric', holeApplication: 'tapped', standardSize: 'M8', threadDesignation: 'M8×1.25', threadClass: '6H', through: true }] };
   assert.deepEqual(drawingSheetScene(currentSheet, [standardizedHoleBody], { components: opened.document.components }).tables[1].rows, [['1', 'M8×1.25 - 6H', '1', 'Gwint wewnętrzny · wiertło ⌀6.75 · przelotowy']]);
+  const pipeHoleBody = { ...body, manufacturingHoles: [{ diameter: 8.74, quantity: 1, holeStandard: 'asme-b1.20.1', holeApplication: 'npt-tapped', standardSize: 'npt-1-8', threadDesignation: '1/8-27 NPT', threadInspection: 'sprawdzian ASME B1.20.1', threadTaper: 0.0625, pipePreparation: 'conical', diameterToleranceLower: -0.05, diameterToleranceUpper: 0.1 }] };
+  assert.deepEqual(drawingSheetScene(currentSheet, [pipeHoleBody], { components: opened.document.components }).tables[1].rows, [['1', '1/8-27 NPT', '1', '⌀8.74 +0.1/-0.05 · 1:16 · sprawdzian ASME B1.20.1']]);
   const inferredHoleBody = { ...body, topology: { faces: [] }, metrics: { ...body.metrics, minimumRadius: 3 } };
   assert.deepEqual(drawingSheetScene(currentSheet, [inferredHoleBody], { components: opened.document.components }).tables[1].rows, [['1', '⌀6', '1', 'Otwór walcowy']]);
   const html = drawingSheetHtml(currentSheet, [body], { components: opened.document.components });

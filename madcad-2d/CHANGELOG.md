@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Dodano P1.32b: gwinty NPT i BSPT/Rc ze stożkiem 1:16, TPI, przygotowaniem walcowym/stożkowym, kontrolą sprawdzianem, dodatkowymi rozmiarami metrycznymi M1–M56 i jawnymi odchyłkami średnicy w projekcie oraz tabeli otworów.
 - Dodano obszar **DOKUMENTACJA** z zapisywanymi arkuszami A4/A3, tabliczką rysunkową i skojarzonym widokiem bazowym aktualizowanym z rzeczywistych krawędzi modelu.
 - Widok bazowy obsługuje kierunki Front/Top/Right/Isometric, automatyczny dobór standardowej skali, ręczne położenie na arkuszu oraz pełne undo/redo, autozapis i round-trip `.madcad`.
 - Dodano bezpieczny, bezpośredni eksport arkusza do PDF oraz osobny podgląd 1:1 w izolowanym oknie Electron.

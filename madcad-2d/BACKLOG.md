@@ -25,7 +25,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Pattern bryły ukończono jako `P1.20` w trybie prostokątnym, kołowym i po ścieżce.
 - [x] Zaawansowane Emboss/Deboss na trwale wskazanej planarnej ścianie ukończono jako `P1.21`; aktywna ścieżka P1 jest zamknięta.
 - [x] Wspólne otwory przejściowe ISO 273 i gwinty metryczne M2–M24 z klasami wewnętrznymi 5H/6H/7H ukończono jako `P1.32a`.
-- P1.32b: gwinty stożkowe NPT/BSPT, dodatkowe rozmiary i tolerancje wykonawcze wymagają osobnego, legalnie licencjonowanego źródła danych normatywnych.
+- [x] P1.32b: gwinty stożkowe NPT/BSPT, dodatkowe rozmiary i jawne tolerancje produkcyjne ukończono z publicznymi zaleceniami producentów i bez kopiowania płatnych tabel normatywnych.
 - [x] Draft Analysis z mapą kątów ścian ukończono jako `P1.33`.
 - [x] Interference dla wskazanej pary wystąpień ukończono jako `P1.34a`.
 - [x] Named Views z dokładnym zapisem kamery ukończono jako `P1.34b`.

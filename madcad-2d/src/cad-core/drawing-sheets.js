@@ -580,14 +580,24 @@ function fitDrawingTableCell(value, width) {
   return text.length <= maximumLength ? text : `${text.slice(0, maximumLength - 1)}…`;
 }
 
+function manufacturingDiameterText(hole) {
+  const diameter = `⌀${Number(Number(hole.diameter).toFixed(3))}`;
+  if (hole.diameterToleranceLower === null || hole.diameterToleranceLower === undefined || hole.diameterToleranceUpper === null || hole.diameterToleranceUpper === undefined) return diameter;
+  const signed = (value) => `${Number(value) >= 0 ? '+' : ''}${Number(Number(value).toFixed(3))}`;
+  return `${diameter} ${signed(hole.diameterToleranceUpper)}/${signed(hole.diameterToleranceLower)}`;
+}
+
 function holeTableRows(view, bodies) {
   const sourceBodies = sourceBodiesForView(view, bodies);
   const manufacturingHoles = sourceBodies.flatMap((body) => body?.manufacturingHoles || []);
   if (manufacturingHoles.length) {
     return manufacturingHoles.map((hole, index) => {
-      const diameter = `⌀${Number(Number(hole.diameter).toFixed(3))}`;
-      if (hole.holeApplication === 'tapped' && hole.threadDesignation) {
-        return [String(index + 1), `${hole.threadDesignation} - ${hole.threadClass || '6H'}`, String(hole.quantity || 1), `Gwint wewnętrzny · wiertło ${diameter}${hole.through ? ' · przelotowy' : ''}`];
+      const diameter = manufacturingDiameterText(hole);
+      if (String(hole.holeApplication).endsWith('tapped') && hole.threadDesignation) {
+        if (hole.holeApplication === 'tapped') return [String(index + 1), `${hole.threadDesignation} - ${hole.threadClass || '6H'}`, String(hole.quantity || 1), `Gwint wewnętrzny · wiertło ${diameter}${hole.through ? ' · przelotowy' : ''}`];
+        const preparation = hole.pipePreparation === 'cylindrical' ? ' walc.' : '';
+        const taper = hole.threadTaper ? ` · 1:${Math.round(1 / hole.threadTaper)}` : '';
+        return [String(index + 1), hole.threadDesignation, String(hole.quantity || 1), `${diameter}${preparation}${taper}${hole.threadInspection ? ` · ${hole.threadInspection}` : ''}${hole.through ? ' · przelotowy' : ''}`];
       }
       if (hole.holeStandard === 'iso-273') {
         const series = { fine: 'ciasna', medium: 'średnia', coarse: 'luźna' }[hole.clearanceClass] || hole.clearanceClass;

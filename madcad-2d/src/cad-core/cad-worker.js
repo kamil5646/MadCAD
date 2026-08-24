@@ -741,7 +741,14 @@ function runFeature(feature, bodyMap, bodyOrder) {
       placement = { position: outside.map((value, axis) => value + direction[axis]), direction };
     }
     const outside = placement.position.map((value, axis) => value - placement.direction[axis]);
-    const cutters = [makeCylinder(feature.effectiveDiameterValue / 2, feature.depthValue + 2, outside, placement.direction)];
+    const usesConicalPreparation = feature.pipePreparation === 'conical' && feature.threadTaperValue > 0;
+    const mainHoleLength = feature.depthValue + 2;
+    const entryDiameter = feature.effectiveDiameterValue + (usesConicalPreparation ? feature.threadTaperValue : 0);
+    const endDiameter = feature.effectiveDiameterValue - (usesConicalPreparation ? feature.threadTaperValue * (feature.depthValue + 1) : 0);
+    if (endDiameter <= 0) throw new Error('Głębokość stożkowego otworu jest zbyt duża dla wybranej średnicy.');
+    const cutters = [usesConicalPreparation
+      ? makeCone(entryDiameter / 2, endDiameter / 2, mainHoleLength, outside, placement.direction)
+      : makeCylinder(feature.effectiveDiameterValue / 2, mainHoleLength, outside, placement.direction)];
     if (feature.holeType === 'counterbore') {
       cutters.push(makeCylinder(feature.counterboreDiameterValue / 2, feature.counterboreDepthValue + 1, outside, placement.direction));
     } else if (feature.holeType === 'countersink') {
@@ -756,12 +763,13 @@ function runFeature(feature, bodyMap, bodyOrder) {
     if (feature.threadMode === 'modeled') {
       const threadDepth = Math.min(feature.threadPitchValue * 0.3, feature.threadDiameterValue * 0.08);
       const turns = Math.max(1, Math.floor(feature.threadLengthValue / feature.threadPitchValue));
-      const grooveRadius = Math.min(feature.threadDiameterValue / 2, (feature.effectiveDiameterValue / 2) + threadDepth);
       const grooveWidth = Math.min(feature.threadPitchValue * 0.25, threadDepth);
       const grooveEpsilon = Math.min(0.01, grooveWidth * 0.05);
       const grooves = Array.from({ length: turns }, (_unused, index) => {
         const phase = feature.threadDirection === 'left' ? 0.65 : 0.35;
         const offset = Math.min(feature.threadLengthValue, (index + phase) * feature.threadPitchValue);
+        const localBaseRadius = (feature.effectiveDiameterValue - (feature.threadTaperValue * offset)) / 2;
+        const grooveRadius = Math.min(feature.threadDiameterValue / 2, localBaseRadius + threadDepth);
         const origin = placement.position.map((value, axis) => value + (placement.direction[axis] * (offset - (grooveWidth / 2) - grooveEpsilon)));
         return makeCylinder(grooveRadius, grooveWidth + (grooveEpsilon * 2), origin, placement.direction);
       });
@@ -782,6 +790,11 @@ function runFeature(feature, bodyMap, bodyOrder) {
       clearanceClass: feature.clearanceClass || null,
       threadDesignation: feature.threadDesignation || null,
       threadClass: feature.threadClass || null,
+      threadInspection: feature.threadInspection || null,
+      pipePreparation: feature.pipePreparation || null,
+      threadTaper: feature.threadTaperValue || 0,
+      diameterToleranceLower: feature.diameterToleranceLowerValue,
+      diameterToleranceUpper: feature.diameterToleranceUpperValue,
     }];
     return;
   }
