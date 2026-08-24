@@ -26,6 +26,17 @@ import {
   validateDocument,
 } from '../src/cad-core/document.js';
 import { buildDependencyGraph } from '../src/cad-core/dependency-graph.js';
+import {
+  assignBodiesToComponent,
+  componentBomEntries,
+  componentDescendantIds,
+  componentParentMap,
+  componentTree,
+  createComponent,
+  deleteComponent,
+  moveComponent,
+  updateComponent,
+} from '../src/cad-core/components.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
 import { evaluateFeatureHistory } from '../src/cad-core/feature-history.js';
@@ -136,6 +147,59 @@ import {
 } from '../src/cad-core/sketch-primitives.js';
 
 const { atomicWriteTextFile } = atomicFile;
+
+test('komponenty budują bezpieczną hierarchię części i złożeń z własnością brył', () => {
+  const document = createDocument('Złożenie');
+  const firstFeature = createFeature('primitive', { primitiveType: 'box' });
+  const secondFeature = createFeature('primitive', { primitiveType: 'cylinder' });
+  document.features.push(firstFeature, secondFeature);
+  const firstBodyId = `body-${firstFeature.id}`;
+  const secondBodyId = `body-${secondFeature.id}`;
+  const frame = createComponent(document, { name: 'Rama', partNumber: 'MC-RAMA', material: 'S235', bodyIds: [firstBodyId] });
+  const pin = createComponent(document, { name: 'Sworzeń', partNumber: 'MC-SWORZEN', quantity: 2, bodyIds: [secondBodyId], origin: { x: 10, y: 0, z: 4 } });
+  const assembly = createComponent(document, { name: 'Wspornik', type: 'assembly', partNumber: 'MC-ZL-001' });
+  moveComponent(document, frame.id, assembly.id);
+  moveComponent(document, pin.id, assembly.id);
+
+  assert.equal(componentParentMap(document.components).get(frame.id), assembly.id);
+  assert.deepEqual(componentDescendantIds(document.components, assembly.id), new Set([frame.id, pin.id]));
+  assert.deepEqual(componentTree(document.components).map((item) => item.id), [assembly.id]);
+  assert.deepEqual(componentBomEntries(document.components).map((item) => [item.partNumber, item.effectiveQuantity]), [['MC-RAMA', 1], ['MC-SWORZEN', 2]]);
+  assert.equal(validateDocument(document).valid, true);
+
+  assignBodiesToComponent(document, frame.id, [firstBodyId, secondBodyId]);
+  assert.deepEqual(document.components.find((item) => item.id === frame.id).bodyIds, [firstBodyId, secondBodyId]);
+  assert.deepEqual(document.components.find((item) => item.id === pin.id).bodyIds, []);
+  const updatedFrame = updateComponent(document, frame.id, { material: 'S355', quantity: 3, origin: { x: 1, y: 2, z: 3 } });
+  assert.equal(updatedFrame.material, 'S355');
+  assert.deepEqual(updatedFrame.origin, { x: 1, y: 2, z: 3 });
+  assert.equal(validateDocument(document).valid, true);
+});
+
+test('komponenty blokują cykle, promują dzieci przy usunięciu i obsługują cascade', () => {
+  const document = createDocument('Usuwanie złożenia');
+  const root = createComponent(document, { name: 'Główne', type: 'assembly', partNumber: 'A-001' });
+  const nested = createComponent(document, { name: 'Podzłożenie', type: 'assembly', partNumber: 'A-002', parentId: root.id });
+  const part = createComponent(document, { name: 'Część', partNumber: 'P-001', parentId: nested.id });
+  assert.throws(() => moveComponent(document, root.id, part.id), /podkomponentu/);
+  assert.deepEqual(deleteComponent(document, nested.id), [nested.id]);
+  assert.deepEqual(document.components.find((item) => item.id === root.id).componentIds, [part.id]);
+  assert.deepEqual(deleteComponent(document, root.id, { cascade: true }).sort(), [part.id, root.id].sort());
+  assert.deepEqual(document.components, []);
+});
+
+test('migracja v9 uzupełnia kompletny model komponentu w schemacie v10', () => {
+  const legacy = createDocument('Migracja komponentów');
+  legacy.schemaVersion = 9;
+  legacy.components.push({ id: 'legacy-component', name: 'Korpus', partNumber: 'K-1', material: 'Aluminium', quantity: 2, bodyIds: [] });
+  const opened = openDocument(legacy, { now: '2026-08-24T12:00:00.000Z' });
+  assert.equal(opened.document.schemaVersion, 10);
+  assert.deepEqual(opened.document.components[0], {
+    id: 'legacy-component', name: 'Korpus', type: 'part', partNumber: 'K-1', description: '', material: 'Aluminium', quantity: 2,
+    origin: { x: 0, y: 0, z: 0 }, bodyIds: [], sketchIds: [], componentIds: [],
+  });
+  assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 9 && entry.to === 10));
+});
 
 test('warstwy zapewniają ByLayer, aktywną warstwę i bezpieczne przenoszenie geometrii', () => {
   const document = createDocument('Warstwy');
@@ -1500,7 +1564,7 @@ test('migracja v5 zachowuje istniejące widoki bazowe i dodaje kolekcje dokument
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 5;
   const opened = openDocument(legacy, { now: '2026-08-24T03:30:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 9);
+  assert.equal(opened.document.schemaVersion, 10);
   assert.equal(opened.document.drawings[0].views[0].type, 'base');
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 5 && entry.to === 6));
@@ -1518,7 +1582,7 @@ test('migracja v6 dodaje adnotacje arkusza bez zmiany widoków', () => {
   legacy.schemaVersion = 6;
   const views = structuredClone(sheet.views);
   const opened = openDocument(legacy, { now: '2026-08-24T06:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 9);
+  assert.equal(opened.document.schemaVersion, 10);
   assert.deepEqual(opened.document.drawings[0].views, views);
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.equal(validateDocument(opened.document).valid, true);
@@ -1535,7 +1599,7 @@ test('migracja v7 dodaje tabliczkę i rewizje, a GD&T oraz DXF zachowują geomet
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 7;
   const opened = openDocument(legacy, { now: '2026-08-24T07:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 9);
+  assert.equal(opened.document.schemaVersion, 10);
   assert.deepEqual(opened.document.drawings[0].revisions, []);
   assert.equal(opened.document.drawings[0].titleBlock.revision, 'A');
 
@@ -1577,7 +1641,7 @@ test('migracja v8 dodaje tabele, a BOM, balony i tabela otworów pozostają skoj
   legacy.schemaVersion = 8;
 
   const opened = openDocument(legacy, { now: '2026-08-24T08:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 9);
+  assert.equal(opened.document.schemaVersion, 10);
   assert.deepEqual(opened.document.drawings[0].tables, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 8 && entry.to === 9));
 
@@ -1585,7 +1649,8 @@ test('migracja v8 dodaje tabele, a BOM, balony i tabela otworów pozostają skoj
   currentSheet.annotations.push(createBalloonDrawingAnnotation({ viewId: view.id, bodyId: body.id, itemNumber: 1 }));
   currentSheet.tables.push(createDrawingTable({ type: 'bom', sheet: currentSheet }));
   currentSheet.tables.push(createDrawingTable({ type: 'hole-table', viewId: view.id, sheet: currentSheet }));
-  opened.document.components.push({ id: 'component-v8', name: 'Korpus', partNumber: 'MC-100', material: 'S235', quantity: 2, bodyIds: [body.id] });
+  opened.document.bodies.push({ id: body.id });
+  createComponent(opened.document, { name: 'Korpus', partNumber: 'MC-100', material: 'S235', quantity: 2, bodyIds: [body.id] });
 
   assert.equal(validateDocument(opened.document).valid, true);
   const scene = drawingSheetScene(currentSheet, [body], { components: opened.document.components });
@@ -1793,6 +1858,10 @@ test('interfejs modelowania rozpoznaje PL/EN i tłumaczy także dynamiczny stan 
     'Automatyczne więzy',
     'Pozostałe stopnie swobody',
     'Raport naprawy importu',
+    'Komponenty i złożenia',
+    'Nowa część',
+    'Nowe złożenie',
+    'Zaznacz część Rama. Numer: MC-001.',
     'Pominięto nieobsługiwany element SVG: text.',
   ]) assert.notEqual(translateModelingText(label, 'en'), label, `Brak tłumaczenia: ${label}`);
 });

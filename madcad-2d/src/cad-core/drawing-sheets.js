@@ -1,4 +1,5 @@
 import { createId } from './ids.js';
+import { componentBomEntries } from './components.js';
 
 export const DRAWING_PAGE_SIZES = Object.freeze({
   A4: Object.freeze({ width: 297, height: 210 }),
@@ -553,9 +554,9 @@ function renderedAnnotation(source, view, bodies) {
 }
 
 function bomRows(bodies, components) {
-  if (components?.length) return components.map((component, index) => {
+  if (components?.length) return componentBomEntries(components).map((component, index) => {
     const ownedBodies = bodies.filter((body) => (component.bodyIds || []).includes(body.id));
-    return [String(index + 1), component.partNumber || `C-${String(index + 1).padStart(3, '0')}`, component.name || `Komponent ${index + 1}`, String(Math.max(1, Number(component.quantity) || 1)), component.material || '—', ownedBodies.map((body) => body.id)];
+    return [String(index + 1), component.partNumber || `C-${String(index + 1).padStart(3, '0')}`, component.name || `Komponent ${index + 1}`, String(component.effectiveQuantity || 1), component.material || '—', ownedBodies.map((body) => body.id)];
   });
   const groups = new Map();
   bodies.forEach((body) => {

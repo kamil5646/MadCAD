@@ -174,6 +174,13 @@ Te prace nie czekają na koniec modelowania:
 - [x] P2.4 Podstawowe ramki GD&T (pozycja, płaskość, równoległość, prostopadłość, okrągłość), konfigurowalna tabliczka, zapisywana historia rewizji oraz eksport geometrii, tekstów i oznaczeń arkusza do DXF w milimetrach; schemat v8 ma migrację v7 i pełną walidację.
 - [x] P2.5 Automatyczne BOM z komponentów lub brył, skojarzone balony pozycji oraz tabela średnic i liczby otworów z topologii modelu; czytelne numery części, edycja położenia, usuwanie kaskadowe, migracja schematu v8→v9, zapis/otwarcie, undo/redo, autozapis oraz eksport PDF/DXF są objęte testami core, UI i desktop E2E.
 
+## P3 — komponenty i złożenia
+
+- [x] P3.1 Części, złożenia i podkomponenty: hierarchia bez cykli i wielu rodziców, origin XYZ, numer części, opis, materiał, ilość, wyłączna własność brył, przenoszenie i bezpieczne usuwanie z promocją dzieci. Struktura jest widoczna w przeglądarce projektu oraz panelu właściwości, zasila wielopoziomowy BOM, czyści przypisania po usunięciu historii, przechodzi undo/redo, walidację i migrację schematu v9→v10, testy core/UI oraz desktop E2E.
+- [>] P3.2 Wystąpienia komponentów w przestrzeni z niezależną transformacją, Ground oraz Rigid Group jako fundament pozycjonowania złożenia.
+- [ ] P3.3 Joints: rigid, revolute i slider z osiami, limitami ruchu, trwałymi referencjami i interaktywnym podglądem.
+- [ ] P3.4 Kontrola kolizji w ruchu, motion links oraz konfiguracje złożenia bez dublowania geometrii części.
+
 ## Definition of Done
 
 Każda funkcja spełnia wymagania wspólne: test happy path i błędu, anulowanie bez częściowego stanu, undo/redo, zapis/otwarcie, poprawny komunikat użytkownika i brak aktywnej atrapy.
@@ -199,7 +206,7 @@ Dodatkowo:
 
 ## Najbliższe zadania
 
-1. [>] Rozszerzyć komponenty i złożenia po zamknięciu dokumentacji części.
+1. [>] Dodać wystąpienia komponentów, Ground i Rigid Group jako następny etap złożeń P3.2.
 2. [~] Sprawdzić import/eksport na rzeczywistych plikach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny odsłuch VoiceOver. Korpus formatów i automatyczny test drzewa AX są gotowe.
 3. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 

@@ -29,11 +29,14 @@ describe('timeline operations', () => {
   it('finds and removes downstream features together with owned references', () => {
     const document = createStarterDocument();
     const [base, hole] = document.features;
+    document.components.push({ id: 'component-1', name: 'Korpus', type: 'part', partNumber: 'P-1', description: '', material: '', quantity: 1, origin: { x: 0, y: 0, z: 0 }, bodyIds: [`body-${base.id}`], sketchIds: [], componentIds: [] });
     document.references.push({ id: 'reference-base-face', kind: 'topology', topologyKind: 'face', topologyId: 'face-1', bodyId: `body-${base.id}`, ownerFeatureId: base.id });
     expect(dependentTimelineFeatureIds(document, base.id)).toEqual([base.id, hole.id]);
     const result = deleteTimelineFeatureCascade(document, base.id);
     expect(result.deletedFeatureIds).toEqual([base.id, hole.id]);
     expect(result.deletedReferenceIds).toEqual(['reference-base-face']);
+    expect(result.deletedBodyIds).toEqual([`body-${base.id}`, `body-${hole.id}`]);
+    expect(document.components[0].bodyIds).toEqual([]);
     expect(document.features).toHaveLength(0);
     expect(document.references).toHaveLength(0);
   });

@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Box,
+  Boxes,
   ChevronDown,
   ChevronRight,
   Circle,
@@ -21,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import madcadIconUrl from '../../assets/icons/madcad-512.png';
+import { componentTree } from '../cad-core/components.js';
 import { formatShortcut } from './platform-shortcuts.js';
 
 const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
@@ -44,9 +46,25 @@ export function CrashRecoveryBanner({ info, onSave, onDismiss }) {
 }
 
 export function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onClose }) {
-  const [expanded, setExpanded] = useState({ origin: true, construction: true, sketches: true, bodies: true });
+  const [expanded, setExpanded] = useState({ origin: true, construction: true, components: true, sketches: true, bodies: true });
   const toggle = (key) => setExpanded((current) => ({ ...current, [key]: !current[key] }));
   const constructionReferences = document.references.filter((reference) => ['construction-plane', 'construction-axis', 'construction-point'].includes(reference.kind));
+  const componentRoots = componentTree(document.components || []);
+  const renderComponent = (component, depth = 0) => (
+    <React.Fragment key={component.id}>
+      <button
+        className={`tree-row tree-component ${selection?.kind === 'component' && selection.id === component.id ? 'selected' : ''}`}
+        style={{ '--component-depth': depth }}
+        type="button"
+        aria-label={`Zaznacz ${component.type === 'assembly' ? 'złożenie' : 'część'} ${component.name}. Numer: ${component.partNumber}.`}
+        title={`Zaznacz ${component.type === 'assembly' ? 'złożenie' : 'część'} ${component.name}. Numer: ${component.partNumber}.`}
+        onClick={() => onSelect({ kind: 'component', id: component.id })}
+      >
+        <span />{component.type === 'assembly' ? <Boxes size={13} /> : <Box size={13} />}<span>{component.name}</span><small>{component.partNumber}</small>
+      </button>
+      {(component.children || []).map((child) => renderComponent(child, depth + 1))}
+    </React.Fragment>
+  );
   return (
     <aside className="model-browser" aria-label="Przeglądarka projektu">
       <div className="browser-heading"><strong>PRZEGLĄDARKA</strong><button type="button" title="Zwiń przeglądarkę" onClick={onClose}><PanelLeftClose size={14} /></button></div>
@@ -81,6 +99,13 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
           <button className="tree-reference-visibility" type="button" title={reference.visible ? `Ukryj ${reference.name}` : `Pokaż ${reference.name}`} onClick={() => onToggleReference(reference.id)}>{reference.visible ? <Eye size={13} /> : <EyeOff size={13} />}</button>
         </div>
       ))}
+
+      <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj strukturę części i złożeń." onClick={() => toggle('components')}>
+        {expanded.components ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Boxes size={14} /><span>Komponenty</span><small>{document.components?.length || 0}</small>
+      </button>
+      {expanded.components && (componentRoots.length
+        ? componentRoots.map((component) => renderComponent(component))
+        : <div className="tree-empty">Brak komponentów</div>)}
 
       <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj szkice i ich profile." onClick={() => toggle('sketches')}>
         {expanded.sketches ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<FolderOpen size={14} /><span>Szkice</span><small>{document.sketches.length}</small>

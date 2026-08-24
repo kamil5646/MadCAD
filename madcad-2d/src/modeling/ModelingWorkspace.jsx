@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Blocks,
   Box,
+  Boxes,
   Check,
   ChevronDown,
   ChevronRight,
@@ -126,6 +127,7 @@ import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
+import { assignBodiesToComponent, componentParentMap, createComponent, deleteComponent, moveComponent, updateComponent } from '../cad-core/components.js';
 import {
   addBlockAttributeDefinition,
   createBlockDefinition,
@@ -161,7 +163,7 @@ import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext } from './Wo
 import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
-import { BlocksPanel, CommandCustomizationPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel } from './WorkspacePanels.jsx';
+import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
   clearLocalAutosave,
@@ -411,6 +413,7 @@ export default function ModelingWorkspace() {
   const [browserOpen, setBrowserOpen] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
   const [blocksOpen, setBlocksOpen] = useState(false);
+  const [componentsOpen, setComponentsOpen] = useState(false);
   const [commandCustomizationOpen, setCommandCustomizationOpen] = useState(false);
   const [commandCustomization, setCommandCustomization] = useState(() => loadCommandCustomization(window.localStorage));
   const [printPanelOpen, setPrintPanelOpen] = useState(false);
@@ -839,6 +842,78 @@ export default function ModelingWorkspace() {
   }, [document, command]);
   const engine = useCadEngine(previewDocument, { quality: command?.previewFeature ? 'preview' : 'display' });
   const selectedBodies = selectedBodyIds.map((bodyId) => engine.bodies.find((body) => body.id === bodyId)).filter(Boolean);
+  const selectedComponent = selection?.kind === 'component'
+    ? document.components.find((component) => component.id === selection.id) || null
+    : null;
+  const openComponentManager = () => {
+    setLayersOpen(false);
+    setBlocksOpen(false);
+    setCommandCustomizationOpen(false);
+    setComponentsOpen(true);
+    setBrowserOpen(true);
+    if (!selectedComponent && document.components.length) setSelection({ kind: 'component', id: document.components[0].id });
+  };
+  const createDocumentComponent = (type = 'part') => {
+    try {
+      const checked = cloneDocument(document);
+      const created = createComponent(checked, {
+        type,
+        name: type === 'assembly' ? 'Złożenie' : 'Komponent',
+        bodyIds: type === 'part' ? selectedBodyIds : [],
+      });
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'component', id: created.id });
+      setComponentsOpen(true);
+      setBrowserOpen(true);
+      setNotice(type === 'assembly'
+        ? `Utworzono złożenie „${created.name}”. Dodaj części i ustaw je jako podkomponenty.`
+        : `Utworzono część „${created.name}”${selectedBodyIds.length ? ` i przypisano ${selectedBodyIds.length} brył.` : '.'}`);
+    } catch (error) {
+      setNotice(`Nie utworzono komponentu: ${error.message}`);
+    }
+  };
+  const updateDocumentComponent = (componentId, patch) => {
+    try {
+      const checked = cloneDocument(document);
+      updateComponent(checked, componentId, patch);
+      commit((next) => Object.assign(next, checked));
+    } catch (error) {
+      setNotice(`Nie zmieniono komponentu: ${error.message}`);
+    }
+  };
+  const assignDocumentComponentBodies = (componentId, bodyIds) => {
+    try {
+      const checked = cloneDocument(document);
+      assignBodiesToComponent(checked, componentId, bodyIds);
+      commit((next) => Object.assign(next, checked));
+      setNotice(`Zaktualizowano przypisanie brył do komponentu (${bodyIds.length}).`);
+    } catch (error) {
+      setNotice(`Nie przypisano brył: ${error.message}`);
+    }
+  };
+  const moveDocumentComponent = (componentId, parentId) => {
+    try {
+      const checked = cloneDocument(document);
+      moveComponent(checked, componentId, parentId);
+      commit((next) => Object.assign(next, checked));
+      setNotice(parentId ? 'Przeniesiono komponent do wskazanego złożenia.' : 'Przeniesiono komponent na poziom główny.');
+    } catch (error) {
+      setNotice(`Nie przeniesiono komponentu: ${error.message}`);
+    }
+  };
+  const removeDocumentComponent = (componentId) => {
+    try {
+      const component = document.components.find((item) => item.id === componentId);
+      const parentId = componentParentMap(document.components).get(componentId);
+      const checked = cloneDocument(document);
+      deleteComponent(checked, componentId);
+      commit((next) => Object.assign(next, checked));
+      setSelection(parentId ? { kind: 'component', id: parentId } : { kind: 'document', id: document.id });
+      setNotice(`Usunięto komponent „${component?.name || componentId}”. Jego podkomponenty zachowano; operację można cofnąć.`);
+    } catch (error) {
+      setNotice(`Nie usunięto komponentu: ${error.message}`);
+    }
+  };
   const selectedBodyRepresentations = selectedBodies.map((body) => body.representation);
   const canBooleanSelectedBodies = selectedBodyIds.length === 2
     && selectedBodyRepresentations.length === 2
@@ -2293,6 +2368,8 @@ export default function ModelingWorkspace() {
       activeLayerId: document.activeLayerId,
       layers: document.layers.map((layer) => ({ ...layer })),
       blocks: document.blocks.map((block) => ({ id: block.id, name: block.name, entities: block.entities.length, attributeDefinitions: block.attributeDefinitions.map((attribute) => ({ ...attribute })) })),
+      components: document.components.map((component) => ({ ...component, origin: { ...component.origin }, bodyIds: [...component.bodyIds], sketchIds: [...component.sketchIds], componentIds: [...component.componentIds] })),
+      bodyIds: engine.bodies.map((body) => body.id),
       drawings: document.drawings.map((sheet) => ({ ...sheet, views: sheet.views.map((view) => ({ ...view })) })),
       featureIds: document.features.map((feature) => feature.id),
       featureData: document.features.map((feature) => ({ id: feature.id, name: feature.name, type: feature.type, suppressed: feature.suppressed, sketchId: feature.sketchId, sketchIds: feature.sketchIds, profileId: feature.profileId, profileIds: feature.profileIds, pathSketchId: feature.pathSketchId, pathEntityIds: feature.pathEntityIds, loftMode: feature.loftMode, ribMode: feature.ribMode, patternType: feature.patternType, countX: feature.countX, countY: feature.countY, spacingX: feature.spacingX, spacingY: feature.spacingY, occurrences: feature.occurrences, totalAngle: feature.totalAngle, thickness: feature.thickness, reverse: feature.reverse, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, outsideDiameter: feature.outsideDiameter, wallSide: feature.wallSide, endCap: feature.endCap, openEntityIds: feature.openEntityIds, depth: feature.depth, diameter: feature.diameter, coilDiameter: feature.coilDiameter, wireDiameter: feature.wireDiameter, pitch: feature.pitch, turns: feature.turns, handedness: feature.handedness, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, neutralPlaneId: feature.neutralPlaneId, planeId: feature.planeId, axisId: feature.axisId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
@@ -4063,6 +4140,12 @@ export default function ModelingWorkspace() {
       pickPlane(nextSelection.id);
       return;
     }
+    if (nextSelection.kind === 'component') {
+      setComponentsOpen(true);
+      setLayersOpen(false);
+      setBlocksOpen(false);
+      setCommandCustomizationOpen(false);
+    }
     setSelection(nextSelection);
   };
 
@@ -4343,7 +4426,7 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="MODYFIKUJ 2D"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { setCommand(null); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Maximize2} label="Extend" onClick={() => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' })} primary={command?.type === 'extendSketch'} disabled={readOnly} /><ToolButton icon={Minus} label="Break" onClick={() => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' })} primary={command?.type === 'breakSketch'} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Project" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} /><ToolButton icon={Copy} label="Offset" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} /><ToolButton icon={CircleDotDashed} label="Fillet szkicu" onClick={() => openSketchCorner('fillet')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={Triangle} label="Faza szkicu" onClick={() => openSketchCorner('chamfer')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={RotateCw} label="Transformuj" onClick={openSketchTransform} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Grid2X2} label="Szyk szkicu" onClick={openSketchPattern} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
                 <RibbonGroup label="WIĘZY"><ToolButton icon={Minus} label="Współliniowe" onClick={() => addSelectedSketchConstraint('collinear')} disabled={readOnly || !canAddCollinear} /><ToolButton icon={Frame} label="Symetria" onClick={() => addSelectedSketchConstraint('symmetry')} disabled={readOnly || !canAddSymmetry} /><ToolButton icon={CircleDotDashed} label="Krzywizna G2" onClick={() => addSelectedSketchConstraint('curvature')} disabled={readOnly || !canAddCurvature} /></RibbonGroup>
                 <RibbonGroup label="WYMIARY"><ToolButton icon={Ruler} label="Ordinate X" onClick={() => openSketchDimension('ordinateX')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={Ruler} label="Ordinate Y" onClick={() => openSketchDimension('ordinateY')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={RotateCw} label="Długość łuku" onClick={() => openSketchDimension('arcLength')} disabled={readOnly || !canAddArcLength} /></RibbonGroup>
-                <RibbonGroup label="ORGANIZUJ"><ToolButton icon={Layers3} label="Warstwy" onClick={() => { setBlocksOpen(false); setLayersOpen(true); }} primary={layersOpen} /><ToolButton icon={Blocks} label="Bloki" onClick={() => { setLayersOpen(false); setBlocksOpen(true); }} primary={blocksOpen} /></RibbonGroup>
+                <RibbonGroup label="ORGANIZUJ"><ToolButton icon={Layers3} label="Warstwy" onClick={() => { setBlocksOpen(false); setComponentsOpen(false); setLayersOpen(true); }} primary={layersOpen} /><ToolButton icon={Blocks} label="Bloki" onClick={() => { setLayersOpen(false); setComponentsOpen(false); setBlocksOpen(true); }} primary={blocksOpen} /></RibbonGroup>
                 <RibbonGroup label="ZAKOŃCZ SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
             ) : workspace === 'drawing' ? (
@@ -4356,7 +4439,8 @@ export default function ModelingWorkspace() {
               </>
             ) : workspace === 'tools' ? (
               <>
-                <RibbonGroup label="DOKUMENT"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} primary /><ToolButton icon={Layers3} label="Warstwy" onClick={() => { setBlocksOpen(false); setCommandCustomizationOpen(false); setLayersOpen(true); }} primary={layersOpen} /><ToolButton icon={Blocks} label="Bloki" onClick={() => { setLayersOpen(false); setCommandCustomizationOpen(false); setBlocksOpen(true); }} primary={blocksOpen} disabled={!activeSketchId} /><ToolButton icon={Keyboard} label="Aliasy" onClick={() => { setLayersOpen(false); setBlocksOpen(false); setCommandCustomizationOpen(true); }} primary={commandCustomizationOpen} /></RibbonGroup>
+                <RibbonGroup label="DOKUMENT"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} primary /><ToolButton icon={Layers3} label="Warstwy" onClick={() => { setBlocksOpen(false); setComponentsOpen(false); setCommandCustomizationOpen(false); setLayersOpen(true); }} primary={layersOpen} /><ToolButton icon={Blocks} label="Bloki" onClick={() => { setLayersOpen(false); setComponentsOpen(false); setCommandCustomizationOpen(false); setBlocksOpen(true); }} primary={blocksOpen} disabled={!activeSketchId} /><ToolButton icon={Keyboard} label="Aliasy" onClick={() => { setLayersOpen(false); setBlocksOpen(false); setComponentsOpen(false); setCommandCustomizationOpen(true); }} primary={commandCustomizationOpen} /></RibbonGroup>
+                <RibbonGroup label="STRUKTURA"><ToolButton icon={Boxes} label="Komponenty" onClick={openComponentManager} primary={componentsOpen} /><ToolButton icon={Box} label="Nowa część" onClick={() => createDocumentComponent('part')} disabled={readOnly} /><ToolButton icon={Boxes} label="Nowe złożenie" onClick={() => createDocumentComponent('assembly')} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="SPRAWDŹ MODEL"><ToolButton icon={Ruler} label="Zmierz" onClick={openMeasure} /><ToolButton icon={ScanSearch} label="Przekrój" onClick={openSectionAnalysis} disabled={!engine.bodies.length} /><ToolButton icon={Box} label="Masa" onClick={openMassProperties} disabled={!engine.bodies.length} /><ToolButton icon={AlertTriangle} label="Analiza" onClick={openGeometryInspection} disabled={!engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="PŁASZCZYZNY"><ToolButton icon={Frame} label="Płaszczyzna offset" onClick={() => openConstructionPlane('offset')} disabled={readOnly} /><ToolButton icon={Layers3} label="Midplane" onClick={() => openConstructionPlane('midplane')} disabled={readOnly} /><ToolButton icon={Triangle} label="Plane 3 punkty" onClick={() => openConstructionPlane('three-points')} disabled={readOnly} /><ToolButton icon={Rotate3d} label="Plane angle" onClick={() => openConstructionPlane('angle')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Plane tangent" onClick={() => openConstructionPlane('tangent')} disabled={readOnly} /><ToolButton icon={Move3d} label="Plane path" onClick={() => openConstructionPlane('path')} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="OSIE"><ToolButton icon={Minus} label="Oś z krawędzi" onClick={() => openConstructionAxis('edge')} disabled={readOnly} /><ToolButton icon={Cylinder} label="Oś walca" onClick={() => openConstructionAxis('cylinder')} disabled={readOnly} /><ToolButton icon={Move3d} label="Oś 2 punkty" onClick={() => openConstructionAxis('two-points')} disabled={readOnly} /><ToolButton icon={Layers3} label="Oś przecięcia" onClick={() => openConstructionAxis('plane-intersection')} disabled={readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2} /><ToolButton icon={Move3d} label="Oś normalna" onClick={() => openConstructionAxis('plane-normal')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-plane')} /></RibbonGroup>
@@ -4374,6 +4458,7 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="SZKIC 2D"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="UTWÓRZ BRYŁĘ 3D"><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || (!selectedProfile && !canExtrudeOpenChain)} /><ToolButton icon={Rotate3d} label="Revolve" onClick={openRevolve} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Move3d} label="Sweep" onClick={openSweep} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Layers3} label="Loft" onClick={openLoft} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={RotateCw} label="Coil" onClick={openCoil} disabled={readOnly || Boolean(activeSketchId)} /><ToolButton icon={Grid2X2} label="Pattern" onClick={openPattern} disabled={readOnly || !targetBodyId || !targetBodySupportsSolidOperations || Boolean(activeSketchId)} description={!targetBodySupportsSolidOperations ? 'Otwarta siatka nie obsługuje bryłowego szyku z łączeniem.' : undefined} /><ToolButton icon={Move3d} label="Press Pull" onClick={openPressPull} disabled={readOnly || !canPressPull} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={Type} label="Tekst 3D" onClick={openTextSolid} disabled={readOnly} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || !canBooleanSelectedBodies} description={!canBooleanSelectedBodies && selectedBodyIds.length === 2 ? 'Boolean wymaga zgodnych brył B-Rep albo dwóch zamkniętych siatek.' : undefined} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="MODYFIKUJ BRYŁĘ 3D"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Layers3} label="Shell" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Triangle} label="Draft" onClick={openDraft} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Scissors} label="Split Body" onClick={openSplitBody} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Scissors} label="Split Face" onClick={openSplitFace} disabled={readOnly || !canSplitFace} /><ToolButton icon={X} label="Delete Face + Heal" onClick={openDeleteFace} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Layers3} label="Replace Face" onClick={openReplaceFace} disabled={readOnly || selectedFaceItems.length !== 2} /><ToolButton icon={Layers3} label="Offset Face" onClick={openOffsetFace} disabled={readOnly || selectedFaceItems.length !== 1} /><ToolButton icon={Move3d} label="Przesuń bryłę" onClick={() => openTransform('move')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Rotate3d} label="Obróć bryłę" onClick={() => openTransform('rotate')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
+                <RibbonGroup label="KOMPONENTY"><ToolButton icon={Boxes} label="Menedżer" onClick={openComponentManager} primary={componentsOpen} /><ToolButton icon={Box} label="Nowa część" onClick={() => createDocumentComponent('part')} disabled={readOnly} /><ToolButton icon={Boxes} label="Złożenie" onClick={() => createDocumentComponent('assembly')} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="WYBÓR" end><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
               </>
             )}
@@ -4507,6 +4592,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} onClose={() => setCommand(null)} />}
+          {componentsOpen && <ComponentPanel document={document} bodies={engine.bodies} selectedComponentId={selectedComponent?.id || ''} selectedBodyIds={selectedBodyIds} readOnly={readOnly} onCreate={createDocumentComponent} onUpdate={updateDocumentComponent} onAssignBodies={assignDocumentComponentBodies} onMove={moveDocumentComponent} onDelete={removeDocumentComponent} onSelect={(componentId) => setSelection({ kind: 'component', id: componentId })} onClose={() => setComponentsOpen(false)} />}
           {layersOpen && <LayersPanel document={document} selectedEntities={selectedSketchEntities} readOnly={readOnly} onAdd={addDocumentLayer} onUpdate={updateDocumentLayer} onDelete={removeDocumentLayer} onActivate={activateDocumentLayer} onAssign={assignSelectionToLayer} onStyleSelected={styleSelectedEntities} onClose={() => setLayersOpen(false)} />}
           {blocksOpen && activeSketchId && <BlocksPanel document={document} selectedEntities={selectedSketchEntities} selectedInstance={selectedBlockInstance} readOnly={readOnly} onCreate={createBlockFromSelection} onInsert={insertDocumentBlock} onDeleteDefinition={removeBlockDefinition} onAddAttribute={addDocumentBlockAttribute} onUpdateInstanceAttribute={updateDocumentBlockAttribute} onExplode={explodeDocumentBlock} onDeleteInstance={removeDocumentBlockInstance} onClose={() => setBlocksOpen(false)} />}
           {commandCustomizationOpen && <CommandCustomizationPanel customization={commandCustomization} onSave={saveCommandSettings} onReset={createDefaultCommandCustomization} onClose={() => setCommandCustomizationOpen(false)} />}

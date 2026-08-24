@@ -987,6 +987,16 @@
   padding-left: 52px;
 }
 
+.tree-component {
+  padding-left: calc(34px + var(--component-depth, 0) * 16px);
+}
+
+.tree-empty {
+  padding: 5px 12px 7px 54px;
+  color: #8593a0;
+  font-size: 9px;
+}
+
 .tree-reference-row {
   position: relative;
 }
@@ -2822,6 +2832,128 @@
   max-height: calc(100% - 28px);
   overflow: hidden;
 }
+
+.component-panel {
+  top: 14px;
+  right: 14px;
+  display: flex;
+  width: min(420px, calc(100% - 28px));
+  max-height: calc(100% - 28px);
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.component-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid #596573;
+  background: #36414f;
+}
+
+.component-toolbar button,
+.component-actions button {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid #697785;
+  border-radius: 3px;
+  background: #465362;
+  color: #f2f6f9;
+  font: inherit;
+  cursor: pointer;
+}
+
+.component-toolbar button:disabled,
+.component-actions button:disabled { opacity: .45; cursor: default; }
+
+.component-list {
+  max-height: 180px;
+  overflow: auto;
+  padding: 5px;
+  border-bottom: 1px solid #596573;
+  background: #2f3946;
+}
+
+.component-list > p,
+.component-body-list > p,
+.component-empty p {
+  margin: 5px;
+  color: #aeb9c3;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.component-list > button {
+  display: flex;
+  width: 100%;
+  min-height: 37px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 7px 5px calc(7px + var(--component-list-depth, 0) * 16px);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: #dce4ea;
+  text-align: left;
+  cursor: pointer;
+}
+
+.component-list > button:hover { background: #3b4754; }
+.component-list > button.active { border-color: #4bbfe0; background: #294b59; }
+.component-list > button > span { display: grid; min-width: 0; flex: 1; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 2px 6px; }
+.component-list > button strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.component-list > button small { grid-column: 2; color: #9eacb8; font-size: 9px; }
+.component-list > button em { color: #9eacb8; font-size: 9px; font-style: normal; white-space: nowrap; }
+
+.component-properties {
+  display: grid;
+  min-height: 0;
+  padding: 8px 10px 10px;
+  overflow: auto;
+  gap: 6px;
+  background: #333e4b;
+}
+
+.component-properties > label {
+  display: grid;
+  grid-template-columns: 105px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  color: #b9c4cd;
+  font-size: 10px;
+}
+
+.component-properties input,
+.component-properties select,
+.component-properties textarea {
+  min-width: 0;
+  min-height: 27px;
+  padding: 4px 6px;
+  border: 1px solid #667482;
+  border-radius: 2px;
+  background: #27313c;
+  color: #f0f4f7;
+  font: inherit;
+}
+
+.component-properties textarea { resize: vertical; }
+.component-description { align-items: start !important; }
+.component-section-title { display: flex; align-items: center; justify-content: space-between; margin-top: 3px; padding-top: 7px; border-top: 1px solid #53606e; color: #e0e7ec; font-size: 10px; }
+.component-section-title:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.component-section-title span { color: #8fa0ad; font-size: 8px; letter-spacing: .08em; }
+.component-origin { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.component-origin label { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: center; gap: 3px; color: #aeb9c3; font-size: 9px; }
+.component-body-list { display: grid; max-height: 112px; overflow: auto; gap: 2px; }
+.component-body-list label { display: flex; min-height: 25px; align-items: center; gap: 6px; padding: 2px 5px; border-radius: 2px; color: #d5dde4; font-size: 10px; }
+.component-body-list label:hover { background: #3c4855; }
+.component-actions { display: flex; justify-content: space-between; gap: 7px; padding-top: 4px; }
+.component-actions .danger { border-color: #8a5360; background: #613845; }
+.component-empty { display: grid; min-height: 150px; place-items: center; align-content: center; padding: 18px; color: #b9c5cf; text-align: center; }
 
 .layers-toolbar {
   display: flex;

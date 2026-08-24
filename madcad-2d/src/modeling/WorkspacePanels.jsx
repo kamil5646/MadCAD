@@ -1,5 +1,6 @@
 import React from 'react';
-import { AlertTriangle, Blocks, Box, Check, CheckCircle2, Eye, EyeOff, FileDown, Keyboard, Layers3, Lock, LockOpen, Plus, Printer, RotateCcw, Ruler, ScanSearch, Trash2, Ungroup, X, XCircle } from 'lucide-react';
+import { AlertTriangle, Blocks, Box, Boxes, Check, CheckCircle2, Eye, EyeOff, FileDown, Keyboard, Layers3, Lock, LockOpen, Plus, Printer, RotateCcw, Ruler, ScanSearch, Trash2, Ungroup, X, XCircle } from 'lucide-react';
+import { componentDescendantIds, componentParentMap, componentTree } from '../cad-core/components.js';
 import { formatModelFileSize } from '../cad-core/model-import.js';
 import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
 import { commandCustomizationRows, validateCommandCustomization } from './command-customization.js';
@@ -58,6 +59,53 @@ export function LayersPanel({ document, selectedEntities = [], readOnly = false,
         <label><span>Grubość</span><select value={selectedLineWeight} disabled={readOnly || !selectedEntities.length} onChange={(event) => onStyleSelected({ lineWeight: event.target.value === BY_LAYER ? BY_LAYER : Number(event.target.value) })}>{selectedLineWeight === 'mixed' && <option value="mixed" disabled>Różne</option>}<option value={BY_LAYER}>ByLayer</option>{LINE_WEIGHTS.map((weight) => <option key={weight} value={weight}>{weight.toFixed(2)} mm</option>)}</select></label>
         <label className="layer-color-override"><span>Kolor</span><select value={selectedColor === 'mixed' ? 'mixed' : selectedColor === BY_LAYER ? BY_LAYER : 'custom'} disabled={readOnly || !selectedEntities.length} onChange={(event) => onStyleSelected({ color: event.target.value === BY_LAYER ? BY_LAYER : customColor })}>{selectedColor === 'mixed' && <option value="mixed" disabled>Różne</option>}<option value={BY_LAYER}>ByLayer</option><option value="custom">Własny</option></select><input aria-label="Własny kolor wybranych elementów" type="color" value={customColor} disabled={readOnly || !selectedEntities.length || selectedColor === BY_LAYER} onChange={(event) => onStyleSelected({ color: event.target.value })} /></label>
       </div>
+    </aside>
+  );
+}
+
+export function ComponentPanel({ document, bodies = [], selectedComponentId = '', selectedBodyIds = [], readOnly = false, onCreate, onUpdate, onAssignBodies, onMove, onDelete, onSelect, onClose }) {
+  const selected = document.components.find((component) => component.id === selectedComponentId) || null;
+  const parentId = selected ? componentParentMap(document.components).get(selected.id) || '' : '';
+  const excludedParents = selected ? new Set([selected.id, ...componentDescendantIds(document.components, selected.id)]) : new Set();
+  const componentRows = [];
+  const collectRows = (component, depth = 0) => {
+    componentRows.push({ component, depth });
+    component.children.forEach((child) => collectRows(child, depth + 1));
+  };
+  componentTree(document.components).forEach((component) => collectRows(component));
+  const updateOrigin = (axis, value) => onUpdate(selected.id, { origin: { ...selected.origin, [axis]: Number(value) } });
+  const toggleBody = (bodyId, checked) => onAssignBodies(selected.id, checked
+    ? [...selected.bodyIds, bodyId]
+    : selected.bodyIds.filter((id) => id !== bodyId));
+  return (
+    <aside className="measure-panel component-panel" aria-label="Komponenty i złożenia">
+      <header><div><Boxes size={16} /><strong>Komponenty i złożenia</strong></div><button type="button" title="Zamknij komponenty" aria-label="Zamknij komponenty" onClick={onClose}><X size={15} /></button></header>
+      <div className="component-toolbar">
+        <button type="button" data-component-action="create-part" disabled={readOnly} onClick={() => onCreate('part')}><Box size={14} /> Nowa część</button>
+        <button type="button" data-component-action="create-assembly" disabled={readOnly} onClick={() => onCreate('assembly')}><Boxes size={14} /> Nowe złożenie</button>
+      </div>
+      <div className="component-list" aria-label="Struktura dokumentu">
+        {!document.components.length && <p>Utwórz część z zaznaczonej bryły albo puste złożenie nadrzędne.</p>}
+        {componentRows.map(({ component, depth }) => <button className={selected?.id === component.id ? 'active' : ''} style={{ '--component-list-depth': depth }} type="button" key={component.id} onClick={() => onSelect(component.id)}><span>{component.type === 'assembly' ? <Boxes size={15} /> : <Box size={15} />}<strong>{component.name}</strong><small>{component.partNumber}</small></span><em>{component.type === 'assembly' ? `${component.componentIds.length} elem.` : `${component.bodyIds.length} brył`}</em></button>)}
+      </div>
+      {selected ? <div className="component-properties">
+        <div className="component-section-title"><strong>Właściwości</strong><span>{selected.type === 'assembly' ? 'ZŁOŻENIE' : 'CZĘŚĆ'}</span></div>
+        <label><span>Nazwa</span><input aria-label="Nazwa komponentu" value={selected.name} disabled={readOnly} onChange={(event) => onUpdate(selected.id, { name: event.target.value })} /></label>
+        <label><span>Numer części</span><input aria-label="Numer części komponentu" value={selected.partNumber} disabled={readOnly} onChange={(event) => onUpdate(selected.id, { partNumber: event.target.value })} /></label>
+        <label><span>Typ</span><select aria-label="Typ komponentu" value={selected.type} disabled={readOnly || (selected.type === 'assembly' && selected.componentIds.length > 0)} onChange={(event) => onUpdate(selected.id, { type: event.target.value })}><option value="part">Część</option><option value="assembly">Złożenie</option></select></label>
+        <label><span>Materiał</span><input aria-label="Materiał komponentu" value={selected.material} disabled={readOnly} placeholder="np. Aluminium 6061" onChange={(event) => onUpdate(selected.id, { material: event.target.value })} /></label>
+        <label><span>Ilość</span><input aria-label="Ilość komponentu" type="number" min="1" max="9999" value={selected.quantity} disabled={readOnly} onChange={(event) => onUpdate(selected.id, { quantity: event.target.value })} /></label>
+        <label><span>Nadrzędne</span><select aria-label="Złożenie nadrzędne" value={parentId} disabled={readOnly} onChange={(event) => onMove(selected.id, event.target.value)}><option value="">Poziom główny</option>{document.components.filter((component) => !excludedParents.has(component.id)).map((component) => <option key={component.id} value={component.id}>{component.name}</option>)}</select></label>
+        <label className="component-description"><span>Opis</span><textarea aria-label="Opis komponentu" value={selected.description} disabled={readOnly} rows="2" onChange={(event) => onUpdate(selected.id, { description: event.target.value })} /></label>
+        <div className="component-section-title"><strong>Początek komponentu</strong><span>mm</span></div>
+        <div className="component-origin">{['x', 'y', 'z'].map((axis) => <label key={axis}><span>{axis.toUpperCase()}</span><input aria-label={`Początek ${axis.toUpperCase()}`} type="number" step="0.1" value={selected.origin[axis]} disabled={readOnly} onChange={(event) => updateOrigin(axis, event.target.value)} /></label>)}</div>
+        <div className="component-section-title"><strong>Przypisane bryły</strong><span>{selected.bodyIds.length}</span></div>
+        <div className="component-body-list">
+          {!bodies.length && <p>Model nie zawiera jeszcze brył.</p>}
+          {bodies.map((body) => <label key={body.id}><input type="checkbox" checked={selected.bodyIds.includes(body.id)} disabled={readOnly || selected.type === 'assembly'} onChange={(event) => toggleBody(body.id, event.target.checked)} /><span>{body.name || body.id}</span></label>)}
+        </div>
+        <div className="component-actions"><button type="button" disabled={readOnly || !selectedBodyIds.length || selected.type === 'assembly'} onClick={() => onAssignBodies(selected.id, selectedBodyIds)}><Check size={14} /> Przypisz zaznaczone ({selectedBodyIds.length})</button><button className="danger" type="button" data-component-action="delete" disabled={readOnly} onClick={() => onDelete(selected.id)}><Trash2 size={14} /> Usuń</button></div>
+      </div> : <div className="component-empty"><Boxes size={25} /><strong>Wybierz komponent</strong><p>Właściwości, origin i przypisania brył pojawią się tutaj.</p></div>}
     </aside>
   );
 }

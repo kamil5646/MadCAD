@@ -28,15 +28,41 @@ export function dependentTimelineFeatureIds(document, featureId) {
 
 export function deleteTimelineFeatureCascade(document, featureId) {
   const deletedFeatureIds = dependentTimelineFeatureIds(document, featureId);
-  if (!deletedFeatureIds.includes(featureId)) return { deletedFeatureIds: [], deletedReferenceIds: [] };
+  if (!deletedFeatureIds.includes(featureId)) return { deletedFeatureIds: [], deletedReferenceIds: [], deletedBodyIds: [], deletedDrawingViewIds: [] };
   const deletedSet = new Set(deletedFeatureIds);
+  const deletedBodyIds = deletedFeatureIds.map((id) => `body-${id}`);
+  const deletedBodySet = new Set(deletedBodyIds);
   const deletedReferenceIds = (document.references || [])
     .filter((reference) => deletedSet.has(reference.ownerFeatureId))
     .map((reference) => reference.id);
   const deletedReferenceSet = new Set(deletedReferenceIds);
   document.features = (document.features || []).filter((feature) => !deletedSet.has(feature.id));
   document.references = (document.references || []).filter((reference) => !deletedReferenceSet.has(reference.id));
-  return { deletedFeatureIds, deletedReferenceIds };
+  document.bodies = (document.bodies || []).filter((body) => !deletedBodySet.has(body.id));
+  document.components = (document.components || []).map((component) => ({
+    ...component,
+    bodyIds: (component.bodyIds || []).filter((bodyId) => !deletedBodySet.has(bodyId)),
+  }));
+  const deletedDrawingViewIds = new Set();
+  for (const sheet of document.drawings || []) {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const view of sheet.views || []) {
+        const bodyIds = (view.bodyIds || []).filter((bodyId) => !deletedBodySet.has(bodyId));
+        const parentDeleted = view.parentViewId && deletedDrawingViewIds.has(view.parentViewId);
+        if (!bodyIds.length || parentDeleted) {
+          if (!deletedDrawingViewIds.has(view.id)) changed = true;
+          deletedDrawingViewIds.add(view.id);
+        } else view.bodyIds = bodyIds;
+      }
+    }
+    sheet.views = (sheet.views || []).filter((view) => !deletedDrawingViewIds.has(view.id));
+    sheet.annotations = (sheet.annotations || []).filter((annotation) => !deletedDrawingViewIds.has(annotation.viewId)
+      && !(annotation.type === 'balloon' && deletedBodySet.has(annotation.bodyId)));
+    sheet.tables = (sheet.tables || []).filter((table) => table.type !== 'hole-table' || !deletedDrawingViewIds.has(table.viewId));
+  }
+  return { deletedFeatureIds, deletedReferenceIds, deletedBodyIds, deletedDrawingViewIds: [...deletedDrawingViewIds] };
 }
 
 export function moveTimelineFeature(document, featureId, delta) {

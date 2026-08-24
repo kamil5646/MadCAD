@@ -8,6 +8,7 @@ import {
   isSupportedLineType,
 } from './layers.js';
 import { ensureDocumentBlocks } from './blocks.js';
+import { COMPONENT_TYPES, ensureDocumentComponents } from './components.js';
 import { DRAWING_ANNOTATION_TYPES, DRAWING_PAGE_SIZES, DRAWING_TABLE_TYPES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
 import {
   SKETCH_ENTITY_ROLES,
@@ -17,7 +18,7 @@ import {
   normalizeSketchModel,
 } from './sketch-model.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 9;
+export const DOCUMENT_SCHEMA_VERSION = 10;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -167,6 +168,22 @@ function migrateV8ToV9(source, now) {
   return migrated;
 }
 
+function migrateV9ToV10(source, now) {
+  const migrated = ensureDocumentComponents(ensureDocumentDrawings(ensureV3Collections(cloneDocument(source))));
+  migrated.schemaVersion = 10;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 9,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 9, to: 10, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
@@ -175,6 +192,7 @@ const MIGRATIONS = new Map([
   [6, migrateV6ToV7],
   [7, migrateV7ToV8],
   [8, migrateV8ToV9],
+  [9, migrateV9ToV10],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -325,11 +343,11 @@ export function migrateDocument(source, { now = new Date().toISOString() } = {})
     document = migration(document, now);
     version = readSchemaVersion(document);
   }
-  return ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document)));
+  return ensureDocumentComponents(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document))));
 }
 
 function projectFutureDocument(source) {
-  const projected = ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source)))));
+  const projected = ensureDocumentComponents(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source))))));
   projected.schemaVersion = DOCUMENT_SCHEMA_VERSION;
   projected.metadata = {
     ...(isRecord(projected.metadata) ? projected.metadata : {}),
@@ -718,10 +736,14 @@ export function validateDocument(document) {
     if (typeof body.id === 'string') bodyIds.add(body.id);
   });
 
+  const componentIds = new Set();
   components.forEach((component, index) => {
     const base = `components[${index}]`;
     if (!isRecord(component)) add(base, 'Komponent musi być obiektem.', 'TYPE');
-    else registerId(component.id, `${base}.id`);
+    else {
+      registerId(component.id, `${base}.id`);
+      if (typeof component.id === 'string' && component.id) componentIds.add(component.id);
+    }
   });
   references.forEach((reference, index) => {
     const base = `references[${index}]`;
@@ -1066,6 +1088,59 @@ export function validateDocument(document) {
     if (feature.type === 'offsetFace') {
       if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
       if (!Array.isArray(feature.referenceIds) || feature.referenceIds.length !== 1) add(`${base}.referenceIds`, 'Offset Face wymaga dokładnie jednej planarnej ściany.', 'REQUIRED');
+    }
+  });
+
+  const componentNames = new Set();
+  const componentPartNumbers = new Set();
+  const componentParents = new Map();
+  const bodyOwners = new Map();
+  components.forEach((component, index) => {
+    if (!isRecord(component)) return;
+    const base = `components[${index}]`;
+    if (typeof component.name !== 'string' || !component.name.trim()) add(`${base}.name`, 'Komponent wymaga nazwy.', 'REQUIRED');
+    else if (componentNames.has(component.name.toLocaleLowerCase())) add(`${base}.name`, `Powtórzona nazwa komponentu: ${component.name}`, 'DUPLICATE');
+    else componentNames.add(component.name.toLocaleLowerCase());
+    if (!COMPONENT_TYPES.includes(component.type)) add(`${base}.type`, 'Typ komponentu musi mieć wartość part albo assembly.', 'UNSUPPORTED');
+    if (typeof component.partNumber !== 'string' || !component.partNumber.trim()) add(`${base}.partNumber`, 'Komponent wymaga numeru części.', 'REQUIRED');
+    else if (componentPartNumbers.has(component.partNumber.toLocaleLowerCase())) add(`${base}.partNumber`, `Powtórzony numer części: ${component.partNumber}`, 'DUPLICATE');
+    else componentPartNumbers.add(component.partNumber.toLocaleLowerCase());
+    if (typeof component.description !== 'string') add(`${base}.description`, 'Opis komponentu musi być tekstem.', 'TYPE');
+    if (typeof component.material !== 'string') add(`${base}.material`, 'Materiał komponentu musi być tekstem.', 'TYPE');
+    if (!Number.isInteger(Number(component.quantity)) || Number(component.quantity) < 1 || Number(component.quantity) > 9999) add(`${base}.quantity`, 'Ilość komponentu musi mieścić się między 1 i 9999.', 'VALUE');
+    if (!isRecord(component.origin) || ['x', 'y', 'z'].some((axis) => !Number.isFinite(Number(component.origin?.[axis])))) add(`${base}.origin`, 'Początek komponentu wymaga liczbowych współrzędnych X, Y i Z.', 'TYPE');
+    const ownedBodyIds = requireArray(component, 'bodyIds', `${base}.bodyIds`);
+    const ownedSketchIds = requireArray(component, 'sketchIds', `${base}.sketchIds`);
+    const childIds = requireArray(component, 'componentIds', `${base}.componentIds`);
+    if (new Set(ownedBodyIds).size !== ownedBodyIds.length) add(`${base}.bodyIds`, 'Bryła może wystąpić w komponencie tylko raz.', 'DUPLICATE');
+    if (new Set(ownedSketchIds).size !== ownedSketchIds.length) add(`${base}.sketchIds`, 'Szkic może wystąpić w komponencie tylko raz.', 'DUPLICATE');
+    if (new Set(childIds).size !== childIds.length) add(`${base}.componentIds`, 'Podkomponent może wystąpić w złożeniu tylko raz.', 'DUPLICATE');
+    if (component.type === 'part' && childIds.length) add(`${base}.componentIds`, 'Część nie może zawierać podkomponentów; użyj typu assembly.', 'VALUE');
+    ownedBodyIds.forEach((bodyId, bodyIndex) => {
+      if (!bodyIds.has(bodyId)) add(`${base}.bodyIds[${bodyIndex}]`, `Nie znaleziono bryły „${bodyId}”.`, 'BROKEN_REFERENCE');
+      else if (bodyOwners.has(bodyId)) add(`${base}.bodyIds[${bodyIndex}]`, `Bryła „${bodyId}” należy już do komponentu „${bodyOwners.get(bodyId)}”.`, 'DUPLICATE');
+      else bodyOwners.set(bodyId, component.id);
+    });
+    ownedSketchIds.forEach((sketchId, sketchIndex) => {
+      if (!sketchIds.has(sketchId)) add(`${base}.sketchIds[${sketchIndex}]`, `Nie znaleziono szkicu „${sketchId}”.`, 'BROKEN_REFERENCE');
+    });
+    childIds.forEach((childId, childIndex) => {
+      if (!componentIds.has(childId)) add(`${base}.componentIds[${childIndex}]`, `Nie znaleziono podkomponentu „${childId}”.`, 'BROKEN_REFERENCE');
+      else if (childId === component.id) add(`${base}.componentIds[${childIndex}]`, 'Komponent nie może być własnym podkomponentem.', 'CYCLIC_REFERENCE');
+      else if (componentParents.has(childId)) add(`${base}.componentIds[${childIndex}]`, `Podkomponent ma już rodzica „${componentParents.get(childId)}”.`, 'DUPLICATE');
+      else componentParents.set(childId, component.id);
+    });
+  });
+  componentIds.forEach((componentId) => {
+    const visited = new Set([componentId]);
+    let parentId = componentParents.get(componentId);
+    while (parentId) {
+      if (visited.has(parentId)) {
+        add('components', 'Struktura komponentów zawiera cykliczną zależność.', 'CYCLIC_REFERENCE');
+        break;
+      }
+      visited.add(parentId);
+      parentId = componentParents.get(parentId);
     }
   });
 
