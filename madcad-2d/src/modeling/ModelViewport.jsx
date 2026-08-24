@@ -15,8 +15,11 @@ import { describeSketchDegreesOfFreedom } from '../cad-core/sketch-freedom-diagn
 const VIEW_DIRECTIONS = {
   iso: [1.25, -1.45, 1.15],
   top: [0, 0, 2],
+  bottom: [0, 0, -2],
   front: [0, -2, 0],
+  back: [0, 2, 0],
   right: [2, 0, 0],
+  left: [-2, 0, 0],
 };
 
 const SNAP_ICONS = Object.freeze({
@@ -1888,10 +1891,17 @@ export default function ModelViewport({
       }}
     >
       <div className="view-cube" role="toolbar" aria-label="Kostka widoku">
-        <button className="cube-top" type="button" aria-pressed={!customViewActive && view === 'top'} title="Ustaw kamerę prostopadle do płaszczyzny XY." onClick={() => selectStandardView('top')}>GÓRA</button>
-        <button className="cube-main" type="button" aria-label="Widok izometryczny" aria-pressed={!customViewActive && view === 'iso'} onClick={() => selectStandardView('iso')} title="Widok izometryczny"><Box size={34} strokeWidth={1.2} /></button>
-        <button className="cube-front" type="button" aria-pressed={!customViewActive && view === 'front'} title="Ustaw kamerę na widok z przodu." onClick={() => selectStandardView('front')}>PRZÓD</button>
-        <button className="cube-right" type="button" aria-pressed={!customViewActive && view === 'right'} title="Ustaw kamerę na widok z prawej strony." onClick={() => selectStandardView('right')}>PRAWO</button>
+        <div className="view-cube-primary">
+          <button className="cube-top" type="button" aria-label="Widok z góry" aria-pressed={!customViewActive && view === 'top'} title="Ustaw kamerę prostopadle do płaszczyzny XY." onClick={() => selectStandardView('top')}>GÓRA</button>
+          <button className="cube-main" type="button" aria-label="Widok izometryczny" aria-pressed={!customViewActive && view === 'iso'} onClick={() => selectStandardView('iso')} title="Widok izometryczny"><Box size={30} strokeWidth={1.25} /></button>
+          <button className="cube-front" type="button" aria-label="Widok z przodu" aria-pressed={!customViewActive && view === 'front'} title="Ustaw kamerę na widok z przodu." onClick={() => selectStandardView('front')}>PRZÓD</button>
+          <button className="cube-right" type="button" aria-label="Widok z prawej" aria-pressed={!customViewActive && view === 'right'} title="Ustaw kamerę na widok z prawej strony." onClick={() => selectStandardView('right')}>PRAWO</button>
+        </div>
+        <div className="view-cube-opposites">
+          <button className="cube-left" type="button" aria-label="Widok z lewej" aria-pressed={!customViewActive && view === 'left'} title="Ustaw kamerę na widok z lewej strony." onClick={() => selectStandardView('left')}>LEWO</button>
+          <button className="cube-back" type="button" aria-label="Widok z tyłu" aria-pressed={!customViewActive && view === 'back'} title="Ustaw kamerę na widok z tyłu." onClick={() => selectStandardView('back')}>TYŁ</button>
+          <button className="cube-bottom" type="button" aria-label="Widok od dołu" aria-pressed={!customViewActive && view === 'bottom'} title="Ustaw kamerę od dołu." onClick={() => selectStandardView('bottom')}>DÓŁ</button>
+        </div>
       </div>
       <div className="axis-indicator" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
       {!activeSketchId && bodies.length > 0 && <div className="selection-filter-bar" role="toolbar" aria-label="Filtr wyboru geometrii">

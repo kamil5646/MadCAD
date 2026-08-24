@@ -1763,7 +1763,18 @@
   top: 12px;
   right: 17px;
   display: grid;
-  width: 102px;
+  width: 116px;
+  padding: 4px;
+  border: 1px solid #5e6975;
+  border-radius: 5px;
+  background: #303946e8;
+  box-shadow: 0 5px 14px #11182066;
+  gap: 4px;
+}
+
+.view-cube-primary {
+  display: grid;
+  min-height: 82px;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 18px 49px 20px;
   grid-template-areas: "top top" "main main" "front right";
@@ -1772,7 +1783,7 @@
 
 .view-cube button {
   border: 1px solid #697480;
-  background: #48515c;
+  background: #485460;
   color: #cfd7df;
   font-size: 8px;
   cursor: pointer;
@@ -1783,6 +1794,11 @@
   color: white;
 }
 
+.view-cube button[aria-pressed='true'] { border-color: #59c6e5; background: #31596a; color: #effcff; box-shadow: inset 0 0 0 1px #59c6e555; }
+.view-cube-primary .cube-main { background: #536170; color: #e8eef4; }
+.view-cube-opposites { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+.view-cube-opposites button { min-height: 19px; padding: 1px 2px; background: #39434e; font-size: 7px; }
+
 .cube-top { grid-area: top; }
 .cube-main { grid-area: main; }
 .cube-front { grid-area: front; }
@@ -1791,8 +1807,8 @@
 .axis-indicator {
   position: absolute;
   z-index: 4;
-  top: 104px;
-  right: 38px;
+  top: 137px;
+  right: 42px;
   display: grid;
   grid-template-columns: repeat(3, auto);
   gap: 6px;

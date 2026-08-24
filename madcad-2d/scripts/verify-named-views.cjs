@@ -3,6 +3,7 @@ const path = require('node:path');
 const { app, BrowserWindow } = require('electron');
 
 const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-named-views.png');
+const viewCubeScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-view-cube.png');
 
 async function waitFor(window, expression, label, timeoutMs = 45000) {
   const startedAt = Date.now();
@@ -24,6 +25,19 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTimelineFixture()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadCameraState`, 'model i kamera testowa');
+    for (const [selector, expression, label] of [
+      ['.cube-left', 'window.__madcadCameraState.position[0] < window.__madcadCameraState.target[0]', 'lewy'],
+      ['.cube-right', 'window.__madcadCameraState.position[0] > window.__madcadCameraState.target[0]', 'prawy'],
+      ['.cube-back', 'window.__madcadCameraState.position[1] > window.__madcadCameraState.target[1]', 'tylny'],
+      ['.cube-front', 'window.__madcadCameraState.position[1] < window.__madcadCameraState.target[1]', 'przedni'],
+      ['.cube-bottom', 'window.__madcadCameraState.position[2] < window.__madcadCameraState.target[2]', 'dolny'],
+      ['.cube-top', 'window.__madcadCameraState.position[2] > window.__madcadCameraState.target[2]', 'górny'],
+    ]) {
+      await window.webContents.executeJavaScript(`document.querySelector('${selector}').click()`);
+      await waitFor(window, expression, `ViewCube: ${label}`);
+    }
+    await window.webContents.executeJavaScript(`document.querySelector('.cube-main').click()`);
+    await fs.writeFile(viewCubeScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`(() => {
       const button = [...document.querySelectorAll('button')].find((item) => item.textContent.trim() === 'Zapisane widoki');
       if (button) button.click();
@@ -55,14 +69,15 @@ app.whenReady().then(async () => {
       const panel = document.querySelector('.named-views-panel').getBoundingClientRect();
       return {
         views: window.__madcadVerifyDocumentState.namedViews.length,
+        viewCubeDirections: document.querySelectorAll('.view-cube button').length,
         cameraRestored: window.__madcadCameraState.position.every((value, index) => Math.abs(value - window.__madcadVerifyDocumentState.namedViews[0].camera.position[index]) < 1e-6),
         insideViewport: panel.left >= 0 && panel.top >= 0 && panel.right <= innerWidth && panel.bottom <= innerHeight,
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (result.views !== 1 || !result.cameraRestored || !result.insideViewport || result.horizontalOverflow) throw new Error(`Niepoprawne zapisane widoki: ${JSON.stringify(result)}`);
-    process.stdout.write(`${JSON.stringify({ screenshotPath, ...result }, null, 2)}\n`);
+    if (result.views !== 1 || result.viewCubeDirections !== 7 || !result.cameraRestored || !result.insideViewport || result.horizontalOverflow) throw new Error(`Niepoprawne zapisane widoki: ${JSON.stringify(result)}`);
+    process.stdout.write(`${JSON.stringify({ screenshotPath, viewCubeScreenshotPath, ...result }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
     process.stderr.write(`${error.stack || error.message}\n`);
