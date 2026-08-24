@@ -22,6 +22,7 @@ import {
   Link2,
   Magnet,
   Minus,
+  Network,
   PanelLeftClose,
   PencilRuler,
   Save,
@@ -186,6 +187,40 @@ export function ProjectHealthPanel({ report, language = 'pl', onNavigate, onExpo
         )) : <div className="project-health-empty"><ShieldCheck size={24} /><strong>{report?.issues?.length ? 'Brak wyników dla wybranego filtra' : 'Nie wykryto problemów'}</strong><span>{report?.issues?.length ? 'Zmień priorytet albo kategorię.' : 'Wszystkie kontrole zakończyły się poprawnie.'}</span></div>}
       </div>
       <p className="project-health-hint">Kliknij problem, aby przejść do powiązanego obiektu. Raport nie zmienia modelu.</p>
+    </aside>
+  );
+}
+
+export function ProjectDependenciesPanel({ inspection, language = 'pl', onSelectNode, onNavigate, onClose }) {
+  const [view, setView] = useState('usedBy');
+  const [query, setQuery] = useState('');
+  const kindLabels = { document: 'Dokument', parameter: 'Parametr', sketch: 'Szkic', profile: 'Profil', 'sketch-entity': 'Geometria szkicu', reference: 'Konstrukcja / referencja', feature: 'Operacja', body: 'Bryła', component: 'Komponent', 'linked-project': 'Projekt linkowany' };
+  const relationLabels = { drives: 'steruje', references: 'używa', bounds: 'ogranicza profil', 'bounds-hole': 'ogranicza otwór', supports: 'podpiera szkic', projects: 'rzutuje', modifies: 'modyfikuje', consumes: 'zużywa', produces: 'tworzy', updates: 'aktualizuje', 'owned-by': 'należy do', 'feeds-component': 'zasila komponent', 'provides-proxy': 'dostarcza proxy', 'references-topology': 'używa topologii', 'references-open-chain': 'używa łańcucha', 'sweep-path': 'prowadzi Sweep', 'pipe-path': 'prowadzi Pipe', 'to-object': 'wyznacza zakres', 'revolve-axis': 'wyznacza oś', 'coil-axis': 'wyznacza oś', 'pattern-axis': 'wyznacza oś' };
+  const lists = { uses: inspection?.uses || [], usedBy: inspection?.usedBy || [], affected: inspection?.affected || [] };
+  const list = lists[view];
+  const normalizedQuery = query.trim().toLocaleLowerCase('pl');
+  const kindLabel = (kind) => translateModelingText(kindLabels[kind] || kind, language);
+  const options = (inspection?.nodes || []).filter((node) => node.id === inspection?.selected?.id || !normalizedQuery || `${node.label} ${kindLabels[node.kind] || node.kind}`.toLocaleLowerCase('pl').includes(normalizedQuery));
+  const selectedSummary = language === 'en'
+    ? `${inspection?.counts?.uses || 0} inputs · ${inspection?.counts?.usedBy || 0} direct uses · ${inspection?.counts?.affected || 0} affected items`
+    : `${inspection?.counts?.uses || 0} wejść · ${inspection?.counts?.usedBy || 0} bezpośrednich użyć · ${inspection?.counts?.affected || 0} elementów pod wpływem`;
+  return (
+    <aside className="project-dependencies-panel" role="dialog" aria-modal="false" aria-label="Gdzie używane i wpływ zmiany">
+      <header><div><Network size={16} /><span><strong>GDZIE UŻYWANE</strong><small>Graf zależności tylko do odczytu</small></span></div><button type="button" aria-label="Zamknij graf zależności" title="Zamknij" onClick={onClose}><X size={15} /></button></header>
+      <section className="project-dependencies-source">
+        <label><span>Znajdź obiekt</span><input value={query} placeholder="Nazwa albo typ…" onChange={(event) => setQuery(event.target.value)} /></label>
+        <label><span>Analizowany obiekt</span><select data-dependency-source value={inspection?.selected?.id || ''} onChange={(event) => onSelectNode(event.target.value)}>{options.map((node) => <option key={node.id} value={node.id}>{kindLabel(node.kind)} · {node.label}</option>)}</select></label>
+      </section>
+      <section className="project-dependencies-selected">
+        <span>{kindLabel(inspection?.selected?.kind || 'Obiekt')}</span>
+        <strong>{inspection?.selected?.label || 'Brak obiektu'}</strong>
+        <small>{selectedSummary}</small>
+      </section>
+      <nav className="project-dependencies-tabs" aria-label="Zakres grafu zależności">{[['usedBy', 'UŻYWANY PRZEZ'], ['uses', 'UŻYWA'], ['affected', 'WPŁYW ZMIANY']].map(([id, label]) => <button type="button" className={view === id ? 'active' : ''} aria-pressed={view === id} key={id} onClick={() => setView(id)}>{label}<span>{inspection?.counts?.[id] || 0}</span></button>)}</nav>
+      <div className="project-dependencies-list" aria-live="polite">
+        {list.length ? list.map((item) => <button type="button" data-dependency-node={item.id} data-dependency-kind={item.kind} key={`${view}-${item.id}`} onClick={() => onNavigate(item)}><span className="dependency-kind">{kindLabel(item.kind)}</span><div><strong>{item.label}</strong><small>{translateModelingText(relationLabels[item.relation] || item.relation, language)}{view === 'affected' ? language === 'en' ? ` · level ${item.depth}` : ` · poziom ${item.depth}` : ''}</small></div><ArrowRight size={13} /></button>) : <div className="project-dependencies-empty"><Network size={23} /><strong>Brak zależności w tym kierunku</strong><span>Wybierz inny obiekt albo zakres analizy.</span></div>}
+      </div>
+      <p className="project-dependencies-hint">Kliknij element, aby zaznaczyć go w projekcie. Analiza nie zmienia dokumentu.</p>
     </aside>
   );
 }

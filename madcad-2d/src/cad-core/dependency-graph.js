@@ -175,6 +175,15 @@ export function buildDependencyGraph(document) {
     for (const bodyId of component.bodyIds || []) addEdge(bodyId, component.id, 'owned-by');
     for (const childId of component.componentIds || []) addEdge(childId, component.id, 'owned-by');
   }
+  for (const link of document.linkedProjects || []) {
+    addNode(link.id, 'linked-project', link.sourceName || link.fileName || link.id, {
+      relativePath: link.relativePath || '',
+      linkedComponentId: link.linkedComponentId || '',
+    });
+    addEdge(document.id, link.id, 'contains');
+    addEdge(link.id, link.linkedComponentId, 'feeds-component');
+    for (const featureId of link.proxyFeatureIds || []) addEdge(link.id, featureId, 'provides-proxy');
+  }
 
   const dependents = new Map();
   for (const edge of edges) {

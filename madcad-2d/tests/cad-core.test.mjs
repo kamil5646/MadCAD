@@ -50,6 +50,7 @@ import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotio
 import { createLinkedProject, linkedProjectState } from '../src/cad-core/linked-projects.js';
 import { compareProjectDocuments } from '../src/cad-core/project-diff.js';
 import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/project-health.js';
+import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
@@ -4151,6 +4152,44 @@ test('raport kondycji mapuje błędy walidacji na obiekty i klasyfikuje brakują
   assert.equal(report.issues.some((issue) => issue.code === 'DOCUMENT_SIZE_CRITICAL'), true);
   assert.equal(formatProjectBytes(10 * 1024 * 1024), '10.0 MB');
   assert.doesNotThrow(() => JSON.stringify(report));
+});
+
+test('Gdzie używane pokazuje bezpośrednich użytkowników szkicu i pełny wpływ zmiany', () => {
+  const document = createStarterDocument();
+  const sketch = document.sketches[0];
+  const inspection = inspectProjectDependencies(document, sketch.id);
+  assert.equal(inspection.selected.id, sketch.id);
+  assert.deepEqual(inspection.usedBy.map((item) => item.id).sort(), document.features.map((feature) => feature.id).sort());
+  assert.equal(inspection.affected.some((item) => item.kind === 'body' && item.depth === 2), true);
+  assert.equal(inspection.uses.length, 0);
+  assert.equal(inspection.counts.usedBy, 2);
+  assert.equal(inspection.nodes.some((node) => node.kind === 'parameter'), true);
+  assert.equal(inspection.usedBy.every((item) => item.target.kind === 'feature'), true);
+});
+
+test('Gdzie używane rozróżnia wejścia operacji od transytywnych zależności nadrzędnych', () => {
+  const document = createStarterDocument();
+  const feature = document.features[0];
+  const inspection = inspectProjectDependencies(document, feature.id);
+  assert.equal(inspection.uses.some((item) => item.kind === 'sketch'), true);
+  assert.equal(inspection.uses.some((item) => item.kind === 'parameter'), true);
+  assert.equal(inspection.upstream.some((item) => item.kind === 'sketch-entity'), true);
+  assert.equal(inspection.affected.some((item) => item.kind === 'body'), true);
+  assert.equal(dependencyNodeIdForSelection({ kind: 'face', id: 'face-1', bodyId: 'body-test' }, document), 'body-test');
+});
+
+test('graf zależności obejmuje linkowany projekt, komponent i stabilne proxy', () => {
+  const document = createDocument('Zespół linkowany');
+  const proxy = createFeature('importedModel', { name: 'Proxy silnika', originalFormat: 'step', dataBase64: 'AA==', unitScale: 1, linkedProjectId: 'linked-engine' });
+  document.features.push(proxy);
+  const component = createComponent(document, { name: 'Silnik', type: 'part', bodyIds: [`body-${proxy.id}`] });
+  document.linkedProjects.push({ id: 'linked-engine', sourceName: 'Silnik źródłowy', relativePath: 'silnik.madcad', linkedComponentId: component.id, proxyFeatureIds: [proxy.id] });
+  const inspection = inspectProjectDependencies(document, 'linked-engine');
+  assert.equal(inspection.selected.kind, 'linked-project');
+  assert.deepEqual(new Set(inspection.usedBy.map((item) => item.id)), new Set([component.id, proxy.id]));
+  assert.equal(inspection.selected.target.kind, 'component');
+  assert.equal(inspection.selected.target.id, component.id);
+  assert.equal(inspectProjectDependencies(document, 'nie-istnieje').selected.id, document.id);
 });
 
 test('nazwane punkty zapisu projektu są atomowe, limitowane i możliwe do przywrócenia', async () => {

@@ -1639,10 +1639,65 @@
 .project-health-empty strong { color: #dbe5eb; }
 .project-health-hint { margin: 0; padding: 7px 10px; border-top: 1px solid #415365; color: #a8bac7; font-size: 8px; }
 
+.project-dependencies-panel {
+  position: absolute;
+  z-index: 19;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  width: min(420px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow: hidden;
+  border: 1px solid #526576;
+  border-radius: 7px;
+  background: #263442;
+  box-shadow: 0 12px 28px rgb(5 12 18 / 42%);
+  color: #e8f0f5;
+  grid-template-rows: auto auto auto auto minmax(100px, 1fr) auto;
+}
+.project-dependencies-panel > header { display: flex; min-height: 44px; align-items: center; justify-content: space-between; padding: 7px 8px 7px 11px; border-bottom: 1px solid #415365; background: #303f4e; }
+.project-dependencies-panel > header > div,
+.project-dependencies-panel > header span { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.project-dependencies-panel > header span { align-items: flex-start; flex-direction: column; gap: 1px; }
+.project-dependencies-panel > header strong { font-size: 11px; letter-spacing: .08em; }
+.project-dependencies-panel > header small { color: #aebdca; font-size: 9px; }
+.project-dependencies-panel button,
+.project-dependencies-panel input,
+.project-dependencies-panel select { border: 1px solid #536779; border-radius: 4px; outline: none; background: #354757; color: #e6eef4; font: inherit; }
+.project-dependencies-panel button { display: inline-flex; min-height: 28px; align-items: center; justify-content: center; gap: 5px; padding: 0 8px; cursor: pointer; }
+.project-dependencies-panel button:hover,
+.project-dependencies-panel button.active { border-color: #70b9d6; background: #3d586b; }
+.project-dependencies-panel > header button { width: 30px; padding: 0; border-color: transparent; background: transparent; }
+.project-dependencies-source { display: grid; grid-template-columns: minmax(110px, .75fr) minmax(180px, 1.25fr); gap: 6px; padding: 8px; border-bottom: 1px solid #415365; background: #293847; }
+.project-dependencies-source label { display: grid; min-width: 0; gap: 3px; color: #aebdca; font-size: 8px; font-weight: 700; }
+.project-dependencies-source input,
+.project-dependencies-source select { width: 100%; min-width: 0; height: 28px; box-sizing: border-box; padding: 0 6px; }
+.project-dependencies-source input:focus,
+.project-dependencies-source select:focus { border-color: #61c7ec; box-shadow: 0 0 0 2px rgb(97 199 236 / 18%); }
+.project-dependencies-selected { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 3px 8px; padding: 7px 10px; border-bottom: 1px solid #415365; }
+.project-dependencies-selected > span { color: #74cceb; font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.project-dependencies-selected strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.project-dependencies-selected small { grid-column: 1 / -1; color: #9fb0bd; font-size: 8px; }
+.project-dependencies-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 6px 8px; border-bottom: 1px solid #415365; }
+.project-dependencies-tabs button { min-width: 0; min-height: 25px; padding: 0 5px; font-size: 8px; white-space: nowrap; }
+.project-dependencies-tabs button span { min-width: 15px; padding: 1px 3px; border-radius: 8px; background: #22313e; color: #aebdca; font-size: 7px; }
+.project-dependencies-list { min-height: 0; overflow: auto; padding: 7px; }
+.project-dependencies-list > button { display: grid; width: 100%; min-height: 0; grid-template-columns: 84px minmax(0, 1fr) auto; align-items: center; gap: 7px; padding: 7px; border-left: 3px solid #529fc0; border-radius: 3px; text-align: left; }
+.project-dependencies-list > button + button { margin-top: 4px; }
+.project-dependencies-list .dependency-kind { overflow: hidden; color: #83cbed; font-size: 7px; font-weight: 800; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.project-dependencies-list > button > div { display: grid; min-width: 0; gap: 2px; }
+.project-dependencies-list strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.project-dependencies-list small { color: #9fb0bd; font-size: 8px; }
+.project-dependencies-empty { display: flex; min-height: 110px; align-items: center; justify-content: center; color: #9fb0bd; text-align: center; flex-direction: column; gap: 5px; font-size: 10px; }
+.project-dependencies-empty svg { color: #68b9d8; }
+.project-dependencies-empty strong { color: #dbe5eb; }
+.project-dependencies-hint { margin: 0; padding: 7px 10px; border-top: 1px solid #415365; color: #a8bac7; font-size: 8px; }
+
 @media (max-width: 780px) {
   .project-snapshots-panel { top: 8px; right: 8px; width: min(340px, calc(100% - 16px)); max-height: calc(100% - 16px); }
   .project-comparison-panel { top: 8px; right: 8px; width: min(400px, calc(100% - 16px)); max-height: calc(100% - 16px); }
   .project-health-panel { top: 8px; right: 8px; width: min(410px, calc(100% - 16px)); max-height: calc(100% - 16px); }
+  .project-dependencies-panel { top: 8px; right: 8px; width: min(400px, calc(100% - 16px)); max-height: calc(100% - 16px); }
   .project-comparison-source { grid-template-columns: 1fr 1fr; }
   .project-comparison-source label { grid-column: 1 / -1; }
 }

@@ -37,6 +37,7 @@ import {
   MousePointer2,
   Move,
   Move3d,
+  Network,
   Pencil,
   PencilRuler,
   Plus,
@@ -79,6 +80,7 @@ import {
 import { createLinkedProject, linkedProjectState } from '../cad-core/linked-projects.js';
 import { compareProjectDocuments } from '../cad-core/project-diff.js';
 import { createProjectHealthReport } from '../cad-core/project-health.js';
+import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../cad-core/project-dependencies.js';
 import {
   addDrivingSketchDimension,
   createSketchArc,
@@ -179,7 +181,7 @@ import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumen
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext } from './WorkspaceRibbon.jsx';
 import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
-import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectHealthPanel, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
+import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectDependenciesPanel, ProjectHealthPanel, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
 import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
@@ -456,6 +458,8 @@ export default function ModelingWorkspace() {
   const [projectComparisonLoading, setProjectComparisonLoading] = useState(false);
   const [projectComparisonError, setProjectComparisonError] = useState('');
   const [projectHealthOpen, setProjectHealthOpen] = useState(false);
+  const [projectDependenciesOpen, setProjectDependenciesOpen] = useState(false);
+  const [projectDependencyNodeId, setProjectDependencyNodeId] = useState(() => initialOpen.document.id);
   const panelScreenKeyRef = useRef(panelScreenKey(window.screen));
   const [panelLayout, setPanelLayout] = useState(() => readPanelLayout(window.localStorage, window.screen));
   const [workspaceLayoutMenuOpen, setWorkspaceLayoutMenuOpen] = useState(false);
@@ -624,6 +628,7 @@ export default function ModelingWorkspace() {
   const openProjectSnapshots = () => {
     setProjectComparisonOpen(false);
     setProjectHealthOpen(false);
+    setProjectDependenciesOpen(false);
     setProjectSnapshotsOpen(true);
     void refreshProjectSnapshots();
   };
@@ -631,6 +636,7 @@ export default function ModelingWorkspace() {
   const openProjectComparison = () => {
     setProjectSnapshotsOpen(false);
     setProjectHealthOpen(false);
+    setProjectDependenciesOpen(false);
     setProjectComparisonOpen(true);
     setProjectComparisonError('');
     void refreshProjectSnapshots();
@@ -1528,6 +1534,7 @@ export default function ModelingWorkspace() {
   const openProjectHealth = () => {
     setProjectSnapshotsOpen(false);
     setProjectComparisonOpen(false);
+    setProjectDependenciesOpen(false);
     setProjectHealthOpen(true);
   };
   const navigateProjectHealthIssue = (issue) => {
@@ -1556,6 +1563,45 @@ export default function ModelingWorkspace() {
     const payload = JSON.stringify({ ...projectHealthReport, generatedAt: new Date().toISOString() }, null, 2);
     downloadBlob(new Blob([payload], { type: 'application/json;charset=utf-8' }), `${safeName(document.name)}-kondycja.json`);
     setNotice('Wyeksportowano raport kondycji projektu JSON.');
+  };
+  const projectDependencyInspection = useMemo(
+    () => inspectProjectDependencies(document, projectDependencyNodeId),
+    [document, projectDependencyNodeId],
+  );
+  const openProjectDependencies = () => {
+    setProjectSnapshotsOpen(false);
+    setProjectComparisonOpen(false);
+    setProjectHealthOpen(false);
+    setProjectDependencyNodeId(dependencyNodeIdForSelection(selection, document));
+    setProjectDependenciesOpen(true);
+  };
+  const navigateProjectDependency = (item) => {
+    if (!item?.target) return;
+    setProjectDependencyNodeId(item.id);
+    const target = item.target;
+    if (target.kind === 'feature') {
+      setWorkspace('solid');
+      setActiveSketchId(null);
+      setSelection({ kind: 'feature', id: target.id });
+    } else if (target.kind === 'sketch') {
+      setBrowserOpen(true);
+      setSelection({ kind: 'sketch', id: target.id });
+    } else if (target.kind === 'component') {
+      setBrowserOpen(true);
+      setSelection({ kind: 'component', id: target.id });
+    } else if (target.kind === 'body') {
+      setSelection({ kind: 'body', id: target.id });
+    } else if (target.kind === 'settings') {
+      setProjectDependenciesOpen(false);
+      setCommand({ type: 'parameters' });
+    } else if (['constructionPlane', 'constructionAxis', 'constructionPoint'].includes(target.kind)) {
+      setBrowserOpen(true);
+      setSelection({ kind: target.kind, id: target.id });
+    } else {
+      setBrowserOpen(true);
+      setSelection({ kind: 'document', id: document.id });
+    }
+    setNotice(`Wybrano zależność „${item.label}” (${item.relation}).`);
   };
 
   useEffect(() => {
@@ -2955,6 +3001,7 @@ export default function ModelingWorkspace() {
       linkedProjects: document.linkedProjects.map((link) => ({ ...link, proxyFeatureIds: [...link.proxyFeatureIds] })),
       linkedProjectStatuses: structuredClone(linkedProjectStatuses),
       projectHealth: structuredClone(projectHealthReport),
+      projectDependencies: structuredClone(projectDependencyInspection),
       timelineRollbackFeatureId: document.timelineRollbackFeatureId,
       featureGroups: document.featureGroups.map((group) => ({ ...group, featureIds: [...group.featureIds] })),
       activeLayerId: document.activeLayerId,
@@ -3018,7 +3065,7 @@ export default function ModelingWorkspace() {
     };
   // Verification hooks refresh only when the state exposed to the desktop harness changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, massProperties, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses, projectHealthReport]);
+  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, massProperties, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses, projectHealthReport, projectDependencyInspection]);
 
   const confirmProfile = (sourceCommand = command) => {
     if (readOnly) return readOnlyNotice();
@@ -5096,6 +5143,7 @@ export default function ModelingWorkspace() {
           <button id="projectSnapshotsBtn" className={projectSnapshotsOpen ? 'active' : ''} type="button" aria-label="Punkty zapisu projektu" aria-pressed={projectSnapshotsOpen} title="Utwórz lub przywróć lokalny punkt zapisu projektu" onClick={() => { if (projectSnapshotsOpen) setProjectSnapshotsOpen(false); else openProjectSnapshots(); }}><History size={16} /></button>
           <button id="projectComparisonBtn" className={projectComparisonOpen ? 'active' : ''} type="button" aria-label="Porównaj wersje projektu" aria-pressed={projectComparisonOpen} title="Porównaj bieżący projekt z punktem zapisu lub plikiem" onClick={() => { if (projectComparisonOpen) setProjectComparisonOpen(false); else openProjectComparison(); }}><GitCompareArrows size={16} /></button>
           <button id="projectHealthBtn" className={projectHealthOpen ? 'active' : ''} type="button" aria-label="Kondycja projektu" aria-pressed={projectHealthOpen} title="Sprawdź integralność projektu i przejdź do wykrytych problemów" onClick={() => { if (projectHealthOpen) setProjectHealthOpen(false); else openProjectHealth(); }}><ShieldCheck size={16} /></button>
+          <button id="projectDependenciesBtn" className={projectDependenciesOpen ? 'active' : ''} type="button" aria-label="Gdzie używane" aria-pressed={projectDependenciesOpen} title="Pokaż zależności zaznaczonego obiektu i wpływ jego zmiany" onClick={() => { if (projectDependenciesOpen) setProjectDependenciesOpen(false); else openProjectDependencies(); }}><Network size={16} /></button>
         </div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
         <input ref={importInputRef} hidden type="file" accept=".step,.stp,.stl,.3mf,model/step,model/stl,model/3mf" onChange={chooseModelImport} />
@@ -5292,6 +5340,7 @@ export default function ModelingWorkspace() {
           {projectSnapshotsOpen && <ProjectSnapshotsPanel snapshots={projectSnapshots} loading={projectSnapshotsLoading} error={projectSnapshotsError} readOnly={readOnly} onCreate={createProjectSnapshot} onRestore={restoreProjectSnapshot} onDelete={deleteProjectSnapshot} onClose={() => setProjectSnapshotsOpen(false)} />}
           {projectComparisonOpen && <ProjectComparisonPanel snapshots={projectSnapshots} comparison={projectComparison} sourceLabel={projectComparisonBaseline?.label || ''} loading={projectComparisonLoading || projectSnapshotsLoading} error={projectComparisonError || projectSnapshotsError} onCompareSnapshot={compareProjectSnapshot} onCompareFile={compareExternalProject} onClose={() => setProjectComparisonOpen(false)} />}
           {projectHealthOpen && <ProjectHealthPanel report={projectHealthReport} language={language} onNavigate={navigateProjectHealthIssue} onExport={exportProjectHealthReport} onClose={() => setProjectHealthOpen(false)} />}
+          {projectDependenciesOpen && <ProjectDependenciesPanel inspection={projectDependencyInspection} language={language} onSelectNode={setProjectDependencyNodeId} onNavigate={navigateProjectDependency} onClose={() => setProjectDependenciesOpen(false)} />}
           <TopologyReferenceRepairPanel items={lostTopologyReferences} selection={selection} onReassign={repairTopologyReference} onPreview={(candidate) => handleTopologySelection(candidate)} />
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}

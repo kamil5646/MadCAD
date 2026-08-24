@@ -25,6 +25,7 @@
     "verify:snapshots": "npm run build:ui && electron scripts/verify-project-snapshots.cjs",
     "verify:project-diff": "npm run build:ui && electron scripts/verify-project-snapshots.cjs",
     "verify:project-health": "npm run build:ui && electron scripts/verify-project-health.cjs",
+    "verify:project-dependencies": "npm run build:ui && electron scripts/verify-project-dependencies.cjs",
     "verify:linked-projects": "npm run build:ui && electron scripts/verify-linked-projects.cjs",
     "verify:pack-and-go": "npm run build:ui && electron scripts/verify-linked-projects.cjs",
     "verify:reference-repair": "npm run build:ui && electron scripts/verify-reference-repair-wizard.cjs",
