@@ -28,7 +28,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - P1.32b: gwinty stożkowe NPT/BSPT, dodatkowe rozmiary i tolerancje wykonawcze wymagają osobnego, legalnie licencjonowanego źródła danych normatywnych.
 - [x] Draft Analysis z mapą kątów ścian ukończono jako `P1.33`.
 - [x] Interference dla wskazanej pary wystąpień ukończono jako `P1.34a`.
-- Named Views i rozbudowany ViewCube.
+- [x] Named Views z dokładnym zapisem kamery ukończono jako `P1.34b`.
+- Rozbudowany ViewCube.
 - Zaawansowane profile materiałów/druku, heatmapy, automatyczne ułożenie i naprawa siatki.
 
 ## Historia, projekty i zespoły

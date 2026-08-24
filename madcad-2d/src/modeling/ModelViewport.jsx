@@ -408,6 +408,8 @@ export default function ModelViewport({
   selectedJointId = null,
   collisionInstanceIds = [],
   exactCollisionInstanceIds = [],
+  cameraRequest = null,
+  onCameraStateChange,
   onSelectBody,
   onSelectComponentInstance,
   onSelectJoint,
@@ -439,6 +441,10 @@ export default function ModelViewport({
   const directHandleRef = useRef(null);
   const directEventRef = useRef({});
   const directDragRef = useRef(null);
+  const cameraApiRef = useRef(null);
+  const cameraSnapshotRef = useRef(null);
+  const lastCameraRequestIdRef = useRef('');
+  const cameraChangeRef = useRef(onCameraStateChange);
   const sketchInteractionRef = useRef({ activeSketchId: null, start: null, drag: null, box: null });
   const selectRef = useRef(onSelectBody);
   const topologySelectRef = useRef(onSelectTopology);
@@ -451,6 +457,7 @@ export default function ModelViewport({
   const sketchModifyRef = useRef(onSketchModify);
   const directRef = useRef({});
   const [view, setView] = useState('iso');
+  const [customViewActive, setCustomViewActive] = useState(false);
   const [navigationMode, setNavigationMode] = useState('orbit');
   const [zoomScale, setZoomScale] = useState(1);
   const [dragLabel, setDragLabel] = useState(null);
@@ -461,6 +468,12 @@ export default function ModelViewport({
   const [selectionBox, setSelectionBox] = useState(null);
   const [snapFeedback, setSnapFeedback] = useState(null);
   const [selectionFilter, setSelectionFilter] = useState('auto');
+  cameraChangeRef.current = onCameraStateChange;
+  const selectStandardView = (nextView) => {
+    cameraSnapshotRef.current = null;
+    setCustomViewActive(false);
+    setView(nextView);
+  };
   const selectedTopologySet = useMemo(() => new Set(selectedTopologyIds), [selectedTopologyIds]);
   const selectedBodySet = useMemo(() => new Set(selectedBodyIds.length ? selectedBodyIds : [selectedBodyId].filter(Boolean)), [selectedBodyId, selectedBodyIds]);
   const activeSketch = sketches.find((sketch) => sketch.id === activeSketchId);
@@ -1065,8 +1078,27 @@ export default function ModelViewport({
     if ((activeSketch ? sketchView : view) === 'top') camera.up.set(0, 1, 0);
     camera.position.set(center.x + direction[0] * radius * 1.7 * zoomScale, center.y + direction[1] * radius * 1.7 * zoomScale, center.z + direction[2] * radius * 1.7 * zoomScale);
     controls.target.copy(center);
+    if (!activeSketch && cameraSnapshotRef.current) {
+      camera.position.fromArray(cameraSnapshotRef.current.position);
+      camera.up.fromArray(cameraSnapshotRef.current.up);
+      controls.target.fromArray(cameraSnapshotRef.current.target);
+    }
     controls.enableRotate = !activeSketch;
     controls.update();
+    const publishCameraState = () => {
+      if (activeSketch) return;
+      const snapshot = {
+        position: camera.position.toArray(),
+        target: controls.target.toArray(),
+        up: camera.up.toArray(),
+      };
+      cameraSnapshotRef.current = snapshot;
+      cameraChangeRef.current?.(snapshot);
+      if (new URLSearchParams(window.location.search).has('verify')) window.__madcadCameraState = structuredClone(snapshot);
+    };
+    controls.addEventListener('change', publishCameraState);
+    cameraApiRef.current = { camera, controls, publishCameraState };
+    publishCameraState();
 
     const raycaster = new THREE.Raycaster();
     raycaster.params.Line.threshold = 1.6;
@@ -1791,6 +1823,8 @@ export default function ModelViewport({
       renderer.domElement.removeEventListener('pointercancel', onPointerUp);
       renderer.domElement.removeEventListener('pointerleave', onPointerLeave);
       directEventRef.current = {};
+      controls.removeEventListener('change', publishCameraState);
+      if (cameraApiRef.current?.camera === camera) cameraApiRef.current = null;
       controls.dispose();
       disposeObject(modelGroup);
       disposeObject(jointGroup);
@@ -1822,10 +1856,24 @@ export default function ModelViewport({
       delete window.__madcadConstructionPointState;
       delete window.__madcadSectionViewState;
       delete window.__madcadJointVisualState;
+      delete window.__madcadCameraState;
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds]);
+
+  useEffect(() => {
+    if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;
+    lastCameraRequestIdRef.current = cameraRequest.requestId;
+    setCustomViewActive(true);
+    const snapshot = cameraRequest.camera;
+    cameraSnapshotRef.current = snapshot;
+    cameraApiRef.current.camera.position.fromArray(snapshot.position);
+    cameraApiRef.current.camera.up.fromArray(snapshot.up);
+    cameraApiRef.current.controls.target.fromArray(snapshot.target);
+    cameraApiRef.current.controls.update();
+    cameraApiRef.current.publishCameraState();
+  }, [cameraRequest]);
 
   return (
     <div
@@ -1840,10 +1888,10 @@ export default function ModelViewport({
       }}
     >
       <div className="view-cube" role="toolbar" aria-label="Kostka widoku">
-        <button className="cube-top" type="button" aria-pressed={view === 'top'} title="Ustaw kamerę prostopadle do płaszczyzny XY." onClick={() => setView('top')}>GÓRA</button>
-        <button className="cube-main" type="button" aria-label="Widok izometryczny" aria-pressed={view === 'iso'} onClick={() => setView('iso')} title="Widok izometryczny"><Box size={34} strokeWidth={1.2} /></button>
-        <button className="cube-front" type="button" aria-pressed={view === 'front'} title="Ustaw kamerę na widok z przodu." onClick={() => setView('front')}>PRZÓD</button>
-        <button className="cube-right" type="button" aria-pressed={view === 'right'} title="Ustaw kamerę na widok z prawej strony." onClick={() => setView('right')}>PRAWO</button>
+        <button className="cube-top" type="button" aria-pressed={!customViewActive && view === 'top'} title="Ustaw kamerę prostopadle do płaszczyzny XY." onClick={() => selectStandardView('top')}>GÓRA</button>
+        <button className="cube-main" type="button" aria-label="Widok izometryczny" aria-pressed={!customViewActive && view === 'iso'} onClick={() => selectStandardView('iso')} title="Widok izometryczny"><Box size={34} strokeWidth={1.2} /></button>
+        <button className="cube-front" type="button" aria-pressed={!customViewActive && view === 'front'} title="Ustaw kamerę na widok z przodu." onClick={() => selectStandardView('front')}>PRZÓD</button>
+        <button className="cube-right" type="button" aria-pressed={!customViewActive && view === 'right'} title="Ustaw kamerę na widok z prawej strony." onClick={() => selectStandardView('right')}>PRAWO</button>
       </div>
       <div className="axis-indicator" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
       {!activeSketchId && bodies.length > 0 && <div className="selection-filter-bar" role="toolbar" aria-label="Filtr wyboru geometrii">
@@ -1877,10 +1925,10 @@ export default function ModelViewport({
         />
       )}
       <div className="navigation-bar" role="toolbar" aria-label="Nawigacja widoku">
-        <button className={navigationMode === 'orbit' ? 'active' : ''} type="button" aria-pressed={navigationMode === 'orbit'} title="Orbita: przeciągnij lewym przyciskiem, aby obracać widok." onClick={() => { setNavigationMode('orbit'); setView('iso'); }}><Orbit size={16} /></button>
+        <button className={navigationMode === 'orbit' ? 'active' : ''} type="button" aria-pressed={navigationMode === 'orbit'} title="Orbita: przeciągnij lewym przyciskiem, aby obracać widok." onClick={() => { setNavigationMode('orbit'); selectStandardView('iso'); }}><Orbit size={16} /></button>
         <button className={navigationMode === 'pan' ? 'active' : ''} type="button" aria-pressed={navigationMode === 'pan'} title="Przesuwanie: przeciągnij lewym przyciskiem, aby przesunąć widok." onClick={() => setNavigationMode((mode) => mode === 'pan' ? 'orbit' : 'pan')}><Move3d size={16} /></button>
         <button type="button" aria-label="Powiększ model" title="Powiększ model w bieżącym widoku." onClick={() => setZoomScale((scale) => Math.max(0.35, scale * 0.78))}><ZoomIn size={16} /></button>
-        <button type="button" aria-label="Dopasuj cały model" title="Dopasuj cały model do dostępnego obszaru." onClick={() => { setZoomScale(1); setView(activeSketchId ? (activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top') : 'iso'); }}><Maximize2 size={16} /></button>
+        <button type="button" aria-label="Dopasuj cały model" title="Dopasuj cały model do dostępnego obszaru." onClick={() => { setZoomScale(1); selectStandardView(activeSketchId ? (activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top') : 'iso'); }}><Maximize2 size={16} /></button>
       </div>
       {directEnabled && <div className="direct-extrude-hint">{directManipulator?.hint || 'Przeciągnij niebieską strzałkę, aby wyciągnąć profil'}</div>}
       {dragLabel && <div className="direct-dimension" style={{ left: dragLabel.x, top: dragLabel.y }}>{dragLabel.value.toFixed(1)} mm</div>}

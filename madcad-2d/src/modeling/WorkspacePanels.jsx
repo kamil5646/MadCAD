@@ -26,6 +26,24 @@ function commonSelectionValue(entities, key, fallback = BY_LAYER) {
   return values.length === 1 ? values[0] : 'mixed';
 }
 
+export function NamedViewsPanel({ views = [], currentCamera = null, readOnly = false, onCreate, onActivate, onDelete, onClose }) {
+  const [name, setName] = React.useState('');
+  return (
+    <aside className="measure-panel named-views-panel" aria-label="Zapisane widoki modelu">
+      <header><div><Eye size={16} /><strong>Zapisane widoki</strong></div><button type="button" title="Zamknij zapisane widoki" aria-label="Zamknij zapisane widoki" onClick={onClose}><X size={15} /></button></header>
+      <form onSubmit={(event) => { event.preventDefault(); onCreate(name); setName(''); }}>
+        <label><span>Nazwa widoku</span><input aria-label="Nazwa nowego widoku" value={name} maxLength="60" placeholder={`Widok ${views.length + 1}`} disabled={readOnly} onChange={(event) => setName(event.target.value)} /></label>
+        <button type="submit" disabled={readOnly || !currentCamera || !name.trim()}><Save size={14} /> Zapisz bieżącą kamerę</button>
+      </form>
+      <div className="named-views-list">
+        {!views.length && <p>Obróć lub przesuń model, a następnie zapisz bieżące ustawienie kamery.</p>}
+        {views.map((view) => <div className="named-view-row" key={view.id}><button type="button" onClick={() => onActivate(view)}><Eye size={14} /><span><strong>{view.name}</strong><small>{view.camera.position.map((value) => value.toFixed(1)).join(', ')}</small></span></button><button type="button" aria-label={`Usuń zapisany widok ${view.name}`} disabled={readOnly} onClick={() => onDelete(view.id)}><Trash2 size={13} /></button></div>)}
+      </div>
+      <p className="named-view-note">Widok zapisuje pozycję kamery, punkt celu i kierunek góry. Nie zmienia geometrii modelu.</p>
+    </aside>
+  );
+}
+
 export function LayersPanel({ document, selectedEntities = [], readOnly = false, onAdd, onUpdate, onDelete, onActivate, onAssign, onStyleSelected, onClose }) {
   const selectedLayerId = commonSelectionValue(selectedEntities, 'layerId', document.activeLayerId);
   const selectedColor = commonSelectionValue(selectedEntities, 'color');

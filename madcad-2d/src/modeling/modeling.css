@@ -3209,6 +3209,26 @@
   overflow: auto;
 }
 
+.named-views-panel { top: 14px; right: 14px; display: grid; width: min(350px, calc(100% - 28px)); max-height: calc(100% - 28px); overflow: auto; }
+.named-views-panel > form { display: grid; gap: 7px; padding: 9px 10px; border-bottom: 1px solid #596573; background: #303b47; }
+.named-views-panel > form label { display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: center; gap: 6px; color: #c3ced7; font-size: 10px; }
+.named-views-panel input,
+.named-views-panel > form button { min-width: 0; min-height: 29px; padding: 4px 7px; border: 1px solid #697785; border-radius: 3px; background: #27313c; color: #f2f6f9; font: inherit; }
+.named-views-panel > form button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: #465362; cursor: pointer; }
+.named-views-panel > form button:disabled { opacity: .45; cursor: default; }
+.named-views-list { display: grid; gap: 3px; padding: 7px; background: #2f3946; }
+.named-views-list > p,
+.named-view-note { margin: 3px; color: #aeb9c3; font-size: 9px; line-height: 1.45; }
+.named-view-row { display: grid; grid-template-columns: minmax(0, 1fr) 31px; gap: 3px; }
+.named-view-row button { min-width: 0; min-height: 39px; border: 1px solid transparent; border-radius: 3px; background: #384451; color: #e3ebf1; cursor: pointer; }
+.named-view-row > button:first-child { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 6px; padding: 5px 7px; text-align: left; }
+.named-view-row > button:first-child:hover { border-color: #61bdd8; background: #294b59; }
+.named-view-row span { display: grid; min-width: 0; }
+.named-view-row strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.named-view-row small { overflow: hidden; color: #aeb9c3; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.named-view-row > button:last-child { color: #efb1b1; }
+.named-view-note { padding: 7px 9px; border-top: 1px solid #596573; background: #29343f; }
+
 .component-toolbar {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { ComponentPanel } from './WorkspacePanels.jsx';
+import { ComponentPanel, NamedViewsPanel } from './WorkspacePanels.jsx';
 import { ProjectBrowser } from './WorkspaceOverlays.jsx';
 
 const components = [
@@ -157,6 +157,24 @@ describe('ComponentPanel', () => {
     fireEvent.change(screen.getByRole('combobox', { name: /Drugie wystąpienie Contact Set/i }), { target: { value: 'occurrence-part-2' } });
     fireEvent.click(screen.getByRole('button', { name: /Utwórz Contact Set/i }));
     expect(props.onCreateContactSet).toHaveBeenCalledWith({ firstInstanceId: 'occurrence-part', secondInstanceId: 'occurrence-part-2' });
+  });
+});
+
+describe('NamedViewsPanel', () => {
+  it('saves, restores and deletes a camera view', () => {
+    const camera = { position: [10, -20, 30], target: [0, 0, 0], up: [0, 0, 1] };
+    const view = { id: 'named-view-1', name: 'Detal montażu', camera };
+    const onCreate = vi.fn();
+    const onActivate = vi.fn();
+    const onDelete = vi.fn();
+    render(<NamedViewsPanel views={[view]} currentCamera={camera} onCreate={onCreate} onActivate={onActivate} onDelete={onDelete} onClose={vi.fn()} />);
+    fireEvent.change(screen.getByRole('textbox', { name: /Nazwa nowego widoku/i }), { target: { value: 'Widok serwisowy' } });
+    fireEvent.click(screen.getByRole('button', { name: /Zapisz bieżącą kamerę/i }));
+    expect(onCreate).toHaveBeenCalledWith('Widok serwisowy');
+    fireEvent.click(screen.getByRole('button', { name: /^Detal montażu10/i }));
+    expect(onActivate).toHaveBeenCalledWith(view);
+    fireEvent.click(screen.getByRole('button', { name: /Usuń zapisany widok Detal montażu/i }));
+    expect(onDelete).toHaveBeenCalledWith(view.id);
   });
 });
 

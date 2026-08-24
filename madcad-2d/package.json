@@ -39,6 +39,7 @@
     "verify:under-constraint": "npm run build:ui && electron scripts/verify-under-constraint.cjs",
     "verify:hole-standards": "npm run build:ui && electron scripts/verify-hole-standards.cjs",
     "verify:draft-analysis": "npm run build:ui && electron scripts/verify-draft-analysis.cjs",
+    "verify:named-views": "npm run build:ui && electron scripts/verify-named-views.cjs",
     "verify:import-report": "npm run build:ui && electron scripts/verify-import-report.cjs",
     "verify:workspace-layouts": "npm run build:ui && electron scripts/verify-workspace-layouts.cjs",
     "verify:drawing-workspace": "npm run build:ui && electron scripts/verify-drawing-workspace.cjs",

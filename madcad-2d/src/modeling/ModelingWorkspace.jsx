@@ -144,6 +144,7 @@ import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/lay
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
 import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../cad-core/assembly-joints.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../cad-core/assembly-motion.js';
+import { createNamedView, deleteNamedView } from '../cad-core/named-views.js';
 import {
   addBlockAttributeDefinition,
   createBlockDefinition,
@@ -184,7 +185,7 @@ import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext } from './Wo
 import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectDependenciesPanel, ProjectHealthPanel, ProjectSearchPalette, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
-import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel } from './WorkspacePanels.jsx';
+import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, NamedViewsPanel, SectionPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
   clearLocalAutosave,
@@ -444,6 +445,8 @@ export default function ModelingWorkspace() {
   const [layersOpen, setLayersOpen] = useState(false);
   const [blocksOpen, setBlocksOpen] = useState(false);
   const [componentsOpen, setComponentsOpen] = useState(false);
+  const [namedViewsOpen, setNamedViewsOpen] = useState(false);
+  const [cameraRequest, setCameraRequest] = useState(null);
   const [linkedProjectStatuses, setLinkedProjectStatuses] = useState({});
   const [commandCustomizationOpen, setCommandCustomizationOpen] = useState(false);
   const [commandCustomization, setCommandCustomization] = useState(() => loadCommandCustomization(window.localStorage));
@@ -482,6 +485,7 @@ export default function ModelingWorkspace() {
   const sketchImportInputRef = useRef(null);
   const sketchPointerRef = useRef(null);
   const sketchDynamicLengthRef = useRef('');
+  const currentCameraRef = useRef(null);
   const shortcutRegistryRef = useRef(new Map());
   const autosaveQueueRef = useRef(Promise.resolve());
   const autosaveSuspendedRef = useRef(false);
@@ -828,6 +832,26 @@ export default function ModelingWorkspace() {
     });
   };
 
+  const saveNamedView = (name) => {
+    try {
+      if (!currentCameraRef.current) throw new Error('Kamera modelu nie jest jeszcze gotowa.');
+      let created;
+      commit((next) => { created = createNamedView(next, { name, camera: currentCameraRef.current }); });
+      setNotice(`Zapisano widok „${created.name}”.`);
+    } catch (error) {
+      setNotice(error.message);
+    }
+  };
+  const activateNamedView = (view) => {
+    setCameraRequest({ requestId: `${view.id}:${Date.now()}`, camera: structuredClone(view.camera) });
+    setNotice(`Przywrócono widok „${view.name}”.`);
+  };
+  const removeNamedView = (viewId) => {
+    let removed;
+    commit((next) => { removed = deleteNamedView(next, viewId); });
+    setNotice(`Usunięto widok „${removed.name}”. Operację można cofnąć.`);
+  };
+
   const selectedProfileMatch = document.sketches
     .flatMap((sketch) => sketch.profiles.map((profile) => ({ sketch, profile })))
     .find(({ profile }) => selection?.kind === 'profile' && profile.id === selection.id);
@@ -1041,6 +1065,7 @@ export default function ModelingWorkspace() {
       ? document.components.find((component) => component.id === selectedInstance.componentId) || null
       : null;
   const openComponentManager = () => {
+    setNamedViewsOpen(false);
     setLayersOpen(false);
     setBlocksOpen(false);
     setCommandCustomizationOpen(false);
@@ -3060,6 +3085,7 @@ export default function ModelingWorkspace() {
       features: document.features.length,
       projectSnapshots: projectSnapshots.map((snapshot) => ({ ...snapshot })),
       linkedProjects: document.linkedProjects.map((link) => ({ ...link, proxyFeatureIds: [...link.proxyFeatureIds] })),
+      namedViews: (document.namedViews || []).map((view) => ({ ...view, camera: structuredClone(view.camera) })),
       linkedProjectStatuses: structuredClone(linkedProjectStatuses),
       projectHealth: structuredClone(projectHealthReport),
       projectDependencies: structuredClone(projectDependencyInspection),
@@ -5268,6 +5294,7 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="UTWÓRZ BRYŁĘ 3D"><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || (!selectedProfile && !canExtrudeOpenChain)} /><ToolButton icon={Rotate3d} label="Revolve" onClick={openRevolve} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Move3d} label="Sweep" onClick={openSweep} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Layers3} label="Loft" onClick={openLoft} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={RotateCw} label="Coil" onClick={openCoil} disabled={readOnly || Boolean(activeSketchId)} /><ToolButton icon={Grid2X2} label="Pattern" onClick={openPattern} disabled={readOnly || !targetBodyId || !targetBodySupportsSolidOperations || Boolean(activeSketchId)} description={!targetBodySupportsSolidOperations ? 'Otwarta siatka nie obsługuje bryłowego szyku z łączeniem.' : undefined} /><ToolButton icon={Move3d} label="Press Pull" onClick={openPressPull} disabled={readOnly || !canPressPull} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={Type} label="Tekst 3D" onClick={openTextSolid} disabled={readOnly} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || !canBooleanSelectedBodies} description={!canBooleanSelectedBodies && selectedBodyIds.length === 2 ? 'Boolean wymaga zgodnych brył B-Rep albo dwóch zamkniętych siatek.' : undefined} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="MODYFIKUJ BRYŁĘ 3D"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Layers3} label="Shell" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Triangle} label="Draft" onClick={openDraft} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Scissors} label="Split Body" onClick={openSplitBody} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Scissors} label="Split Face" onClick={openSplitFace} disabled={readOnly || !canSplitFace} /><ToolButton icon={X} label="Delete Face + Heal" onClick={openDeleteFace} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Layers3} label="Replace Face" onClick={openReplaceFace} disabled={readOnly || selectedFaceItems.length !== 2} /><ToolButton icon={Layers3} label="Offset Face" onClick={openOffsetFace} disabled={readOnly || selectedFaceItems.length !== 1} /><ToolButton icon={Move3d} label="Przesuń bryłę" onClick={() => openTransform('move')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Rotate3d} label="Obróć bryłę" onClick={() => openTransform('rotate')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
                 <RibbonGroup label="KOMPONENTY"><ToolButton icon={Boxes} label="Menedżer" onClick={openComponentManager} primary={componentsOpen} /><ToolButton icon={Box} label="Nowa część" onClick={() => createDocumentComponent('part')} disabled={readOnly} /><ToolButton icon={Boxes} label="Złożenie" onClick={() => createDocumentComponent('assembly')} disabled={readOnly} /></RibbonGroup>
+                <RibbonGroup label="WIDOK"><ToolButton icon={Eye} label="Zapisane widoki" onClick={() => { setComponentsOpen(false); setNamedViewsOpen((open) => !open); }} primary={namedViewsOpen} /></RibbonGroup>
                 <RibbonGroup label="WYBÓR" end><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
               </>
             )}
@@ -5373,6 +5400,8 @@ export default function ModelingWorkspace() {
             joints={document.joints}
             collisionInstanceIds={collisionInstanceIds}
             exactCollisionInstanceIds={exactCollisionInstanceIds}
+            cameraRequest={cameraRequest}
+            onCameraStateChange={(camera) => { currentCameraRef.current = camera; }}
             selectedComponentInstanceId={selectedInstance?.id || null}
             selectedJointId={selectedJoint?.id || null}
             onSelectBody={(id) => setSelection(id ? { kind: 'body', id } : { kind: 'document', id: document.id })}
@@ -5417,6 +5446,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} draftDirection={command.draftDirection} draftTolerance={command.draftTolerance} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
+          {namedViewsOpen && <NamedViewsPanel views={document.namedViews || []} currentCamera={currentCameraRef.current} readOnly={readOnly} onCreate={saveNamedView} onActivate={activateNamedView} onDelete={removeNamedView} onClose={() => setNamedViewsOpen(false)} />}
           {componentsOpen && <ComponentPanel document={document} bodies={engine.bodies} collisionResult={assemblyCollisionResult} selectedComponentId={selectedComponent?.id || ''} selectedInstanceId={selectedInstance?.id || ''} selectedJointId={selectedJoint?.id || ''} selectedMotionLinkId={selectedMotionLink?.id || ''} selectedConfigurationId={selectedAssemblyConfiguration?.id || ''} selectedContactSetId={selectedContactSet?.id || ''} selectedBodyIds={selectedBodyIds} linkedProjectStatuses={linkedProjectStatuses} readOnly={readOnly} onCreate={createDocumentComponent} onLinkProject={() => { void linkExternalProject(); }} onPackAndGo={() => { void packAndGoProject(); }} onRefreshLinkedProject={(linkId) => { void refreshLinkedProject(linkId); }} onRepairLinkedProject={(linkId) => { void refreshLinkedProject(linkId, true); }} onUpdate={updateDocumentComponent} onAssignBodies={assignDocumentComponentBodies} onMove={moveDocumentComponent} onDelete={removeDocumentComponent} onSelect={(componentId) => setSelection({ kind: 'component', id: componentId })} onSelectInstance={(instanceId) => { const instance = document.componentInstances.find((item) => item.id === instanceId); setSelection({ kind: 'componentInstance', id: instanceId, componentId: instance?.componentId }); }} onCreateInstance={createDocumentComponentInstance} onUpdateInstance={updateDocumentComponentInstance} onDuplicateInstance={duplicateDocumentComponentInstance} onDeleteInstance={removeDocumentComponentInstance} onCreateRigidGroup={createDocumentRigidGroup} onDeleteRigidGroup={removeDocumentRigidGroup} onSelectJoint={(jointId) => setSelection(jointId ? { kind: 'joint', id: jointId } : { kind: 'document', id: document.id })} onCreateJoint={createDocumentJoint} onUpdateJoint={updateDocumentJoint} onSetJointValue={setDocumentJointValue} onDeleteJoint={removeDocumentJoint} onSelectMotionLink={(linkId) => setSelection(linkId ? { kind: 'motionLink', id: linkId } : { kind: 'document', id: document.id })} onCreateMotionLink={createDocumentMotionLink} onUpdateMotionLink={updateDocumentMotionLink} onDeleteMotionLink={removeDocumentMotionLink} onSelectConfiguration={(configurationId) => setSelection(configurationId ? { kind: 'assemblyConfiguration', id: configurationId } : { kind: 'document', id: document.id })} onCreateConfiguration={createDocumentAssemblyConfiguration} onUpdateConfiguration={updateDocumentAssemblyConfiguration} onApplyConfiguration={applyDocumentAssemblyConfiguration} onDeleteConfiguration={removeDocumentAssemblyConfiguration} onSelectContactSet={(contactSetId) => setSelection(contactSetId ? { kind: 'contactSet', id: contactSetId } : { kind: 'document', id: document.id })} onCreateContactSet={createDocumentContactSet} onUpdateContactSet={updateDocumentContactSet} onDeleteContactSet={removeDocumentContactSet} onClose={() => setComponentsOpen(false)} />}
           {layersOpen && <LayersPanel document={document} selectedEntities={selectedSketchEntities} readOnly={readOnly} onAdd={addDocumentLayer} onUpdate={updateDocumentLayer} onDelete={removeDocumentLayer} onActivate={activateDocumentLayer} onAssign={assignSelectionToLayer} onStyleSelected={styleSelectedEntities} onClose={() => setLayersOpen(false)} />}
           {blocksOpen && activeSketchId && <BlocksPanel document={document} selectedEntities={selectedSketchEntities} selectedInstance={selectedBlockInstance} readOnly={readOnly} onCreate={createBlockFromSelection} onInsert={insertDocumentBlock} onDeleteDefinition={removeBlockDefinition} onAddAttribute={addDocumentBlockAttribute} onUpdateInstanceAttribute={updateDocumentBlockAttribute} onExplode={explodeDocumentBlock} onDeleteInstance={removeDocumentBlockInstance} onClose={() => setBlocksOpen(false)} />}

@@ -169,6 +169,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.32a Wspólne otwory normowane M2–M24: trzy serie przejściowe ISO 273, gwinty metryczne o skoku zwykłym i wybranych drobnych, klasy wewnętrzne 5H/6H/7H, automatyczna średnica i oznaczenie. Metadane przechodzą walidację, edycję, B-Rep, zapis/otwarcie i zasilają skojarzoną tabelę otworów w dokumentacji 2D; zakres oraz źródła opisuje `docs/HOLE_STANDARDS.md`.
 - [x] P1.33 Draft Analysis oblicza podpisany zakres kąta każdej ściany z rzeczywistych normalnych tessellacji względem kierunku ±X/±Y/±Z i tolerancji 0–45°. Widok 3D nakłada rozróżnialne kolory pochylenia dodatniego, zerowego, ujemnego i mieszanego, panel pokazuje liczniki oraz jawnie zgłasza siatki bez mapy ścian; analiza nie zmienia historii modelu.
 - [x] P1.34a Interference uruchamia dokładną analizę tylko dla dwóch świadomie wskazanych wystąpień, odróżnia potwierdzone przecięcie siatek od ryzyka obwiedni i wyniku czystego oraz pokazuje wymiary nakładania obwiedni bez przedstawiania ich jako dokładnej objętości przecięcia.
+- [x] P1.34b Named Views zapisuje w dokumencie dokładną pozycję kamery, punkt celu i kierunek góry po dowolnej orbicie lub panoramowaniu. Zwarty panel przywraca widok jednym kliknięciem, usuwa go z Undo/Redo i zachowuje dane po ponownym otwarciu bez podnoszenia zgodnego wstecznie schematu v15.
 
 ## P2 — dokumentacja techniczna 2D
 
@@ -226,7 +227,7 @@ Dodatkowo:
 3. [x] Dodać etap P1.32a wspólnych otworów ISO metrycznych z automatycznym opisem produkcyjnym i tabelą otworów.
 4. [>] Rozszerzyć P1.32b o NPT/BSPT, dodatkowe rozmiary oraz tolerancje wykonawcze na podstawie jawnie licencjonowanych danych normatywnych.
 5. [x] Dodać P1.33 Draft Analysis z kolorową mapą ścian, wyborem kierunku i tolerancji.
-6. [>] Interference dla wskazanej pary komponentów ukończono jako P1.34a; następne są zapisane Named Views i rozbudowany ViewCube.
+6. [>] Interference P1.34a i Named Views P1.34b ukończono; następny jest rozbudowany ViewCube.
 7. [>] Wykonać ręczny odsłuch podstawowego przepływu w VoiceOver na kandydacie wydania. Kontrola macOS Accessibility API wykryła i usunęła pozostawienie fokusu pod modalem wyboru płaszczyzny; automatyczna regresja sprawdza teraz rolę, nazwę, fokus początkowy, pętlę Tab i jego przywracanie we wszystkich głównych dialogach.
 8. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 

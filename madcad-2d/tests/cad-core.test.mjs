@@ -53,6 +53,7 @@ import { compareProjectDocuments } from '../src/cad-core/project-diff.js';
 import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/project-health.js';
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
+import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
@@ -2044,6 +2045,18 @@ test('walidacja wskazuje dokładną ścieżkę zerwanej referencji i duplikatu I
   assert.ok(validation.issues.some((issue) => issue.path === 'features[0].profileIds[0]' && issue.code === 'BROKEN_REFERENCE'));
   assert.ok(validation.issues.some((issue) => issue.path === 'sketches[0].profiles[0].id' && issue.code === 'DUPLICATE_ID'));
   assert.ok(validation.issues.some((issue) => issue.path === 'sketches[0].constraints[0].entityIds[0]' && issue.code === 'BROKEN_REFERENCE'));
+});
+
+test('zapisane widoki zachowują dokładną kamerę, unikalne nazwy i round-trip', () => {
+  const document = createDocument('Named Views');
+  const camera = { position: [120, -90, 80], target: [5, 4, 3], up: [0, 0, 1] };
+  const view = createNamedView(document, { name: 'Montaż', camera });
+  renameNamedView(document, view.id, 'Montaż prawy');
+  assert.deepEqual(openDocument(JSON.parse(JSON.stringify(document))).document.namedViews[0].camera, camera);
+  assert.throws(() => createNamedView(document, { name: 'montaż PRAWY', camera }), /już istnieje/);
+  assert.throws(() => createNamedView(document, { name: 'Błędny', camera: { ...camera, target: camera.position } }), /musi różnić/);
+  assert.equal(deleteNamedView(document, view.id).id, view.id);
+  assert.equal(validateDocument(document).valid, true);
 });
 
 test('round-trip .madcad zachowuje dokument bez utraty danych', () => {
