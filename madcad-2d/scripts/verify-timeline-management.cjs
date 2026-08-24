@@ -17,6 +17,10 @@ async function clickAction(window, action) {
   await window.webContents.executeJavaScript(`document.querySelector('[data-timeline-action=${JSON.stringify(action)}]')?.click()`);
 }
 
+async function clickRibbonTool(window, label) {
+  await window.webContents.executeJavaScript(`([...document.querySelectorAll('.ribbon-tool')].find((button) => button.querySelector('.ribbon-label')?.textContent.trim() === ${JSON.stringify(label)}))?.click()`);
+}
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({
     width: 1440,
@@ -64,16 +68,43 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelectorAll('.timeline-item')[2].click()`);
     await clickAction(window, 'move-left');
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'primitive'`, 'przeniesienie niezależnej operacji');
+
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.timeline-item')[0].click()`);
+    await clickAction(window, 'rollback');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.timelineRollbackFeatureId === window.__madcadVerifyDocumentState?.featureIds?.[0] && document.querySelectorAll('.timeline-item.rolled-back').length === 2`, 'rollback modelu');
+
+    await clickRibbonTool(window, 'Prymityw');
+    await waitFor(window, `document.querySelector('.command-dialog[aria-label^="Prymityw 3D"]') && !document.querySelector('.command-dialog button.confirm')?.disabled`, 'podgląd operacji wstawianej');
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 4 && window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'primitive' && window.__madcadVerifyDocumentState?.timelineRollbackFeatureId === window.__madcadVerifyDocumentState?.featureIds?.[1]`, 'wstawienie operacji przy markerze');
+
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.timeline-item')[0].click()`);
+    await clickAction(window, 'group');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureGroups?.length === 1 && window.__madcadVerifyDocumentState.featureGroups[0].featureIds.length === 4 && document.querySelector('.timeline-rename input')`, 'grupa historii');
+    await window.webContents.executeJavaScript(`(() => {
+      const input = document.querySelector('.timeline-rename input');
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, 'Korpus i operacje');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureGroups?.[0]?.name === 'Korpus i operacje'`, 'nazwa grupy historii');
+    await clickAction(window, 'collapse-group');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureGroups?.[0]?.collapsed === true && document.querySelectorAll('.timeline-item').length === 0 && document.querySelector('.timeline-rollback-marker')`, 'zwinięcie grupy historii');
+    await clickAction(window, 'collapse-group');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureGroups?.[0]?.collapsed === false && document.querySelectorAll('.timeline-item').length === 4 && document.querySelectorAll('.timeline-item.rolled-back').length === 0 && window.__madcadVerifyDocumentState?.bodyIds?.length === 3`, 'rozwinięcie i przeliczenie grupy historii');
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
+    await clickAction(window, 'ungroup');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureGroups?.length === 0`, 'rozwiązanie grupy historii');
 
     await window.webContents.executeJavaScript(`document.querySelectorAll('.timeline-item')[0].click()`);
     await clickAction(window, 'delete');
     await waitFor(window, `document.querySelector('.timeline-delete-confirm')?.textContent.includes('2 operacje')`, 'potwierdzenie usuwania zależności');
     await clickAction(window, 'confirm-delete');
-    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 1 && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'primitive'`, 'kaskadowe usunięcie');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 2 && window.__madcadVerifyDocumentState?.featureData?.every((feature) => feature.type === 'primitive')`, 'kaskadowe usunięcie');
     await window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Z', modifiers: ['control'] });
     await window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Z', modifiers: ['control'] });
-    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 3`, 'Undo usunięcia osi czasu');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 4`, 'Undo usunięcia osi czasu');
 
     const result = await window.webContents.executeJavaScript(`(() => {
       const toolbar = document.querySelector('.timeline-selection-tools');
@@ -86,7 +117,7 @@ app.whenReady().then(async () => {
       };
     })()`);
     Object.assign(result, { screenshotPath, actionCount, dependencyMoveRejected: orderBeforeRejectedMove === orderAfterRejectedMove });
-    if (actionCount < 6 || !result.dependencyMoveRejected || !result.toolbarVisible || result.horizontalOverflow || result.features !== 3) {
+    if (actionCount < 8 || !result.dependencyMoveRejected || !result.toolbarVisible || result.horizontalOverflow || result.features !== 4) {
       throw new Error(`Niepoprawne zarządzanie osią czasu: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

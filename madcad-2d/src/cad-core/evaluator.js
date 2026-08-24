@@ -11,6 +11,7 @@ export const FEATURE_STATUS = Object.freeze({
   WARNING: 'warning',
   ERROR: 'error',
   SUPPRESSED: 'suppressed',
+  ROLLED_BACK: 'rolled-back',
   STALE: 'stale',
 });
 
@@ -243,7 +244,11 @@ export function prepareDocument(document) {
   }
 
   const dependencyGraph = buildDependencyGraph(document);
-  const features = document.features.map((feature) => {
+  const rollbackIndex = document.timelineRollbackFeatureId
+    ? document.features.findIndex((feature) => feature.id === document.timelineRollbackFeatureId)
+    : document.features.length - 1;
+  const features = document.features.map((feature, featureIndex) => {
+    if (featureIndex > rollbackIndex) return { ...feature, status: FEATURE_STATUS.ROLLED_BACK, diagnostics: [] };
     if (feature.suppressed) return { ...feature, status: FEATURE_STATUS.SUPPRESSED, diagnostics: [] };
     if (feature.type === 'extrude') {
       const extent = feature.extent || 'one-side';

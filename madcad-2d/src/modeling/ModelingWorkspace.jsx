@@ -19,9 +19,11 @@ import {
   FilePlus2,
   FileText,
   FolderOpen,
+  FolderPlus,
   Frame,
   Grid2X2,
   HardDriveDownload,
+  History,
   Hexagon,
   CircleHelp,
   Eye,
@@ -53,6 +55,7 @@ import {
   Triangle,
   Trash2,
   Type,
+  Ungroup,
   Undo2,
   Variable,
   Upload,
@@ -125,6 +128,7 @@ import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit } from '../cad-core/model-import.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
+import { createId } from '../cad-core/ids.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
@@ -140,11 +144,16 @@ import {
   updateBlockInstanceAttributes,
 } from '../cad-core/blocks.js';
 import {
+  createTimelineFeatureGroup,
+  deleteTimelineFeatureGroup,
   deleteTimelineFeatureCascade,
   dependentTimelineFeatureIds,
+  insertTimelineFeature,
   moveTimelineFeature,
   renameTimelineFeature,
+  setTimelineRollback,
   setTimelineFeatureSuppressed,
+  updateTimelineFeatureGroup,
 } from '../cad-core/timeline-operations.js';
 import { findUntranslatedModelingText, observeModelingLocalization, resolveModelingLanguage } from './i18n.js';
 import { FirstPartTutorial, FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './AppDialogs.jsx';
@@ -420,6 +429,7 @@ export default function ModelingWorkspace() {
   const [commandCustomization, setCommandCustomization] = useState(() => loadCommandCustomization(window.localStorage));
   const [printPanelOpen, setPrintPanelOpen] = useState(false);
   const [timelineRename, setTimelineRename] = useState(null);
+  const [timelineGroupRename, setTimelineGroupRename] = useState(null);
   const [timelineDeleteId, setTimelineDeleteId] = useState(null);
   const panelScreenKeyRef = useRef(panelScreenKey(window.screen));
   const [panelLayout, setPanelLayout] = useState(() => readPanelLayout(window.localStorage, window.screen));
@@ -838,7 +848,7 @@ export default function ModelingWorkspace() {
       const index = next.features.findIndex((feature) => feature.id === command.editId);
       if (index >= 0) next.features[index] = command.previewFeature;
     } else {
-      next.features.push(command.previewFeature);
+      insertTimelineFeature(next, command.previewFeature);
     }
     return next;
   }, [document, command]);
@@ -2600,6 +2610,8 @@ export default function ModelingWorkspace() {
         blockInstances: (sketch.blockInstances || []).map((instance) => ({ ...instance, attributes: { ...instance.attributes } })),
       })),
       features: document.features.length,
+      timelineRollbackFeatureId: document.timelineRollbackFeatureId,
+      featureGroups: document.featureGroups.map((group) => ({ ...group, featureIds: [...group.featureIds] })),
       activeLayerId: document.activeLayerId,
       layers: document.layers.map((layer) => ({ ...layer })),
       blocks: document.blocks.map((block) => ({ id: block.id, name: block.name, entities: block.entities.length, attributeDefinitions: block.attributeDefinitions.map((attribute) => ({ ...attribute })) })),
@@ -3565,15 +3577,15 @@ export default function ModelingWorkspace() {
       return;
     }
     commit((next) => {
+      for (const reference of command.topologyReferences || []) {
+        if (next.references.some((item) => item.id === reference.id)) continue;
+        next.references.push({ ...reference, ownerFeatureId: command.previewFeature.id });
+      }
       if (command.editId) {
         const index = next.features.findIndex((feature) => feature.id === command.editId);
         next.features[index] = command.previewFeature;
       } else {
-        next.features.push(command.previewFeature);
-      }
-      for (const reference of command.topologyReferences || []) {
-        if (next.references.some((item) => item.id === reference.id)) continue;
-        next.references.push({ ...reference, ownerFeatureId: command.previewFeature.id });
+        insertTimelineFeature(next, command.previewFeature);
       }
     });
     setSelection({ kind: 'feature', id: command.previewFeature.id });
@@ -3838,7 +3850,7 @@ export default function ModelingWorkspace() {
       objectCount: importDraft.objectCount,
       triangleCount: importDraft.triangleCount,
     });
-    commit((next) => next.features.push(feature));
+    commit((next) => insertTimelineFeature(next, feature));
     const modelEntries = [];
     if (importDraft.originalFormat === '3mf') modelEntries.push({ id: 'model-conversion', status: 'changed', code: '3MF_MESH_NORMALIZED', message: 'Obiekty 3MF połączono w wewnętrzną siatkę STL z zachowaniem położenia i skali.' });
     if (importDraft.sourceUnit !== 'auto' && unitScale !== 1) modelEntries.push({ id: 'model-unit-scale', status: 'changed', code: 'UNIT_SCALE_APPLIED', message: `Przeskalowano geometrię współczynnikiem ${unitScale} do milimetrów.` });
@@ -4368,6 +4380,61 @@ export default function ModelingWorkspace() {
     setNotice(`Usunięto ${deletedIds.length} ${deletedIds.length === 1 ? 'operację' : 'operacje'} z osi czasu wraz z zależnościami.`);
   };
 
+  const toggleTimelineRollback = () => {
+    if (readOnly || selection?.kind !== 'feature') return readOnly ? readOnlyNotice() : undefined;
+    const selectedGroup = document.featureGroups.find((group) => group.featureIds.includes(selection.id));
+    const effectiveMarkerId = selectedGroup?.featureIds.at(-1) || selection.id;
+    const clearing = document.timelineRollbackFeatureId === effectiveMarkerId;
+    commit((next) => { setTimelineRollback(next, clearing ? '' : selection.id); });
+    setTimelineDeleteId(null);
+    setNotice(clearing
+      ? 'Przywrócono pełną historię modelu.'
+      : `Cofnięto model do „${selectedTimelineFeature?.name}”. Nowa operacja zostanie wstawiona w tym miejscu.`);
+  };
+
+  const createTimelineGroupFromSelection = () => {
+    if (readOnly || selection?.kind !== 'feature') return readOnly ? readOnlyNotice() : undefined;
+    const dependentIds = new Set(dependentTimelineFeatureIds(document, selection.id));
+    const lastIndex = Math.max(selectedTimelineIndex, ...document.features.map((feature, index) => dependentIds.has(feature.id) ? index : -1));
+    const featureIds = document.features.slice(selectedTimelineIndex, lastIndex + 1).map((feature) => feature.id);
+    try {
+      const groupId = createId('feature-group');
+      const groupName = `Grupa ${document.featureGroups.length + 1}`;
+      commit((next) => { createTimelineFeatureGroup(next, featureIds, groupName, groupId); });
+      setSelection({ kind: 'featureGroup', id: groupId });
+      setTimelineGroupRename({ id: groupId, value: groupName });
+      setNotice(`Utworzono grupę historii z ${featureIds.length} ${featureIds.length === 1 ? 'operacją' : 'operacjami'}.`);
+    } catch (error) {
+      setNotice(`Nie utworzono grupy: ${error.message}`);
+    }
+  };
+
+  const confirmTimelineGroupRename = () => {
+    const nextName = String(timelineGroupRename?.value || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+    if (!timelineGroupRename?.id || !nextName) return setNotice('Nazwa grupy nie może być pusta.');
+    commit((next) => { updateTimelineFeatureGroup(next, timelineGroupRename.id, { name: nextName }); });
+    setTimelineGroupRename(null);
+    setNotice(`Zmieniono nazwę grupy na „${nextName}”.`);
+  };
+
+  const toggleSelectedTimelineGroup = () => {
+    if (readOnly || selection?.kind !== 'featureGroup') return readOnly ? readOnlyNotice() : undefined;
+    const group = document.featureGroups.find((item) => item.id === selection.id);
+    if (!group) return;
+    commit((next) => { updateTimelineFeatureGroup(next, group.id, { collapsed: !group.collapsed }); });
+  };
+
+  const ungroupSelectedTimelineGroup = () => {
+    if (readOnly || selection?.kind !== 'featureGroup') return readOnly ? readOnlyNotice() : undefined;
+    const group = document.featureGroups.find((item) => item.id === selection.id);
+    if (!group) return;
+    commit((next) => { deleteTimelineFeatureGroup(next, group.id); });
+    const firstFeatureId = group.featureIds[0];
+    setSelection(firstFeatureId ? { kind: 'feature', id: firstFeatureId } : { kind: 'document', id: document.id });
+    setTimelineGroupRename(null);
+    setNotice(`Rozwiązano grupę „${group.name}”; operacje pozostały w historii.`);
+  };
+
   const handleBrowserSelection = (nextSelection) => {
     if (nextSelection.kind === 'settings') {
       setCommand({ type: 'parameters' });
@@ -4509,6 +4576,11 @@ export default function ModelingWorkspace() {
         setTimelineRename(null);
         return;
       }
+      if (timelineGroupRename && event.key === 'Escape') {
+        event.preventDefault();
+        setTimelineGroupRename(null);
+        return;
+      }
       if (!textEntry && !command && selection?.kind === 'feature' && event.key === 'F2' && !readOnly) {
         event.preventDefault();
         beginTimelineRename();
@@ -4606,6 +4678,14 @@ export default function ModelingWorkspace() {
   const selectedTimelineIndex = selectedTimelineFeature
     ? document.features.findIndex((feature) => feature.id === selectedTimelineFeature.id)
     : -1;
+  const selectedTimelineFeatureGroup = selectedTimelineFeature
+    ? document.featureGroups.find((group) => group.featureIds.includes(selectedTimelineFeature.id)) || null
+    : null;
+  const selectedTimelineFeatureIsRollback = Boolean(selectedTimelineFeature
+    && document.timelineRollbackFeatureId === (selectedTimelineFeatureGroup?.featureIds.at(-1) || selectedTimelineFeature.id));
+  const selectedTimelineGroup = selection?.kind === 'featureGroup'
+    ? document.featureGroups.find((group) => group.id === selection.id) || null
+    : null;
   const timelineDeleteCount = timelineDeleteId
     ? dependentTimelineFeatureIds(document, timelineDeleteId).length
     : 0;
@@ -4885,6 +4965,9 @@ export default function ModelingWorkspace() {
         />
         <div className="timeline" role="region" aria-label="Parametryczna oś czasu">
           {document.features.length ? <><div className="timeline-controls" role="toolbar" aria-label="Nawigacja osi czasu"><button type="button" aria-label="Pierwszy krok historii" title="Zaznacz pierwszy krok parametrycznej historii." onClick={() => selectTimelineStep('start')}><SkipBack size={14} /></button><button type="button" aria-label="Poprzednia operacja" title="Zaznacz poprzednią operację w historii." onClick={() => selectTimelineStep('previous')}><StepBack size={14} /></button><button type="button" aria-label="Następna operacja" title="Zaznacz następną operację w historii." onClick={() => selectTimelineStep('next')}><StepForward size={14} /></button></div>
+          {selectedTimelineGroup && <div className="timeline-selection-tools timeline-group-tools" role="toolbar" aria-label={`Zarządzaj grupą ${selectedTimelineGroup.name}`}>
+            {timelineGroupRename?.id === selectedTimelineGroup.id ? <div className="timeline-rename"><input autoFocus aria-label="Nowa nazwa grupy historii" maxLength={80} value={timelineGroupRename.value} onChange={(event) => setTimelineGroupRename((current) => ({ ...current, value: event.target.value }))} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); confirmTimelineGroupRename(); } }} /><button type="button" data-timeline-action="confirm-group-rename" title="Zapisz nazwę grupy" aria-label="Zapisz nazwę grupy" onClick={confirmTimelineGroupRename}><Check size={13} /></button><button type="button" aria-label="Anuluj zmianę nazwy grupy" onClick={() => setTimelineGroupRename(null)}><X size={13} /></button></div> : <><strong title={selectedTimelineGroup.name}>{selectedTimelineGroup.name} · {selectedTimelineGroup.featureIds.length}</strong><button type="button" data-timeline-action="rename-group" title="Zmień nazwę grupy" aria-label="Zmień nazwę grupy" disabled={readOnly} onClick={() => setTimelineGroupRename({ id: selectedTimelineGroup.id, value: selectedTimelineGroup.name })}><Pencil size={13} /></button><button type="button" data-timeline-action="collapse-group" title={selectedTimelineGroup.collapsed ? 'Rozwiń grupę' : 'Zwiń grupę'} aria-label={selectedTimelineGroup.collapsed ? 'Rozwiń grupę historii' : 'Zwiń grupę historii'} onClick={toggleSelectedTimelineGroup}>{selectedTimelineGroup.collapsed ? <FolderOpen size={13} /> : <FolderPlus size={13} />}</button><button type="button" data-timeline-action="ungroup" title="Rozwiąż grupę bez usuwania operacji" aria-label="Rozwiąż grupę historii" disabled={readOnly} onClick={ungroupSelectedTimelineGroup}><Ungroup size={13} /></button></>}
+          </div>}
           {selectedTimelineFeature && <div className="timeline-selection-tools" role="toolbar" aria-label={`Zarządzaj operacją ${selectedTimelineFeature.name}`}>
             {timelineRename?.id === selectedTimelineFeature.id ? (
               <div className="timeline-rename">
@@ -4902,6 +4985,8 @@ export default function ModelingWorkspace() {
               <strong title={selectedTimelineFeature.name}>{selectedTimelineIndex + 1}. {selectedTimelineFeature.name}</strong>
               <button type="button" data-timeline-action="edit" title="Edytuj parametry operacji" aria-label="Edytuj parametry operacji" disabled={readOnly} onClick={editSelection}><PencilRuler size={13} /></button>
               <button type="button" data-timeline-action="rename" title="Zmień nazwę (F2)" aria-label="Zmień nazwę operacji" disabled={readOnly} onClick={beginTimelineRename}><Pencil size={13} /></button>
+              <button type="button" data-timeline-action="rollback" title={selectedTimelineFeatureIsRollback ? 'Przywróć pełną historię' : 'Cofnij model do tej operacji'} aria-label={selectedTimelineFeatureIsRollback ? 'Przywróć pełną historię' : 'Ustaw marker rollback po operacji'} disabled={readOnly} onClick={toggleTimelineRollback}><History size={13} /></button>
+              <button type="button" data-timeline-action="group" title="Grupuj operację i jej zależności" aria-label="Utwórz grupę historii" disabled={readOnly || document.featureGroups.some((group) => group.featureIds.includes(selectedTimelineFeature.id))} onClick={createTimelineGroupFromSelection}><FolderPlus size={13} /></button>
               <button type="button" data-timeline-action="move-left" title="Przenieś wcześniej" aria-label="Przenieś operację wcześniej" disabled={readOnly || selectedTimelineIndex === 0} onClick={() => moveSelectedTimelineFeature(-1)}><ArrowLeft size={13} /></button>
               <button type="button" data-timeline-action="move-right" title="Przenieś później" aria-label="Przenieś operację później" disabled={readOnly || selectedTimelineIndex === document.features.length - 1} onClick={() => moveSelectedTimelineFeature(1)}><ArrowRight size={13} /></button>
               <button type="button" data-timeline-action="suppress" title={selectedTimelineFeature.suppressed ? 'Włącz operację' : 'Wyłącz operację'} aria-label={selectedTimelineFeature.suppressed ? 'Włącz operację' : 'Wyłącz operację'} disabled={readOnly} onClick={toggleSelectedTimelineFeature}>{selectedTimelineFeature.suppressed ? <Eye size={13} /> : <EyeOff size={13} />}</button>
@@ -4910,11 +4995,19 @@ export default function ModelingWorkspace() {
           </div>}
           <span className="timeline-start" />
           {document.features.map((feature, index) => {
+            const group = document.featureGroups.find((item) => item.featureIds[0] === feature.id);
+            const containingGroup = group || document.featureGroups.find((item) => item.featureIds.includes(feature.id));
+            if (containingGroup?.collapsed && !group) return null;
             const result = timelineStatus.get(feature.id);
             return (
-              <button id={`timeline-${feature.id}`} key={feature.id} className={`timeline-item ${selection?.kind === 'feature' && selection.id === feature.id ? 'selected' : ''} ${feature.suppressed ? 'suppressed' : ''} ${lostReferenceOwnerIds.has(feature.id) ? 'warning reference-lost' : result?.status || ''}`} type="button" aria-pressed={selection?.kind === 'feature' && selection.id === feature.id} aria-label={`${index + 1}. ${feature.name}${feature.suppressed ? ', operacja wyłączona' : ''}`} onClick={() => selectTimelineFeature(feature, index)} onDoubleClick={editSelection} title={`${index + 1}. ${feature.name}${feature.suppressed ? ' — wyłączona' : lostReferenceOwnerIds.has(feature.id) ? ' — utracona referencja topologii' : result?.error ? ` — ${result.error}` : ''}`}>
-                {featureIcon(feature.type, 16)}<span aria-hidden="true">{index + 1}</span>
-              </button>
+              <React.Fragment key={feature.id}>
+                {group && <button className={`timeline-group ${selection?.kind === 'featureGroup' && selection.id === group.id ? 'selected' : ''} ${group.collapsed ? 'collapsed' : ''}`} type="button" aria-label={`Grupa historii ${group.name}, ${group.featureIds.length} operacji`} title={group.name} onClick={() => { setSelection({ kind: 'featureGroup', id: group.id }); setTimelineRename(null); setTimelineDeleteId(null); }}><FolderOpen size={14} /><span>{group.name}</span><small>{group.featureIds.length}</small></button>}
+                {group?.collapsed && group.featureIds.includes(document.timelineRollbackFeatureId) && <span className="timeline-rollback-marker" role="separator" aria-label="Marker rollback" title="Nowe operacje zostaną wstawione po grupie"><History size={12} /></span>}
+                {!group?.collapsed && <button id={`timeline-${feature.id}`} className={`timeline-item ${selection?.kind === 'feature' && selection.id === feature.id ? 'selected' : ''} ${feature.suppressed ? 'suppressed' : ''} ${lostReferenceOwnerIds.has(feature.id) ? 'warning reference-lost' : result?.status || ''}`} type="button" aria-pressed={selection?.kind === 'feature' && selection.id === feature.id} aria-label={`${index + 1}. ${feature.name}${feature.suppressed ? ', operacja wyłączona' : ''}`} onClick={() => selectTimelineFeature(feature, index)} onDoubleClick={editSelection} title={`${index + 1}. ${feature.name}${feature.suppressed ? ' — wyłączona' : result?.status === 'rolled-back' ? ' — poza markerem rollback' : lostReferenceOwnerIds.has(feature.id) ? ' — utracona referencja topologii' : result?.error ? ` — ${result.error}` : ''}`}>
+                  {featureIcon(feature.type, 16)}<span aria-hidden="true">{index + 1}</span>
+                </button>}
+                {document.timelineRollbackFeatureId === feature.id && <span className="timeline-rollback-marker" role="separator" aria-label="Marker rollback" title="Nowe operacje zostaną wstawione tutaj"><History size={12} /></span>}
+              </React.Fragment>
             );
           })}
           <span className="timeline-end" /></> : <span className="timeline-empty-label">Historia operacji pojawi się po utworzeniu pierwszej bryły.</span>}

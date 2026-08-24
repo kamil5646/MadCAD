@@ -4397,6 +4397,37 @@
   background: #82909c;
 }
 
+.timeline-group {
+  display: grid;
+  min-width: 82px;
+  height: 28px;
+  flex: 0 0 auto;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 1px solid #76639a;
+  border-radius: 3px;
+  background: #403850;
+  color: #e2d9f2;
+  cursor: pointer;
+}
+
+.timeline-group span { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.timeline-group small { color: #bcaed4; font-size: 8px; }
+.timeline-group.selected { border-color: #c79af1; background: #58436e; }
+.timeline-group.collapsed { min-width: 104px; }
+
+.timeline-rollback-marker {
+  display: grid;
+  width: 15px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-right: 2px solid #e3a84d;
+  color: #f1bc63;
+}
+
 .timeline-end {
   width: 2px;
   background: #42bee7;
@@ -4443,6 +4474,13 @@
   border-style: dashed;
   border-color: #8693a0;
   opacity: 0.65;
+}
+
+.timeline-item.rolled-back {
+  border-style: dashed;
+  border-color: #737f8c;
+  background: #303943;
+  opacity: .48;
 }
 
 .timeline-item.suppressed {

@@ -199,12 +199,12 @@ test('komponenty blokują cykle, promują dzieci przy usunięciu i obsługują c
   assert.deepEqual(document.components, []);
 });
 
-test('migracja v9 uzupełnia komponent i główne wystąpienie w bieżącym schemacie v13', () => {
+test('migracja v9 uzupełnia komponent i główne wystąpienie w bieżącym schemacie v14', () => {
   const legacy = createDocument('Migracja komponentów');
   legacy.schemaVersion = 9;
   legacy.components.push({ id: 'legacy-component', name: 'Korpus', partNumber: 'K-1', material: 'Aluminium', quantity: 2, bodyIds: [] });
   const opened = openDocument(legacy, { now: '2026-08-24T12:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 13);
+  assert.equal(opened.document.schemaVersion, 14);
   assert.deepEqual(opened.document.components[0], {
     id: 'legacy-component', name: 'Korpus', type: 'part', partNumber: 'K-1', description: '', material: 'Aluminium', quantity: 2,
     origin: { x: 0, y: 0, z: 0 }, bodyIds: [], sketchIds: [], componentIds: [],
@@ -264,7 +264,7 @@ test('migracja v10 tworzy wystąpienia zgodne z hierarchią definicji', () => {
   ];
   const opened = openDocument(legacy, { now: '2026-08-24T13:00:00.000Z' });
   const tree = componentInstanceTree(opened.document);
-  assert.equal(opened.document.schemaVersion, 13);
+  assert.equal(opened.document.schemaVersion, 14);
   assert.equal(tree.length, 1);
   assert.equal(tree[0].componentId, 'assembly-v10');
   assert.equal(tree[0].children[0].componentId, 'part-v10');
@@ -314,12 +314,12 @@ test('joint rigid blokuje ręczny ruch, graf odrzuca cykl, a usunięcie wystąpi
   assert.equal(validateDocument(document).valid, true);
 });
 
-test('migracja v11 dodaje pustą kolekcję jointów w bieżącym schemacie v13', () => {
+test('migracja v11 dodaje pustą kolekcję jointów w bieżącym schemacie v14', () => {
   const legacy = createDocument('Migracja jointów');
   legacy.schemaVersion = 11;
   delete legacy.joints;
   const opened = openDocument(legacy, { now: '2026-08-24T14:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 13);
+  assert.equal(opened.document.schemaVersion, 14);
   assert.deepEqual(opened.document.joints, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 11 && entry.to === 12));
 });
@@ -405,7 +405,7 @@ test('kontrola kolizji złożenia uwzględnia transformacje wystąpień i zagnie
   assert.equal(deleteContactSet(document, contactSet.id).id, contactSet.id);
 });
 
-test('migracja v12 dodaje Motion Links i konfiguracje w schemacie v13', () => {
+test('migracja v12 dodaje Motion Links i konfiguracje w bieżącym schemacie v14', () => {
   const legacy = createDocument('Migracja ruchu złożenia');
   legacy.schemaVersion = 12;
   delete legacy.motionLinks;
@@ -413,12 +413,25 @@ test('migracja v12 dodaje Motion Links i konfiguracje w schemacie v13', () => {
   delete legacy.assemblyConfigurations;
   delete legacy.activeAssemblyConfigurationId;
   const opened = openDocument(legacy, { now: '2026-08-24T16:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 13);
+  assert.equal(opened.document.schemaVersion, 14);
   assert.deepEqual(opened.document.motionLinks, []);
   assert.deepEqual(opened.document.contactSets, []);
   assert.deepEqual(opened.document.assemblyConfigurations, []);
   assert.equal(opened.document.activeAssemblyConfigurationId, '');
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 12 && entry.to === 13));
+});
+
+test('migracja v13 dodaje trwały rollback i grupy historii w schemacie v14', () => {
+  const legacy = createDocument('Migracja osi czasu');
+  legacy.schemaVersion = 13;
+  delete legacy.timelineRollbackFeatureId;
+  delete legacy.featureGroups;
+  const opened = openDocument(legacy, { now: '2026-08-24T16:30:00.000Z' });
+  assert.equal(opened.document.schemaVersion, 14);
+  assert.equal(opened.document.timelineRollbackFeatureId, '');
+  assert.deepEqual(opened.document.featureGroups, []);
+  assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 13 && entry.to === 14));
+  assert.equal(validateDocument(opened.document).valid, true);
 });
 
 test('warstwy zapewniają ByLayer, aktywną warstwę i bezpieczne przenoszenie geometrii', () => {
@@ -634,6 +647,25 @@ test('historia nadaje stany ok, warning, error, stale i suppressed bez częścio
   assert.deepEqual(history.bodyOrder, ['body-feature-ok', 'body-feature-warning']);
   assert.equal(history.timeline[2].diagnostics[0].code, 'KERNEL_OPERATION_FAILED');
   assert.equal(history.timeline[3].diagnostics[0].code, 'UPSTREAM_FEATURE_FAILED');
+});
+
+test('historia nie wykonuje operacji wyłączonych ani cofniętych', () => {
+  const executed = [];
+  const features = [
+    { id: 'feature-ready', name: 'Aktywna', status: 'ready' },
+    { id: 'feature-suppressed', name: 'Wyłączona', status: FEATURE_STATUS.SUPPRESSED },
+    { id: 'feature-rolled-back', name: 'Cofnięta', status: FEATURE_STATUS.ROLLED_BACK },
+  ];
+  const history = evaluateFeatureHistory(features, (feature) => {
+    executed.push(feature.id);
+    return { diagnostics: [] };
+  });
+  assert.deepEqual(executed, ['feature-ready']);
+  assert.deepEqual(history.timeline.map((item) => item.status), [
+    FEATURE_STATUS.OK,
+    FEATURE_STATUS.SUPPRESSED,
+    FEATURE_STATUS.ROLLED_BACK,
+  ]);
 });
 
 test('trwałe nazwy topologii przeżywają zmianę kolejności i szum tolerancji', () => {
@@ -1784,7 +1816,7 @@ test('migracja v5 zachowuje istniejące widoki bazowe i dodaje kolekcje dokument
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 5;
   const opened = openDocument(legacy, { now: '2026-08-24T03:30:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 13);
+  assert.equal(opened.document.schemaVersion, 14);
   assert.equal(opened.document.drawings[0].views[0].type, 'base');
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 5 && entry.to === 6));
@@ -1802,7 +1834,7 @@ test('migracja v6 dodaje adnotacje arkusza bez zmiany widoków', () => {
   legacy.schemaVersion = 6;
   const views = structuredClone(sheet.views);
   const opened = openDocument(legacy, { now: '2026-08-24T06:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 13);
+  assert.equal(opened.document.schemaVersion, 14);
   assert.deepEqual(opened.document.drawings[0].views, views);
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.equal(validateDocument(opened.document).valid, true);
@@ -1819,7 +1851,7 @@ test('migracja v7 dodaje tabliczkę i rewizje, a GD&T oraz DXF zachowują geomet
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 7;
   const opened = openDocument(legacy, { now: '2026-08-24T07:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 13);
+  assert.equal(opened.document.schemaVersion, 14);
   assert.deepEqual(opened.document.drawings[0].revisions, []);
   assert.equal(opened.document.drawings[0].titleBlock.revision, 'A');
 
@@ -1861,7 +1893,7 @@ test('migracja v8 dodaje tabele, a BOM, balony i tabela otworów pozostają skoj
   legacy.schemaVersion = 8;
 
   const opened = openDocument(legacy, { now: '2026-08-24T08:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 13);
+  assert.equal(opened.document.schemaVersion, 14);
   assert.deepEqual(opened.document.drawings[0].tables, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 8 && entry.to === 9));
 

@@ -20,7 +20,7 @@ import {
   normalizeSketchModel,
 } from './sketch-model.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 13;
+export const DOCUMENT_SCHEMA_VERSION = 14;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -54,6 +54,19 @@ function ensureV3Collections(document) {
       };
     });
   }
+  return document;
+}
+
+export function ensureDocumentTimeline(document) {
+  if (typeof document.timelineRollbackFeatureId !== 'string') document.timelineRollbackFeatureId = '';
+  if (!Array.isArray(document.featureGroups)) document.featureGroups = [];
+  document.featureGroups = document.featureGroups.map((group, index) => ({
+    ...group,
+    id: typeof group?.id === 'string' && group.id ? group.id : createId('feature-group'),
+    name: String(group?.name || `Grupa ${index + 1}`).trim().slice(0, 80) || `Grupa ${index + 1}`,
+    featureIds: [...new Set(Array.isArray(group?.featureIds) ? group.featureIds.filter((id) => typeof id === 'string' && id) : [])],
+    collapsed: Boolean(group?.collapsed),
+  }));
   return document;
 }
 
@@ -236,6 +249,22 @@ function migrateV12ToV13(source, now) {
   return migrated;
 }
 
+function migrateV13ToV14(source, now) {
+  const migrated = ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureV3Collections(cloneDocument(source))))));
+  migrated.schemaVersion = 14;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 13,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 13, to: 14, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
@@ -248,6 +277,7 @@ const MIGRATIONS = new Map([
   [10, migrateV10ToV11],
   [11, migrateV11ToV12],
   [12, migrateV12ToV13],
+  [13, migrateV13ToV14],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -311,6 +341,8 @@ export function createDocument(name = 'Nowy projekt') {
     parameters: [],
     sketches: [],
     features: [],
+    timelineRollbackFeatureId: '',
+    featureGroups: [],
     bodies: [],
     components: [],
     componentInstances: [],
@@ -405,11 +437,11 @@ export function migrateDocument(source, { now = new Date().toISOString() } = {})
     document = migration(document, now);
     version = readSchemaVersion(document);
   }
-  return ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document)))));
+  return ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document))))));
 }
 
 function projectFutureDocument(source) {
-  const projected = ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source)))))));
+  const projected = ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source))))))));
   projected.schemaVersion = DOCUMENT_SCHEMA_VERSION;
   projected.metadata = {
     ...(isRecord(projected.metadata) ? projected.metadata : {}),
@@ -479,6 +511,7 @@ export function validateDocument(document) {
   const parameters = requireArray(document, 'parameters');
   const sketches = requireArray(document, 'sketches');
   const features = requireArray(document, 'features');
+  const featureGroups = requireArray(document, 'featureGroups');
   const bodies = requireArray(document, 'bodies');
   const components = requireArray(document, 'components');
   const componentInstances = requireArray(document, 'componentInstances');
@@ -1158,6 +1191,40 @@ export function validateDocument(document) {
       if (!Array.isArray(feature.referenceIds) || feature.referenceIds.length !== 1) add(`${base}.referenceIds`, 'Offset Face wymaga dokładnie jednej planarnej ściany.', 'REQUIRED');
     }
   });
+
+  const timelineFeatureIds = new Set(features.filter(isRecord).map((feature) => feature.id));
+  if (typeof document.timelineRollbackFeatureId !== 'string') add('timelineRollbackFeatureId', 'Marker rollback musi być identyfikatorem tekstowym.', 'TYPE');
+  else if (document.timelineRollbackFeatureId && !timelineFeatureIds.has(document.timelineRollbackFeatureId)) add('timelineRollbackFeatureId', 'Marker rollback wskazuje brakującą operację.', 'BROKEN_REFERENCE');
+  const groupedFeatureIds = new Set();
+  const featureGroupNames = new Set();
+  featureGroups.forEach((group, groupIndex) => {
+    const base = `featureGroups[${groupIndex}]`;
+    if (!isRecord(group)) {
+      add(base, 'Grupa historii musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(group.id, `${base}.id`);
+    if (typeof group.name !== 'string' || !group.name.trim()) add(`${base}.name`, 'Grupa historii wymaga nazwy.', 'REQUIRED');
+    else if (featureGroupNames.has(group.name.toLocaleLowerCase())) add(`${base}.name`, `Powtórzona nazwa grupy historii: ${group.name}`, 'DUPLICATE');
+    else featureGroupNames.add(group.name.toLocaleLowerCase());
+    const members = requireArray(group, 'featureIds', `${base}.featureIds`);
+    if (!members.length) add(`${base}.featureIds`, 'Grupa historii wymaga co najmniej jednej operacji.', 'VALUE');
+    if (new Set(members).size !== members.length) add(`${base}.featureIds`, 'Operacja może wystąpić w grupie tylko raz.', 'DUPLICATE');
+    const indices = [];
+    members.forEach((featureId, memberIndex) => {
+      const featureIndex = features.findIndex((feature) => feature?.id === featureId);
+      if (featureIndex < 0) add(`${base}.featureIds[${memberIndex}]`, `Nie znaleziono operacji „${featureId}”.`, 'BROKEN_REFERENCE');
+      else indices.push(featureIndex);
+      if (groupedFeatureIds.has(featureId)) add(`${base}.featureIds[${memberIndex}]`, 'Operacja należy już do innej grupy historii.', 'DUPLICATE');
+      else groupedFeatureIds.add(featureId);
+    });
+    if (indices.some((index, position) => position > 0 && index <= indices[position - 1])) add(`${base}.featureIds`, 'Kolejność operacji grupy musi odpowiadać osi czasu.', 'VALUE');
+    indices.sort((first, second) => first - second);
+    if (indices.some((index, position) => position > 0 && index !== indices[position - 1] + 1)) add(`${base}.featureIds`, 'Operacje grupy historii muszą być ciągłe.', 'VALUE');
+    if (typeof group.collapsed !== 'boolean') add(`${base}.collapsed`, 'Stan zwinięcia grupy musi być logiczny.', 'TYPE');
+  });
+  const rollbackGroup = featureGroups.find((group) => isRecord(group) && Array.isArray(group.featureIds) && group.featureIds.includes(document.timelineRollbackFeatureId));
+  if (rollbackGroup && rollbackGroup.featureIds.at(-1) !== document.timelineRollbackFeatureId) add('timelineRollbackFeatureId', 'Marker rollback należący do grupy musi znajdować się za jej ostatnią operacją.', 'VALUE');
 
   const componentNames = new Set();
   const componentPartNumbers = new Set();

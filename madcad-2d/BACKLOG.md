@@ -28,8 +28,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 
 ## Historia, projekty i zespoły
 
-- Rollback osi czasu, wstawianie w środku, reorder, suppress, rename, delete i grupy.
-- Historia ręcznych zapisów, odzyskiwanie i linkowane zależności projektu.
+- [x] Rollback osi czasu, wstawianie w środku, reorder, suppress, rename, delete i grupy ukończono jako `P4.1`.
+- Historia ręcznych zapisów, odzyskiwanie i linkowane zależności projektu — lokalne punkty zapisu są aktywnym etapem `P4.2`.
 - [x] Komponenty, podkomponenty, origin, numer części i właściwości ukończono jako `P3.1`.
 - [x] Wystąpienia komponentów, transformacje, Ground i Rigid Group ukończono jako `P3.2`.
 - [x] Joints rigid, revolute i slider z osiami oraz limitami ukończono jako `P3.3`.
@@ -41,7 +41,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Skojarzone widoki projected/section/detail, wyrównanie, rzeczywiste przecięcie modelu i automatyczny układ arkusza — ukończone jako `P2.2`.
 - [x] Skojarzone wymiary, osie, znaczniki środka, opisy otworów/gwintów i tolerancje — ukończone jako `P2.3`.
 - [x] Podstawowe GD&T, tabliczka, rewizje oraz eksport PDF/DXF — ukończone jako `P2.4`.
-- BOM, balloons i hole table.
+- [x] BOM, balloons i hole table ukończono jako `P2.5`.
 
 ## Późniejsze moduły profesjonalne
 

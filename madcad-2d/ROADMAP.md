@@ -183,7 +183,8 @@ Te prace nie czekają na koniec modelowania:
 
 ## P4 — historia i zarządzanie projektem
 
-- [>] P4.1 Bezpieczny rollback osi czasu, wstawianie operacji w środku historii, reorder z walidacją zależności oraz grupowanie operacji.
+- [x] P4.1 Bezpieczny rollback osi czasu oznacza aktywną granicę modelu i nie wykonuje późniejszych operacji. Nowe operacje są wstawiane przy markerze, reorder odrzuca zerwanie zależności lub kolejności grupy, a rename/suppress/delete oraz zwijane, nazywane grupy działają z kaskadowym czyszczeniem. Schemat v14 zapisuje marker i grupy, migruje v13 bez utraty danych i przechodzi testy core, walidację, undo/redo oraz desktop E2E z kontrolą wizualną.
+- [>] P4.2 Lokalne punkty zapisu projektu: nazwane migawki, lista wersji z czasem i opisem zmian, bezpieczne przywrócenie jako nowy stan z możliwością Undo oraz integracja z istniejącym odzyskiwaniem po awarii.
 
 ## Definition of Done
 
@@ -210,7 +211,7 @@ Dodatkowo:
 
 ## Najbliższe zadania
 
-1. [>] Dodać rollback osi czasu, bezpieczne wstawianie/reorder i grupy operacji jako etap P4.1.
+1. [>] Dodać nazwane lokalne punkty zapisu i bezpieczne przywracanie wersji jako etap P4.2.
 2. [~] Sprawdzić import/eksport na rzeczywistych plikach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny odsłuch VoiceOver. Korpus formatów i automatyczny test drzewa AX są gotowe.
 3. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 

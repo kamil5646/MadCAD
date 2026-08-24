@@ -471,7 +471,7 @@ function makeCone(firstRadius, secondRadius, height, location, direction) {
 }
 
 function runFeature(feature, bodyMap, bodyOrder) {
-  if (feature.status === FEATURE_STATUS.SUPPRESSED) return;
+  if (feature.status === FEATURE_STATUS.SUPPRESSED || feature.status === FEATURE_STATUS.ROLLED_BACK) return;
 
   if (feature.type === 'importedModel') {
     if (!feature.importedShape) throw new Error(`Nie załadowano geometrii ${feature.name}.`);
@@ -1424,7 +1424,7 @@ async function evaluateRevision(document, quality) {
   const importStartedAt = performance.now();
   const features = [];
   for (const feature of prepared.features) {
-    if (feature.type !== 'importedModel' || feature.status === FEATURE_STATUS.SUPPRESSED) {
+    if (feature.type !== 'importedModel' || feature.status === FEATURE_STATUS.SUPPRESSED || feature.status === FEATURE_STATUS.ROLLED_BACK) {
       features.push(feature);
       continue;
     }

@@ -17,6 +17,10 @@ export function evaluateFeatureHistory(features, executor, initialState = {}) {
 
   for (let featureIndex = 0; featureIndex < features.length; featureIndex += 1) {
     const feature = features[featureIndex];
+    if (feature.status === FEATURE_STATUS.SUPPRESSED || feature.status === FEATURE_STATUS.ROLLED_BACK) {
+      timeline.push({ id: feature.id, status: feature.status, diagnostics: [] });
+      continue;
+    }
     const transaction = executeFeatureTransaction(feature, bodyMap, bodyOrder, executor);
     if (!transaction.committed) {
       const message = transaction.error?.message || String(transaction.error || 'Nieznany błąd operacji kernela.');
@@ -28,10 +32,11 @@ export function evaluateFeatureHistory(features, executor, initialState = {}) {
       });
       for (const staleFeature of features.slice(featureIndex + 1)) {
         const suppressed = staleFeature.status === FEATURE_STATUS.SUPPRESSED;
+        const rolledBack = staleFeature.status === FEATURE_STATUS.ROLLED_BACK;
         timeline.push({
           id: staleFeature.id,
-          status: suppressed ? FEATURE_STATUS.SUPPRESSED : FEATURE_STATUS.STALE,
-          diagnostics: suppressed
+          status: suppressed ? FEATURE_STATUS.SUPPRESSED : rolledBack ? FEATURE_STATUS.ROLLED_BACK : FEATURE_STATUS.STALE,
+          diagnostics: suppressed || rolledBack
             ? []
             : [{
               level: 'warning',
@@ -49,8 +54,8 @@ export function evaluateFeatureHistory(features, executor, initialState = {}) {
     const hasWarning = diagnostics.some((diagnostic) => diagnostic.level === 'warning');
     timeline.push({
       id: feature.id,
-      status: feature.status === FEATURE_STATUS.SUPPRESSED
-        ? FEATURE_STATUS.SUPPRESSED
+      status: feature.status === FEATURE_STATUS.SUPPRESSED || feature.status === FEATURE_STATUS.ROLLED_BACK
+        ? feature.status
         : hasWarning
           ? FEATURE_STATUS.WARNING
           : FEATURE_STATUS.OK,
