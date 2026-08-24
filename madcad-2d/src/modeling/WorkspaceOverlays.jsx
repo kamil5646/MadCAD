@@ -103,6 +103,44 @@ export function ProjectSnapshotsPanel({ snapshots, loading, error, readOnly = fa
   );
 }
 
+export function ProjectComparisonPanel({ snapshots = [], comparison = null, sourceLabel = '', loading = false, error = '', onCompareSnapshot, onCompareFile, onClose }) {
+  const [snapshotId, setSnapshotId] = useState('');
+  const [filter, setFilter] = useState('changes');
+  useEffect(() => {
+    if (!snapshots.some((snapshot) => snapshot.id === snapshotId)) setSnapshotId(snapshots[0]?.id || '');
+  }, [snapshots, snapshotId]);
+  const states = filter === 'changes' ? new Set(['added', 'removed', 'modified']) : filter === 'all' ? null : new Set([filter]);
+  const labels = { added: 'DODANE', removed: 'USUNIĘTE', modified: 'ZMIENIONE', unchanged: 'BEZ ZMIAN' };
+  return (
+    <aside className="project-comparison-panel" role="dialog" aria-modal="false" aria-label="Porównanie wersji projektu">
+      <header><div><GitCompareArrows size={16} /><span><strong>PORÓWNANIE PROJEKTU</strong><small>Bieżący dokument pozostaje bez zmian</small></span></div><button type="button" aria-label="Zamknij porównanie projektu" title="Zamknij" onClick={onClose}><X size={15} /></button></header>
+      <section className="project-comparison-source">
+        <label><span>Punkt zapisu</span><select aria-label="Punkt zapisu do porównania" value={snapshotId} onChange={(event) => setSnapshotId(event.target.value)}><option value="">Wybierz wersję</option>{snapshots.map((snapshot) => <option key={snapshot.id} value={snapshot.id}>{snapshot.name}</option>)}</select></label>
+        <button type="button" data-project-compare="snapshot" disabled={!snapshotId || loading} onClick={() => { void onCompareSnapshot(snapshotId); }}><History size={13} /> Porównaj punkt</button>
+        <button type="button" data-project-compare="file" disabled={loading} onClick={() => { void onCompareFile(); }}><FolderOpen size={13} /> Wybierz plik</button>
+      </section>
+      {error && <div className="project-comparison-error" role="alert">{error}</div>}
+      {loading ? <div className="project-comparison-empty">Porównywanie wersji…</div> : comparison ? <>
+        <section className="project-comparison-summary">
+          <div><span>Źródło</span><strong>{sourceLabel || comparison.before.name}</strong></div>
+          <div className="added"><span>Dodane</span><strong>{comparison.counts.added}</strong></div>
+          <div className="removed"><span>Usunięte</span><strong>{comparison.counts.removed}</strong></div>
+          <div className="modified"><span>Zmienione</span><strong>{comparison.counts.modified}</strong></div>
+        </section>
+        <nav className="project-comparison-filters" aria-label="Filtr zmian projektu">{[['changes', 'Zmiany'], ['added', 'Dodane'], ['removed', 'Usunięte'], ['modified', 'Zmienione'], ['all', 'Wszystko']].map(([id, label]) => <button type="button" className={filter === id ? 'active' : ''} aria-pressed={filter === id} key={id} onClick={() => setFilter(id)}>{label}</button>)}</nav>
+        <div className="project-comparison-list" aria-live="polite">
+          {comparison.categories.map((category) => {
+            const items = category.items.filter((item) => !states || states.has(item.state));
+            if (!items.length) return null;
+            return <section key={category.id} data-diff-category={category.id}><h3>{category.label}<span>{items.length}</span></h3>{items.map((item) => <article className={item.state} data-diff-state={item.state} key={item.id}><span>{labels[item.state]}</span><div><strong>{item.label}</strong>{item.changedFields.length > 0 && <small>{item.changedFields.join(', ')}</small>}</div></article>)}</section>;
+          })}
+          {!comparison.categories.some((category) => category.items.some((item) => !states || states.has(item.state))) && <div className="project-comparison-empty"><GitCompareArrows size={22} /><strong>Brak zmian dla wybranego filtra</strong></div>}
+        </div>
+      </> : <div className="project-comparison-empty"><GitCompareArrows size={24} /><strong>Wybierz wersję do porównania</strong><span>Możesz użyć lokalnego punktu zapisu albo zewnętrznego projektu .madcad.</span></div>}
+    </aside>
+  );
+}
+
 export function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onClose }) {
   const [expanded, setExpanded] = useState({ origin: true, construction: true, components: true, joints: true, motionLinks: true, contactSets: true, configurations: true, sketches: true, bodies: true });
   const toggle = (key) => setExpanded((current) => ({ ...current, [key]: !current[key] }));

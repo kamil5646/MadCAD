@@ -3,6 +3,7 @@ const { contextBridge } = require('electron');
 const snapshots = [];
 const texts = new Map();
 let counter = 0;
+let externalText = '';
 
 contextBridge.exposeInMainWorld('desktopApp', {
   platform: process.platform,
@@ -27,6 +28,7 @@ contextBridge.exposeInMainWorld('desktopApp', {
     };
     snapshots.unshift(snapshot);
     texts.set(id, text);
+    externalText = text;
     return { ok: true, snapshot, removedIds: [] };
   },
   projectSnapshotRead: async ({ id }) => ({ ok: true, snapshot: snapshots.find((item) => item.id === id), text: texts.get(id) }),
@@ -36,4 +38,5 @@ contextBridge.exposeInMainWorld('desktopApp', {
     texts.delete(id);
     return { ok: true, snapshot };
   },
+  openProjectFile: async () => ({ ok: true, canceled: false, filePath: '/tmp/external-baseline.madcad', text: externalText }),
 });

@@ -48,6 +48,7 @@ import {
 } from '../src/cad-core/components.js';
 import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../src/cad-core/assembly-joints.js';
 import { createLinkedProject, linkedProjectState } from '../src/cad-core/linked-projects.js';
+import { compareProjectDocuments } from '../src/cad-core/project-diff.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
@@ -4049,6 +4050,40 @@ test('Pack & Go odrzuca brak, zmianę źródła i cykl bez częściowej paczki',
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('porównanie projektu klasyfikuje zmiany strukturalne i ignoruje znaczniki czasu', () => {
+  const before = createDocument('Maszyna v1');
+  const parameter = createParameter('szerokosc', '20 mm');
+  before.parameters.push(parameter);
+  const retainedFeature = createFeature('primitive', { name: 'Korpus', primitiveType: 'box', width: '20', depth: '10', height: '5' });
+  const removedFeature = createFeature('primitive', { name: 'Usuwany', primitiveType: 'sphere', radius: '3' });
+  before.features.push(retainedFeature, removedFeature);
+  const after = structuredClone(before);
+  after.name = 'Maszyna v2';
+  after.metadata.modifiedAt = '2099-01-01T00:00:00.000Z';
+  after.parameters[0].expression = '30 mm';
+  after.features = [{ ...retainedFeature, width: '30' }, createFeature('primitive', { name: 'Dodany', primitiveType: 'cylinder', radius: '4', height: '8' })];
+  after.linkedProjects.push({ id: 'linked-project-test', sourceName: 'Silnik', fileName: 'silnik.madcad' });
+
+  const diff = compareProjectDocuments(before, after);
+  assert.equal(diff.changed, 5);
+  assert.deepEqual(diff.counts, { added: 2, removed: 1, modified: 2, unchanged: 0 });
+  assert.deepEqual(diff.categories.find((category) => category.id === 'parameters').items[0].changedFields, ['expression']);
+  assert.deepEqual(diff.categories.find((category) => category.id === 'features').items.find((item) => item.state === 'modified').changedFields, ['width']);
+  assert.equal(diff.categories.find((category) => category.id === 'components').items.length, 0);
+});
+
+test('porównanie proxy STEP wykrywa zmianę danych także przy identycznym rozmiarze', () => {
+  const before = createDocument('Proxy A');
+  const feature = createFeature('importedModel', { name: 'Proxy', originalFormat: 'step', dataBase64: 'AAAA', unitScale: 1 });
+  before.features.push(feature);
+  const after = structuredClone(before);
+  after.features[0].dataBase64 = 'BBBB';
+  const diff = compareProjectDocuments(before, after);
+  const item = diff.categories.find((category) => category.id === 'features').items[0];
+  assert.equal(item.state, 'modified');
+  assert.deepEqual(item.changedFields, ['dataBase64']);
 });
 
 test('nazwane punkty zapisu projektu są atomowe, limitowane i możliwe do przywrócenia', async () => {

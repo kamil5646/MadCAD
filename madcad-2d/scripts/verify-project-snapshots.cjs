@@ -3,6 +3,7 @@ const path = require('path');
 const { app, BrowserWindow } = require('electron');
 
 const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-project-snapshots.png');
+const comparisonScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-project-comparison.png');
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
   const startedAt = Date.now();
@@ -60,6 +61,25 @@ app.whenReady().then(async () => {
     await click(window, '[data-timeline-action="confirm-delete"]');
     await waitFor(window, `window.__madcadVerifyDocumentState?.features === 1`, 'zmieniony projekt po punkcie zapisu');
 
+    await click(window, '.project-snapshots-panel > header button');
+    await click(window, '#projectComparisonBtn');
+    await waitFor(window, `document.querySelector('.project-comparison-panel select')?.value`, 'wybrany punkt do porównania');
+    await click(window, '[data-project-compare="snapshot"]');
+    await waitFor(window, `document.querySelectorAll('[data-diff-state="removed"]').length === 2`, 'diff punktu zapisu');
+    await click(window, '[data-project-compare="file"]');
+    await waitFor(window, `document.querySelector('.project-comparison-summary')?.textContent.includes('external-baseline.madcad') && !document.querySelector('.project-comparison-panel')?.textContent.includes('Porównywanie wersji') && !document.querySelector('[data-project-compare="file"]')?.disabled`, 'diff projektu zewnętrznego');
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await fs.writeFile(comparisonScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    const comparisonLayout = await window.webContents.executeJavaScript(`(() => {
+      const panel = document.querySelector('.project-comparison-panel')?.getBoundingClientRect();
+      const stage = document.querySelector('.modeling-stage')?.getBoundingClientRect();
+      return { removed: document.querySelectorAll('[data-diff-state="removed"]').length, categories: document.querySelectorAll('[data-diff-category]').length, inside: Boolean(panel && stage && panel.left >= stage.left && panel.right <= stage.right && panel.top >= stage.top && panel.bottom <= stage.bottom), overflow: document.documentElement.scrollWidth > innerWidth };
+    })()`);
+    if (comparisonLayout.removed !== 2 || comparisonLayout.categories < 1 || !comparisonLayout.inside || comparisonLayout.overflow) throw new Error(`Niepoprawny panel porównania: ${JSON.stringify(comparisonLayout)}`);
+    await click(window, '.project-comparison-panel > header button');
+    await click(window, '#projectSnapshotsBtn');
+    await waitFor(window, `document.querySelector('[data-snapshot-action="restore"]')`, 'ponownie otwarty panel punktów zapisu');
+
     await click(window, '[data-snapshot-action="restore"]');
     await waitFor(window, `window.__madcadVerifyDocumentState?.features === 3 && window.__madcadHasUnsavedChanges?.() && document.querySelector('.workspace-notice')?.textContent.includes('Undo')`, 'przywrócony punkt zapisu');
     await click(window, '#undoProjectBtn');
@@ -85,7 +105,7 @@ app.whenReady().then(async () => {
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
-    Object.assign(result, { screenshotPath });
+    Object.assign(result, { screenshotPath, comparisonScreenshotPath, comparisonLayout });
     if (result.features !== 3 || result.snapshots !== 0 || !result.panelInsideStage || result.horizontalOverflow) throw new Error(`Niepoprawny przepływ punktów zapisu: ${JSON.stringify(result)}`);
 
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'en' } });
@@ -100,6 +120,16 @@ app.whenReady().then(async () => {
     })()`);
     result.englishPanel = englishPanel;
     if (!englishPanel) throw new Error('Panel punktów zapisu zawiera nieprzetłumaczony tekst.');
+    await click(window, '.project-snapshots-panel > header button');
+    await click(window, '#projectComparisonBtn');
+    await waitFor(window, `document.querySelector('.project-comparison-panel')?.textContent.includes('PROJECT COMPARISON')`, 'angielski panel porównania');
+    const englishComparison = await window.webContents.executeJavaScript(`(() => {
+      const panel = document.querySelector('.project-comparison-panel');
+      const attributes = [...panel.querySelectorAll('*')].flatMap((node) => ['title', 'aria-label'].map((name) => node.getAttribute(name) || ''));
+      return !/(PORÓWNANIE|Punkt zapisu|Wybierz wersję|Porównaj punkt|Wybierz plik|Brak zmian|Zamknij porównanie)/i.test([panel.textContent, ...attributes].join(' '));
+    })()`);
+    result.englishComparison = englishComparison;
+    if (!englishComparison) throw new Error('Panel porównania zawiera nieprzetłumaczony tekst.');
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     app.exit(0);
   } catch (error) {

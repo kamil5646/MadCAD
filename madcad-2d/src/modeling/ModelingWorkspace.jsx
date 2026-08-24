@@ -22,6 +22,7 @@ import {
   FolderPlus,
   Frame,
   Grid2X2,
+  GitCompareArrows,
   HardDriveDownload,
   History,
   Hexagon,
@@ -75,6 +76,7 @@ import {
   validateDocument,
 } from '../cad-core/document.js';
 import { createLinkedProject, linkedProjectState } from '../cad-core/linked-projects.js';
+import { compareProjectDocuments } from '../cad-core/project-diff.js';
 import {
   addDrivingSketchDimension,
   createSketchArc,
@@ -175,7 +177,7 @@ import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumen
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext } from './WorkspaceRibbon.jsx';
 import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
-import { CrashRecoveryBanner, ProjectBrowser, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
+import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
 import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
@@ -447,6 +449,10 @@ export default function ModelingWorkspace() {
   const [projectSnapshots, setProjectSnapshots] = useState([]);
   const [projectSnapshotsLoading, setProjectSnapshotsLoading] = useState(false);
   const [projectSnapshotsError, setProjectSnapshotsError] = useState('');
+  const [projectComparisonOpen, setProjectComparisonOpen] = useState(false);
+  const [projectComparisonBaseline, setProjectComparisonBaseline] = useState(null);
+  const [projectComparisonLoading, setProjectComparisonLoading] = useState(false);
+  const [projectComparisonError, setProjectComparisonError] = useState('');
   const panelScreenKeyRef = useRef(panelScreenKey(window.screen));
   const [panelLayout, setPanelLayout] = useState(() => readPanelLayout(window.localStorage, window.screen));
   const [workspaceLayoutMenuOpen, setWorkspaceLayoutMenuOpen] = useState(false);
@@ -613,8 +619,54 @@ export default function ModelingWorkspace() {
     }
   }, []);
   const openProjectSnapshots = () => {
+    setProjectComparisonOpen(false);
     setProjectSnapshotsOpen(true);
     void refreshProjectSnapshots();
+  };
+  const projectComparison = useMemo(() => projectComparisonBaseline ? compareProjectDocuments(projectComparisonBaseline.document, document) : null, [projectComparisonBaseline, document]);
+  const openProjectComparison = () => {
+    setProjectSnapshotsOpen(false);
+    setProjectComparisonOpen(true);
+    setProjectComparisonError('');
+    void refreshProjectSnapshots();
+  };
+  const compareProjectText = (text, label) => {
+    const opened = openDocument(JSON.parse(text));
+    setProjectComparisonBaseline({ document: opened.document, label });
+  };
+  const compareProjectSnapshot = async (snapshotId) => {
+    if (!window.desktopApp?.projectSnapshotRead) return;
+    setProjectComparisonLoading(true);
+    setProjectComparisonError('');
+    try {
+      const result = await window.desktopApp.projectSnapshotRead({ id: snapshotId });
+      if (result?.ok === false) throw new Error(result.error || 'Nie udało się odczytać punktu zapisu.');
+      compareProjectText(result.text, result.snapshot?.name || 'Punkt zapisu');
+    } catch (error) {
+      setProjectComparisonError(error.message);
+    } finally {
+      setProjectComparisonLoading(false);
+    }
+  };
+  const compareExternalProject = async () => {
+    if (!window.desktopApp?.openProjectFile) {
+      setProjectComparisonError('Porównanie z plikiem jest dostępne w aplikacji desktopowej.');
+      return;
+    }
+    setProjectComparisonLoading(true);
+    setProjectComparisonError('');
+    try {
+      const result = await window.desktopApp.openProjectFile();
+      if (!result?.ok) {
+        if (!result?.canceled) throw new Error(result?.error || 'Nie udało się odczytać projektu.');
+        return;
+      }
+      compareProjectText(result.text, result.filePath?.split(/[\\/]/).pop() || 'Projekt zewnętrzny');
+    } catch (error) {
+      setProjectComparisonError(error.message);
+    } finally {
+      setProjectComparisonLoading(false);
+    }
   };
   const createProjectSnapshot = async ({ name, description }) => {
     if (!window.desktopApp?.projectSnapshotCreate) return false;
@@ -4992,6 +5044,7 @@ export default function ModelingWorkspace() {
           <button id="openProjectBtn" type="button" aria-label="Otwórz projekt" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={16} /></button>
           <button id="saveProjectBtn" type="button" aria-label={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button>
           <button id="projectSnapshotsBtn" className={projectSnapshotsOpen ? 'active' : ''} type="button" aria-label="Punkty zapisu projektu" aria-pressed={projectSnapshotsOpen} title="Utwórz lub przywróć lokalny punkt zapisu projektu" onClick={() => { if (projectSnapshotsOpen) setProjectSnapshotsOpen(false); else openProjectSnapshots(); }}><History size={16} /></button>
+          <button id="projectComparisonBtn" className={projectComparisonOpen ? 'active' : ''} type="button" aria-label="Porównaj wersje projektu" aria-pressed={projectComparisonOpen} title="Porównaj bieżący projekt z punktem zapisu lub plikiem" onClick={() => { if (projectComparisonOpen) setProjectComparisonOpen(false); else openProjectComparison(); }}><GitCompareArrows size={16} /></button>
         </div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
         <input ref={importInputRef} hidden type="file" accept=".step,.stp,.stl,.3mf,model/step,model/stl,model/3mf" onChange={chooseModelImport} />
@@ -5186,6 +5239,7 @@ export default function ModelingWorkspace() {
             onDismiss={() => setRecoveryInfo(null)}
           />
           {projectSnapshotsOpen && <ProjectSnapshotsPanel snapshots={projectSnapshots} loading={projectSnapshotsLoading} error={projectSnapshotsError} readOnly={readOnly} onCreate={createProjectSnapshot} onRestore={restoreProjectSnapshot} onDelete={deleteProjectSnapshot} onClose={() => setProjectSnapshotsOpen(false)} />}
+          {projectComparisonOpen && <ProjectComparisonPanel snapshots={projectSnapshots} comparison={projectComparison} sourceLabel={projectComparisonBaseline?.label || ''} loading={projectComparisonLoading || projectSnapshotsLoading} error={projectComparisonError || projectSnapshotsError} onCompareSnapshot={compareProjectSnapshot} onCompareFile={compareExternalProject} onClose={() => setProjectComparisonOpen(false)} />}
           <TopologyReferenceRepairPanel items={lostTopologyReferences} selection={selection} onReassign={repairTopologyReference} onPreview={(candidate) => handleTopologySelection(candidate)} />
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
