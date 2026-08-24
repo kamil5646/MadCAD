@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createBaseDrawingView, createDrawingSheet } from '../cad-core/drawing-sheets.js';
+import { createBaseDrawingView, createDrawingSheet, createLinearDrawingDimension } from '../cad-core/drawing-sheets.js';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
 
 function props(overrides = {}) {
@@ -13,6 +13,7 @@ function props(overrides = {}) {
     bodies: [{ id: 'body-1', lines: Float32Array.from([0, 0, 0, 40, 0, 0, 40, 0, 0, 40, 0, 20]) }],
     activeSheetId: sheet.id,
     selectedViewId: view.id,
+    selectedAnnotationId: null,
     onCreateSheet: vi.fn(),
     onSelectSheet: vi.fn(),
     onUpdateSheet: vi.fn(),
@@ -22,6 +23,10 @@ function props(overrides = {}) {
     onSelectView: vi.fn(),
     onUpdateView: vi.fn(),
     onDeleteView: vi.fn(),
+    onAddAnnotation: vi.fn(),
+    onSelectAnnotation: vi.fn(),
+    onUpdateAnnotation: vi.fn(),
+    onDeleteAnnotation: vi.fn(),
     onExportPdf: vi.fn(),
     ...overrides,
   };
@@ -51,5 +56,25 @@ describe('DrawingWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: /Przekrój/i }));
     fireEvent.click(screen.getByRole('button', { name: /Detal/i }));
     expect(current.onAddDerivedView.mock.calls.map(([type]) => type)).toEqual(['projected', 'section', 'detail']);
+  });
+
+  it('adds drawing annotations and edits an associative dimension tolerance', () => {
+    const current = props();
+    render(<DrawingWorkspace {...current} />);
+    fireEvent.click(screen.getByRole('button', { name: /Wymiar X/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Oś/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Opis otworu/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Opis gwintu/i }));
+    expect(current.onAddAnnotation.mock.calls.map(([type]) => type)).toEqual(['dimension-horizontal', 'centerline', 'hole-note', 'thread-note']);
+
+    const sheet = current.document.drawings[0];
+    const annotation = createLinearDrawingDimension({ viewId: sheet.views[0].id, toleranceMode: 'symmetric', upperTolerance: 0.1, lowerTolerance: 0.1 });
+    sheet.annotations.push(annotation);
+    const edited = { ...current, selectedViewId: null, selectedAnnotationId: annotation.id };
+    const { unmount } = render(<DrawingWorkspace {...edited} />);
+    expect(screen.getByText(/Wartość z modelu:/i)).toHaveTextContent('40.00 ±0.10');
+    fireEvent.change(screen.getAllByRole('spinbutton', { name: /± \[mm\]/i }).at(-1), { target: { value: '0.25' } });
+    expect(current.onUpdateAnnotation).toHaveBeenCalledWith({ upperTolerance: 0.25, lowerTolerance: 0.25 });
+    unmount();
   });
 });

@@ -74,8 +74,12 @@ import { analyzePrintability } from '../src/cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../src/cad-core/sketch-import.js';
 import {
   createBaseDrawingView,
+  createCenterMarkDrawingAnnotation,
+  createCenterlineDrawingAnnotation,
   createDetailDrawingView,
   createDrawingSheet,
+  createHoleNoteDrawingAnnotation,
+  createLinearDrawingDimension,
   createProjectedDrawingView,
   createSectionDrawingView,
   drawingSheetHtml,
@@ -1429,6 +1433,46 @@ test('rzuty pochodne, przekrój i detal zachowują relację, wyrównanie i aktua
   assert.deepEqual(openDocument(JSON.parse(JSON.stringify(document))).document.drawings, document.drawings);
 });
 
+test('skojarzone wymiary, osie, znaczniki środka i opis otworu aktualizują się z widokiem modelu', () => {
+  const document = createDocument('Adnotacje rysunkowe');
+  const sheet = createDrawingSheet();
+  const body = {
+    id: 'body-annotations',
+    lines: Float32Array.from([
+      0, 0, 0, 40, 0, 0, 40, 0, 0, 40, 0, 30,
+      40, 0, 30, 0, 0, 30, 0, 0, 30, 0, 0, 0,
+    ]),
+    metrics: { bounds: [[0, 0, 0], [40, 20, 30]], minimumRadius: 4 },
+    topology: { faces: [{ descriptor: { geometry: 'CYLINDRE', radius: 4 } }] },
+  };
+  const view = createBaseDrawingView({ bodyIds: [body.id], x: 80, y: 60, sheet });
+  sheet.views.push(view);
+  const horizontal = createLinearDrawingDimension({ viewId: view.id, precision: 1, toleranceMode: 'symmetric', upperTolerance: 0.2, lowerTolerance: 0.2 });
+  const vertical = createLinearDrawingDimension({ viewId: view.id, axis: 'vertical', precision: 0 });
+  sheet.annotations.push(
+    horizontal,
+    vertical,
+    createCenterlineDrawingAnnotation({ viewId: view.id }),
+    createCenterMarkDrawingAnnotation({ viewId: view.id }),
+    createHoleNoteDrawingAnnotation({ viewId: view.id, precision: 1, quantity: 2 }),
+    createHoleNoteDrawingAnnotation({ viewId: view.id, noteMode: 'thread', threadDesignation: 'M8×1.25', threadClass: '6H' }),
+  );
+  document.drawings.push(sheet);
+
+  const scene = drawingSheetScene(sheet, [body]);
+  assert.deepEqual(scene.annotations.slice(-6).map((annotation) => annotation.type), ['linear-dimension', 'linear-dimension', 'centerline', 'center-mark', 'hole-note', 'hole-note']);
+  assert.equal(scene.annotations.find((annotation) => annotation.id === horizontal.id).text, '40.0 ±0.2');
+  assert.equal(scene.annotations.find((annotation) => annotation.type === 'hole-note').text, '2× ⌀8.0 THRU');
+  assert.equal(scene.annotations.find((annotation) => annotation.noteMode === 'thread').text, 'M8×1.25 - 6H THRU');
+  assert.equal(validateDocument(document).valid, true);
+  assert.match(drawingSheetHtml(sheet, [body]), /drawing-linear-dimension/);
+  assert.match(drawingSheetHtml(sheet, [body]), /2× ⌀8\.0 THRU/);
+
+  const widerBody = { ...body, lines: Float32Array.from([...body.lines].map((value, index) => index % 3 === 0 ? value * 2 : value)), metrics: { ...body.metrics, bounds: [[0, 0, 0], [80, 20, 30]] } };
+  assert.equal(drawingSheetScene(sheet, [widerBody]).annotations.find((annotation) => annotation.id === horizontal.id).text, '80.0 ±0.2');
+  assert.deepEqual(openDocument(JSON.parse(JSON.stringify(document))).document.drawings, document.drawings);
+});
+
 test('migracja v4 dodaje kolekcję arkuszy bez zmiany istniejącego modelu', () => {
   const legacy = createStarterDocument();
   legacy.schemaVersion = 4;
@@ -1443,16 +1487,33 @@ test('migracja v4 dodaje kolekcję arkuszy bez zmiany istniejącego modelu', () 
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 5 && entry.to === 6));
 });
 
-test('migracja v5 zachowuje istniejące widoki bazowe w schemacie v6', () => {
+test('migracja v5 zachowuje istniejące widoki bazowe i dodaje kolekcję adnotacji w schemacie v7', () => {
   const legacy = createDocument('Dokumentacja v5');
   const sheet = createDrawingSheet();
   sheet.views.push(createBaseDrawingView({ bodyIds: ['body-v5'], sheet }));
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 5;
   const opened = openDocument(legacy, { now: '2026-08-24T03:30:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 6);
+  assert.equal(opened.document.schemaVersion, 7);
   assert.equal(opened.document.drawings[0].views[0].type, 'base');
+  assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 5 && entry.to === 6));
+  assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 6 && entry.to === 7));
+});
+
+test('migracja v6 dodaje adnotacje arkusza bez zmiany widoków', () => {
+  const legacy = createDocument('Dokumentacja v6');
+  const sheet = createDrawingSheet();
+  sheet.views.push(createBaseDrawingView({ bodyIds: ['body-v6'], sheet }));
+  delete sheet.annotations;
+  legacy.drawings.push(sheet);
+  legacy.schemaVersion = 6;
+  const views = structuredClone(sheet.views);
+  const opened = openDocument(legacy, { now: '2026-08-24T06:00:00.000Z' });
+  assert.equal(opened.document.schemaVersion, 7);
+  assert.deepEqual(opened.document.drawings[0].views, views);
+  assert.deepEqual(opened.document.drawings[0].annotations, []);
+  assert.equal(validateDocument(opened.document).valid, true);
 });
 
 test('otwiera zgodny dokument z nowszej wersji wyłącznie do odczytu', () => {

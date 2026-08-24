@@ -102,8 +102,9 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 
 - [x] P2.1 dodaje zapisywane arkusze A4/A3, skojarzony widok bazowy z krawędzi modelu, cztery kierunki, automatyczną skalę, tabliczkę i bezpośredni eksport PDF; desktop smoke test sprawdza także undo/redo, autozapis i brak przepełnienia interfejsu.
 - [x] P2.2 dodaje widoki rzutowane, rzeczywiste przekroje z kreskowaniem i powiększone detale; zależności rodzic–dziecko sterują kierunkiem, skalą i wyrównaniem, a automatyczna siatka 2×2 zachowuje czytelny arkusz.
+- [x] P2.3 dodaje skojarzone wymiary gabarytowe, osie, znaczniki środka, automatyczne opisy otworów, opisy gwintów i tolerancje; schemat v7 zachowuje je w projekcie, a test desktopowy potwierdza autozapis, render i PDF.
 
-- Testy rdzenia: 145 zaliczonych, 0 błędów.
+- Testy rdzenia: 147 zaliczonych, 0 błędów.
 - Desktop E2E: profile XY/XZ/YZ, spline, conic, parametryczny wspornik, prymitywy, wspólny manipulator, Text/Emboss/Deboss, otwór z punktu, fillet/chamfer, Shell, autosave, odtworzenie workera oraz eksport STEP/STL.
 - Commity kontrolne: `1633cf3`, `6505103`, `be3c067`, `ec5e45f`, `0ad3b75`, `1ca5237`, `1a0a02b`, `fe19842`.
 

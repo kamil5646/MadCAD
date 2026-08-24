@@ -123,7 +123,7 @@ import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit } from '../cad-core/model-import.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
-import { createBaseDrawingView, createDetailDrawingView, createDrawingSheet, createProjectedDrawingView, createSectionDrawingView, drawingPageDimensions, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
+import { createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingSheet, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, drawingPageDimensions, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import {
   addBlockAttributeDefinition,
@@ -400,6 +400,7 @@ export default function ModelingWorkspace() {
   const [workspace, setWorkspace] = useState('solid');
   const [activeDrawingSheetId, setActiveDrawingSheetId] = useState(() => document.drawings[0]?.id || null);
   const [selectedDrawingViewId, setSelectedDrawingViewId] = useState(null);
+  const [selectedDrawingAnnotationId, setSelectedDrawingAnnotationId] = useState(null);
   const [selection, setSelection] = useState({ kind: 'document', id: document.id });
   const [activeSketchId, setActiveSketchId] = useState(null);
   const [command, setCommand] = useState(null);
@@ -3660,6 +3661,7 @@ export default function ModelingWorkspace() {
 
   const activeDrawingSheet = document.drawings.find((sheet) => sheet.id === activeDrawingSheetId) || document.drawings[0] || null;
   const selectedDrawingView = activeDrawingSheet?.views.find((view) => view.id === selectedDrawingViewId) || null;
+  const selectedDrawingAnnotation = activeDrawingSheet?.annotations?.find((annotation) => annotation.id === selectedDrawingAnnotationId) || null;
 
   const createDrawingSheetInDocument = () => {
     if (readOnly) return readOnlyNotice();
@@ -3667,6 +3669,7 @@ export default function ModelingWorkspace() {
     commit((next) => { next.drawings.push(sheet); });
     setActiveDrawingSheetId(sheet.id);
     setSelectedDrawingViewId(null);
+    setSelectedDrawingAnnotationId(null);
     setNotice(`Utworzono ${sheet.name} · A4 poziomo.`);
   };
 
@@ -3684,6 +3687,7 @@ export default function ModelingWorkspace() {
     commit((next) => { next.drawings = next.drawings.filter((sheet) => sheet.id !== activeDrawingSheet.id); });
     setActiveDrawingSheetId(remaining[0]?.id || null);
     setSelectedDrawingViewId(null);
+    setSelectedDrawingAnnotationId(null);
     setNotice(`Usunięto arkusz „${activeDrawingSheet.name}”.`);
   };
 
@@ -3694,6 +3698,7 @@ export default function ModelingWorkspace() {
     const view = createBaseDrawingView({ bodyIds: engine.bodies.map((body) => body.id), orientation, scale, sheet: activeDrawingSheet });
     commit((next) => { next.drawings.find((sheet) => sheet.id === activeDrawingSheet.id)?.views.push(view); });
     setSelectedDrawingViewId(view.id);
+    setSelectedDrawingAnnotationId(null);
     setNotice(`Dodano skojarzony widok bazowy · Przód · skala ${scale}:1.`);
   };
 
@@ -3723,6 +3728,7 @@ export default function ModelingWorkspace() {
       sheet?.views.push(view);
     });
     setSelectedDrawingViewId(view.id);
+    setSelectedDrawingAnnotationId(null);
     setNotice(`${view.name} jest skojarzony z widokiem nadrzędnym i aktualnym modelem.`);
   };
 
@@ -3763,10 +3769,52 @@ export default function ModelingWorkspace() {
     }
     commit((next) => {
       const sheet = next.drawings.find((item) => item.id === activeDrawingSheet.id);
-      if (sheet) sheet.views = sheet.views.filter((view) => !deletedIds.has(view.id));
+      if (sheet) {
+        sheet.views = sheet.views.filter((view) => !deletedIds.has(view.id));
+        sheet.annotations = (sheet.annotations || []).filter((annotation) => !deletedIds.has(annotation.viewId));
+      }
     });
     setSelectedDrawingViewId(null);
+    setSelectedDrawingAnnotationId(null);
     setNotice(deletedIds.size === 1 ? 'Usunięto widok z arkusza. Model pozostał bez zmian.' : `Usunięto widok i ${deletedIds.size - 1} zależne widoki. Model pozostał bez zmian.`);
+  };
+
+  const addDrawingAnnotation = (type) => {
+    if (!activeDrawingSheet || !selectedDrawingView || readOnly) return;
+    const viewId = selectedDrawingView.id;
+    let annotation;
+    if (type === 'dimension-horizontal') annotation = createLinearDrawingDimension({ viewId, axis: 'horizontal', offset: 10, precision: 2 });
+    else if (type === 'dimension-vertical') annotation = createLinearDrawingDimension({ viewId, axis: 'vertical', offset: 10, precision: 2 });
+    else if (type === 'centerline') annotation = createCenterlineDrawingAnnotation({ viewId });
+    else if (type === 'center-mark') annotation = createCenterMarkDrawingAnnotation({ viewId });
+    else if (type === 'hole-note') annotation = createHoleNoteDrawingAnnotation({ viewId });
+    else if (type === 'thread-note') annotation = createHoleNoteDrawingAnnotation({ viewId, noteMode: 'thread', labelOffset: [18, -22] });
+    if (!annotation) return;
+    commit((next) => {
+      const sheet = next.drawings.find((item) => item.id === activeDrawingSheet.id);
+      if (sheet) (sheet.annotations ||= []).push(annotation);
+    });
+    setSelectedDrawingViewId(null);
+    setSelectedDrawingAnnotationId(annotation.id);
+    setNotice('Dodano skojarzone oznaczenie rysunkowe.');
+  };
+
+  const updateSelectedDrawingAnnotation = (patch) => {
+    if (!activeDrawingSheet || !selectedDrawingAnnotation || readOnly) return;
+    commit((next) => {
+      const annotation = next.drawings.find((sheet) => sheet.id === activeDrawingSheet.id)?.annotations?.find((item) => item.id === selectedDrawingAnnotation.id);
+      if (annotation) Object.assign(annotation, patch);
+    });
+  };
+
+  const deleteSelectedDrawingAnnotation = () => {
+    if (!activeDrawingSheet || !selectedDrawingAnnotation || readOnly) return;
+    commit((next) => {
+      const sheet = next.drawings.find((item) => item.id === activeDrawingSheet.id);
+      if (sheet) sheet.annotations = (sheet.annotations || []).filter((annotation) => annotation.id !== selectedDrawingAnnotation.id);
+    });
+    setSelectedDrawingAnnotationId(null);
+    setNotice('Usunięto oznaczenie rysunkowe.');
   };
 
   const exportActiveDrawingPdf = async () => {
@@ -4235,6 +4283,7 @@ export default function ModelingWorkspace() {
               <>
                 <RibbonGroup label="ARKUSZE"><ToolButton icon={FilePlus2} label="Nowy arkusz" onClick={createDrawingSheetInDocument} disabled={readOnly} primary /><ToolButton icon={Trash2} label="Usuń arkusz" onClick={deleteActiveDrawingSheet} disabled={readOnly || !activeDrawingSheet} /></RibbonGroup>
                 <RibbonGroup label="WIDOKI"><ToolButton icon={Frame} label="Widok bazowy" onClick={addBaseDrawingView} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Utwórz pierwszy skojarzony rzut modelu." /><ToolButton icon={FileText} label="Rzut" onClick={() => addDerivedDrawingView('projected')} disabled={readOnly || !selectedDrawingView} description="Utwórz wyrównany rzut od zaznaczonego widoku." /><ToolButton icon={Scissors} label="Przekrój" onClick={() => addDerivedDrawingView('section')} disabled={readOnly || !selectedDrawingView || selectedDrawingView.orientation === 'isometric'} description="Utwórz przekrój A-A z rzeczywistego przecięcia modelu." /><ToolButton icon={ScanSearch} label="Detal" onClick={() => addDerivedDrawingView('detail')} disabled={readOnly || !selectedDrawingView} description="Utwórz powiększony detal zaznaczonego widoku." /><ToolButton icon={Trash2} label="Usuń widok" onClick={deleteSelectedDrawingView} disabled={readOnly || !selectedDrawingViewId} /></RibbonGroup>
+                <RibbonGroup label="OZNACZENIA"><ToolButton icon={Ruler} label="Wymiar X" onClick={() => addDrawingAnnotation('dimension-horizontal')} disabled={readOnly || !selectedDrawingView} description="Dodaj skojarzony wymiar szerokości." /><ToolButton icon={Ruler} label="Wymiar Y" onClick={() => addDrawingAnnotation('dimension-vertical')} disabled={readOnly || !selectedDrawingView} description="Dodaj skojarzony wymiar wysokości." /><ToolButton icon={Minus} label="Oś" onClick={() => addDrawingAnnotation('centerline')} disabled={readOnly || !selectedDrawingView} description="Dodaj oś symetrii widoku." /><ToolButton icon={CircleDotDashed} label="Środek" onClick={() => addDrawingAnnotation('center-mark')} disabled={readOnly || !selectedDrawingView} description="Dodaj znacznik środka." /><ToolButton icon={Cylinder} label="Opis otworu" onClick={() => addDrawingAnnotation('hole-note')} disabled={readOnly || !selectedDrawingView} description="Dodaj opis średnicy odczytanej z modelu." /><ToolButton icon={Cylinder} label="Opis gwintu" onClick={() => addDrawingAnnotation('thread-note')} disabled={readOnly || !selectedDrawingView} description="Dodaj opis gwintu metrycznego i klasy tolerancji." /><ToolButton icon={Trash2} label="Usuń oznaczenie" onClick={deleteSelectedDrawingAnnotation} disabled={readOnly || !selectedDrawingAnnotation} /></RibbonGroup>
                 <RibbonGroup label="WYJŚCIE" end><ToolButton icon={Eye} label="Podgląd 1:1" onClick={() => { void previewActiveDrawing(); }} disabled={!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow} /><ToolButton icon={FileText} label="PDF" onClick={() => { void exportActiveDrawingPdf(); }} disabled={!activeDrawingSheet?.views.length} primary /></RibbonGroup>
               </>
             ) : workspace === 'tools' ? (
@@ -4293,16 +4342,21 @@ export default function ModelingWorkspace() {
             bodies={engine.bodies}
             activeSheetId={activeDrawingSheetId}
             selectedViewId={selectedDrawingViewId}
+            selectedAnnotationId={selectedDrawingAnnotationId}
             readOnly={readOnly}
             onCreateSheet={createDrawingSheetInDocument}
-            onSelectSheet={(sheetId) => { setActiveDrawingSheetId(sheetId); setSelectedDrawingViewId(null); }}
+            onSelectSheet={(sheetId) => { setActiveDrawingSheetId(sheetId); setSelectedDrawingViewId(null); setSelectedDrawingAnnotationId(null); }}
             onUpdateSheet={updateActiveDrawingSheet}
             onDeleteSheet={deleteActiveDrawingSheet}
             onAddBaseView={addBaseDrawingView}
             onAddDerivedView={addDerivedDrawingView}
-            onSelectView={setSelectedDrawingViewId}
+            onSelectView={(viewId) => { setSelectedDrawingViewId(viewId); setSelectedDrawingAnnotationId(null); }}
             onUpdateView={updateSelectedDrawingView}
             onDeleteView={deleteSelectedDrawingView}
+            onAddAnnotation={addDrawingAnnotation}
+            onSelectAnnotation={(annotationId) => { setSelectedDrawingAnnotationId(annotationId); setSelectedDrawingViewId(null); }}
+            onUpdateAnnotation={updateSelectedDrawingAnnotation}
+            onDeleteAnnotation={deleteSelectedDrawingAnnotation}
             onExportPdf={() => { void exportActiveDrawingPdf(); }}
           /> : <React.Suspense fallback={<div className="viewport-loading" role="status">Uruchamianie widoku 3D…</div>}>
           <ModelViewport

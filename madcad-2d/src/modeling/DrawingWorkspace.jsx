@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { FilePlus2, FileText, Plus, ScanSearch, Scissors, Trash2 } from 'lucide-react';
+import { CircleDot, Crosshair, FilePlus2, FileText, MoveHorizontal, MoveVertical, Plus, ScanSearch, Scissors, Trash2 } from 'lucide-react';
 import { drawingSheetScene, formatDrawingScale } from '../cad-core/drawing-sheets.js';
 
 const ORIENTATION_LABELS = {
@@ -16,7 +16,14 @@ const VIEW_TYPE_LABELS = {
   detail: 'Detal',
 };
 
-function DrawingSheetPreview({ documentName, sheet, bodies, selectedViewId, onSelectView }) {
+const ANNOTATION_TYPE_LABELS = {
+  'linear-dimension': 'Wymiar gabarytowy',
+  centerline: 'Oś',
+  'center-mark': 'Znacznik środka',
+  'hole-note': 'Opis otworu',
+};
+
+function DrawingSheetPreview({ documentName, sheet, bodies, selectedViewId, selectedAnnotationId, onSelectView, onSelectAnnotation }) {
   const scene = useMemo(() => drawingSheetScene(sheet, bodies), [sheet, bodies]);
   const titleTop = scene.height - scene.titleBlockHeight;
   return (
@@ -31,7 +38,12 @@ function DrawingSheetPreview({ documentName, sheet, bodies, selectedViewId, onSe
         </g>)}
         {scene.annotations.map((annotation) => annotation.type === 'section-line'
           ? <g key={`annotation-${annotation.ownerViewId}`} className={`drawing-annotation drawing-section-callout ${selectedViewId === annotation.ownerViewId ? 'selected' : ''}`} role="button" tabIndex="0" aria-label="Linia przekroju A-A" onClick={() => onSelectView(annotation.ownerViewId)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelectView(annotation.ownerViewId); }}><line x1={annotation.x1} y1={annotation.y1} x2={annotation.x2} y2={annotation.y2} /><text x={annotation.x1} y={annotation.y1 - 2}>A</text><text x={annotation.x2} y={annotation.y2 - 2}>A</text></g>
-          : <g key={`annotation-${annotation.ownerViewId}`} className={`drawing-annotation drawing-detail-callout ${selectedViewId === annotation.ownerViewId ? 'selected' : ''}`} role="button" tabIndex="0" aria-label="Obszar detalu A" onClick={() => onSelectView(annotation.ownerViewId)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelectView(annotation.ownerViewId); }}><circle cx={annotation.x} cy={annotation.y} r={annotation.radius} /><text x={annotation.x + annotation.radius + 2} y={annotation.y}>A</text></g>)}
+          : annotation.type === 'detail-callout'
+            ? <g key={`annotation-${annotation.ownerViewId}`} className={`drawing-annotation drawing-detail-callout ${selectedViewId === annotation.ownerViewId ? 'selected' : ''}`} role="button" tabIndex="0" aria-label="Obszar detalu A" onClick={() => onSelectView(annotation.ownerViewId)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelectView(annotation.ownerViewId); }}><circle cx={annotation.x} cy={annotation.y} r={annotation.radius} /><text x={annotation.x + annotation.radius + 2} y={annotation.y}>A</text></g>
+            : <g key={annotation.id} className={`drawing-annotation drawing-user-annotation drawing-${annotation.type} ${selectedAnnotationId === annotation.id ? 'selected' : ''}`} role="button" tabIndex="0" aria-label={ANNOTATION_TYPE_LABELS[annotation.type]} onClick={(event) => { event.stopPropagation(); onSelectAnnotation(annotation.id); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelectAnnotation(annotation.id); } }}>
+              {(annotation.segments || []).map(([first, second], index) => <line key={`segment-${index}`} x1={first[0]} y1={first[1]} x2={second[0]} y2={second[1]} />)}
+              {annotation.text && <text x={annotation.textX} y={annotation.textY} transform={annotation.textRotation ? `rotate(${annotation.textRotation} ${annotation.textX} ${annotation.textY})` : undefined}>{annotation.text}</text>}
+            </g>)}
         <g className="drawing-title-block">
           <rect x={scene.width - 132} y={titleTop} width="122" height="14" />
           <line x1={scene.width - 55} y1={titleTop} x2={scene.width - 55} y2={scene.height - 10} />
@@ -61,10 +73,45 @@ function DerivedViewControls({ view, readOnly, onUpdateView }) {
   return null;
 }
 
-export default function DrawingWorkspace({ document, bodies, activeSheetId, selectedViewId, readOnly = false, onCreateSheet, onSelectSheet, onUpdateSheet, onDeleteSheet, onAddBaseView, onAddDerivedView, onSelectView, onUpdateView, onDeleteView, onExportPdf }) {
+function AnnotationControls({ annotation, rendered, readOnly, onUpdateAnnotation, onDeleteAnnotation }) {
+  const updateCenter = (index, value) => {
+    const center = [...annotation.center];
+    center[index] = Math.max(0, Math.min(1, Number(value) / 100));
+    onUpdateAnnotation({ center });
+  };
+  return <div className="drawing-view-properties drawing-annotation-properties">
+    <strong>{ANNOTATION_TYPE_LABELS[annotation.type]}</strong>
+    <small className="drawing-association-status">Skojarzone z widokiem · aktualizowane z modelem</small>
+    {(annotation.type === 'linear-dimension' || annotation.type === 'centerline') && <label><span>Kierunek</span><select value={annotation.axis} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ axis: event.target.value })}><option value="horizontal">Poziomy</option><option value="vertical">Pionowy</option></select></label>}
+    {annotation.type === 'linear-dimension' && <>
+      <div className="drawing-property-row"><label><span>Odsunięcie [mm]</span><input type="number" min="-100" max="100" value={annotation.offset} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ offset: Math.max(-100, Math.min(100, Number(event.target.value) || 0)) })} /></label><label><span>Miejsca</span><input type="number" min="0" max="4" value={annotation.precision} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ precision: Math.max(0, Math.min(4, Math.trunc(Number(event.target.value) || 0))) })} /></label></div>
+      <label><span>Tolerancja</span><select value={annotation.toleranceMode} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ toleranceMode: event.target.value })}><option value="none">Bez tolerancji</option><option value="symmetric">Symetryczna ±</option><option value="deviation">Odchyłki +/−</option></select></label>
+      {annotation.toleranceMode !== 'none' && <div className="drawing-property-row"><label><span>{annotation.toleranceMode === 'symmetric' ? '± [mm]' : 'Górna [mm]'}</span><input type="number" min="0" step="0.01" value={annotation.upperTolerance} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ upperTolerance: Math.max(0, Number(event.target.value) || 0), ...(annotation.toleranceMode === 'symmetric' ? { lowerTolerance: Math.max(0, Number(event.target.value) || 0) } : {}) })} /></label>{annotation.toleranceMode === 'deviation' && <label><span>Dolna [mm]</span><input type="number" min="0" step="0.01" value={annotation.lowerTolerance} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ lowerTolerance: Math.max(0, Number(event.target.value) || 0) })} /></label>}</div>}
+      <small className="drawing-calculated-value">Wartość z modelu: {rendered?.text || '—'} mm</small>
+    </>}
+    {annotation.type === 'centerline' && <label><span>Położenie [%]</span><input type="number" min="-100" max="100" value={Math.round(annotation.offset * 100)} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ offset: Math.max(-1, Math.min(1, Number(event.target.value) / 100 || 0)) })} /></label>}
+    {(annotation.type === 'center-mark' || annotation.type === 'hole-note') && <div className="drawing-property-row"><label><span>Środek X [%]</span><input type="number" min="0" max="100" value={Math.round(annotation.center[0] * 100)} disabled={readOnly} onChange={(event) => updateCenter(0, event.target.value)} /></label><label><span>Środek Y [%]</span><input type="number" min="0" max="100" value={Math.round(annotation.center[1] * 100)} disabled={readOnly} onChange={(event) => updateCenter(1, event.target.value)} /></label></div>}
+    {annotation.type === 'center-mark' && <label><span>Rozmiar [mm]</span><input type="number" min="2" max="20" value={annotation.size} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ size: Math.max(2, Math.min(20, Number(event.target.value) || 5)) })} /></label>}
+    {annotation.type === 'hole-note' && <>
+      <label><span>Rodzaj opisu</span><select value={annotation.noteMode} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ noteMode: event.target.value })}><option value="hole">Otwór</option><option value="thread">Gwint</option></select></label>
+      {annotation.noteMode === 'hole' ? <>
+        <label><span>Średnica</span><select value={annotation.diameterSource} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ diameterSource: event.target.value, ...(event.target.value === 'manual' && !(annotation.diameter > 0) ? { diameter: rendered?.diameter || 1 } : {}) })}><option value="model">Automatycznie z modelu</option><option value="manual">Wartość ręczna</option></select></label>
+        <label><span>⌀ [mm]</span><input type="number" min="0.001" step="0.1" value={annotation.diameterSource === 'model' ? rendered?.diameter || 0 : annotation.diameter} disabled={readOnly || annotation.diameterSource === 'model'} onChange={(event) => onUpdateAnnotation({ diameter: Math.max(0.001, Number(event.target.value) || 1) })} /></label>
+      </> : <div className="drawing-property-row"><label><span>Oznaczenie</span><input value={annotation.threadDesignation} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ threadDesignation: event.target.value.slice(0, 30) })} /></label><label><span>Klasa</span><input value={annotation.threadClass} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ threadClass: event.target.value.slice(0, 12) })} /></label></div>}
+      <label><span>Liczba otworów</span><input type="number" min="1" max="99" value={annotation.quantity} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ quantity: Math.max(1, Math.min(99, Math.trunc(Number(event.target.value) || 1))) })} /></label>
+      <label className="drawing-checkbox"><input type="checkbox" checked={annotation.through} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ through: event.target.checked })} /><span>Otwór przelotowy (THRU)</span></label>
+      <small className="drawing-calculated-value">Opis: {rendered?.text || 'Brak walcowej geometrii'}</small>
+    </>}
+    <button className="danger" type="button" onClick={onDeleteAnnotation} disabled={readOnly}><Trash2 size={14} /> Usuń oznaczenie</button>
+  </div>;
+}
+
+export default function DrawingWorkspace({ document, bodies, activeSheetId, selectedViewId, selectedAnnotationId, readOnly = false, onCreateSheet, onSelectSheet, onUpdateSheet, onDeleteSheet, onAddBaseView, onAddDerivedView, onSelectView, onUpdateView, onDeleteView, onAddAnnotation, onSelectAnnotation, onUpdateAnnotation, onDeleteAnnotation, onExportPdf }) {
   const activeSheet = document.drawings.find((sheet) => sheet.id === activeSheetId) || document.drawings[0] || null;
   const activeScene = useMemo(() => activeSheet ? drawingSheetScene(activeSheet, bodies) : null, [activeSheet, bodies]);
   const selectedView = activeScene?.views.find((view) => view.id === selectedViewId) || null;
+  const selectedAnnotation = activeSheet?.annotations?.find((annotation) => annotation.id === selectedAnnotationId) || null;
+  const renderedSelectedAnnotation = activeScene?.annotations.find((annotation) => annotation.id === selectedAnnotationId) || null;
 
   if (!activeSheet) {
     return <section className="drawing-workspace drawing-empty" aria-label="Dokumentacja techniczna">
@@ -81,7 +128,7 @@ export default function DrawingWorkspace({ document, bodies, activeSheetId, sele
       {document.drawings.map((sheet, index) => <button type="button" className={sheet.id === activeSheet.id ? 'active' : ''} key={sheet.id} onClick={() => onSelectSheet(sheet.id)}><FileText size={15} /><span><strong>{sheet.name}</strong><small>{sheet.pageSize} · {sheet.orientation === 'landscape' ? 'poziomo' : 'pionowo'} · {sheet.views.length} wid.</small></span><em>{index + 1}</em></button>)}
     </nav>
 
-    <DrawingSheetPreview documentName={document.name} sheet={activeSheet} bodies={bodies} selectedViewId={selectedViewId} onSelectView={onSelectView} />
+    <DrawingSheetPreview documentName={document.name} sheet={activeSheet} bodies={bodies} selectedViewId={selectedViewId} selectedAnnotationId={selectedAnnotationId} onSelectView={onSelectView} onSelectAnnotation={onSelectAnnotation} />
 
     <aside className="drawing-properties" aria-label="Właściwości arkusza">
       <header><FileText size={16} /><strong>Właściwości</strong></header>
@@ -92,6 +139,15 @@ export default function DrawingWorkspace({ document, bodies, activeSheetId, sele
         <button type="button" title="Utwórz wyrównany rzut od zaznaczonego widoku" onClick={() => onAddDerivedView('projected')} disabled={readOnly || !selectedView}><FileText size={14} /> Rzut</button>
         <button type="button" title="Utwórz przekrój A-A od zaznaczonego widoku" onClick={() => onAddDerivedView('section')} disabled={readOnly || !selectedView || selectedView.orientation === 'isometric'}><Scissors size={14} /> Przekrój</button>
         <button type="button" title="Utwórz powiększony detal od zaznaczonego widoku" onClick={() => onAddDerivedView('detail')} disabled={readOnly || !selectedView}><ScanSearch size={14} /> Detal</button>
+      </div>
+      <small className="drawing-group-label">Oznaczenia widoku</small>
+      <div className="drawing-actions drawing-annotation-actions">
+        <button type="button" title="Wymiar szerokości skojarzony z modelem" onClick={() => onAddAnnotation('dimension-horizontal')} disabled={readOnly || !selectedView}><MoveHorizontal size={14} /> Wymiar X</button>
+        <button type="button" title="Wymiar wysokości skojarzony z modelem" onClick={() => onAddAnnotation('dimension-vertical')} disabled={readOnly || !selectedView}><MoveVertical size={14} /> Wymiar Y</button>
+        <button type="button" title="Dodaj oś symetrii widoku" onClick={() => onAddAnnotation('centerline')} disabled={readOnly || !selectedView}><Crosshair size={14} /> Oś</button>
+        <button type="button" title="Dodaj krzyżyk środka" onClick={() => onAddAnnotation('center-mark')} disabled={readOnly || !selectedView}><CircleDot size={14} /> Środek</button>
+        <button type="button" title="Dodaj skojarzony opis średnicy otworu" onClick={() => onAddAnnotation('hole-note')} disabled={readOnly || !selectedView}><CircleDot size={14} /> Opis otworu</button>
+        <button type="button" title="Dodaj opis gwintu metrycznego" onClick={() => onAddAnnotation('thread-note')} disabled={readOnly || !selectedView}><CircleDot size={14} /> Opis gwintu</button>
       </div>
       {!bodies.length && <p className="drawing-hint">Najpierw utwórz albo zaimportuj model 3D.</p>}
       {selectedView && <div className="drawing-view-properties">
@@ -104,6 +160,7 @@ export default function DrawingWorkspace({ document, bodies, activeSheetId, sele
         <div className="drawing-property-row"><label><span>X [mm]</span><input type="number" value={selectedView.x} disabled={readOnly || selectedView.alignment === 'vertical'} onChange={(event) => onUpdateView({ x: Number(event.target.value) || 0 })} /></label><label><span>Y [mm]</span><input type="number" value={selectedView.y} disabled={readOnly || selectedView.alignment === 'horizontal'} onChange={(event) => onUpdateView({ y: Number(event.target.value) || 0 })} /></label></div>
         <button className="danger" type="button" onClick={onDeleteView} disabled={readOnly}><Trash2 size={14} /> Usuń widok</button>
       </div>}
+      {selectedAnnotation && <AnnotationControls annotation={selectedAnnotation} rendered={renderedSelectedAnnotation} readOnly={readOnly} onUpdateAnnotation={onUpdateAnnotation} onDeleteAnnotation={onDeleteAnnotation} />}
       <button className="drawing-delete-sheet" type="button" onClick={onDeleteSheet} disabled={readOnly}><Trash2 size={14} /> Usuń arkusz</button>
       <button className="drawing-export-pdf" type="button" onClick={onExportPdf} disabled={!activeSheet.views.length}><FileText size={14} /> Eksport PDF</button>
     </aside>

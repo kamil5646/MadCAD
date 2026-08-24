@@ -8,7 +8,7 @@ import {
   isSupportedLineType,
 } from './layers.js';
 import { ensureDocumentBlocks } from './blocks.js';
-import { DRAWING_PAGE_SIZES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
+import { DRAWING_ANNOTATION_TYPES, DRAWING_PAGE_SIZES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
 import {
   SKETCH_ENTITY_ROLES,
   SKETCH_ENTITY_TYPES,
@@ -17,7 +17,7 @@ import {
   normalizeSketchModel,
 } from './sketch-model.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 6;
+export const DOCUMENT_SCHEMA_VERSION = 7;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -119,11 +119,28 @@ function migrateV5ToV6(source, now) {
   return migrated;
 }
 
+function migrateV6ToV7(source, now) {
+  const migrated = ensureDocumentDrawings(ensureV3Collections(cloneDocument(source)));
+  migrated.schemaVersion = 7;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 6,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 6, to: 7, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
   [4, migrateV4ToV5],
   [5, migrateV5ToV6],
+  [6, migrateV6ToV7],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -1029,6 +1046,7 @@ export function validateDocument(document) {
     if (!DRAWING_PAGE_SIZES[sheet.pageSize]) add(`${base}.pageSize`, `Nieobsługiwany format arkusza: ${sheet.pageSize ?? ''}.`, 'UNSUPPORTED');
     if (!['landscape', 'portrait'].includes(sheet.orientation)) add(`${base}.orientation`, 'Orientacja arkusza musi być pozioma albo pionowa.', 'UNSUPPORTED');
     const views = requireArray(sheet, 'views', `${base}.views`);
+    const annotations = requireArray(sheet, 'annotations', `${base}.annotations`);
     const viewIds = new Set(views.filter(isRecord).map((view) => view.id).filter((id) => typeof id === 'string' && id));
     const viewIndexById = new Map(views.map((view, index) => [view?.id, index]).filter(([id]) => typeof id === 'string' && id));
     const viewParents = new Map();
@@ -1078,6 +1096,40 @@ export function validateDocument(document) {
         parentId = viewParents.get(parentId);
       }
     }
+    annotations.forEach((annotation, annotationIndex) => {
+      const annotationBase = `${base}.annotations[${annotationIndex}]`;
+      if (!isRecord(annotation)) {
+        add(annotationBase, 'Adnotacja rysunkowa musi być obiektem.', 'TYPE');
+        return;
+      }
+      registerId(annotation.id, `${annotationBase}.id`);
+      if (!DRAWING_ANNOTATION_TYPES.includes(annotation.type)) add(`${annotationBase}.type`, `Nieobsługiwany typ adnotacji: ${annotation.type ?? ''}.`, 'UNSUPPORTED');
+      if (typeof annotation.viewId !== 'string' || !viewIds.has(annotation.viewId)) add(`${annotationBase}.viewId`, 'Adnotacja wymaga istniejącego widoku na tym samym arkuszu.', 'BROKEN_REFERENCE');
+      if (annotation.type === 'linear-dimension') {
+        if (!['horizontal', 'vertical'].includes(annotation.axis)) add(`${annotationBase}.axis`, 'Wymiar musi być poziomy albo pionowy.', 'UNSUPPORTED');
+        if (!Number.isFinite(Number(annotation.offset)) || Math.abs(Number(annotation.offset)) > 100) add(`${annotationBase}.offset`, 'Odsunięcie wymiaru musi mieścić się między -100 i 100 mm.', 'VALUE');
+        if (!Number.isInteger(Number(annotation.precision)) || Number(annotation.precision) < 0 || Number(annotation.precision) > 4) add(`${annotationBase}.precision`, 'Dokładność wymiaru musi mieścić się między 0 i 4 miejscami.', 'VALUE');
+        if (!['none', 'symmetric', 'deviation'].includes(annotation.toleranceMode)) add(`${annotationBase}.toleranceMode`, 'Nieobsługiwany zapis tolerancji.', 'UNSUPPORTED');
+        if (Number(annotation.upperTolerance) < 0 || Number(annotation.lowerTolerance) < 0) add(annotationBase, 'Tolerancje nie mogą być ujemne.', 'VALUE');
+      }
+      if (annotation.type === 'centerline') {
+        if (!['horizontal', 'vertical'].includes(annotation.axis)) add(`${annotationBase}.axis`, 'Oś musi być pozioma albo pionowa.', 'UNSUPPORTED');
+        if (!Number.isFinite(Number(annotation.offset)) || Math.abs(Number(annotation.offset)) > 1) add(`${annotationBase}.offset`, 'Położenie osi musi mieścić się między -1 i 1.', 'VALUE');
+      }
+      if (annotation.type === 'center-mark' || annotation.type === 'hole-note') {
+        if (!Array.isArray(annotation.center) || annotation.center.length !== 2 || annotation.center.some((value) => !(Number(value) >= 0 && Number(value) <= 1))) add(`${annotationBase}.center`, 'Położenie znacznika wymaga dwóch współrzędnych względnych 0–1.', 'VALUE');
+      }
+      if (annotation.type === 'center-mark' && !(Number(annotation.size) >= 2 && Number(annotation.size) <= 20)) add(`${annotationBase}.size`, 'Rozmiar znacznika środka musi mieścić się między 2 i 20 mm.', 'VALUE');
+      if (annotation.type === 'hole-note') {
+        if (!Array.isArray(annotation.labelOffset) || annotation.labelOffset.length !== 2 || annotation.labelOffset.some((value) => !Number.isFinite(Number(value)))) add(`${annotationBase}.labelOffset`, 'Odnośnik opisu otworu wymaga dwóch liczbowych współrzędnych.', 'TYPE');
+        if (!['model', 'manual'].includes(annotation.diameterSource)) add(`${annotationBase}.diameterSource`, 'Źródło średnicy musi wskazywać model albo wartość ręczną.', 'UNSUPPORTED');
+        if (!['hole', 'thread'].includes(annotation.noteMode)) add(`${annotationBase}.noteMode`, 'Opis musi dotyczyć otworu albo gwintu.', 'UNSUPPORTED');
+        if (annotation.diameterSource === 'manual' && !(Number(annotation.diameter) > 0)) add(`${annotationBase}.diameter`, 'Ręczna średnica otworu musi być dodatnia.', 'VALUE');
+        if (!Number.isInteger(Number(annotation.quantity)) || Number(annotation.quantity) < 1 || Number(annotation.quantity) > 99) add(`${annotationBase}.quantity`, 'Liczba otworów musi mieścić się między 1 i 99.', 'VALUE');
+        if (annotation.noteMode === 'thread' && (typeof annotation.threadDesignation !== 'string' || !annotation.threadDesignation.trim())) add(`${annotationBase}.threadDesignation`, 'Opis gwintu wymaga oznaczenia, np. M8×1.25.', 'REQUIRED');
+        if (annotation.noteMode === 'thread' && (typeof annotation.threadClass !== 'string' || !annotation.threadClass.trim())) add(`${annotationBase}.threadClass`, 'Opis gwintu wymaga klasy tolerancji.', 'REQUIRED');
+      }
+    });
   });
 
   const errors = issues.map((issue) => `${issue.path}: ${issue.message}`);

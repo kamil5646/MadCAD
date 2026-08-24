@@ -1210,8 +1210,14 @@
 .drawing-annotation line {
   stroke: #111;
   stroke-width: .25;
-  stroke-dasharray: 3 1;
 }
+.drawing-section-callout line,
+.drawing-detail-callout line,
+.drawing-centerline line,
+.drawing-center-mark line { stroke-dasharray: 3 1; }
+.drawing-linear-dimension line,
+.drawing-hole-note line { stroke-width: .2; }
+.drawing-user-annotation { outline: none; }
 .drawing-annotation text { fill: #111; font-size: 3px; font-weight: 700; }
 .drawing-annotation:hover line,
 .drawing-annotation:hover circle,
@@ -1262,10 +1268,16 @@
 .drawing-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 0 9px; }
 .drawing-actions button { min-width: 0; padding: 0 5px; font-size: 10px; }
 .drawing-create-actions { grid-template-columns: 1fr 1fr; }
+.drawing-annotation-actions { grid-template-columns: 1fr 1fr; }
+.drawing-group-label { margin: 1px 9px -3px; color: #aeb9c2; font-size: 9px; font-weight: 700; text-transform: uppercase; }
 .drawing-hint { margin: 0 9px; color: #f0c879; font-size: 10px; line-height: 1.4; }
 .drawing-view-properties { display: grid; gap: 8px; margin: 2px 9px 0; padding: 9px 0; border-top: 1px solid #4a5663; border-bottom: 1px solid #4a5663; }
 .drawing-view-properties > strong { padding: 0 9px; color: #6dd3ee; }
 .drawing-association-status { margin: -4px 9px 0; color: #8fd1a5; font-size: 9px; line-height: 1.35; }
+.drawing-calculated-value { margin: -2px 9px 0; color: #d9e4eb; font-size: 10px; line-height: 1.35; }
+.drawing-properties .drawing-checkbox { display: flex; align-items: center; gap: 7px; }
+.drawing-properties .drawing-checkbox input { width: 15px; height: 15px; margin: 0; }
+.drawing-properties .drawing-checkbox span { text-transform: none; }
 .drawing-view-properties .drawing-property-row label:first-child { padding-left: 9px; }
 .drawing-view-properties .drawing-property-row label:last-child { padding-right: 9px; }
 .drawing-view-properties .danger,
