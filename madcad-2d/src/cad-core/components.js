@@ -1,6 +1,14 @@
 import { createId } from './ids.js';
 
 export const COMPONENT_TYPES = Object.freeze(['part', 'assembly']);
+export const COMPONENT_APPEARANCE_PRESETS = Object.freeze([
+  Object.freeze({ id: 'cad', label: 'CAD neutralny', color: '#5aaed0', metalness: 0.08, roughness: 0.56 }),
+  Object.freeze({ id: 'aluminum', label: 'Aluminium satynowe', color: '#b9c2c9', metalness: 0.72, roughness: 0.34 }),
+  Object.freeze({ id: 'steel', label: 'Stal szczotkowana', color: '#8e9ba4', metalness: 0.82, roughness: 0.4 }),
+  Object.freeze({ id: 'brass', label: 'Mosiądz', color: '#c49a49', metalness: 0.78, roughness: 0.3 }),
+  Object.freeze({ id: 'plastic', label: 'Tworzywo matowe', color: '#3f78a8', metalness: 0.02, roughness: 0.72 }),
+]);
+export const DEFAULT_COMPONENT_APPEARANCE = COMPONENT_APPEARANCE_PRESETS[0];
 export const DEFAULT_INSTANCE_TRANSFORM = Object.freeze({
   x: 0,
   y: 0,
@@ -80,6 +88,30 @@ function normalizedQuantity(value) {
   return Math.max(1, Math.min(9999, Number.isFinite(quantity) ? quantity : 1));
 }
 
+function clampedUnit(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(1, number)) : fallback;
+}
+
+export function componentAppearancePreset(presetId = 'cad') {
+  const preset = COMPONENT_APPEARANCE_PRESETS.find((item) => item.id === presetId) || DEFAULT_COMPONENT_APPEARANCE;
+  return { preset: preset.id, color: preset.color, metalness: preset.metalness, roughness: preset.roughness };
+}
+
+export function normalizeComponentAppearance(appearance) {
+  const requestedPreset = appearance?.preset || appearance?.id || 'cad';
+  const preset = componentAppearancePreset(requestedPreset);
+  const color = typeof appearance?.color === 'string' && /^#[0-9a-f]{6}$/i.test(appearance.color)
+    ? appearance.color.toLowerCase()
+    : preset.color;
+  return {
+    preset: COMPONENT_APPEARANCE_PRESETS.some((item) => item.id === requestedPreset) ? requestedPreset : 'custom',
+    color,
+    metalness: clampedUnit(appearance?.metalness, preset.metalness),
+    roughness: clampedUnit(appearance?.roughness, preset.roughness),
+  };
+}
+
 function normalizedComponent(component, index = 0) {
   const componentIds = uniqueStrings(component?.componentIds);
   const bodyIds = uniqueStrings(component?.bodyIds);
@@ -93,6 +125,7 @@ function normalizedComponent(component, index = 0) {
     partNumber: String(component?.partNumber || `MC-${String(index + 1).padStart(3, '0')}`).trim().slice(0, 60),
     description: String(component?.description || '').trim().slice(0, 240),
     material: String(component?.material || '').trim().slice(0, 80),
+    appearance: normalizeComponentAppearance(component?.appearance || DEFAULT_COMPONENT_APPEARANCE),
     quantity: normalizedQuantity(component?.quantity),
     origin: normalizedOrigin(component?.origin),
     bodyIds,
@@ -392,6 +425,7 @@ export function createComponent(document, {
   partNumber,
   description = '',
   material = '',
+  appearance = DEFAULT_COMPONENT_APPEARANCE,
   quantity = 1,
   origin = { x: 0, y: 0, z: 0 },
   bodyIds = [],
@@ -409,6 +443,7 @@ export function createComponent(document, {
     partNumber: String(partNumber || nextPartNumber(document)).trim(),
     description,
     material,
+    appearance,
     quantity,
     origin,
     bodyIds,

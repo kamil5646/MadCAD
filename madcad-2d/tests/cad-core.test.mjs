@@ -217,6 +217,7 @@ test('migracja v9 uzupełnia komponent i główne wystąpienie w bieżącym sche
   assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(opened.document.components[0], {
     id: 'legacy-component', name: 'Korpus', type: 'part', partNumber: 'K-1', description: '', material: 'Aluminium', quantity: 2,
+    appearance: { preset: 'cad', color: '#5aaed0', metalness: 0.08, roughness: 0.56 },
     origin: { x: 0, y: 0, z: 0 }, bodyIds: [], sketchIds: [], componentIds: [], linkedProjectId: '',
   });
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 9 && entry.to === 10));
@@ -2191,6 +2192,7 @@ test('interfejs modelowania rozpoznaje PL/EN i tłumaczy także dynamiczny stan 
   assert.equal(translateModelingText('Przeliczanie historii…', 'en'), 'Recomputing history…');
   assert.equal(translateModelingText('A4 · poziomo · 1 wid.', 'en'), 'A4 · landscape · 1 view');
   assert.equal(translateModelingText('Widok bazowy, Przód, skala 2:1', 'en'), 'Base view, Front, scale 2:1');
+  assert.equal(translateModelingText('78% metal · 30% chropowatości', 'en'), '78% metal · 30% roughness');
   assert.equal(translateModelingText('Skojarzony z modelem i widokiem nadrzędnym', 'en'), 'Associated with model and parent view');
   assert.equal(
     translateModelingText('Linia. Utwórz pojedynczy segment przez dwa punkty albo przez dokładną długość i kąt. Skrót: L ↵.', 'en'),

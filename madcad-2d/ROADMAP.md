@@ -171,6 +171,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.34a Interference uruchamia dokładną analizę tylko dla dwóch świadomie wskazanych wystąpień, odróżnia potwierdzone przecięcie siatek od ryzyka obwiedni i wyniku czystego oraz pokazuje wymiary nakładania obwiedni bez przedstawiania ich jako dokładnej objętości przecięcia.
 - [x] P1.34b Named Views zapisuje w dokumencie dokładną pozycję kamery, punkt celu i kierunek góry po dowolnej orbicie lub panoramowaniu. Zwarty panel przywraca widok jednym kliknięciem, usuwa go z Undo/Redo i zachowuje dane po ponownym otwarciu bez podnoszenia zgodnego wstecznie schematu v15.
 - [x] P1.34c ViewCube udostępnia komplet widoków Góra/Dół/Przód/Tył/Lewo/Prawo oraz izometrię w zwartej, przestrzennej kontrolce. Każdy kierunek ma nazwę dostępności, stan aktywny i test rzeczywistego wektora kamery; forma pozostaje płaska bez gradientów i nie zasłania narzędzi nawigacji.
+- [x] P1.35a Appearance zapisuje na definicji komponentu preset, kolor, metaliczność i chropowatość, stosuje je do wszystkich wystąpień w widoku 3D oraz zachowuje zgodność ze starszymi dokumentami bez pola wyglądu. Testy potwierdzają zapis/otwarcie, Undo/Redo, rzeczywisty materiał renderera i układ panelu bez przepełnienia.
 
 ## P2 — dokumentacja techniczna 2D
 

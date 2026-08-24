@@ -3,6 +3,7 @@ const path = require('path');
 const { app, BrowserWindow } = require('electron');
 
 const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-components.png');
+const appearanceScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-component-appearance.png');
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
   const startedAt = Date.now();
@@ -64,9 +65,18 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState.components.find((item) => item.id === ${JSON.stringify(partId)})?.partNumber === 'MC-RAMA-001'`, 'numer części');
     await setInput(window, 'input[aria-label="Materiał komponentu"]', 'S355');
     await waitFor(window, `window.__madcadVerifyDocumentState.components.find((item) => item.id === ${JSON.stringify(partId)})?.material === 'S355'`, 'materiał części');
+    await setSelect(window, 'select[aria-label="Preset wyglądu komponentu"]', 'brass');
+    await waitFor(window, `window.__madcadVerifyDocumentState.components.find((item) => item.id === ${JSON.stringify(partId)})?.appearance?.preset === 'brass'`, 'preset wyglądu części');
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState.components.find((item) => item.id === ${JSON.stringify(partId)})?.appearance?.preset === 'cad'`, 'undo wyglądu części');
+    await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState.components.find((item) => item.id === ${JSON.stringify(partId)})?.appearance?.preset === 'brass'`, 'redo wyglądu części');
+    await window.webContents.executeJavaScript(`document.querySelector('.component-appearance-preview')?.scrollIntoView({ block: 'center' })`);
+    await fs.writeFile(appearanceScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
     if (!(await clickByText(window, '.component-toolbar button', 'Nowe złożenie'))) throw new Error('Nie znaleziono tworzenia złożenia.');
     await waitFor(window, `window.__madcadVerifyDocumentState.components.length === 2 && window.__madcadVerifyDocumentState.selection.kind === 'component'`, 'nowe złożenie');
+    await waitFor(window, `window.__madcadModelVisualState?.some((item) => item.bodyId === window.__madcadVerifyDocumentState.bodyIds[0] && item.color === '#c49a49' && item.metalness === 0.78 && item.roughness === 0.3)`, 'wygląd części w widoku 3D');
     const assemblyId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.components.find((item) => item.type === 'assembly').id`);
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.component-list > button')].find((button) => button.textContent.includes('Rama główna')).click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(partId)}`, 'ponowne zaznaczenie części');
@@ -197,6 +207,7 @@ app.whenReady().then(async () => {
         assemblyChildren: assembly.componentIds.length,
         partNumber: part.partNumber,
         material: part.material,
+        appearance: part.appearance,
         ownedBodies: part.bodyIds.length,
         instances: state.componentInstances.length,
         rigidGroups: state.rigidGroups.length,
@@ -231,10 +242,10 @@ app.whenReady().then(async () => {
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
-    if (result.schemaVersion !== 15 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.interferenceStatus !== 'exact' || !result.interferenceBounds.includes('Nakładanie obwiedni:') || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
+    if (result.schemaVersion !== 15 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.appearance?.preset !== 'brass' || result.appearance?.color !== '#c49a49' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.interferenceStatus !== 'exact' || !result.interferenceBounds.includes('Nakładanie obwiedni:') || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
       throw new Error(`Niepoprawny przepływ komponentów: ${JSON.stringify(result)}`);
     }
-    process.stdout.write(`${JSON.stringify({ screenshotPath, ...result }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ screenshotPath, appearanceScreenshotPath, ...result }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

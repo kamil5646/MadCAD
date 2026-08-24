@@ -208,6 +208,20 @@ const ENGLISH_TEXT = Object.freeze({
   'Numer części komponentu': 'Component part number',
   'Typ komponentu': 'Component type',
   'Materiał komponentu': 'Component material',
+  'Wygląd modelu': 'Model appearance',
+  'APPEARANCE': 'APPEARANCE',
+  'Preset': 'Preset',
+  'Preset wyglądu komponentu': 'Component appearance preset',
+  'Kolor wyglądu komponentu': 'Component appearance color',
+  'Metaliczność': 'Metalness',
+  'Metaliczność wyglądu komponentu': 'Component appearance metalness',
+  'Chropowatość': 'Roughness',
+  'Chropowatość wyglądu komponentu': 'Component appearance roughness',
+  'CAD neutralny': 'Neutral CAD',
+  'Aluminium satynowe': 'Satin aluminum',
+  'Stal szczotkowana': 'Brushed steel',
+  'Mosiądz': 'Brass',
+  'Tworzywo matowe': 'Matte plastic',
   'Ilość komponentu': 'Component quantity',
   'Złożenie nadrzędne': 'Parent assembly',
   'Opis komponentu': 'Component description',
@@ -1023,6 +1037,7 @@ const ENGLISH_TEXT = Object.freeze({
 });
 
 const ENGLISH_PHRASES = Object.freeze([
+  [/(\d+)% metal · (\d+)% chropowatości/g, '$1% metal · $2% roughness'],
   [/(\d+) krytycznych · (\d+) ostrzeżeń · (\d+) informacji/g, '$1 critical · $2 warnings · $3 information'],
   [/Wyłączona operacja: (.+)/g, 'Suppressed feature: $1'],
   [/Operacja poza punktem cofnięcia: (.+)/g, 'Feature beyond rollback point: $1'],

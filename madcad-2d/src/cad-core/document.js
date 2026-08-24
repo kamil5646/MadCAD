@@ -1301,6 +1301,14 @@ export function validateDocument(document) {
     else componentPartNumbers.add(component.partNumber.toLocaleLowerCase());
     if (typeof component.description !== 'string') add(`${base}.description`, 'Opis komponentu musi być tekstem.', 'TYPE');
     if (typeof component.material !== 'string') add(`${base}.material`, 'Materiał komponentu musi być tekstem.', 'TYPE');
+    if (component.appearance !== undefined) {
+      if (!isRecord(component.appearance)) add(`${base}.appearance`, 'Wygląd komponentu musi być obiektem.', 'TYPE');
+      else {
+        if (typeof component.appearance.preset !== 'string') add(`${base}.appearance.preset`, 'Preset wyglądu musi być tekstem.', 'TYPE');
+        if (typeof component.appearance.color !== 'string' || !/^#[0-9a-f]{6}$/i.test(component.appearance.color)) add(`${base}.appearance.color`, 'Kolor wyglądu musi mieć format #RRGGBB.', 'FORMAT');
+        for (const property of ['metalness', 'roughness']) if (!Number.isFinite(Number(component.appearance[property])) || Number(component.appearance[property]) < 0 || Number(component.appearance[property]) > 1) add(`${base}.appearance.${property}`, `${property} musi mieścić się w zakresie 0–1.`, 'VALUE');
+      }
+    }
     if (!Number.isInteger(Number(component.quantity)) || Number(component.quantity) < 1 || Number(component.quantity) > 9999) add(`${base}.quantity`, 'Ilość komponentu musi mieścić się między 1 i 9999.', 'VALUE');
     if (!isRecord(component.origin) || ['x', 'y', 'z'].some((axis) => !Number.isFinite(Number(component.origin?.[axis])))) add(`${base}.origin`, 'Początek komponentu wymaga liczbowych współrzędnych X, Y i Z.', 'TYPE');
     if (component.linkedProjectId && !linkedProjectIds.has(component.linkedProjectId)) add(`${base}.linkedProjectId`, 'Komponent wskazuje brakujące łącze projektu.', 'BROKEN_REFERENCE');

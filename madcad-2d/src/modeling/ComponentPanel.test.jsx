@@ -6,7 +6,7 @@ import { ProjectBrowser } from './WorkspaceOverlays.jsx';
 
 const components = [
   { id: 'assembly-1', name: 'Wspornik', type: 'assembly', partNumber: 'A-001', description: '', material: '', quantity: 1, origin: { x: 0, y: 0, z: 0 }, bodyIds: [], sketchIds: [], componentIds: ['part-1'] },
-  { id: 'part-1', name: 'Rama', type: 'part', partNumber: 'P-001', description: 'Rama główna', material: 'S355', quantity: 2, origin: { x: 1, y: 2, z: 3 }, bodyIds: ['body-1'], sketchIds: [], componentIds: [] },
+  { id: 'part-1', name: 'Rama', type: 'part', partNumber: 'P-001', description: 'Rama główna', material: 'S355', appearance: { preset: 'steel', color: '#8e9ba4', metalness: 0.82, roughness: 0.4 }, quantity: 2, origin: { x: 1, y: 2, z: 3 }, bodyIds: ['body-1'], sketchIds: [], componentIds: [] },
 ];
 const identity = { x: 0, y: 0, z: 0, rotationX: 0, rotationY: 0, rotationZ: 0 };
 const componentInstances = [
@@ -70,6 +70,10 @@ describe('ComponentPanel', () => {
     expect(props.onCreate.mock.calls.map(([type]) => type)).toEqual(['part', 'assembly']);
     fireEvent.change(screen.getByRole('textbox', { name: /Materiał komponentu/i }), { target: { value: 'Aluminium' } });
     expect(props.onUpdate).toHaveBeenCalledWith('part-1', { material: 'Aluminium' });
+    fireEvent.change(screen.getByRole('combobox', { name: /Preset wyglądu komponentu/i }), { target: { value: 'brass' } });
+    expect(props.onUpdate).toHaveBeenCalledWith('part-1', { appearance: expect.objectContaining({ preset: 'brass', color: '#c49a49', metalness: 0.78 }) });
+    fireEvent.change(screen.getByRole('slider', { name: /Chropowatość wyglądu komponentu/i }), { target: { value: '0.65' } });
+    expect(props.onUpdate).toHaveBeenCalledWith('part-1', { appearance: expect.objectContaining({ preset: 'custom', roughness: 0.65 }) });
     fireEvent.change(screen.getByRole('combobox', { name: /Złożenie nadrzędne/i }), { target: { value: '' } });
     expect(props.onMove).toHaveBeenCalledWith('part-1', '');
   });

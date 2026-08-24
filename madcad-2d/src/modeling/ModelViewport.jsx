@@ -11,6 +11,7 @@ import { edgeGroupVertices, topologySelectionFromIntersection } from '../cad-cor
 import { lineTypeDefinition, resolveEntityAppearance } from '../cad-core/layers.js';
 import { inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-suggestions.js';
 import { describeSketchDegreesOfFreedom } from '../cad-core/sketch-freedom-diagnostics.js';
+import { normalizeComponentAppearance } from '../cad-core/components.js';
 
 const VIEW_DIRECTIONS = {
   iso: [1.25, -1.45, 1.15],
@@ -663,10 +664,11 @@ export default function ModelViewport({
       const selected = selectedBodySet.has(body.id) || placement.occurrenceId === selectedComponentInstanceId;
       const colliding = collisionInstanceSet.has(placement.occurrenceId);
       const exactCollision = exactCollisionInstanceSet.has(placement.occurrenceId);
+      const appearance = normalizeComponentAppearance(component?.appearance);
       const material = new THREE.MeshStandardMaterial({
-        color: exactCollision ? '#ef6a6a' : colliding ? '#f09a52' : selected ? '#72c9eb' : body.color,
-        metalness: 0.08,
-        roughness: 0.56,
+        color: exactCollision ? '#ef6a6a' : colliding ? '#f09a52' : selected ? '#72c9eb' : component ? appearance.color : body.color,
+        metalness: appearance.metalness,
+        roughness: appearance.roughness,
         emissive: exactCollision ? '#5a1111' : colliding ? '#5b2d0c' : selected ? '#10394a' : '#000000',
         emissiveIntensity: exactCollision ? 0.9 : colliding ? 0.75 : selected ? 0.7 : 0,
         transparent: Boolean(activeSketchId),
@@ -1803,6 +1805,13 @@ export default function ModelViewport({
           };
         }
         window.__madcadModelScreenState = { bodyBounds, topologyPoints };
+        window.__madcadModelVisualState = facePickables.map((object) => ({
+          bodyId: object.userData.bodyId,
+          occurrenceId: object.userData.occurrenceId,
+          color: `#${object.material.color.getHexString()}`,
+          metalness: object.material.metalness,
+          roughness: object.material.roughness,
+        }));
       }
     };
     const observer = new ResizeObserver(resize);
@@ -1853,6 +1862,7 @@ export default function ModelViewport({
       delete window.__madcadVerifySketchBoxSelection;
       delete window.__madcadSketchVisibilityState;
       delete window.__madcadModelScreenState;
+      delete window.__madcadModelVisualState;
       delete window.__madcadModelHover;
       delete window.__madcadConstructionPlaneState;
       delete window.__madcadConstructionAxisState;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, FolderOpen, GitCompareArrows, Keyboard, Layers3, Link2, Lock, LockOpen, Magnet, PackageOpen, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Trash2, Ungroup, X, XCircle } from 'lucide-react';
 import { detectAssemblyCollisions } from '../cad-core/assembly-motion.js';
-import { componentDescendantIds, componentInstanceDescendantIds, componentInstanceTree, componentParentMap, componentTree } from '../cad-core/components.js';
+import { COMPONENT_APPEARANCE_PRESETS, componentAppearancePreset, componentDescendantIds, componentInstanceDescendantIds, componentInstanceTree, componentParentMap, componentTree, normalizeComponentAppearance } from '../cad-core/components.js';
 import { formatModelFileSize } from '../cad-core/model-import.js';
 import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
 import { commandCustomizationRows, validateCommandCustomization } from './command-customization.js';
@@ -142,6 +142,9 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
   const jointMates = selectedInstance ? instances.filter((instance) => instance.id !== selectedInstance.id && instance.parentInstanceId === selectedInstance.parentInstanceId) : [];
   const jointUnit = selectedJoint?.type === 'slider' ? 'mm' : '°';
   const updateOrigin = (axis, value) => onUpdate(selected.id, { origin: { ...selected.origin, [axis]: Number(value) } });
+  const selectedAppearance = normalizeComponentAppearance(selected?.appearance);
+  const updateAppearancePreset = (presetId) => onUpdate(selected.id, { appearance: { ...componentAppearancePreset(presetId) } });
+  const updateAppearance = (patch) => onUpdate(selected.id, { appearance: normalizeComponentAppearance({ ...selectedAppearance, ...patch, preset: 'custom' }) });
   const toggleBody = (bodyId, checked) => onAssignBodies(selected.id, checked
     ? [...selected.bodyIds, bodyId]
     : selected.bodyIds.filter((id) => id !== bodyId));
@@ -237,6 +240,12 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
         <label><span>Numer części</span><input aria-label="Numer części komponentu" value={selected.partNumber} disabled={readOnly} onChange={(event) => onUpdate(selected.id, { partNumber: event.target.value })} /></label>
         <label><span>Typ</span><select aria-label="Typ komponentu" value={selected.type} disabled={readOnly || (selected.type === 'assembly' && selected.componentIds.length > 0)} onChange={(event) => onUpdate(selected.id, { type: event.target.value })}><option value="part">Część</option><option value="assembly">Złożenie</option></select></label>
         <label><span>Materiał</span><input aria-label="Materiał komponentu" value={selected.material} disabled={readOnly} placeholder="np. Aluminium 6061" onChange={(event) => onUpdate(selected.id, { material: event.target.value })} /></label>
+        <div className="component-section-title"><strong>Wygląd modelu</strong><span>APPEARANCE</span></div>
+        <div className="component-appearance-preview" style={{ '--appearance-color': selectedAppearance.color }}><span aria-hidden="true" /><div><strong>{COMPONENT_APPEARANCE_PRESETS.find((preset) => preset.id === selectedAppearance.preset)?.label || 'Własny'}</strong><small>{Math.round(selectedAppearance.metalness * 100)}% metal · {Math.round(selectedAppearance.roughness * 100)}% chropowatości</small></div></div>
+        <label><span>Preset</span><select aria-label="Preset wyglądu komponentu" value={selectedAppearance.preset} disabled={readOnly} onChange={(event) => updateAppearancePreset(event.target.value)}>{selectedAppearance.preset === 'custom' && <option value="custom">Własny</option>}{COMPONENT_APPEARANCE_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}</select></label>
+        <label><span>Kolor</span><input aria-label="Kolor wyglądu komponentu" type="color" value={selectedAppearance.color} disabled={readOnly} onChange={(event) => updateAppearance({ color: event.target.value })} /></label>
+        <label className="component-appearance-range"><span>Metaliczność</span><input aria-label="Metaliczność wyglądu komponentu" type="range" min="0" max="1" step="0.01" value={selectedAppearance.metalness} disabled={readOnly} onChange={(event) => updateAppearance({ metalness: Number(event.target.value) })} /><output>{Math.round(selectedAppearance.metalness * 100)}%</output></label>
+        <label className="component-appearance-range"><span>Chropowatość</span><input aria-label="Chropowatość wyglądu komponentu" type="range" min="0" max="1" step="0.01" value={selectedAppearance.roughness} disabled={readOnly} onChange={(event) => updateAppearance({ roughness: Number(event.target.value) })} /><output>{Math.round(selectedAppearance.roughness * 100)}%</output></label>
         <label><span>Ilość</span><input aria-label="Ilość komponentu" type="number" min="1" max="9999" value={selected.quantity} disabled={readOnly} onChange={(event) => onUpdate(selected.id, { quantity: event.target.value })} /></label>
         <label><span>Nadrzędne</span><select aria-label="Złożenie nadrzędne" value={parentId} disabled={readOnly} onChange={(event) => onMove(selected.id, event.target.value)}><option value="">Poziom główny</option>{document.components.filter((component) => !excludedParents.has(component.id)).map((component) => <option key={component.id} value={component.id}>{component.name}</option>)}</select></label>
         <label className="component-description"><span>Opis</span><textarea aria-label="Opis komponentu" value={selected.description} disabled={readOnly} rows="2" onChange={(event) => onUpdate(selected.id, { description: event.target.value })} /></label>
