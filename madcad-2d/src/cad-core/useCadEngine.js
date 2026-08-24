@@ -146,6 +146,11 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     return validateRoundTrip ? result : result.buffers;
   }, [document, send]);
 
+  const exportExternalDocument = useCallback(async (externalDocument, format = 'step') => {
+    const result = await send({ type: 'export-document', format, document: externalDocument });
+    return result.buffers;
+  }, [send]);
+
   const analyzeCollisions = useCallback(async () => {
     const revision = revisionRef.current;
     setState((current) => ({
@@ -172,5 +177,5 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     setWorkerGeneration((generation) => generation + 1);
   }, [rejectPending]);
 
-  return { ...state, analyzeCollisions, exportModel, restartWorkerForTest };
+  return { ...state, analyzeCollisions, exportExternalDocument, exportModel, restartWorkerForTest };
 }

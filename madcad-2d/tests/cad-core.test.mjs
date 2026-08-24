@@ -46,6 +46,7 @@ import {
   updateComponentInstance,
 } from '../src/cad-core/components.js';
 import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../src/cad-core/assembly-joints.js';
+import { createLinkedProject, linkedProjectState } from '../src/cad-core/linked-projects.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
@@ -200,15 +201,15 @@ test('komponenty blokują cykle, promują dzieci przy usunięciu i obsługują c
   assert.deepEqual(document.components, []);
 });
 
-test('migracja v9 uzupełnia komponent i główne wystąpienie w bieżącym schemacie v14', () => {
+test('migracja v9 uzupełnia komponent i główne wystąpienie w bieżącym schemacie', () => {
   const legacy = createDocument('Migracja komponentów');
   legacy.schemaVersion = 9;
   legacy.components.push({ id: 'legacy-component', name: 'Korpus', partNumber: 'K-1', material: 'Aluminium', quantity: 2, bodyIds: [] });
   const opened = openDocument(legacy, { now: '2026-08-24T12:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 14);
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(opened.document.components[0], {
     id: 'legacy-component', name: 'Korpus', type: 'part', partNumber: 'K-1', description: '', material: 'Aluminium', quantity: 2,
-    origin: { x: 0, y: 0, z: 0 }, bodyIds: [], sketchIds: [], componentIds: [],
+    origin: { x: 0, y: 0, z: 0 }, bodyIds: [], sketchIds: [], componentIds: [], linkedProjectId: '',
   });
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 9 && entry.to === 10));
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 10 && entry.to === 11));
@@ -265,7 +266,7 @@ test('migracja v10 tworzy wystąpienia zgodne z hierarchią definicji', () => {
   ];
   const opened = openDocument(legacy, { now: '2026-08-24T13:00:00.000Z' });
   const tree = componentInstanceTree(opened.document);
-  assert.equal(opened.document.schemaVersion, 14);
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.equal(tree.length, 1);
   assert.equal(tree[0].componentId, 'assembly-v10');
   assert.equal(tree[0].children[0].componentId, 'part-v10');
@@ -315,12 +316,12 @@ test('joint rigid blokuje ręczny ruch, graf odrzuca cykl, a usunięcie wystąpi
   assert.equal(validateDocument(document).valid, true);
 });
 
-test('migracja v11 dodaje pustą kolekcję jointów w bieżącym schemacie v14', () => {
+test('migracja v11 dodaje pustą kolekcję jointów w bieżącym schemacie', () => {
   const legacy = createDocument('Migracja jointów');
   legacy.schemaVersion = 11;
   delete legacy.joints;
   const opened = openDocument(legacy, { now: '2026-08-24T14:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 14);
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(opened.document.joints, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 11 && entry.to === 12));
 });
@@ -406,7 +407,7 @@ test('kontrola kolizji złożenia uwzględnia transformacje wystąpień i zagnie
   assert.equal(deleteContactSet(document, contactSet.id).id, contactSet.id);
 });
 
-test('migracja v12 dodaje Motion Links i konfiguracje w bieżącym schemacie v14', () => {
+test('migracja v12 dodaje Motion Links i konfiguracje w bieżącym schemacie', () => {
   const legacy = createDocument('Migracja ruchu złożenia');
   legacy.schemaVersion = 12;
   delete legacy.motionLinks;
@@ -414,7 +415,7 @@ test('migracja v12 dodaje Motion Links i konfiguracje w bieżącym schemacie v14
   delete legacy.assemblyConfigurations;
   delete legacy.activeAssemblyConfigurationId;
   const opened = openDocument(legacy, { now: '2026-08-24T16:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 14);
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(opened.document.motionLinks, []);
   assert.deepEqual(opened.document.contactSets, []);
   assert.deepEqual(opened.document.assemblyConfigurations, []);
@@ -422,17 +423,55 @@ test('migracja v12 dodaje Motion Links i konfiguracje w bieżącym schemacie v14
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 12 && entry.to === 13));
 });
 
-test('migracja v13 dodaje trwały rollback i grupy historii w schemacie v14', () => {
+test('migracja v13 dodaje trwały rollback i grupy historii w bieżącym schemacie', () => {
   const legacy = createDocument('Migracja osi czasu');
   legacy.schemaVersion = 13;
   delete legacy.timelineRollbackFeatureId;
   delete legacy.featureGroups;
   const opened = openDocument(legacy, { now: '2026-08-24T16:30:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 14);
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.equal(opened.document.timelineRollbackFeatureId, '');
   assert.deepEqual(opened.document.featureGroups, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 13 && entry.to === 14));
   assert.equal(validateDocument(opened.document).valid, true);
+});
+
+test('migracja v14 dodaje linkowane projekty, a rekord łącza zachowuje proxy geometrii', () => {
+  const legacy = createStarterDocument();
+  legacy.schemaVersion = 14;
+  delete legacy.linkedProjects;
+  const opened = openDocument(legacy, { now: '2026-08-24T17:00:00.000Z' });
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
+  assert.deepEqual(opened.document.linkedProjects, []);
+
+  const document = createDocument('Złożenie linkowane');
+  const feature = createFeature('importedModel', {
+    name: 'Korpus źródłowy',
+    importFormat: 'step',
+    originalFormat: 'step',
+    dataBase64: 'U1RFUA==',
+    unitScale: 1,
+  });
+  document.features.push(feature);
+  const component = createComponent(document, { name: 'Korpus linkowany', bodyIds: [`body-${feature.id}`] });
+  const link = createLinkedProject({
+    relativePath: '../części/korpus.madcad',
+    fileName: 'korpus.madcad',
+    sourceDocumentId: 'document-source',
+    sourceName: 'Korpus',
+    sourceSchemaVersion: DOCUMENT_SCHEMA_VERSION,
+    sourceHash: 'a'.repeat(64),
+    linkedComponentId: component.id,
+    proxyFeatureIds: [feature.id],
+    refreshedAt: '2026-08-24T17:00:00.000Z',
+  });
+  feature.linkedProjectId = link.id;
+  document.components.find((item) => item.id === component.id).linkedProjectId = link.id;
+  document.linkedProjects.push(link);
+  assert.equal(validateDocument(document).valid, true);
+  assert.equal(linkedProjectState(link, { hash: link.sourceHash }), 'current');
+  assert.equal(linkedProjectState(link, { hash: 'b'.repeat(64) }), 'changed');
+  assert.equal(linkedProjectState(link, { missing: true }), 'missing');
 });
 
 test('warstwy zapewniają ByLayer, aktywną warstwę i bezpieczne przenoszenie geometrii', () => {
@@ -1817,7 +1856,7 @@ test('migracja v5 zachowuje istniejące widoki bazowe i dodaje kolekcje dokument
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 5;
   const opened = openDocument(legacy, { now: '2026-08-24T03:30:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 14);
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.equal(opened.document.drawings[0].views[0].type, 'base');
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 5 && entry.to === 6));
@@ -1835,7 +1874,7 @@ test('migracja v6 dodaje adnotacje arkusza bez zmiany widoków', () => {
   legacy.schemaVersion = 6;
   const views = structuredClone(sheet.views);
   const opened = openDocument(legacy, { now: '2026-08-24T06:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 14);
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(opened.document.drawings[0].views, views);
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.equal(validateDocument(opened.document).valid, true);
@@ -1852,7 +1891,7 @@ test('migracja v7 dodaje tabliczkę i rewizje, a GD&T oraz DXF zachowują geomet
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 7;
   const opened = openDocument(legacy, { now: '2026-08-24T07:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 14);
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(opened.document.drawings[0].revisions, []);
   assert.equal(opened.document.drawings[0].titleBlock.revision, 'A');
 
@@ -1894,7 +1933,7 @@ test('migracja v8 dodaje tabele, a BOM, balony i tabela otworów pozostają skoj
   legacy.schemaVersion = 8;
 
   const opened = openDocument(legacy, { now: '2026-08-24T08:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 14);
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(opened.document.drawings[0].tables, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 8 && entry.to === 9));
 
@@ -3909,6 +3948,10 @@ test('polityka IPC ogranicza nazwy, filtry, konwersje i podgląd wydruku', () =>
   assert.deepEqual(snapshot, { name: 'Przed otworami', description: 'wersja bazowa', text: '{"schemaVersion":14}' });
   assert.equal(ipcPolicy.normalizeProjectSnapshotIdPayload({ id: 'snapshot-12345678-1234-4123-8123-123456789abc' }).id, 'snapshot-12345678-1234-4123-8123-123456789abc');
   assert.throws(() => ipcPolicy.normalizeProjectSnapshotIdPayload({ id: '../manifest.json' }), /ID/i);
+  const linked = ipcPolicy.normalizeLinkedProjectReadPayload({ baseProjectPath: '/tmp/złożenie/main.madcad', relativePath: '../części/korpus.madcad' });
+  assert.equal(linked.resolvedPath, '/tmp/części/korpus.madcad');
+  assert.throws(() => ipcPolicy.normalizeLinkedProjectReadPayload({ baseProjectPath: '/tmp/main.madcad', relativePath: '/etc/passwd' }), /względną/i);
+  assert.throws(() => ipcPolicy.normalizeLinkedProjectBasePayload({ baseProjectPath: '/tmp/main.json' }), /nadrzędny/i);
   assert.throws(() => ipcPolicy.normalizeCadConversionPayload({ mode: 'dwg-to-dxf', sourcePath: '/tmp/model.exe' }), /DWG/i);
   assert.equal(ipcPolicy.normalizeCadConversionPayload({ mode: 'dxf-text-to-dwg', dxfText: '0\nEOF', defaultName: '../part' }).defaultName, 'part.dwg');
   const preview = ipcPolicy.securePrintPreviewHtml('<!doctype html><html><head></head><body><script>print()</script></body></html>');
@@ -3925,7 +3968,8 @@ test('okna Electron i preload utrzymują sandbox oraz jedną bramę IPC', async 
   ]);
   assert.doesNotMatch(mainSource, /sandbox:\s*false/);
   assert.equal((mainSource.match(/sandbox:\s*true/g) || []).length, 3);
-  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 16);
+  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 19);
+  assert.match(preloadSource, /openProjectFile/);
   assert.doesNotMatch(mainSource, /install-oda-addon|convert-cad-file|get-oda-status|choose-oda|open-oda/);
   assert.match(mainSource, /import-dwg-sketch/);
   assert.equal((mainSource.match(/ipcMain\.handle\(/g) || []).length, 1);

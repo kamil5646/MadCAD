@@ -1,4 +1,5 @@
 const path = require('path');
+const crypto = require('crypto');
 const { pathToFileURL } = require('url');
 const fsRaw = require('fs');
 const fs = require('fs/promises');
@@ -13,6 +14,8 @@ const {
   normalizeAutosavePayload,
   normalizePdfExportPayload,
   normalizePrintPreviewPayload,
+  normalizeLinkedProjectBasePayload,
+  normalizeLinkedProjectReadPayload,
   normalizeProjectSnapshotCreatePayload,
   normalizeProjectSnapshotIdPayload,
   normalizeSaveTextPayload,
@@ -36,6 +39,7 @@ const MADCAD_RELEASE_API_URL = 'https://api.github.com/repos/kamil5646/MadCAD/re
 const MADCAD_RELEASE_LATEST_PAGE_URL = 'https://github.com/kamil5646/MadCAD/releases/latest';
 const MADCAD_UPDATE_USER_AGENT = 'MadCAD-Updater/1.0';
 const MAX_UPDATE_DOWNLOAD_BYTES = 512 * 1024 * 1024;
+const MAX_LINKED_PROJECT_BYTES = 64 * 1024 * 1024;
 const MAX_UPDATE_METADATA_BYTES = 4 * 1024 * 1024;
 const DWG_CONVERTER_DOWNLOAD_URL = 'https://www.opendesign.com/guestFiles/oda_file_converter';
 const TRUSTED_MAC_TEAM_ID = /^[A-Z0-9]{10}$/.test(String(packageMetadata.madcadMacTeamId || ''))
@@ -1507,6 +1511,77 @@ registerTrustedIpcHandler('madcad:project-snapshot-delete', async (_event, paylo
     return { ok: true, snapshot: result.item };
   } catch (error) {
     return { ok: false, error: storageErrorMessage(error, 'Nie udało się usunąć punktu zapisu.', 'Failed to delete the project save point.') };
+  }
+});
+
+registerTrustedIpcHandler('madcad:open-project-file', async (event) => {
+  try {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;
+    const selection = await dialog.showOpenDialog(senderWindow, {
+      title: t('Otwórz projekt MadCAD', 'Open a MadCAD project'),
+      buttonLabel: t('Otwórz', 'Open'),
+      filters: [{ name: 'MadCAD', extensions: ['madcad', 'json'] }],
+      properties: ['openFile'],
+    });
+    if (selection.canceled || !selection.filePaths?.[0]) return { ok: false, canceled: true };
+    const filePath = path.normalize(selection.filePaths[0]);
+    const extension = path.extname(filePath).toLowerCase();
+    if (!['.madcad', '.json'].includes(extension)) throw new Error(t('Wybierz plik .madcad albo .json.', 'Choose a .madcad or .json file.'));
+    const stats = await fs.stat(filePath);
+    if (!stats.isFile()) throw new Error(t('Wybrana ścieżka nie wskazuje pliku.', 'The selected path does not point to a file.'));
+    if (stats.size > MAX_LINKED_PROJECT_BYTES) throw new Error(t('Projekt przekracza limit 64 MiB.', 'The project exceeds the 64 MiB limit.'));
+    const text = await fs.readFile(filePath, 'utf8');
+    validateJsonText(text);
+    return { ok: true, canceled: false, filePath, text };
+  } catch (error) {
+    return { ok: false, canceled: false, error: storageErrorMessage(error, 'Nie udało się otworzyć projektu.', 'Failed to open the project.') };
+  }
+});
+
+async function readLinkedProjectFile(resolvedPath) {
+  const stats = await fs.stat(resolvedPath);
+  if (!stats.isFile()) throw new Error(t('Łącze nie wskazuje pliku.', 'The link does not point to a file.'));
+  if (stats.size > MAX_LINKED_PROJECT_BYTES) throw new Error(t('Linkowany projekt przekracza limit 64 MiB.', 'The linked project exceeds the 64 MiB limit.'));
+  const text = await fs.readFile(resolvedPath, 'utf8');
+  validateJsonText(text);
+  return {
+    text,
+    hash: crypto.createHash('sha256').update(text, 'utf8').digest('hex'),
+    fileName: path.basename(resolvedPath),
+    size: stats.size,
+    modifiedAt: stats.mtime.toISOString(),
+  };
+}
+
+registerTrustedIpcHandler('madcad:select-linked-project', async (event, payload) => {
+  try {
+    const { baseProjectPath } = normalizeLinkedProjectBasePayload(payload);
+    const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;
+    const selection = await dialog.showOpenDialog(senderWindow, {
+      title: t('Linkuj projekt MadCAD', 'Link a MadCAD project'),
+      buttonLabel: t('Utwórz łącze', 'Create link'),
+      defaultPath: path.dirname(baseProjectPath),
+      filters: [{ name: 'MadCAD', extensions: ['madcad'] }],
+      properties: ['openFile'],
+    });
+    if (selection.canceled || !selection.filePaths?.[0]) return { ok: false, canceled: true };
+    const sourcePath = path.normalize(selection.filePaths[0]);
+    if (sourcePath === baseProjectPath) throw new Error(t('Projekt nie może być linkiem do samego siebie.', 'A project cannot link to itself.'));
+    if (path.extname(sourcePath).toLowerCase() !== '.madcad') throw new Error(t('Wybierz plik .madcad.', 'Choose a .madcad file.'));
+    const relativePath = path.relative(path.dirname(baseProjectPath), sourcePath);
+    return { ok: true, canceled: false, relativePath, ...(await readLinkedProjectFile(sourcePath)) };
+  } catch (error) {
+    return { ok: false, canceled: false, error: storageErrorMessage(error, 'Nie udało się wybrać linkowanego projektu.', 'Failed to select the linked project.') };
+  }
+});
+
+registerTrustedIpcHandler('madcad:read-linked-project', async (_event, payload) => {
+  try {
+    const normalized = normalizeLinkedProjectReadPayload(payload);
+    return { ok: true, relativePath: normalized.relativePath, ...(await readLinkedProjectFile(normalized.resolvedPath)) };
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { ok: false, missing: true, error: t('Nie znaleziono linkowanego projektu.', 'The linked project was not found.') };
+    return { ok: false, missing: false, error: storageErrorMessage(error, 'Nie udało się odczytać linkowanego projektu.', 'Failed to read the linked project.') };
   }
 });
 

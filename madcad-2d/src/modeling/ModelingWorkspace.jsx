@@ -72,7 +72,9 @@ import {
   createSketch,
   createStarterDocument,
   openDocument,
+  validateDocument,
 } from '../cad-core/document.js';
+import { createLinkedProject, linkedProjectState } from '../cad-core/linked-projects.js';
 import {
   addDrivingSketchDimension,
   createSketchArc,
@@ -184,6 +186,13 @@ import {
   writeLocalAutosave,
 } from './document-session.js';
 import './modeling.css';
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  return btoa(binary);
+}
 
 const ModelViewport = React.lazy(() => import('./ModelViewport.jsx'));
 const DESKTOP_PLATFORM = ['darwin', 'win32', 'linux'].includes(window.desktopApp?.platform)
@@ -410,6 +419,8 @@ export default function ModelingWorkspace() {
     initialOpen.recovered ? null : initialDocumentTextRef.current
   ));
   const [currentPath, setCurrentPath] = useState('');
+  const currentPathRef = useRef('');
+  currentPathRef.current = currentPath;
   const [persistenceReady, setPersistenceReady] = useState(() => !window.desktopApp?.autosaveRead);
   const [workspace, setWorkspace] = useState('solid');
   const [activeDrawingSheetId, setActiveDrawingSheetId] = useState(() => document.drawings[0]?.id || null);
@@ -425,6 +436,7 @@ export default function ModelingWorkspace() {
   const [layersOpen, setLayersOpen] = useState(false);
   const [blocksOpen, setBlocksOpen] = useState(false);
   const [componentsOpen, setComponentsOpen] = useState(false);
+  const [linkedProjectStatuses, setLinkedProjectStatuses] = useState({});
   const [commandCustomizationOpen, setCommandCustomizationOpen] = useState(false);
   const [commandCustomization, setCommandCustomization] = useState(() => loadCommandCustomization(window.localStorage));
   const [printPanelOpen, setPrintPanelOpen] = useState(false);
@@ -968,6 +980,126 @@ export default function ModelingWorkspace() {
     setBrowserOpen(true);
     if (!selectedComponent && document.components.length) setSelection({ kind: 'component', id: document.components[0].id });
   };
+  const applyLinkedProjectProxy = async (sourceResult, existingLink = null, { allowDifferentSource = false } = {}) => {
+    const opened = openDocument(JSON.parse(sourceResult.text));
+    if (opened.document.id === document.id) throw new Error('Projekt nie może być linkiem do samego siebie.');
+    if (existingLink?.sourceDocumentId && opened.document.id !== existingLink.sourceDocumentId && !allowDifferentSource) {
+      throw new Error('Wybrany plik ma inne ID projektu. Użyj „Napraw łącze”, aby świadomie podmienić źródło.');
+    }
+    const buffers = await engine.exportExternalDocument(opened.document, 'step');
+    if (!buffers.length) throw new Error('Projekt źródłowy nie zawiera brył do podlinkowania.');
+    const checked = cloneDocument(document);
+    const linkId = existingLink?.id || createLinkedProject().id;
+    const previousIds = existingLink?.proxyFeatureIds || [];
+    const previousIndices = previousIds.map((id) => checked.features.findIndex((feature) => feature.id === id)).filter((index) => index >= 0);
+    const insertionIndex = previousIndices.length ? Math.min(...previousIndices) : checked.features.length;
+    const proxyFeatures = buffers.map((buffer, index) => createFeature('importedModel', {
+      ...(previousIds[index] ? { id: previousIds[index] } : {}),
+      name: `${opened.document.name} · ${index + 1}`,
+      originalFormat: 'step',
+      importFormat: 'step',
+      dataBase64: arrayBufferToBase64(buffer),
+      sourceUnit: 'millimeter',
+      unitScale: 1,
+      sourceBytes: buffer.byteLength,
+      linkedProjectId: linkId,
+    }));
+    checked.features = checked.features.filter((feature) => !previousIds.includes(feature.id));
+    checked.features.splice(insertionIndex, 0, ...proxyFeatures);
+    checked.featureGroups = checked.featureGroups.map((group) => ({ ...group, featureIds: group.featureIds.filter((id) => !previousIds.includes(id)) })).filter((group) => group.featureIds.length);
+    if (previousIds.includes(checked.timelineRollbackFeatureId)) checked.timelineRollbackFeatureId = '';
+    let component;
+    if (existingLink) {
+      component = checked.components.find((item) => item.id === existingLink.linkedComponentId);
+      if (!component) throw new Error('Nie znaleziono komponentu przypisanego do łącza.');
+      component.name = opened.document.name;
+      component.description = `Link do ${sourceResult.fileName}`;
+      component.bodyIds = proxyFeatures.map((feature) => `body-${feature.id}`);
+    } else {
+      const created = createComponent(checked, {
+        type: 'part',
+        name: opened.document.name,
+        description: `Link do ${sourceResult.fileName}`,
+        bodyIds: proxyFeatures.map((feature) => `body-${feature.id}`),
+      });
+      component = checked.components.find((item) => item.id === created.id);
+    }
+    const record = createLinkedProject({
+      ...existingLink,
+      id: linkId,
+      relativePath: sourceResult.relativePath,
+      fileName: sourceResult.fileName,
+      sourceDocumentId: opened.document.id,
+      sourceName: opened.document.name,
+      sourceSchemaVersion: opened.sourceVersion,
+      sourceHash: sourceResult.hash,
+      sourceModifiedAt: sourceResult.modifiedAt,
+      linkedComponentId: component.id,
+      proxyFeatureIds: proxyFeatures.map((feature) => feature.id),
+      refreshedAt: new Date().toISOString(),
+    });
+    component.linkedProjectId = record.id;
+    const linkIndex = checked.linkedProjects.findIndex((link) => link.id === record.id);
+    if (linkIndex >= 0) checked.linkedProjects[linkIndex] = record;
+    else checked.linkedProjects.push(record);
+    const validation = validateDocument(checked);
+    if (!validation.valid) throw new Error(`Odświeżenie zerwałoby zależność: ${validation.errors[0]}`);
+    commit((next) => Object.assign(next, checked));
+    setSelection({ kind: 'component', id: component.id });
+    setLinkedProjectStatuses((current) => ({ ...current, [record.id]: { state: 'current', hash: record.sourceHash, checkedAt: new Date().toISOString() } }));
+    return record;
+  };
+  const linkExternalProject = async () => {
+    if (readOnly || !window.desktopApp?.selectLinkedProject) return;
+    let baseProjectPath = currentPathRef.current;
+    if (!baseProjectPath || !/^(?:\/|[A-Za-z]:[\\/])/.test(baseProjectPath)) baseProjectPath = await saveProject();
+    if (typeof baseProjectPath !== 'string') return;
+    try {
+      setNotice('Wybierz projekt .madcad do podlinkowania…');
+      const result = await window.desktopApp.selectLinkedProject({ baseProjectPath });
+      if (!result?.ok) {
+        if (!result?.canceled) throw new Error(result?.error || 'Nie udało się wybrać projektu.');
+        setNotice('Anulowano tworzenie łącza.');
+        return;
+      }
+      const record = await applyLinkedProjectProxy(result);
+      setNotice(`Podlinkowano projekt „${record.sourceName}”. Geometria proxy STEP jest gotowa.`);
+    } catch (error) {
+      setNotice(`Nie utworzono łącza: ${error.message}`);
+    }
+  };
+  const refreshLinkedProject = async (linkId, repair = false) => {
+    const link = document.linkedProjects.find((item) => item.id === linkId);
+    if (!link || !window.desktopApp?.readLinkedProject || !currentPathRef.current) return;
+    try {
+      setLinkedProjectStatuses((current) => ({ ...current, [linkId]: { state: 'checking' } }));
+      const result = repair
+        ? await window.desktopApp.selectLinkedProject({ baseProjectPath: currentPathRef.current })
+        : await window.desktopApp.readLinkedProject({ baseProjectPath: currentPathRef.current, relativePath: link.relativePath });
+      if (!result?.ok) {
+        if (result?.canceled) return;
+        setLinkedProjectStatuses((current) => ({ ...current, [linkId]: { state: result?.missing ? 'missing' : 'error', error: result?.error } }));
+        throw new Error(result?.error || 'Nie udało się odczytać źródła.');
+      }
+      const record = await applyLinkedProjectProxy(result, link, { allowDifferentSource: repair });
+      setNotice(`${repair ? 'Naprawiono' : 'Odświeżono'} łącze „${record.sourceName}”. Operację można cofnąć.`);
+    } catch (error) {
+      setNotice(`Nie odświeżono łącza: ${error.message}`);
+    }
+  };
+  useEffect(() => {
+    if (!componentsOpen || !currentPath || !window.desktopApp?.readLinkedProject) return;
+    for (const link of document.linkedProjects) {
+      window.desktopApp.readLinkedProject({ baseProjectPath: currentPath, relativePath: link.relativePath }).then((result) => {
+        setLinkedProjectStatuses((current) => ({ ...current, [link.id]: {
+          state: linkedProjectState(link, result?.ok ? result : { missing: result?.missing, error: result?.error }),
+          hash: result?.hash,
+          error: result?.error || '',
+          checkedAt: new Date().toISOString(),
+        } }));
+      });
+    }
+  }, [componentsOpen, currentPath, document.linkedProjects]);
   const createDocumentComponent = (type = 'part') => {
     try {
       const checked = cloneDocument(document);
@@ -1021,10 +1153,20 @@ export default function ModelingWorkspace() {
       const component = document.components.find((item) => item.id === componentId);
       const parentId = componentParentMap(document.components).get(componentId);
       const checked = cloneDocument(document);
+      const linkedProject = checked.linkedProjects.find((link) => link.linkedComponentId === componentId);
       deleteComponent(checked, componentId);
+      if (linkedProject) {
+        const proxyIds = new Set(linkedProject.proxyFeatureIds);
+        checked.features = checked.features.filter((feature) => !proxyIds.has(feature.id));
+        checked.featureGroups = checked.featureGroups.map((group) => ({ ...group, featureIds: group.featureIds.filter((id) => !proxyIds.has(id)) })).filter((group) => group.featureIds.length);
+        if (proxyIds.has(checked.timelineRollbackFeatureId)) checked.timelineRollbackFeatureId = '';
+        checked.linkedProjects = checked.linkedProjects.filter((link) => link.id !== linkedProject.id);
+      }
+      const validation = validateDocument(checked);
+      if (!validation.valid) throw new Error(`Usunięcie zerwałoby zależność: ${validation.errors[0]}`);
       commit((next) => Object.assign(next, checked));
       setSelection(parentId ? { kind: 'component', id: parentId } : { kind: 'document', id: document.id });
-      setNotice(`Usunięto komponent „${component?.name || componentId}”. Jego podkomponenty zachowano; operację można cofnąć.`);
+      setNotice(`Usunięto komponent „${component?.name || componentId}”${linkedProject ? ' i jego proxy linku' : ''}. Jego podkomponenty zachowano; operację można cofnąć.`);
     } catch (error) {
       setNotice(`Nie usunięto komponentu: ${error.message}`);
     }
@@ -2692,6 +2834,8 @@ export default function ModelingWorkspace() {
       })),
       features: document.features.length,
       projectSnapshots: projectSnapshots.map((snapshot) => ({ ...snapshot })),
+      linkedProjects: document.linkedProjects.map((link) => ({ ...link, proxyFeatureIds: [...link.proxyFeatureIds] })),
+      linkedProjectStatuses: structuredClone(linkedProjectStatuses),
       timelineRollbackFeatureId: document.timelineRollbackFeatureId,
       featureGroups: document.featureGroups.map((group) => ({ ...group, featureIds: [...group.featureIds] })),
       activeLayerId: document.activeLayerId,
@@ -2755,7 +2899,7 @@ export default function ModelingWorkspace() {
     };
   // Verification hooks refresh only when the state exposed to the desktop harness changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, massProperties, geometryInspection, assemblyCollisionResult, projectSnapshots]);
+  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, massProperties, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses]);
 
   const confirmProfile = (sourceCommand = command) => {
     if (readOnly) return readOnlyNotice();
@@ -3758,17 +3902,17 @@ export default function ModelingWorkspace() {
         await clearAutosaveSnapshots();
       } catch (error) {
         setNotice(`Projekt zapisano, ale nie udało się wyczyścić autozapisu: ${error.message}`);
-        return true;
+        return result.filePath;
       }
       setRecoveryInfo(null);
       setNotice(`Zapisano projekt atomowo: ${result.filePath}${result.backupPath ? ' · poprzednia wersja: .bak' : ''}`);
-      return true;
+      return result.filePath;
     }
     downloadBlob(new Blob([saveRequest.text], { type: 'application/json' }), saveRequest.defaultName);
     setSavedDocumentText(saveRequest.snapshot);
     clearLocalAutosave();
     setNotice('Zapisano projekt MadCAD.');
-    return true;
+    return false;
   };
 
   const confirmUnsavedChanges = async (reason) => {
@@ -3834,7 +3978,37 @@ export default function ModelingWorkspace() {
     setNotice('Nowy pusty projekt. Utwórz pierwszy szkic.');
   };
 
-  const requestOpenProject = () => fileInputRef.current?.click();
+  const applyOpenedProject = async (opened) => {
+    await clearAutosaveSnapshots().catch((error) => setNotice(`Nie udało się wyczyścić poprzedniego autozapisu: ${error.message}`));
+    history.replace(opened.document);
+    setSavedDocumentText(JSON.stringify(opened.document));
+    setCurrentPath(opened.filePath);
+    setDocumentAccess({ readOnly: opened.readOnly, sourceVersion: opened.sourceVersion, originalDocument: opened.originalDocument });
+    setSelection({ kind: 'document', id: opened.document.id });
+    setActiveSketchId(null);
+    setCommand(null);
+    setWorkspace('solid');
+    setNotice(`${opened.warning ? `${opened.warning} ` : ''}Otwarto projekt ${opened.document.name}.`);
+  };
+
+  const requestOpenProject = async () => {
+    if (!window.desktopApp?.openProjectFile) {
+      fileInputRef.current?.click();
+      return;
+    }
+    if (!(await confirmUnsavedChanges('open'))) return;
+    try {
+      const result = await window.desktopApp.openProjectFile();
+      if (!result?.ok) {
+        if (!result?.canceled) setNotice(`Nie udało się otworzyć projektu: ${result?.error || 'nieznany błąd'}`);
+        return;
+      }
+      const opened = openDocument(JSON.parse(result.text));
+      await applyOpenedProject({ ...opened, filePath: result.filePath });
+    } catch (error) {
+      setNotice(`Nie udało się otworzyć projektu: ${error.message}`);
+    }
+  };
 
   const openProject = async (event) => {
     const file = event.target.files?.[0];
@@ -3843,16 +4017,7 @@ export default function ModelingWorkspace() {
     if (!(await confirmUnsavedChanges('open'))) return;
     try {
       const opened = await readProjectFile(file);
-      await clearAutosaveSnapshots().catch((error) => setNotice(`Nie udało się wyczyścić poprzedniego autozapisu: ${error.message}`));
-      history.replace(opened.document);
-      setSavedDocumentText(JSON.stringify(opened.document));
-      setCurrentPath(opened.filePath);
-      setDocumentAccess({ readOnly: opened.readOnly, sourceVersion: opened.sourceVersion, originalDocument: opened.originalDocument });
-      setSelection({ kind: 'document', id: opened.document.id });
-      setActiveSketchId(null);
-      setCommand(null);
-      setWorkspace('solid');
-      setNotice(`${opened.warning ? `${opened.warning} ` : ''}Otwarto projekt ${opened.document.name}.`);
+      await applyOpenedProject(opened);
     } catch (error) {
       setNotice(`Nie udało się otworzyć projektu: ${error.message}`);
     }
@@ -5009,7 +5174,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} onClose={() => setCommand(null)} />}
-          {componentsOpen && <ComponentPanel document={document} bodies={engine.bodies} collisionResult={assemblyCollisionResult} selectedComponentId={selectedComponent?.id || ''} selectedInstanceId={selectedInstance?.id || ''} selectedJointId={selectedJoint?.id || ''} selectedMotionLinkId={selectedMotionLink?.id || ''} selectedConfigurationId={selectedAssemblyConfiguration?.id || ''} selectedContactSetId={selectedContactSet?.id || ''} selectedBodyIds={selectedBodyIds} readOnly={readOnly} onCreate={createDocumentComponent} onUpdate={updateDocumentComponent} onAssignBodies={assignDocumentComponentBodies} onMove={moveDocumentComponent} onDelete={removeDocumentComponent} onSelect={(componentId) => setSelection({ kind: 'component', id: componentId })} onSelectInstance={(instanceId) => { const instance = document.componentInstances.find((item) => item.id === instanceId); setSelection({ kind: 'componentInstance', id: instanceId, componentId: instance?.componentId }); }} onCreateInstance={createDocumentComponentInstance} onUpdateInstance={updateDocumentComponentInstance} onDuplicateInstance={duplicateDocumentComponentInstance} onDeleteInstance={removeDocumentComponentInstance} onCreateRigidGroup={createDocumentRigidGroup} onDeleteRigidGroup={removeDocumentRigidGroup} onSelectJoint={(jointId) => setSelection(jointId ? { kind: 'joint', id: jointId } : { kind: 'document', id: document.id })} onCreateJoint={createDocumentJoint} onUpdateJoint={updateDocumentJoint} onSetJointValue={setDocumentJointValue} onDeleteJoint={removeDocumentJoint} onSelectMotionLink={(linkId) => setSelection(linkId ? { kind: 'motionLink', id: linkId } : { kind: 'document', id: document.id })} onCreateMotionLink={createDocumentMotionLink} onUpdateMotionLink={updateDocumentMotionLink} onDeleteMotionLink={removeDocumentMotionLink} onSelectConfiguration={(configurationId) => setSelection(configurationId ? { kind: 'assemblyConfiguration', id: configurationId } : { kind: 'document', id: document.id })} onCreateConfiguration={createDocumentAssemblyConfiguration} onUpdateConfiguration={updateDocumentAssemblyConfiguration} onApplyConfiguration={applyDocumentAssemblyConfiguration} onDeleteConfiguration={removeDocumentAssemblyConfiguration} onSelectContactSet={(contactSetId) => setSelection(contactSetId ? { kind: 'contactSet', id: contactSetId } : { kind: 'document', id: document.id })} onCreateContactSet={createDocumentContactSet} onUpdateContactSet={updateDocumentContactSet} onDeleteContactSet={removeDocumentContactSet} onClose={() => setComponentsOpen(false)} />}
+          {componentsOpen && <ComponentPanel document={document} bodies={engine.bodies} collisionResult={assemblyCollisionResult} selectedComponentId={selectedComponent?.id || ''} selectedInstanceId={selectedInstance?.id || ''} selectedJointId={selectedJoint?.id || ''} selectedMotionLinkId={selectedMotionLink?.id || ''} selectedConfigurationId={selectedAssemblyConfiguration?.id || ''} selectedContactSetId={selectedContactSet?.id || ''} selectedBodyIds={selectedBodyIds} linkedProjectStatuses={linkedProjectStatuses} readOnly={readOnly} onCreate={createDocumentComponent} onLinkProject={() => { void linkExternalProject(); }} onRefreshLinkedProject={(linkId) => { void refreshLinkedProject(linkId); }} onRepairLinkedProject={(linkId) => { void refreshLinkedProject(linkId, true); }} onUpdate={updateDocumentComponent} onAssignBodies={assignDocumentComponentBodies} onMove={moveDocumentComponent} onDelete={removeDocumentComponent} onSelect={(componentId) => setSelection({ kind: 'component', id: componentId })} onSelectInstance={(instanceId) => { const instance = document.componentInstances.find((item) => item.id === instanceId); setSelection({ kind: 'componentInstance', id: instanceId, componentId: instance?.componentId }); }} onCreateInstance={createDocumentComponentInstance} onUpdateInstance={updateDocumentComponentInstance} onDuplicateInstance={duplicateDocumentComponentInstance} onDeleteInstance={removeDocumentComponentInstance} onCreateRigidGroup={createDocumentRigidGroup} onDeleteRigidGroup={removeDocumentRigidGroup} onSelectJoint={(jointId) => setSelection(jointId ? { kind: 'joint', id: jointId } : { kind: 'document', id: document.id })} onCreateJoint={createDocumentJoint} onUpdateJoint={updateDocumentJoint} onSetJointValue={setDocumentJointValue} onDeleteJoint={removeDocumentJoint} onSelectMotionLink={(linkId) => setSelection(linkId ? { kind: 'motionLink', id: linkId } : { kind: 'document', id: document.id })} onCreateMotionLink={createDocumentMotionLink} onUpdateMotionLink={updateDocumentMotionLink} onDeleteMotionLink={removeDocumentMotionLink} onSelectConfiguration={(configurationId) => setSelection(configurationId ? { kind: 'assemblyConfiguration', id: configurationId } : { kind: 'document', id: document.id })} onCreateConfiguration={createDocumentAssemblyConfiguration} onUpdateConfiguration={updateDocumentAssemblyConfiguration} onApplyConfiguration={applyDocumentAssemblyConfiguration} onDeleteConfiguration={removeDocumentAssemblyConfiguration} onSelectContactSet={(contactSetId) => setSelection(contactSetId ? { kind: 'contactSet', id: contactSetId } : { kind: 'document', id: document.id })} onCreateContactSet={createDocumentContactSet} onUpdateContactSet={updateDocumentContactSet} onDeleteContactSet={removeDocumentContactSet} onClose={() => setComponentsOpen(false)} />}
           {layersOpen && <LayersPanel document={document} selectedEntities={selectedSketchEntities} readOnly={readOnly} onAdd={addDocumentLayer} onUpdate={updateDocumentLayer} onDelete={removeDocumentLayer} onActivate={activateDocumentLayer} onAssign={assignSelectionToLayer} onStyleSelected={styleSelectedEntities} onClose={() => setLayersOpen(false)} />}
           {blocksOpen && activeSketchId && <BlocksPanel document={document} selectedEntities={selectedSketchEntities} selectedInstance={selectedBlockInstance} readOnly={readOnly} onCreate={createBlockFromSelection} onInsert={insertDocumentBlock} onDeleteDefinition={removeBlockDefinition} onAddAttribute={addDocumentBlockAttribute} onUpdateInstanceAttribute={updateDocumentBlockAttribute} onExplode={explodeDocumentBlock} onDeleteInstance={removeDocumentBlockInstance} onClose={() => setBlocksOpen(false)} />}
           {commandCustomizationOpen && <CommandCustomizationPanel customization={commandCustomization} onSave={saveCommandSettings} onReset={createDefaultCommandCustomization} onClose={() => setCommandCustomizationOpen(false)} />}

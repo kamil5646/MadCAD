@@ -6,6 +6,12 @@ const { app, BrowserWindow } = require('electron');
 
 const isolatedUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'madcad-electron-security-'));
 process.env.MADCAD_TEST_USER_DATA_DIR = isolatedUserData;
+const linkedProjectDirectory = path.join(isolatedUserData, 'linked-project-fixture');
+const linkedBasePath = path.join(linkedProjectDirectory, 'main.madcad');
+const linkedSourcePath = path.join(linkedProjectDirectory, 'source.madcad');
+fs.mkdirSync(linkedProjectDirectory, { recursive: true });
+fs.writeFileSync(linkedBasePath, '{}', 'utf8');
+fs.writeFileSync(linkedSourcePath, '{"schemaVersion":15,"name":"Security linked source"}', 'utf8');
 
 let started = false;
 let finished = false;
@@ -92,6 +98,10 @@ app.on('browser-window-created', (_event, mainWindow) => {
         return { created: created.ok, listed: listed.snapshots.length, opened: opened.text === text, removed: removed.ok };
       })()`, true);
       assert.deepEqual(trustedSnapshots, { created: true, listed: 1, opened: true, removed: true });
+      const trustedLinkedProject = await evaluateWithDebugger(mainWindow.webContents, `window.desktopApp.readLinkedProject(${JSON.stringify({ baseProjectPath: linkedBasePath, relativePath: 'source.madcad' })})`, true);
+      assert.equal(trustedLinkedProject.ok, true);
+      assert.equal(trustedLinkedProject.fileName, 'source.madcad');
+      assert.match(trustedLinkedProject.hash, /^[a-f0-9]{64}$/);
 
       const untrustedWindow = new BrowserWindow({
         show: false,
@@ -118,6 +128,7 @@ app.on('browser-window-created', (_event, mainWindow) => {
         preloadApi: trustedApi.api,
         trustedIpc: trustedUpdate.ok,
         snapshotIpc: trustedSnapshots,
+        linkedProjectIpc: trustedLinkedProject.ok,
         untrustedIpcRejected: rejection.rejected,
       });
     } catch (error) {

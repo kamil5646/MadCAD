@@ -11,6 +11,7 @@ import { ensureDocumentBlocks } from './blocks.js';
 import { COMPONENT_TYPES, DEFAULT_INSTANCE_TRANSFORM, ensureDocumentComponents } from './components.js';
 import { JOINT_AXES, JOINT_TYPES, ensureDocumentJoints } from './assembly-joints.js';
 import { ensureDocumentAssemblyMotion } from './assembly-motion.js';
+import { ensureDocumentLinkedProjects } from './linked-projects.js';
 import { DRAWING_ANNOTATION_TYPES, DRAWING_PAGE_SIZES, DRAWING_TABLE_TYPES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
 import {
   SKETCH_ENTITY_ROLES,
@@ -20,7 +21,7 @@ import {
   normalizeSketchModel,
 } from './sketch-model.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 14;
+export const DOCUMENT_SCHEMA_VERSION = 15;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -265,6 +266,22 @@ function migrateV13ToV14(source, now) {
   return migrated;
 }
 
+function migrateV14ToV15(source, now) {
+  const migrated = ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureV3Collections(cloneDocument(source)))))));
+  migrated.schemaVersion = 15;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 14,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 14, to: 15, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
@@ -278,6 +295,7 @@ const MIGRATIONS = new Map([
   [11, migrateV11ToV12],
   [12, migrateV12ToV13],
   [13, migrateV13ToV14],
+  [14, migrateV14ToV15],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -343,6 +361,7 @@ export function createDocument(name = 'Nowy projekt') {
     features: [],
     timelineRollbackFeatureId: '',
     featureGroups: [],
+    linkedProjects: [],
     bodies: [],
     components: [],
     componentInstances: [],
@@ -437,11 +456,11 @@ export function migrateDocument(source, { now = new Date().toISOString() } = {})
     document = migration(document, now);
     version = readSchemaVersion(document);
   }
-  return ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document))))));
+  return ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document)))))));
 }
 
 function projectFutureDocument(source) {
-  const projected = ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source))))))));
+  const projected = ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source)))))))));
   projected.schemaVersion = DOCUMENT_SCHEMA_VERSION;
   projected.metadata = {
     ...(isRecord(projected.metadata) ? projected.metadata : {}),
@@ -512,6 +531,7 @@ export function validateDocument(document) {
   const sketches = requireArray(document, 'sketches');
   const features = requireArray(document, 'features');
   const featureGroups = requireArray(document, 'featureGroups');
+  const linkedProjects = requireArray(document, 'linkedProjects');
   const bodies = requireArray(document, 'bodies');
   const components = requireArray(document, 'components');
   const componentInstances = requireArray(document, 'componentInstances');
@@ -537,6 +557,23 @@ export function validateDocument(document) {
     else allIds.set(value, path);
   };
   registerId(document.id, 'id');
+
+  const linkedProjectIds = new Set();
+  linkedProjects.forEach((link, index) => {
+    const base = `linkedProjects[${index}]`;
+    if (!isRecord(link)) {
+      add(base, 'Łącze projektu musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(link.id, `${base}.id`);
+    if (typeof link.id === 'string' && link.id) linkedProjectIds.add(link.id);
+    if (typeof link.relativePath !== 'string' || !link.relativePath || link.relativePath.length > 1024 || link.relativePath.includes('\0')) add(`${base}.relativePath`, 'Łącze wymaga bezpiecznej ścieżki względnej.', 'FORMAT');
+    if (typeof link.fileName !== 'string' || !link.fileName.toLowerCase().endsWith('.madcad')) add(`${base}.fileName`, 'Łącze wymaga nazwy pliku .madcad.', 'FORMAT');
+    if (typeof link.sourceDocumentId !== 'string' || !link.sourceDocumentId) add(`${base}.sourceDocumentId`, 'Łącze wymaga ID dokumentu źródłowego.', 'REQUIRED');
+    if (!Number.isInteger(link.sourceSchemaVersion) || link.sourceSchemaVersion < MIN_MIGRATABLE_SCHEMA_VERSION) add(`${base}.sourceSchemaVersion`, 'Łącze wymaga prawidłowej wersji schematu źródła.', 'VALUE');
+    if (!/^[0-9a-f]{64}$/i.test(link.sourceHash || '')) add(`${base}.sourceHash`, 'Łącze wymaga sumy SHA-256 źródła.', 'FORMAT');
+    if (!Array.isArray(link.proxyFeatureIds) || !link.proxyFeatureIds.length) add(`${base}.proxyFeatureIds`, 'Łącze wymaga co najmniej jednej operacji proxy.', 'REQUIRED');
+  });
 
   const layerIds = new Set();
   const layerNames = new Set();
@@ -1070,6 +1107,7 @@ export function validateDocument(document) {
       if (!['step', 'stl', '3mf'].includes(feature.originalFormat)) add(`${base}.originalFormat`, 'Nieobsługiwany format źródłowy.', 'UNSUPPORTED');
       if (typeof feature.dataBase64 !== 'string' || !feature.dataBase64.length) add(`${base}.dataBase64`, 'Brak danych modelu importowanego.', 'REQUIRED');
       if (!Number.isFinite(Number(feature.unitScale)) || Number(feature.unitScale) <= 0) add(`${base}.unitScale`, 'Skala jednostki musi być dodatnia.', 'VALUE');
+      if (feature.linkedProjectId !== undefined && !linkedProjectIds.has(feature.linkedProjectId)) add(`${base}.linkedProjectId`, 'Operacja proxy wskazuje brakujące łącze projektu.', 'BROKEN_REFERENCE');
       bodyIds.add(`body-${feature.id}`);
     }
 
@@ -1244,6 +1282,7 @@ export function validateDocument(document) {
     if (typeof component.material !== 'string') add(`${base}.material`, 'Materiał komponentu musi być tekstem.', 'TYPE');
     if (!Number.isInteger(Number(component.quantity)) || Number(component.quantity) < 1 || Number(component.quantity) > 9999) add(`${base}.quantity`, 'Ilość komponentu musi mieścić się między 1 i 9999.', 'VALUE');
     if (!isRecord(component.origin) || ['x', 'y', 'z'].some((axis) => !Number.isFinite(Number(component.origin?.[axis])))) add(`${base}.origin`, 'Początek komponentu wymaga liczbowych współrzędnych X, Y i Z.', 'TYPE');
+    if (component.linkedProjectId && !linkedProjectIds.has(component.linkedProjectId)) add(`${base}.linkedProjectId`, 'Komponent wskazuje brakujące łącze projektu.', 'BROKEN_REFERENCE');
     const ownedBodyIds = requireArray(component, 'bodyIds', `${base}.bodyIds`);
     const ownedSketchIds = requireArray(component, 'sketchIds', `${base}.sketchIds`);
     const childIds = requireArray(component, 'componentIds', `${base}.componentIds`);
@@ -1277,6 +1316,19 @@ export function validateDocument(document) {
       visited.add(parentId);
       parentId = componentParents.get(parentId);
     }
+  });
+
+  linkedProjects.forEach((link, index) => {
+    if (!isRecord(link)) return;
+    const base = `linkedProjects[${index}]`;
+    if (!componentIds.has(link.linkedComponentId)) add(`${base}.linkedComponentId`, 'Łącze wskazuje brakujący komponent.', 'BROKEN_REFERENCE');
+    (link.proxyFeatureIds || []).forEach((featureId, featureIndex) => {
+      const feature = features.find((item) => item?.id === featureId);
+      if (!feature) add(`${base}.proxyFeatureIds[${featureIndex}]`, 'Łącze wskazuje brakującą operację proxy.', 'BROKEN_REFERENCE');
+      else if (feature.type !== 'importedModel' || feature.linkedProjectId !== link.id) add(`${base}.proxyFeatureIds[${featureIndex}]`, 'Operacja proxy nie należy do tego łącza.', 'VALUE');
+    });
+    const component = components.find((item) => item?.id === link.linkedComponentId);
+    if (component && component.linkedProjectId !== link.id) add(`${base}.linkedComponentId`, 'Komponent nie wskazuje zgodnego łącza projektu.', 'VALUE');
   });
 
   const instanceIds = new Set();

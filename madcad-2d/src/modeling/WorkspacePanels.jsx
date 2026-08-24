@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, GitCompareArrows, Keyboard, Layers3, Link2, Lock, LockOpen, Magnet, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Trash2, Ungroup, X, XCircle } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, FolderOpen, GitCompareArrows, Keyboard, Layers3, Link2, Lock, LockOpen, Magnet, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Trash2, Ungroup, X, XCircle } from 'lucide-react';
 import { componentDescendantIds, componentInstanceDescendantIds, componentInstanceTree, componentParentMap, componentTree } from '../cad-core/components.js';
 import { formatModelFileSize } from '../cad-core/model-import.js';
 import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
@@ -63,7 +63,7 @@ export function LayersPanel({ document, selectedEntities = [], readOnly = false,
   );
 }
 
-export function ComponentPanel({ document, bodies = [], collisionResult = { collisions: [], contactSets: [], checkedPairs: 0 }, selectedComponentId = '', selectedInstanceId = '', selectedJointId = '', selectedMotionLinkId = '', selectedConfigurationId = '', selectedContactSetId = '', selectedBodyIds = [], readOnly = false, onCreate, onUpdate, onAssignBodies, onMove, onDelete, onSelect, onSelectInstance, onCreateInstance, onUpdateInstance, onDuplicateInstance, onDeleteInstance, onCreateRigidGroup, onDeleteRigidGroup, onSelectJoint, onCreateJoint, onUpdateJoint, onSetJointValue, onDeleteJoint, onSelectMotionLink, onCreateMotionLink, onUpdateMotionLink, onDeleteMotionLink, onSelectConfiguration, onCreateConfiguration, onUpdateConfiguration, onApplyConfiguration, onDeleteConfiguration, onSelectContactSet, onCreateContactSet, onUpdateContactSet, onDeleteContactSet, onClose }) {
+export function ComponentPanel({ document, bodies = [], collisionResult = { collisions: [], contactSets: [], checkedPairs: 0 }, selectedComponentId = '', selectedInstanceId = '', selectedJointId = '', selectedMotionLinkId = '', selectedConfigurationId = '', selectedContactSetId = '', selectedBodyIds = [], linkedProjectStatuses = {}, readOnly = false, onCreate, onLinkProject, onRefreshLinkedProject, onRepairLinkedProject, onUpdate, onAssignBodies, onMove, onDelete, onSelect, onSelectInstance, onCreateInstance, onUpdateInstance, onDuplicateInstance, onDeleteInstance, onCreateRigidGroup, onDeleteRigidGroup, onSelectJoint, onCreateJoint, onUpdateJoint, onSetJointValue, onDeleteJoint, onSelectMotionLink, onCreateMotionLink, onUpdateMotionLink, onDeleteMotionLink, onSelectConfiguration, onCreateConfiguration, onUpdateConfiguration, onApplyConfiguration, onDeleteConfiguration, onSelectContactSet, onCreateContactSet, onUpdateContactSet, onDeleteContactSet, onClose }) {
   const [rigidMateId, setRigidMateId] = React.useState('');
   const [jointMateId, setJointMateId] = React.useState('');
   const [jointType, setJointType] = React.useState('revolute');
@@ -76,6 +76,9 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
   const [contactFirstId, setContactFirstId] = React.useState('');
   const [contactSecondId, setContactSecondId] = React.useState('');
   const selected = document.components.find((component) => component.id === selectedComponentId) || null;
+  const selectedLink = selected?.linkedProjectId ? document.linkedProjects.find((link) => link.id === selected.linkedProjectId) : null;
+  const selectedLinkStatus = selectedLink ? linkedProjectStatuses[selectedLink.id] || { state: 'checking' } : null;
+  const linkedStateLabels = { current: 'AKTUALNY', changed: 'ZMIENIONY', missing: 'BRAK PLIKU', error: 'BŁĄD', checking: 'SPRAWDZANIE' };
   const selectedInstance = (document.componentInstances || []).find((instance) => instance.id === selectedInstanceId) || null;
   const parentId = selected ? componentParentMap(document.components).get(selected.id) || '' : '';
   const excludedParents = selected ? new Set([selected.id, ...componentDescendantIds(document.components, selected.id)]) : new Set();
@@ -117,11 +120,12 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
       <div className="component-toolbar">
         <button type="button" data-component-action="create-part" disabled={readOnly} onClick={() => onCreate('part')}><Box size={14} /> Nowa część</button>
         <button type="button" data-component-action="create-assembly" disabled={readOnly} onClick={() => onCreate('assembly')}><Boxes size={14} /> Nowe złożenie</button>
+        <button type="button" data-component-action="link-project" disabled={readOnly || !onLinkProject} onClick={onLinkProject}><Link2 size={14} /> Linkuj projekt</button>
       </div>
       <div className="component-list" aria-label="Struktura dokumentu">
         <div className="component-section-title"><strong>Definicje</strong><span>{document.components.length}</span></div>
         {!document.components.length && <p>Utwórz część z zaznaczonej bryły albo puste złożenie nadrzędne.</p>}
-        {componentRows.map(({ component, depth }) => <button className={selected?.id === component.id ? 'active' : ''} style={{ '--component-list-depth': depth }} type="button" key={component.id} onClick={() => onSelect(component.id)}><span>{component.type === 'assembly' ? <Boxes size={15} /> : <Box size={15} />}<strong>{component.name}</strong><small>{component.partNumber}</small></span><em>{component.type === 'assembly' ? `${component.componentIds.length} elem.` : `${component.bodyIds.length} brył`}</em></button>)}
+        {componentRows.map(({ component, depth }) => <button className={selected?.id === component.id ? 'active' : ''} style={{ '--component-list-depth': depth }} type="button" key={component.id} onClick={() => onSelect(component.id)}><span>{component.linkedProjectId ? <Link2 size={15} /> : component.type === 'assembly' ? <Boxes size={15} /> : <Box size={15} />}<strong>{component.name}</strong><small>{component.partNumber}</small></span><em>{component.linkedProjectId ? linkedStateLabels[linkedProjectStatuses[component.linkedProjectId]?.state || 'checking'] : component.type === 'assembly' ? `${component.componentIds.length} elem.` : `${component.bodyIds.length} brył`}</em></button>)}
       </div>
       <div className="component-occurrences" aria-label="Wystąpienia komponentów">
         <div className="component-section-title"><strong>Wystąpienia w złożeniu</strong><span>{instances.length}</span></div>
@@ -179,6 +183,11 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
       </div>
       {selected ? <div className="component-properties">
         <div className="component-section-title"><strong>Właściwości</strong><span>{selected.type === 'assembly' ? 'ZŁOŻENIE' : 'CZĘŚĆ'}</span></div>
+        {selectedLink && <div className={`linked-project-card ${selectedLinkStatus.state}`} data-linked-project-state={selectedLinkStatus.state}>
+          <div><Link2 size={15} /><span><strong>Projekt linkowany</strong><small>{selectedLink.relativePath}</small></span><em>{linkedStateLabels[selectedLinkStatus.state]}</em></div>
+          <p>{selectedLinkStatus.state === 'changed' ? 'Plik źródłowy zmienił się od ostatniego odświeżenia.' : selectedLinkStatus.state === 'missing' ? 'Nie znaleziono pliku pod zapisaną ścieżką.' : selectedLinkStatus.error || `Źródło: ${selectedLink.sourceName} · v${selectedLink.sourceSchemaVersion}`}</p>
+          <footer><button type="button" data-linked-project-action="refresh" disabled={readOnly || selectedLinkStatus.state === 'checking' || selectedLinkStatus.state === 'missing'} onClick={() => onRefreshLinkedProject(selectedLink.id)}><RotateCcw size={13} /> Odśwież</button><button type="button" data-linked-project-action="repair" disabled={readOnly || selectedLinkStatus.state === 'checking'} onClick={() => onRepairLinkedProject(selectedLink.id)}><FolderOpen size={13} /> Napraw łącze</button></footer>
+        </div>}
         <label><span>Nazwa</span><input aria-label="Nazwa komponentu" value={selected.name} disabled={readOnly} onChange={(event) => onUpdate(selected.id, { name: event.target.value })} /></label>
         <label><span>Numer części</span><input aria-label="Numer części komponentu" value={selected.partNumber} disabled={readOnly} onChange={(event) => onUpdate(selected.id, { partNumber: event.target.value })} /></label>
         <label><span>Typ</span><select aria-label="Typ komponentu" value={selected.type} disabled={readOnly || (selected.type === 'assembly' && selected.componentIds.length > 0)} onChange={(event) => onUpdate(selected.id, { type: event.target.value })}><option value="part">Część</option><option value="assembly">Złożenie</option></select></label>
@@ -191,7 +200,7 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
         <div className="component-section-title"><strong>Przypisane bryły</strong><span>{selected.bodyIds.length}</span></div>
         <div className="component-body-list">
           {!bodies.length && <p>Model nie zawiera jeszcze brył.</p>}
-          {bodies.map((body) => <label key={body.id}><input type="checkbox" checked={selected.bodyIds.includes(body.id)} disabled={readOnly || selected.type === 'assembly'} onChange={(event) => toggleBody(body.id, event.target.checked)} /><span>{body.name || body.id}</span></label>)}
+          {bodies.map((body) => <label key={body.id}><input type="checkbox" checked={selected.bodyIds.includes(body.id)} disabled={readOnly || selected.type === 'assembly' || Boolean(selectedLink)} onChange={(event) => toggleBody(body.id, event.target.checked)} /><span>{body.name || body.id}</span></label>)}
         </div>
         <div className="component-actions"><button type="button" disabled={readOnly} onClick={() => onCreateInstance(selected.id)}><Plus size={14} /> Wstaw kolejne</button><button type="button" disabled={readOnly || !selectedBodyIds.length || selected.type === 'assembly'} onClick={() => onAssignBodies(selected.id, selectedBodyIds)}><Check size={14} /> Przypisz zaznaczone ({selectedBodyIds.length})</button><button className="danger" type="button" data-component-action="delete" disabled={readOnly} onClick={() => onDelete(selected.id)}><Trash2 size={14} /> Usuń</button></div>
       </div> : <div className="component-empty"><Boxes size={25} /><strong>Wybierz komponent</strong><p>Właściwości, origin i przypisania brył pojawią się tutaj.</p></div>}

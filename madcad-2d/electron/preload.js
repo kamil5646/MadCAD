@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('desktopApp', {
     return 'pl';
   })(),
   saveTextFile: (payload) => ipcRenderer.invoke('madcad:save-text-file', payload),
+  openProjectFile: () => ipcRenderer.invoke('madcad:open-project-file'),
   confirmUnsavedChanges: (payload) => ipcRenderer.invoke('madcad:confirm-unsaved-changes', payload),
   sendToSlicer: (payload) => ipcRenderer.invoke('madcad:send-to-slicer', payload),
   importDwgSketch: () => ipcRenderer.invoke('madcad:import-dwg-sketch'),
@@ -30,6 +31,8 @@ contextBridge.exposeInMainWorld('desktopApp', {
   projectSnapshotCreate: (payload) => ipcRenderer.invoke('madcad:project-snapshot-create', payload),
   projectSnapshotRead: (payload) => ipcRenderer.invoke('madcad:project-snapshot-read', payload),
   projectSnapshotDelete: (payload) => ipcRenderer.invoke('madcad:project-snapshot-delete', payload),
+  selectLinkedProject: (payload) => ipcRenderer.invoke('madcad:select-linked-project', payload),
+  readLinkedProject: (payload) => ipcRenderer.invoke('madcad:read-linked-project', payload),
   checkForUpdates: () => ipcRenderer.invoke('madcad:check-for-updates'),
   downloadAndInstallUpdate: (payload) => ipcRenderer.invoke('madcad:download-and-install-update', payload),
   openPrintPreviewWindow: (payload) => ipcRenderer.invoke('madcad:open-print-preview', payload),

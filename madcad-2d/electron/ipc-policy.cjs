@@ -85,6 +85,27 @@ function normalizeProjectSnapshotIdPayload(payload) {
   return { id };
 }
 
+function normalizedBaseProjectPath(value) {
+  const filePath = limitedString(value, { label: 'Ścieżka projektu nadrzędnego', min: 1, max: 4096, trim: true });
+  if (!path.isAbsolute(filePath) || path.extname(filePath).toLowerCase() !== '.madcad') throw new Error('Projekt nadrzędny musi być zapisanym plikiem .madcad.');
+  return path.normalize(filePath);
+}
+
+function normalizeLinkedProjectBasePayload(payload) {
+  const source = assertPlainObject(payload);
+  return { baseProjectPath: normalizedBaseProjectPath(source.baseProjectPath) };
+}
+
+function normalizeLinkedProjectReadPayload(payload) {
+  const source = assertPlainObject(payload);
+  const baseProjectPath = normalizedBaseProjectPath(source.baseProjectPath);
+  const relativePath = limitedString(source.relativePath, { label: 'Ścieżka projektu linkowanego', min: 1, max: 1024, trim: true });
+  if (path.isAbsolute(relativePath) || relativePath.includes('\0') || path.extname(relativePath).toLowerCase() !== '.madcad') throw new Error('Łącze musi wskazywać względną ścieżkę pliku .madcad.');
+  const resolvedPath = path.resolve(path.dirname(baseProjectPath), relativePath);
+  if (resolvedPath === baseProjectPath) throw new Error('Projekt nie może być linkiem do samego siebie.');
+  return { baseProjectPath, relativePath: path.relative(path.dirname(baseProjectPath), resolvedPath), resolvedPath };
+}
+
 function normalizePrintPreviewPayload(payload, language = 'pl') {
   const source = assertPlainObject(payload);
   return {
@@ -140,6 +161,8 @@ module.exports = {
   normalizeCadConversionPayload,
   normalizePdfExportPayload,
   normalizePrintPreviewPayload,
+  normalizeLinkedProjectBasePayload,
+  normalizeLinkedProjectReadPayload,
   normalizeProjectSnapshotCreatePayload,
   normalizeProjectSnapshotIdPayload,
   normalizeSaveFilters,

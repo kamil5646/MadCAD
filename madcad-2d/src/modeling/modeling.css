@@ -2939,6 +2939,7 @@
 
 .component-toolbar {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 8px;
   border-bottom: 1px solid #596573;
@@ -3165,6 +3166,19 @@
 }
 
 .component-properties textarea { resize: vertical; }
+.linked-project-card { display: grid; gap: 6px; padding: 7px; border: 1px solid #647383; border-left: 3px solid #8ba4b7; border-radius: 3px; background: #293540; }
+.linked-project-card.current { border-left-color: #62c68c; }
+.linked-project-card.changed { border-left-color: #e1ad55; background: #413a2b; }
+.linked-project-card.missing,
+.linked-project-card.error { border-left-color: #e27373; background: #432f32; }
+.linked-project-card > div { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 6px; color: #dfe8ee; }
+.linked-project-card > div span { display: grid; min-width: 0; }
+.linked-project-card > div small { overflow: hidden; color: #a7b5c0; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.linked-project-card > div em { color: #b9c8d2; font-size: 8px; font-style: normal; letter-spacing: .06em; }
+.linked-project-card > p { margin: 0; color: #bdc9d1; font-size: 9px; line-height: 1.35; }
+.linked-project-card footer { display: flex; gap: 6px; }
+.linked-project-card footer button { display: inline-flex; min-height: 26px; align-items: center; gap: 5px; padding: 3px 8px; border: 1px solid #687887; border-radius: 3px; background: #435261; color: #edf4f8; font: inherit; cursor: pointer; }
+.linked-project-card footer button:disabled { opacity: .45; cursor: default; }
 .component-description { align-items: start !important; }
 .component-section-title { display: flex; align-items: center; justify-content: space-between; margin-top: 3px; padding-top: 7px; border-top: 1px solid #53606e; color: #e0e7ec; font-size: 10px; }
 .component-section-title:first-child { margin-top: 0; padding-top: 0; border-top: 0; }

@@ -1698,6 +1698,16 @@ async function handleMessage(data) {
     }
     return;
   }
+  if (type === 'export-document') {
+    const evaluated = await evaluateRevision(document, 'display');
+    try {
+      const exported = await exportBodies(evaluated.kernelBodies, format, false);
+      self.postMessage({ id, ok: true, type, result: { format, buffers: exported.buffers } }, exported.buffers);
+    } finally {
+      evaluated.kernelBodies.forEach((body) => body.shape.delete?.());
+    }
+    return;
+  }
   const error = new Error(`Nieznane polecenie: ${type}`);
   error.code = 'UNKNOWN_COMMAND';
   throw error;

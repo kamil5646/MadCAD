@@ -98,6 +98,7 @@ function normalizedComponent(component, index = 0) {
     bodyIds,
     sketchIds: uniqueStrings(component?.sketchIds),
     componentIds: type === 'assembly' ? componentIds : [],
+    linkedProjectId: typeof component?.linkedProjectId === 'string' ? component.linkedProjectId : '',
   };
 }
 
