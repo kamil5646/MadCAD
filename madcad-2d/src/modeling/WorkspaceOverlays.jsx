@@ -15,6 +15,7 @@ import {
   FolderOpen,
   Frame,
   GitCompareArrows,
+  History,
   Layers3,
   Link2,
   Magnet,
@@ -24,6 +25,7 @@ import {
   Save,
   Settings2,
   Square,
+  Trash2,
   X,
 } from 'lucide-react';
 import madcadIconUrl from '../../assets/icons/madcad-512.png';
@@ -32,7 +34,7 @@ import { formatShortcut } from './platform-shortcuts.js';
 
 const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
 
-export function CrashRecoveryBanner({ info, onSave, onDismiss }) {
+export function CrashRecoveryBanner({ info, onSave, onOpenSnapshots, onDismiss }) {
   if (!info) return null;
   const parsedTime = Date.parse(info.updatedAt || '');
   const savedAt = Number.isFinite(parsedTime)
@@ -45,8 +47,59 @@ export function CrashRecoveryBanner({ info, onSave, onDismiss }) {
         <span>{info.backup ? 'Użyto poprzedniej poprawnej kopii autozapisu' : 'Użyto ostatniego poprawnego autozapisu'}{savedAt ? ` · ${savedAt}` : ''}.</span>
       </div>
       <button type="button" onClick={onSave}>Zapisz odzyskany projekt</button>
+      {onOpenSnapshots && <button type="button" onClick={onOpenSnapshots}>Otwórz punkty zapisu</button>}
       <button className="icon-only" type="button" aria-label="Zamknij komunikat odzyskiwania" title="Zamknij komunikat" onClick={onDismiss}><X size={15} /></button>
     </section>
+  );
+}
+
+export function ProjectSnapshotsPanel({ snapshots, loading, error, readOnly = false, onCreate, onRestore, onDelete, onClose }) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [deleteConfirmId, setDeleteConfirmId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!name.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      const created = await onCreate({ name: name.trim(), description: description.trim() });
+      if (created) {
+        setName('');
+        setDescription('');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  const formatTime = (value) => {
+    const parsed = Date.parse(value || '');
+    return Number.isFinite(parsed) ? new Date(parsed).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : 'brak daty';
+  };
+  return (
+    <aside className="project-snapshots-panel" role="dialog" aria-modal="false" aria-label="Punkty zapisu projektu">
+      <header><div><History size={16} /><span><strong>PUNKTY ZAPISU</strong><small>Lokalne wersje projektu · maks. 20</small></span></div><button type="button" aria-label="Zamknij punkty zapisu" title="Zamknij" onClick={onClose}><X size={15} /></button></header>
+      <form onSubmit={submit}>
+        <label><span>Nazwa wersji</span><input autoFocus value={name} maxLength={80} placeholder="np. Przed otworami" onChange={(event) => setName(event.target.value)} /></label>
+        <label><span>Opis zmian</span><textarea value={description} maxLength={240} rows={2} placeholder="Co jest ważne w tej wersji?" onChange={(event) => setDescription(event.target.value)} /></label>
+        <button className="confirm" data-snapshot-action="create" type="submit" disabled={!name.trim() || submitting}>{submitting ? 'Zapisywanie…' : 'Utwórz punkt zapisu'}</button>
+      </form>
+      {error && <div className="project-snapshots-error" role="alert">{error}</div>}
+      <div className="project-snapshots-list" aria-live="polite">
+        {loading ? <div className="project-snapshots-empty">Wczytywanie punktów zapisu…</div> : snapshots.length ? snapshots.map((snapshot) => (
+          <article className="project-snapshot-item" key={snapshot.id} data-snapshot-id={snapshot.id}>
+            <div><strong>{snapshot.name}</strong><time dateTime={snapshot.createdAt}>{formatTime(snapshot.createdAt)}</time></div>
+            {snapshot.description && <p>{snapshot.description}</p>}
+            <small>{snapshot.documentName} · {snapshot.sketchCount} szk. · {snapshot.featureCount} oper. · {(snapshot.size / (snapshot.size > 1024 * 1024 ? 1024 * 1024 : 1024)).toFixed(snapshot.size > 1024 * 1024 ? 1 : 0)} {snapshot.size > 1024 * 1024 ? 'MB' : 'KB'}</small>
+            <footer>
+              <button data-snapshot-action="restore" type="button" disabled={readOnly} title={readOnly ? 'Przywracanie jest niedostępne dla projektu tylko do odczytu' : 'Przywróć ten punkt zapisu'} onClick={() => { void onRestore(snapshot.id); }}><History size={13} /> Przywróć</button>
+              {deleteConfirmId === snapshot.id ? <><button className="danger" data-snapshot-action="confirm-delete" type="button" onClick={() => { void onDelete(snapshot.id); setDeleteConfirmId(''); }}>Usuń wersję</button><button type="button" onClick={() => setDeleteConfirmId('')}>Anuluj</button></> : <button className="icon-only" data-snapshot-action="delete" type="button" title={`Usuń punkt zapisu ${snapshot.name}`} aria-label={`Usuń punkt zapisu ${snapshot.name}`} onClick={() => setDeleteConfirmId(snapshot.id)}><Trash2 size={13} /></button>}
+            </footer>
+          </article>
+        )) : <div className="project-snapshots-empty"><History size={22} /><strong>Brak punktów zapisu</strong><span>Utwórz nazwaną wersję przed większą zmianą modelu.</span></div>}
+      </div>
+      <p className="project-snapshots-hint">Przywrócenie nie usuwa bieżącego stanu. Możesz je cofnąć przez Undo.</p>
+    </aside>
   );
 }
 

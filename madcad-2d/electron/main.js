@@ -13,9 +13,12 @@ const {
   normalizeAutosavePayload,
   normalizePdfExportPayload,
   normalizePrintPreviewPayload,
+  normalizeProjectSnapshotCreatePayload,
+  normalizeProjectSnapshotIdPayload,
   normalizeSaveTextPayload,
   securePrintPreviewHtml,
 } = require('./ipc-policy.cjs');
+const { createProjectSnapshot, deleteProjectSnapshot, listProjectSnapshots, readProjectSnapshot } = require('./project-snapshots.cjs');
 const { readRecoverableTextFile, validateJsonText } = require('./recovery-file.cjs');
 const { normalizeWindowBounds } = require('./window-bounds.cjs');
 const updatePolicy = require('./update-policy.cjs');
@@ -40,6 +43,7 @@ const TRUSTED_MAC_TEAM_ID = /^[A-Z0-9]{10}$/.test(String(packageMetadata.madcadM
   : '';
 let forceCloseForUpdate = false;
 let autosaveOperationQueue = Promise.resolve();
+let projectSnapshotOperationQueue = Promise.resolve();
 
 if (app && typeof app.setName === 'function') {
   app.setName(APP_DISPLAY_NAME);
@@ -131,9 +135,19 @@ function getAutoSavePath() {
   return path.join(app.getPath('userData'), 'autosave', 'latest-session.json');
 }
 
+function getProjectSnapshotsPath() {
+  return path.join(app.getPath('userData'), 'project-snapshots');
+}
+
 function queueAutosaveOperation(operation) {
   const result = autosaveOperationQueue.then(operation, operation);
   autosaveOperationQueue = result.catch(() => {});
+  return result;
+}
+
+function queueProjectSnapshotOperation(operation) {
+  const result = projectSnapshotOperationQueue.then(operation, operation);
+  projectSnapshotOperationQueue = result.catch(() => {});
   return result;
 }
 
@@ -1454,6 +1468,45 @@ registerTrustedIpcHandler('madcad:autosave-clear', async () => {
       error:
         error && error.message ? String(error.message) : t('Nie udało się usunąć autozapisu.', 'Autosave clear failed.')
     };
+  }
+});
+
+registerTrustedIpcHandler('madcad:project-snapshot-list', async () => {
+  try {
+    const result = await queueProjectSnapshotOperation(() => listProjectSnapshots(getProjectSnapshotsPath()));
+    return { ok: true, snapshots: result.snapshots, warning: result.warning || '' };
+  } catch (error) {
+    return { ok: false, snapshots: [], error: storageErrorMessage(error, 'Nie udało się odczytać punktów zapisu.', 'Failed to read project save points.') };
+  }
+});
+
+registerTrustedIpcHandler('madcad:project-snapshot-create', async (_event, payload) => {
+  try {
+    const normalized = normalizeProjectSnapshotCreatePayload(payload);
+    const result = await queueProjectSnapshotOperation(() => createProjectSnapshot(getProjectSnapshotsPath(), normalized));
+    return { ok: true, snapshot: result.item, removedIds: result.removedIds };
+  } catch (error) {
+    return { ok: false, error: storageErrorMessage(error, 'Nie udało się utworzyć punktu zapisu.', 'Failed to create a project save point.') };
+  }
+});
+
+registerTrustedIpcHandler('madcad:project-snapshot-read', async (_event, payload) => {
+  try {
+    const { id } = normalizeProjectSnapshotIdPayload(payload);
+    const result = await queueProjectSnapshotOperation(() => readProjectSnapshot(getProjectSnapshotsPath(), id));
+    return { ok: true, snapshot: result.item, text: result.text };
+  } catch (error) {
+    return { ok: false, error: storageErrorMessage(error, 'Nie udało się otworzyć punktu zapisu.', 'Failed to open the project save point.') };
+  }
+});
+
+registerTrustedIpcHandler('madcad:project-snapshot-delete', async (_event, payload) => {
+  try {
+    const { id } = normalizeProjectSnapshotIdPayload(payload);
+    const result = await queueProjectSnapshotOperation(() => deleteProjectSnapshot(getProjectSnapshotsPath(), id));
+    return { ok: true, snapshot: result.item };
+  } catch (error) {
+    return { ok: false, error: storageErrorMessage(error, 'Nie udało się usunąć punktu zapisu.', 'Failed to delete the project save point.') };
   }
 });
 

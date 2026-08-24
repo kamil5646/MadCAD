@@ -9,6 +9,7 @@ import slicerLaunch from '../electron/slicer-launch.cjs';
 import securityPolicy from '../electron/security-policy.cjs';
 import ipcPolicy from '../electron/ipc-policy.cjs';
 import recoveryFile from '../electron/recovery-file.cjs';
+import projectSnapshotStore from '../electron/project-snapshots.cjs';
 import windowBounds from '../electron/window-bounds.cjs';
 import updatePolicy from '../electron/update-policy.cjs';
 import dwgConverter from '../electron/dwg-converter.cjs';
@@ -2083,6 +2084,7 @@ test('interfejs modelowania rozpoznaje PL/EN i tłumaczy także dynamiczny stan 
   assert.equal(resolveModelingLanguage('', 'en'), 'en');
   assert.equal(translateModelingText('  Utwórz szkic  ', 'en'), '  Create sketch  ');
   assert.equal(translateModelingText('Model gotowy · 1 bryła', 'en'), 'Model ready · 1 body');
+  assert.equal(translateModelingText('Korpus · 1 szk. · 3 oper. · 5 KB', 'en'), 'Korpus · 1 sk. · 3 feat. · 5 KB');
   assert.equal(translateModelingText('Otwarty łańcuch (3)', 'en'), 'Open chain (3)');
   assert.equal(translateModelingText('Przeliczanie historii…', 'en'), 'Recomputing history…');
   assert.equal(translateModelingText('A4 · poziomo · 1 wid.', 'en'), 'A4 · landscape · 1 view');
@@ -3903,6 +3905,10 @@ test('polityka IPC ogranicza nazwy, filtry, konwersje i podgląd wydruku', () =>
   assert.equal(save.atomic, true);
   assert.throws(() => ipcPolicy.normalizeSaveTextPayload({ text: 'x', filters: [{ name: 'Zły', extensions: ['../exe'] }] }), /rozszerzenie/i);
   assert.throws(() => ipcPolicy.normalizeAutosavePayload({ text: '' }), /pusty/i);
+  const snapshot = ipcPolicy.normalizeProjectSnapshotCreatePayload({ name: '  Przed otworami  ', description: ' wersja bazowa ', text: '{"schemaVersion":14}' });
+  assert.deepEqual(snapshot, { name: 'Przed otworami', description: 'wersja bazowa', text: '{"schemaVersion":14}' });
+  assert.equal(ipcPolicy.normalizeProjectSnapshotIdPayload({ id: 'snapshot-12345678-1234-4123-8123-123456789abc' }).id, 'snapshot-12345678-1234-4123-8123-123456789abc');
+  assert.throws(() => ipcPolicy.normalizeProjectSnapshotIdPayload({ id: '../manifest.json' }), /ID/i);
   assert.throws(() => ipcPolicy.normalizeCadConversionPayload({ mode: 'dwg-to-dxf', sourcePath: '/tmp/model.exe' }), /DWG/i);
   assert.equal(ipcPolicy.normalizeCadConversionPayload({ mode: 'dxf-text-to-dwg', dxfText: '0\nEOF', defaultName: '../part' }).defaultName, 'part.dwg');
   const preview = ipcPolicy.securePrintPreviewHtml('<!doctype html><html><head></head><body><script>print()</script></body></html>');
@@ -3919,7 +3925,7 @@ test('okna Electron i preload utrzymują sandbox oraz jedną bramę IPC', async 
   ]);
   assert.doesNotMatch(mainSource, /sandbox:\s*false/);
   assert.equal((mainSource.match(/sandbox:\s*true/g) || []).length, 3);
-  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 12);
+  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 16);
   assert.doesNotMatch(mainSource, /install-oda-addon|convert-cad-file|get-oda-status|choose-oda|open-oda/);
   assert.match(mainSource, /import-dwg-sketch/);
   assert.equal((mainSource.match(/ipcMain\.handle\(/g) || []).length, 1);
@@ -3928,6 +3934,38 @@ test('okna Electron i preload utrzymują sandbox oraz jedną bramę IPC', async 
   assert.doesNotMatch(preloadSource, /require\(['"](?:os|crypto|fs|child_process)['"]\)/);
   assert.doesNotMatch(preloadSource, /verifyLicenseSignature/);
   assert.doesNotMatch(preloadSource, /installOdaAddon|convertCadFile|getOdaStatus|chooseOdaConverterPath|openOdaDownload/);
+});
+
+test('nazwane punkty zapisu projektu są atomowe, limitowane i możliwe do przywrócenia', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'madcad-project-snapshots-'));
+  try {
+    const ids = [];
+    for (let index = 0; index < 21; index += 1) {
+      const id = `snapshot-00000000-0000-4000-8000-${String(index).padStart(12, '0')}`;
+      ids.push(id);
+      const document = createDocument(`Projekt ${index}`);
+      document.features.push(createFeature('primitive', { primitiveType: 'box', width: '10', depth: '10', height: '10' }));
+      const created = await projectSnapshotStore.createProjectSnapshot(directory, {
+        name: `Wersja ${index}`,
+        description: index === 20 ? 'Gotowa do otworów' : '',
+        text: JSON.stringify(document),
+      }, { id, now: () => `2026-08-24T${String(index).padStart(2, '0')}:00:00.000Z` });
+      if (index === 20) assert.deepEqual(created.removedIds, [ids[0]]);
+    }
+    const listed = await projectSnapshotStore.listProjectSnapshots(directory);
+    assert.equal(listed.snapshots.length, projectSnapshotStore.MAX_PROJECT_SNAPSHOTS);
+    assert.equal(listed.snapshots[0].name, 'Wersja 20');
+    assert.equal(listed.snapshots[0].featureCount, 1);
+    assert.equal(listed.snapshots.some((item) => item.id === ids[0]), false);
+    const opened = await projectSnapshotStore.readProjectSnapshot(directory, ids[20]);
+    assert.equal(JSON.parse(opened.text).name, 'Projekt 20');
+    assert.equal(opened.item.description, 'Gotowa do otworów');
+    await projectSnapshotStore.deleteProjectSnapshot(directory, ids[20]);
+    assert.equal((await projectSnapshotStore.listProjectSnapshots(directory)).snapshots.length, 19);
+    await assert.rejects(() => projectSnapshotStore.readProjectSnapshot(directory, '../manifest.json'), /ID|znaleziono/i);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('uszkodzony autozapis jest odzyskiwany z poprawnej kopii .bak', async () => {

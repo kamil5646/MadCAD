@@ -67,6 +67,24 @@ function normalizeAutosavePayload(payload) {
   };
 }
 
+function normalizeProjectSnapshotCreatePayload(payload) {
+  const source = assertPlainObject(payload);
+  return {
+    name: limitedString(source.name, { label: 'Nazwa punktu zapisu', min: 1, max: 80, trim: true }),
+    description: typeof source.description === 'string'
+      ? limitedString(source.description, { label: 'Opis punktu zapisu', max: 240, trim: true })
+      : '',
+    text: limitedString(source.text, { label: 'Punkt zapisu', min: 1, max: MAX_AUTOSAVE_TEXT_BYTES }),
+  };
+}
+
+function normalizeProjectSnapshotIdPayload(payload) {
+  const source = assertPlainObject(payload);
+  const id = limitedString(source.id, { label: 'ID punktu zapisu', min: 1, max: 64, trim: true });
+  if (!/^snapshot-[0-9a-f-]{36}$/i.test(id)) throw new Error('Nieprawidłowe ID punktu zapisu.');
+  return { id };
+}
+
 function normalizePrintPreviewPayload(payload, language = 'pl') {
   const source = assertPlainObject(payload);
   return {
@@ -122,6 +140,8 @@ module.exports = {
   normalizeCadConversionPayload,
   normalizePdfExportPayload,
   normalizePrintPreviewPayload,
+  normalizeProjectSnapshotCreatePayload,
+  normalizeProjectSnapshotIdPayload,
   normalizeSaveFilters,
   normalizeSaveTextPayload,
   safeFileName,

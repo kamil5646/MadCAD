@@ -1426,6 +1426,95 @@
 .crash-recovery-banner button:hover { background: #3b6c7e; }
 .crash-recovery-banner .icon-only { width: 28px; padding: 0; border-color: transparent; background: transparent; }
 
+.project-snapshots-panel {
+  position: absolute;
+  z-index: 19;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  width: min(360px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow: hidden;
+  border: 1px solid #526576;
+  border-radius: 7px;
+  background: #263442;
+  box-shadow: 0 12px 28px rgb(5 12 18 / 42%);
+  color: #e8f0f5;
+  grid-template-rows: auto auto auto minmax(72px, 1fr) auto;
+}
+
+.project-snapshots-panel > header {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 8px 7px 11px;
+  border-bottom: 1px solid #415365;
+  background: #303f4e;
+}
+
+.project-snapshots-panel > header > div,
+.project-snapshots-panel > header span { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.project-snapshots-panel > header span { align-items: flex-start; flex-direction: column; gap: 1px; }
+.project-snapshots-panel > header strong { font-size: 11px; letter-spacing: .08em; }
+.project-snapshots-panel > header small { color: #aebdca; font-size: 9px; font-weight: 500; }
+.project-snapshots-panel > header button,
+.project-snapshot-item button,
+.project-snapshots-panel form button {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid #536779;
+  border-radius: 4px;
+  background: #354757;
+  color: #e6eef4;
+  font: inherit;
+  cursor: pointer;
+}
+.project-snapshots-panel > header button { width: 30px; padding: 0; border-color: transparent; background: transparent; }
+.project-snapshots-panel button:hover { border-color: #70b9d6; background: #3d586b; }
+.project-snapshots-panel button:disabled { cursor: default; opacity: .45; }
+.project-snapshots-panel form { display: grid; gap: 7px; padding: 9px 10px; border-bottom: 1px solid #415365; background: #293847; }
+.project-snapshots-panel form label { display: grid; gap: 3px; color: #b7c5d0; font-size: 9px; font-weight: 700; }
+.project-snapshots-panel input,
+.project-snapshots-panel textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 7px;
+  border: 1px solid #536779;
+  border-radius: 4px;
+  outline: none;
+  background: #1f2b36;
+  color: #f2f7fa;
+  font: inherit;
+  resize: vertical;
+}
+.project-snapshots-panel input:focus,
+.project-snapshots-panel textarea:focus { border-color: #61c7ec; box-shadow: 0 0 0 2px rgb(97 199 236 / 18%); }
+.project-snapshots-panel form .confirm { justify-self: end; border-color: #3095bc; background: #267da0; font-weight: 700; }
+.project-snapshots-error { padding: 7px 10px; border-bottom: 1px solid #7b4d51; background: #53353a; color: #ffd8d8; font-size: 10px; }
+.project-snapshots-list { min-height: 0; overflow: auto; padding: 7px; }
+.project-snapshot-item { display: grid; gap: 5px; padding: 8px; border: 1px solid #405466; border-radius: 5px; background: #2d3c4b; }
+.project-snapshot-item + .project-snapshot-item { margin-top: 6px; }
+.project-snapshot-item > div { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 8px; }
+.project-snapshot-item strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.project-snapshot-item time { flex: 0 0 auto; color: #9fb0bd; font-size: 8px; }
+.project-snapshot-item p { margin: 0; color: #c9d5dd; font-size: 9px; line-height: 1.35; }
+.project-snapshot-item > small { color: #91a6b6; font-size: 8px; }
+.project-snapshot-item footer { display: flex; align-items: center; gap: 5px; }
+.project-snapshot-item footer .icon-only { width: 28px; margin-left: auto; padding: 0; }
+.project-snapshot-item footer .danger { border-color: #9b565e; background: #6d3b42; }
+.project-snapshots-empty { display: flex; min-height: 92px; align-items: center; justify-content: center; color: #9fb0bd; text-align: center; flex-direction: column; gap: 5px; font-size: 10px; }
+.project-snapshots-empty strong { color: #dbe5eb; }
+.project-snapshots-hint { margin: 0; padding: 7px 10px; border-top: 1px solid #415365; color: #a8bac7; font-size: 8px; }
+
+@media (max-width: 780px) {
+  .project-snapshots-panel { top: 8px; right: 8px; width: min(340px, calc(100% - 16px)); max-height: calc(100% - 16px); }
+}
+
 .engine-status > span,
 .status-dot,
 .preview-dot {

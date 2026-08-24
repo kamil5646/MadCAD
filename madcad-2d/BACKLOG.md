@@ -29,7 +29,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 ## Historia, projekty i zespoły
 
 - [x] Rollback osi czasu, wstawianie w środku, reorder, suppress, rename, delete i grupy ukończono jako `P4.1`.
-- Historia ręcznych zapisów, odzyskiwanie i linkowane zależności projektu — lokalne punkty zapisu są aktywnym etapem `P4.2`.
+- [x] Historia ręcznych zapisów i odzyskiwanie ukończono jako lokalne, atomowe punkty zapisu `P4.2` z Undo/Redo i dostępem z komunikatu odzyskiwania po awarii.
+- Linkowane zależności projektu są aktywnym etapem `P4.3`: względne ścieżki, kontrola tożsamości i zmiany źródła, ręczne odświeżanie oraz naprawa brakującego łącza.
 - [x] Komponenty, podkomponenty, origin, numer części i właściwości ukończono jako `P3.1`.
 - [x] Wystąpienia komponentów, transformacje, Ground i Rigid Group ukończono jako `P3.2`.
 - [x] Joints rigid, revolute i slider z osiami oraz limitami ukończono jako `P3.3`.

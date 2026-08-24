@@ -115,7 +115,7 @@ Te prace nie czekają na koniec modelowania:
 
 - [x] CI: test core i build na Linux/macOS/Windows, desktop E2E na macOS/Windows oraz smoke test paczek ZIP/NSIS/AppImage.
 - [x] Awaria workera, pełny dysk, uszkodzony projekt, kopia autozapisu i odzyskanie sesji są testowane.
-- [x] Electron ma context isolation, sandbox, CSP, bezpieczne linki, wspólną kontrolę źródła dla wszystkich 10 kanałów IPC oraz test odrzucenia obcego widoku.
+- [x] Electron ma context isolation, sandbox, CSP, bezpieczne linki, wspólną kontrolę źródła dla wszystkich 16 kanałów IPC oraz test odrzucenia obcego widoku.
 - [x] Budżety wydajności pickingu, meshowania i długiej historii są mierzone w testach core i desktop E2E.
 - [x] Przełącznik PL/EN, katalog tekstów nowych przepływów oraz bramka wykrywająca polskie teksty w renderowanym interfejsie EN działają. Dostępność klawiatury i fokusu oraz DPI 100–200% są testowane.
 - [x] Kanały alpha/beta/stable, SHA-256, testy paczek, rollback podpisanej instalacji macOS i updater ignorujący niezaufany adres z renderera są zaimplementowane. Wydanie 6.2.0 bez certyfikatu pobiera, sprawdza i przekazuje właściwą paczkę na Windows, macOS i Linux.
@@ -184,7 +184,8 @@ Te prace nie czekają na koniec modelowania:
 ## P4 — historia i zarządzanie projektem
 
 - [x] P4.1 Bezpieczny rollback osi czasu oznacza aktywną granicę modelu i nie wykonuje późniejszych operacji. Nowe operacje są wstawiane przy markerze, reorder odrzuca zerwanie zależności lub kolejności grupy, a rename/suppress/delete oraz zwijane, nazywane grupy działają z kaskadowym czyszczeniem. Schemat v14 zapisuje marker i grupy, migruje v13 bez utraty danych i przechodzi testy core, walidację, undo/redo oraz desktop E2E z kontrolą wizualną.
-- [>] P4.2 Lokalne punkty zapisu projektu: nazwane migawki, lista wersji z czasem i opisem zmian, bezpieczne przywrócenie jako nowy stan z możliwością Undo oraz integracja z istniejącym odzyskiwaniem po awarii.
+- [x] P4.2 Lokalne punkty zapisu projektu przechowują nazwane, niezmienne migawki `.madcad` z czasem, opisem, rozmiarem i liczbą szkiców/operacji. Manifest i jego kopia zapasowa są zapisywane atomowo, limity 20 wersji, 64 MiB na wersję i 256 MiB łącznie automatycznie usuwają najstarsze dane. Kompaktowy panel PL/EN tworzy, przywraca i usuwa wersje z potwierdzeniem; przywrócenie pozostawia poprzedni stan w Undo/Redo, oznacza projekt jako zmieniony i jest dostępne z komunikatu odzyskiwania po awarii. Zaufane IPC blokuje nieprawidłowe ID i obcy widok, a testy core, Electron security oraz desktop E2E sprawdzają prawdziwy zapis, odczyt, limity, odbudowę brył i układ panelu.
+- [>] P4.3 Linkowane komponenty projektu: bezpieczne wskazanie zewnętrznego pliku `.madcad`, zapis względnej ścieżki i tożsamości źródła, stan aktualny/zmieniony/brakujący, ręczne odświeżenie oraz naprawa utraconego łącza bez kopiowania całego projektu do dokumentu nadrzędnego.
 
 ## Definition of Done
 
@@ -211,7 +212,7 @@ Dodatkowo:
 
 ## Najbliższe zadania
 
-1. [>] Dodać nazwane lokalne punkty zapisu i bezpieczne przywracanie wersji jako etap P4.2.
+1. [>] Dodać bezpieczne linkowane komponenty projektu, wykrywanie zmiany źródła i naprawę brakującego łącza jako etap P4.3.
 2. [~] Sprawdzić import/eksport na rzeczywistych plikach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny odsłuch VoiceOver. Korpus formatów i automatyczny test drzewa AX są gotowe.
 3. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 

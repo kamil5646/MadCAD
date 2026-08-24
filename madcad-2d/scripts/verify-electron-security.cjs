@@ -83,6 +83,15 @@ app.on('browser-window-created', (_event, mainWindow) => {
       ]);
       assert.equal(trustedUpdate.ok, true);
       assert.equal(trustedUpdate.supported, false);
+      const trustedSnapshots = await evaluateWithDebugger(mainWindow.webContents, `(async () => {
+        const text = window.__madcadGetSessionExport();
+        const created = await window.desktopApp.projectSnapshotCreate({ name: 'Security smoke', description: 'Trusted IPC', text });
+        const listed = await window.desktopApp.projectSnapshotList();
+        const opened = await window.desktopApp.projectSnapshotRead({ id: created.snapshot.id });
+        const removed = await window.desktopApp.projectSnapshotDelete({ id: created.snapshot.id });
+        return { created: created.ok, listed: listed.snapshots.length, opened: opened.text === text, removed: removed.ok };
+      })()`, true);
+      assert.deepEqual(trustedSnapshots, { created: true, listed: 1, opened: true, removed: true });
 
       const untrustedWindow = new BrowserWindow({
         show: false,
@@ -108,6 +117,7 @@ app.on('browser-window-created', (_event, mainWindow) => {
         nodeIntegration: preferences.nodeIntegration,
         preloadApi: trustedApi.api,
         trustedIpc: trustedUpdate.ok,
+        snapshotIpc: trustedSnapshots,
         untrustedIpcRejected: rejection.rejected,
       });
     } catch (error) {
