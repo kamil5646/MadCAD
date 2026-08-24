@@ -396,6 +396,7 @@ export default function ModelViewport({
   showProjectedGeometry = true,
   sliceModel = false,
   sectionAnalysis = null,
+  draftAnalysis = null,
   parameters = [],
   showGrid = true,
   selectedBodyId,
@@ -598,6 +599,7 @@ export default function ModelViewport({
     const edgePickables = [];
     const vertexPickables = [];
     const faceHighlights = new Map();
+    const draftFaceMap = new Map((draftAnalysis?.faces || []).map((face) => [`${face.bodyId}:${face.faceId}`, face]));
     const collisionInstanceSet = new Set(collisionInstanceIds);
     const exactCollisionInstanceSet = new Set(exactCollisionInstanceIds);
     const componentByBodyId = new Map(components.flatMap((component) => (component.bodyIds || []).map((bodyId) => [bodyId, component])));
@@ -664,14 +666,15 @@ export default function ModelViewport({
       facePickables.push(mesh);
 
       for (const faceGroup of body.faceGroups || []) {
+        const draftFace = draftFaceMap.get(`${body.id}:${faceGroup.topologyId}`);
         const highlightGeometry = new THREE.BufferGeometry();
         highlightGeometry.setAttribute('position', geometry.getAttribute('position'));
         if (geometry.getAttribute('normal')) highlightGeometry.setAttribute('normal', geometry.getAttribute('normal'));
         highlightGeometry.setIndex(Array.from(body.triangles.slice(faceGroup.start, faceGroup.start + faceGroup.count)));
-        const highlight = new THREE.Mesh(highlightGeometry, new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.42, depthWrite: false, side: THREE.DoubleSide, clippingPlanes }));
+        const highlight = new THREE.Mesh(highlightGeometry, new THREE.MeshBasicMaterial({ color: draftFace?.color || 0xffc857, transparent: true, opacity: draftFace ? 0.58 : 0.42, depthWrite: false, side: THREE.DoubleSide, clippingPlanes }));
         highlight.renderOrder = 3;
-        highlight.visible = selectedTopologySet.has(faceGroup.topologyId);
-        highlight.userData = { bodyId: body.id, occurrenceId: placement.occurrenceId, topologyKind: 'face', topologyId: faceGroup.topologyId };
+        highlight.visible = Boolean(draftFace) || selectedTopologySet.has(faceGroup.topologyId);
+        highlight.userData = { bodyId: body.id, occurrenceId: placement.occurrenceId, topologyKind: 'face', topologyId: faceGroup.topologyId, analysisVisible: Boolean(draftFace) };
         placeObject(highlight);
         modelGroup.add(highlight);
         faceHighlights.set(`${placement.occurrenceId}:${faceGroup.topologyId}`, highlight);
@@ -1176,7 +1179,7 @@ export default function ModelViewport({
     const setModelHover = (hit) => {
       if (hoveredModel?.kind === 'face') {
         const highlight = faceHighlights.get(`${hoveredModel.occurrenceId || ''}:${hoveredModel.id}`);
-        if (highlight) highlight.visible = selectedTopologySet.has(hoveredModel.id);
+        if (highlight) highlight.visible = highlight.userData.analysisVisible || selectedTopologySet.has(hoveredModel.id);
       } else if (hoveredModel?.object?.material?.color) {
         hoveredModel.object.material.color.setHex(hoveredModel.object.userData.baseColor);
       }
@@ -1822,7 +1825,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds]);
 
   return (
     <div

@@ -94,7 +94,7 @@ import { resolveFaceEdgeHolePlacement } from '../src/cad-core/face-edge-hole.js'
 import { applyHoleStandard } from '../src/cad-core/hole-standards.js';
 import { measureSelection } from '../src/cad-core/measure-selection.js';
 import { calculateMassProperties } from '../src/cad-core/mass-properties.js';
-import { boundsOverlap, summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
+import { DRAFT_DIRECTIONS, analyzeDraftAngles, boundsOverlap, summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-profiles.js';
 import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, transformPrintPoint } from '../src/cad-core/print-layout.js';
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
@@ -1624,6 +1624,18 @@ test('analiza geometrii wybiera minimalny promień i zachowuje dokładne pary ko
     skippedPairs: 0,
   });
   assert.equal(summarizeGeometryInspection([], { collisionStatus: 'partial', skippedPairs: 2 }).skippedPairs, 2);
+  const draft = analyzeDraftAngles([{
+    id: 'draft-body',
+    triangles: Uint32Array.from([0, 1, 2]),
+    normals: Float32Array.from([0, 0, 1, 1, 0, 0, 0, 0, -1]),
+    faceGroups: [
+      { topologyId: 'positive', start: 0, count: 1 },
+      { topologyId: 'neutral', start: 1, count: 1 },
+      { topologyId: 'negative', start: 2, count: 1 },
+    ],
+  }], { direction: DRAFT_DIRECTIONS['z-positive'], tolerance: 0.5 });
+  assert.deepEqual(draft.faces.map((face) => face.classification), ['positive', 'neutral', 'negative']);
+  assert.deepEqual(draft.counts, { positive: 1, neutral: 1, negative: 1, mixed: 0 });
 });
 
 test('broad-phase kolizji odrzuca rozłączne AABB i zachowuje stykające się granice', () => {

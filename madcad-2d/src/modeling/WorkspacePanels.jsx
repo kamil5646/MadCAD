@@ -343,7 +343,8 @@ export function MassPropertiesPanel({ density, result, error, onDensityChange, o
   );
 }
 
-export function GeometryInspectionPanel({ result, onClose }) {
+export function GeometryInspectionPanel({ result, draftDirection = 'z-positive', draftTolerance = '0.5', onChange, onClose }) {
+  const draft = result.draft;
   return (
     <aside className="measure-panel geometry-inspection-panel" aria-label="Analiza geometrii">
       <header><div><ScanSearch size={16} /><strong>Analiza geometrii</strong></div><button type="button" title="Zamknij analizę geometrii" onClick={onClose}><X size={15} /></button></header>
@@ -354,6 +355,15 @@ export function GeometryInspectionPanel({ result, onClose }) {
         {result.skippedPairs > 0 && <div className="measure-row"><span>Pominięte pary</span><strong>{result.skippedPairs} · niezgodna/otwarta siatka</strong></div>}
         {result.collisions.map((collision) => <div className="collision-row" key={`${collision.firstBodyId}:${collision.secondBodyId}`}><span>{collision.firstBodyId} ↔ {collision.secondBodyId}</span><strong>{measureValue(collision.volume, 'mm³')}</strong></div>)}
         {!result.collisions.length && <p>{result.skippedPairs ? 'Nie wykryto kolizji w sprawdzonych parach; pominięte pary nie mają dokładnego wyniku.' : 'Nie wykryto wspólnej objętości pomiędzy bryłami.'}</p>}
+        <div className="draft-analysis-section">
+          <strong>Analiza pochylenia ścian</strong>
+          <label><span>Kierunek wyciągania</span><select value={draftDirection} onChange={(event) => onChange?.({ draftDirection: event.target.value })}><option value="x-positive">+X</option><option value="x-negative">−X</option><option value="y-positive">+Y</option><option value="y-negative">−Y</option><option value="z-positive">+Z</option><option value="z-negative">−Z</option></select></label>
+          <Field label="Tolerancja" value={draftTolerance} onChange={(value) => onChange?.({ draftTolerance: value })} suffix="°" />
+          <div className="draft-analysis-legend" aria-label="Legenda analizy pochylenia">
+            {[['positive', 'Dodatnie'], ['neutral', 'Zerowe'], ['negative', 'Ujemne'], ['mixed', 'Mieszane']].map(([classification, label]) => <div key={classification} className={classification}><span aria-hidden="true" /><em>{label}</em><strong>{draft?.counts?.[classification] || 0}</strong></div>)}
+          </div>
+          {draft?.unsupportedBodies?.length > 0 && <p>Brak mapy ścian dla {draft.unsupportedBodies.length} zaimportowanej siatki.</p>}
+        </div>
       </div>
     </aside>
   );

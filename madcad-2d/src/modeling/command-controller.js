@@ -42,6 +42,7 @@ const ACTIVE_COMMAND_LABELS = Object.freeze({
   patternSketch: 'SZYK',
   extrude: 'WYCIĄGNIJ',
   measure: 'ZMIERZ',
+  geometryInspection: 'ANALIZA GEOMETRII',
   parameters: 'PARAMETRY',
 });
 

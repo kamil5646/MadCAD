@@ -3140,6 +3140,57 @@
   line-height: 1.45;
 }
 
+.draft-analysis-section {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #4f5b68;
+}
+
+.draft-analysis-section > label {
+  display: grid;
+  grid-template-columns: 1fr 92px;
+  align-items: center;
+  gap: 8px;
+  color: #c6d0d8;
+  font-size: 10px;
+}
+
+.draft-analysis-section select {
+  height: 27px;
+  border: 1px solid #64707d;
+  border-radius: 2px;
+  background: #242c36;
+  color: #fff;
+}
+
+.draft-analysis-legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.draft-analysis-legend > div {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid #4f5b68;
+  background: #2d3641;
+  color: #cbd4dc;
+}
+
+.draft-analysis-legend span { width: 8px; height: 8px; border-radius: 50%; }
+.draft-analysis-legend em { overflow: hidden; font-size: 9px; font-style: normal; text-overflow: ellipsis; }
+.draft-analysis-legend strong { font-size: 10px; }
+.draft-analysis-legend .positive span { background: #52c878; }
+.draft-analysis-legend .neutral span { background: #f0c75e; }
+.draft-analysis-legend .negative span { background: #ef6a6a; }
+.draft-analysis-legend .mixed span { background: #a985e8; }
+
 .layers-panel {
   top: 14px;
   right: 14px;
