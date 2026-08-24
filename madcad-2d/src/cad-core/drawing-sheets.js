@@ -582,6 +582,20 @@ function fitDrawingTableCell(value, width) {
 
 function holeTableRows(view, bodies) {
   const sourceBodies = sourceBodiesForView(view, bodies);
+  const manufacturingHoles = sourceBodies.flatMap((body) => body?.manufacturingHoles || []);
+  if (manufacturingHoles.length) {
+    return manufacturingHoles.map((hole, index) => {
+      const diameter = `⌀${Number(Number(hole.diameter).toFixed(3))}`;
+      if (hole.holeApplication === 'tapped' && hole.threadDesignation) {
+        return [String(index + 1), `${hole.threadDesignation} - ${hole.threadClass || '6H'}`, String(hole.quantity || 1), `Gwint wewnętrzny · wiertło ${diameter}${hole.through ? ' · przelotowy' : ''}`];
+      }
+      if (hole.holeStandard === 'iso-273') {
+        const series = { fine: 'ciasna', medium: 'średnia', coarse: 'luźna' }[hole.clearanceClass] || hole.clearanceClass;
+        return [String(index + 1), diameter, String(hole.quantity || 1), `ISO 273 · ${hole.standardSize} · seria ${series}${hole.through ? ' · przelotowy' : ''}`];
+      }
+      return [String(index + 1), diameter, String(hole.quantity || 1), `${hole.holeType === 'simple' ? 'Otwór walcowy' : hole.holeType}${hole.through ? ' · przelotowy' : ''}`];
+    });
+  }
   const descriptors = sourceBodies.flatMap((body) => (body?.topology?.faces || []).map((face) => ({ ...face?.descriptor, bodyId: body.id })))
     .filter((descriptor) => descriptor.geometry === 'CYLINDRE' && Number(descriptor.radius) > 0);
   const internal = descriptors.filter((descriptor) => String(descriptor.orientation).toUpperCase().includes('REVERSED'));
@@ -605,7 +619,7 @@ function renderedTable(source, resolvedViews, bodies, components, componentInsta
   const bom = source.type === 'bom';
   const columns = bom
     ? [{ label: 'Poz.', width: 8 }, { label: 'Nr części', width: 20 }, { label: 'Nazwa', width: 30 }, { label: 'Ilość', width: 8 }, { label: 'Materiał', width: 20 }]
-    : [{ label: 'Poz.', width: 8 }, { label: 'Średnica', width: 16 }, { label: 'Ilość', width: 10 }, { label: 'Opis', width: 35 }];
+    : [{ label: 'Poz.', width: 8 }, { label: 'Wymiar', width: 22 }, { label: 'Ilość', width: 10 }, { label: 'Opis', width: 68 }];
   const rawRows = bom ? bomRows(bodies, components, componentInstances) : holeTableRows(resolvedViews.get(source.viewId), bodies);
   return {
     ...source,

@@ -109,5 +109,6 @@ Pełne warunki: [`../LICENSE`](../LICENSE). Kontakt handlowy:
 
 - [`FIRST_PART.md`](./FIRST_PART.md) — przejście od szkicu do pierwszej części.
 - [`ROADMAP.md`](./ROADMAP.md) — stan funkcji i dalszy kierunek.
+- [`docs/HOLE_STANDARDS.md`](./docs/HOLE_STANDARDS.md) — zakres otworów ISO, źródła danych i granice zgodności.
 - [`CHANGELOG.md`](./CHANGELOG.md) — historia wydań.
 - [`design-qa.md`](./design-qa.md) — kryteria jakości interfejsu.

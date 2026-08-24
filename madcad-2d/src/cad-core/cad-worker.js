@@ -675,6 +675,15 @@ function runFeature(feature, bodyMap, bodyOrder) {
     } else {
       for (const translation of patternTranslations(feature)) target.shape = target.shape.fuse(seed.clone().translate(translation));
     }
+    if (target.manufacturingHoles?.length) {
+      const occurrenceCount = feature.patternType === 'rectangular'
+        ? feature.countXValue * feature.countYValue
+        : feature.occurrencesValue;
+      target.manufacturingHoles = target.manufacturingHoles.map((hole) => ({
+        ...hole,
+        quantity: hole.quantity * occurrenceCount,
+      }));
+    }
     return;
   }
 
@@ -761,6 +770,19 @@ function runFeature(feature, bodyMap, bodyOrder) {
     // Cut the main hole and modeled thread grooves as one fused tool so the
     // target B-Rep is rebuilt only once for the complete hole operation.
     target.shape = target.shape.cut(combineShapes(cutters));
+    target.manufacturingHoles = [...(target.manufacturingHoles || []), {
+      featureId: feature.id,
+      diameter: feature.effectiveDiameterValue,
+      quantity: 1,
+      holeType: feature.holeType,
+      through: feature.extent === 'through-all',
+      holeStandard: feature.holeStandard || 'custom',
+      holeApplication: feature.holeApplication || 'custom',
+      standardSize: feature.standardSize || null,
+      clearanceClass: feature.clearanceClass || null,
+      threadDesignation: feature.threadDesignation || null,
+      threadClass: feature.threadClass || null,
+    }];
     return;
   }
 
@@ -1328,6 +1350,7 @@ function meshBody(body, index, quality = 'display') {
       name: body.name,
       sourceFeatureId: body.sourceFeatureId,
       representation: 'mesh-import',
+      manufacturingHoles: body.manufacturingHoles || [],
       meshBooleanCapable: body.meshBooleanCapable !== false,
       color: ['#55b7db', '#81c784', '#ffb95c', '#c49cff'][index % 4],
       vertices: Float32Array.from(mesh.vertices),
@@ -1375,6 +1398,7 @@ function meshBody(body, index, quality = 'display') {
     name: body.name,
     sourceFeatureId: body.sourceFeatureId,
     representation: body.representation || 'brep',
+    manufacturingHoles: body.manufacturingHoles || [],
     color: ['#55b7db', '#81c784', '#ffb95c', '#c49cff'][index % 4],
     vertices: Float32Array.from(mesh.vertices),
     normals: Float32Array.from(mesh.normals),

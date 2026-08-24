@@ -166,6 +166,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.29 Porządkowanie architektury obszaru modelowania: decyzje linii poleceń są planowane w testowalnym kontrolerze, zapis i odczyt projektu korzystają ze wspólnej usługi dokumentu, a modalne narzędzia szkicu/importu są renderowane przez osobny stos dialogów.
 - [x] P1.30 Korpus zgodności wymiany danych: deterministyczne fixture profili AutoCAD 2013 DXF, Fusion sketch DXF, FreeCAD/OpenCascade STEP oraz ASCII STL dla PrusaSlicer/Cura/Bambu mają testy jednostek, profili, trybu B-Rep/mesh i siatki; osobna regresja sprawdza drzewo AX, nazwy kontrolek i kolejność fokusu.
 - [x] P1.31 Rzeczywista macierz zgodności uruchamia lokalny GNU LibreDWG 0.13.3, oficjalny model STEP z przypiętego commita FreeCAD oraz zapisany wynik CLI Bambu Studio 2.8.2 przez pełny interfejs i silnik MadCAD. Naprawiono 3MF Production z geometrią w zewnętrznych plikach modelu: diagnostyka pokazuje teraz 1 obiekt i 4 trójkąty zamiast zera, a import zachowuje gabaryt 20 × 20 × 20 mm i dodatnią objętość. Raport JSON oraz `docs/INTEROPERABILITY_REPORT.md` rozdzielają wyniki potwierdzone od aplikacji nieobecnych na maszynie.
+- [x] P1.32a Wspólne otwory normowane M2–M24: trzy serie przejściowe ISO 273, gwinty metryczne o skoku zwykłym i wybranych drobnych, klasy wewnętrzne 5H/6H/7H, automatyczna średnica i oznaczenie. Metadane przechodzą walidację, edycję, B-Rep, zapis/otwarcie i zasilają skojarzoną tabelę otworów w dokumentacji 2D; zakres oraz źródła opisuje `docs/HOLE_STANDARDS.md`.
 
 ## P2 — dokumentacja techniczna 2D
 
@@ -220,7 +221,9 @@ Dodatkowo:
 
 1. [x] Dodać globalne wyszukiwanie projektu „Idź do” z nawigacją klawiaturą jako etap P4.8.
 2. [x] Sprawdzić import/eksport na rzeczywistych plikach z dostępnych lokalnie LibreDWG i Bambu Studio oraz oficjalnym STEP FreeCAD; wynik i uczciwe granice potwierdzenia zapisać w raporcie P1.31.
-3. [>] Wykonać ręczny odsłuch podstawowego przepływu w VoiceOver na kandydacie wydania. Kontrola macOS Accessibility API wykryła i usunęła pozostawienie fokusu pod modalem wyboru płaszczyzny; automatyczna regresja sprawdza teraz rolę, nazwę, fokus początkowy, pętlę Tab i jego przywracanie we wszystkich głównych dialogach.
-4. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
+3. [x] Dodać etap P1.32a wspólnych otworów ISO metrycznych z automatycznym opisem produkcyjnym i tabelą otworów.
+4. [>] Rozszerzyć P1.32b o NPT/BSPT, dodatkowe rozmiary oraz tolerancje wykonawcze na podstawie jawnie licencjonowanych danych normatywnych.
+5. [>] Wykonać ręczny odsłuch podstawowego przepływu w VoiceOver na kandydacie wydania. Kontrola macOS Accessibility API wykryła i usunęła pozostawienie fokusu pod modalem wyboru płaszczyzny; automatyczna regresja sprawdza teraz rolę, nazwę, fokus początkowy, pętlę Tab i jego przywracanie we wszystkich głównych dialogach.
+6. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 
 Dalsze pomysły produktowe pozostają w [BACKLOG.md](./BACKLOG.md) i wymagają osobnej priorytetyzacji.

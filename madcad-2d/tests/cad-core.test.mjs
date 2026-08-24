@@ -91,6 +91,7 @@ import { projectTopologyToSketch, synchronizeProjectedGeometry } from '../src/ca
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import { createTextProfile } from '../src/cad-core/text-profile.js';
 import { resolveFaceEdgeHolePlacement } from '../src/cad-core/face-edge-hole.js';
+import { applyHoleStandard } from '../src/cad-core/hole-standards.js';
 import { measureSelection } from '../src/cad-core/measure-selection.js';
 import { calculateMassProperties } from '../src/cad-core/mass-properties.js';
 import { boundsOverlap, summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
@@ -1544,6 +1545,28 @@ test('otwór na ścianie zachowuje parametryczne odległości od dwóch krawędz
   assert.deepEqual([countersink.threadMode, countersink.threadDiameterValue, countersink.threadPitchValue, countersink.threadLengthValue, countersink.threadDirection], ['modeled', 6, 1, 8, 'left']);
 });
 
+test('standardowy otwór ISO zachowuje rozmiar, pasowanie i klasę gwintu po round-trip', () => {
+  const document = createStarterDocument();
+  const hole = document.features.find((feature) => feature.type === 'hole');
+  Object.assign(hole, {
+    ...applyHoleStandard({ threadMode: 'none', threadClass: '6H' }, 'tapped', 'M8', 1.25),
+    threadLength: '8',
+    threadDirection: 'right',
+  });
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features.find((feature) => feature.id === hole.id);
+  assert.deepEqual([prepared.diameterValue, prepared.threadDiameterValue, prepared.threadPitchValue, prepared.threadClass, prepared.threadDesignation], [6.75, 8, 1.25, '6H', 'M8×1.25']);
+
+  const reopened = openDocument(JSON.parse(JSON.stringify(document))).document;
+  assert.deepEqual(
+    ['holeStandard', 'holeApplication', 'standardSize', 'threadClass', 'threadDesignation'].map((key) => reopened.features.find((feature) => feature.id === hole.id)[key]),
+    ['iso-metric', 'tapped', 'M8', '6H', 'M8×1.25'],
+  );
+
+  Object.assign(hole, applyHoleStandard(hole, 'clearance-medium', 'M10'));
+  assert.equal(prepareDocument(document).features.find((feature) => feature.id === hole.id).diameterValue, 11);
+});
+
 test('Measure zwraca długość, odległość, kąt, promień, średnicę, pole i pozycję zaznaczenia', () => {
   const body = {
     id: 'body-a',
@@ -1957,6 +1980,8 @@ test('migracja v8 dodaje tabele, a BOM, balony i tabela otworów pozostają skoj
   assert.deepEqual(scene.tables[0].rows, [['1', 'MC-100', 'Korpus', '2', 'S235']]);
   assert.equal(drawingBomItemNumber(body.id, [body], opened.document.components), 1);
   assert.deepEqual(scene.tables[1].rows, [['1', '⌀4', '1', 'Otwór walcowy'], ['2', '⌀8', '2', 'Otwór walcowy']]);
+  const standardizedHoleBody = { ...body, manufacturingHoles: [{ diameter: 6.75, quantity: 1, holeStandard: 'iso-metric', holeApplication: 'tapped', standardSize: 'M8', threadDesignation: 'M8×1.25', threadClass: '6H', through: true }] };
+  assert.deepEqual(drawingSheetScene(currentSheet, [standardizedHoleBody], { components: opened.document.components }).tables[1].rows, [['1', 'M8×1.25 - 6H', '1', 'Gwint wewnętrzny · wiertło ⌀6.75 · przelotowy']]);
   const inferredHoleBody = { ...body, topology: { faces: [] }, metrics: { ...body.metrics, minimumRadius: 3 } };
   assert.deepEqual(drawingSheetScene(currentSheet, [inferredHoleBody], { components: opened.document.components }).tables[1].rows, [['1', '⌀6', '1', 'Otwór walcowy']]);
   const html = drawingSheetHtml(currentSheet, [body], { components: opened.document.components });

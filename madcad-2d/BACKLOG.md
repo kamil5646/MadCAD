@@ -24,7 +24,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Pipe ukończono jako `P1.19` dla pustego parametrycznego przekroju prowadzonego po ciągłej ścieżce.
 - [x] Pattern bryły ukończono jako `P1.20` w trybie prostokątnym, kołowym i po ścieżce.
 - [x] Zaawansowane Emboss/Deboss na trwale wskazanej planarnej ścianie ukończono jako `P1.21`; aktywna ścieżka P1 jest zamknięta.
-- Pełne normy gwintów, clearance/tapped/tapered oraz klasy pasowania.
+- [x] Wspólne otwory przejściowe ISO 273 i gwinty metryczne M2–M24 z klasami wewnętrznymi 5H/6H/7H ukończono jako `P1.32a`.
+- P1.32b: gwinty stożkowe NPT/BSPT, dodatkowe rozmiary i tolerancje wykonawcze wymagają osobnego, legalnie licencjonowanego źródła danych normatywnych.
 - Draft Analysis, Interference, Named Views i rozbudowany ViewCube.
 - Zaawansowane profile materiałów/druku, heatmapy, automatyczne ułożenie i naprawa siatki.
 

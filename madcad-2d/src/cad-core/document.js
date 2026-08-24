@@ -12,6 +12,7 @@ import { COMPONENT_TYPES, DEFAULT_INSTANCE_TRANSFORM, ensureDocumentComponents }
 import { JOINT_AXES, JOINT_TYPES, ensureDocumentJoints } from './assembly-joints.js';
 import { ensureDocumentAssemblyMotion } from './assembly-motion.js';
 import { ensureDocumentLinkedProjects } from './linked-projects.js';
+import { validateHoleStandard } from './hole-standards.js';
 import { DRAWING_ANNOTATION_TYPES, DRAWING_PAGE_SIZES, DRAWING_TABLE_TYPES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
 import {
   SKETCH_ENTITY_ROLES,
@@ -1151,6 +1152,7 @@ export function validateDocument(document) {
       if (threadMode !== 'none' && !['right', 'left'].includes(feature.threadDirection)) add(`${base}.threadDirection`, 'Kierunek gwintu musi być prawy albo lewy.', 'UNSUPPORTED');
       if (!['nominal', 'fff'].includes(clearanceProfile)) add(`${base}.clearanceProfile`, `Nieobsługiwany profil luzu: ${clearanceProfile}.`, 'UNSUPPORTED');
       if (clearanceProfile === 'fff' && feature.clearance === undefined) add(`${base}.clearance`, 'Profil FFF wymaga luzu promieniowego.', 'REQUIRED');
+      for (const error of validateHoleStandard(feature)) add(`${base}.${error.field}`, error.message, 'VALUE');
       if (feature.placement === 'face-edges') {
         if (!Array.isArray(feature.referenceIds) || feature.referenceIds.length !== 3) add(`${base}.referenceIds`, 'Otwór od krawędzi wymaga jednej ściany i dwóch krawędzi.', 'REQUIRED');
       } else {
