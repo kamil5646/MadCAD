@@ -14,11 +14,14 @@ import {
   FileBox,
   FolderOpen,
   Frame,
+  GitCompareArrows,
   Layers3,
   Link2,
+  Magnet,
   Minus,
   PanelLeftClose,
   PencilRuler,
+  Save,
   Settings2,
   Square,
   X,
@@ -48,7 +51,7 @@ export function CrashRecoveryBanner({ info, onSave, onDismiss }) {
 }
 
 export function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onClose }) {
-  const [expanded, setExpanded] = useState({ origin: true, construction: true, components: true, joints: true, sketches: true, bodies: true });
+  const [expanded, setExpanded] = useState({ origin: true, construction: true, components: true, joints: true, motionLinks: true, contactSets: true, configurations: true, sketches: true, bodies: true });
   const toggle = (key) => setExpanded((current) => ({ ...current, [key]: !current[key] }));
   const constructionReferences = document.references.filter((reference) => ['construction-plane', 'construction-axis', 'construction-point'].includes(reference.kind));
   const componentRoots = componentInstanceTree(document);
@@ -115,6 +118,27 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
       {expanded.joints && (document.joints?.length
         ? document.joints.map((joint) => <button className={`tree-row tree-joint ${selection?.kind === 'joint' && selection.id === joint.id ? 'selected' : ''}`} type="button" key={joint.id} title={`${joint.type} · oś ${joint.axis.toUpperCase()} · ${joint.value}`} onClick={() => onSelect({ kind: 'joint', id: joint.id, movingInstanceId: joint.movingInstanceId })}><span /><Link2 size={13} /><span>{joint.name}</span><small>{joint.type === 'rigid' ? 'LOCK' : joint.value}</small></button>)
         : <div className="tree-empty">Brak jointów</div>)}
+
+      <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj powiązania ruchu." onClick={() => toggle('motionLinks')}>
+        {expanded.motionLinks ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<GitCompareArrows size={14} /><span>Motion Links</span><small>{document.motionLinks?.length || 0}</small>
+      </button>
+      {expanded.motionLinks && (document.motionLinks?.length
+        ? document.motionLinks.map((link) => <button className={`tree-row tree-motion-link ${selection?.kind === 'motionLink' && selection.id === link.id ? 'selected' : ''}`} type="button" key={link.id} title={`${link.ratio}× ${link.offset ? `· offset ${link.offset}` : ''}`} onClick={() => onSelect({ kind: 'motionLink', id: link.id })}><span /><GitCompareArrows size={13} /><span>{link.name}</span><small>{link.ratio}×</small></button>)
+        : <div className="tree-empty">Brak Motion Links</div>)}
+
+      <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj monitorowane pary kontaktowe." onClick={() => toggle('contactSets')}>
+        {expanded.contactSets ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Magnet size={14} /><span>Contact Sets</span><small>{document.contactSets?.length || 0}</small>
+      </button>
+      {expanded.contactSets && (document.contactSets?.length
+        ? document.contactSets.map((contactSet) => <button className={`tree-row tree-contact-set ${selection?.kind === 'contactSet' && selection.id === contactSet.id ? 'selected' : ''}`} type="button" key={contactSet.id} title={contactSet.enabled ? 'Monitorowanie kontaktu aktywne' : 'Monitorowanie kontaktu wyłączone'} onClick={() => onSelect({ kind: 'contactSet', id: contactSet.id })}><span /><Magnet size={13} /><span>{contactSet.name}</span><small>{contactSet.enabled ? 'ON' : 'OFF'}</small></button>)
+        : <div className="tree-empty">Brak Contact Sets</div>)}
+
+      <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj konfiguracje złożenia." onClick={() => toggle('configurations')}>
+        {expanded.configurations ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Save size={14} /><span>Konfiguracje</span><small>{document.assemblyConfigurations?.length || 0}</small>
+      </button>
+      {expanded.configurations && (document.assemblyConfigurations?.length
+        ? document.assemblyConfigurations.map((configuration) => <button className={`tree-row tree-configuration ${selection?.kind === 'assemblyConfiguration' && selection.id === configuration.id ? 'selected' : ''} ${document.activeAssemblyConfigurationId === configuration.id ? 'active' : ''}`} type="button" key={configuration.id} title={configuration.description || 'Zapisany stan złożenia'} onClick={() => onSelect({ kind: 'assemblyConfiguration', id: configuration.id })}><span /><Save size={13} /><span>{configuration.name}</span><small>{document.activeAssemblyConfigurationId === configuration.id ? 'AKTYWNA' : ''}</small></button>)
+        : <div className="tree-empty">Brak konfiguracji</div>)}
 
       <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj szkice i ich profile." onClick={() => toggle('sketches')}>
         {expanded.sketches ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<FolderOpen size={14} /><span>Szkice</span><small>{document.sketches.length}</small>

@@ -128,7 +128,8 @@ import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-impor
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
-import { createAssemblyJoint, deleteAssemblyJoint, setJointValue, updateAssemblyJoint } from '../cad-core/assembly-joints.js';
+import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../cad-core/assembly-joints.js';
+import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../cad-core/assembly-motion.js';
 import {
   addBlockAttributeDefinition,
   createBlockDefinition,
@@ -843,8 +844,20 @@ export default function ModelingWorkspace() {
   }, [document, command]);
   const engine = useCadEngine(previewDocument, { quality: command?.previewFeature ? 'preview' : 'display' });
   const selectedBodies = selectedBodyIds.map((bodyId) => engine.bodies.find((body) => body.id === bodyId)).filter(Boolean);
+  const assemblyCollisionResult = React.useMemo(() => detectAssemblyCollisions(document, engine.bodies), [document, engine.bodies]);
+  const collisionInstanceIds = React.useMemo(() => [...new Set(assemblyCollisionResult.collisions.flatMap((collision) => [collision.firstInstanceId, collision.secondInstanceId]))], [assemblyCollisionResult]);
+  const exactCollisionInstanceIds = React.useMemo(() => [...new Set(assemblyCollisionResult.collisions.filter((collision) => collision.status === 'exact').flatMap((collision) => [collision.firstInstanceId, collision.secondInstanceId]))], [assemblyCollisionResult]);
   const selectedJoint = selection?.kind === 'joint'
     ? document.joints.find((joint) => joint.id === selection.id) || null
+    : null;
+  const selectedMotionLink = selection?.kind === 'motionLink'
+    ? document.motionLinks.find((link) => link.id === selection.id) || null
+    : null;
+  const selectedAssemblyConfiguration = selection?.kind === 'assemblyConfiguration'
+    ? document.assemblyConfigurations.find((configuration) => configuration.id === selection.id) || null
+    : null;
+  const selectedContactSet = selection?.kind === 'contactSet'
+    ? document.contactSets.find((contactSet) => contactSet.id === selection.id) || null
     : null;
   const selectedInstance = selection?.kind === 'componentInstance'
     ? document.componentInstances.find((instance) => instance.id === selection.id) || null
@@ -1029,6 +1042,111 @@ export default function ModelingWorkspace() {
       setNotice(`Usunięto joint „${joint.name}”. Operację można cofnąć.`);
     } catch (error) {
       setNotice(`Nie usunięto jointa: ${error.message}`);
+    }
+  };
+  const createDocumentMotionLink = (options) => {
+    try {
+      const checked = cloneDocument(document);
+      const link = createMotionLink(checked, options);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'motionLink', id: link.id });
+      setNotice(`Utworzono Motion Link „${link.name}”. Ruch jointa docelowego jest teraz powiązany ze źródłem.`);
+    } catch (error) {
+      setNotice(`Nie utworzono Motion Link: ${error.message}`);
+    }
+  };
+  const updateDocumentMotionLink = (linkId, patch) => {
+    try {
+      const checked = cloneDocument(document);
+      updateMotionLink(checked, linkId, patch);
+      commit((next) => Object.assign(next, checked));
+    } catch (error) {
+      setNotice(`Nie zmieniono Motion Link: ${error.message}`);
+    }
+  };
+  const removeDocumentMotionLink = (linkId) => {
+    try {
+      const checked = cloneDocument(document);
+      const link = deleteMotionLink(checked, linkId);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'document', id: checked.id });
+      setNotice(`Usunięto Motion Link „${link.name}”.`);
+    } catch (error) {
+      setNotice(`Nie usunięto Motion Link: ${error.message}`);
+    }
+  };
+  const createDocumentAssemblyConfiguration = (options) => {
+    try {
+      const checked = cloneDocument(document);
+      const configuration = createAssemblyConfiguration(checked, options);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'assemblyConfiguration', id: configuration.id });
+      setNotice(`Zapisano konfigurację złożenia „${configuration.name}”.`);
+    } catch (error) {
+      setNotice(`Nie zapisano konfiguracji: ${error.message}`);
+    }
+  };
+  const updateDocumentAssemblyConfiguration = (configurationId, patch) => {
+    try {
+      const checked = cloneDocument(document);
+      const configuration = updateAssemblyConfiguration(checked, configurationId, patch);
+      commit((next) => Object.assign(next, checked));
+      if (patch.captureCurrent) setNotice(`Zaktualizowano zapisany stan „${configuration.name}”.`);
+    } catch (error) {
+      setNotice(`Nie zmieniono konfiguracji: ${error.message}`);
+    }
+  };
+  const applyDocumentAssemblyConfiguration = (configurationId) => {
+    try {
+      const checked = cloneDocument(document);
+      const configuration = applyAssemblyConfiguration(checked, configurationId);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'assemblyConfiguration', id: configuration.id });
+      setNotice(`Aktywowano konfigurację „${configuration.name}”.`);
+    } catch (error) {
+      setNotice(`Nie aktywowano konfiguracji: ${error.message}`);
+    }
+  };
+  const removeDocumentAssemblyConfiguration = (configurationId) => {
+    try {
+      const checked = cloneDocument(document);
+      const configuration = deleteAssemblyConfiguration(checked, configurationId);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'document', id: checked.id });
+      setNotice(`Usunięto konfigurację „${configuration.name}”.`);
+    } catch (error) {
+      setNotice(`Nie usunięto konfiguracji: ${error.message}`);
+    }
+  };
+  const createDocumentContactSet = (options) => {
+    try {
+      const checked = cloneDocument(document);
+      const contactSet = createContactSet(checked, options);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'contactSet', id: contactSet.id });
+      setNotice(`Utworzono Contact Set „${contactSet.name}”. Para jest stale monitorowana podczas ruchu.`);
+    } catch (error) {
+      setNotice(`Nie utworzono Contact Set: ${error.message}`);
+    }
+  };
+  const updateDocumentContactSet = (contactSetId, patch) => {
+    try {
+      const checked = cloneDocument(document);
+      updateContactSet(checked, contactSetId, patch);
+      commit((next) => Object.assign(next, checked));
+    } catch (error) {
+      setNotice(`Nie zmieniono Contact Set: ${error.message}`);
+    }
+  };
+  const removeDocumentContactSet = (contactSetId) => {
+    try {
+      const checked = cloneDocument(document);
+      const contactSet = deleteContactSet(checked, contactSetId);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'document', id: checked.id });
+      setNotice(`Usunięto Contact Set „${contactSet.name}”.`);
+    } catch (error) {
+      setNotice(`Nie usunięto Contact Set: ${error.message}`);
     }
   };
   const selectedBodyRepresentations = selectedBodies.map((body) => body.representation);
@@ -2489,6 +2607,11 @@ export default function ModelingWorkspace() {
       componentInstances: document.componentInstances.map((instance) => ({ ...instance, transform: { ...instance.transform } })),
       rigidGroups: document.rigidGroups.map((group) => ({ ...group, instanceIds: [...group.instanceIds] })),
       joints: document.joints.map((joint) => ({ ...joint, anchor: { ...joint.anchor }, limits: { ...joint.limits }, restTransform: { ...joint.restTransform } })),
+      motionLinks: document.motionLinks.map((link) => ({ ...link })),
+      contactSets: document.contactSets.map((contactSet) => ({ ...contactSet })),
+      assemblyConfigurations: document.assemblyConfigurations.map((configuration) => ({ ...configuration, instanceStates: configuration.instanceStates.map((state) => ({ ...state, transform: { ...state.transform } })), jointStates: configuration.jointStates.map((state) => ({ ...state })) })),
+      activeAssemblyConfigurationId: document.activeAssemblyConfigurationId,
+      assemblyCollisions: assemblyCollisionResult.collisions.map((collision) => ({ ...collision, overlap: [...collision.overlap] })),
       bodyIds: engine.bodies.map((body) => body.id),
       drawings: document.drawings.map((sheet) => ({ ...sheet, views: sheet.views.map((view) => ({ ...view })) })),
       featureIds: document.features.map((feature) => feature.id),
@@ -2538,7 +2661,7 @@ export default function ModelingWorkspace() {
     };
   // Verification hooks refresh only when the state exposed to the desktop harness changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, massProperties, geometryInspection]);
+  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, massProperties, geometryInspection, assemblyCollisionResult]);
 
   const confirmProfile = (sourceCommand = command) => {
     if (readOnly) return readOnlyNotice();
@@ -4260,7 +4383,7 @@ export default function ModelingWorkspace() {
       pickPlane(nextSelection.id);
       return;
     }
-    if (nextSelection.kind === 'component' || nextSelection.kind === 'componentInstance' || nextSelection.kind === 'joint') {
+    if (nextSelection.kind === 'component' || nextSelection.kind === 'componentInstance' || nextSelection.kind === 'joint' || nextSelection.kind === 'motionLink' || nextSelection.kind === 'contactSet' || nextSelection.kind === 'assemblyConfiguration') {
       setComponentsOpen(true);
       setLayersOpen(false);
       setBlocksOpen(false);
@@ -4681,6 +4804,8 @@ export default function ModelingWorkspace() {
             components={document.components}
             componentInstances={document.componentInstances}
             joints={document.joints}
+            collisionInstanceIds={collisionInstanceIds}
+            exactCollisionInstanceIds={exactCollisionInstanceIds}
             selectedComponentInstanceId={selectedInstance?.id || null}
             selectedJointId={selectedJoint?.id || null}
             onSelectBody={(id) => setSelection(id ? { kind: 'body', id } : { kind: 'document', id: document.id })}
@@ -4719,7 +4844,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} onClose={() => setCommand(null)} />}
-          {componentsOpen && <ComponentPanel document={document} bodies={engine.bodies} selectedComponentId={selectedComponent?.id || ''} selectedInstanceId={selectedInstance?.id || ''} selectedJointId={selectedJoint?.id || ''} selectedBodyIds={selectedBodyIds} readOnly={readOnly} onCreate={createDocumentComponent} onUpdate={updateDocumentComponent} onAssignBodies={assignDocumentComponentBodies} onMove={moveDocumentComponent} onDelete={removeDocumentComponent} onSelect={(componentId) => setSelection({ kind: 'component', id: componentId })} onSelectInstance={(instanceId) => { const instance = document.componentInstances.find((item) => item.id === instanceId); setSelection({ kind: 'componentInstance', id: instanceId, componentId: instance?.componentId }); }} onCreateInstance={createDocumentComponentInstance} onUpdateInstance={updateDocumentComponentInstance} onDuplicateInstance={duplicateDocumentComponentInstance} onDeleteInstance={removeDocumentComponentInstance} onCreateRigidGroup={createDocumentRigidGroup} onDeleteRigidGroup={removeDocumentRigidGroup} onSelectJoint={(jointId) => setSelection({ kind: 'joint', id: jointId })} onCreateJoint={createDocumentJoint} onUpdateJoint={updateDocumentJoint} onSetJointValue={setDocumentJointValue} onDeleteJoint={removeDocumentJoint} onClose={() => setComponentsOpen(false)} />}
+          {componentsOpen && <ComponentPanel document={document} bodies={engine.bodies} collisionResult={assemblyCollisionResult} selectedComponentId={selectedComponent?.id || ''} selectedInstanceId={selectedInstance?.id || ''} selectedJointId={selectedJoint?.id || ''} selectedMotionLinkId={selectedMotionLink?.id || ''} selectedConfigurationId={selectedAssemblyConfiguration?.id || ''} selectedContactSetId={selectedContactSet?.id || ''} selectedBodyIds={selectedBodyIds} readOnly={readOnly} onCreate={createDocumentComponent} onUpdate={updateDocumentComponent} onAssignBodies={assignDocumentComponentBodies} onMove={moveDocumentComponent} onDelete={removeDocumentComponent} onSelect={(componentId) => setSelection({ kind: 'component', id: componentId })} onSelectInstance={(instanceId) => { const instance = document.componentInstances.find((item) => item.id === instanceId); setSelection({ kind: 'componentInstance', id: instanceId, componentId: instance?.componentId }); }} onCreateInstance={createDocumentComponentInstance} onUpdateInstance={updateDocumentComponentInstance} onDuplicateInstance={duplicateDocumentComponentInstance} onDeleteInstance={removeDocumentComponentInstance} onCreateRigidGroup={createDocumentRigidGroup} onDeleteRigidGroup={removeDocumentRigidGroup} onSelectJoint={(jointId) => setSelection(jointId ? { kind: 'joint', id: jointId } : { kind: 'document', id: document.id })} onCreateJoint={createDocumentJoint} onUpdateJoint={updateDocumentJoint} onSetJointValue={setDocumentJointValue} onDeleteJoint={removeDocumentJoint} onSelectMotionLink={(linkId) => setSelection(linkId ? { kind: 'motionLink', id: linkId } : { kind: 'document', id: document.id })} onCreateMotionLink={createDocumentMotionLink} onUpdateMotionLink={updateDocumentMotionLink} onDeleteMotionLink={removeDocumentMotionLink} onSelectConfiguration={(configurationId) => setSelection(configurationId ? { kind: 'assemblyConfiguration', id: configurationId } : { kind: 'document', id: document.id })} onCreateConfiguration={createDocumentAssemblyConfiguration} onUpdateConfiguration={updateDocumentAssemblyConfiguration} onApplyConfiguration={applyDocumentAssemblyConfiguration} onDeleteConfiguration={removeDocumentAssemblyConfiguration} onSelectContactSet={(contactSetId) => setSelection(contactSetId ? { kind: 'contactSet', id: contactSetId } : { kind: 'document', id: document.id })} onCreateContactSet={createDocumentContactSet} onUpdateContactSet={updateDocumentContactSet} onDeleteContactSet={removeDocumentContactSet} onClose={() => setComponentsOpen(false)} />}
           {layersOpen && <LayersPanel document={document} selectedEntities={selectedSketchEntities} readOnly={readOnly} onAdd={addDocumentLayer} onUpdate={updateDocumentLayer} onDelete={removeDocumentLayer} onActivate={activateDocumentLayer} onAssign={assignSelectionToLayer} onStyleSelected={styleSelectedEntities} onClose={() => setLayersOpen(false)} />}
           {blocksOpen && activeSketchId && <BlocksPanel document={document} selectedEntities={selectedSketchEntities} selectedInstance={selectedBlockInstance} readOnly={readOnly} onCreate={createBlockFromSelection} onInsert={insertDocumentBlock} onDeleteDefinition={removeBlockDefinition} onAddAttribute={addDocumentBlockAttribute} onUpdateInstanceAttribute={updateDocumentBlockAttribute} onExplode={explodeDocumentBlock} onDeleteInstance={removeDocumentBlockInstance} onClose={() => setBlocksOpen(false)} />}
           {commandCustomizationOpen && <CommandCustomizationPanel customization={commandCustomization} onSave={saveCommandSettings} onReset={createDefaultCommandCustomization} onClose={() => setCommandCustomizationOpen(false)} />}

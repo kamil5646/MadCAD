@@ -33,7 +33,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Komponenty, podkomponenty, origin, numer części i właściwości ukończono jako `P3.1`.
 - [x] Wystąpienia komponentów, transformacje, Ground i Rigid Group ukończono jako `P3.2`.
 - [x] Joints rigid, revolute i slider z osiami oraz limitami ukończono jako `P3.3`.
-- [ ] Kontrola kolizji w ruchu, motion links, contact sets i konfiguracje (`P3.4`).
+- [x] Kontrola kolizji w ruchu, motion links, contact sets i konfiguracje ukończono jako `P3.4`.
 
 ## Dokumentacja 2D
 

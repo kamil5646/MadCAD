@@ -274,6 +274,7 @@ export function createComponentInstance(document, {
     primary,
   }, document.componentInstances.length);
   document.componentInstances.push(instance);
+  if (typeof document.activeAssemblyConfigurationId === 'string') document.activeAssemblyConfigurationId = '';
   return instance;
 }
 
@@ -299,12 +300,17 @@ export function updateComponentInstance(document, instanceId, patch = {}) {
       member.transform = normalizedTransform(Object.fromEntries(Object.keys(DEFAULT_INSTANCE_TRANSFORM).map((key) => [key, member.transform[key] + delta[key]])));
     }
   } else instance.transform = nextTransform;
+  const stateChanged = transformChanged
+    || parentInstanceId !== instance.parentInstanceId
+    || (patch.grounded !== undefined && Boolean(patch.grounded) !== instance.grounded)
+    || (patch.visible !== undefined && Boolean(patch.visible) !== instance.visible);
   Object.assign(instance, {
     parentInstanceId,
     name: patch.name === undefined ? instance.name : String(patch.name || '').trim().slice(0, 80) || instance.name,
     grounded: patch.grounded === undefined ? instance.grounded : Boolean(patch.grounded),
     visible: patch.visible === undefined ? instance.visible : Boolean(patch.visible),
   });
+  if (stateChanged && typeof document.activeAssemblyConfigurationId === 'string') document.activeAssemblyConfigurationId = '';
   return instance;
 }
 
@@ -324,6 +330,22 @@ export function duplicateComponentInstance(document, instanceId, { parentInstanc
   return duplicate;
 }
 
+function cleanupAssemblyStateForInstances(document, removedIds) {
+  const removedJointIds = new Set((document.joints || [])
+    .filter((joint) => removedIds.has(joint.referenceInstanceId) || removedIds.has(joint.movingInstanceId))
+    .map((joint) => joint.id));
+  if (Array.isArray(document.joints)) document.joints = document.joints.filter((joint) => !removedJointIds.has(joint.id));
+  if (Array.isArray(document.motionLinks)) document.motionLinks = document.motionLinks.filter((link) => !removedJointIds.has(link.sourceJointId) && !removedJointIds.has(link.targetJointId));
+  if (Array.isArray(document.contactSets)) document.contactSets = document.contactSets.filter((contactSet) => !removedIds.has(contactSet.firstInstanceId) && !removedIds.has(contactSet.secondInstanceId));
+  if (Array.isArray(document.assemblyConfigurations)) {
+    document.assemblyConfigurations = document.assemblyConfigurations.map((configuration) => ({
+      ...configuration,
+      instanceStates: (configuration.instanceStates || []).filter((state) => !removedIds.has(state.instanceId)),
+      jointStates: (configuration.jointStates || []).filter((state) => !removedJointIds.has(state.jointId)),
+    }));
+  }
+}
+
 export function deleteComponentInstance(document, instanceId, { cascade = true } = {}) {
   ensureDocumentComponents(document);
   const instance = document.componentInstances.find((item) => item.id === instanceId);
@@ -337,7 +359,8 @@ export function deleteComponentInstance(document, instanceId, { cascade = true }
   document.rigidGroups = document.rigidGroups
     .map((group) => ({ ...group, instanceIds: group.instanceIds.filter((id) => !removedIds.has(id)) }))
     .filter((group) => group.instanceIds.length >= 2);
-  if (Array.isArray(document.joints)) document.joints = document.joints.filter((joint) => !removedIds.has(joint.referenceInstanceId) && !removedIds.has(joint.movingInstanceId));
+  cleanupAssemblyStateForInstances(document, removedIds);
+  if (typeof document.activeAssemblyConfigurationId === 'string') document.activeAssemblyConfigurationId = '';
   return [...removedIds];
 }
 
@@ -498,7 +521,8 @@ export function deleteComponent(document, componentId, { cascade = false } = {})
   document.rigidGroups = document.rigidGroups
     .map((group) => ({ ...group, instanceIds: group.instanceIds.filter((id) => !removedInstanceIds.has(id)) }))
     .filter((group) => group.instanceIds.length >= 2);
-  if (Array.isArray(document.joints)) document.joints = document.joints.filter((joint) => !removedInstanceIds.has(joint.referenceInstanceId) && !removedInstanceIds.has(joint.movingInstanceId));
+  cleanupAssemblyStateForInstances(document, removedInstanceIds);
+  if (typeof document.activeAssemblyConfigurationId === 'string') document.activeAssemblyConfigurationId = '';
   return [...removedIds];
 }
 

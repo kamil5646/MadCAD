@@ -44,7 +44,8 @@ import {
   updateComponent,
   updateComponentInstance,
 } from '../src/cad-core/components.js';
-import { createAssemblyJoint, deleteAssemblyJoint, setJointValue, updateAssemblyJoint } from '../src/cad-core/assembly-joints.js';
+import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../src/cad-core/assembly-joints.js';
+import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
 import { evaluateFeatureHistory } from '../src/cad-core/feature-history.js';
@@ -198,12 +199,12 @@ test('komponenty blokują cykle, promują dzieci przy usunięciu i obsługują c
   assert.deepEqual(document.components, []);
 });
 
-test('migracja v9 uzupełnia komponent i główne wystąpienie w bieżącym schemacie v12', () => {
+test('migracja v9 uzupełnia komponent i główne wystąpienie w bieżącym schemacie v13', () => {
   const legacy = createDocument('Migracja komponentów');
   legacy.schemaVersion = 9;
   legacy.components.push({ id: 'legacy-component', name: 'Korpus', partNumber: 'K-1', material: 'Aluminium', quantity: 2, bodyIds: [] });
   const opened = openDocument(legacy, { now: '2026-08-24T12:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 12);
+  assert.equal(opened.document.schemaVersion, 13);
   assert.deepEqual(opened.document.components[0], {
     id: 'legacy-component', name: 'Korpus', type: 'part', partNumber: 'K-1', description: '', material: 'Aluminium', quantity: 2,
     origin: { x: 0, y: 0, z: 0 }, bodyIds: [], sketchIds: [], componentIds: [],
@@ -263,7 +264,7 @@ test('migracja v10 tworzy wystąpienia zgodne z hierarchią definicji', () => {
   ];
   const opened = openDocument(legacy, { now: '2026-08-24T13:00:00.000Z' });
   const tree = componentInstanceTree(opened.document);
-  assert.equal(opened.document.schemaVersion, 12);
+  assert.equal(opened.document.schemaVersion, 13);
   assert.equal(tree.length, 1);
   assert.equal(tree[0].componentId, 'assembly-v10');
   assert.equal(tree[0].children[0].componentId, 'part-v10');
@@ -313,14 +314,111 @@ test('joint rigid blokuje ręczny ruch, graf odrzuca cykl, a usunięcie wystąpi
   assert.equal(validateDocument(document).valid, true);
 });
 
-test('migracja v11 dodaje pustą kolekcję jointów w schemacie v12', () => {
+test('migracja v11 dodaje pustą kolekcję jointów w bieżącym schemacie v13', () => {
   const legacy = createDocument('Migracja jointów');
   legacy.schemaVersion = 11;
   delete legacy.joints;
   const opened = openDocument(legacy, { now: '2026-08-24T14:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 12);
+  assert.equal(opened.document.schemaVersion, 13);
   assert.deepEqual(opened.document.joints, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 11 && entry.to === 12));
+});
+
+test('Motion Link przekazuje ruch z przełożeniem i blokuje cykle oraz wielu sterujących', () => {
+  const document = createDocument('Motion Links');
+  const assembly = createComponent(document, { name: 'Przekładnia', type: 'assembly', partNumber: 'A-ML' });
+  const parts = ['Napęd', 'Koło', 'Wskaźnik'].map((name, index) => createComponent(document, { name, partNumber: `P-ML${index + 1}`, parentId: assembly.id }));
+  const [driveOccurrence, wheelOccurrence, indicatorOccurrence] = parts.map((part) => document.componentInstances.find((instance) => instance.componentId === part.id));
+  const drive = createAssemblyJoint(document, { name: 'Napęd wejściowy', type: 'revolute', referenceInstanceId: wheelOccurrence.id, movingInstanceId: driveOccurrence.id, limits: { enabled: true, min: -180, max: 180 } });
+  const wheel = createAssemblyJoint(document, { name: 'Koło wyjściowe', type: 'revolute', referenceInstanceId: indicatorOccurrence.id, movingInstanceId: wheelOccurrence.id, limits: { enabled: true, min: -360, max: 360 } });
+  const link = createMotionLink(document, { name: 'Przełożenie 2:1', sourceJointId: drive.id, targetJointId: wheel.id, ratio: -2, offset: 10 });
+  setJointValue(document, drive.id, 25);
+  assert.equal(document.joints.find((joint) => joint.id === wheel.id).value, -40);
+  assert.equal(document.componentInstances.find((instance) => instance.id === wheelOccurrence.id).transform.rotationZ, -40);
+  assert.throws(() => createMotionLink(document, { sourceJointId: wheel.id, targetJointId: drive.id }), /cykl/);
+  assert.throws(() => createMotionLink(document, { sourceJointId: drive.id, targetJointId: wheel.id }), /już Motion Link/);
+  updateMotionLink(document, link.id, { ratio: 0.5, offset: 5 });
+  assert.equal(document.joints.find((joint) => joint.id === wheel.id).value, 17.5);
+  assert.equal(validateDocument(document).valid, true);
+  assert.equal(deleteMotionLink(document, link.id).id, link.id);
+});
+
+test('konfiguracje złożenia zapisują widoczność, położenie i ruch bez kopiowania geometrii', () => {
+  const document = createDocument('Konfiguracje');
+  const assembly = createComponent(document, { name: 'Zespół', type: 'assembly', partNumber: 'A-CFG' });
+  const base = createComponent(document, { name: 'Baza konfiguracji', partNumber: 'P-CFG1', parentId: assembly.id });
+  const arm = createComponent(document, { name: 'Ramię konfiguracji', partNumber: 'P-CFG2', parentId: assembly.id });
+  const baseOccurrence = document.componentInstances.find((instance) => instance.componentId === base.id);
+  const armOccurrence = document.componentInstances.find((instance) => instance.componentId === arm.id);
+  const joint = createAssemblyJoint(document, { type: 'revolute', referenceInstanceId: baseOccurrence.id, movingInstanceId: armOccurrence.id, limits: { enabled: true, min: 0, max: 90 }, value: 15 });
+  const folded = createAssemblyConfiguration(document, { name: 'Złożone', description: 'Pozycja transportowa' });
+  setJointValue(document, joint.id, 70);
+  document.componentInstances.find((instance) => instance.id === armOccurrence.id).visible = false;
+  const service = createAssemblyConfiguration(document, { name: 'Serwisowe' });
+  applyAssemblyConfiguration(document, folded.id);
+  assert.equal(document.joints[0].value, 15);
+  assert.equal(document.componentInstances.find((instance) => instance.id === armOccurrence.id).visible, true);
+  setJointValue(document, joint.id, 20);
+  assert.equal(document.activeAssemblyConfigurationId, '');
+  applyAssemblyConfiguration(document, folded.id);
+  updateAssemblyConfiguration(document, folded.id, { description: 'Gotowe do transportu', captureCurrent: true });
+  assert.equal(document.assemblyConfigurations.find((item) => item.id === folded.id).description, 'Gotowe do transportu');
+  assert.equal(document.components.length, 3);
+  assert.equal(document.assemblyConfigurations.length, 2);
+  assert.equal(deleteAssemblyConfiguration(document, service.id).id, service.id);
+  assert.equal(validateDocument(document).valid, true);
+});
+
+test('kontrola kolizji złożenia uwzględnia transformacje wystąpień i zagnieżdżenie', () => {
+  const document = createDocument('Kolizje ruchu');
+  const assembly = createComponent(document, { name: 'Zespół kolizji', type: 'assembly', partNumber: 'A-COL' });
+  const part = createComponent(document, { name: 'Kostka', partNumber: 'P-COL', parentId: assembly.id, bodyIds: ['body-box'] });
+  const first = document.componentInstances.find((instance) => instance.componentId === part.id);
+  const second = duplicateComponentInstance(document, first.id, { transform: { x: 5 } });
+  const bodies = [{
+    id: 'body-box',
+    metrics: { bounds: [[0, 0, 0], [10, 10, 10]] },
+    vertices: [0, 0, 0, 10, 0, 0, 10, 10, 0, 0, 10, 0, 0, 0, 10, 10, 0, 10, 10, 10, 10, 0, 10, 10],
+    triangles: [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7],
+  }];
+  const contactSet = createContactSet(document, { name: 'Kostki robocze', firstInstanceId: first.id, secondInstanceId: second.id });
+  const collision = detectAssemblyCollisions(document, bodies);
+  assert.equal(collision.occurrences, 2);
+  assert.equal(collision.collisions.length, 1);
+  assert.equal(collision.collisions[0].overlapVolume, 500);
+  assert.equal(collision.collisions[0].status, 'exact');
+  assert.equal(collision.exactPairs, 1);
+  assert.equal(collision.activeContactPairs, 1);
+  assert.equal(collision.collisions[0].contactSetId, contactSet.id);
+  assert.equal(collision.contactSets[0].status, 'exact');
+  const boundedCollision = detectAssemblyCollisions(document, bodies, { maxExactTriangleTests: 1 });
+  assert.equal(boundedCollision.status, 'partial');
+  assert.equal(boundedCollision.collisions[0].status, 'broad-phase');
+  updateContactSet(document, contactSet.id, { enabled: false, name: 'Kontakt wyłączony' });
+  assert.equal(detectAssemblyCollisions(document, bodies).contactSets[0].status, 'disabled');
+  assert.throws(() => createContactSet(document, { firstInstanceId: second.id, secondInstanceId: first.id }), /już Contact Set/);
+  updateContactSet(document, contactSet.id, { enabled: true });
+  updateComponentInstance(document, second.id, { transform: { x: 20 } });
+  const separated = detectAssemblyCollisions(document, bodies);
+  assert.equal(separated.collisions.length, 0);
+  assert.equal(separated.contactSets[0].status, 'clear');
+  assert.equal(deleteContactSet(document, contactSet.id).id, contactSet.id);
+});
+
+test('migracja v12 dodaje Motion Links i konfiguracje w schemacie v13', () => {
+  const legacy = createDocument('Migracja ruchu złożenia');
+  legacy.schemaVersion = 12;
+  delete legacy.motionLinks;
+  delete legacy.contactSets;
+  delete legacy.assemblyConfigurations;
+  delete legacy.activeAssemblyConfigurationId;
+  const opened = openDocument(legacy, { now: '2026-08-24T16:00:00.000Z' });
+  assert.equal(opened.document.schemaVersion, 13);
+  assert.deepEqual(opened.document.motionLinks, []);
+  assert.deepEqual(opened.document.contactSets, []);
+  assert.deepEqual(opened.document.assemblyConfigurations, []);
+  assert.equal(opened.document.activeAssemblyConfigurationId, '');
+  assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 12 && entry.to === 13));
 });
 
 test('warstwy zapewniają ByLayer, aktywną warstwę i bezpieczne przenoszenie geometrii', () => {
@@ -1686,7 +1784,7 @@ test('migracja v5 zachowuje istniejące widoki bazowe i dodaje kolekcje dokument
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 5;
   const opened = openDocument(legacy, { now: '2026-08-24T03:30:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 12);
+  assert.equal(opened.document.schemaVersion, 13);
   assert.equal(opened.document.drawings[0].views[0].type, 'base');
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 5 && entry.to === 6));
@@ -1704,7 +1802,7 @@ test('migracja v6 dodaje adnotacje arkusza bez zmiany widoków', () => {
   legacy.schemaVersion = 6;
   const views = structuredClone(sheet.views);
   const opened = openDocument(legacy, { now: '2026-08-24T06:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 12);
+  assert.equal(opened.document.schemaVersion, 13);
   assert.deepEqual(opened.document.drawings[0].views, views);
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.equal(validateDocument(opened.document).valid, true);
@@ -1721,7 +1819,7 @@ test('migracja v7 dodaje tabliczkę i rewizje, a GD&T oraz DXF zachowują geomet
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 7;
   const opened = openDocument(legacy, { now: '2026-08-24T07:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 12);
+  assert.equal(opened.document.schemaVersion, 13);
   assert.deepEqual(opened.document.drawings[0].revisions, []);
   assert.equal(opened.document.drawings[0].titleBlock.revision, 'A');
 
@@ -1763,7 +1861,7 @@ test('migracja v8 dodaje tabele, a BOM, balony i tabela otworów pozostają skoj
   legacy.schemaVersion = 8;
 
   const opened = openDocument(legacy, { now: '2026-08-24T08:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 12);
+  assert.equal(opened.document.schemaVersion, 13);
   assert.deepEqual(opened.document.drawings[0].tables, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 8 && entry.to === 9));
 

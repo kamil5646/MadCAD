@@ -10,6 +10,7 @@ import {
 import { ensureDocumentBlocks } from './blocks.js';
 import { COMPONENT_TYPES, DEFAULT_INSTANCE_TRANSFORM, ensureDocumentComponents } from './components.js';
 import { JOINT_AXES, JOINT_TYPES, ensureDocumentJoints } from './assembly-joints.js';
+import { ensureDocumentAssemblyMotion } from './assembly-motion.js';
 import { DRAWING_ANNOTATION_TYPES, DRAWING_PAGE_SIZES, DRAWING_TABLE_TYPES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
 import {
   SKETCH_ENTITY_ROLES,
@@ -19,7 +20,7 @@ import {
   normalizeSketchModel,
 } from './sketch-model.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 12;
+export const DOCUMENT_SCHEMA_VERSION = 13;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -219,6 +220,22 @@ function migrateV11ToV12(source, now) {
   return migrated;
 }
 
+function migrateV12ToV13(source, now) {
+  const migrated = ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureV3Collections(cloneDocument(source)))));
+  migrated.schemaVersion = 13;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 12,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 12, to: 13, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
@@ -230,6 +247,7 @@ const MIGRATIONS = new Map([
   [9, migrateV9ToV10],
   [10, migrateV10ToV11],
   [11, migrateV11ToV12],
+  [12, migrateV12ToV13],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -298,6 +316,10 @@ export function createDocument(name = 'Nowy projekt') {
     componentInstances: [],
     rigidGroups: [],
     joints: [],
+    motionLinks: [],
+    contactSets: [],
+    assemblyConfigurations: [],
+    activeAssemblyConfigurationId: '',
     references: [],
     blocks: [],
     drawings: [],
@@ -383,11 +405,11 @@ export function migrateDocument(source, { now = new Date().toISOString() } = {})
     document = migration(document, now);
     version = readSchemaVersion(document);
   }
-  return ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document))));
+  return ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document)))));
 }
 
 function projectFutureDocument(source) {
-  const projected = ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source))))));
+  const projected = ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source)))))));
   projected.schemaVersion = DOCUMENT_SCHEMA_VERSION;
   projected.metadata = {
     ...(isRecord(projected.metadata) ? projected.metadata : {}),
@@ -462,6 +484,9 @@ export function validateDocument(document) {
   const componentInstances = requireArray(document, 'componentInstances');
   const rigidGroups = requireArray(document, 'rigidGroups');
   const joints = requireArray(document, 'joints');
+  const motionLinks = requireArray(document, 'motionLinks');
+  const contactSets = requireArray(document, 'contactSets');
+  const assemblyConfigurations = requireArray(document, 'assemblyConfigurations');
   const references = requireArray(document, 'references');
   const layers = requireArray(document, 'layers');
   const blocks = requireArray(document, 'blocks');
@@ -1335,6 +1360,106 @@ export function validateDocument(document) {
       referenceId = jointReferenceByMoving.get(referenceId);
     }
   });
+
+  const motionLinkNames = new Set();
+  const linkedTargets = new Set();
+  const motionTargetsBySource = new Map();
+  motionLinks.forEach((link, index) => {
+    const base = `motionLinks[${index}]`;
+    if (!isRecord(link)) {
+      add(base, 'Motion Link musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(link.id, `${base}.id`);
+    if (typeof link.name !== 'string' || !link.name.trim()) add(`${base}.name`, 'Motion Link wymaga nazwy.', 'REQUIRED');
+    else if (motionLinkNames.has(link.name.toLocaleLowerCase())) add(`${base}.name`, `Powtórzona nazwa Motion Link: ${link.name}`, 'DUPLICATE');
+    else motionLinkNames.add(link.name.toLocaleLowerCase());
+    if (!joints.some((joint) => joint?.id === link.sourceJointId)) add(`${base}.sourceJointId`, 'Nie znaleziono źródłowego jointa.', 'BROKEN_REFERENCE');
+    if (!joints.some((joint) => joint?.id === link.targetJointId)) add(`${base}.targetJointId`, 'Nie znaleziono docelowego jointa.', 'BROKEN_REFERENCE');
+    if (link.sourceJointId === link.targetJointId) add(`${base}.targetJointId`, 'Motion Link nie może sterować samym sobą.', 'CYCLIC_REFERENCE');
+    if (linkedTargets.has(link.targetJointId)) add(`${base}.targetJointId`, 'Docelowy joint ma więcej niż jeden Motion Link.', 'DUPLICATE');
+    else linkedTargets.add(link.targetJointId);
+    if (!Number.isFinite(Number(link.ratio))) add(`${base}.ratio`, 'Przełożenie Motion Link musi być liczbą.', 'TYPE');
+    if (!Number.isFinite(Number(link.offset))) add(`${base}.offset`, 'Odsunięcie Motion Link musi być liczbą.', 'TYPE');
+    if (typeof link.enabled !== 'boolean') add(`${base}.enabled`, 'Stan Motion Link musi być wartością logiczną.', 'TYPE');
+    if (!motionTargetsBySource.has(link.sourceJointId)) motionTargetsBySource.set(link.sourceJointId, []);
+    motionTargetsBySource.get(link.sourceJointId).push(link.targetJointId);
+  });
+  const visitMotionLink = (jointId, path = new Set()) => {
+    if (path.has(jointId)) {
+      add('motionLinks', 'Graf Motion Link zawiera cykl sterowania.', 'CYCLIC_REFERENCE');
+      return;
+    }
+    const nextPath = new Set(path).add(jointId);
+    for (const targetId of motionTargetsBySource.get(jointId) || []) visitMotionLink(targetId, nextPath);
+  };
+  motionTargetsBySource.forEach((unused, sourceJointId) => visitMotionLink(sourceJointId));
+
+  const contactSetNames = new Set();
+  const contactPairs = new Set();
+  contactSets.forEach((contactSet, index) => {
+    const base = `contactSets[${index}]`;
+    if (!isRecord(contactSet)) {
+      add(base, 'Contact Set musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(contactSet.id, `${base}.id`);
+    if (typeof contactSet.name !== 'string' || !contactSet.name.trim()) add(`${base}.name`, 'Contact Set wymaga nazwy.', 'REQUIRED');
+    else if (contactSetNames.has(contactSet.name.toLocaleLowerCase())) add(`${base}.name`, `Powtórzona nazwa Contact Set: ${contactSet.name}`, 'DUPLICATE');
+    else contactSetNames.add(contactSet.name.toLocaleLowerCase());
+    if (!instanceIds.has(contactSet.firstInstanceId)) add(`${base}.firstInstanceId`, 'Nie znaleziono pierwszego wystąpienia Contact Set.', 'BROKEN_REFERENCE');
+    if (!instanceIds.has(contactSet.secondInstanceId)) add(`${base}.secondInstanceId`, 'Nie znaleziono drugiego wystąpienia Contact Set.', 'BROKEN_REFERENCE');
+    if (contactSet.firstInstanceId === contactSet.secondInstanceId) add(`${base}.secondInstanceId`, 'Contact Set wymaga dwóch różnych wystąpień.', 'VALUE');
+    const pairKey = [contactSet.firstInstanceId, contactSet.secondInstanceId].sort().join(':');
+    if (contactPairs.has(pairKey)) add(base, 'Para wystąpień ma więcej niż jeden Contact Set.', 'DUPLICATE');
+    else contactPairs.add(pairKey);
+    if (typeof contactSet.enabled !== 'boolean') add(`${base}.enabled`, 'Stan Contact Set musi być wartością logiczną.', 'TYPE');
+  });
+
+  const configurationNames = new Set();
+  const configurationIds = new Set();
+  assemblyConfigurations.forEach((configuration, index) => {
+    const base = `assemblyConfigurations[${index}]`;
+    if (!isRecord(configuration)) {
+      add(base, 'Konfiguracja złożenia musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(configuration.id, `${base}.id`);
+    configurationIds.add(configuration.id);
+    if (typeof configuration.name !== 'string' || !configuration.name.trim()) add(`${base}.name`, 'Konfiguracja wymaga nazwy.', 'REQUIRED');
+    else if (configurationNames.has(configuration.name.toLocaleLowerCase())) add(`${base}.name`, `Powtórzona nazwa konfiguracji: ${configuration.name}`, 'DUPLICATE');
+    else configurationNames.add(configuration.name.toLocaleLowerCase());
+    if (typeof configuration.description !== 'string') add(`${base}.description`, 'Opis konfiguracji musi być tekstem.', 'TYPE');
+    if (!Array.isArray(configuration.instanceStates)) add(`${base}.instanceStates`, 'Konfiguracja wymaga stanów wystąpień.', 'TYPE');
+    else {
+      const stateIds = new Set();
+      configuration.instanceStates.forEach((state, stateIndex) => {
+        const stateBase = `${base}.instanceStates[${stateIndex}]`;
+        if (!isRecord(state)) return add(stateBase, 'Stan wystąpienia musi być obiektem.', 'TYPE');
+        if (!instanceIds.has(state.instanceId)) add(`${stateBase}.instanceId`, 'Stan wskazuje brakujące wystąpienie.', 'BROKEN_REFERENCE');
+        if (stateIds.has(state.instanceId)) add(`${stateBase}.instanceId`, 'Wystąpienie jest zapisane w konfiguracji więcej niż raz.', 'DUPLICATE');
+        stateIds.add(state.instanceId);
+        if (!isRecord(state.transform) || Object.keys(DEFAULT_INSTANCE_TRANSFORM).some((key) => !Number.isFinite(Number(state.transform?.[key])))) add(`${stateBase}.transform`, 'Stan wymaga pozycji i obrotu XYZ.', 'TYPE');
+        if (typeof state.grounded !== 'boolean' || typeof state.visible !== 'boolean') add(stateBase, 'Stan widoczności i Ground musi być logiczny.', 'TYPE');
+        if (state.grounded && joints.some((joint) => joint?.movingInstanceId === state.instanceId)) add(`${stateBase}.grounded`, 'Konfiguracja nie może uziemiać ruchomego wystąpienia jointa.', 'VALUE');
+      });
+    }
+    if (!Array.isArray(configuration.jointStates)) add(`${base}.jointStates`, 'Konfiguracja wymaga stanów jointów.', 'TYPE');
+    else {
+      const stateIds = new Set();
+      configuration.jointStates.forEach((state, stateIndex) => {
+        const stateBase = `${base}.jointStates[${stateIndex}]`;
+        if (!isRecord(state)) return add(stateBase, 'Stan jointa musi być obiektem.', 'TYPE');
+        if (!joints.some((joint) => joint?.id === state.jointId)) add(`${stateBase}.jointId`, 'Stan wskazuje brakujący joint.', 'BROKEN_REFERENCE');
+        if (stateIds.has(state.jointId)) add(`${stateBase}.jointId`, 'Joint jest zapisany w konfiguracji więcej niż raz.', 'DUPLICATE');
+        stateIds.add(state.jointId);
+        if (!Number.isFinite(Number(state.value))) add(`${stateBase}.value`, 'Wartość jointa musi być liczbą.', 'TYPE');
+        if (typeof state.enabled !== 'boolean') add(`${stateBase}.enabled`, 'Stan jointa musi być logiczny.', 'TYPE');
+      });
+    }
+  });
+  if (typeof document.activeAssemblyConfigurationId !== 'string') add('activeAssemblyConfigurationId', 'Aktywna konfiguracja musi być identyfikatorem tekstowym.', 'TYPE');
+  else if (document.activeAssemblyConfigurationId && !configurationIds.has(document.activeAssemblyConfigurationId)) add('activeAssemblyConfigurationId', 'Nie znaleziono aktywnej konfiguracji.', 'BROKEN_REFERENCE');
 
   drawings.forEach((sheet, sheetIndex) => {
     const base = `drawings[${sheetIndex}]`;

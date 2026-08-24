@@ -405,6 +405,8 @@ export default function ModelViewport({
   selectedComponentInstanceId = null,
   joints = [],
   selectedJointId = null,
+  collisionInstanceIds = [],
+  exactCollisionInstanceIds = [],
   onSelectBody,
   onSelectComponentInstance,
   onSelectJoint,
@@ -596,6 +598,8 @@ export default function ModelViewport({
     const edgePickables = [];
     const vertexPickables = [];
     const faceHighlights = new Map();
+    const collisionInstanceSet = new Set(collisionInstanceIds);
+    const exactCollisionInstanceSet = new Set(exactCollisionInstanceIds);
     const componentByBodyId = new Map(components.flatMap((component) => (component.bodyIds || []).map((bodyId) => [bodyId, component])));
     const instanceById = new Map(componentInstances.map((instance) => [instance.id, instance]));
     const occurrencesByComponent = new Map();
@@ -639,12 +643,14 @@ export default function ModelViewport({
       geometry.setIndex(new THREE.BufferAttribute(body.triangles, 1));
       geometry.computeBoundingSphere();
       const selected = selectedBodySet.has(body.id) || placement.occurrenceId === selectedComponentInstanceId;
+      const colliding = collisionInstanceSet.has(placement.occurrenceId);
+      const exactCollision = exactCollisionInstanceSet.has(placement.occurrenceId);
       const material = new THREE.MeshStandardMaterial({
-        color: selected ? '#72c9eb' : body.color,
+        color: exactCollision ? '#ef6a6a' : colliding ? '#f09a52' : selected ? '#72c9eb' : body.color,
         metalness: 0.08,
         roughness: 0.56,
-        emissive: selected ? '#10394a' : '#000000',
-        emissiveIntensity: selected ? 0.7 : 0,
+        emissive: exactCollision ? '#5a1111' : colliding ? '#5b2d0c' : selected ? '#10394a' : '#000000',
+        emissiveIntensity: exactCollision ? 0.9 : colliding ? 0.75 : selected ? 0.7 : 0,
         transparent: Boolean(activeSketchId),
         opacity: activeSketchId ? 0.38 : 1,
         side: THREE.DoubleSide,
@@ -1816,7 +1822,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds]);
 
   return (
     <div

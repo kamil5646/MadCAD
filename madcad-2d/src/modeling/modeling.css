@@ -991,7 +991,10 @@
   padding-left: calc(34px + var(--component-depth, 0) * 16px);
 }
 
-.tree-joint { padding-left: 34px; }
+.tree-joint,
+.tree-motion-link,
+.tree-configuration { padding-left: 34px; }
+.tree-configuration.active small { color: #7ee09d; }
 
 .tree-empty {
   padding: 5px 12px 7px 54px;
@@ -2858,6 +2861,10 @@
 .component-occurrences,
 .component-instance-properties,
 .component-joints,
+.component-motion-links,
+.component-configurations,
+.component-contact-sets,
+.component-collision-status,
 .component-properties { flex: 0 0 auto; }
 
 .component-toolbar button,
@@ -2975,6 +2982,67 @@
 .component-joint-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .component-joint-grid label { display: grid; gap: 2px; color: #aeb9c3; font-size: 8px; }
 .component-joint-properties .joint-limit-toggle { display: flex; grid-template-columns: none; gap: 5px; }
+
+.component-motion-links,
+.component-configurations,
+.component-contact-sets,
+.component-collision-status { display: grid; gap: 6px; padding: 7px 10px; border-bottom: 1px solid #596573; background: #303a46; }
+.component-motion-list,
+.component-contact-list { display: grid; max-height: 110px; overflow: auto; gap: 2px; }
+.component-motion-list > p,
+.component-contact-list > p { margin: 4px; color: #aeb9c3; font-size: 10px; line-height: 1.4; }
+.component-motion-list > button,
+.component-contact-list > button { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; min-height: 38px; align-items: center; gap: 6px; padding: 4px 7px; border: 1px solid transparent; border-radius: 3px; background: transparent; color: #dce4ea; text-align: left; cursor: pointer; }
+.component-motion-list > button:hover,
+.component-contact-list > button:hover { background: #3b4754; }
+.component-motion-list > button.active { border-color: #87aee8; background: #30445f; }
+.component-contact-list > button.active { border-color: #c89beb; background: #463757; }
+.component-contact-list > button.exact { border-color: #e87878; background: #523234; }
+.component-motion-list > button > span,
+.component-contact-list > button > span { display: grid; min-width: 0; }
+.component-motion-list small,
+.component-contact-list small { overflow: hidden; color: #a7b4be; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.component-motion-list em,
+.component-contact-list em { color: #a9c8f2; font-size: 9px; font-style: normal; }
+.component-motion-create,
+.component-motion-properties,
+.component-configuration-properties,
+.component-contact-create,
+.component-contact-properties { display: grid; gap: 5px; }
+.component-motion-create > select { min-width: 0; }
+.component-motion-create input,
+.component-motion-create select,
+.component-motion-create button,
+.component-motion-properties input,
+.component-configuration-create input,
+.component-configuration-create button,
+.component-configuration-properties input,
+.component-configuration-properties textarea,
+.component-contact-create select,
+.component-contact-create button,
+.component-contact-properties input { min-height: 27px; padding: 4px 6px; border: 1px solid #667482; border-radius: 2px; background: #27313c; color: #f0f4f7; font: inherit; }
+.component-motion-create > button,
+.component-configuration-create > button,
+.component-contact-create > button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer; }
+.component-motion-properties > label,
+.component-configuration-properties > label,
+.component-contact-properties > label { display: grid; grid-template-columns: 90px minmax(0, 1fr); align-items: center; gap: 6px; color: #b9c4cd; font-size: 9px; }
+.component-configuration-create { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; }
+.component-configuration-list { display: grid; max-height: 120px; overflow: auto; gap: 2px; }
+.component-configuration-row { display: grid; grid-template-columns: minmax(0, 1fr) 30px; border: 1px solid transparent; border-radius: 3px; background: #29333e; }
+.component-configuration-row.active { border-color: #67c28a; background: #294338; }
+.component-configuration-row.selected { box-shadow: inset 3px 0 #79aef0; }
+.component-configuration-row > button { min-width: 0; border: 0; background: transparent; color: #dce4ea; cursor: pointer; }
+.component-configuration-row > button:first-child { padding: 5px 7px; text-align: left; }
+.component-configuration-row > button:first-child span { display: grid; }
+.component-configuration-row small { color: #a7b4be; font-size: 8px; }
+.component-collision-status.clear { background: #263e37; }
+.component-collision-status.warning { background: #4a3031; }
+.component-collision-status > p { display: flex; align-items: center; gap: 6px; margin: 2px 0; color: #dbe5e1; font-size: 9px; line-height: 1.4; }
+.component-collision-status > button { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; padding: 4px 6px; border: 1px solid #7e5557; border-radius: 3px; background: #382426; color: #f4dcdc; font: inherit; cursor: pointer; }
+.component-collision-status > button.risk { border-color: #976838; background: #4a3422; color: #f5dfc8; }
+.component-collision-status > button.exact { border-color: #a95c60; background: #4b292b; }
+.component-collision-status > button strong { font-size: 8px; white-space: nowrap; }
 
 .component-properties {
   display: grid;

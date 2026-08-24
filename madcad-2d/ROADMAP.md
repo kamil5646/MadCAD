@@ -179,7 +179,11 @@ Te prace nie czekają na koniec modelowania:
 - [x] P3.1 Części, złożenia i podkomponenty: hierarchia bez cykli i wielu rodziców, origin XYZ, numer części, opis, materiał, ilość, wyłączna własność brył, przenoszenie i bezpieczne usuwanie z promocją dzieci. Struktura jest widoczna w przeglądarce projektu oraz panelu właściwości, zasila wielopoziomowy BOM, czyści przypisania po usunięciu historii, przechodzi undo/redo, walidację i migrację schematu v9→v10, testy core/UI oraz desktop E2E.
 - [x] P3.2 Wystąpienia komponentów: wielokrotne użycie jednej definicji, zagnieżdżone położenie i obrót XYZ, widoczność, wybór z drzewa i widoku 3D, Ground, powielanie całego poddrzewa oraz Rigid Group przenosząca członków razem. BOM sumuje wystąpienia, usuwanie promuje dzieci i czyści grupy, a migracja v10→v11 odtwarza dotychczasową hierarchię bez utraty danych. Etap ma testy core/UI, undo/redo, walidację zapisu i desktop E2E z kontrolą wizualną.
 - [x] P3.3 Joints: rigid, revolute i slider mają trwałe referencje osi origin, kotwice, konfigurowalne limity i wartość ruchu. Solver blokuje cykle, Ground, Rigid Group oraz ręczne nadpisanie sterowanego wystąpienia, a usuwanie wystąpień czyści zależności. Jointy są widoczne i wybieralne w przeglądarce oraz widoku 3D, mają bezpośredni panel sterowania, undo/redo, migrację schematu v11→v12, walidację, testy core/UI i desktop E2E z kontrolą wizualną.
-- [>] P3.4 Kontrola kolizji w ruchu, motion links oraz konfiguracje złożenia bez dublowania geometrii części.
+- [x] P3.4 Kontrola kolizji w ruchu wykorzystuje szybkie obwiednie oraz ograniczony kosztowo, dokładny test trójkątów z rozróżnieniem potwierdzonej kolizji i ryzyka. Motion Links przekazują ruch wielu jointów przez przełożenie i offset bez cykli, Contact Sets zapisują stale monitorowane pary, a konfiguracje odtwarzają transformacje, widoczność, Ground i wartości jointów bez kopiowania definicji ani geometrii części. Całość jest widoczna w panelu, przeglądarce i widoku 3D, ma czyszczenie zależności, undo/redo, walidację, migrację schematu v12→v13 oraz testy core/UI i desktop E2E.
+
+## P4 — historia i zarządzanie projektem
+
+- [>] P4.1 Bezpieczny rollback osi czasu, wstawianie operacji w środku historii, reorder z walidacją zależności oraz grupowanie operacji.
 
 ## Definition of Done
 
@@ -206,7 +210,7 @@ Dodatkowo:
 
 ## Najbliższe zadania
 
-1. [>] Dodać kontrolę kolizji podczas ruchu, motion links i konfiguracje złożenia jako etap P3.4.
+1. [>] Dodać rollback osi czasu, bezpieczne wstawianie/reorder i grupy operacji jako etap P4.1.
 2. [~] Sprawdzić import/eksport na rzeczywistych plikach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny odsłuch VoiceOver. Korpus formatów i automatyczny test drzewa AX są gotowe.
 3. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 

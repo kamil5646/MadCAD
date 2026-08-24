@@ -32,6 +32,15 @@ async function setInput(window, selector, value) {
   })()`);
 }
 
+async function setSelect(window, selector, value) {
+  await window.webContents.executeJavaScript(`(() => {
+    const select = document.querySelector(${JSON.stringify(selector)});
+    if (!select) throw new Error('Brak listy: ' + ${JSON.stringify(selector)});
+    select.value = ${JSON.stringify(value)};
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+}
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({ width: 1440, height: 900, show: true, webPreferences: { partition: `madcad-components-verifier-${Date.now()}` } });
   window.setContentSize(1440, 837);
@@ -116,6 +125,58 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState.joints[0].value === 35`, 'redo ruchu jointa');
     await waitFor(window, `document.querySelector('input[aria-label="Numeryczna wartość jointa"]')?.value === '35' && [...document.querySelectorAll('.component-joint-list button')].some((button) => button.textContent.includes('35'))`, 'odświeżone sterowanie jointa');
 
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.component-occurrences > button')].find((button) => button.textContent.includes('Rama główna') && !button.textContent.includes(':2')).click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState.selection.kind === 'componentInstance' && window.__madcadVerifyDocumentState.selection.id !== ${JSON.stringify(duplicateId)}`, 'bazowe wystąpienie dla drugiego jointa');
+    if (!(await clickByText(window, '.component-instance-properties .component-actions button', 'Powiel'))) throw new Error('Nie znaleziono drugiego powielenia wystąpienia.');
+    await waitFor(window, `window.__madcadVerifyDocumentState.componentInstances.length === 4 && window.__madcadVerifyDocumentState.selection.kind === 'componentInstance'`, 'trzecie wystąpienie części');
+    const sliderOccurrenceId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.selection.id`);
+    await setSelect(window, 'select[aria-label="Typ nowego jointa"]', 'slider');
+    await setSelect(window, 'select[aria-label="Oś nowego jointa"]', 'x');
+    await window.webContents.executeJavaScript(`(() => {
+      const select = document.querySelector('select[aria-label="Bazowe wystąpienie jointa"]');
+      const option = [...select.options].find((item) => item.value && item.value !== ${JSON.stringify(sliderOccurrenceId)});
+      select.value = option.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    if (!(await clickByText(window, '.component-joint-create button', 'Utwórz joint'))) throw new Error('Nie znaleziono tworzenia drugiego jointa.');
+    await waitFor(window, `window.__madcadVerifyDocumentState.joints.length === 2 && window.__madcadVerifyDocumentState.selection.kind === 'joint'`, 'joint slider');
+    const sliderJointId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.selection.id`);
+    await setSelect(window, 'select[aria-label="Źródłowy joint Motion Link"]', jointId);
+    await setSelect(window, 'select[aria-label="Docelowy joint Motion Link"]', sliderJointId);
+    await setInput(window, 'input[aria-label="Przełożenie Motion Link"]', '0.5');
+    if (!(await clickByText(window, '.component-motion-create button', 'Utwórz Motion Link'))) throw new Error('Nie znaleziono tworzenia Motion Link.');
+    await waitFor(window, `window.__madcadVerifyDocumentState.motionLinks.length === 1 && window.__madcadVerifyDocumentState.joints.find((item) => item.id === ${JSON.stringify(sliderJointId)})?.value === 17.5`, 'Motion Link 0.5×');
+    await setInput(window, 'input[aria-label="Nazwa nowej konfiguracji"]', 'Robocza');
+    if (!(await clickByText(window, '.component-configuration-create button', 'Zapisz nową'))) throw new Error('Nie znaleziono zapisu konfiguracji.');
+    await waitFor(window, `window.__madcadVerifyDocumentState.assemblyConfigurations.length === 1`, 'konfiguracja Robocza');
+    const workingConfigurationId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.activeAssemblyConfigurationId`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.component-joint-list button')].find((button) => button.textContent.includes('Joint 1')).click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(jointId)}`, 'źródłowy joint Motion Link');
+    await setInput(window, 'input[aria-label="Numeryczna wartość jointa"]', '50');
+    await waitFor(window, `window.__madcadVerifyDocumentState.joints.find((item) => item.id === ${JSON.stringify(jointId)})?.value === 50 && window.__madcadVerifyDocumentState.joints.find((item) => item.id === ${JSON.stringify(sliderJointId)})?.value === 25`, 'ruch połączonych jointów');
+    await setInput(window, 'input[aria-label="Nazwa nowej konfiguracji"]', 'Rozłożona');
+    await clickByText(window, '.component-configuration-create button', 'Zapisz nową');
+    await waitFor(window, `window.__madcadVerifyDocumentState.assemblyConfigurations.length === 2`, 'konfiguracja Rozłożona');
+    await window.webContents.executeJavaScript(`document.querySelector('button[aria-label="Aktywuj konfigurację Robocza"]').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState.activeAssemblyConfigurationId === ${JSON.stringify(workingConfigurationId)} && window.__madcadVerifyDocumentState.joints.find((item) => item.id === ${JSON.stringify(jointId)})?.value === 35 && window.__madcadVerifyDocumentState.joints.find((item) => item.id === ${JSON.stringify(sliderJointId)})?.value === 17.5`, 'przywrócona konfiguracja Robocza');
+    await waitFor(window, `window.__madcadVerifyDocumentState.assemblyCollisions.length >= 1`, 'wizualna kontrola kolizji');
+    await setSelect(window, 'select[aria-label="Pierwsze wystąpienie Contact Set"]', duplicateId);
+    await setSelect(window, 'select[aria-label="Drugie wystąpienie Contact Set"]', sliderOccurrenceId);
+    if (!(await clickByText(window, '.component-contact-create button', 'Utwórz Contact Set'))) throw new Error('Nie znaleziono tworzenia Contact Set.');
+    await waitFor(window, `window.__madcadVerifyDocumentState.contactSets.length === 1 && window.__madcadVerifyDocumentState.assemblyCollisions.some((item) => item.contactSetId === window.__madcadVerifyDocumentState.contactSets[0].id)`, 'aktywny Contact Set');
+    await window.webContents.executeJavaScript(`(() => {
+      const panel = document.querySelector('.component-panel');
+      const target = document.querySelector('.component-contact-sets');
+      const panelRect = panel.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      panel.scrollTop += targetRect.top - panelRect.top - 12;
+    })()`);
+    await waitFor(window, `(() => {
+      const panel = document.querySelector('.component-panel').getBoundingClientRect();
+      const target = document.querySelector('.component-contact-sets').getBoundingClientRect();
+      return target.top >= panel.top && target.top < panel.bottom;
+    })()`, 'widoczna sekcja Contact Sets');
+
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     const result = await window.webContents.executeJavaScript(`(() => {
       const state = window.__madcadVerifyDocumentState;
@@ -137,17 +198,30 @@ app.whenReady().then(async () => {
         jointValue: state.joints[0]?.value,
         jointMax: state.joints[0]?.limits.max,
         jointVisuals: window.__madcadJointVisualState?.length || 0,
+        motionLinks: state.motionLinks.length,
+        motionRatio: state.motionLinks[0]?.ratio,
+        contactSets: state.contactSets.length,
+        activeContactCollisions: state.assemblyCollisions.filter((item) => item.contactSetId).length,
+        configurations: state.assemblyConfigurations.length,
+        activeConfiguration: state.assemblyConfigurations.find((item) => item.id === state.activeAssemblyConfigurationId)?.name,
+        sliderValue: state.joints.find((item) => item.id === ${JSON.stringify(sliderJointId)})?.value,
+        sliderX: state.componentInstances.find((item) => item.id === ${JSON.stringify(sliderOccurrenceId)})?.transform.x,
+        assemblyCollisions: state.assemblyCollisions.length,
+        exactCollisions: state.assemblyCollisions.filter((item) => item.status === 'exact').length,
         grounded: state.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.grounded,
         duplicateX: state.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.transform.x,
         duplicateRotationZ: state.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.transform.rotationZ,
         rigidMateX: state.componentInstances.find((item) => item.componentId === part.id && item.id !== ${JSON.stringify(duplicateId)})?.transform.x,
         browserRows: document.querySelectorAll('.tree-component').length,
         browserJointRows: document.querySelectorAll('.tree-joint').length,
+        browserMotionRows: document.querySelectorAll('.tree-motion-link').length,
+        browserContactRows: document.querySelectorAll('.tree-contact-set').length,
+        browserConfigurationRows: document.querySelectorAll('.tree-configuration').length,
         panelInsideViewport: panel.left >= 0 && panel.top >= 0 && panel.right <= innerWidth && panel.bottom <= innerHeight,
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
-    if (result.schemaVersion !== 12 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.ownedBodies !== 1 || result.instances !== 3 || result.rigidGroups !== 0 || result.joints !== 1 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 1 || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 3 || result.browserJointRows !== 1 || !result.panelInsideViewport || result.horizontalOverflow) {
+    if (result.schemaVersion !== 13 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
       throw new Error(`Niepoprawny przepływ komponentów: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...result }, null, 2)}\n`);
