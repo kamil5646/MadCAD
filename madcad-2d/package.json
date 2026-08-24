@@ -142,7 +142,7 @@
     "afterSign": "scripts/notarize.js"
   },
   "dependencies": {
-    "lucide-react": "^0.468.0",
+    "lucide-react": "^1.33.0",
     "manifold-3d": "^3.5.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
