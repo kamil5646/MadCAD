@@ -48,6 +48,7 @@ import {
   Ruler,
   Save,
   ScanSearch,
+  Search,
   Scissors,
   ShieldCheck,
   Shapes,
@@ -81,6 +82,7 @@ import { createLinkedProject, linkedProjectState } from '../cad-core/linked-proj
 import { compareProjectDocuments } from '../cad-core/project-diff.js';
 import { createProjectHealthReport } from '../cad-core/project-health.js';
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../cad-core/project-dependencies.js';
+import { buildProjectSearchIndex } from '../cad-core/project-search.js';
 import {
   addDrivingSketchDimension,
   createSketchArc,
@@ -181,7 +183,7 @@ import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumen
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext } from './WorkspaceRibbon.jsx';
 import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
-import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectDependenciesPanel, ProjectHealthPanel, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
+import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectDependenciesPanel, ProjectHealthPanel, ProjectSearchPalette, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
 import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
@@ -459,6 +461,7 @@ export default function ModelingWorkspace() {
   const [projectComparisonError, setProjectComparisonError] = useState('');
   const [projectHealthOpen, setProjectHealthOpen] = useState(false);
   const [projectDependenciesOpen, setProjectDependenciesOpen] = useState(false);
+  const [projectSearchOpen, setProjectSearchOpen] = useState(false);
   const [projectDependencyNodeId, setProjectDependencyNodeId] = useState(() => initialOpen.document.id);
   const panelScreenKeyRef = useRef(panelScreenKey(window.screen));
   const [panelLayout, setPanelLayout] = useState(() => readPanelLayout(window.localStorage, window.screen));
@@ -629,6 +632,7 @@ export default function ModelingWorkspace() {
     setProjectComparisonOpen(false);
     setProjectHealthOpen(false);
     setProjectDependenciesOpen(false);
+    setProjectSearchOpen(false);
     setProjectSnapshotsOpen(true);
     void refreshProjectSnapshots();
   };
@@ -637,6 +641,7 @@ export default function ModelingWorkspace() {
     setProjectSnapshotsOpen(false);
     setProjectHealthOpen(false);
     setProjectDependenciesOpen(false);
+    setProjectSearchOpen(false);
     setProjectComparisonOpen(true);
     setProjectComparisonError('');
     void refreshProjectSnapshots();
@@ -1531,10 +1536,12 @@ export default function ModelingWorkspace() {
     serializedBytes: new TextEncoder().encode(serializedDocument).byteLength,
     bodyCount: actualBodies.length,
   }), [document, engine.timeline, engine.status, engine.error, engine.diagnostics, linkedProjectStatuses, lostTopologyReferences, serializedDocument, actualBodies.length]);
+  const projectSearchIndex = useMemo(() => buildProjectSearchIndex(document), [document]);
   const openProjectHealth = () => {
     setProjectSnapshotsOpen(false);
     setProjectComparisonOpen(false);
     setProjectDependenciesOpen(false);
+    setProjectSearchOpen(false);
     setProjectHealthOpen(true);
   };
   const navigateProjectHealthIssue = (issue) => {
@@ -1572,6 +1579,7 @@ export default function ModelingWorkspace() {
     setProjectSnapshotsOpen(false);
     setProjectComparisonOpen(false);
     setProjectHealthOpen(false);
+    setProjectSearchOpen(false);
     setProjectDependencyNodeId(dependencyNodeIdForSelection(selection, document));
     setProjectDependenciesOpen(true);
   };
@@ -1602,6 +1610,51 @@ export default function ModelingWorkspace() {
       setSelection({ kind: 'document', id: document.id });
     }
     setNotice(`Wybrano zależność „${item.label}” (${item.relation}).`);
+  };
+  const openProjectSearch = () => {
+    setProjectSnapshotsOpen(false);
+    setProjectComparisonOpen(false);
+    setProjectHealthOpen(false);
+    setProjectDependenciesOpen(false);
+    setProjectSearchOpen(true);
+  };
+  const navigateProjectSearchResult = (item) => {
+    const target = item?.target;
+    if (!target) return;
+    setProjectSearchOpen(false);
+    if (target.kind === 'feature') {
+      setWorkspace('solid');
+      setActiveSketchId(null);
+      setSelection({ kind: 'feature', id: target.id });
+    } else if (target.kind === 'sketch') {
+      setWorkspace('solid');
+      setBrowserOpen(true);
+      setSelection({ kind: 'sketch', id: target.id });
+    } else if (target.kind === 'body') {
+      setWorkspace('solid');
+      setActiveSketchId(null);
+      setSelection({ kind: 'body', id: target.id });
+    } else if (target.kind === 'component') {
+      setBrowserOpen(true);
+      setSelection(target.id ? { kind: 'component', id: target.id } : { kind: 'document', id: document.id });
+    } else if (target.kind === 'componentInstance') {
+      setBrowserOpen(true);
+      setSelection({ kind: 'componentInstance', id: target.id, componentId: target.componentId });
+    } else if (target.kind === 'drawingSheet') {
+      setWorkspace('drawing');
+      setActiveDrawingSheetId(target.id);
+      setSelection({ kind: 'drawingSheet', id: target.id });
+    } else if (target.kind === 'settings') {
+      setSelection({ kind: 'settings', id: document.id, parameterName: target.parameterName });
+      setCommand({ type: 'parameters' });
+    } else if (['constructionPlane', 'constructionAxis', 'constructionPoint'].includes(target.kind)) {
+      setBrowserOpen(true);
+      setSelection({ kind: target.kind, id: target.id });
+    } else {
+      setBrowserOpen(true);
+      setSelection({ kind: 'document', id: document.id });
+    }
+    setNotice(`Przejście „Idź do”: ${item.label}.`);
   };
 
   useEffect(() => {
@@ -3002,6 +3055,7 @@ export default function ModelingWorkspace() {
       linkedProjectStatuses: structuredClone(linkedProjectStatuses),
       projectHealth: structuredClone(projectHealthReport),
       projectDependencies: structuredClone(projectDependencyInspection),
+      projectSearchCount: projectSearchIndex.length,
       timelineRollbackFeatureId: document.timelineRollbackFeatureId,
       featureGroups: document.featureGroups.map((group) => ({ ...group, featureIds: [...group.featureIds] })),
       activeLayerId: document.activeLayerId,
@@ -3065,7 +3119,7 @@ export default function ModelingWorkspace() {
     };
   // Verification hooks refresh only when the state exposed to the desktop harness changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, massProperties, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses, projectHealthReport, projectDependencyInspection]);
+  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, massProperties, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses, projectHealthReport, projectDependencyInspection, projectSearchIndex]);
 
   const confirmProfile = (sourceCommand = command) => {
     if (readOnly) return readOnlyNotice();
@@ -4984,6 +5038,12 @@ export default function ModelingWorkspace() {
   useEffect(() => {
     const onKeyDown = (event) => {
       const textEntry = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName) || event.target?.isContentEditable;
+      if (primaryModifierPressed(event, DESKTOP_PLATFORM) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        if (projectSearchOpen) setProjectSearchOpen(false);
+        else openProjectSearch();
+        return;
+      }
       if (timelineRename && event.key === 'Escape') {
         event.preventDefault();
         setTimelineRename(null);
@@ -5082,7 +5142,7 @@ export default function ModelingWorkspace() {
     return () => window.removeEventListener('keydown', onKeyDown);
   // Command state is the stable boundary for the keyboard handler; command helpers are render-local callbacks.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, selectedSketchConstraintId, readOnly, history, executeBasicShortcut]);
+  }, [command, selectedProfile, activeSketchId, selectedSketchEntityIds, selectedSketchConstraintId, readOnly, history, executeBasicShortcut, projectSearchOpen]);
 
   const timelineStatus = new Map(engine.timeline?.map((item) => [item.id, item]));
   const selectedTimelineFeature = selection?.kind === 'feature'
@@ -5144,6 +5204,7 @@ export default function ModelingWorkspace() {
           <button id="projectComparisonBtn" className={projectComparisonOpen ? 'active' : ''} type="button" aria-label="Porównaj wersje projektu" aria-pressed={projectComparisonOpen} title="Porównaj bieżący projekt z punktem zapisu lub plikiem" onClick={() => { if (projectComparisonOpen) setProjectComparisonOpen(false); else openProjectComparison(); }}><GitCompareArrows size={16} /></button>
           <button id="projectHealthBtn" className={projectHealthOpen ? 'active' : ''} type="button" aria-label="Kondycja projektu" aria-pressed={projectHealthOpen} title="Sprawdź integralność projektu i przejdź do wykrytych problemów" onClick={() => { if (projectHealthOpen) setProjectHealthOpen(false); else openProjectHealth(); }}><ShieldCheck size={16} /></button>
           <button id="projectDependenciesBtn" className={projectDependenciesOpen ? 'active' : ''} type="button" aria-label="Gdzie używane" aria-pressed={projectDependenciesOpen} title="Pokaż zależności zaznaczonego obiektu i wpływ jego zmiany" onClick={() => { if (projectDependenciesOpen) setProjectDependenciesOpen(false); else openProjectDependencies(); }}><Network size={16} /></button>
+          <button id="projectSearchBtn" className={projectSearchOpen ? 'active' : ''} type="button" aria-label="Idź do obiektu projektu" aria-pressed={projectSearchOpen} title="Wyszukaj obiekt w projekcie · Ctrl/⌘ K" onClick={() => { if (projectSearchOpen) setProjectSearchOpen(false); else openProjectSearch(); }}><Search size={16} /></button>
         </div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
         <input ref={importInputRef} hidden type="file" accept=".step,.stp,.stl,.3mf,model/step,model/stl,model/3mf" onChange={chooseModelImport} />
@@ -5341,6 +5402,7 @@ export default function ModelingWorkspace() {
           {projectComparisonOpen && <ProjectComparisonPanel snapshots={projectSnapshots} comparison={projectComparison} sourceLabel={projectComparisonBaseline?.label || ''} loading={projectComparisonLoading || projectSnapshotsLoading} error={projectComparisonError || projectSnapshotsError} onCompareSnapshot={compareProjectSnapshot} onCompareFile={compareExternalProject} onClose={() => setProjectComparisonOpen(false)} />}
           {projectHealthOpen && <ProjectHealthPanel report={projectHealthReport} language={language} onNavigate={navigateProjectHealthIssue} onExport={exportProjectHealthReport} onClose={() => setProjectHealthOpen(false)} />}
           {projectDependenciesOpen && <ProjectDependenciesPanel inspection={projectDependencyInspection} language={language} onSelectNode={setProjectDependencyNodeId} onNavigate={navigateProjectDependency} onClose={() => setProjectDependenciesOpen(false)} />}
+          {projectSearchOpen && <ProjectSearchPalette index={projectSearchIndex} language={language} onNavigate={navigateProjectSearchResult} onClose={() => setProjectSearchOpen(false)} />}
           <TopologyReferenceRepairPanel items={lostTopologyReferences} selection={selection} onReassign={repairTopologyReference} onPreview={(candidate) => handleTopologySelection(candidate)} />
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}

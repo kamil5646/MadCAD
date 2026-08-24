@@ -51,6 +51,7 @@ import { createLinkedProject, linkedProjectState } from '../src/cad-core/linked-
 import { compareProjectDocuments } from '../src/cad-core/project-diff.js';
 import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/project-health.js';
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
+import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
@@ -4190,6 +4191,40 @@ test('graf zależności obejmuje linkowany projekt, komponent i stabilne proxy',
   assert.equal(inspection.selected.target.kind, 'component');
   assert.equal(inspection.selected.target.id, component.id);
   assert.equal(inspectProjectDependencies(document, 'nie-istnieje').selected.id, document.id);
+});
+
+test('globalne Idź do indeksuje główne obiekty projektu i zachowuje cele nawigacji', () => {
+  const document = createStarterDocument();
+  const component = createComponent(document, { name: 'Zespół napędowy', type: 'assembly', partNumber: 'ASM-01' });
+  const instance = createComponentInstance(document, { componentId: component.id, name: 'Napęd główny' });
+  const sheet = createDrawingSheet({ name: 'Rysunek wykonawczy', pageSize: 'A3' });
+  const plane = createOffsetPlane({ name: 'Płaszczyzna montażowa', basePlane: 'XY', offset: '10' });
+  document.drawings.push(sheet);
+  document.references.push(plane);
+  document.linkedProjects.push({ id: 'linked-search', sourceName: 'Przekładnia zewnętrzna', fileName: 'przekladnia.madcad', linkedComponentId: component.id });
+  const index = buildProjectSearchIndex(document);
+  assert.equal(index.find((item) => item.id === document.parameters[0].id).target.kind, 'settings');
+  assert.equal(index.find((item) => item.id === instance.id).target.kind, 'componentInstance');
+  assert.equal(index.find((item) => item.id === sheet.id).target.kind, 'drawingSheet');
+  assert.equal(index.find((item) => item.id === plane.id).target.kind, 'constructionPlane');
+  assert.equal(index.find((item) => item.id === 'linked-search').target.id, component.id);
+  assert.equal(index.some((item) => item.kind === 'body'), true);
+});
+
+test('globalne Idź do wyszukuje bez polskich znaków, po typie i preferuje dokładną nazwę', () => {
+  const document = createStarterDocument();
+  const before = JSON.stringify(document);
+  const byName = searchProject(document, 'otwor centralny');
+  assert.equal(byName[0].label, 'Otwór centralny');
+  assert.equal(byName[0].kind, 'feature');
+  const byType = searchProject(document, 'parametr srednica');
+  assert.equal(byType[0].kind, 'parameter');
+  assert.equal(byType[0].label.toLocaleLowerCase('pl').includes('średnica'), true);
+  assert.equal(normalizeProjectSearchText('  Płaszczyzna–ŁÓDŹ  '), 'plaszczyzna lodz');
+  assert.equal(searchProjectIndex(buildProjectSearchIndex(document), '', { limit: 2 }).length, 2);
+  assert.deepEqual(searchProjectIndex(buildProjectSearchIndex(document), 'nieistniejacy'), []);
+  assert.deepEqual(searchProject(null, 'cokolwiek'), []);
+  assert.equal(JSON.stringify(document), before);
 });
 
 test('nazwane punkty zapisu projektu są atomowe, limitowane i możliwe do przywrócenia', async () => {

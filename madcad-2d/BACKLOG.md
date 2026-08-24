@@ -35,7 +35,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Strukturalne porównanie bieżącego projektu z punktem zapisu lub zewnętrznym `.madcad` ukończono jako `P4.5`.
 - [x] Raport kondycji dokumentu, historii, referencji B-Rep, linków i rozmiaru danych ukończono jako `P4.6` z priorytetami, nawigacją i eksportem JSON.
 - [x] Widok „Gdzie używane” i wpływ zmiany w grafie zależności ukończono jako `P4.7` z wyszukiwaniem węzłów i nawigacją bez mutacji dokumentu.
-- Globalne wyszukiwanie projektu „Idź do” jest aktywnym etapem `P4.8`.
+- [x] Globalne wyszukiwanie projektu „Idź do” ukończono jako `P4.8` z rankingiem, obsługą klawiatury i bezpośrednią nawigacją bez mutowania dokumentu.
 - [x] Komponenty, podkomponenty, origin, numer części i właściwości ukończono jako `P3.1`.
 - [x] Wystąpienia komponentów, transformacje, Ground i Rigid Group ukończono jako `P3.2`.
 - [x] Joints rigid, revolute i slider z osiami oraz limitami ukończono jako `P3.3`.

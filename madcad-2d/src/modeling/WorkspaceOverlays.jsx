@@ -10,6 +10,7 @@ import {
   Circle,
   CircleDotDashed,
   CheckCircle2,
+  CornerDownLeft,
   Download,
   Eye,
   EyeOff,
@@ -26,6 +27,7 @@ import {
   PanelLeftClose,
   PencilRuler,
   Save,
+  Search,
   Settings2,
   ShieldCheck,
   Square,
@@ -34,6 +36,7 @@ import {
 } from 'lucide-react';
 import madcadIconUrl from '../../assets/icons/madcad-512.png';
 import { componentInstanceTree } from '../cad-core/components.js';
+import { searchProjectIndex } from '../cad-core/project-search.js';
 import { translateModelingText } from './i18n.js';
 import { formatShortcut } from './platform-shortcuts.js';
 
@@ -222,6 +225,45 @@ export function ProjectDependenciesPanel({ inspection, language = 'pl', onSelect
       </div>
       <p className="project-dependencies-hint">Kliknij element, aby zaznaczyć go w projekcie. Analiza nie zmienia dokumentu.</p>
     </aside>
+  );
+}
+
+export function ProjectSearchPalette({ index = [], language = 'pl', onNavigate, onClose }) {
+  const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const inputRef = React.useRef(null);
+  const resultsRef = React.useRef(null);
+  const results = searchProjectIndex(index, query, { limit: 30 });
+  const kindLabels = { document: 'Dokument', parameter: 'Parametr', sketch: 'Szkic', feature: 'Operacja', body: 'Bryła', component: 'Komponent', 'component-instance': 'Wystąpienie', drawing: 'Arkusz', 'linked-project': 'Projekt linkowany', reference: 'Konstrukcja / referencja' };
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => { resultsRef.current?.querySelector(`[data-project-search-position="${activeIndex}"]`)?.scrollIntoView?.({ block: 'nearest' }); }, [activeIndex, query]);
+  const choose = (item) => { if (item) onNavigate(item); };
+  const handleKeyDown = (event) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveIndex((current) => results.length ? Math.min(results.length - 1, current + 1) : 0);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveIndex((current) => Math.max(0, current - 1));
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      choose(results[activeIndex]);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose();
+    }
+  };
+  return (
+    <div className="project-search-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="project-search-palette" role="dialog" aria-modal="true" aria-label="Idź do obiektu projektu">
+        <header><div><Search size={17} /><span><strong>IDŹ DO</strong><small>Wyszukaj nazwę albo typ obiektu</small></span></div><kbd>Ctrl/⌘ K</kbd><button type="button" aria-label="Zamknij wyszukiwanie projektu" title="Zamknij" onClick={onClose}><X size={15} /></button></header>
+        <label className="project-search-input"><Search size={16} /><input ref={inputRef} data-project-search-input value={query} role="combobox" aria-controls="project-search-results" aria-expanded="true" aria-autocomplete="list" aria-activedescendant={results[activeIndex] ? `project-search-option-${activeIndex}` : undefined} placeholder="Parametr, szkic, operacja, komponent…" aria-label="Szukaj w projekcie" onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} onKeyDown={handleKeyDown} /><span>{results.length}</span></label>
+        <div ref={resultsRef} id="project-search-results" className="project-search-results" role="listbox" aria-label="Wyniki wyszukiwania projektu">
+          {results.length ? results.map((item, resultIndex) => <button id={`project-search-option-${resultIndex}`} className={resultIndex === activeIndex ? 'active' : ''} type="button" role="option" aria-selected={resultIndex === activeIndex} data-project-search-position={resultIndex} data-project-search-result={item.id} data-project-search-kind={item.kind} key={item.id} onMouseEnter={() => setActiveIndex(resultIndex)} onClick={() => choose(item)}><span>{translateModelingText(kindLabels[item.kind] || item.kind, language)}</span><div><strong>{item.label}</strong>{item.secondary && <small>{item.secondary}</small>}</div><CornerDownLeft size={13} /></button>) : <div className="project-search-empty"><Search size={22} /><strong>Brak pasujących obiektów</strong><span>Spróbuj nazwy, typu albo numeru części.</span></div>}
+        </div>
+        <footer><span><kbd>↑</kbd><kbd>↓</kbd> wybór</span><span><kbd>Enter</kbd> przejdź</span><span><kbd>Esc</kbd> zamknij</span></footer>
+      </section>
+    </div>
   );
 }
 
