@@ -18,6 +18,7 @@ function props(overrides = {}) {
     onUpdateSheet: vi.fn(),
     onDeleteSheet: vi.fn(),
     onAddBaseView: vi.fn(),
+    onAddDerivedView: vi.fn(),
     onSelectView: vi.fn(),
     onUpdateView: vi.fn(),
     onDeleteView: vi.fn(),
@@ -41,5 +42,14 @@ describe('DrawingWorkspace', () => {
     render(<DrawingWorkspace {...props({ document: { name: 'Pusty', drawings: [] }, activeSheetId: null, selectedViewId: null, onCreateSheet })} />);
     fireEvent.click(screen.getByRole('button', { name: /Nowy arkusz A4/i }));
     expect(onCreateSheet).toHaveBeenCalledOnce();
+  });
+
+  it('offers projected, section and detail commands for the selected view', () => {
+    const current = props();
+    render(<DrawingWorkspace {...current} />);
+    fireEvent.click(screen.getByRole('button', { name: /Rzut/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Przekrój/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Detal/i }));
+    expect(current.onAddDerivedView.mock.calls.map(([type]) => type)).toEqual(['projected', 'section', 'detail']);
   });
 });

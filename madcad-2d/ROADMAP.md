@@ -169,8 +169,8 @@ Te prace nie czekają na koniec modelowania:
 ## P2 — dokumentacja techniczna 2D
 
 - [x] P2.1 Obszar `DOKUMENTACJA`: arkusze A4/A3 w orientacji poziomej lub pionowej, skojarzony widok bazowy z rzeczywistych krawędzi aktualnego modelu, kierunki Front/Top/Right/Isometric, automatyczny dobór standardowej skali, położenie na arkuszu, tabliczka, zapis/otwarcie, undo/redo, podgląd 1:1 i bezpośredni eksport PDF.
-- [>] P2.2 Skojarzone widoki rzutowane, przekroje i detale tworzone od widoku bazowego, z kontrolą wyrównania oraz automatyczną aktualizacją po przebudowie modelu.
-- [ ] P2.3 Wymiary rysunkowe, osie i znaczniki środka, opisy otworów/gwintów oraz tolerancje.
+- [x] P2.2 Skojarzone widoki rzutowane, przekroje z rzeczywistego przecięcia modelu i kreskowaniem oraz powiększone detale tworzone od widoku bazowego; kontrola wyrównania, zależności rodzic–dziecko, automatyczna aktualizacja po przebudowie, bezpieczne usuwanie kaskadowe i układ arkusza 2×2.
+- [>] P2.3 Wymiary rysunkowe, osie i znaczniki środka, opisy otworów/gwintów oraz tolerancje.
 - [ ] P2.4 Podstawowe GD&T, konfigurowalna tabliczka, rewizje i eksport arkusza do DXF.
 - [ ] P2.5 BOM, balloons i tabela otworów po wprowadzeniu komponentów.
 
@@ -199,8 +199,8 @@ Dodatkowo:
 
 ## Najbliższe zadania
 
-1. [>] P2.2: widok rzutowany, przekrój i detal na skojarzonym arkuszu.
-2. [ ] P2.3: wymiary i podstawowe oznaczenia wykonawcze na arkuszu.
+1. [>] P2.3: wymiary i podstawowe oznaczenia wykonawcze na arkuszu.
+2. [ ] P2.4: GD&T, tabliczka, rewizje i eksport DXF.
 3. [~] Sprawdzić import/eksport na rzeczywistych plikach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny odsłuch VoiceOver. Korpus formatów i automatyczny test drzewa AX są gotowe.
 4. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 

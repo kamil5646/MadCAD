@@ -1073,7 +1073,7 @@
   z-index: 3;
   inset: 0;
   display: grid;
-  grid-template-columns: 170px minmax(0, 1fr) 232px;
+  grid-template-columns: 170px minmax(0, 1fr) 248px;
   min-width: 0;
   overflow: hidden;
   background: #252d37;
@@ -1198,6 +1198,27 @@
 .drawing-view { fill: none; stroke: #111; stroke-width: .28; cursor: pointer; }
 .drawing-view:hover,
 .drawing-view.selected { stroke: #008fbd; stroke-width: .48; }
+.drawing-view-section { stroke-width: .5; }
+.drawing-view .drawing-hatch { stroke-width: .16; }
+.drawing-detail-border,
+.drawing-annotation circle {
+  fill: none;
+  stroke: #111;
+  stroke-width: .25;
+}
+.drawing-annotation { cursor: pointer; }
+.drawing-annotation line {
+  stroke: #111;
+  stroke-width: .25;
+  stroke-dasharray: 3 1;
+}
+.drawing-annotation text { fill: #111; font-size: 3px; font-weight: 700; }
+.drawing-annotation:hover line,
+.drawing-annotation:hover circle,
+.drawing-annotation.selected line,
+.drawing-annotation.selected circle { stroke: #008fbd; stroke-width: .48; }
+.drawing-annotation:hover text,
+.drawing-annotation.selected text { fill: #007da6; }
 .drawing-view text { fill: #222; stroke: none; font-size: 3px; }
 .drawing-view.selected text { fill: #007da6; font-weight: 700; }
 .drawing-title-block text { fill: #111; stroke: none; font-size: 3px; }
@@ -1240,13 +1261,16 @@
 .drawing-property-row label:last-child { padding-left: 2px; }
 .drawing-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 0 9px; }
 .drawing-actions button { min-width: 0; padding: 0 5px; font-size: 10px; }
+.drawing-create-actions { grid-template-columns: 1fr 1fr; }
 .drawing-hint { margin: 0 9px; color: #f0c879; font-size: 10px; line-height: 1.4; }
 .drawing-view-properties { display: grid; gap: 8px; margin: 2px 9px 0; padding: 9px 0; border-top: 1px solid #4a5663; border-bottom: 1px solid #4a5663; }
 .drawing-view-properties > strong { padding: 0 9px; color: #6dd3ee; }
+.drawing-association-status { margin: -4px 9px 0; color: #8fd1a5; font-size: 9px; line-height: 1.35; }
 .drawing-view-properties .drawing-property-row label:first-child { padding-left: 9px; }
 .drawing-view-properties .drawing-property-row label:last-child { padding-right: 9px; }
 .drawing-view-properties .danger,
-.drawing-delete-sheet {
+.drawing-delete-sheet,
+.drawing-export-pdf {
   display: inline-flex;
   min-height: 29px;
   align-items: center;
@@ -1261,6 +1285,12 @@
 }
 .drawing-view-properties .danger { margin-top: 2px; }
 .drawing-delete-sheet { margin-top: auto; }
+.drawing-export-pdf {
+  border-color: #28a9d4;
+  background: #157fa5;
+  color: #fff;
+}
+.drawing-export-pdf:disabled { cursor: default; opacity: .45; }
 
 .engine-status {
   position: absolute;

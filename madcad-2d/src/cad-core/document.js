@@ -8,7 +8,7 @@ import {
   isSupportedLineType,
 } from './layers.js';
 import { ensureDocumentBlocks } from './blocks.js';
-import { DRAWING_PAGE_SIZES, DRAWING_VIEW_ORIENTATIONS, ensureDocumentDrawings } from './drawing-sheets.js';
+import { DRAWING_PAGE_SIZES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
 import {
   SKETCH_ENTITY_ROLES,
   SKETCH_ENTITY_TYPES,
@@ -17,7 +17,7 @@ import {
   normalizeSketchModel,
 } from './sketch-model.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 5;
+export const DOCUMENT_SCHEMA_VERSION = 6;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -99,10 +99,31 @@ function migrateV4ToV5(source, now) {
   return migrated;
 }
 
+function migrateV5ToV6(source, now) {
+  const migrated = ensureDocumentDrawings(ensureV3Collections(cloneDocument(source)));
+  migrated.schemaVersion = 6;
+  migrated.drawings = migrated.drawings.map((sheet) => isRecord(sheet) ? {
+    ...sheet,
+    views: Array.isArray(sheet.views) ? sheet.views.map((view) => isRecord(view) ? { type: 'base', ...view } : view) : sheet.views,
+  } : sheet);
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 5,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 5, to: 6, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
   [4, migrateV4ToV5],
+  [5, migrateV5ToV6],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -1008,6 +1029,9 @@ export function validateDocument(document) {
     if (!DRAWING_PAGE_SIZES[sheet.pageSize]) add(`${base}.pageSize`, `Nieobsługiwany format arkusza: ${sheet.pageSize ?? ''}.`, 'UNSUPPORTED');
     if (!['landscape', 'portrait'].includes(sheet.orientation)) add(`${base}.orientation`, 'Orientacja arkusza musi być pozioma albo pionowa.', 'UNSUPPORTED');
     const views = requireArray(sheet, 'views', `${base}.views`);
+    const viewIds = new Set(views.filter(isRecord).map((view) => view.id).filter((id) => typeof id === 'string' && id));
+    const viewIndexById = new Map(views.map((view, index) => [view?.id, index]).filter(([id]) => typeof id === 'string' && id));
+    const viewParents = new Map();
     views.forEach((view, viewIndex) => {
       const viewBase = `${base}.views[${viewIndex}]`;
       if (!isRecord(view)) {
@@ -1015,15 +1039,45 @@ export function validateDocument(document) {
         return;
       }
       registerId(view.id, `${viewBase}.id`);
-      if (view.type !== 'base') add(`${viewBase}.type`, `Nieobsługiwany typ widoku: ${view.type ?? ''}.`, 'UNSUPPORTED');
+      if (!DRAWING_VIEW_TYPES.includes(view.type)) add(`${viewBase}.type`, `Nieobsługiwany typ widoku: ${view.type ?? ''}.`, 'UNSUPPORTED');
       if (!DRAWING_VIEW_ORIENTATIONS.includes(view.orientation)) add(`${viewBase}.orientation`, `Nieobsługiwana orientacja widoku: ${view.orientation ?? ''}.`, 'UNSUPPORTED');
-      if (!Array.isArray(view.bodyIds) || !view.bodyIds.length) add(`${viewBase}.bodyIds`, 'Widok bazowy wymaga co najmniej jednej bryły.', 'REQUIRED');
+      if (!Array.isArray(view.bodyIds) || !view.bodyIds.length) add(`${viewBase}.bodyIds`, 'Widok wymaga co najmniej jednej bryły.', 'REQUIRED');
       else view.bodyIds.forEach((bodyId, bodyIndex) => {
         if (typeof bodyId !== 'string' || !bodyId) add(`${viewBase}.bodyIds[${bodyIndex}]`, 'Referencja bryły musi być niepustym ID.', 'TYPE');
       });
       if (!(Number(view.scale) > 0)) add(`${viewBase}.scale`, 'Skala widoku musi być dodatnia.', 'VALUE');
       if (!Number.isFinite(Number(view.x)) || !Number.isFinite(Number(view.y))) add(viewBase, 'Położenie widoku na arkuszu musi być liczbowe.', 'TYPE');
+      if (view.type !== 'base') {
+        if (typeof view.parentViewId !== 'string' || !viewParents.has(view.parentViewId) && !viewIds.has(view.parentViewId)) add(`${viewBase}.parentViewId`, 'Widok pochodny wymaga istniejącego widoku nadrzędnego na tym samym arkuszu.', 'BROKEN_REFERENCE');
+        else if (view.parentViewId === view.id) add(`${viewBase}.parentViewId`, 'Widok nie może być własnym rodzicem.', 'CYCLIC_REFERENCE');
+        else if (viewIndexById.get(view.parentViewId) >= viewIndex) add(`${viewBase}.parentViewId`, 'Widok nadrzędny musi występować przed widokiem pochodnym.', 'ORDER');
+        else viewParents.set(view.id, view.parentViewId);
+        if (!DRAWING_VIEW_ALIGNMENTS.includes(view.alignment)) add(`${viewBase}.alignment`, 'Nieobsługiwane wyrównanie widoku.', 'UNSUPPORTED');
+      }
+      if (view.type === 'projected' && !['right', 'left', 'top', 'bottom'].includes(view.projectionDirection)) add(`${viewBase}.projectionDirection`, 'Nieobsługiwany kierunek rzutu pochodnego.', 'UNSUPPORTED');
+      if (view.type === 'section') {
+        if (!['vertical', 'horizontal'].includes(view.sectionAxis)) add(`${viewBase}.sectionAxis`, 'Oś przekroju musi być pionowa albo pozioma.', 'UNSUPPORTED');
+        if (!(Number(view.sectionPosition) >= 0.05 && Number(view.sectionPosition) <= 0.95)) add(`${viewBase}.sectionPosition`, 'Położenie linii przekroju musi mieścić się między 5% i 95%.', 'VALUE');
+        if (!(Number(view.hatchSpacing) >= 1 && Number(view.hatchSpacing) <= 20)) add(`${viewBase}.hatchSpacing`, 'Odstęp kreskowania musi mieścić się między 1 i 20 mm.', 'VALUE');
+      }
+      if (view.type === 'detail') {
+        if (!Array.isArray(view.detailCenter) || view.detailCenter.length !== 2 || view.detailCenter.some((value) => !(Number(value) >= 0 && Number(value) <= 1))) add(`${viewBase}.detailCenter`, 'Środek detalu wymaga dwóch współrzędnych względnych 0–1.', 'VALUE');
+        if (!(Number(view.detailRadius) >= 0.05 && Number(view.detailRadius) <= 0.5)) add(`${viewBase}.detailRadius`, 'Promień detalu musi mieścić się między 5% i 50%.', 'VALUE');
+        if (!(Number(view.magnification) >= 1.1 && Number(view.magnification) <= 10)) add(`${viewBase}.magnification`, 'Powiększenie detalu musi mieścić się między 1,1× i 10×.', 'VALUE');
+      }
     });
+    for (const viewId of viewParents.keys()) {
+      const visited = new Set([viewId]);
+      let parentId = viewParents.get(viewId);
+      while (parentId && viewParents.has(parentId)) {
+        if (visited.has(parentId)) {
+          add(`${base}.views`, 'Widoki pochodne zawierają cykliczną zależność.', 'CYCLIC_REFERENCE');
+          break;
+        }
+        visited.add(parentId);
+        parentId = viewParents.get(parentId);
+      }
+    }
   });
 
   const errors = issues.map((issue) => `${issue.path}: ${issue.message}`);

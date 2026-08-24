@@ -123,7 +123,7 @@ import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit } from '../cad-core/model-import.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
-import { createBaseDrawingView, createDrawingSheet, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
+import { createBaseDrawingView, createDetailDrawingView, createDrawingSheet, createProjectedDrawingView, createSectionDrawingView, drawingPageDimensions, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import {
   addBlockAttributeDefinition,
@@ -3659,6 +3659,7 @@ export default function ModelingWorkspace() {
   };
 
   const activeDrawingSheet = document.drawings.find((sheet) => sheet.id === activeDrawingSheetId) || document.drawings[0] || null;
+  const selectedDrawingView = activeDrawingSheet?.views.find((view) => view.id === selectedDrawingViewId) || null;
 
   const createDrawingSheetInDocument = () => {
     if (readOnly) return readOnlyNotice();
@@ -3696,22 +3697,76 @@ export default function ModelingWorkspace() {
     setNotice(`Dodano skojarzony widok bazowy · Przód · skala ${scale}:1.`);
   };
 
+  const addDerivedDrawingView = (type) => {
+    if (!activeDrawingSheet || !selectedDrawingView || readOnly) return;
+    const page = drawingPageDimensions(activeDrawingSheet);
+    const parentView = selectedDrawingView.type === 'base' ? {
+      ...selectedDrawingView,
+      x: page.width * 0.34,
+      y: (page.height - 24) * 0.35,
+      scale: Math.min(selectedDrawingView.scale, recommendedDrawingScale(activeDrawingSheet, engine.bodies, selectedDrawingView.orientation) * 0.5),
+    } : selectedDrawingView;
+    let view;
+    if (type === 'projected') view = createProjectedDrawingView({ parentView });
+    else if (type === 'section' && selectedDrawingView.orientation !== 'isometric') view = createSectionDrawingView({ parentView });
+    else if (type === 'detail') view = createDetailDrawingView({ parentView });
+    if (!view) return;
+    if (selectedDrawingView.type === 'base') {
+      if (type === 'projected') Object.assign(view, { x: page.width * 0.68, y: parentView.y });
+      else if (type === 'section') Object.assign(view, { x: parentView.x, y: (page.height - 24) * 0.72 });
+      else Object.assign(view, { x: page.width * 0.68, y: (page.height - 24) * 0.72 });
+    }
+    commit((next) => {
+      const sheet = next.drawings.find((item) => item.id === activeDrawingSheet.id);
+      const parent = sheet?.views.find((item) => item.id === selectedDrawingView.id);
+      if (parent && selectedDrawingView.type === 'base') Object.assign(parent, { x: parentView.x, y: parentView.y, scale: parentView.scale });
+      sheet?.views.push(view);
+    });
+    setSelectedDrawingViewId(view.id);
+    setNotice(`${view.name} jest skojarzony z widokiem nadrzędnym i aktualnym modelem.`);
+  };
+
   const updateSelectedDrawingView = (patch) => {
     if (!activeDrawingSheet || !selectedDrawingViewId || readOnly) return;
+    const normalizedPatch = { ...patch };
+    const parent = activeDrawingSheet.views.find((view) => view.id === selectedDrawingView?.parentViewId);
+    if (selectedDrawingView?.type === 'base' && normalizedPatch.orientation) {
+      normalizedPatch.scale = Math.min(selectedDrawingView.scale, recommendedDrawingScale(activeDrawingSheet, engine.bodies, normalizedPatch.orientation));
+    }
+    if (parent && normalizedPatch.projectionDirection) {
+      const direction = normalizedPatch.projectionDirection;
+      normalizedPatch.x = Number(parent.x) + (direction === 'right' ? 70 : direction === 'left' ? -70 : 0);
+      normalizedPatch.y = Number(parent.y) + (direction === 'bottom' ? 55 : direction === 'top' ? -55 : 0);
+    }
+    if (parent && normalizedPatch.sectionAxis) {
+      normalizedPatch.x = Number(parent.x) + (normalizedPatch.sectionAxis === 'vertical' ? 82 : 0);
+      normalizedPatch.y = Number(parent.y) + (normalizedPatch.sectionAxis === 'horizontal' ? 62 : 0);
+    }
     commit((next) => {
       const view = next.drawings.find((sheet) => sheet.id === activeDrawingSheet.id)?.views.find((item) => item.id === selectedDrawingViewId);
-      if (view) Object.assign(view, patch);
+      if (view) Object.assign(view, normalizedPatch);
     });
   };
 
   const deleteSelectedDrawingView = () => {
     if (!activeDrawingSheet || !selectedDrawingViewId || readOnly) return;
+    const deletedIds = new Set([selectedDrawingViewId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const view of activeDrawingSheet.views) {
+        if (view.parentViewId && deletedIds.has(view.parentViewId) && !deletedIds.has(view.id)) {
+          deletedIds.add(view.id);
+          changed = true;
+        }
+      }
+    }
     commit((next) => {
       const sheet = next.drawings.find((item) => item.id === activeDrawingSheet.id);
-      if (sheet) sheet.views = sheet.views.filter((view) => view.id !== selectedDrawingViewId);
+      if (sheet) sheet.views = sheet.views.filter((view) => !deletedIds.has(view.id));
     });
     setSelectedDrawingViewId(null);
-    setNotice('Usunięto widok z arkusza. Model pozostał bez zmian.');
+    setNotice(deletedIds.size === 1 ? 'Usunięto widok z arkusza. Model pozostał bez zmian.' : `Usunięto widok i ${deletedIds.size - 1} zależne widoki. Model pozostał bez zmian.`);
   };
 
   const exportActiveDrawingPdf = async () => {
@@ -4179,7 +4234,7 @@ export default function ModelingWorkspace() {
             ) : workspace === 'drawing' ? (
               <>
                 <RibbonGroup label="ARKUSZE"><ToolButton icon={FilePlus2} label="Nowy arkusz" onClick={createDrawingSheetInDocument} disabled={readOnly} primary /><ToolButton icon={Trash2} label="Usuń arkusz" onClick={deleteActiveDrawingSheet} disabled={readOnly || !activeDrawingSheet} /></RibbonGroup>
-                <RibbonGroup label="WIDOKI"><ToolButton icon={Frame} label="Widok bazowy" onClick={addBaseDrawingView} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} /><ToolButton icon={Trash2} label="Usuń widok" onClick={deleteSelectedDrawingView} disabled={readOnly || !selectedDrawingViewId} /></RibbonGroup>
+                <RibbonGroup label="WIDOKI"><ToolButton icon={Frame} label="Widok bazowy" onClick={addBaseDrawingView} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Utwórz pierwszy skojarzony rzut modelu." /><ToolButton icon={FileText} label="Rzut" onClick={() => addDerivedDrawingView('projected')} disabled={readOnly || !selectedDrawingView} description="Utwórz wyrównany rzut od zaznaczonego widoku." /><ToolButton icon={Scissors} label="Przekrój" onClick={() => addDerivedDrawingView('section')} disabled={readOnly || !selectedDrawingView || selectedDrawingView.orientation === 'isometric'} description="Utwórz przekrój A-A z rzeczywistego przecięcia modelu." /><ToolButton icon={ScanSearch} label="Detal" onClick={() => addDerivedDrawingView('detail')} disabled={readOnly || !selectedDrawingView} description="Utwórz powiększony detal zaznaczonego widoku." /><ToolButton icon={Trash2} label="Usuń widok" onClick={deleteSelectedDrawingView} disabled={readOnly || !selectedDrawingViewId} /></RibbonGroup>
                 <RibbonGroup label="WYJŚCIE" end><ToolButton icon={Eye} label="Podgląd 1:1" onClick={() => { void previewActiveDrawing(); }} disabled={!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow} /><ToolButton icon={FileText} label="PDF" onClick={() => { void exportActiveDrawingPdf(); }} disabled={!activeDrawingSheet?.views.length} primary /></RibbonGroup>
               </>
             ) : workspace === 'tools' ? (
@@ -4244,6 +4299,7 @@ export default function ModelingWorkspace() {
             onUpdateSheet={updateActiveDrawingSheet}
             onDeleteSheet={deleteActiveDrawingSheet}
             onAddBaseView={addBaseDrawingView}
+            onAddDerivedView={addDerivedDrawingView}
             onSelectView={setSelectedDrawingViewId}
             onUpdateView={updateSelectedDrawingView}
             onDeleteView={deleteSelectedDrawingView}

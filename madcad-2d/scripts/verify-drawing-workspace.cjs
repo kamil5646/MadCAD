@@ -47,13 +47,25 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.length === 1`, 'redo widoku');
 
+    if (!(await clickText(window, '.ribbon-tool', 'Rzut'))) throw new Error('Brak polecenia Rzut.');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.[1]?.type === 'projected'`, 'widok rzutowany');
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.drawing-view')[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
+    if (!(await clickText(window, '.ribbon-tool', 'Przekrój'))) throw new Error('Brak polecenia Przekrój.');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.[2]?.type === 'section' && document.querySelectorAll('.drawing-hatch').length > 0`, 'przekrój i kreskowanie');
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.drawing-view')[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
+    if (!(await clickText(window, '.ribbon-tool', 'Detal'))) throw new Error('Brak polecenia Detal.');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.[3]?.type === 'detail' && document.querySelector('.drawing-detail-border')`, 'powiększony detal');
+    await waitFor(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.drawings?.[0]?.views?.length === 4`, 'autozapis widoków pochodnych');
+
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.drawing-view')[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
+
     await window.webContents.executeJavaScript(`(() => {
       const select = document.querySelector('.drawing-view-properties select');
       const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
-      setter.call(select, 'isometric');
+      setter.call(select, 'top');
       select.dispatchEvent(new Event('change', { bubbles: true }));
     })()`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.[0]?.orientation === 'isometric'`, 'zmiana orientacji widoku');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.[0]?.orientation === 'top'`, 'zmiana orientacji widoku bazowego');
 
     const state = await window.webContents.executeJavaScript(`(() => {
       const workspace = document.querySelector('.drawing-workspace');
@@ -64,14 +76,18 @@ app.whenReady().then(async () => {
         sheets: window.__madcadVerifyDocumentState.drawings.length,
         views: window.__madcadVerifyDocumentState.drawings[0].views.length,
         orientation: window.__madcadVerifyDocumentState.drawings[0].views[0].orientation,
+        viewTypes: window.__madcadVerifyDocumentState.drawings[0].views.map((view) => view.type),
         lineCount: document.querySelectorAll('.drawing-view line').length,
+        hatchCount: document.querySelectorAll('.drawing-hatch').length,
+        annotationCount: document.querySelectorAll('.drawing-annotation').length,
+        associatedViewCount: window.__madcadVerifyDocumentState.drawings[0].views.filter((view) => view.parentViewId).length,
         pdfEnabled: Boolean(pdfButton && !pdfButton.disabled),
         horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth || workspace.scrollWidth > workspace.clientWidth,
         paperInsideStage: paper.getBoundingClientRect().left >= workspace.getBoundingClientRect().left && paper.getBoundingClientRect().right <= workspace.getBoundingClientRect().right,
       };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (state.schemaVersion !== 5 || state.sheets !== 1 || state.views !== 1 || state.orientation !== 'isometric' || state.lineCount < 9 || !state.pdfEnabled || state.horizontalOverflow || !state.paperInsideStage) {
+    if (state.schemaVersion !== 6 || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.hatchCount < 1 || state.annotationCount !== 2 || state.associatedViewCount !== 3 || !state.pdfEnabled || state.horizontalOverflow || !state.paperInsideStage) {
       throw new Error(`Niepoprawny obszar dokumentacji: ${JSON.stringify(state)}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...state }, null, 2)}\n`);

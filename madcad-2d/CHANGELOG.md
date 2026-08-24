@@ -5,7 +5,9 @@
 - Dodano obszar **DOKUMENTACJA** z zapisywanymi arkuszami A4/A3, tabliczką rysunkową i skojarzonym widokiem bazowym aktualizowanym z rzeczywistych krawędzi modelu.
 - Widok bazowy obsługuje kierunki Front/Top/Right/Isometric, automatyczny dobór standardowej skali, ręczne położenie na arkuszu oraz pełne undo/redo, autozapis i round-trip `.madcad`.
 - Dodano bezpieczny, bezpośredni eksport arkusza do PDF oraz osobny podgląd 1:1 w izolowanym oknie Electron.
-- Schemat projektu podniesiono do v5 z migracją dokumentów v4 i pustą kolekcją arkuszy dla starszych projektów.
+- Dodano skojarzone rzuty pochodne, przekroje A-A liczone z przecięcia trójkątów modelu i powiększone detale z liniami wywołania. Widoki dziedziczą geometrię, kierunek oraz skalę rodzica i automatycznie aktualizują się po przebudowie modelu.
+- Arkusz automatycznie układa bazę, rzut, przekrój i detal w czytelnej siatce 2×2; właściwości pozwalają sterować kierunkiem rzutu, linią cięcia, kreskowaniem, obszarem detalu, powiększeniem i wyrównaniem.
+- Schemat projektu podniesiono do v6 z migracjami dokumentów v4/v5 oraz zachowaniem istniejących widoków bazowych.
 
 ## 6.3.2 (2026-08-23)
 

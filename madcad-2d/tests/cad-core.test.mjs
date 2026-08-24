@@ -74,7 +74,10 @@ import { analyzePrintability } from '../src/cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../src/cad-core/sketch-import.js';
 import {
   createBaseDrawingView,
+  createDetailDrawingView,
   createDrawingSheet,
+  createProjectedDrawingView,
+  createSectionDrawingView,
   drawingSheetHtml,
   drawingSheetScene,
   projectDrawingView,
@@ -1382,6 +1385,50 @@ test('arkusz techniczny zapisuje skojarzony widok i rzutuje rzeczywiste krawędz
   assert.deepEqual(reopened.document.drawings, document.drawings);
 });
 
+test('rzuty pochodne, przekrój i detal zachowują relację, wyrównanie i aktualną geometrię modelu', () => {
+  const document = createDocument('Korpus z dokumentacją');
+  const sheet = createDrawingSheet({ pageSize: 'A3' });
+  const body = {
+    id: 'body-drawing-v6',
+    vertices: Float32Array.from([
+      0, 0, 0, 40, 0, 0, 40, 20, 0, 0, 20, 0,
+      0, 0, 30, 40, 0, 30, 40, 20, 30, 0, 20, 30,
+    ]),
+    triangles: Uint32Array.from([
+      0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6,
+      0, 4, 5, 0, 5, 1, 1, 5, 6, 1, 6, 2,
+      2, 6, 7, 2, 7, 3, 3, 7, 4, 3, 4, 0,
+    ]),
+    lines: Float32Array.from([
+      0, 0, 0, 40, 0, 0, 40, 0, 0, 40, 20, 0, 40, 20, 0, 0, 20, 0, 0, 20, 0, 0, 0, 0,
+      0, 0, 30, 40, 0, 30, 40, 0, 30, 40, 20, 30, 40, 20, 30, 0, 20, 30, 0, 20, 30, 0, 0, 30,
+      0, 0, 0, 0, 0, 30, 40, 0, 0, 40, 0, 30, 40, 20, 0, 40, 20, 30, 0, 20, 0, 0, 20, 30,
+    ]),
+    metrics: { bounds: [[0, 0, 0], [40, 20, 30]] },
+  };
+  const base = createBaseDrawingView({ bodyIds: [body.id], orientation: 'front', scale: 1, x: 90, y: 80, sheet });
+  const projected = createProjectedDrawingView({ parentView: base, direction: 'right' });
+  const section = createSectionDrawingView({ parentView: base });
+  const detail = createDetailDrawingView({ parentView: base, center: [0.25, 0.25], radius: 0.3, magnification: 2 });
+  sheet.views.push(base, projected, section, detail);
+  document.drawings.push(sheet);
+
+  const scene = drawingSheetScene(sheet, [body]);
+  assert.equal(scene.views[1].y, base.y, 'rzut poziomy pozostaje wyrównany do rodzica');
+  assert.equal(scene.views[2].x, base.x, 'przekrój pozostaje wyrównany do rodzica');
+  assert.ok(scene.views[2].segments.length >= 4, 'przekrój korzysta z przecięcia trójkątów');
+  assert.ok(scene.views[2].hatchSegments.length > 0, 'zamknięty przekrój ma kreskowanie');
+  assert.ok(scene.views[3].segments.length > 0 && scene.views[3].detailRadiusSheet > 0, 'detal wycina i powiększa geometrię');
+  assert.deepEqual(scene.annotations.map((annotation) => annotation.type), ['section-line', 'detail-callout']);
+  assert.equal(validateDocument(document).valid, true);
+  assert.match(drawingSheetHtml(sheet, [body]), /section-callout/);
+  assert.match(drawingSheetHtml(sheet, [body]), /detail-callout/);
+
+  const tallerBody = { ...body, lines: Float32Array.from([...body.lines].map((value, index) => index % 3 === 2 ? value * 2 : value)), metrics: { bounds: [[0, 0, 0], [40, 20, 60]] } };
+  assert.equal(drawingSheetScene(sheet, [tallerBody]).views[0].modelHeight, 60, 'widok aktualizuje się po przebudowie bryły');
+  assert.deepEqual(openDocument(JSON.parse(JSON.stringify(document))).document.drawings, document.drawings);
+});
+
 test('migracja v4 dodaje kolekcję arkuszy bez zmiany istniejącego modelu', () => {
   const legacy = createStarterDocument();
   legacy.schemaVersion = 4;
@@ -1389,10 +1436,23 @@ test('migracja v4 dodaje kolekcję arkuszy bez zmiany istniejącego modelu', () 
   const featureSnapshot = structuredClone(legacy.features);
   const opened = openDocument(legacy, { now: '2026-08-24T01:00:00.000Z' });
   assert.equal(opened.sourceVersion, 4);
-  assert.equal(opened.document.schemaVersion, 5);
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(opened.document.drawings, []);
   assert.deepEqual(opened.document.features, featureSnapshot);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 4 && entry.to === 5));
+  assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 5 && entry.to === 6));
+});
+
+test('migracja v5 zachowuje istniejące widoki bazowe w schemacie v6', () => {
+  const legacy = createDocument('Dokumentacja v5');
+  const sheet = createDrawingSheet();
+  sheet.views.push(createBaseDrawingView({ bodyIds: ['body-v5'], sheet }));
+  legacy.drawings.push(sheet);
+  legacy.schemaVersion = 5;
+  const opened = openDocument(legacy, { now: '2026-08-24T03:30:00.000Z' });
+  assert.equal(opened.document.schemaVersion, 6);
+  assert.equal(opened.document.drawings[0].views[0].type, 'base');
+  assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 5 && entry.to === 6));
 });
 
 test('otwiera zgodny dokument z nowszej wersji wyłącznie do odczytu', () => {
@@ -1559,6 +1619,7 @@ test('interfejs modelowania rozpoznaje PL/EN i tłumaczy także dynamiczny stan 
   assert.equal(translateModelingText('Przeliczanie historii…', 'en'), 'Recomputing history…');
   assert.equal(translateModelingText('A4 · poziomo · 1 wid.', 'en'), 'A4 · landscape · 1 view');
   assert.equal(translateModelingText('Widok bazowy, Przód, skala 2:1', 'en'), 'Base view, Front, scale 2:1');
+  assert.equal(translateModelingText('Skojarzony z modelem i widokiem nadrzędnym', 'en'), 'Associated with model and parent view');
   assert.equal(
     translateModelingText('Linia. Utwórz pojedynczy segment przez dwa punkty albo przez dokładną długość i kąt. Skrót: L ↵.', 'en'),
     'Line. Create one segment from two points or from an exact length and angle. Shortcut: L ↵.',
@@ -1572,6 +1633,11 @@ test('interfejs modelowania rozpoznaje PL/EN i tłumaczy także dynamiczny stan 
     'Dokumentacja techniczna',
     'Utwórz pierwszy arkusz techniczny',
     'Widok bazowy',
+    'Widok rzutowany',
+    'Przekrój',
+    'Detal',
+    'Kierunek rzutu',
+    'Wyrównanie',
     'Eksport PDF',
     'Automatyczne więzy',
     'Pozostałe stopnie swobody',
