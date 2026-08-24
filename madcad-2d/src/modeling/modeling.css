@@ -1201,7 +1201,8 @@
 .drawing-view-section { stroke-width: .5; }
 .drawing-view .drawing-hatch { stroke-width: .16; }
 .drawing-detail-border,
-.drawing-annotation circle {
+.drawing-annotation circle,
+.drawing-annotation rect {
   fill: none;
   stroke: #111;
   stroke-width: .25;
@@ -1241,6 +1242,8 @@
 
 .drawing-properties > header { position: static; justify-content: flex-start; }
 .drawing-properties > label,
+.drawing-sheet-details > label,
+.drawing-revision > label,
 .drawing-property-row label,
 .drawing-view-properties label {
   display: grid;
@@ -1262,6 +1265,16 @@
   padding: 0 7px;
 }
 
+.drawing-sheet-details { margin: 0 9px; border: 1px solid #4a5663; background: #2a333e; }
+.drawing-sheet-details > summary { padding: 7px 8px; color: #dce5eb; font-size: 10px; font-weight: 700; cursor: pointer; }
+.drawing-sheet-details[open] { display: grid; gap: 7px; padding-bottom: 8px; }
+.drawing-sheet-details .drawing-property-row label:first-child { padding-left: 9px; }
+.drawing-sheet-details .drawing-property-row label:last-child { padding-right: 9px; }
+.drawing-revision { display: grid; gap: 6px; padding: 7px 0; border-top: 1px solid #46515e; }
+.drawing-revision-delete,
+.drawing-add-revision { display: inline-flex; min-height: 27px; align-items: center; justify-content: center; gap: 5px; margin: 0 9px; border: 1px solid #5a6875; background: #35414d; color: #e4ebef; cursor: pointer; }
+.drawing-revision-delete { border-color: #84545a; color: #ffd8d7; background: #51383d; }
+
 .drawing-property-row { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
 .drawing-property-row label:first-child { padding-right: 2px; }
 .drawing-property-row label:last-child { padding-left: 2px; }
@@ -1282,7 +1295,8 @@
 .drawing-view-properties .drawing-property-row label:last-child { padding-right: 9px; }
 .drawing-view-properties .danger,
 .drawing-delete-sheet,
-.drawing-export-pdf {
+.drawing-export-pdf,
+.drawing-export-dxf {
   display: inline-flex;
   min-height: 29px;
   align-items: center;
@@ -1302,7 +1316,9 @@
   background: #157fa5;
   color: #fff;
 }
-.drawing-export-pdf:disabled { cursor: default; opacity: .45; }
+.drawing-export-dxf { border-color: #5a82ad; background: #365b7d; color: #fff; }
+.drawing-export-pdf:disabled,
+.drawing-export-dxf:disabled { cursor: default; opacity: .45; }
 
 .engine-status {
   position: absolute;

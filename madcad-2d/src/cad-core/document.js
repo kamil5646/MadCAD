@@ -17,7 +17,7 @@ import {
   normalizeSketchModel,
 } from './sketch-model.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 7;
+export const DOCUMENT_SCHEMA_VERSION = 8;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -135,12 +135,29 @@ function migrateV6ToV7(source, now) {
   return migrated;
 }
 
+function migrateV7ToV8(source, now) {
+  const migrated = ensureDocumentDrawings(ensureV3Collections(cloneDocument(source)));
+  migrated.schemaVersion = 8;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 7,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 7, to: 8, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
   [4, migrateV4ToV5],
   [5, migrateV5ToV6],
   [6, migrateV6ToV7],
+  [7, migrateV7ToV8],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -1045,8 +1062,10 @@ export function validateDocument(document) {
     if (typeof sheet.name !== 'string' || !sheet.name.trim()) add(`${base}.name`, 'Arkusz wymaga nazwy.', 'REQUIRED');
     if (!DRAWING_PAGE_SIZES[sheet.pageSize]) add(`${base}.pageSize`, `Nieobsługiwany format arkusza: ${sheet.pageSize ?? ''}.`, 'UNSUPPORTED');
     if (!['landscape', 'portrait'].includes(sheet.orientation)) add(`${base}.orientation`, 'Orientacja arkusza musi być pozioma albo pionowa.', 'UNSUPPORTED');
+    if (!isRecord(sheet.titleBlock)) add(`${base}.titleBlock`, 'Arkusz wymaga konfiguracji tabliczki rysunkowej.', 'TYPE');
     const views = requireArray(sheet, 'views', `${base}.views`);
     const annotations = requireArray(sheet, 'annotations', `${base}.annotations`);
+    const revisions = requireArray(sheet, 'revisions', `${base}.revisions`);
     const viewIds = new Set(views.filter(isRecord).map((view) => view.id).filter((id) => typeof id === 'string' && id));
     const viewIndexById = new Map(views.map((view, index) => [view?.id, index]).filter(([id]) => typeof id === 'string' && id));
     const viewParents = new Map();
@@ -1129,6 +1148,24 @@ export function validateDocument(document) {
         if (annotation.noteMode === 'thread' && (typeof annotation.threadDesignation !== 'string' || !annotation.threadDesignation.trim())) add(`${annotationBase}.threadDesignation`, 'Opis gwintu wymaga oznaczenia, np. M8×1.25.', 'REQUIRED');
         if (annotation.noteMode === 'thread' && (typeof annotation.threadClass !== 'string' || !annotation.threadClass.trim())) add(`${annotationBase}.threadClass`, 'Opis gwintu wymaga klasy tolerancji.', 'REQUIRED');
       }
+      if (annotation.type === 'feature-control-frame') {
+        if (!Array.isArray(annotation.center) || annotation.center.length !== 2 || annotation.center.some((value) => !(Number(value) >= 0 && Number(value) <= 1))) add(`${annotationBase}.center`, 'Położenie ramki tolerancji wymaga dwóch współrzędnych względnych 0–1.', 'VALUE');
+        if (!Array.isArray(annotation.labelOffset) || annotation.labelOffset.length !== 2 || annotation.labelOffset.some((value) => !Number.isFinite(Number(value)))) add(`${annotationBase}.labelOffset`, 'Odnośnik ramki tolerancji wymaga dwóch liczbowych współrzędnych.', 'TYPE');
+        if (!['position', 'flatness', 'parallelism', 'perpendicularity', 'circularity'].includes(annotation.symbol)) add(`${annotationBase}.symbol`, 'Nieobsługiwany symbol tolerancji geometrycznej.', 'UNSUPPORTED');
+        if (!(Number(annotation.tolerance) > 0 && Number(annotation.tolerance) <= 100)) add(`${annotationBase}.tolerance`, 'Tolerancja geometryczna musi być dodatnia i nie większa niż 100 mm.', 'VALUE');
+        if (typeof annotation.datum !== 'string' || annotation.datum.length > 8) add(`${annotationBase}.datum`, 'Baza tolerancji musi być krótkim tekstem.', 'TYPE');
+      }
+    });
+    revisions.forEach((revision, revisionIndex) => {
+      const revisionBase = `${base}.revisions[${revisionIndex}]`;
+      if (!isRecord(revision)) {
+        add(revisionBase, 'Rewizja musi być obiektem.', 'TYPE');
+        return;
+      }
+      registerId(revision.id, `${revisionBase}.id`);
+      if (typeof revision.code !== 'string' || !revision.code.trim()) add(`${revisionBase}.code`, 'Rewizja wymaga oznaczenia.', 'REQUIRED');
+      if (typeof revision.description !== 'string') add(`${revisionBase}.description`, 'Opis rewizji musi być tekstem.', 'TYPE');
+      if (typeof revision.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(revision.date)) add(`${revisionBase}.date`, 'Data rewizji musi mieć format RRRR-MM-DD.', 'VALUE');
     });
   });
 

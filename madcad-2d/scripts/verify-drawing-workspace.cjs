@@ -67,17 +67,29 @@ app.whenReady().then(async () => {
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.[0]?.orientation === 'top'`, 'zmiana orientacji widoku bazowego');
 
-    for (const label of ['Wymiar X', 'Wymiar Y', 'Oś', 'Środek', 'Opis otworu', 'Opis gwintu']) {
+    for (const label of ['Wymiar X', 'Wymiar Y', 'Oś', 'Środek', 'Opis otworu', 'Opis gwintu', 'GD&T']) {
       await window.webContents.executeJavaScript(`document.querySelectorAll('.drawing-view')[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
       if (!(await clickText(window, '.ribbon-tool', label))) throw new Error(`Brak polecenia ${label}.`);
     }
-    await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.annotations?.length === 6 && document.querySelectorAll('.drawing-user-annotation').length === 6`, 'skojarzone adnotacje rysunkowe');
-    await waitFor(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.drawings?.[0]?.annotations?.length === 6`, 'autozapis adnotacji');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.annotations?.length === 7 && document.querySelectorAll('.drawing-user-annotation').length === 7 && document.querySelector('.drawing-feature-control-frame rect')`, 'skojarzone adnotacje rysunkowe i GD&T');
+    await waitFor(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.drawings?.[0]?.annotations?.length === 7`, 'autozapis adnotacji');
+    await window.webContents.executeJavaScript(`document.querySelector('.drawing-revisions summary')?.click()`);
+    if (!(await clickText(window, '.drawing-add-revision', 'Dodaj rewizję'))) throw new Error('Brak polecenia Dodaj rewizję.');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.revisions?.length === 1`, 'historia rewizji');
+    await window.webContents.executeJavaScript(`(() => {
+      document.querySelector('.drawing-sheet-details:not(.drawing-revisions) summary')?.click();
+      const label = [...document.querySelectorAll('.drawing-sheet-details label')].find((item) => item.textContent.includes('Numer części'));
+      const input = label?.querySelector('input');
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      if (input) { setter.call(input, 'MC-VERIFY-001'); input.dispatchEvent(new Event('change', { bubbles: true })); }
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.titleBlock?.partNumber === 'MC-VERIFY-001'`, 'konfigurowalna tabliczka');
 
     const state = await window.webContents.executeJavaScript(`(() => {
       const workspace = document.querySelector('.drawing-workspace');
       const paper = document.querySelector('.drawing-paper');
       const pdfButton = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === 'PDF');
+      const dxfButton = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === 'DXF');
       return {
         schemaVersion: window.__madcadVerifyDocumentState.schemaVersion,
         sheets: window.__madcadVerifyDocumentState.drawings.length,
@@ -91,14 +103,18 @@ app.whenReady().then(async () => {
         annotationTypes: window.__madcadVerifyDocumentState.drawings[0].annotations.map((annotation) => annotation.type),
         holeNote: document.querySelector('.drawing-hole-note text')?.textContent || '',
         threadNote: [...document.querySelectorAll('.drawing-hole-note text')].map((item) => item.textContent).find((text) => text.includes('M8')) || '',
+        gdtFrame: Boolean(document.querySelector('.drawing-feature-control-frame rect')),
+        revisions: window.__madcadVerifyDocumentState.drawings[0].revisions.length,
+        partNumber: window.__madcadVerifyDocumentState.drawings[0].titleBlock.partNumber,
         associatedViewCount: window.__madcadVerifyDocumentState.drawings[0].views.filter((view) => view.parentViewId).length,
         pdfEnabled: Boolean(pdfButton && !pdfButton.disabled),
+        dxfEnabled: Boolean(dxfButton && !dxfButton.disabled),
         horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth || workspace.scrollWidth > workspace.clientWidth,
         paperInsideStage: paper.getBoundingClientRect().left >= workspace.getBoundingClientRect().left && paper.getBoundingClientRect().right <= workspace.getBoundingClientRect().right,
       };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (state.schemaVersion !== 7 || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.hatchCount < 1 || state.annotationCount !== 8 || state.userAnnotationCount !== 6 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || state.associatedViewCount !== 3 || !state.pdfEnabled || state.horizontalOverflow || !state.paperInsideStage) {
+    if (state.schemaVersion !== 8 || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.hatchCount < 1 || state.annotationCount !== 9 || state.userAnnotationCount !== 7 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note|feature-control-frame' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || !state.gdtFrame || state.revisions !== 1 || state.partNumber !== 'MC-VERIFY-001' || state.associatedViewCount !== 3 || !state.pdfEnabled || !state.dxfEnabled || state.horizontalOverflow || !state.paperInsideStage) {
       throw new Error(`Niepoprawny obszar dokumentacji: ${JSON.stringify(state)}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...state }, null, 2)}\n`);

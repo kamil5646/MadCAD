@@ -77,12 +77,15 @@ import {
   createCenterMarkDrawingAnnotation,
   createCenterlineDrawingAnnotation,
   createDetailDrawingView,
+  createDrawingRevision,
   createDrawingSheet,
+  createFeatureControlFrameDrawingAnnotation,
   createHoleNoteDrawingAnnotation,
   createLinearDrawingDimension,
   createProjectedDrawingView,
   createSectionDrawingView,
   drawingSheetHtml,
+  drawingSheetDxf,
   drawingSheetScene,
   projectDrawingView,
   recommendedDrawingScale,
@@ -1487,18 +1490,19 @@ test('migracja v4 dodaje kolekcję arkuszy bez zmiany istniejącego modelu', () 
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 5 && entry.to === 6));
 });
 
-test('migracja v5 zachowuje istniejące widoki bazowe i dodaje kolekcję adnotacji w schemacie v7', () => {
+test('migracja v5 zachowuje istniejące widoki bazowe i dodaje kolekcje dokumentacji w bieżącym schemacie', () => {
   const legacy = createDocument('Dokumentacja v5');
   const sheet = createDrawingSheet();
   sheet.views.push(createBaseDrawingView({ bodyIds: ['body-v5'], sheet }));
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 5;
   const opened = openDocument(legacy, { now: '2026-08-24T03:30:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 7);
+  assert.equal(opened.document.schemaVersion, 8);
   assert.equal(opened.document.drawings[0].views[0].type, 'base');
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 5 && entry.to === 6));
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 6 && entry.to === 7));
+  assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 7 && entry.to === 8));
 });
 
 test('migracja v6 dodaje adnotacje arkusza bez zmiany widoków', () => {
@@ -1510,10 +1514,40 @@ test('migracja v6 dodaje adnotacje arkusza bez zmiany widoków', () => {
   legacy.schemaVersion = 6;
   const views = structuredClone(sheet.views);
   const opened = openDocument(legacy, { now: '2026-08-24T06:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 7);
+  assert.equal(opened.document.schemaVersion, 8);
   assert.deepEqual(opened.document.drawings[0].views, views);
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.equal(validateDocument(opened.document).valid, true);
+});
+
+test('migracja v7 dodaje tabliczkę i rewizje, a GD&T oraz DXF zachowują geometrię arkusza', () => {
+  const legacy = createDocument('Dokumentacja v7');
+  const sheet = createDrawingSheet();
+  const body = { id: 'body-v7', lines: Float32Array.from([0, 0, 0, 30, 0, 0, 30, 0, 0, 30, 0, 20]), metrics: { bounds: [[0, 0, 0], [30, 10, 20]] } };
+  const view = createBaseDrawingView({ bodyIds: [body.id], sheet });
+  sheet.views.push(view);
+  delete sheet.titleBlock;
+  delete sheet.revisions;
+  legacy.drawings.push(sheet);
+  legacy.schemaVersion = 7;
+  const opened = openDocument(legacy, { now: '2026-08-24T07:00:00.000Z' });
+  assert.equal(opened.document.schemaVersion, 8);
+  assert.deepEqual(opened.document.drawings[0].revisions, []);
+  assert.equal(opened.document.drawings[0].titleBlock.revision, 'A');
+
+  const currentSheet = opened.document.drawings[0];
+  currentSheet.titleBlock = { ...currentSheet.titleBlock, title: 'Korpus', partNumber: 'MC-001', material: 'S235', author: 'KK' };
+  currentSheet.revisions.push(createDrawingRevision({ code: 'A', description: 'Wydanie', author: 'KK', date: '2026-08-24' }));
+  currentSheet.annotations.push(createFeatureControlFrameDrawingAnnotation({ viewId: view.id, symbol: 'perpendicularity', tolerance: 0.05, datum: 'A' }));
+  assert.equal(validateDocument(opened.document).valid, true);
+  const scene = drawingSheetScene(currentSheet, [body]);
+  assert.deepEqual(scene.annotations.at(-1).cells, ['⊥', '⌀0.05', 'A']);
+  assert.match(drawingSheetHtml(currentSheet, [body]), /MC-001/);
+  const dxf = drawingSheetDxf(currentSheet, [body]);
+  assert.match(dxf, /\$INSUNITS\n70\n4/);
+  assert.match(dxf, /0\nLINE/);
+  assert.match(dxf, /0\nTEXT/);
+  assert.match(dxf, /0\nEOF/);
 });
 
 test('otwiera zgodny dokument z nowszej wersji wyłącznie do odczytu', () => {

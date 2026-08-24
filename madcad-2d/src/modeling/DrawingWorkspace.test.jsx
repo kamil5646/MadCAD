@@ -27,7 +27,11 @@ function props(overrides = {}) {
     onSelectAnnotation: vi.fn(),
     onUpdateAnnotation: vi.fn(),
     onDeleteAnnotation: vi.fn(),
+    onAddRevision: vi.fn(),
+    onUpdateRevision: vi.fn(),
+    onDeleteRevision: vi.fn(),
     onExportPdf: vi.fn(),
+    onExportDxf: vi.fn(),
     ...overrides,
   };
 }
@@ -40,6 +44,8 @@ describe('DrawingWorkspace', () => {
     expect(screen.getByRole('combobox', { name: /Kierunek/i })).toHaveValue('front');
     fireEvent.click(screen.getByRole('button', { name: /Eksport PDF/i }));
     expect(current.onExportPdf).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: /Eksport DXF/i }));
+    expect(current.onExportDxf).toHaveBeenCalledOnce();
   });
 
   it('offers a real sheet action for an empty document', () => {
@@ -65,7 +71,8 @@ describe('DrawingWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: /Oś/i }));
     fireEvent.click(screen.getByRole('button', { name: /Opis otworu/i }));
     fireEvent.click(screen.getByRole('button', { name: /Opis gwintu/i }));
-    expect(current.onAddAnnotation.mock.calls.map(([type]) => type)).toEqual(['dimension-horizontal', 'centerline', 'hole-note', 'thread-note']);
+    fireEvent.click(screen.getByRole('button', { name: /GD&T/i }));
+    expect(current.onAddAnnotation.mock.calls.map(([type]) => type)).toEqual(['dimension-horizontal', 'centerline', 'hole-note', 'thread-note', 'feature-control-frame']);
 
     const sheet = current.document.drawings[0];
     const annotation = createLinearDrawingDimension({ viewId: sheet.views[0].id, toleranceMode: 'symmetric', upperTolerance: 0.1, lowerTolerance: 0.1 });
@@ -76,5 +83,16 @@ describe('DrawingWorkspace', () => {
     fireEvent.change(screen.getAllByRole('spinbutton', { name: /± \[mm\]/i }).at(-1), { target: { value: '0.25' } });
     expect(current.onUpdateAnnotation).toHaveBeenCalledWith({ upperTolerance: 0.25, lowerTolerance: 0.25 });
     unmount();
+  });
+
+  it('edits the title block and creates a revision', () => {
+    const current = props();
+    render(<DrawingWorkspace {...current} />);
+    fireEvent.click(screen.getByText('Tabliczka rysunkowa'));
+    fireEvent.change(screen.getByRole('textbox', { name: /Numer części/i }), { target: { value: 'MC-100' } });
+    expect(current.onUpdateSheet).toHaveBeenCalledWith({ titleBlock: { ...current.document.drawings[0].titleBlock, partNumber: 'MC-100' } });
+    fireEvent.click(screen.getByText(/Rewizje \(0\)/i));
+    fireEvent.click(screen.getByRole('button', { name: /Dodaj rewizję/i }));
+    expect(current.onAddRevision).toHaveBeenCalledOnce();
   });
 });

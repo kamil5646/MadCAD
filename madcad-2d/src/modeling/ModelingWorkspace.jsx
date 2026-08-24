@@ -11,6 +11,7 @@ import {
   Circle,
   CircleDotDashed,
   Copy,
+  Crosshair,
   Cylinder,
   FileBox,
   FileDown,
@@ -123,7 +124,7 @@ import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit } from '../cad-core/model-import.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
-import { createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingSheet, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, drawingPageDimensions, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
+import { createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import {
   addBlockAttributeDefinition,
@@ -3789,6 +3790,7 @@ export default function ModelingWorkspace() {
     else if (type === 'center-mark') annotation = createCenterMarkDrawingAnnotation({ viewId });
     else if (type === 'hole-note') annotation = createHoleNoteDrawingAnnotation({ viewId });
     else if (type === 'thread-note') annotation = createHoleNoteDrawingAnnotation({ viewId, noteMode: 'thread', labelOffset: [18, -22] });
+    else if (type === 'feature-control-frame') annotation = createFeatureControlFrameDrawingAnnotation({ viewId });
     if (!annotation) return;
     commit((next) => {
       const sheet = next.drawings.find((item) => item.id === activeDrawingSheet.id);
@@ -3815,6 +3817,38 @@ export default function ModelingWorkspace() {
     });
     setSelectedDrawingAnnotationId(null);
     setNotice('Usunięto oznaczenie rysunkowe.');
+  };
+
+  const addDrawingRevision = () => {
+    if (!activeDrawingSheet || readOnly) return;
+    const nextCode = String.fromCharCode(65 + Math.min(25, activeDrawingSheet.revisions?.length || 0));
+    const revision = createDrawingRevision({ code: nextCode, author: activeDrawingSheet.titleBlock?.author || '' });
+    commit((next) => { next.drawings.find((sheet) => sheet.id === activeDrawingSheet.id)?.revisions.push(revision); });
+    setNotice(`Dodano rewizję ${revision.code}.`);
+  };
+
+  const updateDrawingRevision = (revisionId, patch) => {
+    if (!activeDrawingSheet || readOnly) return;
+    commit((next) => {
+      const revision = next.drawings.find((sheet) => sheet.id === activeDrawingSheet.id)?.revisions.find((item) => item.id === revisionId);
+      if (revision) Object.assign(revision, patch);
+    });
+  };
+
+  const deleteDrawingRevision = (revisionId) => {
+    if (!activeDrawingSheet || readOnly) return;
+    commit((next) => {
+      const sheet = next.drawings.find((item) => item.id === activeDrawingSheet.id);
+      if (sheet) sheet.revisions = sheet.revisions.filter((revision) => revision.id !== revisionId);
+    });
+    setNotice('Usunięto wpis rewizji.');
+  };
+
+  const exportActiveDrawingDxf = () => {
+    if (!activeDrawingSheet?.views.length) return;
+    const dxf = drawingSheetDxf(activeDrawingSheet, engine.bodies);
+    downloadBlob(new Blob([dxf], { type: 'application/dxf;charset=utf-8' }), `${safeName(document.name)}-${safeName(activeDrawingSheet.name)}.dxf`);
+    setNotice('Wyeksportowano arkusz DXF w jednostkach mm.');
   };
 
   const exportActiveDrawingPdf = async () => {
@@ -4283,8 +4317,8 @@ export default function ModelingWorkspace() {
               <>
                 <RibbonGroup label="ARKUSZE"><ToolButton icon={FilePlus2} label="Nowy arkusz" onClick={createDrawingSheetInDocument} disabled={readOnly} primary /><ToolButton icon={Trash2} label="Usuń arkusz" onClick={deleteActiveDrawingSheet} disabled={readOnly || !activeDrawingSheet} /></RibbonGroup>
                 <RibbonGroup label="WIDOKI"><ToolButton icon={Frame} label="Widok bazowy" onClick={addBaseDrawingView} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Utwórz pierwszy skojarzony rzut modelu." /><ToolButton icon={FileText} label="Rzut" onClick={() => addDerivedDrawingView('projected')} disabled={readOnly || !selectedDrawingView} description="Utwórz wyrównany rzut od zaznaczonego widoku." /><ToolButton icon={Scissors} label="Przekrój" onClick={() => addDerivedDrawingView('section')} disabled={readOnly || !selectedDrawingView || selectedDrawingView.orientation === 'isometric'} description="Utwórz przekrój A-A z rzeczywistego przecięcia modelu." /><ToolButton icon={ScanSearch} label="Detal" onClick={() => addDerivedDrawingView('detail')} disabled={readOnly || !selectedDrawingView} description="Utwórz powiększony detal zaznaczonego widoku." /><ToolButton icon={Trash2} label="Usuń widok" onClick={deleteSelectedDrawingView} disabled={readOnly || !selectedDrawingViewId} /></RibbonGroup>
-                <RibbonGroup label="OZNACZENIA"><ToolButton icon={Ruler} label="Wymiar X" onClick={() => addDrawingAnnotation('dimension-horizontal')} disabled={readOnly || !selectedDrawingView} description="Dodaj skojarzony wymiar szerokości." /><ToolButton icon={Ruler} label="Wymiar Y" onClick={() => addDrawingAnnotation('dimension-vertical')} disabled={readOnly || !selectedDrawingView} description="Dodaj skojarzony wymiar wysokości." /><ToolButton icon={Minus} label="Oś" onClick={() => addDrawingAnnotation('centerline')} disabled={readOnly || !selectedDrawingView} description="Dodaj oś symetrii widoku." /><ToolButton icon={CircleDotDashed} label="Środek" onClick={() => addDrawingAnnotation('center-mark')} disabled={readOnly || !selectedDrawingView} description="Dodaj znacznik środka." /><ToolButton icon={Cylinder} label="Opis otworu" onClick={() => addDrawingAnnotation('hole-note')} disabled={readOnly || !selectedDrawingView} description="Dodaj opis średnicy odczytanej z modelu." /><ToolButton icon={Cylinder} label="Opis gwintu" onClick={() => addDrawingAnnotation('thread-note')} disabled={readOnly || !selectedDrawingView} description="Dodaj opis gwintu metrycznego i klasy tolerancji." /><ToolButton icon={Trash2} label="Usuń oznaczenie" onClick={deleteSelectedDrawingAnnotation} disabled={readOnly || !selectedDrawingAnnotation} /></RibbonGroup>
-                <RibbonGroup label="WYJŚCIE" end><ToolButton icon={Eye} label="Podgląd 1:1" onClick={() => { void previewActiveDrawing(); }} disabled={!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow} /><ToolButton icon={FileText} label="PDF" onClick={() => { void exportActiveDrawingPdf(); }} disabled={!activeDrawingSheet?.views.length} primary /></RibbonGroup>
+                <RibbonGroup label="OZNACZENIA"><ToolButton icon={Ruler} label="Wymiar X" onClick={() => addDrawingAnnotation('dimension-horizontal')} disabled={readOnly || !selectedDrawingView} description="Dodaj skojarzony wymiar szerokości." /><ToolButton icon={Ruler} label="Wymiar Y" onClick={() => addDrawingAnnotation('dimension-vertical')} disabled={readOnly || !selectedDrawingView} description="Dodaj skojarzony wymiar wysokości." /><ToolButton icon={Minus} label="Oś" onClick={() => addDrawingAnnotation('centerline')} disabled={readOnly || !selectedDrawingView} description="Dodaj oś symetrii widoku." /><ToolButton icon={CircleDotDashed} label="Środek" onClick={() => addDrawingAnnotation('center-mark')} disabled={readOnly || !selectedDrawingView} description="Dodaj znacznik środka." /><ToolButton icon={Cylinder} label="Opis otworu" onClick={() => addDrawingAnnotation('hole-note')} disabled={readOnly || !selectedDrawingView} description="Dodaj opis średnicy odczytanej z modelu." /><ToolButton icon={Cylinder} label="Opis gwintu" onClick={() => addDrawingAnnotation('thread-note')} disabled={readOnly || !selectedDrawingView} description="Dodaj opis gwintu metrycznego i klasy tolerancji." /><ToolButton icon={Crosshair} label="GD&amp;T" onClick={() => addDrawingAnnotation('feature-control-frame')} disabled={readOnly || !selectedDrawingView} description="Dodaj ramkę tolerancji geometrycznej." /><ToolButton icon={Trash2} label="Usuń oznaczenie" onClick={deleteSelectedDrawingAnnotation} disabled={readOnly || !selectedDrawingAnnotation} /></RibbonGroup>
+                <RibbonGroup label="WYJŚCIE" end><ToolButton icon={Eye} label="Podgląd 1:1" onClick={() => { void previewActiveDrawing(); }} disabled={!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow} /><ToolButton icon={FileText} label="DXF" onClick={exportActiveDrawingDxf} disabled={!activeDrawingSheet?.views.length} /><ToolButton icon={FileText} label="PDF" onClick={() => { void exportActiveDrawingPdf(); }} disabled={!activeDrawingSheet?.views.length} primary /></RibbonGroup>
               </>
             ) : workspace === 'tools' ? (
               <>
@@ -4357,7 +4391,11 @@ export default function ModelingWorkspace() {
             onSelectAnnotation={(annotationId) => { setSelectedDrawingAnnotationId(annotationId); setSelectedDrawingViewId(null); }}
             onUpdateAnnotation={updateSelectedDrawingAnnotation}
             onDeleteAnnotation={deleteSelectedDrawingAnnotation}
+            onAddRevision={addDrawingRevision}
+            onUpdateRevision={updateDrawingRevision}
+            onDeleteRevision={deleteDrawingRevision}
             onExportPdf={() => { void exportActiveDrawingPdf(); }}
+            onExportDxf={exportActiveDrawingDxf}
           /> : <React.Suspense fallback={<div className="viewport-loading" role="status">Uruchamianie widoku 3D…</div>}>
           <ModelViewport
             bodies={engine.bodies}

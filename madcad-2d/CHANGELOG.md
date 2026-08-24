@@ -8,7 +8,9 @@
 - Dodano skojarzone rzuty pochodne, przekroje A-A liczone z przecięcia trójkątów modelu i powiększone detale z liniami wywołania. Widoki dziedziczą geometrię, kierunek oraz skalę rodzica i automatycznie aktualizują się po przebudowie modelu.
 - Arkusz automatycznie układa bazę, rzut, przekrój i detal w czytelnej siatce 2×2; właściwości pozwalają sterować kierunkiem rzutu, linią cięcia, kreskowaniem, obszarem detalu, powiększeniem i wyrównaniem.
 - Dodano skojarzone wymiary szerokości i wysokości z tolerancją symetryczną albo odchyłkami, osie, znaczniki środka, automatyczny opis średnicy otworu oraz opis gwintu z klasą tolerancji. Oznaczenia aktualizują się po przebudowie modelu, są wybieralne i edytowalne oraz trafiają do PDF.
-- Schemat projektu podniesiono do v7 z migracjami dokumentów v4/v5/v6 oraz zachowaniem istniejących widoków bazowych.
+- Dodano ramki podstawowych tolerancji geometrycznych GD&T, konfigurowalną tabliczkę rysunkową i historię rewizji widoczną na arkuszu.
+- Dodano eksport arkusza do AutoCAD 2013 DXF w milimetrach, obejmujący rzuty, kreskowanie, opisy, wymiary i ramki GD&T.
+- Schemat projektu podniesiono do v8 z migracjami dokumentów v4/v5/v6/v7 oraz zachowaniem istniejących widoków i adnotacji.
 
 ## 6.3.2 (2026-08-23)
 

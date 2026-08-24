@@ -84,7 +84,7 @@ użyć `Control` + klik i wybrać **Otwórz**.
 
 ## Interakcja CAD
 
-- Obszar **DOKUMENTACJA** tworzy zapisywane arkusze A4/A3, skojarzone widoki bazowe i rzutowane, przekroje A-A z kreskowaniem oraz powiększone detale. Widoki i ich wymiary, osie, znaczniki środka, opisy otworów/gwintów oraz tolerancje aktualizują się z modelem i są eksportowane bezpośrednio do PDF.
+- Obszar **DOKUMENTACJA** tworzy zapisywane arkusze A4/A3, skojarzone widoki bazowe i rzutowane, przekroje A-A z kreskowaniem oraz powiększone detale. Widoki i ich wymiary, osie, znaczniki środka, opisy otworów/gwintów oraz tolerancje aktualizują się z modelem; tabliczka i rewizje są edytowalne, a gotowy arkusz można wyeksportować do PDF lub DXF.
 - Funkcje wstążki pokazują po najechaniu opis; skróty podstawowych narzędzi są widoczne tylko w podpowiedzi, nie na przyciskach.
 - **Import DWG** w aktywnym szkicu otwiera plik przez bezpieczny dialog desktopowy, konwertuje go lokalnie przez `dwgread`/`dwg2dxf` (GNU LibreDWG) albo ODA File Converter i przekazuje wynik do istniejącego importera DXF. Projekt nie jest wysyłany do usługi sieciowej.
 - Podstawowe skróty uruchamiają narzędzie natychmiast, bez osobnego wiersza poleceń.

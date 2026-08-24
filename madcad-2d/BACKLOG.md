@@ -38,8 +38,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Skojarzony widok bazowy Front/Top/Right/Isometric na arkuszu A4/A3 z automatyczną skalą i eksportem PDF — ukończony jako `P2.1`.
 - [x] Skojarzone widoki projected/section/detail, wyrównanie, rzeczywiste przecięcie modelu i automatyczny układ arkusza — ukończone jako `P2.2`.
 - [x] Skojarzone wymiary, osie, znaczniki środka, opisy otworów/gwintów i tolerancje — ukończone jako `P2.3`.
-- Podstawowe GD&T.
-- BOM, balloons, hole table, title block, rewizje oraz eksport PDF/DXF.
+- [x] Podstawowe GD&T, tabliczka, rewizje oraz eksport PDF/DXF — ukończone jako `P2.4`.
+- BOM, balloons i hole table.
 
 ## Późniejsze moduły profesjonalne
 
