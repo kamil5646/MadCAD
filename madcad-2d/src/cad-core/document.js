@@ -8,7 +8,7 @@ import {
   isSupportedLineType,
 } from './layers.js';
 import { ensureDocumentBlocks } from './blocks.js';
-import { COMPONENT_TYPES, ensureDocumentComponents } from './components.js';
+import { COMPONENT_TYPES, DEFAULT_INSTANCE_TRANSFORM, ensureDocumentComponents } from './components.js';
 import { DRAWING_ANNOTATION_TYPES, DRAWING_PAGE_SIZES, DRAWING_TABLE_TYPES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
 import {
   SKETCH_ENTITY_ROLES,
@@ -18,7 +18,7 @@ import {
   normalizeSketchModel,
 } from './sketch-model.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 10;
+export const DOCUMENT_SCHEMA_VERSION = 11;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -184,6 +184,24 @@ function migrateV9ToV10(source, now) {
   return migrated;
 }
 
+function migrateV10ToV11(source, now) {
+  const working = ensureDocumentDrawings(ensureV3Collections(cloneDocument(source)));
+  if (!Array.isArray(working.componentInstances) || (!working.componentInstances.length && working.components?.length)) delete working.componentInstances;
+  const migrated = ensureDocumentComponents(working);
+  migrated.schemaVersion = 11;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 10,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 10, to: 11, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
@@ -193,6 +211,7 @@ const MIGRATIONS = new Map([
   [7, migrateV7ToV8],
   [8, migrateV8ToV9],
   [9, migrateV9ToV10],
+  [10, migrateV10ToV11],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -258,6 +277,8 @@ export function createDocument(name = 'Nowy projekt') {
     features: [],
     bodies: [],
     components: [],
+    componentInstances: [],
+    rigidGroups: [],
     references: [],
     blocks: [],
     drawings: [],
@@ -419,6 +440,8 @@ export function validateDocument(document) {
   const features = requireArray(document, 'features');
   const bodies = requireArray(document, 'bodies');
   const components = requireArray(document, 'components');
+  const componentInstances = requireArray(document, 'componentInstances');
+  const rigidGroups = requireArray(document, 'rigidGroups');
   const references = requireArray(document, 'references');
   const layers = requireArray(document, 'layers');
   const blocks = requireArray(document, 'blocks');
@@ -1142,6 +1165,97 @@ export function validateDocument(document) {
       visited.add(parentId);
       parentId = componentParents.get(parentId);
     }
+  });
+
+  const instanceIds = new Set();
+  const instanceParents = new Map();
+  const instanceNames = new Set();
+  componentInstances.forEach((instance, index) => {
+    const base = `componentInstances[${index}]`;
+    if (!isRecord(instance)) {
+      add(base, 'Wystąpienie komponentu musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(instance.id, `${base}.id`);
+    if (typeof instance.id === 'string' && instance.id) instanceIds.add(instance.id);
+    if (!componentIds.has(instance.componentId)) add(`${base}.componentId`, `Nie znaleziono komponentu „${instance.componentId ?? ''}”.`, 'BROKEN_REFERENCE');
+    if (typeof instance.name !== 'string' || !instance.name.trim()) add(`${base}.name`, 'Wystąpienie wymaga nazwy.', 'REQUIRED');
+    else if (instanceNames.has(instance.name.toLocaleLowerCase())) add(`${base}.name`, `Powtórzona nazwa wystąpienia: ${instance.name}`, 'DUPLICATE');
+    else instanceNames.add(instance.name.toLocaleLowerCase());
+    if (typeof instance.parentInstanceId !== 'string') add(`${base}.parentInstanceId`, 'Rodzic wystąpienia musi być identyfikatorem tekstowym.', 'TYPE');
+    else if (instance.parentInstanceId) instanceParents.set(instance.id, instance.parentInstanceId);
+    if (!isRecord(instance.transform) || Object.keys(DEFAULT_INSTANCE_TRANSFORM).some((key) => !Number.isFinite(Number(instance.transform?.[key])))) {
+      add(`${base}.transform`, 'Transformacja wystąpienia wymaga liczbowej pozycji i obrotu XYZ.', 'TYPE');
+    }
+    if (typeof instance.grounded !== 'boolean') add(`${base}.grounded`, 'Stan Ground musi być wartością logiczną.', 'TYPE');
+    if (typeof instance.visible !== 'boolean') add(`${base}.visible`, 'Widoczność wystąpienia musi być wartością logiczną.', 'TYPE');
+    if (typeof instance.primary !== 'boolean') add(`${base}.primary`, 'Znacznik głównego wystąpienia musi być wartością logiczną.', 'TYPE');
+  });
+  componentInstances.forEach((instance, index) => {
+    if (!isRecord(instance) || !instance.parentInstanceId) return;
+    const base = `componentInstances[${index}]`;
+    if (!instanceIds.has(instance.parentInstanceId)) add(`${base}.parentInstanceId`, `Nie znaleziono nadrzędnego wystąpienia „${instance.parentInstanceId}”.`, 'BROKEN_REFERENCE');
+    else if (instance.parentInstanceId === instance.id) add(`${base}.parentInstanceId`, 'Wystąpienie nie może być własnym rodzicem.', 'CYCLIC_REFERENCE');
+    else {
+      const parent = componentInstances.find((item) => item?.id === instance.parentInstanceId);
+      const parentComponent = components.find((component) => component?.id === parent?.componentId);
+      if (parentComponent?.type !== 'assembly') add(`${base}.parentInstanceId`, 'Rodzicem wystąpienia musi być złożenie.', 'VALUE');
+    }
+    let ancestor = componentInstances.find((item) => item?.id === instance.parentInstanceId);
+    const visitedAncestors = new Set();
+    while (ancestor && !visitedAncestors.has(ancestor.id)) {
+      if (ancestor.componentId === instance.componentId) {
+        add(`${base}.componentId`, 'Złożenie nie może rekurencyjnie zawierać wystąpienia własnej definicji.', 'CYCLIC_REFERENCE');
+        break;
+      }
+      visitedAncestors.add(ancestor.id);
+      ancestor = componentInstances.find((item) => item?.id === ancestor.parentInstanceId);
+    }
+  });
+  instanceIds.forEach((instanceId) => {
+    const visited = new Set([instanceId]);
+    let parentId = instanceParents.get(instanceId);
+    while (parentId) {
+      if (visited.has(parentId)) {
+        add('componentInstances', 'Drzewo wystąpień zawiera cykliczną zależność.', 'CYCLIC_REFERENCE');
+        break;
+      }
+      visited.add(parentId);
+      parentId = instanceParents.get(parentId);
+    }
+  });
+  const primaryComponents = new Set();
+  componentInstances.forEach((instance, index) => {
+    if (!isRecord(instance) || !instance.primary) return;
+    if (primaryComponents.has(instance.componentId)) add(`componentInstances[${index}].primary`, 'Komponent może mieć tylko jedno główne wystąpienie.', 'DUPLICATE');
+    else primaryComponents.add(instance.componentId);
+  });
+
+  const rigidMemberIds = new Set();
+  const rigidGroupNames = new Set();
+  rigidGroups.forEach((group, index) => {
+    const base = `rigidGroups[${index}]`;
+    if (!isRecord(group)) {
+      add(base, 'Grupa sztywna musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(group.id, `${base}.id`);
+    if (typeof group.name !== 'string' || !group.name.trim()) add(`${base}.name`, 'Grupa sztywna wymaga nazwy.', 'REQUIRED');
+    else if (rigidGroupNames.has(group.name.toLocaleLowerCase())) add(`${base}.name`, `Powtórzona nazwa grupy sztywnej: ${group.name}`, 'DUPLICATE');
+    else rigidGroupNames.add(group.name.toLocaleLowerCase());
+    const members = requireArray(group, 'instanceIds', `${base}.instanceIds`);
+    if (members.length < 2) add(`${base}.instanceIds`, 'Grupa sztywna wymaga co najmniej dwóch wystąpień.', 'VALUE');
+    if (new Set(members).size !== members.length) add(`${base}.instanceIds`, 'Wystąpienie może pojawić się w grupie tylko raz.', 'DUPLICATE');
+    const parents = new Set();
+    members.forEach((instanceId, memberIndex) => {
+      if (!instanceIds.has(instanceId)) add(`${base}.instanceIds[${memberIndex}]`, `Nie znaleziono wystąpienia „${instanceId}”.`, 'BROKEN_REFERENCE');
+      else {
+        if (rigidMemberIds.has(instanceId)) add(`${base}.instanceIds[${memberIndex}]`, 'Wystąpienie należy już do innej grupy sztywnej.', 'DUPLICATE');
+        rigidMemberIds.add(instanceId);
+        parents.add(componentInstances.find((instance) => instance.id === instanceId)?.parentInstanceId || '');
+      }
+    });
+    if (parents.size > 1) add(`${base}.instanceIds`, 'Elementy grupy sztywnej muszą mieć tego samego rodzica.', 'VALUE');
   });
 
   drawings.forEach((sheet, sheetIndex) => {

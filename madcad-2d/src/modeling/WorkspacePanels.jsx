@@ -1,6 +1,6 @@
 import React from 'react';
-import { AlertTriangle, Blocks, Box, Boxes, Check, CheckCircle2, Eye, EyeOff, FileDown, Keyboard, Layers3, Lock, LockOpen, Plus, Printer, RotateCcw, Ruler, ScanSearch, Trash2, Ungroup, X, XCircle } from 'lucide-react';
-import { componentDescendantIds, componentParentMap, componentTree } from '../cad-core/components.js';
+import { AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, Keyboard, Layers3, Link2, Lock, LockOpen, Plus, Printer, RotateCcw, Ruler, ScanSearch, Trash2, Ungroup, X, XCircle } from 'lucide-react';
+import { componentDescendantIds, componentInstanceDescendantIds, componentInstanceTree, componentParentMap, componentTree } from '../cad-core/components.js';
 import { formatModelFileSize } from '../cad-core/model-import.js';
 import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
 import { commandCustomizationRows, validateCommandCustomization } from './command-customization.js';
@@ -63,8 +63,10 @@ export function LayersPanel({ document, selectedEntities = [], readOnly = false,
   );
 }
 
-export function ComponentPanel({ document, bodies = [], selectedComponentId = '', selectedBodyIds = [], readOnly = false, onCreate, onUpdate, onAssignBodies, onMove, onDelete, onSelect, onClose }) {
+export function ComponentPanel({ document, bodies = [], selectedComponentId = '', selectedInstanceId = '', selectedBodyIds = [], readOnly = false, onCreate, onUpdate, onAssignBodies, onMove, onDelete, onSelect, onSelectInstance, onCreateInstance, onUpdateInstance, onDuplicateInstance, onDeleteInstance, onCreateRigidGroup, onDeleteRigidGroup, onClose }) {
+  const [rigidMateId, setRigidMateId] = React.useState('');
   const selected = document.components.find((component) => component.id === selectedComponentId) || null;
+  const selectedInstance = (document.componentInstances || []).find((instance) => instance.id === selectedInstanceId) || null;
   const parentId = selected ? componentParentMap(document.components).get(selected.id) || '' : '';
   const excludedParents = selected ? new Set([selected.id, ...componentDescendantIds(document.components, selected.id)]) : new Set();
   const componentRows = [];
@@ -73,6 +75,18 @@ export function ComponentPanel({ document, bodies = [], selectedComponentId = ''
     component.children.forEach((child) => collectRows(child, depth + 1));
   };
   componentTree(document.components).forEach((component) => collectRows(component));
+  const instanceRows = [];
+  const collectInstanceRows = (instance, depth = 0) => {
+    instanceRows.push({ instance, depth });
+    instance.children.forEach((child) => collectInstanceRows(child, depth + 1));
+  };
+  componentInstanceTree(document).forEach((instance) => collectInstanceRows(instance));
+  const instances = document.componentInstances || [];
+  const rigidGroups = document.rigidGroups || [];
+  const instanceDescendants = selectedInstance ? componentInstanceDescendantIds(instances, selectedInstance.id) : new Set();
+  const assemblyInstances = instances.filter((instance) => document.components.find((component) => component.id === instance.componentId)?.type === 'assembly' && instance.id !== selectedInstance?.id && !instanceDescendants.has(instance.id));
+  const rigidGroup = selectedInstance ? rigidGroups.find((group) => group.instanceIds.includes(selectedInstance.id)) : null;
+  const rigidMates = selectedInstance ? instances.filter((instance) => instance.id !== selectedInstance.id && instance.parentInstanceId === selectedInstance.parentInstanceId && !rigidGroups.some((group) => group.instanceIds.includes(instance.id))) : [];
   const updateOrigin = (axis, value) => onUpdate(selected.id, { origin: { ...selected.origin, [axis]: Number(value) } });
   const toggleBody = (bodyId, checked) => onAssignBodies(selected.id, checked
     ? [...selected.bodyIds, bodyId]
@@ -85,9 +99,25 @@ export function ComponentPanel({ document, bodies = [], selectedComponentId = ''
         <button type="button" data-component-action="create-assembly" disabled={readOnly} onClick={() => onCreate('assembly')}><Boxes size={14} /> Nowe złożenie</button>
       </div>
       <div className="component-list" aria-label="Struktura dokumentu">
+        <div className="component-section-title"><strong>Definicje</strong><span>{document.components.length}</span></div>
         {!document.components.length && <p>Utwórz część z zaznaczonej bryły albo puste złożenie nadrzędne.</p>}
         {componentRows.map(({ component, depth }) => <button className={selected?.id === component.id ? 'active' : ''} style={{ '--component-list-depth': depth }} type="button" key={component.id} onClick={() => onSelect(component.id)}><span>{component.type === 'assembly' ? <Boxes size={15} /> : <Box size={15} />}<strong>{component.name}</strong><small>{component.partNumber}</small></span><em>{component.type === 'assembly' ? `${component.componentIds.length} elem.` : `${component.bodyIds.length} brył`}</em></button>)}
       </div>
+      <div className="component-occurrences" aria-label="Wystąpienia komponentów">
+        <div className="component-section-title"><strong>Wystąpienia w złożeniu</strong><span>{instances.length}</span></div>
+        {!instanceRows.length && <p>Brak wystąpień w modelu.</p>}
+        {instanceRows.map(({ instance, depth }) => <button className={selectedInstance?.id === instance.id ? 'active' : ''} style={{ '--component-list-depth': depth }} type="button" key={instance.id} onClick={() => onSelectInstance(instance.id)}><span>{instance.grounded ? <Anchor size={14} /> : instance.component?.type === 'assembly' ? <Boxes size={14} /> : <Box size={14} />}<strong>{instance.name}</strong></span><em>{instance.visible ? 'WID.' : 'UKR.'}</em></button>)}
+      </div>
+      {selectedInstance && <div className="component-instance-properties">
+        <div className="component-section-title"><strong>Położenie wystąpienia</strong><span>{rigidGroup ? rigidGroup.name : selectedInstance.grounded ? 'GROUND' : 'SWOBODNE'}</span></div>
+        <label><span>Nazwa</span><input aria-label="Nazwa wystąpienia" value={selectedInstance.name} disabled={readOnly} onChange={(event) => onUpdateInstance(selectedInstance.id, { name: event.target.value })} /></label>
+        <label><span>Złożenie nadrzędne</span><select aria-label="Nadrzędne wystąpienie złożenia" value={selectedInstance.parentInstanceId} disabled={readOnly || selectedInstance.primary} onChange={(event) => onUpdateInstance(selectedInstance.id, { parentInstanceId: event.target.value })}><option value="">Poziom główny</option>{assemblyInstances.map((instance) => <option key={instance.id} value={instance.id}>{instance.name}</option>)}</select></label>
+        <div className="component-origin">{['x', 'y', 'z'].map((axis) => <label key={axis}><span>{axis.toUpperCase()}</span><input aria-label={`Położenie ${axis.toUpperCase()}`} type="number" step="0.1" value={selectedInstance.transform[axis]} disabled={readOnly || selectedInstance.grounded} onChange={(event) => onUpdateInstance(selectedInstance.id, { transform: { [axis]: Number(event.target.value) } })} /></label>)}</div>
+        <div className="component-origin component-rotation">{['rotationX', 'rotationY', 'rotationZ'].map((axis) => <label key={axis}><span>{axis.at(-1)}°</span><input aria-label={`Obrót ${axis.at(-1)}`} type="number" step="1" value={selectedInstance.transform[axis]} disabled={readOnly || selectedInstance.grounded} onChange={(event) => onUpdateInstance(selectedInstance.id, { transform: { [axis]: Number(event.target.value) } })} /></label>)}</div>
+        <div className="component-instance-toggles"><label><input type="checkbox" checked={selectedInstance.grounded} disabled={readOnly} onChange={(event) => onUpdateInstance(selectedInstance.id, { grounded: event.target.checked })} /><Anchor size={14} /> Ground — zablokuj położenie</label><label><input type="checkbox" checked={selectedInstance.visible} disabled={readOnly} onChange={(event) => onUpdateInstance(selectedInstance.id, { visible: event.target.checked })} /><Eye size={14} /> Widoczne</label></div>
+        <div className="component-actions"><button type="button" disabled={readOnly} onClick={() => onDuplicateInstance(selectedInstance.id)}><Copy size={14} /> Powiel</button><button className="danger" type="button" disabled={readOnly || selectedInstance.primary} onClick={() => onDeleteInstance(selectedInstance.id)}><Trash2 size={14} /> Usuń wystąpienie</button></div>
+        <div className="component-rigid-group"><div className="component-section-title"><strong>Rigid Group</strong><span>{rigidGroup ? rigidGroup.instanceIds.length : 0}</span></div>{rigidGroup ? <button type="button" disabled={readOnly} onClick={() => onDeleteRigidGroup(rigidGroup.id)}><Ungroup size={14} /> Rozwiąż „{rigidGroup.name}”</button> : <div><select aria-label="Drugie wystąpienie grupy sztywnej" value={rigidMateId} disabled={readOnly || !rigidMates.length} onChange={(event) => setRigidMateId(event.target.value)}><option value="">Wybierz drugi element</option>{rigidMates.map((instance) => <option key={instance.id} value={instance.id}>{instance.name}</option>)}</select><button type="button" disabled={readOnly || !rigidMateId} onClick={() => { onCreateRigidGroup([selectedInstance.id, rigidMateId]); setRigidMateId(''); }}><Link2 size={14} /> Utwórz grupę sztywną</button></div>}</div>
+      </div>}
       {selected ? <div className="component-properties">
         <div className="component-section-title"><strong>Właściwości</strong><span>{selected.type === 'assembly' ? 'ZŁOŻENIE' : 'CZĘŚĆ'}</span></div>
         <label><span>Nazwa</span><input aria-label="Nazwa komponentu" value={selected.name} disabled={readOnly} onChange={(event) => onUpdate(selected.id, { name: event.target.value })} /></label>
@@ -104,7 +134,7 @@ export function ComponentPanel({ document, bodies = [], selectedComponentId = ''
           {!bodies.length && <p>Model nie zawiera jeszcze brył.</p>}
           {bodies.map((body) => <label key={body.id}><input type="checkbox" checked={selected.bodyIds.includes(body.id)} disabled={readOnly || selected.type === 'assembly'} onChange={(event) => toggleBody(body.id, event.target.checked)} /><span>{body.name || body.id}</span></label>)}
         </div>
-        <div className="component-actions"><button type="button" disabled={readOnly || !selectedBodyIds.length || selected.type === 'assembly'} onClick={() => onAssignBodies(selected.id, selectedBodyIds)}><Check size={14} /> Przypisz zaznaczone ({selectedBodyIds.length})</button><button className="danger" type="button" data-component-action="delete" disabled={readOnly} onClick={() => onDelete(selected.id)}><Trash2 size={14} /> Usuń</button></div>
+        <div className="component-actions"><button type="button" disabled={readOnly} onClick={() => onCreateInstance(selected.id)}><Plus size={14} /> Wstaw kolejne</button><button type="button" disabled={readOnly || !selectedBodyIds.length || selected.type === 'assembly'} onClick={() => onAssignBodies(selected.id, selectedBodyIds)}><Check size={14} /> Przypisz zaznaczone ({selectedBodyIds.length})</button><button className="danger" type="button" data-component-action="delete" disabled={readOnly} onClick={() => onDelete(selected.id)}><Trash2 size={14} /> Usuń</button></div>
       </div> : <div className="component-empty"><Boxes size={25} /><strong>Wybierz komponent</strong><p>Właściwości, origin i przypisania brył pojawią się tutaj.</p></div>}
     </aside>
   );

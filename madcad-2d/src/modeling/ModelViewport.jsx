@@ -400,7 +400,11 @@ export default function ModelViewport({
   showGrid = true,
   selectedBodyId,
   selectedBodyIds = [],
+  components = [],
+  componentInstances = [],
+  selectedComponentInstanceId = null,
   onSelectBody,
+  onSelectComponentInstance,
   selectedTopologyIds = [],
   onSelectTopology,
   constructionPlanes = [],
@@ -589,13 +593,49 @@ export default function ModelViewport({
     const edgePickables = [];
     const vertexPickables = [];
     const faceHighlights = new Map();
+    const componentByBodyId = new Map(components.flatMap((component) => (component.bodyIds || []).map((bodyId) => [bodyId, component])));
+    const instanceById = new Map(componentInstances.map((instance) => [instance.id, instance]));
+    const occurrencesByComponent = new Map();
+    for (const instance of componentInstances) {
+      if (!occurrencesByComponent.has(instance.componentId)) occurrencesByComponent.set(instance.componentId, []);
+      occurrencesByComponent.get(instance.componentId).push(instance);
+    }
+    const matrixCache = new Map();
+    const occurrenceMatrix = (instance, visited = new Set()) => {
+      if (!instance || visited.has(instance.id)) return new THREE.Matrix4();
+      if (matrixCache.has(instance.id)) return matrixCache.get(instance.id).clone();
+      const transform = instance.transform || {};
+      const position = new THREE.Vector3(Number(transform.x) || 0, Number(transform.y) || 0, Number(transform.z) || 0);
+      const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+        (Number(transform.rotationX) || 0) * Math.PI / 180,
+        (Number(transform.rotationY) || 0) * Math.PI / 180,
+        (Number(transform.rotationZ) || 0) * Math.PI / 180,
+        'XYZ',
+      ));
+      const local = new THREE.Matrix4().compose(position, rotation, new THREE.Vector3(1, 1, 1));
+      const parent = instance.parentInstanceId ? instanceById.get(instance.parentInstanceId) : null;
+      const world = parent ? occurrenceMatrix(parent, new Set(visited).add(instance.id)).multiply(local) : local;
+      matrixCache.set(instance.id, world.clone());
+      return world;
+    };
     for (const body of bodies) {
+      const component = componentByBodyId.get(body.id);
+      const knownOccurrences = component ? occurrencesByComponent.get(component.id) || [] : [];
+      const placements = component && knownOccurrences.length
+        ? knownOccurrences.filter((instance) => instance.visible).map((instance) => ({ occurrenceId: instance.id, matrix: occurrenceMatrix(instance) }))
+        : [{ occurrenceId: '', matrix: null }];
+      for (const placement of placements) {
+      const placeObject = (object) => {
+        if (placement.matrix) object.applyMatrix4(placement.matrix);
+        object.userData.occurrenceId = placement.occurrenceId;
+        return object;
+      };
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(body.vertices, 3));
       if (body.normals.length) geometry.setAttribute('normal', new THREE.BufferAttribute(body.normals, 3));
       geometry.setIndex(new THREE.BufferAttribute(body.triangles, 1));
       geometry.computeBoundingSphere();
-      const selected = selectedBodySet.has(body.id);
+      const selected = selectedBodySet.has(body.id) || placement.occurrenceId === selectedComponentInstanceId;
       const material = new THREE.MeshStandardMaterial({
         color: selected ? '#72c9eb' : body.color,
         metalness: 0.08,
@@ -608,7 +648,8 @@ export default function ModelViewport({
         clippingPlanes,
       });
       const mesh = new THREE.Mesh(geometry, material);
-      mesh.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, faceGroups: body.faceGroups };
+      mesh.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, faceGroups: body.faceGroups, occurrenceId: placement.occurrenceId };
+      placeObject(mesh);
       modelGroup.add(mesh);
       pickables.push(mesh);
       facePickables.push(mesh);
@@ -621,8 +662,10 @@ export default function ModelViewport({
         const highlight = new THREE.Mesh(highlightGeometry, new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.42, depthWrite: false, side: THREE.DoubleSide, clippingPlanes }));
         highlight.renderOrder = 3;
         highlight.visible = selectedTopologySet.has(faceGroup.topologyId);
+        highlight.userData = { bodyId: body.id, occurrenceId: placement.occurrenceId, topologyKind: 'face', topologyId: faceGroup.topologyId };
+        placeObject(highlight);
         modelGroup.add(highlight);
-        faceHighlights.set(faceGroup.topologyId, highlight);
+        faceHighlights.set(`${placement.occurrenceId}:${faceGroup.topologyId}`, highlight);
       }
 
       for (const edgeGroup of body.edgeGroups || []) {
@@ -633,7 +676,8 @@ export default function ModelViewport({
         const edgeSelected = selectedTopologySet.has(edgeGroup.topologyId);
         const edgeMaterial = new THREE.LineBasicMaterial({ color: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : 0x26333b), transparent: true, opacity: activeSketchId ? 0.34 : edgeSelected ? 1 : 0.72, clippingPlanes });
         const edgeObject = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-        edgeObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, topologyKind: 'edge', topologyId: edgeGroup.topologyId, baseColor: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : 0x26333b) };
+        edgeObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, occurrenceId: placement.occurrenceId, topologyKind: 'edge', topologyId: edgeGroup.topologyId, baseColor: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : 0x26333b) };
+        placeObject(edgeObject);
         modelGroup.add(edgeObject);
         pickables.push(edgeObject);
         edgePickables.push(edgeObject);
@@ -647,10 +691,12 @@ export default function ModelViewport({
         const vertexSelected = selectedTopologySet.has(vertex.id);
         const vertexObject = new THREE.Points(vertexGeometry, new THREE.PointsMaterial({ color: vertexSelected ? 0xffc857 : 0xe8f8ff, size: vertexSelected ? 9 : 6, sizeAttenuation: false, transparent: true, opacity: selectionFilter === 'vertex' || vertexSelected ? 1 : 0, clippingPlanes }));
         vertexObject.visible = selectionFilter === 'vertex' || vertexSelected;
-        vertexObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, topologyKind: 'vertex', topologyId: vertex.id, baseColor: vertexSelected ? 0xffc857 : 0xe8f8ff };
+        vertexObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, occurrenceId: placement.occurrenceId, topologyKind: 'vertex', topologyId: vertex.id, baseColor: vertexSelected ? 0xffc857 : 0xe8f8ff };
+        placeObject(vertexObject);
         modelGroup.add(vertexObject);
         pickables.push(vertexObject);
         vertexPickables.push(vertexObject);
+      }
       }
     }
     if (showBed) {
@@ -1074,16 +1120,16 @@ export default function ModelViewport({
     };
     const setModelHover = (hit) => {
       if (hoveredModel?.kind === 'face') {
-        const highlight = faceHighlights.get(hoveredModel.id);
+        const highlight = faceHighlights.get(`${hoveredModel.occurrenceId || ''}:${hoveredModel.id}`);
         if (highlight) highlight.visible = selectedTopologySet.has(hoveredModel.id);
       } else if (hoveredModel?.object?.material?.color) {
         hoveredModel.object.material.color.setHex(hoveredModel.object.userData.baseColor);
       }
       const topology = topologySelectionFromIntersection(hit);
-      hoveredModel = topology && topology.kind !== 'body' ? { ...topology, object: hit.object } : null;
+      hoveredModel = topology && topology.kind !== 'body' ? { ...topology, occurrenceId: hit?.object?.userData?.occurrenceId || '', object: hit.object } : null;
       if (new URLSearchParams(window.location.search).has('verify')) window.__madcadModelHover = hoveredModel ? { kind: hoveredModel.kind, id: hoveredModel.id } : null;
       if (hoveredModel?.kind === 'face') {
-        const highlight = faceHighlights.get(hoveredModel.id);
+        const highlight = faceHighlights.get(`${hoveredModel.occurrenceId || ''}:${hoveredModel.id}`);
         if (highlight) highlight.visible = true;
       } else if (hoveredModel?.object?.material?.color) hoveredModel.object.material.color.setHex(0xf4fbff);
       if (!activeSketch && !directDragRef.current) renderer.domElement.style.cursor = hoveredModel ? 'pointer' : 'grab';
@@ -1345,11 +1391,13 @@ export default function ModelViewport({
         return;
       }
       const topologySelection = topologySelectionFromIntersection(hit);
+      if (topologySelection && hit?.object?.userData?.occurrenceId) topologySelection.occurrenceId = hit.object.userData.occurrenceId;
       if (topologySelection && selectionFilter === 'body') {
         topologySelection.kind = 'body';
         topologySelection.id = topologySelection.bodyId;
       }
-      if (topologySelection && topologySelectRef.current) topologySelectRef.current(topologySelection, selectionMode(event));
+      if (topologySelection?.occurrenceId && onSelectComponentInstance && !event.shiftKey && !primaryModifierPressed(event, desktopPlatform)) onSelectComponentInstance(topologySelection.occurrenceId);
+      else if (topologySelection && topologySelectRef.current) topologySelectRef.current(topologySelection, selectionMode(event));
       else selectRef.current?.(topologySelection?.bodyId || null);
     };
     const onPointerMove = (event) => {
@@ -1713,7 +1761,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds]);
 
   return (
     <div

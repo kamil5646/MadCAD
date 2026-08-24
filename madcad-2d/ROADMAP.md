@@ -177,8 +177,8 @@ Te prace nie czekają na koniec modelowania:
 ## P3 — komponenty i złożenia
 
 - [x] P3.1 Części, złożenia i podkomponenty: hierarchia bez cykli i wielu rodziców, origin XYZ, numer części, opis, materiał, ilość, wyłączna własność brył, przenoszenie i bezpieczne usuwanie z promocją dzieci. Struktura jest widoczna w przeglądarce projektu oraz panelu właściwości, zasila wielopoziomowy BOM, czyści przypisania po usunięciu historii, przechodzi undo/redo, walidację i migrację schematu v9→v10, testy core/UI oraz desktop E2E.
-- [>] P3.2 Wystąpienia komponentów w przestrzeni z niezależną transformacją, Ground oraz Rigid Group jako fundament pozycjonowania złożenia.
-- [ ] P3.3 Joints: rigid, revolute i slider z osiami, limitami ruchu, trwałymi referencjami i interaktywnym podglądem.
+- [x] P3.2 Wystąpienia komponentów: wielokrotne użycie jednej definicji, zagnieżdżone położenie i obrót XYZ, widoczność, wybór z drzewa i widoku 3D, Ground, powielanie całego poddrzewa oraz Rigid Group przenosząca członków razem. BOM sumuje wystąpienia, usuwanie promuje dzieci i czyści grupy, a migracja v10→v11 odtwarza dotychczasową hierarchię bez utraty danych. Etap ma testy core/UI, undo/redo, walidację zapisu i desktop E2E z kontrolą wizualną.
+- [>] P3.3 Joints: rigid, revolute i slider z osiami, limitami ruchu, trwałymi referencjami i interaktywnym podglądem.
 - [ ] P3.4 Kontrola kolizji w ruchu, motion links oraz konfiguracje złożenia bez dublowania geometrii części.
 
 ## Definition of Done
@@ -206,7 +206,7 @@ Dodatkowo:
 
 ## Najbliższe zadania
 
-1. [>] Dodać wystąpienia komponentów, Ground i Rigid Group jako następny etap złożeń P3.2.
+1. [>] Dodać joints rigid, revolute i slider z limitami ruchu jako następny etap złożeń P3.3.
 2. [~] Sprawdzić import/eksport na rzeczywistych plikach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny odsłuch VoiceOver. Korpus formatów i automatyczny test drzewa AX są gotowe.
 3. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 

@@ -553,8 +553,8 @@ function renderedAnnotation(source, view, bodies) {
   return null;
 }
 
-function bomRows(bodies, components) {
-  if (components?.length) return componentBomEntries(components).map((component, index) => {
+function bomRows(bodies, components, componentInstances = []) {
+  if (components?.length) return componentBomEntries(components, componentInstances).map((component, index) => {
     const ownedBodies = bodies.filter((body) => (component.bodyIds || []).includes(body.id));
     return [String(index + 1), component.partNumber || `C-${String(index + 1).padStart(3, '0')}`, component.name || `Komponent ${index + 1}`, String(component.effectiveQuantity || 1), component.material || '—', ownedBodies.map((body) => body.id)];
   });
@@ -569,8 +569,8 @@ function bomRows(bodies, components) {
   return [...groups.values()].map(({ body, quantity, bodyIds }, index) => [String(index + 1), body.partNumber || `P-${String(index + 1).padStart(3, '0')}`, body.name || `Część ${index + 1}`, String(quantity), body.material || '—', bodyIds]);
 }
 
-export function drawingBomItemNumber(bodyId, bodies = [], components = []) {
-  const index = bomRows(bodies, components).findIndex((row) => row.at(-1).includes(bodyId));
+export function drawingBomItemNumber(bodyId, bodies = [], components = [], componentInstances = []) {
+  const index = bomRows(bodies, components, componentInstances).findIndex((row) => row.at(-1).includes(bodyId));
   return index < 0 ? null : index + 1;
 }
 
@@ -601,12 +601,12 @@ function holeTableRows(view, bodies) {
     .map((group, index) => [String(index + 1), `⌀${Number(group.diameter.toFixed(3))}`, String(group.count), 'Otwór walcowy']);
 }
 
-function renderedTable(source, resolvedViews, bodies, components) {
+function renderedTable(source, resolvedViews, bodies, components, componentInstances) {
   const bom = source.type === 'bom';
   const columns = bom
     ? [{ label: 'Poz.', width: 8 }, { label: 'Nr części', width: 20 }, { label: 'Nazwa', width: 30 }, { label: 'Ilość', width: 8 }, { label: 'Materiał', width: 20 }]
     : [{ label: 'Poz.', width: 8 }, { label: 'Średnica', width: 16 }, { label: 'Ilość', width: 10 }, { label: 'Opis', width: 35 }];
-  const rawRows = bom ? bomRows(bodies, components) : holeTableRows(resolvedViews.get(source.viewId), bodies);
+  const rawRows = bom ? bomRows(bodies, components, componentInstances) : holeTableRows(resolvedViews.get(source.viewId), bodies);
   return {
     ...source,
     title: bom ? 'ZESTAWIENIE CZĘŚCI' : 'TABELA OTWORÓW',
@@ -618,7 +618,7 @@ function renderedTable(source, resolvedViews, bodies, components) {
   };
 }
 
-export function drawingSheetScene(sheet, bodies = [], { components = [] } = {}) {
+export function drawingSheetScene(sheet, bodies = [], { components = [], componentInstances = [] } = {}) {
   const page = pageDimensions(sheet?.pageSize, sheet?.orientation);
   const resolved = new Map();
   const views = (sheet?.views || []).map((sourceView) => {
@@ -673,7 +673,7 @@ export function drawingSheetScene(sheet, bodies = [], { components = [] } = {}) 
     return [];
   });
   const annotations = [...viewAnnotations, ...(sheet?.annotations || []).map((annotation) => renderedAnnotation(annotation, resolved.get(annotation.viewId), bodies)).filter(Boolean)];
-  const tables = (sheet?.tables || []).map((table) => renderedTable(table, resolved, bodies, components));
+  const tables = (sheet?.tables || []).map((table) => renderedTable(table, resolved, bodies, components, componentInstances));
   return { ...page, margin: PAGE_MARGIN, titleBlockHeight: TITLE_BLOCK_HEIGHT, views, annotations, tables };
 }
 
@@ -689,8 +689,8 @@ function escapeHtml(value) {
   })[character]);
 }
 
-export function drawingSheetHtml(sheet, bodies = [], { documentName = 'Projekt', author = '', revision = 'A', components = [] } = {}) {
-  const scene = drawingSheetScene(sheet, bodies, { components });
+export function drawingSheetHtml(sheet, bodies = [], { documentName = 'Projekt', author = '', revision = 'A', components = [], componentInstances = [] } = {}) {
+  const scene = drawingSheetScene(sheet, bodies, { components, componentInstances });
   const line = ([first, second], className = '') => `<line${className ? ` class="${className}"` : ''} x1="${first[0]}" y1="${first[1]}" x2="${second[0]}" y2="${second[1]}" />`;
   const lineMarkup = scene.views.map((view) => `<g class="geometry ${escapeHtml(view.type)}">${view.segments.map((segment) => line(segment)).join('')}${view.hatchSegments.map((segment) => line(segment, 'hatch')).join('')}${view.type === 'detail' ? `<circle class="detail-border" cx="${view.x}" cy="${view.y}" r="${Math.max(5, view.detailRadiusSheet)}" />` : ''}</g>`).join('');
   const annotationMarkup = scene.annotations.map((annotation) => {
@@ -729,8 +729,8 @@ function dxfText(value) {
   return String(value || '').replaceAll('⌀', '%%c').replaceAll('±', '%%p').replaceAll('×', 'x').replaceAll('−', '-').replace(/[\r\n]/g, ' ');
 }
 
-export function drawingSheetDxf(sheet, bodies = [], { components = [] } = {}) {
-  const scene = drawingSheetScene(sheet, bodies, { components });
+export function drawingSheetDxf(sheet, bodies = [], { components = [], componentInstances = [] } = {}) {
+  const scene = drawingSheetScene(sheet, bodies, { components, componentInstances });
   const entities = [];
   const addLine = ([first, second], layer = 'GEOMETRY') => entities.push(`0\nLINE\n8\n${layer}\n10\n${dxfNumber(first[0])}\n20\n${dxfNumber(scene.height - first[1])}\n30\n0\n11\n${dxfNumber(second[0])}\n21\n${dxfNumber(scene.height - second[1])}\n31\n0`);
   const addCircle = (x, y, radius, layer = 'ANNOTATION') => entities.push(`0\nCIRCLE\n8\n${layer}\n10\n${dxfNumber(x)}\n20\n${dxfNumber(scene.height - y)}\n30\n0\n40\n${dxfNumber(radius)}`);

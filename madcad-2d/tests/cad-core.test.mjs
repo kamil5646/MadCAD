@@ -32,10 +32,16 @@ import {
   componentDescendantIds,
   componentParentMap,
   componentTree,
+  componentInstanceTree,
+  createComponentInstance,
   createComponent,
+  createRigidGroup,
   deleteComponent,
+  deleteRigidGroup,
+  duplicateComponentInstance,
   moveComponent,
   updateComponent,
+  updateComponentInstance,
 } from '../src/cad-core/components.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
@@ -182,23 +188,84 @@ test('komponenty blokują cykle, promują dzieci przy usunięciu i obsługują c
   const nested = createComponent(document, { name: 'Podzłożenie', type: 'assembly', partNumber: 'A-002', parentId: root.id });
   const part = createComponent(document, { name: 'Część', partNumber: 'P-001', parentId: nested.id });
   assert.throws(() => moveComponent(document, root.id, part.id), /podkomponentu/);
+  const rootOccurrenceId = document.componentInstances.find((instance) => instance.componentId === root.id).id;
   assert.deepEqual(deleteComponent(document, nested.id), [nested.id]);
   assert.deepEqual(document.components.find((item) => item.id === root.id).componentIds, [part.id]);
+  assert.equal(document.componentInstances.find((instance) => instance.componentId === part.id).parentInstanceId, rootOccurrenceId);
   assert.deepEqual(deleteComponent(document, root.id, { cascade: true }).sort(), [part.id, root.id].sort());
   assert.deepEqual(document.components, []);
 });
 
-test('migracja v9 uzupełnia kompletny model komponentu w schemacie v10', () => {
+test('migracja v9 uzupełnia komponent i główne wystąpienie w schemacie v11', () => {
   const legacy = createDocument('Migracja komponentów');
   legacy.schemaVersion = 9;
   legacy.components.push({ id: 'legacy-component', name: 'Korpus', partNumber: 'K-1', material: 'Aluminium', quantity: 2, bodyIds: [] });
   const opened = openDocument(legacy, { now: '2026-08-24T12:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 10);
+  assert.equal(opened.document.schemaVersion, 11);
   assert.deepEqual(opened.document.components[0], {
     id: 'legacy-component', name: 'Korpus', type: 'part', partNumber: 'K-1', description: '', material: 'Aluminium', quantity: 2,
     origin: { x: 0, y: 0, z: 0 }, bodyIds: [], sketchIds: [], componentIds: [],
   });
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 9 && entry.to === 10));
+  assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 10 && entry.to === 11));
+  assert.equal(opened.document.componentInstances.length, 1);
+  assert.equal(opened.document.componentInstances[0].componentId, 'legacy-component');
+  assert.equal(opened.document.componentInstances[0].primary, true);
+});
+
+test('wystąpienia komponentów mają niezależne transformacje, Ground i bezpieczne drzewo', () => {
+  const document = createDocument('Wystąpienia');
+  const assembly = createComponent(document, { name: 'Rama', type: 'assembly', partNumber: 'A-100' });
+  const part = createComponent(document, { name: 'Śruba', partNumber: 'P-100', parentId: assembly.id });
+  const assemblyOccurrence = document.componentInstances.find((instance) => instance.componentId === assembly.id);
+  const first = document.componentInstances.find((instance) => instance.componentId === part.id);
+  const second = createComponentInstance(document, { componentId: part.id, parentInstanceId: assemblyOccurrence.id, transform: { x: 30, y: 4, z: 2, rotationZ: 90 } });
+  assert.equal(componentInstanceTree(document)[0].children.length, 2);
+  assert.deepEqual(componentBomEntries(document.components, document.componentInstances).map((item) => [item.partNumber, item.effectiveQuantity]), [['P-100', 2]]);
+  assert.equal(second.transform.x, 30);
+  assert.throws(() => updateComponentInstance(document, first.id, { parentInstanceId: first.id }), /własnym rodzicem/);
+  updateComponentInstance(document, second.id, { grounded: true });
+  assert.throws(() => updateComponentInstance(document, second.id, { transform: { x: 40 } }), /Uziemionego/);
+  assert.equal(validateDocument(document).valid, true);
+});
+
+test('Rigid Group przesuwa członków razem, blokuje ruch przez Ground i daje się rozwiązać', () => {
+  const document = createDocument('Grupa sztywna');
+  const assembly = createComponent(document, { name: 'Zespół', type: 'assembly', partNumber: 'A-200' });
+  const part = createComponent(document, { name: 'Kołek', partNumber: 'P-200', parentId: assembly.id });
+  const parent = document.componentInstances.find((instance) => instance.componentId === assembly.id);
+  const first = document.componentInstances.find((instance) => instance.componentId === part.id);
+  const second = duplicateComponentInstance(document, first.id, { parentInstanceId: parent.id, transform: { x: 20 } });
+  const group = createRigidGroup(document, [first.id, second.id], 'Para kołków');
+  assert.throws(() => updateComponentInstance(document, first.id, { parentInstanceId: '' }), /rozwiąż grupę sztywną/);
+  updateComponentInstance(document, first.id, { transform: { x: 5, rotationZ: 15 } });
+  assert.equal(document.componentInstances.find((instance) => instance.id === first.id).transform.x, 5);
+  assert.equal(document.componentInstances.find((instance) => instance.id === second.id).transform.x, 25);
+  assert.equal(document.componentInstances.find((instance) => instance.id === second.id).transform.rotationZ, 15);
+  updateComponentInstance(document, second.id, { grounded: true });
+  assert.throws(() => updateComponentInstance(document, first.id, { transform: { y: 10 } }), /grupy sztywnej/);
+  assert.equal(deleteRigidGroup(document, group.id).id, group.id);
+  updateComponentInstance(document, first.id, { transform: { y: 10 } });
+  assert.equal(document.componentInstances.find((instance) => instance.id === first.id).transform.y, 10);
+  assert.equal(validateDocument(document).valid, true);
+});
+
+test('migracja v10 tworzy wystąpienia zgodne z hierarchią definicji', () => {
+  const legacy = createDocument('Migracja wystąpień');
+  legacy.schemaVersion = 10;
+  delete legacy.componentInstances;
+  delete legacy.rigidGroups;
+  legacy.components = [
+    { id: 'assembly-v10', name: 'Zespół', type: 'assembly', partNumber: 'A-10', description: '', material: '', quantity: 1, origin: { x: 0, y: 0, z: 0 }, bodyIds: [], sketchIds: [], componentIds: ['part-v10'] },
+    { id: 'part-v10', name: 'Detal', type: 'part', partNumber: 'P-10', description: '', material: '', quantity: 1, origin: { x: 0, y: 0, z: 0 }, bodyIds: [], sketchIds: [], componentIds: [] },
+  ];
+  const opened = openDocument(legacy, { now: '2026-08-24T13:00:00.000Z' });
+  const tree = componentInstanceTree(opened.document);
+  assert.equal(opened.document.schemaVersion, 11);
+  assert.equal(tree.length, 1);
+  assert.equal(tree[0].componentId, 'assembly-v10');
+  assert.equal(tree[0].children[0].componentId, 'part-v10');
+  assert.equal(validateDocument(opened.document).valid, true);
 });
 
 test('warstwy zapewniają ByLayer, aktywną warstwę i bezpieczne przenoszenie geometrii', () => {
@@ -1564,7 +1631,7 @@ test('migracja v5 zachowuje istniejące widoki bazowe i dodaje kolekcje dokument
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 5;
   const opened = openDocument(legacy, { now: '2026-08-24T03:30:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 10);
+  assert.equal(opened.document.schemaVersion, 11);
   assert.equal(opened.document.drawings[0].views[0].type, 'base');
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 5 && entry.to === 6));
@@ -1582,7 +1649,7 @@ test('migracja v6 dodaje adnotacje arkusza bez zmiany widoków', () => {
   legacy.schemaVersion = 6;
   const views = structuredClone(sheet.views);
   const opened = openDocument(legacy, { now: '2026-08-24T06:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 10);
+  assert.equal(opened.document.schemaVersion, 11);
   assert.deepEqual(opened.document.drawings[0].views, views);
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.equal(validateDocument(opened.document).valid, true);
@@ -1599,7 +1666,7 @@ test('migracja v7 dodaje tabliczkę i rewizje, a GD&T oraz DXF zachowują geomet
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 7;
   const opened = openDocument(legacy, { now: '2026-08-24T07:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 10);
+  assert.equal(opened.document.schemaVersion, 11);
   assert.deepEqual(opened.document.drawings[0].revisions, []);
   assert.equal(opened.document.drawings[0].titleBlock.revision, 'A');
 
@@ -1641,7 +1708,7 @@ test('migracja v8 dodaje tabele, a BOM, balony i tabela otworów pozostają skoj
   legacy.schemaVersion = 8;
 
   const opened = openDocument(legacy, { now: '2026-08-24T08:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 10);
+  assert.equal(opened.document.schemaVersion, 11);
   assert.deepEqual(opened.document.drawings[0].tables, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 8 && entry.to === 9));
 

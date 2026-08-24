@@ -38,8 +38,8 @@ function DrawingTableGraphic({ table }) {
   </g>;
 }
 
-function DrawingSheetPreview({ documentName, sheet, bodies, components, selectedViewId, selectedAnnotationId, onSelectView, onSelectAnnotation }) {
-  const scene = useMemo(() => drawingSheetScene(sheet, bodies, { components }), [sheet, bodies, components]);
+function DrawingSheetPreview({ documentName, sheet, bodies, components, componentInstances, selectedViewId, selectedAnnotationId, onSelectView, onSelectAnnotation }) {
+  const scene = useMemo(() => drawingSheetScene(sheet, bodies, { components, componentInstances }), [sheet, bodies, components, componentInstances]);
   const titleTop = scene.height - scene.titleBlockHeight;
   return (
     <div className="drawing-paper-wrap">
@@ -134,7 +134,7 @@ function AnnotationControls({ annotation, rendered, bodies, allBodies, component
 
 export default function DrawingWorkspace({ document, bodies, activeSheetId, selectedViewId, selectedAnnotationId, readOnly = false, onCreateSheet, onSelectSheet, onUpdateSheet, onDeleteSheet, onAddBaseView, onAddDerivedView, onSelectView, onUpdateView, onDeleteView, onAddAnnotation, onSelectAnnotation, onUpdateAnnotation, onDeleteAnnotation, onAddRevision, onUpdateRevision, onDeleteRevision, onAddTable, onUpdateTable, onDeleteTable, onExportPdf, onExportDxf }) {
   const activeSheet = document.drawings.find((sheet) => sheet.id === activeSheetId) || document.drawings[0] || null;
-  const activeScene = useMemo(() => activeSheet ? drawingSheetScene(activeSheet, bodies, { components: document.components || [] }) : null, [activeSheet, bodies, document.components]);
+  const activeScene = useMemo(() => activeSheet ? drawingSheetScene(activeSheet, bodies, { components: document.components || [], componentInstances: document.componentInstances || [] }) : null, [activeSheet, bodies, document.components, document.componentInstances]);
   const selectedView = activeScene?.views.find((view) => view.id === selectedViewId) || null;
   const selectedAnnotation = activeSheet?.annotations?.find((annotation) => annotation.id === selectedAnnotationId) || null;
   const renderedSelectedAnnotation = activeScene?.annotations.find((annotation) => annotation.id === selectedAnnotationId) || null;
@@ -154,7 +154,7 @@ export default function DrawingWorkspace({ document, bodies, activeSheetId, sele
       {document.drawings.map((sheet, index) => <button type="button" className={sheet.id === activeSheet.id ? 'active' : ''} key={sheet.id} onClick={() => onSelectSheet(sheet.id)}><FileText size={15} /><span><strong>{sheet.name}</strong><small>{sheet.pageSize} · {sheet.orientation === 'landscape' ? 'poziomo' : 'pionowo'} · {sheet.views.length} wid.</small></span><em>{index + 1}</em></button>)}
     </nav>
 
-    <DrawingSheetPreview documentName={document.name} sheet={activeSheet} bodies={bodies} components={document.components || []} selectedViewId={selectedViewId} selectedAnnotationId={selectedAnnotationId} onSelectView={onSelectView} onSelectAnnotation={onSelectAnnotation} />
+    <DrawingSheetPreview documentName={document.name} sheet={activeSheet} bodies={bodies} components={document.components || []} componentInstances={document.componentInstances || []} selectedViewId={selectedViewId} selectedAnnotationId={selectedAnnotationId} onSelectView={onSelectView} onSelectAnnotation={onSelectAnnotation} />
 
     <aside className="drawing-properties" aria-label="Właściwości arkusza">
       <header><FileText size={16} /><strong>Właściwości</strong></header>

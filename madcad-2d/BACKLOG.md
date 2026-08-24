@@ -31,6 +31,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - Rollback osi czasu, wstawianie w środku, reorder, suppress, rename, delete i grupy.
 - Historia ręcznych zapisów, odzyskiwanie i linkowane zależności projektu.
 - [x] Komponenty, podkomponenty, origin, numer części i właściwości ukończono jako `P3.1`.
+- [x] Wystąpienia komponentów, transformacje, Ground i Rigid Group ukończono jako `P3.2`.
+- [ ] Joints rigid, revolute i slider z osiami oraz limitami (`P3.3`).
 - Ground, rigid group, joints, motion limits, motion links, contact sets i konfiguracje.
 
 ## Dokumentacja 2D

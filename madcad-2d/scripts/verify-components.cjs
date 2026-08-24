@@ -72,6 +72,25 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.components.find((item) => item.id === ${JSON.stringify(assemblyId)})?.componentIds.includes(${JSON.stringify(partId)})`, 'redo hierarchii');
 
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.component-occurrences > button')].find((button) => button.textContent.includes('Rama główna')).click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState.selection.kind === 'componentInstance'`, 'główne wystąpienie części');
+    if (!(await clickByText(window, '.component-instance-properties .component-actions button', 'Powiel'))) throw new Error('Nie znaleziono polecenia Powiel wystąpienie.');
+    await waitFor(window, `window.__madcadVerifyDocumentState.componentInstances.length === 3 && window.__madcadVerifyDocumentState.selection.kind === 'componentInstance'`, 'powielone wystąpienie');
+    const duplicateId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.selection.id`);
+    await window.webContents.executeJavaScript(`(() => {
+      const select = document.querySelector('select[aria-label="Drugie wystąpienie grupy sztywnej"]');
+      const option = [...select.options].find((item) => item.value);
+      select.value = option.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await waitFor(window, `!document.querySelector('.component-rigid-group button')?.disabled`, 'wybrany członek grupy');
+    if (!(await clickByText(window, '.component-rigid-group button', 'Utwórz grupę sztywną'))) throw new Error('Nie znaleziono tworzenia Rigid Group.');
+    await waitFor(window, `window.__madcadVerifyDocumentState.rigidGroups.length === 1`, 'Rigid Group');
+    await setInput(window, 'input[aria-label="Położenie X"]', '45');
+    await waitFor(window, `window.__madcadVerifyDocumentState.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.transform.x === 45`, 'wspólny ruch grupy');
+    await window.webContents.executeJavaScript(`document.querySelector('.component-instance-toggles input[type="checkbox"]')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.grounded === true`, 'Ground wystąpienia');
+
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     const result = await window.webContents.executeJavaScript(`(() => {
       const state = window.__madcadVerifyDocumentState;
@@ -85,12 +104,17 @@ app.whenReady().then(async () => {
         partNumber: part.partNumber,
         material: part.material,
         ownedBodies: part.bodyIds.length,
+        instances: state.componentInstances.length,
+        rigidGroups: state.rigidGroups.length,
+        grounded: state.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.grounded,
+        duplicateX: state.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.transform.x,
+        rigidMateX: state.componentInstances.find((item) => item.componentId === part.id && item.id !== ${JSON.stringify(duplicateId)})?.transform.x,
         browserRows: document.querySelectorAll('.tree-component').length,
         panelInsideViewport: panel.left >= 0 && panel.top >= 0 && panel.right <= innerWidth && panel.bottom <= innerHeight,
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
-    if (result.schemaVersion !== 10 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.ownedBodies !== 1 || result.browserRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
+    if (result.schemaVersion !== 11 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.ownedBodies !== 1 || result.instances !== 3 || result.rigidGroups !== 1 || !result.grounded || result.duplicateX !== 45 || result.rigidMateX !== 25 || result.browserRows !== 3 || !result.panelInsideViewport || result.horizontalOverflow) {
       throw new Error(`Niepoprawny przepływ komponentów: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...result }, null, 2)}\n`);

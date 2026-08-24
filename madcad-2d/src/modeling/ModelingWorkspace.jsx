@@ -127,7 +127,7 @@ import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
-import { assignBodiesToComponent, componentParentMap, createComponent, deleteComponent, moveComponent, updateComponent } from '../cad-core/components.js';
+import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
 import {
   addBlockAttributeDefinition,
   createBlockDefinition,
@@ -842,9 +842,14 @@ export default function ModelingWorkspace() {
   }, [document, command]);
   const engine = useCadEngine(previewDocument, { quality: command?.previewFeature ? 'preview' : 'display' });
   const selectedBodies = selectedBodyIds.map((bodyId) => engine.bodies.find((body) => body.id === bodyId)).filter(Boolean);
+  const selectedInstance = selection?.kind === 'componentInstance'
+    ? document.componentInstances.find((instance) => instance.id === selection.id) || null
+    : null;
   const selectedComponent = selection?.kind === 'component'
     ? document.components.find((component) => component.id === selection.id) || null
-    : null;
+    : selectedInstance
+      ? document.components.find((component) => component.id === selectedInstance.componentId) || null
+      : null;
   const openComponentManager = () => {
     setLayersOpen(false);
     setBlocksOpen(false);
@@ -912,6 +917,72 @@ export default function ModelingWorkspace() {
       setNotice(`Usunięto komponent „${component?.name || componentId}”. Jego podkomponenty zachowano; operację można cofnąć.`);
     } catch (error) {
       setNotice(`Nie usunięto komponentu: ${error.message}`);
+    }
+  };
+  const createDocumentComponentInstance = (componentId) => {
+    try {
+      const checked = cloneDocument(document);
+      const current = selectedInstance || document.componentInstances.find((instance) => instance.componentId === componentId && instance.primary);
+      const currentComponent = current ? document.components.find((component) => component.id === current.componentId) : null;
+      const parentInstanceId = currentComponent?.type === 'assembly' ? current.id : current?.parentInstanceId || '';
+      const created = createComponentInstance(checked, { componentId, parentInstanceId, transform: { x: 20 } });
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'componentInstance', id: created.id, componentId });
+      setNotice(`Wstawiono kolejne wystąpienie „${created.name}”. Ustaw jego położenie XYZ.`);
+    } catch (error) {
+      setNotice(`Nie wstawiono wystąpienia: ${error.message}`);
+    }
+  };
+  const updateDocumentComponentInstance = (instanceId, patch) => {
+    try {
+      const checked = cloneDocument(document);
+      updateComponentInstance(checked, instanceId, patch);
+      commit((next) => Object.assign(next, checked));
+    } catch (error) {
+      setNotice(`Nie zmieniono wystąpienia: ${error.message}`);
+    }
+  };
+  const duplicateDocumentComponentInstance = (instanceId) => {
+    try {
+      const checked = cloneDocument(document);
+      const created = duplicateComponentInstance(checked, instanceId);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'componentInstance', id: created.id, componentId: created.componentId });
+      setNotice(`Powielono wystąpienie „${created.name}” i odsunięto je o 20 mm.`);
+    } catch (error) {
+      setNotice(`Nie powielono wystąpienia: ${error.message}`);
+    }
+  };
+  const removeDocumentComponentInstance = (instanceId) => {
+    try {
+      const checked = cloneDocument(document);
+      const instance = checked.componentInstances.find((item) => item.id === instanceId);
+      deleteComponentInstance(checked, instanceId);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'component', id: instance.componentId });
+      setNotice(`Usunięto wystąpienie „${instance.name}” wraz z jego podwystąpieniami. Operację można cofnąć.`);
+    } catch (error) {
+      setNotice(`Nie usunięto wystąpienia: ${error.message}`);
+    }
+  };
+  const createDocumentRigidGroup = (instanceIds) => {
+    try {
+      const checked = cloneDocument(document);
+      const group = createRigidGroup(checked, instanceIds);
+      commit((next) => Object.assign(next, checked));
+      setNotice(`Utworzono „${group.name}”. Jej elementy przesuwają się i obracają razem.`);
+    } catch (error) {
+      setNotice(`Nie utworzono grupy sztywnej: ${error.message}`);
+    }
+  };
+  const removeDocumentRigidGroup = (groupId) => {
+    try {
+      const checked = cloneDocument(document);
+      const group = deleteRigidGroup(checked, groupId);
+      commit((next) => Object.assign(next, checked));
+      setNotice(`Rozwiązano grupę sztywną „${group.name}”.`);
+    } catch (error) {
+      setNotice(`Nie rozwiązano grupy sztywnej: ${error.message}`);
     }
   };
   const selectedBodyRepresentations = selectedBodies.map((body) => body.representation);
@@ -2369,6 +2440,8 @@ export default function ModelingWorkspace() {
       layers: document.layers.map((layer) => ({ ...layer })),
       blocks: document.blocks.map((block) => ({ id: block.id, name: block.name, entities: block.entities.length, attributeDefinitions: block.attributeDefinitions.map((attribute) => ({ ...attribute })) })),
       components: document.components.map((component) => ({ ...component, origin: { ...component.origin }, bodyIds: [...component.bodyIds], sketchIds: [...component.sketchIds], componentIds: [...component.componentIds] })),
+      componentInstances: document.componentInstances.map((instance) => ({ ...instance, transform: { ...instance.transform } })),
+      rigidGroups: document.rigidGroups.map((group) => ({ ...group, instanceIds: [...group.instanceIds] })),
       bodyIds: engine.bodies.map((body) => body.id),
       drawings: document.drawings.map((sheet) => ({ ...sheet, views: sheet.views.map((view) => ({ ...view })) })),
       featureIds: document.features.map((feature) => feature.id),
@@ -3871,7 +3944,7 @@ export default function ModelingWorkspace() {
     else if (type === 'feature-control-frame') annotation = createFeatureControlFrameDrawingAnnotation({ viewId, center: [0.7, 0.7], labelOffset: [12, 12] });
     else if (type === 'balloon') {
       const bodyId = selectedDrawingView.bodyIds[0];
-      annotation = createBalloonDrawingAnnotation({ viewId, bodyId, center: [0.25, 0.2], labelOffset: [-10, -10], itemNumber: drawingBomItemNumber(bodyId, engine.bodies, document.components) || (activeDrawingSheet.annotations || []).filter((item) => item.type === 'balloon').length + 1 });
+      annotation = createBalloonDrawingAnnotation({ viewId, bodyId, center: [0.25, 0.2], labelOffset: [-10, -10], itemNumber: drawingBomItemNumber(bodyId, engine.bodies, document.components, document.componentInstances) || (activeDrawingSheet.annotations || []).filter((item) => item.type === 'balloon').length + 1 });
     }
     if (!annotation) return;
     commit((next) => {
@@ -3956,14 +4029,14 @@ export default function ModelingWorkspace() {
 
   const exportActiveDrawingDxf = () => {
     if (!activeDrawingSheet?.views.length) return;
-    const dxf = drawingSheetDxf(activeDrawingSheet, engine.bodies, { components: document.components });
+    const dxf = drawingSheetDxf(activeDrawingSheet, engine.bodies, { components: document.components, componentInstances: document.componentInstances });
     downloadBlob(new Blob([dxf], { type: 'application/dxf;charset=utf-8' }), `${safeName(document.name)}-${safeName(activeDrawingSheet.name)}.dxf`);
     setNotice('Wyeksportowano arkusz DXF w jednostkach mm.');
   };
 
   const exportActiveDrawingPdf = async () => {
     if (!activeDrawingSheet?.views.length) return;
-    const html = drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name, components: document.components });
+    const html = drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name, components: document.components, componentInstances: document.componentInstances });
     setNotice(`Przygotowywanie ${activeDrawingSheet.pageSize} PDF…`);
     if (window.desktopApp?.saveDrawingPdf) {
       const result = await window.desktopApp.saveDrawingPdf({
@@ -3987,7 +4060,7 @@ export default function ModelingWorkspace() {
 
   const previewActiveDrawing = async () => {
     if (!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow) return;
-    const result = await window.desktopApp.openPrintPreviewWindow({ html: drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name, components: document.components }), title: `${document.name} · ${activeDrawingSheet.name}` });
+    const result = await window.desktopApp.openPrintPreviewWindow({ html: drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name, components: document.components, componentInstances: document.componentInstances }), title: `${document.name} · ${activeDrawingSheet.name}` });
     setNotice(result?.ok ? 'Otworzono podgląd arkusza 1:1.' : `Podgląd nie powiódł się: ${result?.error || 'nieznany błąd'}`);
   };
 
@@ -4140,7 +4213,7 @@ export default function ModelingWorkspace() {
       pickPlane(nextSelection.id);
       return;
     }
-    if (nextSelection.kind === 'component') {
+    if (nextSelection.kind === 'component' || nextSelection.kind === 'componentInstance') {
       setComponentsOpen(true);
       setLayersOpen(false);
       setBlocksOpen(false);
@@ -4558,7 +4631,11 @@ export default function ModelingWorkspace() {
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : (selection?.bodyId || null)}
             selectedBodyIds={selectedBodyIds}
+            components={document.components}
+            componentInstances={document.componentInstances}
+            selectedComponentInstanceId={selectedInstance?.id || null}
             onSelectBody={(id) => setSelection(id ? { kind: 'body', id } : { kind: 'document', id: document.id })}
+            onSelectComponentInstance={(instanceId) => { const instance = document.componentInstances.find((item) => item.id === instanceId); setSelection({ kind: 'componentInstance', id: instanceId, componentId: instance?.componentId }); setComponentsOpen(true); }}
             selectedTopologyIds={selectedTopologyIds}
             onSelectTopology={handleTopologySelection}
             constructionPlanes={constructionPlanes}
@@ -4592,7 +4669,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} onClose={() => setCommand(null)} />}
-          {componentsOpen && <ComponentPanel document={document} bodies={engine.bodies} selectedComponentId={selectedComponent?.id || ''} selectedBodyIds={selectedBodyIds} readOnly={readOnly} onCreate={createDocumentComponent} onUpdate={updateDocumentComponent} onAssignBodies={assignDocumentComponentBodies} onMove={moveDocumentComponent} onDelete={removeDocumentComponent} onSelect={(componentId) => setSelection({ kind: 'component', id: componentId })} onClose={() => setComponentsOpen(false)} />}
+          {componentsOpen && <ComponentPanel document={document} bodies={engine.bodies} selectedComponentId={selectedComponent?.id || ''} selectedInstanceId={selectedInstance?.id || ''} selectedBodyIds={selectedBodyIds} readOnly={readOnly} onCreate={createDocumentComponent} onUpdate={updateDocumentComponent} onAssignBodies={assignDocumentComponentBodies} onMove={moveDocumentComponent} onDelete={removeDocumentComponent} onSelect={(componentId) => setSelection({ kind: 'component', id: componentId })} onSelectInstance={(instanceId) => { const instance = document.componentInstances.find((item) => item.id === instanceId); setSelection({ kind: 'componentInstance', id: instanceId, componentId: instance?.componentId }); }} onCreateInstance={createDocumentComponentInstance} onUpdateInstance={updateDocumentComponentInstance} onDuplicateInstance={duplicateDocumentComponentInstance} onDeleteInstance={removeDocumentComponentInstance} onCreateRigidGroup={createDocumentRigidGroup} onDeleteRigidGroup={removeDocumentRigidGroup} onClose={() => setComponentsOpen(false)} />}
           {layersOpen && <LayersPanel document={document} selectedEntities={selectedSketchEntities} readOnly={readOnly} onAdd={addDocumentLayer} onUpdate={updateDocumentLayer} onDelete={removeDocumentLayer} onActivate={activateDocumentLayer} onAssign={assignSelectionToLayer} onStyleSelected={styleSelectedEntities} onClose={() => setLayersOpen(false)} />}
           {blocksOpen && activeSketchId && <BlocksPanel document={document} selectedEntities={selectedSketchEntities} selectedInstance={selectedBlockInstance} readOnly={readOnly} onCreate={createBlockFromSelection} onInsert={insertDocumentBlock} onDeleteDefinition={removeBlockDefinition} onAddAttribute={addDocumentBlockAttribute} onUpdateInstanceAttribute={updateDocumentBlockAttribute} onExplode={explodeDocumentBlock} onDeleteInstance={removeDocumentBlockInstance} onClose={() => setBlocksOpen(false)} />}
           {commandCustomizationOpen && <CommandCustomizationPanel customization={commandCustomization} onSave={saveCommandSettings} onReset={createDefaultCommandCustomization} onClose={() => setCommandCustomizationOpen(false)} />}

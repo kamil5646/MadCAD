@@ -2840,7 +2840,7 @@
   width: min(420px, calc(100% - 28px));
   max-height: calc(100% - 28px);
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .component-toolbar {
@@ -2850,6 +2850,12 @@
   border-bottom: 1px solid #596573;
   background: #36414f;
 }
+
+.component-toolbar,
+.component-list,
+.component-occurrences,
+.component-instance-properties,
+.component-properties { flex: 0 0 auto; }
 
 .component-toolbar button,
 .component-actions button {
@@ -2871,7 +2877,7 @@
 .component-actions button:disabled { opacity: .45; cursor: default; }
 
 .component-list {
-  max-height: 180px;
+  max-height: 135px;
   overflow: auto;
   padding: 5px;
   border-bottom: 1px solid #596573;
@@ -2879,6 +2885,7 @@
 }
 
 .component-list > p,
+.component-occurrences > p,
 .component-body-list > p,
 .component-empty p {
   margin: 5px;
@@ -2887,7 +2894,8 @@
   line-height: 1.4;
 }
 
-.component-list > button {
+.component-list > button,
+.component-occurrences > button {
   display: flex;
   width: 100%;
   min-height: 37px;
@@ -2903,18 +2911,48 @@
   cursor: pointer;
 }
 
-.component-list > button:hover { background: #3b4754; }
-.component-list > button.active { border-color: #4bbfe0; background: #294b59; }
-.component-list > button > span { display: grid; min-width: 0; flex: 1; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 2px 6px; }
+.component-list > button:hover,
+.component-occurrences > button:hover { background: #3b4754; }
+.component-list > button.active,
+.component-occurrences > button.active { border-color: #4bbfe0; background: #294b59; }
+.component-list > button > span,
+.component-occurrences > button > span { display: grid; min-width: 0; flex: 1; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 2px 6px; }
 .component-list > button strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .component-list > button small { grid-column: 2; color: #9eacb8; font-size: 9px; }
-.component-list > button em { color: #9eacb8; font-size: 9px; font-style: normal; white-space: nowrap; }
+.component-list > button em,
+.component-occurrences > button em { color: #9eacb8; font-size: 9px; font-style: normal; white-space: nowrap; }
+
+.component-occurrences {
+  max-height: 155px;
+  overflow: auto;
+  padding: 5px;
+  border-bottom: 1px solid #596573;
+  background: #293540;
+}
+
+.component-instance-properties {
+  display: grid;
+  padding: 8px 10px;
+  border-bottom: 1px solid #596573;
+  gap: 6px;
+  background: #303b47;
+}
+
+.component-instance-properties > label { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 6px; color: #b9c4cd; font-size: 10px; }
+.component-instance-properties input,
+.component-instance-properties select,
+.component-rigid-group select { min-width: 0; min-height: 27px; padding: 4px 6px; border: 1px solid #667482; border-radius: 2px; background: #27313c; color: #f0f4f7; font: inherit; }
+.component-rotation { padding-bottom: 2px; }
+.component-instance-toggles { display: flex; flex-wrap: wrap; gap: 5px 12px; }
+.component-instance-toggles label { display: inline-flex; align-items: center; gap: 5px; color: #d6dee5; font-size: 10px; }
+.component-rigid-group > div:last-child { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.component-rigid-group button { display: inline-flex; min-height: 28px; align-items: center; justify-content: center; gap: 5px; padding: 4px 8px; border: 1px solid #697785; border-radius: 3px; background: #465362; color: #f2f6f9; font: inherit; cursor: pointer; }
 
 .component-properties {
   display: grid;
   min-height: 0;
   padding: 8px 10px 10px;
-  overflow: auto;
+  overflow: visible;
   gap: 6px;
   background: #333e4b;
 }
