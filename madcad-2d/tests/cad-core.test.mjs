@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { strToU8, zipSync } from 'three/examples/jsm/libs/fflate.module.js';
 import atomicFile from '../electron/atomic-file.cjs';
@@ -4032,7 +4032,7 @@ test('polityka IPC ogranicza nazwy, filtry, konwersje i podgląd wydruku', () =>
   assert.equal(ipcPolicy.normalizeProjectSnapshotIdPayload({ id: 'snapshot-12345678-1234-4123-8123-123456789abc' }).id, 'snapshot-12345678-1234-4123-8123-123456789abc');
   assert.throws(() => ipcPolicy.normalizeProjectSnapshotIdPayload({ id: '../manifest.json' }), /ID/i);
   const linked = ipcPolicy.normalizeLinkedProjectReadPayload({ baseProjectPath: '/tmp/złożenie/main.madcad', relativePath: '../części/korpus.madcad' });
-  assert.equal(linked.resolvedPath, '/tmp/części/korpus.madcad');
+  assert.equal(linked.resolvedPath, resolve('/tmp/części/korpus.madcad'));
   assert.throws(() => ipcPolicy.normalizeLinkedProjectReadPayload({ baseProjectPath: '/tmp/main.madcad', relativePath: '/etc/passwd' }), /względną/i);
   assert.throws(() => ipcPolicy.normalizeLinkedProjectBasePayload({ baseProjectPath: '/tmp/main.json' }), /nadrzędny/i);
   assert.throws(() => ipcPolicy.normalizeCadConversionPayload({ mode: 'dwg-to-dxf', sourcePath: '/tmp/model.exe' }), /DWG/i);
