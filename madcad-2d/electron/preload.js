@@ -29,5 +29,6 @@ contextBridge.exposeInMainWorld('desktopApp', {
   checkForUpdates: () => ipcRenderer.invoke('madcad:check-for-updates'),
   downloadAndInstallUpdate: (payload) => ipcRenderer.invoke('madcad:download-and-install-update', payload),
   openPrintPreviewWindow: (payload) => ipcRenderer.invoke('madcad:open-print-preview', payload),
+  saveDrawingPdf: (payload) => ipcRenderer.invoke('madcad:save-drawing-pdf', payload),
   setAppLanguage: (payload) => ipcRenderer.invoke('madcad:set-language', payload)
 });

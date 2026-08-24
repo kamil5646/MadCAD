@@ -34,6 +34,7 @@ npm run test:core
 npm run test:core:coverage
 npm run verify:repository
 npm run verify:start-experience
+npm run verify:drawing-workspace
 npm run verify:modeling
 npm run verify:electron-security
 npm audit --audit-level=high
@@ -83,6 +84,7 @@ użyć `Control` + klik i wybrać **Otwórz**.
 
 ## Interakcja CAD
 
+- Obszar **DOKUMENTACJA** tworzy zapisywane arkusze A4/A3, skojarzone widoki Front/Top/Right/Isometric i eksportuje gotowy arkusz bezpośrednio do PDF.
 - Funkcje wstążki pokazują po najechaniu opis; skróty podstawowych narzędzi są widoczne tylko w podpowiedzi, nie na przyciskach.
 - **Import DWG** w aktywnym szkicu otwiera plik przez bezpieczny dialog desktopowy, konwertuje go lokalnie przez `dwgread`/`dwg2dxf` (GNU LibreDWG) albo ODA File Converter i przekazuje wynik do istniejącego importera DXF. Projekt nie jest wysyłany do usługi sieciowej.
 - Podstawowe skróty uruchamiają narzędzie natychmiast, bez osobnego wiersza poleceń.

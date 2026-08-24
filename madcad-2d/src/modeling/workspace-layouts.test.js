@@ -2,9 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { BUILT_IN_WORKSPACE_LAYOUTS, createCustomWorkspaceLayout, loadCustomWorkspaceLayouts, normalizeWorkspaceView, saveCustomWorkspaceLayouts } from './workspace-layouts.js';
 
 describe('saved workspace layouts', () => {
-  it('ships focused CAD, canvas, document and print presets', () => {
-    expect(BUILT_IN_WORKSPACE_LAYOUTS.map((item) => item.id)).toEqual(['classic-cad', 'clean-canvas', 'document-tools', 'export-print']);
+  it('ships focused CAD, canvas, document, drawing and print presets', () => {
+    expect(BUILT_IN_WORKSPACE_LAYOUTS.map((item) => item.id)).toEqual(['classic-cad', 'clean-canvas', 'document-tools', 'technical-drawing', 'export-print']);
     expect(BUILT_IN_WORKSPACE_LAYOUTS.find((item) => item.id === 'clean-canvas').view.browserOpen).toBe(false);
+    expect(BUILT_IN_WORKSPACE_LAYOUTS.find((item) => item.id === 'technical-drawing').view.workspace).toBe('drawing');
     expect(BUILT_IN_WORKSPACE_LAYOUTS.find((item) => item.id === 'export-print').view.printPanelOpen).toBe(true);
   });
 
@@ -25,4 +26,3 @@ describe('saved workspace layouts', () => {
     expect(loadCustomWorkspaceLayouts({ getItem: () => '{bad' })).toEqual([]);
   });
 });
-

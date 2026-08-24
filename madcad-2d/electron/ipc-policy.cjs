@@ -77,6 +77,17 @@ function normalizePrintPreviewPayload(payload, language = 'pl') {
   };
 }
 
+function normalizePdfExportPayload(payload, language = 'pl') {
+  const preview = normalizePrintPreviewPayload(payload, language);
+  const source = assertPlainObject(payload);
+  return {
+    ...preview,
+    defaultName: safeFileName(source.defaultName, language === 'en' ? 'drawing.pdf' : 'rysunek.pdf', '.pdf'),
+    pageSize: ['A4', 'A3'].includes(source.pageSize) ? source.pageSize : 'A4',
+    orientation: source.orientation === 'portrait' ? 'portrait' : 'landscape',
+  };
+}
+
 function securePrintPreviewHtml(html) {
   const csp = `<meta http-equiv="Content-Security-Policy" content="${PRINT_PREVIEW_CSP}">`;
   return /<head(?:\s[^>]*)?>/i.test(html)
@@ -109,6 +120,7 @@ module.exports = {
   MAX_SAVE_TEXT_BYTES,
   normalizeAutosavePayload,
   normalizeCadConversionPayload,
+  normalizePdfExportPayload,
   normalizePrintPreviewPayload,
   normalizeSaveFilters,
   normalizeSaveTextPayload,

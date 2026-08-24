@@ -15,6 +15,7 @@ import {
   FileBox,
   FileDown,
   FilePlus2,
+  FileText,
   FolderOpen,
   Frame,
   Grid2X2,
@@ -122,6 +123,7 @@ import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit } from '../cad-core/model-import.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
+import { createBaseDrawingView, createDrawingSheet, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import {
   addBlockAttributeDefinition,
@@ -156,6 +158,7 @@ import { multipleSelectionLabel, primaryModifierPressed } from './platform-short
 import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumentHistory } from './workspace-document.js';
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext } from './WorkspaceRibbon.jsx';
 import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
+import DrawingWorkspace from './DrawingWorkspace.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
 import { BlocksPanel, CommandCustomizationPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, SectionPanel } from './WorkspacePanels.jsx';
 import {
@@ -175,6 +178,7 @@ const DESKTOP_PLATFORM = ['darwin', 'win32', 'linux'].includes(window.desktopApp
 
 const MAIN_TABS = [
   { id: 'solid', label: 'PROJEKTUJ' },
+  { id: 'drawing', label: 'DOKUMENTACJA' },
   { id: 'tools', label: 'NARZĘDZIA' },
   { id: 'print', label: 'EKSPORT' },
 ];
@@ -394,6 +398,8 @@ export default function ModelingWorkspace() {
   const [currentPath, setCurrentPath] = useState('');
   const [persistenceReady, setPersistenceReady] = useState(() => !window.desktopApp?.autosaveRead);
   const [workspace, setWorkspace] = useState('solid');
+  const [activeDrawingSheetId, setActiveDrawingSheetId] = useState(() => document.drawings[0]?.id || null);
+  const [selectedDrawingViewId, setSelectedDrawingViewId] = useState(null);
   const [selection, setSelection] = useState({ kind: 'document', id: document.id });
   const [activeSketchId, setActiveSketchId] = useState(null);
   const [command, setCommand] = useState(null);
@@ -2285,6 +2291,7 @@ export default function ModelingWorkspace() {
       activeLayerId: document.activeLayerId,
       layers: document.layers.map((layer) => ({ ...layer })),
       blocks: document.blocks.map((block) => ({ id: block.id, name: block.name, entities: block.entities.length, attributeDefinitions: block.attributeDefinitions.map((attribute) => ({ ...attribute })) })),
+      drawings: document.drawings.map((sheet) => ({ ...sheet, views: sheet.views.map((view) => ({ ...view })) })),
       featureIds: document.features.map((feature) => feature.id),
       featureData: document.features.map((feature) => ({ id: feature.id, name: feature.name, type: feature.type, suppressed: feature.suppressed, sketchId: feature.sketchId, sketchIds: feature.sketchIds, profileId: feature.profileId, profileIds: feature.profileIds, pathSketchId: feature.pathSketchId, pathEntityIds: feature.pathEntityIds, loftMode: feature.loftMode, ribMode: feature.ribMode, patternType: feature.patternType, countX: feature.countX, countY: feature.countY, spacingX: feature.spacingX, spacingY: feature.spacingY, occurrences: feature.occurrences, totalAngle: feature.totalAngle, thickness: feature.thickness, reverse: feature.reverse, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, outsideDiameter: feature.outsideDiameter, wallSide: feature.wallSide, endCap: feature.endCap, openEntityIds: feature.openEntityIds, depth: feature.depth, diameter: feature.diameter, coilDiameter: feature.coilDiameter, wireDiameter: feature.wireDiameter, pitch: feature.pitch, turns: feature.turns, handedness: feature.handedness, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, neutralPlaneId: feature.neutralPlaneId, planeId: feature.planeId, axisId: feature.axisId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
       references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, rotationAxis: reference.rotationAxis, angle: reference.angle, surfaceType: reference.surfaceType, center: reference.center, point: reference.point, axis: reference.axis, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, distance: reference.distance, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId, repairedAt: reference.repairedAt })),
@@ -3651,6 +3658,92 @@ export default function ModelingWorkspace() {
     }
   };
 
+  const activeDrawingSheet = document.drawings.find((sheet) => sheet.id === activeDrawingSheetId) || document.drawings[0] || null;
+
+  const createDrawingSheetInDocument = () => {
+    if (readOnly) return readOnlyNotice();
+    const sheet = createDrawingSheet({ name: `Arkusz ${document.drawings.length + 1}` });
+    commit((next) => { next.drawings.push(sheet); });
+    setActiveDrawingSheetId(sheet.id);
+    setSelectedDrawingViewId(null);
+    setNotice(`Utworzono ${sheet.name} · A4 poziomo.`);
+  };
+
+  const updateActiveDrawingSheet = (patch) => {
+    if (!activeDrawingSheet || readOnly) return;
+    commit((next) => {
+      const sheet = next.drawings.find((item) => item.id === activeDrawingSheet.id);
+      if (sheet) Object.assign(sheet, patch);
+    });
+  };
+
+  const deleteActiveDrawingSheet = () => {
+    if (!activeDrawingSheet || readOnly) return;
+    const remaining = document.drawings.filter((sheet) => sheet.id !== activeDrawingSheet.id);
+    commit((next) => { next.drawings = next.drawings.filter((sheet) => sheet.id !== activeDrawingSheet.id); });
+    setActiveDrawingSheetId(remaining[0]?.id || null);
+    setSelectedDrawingViewId(null);
+    setNotice(`Usunięto arkusz „${activeDrawingSheet.name}”.`);
+  };
+
+  const addBaseDrawingView = () => {
+    if (!activeDrawingSheet || !engine.bodies.length || readOnly) return;
+    const orientation = 'front';
+    const scale = recommendedDrawingScale(activeDrawingSheet, engine.bodies, orientation);
+    const view = createBaseDrawingView({ bodyIds: engine.bodies.map((body) => body.id), orientation, scale, sheet: activeDrawingSheet });
+    commit((next) => { next.drawings.find((sheet) => sheet.id === activeDrawingSheet.id)?.views.push(view); });
+    setSelectedDrawingViewId(view.id);
+    setNotice(`Dodano skojarzony widok bazowy · Przód · skala ${scale}:1.`);
+  };
+
+  const updateSelectedDrawingView = (patch) => {
+    if (!activeDrawingSheet || !selectedDrawingViewId || readOnly) return;
+    commit((next) => {
+      const view = next.drawings.find((sheet) => sheet.id === activeDrawingSheet.id)?.views.find((item) => item.id === selectedDrawingViewId);
+      if (view) Object.assign(view, patch);
+    });
+  };
+
+  const deleteSelectedDrawingView = () => {
+    if (!activeDrawingSheet || !selectedDrawingViewId || readOnly) return;
+    commit((next) => {
+      const sheet = next.drawings.find((item) => item.id === activeDrawingSheet.id);
+      if (sheet) sheet.views = sheet.views.filter((view) => view.id !== selectedDrawingViewId);
+    });
+    setSelectedDrawingViewId(null);
+    setNotice('Usunięto widok z arkusza. Model pozostał bez zmian.');
+  };
+
+  const exportActiveDrawingPdf = async () => {
+    if (!activeDrawingSheet?.views.length) return;
+    const html = drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name });
+    setNotice(`Przygotowywanie ${activeDrawingSheet.pageSize} PDF…`);
+    if (window.desktopApp?.saveDrawingPdf) {
+      const result = await window.desktopApp.saveDrawingPdf({
+        html,
+        title: `${document.name} · ${activeDrawingSheet.name}`,
+        defaultName: `${safeName(document.name)}-${safeName(activeDrawingSheet.name)}.pdf`,
+        pageSize: activeDrawingSheet.pageSize,
+        orientation: activeDrawingSheet.orientation,
+      });
+      setNotice(result?.ok ? `Zapisano dokumentację PDF: ${result.filePath}` : result?.canceled ? 'Anulowano eksport PDF.' : `Eksport PDF nie powiódł się: ${result?.error || 'nieznany błąd'}`);
+      return;
+    }
+    if (window.desktopApp?.openPrintPreviewWindow) {
+      const result = await window.desktopApp.openPrintPreviewWindow({ html, title: `${document.name} · ${activeDrawingSheet.name}` });
+      setNotice(result?.ok ? 'Otworzono podgląd wydruku. Wybierz systemowy zapis PDF.' : `Podgląd nie powiódł się: ${result?.error || 'nieznany błąd'}`);
+      return;
+    }
+    downloadBlob(new Blob([html], { type: 'text/html' }), `${safeName(document.name)}-${safeName(activeDrawingSheet.name)}.html`);
+    setNotice('Pobrano arkusz HTML do wydruku PDF w przeglądarce.');
+  };
+
+  const previewActiveDrawing = async () => {
+    if (!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow) return;
+    const result = await window.desktopApp.openPrintPreviewWindow({ html: drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name }), title: `${document.name} · ${activeDrawingSheet.name}` });
+    setNotice(result?.ok ? 'Otworzono podgląd arkusza 1:1.' : `Podgląd nie powiódł się: ${result?.error || 'nieznany błąd'}`);
+  };
+
   const sendToSlicer = async (slicer) => {
     const slicerNames = { bambu: 'Bambu Studio', prusa: 'PrusaSlicer', cura: 'UltiMaker Cura' };
     const name = slicerNames[slicer] || slicer;
@@ -3680,6 +3773,8 @@ export default function ModelingWorkspace() {
     setPrintPanelOpen(false);
     setNotice(id === 'print'
       ? 'Eksportuj dokładny model CAD albo otwórz opcjonalną kontrolę druku 3D.'
+      : id === 'drawing'
+        ? 'Twórz skojarzone arkusze techniczne i eksportuj je do PDF.'
       : id === 'tools'
         ? 'Parametry, geometria konstrukcyjna, pomiary i analiza modelu.'
         : 'Obszar projektowania CAD.');
@@ -4067,7 +4162,7 @@ export default function ModelingWorkspace() {
       <section className="command-area">
         <div className="command-ribbon">
           <nav className="workspace-tabs" aria-label="Obszary robocze" role="tablist">
-            {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item, index) => <button id={item.id === 'print' ? 'printWorkspaceBtn' : undefined} key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Szkicowanie 2D i modelowanie parametryczne 3D.' : item.id === 'tools' ? 'Parametry i narzędzia dokumentu.' : 'Eksport CAD oraz opcjonalne przygotowanie druku 3D.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
+            {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item, index) => <button id={item.id === 'print' ? 'printWorkspaceBtn' : undefined} key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Szkicowanie 2D i modelowanie parametryczne 3D.' : item.id === 'drawing' ? 'Arkusze techniczne i skojarzone widoki modelu.' : item.id === 'tools' ? 'Parametry i narzędzia dokumentu.' : 'Eksport CAD oraz opcjonalne przygotowanie druku 3D.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
           </nav>
           <ResponsiveRibbon>
             {activeSketchId ? (
@@ -4080,6 +4175,12 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="WYMIARY"><ToolButton icon={Ruler} label="Ordinate X" onClick={() => openSketchDimension('ordinateX')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={Ruler} label="Ordinate Y" onClick={() => openSketchDimension('ordinateY')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={RotateCw} label="Długość łuku" onClick={() => openSketchDimension('arcLength')} disabled={readOnly || !canAddArcLength} /></RibbonGroup>
                 <RibbonGroup label="ORGANIZUJ"><ToolButton icon={Layers3} label="Warstwy" onClick={() => { setBlocksOpen(false); setLayersOpen(true); }} primary={layersOpen} /><ToolButton icon={Blocks} label="Bloki" onClick={() => { setLayersOpen(false); setBlocksOpen(true); }} primary={blocksOpen} /></RibbonGroup>
                 <RibbonGroup label="ZAKOŃCZ SZKIC" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
+              </>
+            ) : workspace === 'drawing' ? (
+              <>
+                <RibbonGroup label="ARKUSZE"><ToolButton icon={FilePlus2} label="Nowy arkusz" onClick={createDrawingSheetInDocument} disabled={readOnly} primary /><ToolButton icon={Trash2} label="Usuń arkusz" onClick={deleteActiveDrawingSheet} disabled={readOnly || !activeDrawingSheet} /></RibbonGroup>
+                <RibbonGroup label="WIDOKI"><ToolButton icon={Frame} label="Widok bazowy" onClick={addBaseDrawingView} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} /><ToolButton icon={Trash2} label="Usuń widok" onClick={deleteSelectedDrawingView} disabled={readOnly || !selectedDrawingViewId} /></RibbonGroup>
+                <RibbonGroup label="WYJŚCIE" end><ToolButton icon={Eye} label="Podgląd 1:1" onClick={() => { void previewActiveDrawing(); }} disabled={!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow} /><ToolButton icon={FileText} label="PDF" onClick={() => { void exportActiveDrawingPdf(); }} disabled={!activeDrawingSheet?.views.length} primary /></RibbonGroup>
               </>
             ) : workspace === 'tools' ? (
               <>
@@ -4132,7 +4233,22 @@ export default function ModelingWorkspace() {
           onToggleDock={() => setPanelLayout((current) => ({ ...current, commandDock: current.commandDock === 'right' ? 'left' : 'right' }))}
         />
         <main className="modeling-stage">
-          <React.Suspense fallback={<div className="viewport-loading" role="status">Uruchamianie widoku 3D…</div>}>
+          {workspace === 'drawing' ? <DrawingWorkspace
+            document={document}
+            bodies={engine.bodies}
+            activeSheetId={activeDrawingSheetId}
+            selectedViewId={selectedDrawingViewId}
+            readOnly={readOnly}
+            onCreateSheet={createDrawingSheetInDocument}
+            onSelectSheet={(sheetId) => { setActiveDrawingSheetId(sheetId); setSelectedDrawingViewId(null); }}
+            onUpdateSheet={updateActiveDrawingSheet}
+            onDeleteSheet={deleteActiveDrawingSheet}
+            onAddBaseView={addBaseDrawingView}
+            onSelectView={setSelectedDrawingViewId}
+            onUpdateView={updateSelectedDrawingView}
+            onDeleteView={deleteSelectedDrawingView}
+            onExportPdf={() => { void exportActiveDrawingPdf(); }}
+          /> : <React.Suspense fallback={<div className="viewport-loading" role="status">Uruchamianie widoku 3D…</div>}>
           <ModelViewport
             bodies={engine.bodies}
             sketches={document.sketches}
@@ -4193,8 +4309,8 @@ export default function ModelingWorkspace() {
             showBed={workspace === 'print' && printPanelOpen}
             printLayout={document.print}
           />
-          </React.Suspense>
-          <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? `${command?.previewFeature ? 'Podgląd' : 'Model'} gotowy · ${engine.bodies.length} ${engine.bodies.length === 1 ? 'bryła' : 'brył'}` : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>
+          </React.Suspense>}
+          {workspace !== 'drawing' && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? `${command?.previewFeature ? 'Podgląd' : 'Model'} gotowy · ${engine.bodies.length} ${engine.bodies.length === 1 ? 'bryła' : 'brył'}` : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
           {notice && <div className="workspace-notice" role="status" aria-live="polite" aria-atomic="true">{notice}</div>}
           <CrashRecoveryBanner
             info={recoveryInfo}
@@ -4209,7 +4325,7 @@ export default function ModelingWorkspace() {
           {layersOpen && <LayersPanel document={document} selectedEntities={selectedSketchEntities} readOnly={readOnly} onAdd={addDocumentLayer} onUpdate={updateDocumentLayer} onDelete={removeDocumentLayer} onActivate={activateDocumentLayer} onAssign={assignSelectionToLayer} onStyleSelected={styleSelectedEntities} onClose={() => setLayersOpen(false)} />}
           {blocksOpen && activeSketchId && <BlocksPanel document={document} selectedEntities={selectedSketchEntities} selectedInstance={selectedBlockInstance} readOnly={readOnly} onCreate={createBlockFromSelection} onInsert={insertDocumentBlock} onDeleteDefinition={removeBlockDefinition} onAddAttribute={addDocumentBlockAttribute} onUpdateInstanceAttribute={updateDocumentBlockAttribute} onExplode={explodeDocumentBlock} onDeleteInstance={removeDocumentBlockInstance} onClose={() => setBlocksOpen(false)} />}
           {commandCustomizationOpen && <CommandCustomizationPanel customization={commandCustomization} onSave={saveCommandSettings} onReset={createDefaultCommandCustomization} onClose={() => setCommandCustomizationOpen(false)} />}
-          {!document.sketches.length && !engine.bodies.length && !command && !readOnly && <StartPage onStartSketch={startSketch} onOpenProject={requestOpenProject} commandCustomization={commandCustomization} />}
+          {workspace !== 'drawing' && !document.sketches.length && !engine.bodies.length && !command && !readOnly && <StartPage onStartSketch={startSketch} onOpenProject={requestOpenProject} commandCustomization={commandCustomization} />}
           <WorkspaceDialogStack
             state={{ activeSketchId, command, document, importDraft, importRepairReport, sketchImportDraft, sketchOptions }}
             actions={{

@@ -4,7 +4,7 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 
 ## Fundament CAD R0
 
-- [x] Schemat dokumentu v4, migracje v2 → v3 → v4, walidacja oraz tryb nowszego dokumentu tylko do odczytu.
+- [x] Schemat dokumentu v5, migracje v2 → v3 → v4 → v5, walidacja oraz tryb nowszego dokumentu tylko do odczytu.
 - [x] Atomowy zapis z kopią `.bak`, autosave i round-trip `.madcad`.
 - [x] Wspólna polityka tolerancji, parametry, graf zależności i transakcyjna historia operacji.
 - [x] Stany `ok/warning/error/stale/suppressed` i zachowanie ostatniej poprawnej bryły.
@@ -100,7 +100,9 @@ To archiwum przechowuje wyniki zamkniętych prac. Aktualna kolejność znajduje 
 
 ## Ostatnia zweryfikowana baza
 
-- Testy rdzenia: 83 zaliczone, 0 błędów.
+- [x] P2.1 dodaje zapisywane arkusze A4/A3, skojarzony widok bazowy z krawędzi modelu, cztery kierunki, automatyczną skalę, tabliczkę i bezpośredni eksport PDF; desktop smoke test sprawdza także undo/redo, autozapis i brak przepełnienia interfejsu.
+
+- Testy rdzenia: 143 zaliczone, 0 błędów.
 - Desktop E2E: profile XY/XZ/YZ, spline, conic, parametryczny wspornik, prymitywy, wspólny manipulator, Text/Emboss/Deboss, otwór z punktu, fillet/chamfer, Shell, autosave, odtworzenie workera oraz eksport STEP/STL.
 - Commity kontrolne: `1633cf3`, `6505103`, `be3c067`, `ec5e45f`, `0ad3b75`, `1ca5237`, `1a0a02b`, `fe19842`.
 

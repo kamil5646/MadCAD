@@ -29,7 +29,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
     await waitFor(window, `!document.querySelector('.license-info-dialog')`, 'zamknięcie informacji licencyjnej');
     await openMenu(window);
-    await waitFor(window, `document.querySelectorAll('.workspace-layout-list > button').length === 4`, 'gotowe układy');
+    await waitFor(window, `document.querySelectorAll('.workspace-layout-list > button').length === 5`, 'gotowe układy');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.workspace-layout-list > button')].find((button) => button.textContent.includes('Czyste płótno'))?.click()`);
     await waitFor(window, `document.querySelector('.modeling-content.without-browser')`, 'czyste płótno bez przeglądarki');
     await openMenu(window);
@@ -60,7 +60,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
     await openMenu(window);
     const persisted = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.workspace-layout-saved strong')].some((item) => item.textContent === 'Układ testowy')`);
-    if (state.builtIns.length !== 4 || state.custom[0] !== 'Układ testowy' || state.active !== 'Układ testowy' || !state.insideWindow || state.horizontalOverflow || !persisted) {
+    if (state.builtIns.length !== 5 || state.custom[0] !== 'Układ testowy' || state.active !== 'Układ testowy' || !state.insideWindow || state.horizontalOverflow || !persisted) {
       throw new Error(`Niepoprawne zapisane obszary robocze: ${JSON.stringify({ state, persisted })}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...state, persisted }, null, 2)}\n`);
@@ -70,4 +70,3 @@ app.whenReady().then(async () => {
     app.exit(1);
   }
 });
-

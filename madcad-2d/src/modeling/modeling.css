@@ -1068,6 +1068,200 @@
   cursor: crosshair;
 }
 
+.drawing-workspace {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) 232px;
+  min-width: 0;
+  overflow: hidden;
+  background: #252d37;
+}
+
+.drawing-workspace.drawing-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #c3ccd4;
+  text-align: center;
+}
+
+.drawing-empty svg { color: #58c5e8; }
+.drawing-empty h2 { margin: 4px 0 0; color: #f3f6f8; font-size: 18px; }
+.drawing-empty p { max-width: 480px; margin: 0 0 8px; line-height: 1.5; }
+.drawing-empty button,
+.drawing-actions button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #28a9d4;
+  border-radius: 3px;
+  background: #157fa5;
+  color: white;
+  cursor: pointer;
+}
+
+.drawing-empty button { padding: 0 14px; }
+.drawing-empty button:disabled,
+.drawing-actions button:disabled { cursor: default; opacity: .45; }
+
+.drawing-sheet-list,
+.drawing-properties {
+  min-width: 0;
+  overflow: auto;
+  border-right: 1px solid #46515e;
+  background: #303945;
+}
+
+.drawing-sheet-list > header,
+.drawing-properties > header {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  padding: 0 9px;
+  border-bottom: 1px solid #4a5663;
+  background: #3a4552;
+}
+
+.drawing-sheet-list > header button {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 1px solid #5c6977;
+  border-radius: 2px;
+  background: #303a46;
+  color: #dce3e8;
+  cursor: pointer;
+}
+
+.drawing-sheet-list > button {
+  display: grid;
+  width: calc(100% - 10px);
+  min-height: 48px;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  margin: 5px;
+  padding: 6px 7px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: #dce3e8;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drawing-sheet-list > button:hover { background: #394552; }
+.drawing-sheet-list > button.active { border-color: #2faed8; background: #294b59; }
+.drawing-sheet-list > button span { display: grid; min-width: 0; gap: 2px; }
+.drawing-sheet-list > button strong,
+.drawing-sheet-list > button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drawing-sheet-list > button small { color: #aeb9c2; font-size: 9px; }
+.drawing-sheet-list > button em { color: #85929e; font-size: 9px; font-style: normal; }
+
+.drawing-paper-wrap {
+  display: grid;
+  min-width: 0;
+  overflow: auto;
+  place-items: center;
+  padding: 26px;
+  background: #1f252c;
+}
+
+.drawing-paper {
+  display: block;
+  width: min(100%, 1080px);
+  max-height: 100%;
+  background: white;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .42);
+}
+
+.drawing-border,
+.drawing-title-block rect,
+.drawing-title-block line {
+  fill: none;
+  stroke: #111;
+  stroke-width: .35;
+}
+
+.drawing-view { fill: none; stroke: #111; stroke-width: .28; cursor: pointer; }
+.drawing-view:hover,
+.drawing-view.selected { stroke: #008fbd; stroke-width: .48; }
+.drawing-view text { fill: #222; stroke: none; font-size: 3px; }
+.drawing-view.selected text { fill: #007da6; font-weight: 700; }
+.drawing-title-block text { fill: #111; stroke: none; font-size: 3px; }
+.drawing-title-block .drawing-project-name { font-size: 5px; font-weight: 700; }
+
+.drawing-properties {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-bottom: 10px;
+  border-right: 0;
+  border-left: 1px solid #46515e;
+}
+
+.drawing-properties > header { position: static; justify-content: flex-start; }
+.drawing-properties > label,
+.drawing-property-row label,
+.drawing-view-properties label {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  padding: 0 9px;
+}
+
+.drawing-properties label > span { color: #aeb9c2; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.drawing-properties input,
+.drawing-properties select {
+  width: 100%;
+  height: 29px;
+  min-width: 0;
+  border: 1px solid #5a6875;
+  border-radius: 2px;
+  background: #222b35;
+  color: #edf2f5;
+  padding: 0 7px;
+}
+
+.drawing-property-row { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.drawing-property-row label:first-child { padding-right: 2px; }
+.drawing-property-row label:last-child { padding-left: 2px; }
+.drawing-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 0 9px; }
+.drawing-actions button { min-width: 0; padding: 0 5px; font-size: 10px; }
+.drawing-hint { margin: 0 9px; color: #f0c879; font-size: 10px; line-height: 1.4; }
+.drawing-view-properties { display: grid; gap: 8px; margin: 2px 9px 0; padding: 9px 0; border-top: 1px solid #4a5663; border-bottom: 1px solid #4a5663; }
+.drawing-view-properties > strong { padding: 0 9px; color: #6dd3ee; }
+.drawing-view-properties .drawing-property-row label:first-child { padding-left: 9px; }
+.drawing-view-properties .drawing-property-row label:last-child { padding-right: 9px; }
+.drawing-view-properties .danger,
+.drawing-delete-sheet {
+  display: inline-flex;
+  min-height: 29px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin: 0 9px;
+  border: 1px solid #84545a;
+  border-radius: 2px;
+  background: #51383d;
+  color: #ffd8d7;
+  cursor: pointer;
+}
+.drawing-view-properties .danger { margin-top: 2px; }
+.drawing-delete-sheet { margin-top: auto; }
+
 .engine-status {
   position: absolute;
   z-index: 4;

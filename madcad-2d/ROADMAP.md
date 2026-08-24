@@ -1,6 +1,6 @@
 # MadCAD — aktywny plan rozwoju
 
-Aktualizacja: 2026-08-23
+Aktualizacja: 2026-08-24
 Wersja bazowa: `6.3.2 stable`
 Gałąź wydania: `main`
 
@@ -166,6 +166,14 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.29 Porządkowanie architektury obszaru modelowania: decyzje linii poleceń są planowane w testowalnym kontrolerze, zapis i odczyt projektu korzystają ze wspólnej usługi dokumentu, a modalne narzędzia szkicu/importu są renderowane przez osobny stos dialogów.
 - [x] P1.30 Korpus zgodności wymiany danych: deterministyczne fixture profili AutoCAD 2013 DXF, Fusion sketch DXF, FreeCAD/OpenCascade STEP oraz ASCII STL dla PrusaSlicer/Cura/Bambu mają testy jednostek, profili, trybu B-Rep/mesh i siatki; osobna regresja sprawdza drzewo AX, nazwy kontrolek i kolejność fokusu.
 
+## P2 — dokumentacja techniczna 2D
+
+- [x] P2.1 Obszar `DOKUMENTACJA`: arkusze A4/A3 w orientacji poziomej lub pionowej, skojarzony widok bazowy z rzeczywistych krawędzi aktualnego modelu, kierunki Front/Top/Right/Isometric, automatyczny dobór standardowej skali, położenie na arkuszu, tabliczka, zapis/otwarcie, undo/redo, podgląd 1:1 i bezpośredni eksport PDF.
+- [>] P2.2 Skojarzone widoki rzutowane, przekroje i detale tworzone od widoku bazowego, z kontrolą wyrównania oraz automatyczną aktualizacją po przebudowie modelu.
+- [ ] P2.3 Wymiary rysunkowe, osie i znaczniki środka, opisy otworów/gwintów oraz tolerancje.
+- [ ] P2.4 Podstawowe GD&T, konfigurowalna tabliczka, rewizje i eksport arkusza do DXF.
+- [ ] P2.5 BOM, balloons i tabela otworów po wprowadzeniu komponentów.
+
 ## Definition of Done
 
 Każda funkcja spełnia wymagania wspólne: test happy path i błędu, anulowanie bez częściowego stanu, undo/redo, zapis/otwarcie, poprawny komunikat użytkownika i brak aktywnej atrapy.
@@ -191,9 +199,9 @@ Dodatkowo:
 
 ## Najbliższe zadania
 
-1. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
-2. [x] Dokończyć katalog kluczy PL/EN i dodać bramkę wykrywającą nieprzetłumaczone teksty w renderowanym interfejsie.
-3. [x] Wydzielić kontroler poleceń, dialogi i usługi dokumentu z `ModelingWorkspace`, zachowując obecny test pełnego przepływu.
-4. [~] Sprawdzić import/eksport na fixture'ach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny test technologii asystujących. Korpus formatów i automatyczny test drzewa AX są gotowe; ręczny odsłuch VoiceOver pozostaje bramką wydania.
+1. [>] P2.2: widok rzutowany, przekrój i detal na skojarzonym arkuszu.
+2. [ ] P2.3: wymiary i podstawowe oznaczenia wykonawcze na arkuszu.
+3. [~] Sprawdzić import/eksport na rzeczywistych plikach z FreeCAD, AutoCAD/DXF, Fusion i popularnych slicerów oraz wykonać ręczny odsłuch VoiceOver. Korpus formatów i automatyczny test drzewa AX są gotowe.
+4. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 
 Dalsze pomysły produktowe pozostają w [BACKLOG.md](./BACKLOG.md) i wymagają osobnej priorytetyzacji.

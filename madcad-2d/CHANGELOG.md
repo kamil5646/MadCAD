@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Dodano obszar **DOKUMENTACJA** z zapisywanymi arkuszami A4/A3, tabliczką rysunkową i skojarzonym widokiem bazowym aktualizowanym z rzeczywistych krawędzi modelu.
+- Widok bazowy obsługuje kierunki Front/Top/Right/Isometric, automatyczny dobór standardowej skali, ręczne położenie na arkuszu oraz pełne undo/redo, autozapis i round-trip `.madcad`.
+- Dodano bezpieczny, bezpośredni eksport arkusza do PDF oraz osobny podgląd 1:1 w izolowanym oknie Electron.
+- Schemat projektu podniesiono do v5 z migracją dokumentów v4 i pustą kolekcją arkuszy dla starszych projektów.
+
 ## 6.3.2 (2026-08-23)
 
 - Uproszczono instalację bez certyfikatów: Windows otrzymuje instalator jednym kliknięciem bez uprawnień administratora i przenośny ZIP, a macOS polecany obraz DMG z przeciągnięciem aplikacji oraz awaryjny ZIP. Strona pobierania prowadzi bezpośrednio do właściwych paczek.

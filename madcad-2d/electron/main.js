@@ -11,6 +11,7 @@ const { normalizeSlicerPayload, windowsCandidates } = require('./slicer-launch.c
 const { isTrustedAppNavigation, isTrustedIpcUrl, normalizeExternalUrl } = require('./security-policy.cjs');
 const {
   normalizeAutosavePayload,
+  normalizePdfExportPayload,
   normalizePrintPreviewPayload,
   normalizeSaveTextPayload,
   securePrintPreviewHtml,
@@ -1512,6 +1513,52 @@ registerTrustedIpcHandler('madcad:open-print-preview', async (event, payload) =>
       ok: false,
       error: error && error.message ? String(error.message) : t('Nie udało się otworzyć podglądu.', 'Cannot open preview.')
     };
+  }
+});
+
+registerTrustedIpcHandler('madcad:save-drawing-pdf', async (event, payload) => {
+  let pdfWindow = null;
+  let temporaryPath = '';
+  try {
+    const normalized = normalizePdfExportPayload(payload, appLanguage);
+    const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;
+    const result = await dialog.showSaveDialog(senderWindow, {
+      title: t('Eksportuj dokumentację PDF', 'Export drawing PDF'),
+      defaultPath: normalized.defaultName,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      properties: ['createDirectory', 'showOverwriteConfirmation'],
+    });
+    if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+
+    const previewDir = path.join(app.getPath('temp'), 'madcad-print-preview');
+    await fs.mkdir(previewDir, { recursive: true });
+    temporaryPath = path.join(previewDir, `pdf-${Date.now()}-${Math.random().toString(36).slice(2, 10)}.html`);
+    await fs.writeFile(temporaryPath, securePrintPreviewHtml(normalized.html), 'utf8');
+    pdfWindow = new BrowserWindow({
+      width: 900,
+      height: 700,
+      show: false,
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    });
+    pdfWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    pdfWindow.webContents.on('will-navigate', (navigationEvent, url) => {
+      if (url !== pdfWindow.webContents.getURL()) navigationEvent.preventDefault();
+    });
+    await pdfWindow.loadFile(temporaryPath);
+    const pdf = await pdfWindow.webContents.printToPDF({
+      printBackground: true,
+      preferCSSPageSize: true,
+      pageSize: normalized.pageSize,
+      landscape: normalized.orientation === 'landscape',
+      margins: { top: 0, bottom: 0, left: 0, right: 0 },
+    });
+    await fs.writeFile(result.filePath, pdf);
+    return { ok: true, canceled: false, filePath: result.filePath, bytes: pdf.length };
+  } catch (error) {
+    return { ok: false, canceled: false, error: error?.message || t('Eksport PDF nie powiódł się.', 'PDF export failed.') };
+  } finally {
+    if (pdfWindow && !pdfWindow.isDestroyed()) pdfWindow.destroy();
+    if (temporaryPath) await fs.unlink(temporaryPath).catch(() => {});
   }
 });
 

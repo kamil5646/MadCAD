@@ -8,6 +8,7 @@ import {
   isSupportedLineType,
 } from './layers.js';
 import { ensureDocumentBlocks } from './blocks.js';
+import { DRAWING_PAGE_SIZES, DRAWING_VIEW_ORIENTATIONS, ensureDocumentDrawings } from './drawing-sheets.js';
 import {
   SKETCH_ENTITY_ROLES,
   SKETCH_ENTITY_TYPES,
@@ -16,7 +17,7 @@ import {
   normalizeSketchModel,
 } from './sketch-model.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 4;
+export const DOCUMENT_SCHEMA_VERSION = 5;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -82,9 +83,26 @@ function migrateV3ToV4(source, now) {
   return migrated;
 }
 
+function migrateV4ToV5(source, now) {
+  const migrated = ensureDocumentDrawings(ensureV3Collections(cloneDocument(source)));
+  migrated.schemaVersion = 5;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 4,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 4, to: 5, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
+  [4, migrateV4ToV5],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -152,6 +170,7 @@ export function createDocument(name = 'Nowy projekt') {
     components: [],
     references: [],
     blocks: [],
+    drawings: [],
     layers: [createDefaultLayer()],
     activeLayerId: 'layer-0',
     print: {
@@ -234,11 +253,11 @@ export function migrateDocument(source, { now = new Date().toISOString() } = {})
     document = migration(document, now);
     version = readSchemaVersion(document);
   }
-  return ensureDocumentBlocks(ensureDocumentLayers(document));
+  return ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document)));
 }
 
 function projectFutureDocument(source) {
-  const projected = ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source))));
+  const projected = ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source)))));
   projected.schemaVersion = DOCUMENT_SCHEMA_VERSION;
   projected.metadata = {
     ...(isRecord(projected.metadata) ? projected.metadata : {}),
@@ -313,6 +332,7 @@ export function validateDocument(document) {
   const references = requireArray(document, 'references');
   const layers = requireArray(document, 'layers');
   const blocks = requireArray(document, 'blocks');
+  const drawings = requireArray(document, 'drawings');
   if (!isRecord(document.print)) add('print', 'Wymagane są ustawienia druku.', 'TYPE');
   if (!isRecord(document.metadata)) add('metadata', 'Wymagane są metadane dokumentu.', 'TYPE');
 
@@ -975,6 +995,35 @@ export function validateDocument(document) {
       if (!bodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `Nie znaleziono bryły „${feature.targetBodyId ?? ''}”.`, 'BROKEN_REFERENCE');
       if (!Array.isArray(feature.referenceIds) || feature.referenceIds.length !== 1) add(`${base}.referenceIds`, 'Offset Face wymaga dokładnie jednej planarnej ściany.', 'REQUIRED');
     }
+  });
+
+  drawings.forEach((sheet, sheetIndex) => {
+    const base = `drawings[${sheetIndex}]`;
+    if (!isRecord(sheet)) {
+      add(base, 'Arkusz dokumentacji musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(sheet.id, `${base}.id`);
+    if (typeof sheet.name !== 'string' || !sheet.name.trim()) add(`${base}.name`, 'Arkusz wymaga nazwy.', 'REQUIRED');
+    if (!DRAWING_PAGE_SIZES[sheet.pageSize]) add(`${base}.pageSize`, `Nieobsługiwany format arkusza: ${sheet.pageSize ?? ''}.`, 'UNSUPPORTED');
+    if (!['landscape', 'portrait'].includes(sheet.orientation)) add(`${base}.orientation`, 'Orientacja arkusza musi być pozioma albo pionowa.', 'UNSUPPORTED');
+    const views = requireArray(sheet, 'views', `${base}.views`);
+    views.forEach((view, viewIndex) => {
+      const viewBase = `${base}.views[${viewIndex}]`;
+      if (!isRecord(view)) {
+        add(viewBase, 'Widok rysunkowy musi być obiektem.', 'TYPE');
+        return;
+      }
+      registerId(view.id, `${viewBase}.id`);
+      if (view.type !== 'base') add(`${viewBase}.type`, `Nieobsługiwany typ widoku: ${view.type ?? ''}.`, 'UNSUPPORTED');
+      if (!DRAWING_VIEW_ORIENTATIONS.includes(view.orientation)) add(`${viewBase}.orientation`, `Nieobsługiwana orientacja widoku: ${view.orientation ?? ''}.`, 'UNSUPPORTED');
+      if (!Array.isArray(view.bodyIds) || !view.bodyIds.length) add(`${viewBase}.bodyIds`, 'Widok bazowy wymaga co najmniej jednej bryły.', 'REQUIRED');
+      else view.bodyIds.forEach((bodyId, bodyIndex) => {
+        if (typeof bodyId !== 'string' || !bodyId) add(`${viewBase}.bodyIds[${bodyIndex}]`, 'Referencja bryły musi być niepustym ID.', 'TYPE');
+      });
+      if (!(Number(view.scale) > 0)) add(`${viewBase}.scale`, 'Skala widoku musi być dodatnia.', 'VALUE');
+      if (!Number.isFinite(Number(view.x)) || !Number.isFinite(Number(view.y))) add(viewBase, 'Położenie widoku na arkuszu musi być liczbowe.', 'TYPE');
+    });
   });
 
   const errors = issues.map((issue) => `${issue.path}: ${issue.message}`);

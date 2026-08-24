@@ -30,6 +30,7 @@
     "verify:under-constraint": "npm run build:ui && electron scripts/verify-under-constraint.cjs",
     "verify:import-report": "npm run build:ui && electron scripts/verify-import-report.cjs",
     "verify:workspace-layouts": "npm run build:ui && electron scripts/verify-workspace-layouts.cjs",
+    "verify:drawing-workspace": "npm run build:ui && electron scripts/verify-drawing-workspace.cjs",
     "verify:assistive-tech": "npm run build:ui && electron scripts/verify-assistive-tech.cjs",
     "verify:snap-feedback": "npm run build:ui && electron scripts/verify-snap-feedback.cjs",
     "verify:electron-security": "electron scripts/verify-electron-security.cjs",

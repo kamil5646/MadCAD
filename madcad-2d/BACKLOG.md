@@ -35,7 +35,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 
 ## Dokumentacja 2D
 
-- Associative base/projected/isometric/section/detail views.
+- [x] Skojarzony widok bazowy Front/Top/Right/Isometric na arkuszu A4/A3 z automatyczną skalą i eksportem PDF — ukończony jako `P2.1`.
+- Skojarzone widoki projected/section/detail.
 - Wymiary, center marks, hole/thread notes, tolerancje i podstawowe GD&T.
 - BOM, balloons, hole table, title block, rewizje oraz eksport PDF/DXF.
 

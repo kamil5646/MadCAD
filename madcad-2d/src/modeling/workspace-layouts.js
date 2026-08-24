@@ -16,12 +16,13 @@ export const BUILT_IN_WORKSPACE_LAYOUTS = Object.freeze([
   { id: 'classic-cad', name: 'Klasyczny CAD', description: 'Drzewo projektu po lewej i właściwości polecenia po prawej.', builtIn: true, view: BASE_VIEW },
   { id: 'clean-canvas', name: 'Czyste płótno', description: 'Maksymalny obszar rysowania bez paneli bocznych.', builtIn: true, view: { ...BASE_VIEW, browserOpen: false, panelLayout: { ...BASE_VIEW.panelLayout, commandCollapsed: true } } },
   { id: 'document-tools', name: 'Dokument i warstwy', description: 'Narzędzia dokumentu, drzewo projektu i menedżer warstw.', builtIn: true, view: { ...BASE_VIEW, workspace: 'tools', layersOpen: true } },
+  { id: 'technical-drawing', name: 'Dokumentacja techniczna', description: 'Arkusze, skojarzone widoki modelu i eksport PDF.', builtIn: true, view: { ...BASE_VIEW, workspace: 'drawing', browserOpen: false } },
   { id: 'export-print', name: 'Eksport i druk', description: 'Eksport CAD z panelem przygotowania druku jako dodatkiem.', builtIn: true, view: { ...BASE_VIEW, workspace: 'print', browserOpen: false, printPanelOpen: true } },
 ]);
 
 export function normalizeWorkspaceView(value) {
   return {
-    workspace: ['solid', 'tools', 'print'].includes(value?.workspace) ? value.workspace : 'solid',
+    workspace: ['solid', 'drawing', 'tools', 'print'].includes(value?.workspace) ? value.workspace : 'solid',
     browserOpen: Boolean(value?.browserOpen),
     layersOpen: Boolean(value?.layersOpen),
     blocksOpen: Boolean(value?.blocksOpen),
@@ -77,4 +78,3 @@ export function createCustomWorkspaceLayout(name, view, existing = []) {
     view: captureWorkspaceView(view),
   };
 }
-

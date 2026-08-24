@@ -73,6 +73,14 @@ import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, pars
 import { analyzePrintability } from '../src/cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../src/cad-core/sketch-import.js';
 import {
+  createBaseDrawingView,
+  createDrawingSheet,
+  drawingSheetHtml,
+  drawingSheetScene,
+  projectDrawingView,
+  recommendedDrawingScale,
+} from '../src/cad-core/drawing-sheets.js';
+import {
   BY_LAYER,
   DEFAULT_LAYER_ID,
   assignEntitiesToLayer,
@@ -1329,6 +1337,7 @@ test('migruje rzeczywisty fixture dokumentu v2 do bieżącego schematu bez utrat
   assert.deepEqual(opened.document.bodies, []);
   assert.deepEqual(opened.document.components, []);
   assert.deepEqual(opened.document.references, []);
+  assert.deepEqual(opened.document.drawings, []);
   assert.equal(opened.document.metadata.migratedFromVersion, 2);
   assert.equal(opened.document.metadata.migratedAt, migratedAt);
   assert.equal(validateDocument(opened.document).valid, true);
@@ -1342,6 +1351,48 @@ test('migruje rzeczywisty fixture dokumentu v2 do bieżącego schematu bez utrat
   const reopened = openDocument(JSON.parse(JSON.stringify(opened.document)));
   assert.equal(reopened.migrated, false);
   assert.deepEqual(reopened.document, opened.document);
+});
+
+test('arkusz techniczny zapisuje skojarzony widok i rzutuje rzeczywiste krawędzie modelu', () => {
+  const document = createDocument('Korpus <test>');
+  const sheet = createDrawingSheet({ name: 'Rysunek wykonawczy', pageSize: 'A3', orientation: 'landscape' });
+  const body = {
+    id: 'body-part',
+    lines: Float32Array.from([
+      0, 0, 0, 100, 0, 0,
+      100, 0, 0, 100, 0, 50,
+      100, 0, 50, 0, 0, 50,
+      0, 0, 50, 0, 0, 0,
+    ]),
+    metrics: { bounds: [[0, 0, 0], [100, 20, 50]] },
+  };
+  const scale = recommendedDrawingScale(sheet, [body], 'front');
+  const view = createBaseDrawingView({ bodyIds: [body.id], orientation: 'front', scale, sheet });
+  sheet.views.push(view);
+  document.drawings.push(sheet);
+
+  assert.equal(validateDocument(document).valid, true);
+  assert.equal(projectDrawingView(view, [body]).segments.length, 4);
+  assert.equal(drawingSheetScene(sheet, [body]).views[0].segments.length, 4);
+  const html = drawingSheetHtml(sheet, [body], { documentName: document.name });
+  assert.match(html, /<line/);
+  assert.match(html, /Korpus &lt;test&gt;/);
+
+  const reopened = openDocument(JSON.parse(JSON.stringify(document)));
+  assert.deepEqual(reopened.document.drawings, document.drawings);
+});
+
+test('migracja v4 dodaje kolekcję arkuszy bez zmiany istniejącego modelu', () => {
+  const legacy = createStarterDocument();
+  legacy.schemaVersion = 4;
+  delete legacy.drawings;
+  const featureSnapshot = structuredClone(legacy.features);
+  const opened = openDocument(legacy, { now: '2026-08-24T01:00:00.000Z' });
+  assert.equal(opened.sourceVersion, 4);
+  assert.equal(opened.document.schemaVersion, 5);
+  assert.deepEqual(opened.document.drawings, []);
+  assert.deepEqual(opened.document.features, featureSnapshot);
+  assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 4 && entry.to === 5));
 });
 
 test('otwiera zgodny dokument z nowszej wersji wyłącznie do odczytu', () => {
@@ -1506,6 +1557,8 @@ test('interfejs modelowania rozpoznaje PL/EN i tłumaczy także dynamiczny stan 
   assert.equal(translateModelingText('Model gotowy · 1 bryła', 'en'), 'Model ready · 1 body');
   assert.equal(translateModelingText('Otwarty łańcuch (3)', 'en'), 'Open chain (3)');
   assert.equal(translateModelingText('Przeliczanie historii…', 'en'), 'Recomputing history…');
+  assert.equal(translateModelingText('A4 · poziomo · 1 wid.', 'en'), 'A4 · landscape · 1 view');
+  assert.equal(translateModelingText('Widok bazowy, Przód, skala 2:1', 'en'), 'Base view, Front, scale 2:1');
   assert.equal(
     translateModelingText('Linia. Utwórz pojedynczy segment przez dwa punkty albo przez dokładną długość i kąt. Skrót: L ↵.', 'en'),
     'Line. Create one segment from two points or from an exact length and angle. Shortcut: L ↵.',
@@ -1515,6 +1568,11 @@ test('interfejs modelowania rozpoznaje PL/EN i tłumaczy także dynamiczny stan 
     'Układy obszaru roboczego',
     'Zastosuj albo zapisz układ obszaru roboczego',
     'Klasyczny CAD',
+    'DOKUMENTACJA',
+    'Dokumentacja techniczna',
+    'Utwórz pierwszy arkusz techniczny',
+    'Widok bazowy',
+    'Eksport PDF',
     'Automatyczne więzy',
     'Pozostałe stopnie swobody',
     'Raport naprawy importu',
@@ -2543,7 +2601,7 @@ test('edycja prymitywu zachowuje stabilne ID końców i oddzielny profil', () =>
   assert.ok(graph.edges.some((edge) => edge.from === originalBoundaryIds[0] && edge.to === original.id && edge.kind === 'bounds'));
 });
 
-test('migracja v3 i round-trip v4 zachowują encje, profile, relacje i historię', () => {
+test('migracja v3 i round-trip bieżącego schematu zachowują encje, profile, relacje i historię', () => {
   const current = createStarterDocument();
   const legacy = structuredClone(current);
   legacy.schemaVersion = 3;
@@ -3312,6 +3370,8 @@ test('polityka IPC ogranicza nazwy, filtry, konwersje i podgląd wydruku', () =>
   const preview = ipcPolicy.securePrintPreviewHtml('<!doctype html><html><head></head><body><script>print()</script></body></html>');
   assert.match(preview, /Content-Security-Policy/);
   assert.match(preview, /connect-src 'none'/);
+  const pdf = ipcPolicy.normalizePdfExportPayload({ html: '<!doctype html><html><body>arkusz</body></html>', defaultName: '../../korpus', pageSize: 'A3', orientation: 'landscape' });
+  assert.deepEqual({ defaultName: pdf.defaultName, pageSize: pdf.pageSize, orientation: pdf.orientation }, { defaultName: 'korpus.pdf', pageSize: 'A3', orientation: 'landscape' });
 });
 
 test('okna Electron i preload utrzymują sandbox oraz jedną bramę IPC', async () => {
@@ -3320,8 +3380,8 @@ test('okna Electron i preload utrzymują sandbox oraz jedną bramę IPC', async 
     readFile(new URL('../electron/preload.js', import.meta.url), 'utf8'),
   ]);
   assert.doesNotMatch(mainSource, /sandbox:\s*false/);
-  assert.equal((mainSource.match(/sandbox:\s*true/g) || []).length, 2);
-  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 11);
+  assert.equal((mainSource.match(/sandbox:\s*true/g) || []).length, 3);
+  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 12);
   assert.doesNotMatch(mainSource, /install-oda-addon|convert-cad-file|get-oda-status|choose-oda|open-oda/);
   assert.match(mainSource, /import-dwg-sketch/);
   assert.equal((mainSource.match(/ipcMain\.handle\(/g) || []).length, 1);
