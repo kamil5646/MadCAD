@@ -32,8 +32,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - Historia ręcznych zapisów, odzyskiwanie i linkowane zależności projektu.
 - [x] Komponenty, podkomponenty, origin, numer części i właściwości ukończono jako `P3.1`.
 - [x] Wystąpienia komponentów, transformacje, Ground i Rigid Group ukończono jako `P3.2`.
-- [ ] Joints rigid, revolute i slider z osiami oraz limitami (`P3.3`).
-- Ground, rigid group, joints, motion limits, motion links, contact sets i konfiguracje.
+- [x] Joints rigid, revolute i slider z osiami oraz limitami ukończono jako `P3.3`.
+- [ ] Kontrola kolizji w ruchu, motion links, contact sets i konfiguracje (`P3.4`).
 
 ## Dokumentacja 2D
 

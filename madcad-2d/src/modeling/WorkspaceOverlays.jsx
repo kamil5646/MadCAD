@@ -15,6 +15,7 @@ import {
   FolderOpen,
   Frame,
   Layers3,
+  Link2,
   Minus,
   PanelLeftClose,
   PencilRuler,
@@ -47,7 +48,7 @@ export function CrashRecoveryBanner({ info, onSave, onDismiss }) {
 }
 
 export function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onClose }) {
-  const [expanded, setExpanded] = useState({ origin: true, construction: true, components: true, sketches: true, bodies: true });
+  const [expanded, setExpanded] = useState({ origin: true, construction: true, components: true, joints: true, sketches: true, bodies: true });
   const toggle = (key) => setExpanded((current) => ({ ...current, [key]: !current[key] }));
   const constructionReferences = document.references.filter((reference) => ['construction-plane', 'construction-axis', 'construction-point'].includes(reference.kind));
   const componentRoots = componentInstanceTree(document);
@@ -107,6 +108,13 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
       {expanded.components && (componentRoots.length
         ? componentRoots.map((component) => renderComponent(component))
         : <div className="tree-empty">Brak komponentów</div>)}
+
+      <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj jointy złożenia." onClick={() => toggle('joints')}>
+        {expanded.joints ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Link2 size={14} /><span>Jointy</span><small>{document.joints?.length || 0}</small>
+      </button>
+      {expanded.joints && (document.joints?.length
+        ? document.joints.map((joint) => <button className={`tree-row tree-joint ${selection?.kind === 'joint' && selection.id === joint.id ? 'selected' : ''}`} type="button" key={joint.id} title={`${joint.type} · oś ${joint.axis.toUpperCase()} · ${joint.value}`} onClick={() => onSelect({ kind: 'joint', id: joint.id, movingInstanceId: joint.movingInstanceId })}><span /><Link2 size={13} /><span>{joint.name}</span><small>{joint.type === 'rigid' ? 'LOCK' : joint.value}</small></button>)
+        : <div className="tree-empty">Brak jointów</div>)}
 
       <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj szkice i ich profile." onClick={() => toggle('sketches')}>
         {expanded.sketches ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<FolderOpen size={14} /><span>Szkice</span><small>{document.sketches.length}</small>

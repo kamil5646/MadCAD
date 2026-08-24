@@ -403,8 +403,11 @@ export default function ModelViewport({
   components = [],
   componentInstances = [],
   selectedComponentInstanceId = null,
+  joints = [],
+  selectedJointId = null,
   onSelectBody,
   onSelectComponentInstance,
+  onSelectJoint,
   selectedTopologyIds = [],
   onSelectTopology,
   constructionPlanes = [],
@@ -699,6 +702,52 @@ export default function ModelViewport({
       }
       }
     }
+    const jointGroup = new THREE.Group();
+    const jointVisuals = [];
+    if (!showBed) {
+      for (const joint of joints.filter((item) => item.enabled !== false)) {
+        const reference = instanceById.get(joint.referenceInstanceId);
+        const moving = instanceById.get(joint.movingInstanceId);
+        if (!reference || !moving) continue;
+        const referenceMatrix = occurrenceMatrix(reference);
+        const movingMatrix = occurrenceMatrix(moving);
+        const anchor = new THREE.Vector3(Number(joint.anchor?.x) || 0, Number(joint.anchor?.y) || 0, Number(joint.anchor?.z) || 0).applyMatrix4(referenceMatrix);
+        const movingOrigin = new THREE.Vector3().applyMatrix4(movingMatrix);
+        const axis = new THREE.Vector3(joint.axis === 'x' ? 1 : 0, joint.axis === 'y' ? 1 : 0, joint.axis === 'z' ? 1 : 0).transformDirection(referenceMatrix).normalize();
+        const selected = joint.id === selectedJointId;
+        const color = selected ? 0xffc857 : joint.type === 'rigid' ? 0x8bd1e8 : joint.type === 'revolute' ? 0xd58cff : 0x78dfad;
+        const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity: selected ? 1 : 0.88, depthTest: false });
+        const axisGeometry = new THREE.BufferGeometry().setFromPoints([anchor.clone().addScaledVector(axis, -18), anchor.clone().addScaledVector(axis, 18)]);
+        const axisLine = new THREE.Line(axisGeometry, material);
+        axisLine.renderOrder = 8;
+        axisLine.userData = { jointId: joint.id, jointType: joint.type, baseColor: color };
+        jointGroup.add(axisLine);
+        pickables.push(axisLine);
+        const connectorGeometry = new THREE.BufferGeometry().setFromPoints([anchor, movingOrigin]);
+        const connector = new THREE.Line(connectorGeometry, new THREE.LineDashedMaterial({ color, dashSize: 3, gapSize: 2, transparent: true, opacity: 0.62, depthTest: false }));
+        connector.computeLineDistances();
+        connector.renderOrder = 7;
+        connector.userData = { jointId: joint.id, jointType: joint.type, baseColor: color };
+        jointGroup.add(connector);
+        pickables.push(connector);
+        let marker;
+        if (joint.type === 'revolute') {
+          marker = new THREE.Mesh(new THREE.TorusGeometry(6, 0.8, 10, 40), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthTest: false }));
+          marker.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis);
+        } else if (joint.type === 'slider') {
+          marker = new THREE.Mesh(new THREE.ConeGeometry(2.2, 6, 16), new THREE.MeshBasicMaterial({ color, depthTest: false }));
+          marker.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
+        } else marker = new THREE.Mesh(new THREE.OctahedronGeometry(4), new THREE.MeshBasicMaterial({ color, depthTest: false }));
+        marker.position.copy(anchor);
+        marker.renderOrder = 9;
+        marker.userData = { jointId: joint.id, jointType: joint.type, baseColor: color };
+        jointGroup.add(marker);
+        pickables.push(marker);
+        jointVisuals.push({ id: joint.id, type: joint.type, axis: joint.axis, value: joint.value, anchor: anchor.toArray(), movingOrigin: movingOrigin.toArray() });
+      }
+      scene.add(jointGroup);
+    }
+    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadJointVisualState = jointVisuals;
     if (showBed) {
       const printResult = calculatePrintLayout(bodies, printLayout);
       const degrees = Math.PI / 180;
@@ -1148,7 +1197,7 @@ export default function ModelViewport({
       const keys = new Set();
       for (const hit of hits) {
         const topology = topologySelectionFromIntersection(hit);
-        const key = topology ? `${topology.kind}:${topology.id}` : null;
+        const key = topology ? `${topology.kind}:${topology.id}:${hit.object.userData.occurrenceId || ''}` : hit.object.userData.jointId ? `joint:${hit.object.userData.jointId}` : null;
         if (!key || keys.has(key)) continue;
         keys.add(key);
         unique.push(hit);
@@ -1391,6 +1440,10 @@ export default function ModelViewport({
         return;
       }
       const topologySelection = topologySelectionFromIntersection(hit);
+      if (hit?.object?.userData?.jointId) {
+        onSelectJoint?.(hit.object.userData.jointId);
+        return;
+      }
       if (topologySelection && hit?.object?.userData?.occurrenceId) topologySelection.occurrenceId = hit.object.userData.occurrenceId;
       if (topologySelection && selectionFilter === 'body') {
         topologySelection.kind = 'body';
@@ -1731,6 +1784,7 @@ export default function ModelViewport({
       directEventRef.current = {};
       controls.dispose();
       disposeObject(modelGroup);
+      disposeObject(jointGroup);
       disposeObject(sketchGroup);
       disposeObject(directGroup);
       disposeObject(constructionGroup);
@@ -1758,10 +1812,11 @@ export default function ModelViewport({
       delete window.__madcadConstructionAxisState;
       delete window.__madcadConstructionPointState;
       delete window.__madcadSectionViewState;
+      delete window.__madcadJointVisualState;
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), directManipulator?.axis?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds]);
 
   return (
     <div

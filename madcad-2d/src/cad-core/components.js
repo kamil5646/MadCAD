@@ -285,6 +285,9 @@ export function updateComponentInstance(document, instanceId, patch = {}) {
   assertInstanceParent(document, instance.componentId, parentInstanceId, instance.id);
   const nextTransform = patch.transform === undefined ? instance.transform : normalizedTransform({ ...instance.transform, ...patch.transform });
   const transformChanged = Object.keys(DEFAULT_INSTANCE_TRANSFORM).some((key) => nextTransform[key] !== instance.transform[key]);
+  const drivingJoint = (document.joints || []).find((joint) => joint.enabled !== false && joint.movingInstanceId === instance.id);
+  if (drivingJoint && transformChanged) throw new Error(`Położeniem wystąpienia steruje joint „${drivingJoint.name}”. Zmień wartość jointa.`);
+  if (drivingJoint && patch.grounded === true) throw new Error('Ruchomego wystąpienia sterowanego jointem nie można uziemić.');
   const group = document.rigidGroups.find((item) => item.instanceIds.includes(instance.id));
   if (group && parentInstanceId !== instance.parentInstanceId) throw new Error('Najpierw rozwiąż grupę sztywną, aby zmienić jej złożenie nadrzędne.');
   if (transformChanged && (instance.grounded || group?.instanceIds.some((id) => document.componentInstances.find((item) => item.id === id)?.grounded))) {
@@ -334,6 +337,7 @@ export function deleteComponentInstance(document, instanceId, { cascade = true }
   document.rigidGroups = document.rigidGroups
     .map((group) => ({ ...group, instanceIds: group.instanceIds.filter((id) => !removedIds.has(id)) }))
     .filter((group) => group.instanceIds.length >= 2);
+  if (Array.isArray(document.joints)) document.joints = document.joints.filter((joint) => !removedIds.has(joint.referenceInstanceId) && !removedIds.has(joint.movingInstanceId));
   return [...removedIds];
 }
 
@@ -345,6 +349,7 @@ export function createRigidGroup(document, instanceIds, name = '') {
   const parents = new Set(ids.map((id) => document.componentInstances.find((instance) => instance.id === id).parentInstanceId));
   if (parents.size !== 1) throw new Error('Elementy grupy sztywnej muszą mieć to samo złożenie nadrzędne.');
   if (document.rigidGroups.some((group) => group.instanceIds.some((id) => ids.includes(id)))) throw new Error('Wystąpienie może należeć tylko do jednej grupy sztywnej.');
+  if ((document.joints || []).some((joint) => ids.includes(joint.movingInstanceId))) throw new Error('Wystąpienie sterowane jointem nie może należeć do Rigid Group.');
   const group = normalizedRigidGroup({ id: createId('rigid-group'), name, instanceIds: ids }, document.rigidGroups.length);
   document.rigidGroups.push(group);
   return group;
@@ -493,6 +498,7 @@ export function deleteComponent(document, componentId, { cascade = false } = {})
   document.rigidGroups = document.rigidGroups
     .map((group) => ({ ...group, instanceIds: group.instanceIds.filter((id) => !removedInstanceIds.has(id)) }))
     .filter((group) => group.instanceIds.length >= 2);
+  if (Array.isArray(document.joints)) document.joints = document.joints.filter((joint) => !removedInstanceIds.has(joint.referenceInstanceId) && !removedInstanceIds.has(joint.movingInstanceId));
   return [...removedIds];
 }
 

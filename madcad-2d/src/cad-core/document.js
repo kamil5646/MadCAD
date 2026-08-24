@@ -9,6 +9,7 @@ import {
 } from './layers.js';
 import { ensureDocumentBlocks } from './blocks.js';
 import { COMPONENT_TYPES, DEFAULT_INSTANCE_TRANSFORM, ensureDocumentComponents } from './components.js';
+import { JOINT_AXES, JOINT_TYPES, ensureDocumentJoints } from './assembly-joints.js';
 import { DRAWING_ANNOTATION_TYPES, DRAWING_PAGE_SIZES, DRAWING_TABLE_TYPES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
 import {
   SKETCH_ENTITY_ROLES,
@@ -18,7 +19,7 @@ import {
   normalizeSketchModel,
 } from './sketch-model.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 11;
+export const DOCUMENT_SCHEMA_VERSION = 12;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -202,6 +203,22 @@ function migrateV10ToV11(source, now) {
   return migrated;
 }
 
+function migrateV11ToV12(source, now) {
+  const migrated = ensureDocumentJoints(ensureDocumentDrawings(ensureV3Collections(cloneDocument(source))));
+  migrated.schemaVersion = 12;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 11,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 11, to: 12, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
@@ -212,6 +229,7 @@ const MIGRATIONS = new Map([
   [8, migrateV8ToV9],
   [9, migrateV9ToV10],
   [10, migrateV10ToV11],
+  [11, migrateV11ToV12],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -279,6 +297,7 @@ export function createDocument(name = 'Nowy projekt') {
     components: [],
     componentInstances: [],
     rigidGroups: [],
+    joints: [],
     references: [],
     blocks: [],
     drawings: [],
@@ -364,11 +383,11 @@ export function migrateDocument(source, { now = new Date().toISOString() } = {})
     document = migration(document, now);
     version = readSchemaVersion(document);
   }
-  return ensureDocumentComponents(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document))));
+  return ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document))));
 }
 
 function projectFutureDocument(source) {
-  const projected = ensureDocumentComponents(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source))))));
+  const projected = ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source))))));
   projected.schemaVersion = DOCUMENT_SCHEMA_VERSION;
   projected.metadata = {
     ...(isRecord(projected.metadata) ? projected.metadata : {}),
@@ -442,6 +461,7 @@ export function validateDocument(document) {
   const components = requireArray(document, 'components');
   const componentInstances = requireArray(document, 'componentInstances');
   const rigidGroups = requireArray(document, 'rigidGroups');
+  const joints = requireArray(document, 'joints');
   const references = requireArray(document, 'references');
   const layers = requireArray(document, 'layers');
   const blocks = requireArray(document, 'blocks');
@@ -1256,6 +1276,64 @@ export function validateDocument(document) {
       }
     });
     if (parents.size > 1) add(`${base}.instanceIds`, 'Elementy grupy sztywnej muszą mieć tego samego rodzica.', 'VALUE');
+  });
+
+  const jointNames = new Set();
+  const jointMovingInstances = new Set();
+  const jointReferenceByMoving = new Map();
+  joints.forEach((joint, index) => {
+    const base = `joints[${index}]`;
+    if (!isRecord(joint)) {
+      add(base, 'Joint musi być obiektem.', 'TYPE');
+      return;
+    }
+    registerId(joint.id, `${base}.id`);
+    if (typeof joint.name !== 'string' || !joint.name.trim()) add(`${base}.name`, 'Joint wymaga nazwy.', 'REQUIRED');
+    else if (jointNames.has(joint.name.toLocaleLowerCase())) add(`${base}.name`, `Powtórzona nazwa jointa: ${joint.name}`, 'DUPLICATE');
+    else jointNames.add(joint.name.toLocaleLowerCase());
+    if (!JOINT_TYPES.includes(joint.type)) add(`${base}.type`, 'Typ jointa musi mieć wartość rigid, revolute albo slider.', 'UNSUPPORTED');
+    if (!instanceIds.has(joint.referenceInstanceId)) add(`${base}.referenceInstanceId`, `Nie znaleziono wystąpienia bazowego „${joint.referenceInstanceId ?? ''}”.`, 'BROKEN_REFERENCE');
+    if (!instanceIds.has(joint.movingInstanceId)) add(`${base}.movingInstanceId`, `Nie znaleziono wystąpienia ruchomego „${joint.movingInstanceId ?? ''}”.`, 'BROKEN_REFERENCE');
+    if (joint.referenceInstanceId === joint.movingInstanceId) add(`${base}.movingInstanceId`, 'Joint nie może łączyć wystąpienia z nim samym.', 'CYCLIC_REFERENCE');
+    const reference = componentInstances.find((instance) => instance?.id === joint.referenceInstanceId);
+    const moving = componentInstances.find((instance) => instance?.id === joint.movingInstanceId);
+    if (reference && moving && reference.parentInstanceId !== moving.parentInstanceId) add(base, 'Łączone wystąpienia muszą mieć tego samego rodzica.', 'VALUE');
+    if (moving?.grounded) add(`${base}.movingInstanceId`, 'Ruchome wystąpienie jointa nie może mieć Ground.', 'VALUE');
+    if (rigidGroups.some((group) => group?.instanceIds?.includes(joint.movingInstanceId))) add(`${base}.movingInstanceId`, 'Ruchome wystąpienie jointa nie może należeć do Rigid Group.', 'VALUE');
+    if (jointMovingInstances.has(joint.movingInstanceId)) add(`${base}.movingInstanceId`, 'Wystąpienie ma już joint sterujący położeniem.', 'DUPLICATE');
+    else if (typeof joint.movingInstanceId === 'string') {
+      jointMovingInstances.add(joint.movingInstanceId);
+      jointReferenceByMoving.set(joint.movingInstanceId, joint.referenceInstanceId);
+    }
+    if (!JOINT_AXES.includes(joint.axis)) add(`${base}.axis`, 'Oś jointa musi mieć wartość x, y albo z.', 'UNSUPPORTED');
+    if (!isRecord(joint.axisReference)
+      || joint.axisReference.kind !== 'component-origin-axis'
+      || joint.axisReference.instanceId !== joint.referenceInstanceId
+      || joint.axisReference.axis !== joint.axis) add(`${base}.axisReference`, 'Joint wymaga trwałej referencji osi początku komponentu bazowego.', 'BROKEN_REFERENCE');
+    if (!isRecord(joint.anchor) || ['x', 'y', 'z'].some((axis) => !Number.isFinite(Number(joint.anchor?.[axis])))) add(`${base}.anchor`, 'Punkt jointa wymaga liczbowych współrzędnych XYZ.', 'TYPE');
+    if (!isRecord(joint.limits)
+      || typeof joint.limits.enabled !== 'boolean'
+      || !Number.isFinite(Number(joint.limits.min))
+      || !Number.isFinite(Number(joint.limits.max))) add(`${base}.limits`, 'Limity jointa wymagają stanu oraz liczbowego minimum i maksimum.', 'TYPE');
+    else {
+      if (Number(joint.limits.min) > Number(joint.limits.max)) add(`${base}.limits`, 'Minimalny limit jointa nie może przekraczać maksymalnego.', 'VALUE');
+      if (joint.limits.enabled && (Number(joint.value) < Number(joint.limits.min) || Number(joint.value) > Number(joint.limits.max))) add(`${base}.value`, 'Wartość jointa wykracza poza aktywne limity.', 'VALUE');
+    }
+    if (!Number.isFinite(Number(joint.value))) add(`${base}.value`, 'Wartość jointa musi być liczbą.', 'TYPE');
+    if (!isRecord(joint.restTransform) || Object.keys(DEFAULT_INSTANCE_TRANSFORM).some((key) => !Number.isFinite(Number(joint.restTransform?.[key])))) add(`${base}.restTransform`, 'Położenie spoczynkowe jointa wymaga pozycji i obrotu XYZ.', 'TYPE');
+    if (typeof joint.enabled !== 'boolean') add(`${base}.enabled`, 'Stan jointa musi być wartością logiczną.', 'TYPE');
+  });
+  jointMovingInstances.forEach((instanceId) => {
+    const visited = new Set([instanceId]);
+    let referenceId = jointReferenceByMoving.get(instanceId);
+    while (referenceId) {
+      if (visited.has(referenceId)) {
+        add('joints', 'Graf jointów zawiera cykl kinematyczny.', 'CYCLIC_REFERENCE');
+        break;
+      }
+      visited.add(referenceId);
+      referenceId = jointReferenceByMoving.get(referenceId);
+    }
   });
 
   drawings.forEach((sheet, sheetIndex) => {

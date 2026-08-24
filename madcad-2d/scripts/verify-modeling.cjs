@@ -2458,7 +2458,7 @@ async function runUiFlow(window) {
     `(() => {
       try {
         const saved = JSON.parse(window.localStorage.getItem('madcad:modeling-document:v4') || 'null');
-        return saved?.schemaVersion === 11 && saved?.features?.length === 5 && saved?.sketches?.length === 4 && saved?.references?.some((item) => item.kind === 'construction-plane' && item.name === 'Płaszczyzna montażowa');
+        return saved?.schemaVersion === 12 && saved?.features?.length === 5 && saved?.sketches?.length === 4 && saved?.references?.some((item) => item.kind === 'construction-plane' && item.name === 'Płaszczyzna montażowa');
       } catch (_error) {
         return false;
       }
@@ -2494,7 +2494,7 @@ async function runUiFlow(window) {
     };
   })()`);
   const autosaveRoundTrip = autosaveState.available
-    && autosaveState.schemaVersion === 11
+    && autosaveState.schemaVersion === 12
     && autosaveState.features === 5
     && autosaveState.sketches === 4
     && autosaveState.entities === 13

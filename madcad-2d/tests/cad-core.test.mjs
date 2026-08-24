@@ -37,12 +37,14 @@ import {
   createComponent,
   createRigidGroup,
   deleteComponent,
+  deleteComponentInstance,
   deleteRigidGroup,
   duplicateComponentInstance,
   moveComponent,
   updateComponent,
   updateComponentInstance,
 } from '../src/cad-core/components.js';
+import { createAssemblyJoint, deleteAssemblyJoint, setJointValue, updateAssemblyJoint } from '../src/cad-core/assembly-joints.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
 import { evaluateFeatureHistory } from '../src/cad-core/feature-history.js';
@@ -196,12 +198,12 @@ test('komponenty blokują cykle, promują dzieci przy usunięciu i obsługują c
   assert.deepEqual(document.components, []);
 });
 
-test('migracja v9 uzupełnia komponent i główne wystąpienie w schemacie v11', () => {
+test('migracja v9 uzupełnia komponent i główne wystąpienie w bieżącym schemacie v12', () => {
   const legacy = createDocument('Migracja komponentów');
   legacy.schemaVersion = 9;
   legacy.components.push({ id: 'legacy-component', name: 'Korpus', partNumber: 'K-1', material: 'Aluminium', quantity: 2, bodyIds: [] });
   const opened = openDocument(legacy, { now: '2026-08-24T12:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 11);
+  assert.equal(opened.document.schemaVersion, 12);
   assert.deepEqual(opened.document.components[0], {
     id: 'legacy-component', name: 'Korpus', type: 'part', partNumber: 'K-1', description: '', material: 'Aluminium', quantity: 2,
     origin: { x: 0, y: 0, z: 0 }, bodyIds: [], sketchIds: [], componentIds: [],
@@ -261,11 +263,64 @@ test('migracja v10 tworzy wystąpienia zgodne z hierarchią definicji', () => {
   ];
   const opened = openDocument(legacy, { now: '2026-08-24T13:00:00.000Z' });
   const tree = componentInstanceTree(opened.document);
-  assert.equal(opened.document.schemaVersion, 11);
+  assert.equal(opened.document.schemaVersion, 12);
   assert.equal(tree.length, 1);
   assert.equal(tree[0].componentId, 'assembly-v10');
   assert.equal(tree[0].children[0].componentId, 'part-v10');
   assert.equal(validateDocument(opened.document).valid, true);
+});
+
+test('joint revolute i slider steruje transformacją względem trwałej osi oraz respektuje limity', () => {
+  const document = createDocument('Kinematyka');
+  const assembly = createComponent(document, { name: 'Mechanizm', type: 'assembly', partNumber: 'A-J1' });
+  const base = createComponent(document, { name: 'Podstawa jointa', partNumber: 'P-J1', parentId: assembly.id });
+  const arm = createComponent(document, { name: 'Ramię jointa', partNumber: 'P-J2', parentId: assembly.id });
+  const baseOccurrence = document.componentInstances.find((instance) => instance.componentId === base.id);
+  const armOccurrence = document.componentInstances.find((instance) => instance.componentId === arm.id);
+  updateComponentInstance(document, baseOccurrence.id, { grounded: true });
+  const joint = createAssemblyJoint(document, {
+    name: 'Obrót ramienia', type: 'revolute', referenceInstanceId: baseOccurrence.id, movingInstanceId: armOccurrence.id,
+    axis: 'z', limits: { enabled: true, min: -45, max: 45 }, value: 30,
+  });
+  assert.deepEqual(joint.axisReference, { kind: 'component-origin-axis', instanceId: baseOccurrence.id, axis: 'z' });
+  assert.equal(document.componentInstances.find((instance) => instance.id === armOccurrence.id).transform.rotationZ, 30);
+  assert.throws(() => setJointValue(document, joint.id, 60), /zakresie/);
+  setJointValue(document, joint.id, 60, { clamp: true });
+  assert.equal(document.joints[0].value, 45);
+  assert.throws(() => updateComponentInstance(document, armOccurrence.id, { transform: { x: 5 } }), /steruje joint/);
+  updateAssemblyJoint(document, joint.id, { type: 'slider', axis: 'x', limits: { enabled: true, min: 0, max: 100 }, value: 25 });
+  assert.equal(document.componentInstances.find((instance) => instance.id === armOccurrence.id).transform.x, 25);
+  assert.equal(document.componentInstances.find((instance) => instance.id === armOccurrence.id).transform.rotationZ, 0);
+  assert.throws(() => updateAssemblyJoint(document, joint.id, { limits: { min: 120, max: 20 } }), /Minimalny limit/);
+  assert.equal(validateDocument(document).valid, true);
+  assert.equal(deleteAssemblyJoint(document, joint.id).id, joint.id);
+});
+
+test('joint rigid blokuje ręczny ruch, graf odrzuca cykl, a usunięcie wystąpienia czyści joint', () => {
+  const document = createDocument('Bezpieczne jointy');
+  const assembly = createComponent(document, { name: 'Zespół jointów', type: 'assembly', partNumber: 'A-J2' });
+  const parts = ['A', 'B', 'C'].map((name) => createComponent(document, { name: `Detal ${name}`, partNumber: `P-J${name}`, parentId: assembly.id }));
+  const [first, second, third] = parts.map((part) => document.componentInstances.find((instance) => instance.componentId === part.id));
+  const rigid = createAssemblyJoint(document, { type: 'rigid', referenceInstanceId: first.id, movingInstanceId: second.id });
+  assert.equal(rigid.value, 0);
+  assert.throws(() => updateComponentInstance(document, second.id, { transform: { y: 10 } }), /steruje joint/);
+  const revolute = createAssemblyJoint(document, { type: 'revolute', referenceInstanceId: second.id, movingInstanceId: third.id });
+  assert.throws(() => updateAssemblyJoint(document, revolute.id, { name: rigid.name }), /unikalna/);
+  assert.throws(() => updateAssemblyJoint(document, revolute.id, { enabled: 'tak' }), /logiczną/);
+  assert.throws(() => createAssemblyJoint(document, { type: 'slider', referenceInstanceId: third.id, movingInstanceId: first.id }), /cykl kinematyczny/);
+  deleteComponentInstance(document, second.id);
+  assert.equal(document.joints.length, 0);
+  assert.equal(validateDocument(document).valid, true);
+});
+
+test('migracja v11 dodaje pustą kolekcję jointów w schemacie v12', () => {
+  const legacy = createDocument('Migracja jointów');
+  legacy.schemaVersion = 11;
+  delete legacy.joints;
+  const opened = openDocument(legacy, { now: '2026-08-24T14:00:00.000Z' });
+  assert.equal(opened.document.schemaVersion, 12);
+  assert.deepEqual(opened.document.joints, []);
+  assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 11 && entry.to === 12));
 });
 
 test('warstwy zapewniają ByLayer, aktywną warstwę i bezpieczne przenoszenie geometrii', () => {
@@ -1631,7 +1686,7 @@ test('migracja v5 zachowuje istniejące widoki bazowe i dodaje kolekcje dokument
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 5;
   const opened = openDocument(legacy, { now: '2026-08-24T03:30:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 11);
+  assert.equal(opened.document.schemaVersion, 12);
   assert.equal(opened.document.drawings[0].views[0].type, 'base');
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 5 && entry.to === 6));
@@ -1649,7 +1704,7 @@ test('migracja v6 dodaje adnotacje arkusza bez zmiany widoków', () => {
   legacy.schemaVersion = 6;
   const views = structuredClone(sheet.views);
   const opened = openDocument(legacy, { now: '2026-08-24T06:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 11);
+  assert.equal(opened.document.schemaVersion, 12);
   assert.deepEqual(opened.document.drawings[0].views, views);
   assert.deepEqual(opened.document.drawings[0].annotations, []);
   assert.equal(validateDocument(opened.document).valid, true);
@@ -1666,7 +1721,7 @@ test('migracja v7 dodaje tabliczkę i rewizje, a GD&T oraz DXF zachowują geomet
   legacy.drawings.push(sheet);
   legacy.schemaVersion = 7;
   const opened = openDocument(legacy, { now: '2026-08-24T07:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 11);
+  assert.equal(opened.document.schemaVersion, 12);
   assert.deepEqual(opened.document.drawings[0].revisions, []);
   assert.equal(opened.document.drawings[0].titleBlock.revision, 'A');
 
@@ -1708,7 +1763,7 @@ test('migracja v8 dodaje tabele, a BOM, balony i tabela otworów pozostają skoj
   legacy.schemaVersion = 8;
 
   const opened = openDocument(legacy, { now: '2026-08-24T08:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 11);
+  assert.equal(opened.document.schemaVersion, 12);
   assert.deepEqual(opened.document.drawings[0].tables, []);
   assert.ok(opened.document.metadata.migrationHistory.some((entry) => entry.from === 8 && entry.to === 9));
 

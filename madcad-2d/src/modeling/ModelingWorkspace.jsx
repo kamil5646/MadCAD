@@ -128,6 +128,7 @@ import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-impor
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
+import { createAssemblyJoint, deleteAssemblyJoint, setJointValue, updateAssemblyJoint } from '../cad-core/assembly-joints.js';
 import {
   addBlockAttributeDefinition,
   createBlockDefinition,
@@ -842,9 +843,14 @@ export default function ModelingWorkspace() {
   }, [document, command]);
   const engine = useCadEngine(previewDocument, { quality: command?.previewFeature ? 'preview' : 'display' });
   const selectedBodies = selectedBodyIds.map((bodyId) => engine.bodies.find((body) => body.id === bodyId)).filter(Boolean);
+  const selectedJoint = selection?.kind === 'joint'
+    ? document.joints.find((joint) => joint.id === selection.id) || null
+    : null;
   const selectedInstance = selection?.kind === 'componentInstance'
     ? document.componentInstances.find((instance) => instance.id === selection.id) || null
-    : null;
+    : selectedJoint
+      ? document.componentInstances.find((instance) => instance.id === selectedJoint.movingInstanceId) || null
+      : null;
   const selectedComponent = selection?.kind === 'component'
     ? document.components.find((component) => component.id === selection.id) || null
     : selectedInstance
@@ -983,6 +989,46 @@ export default function ModelingWorkspace() {
       setNotice(`Rozwiązano grupę sztywną „${group.name}”.`);
     } catch (error) {
       setNotice(`Nie rozwiązano grupy sztywnej: ${error.message}`);
+    }
+  };
+  const createDocumentJoint = (options) => {
+    try {
+      const checked = cloneDocument(document);
+      const joint = createAssemblyJoint(checked, options);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'joint', id: joint.id, movingInstanceId: joint.movingInstanceId });
+      setNotice(`Utworzono joint „${joint.name}” (${joint.type}). Steruj ruchem wartością i limitami.`);
+    } catch (error) {
+      setNotice(`Nie utworzono jointa: ${error.message}`);
+    }
+  };
+  const updateDocumentJoint = (jointId, patch) => {
+    try {
+      const checked = cloneDocument(document);
+      updateAssemblyJoint(checked, jointId, patch);
+      commit((next) => Object.assign(next, checked));
+    } catch (error) {
+      setNotice(`Nie zmieniono jointa: ${error.message}`);
+    }
+  };
+  const setDocumentJointValue = (jointId, value) => {
+    try {
+      const checked = cloneDocument(document);
+      setJointValue(checked, jointId, value, { clamp: true });
+      commit((next) => Object.assign(next, checked));
+    } catch (error) {
+      setNotice(`Nie ustawiono ruchu jointa: ${error.message}`);
+    }
+  };
+  const removeDocumentJoint = (jointId) => {
+    try {
+      const checked = cloneDocument(document);
+      const joint = deleteAssemblyJoint(checked, jointId);
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'componentInstance', id: joint.movingInstanceId });
+      setNotice(`Usunięto joint „${joint.name}”. Operację można cofnąć.`);
+    } catch (error) {
+      setNotice(`Nie usunięto jointa: ${error.message}`);
     }
   };
   const selectedBodyRepresentations = selectedBodies.map((body) => body.representation);
@@ -2442,6 +2488,7 @@ export default function ModelingWorkspace() {
       components: document.components.map((component) => ({ ...component, origin: { ...component.origin }, bodyIds: [...component.bodyIds], sketchIds: [...component.sketchIds], componentIds: [...component.componentIds] })),
       componentInstances: document.componentInstances.map((instance) => ({ ...instance, transform: { ...instance.transform } })),
       rigidGroups: document.rigidGroups.map((group) => ({ ...group, instanceIds: [...group.instanceIds] })),
+      joints: document.joints.map((joint) => ({ ...joint, anchor: { ...joint.anchor }, limits: { ...joint.limits }, restTransform: { ...joint.restTransform } })),
       bodyIds: engine.bodies.map((body) => body.id),
       drawings: document.drawings.map((sheet) => ({ ...sheet, views: sheet.views.map((view) => ({ ...view })) })),
       featureIds: document.features.map((feature) => feature.id),
@@ -4213,7 +4260,7 @@ export default function ModelingWorkspace() {
       pickPlane(nextSelection.id);
       return;
     }
-    if (nextSelection.kind === 'component' || nextSelection.kind === 'componentInstance') {
+    if (nextSelection.kind === 'component' || nextSelection.kind === 'componentInstance' || nextSelection.kind === 'joint') {
       setComponentsOpen(true);
       setLayersOpen(false);
       setBlocksOpen(false);
@@ -4633,9 +4680,12 @@ export default function ModelingWorkspace() {
             selectedBodyIds={selectedBodyIds}
             components={document.components}
             componentInstances={document.componentInstances}
+            joints={document.joints}
             selectedComponentInstanceId={selectedInstance?.id || null}
+            selectedJointId={selectedJoint?.id || null}
             onSelectBody={(id) => setSelection(id ? { kind: 'body', id } : { kind: 'document', id: document.id })}
             onSelectComponentInstance={(instanceId) => { const instance = document.componentInstances.find((item) => item.id === instanceId); setSelection({ kind: 'componentInstance', id: instanceId, componentId: instance?.componentId }); setComponentsOpen(true); }}
+            onSelectJoint={(jointId) => { const joint = document.joints.find((item) => item.id === jointId); setSelection({ kind: 'joint', id: jointId, movingInstanceId: joint?.movingInstanceId }); setComponentsOpen(true); }}
             selectedTopologyIds={selectedTopologyIds}
             onSelectTopology={handleTopologySelection}
             constructionPlanes={constructionPlanes}
@@ -4669,7 +4719,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} onClose={() => setCommand(null)} />}
-          {componentsOpen && <ComponentPanel document={document} bodies={engine.bodies} selectedComponentId={selectedComponent?.id || ''} selectedInstanceId={selectedInstance?.id || ''} selectedBodyIds={selectedBodyIds} readOnly={readOnly} onCreate={createDocumentComponent} onUpdate={updateDocumentComponent} onAssignBodies={assignDocumentComponentBodies} onMove={moveDocumentComponent} onDelete={removeDocumentComponent} onSelect={(componentId) => setSelection({ kind: 'component', id: componentId })} onSelectInstance={(instanceId) => { const instance = document.componentInstances.find((item) => item.id === instanceId); setSelection({ kind: 'componentInstance', id: instanceId, componentId: instance?.componentId }); }} onCreateInstance={createDocumentComponentInstance} onUpdateInstance={updateDocumentComponentInstance} onDuplicateInstance={duplicateDocumentComponentInstance} onDeleteInstance={removeDocumentComponentInstance} onCreateRigidGroup={createDocumentRigidGroup} onDeleteRigidGroup={removeDocumentRigidGroup} onClose={() => setComponentsOpen(false)} />}
+          {componentsOpen && <ComponentPanel document={document} bodies={engine.bodies} selectedComponentId={selectedComponent?.id || ''} selectedInstanceId={selectedInstance?.id || ''} selectedJointId={selectedJoint?.id || ''} selectedBodyIds={selectedBodyIds} readOnly={readOnly} onCreate={createDocumentComponent} onUpdate={updateDocumentComponent} onAssignBodies={assignDocumentComponentBodies} onMove={moveDocumentComponent} onDelete={removeDocumentComponent} onSelect={(componentId) => setSelection({ kind: 'component', id: componentId })} onSelectInstance={(instanceId) => { const instance = document.componentInstances.find((item) => item.id === instanceId); setSelection({ kind: 'componentInstance', id: instanceId, componentId: instance?.componentId }); }} onCreateInstance={createDocumentComponentInstance} onUpdateInstance={updateDocumentComponentInstance} onDuplicateInstance={duplicateDocumentComponentInstance} onDeleteInstance={removeDocumentComponentInstance} onCreateRigidGroup={createDocumentRigidGroup} onDeleteRigidGroup={removeDocumentRigidGroup} onSelectJoint={(jointId) => setSelection({ kind: 'joint', id: jointId })} onCreateJoint={createDocumentJoint} onUpdateJoint={updateDocumentJoint} onSetJointValue={setDocumentJointValue} onDeleteJoint={removeDocumentJoint} onClose={() => setComponentsOpen(false)} />}
           {layersOpen && <LayersPanel document={document} selectedEntities={selectedSketchEntities} readOnly={readOnly} onAdd={addDocumentLayer} onUpdate={updateDocumentLayer} onDelete={removeDocumentLayer} onActivate={activateDocumentLayer} onAssign={assignSelectionToLayer} onStyleSelected={styleSelectedEntities} onClose={() => setLayersOpen(false)} />}
           {blocksOpen && activeSketchId && <BlocksPanel document={document} selectedEntities={selectedSketchEntities} selectedInstance={selectedBlockInstance} readOnly={readOnly} onCreate={createBlockFromSelection} onInsert={insertDocumentBlock} onDeleteDefinition={removeBlockDefinition} onAddAttribute={addDocumentBlockAttribute} onUpdateInstanceAttribute={updateDocumentBlockAttribute} onExplode={explodeDocumentBlock} onDeleteInstance={removeDocumentBlockInstance} onClose={() => setBlocksOpen(false)} />}
           {commandCustomizationOpen && <CommandCustomizationPanel customization={commandCustomization} onSave={saveCommandSettings} onReset={createDefaultCommandCustomization} onClose={() => setCommandCustomizationOpen(false)} />}

@@ -12,11 +12,13 @@ const identity = { x: 0, y: 0, z: 0, rotationX: 0, rotationY: 0, rotationZ: 0 };
 const componentInstances = [
   { id: 'occurrence-assembly', componentId: 'assembly-1', parentInstanceId: '', name: 'Wspornik', transform: identity, grounded: true, visible: true, primary: true },
   { id: 'occurrence-part', componentId: 'part-1', parentInstanceId: 'occurrence-assembly', name: 'Rama:1', transform: identity, grounded: false, visible: true, primary: true },
+  { id: 'occurrence-part-2', componentId: 'part-1', parentInstanceId: 'occurrence-assembly', name: 'Rama:2', transform: { ...identity, x: 25 }, grounded: false, visible: true, primary: false },
 ];
+const joints = [{ id: 'joint-1', name: 'Obrót ramy', type: 'revolute', referenceInstanceId: 'occurrence-part', movingInstanceId: 'occurrence-part-2', axis: 'z', axisReference: { kind: 'component-origin-axis', instanceId: 'occurrence-part', axis: 'z' }, anchor: { x: 0, y: 0, z: 0 }, limits: { enabled: true, min: -30, max: 60 }, value: 15, restTransform: { ...identity, x: 25 }, enabled: true }];
 
 function panelProps(overrides = {}) {
   return {
-    document: { components, componentInstances, rigidGroups: [], sketches: [], references: [] },
+    document: { components, componentInstances, rigidGroups: [], joints: [], sketches: [], references: [] },
     bodies: [{ id: 'body-1', name: 'Bryła ramy' }, { id: 'body-2', name: 'Pokrywa' }],
     selectedComponentId: 'part-1',
     selectedBodyIds: ['body-2'],
@@ -33,6 +35,11 @@ function panelProps(overrides = {}) {
     onDeleteInstance: vi.fn(),
     onCreateRigidGroup: vi.fn(),
     onDeleteRigidGroup: vi.fn(),
+    onSelectJoint: vi.fn(),
+    onCreateJoint: vi.fn(),
+    onUpdateJoint: vi.fn(),
+    onSetJointValue: vi.fn(),
+    onDeleteJoint: vi.fn(),
     onClose: vi.fn(),
     ...overrides,
   };
@@ -70,14 +77,36 @@ describe('ComponentPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Usuń$/i }));
     expect(props.onDelete).toHaveBeenCalledWith('part-1');
   });
+
+  it('creates a revolute joint between sibling occurrences', () => {
+    const props = panelProps({ selectedInstanceId: 'occurrence-part-2' });
+    render(<ComponentPanel {...props} />);
+    fireEvent.change(screen.getByRole('combobox', { name: /Bazowe wystąpienie jointa/i }), { target: { value: 'occurrence-part' } });
+    fireEvent.click(screen.getByRole('button', { name: /Utwórz joint/i }));
+    expect(props.onCreateJoint).toHaveBeenCalledWith({ type: 'revolute', axis: 'z', referenceInstanceId: 'occurrence-part', movingInstanceId: 'occurrence-part-2' });
+  });
+
+  it('edits joint limits and motion without obscuring it with occurrence placement', () => {
+    const props = panelProps({ document: { components, componentInstances, rigidGroups: [], joints, sketches: [], references: [] }, selectedInstanceId: 'occurrence-part-2', selectedJointId: 'joint-1' });
+    render(<ComponentPanel {...props} />);
+    expect(screen.queryByRole('spinbutton', { name: /Położenie X/i })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Numeryczna wartość jointa/i }), { target: { value: '35' } });
+    expect(props.onSetJointValue).toHaveBeenCalledWith('joint-1', 35);
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Maksymalny limit jointa/i }), { target: { value: '90' } });
+    expect(props.onUpdateJoint).toHaveBeenCalledWith('joint-1', { limits: { max: 90 } });
+    fireEvent.click(screen.getByRole('button', { name: /Usuń joint/i }));
+    expect(props.onDeleteJoint).toHaveBeenCalledWith('joint-1');
+  });
 });
 
 describe('ProjectBrowser components', () => {
   it('shows the nested assembly tree and selects a component', () => {
     const onSelect = vi.fn();
-    render(<ProjectBrowser document={{ id: 'document-1', name: 'Projekt', components, componentInstances, rigidGroups: [], sketches: [], references: [] }} bodies={[]} selection={{ kind: 'document', id: 'document-1' }} onSelect={onSelect} onToggleReference={vi.fn()} onClose={vi.fn()} />);
+    render(<ProjectBrowser document={{ id: 'document-1', name: 'Projekt', components, componentInstances, rigidGroups: [], joints, sketches: [], references: [] }} bodies={[]} selection={{ kind: 'document', id: 'document-1' }} onSelect={onSelect} onToggleReference={vi.fn()} onClose={vi.fn()} />);
     expect(screen.getByRole('button', { name: /Zaznacz wystąpienie złożenia Wspornik/i })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Zaznacz wystąpienie części Rama/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Zaznacz wystąpienie części Rama:1\./i }));
     expect(onSelect).toHaveBeenCalledWith({ kind: 'componentInstance', id: 'occurrence-part', componentId: 'part-1' });
+    fireEvent.click(screen.getByRole('button', { name: /Obrót ramy/i }));
+    expect(onSelect).toHaveBeenCalledWith({ kind: 'joint', id: 'joint-1', movingInstanceId: 'occurrence-part-2' });
   });
 });

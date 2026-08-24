@@ -91,6 +91,31 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.component-instance-toggles input[type="checkbox"]')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.grounded === true`, 'Ground wystąpienia');
 
+    if (!(await clickByText(window, '.component-rigid-group button', 'Rozwiąż'))) throw new Error('Nie znaleziono rozwiązania Rigid Group.');
+    await waitFor(window, `window.__madcadVerifyDocumentState.rigidGroups.length === 0`, 'rozwiązana Rigid Group');
+    await window.webContents.executeJavaScript(`document.querySelector('.component-instance-toggles input[type="checkbox"]')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.grounded === false`, 'wyłączony Ground');
+    await window.webContents.executeJavaScript(`(() => {
+      const select = document.querySelector('select[aria-label="Bazowe wystąpienie jointa"]');
+      const option = [...select.options].find((item) => item.value);
+      select.value = option.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await waitFor(window, `!document.querySelector('.component-joint-create button')?.disabled`, 'bazowe wystąpienie jointa');
+    if (!(await clickByText(window, '.component-joint-create button', 'Utwórz joint'))) throw new Error('Nie znaleziono tworzenia jointa.');
+    await waitFor(window, `window.__madcadVerifyDocumentState.joints.length === 1 && window.__madcadVerifyDocumentState.selection.kind === 'joint'`, 'joint revolute');
+    const jointId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.joints[0].id`);
+    await setInput(window, 'input[aria-label="Maksymalny limit jointa"]', '60');
+    await waitFor(window, `window.__madcadVerifyDocumentState.joints[0].limits.max === 60`, 'maksymalny limit jointa');
+    await setInput(window, 'input[aria-label="Numeryczna wartość jointa"]', '35');
+    await waitFor(window, `window.__madcadVerifyDocumentState.joints[0].value === 35 && window.__madcadVerifyDocumentState.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.transform.rotationZ === 35`, 'ruch jointa');
+    await waitFor(window, `window.__madcadJointVisualState?.some((item) => item.id === ${JSON.stringify(jointId)} && item.type === 'revolute')`, 'znacznik jointa w widoku 3D');
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState.joints[0].value === 0`, 'undo ruchu jointa');
+    await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState.joints[0].value === 35`, 'redo ruchu jointa');
+    await waitFor(window, `document.querySelector('input[aria-label="Numeryczna wartość jointa"]')?.value === '35' && [...document.querySelectorAll('.component-joint-list button')].some((button) => button.textContent.includes('35'))`, 'odświeżone sterowanie jointa');
+
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     const result = await window.webContents.executeJavaScript(`(() => {
       const state = window.__madcadVerifyDocumentState;
@@ -106,15 +131,23 @@ app.whenReady().then(async () => {
         ownedBodies: part.bodyIds.length,
         instances: state.componentInstances.length,
         rigidGroups: state.rigidGroups.length,
+        joints: state.joints.length,
+        jointType: state.joints[0]?.type,
+        jointAxis: state.joints[0]?.axis,
+        jointValue: state.joints[0]?.value,
+        jointMax: state.joints[0]?.limits.max,
+        jointVisuals: window.__madcadJointVisualState?.length || 0,
         grounded: state.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.grounded,
         duplicateX: state.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.transform.x,
+        duplicateRotationZ: state.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.transform.rotationZ,
         rigidMateX: state.componentInstances.find((item) => item.componentId === part.id && item.id !== ${JSON.stringify(duplicateId)})?.transform.x,
         browserRows: document.querySelectorAll('.tree-component').length,
+        browserJointRows: document.querySelectorAll('.tree-joint').length,
         panelInsideViewport: panel.left >= 0 && panel.top >= 0 && panel.right <= innerWidth && panel.bottom <= innerHeight,
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
-    if (result.schemaVersion !== 11 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.ownedBodies !== 1 || result.instances !== 3 || result.rigidGroups !== 1 || !result.grounded || result.duplicateX !== 45 || result.rigidMateX !== 25 || result.browserRows !== 3 || !result.panelInsideViewport || result.horizontalOverflow) {
+    if (result.schemaVersion !== 12 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.ownedBodies !== 1 || result.instances !== 3 || result.rigidGroups !== 0 || result.joints !== 1 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 1 || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 3 || result.browserJointRows !== 1 || !result.panelInsideViewport || result.horizontalOverflow) {
       throw new Error(`Niepoprawny przepływ komponentów: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...result }, null, 2)}\n`);

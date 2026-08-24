@@ -991,6 +991,8 @@
   padding-left: calc(34px + var(--component-depth, 0) * 16px);
 }
 
+.tree-joint { padding-left: 34px; }
+
 .tree-empty {
   padding: 5px 12px 7px 54px;
   color: #8593a0;
@@ -2855,6 +2857,7 @@
 .component-list,
 .component-occurrences,
 .component-instance-properties,
+.component-joints,
 .component-properties { flex: 0 0 auto; }
 
 .component-toolbar button,
@@ -2947,6 +2950,31 @@
 .component-instance-toggles label { display: inline-flex; align-items: center; gap: 5px; color: #d6dee5; font-size: 10px; }
 .component-rigid-group > div:last-child { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
 .component-rigid-group button { display: inline-flex; min-height: 28px; align-items: center; justify-content: center; gap: 5px; padding: 4px 8px; border: 1px solid #697785; border-radius: 3px; background: #465362; color: #f2f6f9; font: inherit; cursor: pointer; }
+
+.component-joints { display: grid; padding: 7px 10px; border-bottom: 1px solid #596573; gap: 6px; background: #2c3743; }
+.component-joint-list { display: grid; max-height: 125px; overflow: auto; gap: 2px; }
+.component-joint-list > p { margin: 4px; color: #aeb9c3; font-size: 10px; line-height: 1.4; }
+.component-joint-list > button { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; min-height: 38px; align-items: center; gap: 6px; padding: 4px 7px; border: 1px solid transparent; border-radius: 3px; background: transparent; color: #dce4ea; text-align: left; cursor: pointer; }
+.component-joint-list > button:hover { background: #3b4754; }
+.component-joint-list > button.active { border-color: #d7a348; background: #4a402e; }
+.component-joint-list > button > span { display: grid; min-width: 0; }
+.component-joint-list strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.component-joint-list small { color: #a7b4be; font-size: 8px; letter-spacing: .04em; }
+.component-joint-list em { color: #d9b766; font-size: 9px; font-style: normal; }
+.component-joint-create { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.component-joint-create select,
+.component-joint-create button,
+.component-joint-properties input,
+.component-joint-properties select { min-width: 0; min-height: 27px; padding: 4px 6px; border: 1px solid #667482; border-radius: 2px; background: #27313c; color: #f0f4f7; font: inherit; }
+.component-joint-create select:nth-child(3) { grid-column: 1 / -1; }
+.component-joint-create button { grid-column: 1 / -1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer; }
+.component-joint-properties { display: grid; gap: 6px; padding-top: 5px; border-top: 1px solid #53606e; }
+.component-joint-properties > label { display: grid; grid-template-columns: 105px minmax(0, 1fr); align-items: center; gap: 6px; color: #b9c4cd; font-size: 9px; }
+.component-joint-properties > label:has(input[type='range']) { grid-template-columns: 86px minmax(0, 1fr) 64px; }
+.component-joint-properties input[type='range'] { padding: 0; border: 0; background: transparent; accent-color: #d8a33f; }
+.component-joint-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.component-joint-grid label { display: grid; gap: 2px; color: #aeb9c3; font-size: 8px; }
+.component-joint-properties .joint-limit-toggle { display: flex; grid-template-columns: none; gap: 5px; }
 
 .component-properties {
   display: grid;
