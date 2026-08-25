@@ -105,6 +105,8 @@ jobs:
         run: |
           npm run verify:start-experience
           npm run verify:snap-feedback
+          npm run verify:model-import
+          npm run verify:viewport-navigation
 
       - name: Verify Electron sandbox and IPC boundary
         if: runner.os != 'Linux'

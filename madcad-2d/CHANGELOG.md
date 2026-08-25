@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 6.4.1 (2026-08-25)
+
+- Przywrócono sterowanie widokiem zgodne z klasycznym AutoCAD-em: naciśnięte kółko przesuwa widok, `Shift` + kółko obraca go, a rolka przybliża pod kursorem. Lewy przycisk pozostaje przeznaczony do zaznaczania i rysowania.
+- Dodano jawne tryby nawigacji na pasku widoku oraz czytelny kursor krzyżowy w domyślnym trybie zaznaczania.
+- Import STEP/STL/3MF jest dostępny bezpośrednio w obszarze **Projektuj**, pokazuje potwierdzenie rodzaju utworzonej geometrii i automatycznie dopasowuje widok do modelu.
+- Niepoprawny import jest automatycznie wycofywany z historii wraz z dokładnym komunikatem, dzięki czemu nie blokuje dalszego modelowania.
+- Przycisk **Wyciągnij** działa także w pustym projekcie: prowadzi do utworzenia szkicu i zamkniętego profilu zamiast pozostawać nieaktywny.
+- Dodano rzeczywiste testy myszy Electron dla przesuwania, orbity i zoomu oraz round-trip dokładnej bryły STEP, zamkniętych i otwartych siatek STL i plików 3MF.
+
 ## 6.4.0 (2026-08-25)
 
 - Dodano pełny obszar **DOKUMENTACJA**: arkusze A4/A3, skojarzone widoki bazowe i rzutowane, przekroje A-A, detale, automatyczne skale, tabliczki rysunkowe oraz podgląd 1:1.

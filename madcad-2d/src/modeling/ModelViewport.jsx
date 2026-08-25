@@ -13,6 +13,7 @@ import { inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-sug
 import { describeSketchDegreesOfFreedom } from '../cad-core/sketch-freedom-diagnostics.js';
 import { normalizeComponentAppearance } from '../cad-core/components.js';
 import { calculateExplodedOffsets } from '../cad-core/exploded-view.js';
+import { configureCadMouseNavigation, shouldHandlePrimaryViewportPointer, VIEWPORT_NAVIGATION_MODES, viewportCursor } from './viewport-navigation.js';
 
 const VIEW_DIRECTIONS = {
   iso: [1.25, -1.45, 1.15],
@@ -415,6 +416,7 @@ export default function ModelViewport({
   exactCollisionInstanceIds = [],
   explodeAmount = 0,
   cameraRequest = null,
+  fitRequest = null,
   onCameraStateChange,
   onSelectBody,
   onSelectComponentInstance,
@@ -451,6 +453,7 @@ export default function ModelViewport({
   const cameraSnapshotRef = useRef(null);
   const lastExplodeAmountRef = useRef(explodeAmount);
   const lastCameraRequestIdRef = useRef('');
+  const lastFitRequestIdRef = useRef('');
   const cameraChangeRef = useRef(onCameraStateChange);
   const sketchInteractionRef = useRef({ activeSketchId: null, start: null, drag: null, box: null });
   const selectRef = useRef(onSelectBody);
@@ -465,7 +468,7 @@ export default function ModelViewport({
   const directRef = useRef({});
   const [view, setView] = useState('iso');
   const [customViewActive, setCustomViewActive] = useState(false);
-  const [navigationMode, setNavigationMode] = useState('orbit');
+  const [navigationMode, setNavigationMode] = useState(VIEWPORT_NAVIGATION_MODES.SELECT);
   const [zoomScale, setZoomScale] = useState(1);
   const [dragLabel, setDragLabel] = useState(null);
   const [sketchDragLabel, setSketchDragLabel] = useState(null);
@@ -548,6 +551,12 @@ export default function ModelViewport({
     const explodeAmountChanged = lastExplodeAmountRef.current !== explodeAmount;
     lastExplodeAmountRef.current = explodeAmount;
 
+    const forceFit = Boolean(fitRequest?.requestId && fitRequest.requestId !== lastFitRequestIdRef.current);
+    if (forceFit) {
+      lastFitRequestIdRef.current = fitRequest.requestId;
+      cameraSnapshotRef.current = null;
+    }
+
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#2c333e');
     const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100000);
@@ -563,10 +572,18 @@ export default function ModelViewport({
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.075;
-    controls.screenSpacePanning = true;
-    controls.mouseButtons.LEFT = navigationMode === 'pan' ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
-    controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
-    controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+    configureCadMouseNavigation(controls, THREE.MOUSE, { navigationMode, activeSketch: Boolean(activeSketch) });
+    renderer.domElement.style.cursor = viewportCursor(navigationMode);
+    if (new URLSearchParams(window.location.search).has('verify')) {
+      window.__madcadViewportNavigationState = {
+        mouseButtons: { ...controls.mouseButtons },
+        navigationMode,
+        starts: 0,
+        changes: 0,
+      };
+      controls.addEventListener('start', () => { window.__madcadViewportNavigationState.starts += 1; });
+      controls.addEventListener('change', () => { window.__madcadViewportNavigationState.changes += 1; });
+    }
 
     scene.add(new THREE.HemisphereLight(0xf1f7fb, 0x28323d, 2.1));
     const key = new THREE.DirectionalLight(0xffffff, 2.5);
@@ -1100,7 +1117,7 @@ export default function ModelViewport({
     if ((activeSketch ? sketchView : view) === 'top') camera.up.set(0, 1, 0);
     camera.position.set(center.x + direction[0] * radius * 1.7 * zoomScale, center.y + direction[1] * radius * 1.7 * zoomScale, center.z + direction[2] * radius * 1.7 * zoomScale);
     controls.target.copy(center);
-    if (!activeSketch && cameraSnapshotRef.current && !explodeAmountChanged) {
+    if (!activeSketch && cameraSnapshotRef.current && !explodeAmountChanged && !forceFit) {
       camera.position.fromArray(cameraSnapshotRef.current.position);
       camera.up.fromArray(cameraSnapshotRef.current.up);
       controls.target.fromArray(cameraSnapshotRef.current.target);
@@ -1359,6 +1376,7 @@ export default function ModelViewport({
       return selections;
     };
     const onPointerDown = (event) => {
+      if (!shouldHandlePrimaryViewportPointer(event, { navigationMode, activeSketch: Boolean(activeSketch) })) return;
       const rect = setRayFromEvent(event);
       const fromDirectOverlay = event.currentTarget === directHandleElement;
       const directHit = fromDirectOverlay ? { object: directHead } : (directPickables.length ? raycaster.intersectObjects(directPickables, false)[0] : null);
@@ -1648,7 +1666,7 @@ export default function ModelViewport({
         const selections = moved ? boxSelectedModelTopology(finished) : [];
         selections.forEach((selection, index) => topologySelectRef.current?.(selection, index ? 'add' : finished.mode));
         setSelectionBox(null);
-        renderer.domElement.style.cursor = navigationMode === 'pan' ? 'move' : 'grab';
+        renderer.domElement.style.cursor = viewportCursor(navigationMode);
         return;
       }
       if (sketchInteraction.drag) {
@@ -1693,7 +1711,7 @@ export default function ModelViewport({
       directDragRef.current = null;
       controls.enabled = true;
       try { event.currentTarget?.releasePointerCapture?.(event.pointerId); } catch { /* Pointer capture may already be released. */ }
-      renderer.domElement.style.cursor = navigationMode === 'pan' ? 'move' : 'grab';
+      renderer.domElement.style.cursor = viewportCursor(navigationMode);
       setDragLabel(null);
       updateDirectVisual?.(value, false);
       directRef.current.onCommit?.(Number(value.toFixed(1)));
@@ -1888,10 +1906,11 @@ export default function ModelViewport({
       delete window.__madcadSectionViewState;
       delete window.__madcadJointVisualState;
       delete window.__madcadCameraState;
+      delete window.__madcadViewportNavigationState;
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;
@@ -1908,7 +1927,7 @@ export default function ModelViewport({
 
   return (
     <div
-      className={`model-viewport ${activeSketchId ? 'sketch-view' : ''}`}
+      className={`model-viewport navigation-${navigationMode} ${activeSketchId ? 'sketch-view' : ''}`}
       ref={hostRef}
       role="region"
       aria-label={activeSketchId ? 'Obszar rysowania szkicu 2D' : 'Obszar modelu 3D'}
@@ -1963,9 +1982,9 @@ export default function ModelViewport({
         />
       )}
       <div className="navigation-bar" role="toolbar" aria-label="Nawigacja widoku">
-        <button className={navigationMode === 'orbit' ? 'active' : ''} type="button" aria-pressed={navigationMode === 'orbit'} title="Orbita: przeciągnij lewym przyciskiem, aby obracać widok." onClick={() => { setNavigationMode('orbit'); selectStandardView('iso'); }}><Orbit size={16} /></button>
-        <button className={navigationMode === 'pan' ? 'active' : ''} type="button" aria-pressed={navigationMode === 'pan'} title="Przesuwanie: przeciągnij lewym przyciskiem, aby przesunąć widok." onClick={() => setNavigationMode((mode) => mode === 'pan' ? 'orbit' : 'pan')}><Move3d size={16} /></button>
-        <button type="button" aria-label="Powiększ model" title="Powiększ model w bieżącym widoku." onClick={() => setZoomScale((scale) => Math.max(0.35, scale * 0.78))}><ZoomIn size={16} /></button>
+        <button className={navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT ? 'active' : ''} type="button" aria-label="Orbita" aria-pressed={navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT} title="Orbita: Shift + naciśnięte kółko myszy. Ten przycisk włącza też orbitę lewym przyciskiem." onClick={() => setNavigationMode((mode) => mode === VIEWPORT_NAVIGATION_MODES.ORBIT ? VIEWPORT_NAVIGATION_MODES.SELECT : VIEWPORT_NAVIGATION_MODES.ORBIT)}><Orbit size={16} /></button>
+        <button className={navigationMode === VIEWPORT_NAVIGATION_MODES.PAN ? 'active' : ''} type="button" aria-label="Przesuń widok" aria-pressed={navigationMode === VIEWPORT_NAVIGATION_MODES.PAN} title="Przesuń widok: przytrzymaj kółko myszy i przeciągnij. Ten przycisk włącza też przesuwanie lewym przyciskiem." onClick={() => setNavigationMode((mode) => mode === VIEWPORT_NAVIGATION_MODES.PAN ? VIEWPORT_NAVIGATION_MODES.SELECT : VIEWPORT_NAVIGATION_MODES.PAN)}><Move3d size={16} /></button>
+        <button type="button" aria-label="Powiększ model" title="Powiększ model. Kółko myszy przybliża pod pozycją kursora." onClick={() => setZoomScale((scale) => Math.max(0.35, scale * 0.78))}><ZoomIn size={16} /></button>
         <button type="button" aria-label="Dopasuj cały model" title="Dopasuj cały model do dostępnego obszaru." onClick={() => { setZoomScale(1); selectStandardView(activeSketchId ? (activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top') : 'iso'); }}><Maximize2 size={16} /></button>
       </div>
       {directEnabled && <div className="direct-extrude-hint">{directManipulator?.hint || 'Przeciągnij niebieską strzałkę, aby wyciągnąć profil'}</div>}

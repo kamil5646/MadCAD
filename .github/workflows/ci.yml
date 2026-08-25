@@ -94,6 +94,10 @@ jobs:
         run: npm ci
       - name: Run Electron modeling verification
         run: npm run verify:modeling
+      - name: Verify STEP/STL/3MF import and AutoCAD-style viewport navigation
+        run: |
+          npm run verify:model-import
+          npm run verify:viewport-navigation
       - name: Verify Electron sandbox and IPC boundary
         run: npm run verify:electron-security
       - name: Upload verification artifacts

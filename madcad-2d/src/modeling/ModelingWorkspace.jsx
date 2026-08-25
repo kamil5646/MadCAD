@@ -492,6 +492,8 @@ export default function ModelingWorkspace() {
   const autosaveSuspendedRef = useRef(false);
   const [importDraft, setImportDraft] = useState(null);
   const [modelImportBusy, setModelImportBusy] = useState(false);
+  const [pendingModelImport, setPendingModelImport] = useState(null);
+  const [fitViewRequest, setFitViewRequest] = useState(null);
   const [sketchImportDraft, setSketchImportDraft] = useState(null);
   const [importRepairReport, setImportRepairReport] = useState(null);
   useEffect(() => setExplodeAmount(0), [document.id]);
@@ -1543,6 +1545,32 @@ export default function ModelingWorkspace() {
   const constructionPoints = useMemo(() => resolveConstructionPoints(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
   const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => (['extrude', 'revolve', 'sweep', 'loft', 'coil', 'pipe'].includes(feature.type) && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')).map((feature) => `body-${feature.id}`)), [document.features]);
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
+  useEffect(() => {
+    if (!pendingModelImport) return;
+    const rollbackFailedImport = (message) => {
+      setPendingModelImport(null);
+      history.commit((next) => { deleteTimelineFeatureCascade(next, pendingModelImport.featureId); });
+      setSelection({ kind: 'document', id: document.id });
+      setNotice(`Nie zaimportowano ${pendingModelImport.fileName}: ${message} Błędną operację usunięto, aby nie blokowała dalszego modelowania.`);
+    };
+    if (engine.status === 'error') {
+      rollbackFailedImport(engine.error || 'Silnik CAD nie utworzył geometrii.');
+      return;
+    }
+    if (engine.evaluatedDocument !== document || engine.status !== 'ready') return;
+    const body = engine.bodies.find((item) => item.sourceFeatureId === pendingModelImport.featureId);
+    const timelineEntry = engine.timeline.find((item) => item.id === pendingModelImport.featureId);
+    if (body && !['error', 'stale'].includes(timelineEntry?.status)) {
+      setPendingModelImport(null);
+      setFitViewRequest({ requestId: `${pendingModelImport.featureId}:${Date.now()}` });
+      setNotice(`Zaimportowano ${pendingModelImport.fileName} · ${body.representation === 'brep' ? 'dokładna bryła B-Rep' : 'siatka 3D'}. Widok dopasowano do modelu.`);
+      return;
+    }
+    if (timelineEntry?.status === 'error') {
+      const message = timelineEntry?.error || engine.error || 'Silnik CAD nie utworzył geometrii.';
+      rollbackFailedImport(message);
+    }
+  }, [document, engine.bodies, engine.error, engine.evaluatedDocument, engine.status, engine.timeline, history, pendingModelImport]);
   const targetBodyId = selection?.kind === 'body' ? selection.id : (selection?.bodyId || engine.bodies[0]?.id || firstBodyId || null);
   const targetBodySupportsSolidOperations = engine.bodies.find((body) => body.id === targetBodyId)?.meshBooleanCapable !== false;
   const topologyReferenceStates = useMemo(() => inspectTopologyReferences(document, actualBodies), [document, actualBodies]);
@@ -3401,7 +3429,10 @@ export default function ModelingWorkspace() {
       return;
     }
     if (!selectedProfile || activeSketchId) {
-      setNotice(activeSketchId ? 'Najpierw zakończ szkic.' : 'Wybierz zamknięty profil w przeglądarce.');
+      if (!activeSketchId) {
+        startSketch();
+        window.setTimeout(() => setNotice('Wyciągnięcie: wybierz płaszczyznę, narysuj zamknięty profil i zakończ szkic. Profil zostanie zaznaczony automatycznie.'), 0);
+      } else setNotice('Zakończ szkic. Ostatni zamknięty profil zostanie zaznaczony automatycznie do wyciągnięcia.');
       return;
     }
     beginOrUpdateExtrude(10);
@@ -4362,6 +4393,7 @@ export default function ModelingWorkspace() {
       triangleCount: importDraft.triangleCount,
     });
     commit((next) => insertTimelineFeature(next, feature));
+    setPendingModelImport({ featureId: feature.id, fileName: importDraft.fileName });
     const modelEntries = [];
     if (importDraft.originalFormat === '3mf') modelEntries.push({ id: 'model-conversion', status: 'changed', code: '3MF_MESH_NORMALIZED', message: 'Obiekty 3MF połączono w wewnętrzną siatkę STL z zachowaniem położenia i skali.' });
     if (importDraft.sourceUnit !== 'auto' && unitScale !== 1) modelEntries.push({ id: 'model-unit-scale', status: 'changed', code: 'UNIT_SCALE_APPLIED', message: `Przeskalowano geometrię współczynnikiem ${unitScale} do milimetrów.` });
@@ -4379,7 +4411,7 @@ export default function ModelingWorkspace() {
     setSelection({ kind: 'feature', id: feature.id });
     setImportDraft(null);
     setWorkspace('solid');
-    setNotice(`Importowanie ${importDraft.fileName} w silniku CAD… Model zostanie pokazany i dopasowany do widoku automatycznie.`);
+    setNotice(`Importowanie ${importDraft.fileName} w silniku CAD… Po zakończeniu pokażę wynik albo dokładny powód odrzucenia pliku.`);
   };
 
   const chooseSketchImport = async (event) => {
@@ -5301,7 +5333,8 @@ export default function ModelingWorkspace() {
             ) : (
               <>
                 <RibbonGroup label="SZKIC 2D"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /></RibbonGroup>
-                <RibbonGroup label="UTWÓRZ BRYŁĘ 3D"><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly || (!selectedProfile && !canExtrudeOpenChain)} /><ToolButton icon={Rotate3d} label="Revolve" onClick={openRevolve} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Move3d} label="Sweep" onClick={openSweep} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Layers3} label="Loft" onClick={openLoft} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={RotateCw} label="Coil" onClick={openCoil} disabled={readOnly || Boolean(activeSketchId)} /><ToolButton icon={Grid2X2} label="Pattern" onClick={openPattern} disabled={readOnly || !targetBodyId || !targetBodySupportsSolidOperations || Boolean(activeSketchId)} description={!targetBodySupportsSolidOperations ? 'Otwarta siatka nie obsługuje bryłowego szyku z łączeniem.' : undefined} /><ToolButton icon={Move3d} label="Press Pull" onClick={openPressPull} disabled={readOnly || !canPressPull} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={Type} label="Tekst 3D" onClick={openTextSolid} disabled={readOnly} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || !canBooleanSelectedBodies} description={!canBooleanSelectedBodies && selectedBodyIds.length === 2 ? 'Boolean wymaga zgodnych brył B-Rep albo dwóch zamkniętych siatek.' : undefined} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length} /></RibbonGroup>
+                <RibbonGroup label="UTWÓRZ BRYŁĘ 3D"><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={!selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolButton icon={Rotate3d} label="Revolve" onClick={openRevolve} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Move3d} label="Sweep" onClick={openSweep} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Layers3} label="Loft" onClick={openLoft} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={RotateCw} label="Coil" onClick={openCoil} disabled={readOnly || Boolean(activeSketchId)} /><ToolButton icon={Grid2X2} label="Pattern" onClick={openPattern} disabled={readOnly || !targetBodyId || !targetBodySupportsSolidOperations || Boolean(activeSketchId)} description={!targetBodySupportsSolidOperations ? 'Otwarta siatka nie obsługuje bryłowego szyku z łączeniem.' : undefined} /><ToolButton icon={Move3d} label="Press Pull" onClick={openPressPull} disabled={readOnly || !canPressPull} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={Type} label="Tekst 3D" onClick={openTextSolid} disabled={readOnly} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || !canBooleanSelectedBodies} description={!canBooleanSelectedBodies && selectedBodyIds.length === 2 ? 'Boolean wymaga zgodnych brył B-Rep albo dwóch zamkniętych siatek.' : undefined} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length} /></RibbonGroup>
+                <RibbonGroup label="IMPORTUJ CAD"><ToolButton icon={Upload} label="Import STEP/STL/3MF" onClick={() => importInputRef.current?.click()} disabled={readOnly || modelImportBusy} description={modelImportBusy ? 'Trwa przygotowywanie wybranego modelu.' : 'Importuj dokładny STEP albo siatkę STL/3MF bez przechodzenia do Narzędzi.'} /></RibbonGroup>
                 <RibbonGroup label="MODYFIKUJ BRYŁĘ 3D"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Layers3} label="Shell" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Triangle} label="Draft" onClick={openDraft} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Scissors} label="Split Body" onClick={openSplitBody} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Scissors} label="Split Face" onClick={openSplitFace} disabled={readOnly || !canSplitFace} /><ToolButton icon={X} label="Delete Face + Heal" onClick={openDeleteFace} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Layers3} label="Replace Face" onClick={openReplaceFace} disabled={readOnly || selectedFaceItems.length !== 2} /><ToolButton icon={Layers3} label="Offset Face" onClick={openOffsetFace} disabled={readOnly || selectedFaceItems.length !== 1} /><ToolButton icon={Move3d} label="Przesuń bryłę" onClick={() => openTransform('move')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Rotate3d} label="Obróć bryłę" onClick={() => openTransform('rotate')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
                 <RibbonGroup label="KOMPONENTY"><ToolButton icon={Boxes} label="Menedżer" onClick={openComponentManager} primary={componentsOpen} /><ToolButton icon={Box} label="Nowa część" onClick={() => createDocumentComponent('part')} disabled={readOnly} /><ToolButton icon={Boxes} label="Złożenie" onClick={() => createDocumentComponent('assembly')} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="WIDOK"><ToolButton icon={Eye} label="Zapisane widoki" onClick={() => { setComponentsOpen(false); setNamedViewsOpen((open) => !open); }} primary={namedViewsOpen} /></RibbonGroup>
@@ -5412,6 +5445,7 @@ export default function ModelingWorkspace() {
             exactCollisionInstanceIds={exactCollisionInstanceIds}
             explodeAmount={explodeAmount}
             cameraRequest={cameraRequest}
+            fitRequest={fitViewRequest}
             onCameraStateChange={(camera) => { currentCameraRef.current = camera; }}
             selectedComponentInstanceId={selectedInstance?.id || null}
             selectedJointId={selectedJoint?.id || null}

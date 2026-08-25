@@ -408,7 +408,7 @@ async function runUiFlow(window) {
       const point = window.__madcadDirectHandlePoint || { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
       const key = Object.keys(handle).find((item) => item.startsWith('__reactProps'));
       const props = handle[key];
-      const event = (y) => ({ clientX: point.x, clientY: y, pointerId: 9, pointerType: 'pen', currentTarget: handle, preventDefault() {}, stopPropagation() {}, altKey: false });
+      const event = (y) => ({ button: 0, clientX: point.x, clientY: y, pointerId: 9, pointerType: 'pen', currentTarget: handle, preventDefault() {}, stopPropagation() {}, altKey: false });
       props.onPointerDown(event(point.y));
       for (let offset = 20; offset <= 120; offset += 20) {
         props.onPointerMove(event(point.y - offset));

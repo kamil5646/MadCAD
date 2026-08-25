@@ -1072,11 +1072,19 @@
   display: block;
   width: 100%;
   height: 100%;
+  cursor: crosshair;
+}
+
+.model-viewport.navigation-orbit canvas:active {
+  cursor: grabbing;
+}
+
+.model-viewport.navigation-orbit canvas {
   cursor: grab;
 }
 
-.model-viewport canvas:active {
-  cursor: grabbing;
+.model-viewport.navigation-pan canvas {
+  cursor: move;
 }
 
 .model-viewport.sketch-view canvas {

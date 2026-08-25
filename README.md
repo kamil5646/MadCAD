@@ -17,7 +17,7 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 **[Licencja](./LICENSE)** ·
 **[Zmiany](./madcad-2d/CHANGELOG.md)**
 
-> **Uwaga o wydaniu 6.4.0:** paczki są publikowane bez podpisu producenta,
+> **Uwaga o wydaniu 6.4.1:** paczki są publikowane bez podpisu producenta,
 > dlatego Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie.
 > Pobieraj je wyłącznie z oficjalnego GitHub Release i sprawdź sumę SHA-256.
 > Wbudowany aktualizator pobiera paczkę z oficjalnego wydania, sprawdza SHA-256
@@ -27,12 +27,13 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 
 - Rysowanie bezpośrednio na płótnie oraz dokładne wejście z klawiatury.
 - Linia w stylu AutoCAD: kliknij początek, ustaw kierunek kursorem, wpisz długość i naciśnij `Enter`.
+- Nawigacja jak w klasycznym AutoCAD-zie: naciśnięte kółko przesuwa widok, `Shift` + kółko obraca model, rolka przybliża pod kursorem, a lewy przycisk zaznacza i rysuje.
 - Podpowiedzi po najechaniu z opisem działania; skróty podstawowych funkcji są pokazywane tylko w podpowiedzi.
 - Podstawowe skróty zgodne z Autodesk Fusion: `L`, `R`, `C`, `T`, `O`, `P`, `M`, `I`, `E` i `Del`.
 - Szkice parametryczne z więzami, wymiarami, profilami i szykami. Importuj DWG lokalnie przez GNU LibreDWG lub ODA, a także SVG i DXF.
 - Modelowanie 3D: Extrude, Revolve, Sweep, Loft, Coil, Boolean, Shell, Draft, fillet i chamfer.
 - Trwałe referencje B-Rep, historia operacji, geometria konstrukcyjna i pomiary.
-- Import i eksport `STEP`, `STL`, `3MF`; import szkicu `DWG`, `DXF`, `SVG`; własny parametryczny format `.madcad`.
+- Import i eksport `STEP`, `STL`, `3MF`; poprawny import jest dopasowywany do widoku, a odrzucony nie blokuje historii. Import szkicu obejmuje `DWG`, `DXF`, `SVG`; własny parametryczny format to `.madcad`.
 - Kontrola drukowalności, gabarytów i dopasowania modelu do stołu drukarki.
 - Interfejs polski i angielski, lokalne pliki, brak konta, telemetrii i aktywacji.
 - Przeglądarka projektu jest domyślnie zwinięta, aby maksymalizować obszar rysowania.
