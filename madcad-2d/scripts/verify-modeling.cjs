@@ -2221,12 +2221,12 @@ async function runUiFlow(window) {
   await expandReferenceRepair();
   await waitForUi(window, `document.querySelector('.reference-repair-panel')?.textContent.includes('Project')`, 'panel utraconego źródła Project', modelingTimeoutMs);
   await waitForUi(window, `window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(brokenProject.entityId)}]?.state === 'error'`, 'wyróżnienie utraconego źródła Project', modelingTimeoutMs);
-  await waitForUi(window, `[...document.querySelectorAll('.reference-repair-panel button')].some((item) => item.textContent === 'Kandydat 1')`, 'kandydat naprawy Project', modelingTimeoutMs);
-  await window.webContents.executeJavaScript(`(() => {
+  await waitForUi(window, `(() => {
     const button = [...document.querySelectorAll('.reference-repair-panel button')].find((item) => item.textContent === 'Kandydat 1');
-    if (!button) throw new Error('Brak kandydata naprawy Project.');
+    if (!button) return false;
     button.click();
-  })()`);
+    return true;
+  })()`, 'wybór kandydata naprawy Project', modelingTimeoutMs);
   await waitForUi(window, `!document.querySelector('.reference-repair-panel') && window.__madcadSketchEntityScreenPoints?.[${JSON.stringify(brokenProject.entityId)}]?.state === 'projected' && !window.__madcadVerifyDocumentState.references.find((item) => item.id === ${JSON.stringify(brokenProject.referenceId)})?.topologyId.endsWith('-lost')`, 'naprawa i odświeżenie Project', modelingTimeoutMs);
   await toggleSketchOption('Geometria Project');
   await waitForUi(window, `window.__madcadSketchVisibilityState?.showProjectedGeometry === false && !window.__madcadSketchVisibilityState.entityIds.includes(${JSON.stringify(brokenProject.entityId)})`, 'ukrycie geometrii Project');
