@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import App from './App.jsx';
 import { FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './modeling/AppDialogs.jsx';
 import { CrashRecoveryBanner } from './modeling/WorkspaceOverlays.jsx';
@@ -60,6 +60,27 @@ describe('App', () => {
     />);
     expect(screen.getByText(/Masz aktualną wersję MadCAD \(6.1.0\)/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Pobierz i otwórz/i })).toBeNull();
+  });
+
+  it('announces the update result, moves focus inside and closes with Escape', async () => {
+    const onClose = vi.fn();
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    trigger.focus();
+    const { unmount } = render(<UpdateDialog
+      state={{ status: 'idle', error: '', result: { available: false, currentVersion: '6.3.2' } }}
+      onCheck={() => {}}
+      onInstall={() => {}}
+      onClose={onClose}
+    />);
+    const dialog = screen.getByRole('dialog', { name: /Aktualizacje MadCAD/i });
+    await waitFor(() => expect(dialog).toContainElement(document.activeElement));
+    expect(screen.getByRole('status')).toHaveTextContent(/Masz aktualną wersję MadCAD \(6.3.2\)/i);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledOnce();
+    unmount();
+    await waitFor(() => expect(trigger).toHaveFocus());
+    trigger.remove();
   });
 
   it('links to the release when a newer version has no compatible package', () => {

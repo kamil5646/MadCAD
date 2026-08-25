@@ -45,7 +45,7 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 | 7 | M7 Otwory i gwinty MVP | `[x]` | M3, M5, M6 | proste/counterbore/countersink otwory i podstawowy gwint metryczny |
 | 8 | M8 Inspect MVP | `[x]` | M3, M6 | Measure, Section, objętość, pole, masa i środek masy |
 | 9 | M9 Wymiana danych i dodatki eksportowe | `[x]` | M6–M8 | STEP jako wymiana CAD; opcjonalnie STL/3MF, analiza drukowalności i slicer |
-| 10 | M10 Wydanie stabilne | `[>]` | M1–M9 | instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS/Linux |
+| 10 | M10 Wydanie stabilne | `[x]` | M1–M9 | instalowalna, odzyskiwalna i przetestowana aplikacja Windows/macOS/Linux |
 
 ## M4 — geometria konstrukcyjna MVP `P0`
 
@@ -222,7 +222,7 @@ Dodatkowo:
 - [!] Zmiana `appId` i instalatora wymaga migracji danych i ciągłości aktualizacji.
 - [!] Niepodpisane wydanie 6.2.0 nadal wywołuje ostrzeżenia SmartScreen/Gatekeeper; aktualizator może bezpiecznie zweryfikować i otworzyć paczkę, lecz cicha instalacja wymaga certyfikatu platformowego.
 - [x] Zgodność EN ma automatyczną bramkę renderowanego tekstu, a nowe przepływy układów, więzów, diagnostyki i raportu importu mają komplet kluczy.
-- [!] Automatyczne kontrole axe, kontrastu, drzewa AX i klawiatury nie wykrywają naruszeń blokujących; odsłuch pełnego przepływu w VoiceOver pozostaje ręczną bramką kandydata wydania.
+- [x] Automatyczne kontrole axe, kontrastu, drzewa AX i klawiatury oraz ręczny przepływ VoiceOver na macOS nie wykrywają naruszeń blokujących. Wykryte podczas odsłuchu okno aktualizacji przenosi teraz fokus do środka, ogłasza wynik jako status, obsługuje Escape i przywraca fokus na wywołujący przycisk.
 
 ## Najbliższe zadania
 
@@ -232,7 +232,7 @@ Dodatkowo:
 4. [x] P1.32b ukończono: NPT/BSPT, dodatkowe rozmiary, jawne tolerancje użytkownika oraz publiczne zalecenia przygotowania bez kopiowania płatnych tabel normatywnych.
 5. [x] Dodać P1.33 Draft Analysis z kolorową mapą ścian, wyborem kierunku i tolerancji.
 6. [x] Interference P1.34a, Named Views P1.34b i pełny ViewCube P1.34c ukończono.
-7. [>] Wykonać ręczny odsłuch podstawowego przepływu w VoiceOver na kandydacie wydania. Kontrola macOS Accessibility API wykryła i usunęła pozostawienie fokusu pod modalem wyboru płaszczyzny; automatyczna regresja sprawdza teraz rolę, nazwę, fokus początkowy, pętlę Tab i jego przywracanie we wszystkich głównych dialogach.
+7. [x] Ręczny przepływ VoiceOver na kandydacie macOS 6.3.2 objął uruchomienie, licencję, samouczek, linię od wskazanego punktu z długością `50 mm` zatwierdzoną Enterem, komunikaty snap/status, cofnięcie i aktualizator. Naprawiono fokus, ogłaszanie wyniku i Escape w aktualizatorze; regresja sprawdza teraz także przywrócenie fokusu mimo użycia `autoFocus`.
 8. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 
 Dalsze pomysły produktowe pozostają w [BACKLOG.md](./BACKLOG.md) i wymagają osobnej priorytetyzacji.

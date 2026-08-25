@@ -95,39 +95,48 @@ export function UpdateDialog({ state, onCheck, onInstall, onClose }) {
   const supportsThisComputer = Boolean(result?.supported ?? result?.available);
   const checking = state.status === 'checking';
   const installing = state.status === 'installing';
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape' && !installing) onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [installing, onClose]);
   return (
     <div className="license-info-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !installing) onClose(); }}>
       <section ref={dialogRef} className="license-info-dialog" role="dialog" aria-modal="true" aria-labelledby="updateDialogTitle" tabIndex="-1">
         <header>
           <div><strong id="updateDialogTitle">Aktualizacje MadCAD</strong><span>Pobierz oficjalną paczkę, sprawdź SHA-256 i uruchom instalator.</span></div>
-          <button type="button" title="Zamknij" aria-label="Zamknij" disabled={installing} onClick={onClose}><X size={17} /></button>
+          <button type="button" title="Zamknij" aria-label="Zamknij" disabled={installing} onClick={onClose} autoFocus><X size={17} /></button>
         </header>
         <div className="license-info-body">
-          {checking && <p className="license-info-lead">Sprawdzanie aktualizacji…</p>}
-          {installing && <p className="license-info-lead">Pobieranie i sprawdzanie sumy SHA-256…</p>}
-          {!checking && !installing && state.error && <p className="license-info-lead"><AlertTriangle size={17} /> {state.error}</p>}
-          {!checking && !installing && !state.error && handoff && (
-            <div className="license-info-card license-info-commercial update-handoff">
-              <strong>Paczka wersji {handoff.latestVersion} jest gotowa</strong>
-              <p>{handoff.opened ? 'MadCAD otworzył zweryfikowaną paczkę. Dokończ instalację w systemie, a następnie uruchom nową wersję.' : 'Paczka została zweryfikowana i zapisana w folderze Pobrane. Otwórz ją, aby dokończyć instalację.'}</p>
-              {handoff.downloadedPath && <small title={handoff.downloadedPath}>{handoff.downloadedPath}</small>}
-            </div>
-          )}
-          {!checking && !installing && !state.error && !handoff && result?.available && (
-            <div className="license-info-card license-info-commercial">
-              <strong>Dostępna jest wersja {result.latestVersion}</strong>
-              <p>Masz wersję {result.currentVersion}. Paczka zostanie pobrana z oficjalnego wydania GitHub oraz sprawdzona przed uruchomieniem.</p>
-            </div>
-          )}
-          {!checking && !installing && !state.error && !handoff && hasNewerVersion && !supportsThisComputer && (
-            <div className="license-info-card license-info-commercial">
-              <strong>Wersja {result.latestVersion} nie ma paczki dla tego komputera</strong>
-              <p>Zainstalowana wersja to {result.currentVersion}. Otwórz stronę wydania, aby sprawdzić dostępne platformy i architektury.</p>
-            </div>
-          )}
-          {!checking && !installing && !state.error && !handoff && result && !hasNewerVersion && (
-            <p className="license-info-lead">Masz aktualną wersję MadCAD{result.currentVersion ? ` (${result.currentVersion})` : ''}.</p>
-          )}
+          <div className="update-status" role="status" aria-live="polite" aria-atomic="true">
+            {checking && <p className="license-info-lead">Sprawdzanie aktualizacji…</p>}
+            {installing && <p className="license-info-lead">Pobieranie i sprawdzanie sumy SHA-256…</p>}
+            {!checking && !installing && state.error && <p className="license-info-lead"><AlertTriangle size={17} /> {state.error}</p>}
+            {!checking && !installing && !state.error && handoff && (
+              <div className="license-info-card license-info-commercial update-handoff">
+                <strong>Paczka wersji {handoff.latestVersion} jest gotowa</strong>
+                <p>{handoff.opened ? 'MadCAD otworzył zweryfikowaną paczkę. Dokończ instalację w systemie, a następnie uruchom nową wersję.' : 'Paczka została zweryfikowana i zapisana w folderze Pobrane. Otwórz ją, aby dokończyć instalację.'}</p>
+                {handoff.downloadedPath && <small title={handoff.downloadedPath}>{handoff.downloadedPath}</small>}
+              </div>
+            )}
+            {!checking && !installing && !state.error && !handoff && result?.available && (
+              <div className="license-info-card license-info-commercial">
+                <strong>Dostępna jest wersja {result.latestVersion}</strong>
+                <p>Masz wersję {result.currentVersion}. Paczka zostanie pobrana z oficjalnego wydania GitHub oraz sprawdzona przed uruchomieniem.</p>
+              </div>
+            )}
+            {!checking && !installing && !state.error && !handoff && hasNewerVersion && !supportsThisComputer && (
+              <div className="license-info-card license-info-commercial">
+                <strong>Wersja {result.latestVersion} nie ma paczki dla tego komputera</strong>
+                <p>Zainstalowana wersja to {result.currentVersion}. Otwórz stronę wydania, aby sprawdzić dostępne platformy i architektury.</p>
+              </div>
+            )}
+            {!checking && !installing && !state.error && !handoff && result && !hasNewerVersion && (
+              <p className="license-info-lead">Masz aktualną wersję MadCAD{result.currentVersion ? ` (${result.currentVersion})` : ''}.</p>
+            )}
+          </div>
           <div className="license-info-actions">
             {hasNewerVersion && !supportsThisComputer && result?.releaseUrl && <a href={result.releaseUrl} target="_blank" rel="noopener noreferrer">Strona wydania</a>}
             <button className="secondary" type="button" disabled={checking || installing} onClick={() => onCheck(false)}>Sprawdź ponownie</button>

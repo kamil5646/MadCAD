@@ -16,11 +16,17 @@ function focusableElements(dialog) {
 
 export function useDialogFocus(active = true) {
   const dialogRef = useRef(null);
+  const previousFocusRef = useRef(null);
+  const wasActiveRef = useRef(false);
+
+  if (active && !wasActiveRef.current) {
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+  wasActiveRef.current = active;
 
   useEffect(() => {
     if (!active || !dialogRef.current) return undefined;
     const dialog = dialogRef.current;
-    const previousFocus = document.activeElement;
     const initialFocus = dialog.querySelector('[data-dialog-initial-focus], [autofocus]')
       || focusableElements(dialog)[0]
       || dialog;
@@ -49,6 +55,7 @@ export function useDialogFocus(active = true) {
     dialog.addEventListener('keydown', trapFocus);
     return () => {
       dialog.removeEventListener('keydown', trapFocus);
+      const previousFocus = previousFocusRef.current;
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
         previousFocus.focus({ preventScroll: true });
       }
