@@ -1,6 +1,6 @@
 # Audyt technologii asystujących
 
-Ostatnia weryfikacja: 2026-08-25, macOS arm64, MadCAD 6.3.2.
+Ostatnia weryfikacja: 2026-08-25, macOS arm64, kandydat MadCAD 6.4.0.
 
 ## Zakres automatyczny
 
@@ -12,7 +12,7 @@ Kontrola macOS Accessibility API ujawniła, że modal wyboru płaszczyzny pozost
 
 ## Kontrola ręczna VoiceOver
 
-Na lokalnym kandydacie macOS 6.3.2 włączono systemowy VoiceOver i sprawdzono strukturę oraz kolejność podstawowego przepływu: główne narzędzia, informację licencyjną, samouczek, polecenie Linia, aktywny snap, komunikaty stanu i aktualizator. Linia została rozpoczęta kliknięciem punktu siatki, następnie do nazwanego pola „Długość następnego odcinka mm Enter” wpisano `50` i zatwierdzono Enterem. Czytnik ma dostęp do komunikatów „Punkt początkowy ustawiony” i „Linia została dodana”, stanu snapu, pól długości/kąta oraz przycisków zakończenia i cofnięcia.
+Na lokalnym kandydacie macOS 6.4.0 włączono systemowy VoiceOver i sprawdzono strukturę oraz kolejność podstawowego przepływu: główne narzędzia, informację licencyjną, samouczek, polecenie Linia, aktywny snap, komunikaty stanu i aktualizator. Linia została rozpoczęta kliknięciem punktu siatki, następnie do nazwanego pola „Długość następnego odcinka mm Enter” wpisano `50` i zatwierdzono Enterem. Czytnik ma dostęp do komunikatów „Punkt początkowy ustawiony” i „Linia została dodana”, stanu snapu, pól długości/kąta oraz przycisków zakończenia i cofnięcia.
 
 Przegląd wykrył błąd aktualizatora: fokus technologii asystującej pozostawał na przycisku pod modalem, wynik sprawdzania nie był regionem statusu, a Escape nie zamykał okna. Aktualizator otrzymał jawny fokus początkowy, `role="status"` z `aria-live="polite"`, obsługę Escape i prawidłowe przywracanie fokusu. Test komponentu oraz pełna kontrola drzewa AX przechodzą po poprawce.
 

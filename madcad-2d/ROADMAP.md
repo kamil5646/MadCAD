@@ -1,7 +1,7 @@
 # MadCAD — aktywny plan rozwoju
 
-Aktualizacja: 2026-08-24
-Wersja bazowa: `6.3.2 stable`
+Aktualizacja: 2026-08-25
+Wersja bazowa: `6.4.0 stable`
 Gałąź wydania: `main`
 
 Ten plik opisuje aktywną ścieżkę do CAD 2D/3D: bezpośrednie szkicowanie i polecenia znane z klasycznego CAD są podstawą, a parametryczna historia i modelowanie bryłowe rozwijają rysunek w model 3D. Przygotowanie do druku 3D pozostaje opcjonalnym dodatkiem eksportowym. Historia ukończonych prac znajduje się w [DONE.md](./DONE.md), a dalszy zakres produktu w [BACKLOG.md](./BACKLOG.md).
@@ -232,7 +232,7 @@ Dodatkowo:
 4. [x] P1.32b ukończono: NPT/BSPT, dodatkowe rozmiary, jawne tolerancje użytkownika oraz publiczne zalecenia przygotowania bez kopiowania płatnych tabel normatywnych.
 5. [x] Dodać P1.33 Draft Analysis z kolorową mapą ścian, wyborem kierunku i tolerancji.
 6. [x] Interference P1.34a, Named Views P1.34b i pełny ViewCube P1.34c ukończono.
-7. [x] Ręczny przepływ VoiceOver na kandydacie macOS 6.3.2 objął uruchomienie, licencję, samouczek, linię od wskazanego punktu z długością `50 mm` zatwierdzoną Enterem, komunikaty snap/status, cofnięcie i aktualizator. Naprawiono fokus, ogłaszanie wyniku i Escape w aktualizatorze; regresja sprawdza teraz także przywrócenie fokusu mimo użycia `autoFocus`.
+7. [x] Ręczny przepływ VoiceOver na kandydacie macOS 6.4.0 objął uruchomienie, licencję, samouczek, linię od wskazanego punktu z długością `50 mm` zatwierdzoną Enterem, komunikaty snap/status, cofnięcie i aktualizator. Naprawiono fokus, ogłaszanie wyniku i Escape w aktualizatorze; regresja sprawdza teraz także przywrócenie fokusu mimo użycia `autoFocus`.
 8. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
 
 Dalsze pomysły produktowe pozostają w [BACKLOG.md](./BACKLOG.md) i wymagają osobnej priorytetyzacji.

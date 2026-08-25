@@ -2,16 +2,23 @@
 
 ## Unreleased
 
-- Dodano P1.32b: gwinty NPT i BSPT/Rc ze stożkiem 1:16, TPI, przygotowaniem walcowym/stożkowym, kontrolą sprawdzianem, dodatkowymi rozmiarami metrycznymi M1–M56 i jawnymi odchyłkami średnicy w projekcie oraz tabeli otworów.
-- Dodano obszar **DOKUMENTACJA** z zapisywanymi arkuszami A4/A3, tabliczką rysunkową i skojarzonym widokiem bazowym aktualizowanym z rzeczywistych krawędzi modelu.
-- Widok bazowy obsługuje kierunki Front/Top/Right/Isometric, automatyczny dobór standardowej skali, ręczne położenie na arkuszu oraz pełne undo/redo, autozapis i round-trip `.madcad`.
-- Dodano bezpieczny, bezpośredni eksport arkusza do PDF oraz osobny podgląd 1:1 w izolowanym oknie Electron.
-- Dodano skojarzone rzuty pochodne, przekroje A-A liczone z przecięcia trójkątów modelu i powiększone detale z liniami wywołania. Widoki dziedziczą geometrię, kierunek oraz skalę rodzica i automatycznie aktualizują się po przebudowie modelu.
-- Arkusz automatycznie układa bazę, rzut, przekrój i detal w czytelnej siatce 2×2; właściwości pozwalają sterować kierunkiem rzutu, linią cięcia, kreskowaniem, obszarem detalu, powiększeniem i wyrównaniem.
-- Dodano skojarzone wymiary szerokości i wysokości z tolerancją symetryczną albo odchyłkami, osie, znaczniki środka, automatyczny opis średnicy otworu oraz opis gwintu z klasą tolerancji. Oznaczenia aktualizują się po przebudowie modelu, są wybieralne i edytowalne oraz trafiają do PDF.
-- Dodano ramki podstawowych tolerancji geometrycznych GD&T, konfigurowalną tabliczkę rysunkową i historię rewizji widoczną na arkuszu.
-- Dodano eksport arkusza do AutoCAD 2013 DXF w milimetrach, obejmujący rzuty, kreskowanie, opisy, wymiary i ramki GD&T.
-- Schemat projektu podniesiono do v8 z migracjami dokumentów v4/v5/v6/v7 oraz zachowaniem istniejących widoków i adnotacji.
+## 6.4.0 (2026-08-25)
+
+- Dodano pełny obszar **DOKUMENTACJA**: arkusze A4/A3, skojarzone widoki bazowe i rzutowane, przekroje A-A, detale, automatyczne skale, tabliczki rysunkowe oraz podgląd 1:1.
+- Wymiary, tolerancje, osie, znaczniki środka, opisy otworów i gwintów, ramki GD&T oraz historia rewizji pozostają skojarzone z modelem i trafiają do eksportów PDF oraz AutoCAD 2013 DXF.
+- Dodano automatyczny BOM z komponentów lub brył, balony pozycji oraz tabelę średnic i liczby otworów.
+- Wprowadzono hierarchiczne części, złożenia i wystąpienia komponentów z numerami części, materiałami, wyglądem, Ground, Rigid Group, powielaniem oraz zagnieżdżonymi transformacjami.
+- Dodano jointy rigid/revolute/slider z limitami i sterowaniem, Motion Links, Contact Sets, konfiguracje złożenia, kontrolę kolizji oraz regulowany widok rozstrzelony.
+- Rozszerzono standardy otworów i gwintów o metryczne M1–M56, NPT i BSPT/Rc, przygotowanie walcowe lub stożkowe, TPI, sprawdziany oraz jawne tolerancje.
+- Dodano Draft Analysis, dokładniejszą kontrolę interferencji, zapisywane Named Views i pełny ViewCube.
+- Oś czasu obsługuje rollback, wstawianie i bezpieczne porządkowanie operacji, grupy, zmianę nazw, suppress oraz usuwanie z kontrolą zależności.
+- Dodano lokalne punkty zapisu, porównywanie wersji projektu, raport kondycji, „Gdzie używane” i globalne „Idź do” otwierane przez `Ctrl/⌘ K`.
+- Linkowane projekty zachowują lekkie proxy STEP i kontrolę aktualności źródła; Pack & Go pakuje cały graf zależności z przepisanymi ścieżkami i sumami SHA-256.
+- Dodano warstwy i właściwości ByLayer, wielokrotnego użytku bloki 2D z atrybutami, konfigurowalne aliasy poleceń oraz zapisywane układy obszaru roboczego.
+- Szkicownik podpowiada więzy, raportuje stopnie swobody i oferuje kreator naprawy utraconych referencji; import pokazuje raport naprawionej i pominiętej geometrii.
+- Wzmocniono obsługę klawiatury, natywne skróty macOS oraz dostępność czytników ekranu. Ręczny test VoiceOver objął uruchomienie, licencję, samouczek, linię z długością zatwierdzaną Enterem, snap, cofanie i aktualizator.
+- Naprawiono fokus, ogłaszanie wyniku, Escape i przywracanie fokusu w oknie aktualizacji; automatyczna kontrola drzewa dostępności i pełne testy Electron nie wykrywają blokujących naruszeń.
+- Rozdzielono kontrolery interfejsu i usługi dokumentu, ustabilizowano testy desktopowe oraz rozszerzono weryfikację prawdziwych plików DWG/DXF, STEP, STL i 3MF.
 
 ## 6.3.2 (2026-08-23)
 
