@@ -178,6 +178,7 @@ import {
   saveCommandCustomization,
 } from './command-customization.js';
 import { isDockableCommand, panelScreenKey, readPanelLayout, writePanelLayout } from './panel-layout.js';
+import { resolveVisibleSketchId } from './sketch-visibility.js';
 import { BUILT_IN_WORKSPACE_LAYOUTS, captureWorkspaceView, createCustomWorkspaceLayout, loadCustomWorkspaceLayouts, saveCustomWorkspaceLayouts } from './workspace-layouts.js';
 import { multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
 import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumentHistory } from './workspace-document.js';
@@ -883,9 +884,12 @@ export default function ModelingWorkspace() {
   const selectedSketchConstraintId = selection?.kind === 'sketchConstraint' && selection.sketchId === activeSketchId
     ? selection.id
     : null;
-  const visibleSketchId = activeSketchId
-    || selection?.sketchId
-    || (selection?.kind === 'sketch' ? selection.id : null);
+  const visibleSketchId = resolveVisibleSketchId({
+    activeSketchId,
+    selection,
+    sketches: document.sketches,
+    bodyCount: document.bodies.length,
+  });
   const selectedSketchEntities = (document.sketches.find((item) => item.id === activeSketchId)?.entities || [])
     .filter((entity) => selectedSketchEntityIds.includes(entity.id));
   const selectedBlockInstance = (() => {

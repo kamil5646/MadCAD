@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 6.4.3 (2026-08-26)
+
+- Po otwarciu lub odzyskaniu projektu bez utworzonej bryły ostatni szkic pozostaje widoczny także wtedy, gdy aplikacja nie ma jeszcze odtworzonego zaznaczenia.
+
 ## 6.4.2 (2026-08-26)
 
 - Widok szkicu zachowuje pozycję, powiększenie i przesunięcie podczas rysowania oraz po zakończeniu edycji.

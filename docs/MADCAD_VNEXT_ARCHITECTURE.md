@@ -72,7 +72,7 @@ programu ani pliku i nie instaluje dodatków.
 Aktualizator przyjmuje wyłącznie HTTPS z oficjalnego repozytorium, narzuca
 limit rozmiaru i SHA-256. Cicha instalacja nadal wymaga poprawnego
 Authenticode na Windows albo Developer ID, oczekiwanego Team ID i Gatekeeper
-na macOS. Dla niepodpisanego wydania 6.4.2 aktualizator zapisuje zweryfikowaną
+na macOS. Dla niepodpisanego wydania 6.4.3 aktualizator zapisuje zweryfikowaną
 paczkę w Pobranych i otwiera ją do potwierdzonej instalacji systemowej; na Linux
 wybiera AppImage właściwy dla architektury i nadaje mu prawo uruchomienia.
 Renderer nie może podać dowolnego adresu aktualizacji.
