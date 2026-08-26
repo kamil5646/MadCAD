@@ -1824,11 +1824,20 @@ async function runUiFlow(window) {
   await sendMouse('mouseMove', dynamicLineStart);
   await sendMouse('mouseDown', dynamicLineStart);
   await sendMouse('mouseUp', dynamicLineStart);
-  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 1`, 'punkt początkowy linii dynamicznej');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 1 && window.__madcadVerifyDocumentState?.command?.points === 1`, 'punkt początkowy linii dynamicznej');
   await waitForUi(window, `window.__madcadSketchLocalToScreen`, 'odświeżone płótno linii dynamicznej');
   const dynamicLineDirection = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(30, 40)`);
-  await sendMouse('mouseMove', dynamicLineDirection);
-  await waitForUi(window, `document.querySelector('.sketch-dynamic-input')?.textContent.includes('50.00')`, 'podgląd kierunku i długości linii');
+  for (let step = 1; step <= 5; step += 1) {
+    await sendMouse('mouseMove', {
+      x: dynamicLineStart.x + ((dynamicLineDirection.x - dynamicLineStart.x) * step / 5),
+      y: dynamicLineStart.y + ((dynamicLineDirection.y - dynamicLineStart.y) * step / 5),
+    });
+  }
+  await waitForUi(window, `(() => { const value = Number.parseFloat(document.querySelector('.sketch-dynamic-input strong')?.textContent || ''); return value >= 45 && value <= 55; })()`, 'podgląd kierunku i długości linii');
+  const dynamicLinePreview = await window.webContents.executeJavaScript(`(() => ({
+    distance: Number.parseFloat(document.querySelector('.sketch-dynamic-input strong')?.textContent || ''),
+    angle: Number.parseFloat(document.querySelector('.sketch-dynamic-input small')?.textContent || ''),
+  }))()`);
   await waitForUi(window, `document.querySelector('.sketch-length-entry input')`, 'kontekstowe pole długości linii');
   await sendKey('2');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.dynamicLength === '2'`, 'pierwsza cyfra długości linii');
@@ -1837,8 +1846,9 @@ async function runUiFlow(window) {
   await sendKey('Enter');
   await waitForUi(window, `!window.__madcadVerifyDocumentState?.command && window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 3`, 'linia zatwierdzona Enterem');
   const dynamicLinePoints = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.filter((entity) => entity.type === 'point').map((entity) => [Number(entity.geometry.x), Number(entity.geometry.y)])`);
-  assertClose(dynamicLinePoints[1][0], 15, 0.01, 'Dynamic line end X');
-  assertClose(dynamicLinePoints[1][1], 20, 0.01, 'Dynamic line end Y');
+  const previewRadians = dynamicLinePreview.angle * Math.PI / 180;
+  assertClose(dynamicLinePoints[1][0], dynamicLinePoints[0][0] + (Math.cos(previewRadians) * 25), 0.08, 'Dynamic line end X');
+  assertClose(dynamicLinePoints[1][1], dynamicLinePoints[0][1] + (Math.sin(previewRadians) * 25), 0.08, 'Dynamic line end Y');
   assertClose(Math.hypot(dynamicLinePoints[1][0] - dynamicLinePoints[0][0], dynamicLinePoints[1][1] - dynamicLinePoints[0][1]), 25, 0.01, 'Dynamic line length');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt po teście linii dynamicznej');
