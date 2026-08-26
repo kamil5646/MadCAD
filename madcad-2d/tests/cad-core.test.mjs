@@ -4043,11 +4043,15 @@ test('polityka IPC ogranicza nazwy, filtry, konwersje i podgląd wydruku', () =>
     defaultName: '../../projekt.step',
     filters: [{ name: 'STEP', extensions: ['step', '.stp'] }],
     atomic: true,
+    targetPath: '/tmp/projekt.madcad',
   });
   assert.equal(save.defaultName, 'projekt.step');
   assert.deepEqual(save.filters[0].extensions, ['step', 'stp']);
   assert.equal(save.atomic, true);
+  assert.equal(save.targetPath, '/tmp/projekt.madcad');
   assert.throws(() => ipcPolicy.normalizeSaveTextPayload({ text: 'x', filters: [{ name: 'Zły', extensions: ['../exe'] }] }), /rozszerzenie/i);
+  assert.throws(() => ipcPolicy.normalizeSaveTextPayload({ text: 'x', targetPath: 'projekt.madcad' }), /bezwzględny/i);
+  assert.throws(() => ipcPolicy.normalizeSaveTextPayload({ text: 'x', targetPath: '/tmp/projekt.step' }), /\.madcad/i);
   assert.throws(() => ipcPolicy.normalizeAutosavePayload({ text: '' }), /pusty/i);
   const snapshot = ipcPolicy.normalizeProjectSnapshotCreatePayload({ name: '  Przed otworami  ', description: ' wersja bazowa ', text: '{"schemaVersion":14}' });
   assert.deepEqual(snapshot, { name: 'Przed otworami', description: 'wersja bazowa', text: '{"schemaVersion":14}' });

@@ -1209,20 +1209,29 @@ registerTrustedIpcHandler('madcad:save-text-file', async (event, payload) => {
     const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;
     const normalized = normalizeSaveTextPayload(payload, appLanguage);
 
-    const result = await dialog.showSaveDialog(senderWindow, {
-      title: t('Zapisz plik', 'Save file'),
-      defaultPath: normalized.defaultName,
-      filters: normalized.filters,
-      properties: ['createDirectory', 'showOverwriteConfirmation']
-    });
+    let filePath = normalized.targetPath;
+    if (filePath) {
+      const existingFile = await fs.stat(filePath).catch(() => null);
+      if (!existingFile?.isFile()) filePath = '';
+    }
 
-    if (result.canceled || !result.filePath) {
-      return { ok: false, canceled: true };
+    if (!filePath) {
+      const result = await dialog.showSaveDialog(senderWindow, {
+        title: t('Zapisz plik', 'Save file'),
+        defaultPath: normalized.defaultName,
+        filters: normalized.filters,
+        properties: ['createDirectory', 'showOverwriteConfirmation']
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { ok: false, canceled: true };
+      }
+      filePath = result.filePath;
     }
 
     const writeResult = normalized.atomic
-      ? await atomicWriteTextFile(result.filePath, normalized.text, { backup: normalized.createBackup })
-      : (await fs.writeFile(result.filePath, normalized.text, 'utf8'), { filePath: result.filePath, backupPath: null });
+      ? await atomicWriteTextFile(filePath, normalized.text, { backup: normalized.createBackup })
+      : (await fs.writeFile(filePath, normalized.text, 'utf8'), { filePath, backupPath: null });
     return { ok: true, canceled: false, ...writeResult };
   } catch (error) {
     return {

@@ -458,6 +458,7 @@ export default function ModelViewport({
   const lastExplodeAmountRef = useRef(explodeAmount);
   const lastCameraRequestIdRef = useRef('');
   const lastFitRequestIdRef = useRef('');
+  const lastStandardViewRequestIdRef = useRef(0);
   const cameraChangeRef = useRef(onCameraStateChange);
   const sketchInteractionRef = useRef({ activeSketchId: null, start: null, drag: null, box: null });
   const selectRef = useRef(onSelectBody);
@@ -471,6 +472,7 @@ export default function ModelViewport({
   const sketchModifyRef = useRef(onSketchModify);
   const directRef = useRef({});
   const [view, setView] = useState('iso');
+  const [standardViewRequestId, setStandardViewRequestId] = useState(0);
   const [customViewActive, setCustomViewActive] = useState(false);
   const [navigationMode, setNavigationMode] = useState(VIEWPORT_NAVIGATION_MODES.SELECT);
   const [zoomScale, setZoomScale] = useState(1);
@@ -486,7 +488,9 @@ export default function ModelViewport({
   const selectStandardView = (nextView) => {
     cameraSnapshotRef.current = null;
     setCustomViewActive(false);
+    setZoomScale(1);
     setView(nextView);
+    setStandardViewRequestId((current) => current + 1);
   };
   const selectedTopologySet = useMemo(() => new Set(selectedTopologyIds), [selectedTopologyIds]);
   const selectedBodySet = useMemo(() => new Set(selectedBodyIds.length ? selectedBodyIds : [selectedBodyId].filter(Boolean)), [selectedBodyId, selectedBodyIds]);
@@ -510,6 +514,8 @@ export default function ModelViewport({
       return { status: SKETCH_SOLVER_STATUS.CONFLICT, degreesOfFreedom: null, diagnostics: [{ message: error.message }], conflictConstraintIds: [] };
     }
   }, [activeSketch, parameters]);
+  const blockingSketchDiagnostics = (activeSketch?.diagnostics || []).filter((entry) => entry.code !== 'GAP');
+  const openEndpointCount = (activeSketch?.diagnostics || []).filter((entry) => entry.code === 'GAP').length;
   const freedomDiagnostics = useMemo(() => describeSketchDegreesOfFreedom(activeSketch, solverAnalysis), [activeSketch, solverAnalysis]);
   useEffect(() => {
     if (solverAnalysis?.status !== SKETCH_SOLVER_STATUS.UNDER_CONSTRAINED || !freedomDiagnostics.total) setFreedomPanelOpen(false);
@@ -583,9 +589,12 @@ export default function ModelViewport({
     const explodeAmountChanged = lastExplodeAmountRef.current !== explodeAmount;
     lastExplodeAmountRef.current = explodeAmount;
 
-    const forceFit = Boolean(fitRequest?.requestId && fitRequest.requestId !== lastFitRequestIdRef.current);
+    const externalFit = Boolean(fitRequest?.requestId && fitRequest.requestId !== lastFitRequestIdRef.current);
+    const standardViewFit = standardViewRequestId !== lastStandardViewRequestIdRef.current;
+    const forceFit = externalFit || standardViewFit;
     if (forceFit) {
-      lastFitRequestIdRef.current = fitRequest.requestId;
+      if (externalFit) lastFitRequestIdRef.current = fitRequest.requestId;
+      lastStandardViewRequestIdRef.current = standardViewRequestId;
       cameraSnapshotRef.current = null;
     }
 
@@ -1097,9 +1106,22 @@ export default function ModelViewport({
       else contentBox.copy(groupBox);
       hasFramedContent = true;
     }
+    let hasActiveSketchContent = false;
+    if (activeSketch && sketchRender) {
+      const activeSketchBox = new THREE.Box3();
+      for (const object of [
+        ...sketchRender.entries.map((entry) => entry.object),
+        ...(sketchProfileRender?.pickables || []),
+      ]) activeSketchBox.expandByObject(object);
+      if (!activeSketchBox.isEmpty()) {
+        contentBox.copy(activeSketchBox);
+        hasFramedContent = true;
+        hasActiveSketchContent = true;
+      }
+    }
     const modelBox = hasFramedContent ? contentBox : null;
     const center = modelBox ? modelBox.getCenter(new THREE.Vector3()) : new THREE.Vector3(0, 0, 0);
-    if (activeSketch) center.set(...mapPlanePoint(0, 0, activePlane, 0, activePlaneOffset));
+    if (activeSketch && !hasActiveSketchContent) center.set(...mapPlanePoint(0, 0, activePlane, 0, activePlaneOffset));
     const size = modelBox ? modelBox.getSize(new THREE.Vector3()) : new THREE.Vector3(80, 60, 20);
     const radius = Math.max(size.x, size.y, size.z, 55);
     const constructionGroup = new THREE.Group();
@@ -1293,6 +1315,9 @@ export default function ModelViewport({
     };
     const pickSketchProfile = () => sketchProfileRender
       ? raycaster.intersectObjects(sketchProfileRender.pickables, false)[0] || null
+      : null;
+    const pickCompletedSketchProfile = () => completedSketchProfileRender
+      ? raycaster.intersectObjects(completedSketchProfileRender.pickables, false)[0] || null
       : null;
     const selectionMode = (event) => primaryModifierPressed(event, desktopPlatform) ? 'toggle' : event.shiftKey ? 'add' : 'replace';
     const movingPointIds = (entityIds) => {
@@ -1572,6 +1597,12 @@ export default function ModelViewport({
         return;
       }
       if (activeSketch) return;
+      const completedProfileHit = pickCompletedSketchProfile();
+      if (completedProfileHit) {
+        event.preventDefault();
+        sketchProfileSelectionRef.current?.(completedProfileHit.object.userData.sketchProfileId, visibleSketch?.id || null);
+        return;
+      }
       const hit = pickModel(event, alternateModifierPressed(event));
       if (event.shiftKey && !hit) {
         event.preventDefault();
@@ -1978,7 +2009,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;
@@ -2053,7 +2084,7 @@ export default function ModelViewport({
         <button className={navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT ? 'active' : ''} type="button" aria-label="Orbita" aria-pressed={navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT} title="Orbita: Shift + naciśnięte kółko myszy. Ten przycisk włącza też orbitę lewym przyciskiem." onClick={() => setNavigationMode((mode) => mode === VIEWPORT_NAVIGATION_MODES.ORBIT ? VIEWPORT_NAVIGATION_MODES.SELECT : VIEWPORT_NAVIGATION_MODES.ORBIT)}><Orbit size={16} /></button>
         <button className={navigationMode === VIEWPORT_NAVIGATION_MODES.PAN ? 'active' : ''} type="button" aria-label="Przesuń widok" aria-pressed={navigationMode === VIEWPORT_NAVIGATION_MODES.PAN} title="Przesuń widok: przytrzymaj kółko myszy i przeciągnij. Ten przycisk włącza też przesuwanie lewym przyciskiem." onClick={() => setNavigationMode((mode) => mode === VIEWPORT_NAVIGATION_MODES.PAN ? VIEWPORT_NAVIGATION_MODES.SELECT : VIEWPORT_NAVIGATION_MODES.PAN)}><Move3d size={16} /></button>
         <button type="button" aria-label="Powiększ model" title="Powiększ model. Kółko myszy przybliża pod pozycją kursora." onClick={() => setZoomScale((scale) => Math.max(0.35, scale * 0.78))}><ZoomIn size={16} /></button>
-        <button type="button" aria-label="Dopasuj cały model" title="Dopasuj cały model do dostępnego obszaru." onClick={() => { setZoomScale(1); selectStandardView(activeSketchId ? (activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top') : 'iso'); }}><Maximize2 size={16} /></button>
+        <button type="button" aria-label="Dopasuj cały model" title="Dopasuj cały model do dostępnego obszaru." onClick={() => selectStandardView(activeSketchId ? (activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top') : 'iso')}><Maximize2 size={16} /></button>
       </div>
       {directEnabled && <div className="direct-extrude-hint">{directManipulator?.hint || 'Przeciągnij niebieską strzałkę, aby wyciągnąć profil'}</div>}
       {dragLabel && <div className="direct-dimension" style={{ left: dragLabel.x, top: dragLabel.y }}>{dragLabel.value.toFixed(1)} mm</div>}
@@ -2088,11 +2119,17 @@ export default function ModelViewport({
         </div>
       )}
       {selectionBox && <div className={`sketch-selection-box ${selectionBox.crossing ? 'crossing' : 'inside'}`} style={{ left: selectionBox.left, top: selectionBox.top, width: selectionBox.width, height: selectionBox.height }} />}
-      {activeSketch?.diagnostics?.length > 0 && (
+      {blockingSketchDiagnostics.length > 0 && (
         <div className="sketch-diagnostics" role="status">
           <strong>Obrys wymaga poprawy</strong>
-          {activeSketch.diagnostics.slice(0, 3).map((entry, index) => <span key={`${entry.code}-${index}`}>{entry.message}</span>)}
-          {activeSketch.diagnostics.length > 3 && <small>+{activeSketch.diagnostics.length - 3} kolejnych problemów</small>}
+          {blockingSketchDiagnostics.slice(0, 3).map((entry, index) => <span key={`${entry.code}-${index}`}>{entry.message}</span>)}
+          {blockingSketchDiagnostics.length > 3 && <small>+{blockingSketchDiagnostics.length - 3} kolejnych problemów</small>}
+        </div>
+      )}
+      {activeSketchId && openEndpointCount > 0 && blockingSketchDiagnostics.length === 0 && (
+        <div className="sketch-open-chain-info" role="status">
+          <strong>Otwarty łańcuch</strong>
+          <span>Zaznacz jego linie, aby użyć Thin Extrude, Rib/Web albo Pipe.</span>
         </div>
       )}
       {solverAnalysis && (

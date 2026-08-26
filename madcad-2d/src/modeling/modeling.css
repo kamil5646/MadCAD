@@ -2158,6 +2158,26 @@
   color: #d9a6aa;
 }
 
+.sketch-open-chain-info {
+  position: absolute;
+  z-index: 8;
+  bottom: 76px;
+  left: 12px;
+  display: grid;
+  max-width: 330px;
+  gap: 3px;
+  border: 1px solid rgba(83, 194, 226, 0.48);
+  border-radius: 4px;
+  background: rgba(31, 58, 70, 0.92);
+  color: #d8f4fb;
+  padding: 8px 10px;
+  box-shadow: 0 8px 22px rgba(4, 11, 16, 0.28);
+  pointer-events: none;
+}
+
+.sketch-open-chain-info strong { font-size: 10px; }
+.sketch-open-chain-info span { color: #a9d7e4; font-size: 9px; }
+
 .reference-repair-panel {
   position: absolute;
   z-index: 10;

@@ -51,12 +51,22 @@ function normalizeSaveFilters(value) {
 
 function normalizeSaveTextPayload(payload, language = 'pl') {
   const source = assertPlainObject(payload);
+  let targetPath = '';
+  if (source.targetPath != null && source.targetPath !== '') {
+    const requestedPath = limitedString(source.targetPath, { label: 'Ścieżka zapisu', min: 1, max: 4096, trim: true });
+    const extension = path.extname(requestedPath).toLowerCase();
+    if (!path.isAbsolute(requestedPath) || !['.madcad', '.json'].includes(extension)) {
+      throw new Error('Ścieżka bezpośredniego zapisu musi wskazywać bezwzględny plik .madcad albo .json.');
+    }
+    targetPath = path.normalize(requestedPath);
+  }
   return {
     text: limitedString(source.text, { label: 'Plik', max: MAX_SAVE_TEXT_BYTES }),
     defaultName: safeFileName(source.defaultName, language === 'en' ? 'drawing.txt' : 'rysunek.txt'),
     filters: normalizeSaveFilters(source.filters),
     atomic: source.atomic === true,
     createBackup: source.createBackup !== false,
+    targetPath,
   };
 }
 

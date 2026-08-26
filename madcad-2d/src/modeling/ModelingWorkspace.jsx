@@ -2158,7 +2158,9 @@ export default function ModelingWorkspace() {
     if (selectedPoint) setSelection({ kind: 'sketchPoint', id: selectedPoint.id, sketchId: sketch.id });
     else if (lastProfile) setSelection({ kind: 'profile', id: lastProfile.id, sketchId: sketch.id });
     else if (sketch) setSelection({ kind: 'sketch', id: sketch.id });
-    setNotice('Szkic zakończony. Wybierz profil i użyj operacji bryłowej.');
+    setNotice(lastProfile
+      ? 'Szkic zakończony. Ostatni profil jest zaznaczony i gotowy do operacji bryłowej.'
+      : 'Szkic zakończony. Wybierz profil i użyj operacji bryłowej.');
   };
 
   const openProfileCommand = (type, profile = null) => {
@@ -2328,9 +2330,12 @@ export default function ModelingWorkspace() {
       if (detectedProfile) {
         setSelection({ kind: 'profile', id: detectedProfile.id, sketchId: activeSketchId });
         setNotice('Linia zamknęła obrys. Utworzono profil gotowy do wyciągnięcia.');
-      } else setNotice(automaticConstraints.length
-        ? `Linia została dodana · automatyczny więz: ${automaticConstraints.map((constraint) => constraint.type === 'horizontal' ? 'poziomo' : constraint.type === 'vertical' ? 'pionowo' : 'zbieżność').join(', ')}.`
-        : 'Linia została dodana.');
+      } else {
+        setSelection({ kind: 'sketchEntities', ids: [segment.id], sketchId: activeSketchId });
+        setNotice(automaticConstraints.length
+          ? `Linia została dodana i zaznaczona · automatyczny więz: ${automaticConstraints.map((constraint) => constraint.type === 'horizontal' ? 'poziomo' : constraint.type === 'vertical' ? 'pionowo' : 'zbieżność').join(', ')}.`
+          : 'Linia została dodana i zaznaczona. Możesz użyć Thin Extrude albo Pipe.');
+      }
       return;
     }
     setCommand((current) => ({
@@ -4194,6 +4199,7 @@ export default function ModelingWorkspace() {
         filters: saveRequest.filters,
         atomic: true,
         createBackup: true,
+        targetPath: currentPath || '',
       });
       if (!result?.ok) {
         setNotice(result?.canceled ? 'Anulowano zapis.' : `Nie udało się zapisać: ${result?.error || 'nieznany błąd'}`);
@@ -4273,6 +4279,7 @@ export default function ModelingWorkspace() {
     history.replace(blank);
     setSavedDocumentText(JSON.stringify(blank));
     setCurrentPath('');
+    setRecoveryInfo(null);
     setDocumentAccess({ readOnly: false, sourceVersion: DOCUMENT_SCHEMA_VERSION, originalDocument: null });
     setSelection({ kind: 'document', id: blank.id });
     setActiveSketchId(null);
@@ -4286,6 +4293,7 @@ export default function ModelingWorkspace() {
     history.replace(opened.document);
     setSavedDocumentText(JSON.stringify(opened.document));
     setCurrentPath(opened.filePath);
+    setRecoveryInfo(null);
     setDocumentAccess({ readOnly: opened.readOnly, sourceVersion: opened.sourceVersion, originalDocument: opened.originalDocument });
     setSelection({ kind: 'document', id: opened.document.id });
     setActiveSketchId(null);
@@ -5432,7 +5440,7 @@ export default function ModelingWorkspace() {
             onDeleteSketchSelection={readOnly ? undefined : deleteSelectedSketchEntities}
             sketchModifierMode={command?.type === 'trimSketch' ? 'trim' : command?.type === 'extendSketch' ? 'extend' : command?.type === 'breakSketch' ? 'break' : command?.type === 'projectSketch' ? 'project' : null}
             onSketchModify={modifySketchAtPoint}
-            onSketchProfileSelection={(profileId) => setSelection({ kind: 'profile', id: profileId, sketchId: activeSketchId })}
+            onSketchProfileSelection={(profileId, sketchId) => setSelection({ kind: 'profile', id: profileId, sketchId: sketchId || activeSketchId })}
             onSketchMove={readOnly ? undefined : moveSketchEntities}
             showSketchPoints={sketchOptions.points}
             showSketchProfiles={sketchOptions.profiles}

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 6.4.4 (2026-08-26)
+
+- Naprawiono jawny tryb przesuwania widoku podczas szkicowania; lewy przycisk myszy przesuwa kamerę tylko po wybraniu narzędzia Pan, a zwykły tryb nadal rysuje i zaznacza.
+- Dopasowanie widoku obejmuje całą aktywną geometrię szkicu, również bardzo długie linie, i działa ponownie bez konieczności wcześniejszej zmiany orientacji.
+- Zmniejszono czułość orbity, aby widok nie odwracał się gwałtownie przy krótkim ruchu myszy.
+- Zamknięty profil można zaznaczyć bezpośrednio na płótnie po zakończeniu szkicu i od razu wyciągnąć; ostatni utworzony profil pozostaje zaznaczony.
+- Poprawny otwarty łańcuch nie jest już pokazywany jako błąd. Jego linia zostaje zaznaczona automatycznie, a komunikat prowadzi do Thin Extrude, Rib/Web lub Pipe.
+- Komunikat odzyskiwania znika po utworzeniu albo otwarciu innego projektu.
+- Zwykłe zapisanie ponownie otwartego projektu atomowo nadpisuje ten sam plik zamiast niepotrzebnie otwierać okno „Zapisz jako”.
+
 ## 6.4.3 (2026-08-26)
 
 - Po otwarciu lub odzyskaniu projektu bez utworzonej bryły ostatni szkic pozostaje widoczny także wtedy, gdy aplikacja nie ma jeszcze odtworzonego zaznaczenia.

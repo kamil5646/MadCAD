@@ -17,6 +17,7 @@ describe('AutoCAD-compatible viewport navigation', () => {
     expect(controls.screenSpacePanning).toBe(true);
     expect(controls.zoomToCursor).toBe(true);
     expect(controls.zoomSpeed).toBe(1.1);
+    expect(controls.rotateSpeed).toBe(0.45);
   });
 
   it('only assigns the left button while an explicit orbit or pan tool is active', () => {
@@ -29,14 +30,19 @@ describe('AutoCAD-compatible viewport navigation', () => {
     expect(pan.mouseButtons.LEFT).toBe(MOUSE.PAN);
   });
 
-  it('does not let navigation buttons steal sketch drawing or non-left pointer input', () => {
+  it('lets explicit pan work in a sketch without letting orbit steal sketch drawing', () => {
     const controls = { mouseButtons: {} };
     configureCadMouseNavigation(controls, MOUSE, { navigationMode: VIEWPORT_NAVIGATION_MODES.ORBIT, activeSketch: true });
+    const pan = { mouseButtons: {} };
+    configureCadMouseNavigation(pan, MOUSE, { navigationMode: VIEWPORT_NAVIGATION_MODES.PAN, activeSketch: true });
 
     expect(controls.mouseButtons.LEFT).toBeNull();
+    expect(pan.mouseButtons.LEFT).toBe(MOUSE.PAN);
     expect(shouldHandlePrimaryViewportPointer({ button: 1 })).toBe(false);
     expect(shouldHandlePrimaryViewportPointer({ button: 0 }, { navigationMode: VIEWPORT_NAVIGATION_MODES.ORBIT })).toBe(false);
-    expect(shouldHandlePrimaryViewportPointer({ button: 0 }, { navigationMode: VIEWPORT_NAVIGATION_MODES.ORBIT, activeSketch: true })).toBe(true);
+    expect(shouldHandlePrimaryViewportPointer({ button: 0 }, { navigationMode: VIEWPORT_NAVIGATION_MODES.ORBIT, activeSketch: true })).toBe(false);
+    expect(shouldHandlePrimaryViewportPointer({ button: 0 }, { navigationMode: VIEWPORT_NAVIGATION_MODES.PAN, activeSketch: true })).toBe(false);
+    expect(shouldHandlePrimaryViewportPointer({ button: 0 }, { navigationMode: VIEWPORT_NAVIGATION_MODES.SELECT, activeSketch: true })).toBe(true);
   });
 
   it('uses a selection crosshair until a temporary navigation tool is selected', () => {

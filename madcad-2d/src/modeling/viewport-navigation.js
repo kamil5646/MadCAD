@@ -12,27 +12,25 @@ export function configureCadMouseNavigation(controls, mouseActions, {
 
   // AutoCAD-compatible defaults: the left button selects, pressing the wheel
   // pans, Shift + wheel press orbits, and the wheel zooms at the cursor.
-  controls.mouseButtons.LEFT = activeSketch
-    ? null
-    : navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT
+  controls.mouseButtons.LEFT = navigationMode === VIEWPORT_NAVIGATION_MODES.PAN
+    ? mouseActions.PAN
+    : navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT && !activeSketch
       ? mouseActions.ROTATE
-      : navigationMode === VIEWPORT_NAVIGATION_MODES.PAN
-        ? mouseActions.PAN
-        : null;
+      : null;
   controls.mouseButtons.MIDDLE = mouseActions.PAN;
   controls.mouseButtons.RIGHT = null;
   controls.screenSpacePanning = true;
   controls.zoomToCursor = true;
   controls.zoomSpeed = 1.1;
+  controls.rotateSpeed = 0.45;
   return controls;
 }
 
 export function shouldHandlePrimaryViewportPointer(event, {
   navigationMode = VIEWPORT_NAVIGATION_MODES.SELECT,
-  activeSketch = false,
 } = {}) {
   if (event?.button !== 0) return false;
-  return activeSketch || navigationMode === VIEWPORT_NAVIGATION_MODES.SELECT;
+  return navigationMode === VIEWPORT_NAVIGATION_MODES.SELECT;
 }
 
 export function viewportCursor(navigationMode = VIEWPORT_NAVIGATION_MODES.SELECT) {
