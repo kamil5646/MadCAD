@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, normalize, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { strToU8, zipSync } from 'three/examples/jsm/libs/fflate.module.js';
 import atomicFile from '../electron/atomic-file.cjs';
@@ -4048,7 +4048,7 @@ test('polityka IPC ogranicza nazwy, filtry, konwersje i podgląd wydruku', () =>
   assert.equal(save.defaultName, 'projekt.step');
   assert.deepEqual(save.filters[0].extensions, ['step', 'stp']);
   assert.equal(save.atomic, true);
-  assert.equal(save.targetPath, '/tmp/projekt.madcad');
+  assert.equal(save.targetPath, normalize('/tmp/projekt.madcad'));
   assert.throws(() => ipcPolicy.normalizeSaveTextPayload({ text: 'x', filters: [{ name: 'Zły', extensions: ['../exe'] }] }), /rozszerzenie/i);
   assert.throws(() => ipcPolicy.normalizeSaveTextPayload({ text: 'x', targetPath: 'projekt.madcad' }), /bezwzględny/i);
   assert.throws(() => ipcPolicy.normalizeSaveTextPayload({ text: 'x', targetPath: '/tmp/projekt.step' }), /\.madcad/i);
