@@ -883,6 +883,9 @@ export default function ModelingWorkspace() {
   const selectedSketchConstraintId = selection?.kind === 'sketchConstraint' && selection.sketchId === activeSketchId
     ? selection.id
     : null;
+  const visibleSketchId = activeSketchId
+    || selection?.sketchId
+    || (selection?.kind === 'sketch' ? selection.id : null);
   const selectedSketchEntities = (document.sketches.find((item) => item.id === activeSketchId)?.entities || [])
     .filter((entity) => selectedSketchEntityIds.includes(entity.id));
   const selectedBlockInstance = (() => {
@@ -2150,6 +2153,7 @@ export default function ModelingWorkspace() {
     setCommand(null);
     if (selectedPoint) setSelection({ kind: 'sketchPoint', id: selectedPoint.id, sketchId: sketch.id });
     else if (lastProfile) setSelection({ kind: 'profile', id: lastProfile.id, sketchId: sketch.id });
+    else if (sketch) setSelection({ kind: 'sketch', id: sketch.id });
     setNotice('Szkic zakończony. Wybierz profil i użyj operacji bryłowej.');
   };
 
@@ -5403,6 +5407,7 @@ export default function ModelingWorkspace() {
             sketches={document.sketches}
             layers={document.layers}
             activeSketchId={activeSketchId}
+            visibleSketchId={visibleSketchId}
             draftProfile={draftProfile}
             draftType={null}
             onDraftChange={readOnly ? undefined : updateCommand}

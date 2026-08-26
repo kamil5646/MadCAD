@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 6.4.2 (2026-08-26)
+
+- Widok szkicu zachowuje pozycję, powiększenie i przesunięcie podczas rysowania oraz po zakończeniu edycji.
+- Zakończony szkic pozostaje widoczny także wtedy, gdy zawiera otwarte linie; kamera obejmuje zarówno profile, jak i geometrię szkicu.
+- Renderer Three.js/WebGL pozostaje aktywny podczas zmian dokumentu, co usuwa miganie, skoki widoku i ostrzeżenia o nadmiarze kontekstów WebGL.
+- Dodano test regresji rzeczywistego okna Electron sprawdzający stabilność kamery i widoczność geometrii przed oraz po zakończeniu szkicu.
+
 ## 6.4.1 (2026-08-25)
 
 - Przywrócono sterowanie widokiem zgodne z klasycznym AutoCAD-em: naciśnięte kółko przesuwa widok, `Shift` + kółko obraca go, a rolka przybliża pod kursorem. Lewy przycisk pozostaje przeznaczony do zaznaczania i rysowania.

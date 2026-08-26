@@ -188,6 +188,14 @@ function assertClose(actual, expected, tolerance, label) {
   }
 }
 
+function cameraDelta(first, second) {
+  if (!first || !second) return Number.POSITIVE_INFINITY;
+  const vectorDistance = (left, right) => Math.hypot(...left.map((value, index) => value - right[index]));
+  return vectorDistance(first.position, second.position)
+    + vectorDistance(first.target, second.target)
+    + vectorDistance(first.up, second.up);
+}
+
 async function verifyExport(window, format, timeoutMs = isCi ? 90000 : 45000) {
   const exportPromise = window.webContents.executeJavaScript(`(async () => {
     if (typeof window.__madcadVerifyExport !== 'function') throw new Error('Brak testowego interfejsu eksportu.');
@@ -426,6 +434,20 @@ async function runUiFlow(window) {
   const sendMouse = async (type, point, modifiers = []) => {
     window.webContents.sendInputEvent({ type, x: Math.round(point.x), y: Math.round(point.y), button: 'left', clickCount: 1, modifiers });
     await new Promise((resolve) => setTimeout(resolve, 45));
+  };
+  const waitForCameraToSettle = async (timeoutMs = 2500) => {
+    const startedAt = Date.now();
+    let previous = await window.webContents.executeJavaScript(`structuredClone(window.__madcadCameraState || null)`);
+    let stableSamples = 0;
+    while (Date.now() - startedAt < timeoutMs) {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      const current = await window.webContents.executeJavaScript(`structuredClone(window.__madcadCameraState || null)`);
+      if (cameraDelta(previous, current) <= 0.003) stableSamples += 1;
+      else stableSamples = 0;
+      if (stableSamples >= 3) return current;
+      previous = current;
+    }
+    throw new Error(`Kamera szkicu nie ustabilizowała się po ${timeoutMs} ms.`);
   };
   const clickSketchEntity = async (entityId, modifiers = []) => {
     const point = await sketchScreenPoint(entityId);
@@ -1857,17 +1879,29 @@ async function runUiFlow(window) {
   await clickTool('Utwórz szkic');
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny');
   await pickPlane('XY');
-  await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'tryb szkicu');
+  await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view') && window.__madcadCameraState`, 'tryb szkicu');
+  const sketchViewportCenter = await window.webContents.executeJavaScript(`(() => { const rect = document.querySelector('.model-viewport canvas').getBoundingClientRect(); return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) }; })()`);
+  window.webContents.sendInputEvent({ type: 'mouseWheel', x: sketchViewportCenter.x, y: sketchViewportCenter.y, deltaY: -180, deltaX: 0 });
+  const sketchCameraBeforeGeometry = await waitForCameraToSettle();
   await clickTool('Prostokąt');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Prostokąt')`, 'polecenie prostokąta');
   await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint?.([0, 0])`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'rectangle' && window.__madcadVerifyDocumentState.command.gesturePoints === 1`, 'pierwszy narożnik prostokąta z płótna');
   await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint?.([32, 21])`);
   await waitForUi(window, `!document.querySelector('.command-dialog') && window.__madcadVerifyDocumentState?.sketches?.[0]?.profiles === 1`, 'prostokąt utworzony dwoma kliknięciami');
+  const sketchCameraAfterGeometry = await waitForCameraToSettle();
+  if (cameraDelta(sketchCameraBeforeGeometry, sketchCameraAfterGeometry) > 0.02) {
+    throw new Error(`Kamera przeskoczyła podczas rysowania szkicu: ${JSON.stringify({ sketchCameraBeforeGeometry, sketchCameraAfterGeometry })}`);
+  }
   await new Promise((resolve) => setTimeout(resolve, 75));
   await fs.writeFile(sketchOutputPath, (await window.webContents.capturePage()).toPNG());
   await clickTool('Zakończ szkic');
   progress('extrude');
+  await waitForUi(window, `window.__madcadCompletedSketchVisibilityState?.entityCount >= 4 && window.__madcadCompletedSketchVisibilityState?.profileCount === 1`, 'widoczna geometria zakończonego szkicu');
+  const sketchCameraAfterFinish = await waitForCameraToSettle();
+  if (cameraDelta(sketchCameraAfterGeometry, sketchCameraAfterFinish) > 0.02) {
+    throw new Error(`Kamera przeskoczyła po zakończeniu szkicu: ${JSON.stringify({ sketchCameraAfterGeometry, sketchCameraAfterFinish })}`);
+  }
   await waitForUi(window, `document.querySelector('.direct-extrude-hint')`, 'uchwyt bezpośredniego wyciągnięcia');
   await waitForUi(window, `(() => { const handle = document.querySelector('.direct-handle-hit[role="slider"]'); return handle && handle.tabIndex === 0 && handle.hasAttribute('aria-valuenow') && handle.getAttribute('aria-label'); })()`, 'klawiaturowo dostępny uchwyt bezpośredni');
   await waitForUi(window, `window.__madcadDirectHandlePoint`, 'pozycja uchwytu wyciągnięcia');

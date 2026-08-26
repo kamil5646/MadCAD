@@ -373,6 +373,7 @@ export default function ModelViewport({
   sketches = [],
   layers = [],
   activeSketchId,
+  visibleSketchId = null,
   draftProfile,
   draftType,
   onDraftChange,
@@ -449,8 +450,11 @@ export default function ModelViewport({
   const directHandleRef = useRef(null);
   const directEventRef = useRef({});
   const directDragRef = useRef(null);
+  const rendererRef = useRef(null);
   const cameraApiRef = useRef(null);
   const cameraSnapshotRef = useRef(null);
+  const sketchCameraSnapshotsRef = useRef(new Map());
+  const lastSceneSketchIdRef = useRef(activeSketchId || null);
   const lastExplodeAmountRef = useRef(explodeAmount);
   const lastCameraRequestIdRef = useRef('');
   const lastFitRequestIdRef = useRef('');
@@ -487,6 +491,9 @@ export default function ModelViewport({
   const selectedTopologySet = useMemo(() => new Set(selectedTopologyIds), [selectedTopologyIds]);
   const selectedBodySet = useMemo(() => new Set(selectedBodyIds.length ? selectedBodyIds : [selectedBodyId].filter(Boolean)), [selectedBodyId, selectedBodyIds]);
   const activeSketch = sketches.find((sketch) => sketch.id === activeSketchId);
+  const visibleSketch = !activeSketchId && visibleSketchId
+    ? sketches.find((sketch) => sketch.id === visibleSketchId)
+    : null;
   const activePlane = activeSketch?.plane || 'XY';
   const activePlaneOffset = numericValue(activeSketch?.planeOffset || 0, parameters);
   useEffect(() => {
@@ -548,6 +555,31 @@ export default function ModelViewport({
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return undefined;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.domElement.tabIndex = 0;
+    renderer.domElement.style.outline = 'none';
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    host.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
+    return () => {
+      if (rendererRef.current === renderer) rendererRef.current = null;
+      renderer.domElement.remove();
+      renderer.dispose();
+      requestAnimationFrame(() => requestAnimationFrame(() => renderer.forceContextLoss()));
+    };
+  }, []);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    const renderer = rendererRef.current;
+    if (!host || !renderer) return undefined;
+    const previousSceneSketchId = lastSceneSketchIdRef.current;
+    if (!activeSketchId && previousSceneSketchId) {
+      const finishedSketchCamera = sketchCameraSnapshotsRef.current.get(previousSceneSketchId);
+      if (finishedSketchCamera) cameraSnapshotRef.current = structuredClone(finishedSketchCamera);
+    }
+    lastSceneSketchIdRef.current = activeSketchId || null;
     const explodeAmountChanged = lastExplodeAmountRef.current !== explodeAmount;
     lastExplodeAmountRef.current = explodeAmount;
 
@@ -561,13 +593,7 @@ export default function ModelViewport({
     scene.background = new THREE.Color('#2c333e');
     const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100000);
     camera.up.set(0, 0, 1);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    renderer.domElement.tabIndex = 0;
-    renderer.domElement.style.outline = 'none';
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.localClippingEnabled = Boolean((activeSketch && sliceModel) || sectionAnalysis?.enabled);
-    host.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -1038,7 +1064,40 @@ export default function ModelViewport({
       scene.add(sketchGroup);
     }
 
-    const modelBox = bodies.length ? new THREE.Box3().setFromObject(modelGroup) : null;
+    const completedSketchGroup = new THREE.Group();
+    let completedSketchRender = null;
+    let completedSketchProfileRender = null;
+    if (visibleSketch) {
+      const visiblePlane = visibleSketch.plane || 'XY';
+      const visiblePlaneOffset = numericValue(visibleSketch.planeOffset || 0, parameters);
+      completedSketchProfileRender = addSketchProfiles(completedSketchGroup, visibleSketch, parameters, visiblePlane, {
+        selectedProfileId: selectedProfile?.id,
+        visible: showSketchProfiles,
+        planeOffset: visiblePlaneOffset,
+      });
+      completedSketchRender = addSketchEntities(completedSketchGroup, visibleSketch, parameters, visiblePlane, {
+        selectedIds: [],
+        errorIds: lostProjectedEntityIds,
+        showPoints: false,
+        showConstruction: showConstructionGeometry,
+        showProjected: showProjectedGeometry,
+        planeOffset: visiblePlaneOffset,
+        layers,
+        underConstrainedPointIds: [],
+      });
+      scene.add(completedSketchGroup);
+    }
+
+    const contentBox = new THREE.Box3();
+    let hasFramedContent = false;
+    for (const group of [modelGroup, completedSketchGroup, directGroup]) {
+      const groupBox = new THREE.Box3().setFromObject(group);
+      if (groupBox.isEmpty()) continue;
+      if (hasFramedContent) contentBox.union(groupBox);
+      else contentBox.copy(groupBox);
+      hasFramedContent = true;
+    }
+    const modelBox = hasFramedContent ? contentBox : null;
     const center = modelBox ? modelBox.getCenter(new THREE.Vector3()) : new THREE.Vector3(0, 0, 0);
     if (activeSketch) center.set(...mapPlanePoint(0, 0, activePlane, 0, activePlaneOffset));
     const size = modelBox ? modelBox.getSize(new THREE.Vector3()) : new THREE.Vector3(80, 60, 20);
@@ -1117,24 +1176,32 @@ export default function ModelViewport({
     if ((activeSketch ? sketchView : view) === 'top') camera.up.set(0, 1, 0);
     camera.position.set(center.x + direction[0] * radius * 1.7 * zoomScale, center.y + direction[1] * radius * 1.7 * zoomScale, center.z + direction[2] * radius * 1.7 * zoomScale);
     controls.target.copy(center);
-    if (!activeSketch && cameraSnapshotRef.current && !explodeAmountChanged && !forceFit) {
-      camera.position.fromArray(cameraSnapshotRef.current.position);
-      camera.up.fromArray(cameraSnapshotRef.current.up);
-      controls.target.fromArray(cameraSnapshotRef.current.target);
+    const savedCamera = activeSketch
+      ? sketchCameraSnapshotsRef.current.get(activeSketchId)
+      : cameraSnapshotRef.current;
+    if (savedCamera && !explodeAmountChanged && !forceFit) {
+      camera.position.fromArray(savedCamera.position);
+      camera.up.fromArray(savedCamera.up);
+      controls.target.fromArray(savedCamera.target);
     }
     controls.enableRotate = !activeSketch;
     controls.update();
     const publishCameraState = () => {
-      if (activeSketch) return;
       const snapshot = {
         position: camera.position.toArray(),
         target: controls.target.toArray(),
         up: camera.up.toArray(),
       };
-      cameraSnapshotRef.current = snapshot;
-      cameraChangeRef.current?.(snapshot);
+      if (activeSketch) sketchCameraSnapshotsRef.current.set(activeSketchId, snapshot);
+      else {
+        cameraSnapshotRef.current = snapshot;
+        cameraChangeRef.current?.(snapshot);
+      }
       if (new URLSearchParams(window.location.search).has('verify')) window.__madcadCameraState = structuredClone(snapshot);
     };
+    controls.addEventListener('start', () => {
+      if (!activeSketch) setCustomViewActive(true);
+    });
     controls.addEventListener('change', publishCameraState);
     cameraApiRef.current = { camera, controls, publishCameraState };
     publishCameraState();
@@ -1806,6 +1873,14 @@ export default function ModelViewport({
           sliceModel,
         };
       }
+      if (new URLSearchParams(window.location.search).has('verify')) {
+        window.__madcadCompletedSketchVisibilityState = visibleSketch ? {
+          sketchId: visibleSketch.id,
+          entityCount: completedSketchRender?.entries?.length || 0,
+          profileCount: completedSketchProfileRender?.pickables?.length || 0,
+          renderedObjects: completedSketchGroup.children.length,
+        } : null;
+      }
       if (!activeSketch && bodies.length && new URLSearchParams(window.location.search).has('verify')) {
         modelGroup.updateMatrixWorld(true);
         const bodyBounds = {};
@@ -1878,25 +1953,18 @@ export default function ModelViewport({
       disposeObject(jointGroup);
       disposeObject(sketchGroup);
       disposeObject(directGroup);
+      disposeObject(completedSketchGroup);
       disposeObject(constructionGroup);
       disposeObject(sectionGroup);
       if (plate) disposeObject(plate);
       grid.geometry.dispose();
       grid.material.dispose();
-      renderer.dispose();
-      renderer.domElement.remove();
-      // Chromium's macOS compositor can still own the last WebGL mailbox for a
-      // frame after React replaces the viewport. Losing the context before the
-      // canvas leaves the compositor produces repeated "Invalid mailbox"
-      // errors and, on affected Electron builds, can terminate the renderer.
-      // Release the DOM surface first and defer the explicit context loss until
-      // the compositor has observed two animation frames without that canvas.
-      requestAnimationFrame(() => requestAnimationFrame(() => renderer.forceContextLoss()));
       delete window.__madcadDirectHandlePoint;
       delete window.__madcadSketchEntityScreenPoints;
       delete window.__madcadSketchLocalToScreen;
       delete window.__madcadVerifySketchBoxSelection;
       delete window.__madcadSketchVisibilityState;
+      delete window.__madcadCompletedSketchVisibilityState;
       delete window.__madcadModelScreenState;
       delete window.__madcadModelVisualState;
       delete window.__madcadModelHover;
@@ -1910,7 +1978,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, activeSketchId, activePlane, activeSketch, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;
