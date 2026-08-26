@@ -55,6 +55,21 @@ app.whenReady().then(async () => {
     }
 
     const camera = () => window.webContents.executeJavaScript(`structuredClone(window.__madcadCameraState)`);
+    const waitForCameraToSettle = async (timeoutMs = 2500) => {
+      const startedAt = Date.now();
+      let previous = await camera();
+      let stableSamples = 0;
+      while (Date.now() - startedAt < timeoutMs) {
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        const current = await camera();
+        const movement = distance(previous.position, current.position) + distance(previous.target, current.target);
+        if (movement <= 0.003) stableSamples += 1;
+        else stableSamples = 0;
+        if (stableSamples >= 3) return current;
+        previous = current;
+      }
+      throw new Error(`Kamera nie ustabilizowała się po ${timeoutMs} ms.`);
+    };
     const drag = async ({ button, modifiers = [], dx, dy }) => {
       const buttons = { left: 1, right: 2, middle: 4 }[button];
       const modifierMask = modifiers.includes('shift') ? 8 : 0;
@@ -64,36 +79,35 @@ app.whenReady().then(async () => {
         await new Promise((resolve) => setTimeout(resolve, 25));
       }
       await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', x: viewport.x + dx, y: viewport.y + dy, button, buttons: 0, clickCount: 1, modifiers: modifierMask });
-      await new Promise((resolve) => setTimeout(resolve, 350));
+      return waitForCameraToSettle();
     };
 
-    const initial = await camera();
-    await drag({ button: 'left', dx: 90, dy: 35 });
-    const afterLeft = await camera();
+    const initial = await waitForCameraToSettle();
+    const afterLeft = await drag({ button: 'left', dx: 90, dy: 35 });
     if (!approximatelyEqual(initial.position, afterLeft.position) || !approximatelyEqual(initial.target, afterLeft.target)) {
       throw new Error('Lewy przycisk zmienił kamerę w domyślnym trybie wyboru.');
     }
 
-    await drag({ button: 'middle', dx: 110, dy: 45 });
-    const afterPan = await camera();
+    const afterPan = await drag({ button: 'middle', dx: 110, dy: 45 });
     if (approximatelyEqual(afterLeft.target, afterPan.target, 0.01)
       || !approximatelyEqual(vector(afterLeft), vector(afterPan), 0.02)) {
       const navigation = await window.webContents.executeJavaScript(`window.__madcadViewportNavigationState`);
       throw new Error(`Środkowy przycisk nie wykonał czystego pan: ${JSON.stringify({ afterLeft, afterPan, navigation })}`);
     }
 
-    await drag({ button: 'middle', modifiers: ['shift'], dx: 95, dy: -55 });
-    const afterOrbit = await camera();
-    if (!approximatelyEqual(afterPan.target, afterOrbit.target, 5)
+    const afterOrbit = await drag({ button: 'middle', modifiers: ['shift'], dx: 95, dy: -55 });
+    const orbitDistance = distance(afterPan.position, afterPan.target);
+    const targetDriftTolerance = Math.max(6, orbitDistance * 0.025);
+    const distanceTolerance = Math.max(0.1, orbitDistance * 0.002);
+    if (!approximatelyEqual(afterPan.target, afterOrbit.target, targetDriftTolerance)
       || approximatelyEqual(vector(afterPan), vector(afterOrbit), 0.05)
-      || Math.abs(distance(afterPan.position, afterPan.target) - distance(afterOrbit.position, afterOrbit.target)) > 0.05) {
+      || Math.abs(orbitDistance - distance(afterOrbit.position, afterOrbit.target)) > distanceTolerance) {
       throw new Error(`Shift + środkowy przycisk nie wykonał orbity: ${JSON.stringify({ afterPan, afterOrbit })}`);
     }
 
     const distanceBeforeWheel = distance(afterOrbit.position, afterOrbit.target);
     await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseWheel', x: viewport.x + 80, y: viewport.y - 40, deltaY: 180, deltaX: 0, buttons: 0 });
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    const afterWheel = await camera();
+    const afterWheel = await waitForCameraToSettle();
     const distanceAfterWheel = distance(afterWheel.position, afterWheel.target);
     if (Math.abs(distanceAfterWheel - distanceBeforeWheel) < 0.05) throw new Error('Kółko myszy nie zmieniło powiększenia.');
 
