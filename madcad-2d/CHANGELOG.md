@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 6.4.5 (2026-08-27)
+
+- Naprawiono przycisk **Orbita** podczas edycji szkicu: po jego włączeniu przeciągnięcie lewym przyciskiem faktycznie obraca kamerę.
+- `Shift` + naciśnięte kółko myszy obraca widok również w aktywnym szkicu, a zwykły lewy przycisk nadal pozostaje przeznaczony do rysowania i zaznaczania.
+- Kursor trybu orbity w szkicu jest widoczny jako dłoń zamiast mylącego celownika.
+- Dodano test prawdziwego okna Electron odtwarzający orbitę w aktywnym szkicu.
+
 ## 6.4.4 (2026-08-26)
 
 - Naprawiono jawny tryb przesuwania widoku podczas szkicowania; lewy przycisk myszy przesuwa kamerę tylko po wybraniu narzędzia Pan, a zwykły tryb nadal rysuje i zaznacza.

@@ -1206,7 +1206,10 @@ export default function ModelViewport({
       camera.up.fromArray(savedCamera.up);
       controls.target.fromArray(savedCamera.target);
     }
-    controls.enableRotate = !activeSketch;
+    // Keep 3D orbit available while editing a sketch. The selection mode still
+    // leaves the left button to sketch tools, while explicit Orbit and
+    // Shift+middle-drag deliberately rotate the camera.
+    controls.enableRotate = true;
     controls.update();
     const publishCameraState = () => {
       const snapshot = {

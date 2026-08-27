@@ -6,7 +6,6 @@ export const VIEWPORT_NAVIGATION_MODES = Object.freeze({
 
 export function configureCadMouseNavigation(controls, mouseActions, {
   navigationMode = VIEWPORT_NAVIGATION_MODES.SELECT,
-  activeSketch = false,
 } = {}) {
   if (!controls || !mouseActions) return controls;
 
@@ -14,7 +13,7 @@ export function configureCadMouseNavigation(controls, mouseActions, {
   // pans, Shift + wheel press orbits, and the wheel zooms at the cursor.
   controls.mouseButtons.LEFT = navigationMode === VIEWPORT_NAVIGATION_MODES.PAN
     ? mouseActions.PAN
-    : navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT && !activeSketch
+    : navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT
       ? mouseActions.ROTATE
       : null;
   controls.mouseButtons.MIDDLE = mouseActions.PAN;

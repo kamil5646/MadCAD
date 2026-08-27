@@ -1,6 +1,6 @@
 # MadCAD Desktop — dokumentacja techniczna
 
-Aktualna stabilna wersja: **6.4.4**.
+Aktualna stabilna wersja: **6.4.5**.
 
 MadCAD jest aplikacją Electron z interfejsem React, parametrycznym dokumentem
 CAD i kernelem OpenCascade uruchamianym w workerze. Główny przepływ zaczyna się
@@ -57,7 +57,7 @@ npm run dist:linux:trusted
 Paczki trafiają do `release/`. Oficjalny workflow tworzy pliki `.sha256`,
 sprawdza format paczki i wykonuje testy na Windows, macOS oraz Linux.
 
-> Instalatory `v6.4.4` nie mają podpisu producenta. Windows SmartScreen lub
+> Instalatory `v6.4.5` nie mają podpisu producenta. Windows SmartScreen lub
 > macOS Gatekeeper mogą pokazać ostrzeżenie. Pobieraj paczki wyłącznie z
 > oficjalnego GitHub Release i porównaj dołączoną sumę SHA-256. Aktualizacja tej
 > wersja aktualizatora pobiera paczkę z oficjalnego wydania, sprawdza
@@ -73,7 +73,7 @@ użyć `Control` + klik i wybrać **Otwórz**.
 
 ## Wersje i aktualizacje
 
-- tag `v6.4.4` odpowiada wersji `6.4.4` w `package.json`;
+- tag `v6.4.5` odpowiada wersji `6.4.5` w `package.json`;
 - wersje bez sufiksu są publikowane w kanale stabilnym;
 - `-beta.N` i `-alpha.N` pozostają obsługiwanymi kanałami testowymi;
 - aktualizator przyjmuje wyłącznie zaufane adresy oficjalnego repozytorium.
@@ -84,7 +84,7 @@ użyć `Control` + klik i wybrać **Otwórz**.
 
 ## Interakcja CAD
 
-- Nawigacja jak w klasycznym AutoCAD-zie: naciśnięte kółko myszy przesuwa widok, `Shift` + kółko obraca model, rolka przybliża pod kursorem, a lewy przycisk zaznacza i rysuje.
+- Nawigacja jak w klasycznym AutoCAD-zie: naciśnięte kółko myszy przesuwa widok, `Shift` + kółko obraca model, rolka przybliża pod kursorem, a lewy przycisk zaznacza i rysuje. Przycisk **Orbita** pozwala obracać lewym przyciskiem także podczas aktywnego szkicu.
 - Import STEP/STL/3MF jest dostępny bezpośrednio w obszarze **Projektuj**; poprawny model zostaje dopasowany do widoku, a błędny import jest opisany i bezpiecznie usunięty z historii.
 - Obszar **DOKUMENTACJA** tworzy zapisywane arkusze A4/A3, skojarzone widoki bazowe i rzutowane, przekroje A-A z kreskowaniem oraz powiększone detale. Widoki i ich wymiary, osie, znaczniki środka, opisy otworów/gwintów oraz tolerancje aktualizują się z modelem; tabliczka i rewizje są edytowalne, a gotowy arkusz można wyeksportować do PDF lub DXF.
 - Funkcje wstążki pokazują po najechaniu opis; skróty podstawowych narzędzi są widoczne tylko w podpowiedzi, nie na przyciskach.

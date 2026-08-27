@@ -1087,7 +1087,7 @@
   cursor: move;
 }
 
-.model-viewport.sketch-view canvas {
+.model-viewport.sketch-view.navigation-select canvas {
   cursor: crosshair;
 }
 

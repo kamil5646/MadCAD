@@ -111,12 +111,25 @@ app.whenReady().then(async () => {
     const distanceAfterWheel = distance(afterWheel.position, afterWheel.target);
     if (Math.abs(distanceAfterWheel - distanceBeforeWheel) < 0.05) throw new Error('Kółko myszy nie zmieniło powiększenia.');
 
+    await window.webContents.executeJavaScript(`window.__madcadVerifyOpenFirstSketch?.()`);
+    await waitFor(window, `document.querySelector('.model-viewport.sketch-view') && window.__madcadCameraState`, 'aktywny szkic');
+    await window.webContents.executeJavaScript(`document.querySelector('.navigation-bar [aria-label="Orbita"]')?.click()`);
+    await waitFor(window, `document.querySelector('.model-viewport.navigation-orbit.sketch-view') && window.__madcadViewportNavigationState?.navigationMode === 'orbit'`, 'orbita w aktywnym szkicu');
+    const sketchOrbitCursor = await window.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.model-viewport canvas')).cursor`);
+    if (sketchOrbitCursor !== 'grab') throw new Error(`Tryb orbity w szkicu ma niepoprawny kursor: ${sketchOrbitCursor}.`);
+    const beforeSketchOrbit = await waitForCameraToSettle();
+    const afterSketchOrbit = await drag({ button: 'left', dx: 105, dy: -60 });
+    if (approximatelyEqual(vector(beforeSketchOrbit), vector(afterSketchOrbit), 0.05)) {
+      throw new Error(`Jawny tryb orbity nie obraca kamery w aktywnym szkicu: ${JSON.stringify({ beforeSketchOrbit, afterSketchOrbit })}`);
+    }
+
     process.stdout.write(`${JSON.stringify({
       ok: true,
       defaultMode: 'selection',
       leftCameraChange: distance(initial.position, afterLeft.position),
       panTargetChange: distance(afterLeft.target, afterPan.target),
       orbitDirectionChange: distance(vector(afterPan), vector(afterOrbit)),
+      sketchOrbitDirectionChange: distance(vector(beforeSketchOrbit), vector(afterSketchOrbit)),
       zoomDistanceBefore: distanceBeforeWheel,
       zoomDistanceAfter: distanceAfterWheel,
     })}\n`);

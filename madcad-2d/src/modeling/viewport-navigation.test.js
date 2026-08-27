@@ -30,13 +30,13 @@ describe('AutoCAD-compatible viewport navigation', () => {
     expect(pan.mouseButtons.LEFT).toBe(MOUSE.PAN);
   });
 
-  it('lets explicit pan work in a sketch without letting orbit steal sketch drawing', () => {
+  it('lets explicit pan and orbit work in a sketch without stealing drawing in selection mode', () => {
     const controls = { mouseButtons: {} };
     configureCadMouseNavigation(controls, MOUSE, { navigationMode: VIEWPORT_NAVIGATION_MODES.ORBIT, activeSketch: true });
     const pan = { mouseButtons: {} };
     configureCadMouseNavigation(pan, MOUSE, { navigationMode: VIEWPORT_NAVIGATION_MODES.PAN, activeSketch: true });
 
-    expect(controls.mouseButtons.LEFT).toBeNull();
+    expect(controls.mouseButtons.LEFT).toBe(MOUSE.ROTATE);
     expect(pan.mouseButtons.LEFT).toBe(MOUSE.PAN);
     expect(shouldHandlePrimaryViewportPointer({ button: 1 })).toBe(false);
     expect(shouldHandlePrimaryViewportPointer({ button: 0 }, { navigationMode: VIEWPORT_NAVIGATION_MODES.ORBIT })).toBe(false);
