@@ -21,13 +21,18 @@ let observedUrl = '';
 function finish(code, report) {
   if (finished) return;
   finished = true;
+  process.exitCode = code;
   if (report) process.stdout.write(`${JSON.stringify(report)}\n`);
-  try {
-    fs.rmSync(isolatedUserData, { recursive: true, force: true });
-  } catch (error) {
-    // Chromium can keep user-data files locked briefly on Windows. Cleanup is
-    // best-effort and must never prevent the security test process from exiting.
-    process.stderr.write(`Could not remove isolated user data: ${error.message}\n`);
+  // Chromium keeps profile files open until its child processes fully exit on
+  // Windows. The hosted runner cleans its temporary directory after the job;
+  // trying to remove it synchronously here can turn a successful verification
+  // into an EPERM/cancelled process. Other platforms can clean it immediately.
+  if (process.platform !== 'win32') {
+    try {
+      fs.rmSync(isolatedUserData, { recursive: true, force: true });
+    } catch (error) {
+      process.stderr.write(`Could not remove isolated user data: ${error.message}\n`);
+    }
   }
   app.exit(code);
 }

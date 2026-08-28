@@ -64,7 +64,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.navigation-bar [aria-label="Przesuń widok"]')?.getAttribute('aria-pressed') === 'false'`, 'powrót do zaznaczania klawiszem Escape');
 
     const camera = () => window.webContents.executeJavaScript(`structuredClone(window.__madcadCameraState)`);
-    const waitForCameraToSettle = async (timeoutMs = 2500) => {
+    const waitForCameraToSettle = async (timeoutMs = 6000) => {
       const startedAt = Date.now();
       let previous = await camera();
       let stableSamples = 0;
