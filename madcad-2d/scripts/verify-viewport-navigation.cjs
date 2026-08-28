@@ -46,13 +46,22 @@ app.whenReady().then(async () => {
         hit: document.elementFromPoint(Math.round(rect.left + rect.width * 0.58), Math.round(rect.top + rect.height * 0.56))?.className || document.elementFromPoint(Math.round(rect.left + rect.width * 0.58), Math.round(rect.top + rect.height * 0.56))?.tagName,
         orbitTitle: document.querySelector('.navigation-bar [aria-label="Orbita"]')?.title || '',
         panTitle: document.querySelector('.navigation-bar [aria-label="Przesuń widok"]')?.title || '',
-        activeButtons: document.querySelectorAll('.navigation-bar button.active').length,
+        duplicateSelectVisible: Boolean(document.querySelector('.navigation-bar [aria-label="Zaznaczanie"]')),
         cursor: getComputedStyle(canvas).cursor,
       };
     })()`);
-    if (!viewport.orbitTitle.includes('Shift') || !viewport.panTitle.includes('kółko') || viewport.activeButtons !== 0 || viewport.cursor !== 'crosshair') {
+    if (!viewport.orbitTitle.includes('prawym') || !viewport.panTitle.includes('kółko') || viewport.duplicateSelectVisible || viewport.cursor !== 'crosshair') {
       throw new Error(`Niepoprawny domyślny tryb nawigacji: ${JSON.stringify(viewport)}`);
     }
+
+    await window.webContents.executeJavaScript(`document.querySelector('.navigation-bar [aria-label="Orbita"]')?.click()`);
+    await waitFor(window, `document.querySelector('.navigation-bar [aria-label="Orbita"]')?.getAttribute('aria-pressed') === 'true'`, 'włączenie orbity przyciskiem');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('button')].find((button) => button.getAttribute('aria-label')?.startsWith('Wybierz. Wyczyść zaznaczenie'))?.click()`);
+    await waitFor(window, `document.querySelector('.navigation-bar [aria-label="Orbita"]')?.getAttribute('aria-pressed') === 'false'`, 'powrót do zaznaczania górnym przyciskiem Wybierz');
+    await window.webContents.executeJavaScript(`document.querySelector('.navigation-bar [aria-label="Przesuń widok"]')?.click()`);
+    await waitFor(window, `document.querySelector('.navigation-bar [aria-label="Przesuń widok"]')?.getAttribute('aria-pressed') === 'true'`, 'włączenie przesuwania przyciskiem');
+    await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+    await waitFor(window, `document.querySelector('.navigation-bar [aria-label="Przesuń widok"]')?.getAttribute('aria-pressed') === 'false'`, 'powrót do zaznaczania klawiszem Escape');
 
     const camera = () => window.webContents.executeJavaScript(`structuredClone(window.__madcadCameraState)`);
     const waitForCameraToSettle = async (timeoutMs = 2500) => {
@@ -70,15 +79,15 @@ app.whenReady().then(async () => {
       }
       throw new Error(`Kamera nie ustabilizowała się po ${timeoutMs} ms.`);
     };
-    const drag = async ({ button, modifiers = [], dx, dy }) => {
+    const drag = async ({ button, modifiers = [], dx, dy, point = viewport }) => {
       const buttons = { left: 1, right: 2, middle: 4 }[button];
       const modifierMask = modifiers.includes('shift') ? 8 : 0;
-      await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mousePressed', x: viewport.x, y: viewport.y, button, buttons, clickCount: 1, modifiers: modifierMask });
+      await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button, buttons, clickCount: 1, modifiers: modifierMask });
       for (let step = 1; step <= 5; step += 1) {
-        await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x: Math.round(viewport.x + dx * step / 5), y: Math.round(viewport.y + dy * step / 5), button, buttons, modifiers: modifierMask });
+        await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x: Math.round(point.x + dx * step / 5), y: Math.round(point.y + dy * step / 5), button, buttons, modifiers: modifierMask });
         await new Promise((resolve) => setTimeout(resolve, 25));
       }
-      await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', x: viewport.x + dx, y: viewport.y + dy, button, buttons: 0, clickCount: 1, modifiers: modifierMask });
+      await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x + dx, y: point.y + dy, button, buttons: 0, clickCount: 1, modifiers: modifierMask });
       return waitForCameraToSettle();
     };
 
@@ -105,7 +114,13 @@ app.whenReady().then(async () => {
       throw new Error(`Shift + środkowy przycisk nie wykonał orbity: ${JSON.stringify({ afterPan, afterOrbit })}`);
     }
 
-    const distanceBeforeWheel = distance(afterOrbit.position, afterOrbit.target);
+    const afterRightOrbit = await drag({ button: 'right', dx: -85, dy: 50 });
+    if (approximatelyEqual(vector(afterOrbit), vector(afterRightOrbit), 0.05)
+      || Math.abs(distance(afterOrbit.position, afterOrbit.target) - distance(afterRightOrbit.position, afterRightOrbit.target)) > distanceTolerance) {
+      throw new Error(`Prawy przycisk nie wykonał orbity 3D: ${JSON.stringify({ afterOrbit, afterRightOrbit })}`);
+    }
+
+    const distanceBeforeWheel = distance(afterRightOrbit.position, afterRightOrbit.target);
     await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseWheel', x: viewport.x + 80, y: viewport.y - 40, deltaY: 180, deltaX: 0, buttons: 0 });
     const afterWheel = await waitForCameraToSettle();
     const distanceAfterWheel = distance(afterWheel.position, afterWheel.target);
@@ -113,14 +128,44 @@ app.whenReady().then(async () => {
 
     await window.webContents.executeJavaScript(`window.__madcadVerifyOpenFirstSketch?.()`);
     await waitFor(window, `document.querySelector('.model-viewport.sketch-view') && window.__madcadCameraState`, 'aktywny szkic');
-    await window.webContents.executeJavaScript(`document.querySelector('.navigation-bar [aria-label="Orbita"]')?.click()`);
-    await waitFor(window, `document.querySelector('.model-viewport.navigation-orbit.sketch-view') && window.__madcadViewportNavigationState?.navigationMode === 'orbit'`, 'orbita w aktywnym szkicu');
-    const sketchOrbitCursor = await window.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.model-viewport canvas')).cursor`);
-    if (sketchOrbitCursor !== 'grab') throw new Error(`Tryb orbity w szkicu ma niepoprawny kursor: ${sketchOrbitCursor}.`);
-    const beforeSketchOrbit = await waitForCameraToSettle();
-    const afterSketchOrbit = await drag({ button: 'left', dx: 105, dy: -60 });
-    if (approximatelyEqual(vector(beforeSketchOrbit), vector(afterSketchOrbit), 0.05)) {
-      throw new Error(`Jawny tryb orbity nie obraca kamery w aktywnym szkicu: ${JSON.stringify({ beforeSketchOrbit, afterSketchOrbit })}`);
+    const sketchUi = await window.webContents.executeJavaScript(`(() => {
+      const canvas = document.querySelector('.model-viewport canvas');
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: Math.round(rect.left + rect.width * 0.58),
+        y: Math.round(rect.top + rect.height * 0.56),
+        cursor: getComputedStyle(canvas).cursor,
+        orbitVisible: Boolean(document.querySelector('.navigation-bar [aria-label="Orbita"]')),
+        cubeVisible: Boolean(document.querySelector('.view-cube')),
+      };
+    })()`);
+    if (sketchUi.cursor !== 'crosshair' || sketchUi.orbitVisible || sketchUi.cubeVisible) {
+      throw new Error(`Szkic 2D pokazuje zbędną nawigację 3D: ${JSON.stringify(sketchUi)}`);
+    }
+    const beforeSketch = await waitForCameraToSettle();
+    const afterSketchLeft = await drag({ button: 'left', dx: 105, dy: -60, point: sketchUi });
+    if (!approximatelyEqual(beforeSketch.position, afterSketchLeft.position) || !approximatelyEqual(beforeSketch.target, afterSketchLeft.target)) {
+      throw new Error('Lewy przycisk obrócił lub przesunął kamerę szkicu.');
+    }
+    const afterBlockedSketchOrbit = await drag({ button: 'middle', modifiers: ['shift'], dx: 95, dy: -55, point: sketchUi });
+    if (!approximatelyEqual(afterSketchLeft.position, afterBlockedSketchOrbit.position) || !approximatelyEqual(afterSketchLeft.target, afterBlockedSketchOrbit.target)) {
+      throw new Error('Shift + środkowy przycisk obrócił kamerę szkicu 2D.');
+    }
+    const afterBlockedSketchRightOrbit = await drag({ button: 'right', dx: -80, dy: 45, point: sketchUi });
+    if (!approximatelyEqual(afterBlockedSketchOrbit.position, afterBlockedSketchRightOrbit.position) || !approximatelyEqual(afterBlockedSketchOrbit.target, afterBlockedSketchRightOrbit.target)) {
+      throw new Error('Prawy przycisk obrócił kamerę szkicu 2D.');
+    }
+    const afterSketchPan = await drag({ button: 'middle', dx: 90, dy: 40, point: sketchUi });
+    if (approximatelyEqual(afterBlockedSketchRightOrbit.target, afterSketchPan.target, 0.01)
+      || !approximatelyEqual(vector(afterBlockedSketchRightOrbit), vector(afterSketchPan), 0.02)) {
+      throw new Error('Środkowy przycisk nie przesuwa widoku szkicu 2D.');
+    }
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('button')].find((button) => button.textContent.includes('Zakończ szkic'))?.click()`);
+    await waitFor(window, `!document.querySelector('.model-viewport.sketch-view')`, 'powrót do modelu 3D');
+    const restoredModelCamera = await waitForCameraToSettle();
+    if (!approximatelyEqual(afterWheel.position, restoredModelCamera.position, 0.02)
+      || !approximatelyEqual(afterWheel.target, restoredModelCamera.target, 0.02)) {
+      throw new Error(`Po szkicu nie przywrócono wcześniejszej kamery 3D: ${JSON.stringify({ afterWheel, restoredModelCamera })}`);
     }
 
     process.stdout.write(`${JSON.stringify({
@@ -129,7 +174,9 @@ app.whenReady().then(async () => {
       leftCameraChange: distance(initial.position, afterLeft.position),
       panTargetChange: distance(afterLeft.target, afterPan.target),
       orbitDirectionChange: distance(vector(afterPan), vector(afterOrbit)),
-      sketchOrbitDirectionChange: distance(vector(beforeSketchOrbit), vector(afterSketchOrbit)),
+      rightOrbitDirectionChange: distance(vector(afterOrbit), vector(afterRightOrbit)),
+      sketchPanTargetChange: distance(afterBlockedSketchOrbit.target, afterSketchPan.target),
+      modelCameraRestored: true,
       zoomDistanceBefore: distanceBeforeWheel,
       zoomDistanceAfter: distanceAfterWheel,
     })}\n`);

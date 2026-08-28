@@ -3547,6 +3547,42 @@ test('graf topologii wykrywa dowolny profil L i sześciokąt', () => {
   assert.equal(detectedHexagon.profiles[0].entityIds.length, 6);
 });
 
+test('wyciąganie przyjmuje profil z osobnymi punktami końcowymi w tych samych współrzędnych', () => {
+  const points = [
+    createSketchPoint({ x: 0, y: 0 }),
+    createSketchPoint({ x: 30, y: 0 }),
+    createSketchPoint({ x: 30, y: 0 }),
+    createSketchPoint({ x: 10, y: 20 }),
+    createSketchPoint({ x: 10, y: 20 }),
+    createSketchPoint({ x: 0, y: 0 }),
+  ];
+  const lines = [
+    createSketchLine({ startPointId: points[0].id, endPointId: points[1].id }),
+    createSketchLine({ startPointId: points[2].id, endPointId: points[3].id }),
+    createSketchLine({ startPointId: points[4].id, endPointId: points[5].id }),
+  ];
+  const sketch = createSketch({ entities: [...points, ...lines] });
+  const detection = detectSketchProfiles(sketch);
+  assert.equal(detection.diagnostics.length, 0);
+  assert.equal(detection.profiles.length, 1);
+  sketch.profiles = detection.profiles;
+
+  const document = createDocument('Trójkąt z kursora');
+  document.sketches.push(sketch);
+  document.features.push(createFeature('extrude', {
+    sketchId: sketch.id,
+    profileIds: [sketch.profiles[0].id],
+    distance: '12',
+    operation: 'new',
+  }));
+
+  const validation = validateDocument(document);
+  assert.equal(validation.valid, true, validation.errors.join('\n'));
+  const prepared = prepareDocument(document);
+  assert.equal(prepared.features[0].profiles[0].geometry.segments.length, 3);
+  assert.equal(prepared.features[0].distanceValue, 12);
+});
+
 test('zagnieżdżone pętle tworzą otwór i osobną wyspę zgodnie z parzystością', () => {
   const sketch = sketchFromLoops([
     [[0, 0], [40, 0], [40, 40], [0, 40]],

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import App from './App.jsx';
+import App, { AppErrorBoundary } from './App.jsx';
 import { FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './modeling/AppDialogs.jsx';
 import { CrashRecoveryBanner } from './modeling/WorkspaceOverlays.jsx';
 
@@ -13,11 +13,25 @@ describe('App', () => {
     expect(document.getElementById('licenseTokenInput')).toBeNull();
   });
 
+  it('keeps a recoverable screen visible after an unexpected renderer error', () => {
+    const onReload = vi.fn();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    function BrokenWorkspace() {
+      throw new Error('Testowy błąd profilu');
+    }
+    render(<AppErrorBoundary onReload={onReload}><BrokenWorkspace /></AppErrorBoundary>);
+    expect(screen.getByRole('alert')).toHaveTextContent(/Projekt pozostał zapisany/i);
+    expect(screen.getByText(/Testowy błąd profilu/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Uruchom ponownie interfejs/i }));
+    expect(onReload).toHaveBeenCalledOnce();
+    consoleError.mockRestore();
+  });
+
   it('shows the private-use, evaluation, and commercial-license terms without a key field', () => {
     render(<LicenseInfoDialog onClose={() => {}} />);
     const dialog = screen.getByRole('dialog', { name: /Licencja MadCAD/i });
     expect(dialog).toHaveTextContent(/bezpłatny bez limitu czasu do użytku prywatnego/i);
-    expect(dialog).toHaveTextContent(/Wydanie 6.4.5 nie ma podpisu producenta/i);
+    expect(dialog).toHaveTextContent(/Wydanie 6.4.6 nie ma podpisu producenta/i);
     expect(dialog).toHaveTextContent(/oceniać pełną wersję przez 40 dni/i);
     expect(dialog).toHaveTextContent(/Użytek komercyjny jest płatny/i);
     expect(dialog).toHaveTextContent(/bezterminowej licencji na każde stanowisko/i);
@@ -68,14 +82,14 @@ describe('App', () => {
     document.body.append(trigger);
     trigger.focus();
     const { unmount } = render(<UpdateDialog
-      state={{ status: 'idle', error: '', result: { available: false, currentVersion: '6.4.5' } }}
+      state={{ status: 'idle', error: '', result: { available: false, currentVersion: '6.4.6' } }}
       onCheck={() => {}}
       onInstall={() => {}}
       onClose={onClose}
     />);
     const dialog = screen.getByRole('dialog', { name: /Aktualizacje MadCAD/i });
     await waitFor(() => expect(dialog).toContainElement(document.activeElement));
-    expect(screen.getByRole('status')).toHaveTextContent(/Masz aktualną wersję MadCAD \(6.4.5\)/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/Masz aktualną wersję MadCAD \(6.4.6\)/i);
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledOnce();
     unmount();

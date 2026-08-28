@@ -17,7 +17,7 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 **[Licencja](./LICENSE)** ·
 **[Zmiany](./madcad-2d/CHANGELOG.md)**
 
-> **Uwaga o wydaniu 6.4.5:** paczki są publikowane bez podpisu producenta,
+> **Uwaga o wydaniu 6.4.6:** paczki są publikowane bez podpisu producenta,
 > dlatego Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie.
 > Pobieraj je wyłącznie z oficjalnego GitHub Release i sprawdź sumę SHA-256.
 > Wbudowany aktualizator pobiera paczkę z oficjalnego wydania, sprawdza SHA-256
@@ -27,7 +27,7 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 
 - Rysowanie bezpośrednio na płótnie oraz dokładne wejście z klawiatury.
 - Linia w stylu AutoCAD: kliknij początek, ustaw kierunek kursorem, wpisz długość i naciśnij `Enter`.
-- Nawigacja jak w klasycznym AutoCAD-zie: naciśnięte kółko przesuwa widok, `Shift` + kółko obraca model, rolka przybliża pod kursorem, a lewy przycisk zaznacza i rysuje.
+- Nawigacja CAD: naciśnięte kółko przesuwa widok, przeciągnięcie prawym przyciskiem lub `Shift` + kółko obraca model 3D, rolka przybliża pod kursorem, a lewy przycisk zaznacza i rysuje.
 - Podpowiedzi po najechaniu z opisem działania; skróty podstawowych funkcji są pokazywane tylko w podpowiedzi.
 - Podstawowe skróty zgodne z Autodesk Fusion: `L`, `R`, `C`, `T`, `O`, `P`, `M`, `I`, `E` i `Del`.
 - Szkice parametryczne z więzami, wymiarami, profilami i szykami. Importuj DWG lokalnie przez GNU LibreDWG lub ODA, a także SVG i DXF.

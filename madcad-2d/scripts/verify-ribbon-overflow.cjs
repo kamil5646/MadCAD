@@ -15,12 +15,12 @@ async function waitFor(window, expression, label, timeoutMs = 20000) {
 
 app.whenReady().then(async () => {
   const window = new BrowserWindow({
-    width: 1100,
+    width: 820,
     height: 760,
     show: true,
     webPreferences: { partition: `madcad-ribbon-verifier-${Date.now()}` },
   });
-  window.setContentSize(1100, 697);
+  window.setContentSize(820, 697);
 
   try {
     await fs.mkdir(path.dirname(screenshotPath), { recursive: true });
@@ -28,9 +28,9 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.modeling-shell')`, 'interfejs aplikacji');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
     await waitFor(window, `!document.querySelector('.license-info-dialog')`, 'zamknięcie informacji licencyjnej');
-    window.setContentSize(1090, 697);
+    window.setContentSize(810, 697);
     await new Promise((resolve) => setTimeout(resolve, 100));
-    window.setContentSize(1100, 697);
+    window.setContentSize(820, 697);
     await new Promise((resolve) => setTimeout(resolve, 250));
     const layoutSnapshot = await window.webContents.executeJavaScript(`({
       innerWidth,

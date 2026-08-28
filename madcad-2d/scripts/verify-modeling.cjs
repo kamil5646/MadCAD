@@ -167,7 +167,7 @@ async function verifyEnglishModelingUi() {
         createSketch: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Create sketch'),
         browserHiddenByDefault: !document.querySelector('.model-browser') && document.querySelector('.modeling-content')?.classList.contains('without-browser'),
         browserToggle: Boolean([...document.querySelectorAll('.app-menu button')].find((button) => /browser/i.test(button.title))),
-        engineReady: document.querySelector('.engine-status')?.textContent.includes('ready'),
+        engineReady: document.querySelector('.engine-status')?.classList.contains('ready'),
         tutorialButton: Boolean(document.querySelector('button[title="First CAD project tutorial"]')),
         polishPrimaryLabel: [...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Utwórz szkic'),
         untranslatedPolish: (window.__madcadVerifyFindUntranslatedText?.() || ['translation gate unavailable']).slice(0, 50),
@@ -737,8 +737,15 @@ async function runUiFlow(window) {
   await waitForUi(window, `!document.querySelector('.command-dialog')`, 'zakończenie pojedynczej linii');
   await clickTool('Polilinia');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Polilinia')`, 'polilinia przed Escape');
+  const rightClickKeptCommand = await window.webContents.executeJavaScript(`(() => {
+    const canvas = document.querySelector('.model-viewport canvas');
+    const contextMenuEvent = new MouseEvent('contextmenu', { button: 2, buttons: 0, bubbles: true, cancelable: true });
+    const browserMenuAllowed = canvas.dispatchEvent(contextMenuEvent);
+    return !browserMenuAllowed && Boolean(document.querySelector('.command-dialog')?.textContent.includes('Polilinia'));
+  })()`);
+  if (!rightClickKeptCommand) throw new Error('Prawy przycisk zakończył aktywne polecenie szkicu zamiast pozostawić anulowanie klawiszowi Escape.');
   await sendKey('Escape');
-  await waitForUi(window, `!document.querySelector('.command-dialog')`, 'Escape kończy polilinię');
+  await waitForUi(window, `!document.querySelector('.command-dialog')`, 'Escape anuluje polilinię');
   await clickTool('Polilinia');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Polilinia')`, 'polilinia przed Enter');
   await addSketchPoint([0, 10], 4);
@@ -1699,8 +1706,8 @@ async function runUiFlow(window) {
   const offsetSelection = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies.find((item) => item.id === ${JSON.stringify(primitiveBoxId)}); const face = body.topology.faces.filter((item) => item.descriptor.geometry === 'PLANE').sort((left, right) => right.descriptor.center[2] - left.descriptor.center[2])[0]; return { kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }; })()`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(offsetSelection)}, 'replace')`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(offsetSelection.id)}`, 'ściana wskazana do Press Pull');
-  await clickTool('Press Pull');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Offset Face') && document.querySelector('.direct-handle-hit')`, 'wspólny manipulator Offset Face');
+  await clickTool('Wyciągnij');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Offset Face') && document.querySelector('.direct-handle-hit')`, 'wyciąganie zaznaczonej ściany wspólnym manipulatorem');
   await setCommandField('Odległość', '2');
   await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume - ${10 * 12 * 16}) < 0.05 && window.__madcadVerifyEngineState.timeline.at(-1)?.status === 'ok'`, 'podgląd odsuniętej ściany', modelingTimeoutMs);
   await confirmDialog();
@@ -1876,6 +1883,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt po teście linii dynamicznej');
 
   progress('base sketch');
+  const modelCameraBeforeSketch = await waitForCameraToSettle();
   await clickTool('Utwórz szkic');
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny');
   await pickPlane('XY');
@@ -1899,8 +1907,8 @@ async function runUiFlow(window) {
   progress('extrude');
   await waitForUi(window, `window.__madcadCompletedSketchVisibilityState?.entityCount >= 4 && window.__madcadCompletedSketchVisibilityState?.profileCount === 1`, 'widoczna geometria zakończonego szkicu');
   const sketchCameraAfterFinish = await waitForCameraToSettle();
-  if (cameraDelta(sketchCameraAfterGeometry, sketchCameraAfterFinish) > 0.02) {
-    throw new Error(`Kamera przeskoczyła po zakończeniu szkicu: ${JSON.stringify({ sketchCameraAfterGeometry, sketchCameraAfterFinish })}`);
+  if (cameraDelta(modelCameraBeforeSketch, sketchCameraAfterFinish) > 0.02) {
+    throw new Error(`Nie przywrócono kamery modelu po zakończeniu szkicu: ${JSON.stringify({ modelCameraBeforeSketch, sketchCameraAfterFinish })}`);
   }
   await waitForUi(window, `document.querySelector('.direct-extrude-hint')`, 'uchwyt bezpośredniego wyciągnięcia');
   await waitForUi(window, `(() => { const handle = document.querySelector('.direct-handle-hit[role="slider"]'); return handle && handle.tabIndex === 0 && handle.hasAttribute('aria-valuenow') && handle.getAttribute('aria-label'); })()`, 'klawiaturowo dostępny uchwyt bezpośredni');
@@ -1986,7 +1994,7 @@ async function runUiFlow(window) {
   await sendMouse('mouseMove', facePoint);
   await waitForUi(window, `window.__madcadModelHover?.kind === 'face'`, 'hover ściany');
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.selection-filter-bar button')].find((item) => item.textContent === 'Ściana');
+    const button = [...document.querySelectorAll('.selection-filter-bar button')].find((item) => item.textContent === 'Ściany');
     button.click();
   })()`);
   await sendMouse('mouseMove', facePoint);
@@ -1999,10 +2007,10 @@ async function runUiFlow(window) {
   await sendMouse('mouseUp', facePoint, ['alt']);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id !== ${JSON.stringify(firstCycledFace)}`, 'cykliczny wybór nakładającej się ściany');
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.selection-filter-bar button')].find((item) => item.textContent === 'Bryła');
+    const button = [...document.querySelectorAll('.selection-filter-bar button')].find((item) => item.textContent === 'Bryły');
     button.click();
   })()`);
-  await waitForUi(window, `document.querySelector('.selection-filter-bar button.active')?.textContent === 'Bryła'`, 'filtr bryły');
+  await waitForUi(window, `document.querySelector('.selection-filter-bar button.active')?.textContent === 'Bryły'`, 'filtr bryły');
   const bodyBounds = await window.webContents.executeJavaScript(`window.__madcadModelScreenState.bodyBounds[${JSON.stringify(topologyIds.body)}]`);
   const canvasBounds = await window.webContents.executeJavaScript(`(() => { const rect = document.querySelector('.model-viewport canvas').getBoundingClientRect(); return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }; })()`);
   const boxStart = { x: Math.max(canvasBounds.left + 2, bodyBounds.left - 12), y: Math.max(canvasBounds.top + 2, bodyBounds.top - 12) };
@@ -2513,7 +2521,7 @@ async function runUiFlow(window) {
   );
   const selectionFilters = await window.webContents.executeJavaScript(`(() => {
     const buttons = [...document.querySelectorAll('.selection-filter-bar button')];
-    const vertex = buttons.find((button) => button.textContent === 'Wierzchołek');
+    const vertex = buttons.find((button) => button.textContent === 'Punkty');
     const automatic = buttons.find((button) => button.textContent === 'Auto');
     if (!vertex || !automatic || vertex.disabled) return { count: buttons.length, switched: false };
     const vertexKey = Object.keys(vertex).find((item) => item.startsWith('__reactProps'));

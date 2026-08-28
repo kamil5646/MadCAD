@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## 6.4.6 (2026-08-28)
+
+- Przeciągnięcie prawym przyciskiem myszy obraca kamerę modelu 3D, a `Escape` pozostaje jednoznacznym sposobem anulowania aktywnego polecenia. Prawy klik nie kończy już linii, polilinii ani spline.
+- Zablokowano orbitę podczas edycji zwykłego szkicu 2D. Kamera pozostaje prostopadła do płaszczyzny szkicu, a dostępne są tylko pan, zoom i dopasowanie.
+- Po zakończeniu szkicu przywracana jest wcześniejsza kamera modelu 3D; kostka widoku i przycisk Orbita są w szkicu ukryte.
+- Przycisk **Wyciągnij** działa teraz również bezpośrednio na zaznaczonej płaskiej ścianie, zamiast błędnie uruchamiać nowy szkic.
+- Naprawiono crash wyciągania profilu, którego sąsiednie segmenty miały osobne identyfikatory punktów, ale zgodne współrzędne w tolerancji geometrycznej.
+- Zatwierdzanie operacji przez **Utwórz z danych** nie przekazuje już zdarzenia kliknięcia jako polecenia źródłowego, dzięki czemu dokładne wartości są poprawnie wykonywane.
+- Dodano ekran bezpiecznego odzyskiwania po nieoczekiwanym błędzie interfejsu zamiast pustego okna aplikacji.
+- Filtr zaznaczania i dolny pasek nawigacji otrzymały widoczne opisy, a podstawowe akcje pliku w górnym pasku mają podpisy.
+- Rzadziej używane kontrole projektu zgrupowano w jednym menu **Projekt**, aby ograniczyć bałagan w górnym pasku.
+- Wstążka pokazuje narzędzia kontekstowo w grupach 2D/3D, a komunikat stanu prowadzi przez szkic, profil i operację bryłową bez dublowania trybu zaznaczania.
+- Rozszerzono testy prawdziwego okna Electron o prawy przycisk orbity, anulowanie przez `Escape`, blokadę orbity szkicu, przywracanie kamery 3D i wyciąganie zaznaczonej ściany.
 
 ## 6.4.5 (2026-08-27)
 

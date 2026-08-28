@@ -229,7 +229,22 @@
 .app-menu button,
 .document-tab button,
 .browser-heading button {
-  width: 30px;
+  width: auto;
+  min-width: 30px;
+  padding: 0 7px;
+}
+
+.app-menu button > span,
+.project-tools-menu > summary > span {
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.app-menu-separator {
+  width: 1px;
+  height: 18px;
+  margin: 0 3px;
+  background: rgba(185, 195, 204, 0.2);
 }
 
 .app-menu button:hover:not(:disabled),
@@ -249,6 +264,50 @@
 .title-actions button:disabled {
   color: #596572;
   cursor: default;
+}
+
+.project-tools-menu {
+  position: relative;
+  height: 28px;
+  -webkit-app-region: no-drag;
+}
+
+.project-tools-menu > summary {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 7px;
+  border-radius: 2px;
+  color: #b9c3cc;
+  cursor: pointer;
+  list-style: none;
+}
+
+.project-tools-menu > summary::-webkit-details-marker { display: none; }
+.project-tools-menu > summary:hover,
+.project-tools-menu[open] > summary { background: #3a4552; color: white; }
+
+.project-tools-menu > div {
+  position: absolute;
+  z-index: 90;
+  top: 32px;
+  left: 0;
+  display: grid;
+  width: 190px;
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid #667786;
+  border-radius: 4px;
+  background: #2b3540;
+  box-shadow: 0 12px 30px rgba(5, 10, 16, 0.48);
+}
+
+.app-menu .project-tools-menu > div > button {
+  width: 100%;
+  min-height: 31px;
+  justify-content: flex-start;
+  padding: 0 8px;
 }
 
 .workspace-layout-control { position: relative; height: 28px; -webkit-app-region: no-drag; }
@@ -694,13 +753,14 @@
   flex: 0 0 auto;
   align-items: stretch;
   height: 68px;
-  padding: 2px 8px 14px 5px;
+  padding: 2px 8px 14px 7px;
   overflow: visible;
   border: 0;
   border-right: 1px solid #465360;
   border-radius: 0;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.018);
   box-shadow: none;
+  margin-right: 3px;
 }
 
 .ribbon-group-heading {
@@ -716,8 +776,8 @@
   justify-content: center;
   border: 0;
   background: transparent;
-  color: #8f9dab;
-  font-size: 8px;
+  color: #b7c3ce;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.075em;
   line-height: 12px;
@@ -787,7 +847,7 @@
 .tool-help-tooltip {
   position: fixed;
   z-index: 40;
-  width: min(360px, calc(100vw - 24px));
+  width: min(286px, calc(100vw - 24px));
   padding: 10px 12px;
   border: 1px solid #6b7887;
   border-radius: 4px;
@@ -819,8 +879,7 @@
   text-align: center;
 }
 
-.tool-help-tooltip p { margin: 7px 0 5px; color: #d2dbe2; font-size: 11px; line-height: 1.45; }
-.tool-help-tooltip small { color: #91a1ad; font-size: 9px; }
+.tool-help-tooltip p { margin: 7px 0 0; color: #d2dbe2; font-size: 11px; line-height: 1.4; }
 
 .ribbon-tool:hover:not(:disabled) {
   border-color: #617489;
@@ -1087,7 +1146,7 @@
   cursor: move;
 }
 
-.model-viewport.sketch-view.navigation-select canvas {
+.model-viewport.sketch-view canvas {
   cursor: crosshair;
 }
 
@@ -1839,6 +1898,17 @@
   box-shadow: 0 5px 16px rgba(0, 0, 0, 0.2);
 }
 
+.selection-filter-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px 0 4px;
+  border-right: 1px solid rgba(162, 187, 202, 0.22);
+  color: #91a2ae;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 .selection-filter-bar button {
   min-height: 25px;
   padding: 0 8px;
@@ -1894,14 +1964,22 @@
 }
 
 .navigation-bar button {
-  display: grid;
-  width: 28px;
-  height: 25px;
-  place-items: center;
+  display: inline-flex;
+  min-width: 62px;
+  height: 27px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 7px;
   border: 0;
   background: transparent;
   color: #d4dce3;
   cursor: pointer;
+}
+
+.navigation-bar button span {
+  font-size: 9px;
+  font-weight: 600;
 }
 
 .navigation-bar button:hover {

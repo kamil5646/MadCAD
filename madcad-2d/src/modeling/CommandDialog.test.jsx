@@ -72,3 +72,22 @@ describe('CommandDialog standard holes', () => {
     expect(screen.getByLabelText('Rozmiar śruby / gwintu')).toHaveValue('M6');
   });
 });
+
+describe('CommandDialog confirmation', () => {
+  it('confirms exact sketch data without leaking the click event into the command', () => {
+    const onConfirm = vi.fn();
+    render(<CommandDialog
+      command={{ type: 'rectangle', name: 'Prostokąt', definition: 'center', width: '40', height: '20', x: '0', y: '0', rotation: '0', gesturePoints: [] }}
+      collapsed={false}
+      dock="right"
+      onChange={vi.fn()}
+      onConfirm={onConfirm}
+      onCancel={vi.fn()}
+      onToggleCollapsed={vi.fn()}
+      onToggleDock={vi.fn()}
+    />);
+    fireEvent.click(screen.getByRole('button', { name: /Utwórz z danych/ }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onConfirm.mock.calls[0]).toEqual([]);
+  });
+});

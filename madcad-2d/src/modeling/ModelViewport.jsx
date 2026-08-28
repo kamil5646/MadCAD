@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { alternateModifierPressed, formatShortcut, multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
+import { alternateModifierPressed, multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
 import { Box, CircleDot, Crosshair, Diamond, Grid2X2, Magnet, Maximize2, Move3d, Orbit, Square, Trash2, Triangle, X, ZoomIn } from 'lucide-react';
 import * as THREE from 'three';
 import { calculatePrintLayout } from '../cad-core/print-layout.js';
@@ -382,7 +382,6 @@ export default function ModelViewport({
   polylineDraft,
   onSketchPoint,
   onSketchPointerMove,
-  onSketchFinish,
   sketchDynamicLength = '',
   selectedSketchEntityIds = [],
   lostProjectedEntityIds = [],
@@ -418,6 +417,8 @@ export default function ModelViewport({
   explodeAmount = 0,
   cameraRequest = null,
   fitRequest = null,
+  selectionModeRequestId = 0,
+  activeCommand = null,
   onCameraStateChange,
   onSelectBody,
   onSelectComponentInstance,
@@ -445,7 +446,6 @@ export default function ModelViewport({
 }) {
   const hostRef = useRef(null);
   const desktopPlatform = window.desktopApp?.platform;
-  const optionKeyLabel = formatShortcut('ALT', desktopPlatform);
   const multiSelectKeyLabel = multipleSelectionLabel(desktopPlatform);
   const directHandleRef = useRef(null);
   const directEventRef = useRef({});
@@ -454,7 +454,6 @@ export default function ModelViewport({
   const cameraApiRef = useRef(null);
   const cameraSnapshotRef = useRef(null);
   const sketchCameraSnapshotsRef = useRef(new Map());
-  const lastSceneSketchIdRef = useRef(activeSketchId || null);
   const lastExplodeAmountRef = useRef(explodeAmount);
   const lastCameraRequestIdRef = useRef('');
   const lastFitRequestIdRef = useRef('');
@@ -484,6 +483,24 @@ export default function ModelViewport({
   const [selectionBox, setSelectionBox] = useState(null);
   const [snapFeedback, setSnapFeedback] = useState(null);
   const [selectionFilter, setSelectionFilter] = useState('auto');
+  useEffect(() => {
+    if (activeSketchId && navigationMode !== VIEWPORT_NAVIGATION_MODES.SELECT) {
+      setNavigationMode(VIEWPORT_NAVIGATION_MODES.SELECT);
+    }
+  }, [activeSketchId, navigationMode]);
+  useEffect(() => {
+    const returnToSelection = (event) => {
+      if (event.key === 'Escape') setNavigationMode(VIEWPORT_NAVIGATION_MODES.SELECT);
+    };
+    window.addEventListener('keydown', returnToSelection);
+    return () => window.removeEventListener('keydown', returnToSelection);
+  }, []);
+  useEffect(() => {
+    setNavigationMode(VIEWPORT_NAVIGATION_MODES.SELECT);
+  }, [selectionModeRequestId]);
+  useEffect(() => {
+    if (activeCommand) setNavigationMode(VIEWPORT_NAVIGATION_MODES.SELECT);
+  }, [activeCommand]);
   cameraChangeRef.current = onCameraStateChange;
   const selectStandardView = (nextView) => {
     cameraSnapshotRef.current = null;
@@ -580,12 +597,6 @@ export default function ModelViewport({
     const host = hostRef.current;
     const renderer = rendererRef.current;
     if (!host || !renderer) return undefined;
-    const previousSceneSketchId = lastSceneSketchIdRef.current;
-    if (!activeSketchId && previousSceneSketchId) {
-      const finishedSketchCamera = sketchCameraSnapshotsRef.current.get(previousSceneSketchId);
-      if (finishedSketchCamera) cameraSnapshotRef.current = structuredClone(finishedSketchCamera);
-    }
-    lastSceneSketchIdRef.current = activeSketchId || null;
     const explodeAmountChanged = lastExplodeAmountRef.current !== explodeAmount;
     lastExplodeAmountRef.current = explodeAmount;
 
@@ -608,7 +619,7 @@ export default function ModelViewport({
     controls.enableDamping = true;
     controls.dampingFactor = 0.075;
     configureCadMouseNavigation(controls, THREE.MOUSE, { navigationMode, activeSketch: Boolean(activeSketch) });
-    renderer.domElement.style.cursor = viewportCursor(navigationMode);
+    renderer.domElement.style.cursor = viewportCursor(activeSketch ? VIEWPORT_NAVIGATION_MODES.SELECT : navigationMode);
     if (new URLSearchParams(window.location.search).has('verify')) {
       window.__madcadViewportNavigationState = {
         mouseButtons: { ...controls.mouseButtons },
@@ -1206,10 +1217,9 @@ export default function ModelViewport({
       camera.up.fromArray(savedCamera.up);
       controls.target.fromArray(savedCamera.target);
     }
-    // Keep 3D orbit available while editing a sketch. The selection mode still
-    // leaves the left button to sketch tools, while explicit Orbit and
-    // Shift+middle-drag deliberately rotate the camera.
-    controls.enableRotate = true;
+    // A 2D sketch is always viewed perpendicular to its support plane. Orbit is
+    // intentionally available only in the 3D modeling workspace.
+    controls.enableRotate = !activeSketch;
     controls.update();
     const publishCameraState = () => {
       const snapshot = {
@@ -2034,12 +2044,10 @@ export default function ModelViewport({
       role="region"
       aria-label={activeSketchId ? 'Obszar rysowania szkicu 2D' : 'Obszar modelu 3D'}
       onContextMenu={(event) => {
-        if (!activeSketchId || !sketchTool) return;
         event.preventDefault();
-        onSketchFinish?.();
       }}
     >
-      <div className="view-cube" role="toolbar" aria-label="Kostka widoku">
+      {!activeSketchId && <div className="view-cube" role="toolbar" aria-label="Kostka widoku">
         <div className="view-cube-primary">
           <button className="cube-top" type="button" aria-label="Widok z góry" aria-pressed={!customViewActive && view === 'top'} title="Ustaw kamerę prostopadle do płaszczyzny XY." onClick={() => selectStandardView('top')}>GÓRA</button>
           <button className="cube-main" type="button" aria-label="Widok izometryczny" aria-pressed={!customViewActive && view === 'iso'} onClick={() => selectStandardView('iso')} title="Widok izometryczny"><Box size={30} strokeWidth={1.25} /></button>
@@ -2051,19 +2059,20 @@ export default function ModelViewport({
           <button className="cube-back" type="button" aria-label="Widok z tyłu" aria-pressed={!customViewActive && view === 'back'} title="Ustaw kamerę na widok z tyłu." onClick={() => selectStandardView('back')}>TYŁ</button>
           <button className="cube-bottom" type="button" aria-label="Widok od dołu" aria-pressed={!customViewActive && view === 'bottom'} title="Ustaw kamerę od dołu." onClick={() => selectStandardView('bottom')}>DÓŁ</button>
         </div>
-      </div>
+      </div>}
       <div className="axis-indicator" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
       {!activeSketchId && bodies.length > 0 && <div className="selection-filter-bar" role="toolbar" aria-label="Filtr wyboru geometrii">
+        <span className="selection-filter-label">Zaznaczaj:</span>
         {[
           ['auto', 'Auto'],
-          ['body', 'Bryła'],
-          ['face', 'Ściana'],
-          ['edge', 'Krawędź'],
-          ['vertex', 'Wierzchołek'],
+          ['body', 'Bryły'],
+          ['face', 'Ściany'],
+          ['edge', 'Krawędzie'],
+          ['vertex', 'Punkty'],
           ['profile', 'Profil'],
         ].filter(([id]) => id !== 'profile').map(([id, label]) => <button key={id} className={selectionFilter === id ? 'active' : ''} type="button" aria-pressed={selectionFilter === id} title={`Filtr wyboru: ${label}`} onClick={() => setSelectionFilter(id)}>{label}</button>)}
       </div>}
-      {!activeSketchId && bodies.length > 0 && <div className="model-selection-hint">{`${multiSelectKeyLabel}: wiele · ${optionKeyLabel}+klik: przełącz · Shift+przeciągnij tło: obszar`}</div>}
+      {!activeSketchId && bodies.length > 0 && <div className="model-selection-hint">{`${multiSelectKeyLabel}: wiele · Shift+przeciągnij: obszar`}</div>}
       {directEnabled && (
         <div
           ref={directHandleRef}
@@ -2084,10 +2093,10 @@ export default function ModelViewport({
         />
       )}
       <div className="navigation-bar" role="toolbar" aria-label="Nawigacja widoku">
-        <button className={navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT ? 'active' : ''} type="button" aria-label="Orbita" aria-pressed={navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT} title="Orbita: Shift + naciśnięte kółko myszy. Ten przycisk włącza też orbitę lewym przyciskiem." onClick={() => setNavigationMode((mode) => mode === VIEWPORT_NAVIGATION_MODES.ORBIT ? VIEWPORT_NAVIGATION_MODES.SELECT : VIEWPORT_NAVIGATION_MODES.ORBIT)}><Orbit size={16} /></button>
-        <button className={navigationMode === VIEWPORT_NAVIGATION_MODES.PAN ? 'active' : ''} type="button" aria-label="Przesuń widok" aria-pressed={navigationMode === VIEWPORT_NAVIGATION_MODES.PAN} title="Przesuń widok: przytrzymaj kółko myszy i przeciągnij. Ten przycisk włącza też przesuwanie lewym przyciskiem." onClick={() => setNavigationMode((mode) => mode === VIEWPORT_NAVIGATION_MODES.PAN ? VIEWPORT_NAVIGATION_MODES.SELECT : VIEWPORT_NAVIGATION_MODES.PAN)}><Move3d size={16} /></button>
-        <button type="button" aria-label="Powiększ model" title="Powiększ model. Kółko myszy przybliża pod pozycją kursora." onClick={() => setZoomScale((scale) => Math.max(0.35, scale * 0.78))}><ZoomIn size={16} /></button>
-        <button type="button" aria-label="Dopasuj cały model" title="Dopasuj cały model do dostępnego obszaru." onClick={() => selectStandardView(activeSketchId ? (activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top') : 'iso')}><Maximize2 size={16} /></button>
+        {!activeSketchId && <button className={navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT ? 'active' : ''} type="button" aria-label="Orbita" aria-pressed={navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT} title="Orbita modelu 3D: przeciągnij prawym przyciskiem myszy. Ten przycisk włącza też orbitę lewym przyciskiem." onClick={() => setNavigationMode((mode) => mode === VIEWPORT_NAVIGATION_MODES.ORBIT ? VIEWPORT_NAVIGATION_MODES.SELECT : VIEWPORT_NAVIGATION_MODES.ORBIT)}><Orbit size={15} /><span>Orbita</span></button>}
+        <button className={navigationMode === VIEWPORT_NAVIGATION_MODES.PAN ? 'active' : ''} type="button" aria-label="Przesuń widok" aria-pressed={navigationMode === VIEWPORT_NAVIGATION_MODES.PAN} title="Przesuń widok: przytrzymaj kółko myszy i przeciągnij. Ten przycisk włącza też przesuwanie lewym przyciskiem." onClick={() => setNavigationMode((mode) => mode === VIEWPORT_NAVIGATION_MODES.PAN ? VIEWPORT_NAVIGATION_MODES.SELECT : VIEWPORT_NAVIGATION_MODES.PAN)}><Move3d size={15} /><span>Przesuń</span></button>
+        <button type="button" aria-label="Powiększ model" title="Powiększ model. Kółko myszy przybliża pod pozycją kursora." onClick={() => setZoomScale((scale) => Math.max(0.35, scale * 0.78))}><ZoomIn size={15} /><span>Zoom</span></button>
+        <button type="button" aria-label="Dopasuj cały model" title="Dopasuj cały model do dostępnego obszaru." onClick={() => selectStandardView(activeSketchId ? (activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top') : 'iso')}><Maximize2 size={15} /><span>Dopasuj</span></button>
       </div>
       {directEnabled && <div className="direct-extrude-hint">{directManipulator?.hint || 'Przeciągnij niebieską strzałkę, aby wyciągnąć profil'}</div>}
       {dragLabel && <div className="direct-dimension" style={{ left: dragLabel.x, top: dragLabel.y }}>{dragLabel.value.toFixed(1)} mm</div>}
@@ -2179,8 +2188,8 @@ export default function ModelViewport({
       {activeSketchId && sliceModel && <div className="sketch-slice-badge">Slice · przekrój na {activePlane}</div>}
       {activeSketchId && draftType && <div className="sketch-pointer-hint">Kliknij środek, a następnie punkt rozmiaru</div>}
       {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
-      {activeSketchId && sketchTool && <div className="sketch-pointer-hint">{`${sketchToolPrompt || 'Klikaj kolejne punkty'} · ${optionKeyLabel} chwilowo wyłącza snap · ${sketchTool === 'line' && polylineDraft?.lastPoint ? 'Wpisz długość i Enter albo kliknij koniec' : 'Enter lub prawy przycisk kończy'} · Escape anuluje`}</div>}
-      {activeSketchId && !sketchTool && !draftType && !sketchModifierMode && <div className="sketch-pointer-hint">Kliknij lub przeciągnij geometrię · {multiSelectKeyLabel} wybiera wiele · przeciągnij tło, aby wybrać oknem</div>}
+      {activeSketchId && sketchTool && <div className="sketch-pointer-hint">{`${sketchToolPrompt || 'Klikaj kolejne punkty'} · ${sketchTool === 'line' && polylineDraft?.lastPoint ? 'wpisz długość i Enter lub kliknij koniec' : ['line', 'polyline', 'spline'].includes(sketchTool) ? 'Enter kończy' : 'Esc anuluje'}`}</div>}
+      {activeSketchId && !sketchTool && !draftType && !sketchModifierMode && <div className="sketch-pointer-hint">Kliknij geometrię, aby ją zaznaczyć · przeciągnij tło, aby wybrać obszarem</div>}
     </div>
   );
 }

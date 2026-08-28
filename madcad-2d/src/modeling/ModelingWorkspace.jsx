@@ -14,6 +14,7 @@ import {
   Copy,
   Crosshair,
   Cylinder,
+  Ellipsis,
   FileBox,
   FileDown,
   FilePlus2,
@@ -196,6 +197,31 @@ import {
   writeLocalAutosave,
 } from './document-session.js';
 import './modeling.css';
+
+function pointerPromptForCommand(command) {
+  if (!command) return null;
+  const step = command.gesturePoints?.length || 0;
+  if (command.type === 'rectangle') {
+    if (command.definition === 'center') return step ? 'Wskaż narożnik wyznaczający rozmiar' : 'Wskaż środek prostokąta';
+    if (command.definition === 'threePoints') return ['Wskaż początek pierwszego boku', 'Wskaż koniec pierwszego boku', 'Wskaż punkt wysokości'][step] || 'Wskaż punkt wysokości';
+    return step ? 'Wskaż przeciwległy narożnik' : 'Wskaż pierwszy narożnik';
+  }
+  if (command.type === 'circle') {
+    if (command.definition === 'twoPoints') return step ? 'Wskaż drugi punkt średnicy' : 'Wskaż pierwszy punkt średnicy';
+    if (command.definition === 'threePoints') return ['Wskaż pierwszy punkt okręgu', 'Wskaż drugi punkt okręgu', 'Wskaż trzeci punkt okręgu'][step] || 'Wskaż trzeci punkt okręgu';
+    return step ? 'Wskaż punkt promienia' : 'Wskaż środek okręgu';
+  }
+  if (command.type === 'arc') return command.definition === 'centerStartEnd' ? ['Wskaż środek łuku', 'Wskaż początek łuku', 'Wskaż koniec łuku'][step] : ['Wskaż początek łuku', 'Wskaż punkt na łuku', 'Wskaż koniec łuku'][step];
+  if (command.type === 'polygon') return command.definition === 'edge' ? (step ? 'Wskaż koniec krawędzi' : 'Wskaż początek krawędzi') : (step ? 'Wskaż wierzchołek' : 'Wskaż środek wielokąta');
+  if (command.type === 'ellipse') return ['Wskaż środek elipsy', 'Wskaż koniec osi głównej', 'Wskaż szerokość elipsy'][step];
+  if (command.type === 'slot') return ['Wskaż początek osi slotu', 'Wskaż koniec osi slotu', 'Wskaż szerokość slotu'][step];
+  if (command.type === 'spline') return 'Klikaj kolejne punkty spline';
+  if (command.type === 'conic') return ['Wskaż początek krzywej', 'Wskaż punkt kontrolny', 'Wskaż koniec krzywej'][step];
+  if (command.type === 'point') return 'Wskaż położenie punktu';
+  if (command.type === 'line') return command.lastPoint ? 'Ustaw kierunek kursorem' : 'Wskaż punkt początkowy linii';
+  if (command.type === 'polyline') return 'Klikaj kolejne punkty; kliknij początek, aby zamknąć';
+  return null;
+}
 
 function arrayBufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -437,6 +463,12 @@ export default function ModelingWorkspace() {
   const [selectedDrawingViewId, setSelectedDrawingViewId] = useState(null);
   const [selectedDrawingAnnotationId, setSelectedDrawingAnnotationId] = useState(null);
   const [selection, setSelection] = useState({ kind: 'document', id: document.id });
+  const [selectionModeRequestId, setSelectionModeRequestId] = useState(0);
+  const activateSelectionMode = () => {
+    setCommand(null);
+    setSelection({ kind: 'document', id: document.id });
+    setSelectionModeRequestId((requestId) => requestId + 1);
+  };
   const [activeSketchId, setActiveSketchId] = useState(null);
   const [command, setCommand] = useState(null);
   const [commandHistory, setCommandHistory] = useState([]);
@@ -2195,7 +2227,7 @@ export default function ModelingWorkspace() {
     if (type === 'spline') setCommand({ type, definition: 'fit', gesturePoints: [], name: `Spline ${number}`, pointsText: '-20,0; -8,15; 8,-15; 20,0' });
     if (type === 'conic') setCommand({ type, gesturePoints: [], name: `Conic ${number}`, x1: '-20', y1: '0', x2: '0', y2: '20', x3: '20', y3: '0', rho: '0.7071067812', continuity: 'tangent' });
     if (type === 'point') setCommand({ type, gesturePoints: [], x: '0', y: '0', role: 'standard' });
-    setNotice(type === 'spline' ? 'Klikaj punkty spline na płótnie; Enter lub prawy przycisk kończy.' : 'Wskaż kolejne punkty figury na płótnie albo wpisz dokładne dane w panelu.');
+    setNotice(type === 'spline' ? 'Klikaj punkty spline na płótnie; Enter kończy, a Escape anuluje polecenie.' : 'Wskaż kolejne punkty figury na płótnie albo wpisz dokładne dane w panelu.');
   };
 
   const openSketchPath = (type) => {
@@ -3384,7 +3416,7 @@ export default function ModelingWorkspace() {
     if (points.length < required) {
       setCommand(nextCommand);
       setNotice(nextCommand.type === 'spline'
-        ? `Dodano punkt ${points.length}. Klikaj dalej; Enter lub prawy przycisk zakończy spline.`
+        ? `Dodano punkt ${points.length}. Klikaj dalej; Enter zakończy spline, a Escape anuluje polecenie.`
         : `Wskazano ${points.length} z ${required} punktów. Kliknij następny punkt na płótnie.`);
       return;
     }
@@ -3416,6 +3448,11 @@ export default function ModelingWorkspace() {
 
   const openExtrude = () => {
     if (readOnly) return readOnlyNotice();
+    if (!activeSketchId && pressPullFace?.descriptor?.geometry === 'PLANE') {
+      openOffsetFace();
+      setNotice('Wyciąganie ściany jest aktywne. Przeciągnij uchwyt albo wpisz odległość; wartość ujemna wciska ścianę do środka.');
+      return;
+    }
     if (canExtrudeOpenChain) {
       const operation = engine.bodies.length ? 'join' : 'new';
       const targetOptions = createExtrudeTargetOptions();
@@ -5270,15 +5307,29 @@ export default function ModelingWorkspace() {
     : command?.type === 'circle' && command.definition === 'centerRadius'
       ? { type: 'circle', geometry: { diameter: command.diameter, x: command.x, y: command.y } }
       : null;
+  const sketchToolPrompt = pointerPromptForCommand(command);
+  const bodyCountLabel = `${engine.bodies.length} ${engine.bodies.length === 1 ? 'bryła' : 'brył'}`;
+  const hasSketchProfile = document.sketches.some((sketch) => sketch.profiles.length > 0);
+  const readyEngineLabel = command?.previewFeature
+    ? `Podgląd operacji · ${bodyCountLabel}`
+    : activeSketchId
+      ? `Krok 1/3 · Szkic 2D · ${document.sketches.find((sketch) => sketch.id === activeSketchId)?.plane || 'XY'}`
+      : selectedProfile
+        ? 'Krok 2/3 · Profil gotowy do wyciągnięcia'
+        : engine.bodies.length > 0
+          ? `Model gotowy · ${bodyCountLabel}`
+          : hasSketchProfile
+            ? 'Krok 2/3 · Wybierz profil i użyj Wyciągnij'
+            : 'Krok 1/3 · Zacznij od szkicu 2D';
 
   return (
     <ToolHelpContext.Provider value={toolHelpContext}>
     <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${document.features.length ? '' : 'timeline-empty'}`} aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
         <div className="app-menu" role="toolbar" aria-label="Plik i przeglądarka projektu">
-          <button className={browserOpen ? 'active' : ''} type="button" aria-label="Pokaż lub ukryj przeglądarkę" aria-pressed={browserOpen} title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={16} /></button>
+          <button className={browserOpen ? 'active' : ''} type="button" aria-label="Pokaż lub ukryj przeglądarkę" aria-pressed={browserOpen} title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={15} /><span>Panel</span></button>
           <div className="workspace-layout-control" ref={workspaceLayoutMenuRef}>
-            <button className={workspaceLayoutMenuOpen ? 'active' : ''} type="button" aria-label="Układy obszaru roboczego" aria-expanded={workspaceLayoutMenuOpen} aria-controls="workspace-layout-menu" title="Zastosuj albo zapisz układ obszaru roboczego" onClick={() => setWorkspaceLayoutMenuOpen((open) => !open)}><LayoutPanelTop size={16} /></button>
+            <button className={workspaceLayoutMenuOpen ? 'active' : ''} type="button" aria-label="Układy obszaru roboczego" aria-expanded={workspaceLayoutMenuOpen} aria-controls="workspace-layout-menu" title="Zastosuj albo zapisz układ obszaru roboczego" onClick={() => setWorkspaceLayoutMenuOpen((open) => !open)}><LayoutPanelTop size={15} /><span>Układ</span></button>
             {workspaceLayoutMenuOpen && <section className="workspace-layout-menu" id="workspace-layout-menu" aria-label="Zapisane obszary robocze">
               <header><div><strong>Obszary robocze</strong><span>Panele i widok aplikacji</span></div><button type="button" aria-label="Zamknij obszary robocze" title="Zamknij" onClick={() => setWorkspaceLayoutMenuOpen(false)}><X size={14} /></button></header>
               <div className="workspace-layout-list">
@@ -5289,14 +5340,21 @@ export default function ModelingWorkspace() {
               <form onSubmit={(event) => { event.preventDefault(); saveCurrentWorkspaceLayout(); }}><label><span>Zapisz bieżący układ</span><input value={workspaceLayoutName} maxLength={40} placeholder="np. Mój szkic" aria-label="Nazwa nowego układu" onChange={(event) => setWorkspaceLayoutName(event.target.value)} /></label><button type="submit" disabled={!workspaceLayoutName.trim()} title="Zapisz bieżący układ paneli"><Plus size={14} /> Zapisz</button></form>
             </section>}
           </div>
-          <button id="newProjectBtn" type="button" aria-label="Nowy projekt" title="Nowy projekt" onClick={createNew}><FilePlus2 size={16} /></button>
-          <button id="openProjectBtn" type="button" aria-label="Otwórz projekt" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={16} /></button>
-          <button id="saveProjectBtn" type="button" aria-label={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={16} /></button>
-          <button id="projectSnapshotsBtn" className={projectSnapshotsOpen ? 'active' : ''} type="button" aria-label="Punkty zapisu projektu" aria-pressed={projectSnapshotsOpen} title="Utwórz lub przywróć lokalny punkt zapisu projektu" onClick={() => { if (projectSnapshotsOpen) setProjectSnapshotsOpen(false); else openProjectSnapshots(); }}><History size={16} /></button>
-          <button id="projectComparisonBtn" className={projectComparisonOpen ? 'active' : ''} type="button" aria-label="Porównaj wersje projektu" aria-pressed={projectComparisonOpen} title="Porównaj bieżący projekt z punktem zapisu lub plikiem" onClick={() => { if (projectComparisonOpen) setProjectComparisonOpen(false); else openProjectComparison(); }}><GitCompareArrows size={16} /></button>
-          <button id="projectHealthBtn" className={projectHealthOpen ? 'active' : ''} type="button" aria-label="Kondycja projektu" aria-pressed={projectHealthOpen} title="Sprawdź integralność projektu i przejdź do wykrytych problemów" onClick={() => { if (projectHealthOpen) setProjectHealthOpen(false); else openProjectHealth(); }}><ShieldCheck size={16} /></button>
-          <button id="projectDependenciesBtn" className={projectDependenciesOpen ? 'active' : ''} type="button" aria-label="Gdzie używane" aria-pressed={projectDependenciesOpen} title="Pokaż zależności zaznaczonego obiektu i wpływ jego zmiany" onClick={() => { if (projectDependenciesOpen) setProjectDependenciesOpen(false); else openProjectDependencies(); }}><Network size={16} /></button>
-          <button id="projectSearchBtn" className={projectSearchOpen ? 'active' : ''} type="button" aria-label="Idź do obiektu projektu" aria-pressed={projectSearchOpen} title="Wyszukaj obiekt w projekcie · Ctrl/⌘ K" onClick={() => { if (projectSearchOpen) setProjectSearchOpen(false); else openProjectSearch(); }}><Search size={16} /></button>
+          <span className="app-menu-separator" aria-hidden="true" />
+          <button id="newProjectBtn" type="button" aria-label="Nowy projekt" title="Nowy projekt" onClick={createNew}><FilePlus2 size={15} /><span>Nowy</span></button>
+          <button id="openProjectBtn" type="button" aria-label="Otwórz projekt" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={15} /><span>Otwórz</span></button>
+          <button id="saveProjectBtn" type="button" aria-label={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={15} /><span>Zapisz</span></button>
+          <span className="app-menu-separator" aria-hidden="true" />
+          <details className="project-tools-menu">
+            <summary title="Narzędzia kontroli projektu"><Ellipsis size={16} /><span>Projekt</span></summary>
+            <div role="menu" aria-label="Narzędzia projektu">
+              <button id="projectSnapshotsBtn" className={projectSnapshotsOpen ? 'active' : ''} type="button" aria-label="Punkty zapisu projektu" aria-pressed={projectSnapshotsOpen} title="Utwórz lub przywróć lokalny punkt zapisu projektu" onClick={() => { if (projectSnapshotsOpen) setProjectSnapshotsOpen(false); else openProjectSnapshots(); }}><History size={15} /><span>Punkty zapisu</span></button>
+              <button id="projectComparisonBtn" className={projectComparisonOpen ? 'active' : ''} type="button" aria-label="Porównaj wersje projektu" aria-pressed={projectComparisonOpen} title="Porównaj bieżący projekt z punktem zapisu lub plikiem" onClick={() => { if (projectComparisonOpen) setProjectComparisonOpen(false); else openProjectComparison(); }}><GitCompareArrows size={15} /><span>Porównaj wersje</span></button>
+              <button id="projectHealthBtn" className={projectHealthOpen ? 'active' : ''} type="button" aria-label="Kondycja projektu" aria-pressed={projectHealthOpen} title="Sprawdź integralność projektu i przejdź do wykrytych problemów" onClick={() => { if (projectHealthOpen) setProjectHealthOpen(false); else openProjectHealth(); }}><ShieldCheck size={15} /><span>Kondycja projektu</span></button>
+              <button id="projectDependenciesBtn" className={projectDependenciesOpen ? 'active' : ''} type="button" aria-label="Gdzie używane" aria-pressed={projectDependenciesOpen} title="Pokaż zależności zaznaczonego obiektu i wpływ jego zmiany" onClick={() => { if (projectDependenciesOpen) setProjectDependenciesOpen(false); else openProjectDependencies(); }}><Network size={15} /><span>Gdzie używane</span></button>
+            </div>
+          </details>
+          <button id="projectSearchBtn" className={projectSearchOpen ? 'active' : ''} type="button" aria-label="Idź do obiektu projektu" aria-pressed={projectSearchOpen} title="Wyszukaj obiekt w projekcie · Ctrl/⌘ K" onClick={() => { if (projectSearchOpen) setProjectSearchOpen(false); else openProjectSearch(); }}><Search size={15} /><span>Szukaj</span></button>
         </div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
         <input ref={importInputRef} hidden type="file" accept=".step,.stp,.stl,.3mf,model/step,model/stl,model/3mf" onChange={chooseModelImport} />
@@ -5313,10 +5371,12 @@ export default function ModelingWorkspace() {
           <ResponsiveRibbon>
             {activeSketchId ? (
               <>
-                <RibbonGroup label="RYSUJ 2D"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /></RibbonGroup>
-                <RibbonGroup label="UTWÓRZ 3D Z PROFILU"><ToolButton icon={Box} label="Thin Extrude" onClick={openExtrude} disabled={readOnly || !canExtrudeOpenChain} /><ToolButton icon={Frame} label="Rib/Web" onClick={openRib} disabled={readOnly || !canCreateRib} /><ToolButton icon={Cylinder} label="Pipe" onClick={openPipe} disabled={readOnly || !canExtrudeOpenChain} /></RibbonGroup>
+                <RibbonGroup label="PODSTAWOWE 2D"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /></RibbonGroup>
+                <RibbonGroup label="KSZTAŁTY 2D"><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /></RibbonGroup>
+                {(canExtrudeOpenChain || canCreateRib) && <RibbonGroup label="UTWÓRZ 3D Z PROFILU"><ToolButton icon={Box} label="Thin Extrude" onClick={openExtrude} disabled={readOnly || !canExtrudeOpenChain} /><ToolButton icon={Frame} label="Rib/Web" onClick={openRib} disabled={readOnly || !canCreateRib} /><ToolButton icon={Cylinder} label="Pipe" onClick={openPipe} disabled={readOnly || !canExtrudeOpenChain} /></RibbonGroup>}
                 <RibbonGroup label="IMPORT SZKICU 2D"><ToolButton icon={Upload} label="Import SVG/DXF" onClick={() => sketchImportInputRef.current?.click()} disabled={readOnly} /><ToolButton icon={Upload} label="Import DWG" onClick={() => { void chooseDwgSketchImport(); }} disabled={readOnly} /></RibbonGroup>
-                <RibbonGroup label="MODYFIKUJ 2D"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { setCommand(null); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Maximize2} label="Extend" onClick={() => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' })} primary={command?.type === 'extendSketch'} disabled={readOnly} /><ToolButton icon={Minus} label="Break" onClick={() => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' })} primary={command?.type === 'breakSketch'} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Project" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} /><ToolButton icon={Copy} label="Offset" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} /><ToolButton icon={CircleDotDashed} label="Fillet szkicu" onClick={() => openSketchCorner('fillet')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={Triangle} label="Faza szkicu" onClick={() => openSketchCorner('chamfer')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={RotateCw} label="Transformuj" onClick={openSketchTransform} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Grid2X2} label="Szyk szkicu" onClick={openSketchPattern} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
+                <RibbonGroup label="EDYCJA 2D"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { activateSelectionMode(); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Maximize2} label="Extend" onClick={() => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' })} primary={command?.type === 'extendSketch'} disabled={readOnly} /><ToolButton icon={Minus} label="Break" onClick={() => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' })} primary={command?.type === 'breakSketch'} disabled={readOnly} /><ToolButton icon={Copy} label="Offset" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /></RibbonGroup>
+                <RibbonGroup label="ZAAWANSOWANA EDYCJA"><ToolButton icon={ScanSearch} label="Project" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Fillet szkicu" onClick={() => openSketchCorner('fillet')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={Triangle} label="Faza szkicu" onClick={() => openSketchCorner('chamfer')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={RotateCw} label="Transformuj" onClick={openSketchTransform} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Grid2X2} label="Szyk szkicu" onClick={openSketchPattern} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
                 <RibbonGroup label="WIĘZY"><ToolButton icon={Minus} label="Współliniowe" onClick={() => addSelectedSketchConstraint('collinear')} disabled={readOnly || !canAddCollinear} /><ToolButton icon={Frame} label="Symetria" onClick={() => addSelectedSketchConstraint('symmetry')} disabled={readOnly || !canAddSymmetry} /><ToolButton icon={CircleDotDashed} label="Krzywizna G2" onClick={() => addSelectedSketchConstraint('curvature')} disabled={readOnly || !canAddCurvature} /></RibbonGroup>
                 <RibbonGroup label="WYMIARY"><ToolButton icon={Ruler} label="Ordinate X" onClick={() => openSketchDimension('ordinateX')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={Ruler} label="Ordinate Y" onClick={() => openSketchDimension('ordinateY')} disabled={readOnly || !canAddOrdinate} /><ToolButton icon={RotateCw} label="Długość łuku" onClick={() => openSketchDimension('arcLength')} disabled={readOnly || !canAddArcLength} /></RibbonGroup>
                 <RibbonGroup label="ORGANIZUJ"><ToolButton icon={Layers3} label="Warstwy" onClick={() => { setBlocksOpen(false); setComponentsOpen(false); setLayersOpen(true); }} primary={layersOpen} /><ToolButton icon={Blocks} label="Bloki" onClick={() => { setLayersOpen(false); setComponentsOpen(false); setBlocksOpen(true); }} primary={blocksOpen} /></RibbonGroup>
@@ -5349,12 +5409,15 @@ export default function ModelingWorkspace() {
             ) : (
               <>
                 <RibbonGroup label="SZKIC 2D"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /></RibbonGroup>
-                <RibbonGroup label="UTWÓRZ BRYŁĘ 3D"><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={!selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolButton icon={Rotate3d} label="Revolve" onClick={openRevolve} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Move3d} label="Sweep" onClick={openSweep} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Layers3} label="Loft" onClick={openLoft} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={RotateCw} label="Coil" onClick={openCoil} disabled={readOnly || Boolean(activeSketchId)} /><ToolButton icon={Grid2X2} label="Pattern" onClick={openPattern} disabled={readOnly || !targetBodyId || !targetBodySupportsSolidOperations || Boolean(activeSketchId)} description={!targetBodySupportsSolidOperations ? 'Otwarta siatka nie obsługuje bryłowego szyku z łączeniem.' : undefined} /><ToolButton icon={Move3d} label="Press Pull" onClick={openPressPull} disabled={readOnly || !canPressPull} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={Type} label="Tekst 3D" onClick={openTextSolid} disabled={readOnly} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || !canBooleanSelectedBodies} description={!canBooleanSelectedBodies && selectedBodyIds.length === 2 ? 'Boolean wymaga zgodnych brył B-Rep albo dwóch zamkniętych siatek.' : undefined} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length} /></RibbonGroup>
+                <RibbonGroup label="PODSTAWOWE 3D"><ToolButton icon={Box} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolButton icon={Move3d} label="Press Pull" onClick={openPressPull} disabled={readOnly || !canPressPull} /><ToolButton icon={Box} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolButton icon={RotateCw} label="Coil" onClick={openCoil} disabled={readOnly || Boolean(activeSketchId)} /><ToolButton icon={Type} label="Tekst 3D" onClick={openTextSolid} disabled={readOnly} /><ToolButton icon={Cylinder} label="Otwór" onClick={openHole} disabled={readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length} /></RibbonGroup>
+                {(selectedProfile || engine.bodies.length > 0) && <RibbonGroup label="ZAAWANSOWANE 3D"><ToolButton icon={Rotate3d} label="Revolve" onClick={openRevolve} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Move3d} label="Sweep" onClick={openSweep} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Layers3} label="Loft" onClick={openLoft} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} /><ToolButton icon={Grid2X2} label="Pattern" onClick={openPattern} disabled={readOnly || !targetBodyId || !targetBodySupportsSolidOperations || Boolean(activeSketchId)} description={!targetBodySupportsSolidOperations ? 'Otwarta siatka nie obsługuje bryłowego szyku z łączeniem.' : undefined} /><ToolButton icon={Shapes} label="Boolean" onClick={openBoolean} disabled={readOnly || !canBooleanSelectedBodies} description={!canBooleanSelectedBodies && selectedBodyIds.length === 2 ? 'Boolean wymaga zgodnych brył B-Rep albo dwóch zamkniętych siatek.' : undefined} /></RibbonGroup>}
                 <RibbonGroup label="IMPORTUJ CAD"><ToolButton icon={Upload} label="Import STEP/STL/3MF" onClick={() => importInputRef.current?.click()} disabled={readOnly || modelImportBusy} description={modelImportBusy ? 'Trwa przygotowywanie wybranego modelu.' : 'Importuj dokładny STEP albo siatkę STL/3MF bez przechodzenia do Narzędzi.'} /></RibbonGroup>
-                <RibbonGroup label="MODYFIKUJ BRYŁĘ 3D"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Layers3} label="Shell" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Triangle} label="Draft" onClick={openDraft} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Scissors} label="Split Body" onClick={openSplitBody} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Scissors} label="Split Face" onClick={openSplitFace} disabled={readOnly || !canSplitFace} /><ToolButton icon={X} label="Delete Face + Heal" onClick={openDeleteFace} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Layers3} label="Replace Face" onClick={openReplaceFace} disabled={readOnly || selectedFaceItems.length !== 2} /><ToolButton icon={Layers3} label="Offset Face" onClick={openOffsetFace} disabled={readOnly || selectedFaceItems.length !== 1} /><ToolButton icon={Move3d} label="Przesuń bryłę" onClick={() => openTransform('move')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Rotate3d} label="Obróć bryłę" onClick={() => openTransform('rotate')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
+                {engine.bodies.length > 0 && <RibbonGroup label="KRAWĘDZIE I ŚCIANY"><ToolButton icon={CircleDotDashed} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Triangle} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} /><ToolButton icon={Layers3} label="Shell" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Triangle} label="Draft" onClick={openDraft} disabled={readOnly || !selectedFaceItems.length} /><ToolButton icon={Layers3} label="Offset Face" onClick={openOffsetFace} disabled={readOnly || selectedFaceItems.length !== 1} /><ToolButton icon={X} label="Delete Face + Heal" onClick={openDeleteFace} disabled={readOnly || !selectedFaceItems.length} /></RibbonGroup>}
+                {engine.bodies.length > 0 && <RibbonGroup label="DZIEL I ZASTĘPUJ"><ToolButton icon={Scissors} label="Split Body" onClick={openSplitBody} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Scissors} label="Split Face" onClick={openSplitFace} disabled={readOnly || !canSplitFace} /><ToolButton icon={Layers3} label="Replace Face" onClick={openReplaceFace} disabled={readOnly || selectedFaceItems.length !== 2} /></RibbonGroup>}
+                {engine.bodies.length > 0 && <RibbonGroup label="POŁOŻENIE I EDYCJA"><ToolButton icon={Move3d} label="Przesuń bryłę" onClick={() => openTransform('move')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Rotate3d} label="Obróć bryłę" onClick={() => openTransform('rotate')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>}
                 <RibbonGroup label="KOMPONENTY"><ToolButton icon={Boxes} label="Menedżer" onClick={openComponentManager} primary={componentsOpen} /><ToolButton icon={Box} label="Nowa część" onClick={() => createDocumentComponent('part')} disabled={readOnly} /><ToolButton icon={Boxes} label="Złożenie" onClick={() => createDocumentComponent('assembly')} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="WIDOK"><ToolButton icon={Eye} label="Zapisane widoki" onClick={() => { setComponentsOpen(false); setNamedViewsOpen((open) => !open); }} primary={namedViewsOpen} /></RibbonGroup>
-                <RibbonGroup label="WYBÓR" end><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => setSelection({ kind: 'document', id: document.id })} /></RibbonGroup>
+                <RibbonGroup label="WYBÓR" end><ToolButton icon={MousePointer2} label="Wybierz" onClick={activateSelectionMode} /></RibbonGroup>
               </>
             )}
           </ResponsiveRibbon>
@@ -5424,11 +5487,10 @@ export default function ModelingWorkspace() {
             draftType={null}
             onDraftChange={readOnly ? undefined : updateCommand}
             sketchTool={command?.type === 'line' || command?.type === 'polyline' || directSketchTypes.includes(command?.type) ? command.type : null}
-            sketchToolPrompt={command?.type === 'rectangle' ? (command.gesturePoints?.length ? 'Wskaż przeciwległy narożnik' : 'Wskaż pierwszy narożnik') : command?.type === 'circle' ? (command.gesturePoints?.length ? 'Wskaż punkt promienia' : 'Wskaż środek') : command?.type === 'arc' ? 'Wskaż trzy punkty łuku' : command?.type === 'polygon' ? 'Wskaż środek i wierzchołek' : command?.type === 'ellipse' ? 'Wskaż środek, oś główną i szerokość' : command?.type === 'slot' ? 'Wskaż oś slotu i jego szerokość' : command?.type === 'spline' ? 'Klikaj punkty spline' : command?.type === 'conic' ? 'Wskaż początek, punkt kontrolny i koniec' : command?.type === 'point' ? 'Wskaż położenie punktu' : command?.type === 'line' ? (command.lastPoint ? 'Ustaw kierunek kursorem' : 'Wskaż punkt początkowy linii') : command?.type === 'polyline' ? 'Klikaj kolejne punkty; kliknij początek, aby zamknąć' : null}
+            sketchToolPrompt={sketchToolPrompt}
             polylineDraft={command?.type === 'line' || command?.type === 'polyline' ? { lastPoint: command.lastPoint } : directSketchTypes.includes(command?.type) ? { lastPoint: command.gesturePoints?.at(-1) || null } : null}
             onSketchPoint={readOnly ? undefined : handleSketchCanvasPoint}
             onSketchPointerMove={(point) => { sketchPointerRef.current = point; }}
-            onSketchFinish={readOnly ? undefined : finishCanvasSketchTool}
             sketchDynamicLength={command?.dynamicLength || ''}
             autoConstraints={sketchOptions.autoConstraints}
             selectedSketchEntityIds={selectedSketchEntityIds}
@@ -5463,6 +5525,8 @@ export default function ModelingWorkspace() {
             explodeAmount={explodeAmount}
             cameraRequest={cameraRequest}
             fitRequest={fitViewRequest}
+            selectionModeRequestId={selectionModeRequestId}
+            activeCommand={command}
             onCameraStateChange={(camera) => { currentCameraRef.current = camera; }}
             selectedComponentInstanceId={selectedInstance?.id || null}
             selectedJointId={selectedJoint?.id || null}
@@ -5490,7 +5554,7 @@ export default function ModelingWorkspace() {
             printLayout={document.print}
           />
           </React.Suspense>}
-          {workspace !== 'drawing' && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? `${command?.previewFeature ? 'Podgląd' : 'Model'} gotowy · ${engine.bodies.length} ${engine.bodies.length === 1 ? 'bryła' : 'brył'}` : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
+          {workspace !== 'drawing' && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
           {notice && <div className="workspace-notice" role="status" aria-live="polite" aria-atomic="true">{notice}</div>}
           <CrashRecoveryBanner
             info={recoveryInfo}
@@ -5616,7 +5680,6 @@ export default function ModelingWorkspace() {
         <div className="tool-help-tooltip" role="tooltip" style={{ left: toolHelp.x, top: toolHelp.y }}>
           <header><strong>{toolHelp.label}</strong>{toolHelp.shortcut && <kbd>{toolHelp.shortcut}</kbd>}</header>
           <p>{toolHelp.help}</p>
-          <small>Podstawowe narzędzia uruchomisz jednym klawiszem; pozostałe wybierz przyciskiem.</small>
         </div>
       )}
     </section>

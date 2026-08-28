@@ -9,11 +9,11 @@ import {
 const MOUSE = Object.freeze({ ROTATE: 0, DOLLY: 1, PAN: 2 });
 
 describe('AutoCAD-compatible viewport navigation', () => {
-  it('keeps the left button for selection and maps wheel press to pan', () => {
+  it('keeps the left button for selection, maps wheel press to pan and right drag to 3D orbit', () => {
     const controls = { mouseButtons: {} };
     configureCadMouseNavigation(controls, MOUSE);
 
-    expect(controls.mouseButtons).toEqual({ LEFT: null, MIDDLE: MOUSE.PAN, RIGHT: null });
+    expect(controls.mouseButtons).toEqual({ LEFT: null, MIDDLE: MOUSE.PAN, RIGHT: MOUSE.ROTATE });
     expect(controls.screenSpacePanning).toBe(true);
     expect(controls.zoomToCursor).toBe(true);
     expect(controls.zoomSpeed).toBe(1.1);
@@ -30,13 +30,14 @@ describe('AutoCAD-compatible viewport navigation', () => {
     expect(pan.mouseButtons.LEFT).toBe(MOUSE.PAN);
   });
 
-  it('lets explicit pan and orbit work in a sketch without stealing drawing in selection mode', () => {
+  it('keeps a 2D sketch perpendicular while allowing explicit pan', () => {
     const controls = { mouseButtons: {} };
     configureCadMouseNavigation(controls, MOUSE, { navigationMode: VIEWPORT_NAVIGATION_MODES.ORBIT, activeSketch: true });
     const pan = { mouseButtons: {} };
     configureCadMouseNavigation(pan, MOUSE, { navigationMode: VIEWPORT_NAVIGATION_MODES.PAN, activeSketch: true });
 
-    expect(controls.mouseButtons.LEFT).toBe(MOUSE.ROTATE);
+    expect(controls.mouseButtons.LEFT).toBeNull();
+    expect(controls.mouseButtons.RIGHT).toBeNull();
     expect(pan.mouseButtons.LEFT).toBe(MOUSE.PAN);
     expect(shouldHandlePrimaryViewportPointer({ button: 1 })).toBe(false);
     expect(shouldHandlePrimaryViewportPointer({ button: 0 }, { navigationMode: VIEWPORT_NAVIGATION_MODES.ORBIT })).toBe(false);

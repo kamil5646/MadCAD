@@ -1,5 +1,6 @@
 import { createId } from './ids.js';
-import { listExpressionIdentifiers } from './expressions.js';
+import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from './expressions.js';
+import { GEOMETRY_POLICY } from './geometry-policy.js';
 import {
   BY_LAYER,
   LINE_WEIGHTS,
@@ -664,6 +665,8 @@ export function validateDocument(document) {
     if (typeof parameter.expression !== 'string' && typeof parameter.expression !== 'number') add(`${base}.expression`, 'Wyrażenie musi być tekstem albo liczbą.', 'TYPE');
     if (typeof parameter.unit !== 'string' || !parameter.unit) add(`${base}.unit`, 'Parametr musi mieć jednostkę.', 'REQUIRED');
   });
+  const resolvedParameterResult = resolveParameters(parameters.filter(isRecord));
+  const resolvedParameterValues = resolvedParameterResult.valid ? resolvedParameterResult.values : {};
 
   const sketchIds = new Set();
   const profileOwners = new Map();
@@ -744,6 +747,32 @@ export function validateDocument(document) {
         if (typeof entity.geometry?.radius !== 'string' && typeof entity.geometry?.radius !== 'number') add(`${entityBase}.geometry.radius`, 'Okrąg wymaga promienia.', 'REQUIRED');
       }
     });
+    const pointCoordinate = (pointId) => {
+      const point = entityMap.get(pointId);
+      if (point?.type !== 'point') return null;
+      try {
+        const numeric = (value) => {
+          const direct = Number(value);
+          return Number.isFinite(direct) ? direct : evaluateExpression(value, resolvedParameterValues);
+        };
+        const coordinate = [numeric(point.geometry?.x), numeric(point.geometry?.y)];
+        return coordinate.every(Number.isFinite) ? coordinate : null;
+      } catch {
+        return null;
+      }
+    };
+    const boundaryPointsMatch = (firstPointId, secondPointId) => {
+      if (firstPointId === secondPointId) return true;
+      const first = pointCoordinate(firstPointId);
+      const second = pointCoordinate(secondPointId);
+      if (first && second) return Math.hypot(first[0] - second[0], first[1] - second[1]) <= GEOMETRY_POLICY.profileJoinTolerance;
+      const firstPoint = entityMap.get(firstPointId);
+      const secondPoint = entityMap.get(secondPointId);
+      return firstPoint?.type === 'point'
+        && secondPoint?.type === 'point'
+        && String(firstPoint.geometry?.x).trim() === String(secondPoint.geometry?.x).trim()
+        && String(firstPoint.geometry?.y).trim() === String(secondPoint.geometry?.y).trim();
+    };
     const blockInstanceIds = new Set();
     blockInstances.forEach((instance, instanceIndex) => {
       const instanceBase = `${base}.blockInstances[${instanceIndex}]`;
@@ -870,7 +899,7 @@ export function validateDocument(document) {
         endpoints.forEach((pair, entityIndex) => {
           if (pair.length !== 2) add(`${loopBase}.entityIds[${entityIndex}]`, 'Profil zamknięty może zawierać tylko linie, łuki, pojedynczy okrąg albo elipsę.', 'TYPE');
           const next = endpoints[(entityIndex + 1) % endpoints.length];
-          if (pair.length === 2 && next?.length === 2 && pair[1] !== next[0]) add(`${loopBase}.entityIds[${entityIndex}]`, 'Segment nie łączy się z następną krawędzią profilu.', 'BROKEN_REFERENCE');
+          if (pair.length === 2 && next?.length === 2 && !boundaryPointsMatch(pair[1], next[0])) add(`${loopBase}.entityIds[${entityIndex}]`, 'Segment nie łączy się z następną krawędzią profilu.', 'BROKEN_REFERENCE');
         });
       };
       validateProfileLoop(profile, profileBase);
