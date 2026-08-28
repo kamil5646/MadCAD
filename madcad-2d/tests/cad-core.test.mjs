@@ -116,12 +116,14 @@ import {
   createLinearDrawingDimension,
   createProjectedDrawingView,
   createSectionDrawingView,
+  createSketchDrawingView,
   drawingBomItemNumber,
   drawingSheetHtml,
   drawingSheetDxf,
   drawingSheetScene,
   projectDrawingView,
   recommendedDrawingScale,
+  recommendedSketchDrawingScale,
 } from '../src/cad-core/drawing-sheets.js';
 import {
   BY_LAYER,
@@ -1830,6 +1832,39 @@ test('arkusz techniczny zapisuje skojarzony widok i rzutuje rzeczywiste krawędz
 
   const reopened = openDocument(JSON.parse(JSON.stringify(document)));
   assert.deepEqual(reopened.document.drawings, document.drawings);
+});
+
+test('arkusz techniczny drukuje parametryczny szkic 2D bez tworzenia bryły 3D', () => {
+  const document = createDocument('Płyta 2D');
+  const points = [
+    createSketchPoint({ x: 0, y: 0 }), createSketchPoint({ x: 80, y: 0 }),
+    createSketchPoint({ x: 80, y: 40 }), createSketchPoint({ x: 0, y: 40 }),
+  ];
+  const lines = points.map((point, index) => createSketchLine({ startPointId: point.id, endPointId: points[(index + 1) % points.length].id }));
+  const center = createSketchPoint({ x: 40, y: 20 });
+  const circle = createSketchCircleEntity({ centerPointId: center.id, radius: 5 });
+  const sketch = createSketch({ name: 'Obrys płyty', entities: [...points, center, ...lines, circle] });
+  document.sketches.push(sketch);
+  const sheet = createDrawingSheet({ name: 'Rysunek 2D' });
+  const scale = recommendedSketchDrawingScale(sheet, sketch, document.parameters, document.layers);
+  const view = createSketchDrawingView({ sketchId: sketch.id, name: sketch.name, scale, sheet });
+  sheet.views.push(view);
+  document.drawings.push(sheet);
+
+  assert.equal(document.bodies.length, 0);
+  assert.equal(validateDocument(document).valid, true);
+  const options = { sketches: document.sketches, parameters: document.parameters, layers: document.layers };
+  const scene = drawingSheetScene(sheet, [], options);
+  assert.equal(scene.views[0].modelWidth, 80);
+  assert.equal(scene.views[0].modelHeight, 40);
+  assert.ok(scene.views[0].segments.length > 60, 'okrąg i obrys muszą być widoczne na arkuszu');
+  assert.match(drawingSheetHtml(sheet, [], { documentName: document.name, ...options }), /class="geometry sketch"/);
+  assert.match(drawingSheetDxf(sheet, [], options), /\nLINE\n8\nGEOMETRY\n/);
+
+  sketch.entities.find((entity) => entity.id === points[1].id).geometry.x = '100';
+  assert.equal(drawingSheetScene(sheet, [], options).views[0].modelWidth, 100, 'widok aktualizuje się po zmianie szkicu');
+  const reopened = openDocument(JSON.parse(JSON.stringify(document)));
+  assert.equal(reopened.document.drawings[0].views[0].sketchId, sketch.id);
 });
 
 test('rzuty pochodne, przekrój i detal zachowują relację, wyrównanie i aktualną geometrię modelu', () => {

@@ -1665,13 +1665,16 @@ export function validateDocument(document) {
       registerId(view.id, `${viewBase}.id`);
       if (!DRAWING_VIEW_TYPES.includes(view.type)) add(`${viewBase}.type`, `Nieobsługiwany typ widoku: ${view.type ?? ''}.`, 'UNSUPPORTED');
       if (!DRAWING_VIEW_ORIENTATIONS.includes(view.orientation)) add(`${viewBase}.orientation`, `Nieobsługiwana orientacja widoku: ${view.orientation ?? ''}.`, 'UNSUPPORTED');
-      if (!Array.isArray(view.bodyIds) || !view.bodyIds.length) add(`${viewBase}.bodyIds`, 'Widok wymaga co najmniej jednej bryły.', 'REQUIRED');
+      if (view.type === 'sketch') {
+        if (typeof view.sketchId !== 'string' || !view.sketchId) add(`${viewBase}.sketchId`, 'Widok szkicu wymaga szkicu źródłowego.', 'REQUIRED');
+        else if (!sketchIds.has(view.sketchId)) add(`${viewBase}.sketchId`, 'Widok odwołuje się do brakującego szkicu.', 'REFERENCE');
+      } else if (!Array.isArray(view.bodyIds) || !view.bodyIds.length) add(`${viewBase}.bodyIds`, 'Widok wymaga co najmniej jednej bryły.', 'REQUIRED');
       else view.bodyIds.forEach((bodyId, bodyIndex) => {
         if (typeof bodyId !== 'string' || !bodyId) add(`${viewBase}.bodyIds[${bodyIndex}]`, 'Referencja bryły musi być niepustym ID.', 'TYPE');
       });
       if (!(Number(view.scale) > 0)) add(`${viewBase}.scale`, 'Skala widoku musi być dodatnia.', 'VALUE');
       if (!Number.isFinite(Number(view.x)) || !Number.isFinite(Number(view.y))) add(viewBase, 'Położenie widoku na arkuszu musi być liczbowe.', 'TYPE');
-      if (view.type !== 'base') {
+      if (!['base', 'sketch'].includes(view.type)) {
         if (typeof view.parentViewId !== 'string' || !viewParents.has(view.parentViewId) && !viewIds.has(view.parentViewId)) add(`${viewBase}.parentViewId`, 'Widok pochodny wymaga istniejącego widoku nadrzędnego na tym samym arkuszu.', 'BROKEN_REFERENCE');
         else if (view.parentViewId === view.id) add(`${viewBase}.parentViewId`, 'Widok nie może być własnym rodzicem.', 'CYCLIC_REFERENCE');
         else if (viewIndexById.get(view.parentViewId) >= viewIndex) add(`${viewBase}.parentViewId`, 'Widok nadrzędny musi występować przed widokiem pochodnym.', 'ORDER');

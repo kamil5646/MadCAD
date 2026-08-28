@@ -264,7 +264,8 @@ async function runUiFlow(window) {
     'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum',
     'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi', 'Import 3D',
   ]);
-  const exportWorkspaceLabels = new Set(['STEP', 'STL', '3MF', 'Kontrola druku']);
+  const exportWorkspaceLabels = new Set(['STEP', 'STL', '3MF']);
+  const printWorkspaceLabels = new Set(['Panel druku 3D']);
   const ribbonHasTool = (label) => window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)})`);
   const clickWorkspace = (workspaceLabel) => window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === ${JSON.stringify(workspaceLabel)});
@@ -273,7 +274,7 @@ async function runUiFlow(window) {
   })()`);
   const clickTool = async (label) => {
     if (!await ribbonHasTool(label)) {
-      const workspaceLabel = toolsWorkspaceLabels.has(label) ? 'NARZĘDZIA' : exportWorkspaceLabels.has(label) ? 'EKSPORT' : 'PROJEKTUJ';
+      const workspaceLabel = toolsWorkspaceLabels.has(label) ? 'NARZĘDZIA' : printWorkspaceLabels.has(label) ? 'DRUK 3D' : exportWorkspaceLabels.has(label) ? 'WYMIANA CAD' : 'PROJEKTUJ';
       await clickWorkspace(workspaceLabel);
       await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)})`, `narzędzie ${label} w obszarze ${workspaceLabel}`);
     }
@@ -2492,12 +2493,12 @@ async function runUiFlow(window) {
   await confirmParameters();
 
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === 'EKSPORT');
-    if (!button) throw new Error('Brak obszaru EKSPORT');
+    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === 'DRUK 3D');
+    if (!button) throw new Error('Brak obszaru DRUK 3D');
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);
-  await clickTool('Kontrola druku');
+  await clickTool('Panel druku 3D');
   await waitForUi(window, `document.querySelector('.print-inspector')`, 'obszar przygotowania druku');
 
   await window.webContents.executeJavaScript(`(() => {

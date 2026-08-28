@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { CircleDot, Crosshair, FilePlus2, FileText, MoveHorizontal, MoveVertical, Plus, ScanSearch, Scissors, Trash2 } from 'lucide-react';
+import { FilePlus2, FileText, Plus, Trash2 } from 'lucide-react';
 import { drawingBomItemNumber, drawingSheetScene, formatDrawingScale } from '../cad-core/drawing-sheets.js';
 
 const ORIENTATION_LABELS = {
@@ -11,6 +11,7 @@ const ORIENTATION_LABELS = {
 
 const VIEW_TYPE_LABELS = {
   base: 'Widok bazowy',
+  sketch: 'Szkic 2D',
   projected: 'Widok rzutowany',
   section: 'Przekrój',
   detail: 'Detal',
@@ -38,8 +39,8 @@ function DrawingTableGraphic({ table }) {
   </g>;
 }
 
-function DrawingSheetPreview({ documentName, sheet, bodies, components, componentInstances, selectedViewId, selectedAnnotationId, onSelectView, onSelectAnnotation }) {
-  const scene = useMemo(() => drawingSheetScene(sheet, bodies, { components, componentInstances }), [sheet, bodies, components, componentInstances]);
+function DrawingSheetPreview({ documentName, sheet, bodies, components, componentInstances, sketches, parameters, layers, selectedViewId, selectedAnnotationId, onSelectView, onSelectAnnotation }) {
+  const scene = useMemo(() => drawingSheetScene(sheet, bodies, { components, componentInstances, sketches, parameters, layers }), [sheet, bodies, components, componentInstances, sketches, parameters, layers]);
   const titleTop = scene.height - scene.titleBlockHeight;
   return (
     <div className="drawing-paper-wrap">
@@ -102,7 +103,7 @@ function AnnotationControls({ annotation, rendered, bodies, allBodies, component
   };
   return <div className="drawing-view-properties drawing-annotation-properties">
     <strong>{ANNOTATION_TYPE_LABELS[annotation.type]}</strong>
-    <small className="drawing-association-status">Skojarzone z widokiem · aktualizowane z modelem</small>
+    <small className="drawing-association-status">Aktualizowane z widokiem źródłowym</small>
     {(annotation.type === 'linear-dimension' || annotation.type === 'centerline') && <label><span>Kierunek</span><select value={annotation.axis} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ axis: event.target.value })}><option value="horizontal">Poziomy</option><option value="vertical">Pionowy</option></select></label>}
     {annotation.type === 'linear-dimension' && <>
       <div className="drawing-property-row"><label><span>Odsunięcie [mm]</span><input type="number" min="-100" max="100" value={annotation.offset} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ offset: Math.max(-100, Math.min(100, Number(event.target.value) || 0)) })} /></label><label><span>Miejsca</span><input type="number" min="0" max="4" value={annotation.precision} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ precision: Math.max(0, Math.min(4, Math.trunc(Number(event.target.value) || 0))) })} /></label></div>
@@ -132,18 +133,19 @@ function AnnotationControls({ annotation, rendered, bodies, allBodies, component
   </div>;
 }
 
-export default function DrawingWorkspace({ document, bodies, activeSheetId, selectedViewId, selectedAnnotationId, readOnly = false, onCreateSheet, onSelectSheet, onUpdateSheet, onDeleteSheet, onAddBaseView, onAddDerivedView, onSelectView, onUpdateView, onDeleteView, onAddAnnotation, onSelectAnnotation, onUpdateAnnotation, onDeleteAnnotation, onAddRevision, onUpdateRevision, onDeleteRevision, onAddTable, onUpdateTable, onDeleteTable, onExportPdf, onExportDxf }) {
+export default function DrawingWorkspace({ document, bodies, activeSheetId, selectedViewId, selectedAnnotationId, readOnly = false, onCreateSheet, onSelectSheet, onUpdateSheet, onSelectView, onUpdateView, onDeleteView, onSelectAnnotation, onUpdateAnnotation, onDeleteAnnotation, onAddRevision, onUpdateRevision, onDeleteRevision, onUpdateTable, onDeleteTable }) {
   const activeSheet = document.drawings.find((sheet) => sheet.id === activeSheetId) || document.drawings[0] || null;
-  const activeScene = useMemo(() => activeSheet ? drawingSheetScene(activeSheet, bodies, { components: document.components || [], componentInstances: document.componentInstances || [] }) : null, [activeSheet, bodies, document.components, document.componentInstances]);
+  const activeScene = useMemo(() => activeSheet ? drawingSheetScene(activeSheet, bodies, { components: document.components || [], componentInstances: document.componentInstances || [], sketches: document.sketches || [], parameters: document.parameters || [], layers: document.layers || [] }) : null, [activeSheet, bodies, document.components, document.componentInstances, document.sketches, document.parameters, document.layers]);
   const selectedView = activeScene?.views.find((view) => view.id === selectedViewId) || null;
   const selectedAnnotation = activeSheet?.annotations?.find((annotation) => annotation.id === selectedAnnotationId) || null;
   const renderedSelectedAnnotation = activeScene?.annotations.find((annotation) => annotation.id === selectedAnnotationId) || null;
+  const drawableSketches = (document.sketches || []).filter((sketch) => (sketch.entities || []).some((entity) => !['point', 'text'].includes(entity.type) && entity.role !== 'construction'));
 
   if (!activeSheet) {
     return <section className="drawing-workspace drawing-empty" aria-label="Dokumentacja techniczna">
       <FileText size={46} />
       <h2>Utwórz pierwszy arkusz techniczny</h2>
-      <p>Arkusz jest zapisany w projekcie i aktualizuje widoki po każdej zmianie geometrii modelu.</p>
+      <p>Arkusz jest zapisany w projekcie i aktualizuje widoki po każdej zmianie modelu albo szkicu 2D.</p>
       <button type="button" onClick={onCreateSheet} disabled={readOnly}><FilePlus2 size={17} /> Nowy arkusz A4</button>
     </section>;
   }
@@ -154,7 +156,7 @@ export default function DrawingWorkspace({ document, bodies, activeSheetId, sele
       {document.drawings.map((sheet, index) => <button type="button" className={sheet.id === activeSheet.id ? 'active' : ''} key={sheet.id} onClick={() => onSelectSheet(sheet.id)}><FileText size={15} /><span><strong>{sheet.name}</strong><small>{sheet.pageSize} · {sheet.orientation === 'landscape' ? 'poziomo' : 'pionowo'} · {sheet.views.length} wid.</small></span><em>{index + 1}</em></button>)}
     </nav>
 
-    <DrawingSheetPreview documentName={document.name} sheet={activeSheet} bodies={bodies} components={document.components || []} componentInstances={document.componentInstances || []} selectedViewId={selectedViewId} selectedAnnotationId={selectedAnnotationId} onSelectView={onSelectView} onSelectAnnotation={onSelectAnnotation} />
+    <DrawingSheetPreview documentName={document.name} sheet={activeSheet} bodies={bodies} components={document.components || []} componentInstances={document.componentInstances || []} sketches={document.sketches || []} parameters={document.parameters || []} layers={document.layers || []} selectedViewId={selectedViewId} selectedAnnotationId={selectedAnnotationId} onSelectView={onSelectView} onSelectAnnotation={onSelectAnnotation} />
 
     <aside className="drawing-properties" aria-label="Właściwości arkusza">
       <header><FileText size={16} /><strong>Właściwości</strong></header>
@@ -171,43 +173,24 @@ export default function DrawingWorkspace({ document, bodies, activeSheetId, sele
         {(activeSheet.revisions || []).map((revision) => <div className="drawing-revision" key={revision.id}><div className="drawing-property-row"><label><span>Rew.</span><input value={revision.code} disabled={readOnly} onChange={(event) => onUpdateRevision(revision.id, { code: event.target.value.slice(0, 8) })} /></label><label><span>Data</span><input type="date" value={revision.date} disabled={readOnly} onChange={(event) => onUpdateRevision(revision.id, { date: event.target.value })} /></label></div><label><span>Opis</span><input value={revision.description} disabled={readOnly} onChange={(event) => onUpdateRevision(revision.id, { description: event.target.value.slice(0, 120) })} /></label><button type="button" className="drawing-revision-delete" title="Usuń rewizję" onClick={() => onDeleteRevision(revision.id)} disabled={readOnly}><Trash2 size={13} /> Usuń</button></div>)}
         <button type="button" className="drawing-add-revision" onClick={onAddRevision} disabled={readOnly}><Plus size={14} /> Dodaj rewizję</button>
       </details>
-      <details className="drawing-sheet-details drawing-tables">
-        <summary>Tabele ({activeSheet.tables?.length || 0})</summary>
+      {!!activeSheet.tables?.length && <details className="drawing-sheet-details drawing-tables">
+        <summary>Tabele ({activeSheet.tables.length})</summary>
         {(activeSheet.tables || []).map((table) => <div className="drawing-table-control" key={table.id}><strong>{table.type === 'bom' ? 'Zestawienie części' : 'Tabela otworów'}</strong><div className="drawing-property-row"><label><span>X [mm]</span><input type="number" value={table.x} disabled={readOnly} onChange={(event) => onUpdateTable(table.id, { x: Number(event.target.value) || 0 })} /></label><label><span>Y [mm]</span><input type="number" value={table.y} disabled={readOnly} onChange={(event) => onUpdateTable(table.id, { y: Number(event.target.value) || 0 })} /></label></div><button type="button" className="drawing-revision-delete" onClick={() => onDeleteTable(table.id)} disabled={readOnly}><Trash2 size={13} /> Usuń tabelę</button></div>)}
-        <div className="drawing-table-actions"><button type="button" onClick={() => onAddTable('bom')} disabled={readOnly || !bodies.length}><Plus size={14} /> BOM</button><button type="button" onClick={() => onAddTable('hole-table')} disabled={readOnly || !selectedView}><Plus size={14} /> Otwory</button></div>
-      </details>
-      <div className="drawing-actions drawing-create-actions">
-        <button type="button" onClick={onAddBaseView} disabled={readOnly || !bodies.length}><Plus size={14} /> Bazowy</button>
-        <button type="button" title="Utwórz wyrównany rzut od zaznaczonego widoku" onClick={() => onAddDerivedView('projected')} disabled={readOnly || !selectedView}><FileText size={14} /> Rzut</button>
-        <button type="button" title="Utwórz przekrój A-A od zaznaczonego widoku" onClick={() => onAddDerivedView('section')} disabled={readOnly || !selectedView || selectedView.orientation === 'isometric'}><Scissors size={14} /> Przekrój</button>
-        <button type="button" title="Utwórz powiększony detal od zaznaczonego widoku" onClick={() => onAddDerivedView('detail')} disabled={readOnly || !selectedView}><ScanSearch size={14} /> Detal</button>
-      </div>
-      <small className="drawing-group-label">Oznaczenia widoku</small>
-      <div className="drawing-actions drawing-annotation-actions">
-        <button type="button" title="Wymiar szerokości skojarzony z modelem" onClick={() => onAddAnnotation('dimension-horizontal')} disabled={readOnly || !selectedView}><MoveHorizontal size={14} /> Wymiar X</button>
-        <button type="button" title="Wymiar wysokości skojarzony z modelem" onClick={() => onAddAnnotation('dimension-vertical')} disabled={readOnly || !selectedView}><MoveVertical size={14} /> Wymiar Y</button>
-        <button type="button" title="Dodaj oś symetrii widoku" onClick={() => onAddAnnotation('centerline')} disabled={readOnly || !selectedView}><Crosshair size={14} /> Oś</button>
-        <button type="button" title="Dodaj krzyżyk środka" onClick={() => onAddAnnotation('center-mark')} disabled={readOnly || !selectedView}><CircleDot size={14} /> Środek</button>
-        <button type="button" title="Dodaj skojarzony opis średnicy otworu" onClick={() => onAddAnnotation('hole-note')} disabled={readOnly || !selectedView}><CircleDot size={14} /> Opis otworu</button>
-        <button type="button" title="Dodaj opis gwintu metrycznego" onClick={() => onAddAnnotation('thread-note')} disabled={readOnly || !selectedView}><CircleDot size={14} /> Opis gwintu</button>
-        <button type="button" title="Dodaj ramkę podstawowej tolerancji geometrycznej" onClick={() => onAddAnnotation('feature-control-frame')} disabled={readOnly || !selectedView}><Crosshair size={14} /> GD&amp;T</button>
-        <button type="button" title="Dodaj oznaczenie pozycji skojarzone z BOM" onClick={() => onAddAnnotation('balloon')} disabled={readOnly || !selectedView}><CircleDot size={14} /> Balon</button>
-      </div>
-      {!bodies.length && <p className="drawing-hint">Najpierw utwórz albo zaimportuj model 3D.</p>}
+      </details>}
+      {!selectedView && !selectedAnnotation && <div className="drawing-selection-hint"><strong>Wybierz element arkusza</strong><span>Kliknij widok lub oznaczenie. Nowe elementy dodasz ze wstążki u góry.</span></div>}
+      {!bodies.length && !drawableSketches.length && <p className="drawing-hint">Najpierw narysuj szkic 2D albo utwórz lub zaimportuj model 3D.</p>}
       {selectedView && <div className="drawing-view-properties">
         <strong>{VIEW_TYPE_LABELS[selectedView.type]}</strong>
-        <small className="drawing-association-status">Skojarzony z modelem{selectedView.parentViewId ? ' i widokiem nadrzędnym' : ''}</small>
+        <small className="drawing-association-status">{selectedView.type === 'sketch' ? 'Skojarzony ze szkicem 2D' : `Skojarzony z modelem${selectedView.parentViewId ? ' i widokiem nadrzędnym' : ''}`}</small>
         {selectedView.type === 'base' && <label><span>Kierunek</span><select value={selectedView.orientation} disabled={readOnly} onChange={(event) => onUpdateView({ orientation: event.target.value })}>{Object.entries(ORIENTATION_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>}
+        {selectedView.type === 'sketch' && <label><span>Szkic źródłowy</span><select value={selectedView.sketchId} disabled={readOnly} onChange={(event) => onUpdateView({ sketchId: event.target.value })}>{drawableSketches.map((sketch) => <option value={sketch.id} key={sketch.id}>{sketch.name}</option>)}</select></label>}
         <DerivedViewControls view={selectedView} readOnly={readOnly} onUpdateView={onUpdateView} />
-        <label><span>Skala</span><input type="number" min="0.001" max="1000" step="0.1" value={selectedView.scale} disabled={readOnly || selectedView.type !== 'base'} onChange={(event) => { const scale = Number(event.target.value); if (scale > 0) onUpdateView({ scale }); }} /></label>
-        {selectedView.type !== 'base' && <label><span>Wyrównanie</span><select value={selectedView.alignment} disabled={readOnly || selectedView.type === 'section'} onChange={(event) => onUpdateView({ alignment: event.target.value })}><option value="horizontal">Poziome</option><option value="vertical">Pionowe</option><option value="free">Swobodne</option></select></label>}
+        <label><span>Skala</span><input type="number" min="0.001" max="1000" step="0.1" value={selectedView.scale} disabled={readOnly || !['base', 'sketch'].includes(selectedView.type)} onChange={(event) => { const scale = Number(event.target.value); if (scale > 0) onUpdateView({ scale }); }} /></label>
+        {!['base', 'sketch'].includes(selectedView.type) && <label><span>Wyrównanie</span><select value={selectedView.alignment} disabled={readOnly || selectedView.type === 'section'} onChange={(event) => onUpdateView({ alignment: event.target.value })}><option value="horizontal">Poziome</option><option value="vertical">Pionowe</option><option value="free">Swobodne</option></select></label>}
         <div className="drawing-property-row"><label><span>X [mm]</span><input type="number" value={selectedView.x} disabled={readOnly || selectedView.alignment === 'vertical'} onChange={(event) => onUpdateView({ x: Number(event.target.value) || 0 })} /></label><label><span>Y [mm]</span><input type="number" value={selectedView.y} disabled={readOnly || selectedView.alignment === 'horizontal'} onChange={(event) => onUpdateView({ y: Number(event.target.value) || 0 })} /></label></div>
         <button className="danger" type="button" onClick={onDeleteView} disabled={readOnly}><Trash2 size={14} /> Usuń widok</button>
       </div>}
-      {selectedAnnotation && <AnnotationControls annotation={selectedAnnotation} rendered={renderedSelectedAnnotation} bodies={bodies.filter((body) => activeSheet.views.find((view) => view.id === selectedAnnotation.viewId)?.bodyIds.includes(body.id))} allBodies={bodies} components={document.components || []} readOnly={readOnly} onUpdateAnnotation={onUpdateAnnotation} onDeleteAnnotation={onDeleteAnnotation} />}
-      <button className="drawing-delete-sheet" type="button" onClick={onDeleteSheet} disabled={readOnly}><Trash2 size={14} /> Usuń arkusz</button>
-      <button className="drawing-export-pdf" type="button" onClick={onExportPdf} disabled={!activeSheet.views.length}><FileText size={14} /> Eksport PDF</button>
-      <button className="drawing-export-dxf" type="button" onClick={onExportDxf} disabled={!activeSheet.views.length}><FileText size={14} /> Eksport DXF</button>
+      {selectedAnnotation && <AnnotationControls annotation={selectedAnnotation} rendered={renderedSelectedAnnotation} bodies={bodies.filter((body) => activeSheet.views.find((view) => view.id === selectedAnnotation.viewId)?.bodyIds?.includes(body.id))} allBodies={bodies} components={document.components || []} readOnly={readOnly} onUpdateAnnotation={onUpdateAnnotation} onDeleteAnnotation={onDeleteAnnotation} />}
     </aside>
   </section>;
 }

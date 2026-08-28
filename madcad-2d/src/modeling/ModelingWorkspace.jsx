@@ -140,7 +140,7 @@ import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit } fro
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
-import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale } from '../cad-core/drawing-sheets.js';
+import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
 import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../cad-core/assembly-joints.js';
@@ -238,9 +238,10 @@ const DESKTOP_PLATFORM = ['darwin', 'win32', 'linux'].includes(window.desktopApp
 
 const MAIN_TABS = [
   { id: 'solid', label: 'PROJEKTUJ' },
-  { id: 'drawing', label: 'DOKUMENTACJA' },
+  { id: 'drawing', label: 'RYSUNEK 2D' },
   { id: 'tools', label: 'NARZĘDZIA' },
-  { id: 'print', label: 'EKSPORT' },
+  { id: 'export', label: 'WYMIANA CAD' },
+  { id: 'print', label: 'DRUK 3D' },
 ];
 const LANGUAGE_KEY = 'madcad:interface-language';
 
@@ -302,10 +303,10 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
   return (
     <aside className={`print-panel print-inspector ${collapsed ? 'collapsed' : ''}`}>
       <header>
-        <div><strong>EKSPORT I DRUK 3D</strong>{!collapsed && <span>Wymiana CAD, eksport siatek i opcjonalna kontrola wydruku.</span>}</div>
+        <div><strong>DRUK 3D</strong>{!collapsed && <span>Ułożenie na stole, kontrola drukowalności i przekazanie do slicera.</span>}</div>
         <div className="dock-panel-actions">
-          <button type="button" data-panel-action="collapse" onClick={onToggleCollapsed} title={collapsed ? 'Rozwiń panel eksportu' : 'Zwiń panel eksportu'} aria-label={collapsed ? 'Rozwiń panel eksportu' : 'Zwiń panel eksportu'} aria-expanded={!collapsed}>{collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</button>
-          {!collapsed && <button type="button" onClick={onClose} title="Zamknij panel eksportu" aria-label="Zamknij panel eksportu"><X size={16} /></button>}
+          <button type="button" data-panel-action="collapse" onClick={onToggleCollapsed} title={collapsed ? 'Rozwiń panel druku 3D' : 'Zwiń panel druku 3D'} aria-label={collapsed ? 'Rozwiń panel druku 3D' : 'Zwiń panel druku 3D'} aria-expanded={!collapsed}>{collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</button>
+          {!collapsed && <button type="button" onClick={onClose} title="Zamknij panel druku 3D" aria-label="Zamknij panel druku 3D"><X size={16} /></button>}
         </div>
       </header>
       {!collapsed && <>
@@ -2956,6 +2957,18 @@ export default function ModelingWorkspace() {
       setSelection({ kind: 'document', id: fixture.id });
       setCommand(null);
     };
+    window.__madcadVerifyLoadSketchDrawingFixture = () => {
+      const fixture = createDocument('Rysunek techniczny 2D');
+      const coordinates = [[0, 0], [80, 0], [80, 40], [0, 40]];
+      const points = coordinates.map(([x, y]) => createSketchPoint({ x, y }));
+      const lines = points.map((point, index) => createSketchLine({ startPointId: point.id, endPointId: points[(index + 1) % points.length].id }));
+      fixture.sketches.push(createSketch({ name: 'Obrys płyty 80 × 40', plane: 'XY', entities: [...points, ...lines] }));
+      history.replace(fixture);
+      setActiveSketchId(null);
+      setWorkspace('solid');
+      setSelection({ kind: 'document', id: fixture.id });
+      setCommand(null);
+    };
     window.__madcadVerifyLoadMechanicalFixture = (kind = 'ellipse') => {
       const fixture = createDocument(`Figura mechaniczna ${kind}`);
       let shape;
@@ -3228,6 +3241,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyDeleteSketch;
       delete window.__madcadVerifyOpenFirstSketch;
       delete window.__madcadVerifyLoadTopologyFixture;
+      delete window.__madcadVerifyLoadSketchDrawingFixture;
       delete window.__madcadVerifyLoadMechanicalFixture;
       delete window.__madcadVerifyLoadParametricBracketFixture;
       delete window.__madcadVerifyLoadConstraintFixture;
@@ -4637,6 +4651,8 @@ export default function ModelingWorkspace() {
   const activeDrawingSheet = document.drawings.find((sheet) => sheet.id === activeDrawingSheetId) || document.drawings[0] || null;
   const selectedDrawingView = activeDrawingSheet?.views.find((view) => view.id === selectedDrawingViewId) || null;
   const selectedDrawingAnnotation = activeDrawingSheet?.annotations?.find((annotation) => annotation.id === selectedDrawingAnnotationId) || null;
+  const drawableSketches = document.sketches.filter((sketch) => sketch.entities.some((entity) => !['point', 'text'].includes(entity.type) && entity.role !== 'construction'));
+  const selectedDrawingIsSketch = selectedDrawingView?.type === 'sketch';
 
   const createDrawingSheetInDocument = () => {
     if (readOnly) return readOnlyNotice();
@@ -4677,8 +4693,19 @@ export default function ModelingWorkspace() {
     setNotice(`Dodano skojarzony widok bazowy · Przód · skala ${scale}:1.`);
   };
 
+  const addSketchDrawingView = () => {
+    if (!activeDrawingSheet || !drawableSketches.length || readOnly) return;
+    const sketch = drawableSketches.find((candidate) => candidate.id === activeSketchId) || drawableSketches.at(-1);
+    const scale = recommendedSketchDrawingScale(activeDrawingSheet, sketch, document.parameters, document.layers);
+    const view = createSketchDrawingView({ sketchId: sketch.id, name: sketch.name || 'Szkic 2D', scale, sheet: activeDrawingSheet });
+    commit((next) => { next.drawings.find((sheet) => sheet.id === activeDrawingSheet.id)?.views.push(view); });
+    setSelectedDrawingViewId(view.id);
+    setSelectedDrawingAnnotationId(null);
+    setNotice(`Dodano skojarzony szkic 2D „${sketch.name}” · skala ${scale}:1.`);
+  };
+
   const addDerivedDrawingView = (type) => {
-    if (!activeDrawingSheet || !selectedDrawingView || readOnly) return;
+    if (!activeDrawingSheet || !selectedDrawingView || selectedDrawingView.type === 'sketch' || readOnly) return;
     const page = drawingPageDimensions(activeDrawingSheet);
     const parentView = selectedDrawingView.type === 'base' ? {
       ...selectedDrawingView,
@@ -4759,7 +4786,7 @@ export default function ModelingWorkspace() {
     if (!activeDrawingSheet || !selectedDrawingView || readOnly) return;
     const viewId = selectedDrawingView.id;
     let annotation;
-    if (type === 'dimension-horizontal') annotation = createLinearDrawingDimension({ viewId, axis: 'horizontal', offset: 10, precision: 2 });
+    if (type === 'dimension-horizontal') annotation = createLinearDrawingDimension({ viewId, axis: 'horizontal', offset: 16, precision: 2 });
     else if (type === 'dimension-vertical') annotation = createLinearDrawingDimension({ viewId, axis: 'vertical', offset: 10, precision: 2 });
     else if (type === 'centerline') annotation = createCenterlineDrawingAnnotation({ viewId });
     else if (type === 'center-mark') annotation = createCenterMarkDrawingAnnotation({ viewId });
@@ -4853,14 +4880,14 @@ export default function ModelingWorkspace() {
 
   const exportActiveDrawingDxf = () => {
     if (!activeDrawingSheet?.views.length) return;
-    const dxf = drawingSheetDxf(activeDrawingSheet, engine.bodies, { components: document.components, componentInstances: document.componentInstances });
+    const dxf = drawingSheetDxf(activeDrawingSheet, engine.bodies, { components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
     downloadBlob(new Blob([dxf], { type: 'application/dxf;charset=utf-8' }), `${safeName(document.name)}-${safeName(activeDrawingSheet.name)}.dxf`);
     setNotice('Wyeksportowano arkusz DXF w jednostkach mm.');
   };
 
   const exportActiveDrawingPdf = async () => {
     if (!activeDrawingSheet?.views.length) return;
-    const html = drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name, components: document.components, componentInstances: document.componentInstances });
+    const html = drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name, components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
     setNotice(`Przygotowywanie ${activeDrawingSheet.pageSize} PDF…`);
     if (window.desktopApp?.saveDrawingPdf) {
       const result = await window.desktopApp.saveDrawingPdf({
@@ -4884,7 +4911,7 @@ export default function ModelingWorkspace() {
 
   const previewActiveDrawing = async () => {
     if (!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow) return;
-    const result = await window.desktopApp.openPrintPreviewWindow({ html: drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name, components: document.components, componentInstances: document.componentInstances }), title: `${document.name} · ${activeDrawingSheet.name}` });
+    const result = await window.desktopApp.openPrintPreviewWindow({ html: drawingSheetHtml(activeDrawingSheet, engine.bodies, { documentName: document.name, components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers }), title: `${document.name} · ${activeDrawingSheet.name}` });
     setNotice(result?.ok ? 'Otworzono podgląd arkusza 1:1.' : `Podgląd nie powiódł się: ${result?.error || 'nieznany błąd'}`);
   };
 
@@ -4914,11 +4941,13 @@ export default function ModelingWorkspace() {
     setCommand(null);
     setActiveSketchId(null);
     setWorkspace(id);
-    setPrintPanelOpen(false);
+    setPrintPanelOpen(id === 'print');
     setNotice(id === 'print'
-      ? 'Eksportuj dokładny model CAD albo otwórz opcjonalną kontrolę druku 3D.'
+      ? 'Przygotuj model 3D na stole, sprawdź drukowalność i wyślij go do slicera.'
+      : id === 'export'
+        ? 'Eksportuj model CAD do STEP, STL albo 3MF.'
       : id === 'drawing'
-        ? 'Twórz skojarzone arkusze techniczne i eksportuj je do PDF.'
+        ? 'Twórz rysunki techniczne 2D i eksportuj arkusze do PDF lub DXF.'
       : id === 'tools'
         ? 'Parametry, geometria konstrukcyjna, pomiary i analiza modelu.'
         : 'Obszar projektowania CAD.');
@@ -5435,7 +5464,7 @@ export default function ModelingWorkspace() {
       <section className="command-area">
         <div className="command-ribbon">
           <nav className="workspace-tabs" aria-label="Obszary robocze" role="tablist">
-            {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item, index) => <button id={item.id === 'print' ? 'printWorkspaceBtn' : undefined} key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Szkicowanie 2D i modelowanie parametryczne 3D.' : item.id === 'drawing' ? 'Arkusze techniczne i skojarzone widoki modelu.' : item.id === 'tools' ? 'Parametry i narzędzia dokumentu.' : 'Eksport CAD oraz opcjonalne przygotowanie druku 3D.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
+            {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item, index) => <button id={item.id === 'print' ? 'printWorkspaceBtn' : undefined} key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Szkicowanie 2D i modelowanie parametryczne 3D.' : item.id === 'drawing' ? 'Rysunki techniczne 2D, arkusze, PDF i DXF.' : item.id === 'tools' ? 'Parametry i narzędzia dokumentu.' : item.id === 'export' ? 'Wymiana danych CAD przez STEP, STL i 3MF.' : 'Przygotowanie modelu do druku 3D i wysłanie do slicera.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
           </nav>
           <ResponsiveRibbon>
             {activeSketchId ? (
@@ -5454,9 +5483,11 @@ export default function ModelingWorkspace() {
             ) : workspace === 'drawing' ? (
               <>
                 <RibbonGroup label="ARKUSZE"><ToolButton icon={FilePlus2} label="Nowy arkusz" onClick={createDrawingSheetInDocument} disabled={readOnly} primary /><ToolButton icon={Trash2} label="Usuń arkusz" onClick={deleteActiveDrawingSheet} disabled={readOnly || !activeDrawingSheet} /></RibbonGroup>
-                <RibbonGroup label="WIDOKI"><ToolButton icon={Frame} label="Widok bazowy" onClick={addBaseDrawingView} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Utwórz pierwszy skojarzony rzut modelu." /><ToolButton icon={FileText} label="Rzut" onClick={() => addDerivedDrawingView('projected')} disabled={readOnly || !selectedDrawingView} description="Utwórz wyrównany rzut od zaznaczonego widoku." /><ToolButton icon={Scissors} label="Przekrój" onClick={() => addDerivedDrawingView('section')} disabled={readOnly || !selectedDrawingView || selectedDrawingView.orientation === 'isometric'} description="Utwórz przekrój A-A z rzeczywistego przecięcia modelu." /><ToolButton icon={ScanSearch} label="Detal" onClick={() => addDerivedDrawingView('detail')} disabled={readOnly || !selectedDrawingView} description="Utwórz powiększony detal zaznaczonego widoku." /><ToolButton icon={Trash2} label="Usuń widok" onClick={deleteSelectedDrawingView} disabled={readOnly || !selectedDrawingViewId} /></RibbonGroup>
-                <RibbonGroup label="OZNACZENIA"><ToolButton icon={Ruler} label="Wymiar X" onClick={() => addDrawingAnnotation('dimension-horizontal')} disabled={readOnly || !selectedDrawingView} description="Dodaj skojarzony wymiar szerokości." /><ToolButton icon={Ruler} label="Wymiar Y" onClick={() => addDrawingAnnotation('dimension-vertical')} disabled={readOnly || !selectedDrawingView} description="Dodaj skojarzony wymiar wysokości." /><ToolButton icon={Minus} label="Oś" onClick={() => addDrawingAnnotation('centerline')} disabled={readOnly || !selectedDrawingView} description="Dodaj oś symetrii widoku." /><ToolButton icon={CircleDotDashed} label="Środek" onClick={() => addDrawingAnnotation('center-mark')} disabled={readOnly || !selectedDrawingView} description="Dodaj znacznik środka." /><ToolButton icon={Cylinder} label="Opis otworu" onClick={() => addDrawingAnnotation('hole-note')} disabled={readOnly || !selectedDrawingView} description="Dodaj opis średnicy odczytanej z modelu." /><ToolButton icon={Cylinder} label="Opis gwintu" onClick={() => addDrawingAnnotation('thread-note')} disabled={readOnly || !selectedDrawingView} description="Dodaj opis gwintu metrycznego i klasy tolerancji." /><ToolButton icon={Crosshair} label="GD&amp;T" onClick={() => addDrawingAnnotation('feature-control-frame')} disabled={readOnly || !selectedDrawingView} description="Dodaj ramkę tolerancji geometrycznej." /><ToolButton icon={CircleDotDashed} label="Balon" onClick={() => addDrawingAnnotation('balloon')} disabled={readOnly || !selectedDrawingView} description="Dodaj numer pozycji skojarzony z zestawieniem części." /><ToolButton icon={Trash2} label="Usuń oznaczenie" onClick={deleteSelectedDrawingAnnotation} disabled={readOnly || !selectedDrawingAnnotation} /></RibbonGroup>
-                <RibbonGroup label="TABELE"><ToolButton icon={Grid2X2} label="BOM" onClick={() => addDrawingTable('bom')} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Dodaj automatyczne zestawienie części." /><ToolButton icon={Grid2X2} label="Tabela otworów" onClick={() => addDrawingTable('hole-table')} disabled={readOnly || !selectedDrawingView} description="Dodaj tabelę średnic z zaznaczonego widoku." /></RibbonGroup>
+                <RibbonGroup label="DODAJ WIDOK"><ToolButton icon={FileText} label="Szkic 2D" onClick={addSketchDrawingView} disabled={readOnly || !activeDrawingSheet || !drawableSketches.length} description="Umieść szkic bezpośrednio na arkuszu, bez tworzenia bryły 3D." primary /><ToolButton icon={Frame} label="Model 3D" onClick={addBaseDrawingView} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Utwórz skojarzony rzut modelu 3D." /></RibbonGroup>
+                {selectedDrawingView && <RibbonGroup label="WYBRANY WIDOK">{!selectedDrawingIsSketch && <><ToolButton icon={FileText} label="Rzut" onClick={() => addDerivedDrawingView('projected')} disabled={readOnly} description="Utwórz wyrównany rzut od zaznaczonego widoku." /><ToolButton icon={Scissors} label="Przekrój" onClick={() => addDerivedDrawingView('section')} disabled={readOnly || selectedDrawingView.orientation === 'isometric'} description="Utwórz przekrój A-A z rzeczywistego przecięcia modelu." /><ToolButton icon={ScanSearch} label="Detal" onClick={() => addDerivedDrawingView('detail')} disabled={readOnly} description="Utwórz powiększony detal zaznaczonego widoku." /></>}<ToolButton icon={Trash2} label="Usuń widok" onClick={deleteSelectedDrawingView} disabled={readOnly} /></RibbonGroup>}
+                {selectedDrawingView && <RibbonGroup label="WYMIARY I OPISY"><ToolButton icon={Ruler} label="Wymiar X" onClick={() => addDrawingAnnotation('dimension-horizontal')} disabled={readOnly} description="Dodaj skojarzony wymiar szerokości." /><ToolButton icon={Ruler} label="Wymiar Y" onClick={() => addDrawingAnnotation('dimension-vertical')} disabled={readOnly} description="Dodaj skojarzony wymiar wysokości." /><ToolButton icon={Minus} label="Oś" onClick={() => addDrawingAnnotation('centerline')} disabled={readOnly} description="Dodaj oś symetrii widoku." /><ToolButton icon={CircleDotDashed} label="Środek" onClick={() => addDrawingAnnotation('center-mark')} disabled={readOnly} description="Dodaj znacznik środka." />{!selectedDrawingIsSketch && <><ToolButton icon={Cylinder} label="Opis otworu" onClick={() => addDrawingAnnotation('hole-note')} disabled={readOnly} description="Dodaj opis średnicy odczytanej z modelu." /><ToolButton icon={Cylinder} label="Opis gwintu" onClick={() => addDrawingAnnotation('thread-note')} disabled={readOnly} description="Dodaj opis gwintu metrycznego i klasy tolerancji." /><ToolButton icon={CircleDotDashed} label="Balon" onClick={() => addDrawingAnnotation('balloon')} disabled={readOnly} description="Dodaj numer pozycji skojarzony z zestawieniem części." /></>}<ToolButton icon={Crosshair} label="GD&amp;T" onClick={() => addDrawingAnnotation('feature-control-frame')} disabled={readOnly} description="Dodaj ramkę tolerancji geometrycznej." /></RibbonGroup>}
+                {selectedDrawingAnnotation && <RibbonGroup label="OZNACZENIE"><ToolButton icon={Trash2} label="Usuń oznaczenie" onClick={deleteSelectedDrawingAnnotation} disabled={readOnly} /></RibbonGroup>}
+                {!selectedDrawingIsSketch && engine.bodies.length > 0 && <RibbonGroup label="TABELE"><ToolButton icon={Grid2X2} label="BOM" onClick={() => addDrawingTable('bom')} disabled={readOnly || !activeDrawingSheet} description="Dodaj automatyczne zestawienie części." />{selectedDrawingView && <ToolButton icon={Grid2X2} label="Tabela otworów" onClick={() => addDrawingTable('hole-table')} disabled={readOnly} description="Dodaj tabelę średnic z zaznaczonego widoku modelu 3D." />}</RibbonGroup>}
                 <RibbonGroup label="WYJŚCIE" end><ToolButton icon={Eye} label="Podgląd 1:1" onClick={() => { void previewActiveDrawing(); }} disabled={!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow} /><ToolButton icon={FileText} label="DXF" onClick={exportActiveDrawingDxf} disabled={!activeDrawingSheet?.views.length} /><ToolButton icon={FileText} label="PDF" onClick={() => { void exportActiveDrawingPdf(); }} disabled={!activeDrawingSheet?.views.length} primary /></RibbonGroup>
               </>
             ) : workspace === 'tools' ? (
@@ -5469,11 +5500,14 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="PUNKTY"><ToolButton icon={CircleDotDashed} label="Punkt wierzchołka" onClick={() => openConstructionPoint('vertex')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt centrum" onClick={() => openConstructionPoint('center')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt przecięcia" onClick={() => openConstructionPoint('intersection')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane')} /><ToolButton icon={CircleDotDashed} label="Punkt środkowy" onClick={() => openConstructionPoint('midpoint')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt na osi" onClick={() => openConstructionPoint('on-axis')} disabled={readOnly || !document.references.some((reference) => reference.kind === 'construction-axis')} /></RibbonGroup>
                 <RibbonGroup label="PLIKI 3D" end><ToolButton icon={Upload} label="Import 3D" onClick={() => importInputRef.current?.click()} disabled={readOnly || modelImportBusy} description={modelImportBusy ? 'Trwa przygotowywanie wybranego modelu.' : 'Importuj dokładny STEP albo siatkę STL/3MF.'} /></RibbonGroup>
               </>
-            ) : workspace === 'print' ? (
+            ) : workspace === 'export' ? (
               <>
                 <RibbonGroup label="DOKŁADNY CAD"><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready' || containsImportedMesh} description={containsImportedMesh ? 'STEP jest dostępny wyłącznie dla dokładnych brył B-Rep. Zaimportowaną siatkę zapisz jako STL lub 3MF.' : 'Eksportuj dokładną geometrię CAD do STEP.'} /></RibbonGroup>
                 <RibbonGroup label="SIATKI 3D"><ToolButton icon={HardDriveDownload} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="3MF" onClick={() => exportModel('3mf')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
-                <RibbonGroup label="DRUK 3D · DODATEK"><ToolButton icon={Printer} label="Kontrola druku" onClick={() => setPrintPanelOpen(true)} /></RibbonGroup>
+              </>
+            ) : workspace === 'print' ? (
+              <>
+                <RibbonGroup label="PRZYGOTOWANIE DRUKU"><ToolButton icon={Printer} label="Panel druku 3D" onClick={() => setPrintPanelOpen(true)} primary /><ToolButton icon={HardDriveDownload} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="3MF" onClick={() => exportModel('3mf')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
               </>
             ) : (
               <>
@@ -5529,6 +5563,7 @@ export default function ModelingWorkspace() {
             onUpdateSheet={updateActiveDrawingSheet}
             onDeleteSheet={deleteActiveDrawingSheet}
             onAddBaseView={addBaseDrawingView}
+            onAddSketchView={addSketchDrawingView}
             onAddDerivedView={addDerivedDrawingView}
             onSelectView={(viewId) => { setSelectedDrawingViewId(viewId); setSelectedDrawingAnnotationId(null); }}
             onUpdateView={updateSelectedDrawingView}

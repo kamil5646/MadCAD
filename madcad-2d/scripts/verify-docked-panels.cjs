@@ -101,9 +101,9 @@ app.whenReady().then(async () => {
     const stored = await window.webContents.executeJavaScript(`Object.values(localStorage).some((value) => value.includes('"commandDock":"left"'))`);
     await window.webContents.executeJavaScript(`[
       ...document.querySelectorAll('.workspace-tabs button')
-    ].find((button) => button.textContent.includes('EKSPORT'))?.click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Kontrola druku')`, 'narzędzia eksportu');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === 'Kontrola druku')?.click()`);
+    ].find((button) => button.textContent.includes('DRUK 3D'))?.click()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Panel druku 3D')`, 'narzędzia druku 3D');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === 'Panel druku 3D')?.click()`);
     await waitFor(window, `document.querySelector('.print-panel')`, 'dokowany panel eksportu');
     await new Promise((resolve) => setTimeout(resolve, 220));
     const printInitial = await printPanelSnapshot(window);

@@ -1,5 +1,6 @@
 import { createId } from './ids.js';
 import { componentBomEntries } from './components.js';
+import { sketchDrawingSegments } from './sketch-topology.js';
 
 export const DRAWING_PAGE_SIZES = Object.freeze({
   A4: Object.freeze({ width: 297, height: 210 }),
@@ -7,7 +8,7 @@ export const DRAWING_PAGE_SIZES = Object.freeze({
 });
 
 export const DRAWING_VIEW_ORIENTATIONS = Object.freeze(['front', 'top', 'right', 'isometric']);
-export const DRAWING_VIEW_TYPES = Object.freeze(['base', 'projected', 'section', 'detail']);
+export const DRAWING_VIEW_TYPES = Object.freeze(['base', 'sketch', 'projected', 'section', 'detail']);
 export const DRAWING_VIEW_ALIGNMENTS = Object.freeze(['horizontal', 'vertical', 'free']);
 export const DRAWING_ANNOTATION_TYPES = Object.freeze(['linear-dimension', 'centerline', 'center-mark', 'hole-note', 'feature-control-frame', 'balloon']);
 export const DRAWING_TABLE_TYPES = Object.freeze(['bom', 'hole-table']);
@@ -147,6 +148,21 @@ export function createBaseDrawingView({ bodyIds = [], orientation = 'front', sca
     type: 'base',
     orientation: DRAWING_VIEW_ORIENTATIONS.includes(orientation) ? orientation : 'front',
     bodyIds: [...new Set((Array.isArray(bodyIds) ? bodyIds : []).filter((id) => typeof id === 'string' && id))],
+    scale: Math.max(0.001, Math.min(1000, Number(scale) || 1)),
+    x: Number.isFinite(Number(x)) ? Number(x) : dimensions.width / 2,
+    y: Number.isFinite(Number(y)) ? Number(y) : (dimensions.height - TITLE_BLOCK_HEIGHT) / 2,
+  };
+}
+
+export function createSketchDrawingView({ sketchId = '', name = 'Szkic 2D', scale = 1, x, y, sheet } = {}) {
+  const dimensions = pageDimensions(sheet?.pageSize, sheet?.orientation);
+  return {
+    id: createId('drawing-view'),
+    name: String(name || 'Szkic 2D').trim().slice(0, 80) || 'Szkic 2D',
+    type: 'sketch',
+    sketchId: String(sketchId || ''),
+    orientation: 'front',
+    bodyIds: [],
     scale: Math.max(0.001, Math.min(1000, Number(scale) || 1)),
     x: Number.isFinite(Number(x)) ? Number(x) : dimensions.width / 2,
     y: Number.isFinite(Number(y)) ? Number(y) : (dimensions.height - TITLE_BLOCK_HEIGHT) / 2,
@@ -397,6 +413,11 @@ export function projectDrawingView(view, bodies = []) {
   };
 }
 
+export function projectSketchDrawingView(view, sketches = [], parameters = [], layers = []) {
+  const sketch = (sketches || []).find((candidate) => candidate.id === view?.sketchId);
+  return projectionBounds(sketch ? sketchDrawingSegments(sketch, parameters, { layers }) : []);
+}
+
 function projectionBounds(segments) {
   if (!segments.length) return { segments: [], bounds: [[0, 0], [0, 0]], width: 0, height: 0 };
   const points = segments.flat();
@@ -405,7 +426,8 @@ function projectionBounds(segments) {
   return { segments, bounds: [minimum, maximum], width: maximum[0] - minimum[0], height: maximum[1] - minimum[1] };
 }
 
-function projectionForView(view, bodies) {
+function projectionForView(view, bodies, { sketches = [], parameters = [], layers = [] } = {}) {
+  if (view.type === 'sketch') return projectSketchDrawingView(view, sketches, parameters, layers);
   if (view.type === 'section') {
     const section = sectionSegments(view, bodies);
     if (section.length) return projectionBounds(section);
@@ -461,6 +483,17 @@ export function recommendedDrawingScale(sheet, bodies = [], orientation = 'front
     projection.width ? usableWidth / projection.width : Infinity,
     projection.height ? usableHeight / projection.height : Infinity,
   );
+  const standardScales = [20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01];
+  return standardScales.find((scale) => scale <= fit) || Math.max(0.001, fit);
+}
+
+export function recommendedSketchDrawingScale(sheet, sketch, parameters = [], layers = []) {
+  const dimensions = pageDimensions(sheet?.pageSize, sheet?.orientation);
+  const projection = projectionBounds(sketch ? sketchDrawingSegments(sketch, parameters, { layers }) : []);
+  if (!projection.width && !projection.height) return 1;
+  const usableWidth = dimensions.width - PAGE_MARGIN * 2;
+  const usableHeight = dimensions.height - TITLE_BLOCK_HEIGHT - PAGE_MARGIN * 2;
+  const fit = Math.min(projection.width ? usableWidth / projection.width : Infinity, projection.height ? usableHeight / projection.height : Infinity);
   const standardScales = [20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01];
   return standardScales.find((scale) => scale <= fit) || Math.max(0.001, fit);
 }
@@ -642,7 +675,7 @@ function renderedTable(source, resolvedViews, bodies, components, componentInsta
   };
 }
 
-export function drawingSheetScene(sheet, bodies = [], { components = [], componentInstances = [] } = {}) {
+export function drawingSheetScene(sheet, bodies = [], { components = [], componentInstances = [], sketches = [], parameters = [], layers = [] } = {}) {
   const page = pageDimensions(sheet?.pageSize, sheet?.orientation);
   const resolved = new Map();
   const views = (sheet?.views || []).map((sourceView) => {
@@ -656,7 +689,7 @@ export function drawingSheetScene(sheet, bodies = [], { components = [], compone
       if (view.alignment === 'horizontal') view.y = parent.y;
       if (view.alignment === 'vertical') view.x = parent.x;
     }
-    const projection = projectionForView(view, bodies);
+    const projection = projectionForView(view, bodies, { sketches, parameters, layers });
     const center = [
       (projection.bounds[0][0] + projection.bounds[1][0]) / 2,
       (projection.bounds[0][1] + projection.bounds[1][1]) / 2,
@@ -713,8 +746,8 @@ function escapeHtml(value) {
   })[character]);
 }
 
-export function drawingSheetHtml(sheet, bodies = [], { documentName = 'Projekt', author = '', revision = 'A', components = [], componentInstances = [] } = {}) {
-  const scene = drawingSheetScene(sheet, bodies, { components, componentInstances });
+export function drawingSheetHtml(sheet, bodies = [], { documentName = 'Projekt', author = '', revision = 'A', components = [], componentInstances = [], sketches = [], parameters = [], layers = [] } = {}) {
+  const scene = drawingSheetScene(sheet, bodies, { components, componentInstances, sketches, parameters, layers });
   const line = ([first, second], className = '') => `<line${className ? ` class="${className}"` : ''} x1="${first[0]}" y1="${first[1]}" x2="${second[0]}" y2="${second[1]}" />`;
   const lineMarkup = scene.views.map((view) => `<g class="geometry ${escapeHtml(view.type)}">${view.segments.map((segment) => line(segment)).join('')}${view.hatchSegments.map((segment) => line(segment, 'hatch')).join('')}${view.type === 'detail' ? `<circle class="detail-border" cx="${view.x}" cy="${view.y}" r="${Math.max(5, view.detailRadiusSheet)}" />` : ''}</g>`).join('');
   const annotationMarkup = scene.annotations.map((annotation) => {
@@ -753,8 +786,8 @@ function dxfText(value) {
   return String(value || '').replaceAll('⌀', '%%c').replaceAll('±', '%%p').replaceAll('×', 'x').replaceAll('−', '-').replace(/[\r\n]/g, ' ');
 }
 
-export function drawingSheetDxf(sheet, bodies = [], { components = [], componentInstances = [] } = {}) {
-  const scene = drawingSheetScene(sheet, bodies, { components, componentInstances });
+export function drawingSheetDxf(sheet, bodies = [], { components = [], componentInstances = [], sketches = [], parameters = [], layers = [] } = {}) {
+  const scene = drawingSheetScene(sheet, bodies, { components, componentInstances, sketches, parameters, layers });
   const entities = [];
   const addLine = ([first, second], layer = 'GEOMETRY') => entities.push(`0\nLINE\n8\n${layer}\n10\n${dxfNumber(first[0])}\n20\n${dxfNumber(scene.height - first[1])}\n30\n0\n11\n${dxfNumber(second[0])}\n21\n${dxfNumber(scene.height - second[1])}\n31\n0`);
   const addCircle = (x, y, radius, layer = 'ANNOTATION') => entities.push(`0\nCIRCLE\n8\n${layer}\n10\n${dxfNumber(x)}\n20\n${dxfNumber(scene.height - y)}\n30\n0\n40\n${dxfNumber(radius)}`);

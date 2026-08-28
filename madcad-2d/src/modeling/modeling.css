@@ -1378,6 +1378,9 @@
 .drawing-view-properties { display: grid; gap: 8px; margin: 2px 9px 0; padding: 9px 0; border-top: 1px solid #4a5663; border-bottom: 1px solid #4a5663; }
 .drawing-view-properties > strong { padding: 0 9px; color: #6dd3ee; }
 .drawing-association-status { margin: -4px 9px 0; color: #8fd1a5; font-size: 9px; line-height: 1.35; }
+.drawing-selection-hint { display: grid; gap: 5px; margin: 10px 9px 2px; padding: 12px; border: 1px solid #4a5663; border-radius: 4px; background: #27323f; color: #d8e1eb; }
+.drawing-selection-hint strong { color: #eef4fa; font-size: 12px; }
+.drawing-selection-hint span { color: #aebbc9; font-size: 10px; line-height: 1.45; }
 .drawing-calculated-value { margin: -2px 9px 0; color: #d9e4eb; font-size: 10px; line-height: 1.35; }
 .drawing-properties .drawing-checkbox { display: flex; align-items: center; gap: 7px; }
 .drawing-properties .drawing-checkbox input { width: 15px; height: 15px; margin: 0; }

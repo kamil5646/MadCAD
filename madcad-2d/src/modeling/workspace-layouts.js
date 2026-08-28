@@ -17,12 +17,12 @@ export const BUILT_IN_WORKSPACE_LAYOUTS = Object.freeze([
   { id: 'clean-canvas', name: 'Czyste płótno', description: 'Maksymalny obszar rysowania bez paneli bocznych.', builtIn: true, view: { ...BASE_VIEW, browserOpen: false, panelLayout: { ...BASE_VIEW.panelLayout, commandCollapsed: true } } },
   { id: 'document-tools', name: 'Dokument i warstwy', description: 'Narzędzia dokumentu, drzewo projektu i menedżer warstw.', builtIn: true, view: { ...BASE_VIEW, workspace: 'tools', layersOpen: true } },
   { id: 'technical-drawing', name: 'Dokumentacja techniczna', description: 'Arkusze, skojarzone widoki modelu i eksport PDF.', builtIn: true, view: { ...BASE_VIEW, workspace: 'drawing', browserOpen: false } },
-  { id: 'export-print', name: 'Eksport i druk', description: 'Eksport CAD z panelem przygotowania druku jako dodatkiem.', builtIn: true, view: { ...BASE_VIEW, workspace: 'print', browserOpen: false, printPanelOpen: true } },
+  { id: 'export-print', name: 'Druk 3D', description: 'Ułożenie modelu na stole, kontrola drukowalności i przekazanie do slicera.', builtIn: true, view: { ...BASE_VIEW, workspace: 'print', browserOpen: false, printPanelOpen: true } },
 ]);
 
 export function normalizeWorkspaceView(value) {
   return {
-    workspace: ['solid', 'drawing', 'tools', 'print'].includes(value?.workspace) ? value.workspace : 'solid',
+    workspace: ['solid', 'drawing', 'tools', 'export', 'print'].includes(value?.workspace) ? value.workspace : 'solid',
     browserOpen: Boolean(value?.browserOpen),
     layersOpen: Boolean(value?.layersOpen),
     blocksOpen: Boolean(value?.blocksOpen),

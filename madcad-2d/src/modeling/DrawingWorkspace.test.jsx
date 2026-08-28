@@ -1,7 +1,8 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createBalloonDrawingAnnotation, createBaseDrawingView, createDrawingSheet, createLinearDrawingDimension } from '../cad-core/drawing-sheets.js';
+import { createBalloonDrawingAnnotation, createBaseDrawingView, createDrawingSheet, createDrawingTable, createLinearDrawingDimension, createSketchDrawingView } from '../cad-core/drawing-sheets.js';
+import { createSketchLine, createSketchPoint } from '../cad-core/sketch-model.js';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
 
 function props(overrides = {}) {
@@ -9,7 +10,7 @@ function props(overrides = {}) {
   const view = createBaseDrawingView({ bodyIds: ['body-1'], sheet });
   sheet.views.push(view);
   return {
-    document: { name: 'Korpus', drawings: [sheet] },
+    document: { name: 'Korpus', drawings: [sheet], sketches: [], parameters: [], layers: [] },
     bodies: [{ id: 'body-1', lines: Float32Array.from([0, 0, 0, 40, 0, 0, 40, 0, 0, 40, 0, 20]) }],
     activeSheetId: sheet.id,
     selectedViewId: view.id,
@@ -19,6 +20,7 @@ function props(overrides = {}) {
     onUpdateSheet: vi.fn(),
     onDeleteSheet: vi.fn(),
     onAddBaseView: vi.fn(),
+    onAddSketchView: vi.fn(),
     onAddDerivedView: vi.fn(),
     onSelectView: vi.fn(),
     onUpdateView: vi.fn(),
@@ -45,10 +47,8 @@ describe('DrawingWorkspace', () => {
     render(<DrawingWorkspace {...current} />);
     expect(screen.getByRole('img', { name: /Arkusz Arkusz 1/i })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /Kierunek/i })).toHaveValue('front');
-    fireEvent.click(screen.getByRole('button', { name: /Eksport PDF/i }));
-    expect(current.onExportPdf).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole('button', { name: /Eksport DXF/i }));
-    expect(current.onExportDxf).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: /Eksport PDF/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Eksport DXF/i })).not.toBeInTheDocument();
   });
 
   it('offers a real sheet action for an empty document', () => {
@@ -58,26 +58,34 @@ describe('DrawingWorkspace', () => {
     expect(onCreateSheet).toHaveBeenCalledOnce();
   });
 
-  it('offers projected, section and detail commands for the selected view', () => {
+  it('keeps commands out of the properties panel', () => {
     const current = props();
     render(<DrawingWorkspace {...current} />);
-    fireEvent.click(screen.getByRole('button', { name: /Rzut/i }));
-    fireEvent.click(screen.getByRole('button', { name: /Przekrój/i }));
-    fireEvent.click(screen.getByRole('button', { name: /Detal/i }));
-    expect(current.onAddDerivedView.mock.calls.map(([type]) => type)).toEqual(['projected', 'section', 'detail']);
+    expect(screen.queryByRole('button', { name: /Rzut/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Przekrój/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Detal/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Usuń widok/i })).toBeInTheDocument();
   });
 
-  it('adds drawing annotations and edits an associative dimension tolerance', () => {
+  it('shows only contextual properties for a pure 2D sketch view', () => {
     const current = props();
+    const first = createSketchPoint({ x: 0, y: 0 });
+    const second = createSketchPoint({ x: 40, y: 0 });
+    const sketch = { id: 'sketch-2d', name: 'Obrys 2D', entities: [first, second, createSketchLine({ startPointId: first.id, endPointId: second.id })] };
+    const sheet = current.document.drawings[0];
+    const view = createSketchDrawingView({ sketchId: sketch.id, name: sketch.name, sheet });
+    sheet.views = [view];
+    current.document.sketches = [sketch];
+    current.bodies = [];
+    current.selectedViewId = view.id;
     render(<DrawingWorkspace {...current} />);
-    fireEvent.click(screen.getByRole('button', { name: /Wymiar X/i }));
-    fireEvent.click(screen.getByRole('button', { name: /Oś/i }));
-    fireEvent.click(screen.getByRole('button', { name: /Opis otworu/i }));
-    fireEvent.click(screen.getByRole('button', { name: /Opis gwintu/i }));
-    fireEvent.click(screen.getByRole('button', { name: /GD&T/i }));
-    fireEvent.click(screen.getByRole('button', { name: /Balon/i }));
-    expect(current.onAddAnnotation.mock.calls.map(([type]) => type)).toEqual(['dimension-horizontal', 'centerline', 'hole-note', 'thread-note', 'feature-control-frame', 'balloon']);
+    expect(screen.getByRole('combobox', { name: /Szkic źródłowy/i })).toHaveValue(sketch.id);
+    expect(screen.queryByRole('button', { name: /Rzut/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/Skojarzony ze szkicem 2D/i)).toBeInTheDocument();
+  });
 
+  it('edits an associative dimension tolerance in the contextual panel', () => {
+    const current = props();
     const sheet = current.document.drawings[0];
     const annotation = createLinearDrawingDimension({ viewId: sheet.views[0].id, toleranceMode: 'symmetric', upperTolerance: 0.1, lowerTolerance: 0.1 });
     sheet.annotations.push(annotation);
@@ -89,13 +97,14 @@ describe('DrawingWorkspace', () => {
     unmount();
   });
 
-  it('adds associative BOM and hole tables', () => {
+  it('shows only tables that already exist and edits their position', () => {
     const current = props();
-    render(<DrawingWorkspace {...current} />);
-    fireEvent.click(screen.getByText(/Tabele \(0\)/i));
-    fireEvent.click(screen.getByRole('button', { name: /^BOM$/i }));
-    fireEvent.click(screen.getByRole('button', { name: /^Otwory$/i }));
-    expect(current.onAddTable.mock.calls.map(([type]) => type)).toEqual(['bom', 'hole-table']);
+    const table = createDrawingTable({ type: 'bom', sheet: current.document.drawings[0] });
+    current.document.drawings[0].tables.push(table);
+    render(<DrawingWorkspace {...current} selectedViewId={null} />);
+    fireEvent.click(screen.getByText(/Tabele \(1\)/i));
+    fireEvent.change(screen.getByRole('spinbutton', { name: /X \[mm\]/i }), { target: { value: '25' } });
+    expect(current.onUpdateTable).toHaveBeenCalledWith(table.id, { x: 25 });
   });
 
   it('keeps a balloon item number associated with the selected BOM body', () => {

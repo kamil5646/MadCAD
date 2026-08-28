@@ -34,11 +34,11 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTimelineFixture()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'fixture modelu', 45000);
 
-    if (!(await clickText(window, '.workspace-tabs button', 'DOKUMENTACJA'))) throw new Error('Brak obszaru DOKUMENTACJA.');
+    if (!(await clickText(window, '.workspace-tabs button', 'RYSUNEK 2D'))) throw new Error('Brak obszaru RYSUNEK 2D.');
     await waitFor(window, `document.querySelector('.drawing-empty')`, 'pusty obszar dokumentacji');
     if (!(await clickText(window, '.ribbon-tool', 'Nowy arkusz'))) throw new Error('Brak polecenia Nowy arkusz.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.length === 1 && document.querySelector('.drawing-paper')`, 'utworzony arkusz');
-    if (!(await clickText(window, '.ribbon-tool', 'Widok bazowy'))) throw new Error('Brak polecenia Widok bazowy.');
+    if (!(await clickText(window, '.ribbon-tool', 'Model 3D'))) throw new Error('Brak polecenia Model 3D.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.length === 1 && document.querySelectorAll('.drawing-view line').length > 8`, 'skojarzony widok bazowy');
     await waitFor(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.drawings?.[0]?.views?.length === 1`, 'autozapis arkusza');
 

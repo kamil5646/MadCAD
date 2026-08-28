@@ -66,7 +66,7 @@ app.whenReady().then(async () => {
       };
     })()`);
 
-    if (!wide.title.includes('Rysuj 2D') || !wide.primaryText.includes('Nowy rysunek 2D') || !wide.workflowText.includes('Szkic 2D') || !wide.workflowText.includes('Model parametryczny') || !wide.workflowText.includes('STEP do wymiany CAD') || wide.tabs.join('|') !== 'PROJEKTUJ|DOKUMENTACJA|NARZĘDZIA|EKSPORT' || !wide.sharedIcon || !wide.logoAtRightEnd || !wide.browserHiddenByDefault || !wide.browserToggleAvailable || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
+    if (!wide.title.includes('Rysuj 2D') || !wide.primaryText.includes('Nowy rysunek 2D') || !wide.workflowText.includes('Szkic 2D') || !wide.workflowText.includes('Model parametryczny') || !wide.workflowText.includes('STEP do wymiany CAD') || wide.tabs.join('|') !== 'PROJEKTUJ|RYSUNEK 2D|NARZĘDZIA|WYMIANA CAD|DRUK 3D' || !wide.sharedIcon || !wide.logoAtRightEnd || !wide.browserHiddenByDefault || !wide.browserToggleAvailable || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
       throw new Error(`Nieprawidłowa hierarchia strony startowej: ${JSON.stringify(wide)}`);
     }
 

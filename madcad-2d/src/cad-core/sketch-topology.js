@@ -138,6 +138,40 @@ function edgeSamples(edge, reversed = false) {
   return sampleCircle(edge.center, edge.radius, reversed);
 }
 
+export function sketchDrawingSegments(sketch, parameters = [], { layers = [], includeConstruction = false } = {}) {
+  const values = resolvedValues(parameters);
+  const layerMap = new Map((layers || []).map((layer) => [layer.id, layer]));
+  const entities = (sketch?.entities || []).filter((entity) => {
+    if (entity.type === 'point' || entity.type === 'text') return false;
+    if (!includeConstruction && entity.role === 'construction') return false;
+    const layer = entity.layerId ? layerMap.get(entity.layerId) : null;
+    return layer?.visible !== false && layer?.printable !== false;
+  });
+  const pointMap = new Map((sketch?.entities || [])
+    .filter((entity) => entity.type === 'point')
+    .map((point) => [point.id, [numeric(point.geometry.x, values), numeric(point.geometry.y, values)]]));
+  const segments = [];
+  const addSamples = (samples) => {
+    for (let index = 0; index + 1 < samples.length; index += 1) {
+      const first = samples[index];
+      const second = samples[index + 1];
+      if (first?.every(Number.isFinite) && second?.every(Number.isFinite) && distance(first, second) > GEOMETRY_POLICY.linearTolerance) segments.push([first, second]);
+    }
+  };
+
+  for (const entity of entities) {
+    const points = (entity.pointIds || []).map((pointId) => pointMap.get(pointId));
+    if (entity.type === 'line' && points[0] && points[1]) addSamples(points.slice(0, 2));
+    else if (entity.type === 'arc' && points[0] && points[1] && points[2]) addSamples(edgeSamples({ type: 'arc', center: points[0], start: points[1], end: points[2], direction: entity.geometry?.direction || 'ccw' }));
+    else if (entity.type === 'circle' && points[0]) addSamples(edgeSamples({ type: 'circle', center: points[0], radius: numeric(entity.geometry?.radius, values) }));
+    else if (entity.type === 'ellipse' && points[0]) addSamples(edgeSamples({ type: 'ellipse', center: points[0], majorRadius: numeric(entity.geometry?.majorRadius, values), minorRadius: numeric(entity.geometry?.minorRadius, values), rotation: numeric(entity.geometry?.rotation || '0', values) }));
+    else if (entity.type === 'ellipticalArc' && points[0] && points[1] && points[2]) addSamples(edgeSamples({ type: 'ellipticalArc', center: points[0], start: points[1], end: points[2], majorRadius: numeric(entity.geometry?.majorRadius, values), minorRadius: numeric(entity.geometry?.minorRadius, values), rotation: numeric(entity.geometry?.rotation || '0', values), startAngle: numeric(entity.geometry?.startAngle, values), endAngle: numeric(entity.geometry?.endAngle, values), direction: entity.geometry?.direction || 'ccw' }));
+    else if (entity.type === 'spline' && points.filter(Boolean).length >= 2) addSamples(edgeSamples({ type: 'spline', mode: entity.geometry?.mode === 'control' ? 'control' : 'fit', controlPoints: points.filter(Boolean) }));
+    else if (entity.type === 'conic' && points.length === 3 && points.every(Boolean)) addSamples(edgeSamples({ type: 'conic', controlPoints: points, rho: numeric(entity.geometry?.rho || '1', values) }));
+  }
+  return segments;
+}
+
 function segmentIntersection(firstStart, firstEnd, secondStart, secondEnd, tolerance = EPSILON) {
   const firstVector = [firstEnd[0] - firstStart[0], firstEnd[1] - firstStart[1]];
   const secondVector = [secondEnd[0] - secondStart[0], secondEnd[1] - secondStart[1]];
