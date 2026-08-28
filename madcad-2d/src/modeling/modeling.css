@@ -1434,6 +1434,61 @@
   white-space: nowrap;
 }
 
+.workspace-guidebar {
+  max-width: min(760px, calc(100% - 154px));
+  min-height: 44px;
+  padding: 7px 9px;
+  border-color: #607181;
+  background: #27323d;
+  box-shadow: 0 6px 18px rgba(8, 13, 18, .22);
+  white-space: normal;
+}
+
+.workspace-guidebar > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.workspace-guidebar strong {
+  color: #f0f5f8;
+  font-size: 11px;
+  letter-spacing: .025em;
+}
+
+.workspace-guidebar small {
+  overflow: hidden;
+  color: #b8c6d0;
+  font-size: 9px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.workspace-guidebar button {
+  display: inline-flex;
+  min-height: 28px;
+  margin-left: auto;
+  padding: 4px 9px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid #4faecc;
+  border-radius: 3px;
+  color: #effbff;
+  background: #176f8d;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.workspace-guidebar button:hover { background: #1b819f; }
+
+@media (max-width: 900px) {
+  .workspace-guidebar { max-width: calc(100% - 24px); }
+  .workspace-guidebar small { display: none; }
+}
+
 .workspace-notice {
   position: absolute;
   z-index: 6;
@@ -2788,9 +2843,7 @@
   overflow: auto;
   border: 0;
   border-radius: 0;
-  background:
-    radial-gradient(circle at 14% 18%, rgba(30, 156, 196, 0.14), transparent 34rem),
-    linear-gradient(135deg, rgba(30, 39, 50, 0.97), rgba(38, 48, 60, 0.96));
+  background: #232e39;
   box-shadow: none;
   text-align: left;
   transform: none;
@@ -2874,11 +2927,11 @@
 
 .start-page .start-page-action.primary {
   border-color: #249bc4;
-  background: linear-gradient(150deg, #1789b1, #126c91);
+  background: #0c607e;
   box-shadow: 0 12px 26px rgba(10, 91, 122, 0.25);
 }
 
-.start-page .start-page-action.primary:hover { background: linear-gradient(150deg, #1b9bc6, #167ba2); }
+.start-page .start-page-action.primary:hover { background: #0f708e; }
 .start-page-action > svg:first-child { color: #75d9f2; }
 .start-page-action.primary > svg { color: white; }
 .start-page-action span { display: grid; min-width: 0; gap: 4px; }

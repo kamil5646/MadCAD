@@ -34,7 +34,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTimelineFixture()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'fixture modelu', 45000);
 
-    if (!(await clickText(window, '.workspace-tabs button', 'RYSUNEK 2D'))) throw new Error('Brak obszaru RYSUNEK 2D.');
+    if (!(await clickText(window, '.workspace-tabs button', 'ARKUSZ 2D'))) throw new Error('Brak obszaru ARKUSZ 2D.');
     await waitFor(window, `document.querySelector('.drawing-empty')`, 'pusty obszar dokumentacji');
     if (!(await clickText(window, '.ribbon-tool', 'Nowy arkusz'))) throw new Error('Brak polecenia Nowy arkusz.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.length === 1 && document.querySelector('.drawing-paper')`, 'utworzony arkusz');

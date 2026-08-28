@@ -414,12 +414,12 @@ export function StartPage({ onStartSketch, onOpenProject, commandCustomization =
             <img src={madcadIconUrl} alt="MadCAD" />
             <span>MadCAD · CAD 2D/3D</span>
           </div>
-          <h1 id="start-page-title">Rysuj 2D. Modeluj parametrycznie w 3D.</h1>
-          <p>Zacznij od precyzyjnego szkicu jak w klasycznym CAD. Narzędzia bryłowe rozwijają projekt, a druk 3D pozostaje opcjonalnym etapem eksportu.</p>
+          <h1 id="start-page-title">Zacznij od szkicu 2D. Potem wybierz dalszy cel.</h1>
+          <p>Szkic jest wspólnym początkiem. Możesz przygotować z niego arkusz techniczny 2D albo zbudować model 3D. Druk 3D jest osobnym, opcjonalnym etapem.</p>
           <div className="start-page-actions">
             <button className="start-page-action primary" type="button" onClick={onStartSketch}>
               <PencilRuler size={22} />
-              <span><strong>Nowy rysunek 2D</strong><small>Wybierz płaszczyznę, rysuj myszą i wpisuj dokładne wymiary.</small></span>
+              <span><strong>Nowy szkic 2D</strong><small>Wybierz płaszczyznę, rysuj myszą i wpisuj dokładne wymiary.</small></span>
               <ArrowRight size={18} />
             </button>
             <button className="start-page-action" type="button" onClick={onOpenProject}>
@@ -437,11 +437,12 @@ export function StartPage({ onStartSketch, onOpenProject, commandCustomization =
         </div>
 
         <aside className="start-page-flow" aria-label="Przepływ pracy">
-          <strong>Przepływ pracy</strong>
+          <strong>Co możesz zrobić dalej</strong>
           <ol>
             <li><span>1</span><div><PencilRuler size={18} /><strong>Szkic 2D</strong><small>Linie, łuki, snap, trim, offset, więzy i wymiary.</small></div></li>
-            <li><span>2</span><div><Layers3 size={18} /><strong>Model parametryczny</strong><small>Wyciągnięcia, operacje bryłowe i edytowalna historia.</small></div></li>
-            <li><span>3</span><div><FileBox size={18} /><strong>Eksport</strong><small>STEP do wymiany CAD; STL, 3MF i kontrola druku jako dodatki.</small></div></li>
+            <li><span>2A</span><div><FileBox size={18} /><strong>Arkusz techniczny 2D</strong><small>Widoki, wymiary oraz zapis do PDF lub DXF.</small></div></li>
+            <li><span>2B</span><div><Layers3 size={18} /><strong>Model parametryczny 3D</strong><small>Wyciągnięcia, operacje bryłowe i edytowalna historia.</small></div></li>
+            <li><span>3</span><div><Box size={18} /><strong>Opcjonalnie: druk 3D</strong><small>Osobne przygotowanie modelu i przekazanie do slicera.</small></div></li>
           </ol>
         </aside>
       </div>

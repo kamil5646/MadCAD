@@ -259,12 +259,12 @@ async function waitForUi(window, expression, label, timeoutMs = 12000) {
 async function runUiFlow(window) {
   const progress = (message) => process.stdout.write(`[verify] ${message}\n`);
   const toolsWorkspaceLabels = new Set([
-    'Parametry', 'Zmierz', 'Przekrój', 'Masa', 'Analiza', 'Płaszczyzna offset', 'Midplane',
-    'Plane 3 punkty', 'Plane angle', 'Plane tangent', 'Plane path', 'Oś z krawędzi', 'Oś walca',
+    'Parametry', 'Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię', 'Płaszczyzna odsunięta', 'Płaszczyzna środkowa',
+    'Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce', 'Oś z krawędzi', 'Oś walca',
     'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum',
-    'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi', 'Import 3D',
+    'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi',
   ]);
-  const exportWorkspaceLabels = new Set(['STEP', 'STL', '3MF']);
+  const exportWorkspaceLabels = new Set(['STEP / STL / 3MF', 'STEP', 'STL', '3MF']);
   const printWorkspaceLabels = new Set(['Panel druku 3D']);
   const ribbonHasTool = (label) => window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)})`);
   const clickWorkspace = (workspaceLabel) => window.webContents.executeJavaScript(`(() => {
@@ -274,7 +274,7 @@ async function runUiFlow(window) {
   })()`);
   const clickTool = async (label) => {
     if (!await ribbonHasTool(label)) {
-      const workspaceLabel = toolsWorkspaceLabels.has(label) ? 'NARZĘDZIA' : printWorkspaceLabels.has(label) ? 'DRUK 3D' : exportWorkspaceLabels.has(label) ? 'WYMIANA CAD' : 'PROJEKTUJ';
+      const workspaceLabel = toolsWorkspaceLabels.has(label) ? 'PROJEKT' : printWorkspaceLabels.has(label) ? 'DRUK 3D' : exportWorkspaceLabels.has(label) ? 'PLIKI CAD' : 'MODELUJ';
       await clickWorkspace(workspaceLabel);
       await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)})`, `narzędzie ${label} w obszarze ${workspaceLabel}`);
     }
@@ -1065,7 +1065,7 @@ async function runUiFlow(window) {
     button[key].onClick();
   })()`);
   await waitForUi(window, `!document.querySelector('.section-panel') && !window.__madcadSectionViewState?.enabled`, 'wyłączony Section Analysis');
-  await clickTool('Masa');
+  await clickTool('Właściwości masy');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'massProperties' && document.querySelector('.mass-properties-panel')`, 'otwarte właściwości masowe');
   await setCommandField('Gęstość', '1.2');
   await waitForUi(window, `Math.abs(window.__madcadVerifyDocumentState?.command?.massProperties?.result?.volume - 12000) < 0.05 && Math.abs(window.__madcadVerifyDocumentState.command.massProperties.result.area - 3800) < 0.05 && Math.abs(window.__madcadVerifyDocumentState.command.massProperties.result.mass - 14.4) < 0.001 && Math.abs(window.__madcadVerifyDocumentState.command.massProperties.result.centerOfMass[2] - 5) < 0.001`, 'objętość pole masa i środek masy Box');
@@ -1259,7 +1259,7 @@ async function runUiFlow(window) {
   await clickTool('Zakończ szkic');
   const loftBottomSketchId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].id`);
   const loftBottomProfileId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].profileIds[0]`);
-  await clickTool('Płaszczyzna offset');
+  await clickTool('Płaszczyzna odsunięta');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna odsunięta')`, 'płaszczyzna górnego profilu Loft');
   await setCommandField('Nazwa', 'Góra Loft');
   await setCommandField('Płaszczyzna bazowa', 'XY');
@@ -1472,7 +1472,7 @@ async function runUiFlow(window) {
   await confirmDialog();
   await waitForUi(window, `window.__madcadVerifyEngineState?.bodies?.length === 1 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - 3840) < 0.05`, 'wyśrodkowana bryła Split Body', modelingTimeoutMs);
   const splitSourceBodyId = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].id`);
-  await clickTool('Płaszczyzna offset');
+  await clickTool('Płaszczyzna odsunięta');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna odsunięta')`, 'płaszczyzna konstrukcyjna Split Body');
   await setCommandField('Płaszczyzna bazowa', 'XY');
   await setCommandField('Odległość', '2');
@@ -1665,7 +1665,7 @@ async function runUiFlow(window) {
     assertClose(volume, fixture.volume, 0.05, `${fixture.type} volume`);
   }
 
-  await clickTool('Analiza');
+  await clickTool('Sprawdź geometrię');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'geometryInspection' && Math.abs(window.__madcadVerifyDocumentState.command.geometryInspection.minimumRadius - 3) < 0.001 && window.__madcadVerifyDocumentState.command.geometryInspection.collisions.length === 0`, 'minimalny promień i brak kolizji prymitywów', modelingTimeoutMs);
   await waitForUi(window, `document.querySelector('.geometry-inspection-panel')?.textContent.includes('3 mm') && document.querySelector('.geometry-inspection-panel')?.textContent.includes('Nie wykryto wspólnej objętości')`, 'panel analizy geometrii');
   await window.webContents.executeJavaScript(`(() => {
@@ -2036,7 +2036,7 @@ async function runUiFlow(window) {
   progress('parametric offset construction plane');
   await clickByTitle('Pokaż lub ukryj przeglądarkę');
   await waitForUi(window, `document.querySelector('.model-browser')`, 'otwarcie przeglądarki projektu do testu drzewa');
-  await clickTool('Płaszczyzna offset');
+  await clickTool('Płaszczyzna odsunięta');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna odsunięta')`, 'okno płaszczyzny odsuniętej');
   await setCommandField('Nazwa', 'Płaszczyzna montażowa');
   await setCommandField('Płaszczyzna bazowa', 'YZ');
@@ -2057,7 +2057,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(constructionPlaneId)})?.visible === false`, 'redo widoczności płaszczyzny');
   await sendShortcut('z');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(constructionPlaneId)})?.visible === true`, 'przywrócenie widoczności płaszczyzny');
-  await clickTool('Midplane');
+  await clickTool('Płaszczyzna środkowa');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna środkowa')`, 'okno midplane');
   await setCommandField('Nazwa', 'Środek korpusu');
   await setCommandField('Płaszczyzna bazowa', 'XY');
@@ -2065,7 +2065,7 @@ async function runUiFlow(window) {
   await setCommandField('Położenie B', '20');
   await confirmDialog();
   await waitForUi(window, `(() => { const plane = window.__madcadConstructionPlaneState?.find((item) => item.name === 'Środek korpusu'); return plane?.status === 'ok' && plane.origin[2] === 8; })()`, 'dokładna płaszczyzna środkowa');
-  await clickTool('Płaszczyzna offset');
+  await clickTool('Płaszczyzna odsunięta');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna odsunięta')`, 'okno płaszczyzny końca wyciągnięcia');
   await setCommandField('Nazwa', 'Koniec wyciągnięcia');
   await setCommandField('Płaszczyzna bazowa', 'XY');
@@ -2095,7 +2095,7 @@ async function runUiFlow(window) {
   await setCommandField('Odsunięcie początku', '0');
   await confirmDialog();
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.extent === 'one-side' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.bounds?.[1]?.[2] - 8) < 1e-5`, 'przywrócony zakres bazowego wyciągnięcia', modelingTimeoutMs);
-  await clickTool('Plane 3 punkty');
+  await clickTool('Przez 3 punkty');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna przez trzy punkty')`, 'okno plane przez trzy punkty');
   await setCommandField('Nazwa', 'Płaszczyzna punktów');
   await setCommandField('Punkt 1 Z', '6');
@@ -2103,7 +2103,7 @@ async function runUiFlow(window) {
   await setCommandField('Punkt 3 Z', '6');
   await confirmDialog();
   await waitForUi(window, `(() => { const plane = window.__madcadConstructionPlaneState?.find((item) => item.name === 'Płaszczyzna punktów'); return plane?.status === 'ok' && plane.origin[2] === 6 && plane.normal[2] === 1; })()`, 'płaszczyzna przez trzy niewspółliniowe punkty');
-  await clickTool('Plane angle');
+  await clickTool('Pod kątem');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna pod kątem')`, 'okno plane angle');
   await setCommandField('Nazwa', 'Płaszczyzna kątowa');
   await setCommandField('Płaszczyzna bazowa', 'XY');
@@ -2112,14 +2112,14 @@ async function runUiFlow(window) {
   await setCommandField('Odległość', '5');
   await confirmDialog();
   await waitForUi(window, `(() => { const plane = window.__madcadConstructionPlaneState?.find((item) => item.name === 'Płaszczyzna kątowa'); return plane?.status === 'ok' && Math.abs(plane.origin[2] - 5) < 1e-9 && Math.abs(plane.normal[1] + 0.5) < 1e-9; })()`, 'parametryczna płaszczyzna pod kątem');
-  await clickTool('Plane tangent');
+  await clickTool('Styczna');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna styczna')`, 'okno plane tangent');
   await setCommandField('Nazwa', 'Płaszczyzna styczna sfery');
   await setCommandField('Styczność X', '0');
   await setCommandField('Styczność Y', '5');
   await confirmDialog();
   await waitForUi(window, `(() => { const plane = window.__madcadConstructionPlaneState?.find((item) => item.name === 'Płaszczyzna styczna sfery'); return plane?.status === 'ok' && plane.origin[1] === 5 && plane.normal[1] === 1; })()`, 'płaszczyzna styczna');
-  await clickTool('Plane path');
+  await clickTool('Na ścieżce');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna na ścieżce')`, 'okno plane path');
   await setCommandField('Nazwa', 'Płaszczyzna normalna ścieżki');
   await setCommandField('Punkt ścieżki X', '2');
@@ -2502,7 +2502,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.print-inspector')`, 'obszar przygotowania druku');
 
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === 'PROJEKTUJ');
+    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === 'MODELUJ');
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);
