@@ -318,16 +318,34 @@ export function CommandCustomizationPanel({ customization, onSave, onReset, onCl
   const [draft, setDraft] = React.useState(() => structuredClone(customization));
   const validation = validateCommandCustomization(draft);
   const rows = commandCustomizationRows(draft);
+  const groups = rows.reduce((result, row) => {
+    const group = result.find((item) => item.category === row.category);
+    if (group) group.rows.push(row);
+    else result.push({ category: row.category, rows: [row] });
+    return result;
+  }, []);
+  const primaryKey = window.desktopApp?.platform === 'darwin' ? '⌘' : 'Ctrl';
   const update = (label, key, value) => setDraft((current) => ({
     ...current,
     commands: { ...current.commands, [label]: { ...current.commands[label], [key]: value.toUpperCase().replace(/\s+/g, '') } },
   }));
   return (
-    <aside className="measure-panel command-customization-panel" aria-label="Aliasy i skróty poleceń">
-      <header><div><Keyboard size={16} /><strong>Aliasy i skróty</strong></div><button type="button" title="Zamknij ustawienia skrótów" aria-label="Zamknij ustawienia skrótów" onClick={onClose}><X size={15} /></button></header>
-      <div className="command-customization-intro"><p>Alias wpisujesz w linii poleceń. Klawisz uruchamia narzędzie bezpośrednio, gdy nie edytujesz pola tekstowego.</p><div><span>Polecenie</span><span>Alias</span><span>Klawisz</span></div></div>
+    <aside className="measure-panel command-customization-panel" aria-label="Skróty i polecenia">
+      <header><div><Keyboard size={16} /><strong>Skróty i polecenia</strong></div><button type="button" title="Zamknij ustawienia skrótów" aria-label="Zamknij ustawienia skrótów" onClick={onClose}><X size={15} /></button></header>
+      <div className="command-shortcut-essentials" aria-label="Podstawowe skróty">
+        <span><kbd>Esc</kbd>Anuluj</span>
+        <span><kbd>Enter</kbd>Zatwierdź</span>
+        <span><kbd>{primaryKey}+Enter</kbd>Zakończ szkic</span>
+        <span><kbd>F3</kbd>Snap</span>
+        <span><kbd>{primaryKey}+Z</kbd>Cofnij</span>
+        <span><kbd>Delete</kbd>Usuń</span>
+      </div>
+      <div className="command-customization-intro"><p>Wpisz alias w linii poleceń i naciśnij Enter. Pojedynczy klawisz uruchamia narzędzie od razu.</p><div><span>Polecenie</span><span>Alias</span><span>Klawisz</span></div></div>
       <div className="command-customization-list">
-        {rows.map((row) => <div className="command-customization-row" key={row.label}><strong>{row.label}</strong><input aria-label={`Alias polecenia ${row.label}`} value={row.alias} maxLength={16} onChange={(event) => update(row.label, 'alias', event.target.value)} /><input aria-label={`Klawisz polecenia ${row.label}`} value={row.shortcut} maxLength={3} placeholder="—" onChange={(event) => update(row.label, 'shortcut', event.target.value)} /></div>)}
+        {groups.map((group) => <section className="command-customization-category" key={group.category} aria-label={group.category}>
+          <h3>{group.category}</h3>
+          {group.rows.map((row) => <div className="command-customization-row" key={row.label}><strong>{row.label}</strong><input aria-label={`Alias polecenia ${row.label}`} value={row.alias} maxLength={16} onChange={(event) => update(row.label, 'alias', event.target.value)} /><input aria-label={`Klawisz polecenia ${row.label}`} value={row.shortcut} maxLength={3} placeholder="—" onChange={(event) => update(row.label, 'shortcut', event.target.value)} /></div>)}
+        </section>)}
       </div>
       {!!validation.errors.length && <div className="command-customization-errors" role="alert">{validation.errors.slice(0, 4).map((error) => <span key={error}>{error}</span>)}</div>}
       <footer><button type="button" onClick={() => { const reset = onReset(); setDraft(structuredClone(reset)); }}><RotateCcw size={14} /> Autodesk</button><button className="confirm" type="button" disabled={!validation.valid} onClick={() => onSave(validation.customization)}><Check size={14} /> Zapisz</button></footer>

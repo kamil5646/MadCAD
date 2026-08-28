@@ -6,6 +6,10 @@ describe('CAD command controller', () => {
     expect(resolveCommandAlias('line')).toMatchObject({ shortcut: 'L', label: 'Linia' });
     expect(resolveCommandAlias('PL')).toMatchObject({ shortcut: 'PL', label: 'Polilinia' });
     expect(resolveCommandAlias('usuń')).toMatchObject({ shortcut: 'DEL', label: 'Usuń' });
+    expect(resolveCommandAlias('arc')).toMatchObject({ shortcut: 'A', label: 'Łuk' });
+    expect(resolveCommandAlias('array')).toMatchObject({ shortcut: 'AR', label: 'Szyk szkicu' });
+    expect(resolveCommandAlias('revolve')).toMatchObject({ shortcut: 'REV', label: 'Revolve' });
+    expect(resolveCommandAlias('massprop')).toMatchObject({ shortcut: 'MP', label: 'Masa' });
   });
 
   it('parses decimal lengths with a dot or comma', () => {

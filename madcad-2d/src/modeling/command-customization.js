@@ -42,6 +42,7 @@ export function validateCommandCustomization(source) {
     if (builtInOwner) errors.push(`Alias „${entry.alias}” jest wbudowaną nazwą polecenia ${builtInOwner.label}.`);
     if (entry.shortcut) {
       if (!/^(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|DEL)$/.test(entry.shortcut)) errors.push(`${definition.label}: klawisz musi być pojedynczą literą, cyfrą, F1–F12 albo DEL.`);
+      if (['F1', 'F2', 'F3'].includes(entry.shortcut)) errors.push(`${definition.label}: klawisz „${entry.shortcut}” jest zarezerwowany przez interfejs.`);
       if (shortcuts.has(entry.shortcut)) errors.push(`Klawisz „${entry.shortcut}” jest już przypisany do ${shortcuts.get(entry.shortcut)}.`);
       else shortcuts.set(entry.shortcut, definition.label);
     }
@@ -70,6 +71,7 @@ export function saveCommandCustomization(customization, storage = window.localSt
 export function commandCustomizationRows(customization) {
   const normalized = normalizeCommandCustomization(customization);
   return COMMAND_DEFINITIONS.map((definition) => ({
+    category: definition.category || 'INNE',
     label: definition.label,
     toolLabel: definition.toolLabel,
     builtInAliases: definition.aliases,

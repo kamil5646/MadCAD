@@ -283,14 +283,14 @@ function RibbonOverflow({ groups }) {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Pokaż pozostałe narzędzia"
+        title="Pokaż pozostałe grupy narzędzi z bieżącej karty"
         onClick={() => setOpen((current) => !current)}
       >
         <MoreHorizontal size={20} aria-hidden="true" />
-        <span>Więcej</span>
+        <span>Narzędzia</span>
       </button>
       {open && (
-        <div className={`ribbon-overflow-menu ${groups.length === 1 ? 'single-group' : ''}`} role="menu" aria-label="Pozostałe narzędzia">
+        <div className={`ribbon-overflow-menu ${groups.length === 1 ? 'single-group' : ''}`} role="menu" aria-label="Pozostałe grupy narzędzi">
           {groups.map((group, groupIndex) => (
             <section className="ribbon-overflow-section" key={`${group.props.label}-${groupIndex}`} role="none">
               <strong>{group.props.label}</strong>

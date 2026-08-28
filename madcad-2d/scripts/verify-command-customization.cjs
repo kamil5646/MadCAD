@@ -39,9 +39,8 @@ app.whenReady().then(async () => {
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
     await waitFor(window, `document.querySelector('.modeling-shell')`, 'interfejs aplikacji');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
-    if (!(await clickByText(window, '.workspace-tabs button', 'NARZĘDZIA'))) throw new Error('Nie znaleziono karty Narzędzia.');
-    if (!(await clickByText(window, '.ribbon-tool, .ribbon-overflow-menu button', 'Aliasy'))) throw new Error('Nie znaleziono narzędzia Aliasy.');
-    await waitFor(window, `document.querySelector('.command-customization-panel')`, 'panel aliasów');
+    await window.webContents.executeJavaScript(`document.querySelector('#commandShortcutsBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.command-customization-panel')`, 'panel skrótów');
 
     await setInput(window, 'input[aria-label="Alias polecenia Linia"]', 'XL');
     await setInput(window, 'input[aria-label="Klawisz polecenia Linia"]', 'G');
@@ -51,17 +50,23 @@ app.whenReady().then(async () => {
     await waitFor(window, `!document.querySelector('.command-customization-errors') && !document.querySelector('.command-customization-panel footer button.confirm').disabled`, 'poprawne ustawienia');
     const layout = await window.webContents.executeJavaScript(`(() => {
       const rect = document.querySelector('.command-customization-panel').getBoundingClientRect();
-      return { rows: document.querySelectorAll('.command-customization-row').length, insideViewport: rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight, horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
+      return { rows: document.querySelectorAll('.command-customization-row').length, categories: document.querySelectorAll('.command-customization-category').length, essentials: document.querySelectorAll('.command-shortcut-essentials kbd').length, insideViewport: rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight, horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     if (!(await clickByText(window, '.command-customization-panel footer button', 'Zapisz'))) throw new Error('Nie znaleziono zapisu ustawień.');
     await waitFor(window, `JSON.parse(localStorage.getItem('madcad:command-customization:v1')).commands.Linia.alias === 'XL'`, 'zapis ustawień');
     await window.webContents.executeJavaScript(`document.querySelector('.command-customization-panel header button').click()`);
+    await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))`);
+    await waitFor(window, `document.querySelector('.command-customization-panel')`, 'otwieranie panelu przez F1');
+    await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))`);
+    await waitFor(window, `!document.querySelector('.command-customization-panel')`, 'zamykanie panelu przez F1');
 
     await waitFor(window, `typeof window.__madcadVerifyLoadTopologyFixture === 'function'`, 'fixture szkicu');
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTopologyFixture('XY')`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entityData?.length > 0`, 'dokument fixture');
     await window.webContents.executeJavaScript(`window.__madcadVerifyOpenFirstSketch()`);
+    await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F3', bubbles: true }))`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketchOptions?.snap === false`, 'przełączanie snapu przez F3');
     await waitFor(window, `document.querySelector('.ribbon-tool[aria-label^="Linia."]')?.title.includes('G')`, 'nowy skrót w tooltipie');
     await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', bubbles: true }))`);
     await waitFor(window, `window.__madcadVerifyDocumentState.command?.type === 'line'`, 'bezpośredni klawisz G');
@@ -71,8 +76,8 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#madcad-command-line').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
     await waitFor(window, `window.__madcadVerifyDocumentState.command?.type === 'line'`, 'niestandardowy alias XL');
 
-    const result = { screenshotPath, ...layout, conflictRejected: true, persisted: true, directKey: true, alias: true, tooltip: true };
-    if (layout.rows < 15 || !layout.insideViewport || layout.horizontalOverflow) throw new Error(`Niepoprawny panel aliasów: ${JSON.stringify(result)}`);
+    const result = { screenshotPath, ...layout, conflictRejected: true, persisted: true, directKey: true, alias: true, tooltip: true, helpKey: true, snapKey: true };
+    if (layout.rows < 45 || layout.categories < 5 || layout.essentials < 6 || !layout.insideViewport || layout.horizontalOverflow) throw new Error(`Niepoprawny panel skrótów: ${JSON.stringify(result)}`);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     app.exit(0);
   } catch (error) {

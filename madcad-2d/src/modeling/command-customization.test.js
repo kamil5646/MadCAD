@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   COMMAND_CUSTOMIZATION_KEY,
+  commandCustomizationRows,
   createDefaultCommandCustomization,
   loadCommandCustomization,
   saveCommandCustomization,
@@ -34,6 +35,17 @@ describe('command customization', () => {
     expect(validation.valid).toBe(false);
     expect(validation.errors.join(' ')).toContain('Alias „P”');
     expect(validation.errors.join(' ')).toContain('Klawisz „R”');
+  });
+
+  it('keeps interface function keys reserved and groups the expanded command set', () => {
+    const customization = createDefaultCommandCustomization();
+    customization.commands.Linia.shortcut = 'F1';
+    const validation = validateCommandCustomization(customization);
+    expect(validation.valid).toBe(false);
+    expect(validation.errors.join(' ')).toContain('zarezerwowany przez interfejs');
+    const rows = commandCustomizationRows(createDefaultCommandCustomization());
+    expect(rows.length).toBeGreaterThanOrEqual(45);
+    expect(new Set(rows.map((row) => row.category))).toEqual(new Set(['RYSUJ 2D', 'EDYTUJ 2D', 'MODELUJ 3D', 'MODYFIKUJ 3D', 'SPRAWDŹ']));
   });
 
   it('persists valid settings and falls back safely after corrupt storage', () => {

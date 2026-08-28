@@ -621,8 +621,8 @@
   position: relative;
   z-index: 20;
   display: flex;
-  flex: 0 0 72px;
-  min-width: 72px;
+  flex: 0 0 78px;
+  min-width: 78px;
   height: 68px;
   padding: 2px 5px 14px;
   align-items: stretch;
@@ -631,8 +631,8 @@
 
 .ribbon-overflow-trigger {
   display: grid;
-  width: 62px;
-  min-width: 62px;
+  width: 68px;
+  min-width: 68px;
   height: 50px;
   padding: 4px 3px 3px;
   grid-template-rows: 28px 14px;
@@ -3914,6 +3914,37 @@
   background: #36414f;
 }
 
+.command-shortcut-essentials {
+  display: grid;
+  padding: 8px 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  border-bottom: 1px solid #596573;
+  background: #303b48;
+}
+
+.command-shortcut-essentials > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  color: #c4d0d9;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.command-shortcut-essentials kbd {
+  min-width: 31px;
+  padding: 2px 4px;
+  border: 1px solid #6c7b89;
+  border-bottom-color: #8fa0ae;
+  border-radius: 3px;
+  background: #222d38;
+  color: #f2f6f8;
+  font: 700 8px/1.2 inherit;
+  text-align: center;
+}
+
 .command-customization-intro p {
   margin: 0 0 8px;
   color: #b8c4cd;
@@ -3938,10 +3969,26 @@
 }
 
 .command-customization-list {
-  max-height: 405px;
+  max-height: 350px;
   overflow: auto;
   padding: 6px 10px;
   background: #2f3946;
+}
+
+.command-customization-category + .command-customization-category {
+  margin-top: 7px;
+}
+
+.command-customization-category > h3 {
+  position: sticky;
+  z-index: 1;
+  top: -6px;
+  margin: 0 -2px;
+  padding: 5px 2px 4px;
+  color: #8dd8f4;
+  background: #2f3946;
+  font-size: 8.5px;
+  letter-spacing: 0.09em;
 }
 
 .command-customization-row {
