@@ -180,6 +180,7 @@ import {
 } from './command-customization.js';
 import { isDockableCommand, panelScreenKey, readPanelLayout, writePanelLayout } from './panel-layout.js';
 import { resolveVisibleSketchId } from './sketch-visibility.js';
+import { resolveExtrudeSource } from './extrude-source.js';
 import { BUILT_IN_WORKSPACE_LAYOUTS, captureWorkspaceView, createCustomWorkspaceLayout, loadCustomWorkspaceLayouts, saveCustomWorkspaceLayouts } from './workspace-layouts.js';
 import { multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
 import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumentHistory } from './workspace-document.js';
@@ -2178,6 +2179,7 @@ export default function ModelingWorkspace() {
   const finishSketch = () => {
     const sketch = document.sketches.find((item) => item.id === activeSketchId);
     const lastProfile = sketch?.profiles.at(-1);
+    const finishedSource = sketch ? resolveExtrudeSource({ sketches: [sketch], selection: { kind: 'sketch', id: sketch.id } }) : { kind: 'none' };
     const selectedPoint = selectedSketchEntityIds.length === 1
       ? sketch?.entities.find((entity) => entity.id === selectedSketchEntityIds[0]
         && entity.type === 'point'
@@ -2192,7 +2194,9 @@ export default function ModelingWorkspace() {
     else if (sketch) setSelection({ kind: 'sketch', id: sketch.id });
     setNotice(lastProfile
       ? 'Szkic zakończony. Ostatni profil jest zaznaczony i gotowy do operacji bryłowej.'
-      : 'Szkic zakończony. Wybierz profil i użyj operacji bryłowej.');
+      : finishedSource.kind === 'open-chain'
+        ? 'Szkic zakończony. Otwarty łańcuch jest widoczny i gotowy do cienkiego wyciągnięcia.'
+        : 'Szkic zakończony. Obrys nie jest domknięty; popraw przerwy, aby utworzyć profil bryłowy.');
   };
 
   const openProfileCommand = (type, profile = null) => {
@@ -3478,15 +3482,55 @@ export default function ModelingWorkspace() {
       setNotice('Podgląd cienkościennego wyciągnięcia otwartego łańcucha jest aktywny.');
       return;
     }
-    if (!selectedProfile || activeSketchId) {
-      if (!activeSketchId) {
-        startSketch();
-        window.setTimeout(() => setNotice('Wyciągnięcie: wybierz płaszczyznę, narysuj zamknięty profil i zakończ szkic. Profil zostanie zaznaczony automatycznie.'), 0);
-      } else setNotice('Zakończ szkic. Ostatni zamknięty profil zostanie zaznaczony automatycznie do wyciągnięcia.');
+    if (activeSketchId) {
+      setNotice('Zakończ szkic. Ostatni zamknięty profil zostanie zaznaczony automatycznie do wyciągnięcia.');
       return;
     }
-    beginOrUpdateExtrude(10);
-    setNotice('Podgląd wyciągnięcia jest aktywny. Potwierdź operację przyciskiem OK.');
+    const source = resolveExtrudeSource({ sketches: document.sketches, selection });
+    if (source.kind === 'profile') {
+      setSelection({ kind: 'profile', id: source.profile.id, sketchId: source.sketch.id });
+      beginOrUpdateExtrude(10, source);
+      setNotice('Podgląd wyciągnięcia jest aktywny. Potwierdź operację przyciskiem OK.');
+      return;
+    }
+    if (source.kind === 'open-chain') {
+      beginOpenChainExtrude(source.sketch.id, source.entityIds);
+      return;
+    }
+    if (source.kind === 'incomplete') {
+      setSelection({ kind: 'sketch', id: source.sketch.id });
+      setFitViewRequest({ requestId: `show-incomplete-sketch:${source.sketch.id}:${Date.now()}` });
+      setNotice(`Szkic „${source.sketch.name}” nie tworzy jednego zamkniętego profilu. Domknij obrys albo wybierz połączone linie do cienkiego wyciągnięcia.`);
+      return;
+    }
+    startSketch();
+    window.setTimeout(() => setNotice('Wyciągnięcie: wybierz płaszczyznę, narysuj zamknięty profil i zakończ szkic. Profil zostanie zaznaczony automatycznie.'), 0);
+  };
+
+  const beginOpenChainExtrude = (sketchId, entityIds) => {
+    const operation = engine.bodies.length ? 'join' : 'new';
+    const targetOptions = createExtrudeTargetOptions();
+    const previewFeature = createFeature('extrude', {
+      name: `Wyciągnięcie ${document.features.length + 1}`,
+      sketchId,
+      profileIds: [],
+      openEntityIds: [...entityIds],
+      distance: '10',
+      secondDistance: '10',
+      startOffset: '0',
+      extent: 'one-side',
+      thin: true,
+      wallThickness: '2',
+      wallSide: 'symmetric',
+      endCap: 'butt',
+      operation,
+      targetBodyId: operation === 'new' ? null : targetBodyId,
+    });
+    setCommand({ type: 'extrude', openChain: true, sourceSketchId: sketchId, distance: '10', secondDistance: '10', startOffset: '0', extent: 'one-side', thin: true, wallThickness: '2', wallSide: 'symmetric', endCap: 'butt', operation, targetOptions, targetReferenceId: targetOptions[0]?.id, previewFeature });
+    setActiveSketchId(null);
+    setWorkspace('solid');
+    setSelection({ kind: 'sketch', id: sketchId });
+    setNotice('Podgląd cienkościennego wyciągnięcia otwartego szkicu jest aktywny. Ustaw grubość i potwierdź operację.');
   };
 
   const openRib = () => {
@@ -3626,9 +3670,10 @@ export default function ModelingWorkspace() {
     return options;
   };
 
-  const beginOrUpdateExtrude = (distance) => {
+  const beginOrUpdateExtrude = (distance, profileMatch = selectedProfileMatch) => {
     if (readOnly) return readOnlyNotice();
-    if (!selectedProfile || activeSketchId) return;
+    const profile = profileMatch?.profile;
+    if (!profile || activeSketchId) return;
     setCommand((current) => {
       const editing = current?.type === 'extrude' ? current : null;
       const operation = editing?.operation || (engine.bodies.length ? 'join' : 'new');
@@ -3650,8 +3695,8 @@ export default function ModelingWorkspace() {
       };
       next.previewFeature = createFeature('extrude', {
         name: editing?.previewFeature?.name || `Wyciągnięcie ${document.features.length + 1}`,
-        sketchId: selectedProfileMatch?.sketch.id,
-        profileIds: [selectedProfile.id],
+        sketchId: profileMatch.sketch.id,
+        profileIds: [profile.id],
         distance: next.distance,
         secondDistance: next.secondDistance,
         startOffset: next.startOffset,

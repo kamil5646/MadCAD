@@ -16,6 +16,7 @@
     "build": "npm run build:ui",
     "build:ui": "vite build",
     "verify:modeling": "npm run build:ui && electron scripts/verify-modeling.cjs",
+    "verify:extrude-after-sketch": "npm run build:ui && electron scripts/verify-extrude-after-sketch.cjs",
     "verify:model-import": "npm run build:ui && electron scripts/verify-model-import.cjs",
     "verify:viewport-navigation": "npm run build:ui && electron scripts/verify-viewport-navigation.cjs",
     "verify:external-compatibility": "npm run build:ui && electron scripts/verify-external-compatibility.cjs",
