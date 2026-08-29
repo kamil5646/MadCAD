@@ -91,6 +91,10 @@ const TOOL_DESCRIPTIONS = {
   'Przekrój': 'Włącz interaktywną płaszczyznę przekroju bez zmiany historii modelu.',
   'Właściwości masy': 'Oblicz objętość, pole, masę i środek masy dla zadanej gęstości materiału.',
   'Sprawdź geometrię': 'Sprawdź minimalny promień oraz dokładne kolizje pomiędzy bryłami.',
+  'Punkty zapisu': 'Utwórz lub przywróć lokalną, nazwaną wersję bieżącego projektu.',
+  'Porównaj wersje': 'Porównaj bieżący projekt z punktem zapisu albo innym plikiem MadCAD.',
+  'Kondycja projektu': 'Sprawdź integralność dokumentu, historii, referencji i silnika CAD.',
+  'Gdzie używane': 'Pokaż zależności zaznaczonego obiektu oraz wpływ jego zmiany.',
 };
 
 const TOOL_SHORTCUTS = Object.freeze({
@@ -119,7 +123,7 @@ const TOOL_COLOR_GROUPS = Object.freeze({
   solid: new Set(['Wyciągnij', 'Thin Extrude', 'Rib/Web', 'Pipe', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Pattern', 'Press Pull', 'Prymityw', 'Tekst 3D', 'Boolean', 'Otwór']),
   edit: new Set(['Trim', 'Extend', 'Break', 'Offset', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu', 'Przesuń', 'Zaokrąglij', 'Fazuj', 'Shell', 'Draft', 'Split Body', 'Split Face', 'Replace Face', 'Offset Face', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj']),
   reference: new Set(['Project', 'Współliniowe', 'Symetria', 'Krzywizna G2', 'Ordinate X', 'Ordinate Y', 'Długość łuku', 'Płaszczyzna odsunięta', 'Płaszczyzna środkowa', 'Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce', 'Oś z krawędzi', 'Oś walca', 'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum', 'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi']),
-  inspect: new Set(['Parametry', 'Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię', 'Wybierz']),
+  inspect: new Set(['Parametry', 'Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię', 'Punkty zapisu', 'Porównaj wersje', 'Kondycja projektu', 'Gdzie używane', 'Wybierz']),
   output: new Set(['Import SVG/DXF', 'Import DWG', 'STEP / STL / 3MF', 'STEP', 'STL', '3MF', 'Kontrola druku']),
   destructive: new Set(['Usuń', 'Delete Face + Heal']),
 });
@@ -152,7 +156,7 @@ function ToolGlyph({ icon: Icon, compact = false }) {
   );
 }
 
-export function ToolButton({ icon: Icon, label, onClick, disabled = false, primary = false, compact = false, title, description }) {
+export function ToolButton({ id, icon: Icon, label, onClick, disabled = false, primary = false, compact = false, title, description }) {
   const help = description || title || TOOL_DESCRIPTIONS[label] || label;
   const featured = FEATURED_TOOL_LABELS.has(label);
   const toolHelp = React.useContext(ToolHelpContext);
@@ -181,6 +185,7 @@ export function ToolButton({ icon: Icon, label, onClick, disabled = false, prima
   return (
     <span className={`ribbon-tool-wrap ${featured ? 'featured' : ''}`} onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
       <button
+        id={id}
         className={`ribbon-tool ${featured ? 'featured' : ''} ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
         style={toolColorStyle(label)}
         type="button"
@@ -283,11 +288,11 @@ function RibbonOverflow({ groups }) {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Pokaż pozostałe grupy narzędzi z bieżącej karty"
+        title={`Pokaż ukryte grupy: ${groups.map((group) => group.props.label).join(', ')}`}
         onClick={() => setOpen((current) => !current)}
       >
         <MoreHorizontal size={20} aria-hidden="true" />
-        <span>Narzędzia</span>
+        <span>Więcej ({groups.length})</span>
       </button>
       {open && (
         <div className={`ribbon-overflow-menu ${groups.length === 1 ? 'single-group' : ''}`} role="menu" aria-label="Pozostałe grupy narzędzi">

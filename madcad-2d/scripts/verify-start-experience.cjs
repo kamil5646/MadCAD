@@ -66,7 +66,7 @@ app.whenReady().then(async () => {
       };
     })()`);
 
-    if (!wide.title.includes('Zacznij od szkicu 2D') || !wide.primaryText.includes('Nowy szkic 2D') || !wide.workflowText.includes('Arkusz techniczny 2D') || !wide.workflowText.includes('Model parametryczny 3D') || !wide.workflowText.includes('Opcjonalnie: druk 3D') || wide.tabs.join('|') !== 'MODELUJ|ARKUSZ 2D|PROJEKT|PLIKI CAD|DRUK 3D' || !wide.sharedIcon || !wide.logoAtRightEnd || !wide.browserHiddenByDefault || !wide.browserToggleAvailable || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
+    if (!wide.title.includes('Zacznij od szkicu 2D') || !wide.primaryText.includes('Nowy szkic 2D') || !wide.workflowText.includes('Arkusz techniczny 2D') || !wide.workflowText.includes('Model parametryczny 3D') || !wide.workflowText.includes('Opcjonalnie: druk 3D') || wide.tabs.join('|') !== 'MODELUJ|EDYCJA 3D|ARKUSZ 2D|KONSTRUKCJA|PROJEKT|PLIKI CAD|DRUK 3D' || !wide.sharedIcon || !wide.logoAtRightEnd || !wide.browserHiddenByDefault || !wide.browserToggleAvailable || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
       throw new Error(`Nieprawidłowa hierarchia strony startowej: ${JSON.stringify(wide)}`);
     }
 

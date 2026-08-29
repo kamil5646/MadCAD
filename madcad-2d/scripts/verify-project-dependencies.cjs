@@ -17,6 +17,11 @@ async function click(window, selector) {
   await window.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(selector)})?.click()`);
 }
 
+async function openProjectWorkspace(window) {
+  await window.webContents.executeJavaScript(`([...document.querySelectorAll('.workspace-tabs button')].find((button) => button.textContent.trim() === 'PROJEKT' || button.textContent.trim() === 'PROJECT'))?.click()`);
+  await waitFor(window, `document.querySelector('#projectDependenciesBtn')`, 'karta projektu');
+}
+
 async function prepareFixture(window) {
   await waitFor(window, `typeof window.__madcadVerifyLoadTimelineFixture === 'function'`, 'fixture historii');
   await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTimelineFixture()`);
@@ -42,6 +47,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.modeling-shell')`, 'interfejs aplikacji');
     await click(window, '.license-info-dialog button.confirm');
     await prepareFixture(window);
+    await openProjectWorkspace(window);
     await click(window, '#projectDependenciesBtn');
     await waitFor(window, `document.querySelector('.project-dependencies-panel')`, 'panel Gdzie używane');
     await selectFirstSketch(window);
@@ -67,6 +73,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.modeling-shell')`, 'angielski interfejs');
     await click(window, '.license-info-dialog button.confirm');
     await prepareFixture(window);
+    await openProjectWorkspace(window);
     await click(window, '#projectDependenciesBtn');
     await waitFor(window, `document.querySelector('.project-dependencies-panel')?.textContent.includes('WHERE USED')`, 'angielski panel zależności');
     await selectFirstSketch(window);

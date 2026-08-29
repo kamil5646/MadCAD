@@ -234,8 +234,7 @@
   padding: 0 7px;
 }
 
-.app-menu button > span,
-.project-tools-menu > summary > span {
+.app-menu button > span {
   font-size: 9px;
   font-weight: 600;
 }
@@ -264,50 +263,6 @@
 .title-actions button:disabled {
   color: #596572;
   cursor: default;
-}
-
-.project-tools-menu {
-  position: relative;
-  height: 28px;
-  -webkit-app-region: no-drag;
-}
-
-.project-tools-menu > summary {
-  display: inline-flex;
-  height: 28px;
-  align-items: center;
-  gap: 6px;
-  padding: 0 7px;
-  border-radius: 2px;
-  color: #b9c3cc;
-  cursor: pointer;
-  list-style: none;
-}
-
-.project-tools-menu > summary::-webkit-details-marker { display: none; }
-.project-tools-menu > summary:hover,
-.project-tools-menu[open] > summary { background: #3a4552; color: white; }
-
-.project-tools-menu > div {
-  position: absolute;
-  z-index: 90;
-  top: 32px;
-  left: 0;
-  display: grid;
-  width: 190px;
-  gap: 2px;
-  padding: 5px;
-  border: 1px solid #667786;
-  border-radius: 4px;
-  background: #2b3540;
-  box-shadow: 0 12px 30px rgba(5, 10, 16, 0.48);
-}
-
-.app-menu .project-tools-menu > div > button {
-  width: 100%;
-  min-height: 31px;
-  justify-content: flex-start;
-  padding: 0 8px;
 }
 
 .workspace-layout-control { position: relative; height: 28px; -webkit-app-region: no-drag; }

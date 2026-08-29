@@ -18,6 +18,11 @@ async function click(window, selector) {
   await window.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(selector)})?.click()`);
 }
 
+async function openProjectWorkspace(window) {
+  await window.webContents.executeJavaScript(`([...document.querySelectorAll('.workspace-tabs button')].find((button) => button.textContent.trim() === 'PROJEKT' || button.textContent.trim() === 'PROJECT'))?.click()`);
+  await waitFor(window, `document.querySelector('#projectHealthBtn')`, 'karta projektu');
+}
+
 async function prepareSuppressedFeature(window) {
   await waitFor(window, `typeof window.__madcadVerifyLoadTimelineFixture === 'function'`, 'fixture historii');
   await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTimelineFixture()`);
@@ -43,6 +48,7 @@ app.whenReady().then(async () => {
     await click(window, '.license-info-dialog button.confirm');
     await prepareSuppressedFeature(window);
 
+    await openProjectWorkspace(window);
     await click(window, '#projectHealthBtn');
     await waitFor(window, `document.querySelector('.project-health-panel') && document.querySelector('[data-health-issue="FEATURE_SUPPRESSED"]')`, 'panel kondycji z wynikiem');
     const layout = await window.webContents.executeJavaScript(`(() => {
@@ -86,6 +92,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.modeling-shell')`, 'angielski interfejs');
     await click(window, '.license-info-dialog button.confirm');
     await prepareSuppressedFeature(window);
+    await openProjectWorkspace(window);
     await click(window, '#projectHealthBtn');
     await waitFor(window, `document.querySelector('.project-health-panel')?.textContent.includes('PROJECT HEALTH') && document.querySelector('[data-health-issue="FEATURE_SUPPRESSED"]')?.textContent.includes('Suppressed feature')`, 'angielski raport kondycji');
     const englishInspection = await window.webContents.executeJavaScript(`(() => {

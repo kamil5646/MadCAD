@@ -43,7 +43,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSketchDrawingFixture()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.length === 1 && window.__madcadVerifyDocumentState?.bodyIds?.length === 0`, 'czysty szkic 2D');
     const tabs = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.workspace-tabs button')].map((item) => item.textContent.trim())`);
-    if (tabs.join('|') !== 'MODELUJ|ARKUSZ 2D|PROJEKT|PLIKI CAD|DRUK 3D') throw new Error(`Niepoprawny podział obszarów: ${tabs.join('|')}`);
+    if (tabs.join('|') !== 'MODELUJ|EDYCJA 3D|ARKUSZ 2D|KONSTRUKCJA|PROJEKT|PLIKI CAD|DRUK 3D') throw new Error(`Niepoprawny podział obszarów: ${tabs.join('|')}`);
     if (!(await clickText(window, '.workspace-tabs button', 'PROJEKT'))) throw new Error('Brak obszaru PROJEKT.');
     await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'PROJEKT' && document.querySelector('.workspace-guidebar')?.textContent.includes('PROJEKT · ustawienia i kontrola')`, 'objaśnienie obszaru projektu');
     await waitForPaint();

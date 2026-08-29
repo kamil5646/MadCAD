@@ -18,6 +18,11 @@ async function click(window, selector) {
   await window.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(selector)})?.click()`);
 }
 
+async function openProjectWorkspace(window, controlSelector = '#projectSnapshotsBtn') {
+  await window.webContents.executeJavaScript(`([...document.querySelectorAll('.workspace-tabs button')].find((button) => button.textContent.trim() === 'PROJEKT' || button.textContent.trim() === 'PROJECT'))?.click()`);
+  await waitFor(window, `document.querySelector(${JSON.stringify(controlSelector)})`, 'karta projektu');
+}
+
 async function setField(window, selector, value) {
   await window.webContents.executeJavaScript(`(() => {
     const input = document.querySelector(${JSON.stringify(selector)});
@@ -49,6 +54,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTimelineFixture()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.features === 3`, 'projekt z trzema operacjami');
 
+    await openProjectWorkspace(window);
     await click(window, '#projectSnapshotsBtn');
     await waitFor(window, `document.querySelector('.project-snapshots-panel') && !document.querySelector('.project-snapshots-empty')?.textContent.includes('Wczytywanie')`, 'panel punktów zapisu');
     await setField(window, '.project-snapshots-panel input', 'Przed zmianą korpusu');
@@ -111,6 +117,7 @@ app.whenReady().then(async () => {
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'en' } });
     await waitFor(window, `typeof window.__madcadVerifyFindUntranslatedText === 'function'`, 'angielski interfejs');
     await click(window, '.license-info-dialog button.confirm');
+    await openProjectWorkspace(window);
     await click(window, '#projectSnapshotsBtn');
     await waitFor(window, `document.querySelector('.project-snapshots-panel')?.textContent.includes('SAVE POINTS')`, 'angielski panel punktów zapisu');
     const englishPanel = await window.webContents.executeJavaScript(`(() => {

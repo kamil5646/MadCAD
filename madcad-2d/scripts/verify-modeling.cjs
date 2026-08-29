@@ -259,10 +259,17 @@ async function waitForUi(window, expression, label, timeoutMs = 12000) {
 async function runUiFlow(window) {
   const progress = (message) => process.stdout.write(`[verify] ${message}\n`);
   const toolsWorkspaceLabels = new Set([
-    'Parametry', 'Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię', 'Płaszczyzna odsunięta', 'Płaszczyzna środkowa',
+    'Parametry', 'Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię',
+  ]);
+  const constructionWorkspaceLabels = new Set([
+    'Płaszczyzna odsunięta', 'Płaszczyzna środkowa',
     'Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce', 'Oś z krawędzi', 'Oś walca',
     'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum',
     'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi',
+  ]);
+  const modifyWorkspaceLabels = new Set([
+    'Zaokrąglij', 'Fazuj', 'Shell', 'Draft', 'Offset Face', 'Delete Face + Heal', 'Split Body', 'Split Face',
+    'Replace Face', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj',
   ]);
   const exportWorkspaceLabels = new Set(['STEP / STL / 3MF', 'STEP', 'STL', '3MF']);
   const printWorkspaceLabels = new Set(['Panel druku 3D']);
@@ -274,7 +281,7 @@ async function runUiFlow(window) {
   })()`);
   const clickTool = async (label) => {
     if (!await ribbonHasTool(label)) {
-      const workspaceLabel = toolsWorkspaceLabels.has(label) ? 'PROJEKT' : printWorkspaceLabels.has(label) ? 'DRUK 3D' : exportWorkspaceLabels.has(label) ? 'PLIKI CAD' : 'MODELUJ';
+      const workspaceLabel = toolsWorkspaceLabels.has(label) ? 'PROJEKT' : constructionWorkspaceLabels.has(label) ? 'KONSTRUKCJA' : modifyWorkspaceLabels.has(label) ? 'EDYCJA 3D' : printWorkspaceLabels.has(label) ? 'DRUK 3D' : exportWorkspaceLabels.has(label) ? 'PLIKI CAD' : 'MODELUJ';
       await clickWorkspace(workspaceLabel);
       await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)})`, `narzędzie ${label} w obszarze ${workspaceLabel}`);
     }
