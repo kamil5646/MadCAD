@@ -18,7 +18,7 @@ async function click(window, selector) {
 }
 
 async function openProjectWorkspace(window) {
-  await window.webContents.executeJavaScript(`([...document.querySelectorAll('.workspace-tabs button')].find((button) => button.textContent.trim() === 'PROJEKT' || button.textContent.trim() === 'PROJECT'))?.click()`);
+  await window.webContents.executeJavaScript(`([...document.querySelectorAll('.workspace-tabs button')].find((button) => button.textContent.trim() === 'ZARZĄDZAJ' || button.textContent.trim() === 'MANAGE'))?.click()`);
   await waitFor(window, `document.querySelector('#projectDependenciesBtn')`, 'karta projektu');
 }
 

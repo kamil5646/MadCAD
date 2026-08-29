@@ -259,17 +259,13 @@ async function waitForUi(window, expression, label, timeoutMs = 12000) {
 async function runUiFlow(window) {
   const progress = (message) => process.stdout.write(`[verify] ${message}\n`);
   const toolsWorkspaceLabels = new Set([
-    'Parametry', 'Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię',
+    'Parametry',
   ]);
   const constructionWorkspaceLabels = new Set([
     'Płaszczyzna odsunięta', 'Płaszczyzna środkowa',
     'Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce', 'Oś z krawędzi', 'Oś walca',
     'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum',
     'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi',
-  ]);
-  const modifyWorkspaceLabels = new Set([
-    'Zaokrąglij', 'Fazuj', 'Shell', 'Draft', 'Offset Face', 'Delete Face + Heal', 'Split Body', 'Split Face',
-    'Replace Face', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj',
   ]);
   const ribbonHasTool = (label) => window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)})`);
   const clickWorkspace = (workspaceLabel) => window.webContents.executeJavaScript(`(() => {
@@ -278,8 +274,27 @@ async function runUiFlow(window) {
     button.click();
   })()`);
   const clickTool = async (label) => {
+    if (constructionWorkspaceLabels.has(label)) {
+      await clickWorkspace('PROJEKTUJ');
+      const menuLabel = label.startsWith('Płaszczyzna') || ['Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce'].includes(label)
+        ? 'Płaszczyzny'
+        : label.startsWith('Oś ')
+          ? 'Osie'
+          : 'Punkty';
+      await window.webContents.executeJavaScript(`(() => {
+        const button = [...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === ${JSON.stringify(menuLabel)});
+        if (!button) throw new Error('Brak menu konstrukcji: ${menuLabel}');
+        button.click();
+      })()`);
+      await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((item) => item.querySelector('strong')?.textContent === ${JSON.stringify(label)})`, `narzędzie konstrukcyjne ${label}`);
+      return window.webContents.executeJavaScript(`(() => {
+        const button = [...document.querySelectorAll('.ribbon-tool-submenu button')].find((item) => item.querySelector('strong')?.textContent === ${JSON.stringify(label)});
+        if (!button || button.disabled) throw new Error('Nieaktywne narzędzie konstrukcyjne: ${label}');
+        button.click();
+      })()`);
+    }
     if (!await ribbonHasTool(label)) {
-      const workspaceLabel = toolsWorkspaceLabels.has(label) ? 'PROJEKT' : constructionWorkspaceLabels.has(label) ? 'KONSTRUKCJA' : modifyWorkspaceLabels.has(label) ? 'EDYCJA 3D' : 'MODELUJ';
+      const workspaceLabel = toolsWorkspaceLabels.has(label) ? 'ZARZĄDZAJ' : 'PROJEKTUJ';
       await clickWorkspace(workspaceLabel);
       await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)})`, `narzędzie ${label} w obszarze ${workspaceLabel}`);
     }
@@ -2506,7 +2521,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.print-inspector')`, 'obszar przygotowania druku');
 
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === 'MODELUJ');
+    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === 'PROJEKTUJ');
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);

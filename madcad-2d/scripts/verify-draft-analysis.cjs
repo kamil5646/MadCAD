@@ -25,7 +25,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTimelineFixture()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'model testowy');
     await window.webContents.executeJavaScript(`(() => {
-      [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'PROJEKT')?.click();
+      [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'PROJEKTUJ')?.click();
     })()`);
     await waitFor(window, `[...document.querySelectorAll('button')].some((button) => button.textContent.trim() === 'Sprawdź geometrię' && !button.disabled)`, 'przycisk analizy');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Sprawdź geometrię' && !button.disabled).click()`);

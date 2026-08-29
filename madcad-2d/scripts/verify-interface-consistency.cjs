@@ -7,8 +7,8 @@ const modelScreenshotPath = path.join(artifactsDir, '01-model-fixed.png');
 const projectScreenshotPath = path.join(artifactsDir, '02-project-fixed.png');
 const drawingScreenshotPath = path.join(artifactsDir, '03-drawing-fixed.png');
 const overflowScreenshotPath = path.join(artifactsDir, '04-visible-more-menu.png');
-const modifyScreenshotPath = path.join(artifactsDir, '05-edit-3d-fixed.png');
-const constructionScreenshotPath = path.join(artifactsDir, '06-construction-fixed.png');
+const designScreenshotPath = path.join(artifactsDir, '05-design-unified.png');
+const constructionScreenshotPath = path.join(artifactsDir, '06-construction-menu.png');
 const fileMenuScreenshotPath = path.join(artifactsDir, '07-file-menu-fixed.png');
 
 async function waitFor(window, expression, label, timeoutMs = 45000) {
@@ -33,8 +33,8 @@ async function ribbonGroups(window) {
 }
 
 app.whenReady().then(async () => {
-  const window = new BrowserWindow({ width: 1500, height: 940, show: true, webPreferences: { partition: `madcad-consistency-${Date.now()}` } });
-  window.setContentSize(1500, 877);
+  const window = new BrowserWindow({ width: 2200, height: 940, show: true, webPreferences: { partition: `madcad-consistency-${Date.now()}` } });
+  window.setContentSize(2200, 877);
   try {
     await fs.mkdir(artifactsDir, { recursive: true });
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
@@ -44,7 +44,7 @@ app.whenReady().then(async () => {
 
     const emptyModelGroups = await ribbonGroups(window);
     const tabs = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.workspace-tabs button')].map((item) => item.textContent.trim())`);
-    const expectedTabs = ['MODELUJ', 'EDYCJA 3D', 'ARKUSZ 2D', 'KONSTRUKCJA', 'PROJEKT'];
+    const expectedTabs = ['PROJEKTUJ', 'ARKUSZ 2D', 'ZARZĄDZAJ'];
     if (tabs.join('|') !== expectedTabs.join('|')) throw new Error(`Nielogiczny podział obszarów: ${tabs.join('|')}`);
 
     await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
@@ -68,39 +68,50 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.file-backstage header button')?.click()`);
     await waitFor(window, `!document.querySelector('.file-backstage')`, 'zamknięcie menu Plik');
 
-    const expectedModelGroups = ['1 · SZKIC', '2 · UTWÓRZ BRYŁĘ', '3 · OPERACJE BRYŁOWE', 'TRYB'];
+    const expectedModelGroups = ['UTWÓRZ', 'DODAJ', 'MODYFIKUJ', 'OPERACJE', 'POŁOŻENIE', 'KONSTRUKCJA', 'SPRAWDŹ'];
     if (emptyModelGroups.join('|') !== expectedModelGroups.join('|')) throw new Error(`Niestabilny pusty obszar modelowania: ${emptyModelGroups.join('|')}`);
+    const designStructure = await window.webContents.executeJavaScript(`(() => ({
+      legacyTabsRemoved: ![...document.querySelectorAll('.workspace-tabs button')].some((item) => ['MODELUJ', 'EDYCJA 3D', 'KONSTRUKCJA', 'PROJEKT'].includes(item.textContent.trim())),
+      selectionModeGroupRemoved: ![...document.querySelectorAll('.ribbon-group')].some((item) => item.getAttribute('aria-label') === 'TRYB'),
+      constructionMenus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
+      customCadIcons: document.querySelectorAll('.ribbon-tool svg path').length > 25,
+    }))()`);
+    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.constructionMenus.join('|') !== 'Płaszczyzny|Osie|Punkty' || !designStructure.customCadIcons) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
 
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTimelineFixture()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'model testowy');
     const loadedModelGroups = await ribbonGroups(window);
     if (loadedModelGroups.join('|') !== emptyModelGroups.join('|')) throw new Error(`Grupy modelowania zmieniły położenie po wczytaniu bryły: ${loadedModelGroups.join('|')}`);
     await fs.writeFile(modelScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    await fs.writeFile(designScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
-    if (!(await clickText(window, '.workspace-tabs button', 'EDYCJA 3D'))) throw new Error('Brak karty EDYCJA 3D.');
-    await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'EDYCJA 3D'`, 'karta edycji 3D');
-    const modifyGroups = await ribbonGroups(window);
-    const expectedModifyGroups = ['MODYFIKUJ', 'PODZIEL I NAPRAW', 'POŁOŻENIE', 'TRYB'];
-    if (modifyGroups.join('|') !== expectedModifyGroups.join('|')) throw new Error(`Nielogiczna karta edycji 3D: ${modifyGroups.join('|')}`);
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    await fs.writeFile(modifyScreenshotPath, (await window.webContents.capturePage()).toPNG());
-
-    if (!(await clickText(window, '.workspace-tabs button', 'KONSTRUKCJA'))) throw new Error('Brak karty KONSTRUKCJA.');
-    await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'KONSTRUKCJA'`, 'karta konstrukcji');
-    const constructionGroups = await ribbonGroups(window);
-    const expectedConstructionGroups = ['PŁASZCZYZNY', 'OSIE', 'PUNKTY'];
-    if (constructionGroups.join('|') !== expectedConstructionGroups.join('|')) throw new Error(`Nielogiczna karta konstrukcji: ${constructionGroups.join('|')}`);
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    if (!(await clickText(window, '.ribbon-tool-menu-trigger', 'Płaszczyzny'))) throw new Error('Brak menu Płaszczyzny.');
+    await waitFor(window, `document.querySelector('.ribbon-tool-submenu')`, 'menu konstrukcji');
+    const constructionMenu = await window.webContents.executeJavaScript(`(() => {
+      const menu = document.querySelector('.ribbon-tool-submenu');
+      const rect = menu.getBoundingClientRect();
+      const topElement = document.elementFromPoint(rect.x + 10, rect.y + 10);
+      return {
+        items: [...menu.querySelectorAll('strong')].map((item) => item.textContent.trim()),
+        visible: rect.width > 250 && rect.height > 100 && rect.top >= 0 && rect.bottom <= innerHeight,
+        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        topElement: topElement?.className || topElement?.tagName,
+        onTop: Boolean(topElement && menu.contains(topElement)),
+      };
+    })()`);
+    if (constructionMenu.items.join('|') !== 'Płaszczyzna odsunięta|Płaszczyzna środkowa|Przez 3 punkty|Pod kątem|Styczna|Na ścieżce' || !constructionMenu.visible || !constructionMenu.onTop) throw new Error(`Niepełne lub niewidoczne menu płaszczyzn: ${JSON.stringify(constructionMenu)}`);
+    await new Promise((resolve) => setTimeout(resolve, 200));
     await fs.writeFile(constructionScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    await clickText(window, '.ribbon-tool-menu-trigger', 'Płaszczyzny');
 
-    if (!(await clickText(window, '.workspace-tabs button', 'PROJEKT'))) throw new Error('Brak karty PROJEKT.');
-    await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'PROJEKT'`, 'karta projektu');
+    if (!(await clickText(window, '.workspace-tabs button', 'ZARZĄDZAJ'))) throw new Error('Brak karty ZARZĄDZAJ.');
+    await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'ZARZĄDZAJ'`, 'karta zarządzania');
     const project = await window.webContents.executeJavaScript(`(() => ({
       topMenuRemoved: !document.querySelector('.project-tools-menu'),
       controls: ['projectSnapshotsBtn', 'projectComparisonBtn', 'projectHealthBtn', 'projectDependenciesBtn'].map((id) => ({ id, inRibbon: Boolean(document.querySelector('.modeling-ribbon #' + id)) })),
       groups: [...document.querySelectorAll('.modeling-ribbon .ribbon-group')].map((item) => item.getAttribute('aria-label')),
     }))()`);
-    const expectedProjectGroups = ['USTAWIENIA PROJEKTU', 'WERSJE I KONTROLA', 'STRUKTURA', 'SPRAWDŹ MODEL', 'WIDOK'];
+    const expectedProjectGroups = ['PARAMETRY', 'WERSJE', 'KONTROLA', 'STRUKTURA', 'WIDOK'];
     if (!project.topMenuRemoved || project.controls.some((item) => !item.inRibbon) || project.groups.join('|') !== expectedProjectGroups.join('|')) throw new Error(`Narzędzia projektu nadal są pochowane lub pomieszane: ${JSON.stringify(project)}`);
     await new Promise((resolve) => setTimeout(resolve, 200));
     await fs.writeFile(projectScreenshotPath, (await window.webContents.capturePage()).toPNG());
@@ -136,7 +147,7 @@ app.whenReady().then(async () => {
     if (!/^Więcej \(\d+\)$/.test(overflow.label) || !overflow.title.includes('Pokaż ukryte grupy:') || overflow.sections.length !== overflow.hiddenGroups) throw new Error(`Nieczytelne menu pozostałych narzędzi: ${JSON.stringify(overflow)}`);
     await fs.writeFile(overflowScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
-    process.stdout.write(`${JSON.stringify({ ok: true, tabs, fileMenu, emptyModelGroups, loadedModelGroups, modifyGroups, constructionGroups, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, modifyScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, tabs, fileMenu, designStructure, emptyModelGroups, loadedModelGroups, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { ChevronDown, MoreHorizontal } from 'lucide-react';
+import { translateModelingText } from './i18n.js';
 import { formatShortcut } from './platform-shortcuts.js';
 
 const TOOL_DESCRIPTIONS = {
@@ -201,6 +202,50 @@ export function ToolButton({ id, icon: Icon, label, onClick, disabled = false, p
   );
 }
 
+export function ToolMenuButton({ icon: Icon, label, items, disabled = false, description }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (event) => { if (!menuRef.current?.contains(event.target)) setOpen(false); };
+    const closeWithEscape = (event) => { if (event.key === 'Escape') setOpen(false); };
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', closeWithEscape);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', closeWithEscape);
+    };
+  }, [open]);
+  return (
+    <span className="ribbon-tool-wrap ribbon-tool-menu-wrap" ref={menuRef}>
+      <button
+        className={`ribbon-tool ribbon-tool-menu-trigger ${open ? 'primary' : ''}`}
+        style={toolColorStyle(items[0]?.label || label)}
+        type="button"
+        disabled={disabled}
+        title={description || label}
+        aria-label={`${label}. ${description || 'Pokaż dostępne polecenia.'}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className="ribbon-icon" aria-hidden="true"><ToolGlyph icon={Icon} /></span>
+        <span className="ribbon-label">{label}<ChevronDown size={10} /></span>
+      </button>
+      {open && <div className="ribbon-tool-submenu" role="menu" aria-label={label}>
+        {items.map((item) => {
+          const ItemIcon = item.icon;
+          const help = item.description || TOOL_DESCRIPTIONS[item.label] || item.label;
+          return <button key={item.label} type="button" role="menuitem" disabled={item.disabled} title={help} onClick={(event) => { item.onClick?.(event); setOpen(false); }}>
+            <span style={toolColorStyle(item.label)} aria-hidden="true"><ToolGlyph icon={ItemIcon} compact /></span>
+            <span><strong>{item.label}</strong><small>{help}</small></span>
+          </button>;
+        })}
+      </div>}
+    </span>
+  );
+}
+
 export const RibbonGroup = React.forwardRef(function RibbonGroup({ children, end = false, hidden = false, label }, ref) {
   return (
     <div ref={ref} className={`ribbon-group ${end ? 'ribbon-group-end' : ''}`} role="group" aria-label={label} hidden={hidden}>
@@ -241,8 +286,19 @@ export function calculateVisibleRibbonGroups(widths, availableWidth, stickyIndic
 
 function RibbonOverflowTool({ tool, onSelect }) {
   if (!React.isValidElement(tool)) return null;
-  const { disabled = false, icon: Icon, label, onClick, description, title } = tool.props;
+  const { disabled = false, icon: Icon, label, onClick, description, title, items } = tool.props;
   const help = description || title || TOOL_DESCRIPTIONS[label] || label;
+  if (items?.length) return (
+    <div className="ribbon-overflow-submenu" role="none">
+      <strong><span className="ribbon-overflow-icon" aria-hidden="true"><ToolGlyph icon={Icon} compact /></span>{label}</strong>
+      {items.map((item) => {
+        const ItemIcon = item.icon;
+        return <button key={item.label} className="ribbon-overflow-tool" style={toolColorStyle(item.label)} type="button" role="menuitem" disabled={item.disabled} onClick={(event) => { item.onClick?.(event); onSelect(); }}>
+          <span className="ribbon-overflow-icon" aria-hidden="true"><ToolGlyph icon={ItemIcon} compact /></span><span>{item.label}</span>
+        </button>;
+      })}
+    </div>
+  );
   return (
     <button
       className="ribbon-overflow-tool"
@@ -262,9 +318,10 @@ function RibbonOverflowTool({ tool, onSelect }) {
   );
 }
 
-function RibbonOverflow({ groups }) {
+function RibbonOverflow({ groups, language = 'pl' }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
+  const translatedGroupLabels = groups.map((group) => translateModelingText(group.props.label, language));
   useEffect(() => {
     if (!open) return undefined;
     const close = (event) => {
@@ -288,11 +345,11 @@ function RibbonOverflow({ groups }) {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        title={`Pokaż ukryte grupy: ${groups.map((group) => group.props.label).join(', ')}`}
+        title={`${language === 'en' ? 'Show hidden groups' : 'Pokaż ukryte grupy'}: ${translatedGroupLabels.join(', ')}`}
         onClick={() => setOpen((current) => !current)}
       >
         <MoreHorizontal size={20} aria-hidden="true" />
-        <span>Więcej ({groups.length})</span>
+        <span>{language === 'en' ? 'More' : 'Więcej'} ({groups.length})</span>
       </button>
       {open && (
         <div className={`ribbon-overflow-menu ${groups.length === 1 ? 'single-group' : ''}`} role="menu" aria-label="Pozostałe grupy narzędzi">
@@ -312,7 +369,7 @@ function RibbonOverflow({ groups }) {
   );
 }
 
-export function ResponsiveRibbon({ children }) {
+export function ResponsiveRibbon({ children, language = 'pl' }) {
   const groups = flattenRibbonGroups(children);
   const groupSignature = groups.map((group) => `${group.props.label}:${group.props.end ? '1' : '0'}`).join('|');
   const groupCount = groups.length;
@@ -364,7 +421,7 @@ export function ResponsiveRibbon({ children }) {
           hidden: !visibleIndices.has(index),
         }))}
       </div>
-      <RibbonOverflow groups={hiddenGroups} />
+      <RibbonOverflow groups={hiddenGroups} language={language} />
       <div className="ribbon-sticky-groups">
         {groups.map((group, index) => stickyIndices.has(index) ? React.cloneElement(group, {
           key: `sticky-${group.key || `${group.props.label}-${index}`}`,

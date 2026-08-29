@@ -43,9 +43,9 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSketchDrawingFixture()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.length === 1 && window.__madcadVerifyDocumentState?.bodyIds?.length === 0`, 'czysty szkic 2D');
     const tabs = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.workspace-tabs button')].map((item) => item.textContent.trim())`);
-    if (tabs.join('|') !== 'MODELUJ|EDYCJA 3D|ARKUSZ 2D|KONSTRUKCJA|PROJEKT') throw new Error(`Niepoprawny podział obszarów: ${tabs.join('|')}`);
-    if (!(await clickText(window, '.workspace-tabs button', 'PROJEKT'))) throw new Error('Brak obszaru PROJEKT.');
-    await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'PROJEKT' && document.querySelector('.workspace-guidebar')?.textContent.includes('PROJEKT · ustawienia i kontrola')`, 'objaśnienie obszaru projektu');
+    if (tabs.join('|') !== 'PROJEKTUJ|ARKUSZ 2D|ZARZĄDZAJ') throw new Error(`Niepoprawny podział obszarów: ${tabs.join('|')}`);
+    if (!(await clickText(window, '.workspace-tabs button', 'ZARZĄDZAJ'))) throw new Error('Brak obszaru ZARZĄDZAJ.');
+    await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'ZARZĄDZAJ' && document.querySelector('.workspace-guidebar')?.textContent.includes('ZARZĄDZAJ · projekt i jego historia')`, 'objaśnienie obszaru zarządzania');
     await waitForPaint();
     await fs.writeFile(projectScreenshotPath, (await window.webContents.capturePage()).toPNG());
     if (!(await clickText(window, '.workspace-tabs button', 'ARKUSZ 2D'))) throw new Error('Brak obszaru ARKUSZ 2D.');
@@ -79,7 +79,7 @@ app.whenReady().then(async () => {
     await fs.writeFile(cadScreenshotPath, (await window.webContents.capturePage()).toPNG());
     if (state.bodies !== 0 || state.viewType !== 'sketch' || !state.sketchId || state.lineCount !== 4 || state.association !== 'Aktualizowane z widokiem źródłowym' || !state.dimension?.startsWith('80.00') || !state.pdfEnabled || !state.dxfEnabled || !state.allFileActionsPresent) throw new Error(`Niepoprawny wydruk szkicu 2D: ${JSON.stringify(state)}`);
     await window.webContents.executeJavaScript(`document.querySelector('#filePrint3dBtn')?.click()`);
-    await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'MODELUJ' && document.querySelector('.print-panel') && ![...document.querySelectorAll('.workspace-tabs button')].some((item) => ['PLIKI CAD', 'DRUK 3D'].includes(item.textContent.trim()))`, 'panel druku 3D z menu Plik');
+    await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'PROJEKTUJ' && document.querySelector('.print-panel') && ![...document.querySelectorAll('.workspace-tabs button')].some((item) => ['PLIKI CAD', 'DRUK 3D'].includes(item.textContent.trim()))`, 'panel druku 3D z menu Plik');
     await waitForPaint();
     await fs.writeFile(printScreenshotPath, (await window.webContents.capturePage()).toPNG());
     process.stdout.write(`${JSON.stringify({ screenshotPath, projectScreenshotPath, cadScreenshotPath, printScreenshotPath, tabs, centralFileMenu: true, ...state }, null, 2)}\n`);
