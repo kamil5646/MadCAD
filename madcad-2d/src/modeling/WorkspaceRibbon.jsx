@@ -148,7 +148,7 @@ function shortcutLabel(shortcut) {
 
 
 function ToolGlyph({ icon: Icon, compact = false, featured = false }) {
-  const size = compact ? 22 : featured ? 42 : 34;
+  const size = compact ? 22 : featured ? 34 : 29;
   return (
     <span className="ribbon-glyph">
       <Icon className="ribbon-glyph-depth" size={size} strokeWidth={2.7} fill="currentColor" fillOpacity={0.32} aria-hidden="true" />
