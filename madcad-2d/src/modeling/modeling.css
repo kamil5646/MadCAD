@@ -321,7 +321,7 @@
 
 .file-backstage-content { display: grid; align-content: start; gap: 10px; overflow-y: auto; padding: 10px 10px 18px; }
 .file-backstage-content section { display: grid; gap: 2px; }
-.file-backstage-content h2 { margin: 0 0 2px 6px; color: #9eacb8; font-size: 8.5px; letter-spacing: 0.12em; }
+.file-backstage-content h2 { margin: 0 0 2px 6px; color: #b7c4ce; font-size: 9.5px; letter-spacing: 0.1em; }
 .file-backstage-content section > button {
   display: grid;
   width: 100%;
@@ -338,11 +338,11 @@
   cursor: pointer;
 }
 .file-backstage-content section > button:hover:not(:disabled) { border-color: #5ca8c0; background: #364653; }
-.file-backstage-content section > button:disabled { color: #71808b; cursor: default; opacity: 0.58; }
+.file-backstage-content section > button:disabled { color: #8e9ca7; cursor: default; opacity: 0.72; }
 .file-backstage-content section > button > svg { width: 19px; height: 19px; color: #63cceb; }
 .file-backstage-content section > button > span { display: grid; min-width: 0; gap: 2px; }
 .file-backstage-content section > button strong { font-size: 10.5px; }
-.file-backstage-content section > button small { color: #aebbc5; font-size: 8.5px; line-height: 1.25; }
+.file-backstage-content section > button small { color: #b8c4cd; font-size: 9px; line-height: 1.25; }
 .file-backstage-content .file-backstage-print > button { grid-template-columns: 24px minmax(0, 1fr) 18px; border-color: #4b99b2; background: #304754; }
 .file-backstage-content .file-backstage-print > button > svg:last-child { color: #d7f6ff; }
 
@@ -429,6 +429,64 @@
   font-size: 11px;
 }
 
+.app-help-menu {
+  position: relative;
+  height: 100%;
+}
+
+.app-help-menu summary {
+  display: flex;
+  min-width: 30px;
+  height: 100%;
+  padding: 0 8px;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: #cbd5dd;
+  cursor: pointer;
+  list-style: none;
+}
+
+.app-help-menu summary::-webkit-details-marker { display: none; }
+.app-help-menu summary:hover,
+.app-help-menu[open] summary { border-color: #546476; background: #3d4b5a; color: white; }
+.app-help-menu[open] summary > svg:last-child { transform: rotate(180deg); }
+
+.app-help-menu > div {
+  position: absolute;
+  z-index: 100;
+  top: 34px;
+  right: 0;
+  display: grid;
+  width: 210px;
+  padding: 6px;
+  gap: 3px;
+  border: 1px solid #667789;
+  border-radius: 5px;
+  background: #2c3743;
+  box-shadow: 0 14px 32px rgba(4, 9, 14, 0.52);
+}
+
+.app-help-menu > div > button,
+.app-help-menu .language-select {
+  display: grid;
+  min-height: 32px;
+  padding: 5px 7px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: #e3eaf0;
+  text-align: left;
+}
+
+.app-help-menu > div > button:hover { border-color: #5d7083; background: #3f4d5b; }
+.app-help-menu .language-select { grid-template-columns: minmax(0, 1fr) 96px; border-top-color: #4f5d6a; }
+.app-help-menu .language-select select { width: 100%; }
+
 @media (max-width: 1380px) {
   .title-actions button {
     width: 30px;
@@ -439,6 +497,8 @@
   .title-actions button span {
     display: none;
   }
+
+  .app-help-menu summary span { display: none; }
 
   .document-tab {
     min-width: 280px;
@@ -733,8 +793,8 @@
   justify-content: center;
   border: 0;
   background: transparent;
-  color: #b7c3ce;
-  font-size: 9px;
+  color: #c5d0d9;
+  font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.075em;
   line-height: 11px;
@@ -821,7 +881,7 @@
 }
 
 .ribbon-tool-submenu > button:disabled {
-  opacity: 0.45;
+  opacity: 0.7;
   cursor: default;
 }
 
@@ -843,7 +903,7 @@
 
 .ribbon-tool-submenu small {
   overflow: hidden;
-  color: #aab5c0;
+  color: #bac6ce;
   font-size: 9.5px;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -945,7 +1005,7 @@
 .ribbon-tool:disabled {
   border-color: transparent;
   background: transparent;
-  color: #8795a3;
+  color: #9ca9b4;
   box-shadow: none;
   cursor: default;
 }
@@ -964,7 +1024,7 @@
 .ribbon-glyph { position: relative; display: block; width: 100%; height: 100%; }
 .ribbon-glyph svg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
 .ribbon-glyph-depth { color: rgba(7, 13, 20, 0.78); opacity: 0.72; transform: translate(calc(-50% + 1.2px), calc(-50% + 1.5px)) !important; }
-.ribbon-glyph-face { filter: drop-shadow(0 1px 1px rgba(2, 8, 13, 0.38)); }
+.ribbon-glyph-face { filter: drop-shadow(0 1px 1px rgba(2, 8, 13, 0.28)); }
 .ribbon-tool:not(.featured) .ribbon-icon svg { width: 25px; height: 25px; }
 .ribbon-tool.featured .ribbon-icon { width: 38px; height: 34px; }
 
@@ -986,7 +1046,7 @@
 
 .ribbon-tool:disabled .ribbon-icon {
   filter: none;
-  opacity: 0.72;
+  opacity: 0.8;
 }
 
 .ribbon-label {
@@ -2063,14 +2123,14 @@
   position: absolute;
   z-index: 5;
   bottom: 9px;
-  left: 50%;
+  right: 14px;
   display: flex;
   gap: 1px;
   padding: 2px;
   border: 1px solid #5a6572;
   border-radius: 2px;
   background: rgba(47, 56, 68, 0.92);
-  transform: translateX(-50%);
+  transform: none;
 }
 
 .navigation-bar button {
@@ -4021,6 +4081,48 @@
   max-height: calc(100% - 28px);
   overflow: hidden;
 }
+
+.command-customization-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #596573;
+  background: #34404d;
+}
+
+.command-customization-filters label:first-child {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  border: 1px solid #647381;
+  border-radius: 3px;
+  background: #26313d;
+  color: #9eacb7;
+}
+
+.command-customization-filters svg { justify-self: center; }
+.command-customization-filters input,
+.command-customization-filters select {
+  width: 100%;
+  height: 28px;
+  min-width: 0;
+  border: 1px solid #647381;
+  border-radius: 3px;
+  background: #26313d;
+  color: #eef3f7;
+  font: 10px/1.2 inherit;
+}
+
+.command-customization-filters input {
+  height: 26px;
+  padding: 0 7px 0 0;
+  border: 0;
+  outline: 0;
+}
+
+.command-customization-filters select { padding: 0 6px; }
+.command-customization-empty { margin: 18px 8px; color: #aebbc5; font-size: 10px; text-align: center; }
 
 .command-customization-intro {
   padding: 9px 10px 6px;

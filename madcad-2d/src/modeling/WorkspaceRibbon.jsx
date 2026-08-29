@@ -148,17 +148,20 @@ function shortcutLabel(shortcut) {
 
 
 function ToolGlyph({ icon: Icon, compact = false, featured = false }) {
-  const size = compact ? 22 : featured ? 34 : 29;
+  const size = compact ? 21 : featured ? 32 : 27;
   return (
     <span className="ribbon-glyph">
-      <Icon className="ribbon-glyph-depth" size={size} strokeWidth={2.7} fill="currentColor" fillOpacity={0.32} aria-hidden="true" />
-      <Icon className="ribbon-glyph-face" size={size} strokeWidth={1.8} fill="currentColor" fillOpacity={0.24} aria-hidden="true" />
+      <Icon className="ribbon-glyph-depth" size={size} strokeWidth={2.35} fill="currentColor" fillOpacity={0.12} aria-hidden="true" />
+      <Icon className="ribbon-glyph-face" size={size} strokeWidth={1.85} fill="currentColor" fillOpacity={0.08} aria-hidden="true" />
     </span>
   );
 }
 
-export function ToolButton({ id, icon: Icon, label, onClick, disabled = false, primary = false, compact = false, title, description }) {
+export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClick, disabled = false, primary = false, compact = false, title, description, disabledReason }) {
   const help = description || title || TOOL_DESCRIPTIONS[label] || label;
+  const contextualHelp = disabled
+    ? `${disabledReason ? `Niedostępne. ${disabledReason}` : 'Niedostępne w bieżącym kontekście.'} ${help}`
+    : help;
   const featured = FEATURED_TOOL_LABELS.has(label);
   const toolHelp = React.useContext(ToolHelpContext);
   const customCommand = toolHelp?.customizationForTool?.(label) || null;
@@ -176,15 +179,15 @@ export function ToolButton({ id, icon: Icon, label, onClick, disabled = false, p
   const showHelp = (event) => {
     const rect = event.currentTarget.getBoundingClientRect();
     toolHelp?.setToolHelp({
-      label,
-      help,
+      label: displayLabel,
+      help: contextualHelp,
       shortcut: shortcut ? shortcutLabel(shortcut) : null,
       x: Math.min(window.innerWidth - 184, Math.max(184, rect.left + (rect.width / 2))),
       y: rect.bottom + 8,
     });
   };
   return (
-    <span className={`ribbon-tool-wrap ${featured ? 'featured' : ''}`} onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
+    <span className={`ribbon-tool-wrap ${featured ? 'featured' : ''} ${disabled ? 'disabled' : ''}`} onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
       <button
         id={id}
         className={`ribbon-tool ${featured ? 'featured' : ''} ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
@@ -192,17 +195,18 @@ export function ToolButton({ id, icon: Icon, label, onClick, disabled = false, p
         type="button"
         onClick={onClick}
         disabled={disabled}
-        title={`${help}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`}
-        aria-label={`${label}. ${help}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`}
+        data-tool-label={label}
+        title={`${contextualHelp}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`}
+        aria-label={`${displayLabel}. ${contextualHelp}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`}
       >
         <span className="ribbon-icon" aria-hidden="true"><ToolGlyph icon={Icon} compact={compact} featured={featured} /></span>
-        <span className="ribbon-label">{label}</span>
+        <span className="ribbon-label">{displayLabel}</span>
       </button>
     </span>
   );
 }
 
-export function ToolMenuButton({ icon: Icon, label, items, disabled = false, description }) {
+export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items, disabled = false, description }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
   const itemsRef = useRef(items);
@@ -244,25 +248,30 @@ export function ToolMenuButton({ icon: Icon, label, items, disabled = false, des
         style={toolColorStyle(items[0]?.label || label)}
         type="button"
         disabled={disabled}
-        title={description || label}
-        aria-label={`${label}. ${description || 'Pokaż dostępne polecenia.'}`}
+        data-tool-label={label}
+        title={description || displayLabel}
+        aria-label={`${displayLabel}. ${description || 'Pokaż dostępne polecenia.'}`}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
         <span className="ribbon-icon" aria-hidden="true"><ToolGlyph icon={Icon} /></span>
-        <span className="ribbon-label">{label}<ChevronDown size={10} /></span>
+        <span className="ribbon-label">{displayLabel}<ChevronDown size={10} /></span>
       </button>
-      {open && <div className="ribbon-tool-submenu" role="menu" aria-label={label}>
+      {open && <div className="ribbon-tool-submenu" role="menu" aria-label={displayLabel}>
         {items.map((item) => {
           const ItemIcon = item.icon;
           const help = item.description || TOOL_DESCRIPTIONS[item.label] || item.label;
           const customCommand = toolHelp?.customizationForTool?.(item.label) || null;
           const shortcut = customCommand ? (customCommand.shortcut || customCommand.alias) : (TOOL_SHORTCUTS[item.label] || null);
           const fullHelp = `${help}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`;
-          return <button key={item.label} type="button" role="menuitem" disabled={item.disabled} title={fullHelp} aria-label={`${item.label}. ${fullHelp}`} onClick={(event) => { item.onClick?.(event); setOpen(false); }}>
+          const itemDisplayLabel = item.displayLabel || item.label;
+          const itemHelp = item.disabled
+            ? `${item.disabledReason ? `Niedostępne. ${item.disabledReason}` : 'Niedostępne w bieżącym kontekście.'} ${fullHelp}`
+            : fullHelp;
+          return <button key={item.label} data-tool-label={item.label} type="button" role="menuitem" disabled={item.disabled} title={itemHelp} aria-label={`${itemDisplayLabel}. ${itemHelp}`} onClick={(event) => { item.onClick?.(event); setOpen(false); }}>
             <span style={toolColorStyle(item.label)} aria-hidden="true"><ToolGlyph icon={ItemIcon} compact /></span>
-            <span><strong>{item.label}</strong><small>{help}</small></span>
+            <span><strong>{itemDisplayLabel}</strong><small>{item.disabled && item.disabledReason ? item.disabledReason : help}</small></span>
           </button>;
         })}
       </div>}
@@ -310,15 +319,15 @@ export function calculateVisibleRibbonGroups(widths, availableWidth, stickyIndic
 
 function RibbonOverflowTool({ tool, onSelect }) {
   if (!React.isValidElement(tool)) return null;
-  const { disabled = false, icon: Icon, label, onClick, description, title, items } = tool.props;
+  const { disabled = false, icon: Icon, label, displayLabel = label, onClick, description, title, items } = tool.props;
   const help = description || title || TOOL_DESCRIPTIONS[label] || label;
   if (items?.length) return (
     <div className="ribbon-overflow-submenu" role="none">
-      <strong><span className="ribbon-overflow-icon" aria-hidden="true"><ToolGlyph icon={Icon} compact /></span>{label}</strong>
+      <strong><span className="ribbon-overflow-icon" aria-hidden="true"><ToolGlyph icon={Icon} compact /></span>{displayLabel}</strong>
       {items.map((item) => {
         const ItemIcon = item.icon;
-        return <button key={item.label} className="ribbon-overflow-tool" style={toolColorStyle(item.label)} type="button" role="menuitem" disabled={item.disabled} onClick={(event) => { item.onClick?.(event); onSelect(); }}>
-          <span className="ribbon-overflow-icon" aria-hidden="true"><ToolGlyph icon={ItemIcon} compact /></span><span>{item.label}</span>
+        return <button key={item.label} data-tool-label={item.label} className="ribbon-overflow-tool" style={toolColorStyle(item.label)} type="button" role="menuitem" disabled={item.disabled} onClick={(event) => { item.onClick?.(event); onSelect(); }}>
+          <span className="ribbon-overflow-icon" aria-hidden="true"><ToolGlyph icon={ItemIcon} compact /></span><span>{item.displayLabel || item.label}</span>
         </button>;
       })}
     </div>
@@ -326,6 +335,7 @@ function RibbonOverflowTool({ tool, onSelect }) {
   return (
     <button
       className="ribbon-overflow-tool"
+      data-tool-label={label}
       style={toolColorStyle(label)}
       type="button"
       role="menuitem"
@@ -337,7 +347,7 @@ function RibbonOverflowTool({ tool, onSelect }) {
       }}
     >
       {Icon && <span className="ribbon-overflow-icon" aria-hidden="true"><ToolGlyph icon={Icon} compact /></span>}
-      <span>{label}</span>
+      <span>{displayLabel}</span>
     </button>
   );
 }

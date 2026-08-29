@@ -31,6 +31,15 @@ async function setInput(window, selector, value) {
   })()`);
 }
 
+async function setSelect(window, selector, value) {
+  await window.webContents.executeJavaScript(`(() => {
+    const select = document.querySelector(${JSON.stringify(selector)});
+    if (!select) throw new Error('Brak listy: ' + ${JSON.stringify(selector)});
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, ${JSON.stringify(value)});
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+}
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({ width: 1440, height: 900, show: true, webPreferences: { partition: `madcad-command-settings-${Date.now()}` } });
   window.setContentSize(1440, 837);
@@ -41,6 +50,20 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
     await window.webContents.executeJavaScript(`document.querySelector('#commandShortcutsBtn')?.click()`);
     await waitFor(window, `document.querySelector('.command-customization-panel')`, 'panel skrótów');
+
+    const initialRows = await window.webContents.executeJavaScript(`document.querySelectorAll('.command-customization-row').length`);
+    await setInput(window, '.command-customization-filters input[type="search"]', 'Wyciągnij');
+    await waitFor(window, `document.querySelectorAll('.command-customization-row').length > 0 && document.querySelectorAll('.command-customization-row').length < ${initialRows}`, 'filtrowanie poleceń wyszukiwarką');
+    const searchFilter = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.command-customization-row strong')].every((item) => item.textContent.includes('Wyciągnij'))`);
+    await setInput(window, '.command-customization-filters input[type="search"]', '');
+    await waitFor(window, `document.querySelectorAll('.command-customization-row').length === ${initialRows}`, 'czyszczenie wyszukiwarki');
+    const firstCategory = await window.webContents.executeJavaScript(`document.querySelector('.command-customization-filters select option:nth-child(2)')?.value`);
+    if (!firstCategory) throw new Error('Brak kategorii poleceń do filtrowania.');
+    await setSelect(window, '.command-customization-filters select', firstCategory);
+    await waitFor(window, `document.querySelectorAll('.command-customization-category').length === 1 && document.querySelectorAll('.command-customization-row').length > 0`, 'filtrowanie poleceń kategorią');
+    const categoryFilter = await window.webContents.executeJavaScript(`document.querySelector('.command-customization-category h3')?.textContent === ${JSON.stringify(firstCategory)}`);
+    await setSelect(window, '.command-customization-filters select', 'WSZYSTKIE');
+    await waitFor(window, `document.querySelectorAll('.command-customization-row').length === ${initialRows}`, 'przywracanie wszystkich kategorii');
 
     await setInput(window, 'input[aria-label="Alias polecenia Linia"]', 'XL');
     await setInput(window, 'input[aria-label="Klawisz polecenia Linia"]', 'G');
@@ -76,8 +99,8 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#madcad-command-line').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
     await waitFor(window, `window.__madcadVerifyDocumentState.command?.type === 'line'`, 'niestandardowy alias XL');
 
-    const result = { screenshotPath, ...layout, conflictRejected: true, persisted: true, directKey: true, alias: true, tooltip: true, helpKey: true, snapKey: true };
-    if (layout.rows < 45 || layout.categories < 5 || layout.essentials < 6 || !layout.insideViewport || layout.horizontalOverflow) throw new Error(`Niepoprawny panel skrótów: ${JSON.stringify(result)}`);
+    const result = { screenshotPath, ...layout, searchFilter, categoryFilter, conflictRejected: true, persisted: true, directKey: true, alias: true, tooltip: true, helpKey: true, snapKey: true };
+    if (layout.rows < 45 || layout.categories < 5 || layout.essentials < 6 || !layout.insideViewport || layout.horizontalOverflow || !searchFilter || !categoryFilter) throw new Error(`Niepoprawny panel skrótów: ${JSON.stringify(result)}`);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     app.exit(0);
   } catch (error) {

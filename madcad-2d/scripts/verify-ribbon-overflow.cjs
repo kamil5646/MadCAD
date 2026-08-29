@@ -47,20 +47,18 @@ app.whenReady().then(async () => {
     const result = await window.webContents.executeJavaScript(`(() => {
       const menu = document.querySelector('.ribbon-overflow-menu');
       const trigger = document.querySelector('.ribbon-overflow-trigger');
-      const stickyGroup = document.querySelector('.ribbon-sticky-groups .ribbon-group');
       const rect = menu.getBoundingClientRect();
       return {
         expanded: trigger.getAttribute('aria-expanded') === 'true',
         groups: [...menu.querySelectorAll('.ribbon-overflow-section > strong')].map((item) => item.textContent.trim()),
         tools: menu.querySelectorAll('[role="menuitem"]').length,
         hiddenGroups: document.querySelectorAll('.ribbon-group[hidden]').length,
-        stickyLabel: stickyGroup?.querySelector('.ribbon-label')?.textContent.trim() || '',
         insideViewport: rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight,
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (!result.expanded || !result.groups.length || !result.tools || !result.hiddenGroups || !result.stickyLabel || !result.insideViewport || result.horizontalOverflow) {
+    if (!result.expanded || !result.groups.length || !result.tools || !result.hiddenGroups || !result.insideViewport || result.horizontalOverflow) {
       throw new Error(`Niepoprawne menu przepełnienia wstążki: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...result }, null, 2)}\n`);

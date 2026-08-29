@@ -27,6 +27,8 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.modeling-shell')`, 'interfejs aplikacji');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
     await waitFor(window, `!document.querySelector('.license-info-dialog') && document.querySelector('.engine-status.ready')`, 'gotowy interfejs CAD', 45000);
+    await window.webContents.executeJavaScript(`document.querySelector('.app-help-menu summary')?.click()`);
+    await waitFor(window, `document.querySelector('.app-help-menu')?.open`, 'otwarte menu pomocy');
 
     window.webContents.debugger.attach('1.3');
     await window.webContents.debugger.sendCommand('Accessibility.enable');

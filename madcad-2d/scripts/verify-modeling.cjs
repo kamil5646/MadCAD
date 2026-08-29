@@ -273,7 +273,15 @@ async function runUiFlow(window) {
     ...['Boolean', 'Split Body', 'Split Face', 'Replace Face'].map((label) => [label, 'Łącz i dziel']),
     ...['Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię'].map((label) => [label, 'Analiza']),
   ]);
-  const ribbonHasTool = (label) => window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)})`);
+  const sketchToolMenus = new Map([
+    ...['Łuk', 'Łuk styczny', 'Wielokąt', 'Elipsa', 'Slot', 'Spline', 'Conic', 'Punkt'].map((label) => [label, 'Więcej kształtów']),
+    ...['Extend', 'Break', 'Offset', 'Przesuń', 'Fillet szkicu', 'Faza szkicu'].map((label) => [label, 'Modyfikuj']),
+    ...['Współliniowe', 'Symetria', 'Krzywizna G2'].map((label) => [label, 'Więzy']),
+    ...['Ordinate X', 'Ordinate Y', 'Długość łuku'].map((label) => [label, 'Wymiary']),
+    ...['Transformuj', 'Szyk szkicu', 'Warstwy', 'Bloki'].map((label) => [label, 'Więcej narzędzi']),
+    ...['Thin Extrude', 'Rib/Web', 'Pipe'].map((label) => [label, 'Utwórz 3D']),
+  ]);
+  const ribbonHasTool = (label) => window.webContents.executeJavaScript(`Boolean(document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]'))`);
   const clickWorkspace = (workspaceLabel) => window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === ${JSON.stringify(workspaceLabel)});
     if (!button) throw new Error('Brak obszaru roboczego: ${workspaceLabel}');
@@ -287,17 +295,18 @@ async function runUiFlow(window) {
           ? 'Osie'
           : 'Punkty')
       : null;
-    const menuLabel = constructionMenuLabel || solidToolMenus.get(label);
+    const sketchMenuLabel = sketchToolMenus.get(label);
+    const menuLabel = sketchMenuLabel || constructionMenuLabel || solidToolMenus.get(label);
     if (menuLabel) {
-      await clickWorkspace('PROJEKTUJ');
+      if (!sketchMenuLabel) await clickWorkspace('PROJEKTUJ');
       await window.webContents.executeJavaScript(`(() => {
-        const button = [...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === ${JSON.stringify(menuLabel)});
+        const button = document.querySelector('.ribbon-tool-menu-trigger[data-tool-label=${JSON.stringify(menuLabel)}]');
         if (!button) throw new Error('Brak menu narzędzi: ${menuLabel}');
         button.click();
       })()`);
-      await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((item) => item.querySelector('strong')?.textContent === ${JSON.stringify(label)})`, `narzędzie w menu ${label}`);
+      await waitForUi(window, `(() => { const item = document.querySelector('.ribbon-tool-submenu button[data-tool-label=${JSON.stringify(label)}]'); return Boolean(item && !item.disabled); })()`, `aktywne narzędzie w menu ${label}`);
       return window.webContents.executeJavaScript(`(() => {
-        const button = [...document.querySelectorAll('.ribbon-tool-submenu button')].find((item) => item.querySelector('strong')?.textContent === ${JSON.stringify(label)});
+        const button = document.querySelector('.ribbon-tool-submenu button[data-tool-label=${JSON.stringify(label)}]');
         if (!button || button.disabled) throw new Error('Nieaktywne narzędzie w menu: ${label}');
         button.click();
       })()`);
@@ -305,10 +314,10 @@ async function runUiFlow(window) {
     if (!await ribbonHasTool(label)) {
       const workspaceLabel = toolsWorkspaceLabels.has(label) ? 'ZARZĄDZAJ' : 'PROJEKTUJ';
       await clickWorkspace(workspaceLabel);
-      await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)})`, `narzędzie ${label} w obszarze ${workspaceLabel}`);
+      await waitForUi(window, `document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]')`, `narzędzie ${label} w obszarze ${workspaceLabel}`);
     }
     return window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)});
+    const button = document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]');
     if (!button) throw new Error('Brak przycisku: ${label}');
     if (button.disabled) throw new Error('Przycisk jest nieaktywny: ${label}');
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
@@ -628,19 +637,16 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyLoadConstraintFixture?.()`);
   await waitForUi(window, `window.__madcadConstraintFixtureIds && window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 18`, 'fixture więzów P1');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection(window.__madcadConstraintFixtureIds.collinear, 'replace')`);
-  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Współliniowe')?.disabled)`, 'aktywny przycisk współliniowości');
   await clickTool('Współliniowe');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.constraints?.some((item) => item.type === 'collinear')`, 'więz collinear');
   const collinearSolved = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.filter((item) => window.__madcadConstraintFixtureIds.targetPointIds.includes(item.id)).every((item) => Math.abs(Number(item.geometry.y)) < 1e-6)`);
   if (!collinearSolved) throw new Error('UI collinear did not solve target line.');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection(window.__madcadConstraintFixtureIds.symmetry, 'replace')`);
-  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Symetria')?.disabled)`, 'aktywny przycisk symetrii');
   await clickTool('Symetria');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.constraints?.some((item) => item.type === 'symmetry')`, 'więz symmetry');
   const symmetrySolved = await window.webContents.executeJavaScript(`(() => { const point = window.__madcadVerifyDocumentState.sketches[0].entityData.find((item) => item.id === window.__madcadConstraintFixtureIds.reflectedPointId); return Math.abs(Number(point.geometry.x) - 3) < 1e-6 && Math.abs(Number(point.geometry.y) - 2) < 1e-6; })()`);
   if (!symmetrySolved) throw new Error('UI symmetry did not reflect target point.');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection(window.__madcadConstraintFixtureIds.curvature, 'replace')`);
-  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Krzywizna G2')?.disabled)`, 'aktywny przycisk krzywizny G2');
   await clickTool('Krzywizna G2');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.constraints?.some((item) => item.type === 'curvature')`, 'więz curvature');
   const curvatureSolved = await window.webContents.executeJavaScript(`(() => { const point = window.__madcadVerifyDocumentState.sketches[0].entityData.find((item) => item.id === window.__madcadConstraintFixtureIds.curvatureCenterId); return Math.abs(Number(point.geometry.x) - 20) < 1e-6 && Math.abs(Number(point.geometry.y)) < 1e-6; })()`);
@@ -656,21 +662,18 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyLoadDimensionFixture?.()`);
   await waitForUi(window, `window.__madcadDimensionFixtureIds && window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 5`, 'fixture wymiarów P1');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection([window.__madcadDimensionFixtureIds.pointId], 'replace')`);
-  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Ordinate X')?.disabled)`, 'aktywny wymiar ordinate X');
   await clickTool('Ordinate X');
   await waitForUi(window, `document.querySelector('.sketch-dimension-dialog')?.textContent.includes('Wymiar ordinate X')`, 'dialog ordinate X');
   await setCommandField('Wartość', '12');
   await confirmDialog();
   await waitForUi(window, `(() => { const sketch = window.__madcadVerifyDocumentState?.sketches?.[0]; const point = sketch?.entityData?.find((item) => item.id === window.__madcadDimensionFixtureIds.pointId); return sketch?.constraints?.some((item) => item.type === 'coordinateX') && Math.abs(Number(point?.geometry?.x) - 12) < 1e-6; })()`, 'zastosowany ordinate X');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection([window.__madcadDimensionFixtureIds.pointId], 'replace')`);
-  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Ordinate Y')?.disabled)`, 'aktywny wymiar ordinate Y');
   await clickTool('Ordinate Y');
   await waitForUi(window, `document.querySelector('.sketch-dimension-dialog')?.textContent.includes('Wymiar ordinate Y')`, 'dialog ordinate Y');
   await setCommandField('Wartość', '-7');
   await confirmDialog();
   await waitForUi(window, `(() => { const sketch = window.__madcadVerifyDocumentState?.sketches?.[0]; const point = sketch?.entityData?.find((item) => item.id === window.__madcadDimensionFixtureIds.pointId); return sketch?.constraints?.some((item) => item.type === 'coordinateY') && Math.abs(Number(point?.geometry?.y) + 7) < 1e-6; })()`, 'zastosowany ordinate Y');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection([window.__madcadDimensionFixtureIds.arcId], 'replace')`);
-  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Długość łuku')?.disabled)`, 'aktywny wymiar długości łuku');
   await clickTool('Długość łuku');
   await waitForUi(window, `document.querySelector('.sketch-dimension-dialog')?.textContent.includes('Wymiar długości łuku')`, 'dialog długości łuku');
   await setCommandField('Wartość', String(Math.PI * 10));
@@ -788,7 +791,6 @@ async function runUiFlow(window) {
   progress('open chain thin extrude');
   const openThinLineId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(openThinLineId)}], 'replace')`);
-  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Thin Extrude')?.disabled)`, 'aktywny Thin Extrude dla otwartego łańcucha');
   await clickTool('Thin Extrude');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie') && document.querySelector('.command-dialog')?.textContent.includes('Zakończenie')`, 'podgląd otwartego Thin Extrude');
   progress('open chain thin cancel');
@@ -796,7 +798,6 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 0 && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'anulowanie otwartego Thin Extrude');
   progress('open chain thin reopen');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(openThinLineId)}], 'replace')`);
-  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Thin Extrude')?.disabled)`, 'ponownie aktywny Thin Extrude dla otwartego łańcucha');
   await clickTool('Thin Extrude');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Zakończenie')`, 'ponowny podgląd otwartego Thin Extrude');
   await setCommandField('Odległość', '5');
@@ -921,7 +922,6 @@ async function runUiFlow(window) {
   await sendShortcut('z');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 12`, 'Undo Fillet szkicu');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.(${JSON.stringify(editTargets.originCornerLineIds)}, 'replace')`);
-  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Faza szkicu')?.disabled)`, 'aktywny przycisk Faza szkicu');
   await clickTool('Faza szkicu');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Chamfer szkicu')`, 'okno Chamfer szkicu');
   await setCommandField('Odległość', '3');
@@ -1360,14 +1360,12 @@ async function runUiFlow(window) {
   await addSketchPoint([8, 0], 3);
   const ribLineId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(ribLineId)}], 'replace')`);
-  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Rib/Web')?.disabled)`, 'aktywny przycisk Rib Web');
   await clickTool('Rib/Web');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Otwarty profil') && document.querySelector('.command-dialog')?.textContent.includes('Zasięg')`, 'otwarty Rib Web');
   await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2160) < 0.05 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.bounds[1][2] - 10) < 0.001`, 'podgląd Web', modelingTimeoutMs);
   await clickDialogButton('Anuluj');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 1 && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'anulowanie Rib Web');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(ribLineId)}], 'replace')`);
-  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Rib/Web')?.disabled)`, 'ponownie aktywny przycisk Rib Web');
   await clickTool('Rib/Web');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Rib/Web')`, 'ponownie otwarty Rib Web');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.previewReady === true && !document.querySelector('.command-dialog .confirm')?.disabled`, 'gotowy podgląd przed zapisaniem Web', modelingTimeoutMs);
@@ -1432,7 +1430,6 @@ async function runUiFlow(window) {
   await addSketchPoint([10, 0], 3);
   const pipePathId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(pipePathId)}], 'replace')`);
-  await waitForUi(window, `!([...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Pipe')?.disabled)`, 'aktywny przycisk Pipe');
   await clickTool('Pipe');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Średnica zewnętrzna') && document.querySelector('.command-dialog')?.textContent.includes('Grubość ścianki')`, 'otwarty Pipe');
   await waitForUi(window, `window.__madcadVerifyEngineState?.timeline?.[0]?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${35 * Math.PI}) < 0.05`, 'podgląd pustego Pipe', modelingTimeoutMs);
@@ -1869,9 +1866,9 @@ async function runUiFlow(window) {
     return { shellClass: shell?.className || '', hint, platform: window.desktopApp?.platform || 'web' };
   })()`);
   if (!platformUi.shellClass.includes(`platform-${platformUi.platform}`)) throw new Error(`Brak klasy platformy w interfejsie: ${JSON.stringify(platformUi)}.`);
-  await waitForUi(window, `(() => { const buttons = [...document.querySelectorAll('.ribbon-tool')]; const basics = ['Linia', 'Prostokąt', 'Okrąg', 'Trim', 'Project', 'Offset', 'Fillet szkicu', 'Przesuń', 'Usuń']; return basics.every((label) => buttons.find((item) => item.querySelector('.ribbon-label')?.textContent === label)?.getAttribute('aria-label')?.includes('Skrót:')) && buttons.some((item) => !item.getAttribute('aria-label')?.includes('Skrót:')) && !document.querySelector('.ribbon-shortcut'); })()`, 'autodeskowe skróty podstawowych funkcji wyłącznie w podpowiedziach');
+  await waitForUi(window, `(() => { const basics = ['Linia', 'Prostokąt', 'Okrąg', 'Trim', 'Project', 'Usuń']; return basics.every((label) => document.querySelector('.ribbon-tool[data-tool-label="' + label + '"]')?.getAttribute('aria-label')?.includes('Skrót:')) && [...document.querySelectorAll('.ribbon-tool')].some((item) => !item.getAttribute('aria-label')?.includes('Skrót:')) && !document.querySelector('.ribbon-shortcut'); })()`, 'autodeskowe skróty podstawowych funkcji wyłącznie w podpowiedziach');
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === 'Linia');
+    const button = document.querySelector('.ribbon-tool[data-tool-label="Linia"]');
     const wrapper = button?.closest('.ribbon-tool-wrap');
     const key = wrapper && Object.keys(wrapper).find((item) => item.startsWith('__reactProps'));
     if (!key || typeof wrapper[key]?.onMouseEnter !== 'function') throw new Error('Brak procedury podpowiedzi narzędzia Linia.');
@@ -2341,7 +2338,7 @@ async function runUiFlow(window) {
   await toggleSketchOption('Geometrie konstrukcyjne');
   await clickTool('Zakończ szkic');
   await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'bryła przed wycięciem Through All', modelingTimeoutMs);
-  await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === 'Wyciągnij' && !item.disabled)`, 'aktywne polecenie Extrude', modelingTimeoutMs);
+  await waitForUi(window, `(() => { const item = document.querySelector('.ribbon-tool[data-tool-label="Wyciągnij"]'); return Boolean(item && !item.disabled); })()`, 'aktywne polecenie Extrude', modelingTimeoutMs);
   progress('extrude to planar face');
   await clickTool('Wyciągnij');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'polecenie Extrude To Object');

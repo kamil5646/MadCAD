@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, FolderOpen, GitCompareArrows, Keyboard, Layers3, Link2, Lock, LockOpen, Magnet, PackageOpen, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Trash2, Ungroup, X, XCircle } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, FolderOpen, GitCompareArrows, Keyboard, Layers3, Link2, Lock, LockOpen, Magnet, PackageOpen, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Search, Trash2, Ungroup, X, XCircle } from 'lucide-react';
 import { detectAssemblyCollisions } from '../cad-core/assembly-motion.js';
 import { COMPONENT_APPEARANCE_PRESETS, componentAppearancePreset, componentDescendantIds, componentInstanceDescendantIds, componentInstanceTree, componentParentMap, componentTree, normalizeComponentAppearance } from '../cad-core/components.js';
 import { formatModelFileSize } from '../cad-core/model-import.js';
@@ -316,9 +316,17 @@ export function BlocksPanel({ document, selectedEntities = [], selectedInstance 
 
 export function CommandCustomizationPanel({ customization, onSave, onReset, onClose }) {
   const [draft, setDraft] = React.useState(() => structuredClone(customization));
+  const [query, setQuery] = React.useState('');
+  const [category, setCategory] = React.useState('WSZYSTKIE');
   const validation = validateCommandCustomization(draft);
   const rows = commandCustomizationRows(draft);
-  const groups = rows.reduce((result, row) => {
+  const categories = [...new Set(rows.map((row) => row.category))];
+  const normalizedQuery = query.trim().toLocaleLowerCase('pl');
+  const visibleRows = rows.filter((row) => (
+    (category === 'WSZYSTKIE' || row.category === category)
+    && (!normalizedQuery || [row.label, row.alias, row.shortcut, ...row.builtInAliases].some((value) => String(value || '').toLocaleLowerCase('pl').includes(normalizedQuery)))
+  ));
+  const groups = visibleRows.reduce((result, row) => {
     const group = result.find((item) => item.category === row.category);
     if (group) group.rows.push(row);
     else result.push({ category: row.category, rows: [row] });
@@ -340,12 +348,17 @@ export function CommandCustomizationPanel({ customization, onSave, onReset, onCl
         <span><kbd>{primaryKey}+Z</kbd>Cofnij</span>
         <span><kbd>Delete</kbd>Usuń</span>
       </div>
+      <div className="command-customization-filters">
+        <label><Search size={14} aria-hidden="true" /><span className="sr-only">Szukaj polecenia</span><input type="search" value={query} placeholder="Szukaj polecenia lub aliasu" onChange={(event) => setQuery(event.target.value)} /></label>
+        <label><span className="sr-only">Kategoria poleceń</span><select value={category} onChange={(event) => setCategory(event.target.value)}><option value="WSZYSTKIE">Wszystkie kategorie</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+      </div>
       <div className="command-customization-intro"><p>Wpisz alias w linii poleceń i naciśnij Enter. Pojedynczy klawisz uruchamia narzędzie od razu.</p><div><span>Polecenie</span><span>Alias</span><span>Klawisz</span></div></div>
       <div className="command-customization-list">
         {groups.map((group) => <section className="command-customization-category" key={group.category} aria-label={group.category}>
           <h3>{group.category}</h3>
           {group.rows.map((row) => <div className="command-customization-row" key={row.label}><strong>{row.label}</strong><input aria-label={`Alias polecenia ${row.label}`} value={row.alias} maxLength={16} onChange={(event) => update(row.label, 'alias', event.target.value)} /><input aria-label={`Klawisz polecenia ${row.label}`} value={row.shortcut} maxLength={3} placeholder="—" onChange={(event) => update(row.label, 'shortcut', event.target.value)} /></div>)}
         </section>)}
+        {!groups.length && <p className="command-customization-empty">Brak poleceń pasujących do wyszukiwania.</p>}
       </div>
       {!!validation.errors.length && <div className="command-customization-errors" role="alert">{validation.errors.slice(0, 4).map((error) => <span key={error}>{error}</span>)}</div>}
       <footer><button type="button" onClick={() => { const reset = onReset(); setDraft(structuredClone(reset)); }}><RotateCcw size={14} /> Autodesk</button><button className="confirm" type="button" disabled={!validation.valid} onClick={() => onSave(validation.customization)}><Check size={14} /> Zapisz</button></footer>
