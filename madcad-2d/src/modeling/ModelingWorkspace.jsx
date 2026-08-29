@@ -30,7 +30,6 @@ import {
   Eye,
   EyeOff,
   Layers3,
-  LayoutPanelTop,
   Keyboard,
   Maximize2,
   Minus,
@@ -40,7 +39,6 @@ import {
   Network,
   Pencil,
   PencilRuler,
-  Plus,
   Printer,
   Redo2,
   Rotate3d,
@@ -180,7 +178,6 @@ import {
 import { isDockableCommand, panelScreenKey, readPanelLayout, writePanelLayout } from './panel-layout.js';
 import { resolveVisibleSketchId } from './sketch-visibility.js';
 import { resolveExtrudeSource } from './extrude-source.js';
-import { BUILT_IN_WORKSPACE_LAYOUTS, captureWorkspaceView, createCustomWorkspaceLayout, loadCustomWorkspaceLayouts, saveCustomWorkspaceLayouts } from './workspace-layouts.js';
 import { multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
 import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumentHistory } from './workspace-document.js';
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext } from './WorkspaceRibbon.jsx';
@@ -241,8 +238,6 @@ const MAIN_TABS = [
   { id: 'drawing', label: 'ARKUSZ 2D' },
   { id: 'construction', label: 'KONSTRUKCJA' },
   { id: 'tools', label: 'PROJEKT' },
-  { id: 'export', label: 'PLIKI CAD' },
-  { id: 'print', label: 'DRUK 3D' },
 ];
 const LANGUAGE_KEY = 'madcad:interface-language';
 
@@ -478,6 +473,7 @@ export default function ModelingWorkspace() {
   const [toolHelp, setToolHelp] = useState(null);
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(false);
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
   const [blocksOpen, setBlocksOpen] = useState(false);
   const [componentsOpen, setComponentsOpen] = useState(false);
@@ -505,11 +501,6 @@ export default function ModelingWorkspace() {
   const [projectDependencyNodeId, setProjectDependencyNodeId] = useState(() => initialOpen.document.id);
   const panelScreenKeyRef = useRef(panelScreenKey(window.screen));
   const [panelLayout, setPanelLayout] = useState(() => readPanelLayout(window.localStorage, window.screen));
-  const [workspaceLayoutMenuOpen, setWorkspaceLayoutMenuOpen] = useState(false);
-  const [workspaceLayoutName, setWorkspaceLayoutName] = useState('');
-  const [customWorkspaceLayouts, setCustomWorkspaceLayouts] = useState(() => loadCustomWorkspaceLayouts(window.localStorage));
-  const [activeWorkspaceLayoutId, setActiveWorkspaceLayoutId] = useState('classic-cad');
-  const workspaceLayoutMenuRef = useRef(null);
   const [recoveryInfo, setRecoveryInfo] = useState(() => initialOpen.recovered ? {
     source: initialOpen.recoverySource || 'local-primary',
     backup: initialOpen.recoverySource === 'local-backup',
@@ -540,6 +531,12 @@ export default function ModelingWorkspace() {
     writePanelLayout(panelLayout, window.localStorage, window.screen);
   }, [panelLayout]);
   useEffect(() => {
+    if (!fileMenuOpen) return undefined;
+    const closeFileMenu = (event) => { if (event.key === 'Escape') setFileMenuOpen(false); };
+    window.addEventListener('keydown', closeFileMenu);
+    return () => window.removeEventListener('keydown', closeFileMenu);
+  }, [fileMenuOpen]);
+  useEffect(() => {
     const restoreLayoutForCurrentMonitor = () => {
       const nextKey = panelScreenKey(window.screen);
       if (nextKey === panelScreenKeyRef.current) return;
@@ -549,50 +546,6 @@ export default function ModelingWorkspace() {
     window.addEventListener('resize', restoreLayoutForCurrentMonitor);
     return () => window.removeEventListener('resize', restoreLayoutForCurrentMonitor);
   }, []);
-  useEffect(() => {
-    if (!workspaceLayoutMenuOpen) return undefined;
-    const closeMenu = (event) => {
-      if (event.key === 'Escape' || (event.type === 'pointerdown' && !workspaceLayoutMenuRef.current?.contains(event.target))) setWorkspaceLayoutMenuOpen(false);
-    };
-    window.addEventListener('keydown', closeMenu);
-    window.addEventListener('pointerdown', closeMenu);
-    return () => { window.removeEventListener('keydown', closeMenu); window.removeEventListener('pointerdown', closeMenu); };
-  }, [workspaceLayoutMenuOpen]);
-  const currentWorkspaceView = () => captureWorkspaceView({ workspace, browserOpen, layersOpen, blocksOpen, commandCustomizationOpen, printPanelOpen, panelLayout });
-  const applyWorkspaceLayout = (layout) => {
-    const view = layout.view;
-    if (!activeSketchId) setWorkspace(view.workspace);
-    setBrowserOpen(view.browserOpen);
-    setLayersOpen(view.layersOpen);
-    setBlocksOpen(Boolean(view.blocksOpen && activeSketchId));
-    setCommandCustomizationOpen(view.commandCustomizationOpen);
-    setPrintPanelOpen(view.printPanelOpen);
-    setPanelLayout(view.panelLayout);
-    setActiveWorkspaceLayoutId(layout.id);
-    setWorkspaceLayoutMenuOpen(false);
-    setNotice(activeSketchId && view.workspace !== workspace
-      ? `Zastosowano układ „${layout.name}”. Obszar poleceń pozostaje w szkicu do jego zakończenia.`
-      : `Zastosowano obszar roboczy „${layout.name}”.`);
-  };
-  const saveCurrentWorkspaceLayout = () => {
-    try {
-      const created = createCustomWorkspaceLayout(workspaceLayoutName, currentWorkspaceView(), customWorkspaceLayouts);
-      const next = saveCustomWorkspaceLayouts([...customWorkspaceLayouts, created], window.localStorage);
-      setCustomWorkspaceLayouts(next);
-      setActiveWorkspaceLayoutId(created.id);
-      setWorkspaceLayoutName('');
-      setNotice(`Zapisano układ obszaru roboczego „${created.name}”.`);
-    } catch (error) {
-      setNotice(error.message);
-    }
-  };
-  const deleteCustomWorkspaceLayout = (layoutId) => {
-    const layout = customWorkspaceLayouts.find((item) => item.id === layoutId);
-    const next = saveCustomWorkspaceLayouts(customWorkspaceLayouts.filter((item) => item.id !== layoutId), window.localStorage);
-    setCustomWorkspaceLayouts(next);
-    if (activeWorkspaceLayoutId === layoutId) setActiveWorkspaceLayoutId('classic-cad');
-    setNotice(`Usunięto zapisany układ „${layout?.name || 'bez nazwy'}”.`);
-  };
   const registerShortcut = useCallback((shortcut, entry) => {
     const normalizedShortcut = shortcut.toUpperCase();
     shortcutRegistryRef.current.set(normalizedShortcut, entry);
@@ -4942,12 +4895,8 @@ export default function ModelingWorkspace() {
     setCommand(null);
     setActiveSketchId(null);
     setWorkspace(id);
-    setPrintPanelOpen(id === 'print');
-    setNotice(id === 'print'
-      ? 'Druk 3D: ułóż gotowy model na stole, sprawdź go i przekaż do slicera.'
-      : id === 'export'
-        ? 'Pliki CAD: importuj model albo eksportuj go jako STEP, STL lub 3MF.'
-      : id === 'drawing'
+    setPrintPanelOpen(false);
+    setNotice(id === 'drawing'
         ? 'Arkusz 2D: przygotuj rysunek techniczny do PDF albo DXF.'
       : id === 'construction'
         ? 'Konstrukcja: twórz płaszczyzny, osie i punkty pomocnicze.'
@@ -4956,6 +4905,15 @@ export default function ModelingWorkspace() {
       : id === 'tools'
         ? 'Projekt: parametry, warstwy, struktura oraz kontrola modelu.'
         : 'Modeluj: szkic 2D, bryła 3D i operacje na geometrii.');
+  };
+
+  const openPrintPreparation = () => {
+    setCommand(null);
+    setActiveSketchId(null);
+    setWorkspace('solid');
+    setFileMenuOpen(false);
+    setPrintPanelOpen(true);
+    setNotice('Druk 3D: ułóż gotowy model na stole, sprawdź go i przekaż do slicera.');
   };
 
   const handleWorkspaceTabKeyDown = (event, index) => {
@@ -5427,11 +5385,7 @@ export default function ModelingWorkspace() {
         ? { title: 'KONSTRUKCJA · geometria pomocnicza', text: 'Płaszczyzny, osie i punkty konstrukcyjne są zawsze w tej karcie.', action: 'Wróć do modelowania', onAction: () => switchWorkspace('solid') }
       : workspace === 'modify'
         ? { title: 'EDYCJA 3D · operacje na istniejącej bryle', text: engine.bodies.length ? 'Zaznacz ścianę, krawędź albo bryłę, a następnie wybierz operację.' : 'Najpierw utwórz bryłę w karcie MODELUJ.', action: engine.bodies.length ? null : 'Wróć do modelowania', onAction: engine.bodies.length ? null : () => switchWorkspace('solid') }
-      : workspace === 'export'
-        ? { title: 'PLIKI CAD · import i eksport', text: engine.bodies.length ? 'Importuj albo zapisz gotowy model. Przygotowanie drukarki jest osobno w DRUK 3D.' : 'Nie ma jeszcze bryły do eksportu. Możesz zaimportować model albo wrócić do modelowania.', action: engine.bodies.length ? null : 'Wróć do modelowania', onAction: engine.bodies.length ? null : () => switchWorkspace('solid') }
-        : workspace === 'print'
-          ? { title: 'DRUK 3D · tylko przygotowanie wydruku', text: engine.bodies.length ? 'Ułóż model na stole, sprawdź problemy i przekaż STL do slicera.' : 'Najpierw utwórz albo zaimportuj bryłę 3D. Rysunek techniczny 2D nie trafia do tego obszaru.', action: engine.bodies.length ? null : 'Wróć do modelowania', onAction: engine.bodies.length ? null : () => switchWorkspace('solid') }
-          : workspace === 'solid' && lastSketch && !engine.bodies.length
+      : workspace === 'solid' && lastSketch && !engine.bodies.length
             ? hasSketchProfile
               ? { title: 'KROK 2 · utwórz bryłę z zamkniętego szkicu', text: selectedProfile ? 'Profil jest zaznaczony. Kliknij Wyciągnij i podaj wysokość.' : 'Kliknij wnętrze zamkniętego profilu, a następnie wybierz Wyciągnij.', action: selectedProfile ? 'Wyciągnij profil' : `Edytuj: ${lastSketch.name}`, onAction: selectedProfile ? openExtrude : () => editSketch(lastSketch.id) }
               : { title: 'KROK 1 · dokończ szkic 2D', text: 'Szkic nie ma jeszcze zamkniętego obrysu. Domknij linie, zakończ szkic, potem zaznacz jego wnętrze.', action: `Edytuj: ${lastSketch.name}`, onAction: () => editSketch(lastSketch.id) }
@@ -5442,23 +5396,13 @@ export default function ModelingWorkspace() {
     <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${document.features.length ? '' : 'timeline-empty'}`} aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
         <div className="app-menu" role="toolbar" aria-label="Plik i przeglądarka projektu">
+          <button id="fileMenuBtn" className={fileMenuOpen ? 'active' : ''} type="button" aria-label="Menu Plik" aria-expanded={fileMenuOpen} aria-controls="file-backstage" title="Projekt, import, eksport i druk" onClick={() => setFileMenuOpen((open) => !open)}><FileText size={15} /><span>Plik</span></button>
+          <span className="app-menu-separator" aria-hidden="true" />
           <button id="newProjectBtn" type="button" aria-label="Nowy projekt" title="Nowy projekt" onClick={createNew}><FilePlus2 size={15} /><span>Nowy</span></button>
           <button id="openProjectBtn" type="button" aria-label="Otwórz projekt" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={15} /><span>Otwórz</span></button>
           <button id="saveProjectBtn" type="button" aria-label={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={15} /><span>Zapisz</span></button>
           <span className="app-menu-separator" aria-hidden="true" />
           <button className={browserOpen ? 'active' : ''} type="button" aria-label="Pokaż lub ukryj przeglądarkę" aria-pressed={browserOpen} title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={15} /><span>Panel</span></button>
-          <div className="workspace-layout-control" ref={workspaceLayoutMenuRef}>
-            <button className={workspaceLayoutMenuOpen ? 'active' : ''} type="button" aria-label="Układy obszaru roboczego" aria-expanded={workspaceLayoutMenuOpen} aria-controls="workspace-layout-menu" title="Zastosuj albo zapisz układ obszaru roboczego" onClick={() => setWorkspaceLayoutMenuOpen((open) => !open)}><LayoutPanelTop size={15} /><span>Układ</span></button>
-            {workspaceLayoutMenuOpen && <section className="workspace-layout-menu" id="workspace-layout-menu" aria-label="Zapisane obszary robocze">
-              <header><div><strong>Obszary robocze</strong><span>Panele i widok aplikacji</span></div><button type="button" aria-label="Zamknij obszary robocze" title="Zamknij" onClick={() => setWorkspaceLayoutMenuOpen(false)}><X size={14} /></button></header>
-              <div className="workspace-layout-list">
-                <h3>Gotowe układy</h3>
-                {BUILT_IN_WORKSPACE_LAYOUTS.map((layout) => <button key={layout.id} className={activeWorkspaceLayoutId === layout.id ? 'active' : ''} type="button" aria-pressed={activeWorkspaceLayoutId === layout.id} onClick={() => applyWorkspaceLayout(layout)}><LayoutPanelTop size={15} /><span><strong>{layout.name}</strong><small>{layout.description}</small></span>{activeWorkspaceLayoutId === layout.id && <Check size={14} />}</button>)}
-                {customWorkspaceLayouts.length > 0 && <><h3>Moje układy</h3>{customWorkspaceLayouts.map((layout) => <div className="workspace-layout-saved" key={layout.id}><button className={activeWorkspaceLayoutId === layout.id ? 'active' : ''} type="button" aria-pressed={activeWorkspaceLayoutId === layout.id} onClick={() => applyWorkspaceLayout(layout)}><LayoutPanelTop size={15} /><span><strong>{layout.name}</strong><small>{layout.description}</small></span>{activeWorkspaceLayoutId === layout.id && <Check size={14} />}</button><button type="button" aria-label={`Usuń układ ${layout.name}`} title={`Usuń układ ${layout.name}`} onClick={() => deleteCustomWorkspaceLayout(layout.id)}><Trash2 size={13} /></button></div>)}</>}
-              </div>
-              <form onSubmit={(event) => { event.preventDefault(); saveCurrentWorkspaceLayout(); }}><label><span>Zapisz bieżący układ</span><input value={workspaceLayoutName} maxLength={40} placeholder="np. Mój szkic" aria-label="Nazwa nowego układu" onChange={(event) => setWorkspaceLayoutName(event.target.value)} /></label><button type="submit" disabled={!workspaceLayoutName.trim()} title="Zapisz bieżący układ paneli"><Plus size={14} /> Zapisz</button></form>
-            </section>}
-          </div>
           <button id="projectSearchBtn" className={projectSearchOpen ? 'active' : ''} type="button" aria-label="Idź do obiektu projektu" aria-pressed={projectSearchOpen} title="Wyszukaj obiekt w projekcie · Ctrl/⌘ K" onClick={() => { if (projectSearchOpen) setProjectSearchOpen(false); else openProjectSearch(); }}><Search size={15} /><span>Szukaj</span></button>
         </div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
@@ -5477,10 +5421,42 @@ export default function ModelingWorkspace() {
         </div>
       </header>
 
+      {fileMenuOpen && <div className="file-backstage-layer" id="file-backstage" role="dialog" aria-modal="true" aria-label="Plik">
+        <button className="file-backstage-dismiss" type="button" aria-label="Zamknij menu Plik" onClick={() => setFileMenuOpen(false)} />
+        <aside className="file-backstage">
+          <header><div><strong>PLIK</strong><span>Projekt, import, eksport i druk</span></div><button type="button" aria-label="Zamknij menu Plik" title="Zamknij" onClick={() => setFileMenuOpen(false)}><X size={18} /></button></header>
+          <div className="file-backstage-content">
+            <section><h2>PROJEKT</h2>
+              <button type="button" onClick={() => { setFileMenuOpen(false); createNew(); }}><FilePlus2 /><span><strong>Nowy projekt</strong><small>Rozpocznij pusty dokument MadCAD.</small></span></button>
+              <button type="button" onClick={() => { setFileMenuOpen(false); requestOpenProject(); }}><FolderOpen /><span><strong>Otwórz projekt</strong><small>Wczytaj plik .madcad.</small></span></button>
+              <button type="button" disabled={readOnly} onClick={() => { setFileMenuOpen(false); void saveProject(); }}><Save /><span><strong>Zapisz projekt</strong><small>{dirty ? 'Zapisz bieżące zmiany.' : 'Projekt jest już zapisany.'}</small></span></button>
+            </section>
+            <section><h2>IMPORT</h2>
+              <button id="fileImportModelBtn" type="button" disabled={readOnly || modelImportBusy} onClick={() => { setFileMenuOpen(false); window.requestAnimationFrame(() => importInputRef.current?.click()); }}><Upload /><span><strong>Model 3D</strong><small>STEP, STL albo 3MF.</small></span></button>
+              <button id="fileImportSketchBtn" type="button" disabled={readOnly || !activeSketchId} onClick={() => { setFileMenuOpen(false); window.requestAnimationFrame(() => sketchImportInputRef.current?.click()); }}><Upload /><span><strong>Szkic 2D</strong><small>SVG albo DXF · dostępne podczas edycji szkicu.</small></span></button>
+              <button id="fileImportDwgBtn" type="button" disabled={readOnly || !activeSketchId} onClick={() => { setFileMenuOpen(false); void chooseDwgSketchImport(); }}><Upload /><span><strong>Szkic DWG</strong><small>Lokalna konwersja podczas edycji szkicu.</small></span></button>
+            </section>
+            <section><h2>EKSPORT MODELU</h2>
+              <button id="fileExportStepBtn" type="button" disabled={!engine.bodies.length || engine.status !== 'ready' || containsImportedMesh} onClick={() => { setFileMenuOpen(false); void exportModel('step'); }}><FileBox /><span><strong>STEP</strong><small>Dokładna geometria CAD B-Rep.</small></span></button>
+              <button id="fileExportStlBtn" type="button" disabled={!engine.bodies.length || engine.status !== 'ready'} onClick={() => { setFileMenuOpen(false); void exportModel('stl'); }}><HardDriveDownload /><span><strong>STL</strong><small>Siatka modelu 3D.</small></span></button>
+              <button id="fileExport3mfBtn" type="button" disabled={!engine.bodies.length || engine.status !== 'ready'} onClick={() => { setFileMenuOpen(false); void exportModel('3mf'); }}><FileDown /><span><strong>3MF</strong><small>Siatka 3D z jednostkami.</small></span></button>
+            </section>
+            <section><h2>RYSUNEK TECHNICZNY</h2>
+              <button type="button" disabled={!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow} onClick={() => { setFileMenuOpen(false); void previewActiveDrawing(); }}><Eye /><span><strong>Podgląd wydruku</strong><small>Arkusz 2D w skali 1:1.</small></span></button>
+              <button id="fileExportPdfBtn" type="button" disabled={!activeDrawingSheet?.views.length} onClick={() => { setFileMenuOpen(false); void exportActiveDrawingPdf(); }}><FileText /><span><strong>PDF</strong><small>Zapisz aktywny arkusz techniczny.</small></span></button>
+              <button id="fileExportDxfBtn" type="button" disabled={!activeDrawingSheet?.views.length} onClick={() => { setFileMenuOpen(false); exportActiveDrawingDxf(); }}><FileText /><span><strong>DXF</strong><small>Eksport geometrii arkusza w mm.</small></span></button>
+            </section>
+            <section className="file-backstage-print"><h2>DRUK 3D</h2>
+              <button id="filePrint3dBtn" type="button" onClick={openPrintPreparation}><Printer /><span><strong>Przygotuj druk 3D</strong><small>Stół, orientacja, kontrola modelu i slicer.</small></span><ArrowRight /></button>
+            </section>
+          </div>
+        </aside>
+      </div>}
+
       <section className="command-area">
         <div className="command-ribbon">
           <nav className="workspace-tabs" aria-label="Obszary robocze" role="tablist">
-            {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item, index) => <button id={item.id === 'print' ? 'printWorkspaceBtn' : undefined} key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Twórz szkice 2D i nowe bryły 3D.' : item.id === 'modify' ? 'Modyfikuj, dziel i ustawiaj istniejące bryły.' : item.id === 'drawing' ? 'Przygotuj arkusz techniczny 2D, PDF lub DXF.' : item.id === 'construction' ? 'Twórz pomocnicze płaszczyzny, osie i punkty.' : item.id === 'tools' ? 'Ustawienia, wersje i kontrola projektu.' : item.id === 'export' ? 'Importuj i eksportuj pliki STEP, STL oraz 3MF.' : 'Przygotuj model wyłącznie do druku 3D i slicera.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
+            {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item, index) => <button key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Twórz szkice 2D i nowe bryły 3D.' : item.id === 'modify' ? 'Modyfikuj, dziel i ustawiaj istniejące bryły.' : item.id === 'drawing' ? 'Przygotuj arkusz techniczny 2D.' : item.id === 'construction' ? 'Twórz pomocnicze płaszczyzny, osie i punkty.' : 'Ustawienia, wersje i kontrola projektu.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
           </nav>
           <ResponsiveRibbon>
             {activeSketchId ? (
@@ -5488,7 +5464,6 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="1 · RYSUJ"><ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} /><ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} /><ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} /><ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} /><ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} /><ToolButton icon={RotateCw} label="Łuk styczny" onClick={() => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current)} disabled={readOnly || command?.type !== 'polyline' || !command.segmentIds.length} /></RibbonGroup>
                 <RibbonGroup label="KSZTAŁTY"><ToolButton icon={Hexagon} label="Wielokąt" onClick={() => openMechanicalShape('polygon')} disabled={readOnly} /><ToolButton icon={Shapes} label="Elipsa" onClick={() => openMechanicalShape('ellipse')} disabled={readOnly} /><ToolButton icon={Frame} label="Slot" onClick={() => openMechanicalShape('slot')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Spline" onClick={() => openMechanicalShape('spline')} disabled={readOnly} /><ToolButton icon={ScanSearch} label="Conic" onClick={() => openMechanicalShape('conic')} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Punkt" onClick={() => openMechanicalShape('point')} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="3D Z OTWARTEGO SZKICU"><ToolButton icon={Box} label="Thin Extrude" onClick={openExtrude} disabled={readOnly || !canExtrudeOpenChain} /><ToolButton icon={Frame} label="Rib/Web" onClick={openRib} disabled={readOnly || !canCreateRib} /><ToolButton icon={Cylinder} label="Pipe" onClick={openPipe} disabled={readOnly || !canExtrudeOpenChain} /></RibbonGroup>
-                <RibbonGroup label="IMPORT 2D"><ToolButton icon={Upload} label="Import SVG/DXF" onClick={() => sketchImportInputRef.current?.click()} disabled={readOnly} /><ToolButton icon={Upload} label="Import DWG" onClick={() => { void chooseDwgSketchImport(); }} disabled={readOnly} /></RibbonGroup>
                 <RibbonGroup label="2 · EDYTUJ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { activateSelectionMode(); handleSketchSelection([], 'replace'); }} /><ToolButton icon={Scissors} label="Trim" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} /><ToolButton icon={Maximize2} label="Extend" onClick={() => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' })} primary={command?.type === 'extendSketch'} disabled={readOnly} /><ToolButton icon={Minus} label="Break" onClick={() => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' })} primary={command?.type === 'breakSketch'} disabled={readOnly} /><ToolButton icon={Copy} label="Offset" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} /><ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} /></RibbonGroup>
                 <RibbonGroup label="MODYFIKUJ"><ToolButton icon={ScanSearch} label="Project" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} /><ToolButton icon={CircleDotDashed} label="Fillet szkicu" onClick={() => openSketchCorner('fillet')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={Triangle} label="Faza szkicu" onClick={() => openSketchCorner('chamfer')} disabled={readOnly || selectedSketchEntityIds.length !== 2} /><ToolButton icon={RotateCw} label="Transformuj" onClick={openSketchTransform} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={Grid2X2} label="Szyk szkicu" onClick={openSketchPattern} disabled={readOnly || !selectedSketchEntityIds.length} /><ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} /></RibbonGroup>
                 <RibbonGroup label="WIĘZY"><ToolButton icon={Minus} label="Współliniowe" onClick={() => addSelectedSketchConstraint('collinear')} disabled={readOnly || !canAddCollinear} /><ToolButton icon={Frame} label="Symetria" onClick={() => addSelectedSketchConstraint('symmetry')} disabled={readOnly || !canAddSymmetry} /><ToolButton icon={CircleDotDashed} label="Krzywizna G2" onClick={() => addSelectedSketchConstraint('curvature')} disabled={readOnly || !canAddCurvature} /></RibbonGroup>
@@ -5504,7 +5479,6 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="WYMIARY I OPISY"><ToolButton icon={Ruler} label="Wymiar X" onClick={() => addDrawingAnnotation('dimension-horizontal')} disabled={readOnly || !selectedDrawingView} description="Dodaj skojarzony wymiar szerokości." /><ToolButton icon={Ruler} label="Wymiar Y" onClick={() => addDrawingAnnotation('dimension-vertical')} disabled={readOnly || !selectedDrawingView} description="Dodaj skojarzony wymiar wysokości." /><ToolButton icon={Minus} label="Oś" onClick={() => addDrawingAnnotation('centerline')} disabled={readOnly || !selectedDrawingView} description="Dodaj oś symetrii widoku." /><ToolButton icon={CircleDotDashed} label="Środek" onClick={() => addDrawingAnnotation('center-mark')} disabled={readOnly || !selectedDrawingView} description="Dodaj znacznik środka." /><ToolButton icon={Cylinder} label="Opis otworu" onClick={() => addDrawingAnnotation('hole-note')} disabled={readOnly || !selectedDrawingView || selectedDrawingIsSketch} description="Dodaj opis średnicy odczytanej z modelu 3D." /><ToolButton icon={Cylinder} label="Opis gwintu" onClick={() => addDrawingAnnotation('thread-note')} disabled={readOnly || !selectedDrawingView || selectedDrawingIsSketch} description="Dodaj opis gwintu metrycznego i klasy tolerancji." /><ToolButton icon={CircleDotDashed} label="Balon" onClick={() => addDrawingAnnotation('balloon')} disabled={readOnly || !selectedDrawingView || selectedDrawingIsSketch} description="Dodaj numer pozycji skojarzony z zestawieniem części." /><ToolButton icon={Crosshair} label="GD&amp;T" onClick={() => addDrawingAnnotation('feature-control-frame')} disabled={readOnly || !selectedDrawingView} description="Dodaj ramkę tolerancji geometrycznej." /></RibbonGroup>
                 <RibbonGroup label="OZNACZENIE"><ToolButton icon={Trash2} label="Usuń oznaczenie" onClick={deleteSelectedDrawingAnnotation} disabled={readOnly || !selectedDrawingAnnotation} /></RibbonGroup>
                 <RibbonGroup label="TABELE"><ToolButton icon={Grid2X2} label="BOM" onClick={() => addDrawingTable('bom')} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Dodaj automatyczne zestawienie części z modelu 3D." /><ToolButton icon={Grid2X2} label="Tabela otworów" onClick={() => addDrawingTable('hole-table')} disabled={readOnly || !selectedDrawingView || selectedDrawingIsSketch || !engine.bodies.length} description="Dodaj tabelę średnic z zaznaczonego widoku modelu 3D." /></RibbonGroup>
-                <RibbonGroup label="WYJŚCIE" end><ToolButton icon={Eye} label="Podgląd 1:1" onClick={() => { void previewActiveDrawing(); }} disabled={!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow} /><ToolButton icon={FileText} label="DXF" onClick={exportActiveDrawingDxf} disabled={!activeDrawingSheet?.views.length} /><ToolButton icon={FileText} label="PDF" onClick={() => { void exportActiveDrawingPdf(); }} disabled={!activeDrawingSheet?.views.length} primary /></RibbonGroup>
               </>
             ) : workspace === 'construction' ? (
               <>
@@ -5527,16 +5501,6 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="POŁOŻENIE"><ToolButton icon={Move3d} label="Przesuń bryłę" onClick={() => openTransform('move')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={Rotate3d} label="Obróć bryłę" onClick={() => openTransform('rotate')} disabled={readOnly || selection?.kind !== 'body'} /><ToolButton icon={PencilRuler} label="Edytuj" onClick={editSelection} disabled={readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)} /></RibbonGroup>
                 <RibbonGroup label="TRYB" end><ToolButton icon={MousePointer2} label="Wybierz" onClick={activateSelectionMode} /></RibbonGroup>
               </>
-            ) : workspace === 'export' ? (
-              <>
-                <RibbonGroup label="IMPORT"><ToolButton icon={Upload} label="STEP / STL / 3MF" onClick={() => importInputRef.current?.click()} disabled={readOnly || modelImportBusy} description={modelImportBusy ? 'Trwa przygotowywanie wybranego modelu.' : 'Otwórz model CAD lub siatkę 3D.'} primary /></RibbonGroup>
-                <RibbonGroup label="EKSPORT STEP"><ToolButton icon={FileBox} label="STEP" onClick={() => exportModel('step')} disabled={!engine.bodies.length || engine.status !== 'ready' || containsImportedMesh} description={containsImportedMesh ? 'STEP jest dostępny wyłącznie dla dokładnych brył B-Rep. Zaimportowaną siatkę zapisz jako STL lub 3MF.' : 'Eksportuj dokładną geometrię CAD do STEP.'} /></RibbonGroup>
-                <RibbonGroup label="EKSPORT SIATKI"><ToolButton icon={HardDriveDownload} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="3MF" onClick={() => exportModel('3mf')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
-              </>
-            ) : workspace === 'print' ? (
-              <>
-                <RibbonGroup label="PRZYGOTOWANIE DRUKU"><ToolButton icon={Printer} label="Panel druku 3D" onClick={() => setPrintPanelOpen(true)} primary /><ToolButton icon={HardDriveDownload} label="STL" onClick={() => exportModel('stl')} disabled={!engine.bodies.length || engine.status !== 'ready'} /><ToolButton icon={FileDown} label="3MF" onClick={() => exportModel('3mf')} disabled={!engine.bodies.length || engine.status !== 'ready'} /></RibbonGroup>
-              </>
             ) : (
               <>
                 <RibbonGroup label="1 · SZKIC"><ToolButton icon={PencilRuler} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /></RibbonGroup>
@@ -5550,11 +5514,11 @@ export default function ModelingWorkspace() {
       </section>
 
       <div
-        className={`modeling-content command-dock-${panelLayout.commandDock} ${browserOpen ? '' : 'without-browser'} ${workspace === 'print' && printPanelOpen ? 'with-print-panel' : ''}`}
+        className={`modeling-content command-dock-${panelLayout.commandDock} ${browserOpen ? '' : 'without-browser'} ${printPanelOpen ? 'with-print-panel' : ''}`}
         style={{
           '--browser-column': browserOpen ? '252px' : '0px',
           '--command-column': isDockableCommand(command) ? (panelLayout.commandCollapsed ? '38px' : '280px') : '0px',
-          '--print-column': workspace === 'print' && printPanelOpen ? (panelLayout.printCollapsed ? '38px' : '286px') : '0px',
+          '--print-column': printPanelOpen ? (panelLayout.printCollapsed ? '38px' : '286px') : '0px',
         }}
       >
         {browserOpen && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onClose={() => setBrowserOpen(false)} />}
@@ -5676,7 +5640,7 @@ export default function ModelingWorkspace() {
             snapEnabled={sketchOptions.snap}
             snapThresholdPx={sketchOptions.snapDistance}
             bed={document.print}
-            showBed={workspace === 'print' && printPanelOpen}
+            showBed={printPanelOpen}
             printLayout={document.print}
           />
           </React.Suspense>}
@@ -5737,7 +5701,7 @@ export default function ModelingWorkspace() {
             }}
           />
         </main>
-        {workspace === 'print' && printPanelOpen && <PrintPanel document={document} bodies={engine.bodies} engine={engine} selectedFace={selectedPrintFace} commit={commit} collapsed={panelLayout.printCollapsed} onSelectIssue={(item) => setSelection(item?.kind === 'document' ? { kind: 'document', id: document.id } : item)} onExport={exportModel} onSendToSlicer={sendToSlicer} onClose={() => setPrintPanelOpen(false)} onToggleCollapsed={() => setPanelLayout((current) => ({ ...current, printCollapsed: !current.printCollapsed }))} readOnly={readOnly} />}
+        {printPanelOpen && <PrintPanel document={document} bodies={engine.bodies} engine={engine} selectedFace={selectedPrintFace} commit={commit} collapsed={panelLayout.printCollapsed} onSelectIssue={(item) => setSelection(item?.kind === 'document' ? { kind: 'document', id: document.id } : item)} onExport={exportModel} onSendToSlicer={sendToSlicer} onClose={() => setPrintPanelOpen(false)} onToggleCollapsed={() => setPanelLayout((current) => ({ ...current, printCollapsed: !current.printCollapsed }))} readOnly={readOnly} />}
       </div>
 
       <footer className="modeling-footer">

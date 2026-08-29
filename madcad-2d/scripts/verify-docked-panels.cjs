@@ -99,11 +99,9 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.modeling-shell')`, 'ponowne uruchomienie interfejsu');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
     const stored = await window.webContents.executeJavaScript(`Object.values(localStorage).some((value) => value.includes('"commandDock":"left"'))`);
-    await window.webContents.executeJavaScript(`[
-      ...document.querySelectorAll('.workspace-tabs button')
-    ].find((button) => button.textContent.includes('DRUK 3D'))?.click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-label')].some((item) => item.textContent.trim() === 'Panel druku 3D')`, 'narzędzia druku 3D');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === 'Panel druku 3D')?.click()`);
+    await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.file-backstage')`, 'menu Plik');
+    await window.webContents.executeJavaScript(`document.querySelector('#filePrint3dBtn')?.click()`);
     await waitFor(window, `document.querySelector('.print-panel')`, 'dokowany panel eksportu');
     await new Promise((resolve) => setTimeout(resolve, 220));
     const printInitial = await printPanelSnapshot(window);

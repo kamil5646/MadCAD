@@ -56,6 +56,7 @@ app.whenReady().then(async () => {
         primaryText: primary?.textContent.trim() || '',
         workflowText: page?.querySelector('.start-page-flow')?.textContent.trim() || '',
         tabs: labels,
+        fileMenuAvailable: Boolean(document.querySelector('#fileMenuBtn')),
         sharedIcon: Boolean(brand?.src && brand.src === startBrand?.src && brand.naturalWidth >= 512),
         logoAtRightEnd: Boolean(brandMark && titleActions && brandMark.parentElement === titleActions && titleActions.lastElementChild === brandMark),
         browserHiddenByDefault: !document.querySelector('.model-browser') && document.querySelector('.modeling-content')?.classList.contains('without-browser'),
@@ -66,7 +67,7 @@ app.whenReady().then(async () => {
       };
     })()`);
 
-    if (!wide.title.includes('Zacznij od szkicu 2D') || !wide.primaryText.includes('Nowy szkic 2D') || !wide.workflowText.includes('Arkusz techniczny 2D') || !wide.workflowText.includes('Model parametryczny 3D') || !wide.workflowText.includes('Opcjonalnie: druk 3D') || wide.tabs.join('|') !== 'MODELUJ|EDYCJA 3D|ARKUSZ 2D|KONSTRUKCJA|PROJEKT|PLIKI CAD|DRUK 3D' || !wide.sharedIcon || !wide.logoAtRightEnd || !wide.browserHiddenByDefault || !wide.browserToggleAvailable || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
+    if (!wide.title.includes('Zacznij od szkicu 2D') || !wide.primaryText.includes('Nowy szkic 2D') || !wide.workflowText.includes('Arkusz techniczny 2D') || !wide.workflowText.includes('Model parametryczny 3D') || !wide.workflowText.includes('Opcjonalnie: druk 3D') || wide.tabs.join('|') !== 'MODELUJ|EDYCJA 3D|ARKUSZ 2D|KONSTRUKCJA|PROJEKT' || !wide.fileMenuAvailable || !wide.sharedIcon || !wide.logoAtRightEnd || !wide.browserHiddenByDefault || !wide.browserToggleAvailable || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
       throw new Error(`Nieprawidłowa hierarchia strony startowej: ${JSON.stringify(wide)}`);
     }
 

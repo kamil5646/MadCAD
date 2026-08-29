@@ -2268,9 +2268,6 @@ test('interfejs modelowania rozpoznaje PL/EN i tłumaczy także dynamiczny stan 
   );
   assert.equal(translateModelingText('Utwórz szkic', 'pl'), 'Utwórz szkic');
   for (const label of [
-    'Układy obszaru roboczego',
-    'Zastosuj albo zapisz układ obszaru roboczego',
-    'Klasyczny CAD',
     'DOKUMENTACJA',
     'Dokumentacja techniczna',
     'Utwórz pierwszy arkusz techniczny',

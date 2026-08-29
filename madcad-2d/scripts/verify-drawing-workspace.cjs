@@ -92,11 +92,13 @@ app.whenReady().then(async () => {
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.titleBlock?.partNumber === 'MC-VERIFY-001'`, 'konfigurowalna tabliczka');
 
+    await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.file-backstage')`, 'menu Plik z eksportem rysunku');
     const state = await window.webContents.executeJavaScript(`(() => {
       const workspace = document.querySelector('.drawing-workspace');
       const paper = document.querySelector('.drawing-paper');
-      const pdfButton = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === 'PDF');
-      const dxfButton = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === 'DXF');
+      const pdfButton = document.querySelector('#fileExportPdfBtn');
+      const dxfButton = document.querySelector('#fileExportDxfBtn');
       return {
         schemaVersion: window.__madcadVerifyDocumentState.schemaVersion,
         sheets: window.__madcadVerifyDocumentState.drawings.length,
@@ -120,6 +122,7 @@ app.whenReady().then(async () => {
         associatedViewCount: window.__madcadVerifyDocumentState.drawings[0].views.filter((view) => view.parentViewId).length,
         pdfEnabled: Boolean(pdfButton && !pdfButton.disabled),
         dxfEnabled: Boolean(dxfButton && !dxfButton.disabled),
+        outputInFileMenu: Boolean(pdfButton?.closest('.file-backstage') && dxfButton?.closest('.file-backstage')),
         visibleRibbonGroups: [...document.querySelectorAll('.ribbon-group:not([hidden])')].map((item) => item.getAttribute('aria-label')),
         overflowVisible: Boolean(document.querySelector('.ribbon-overflow-trigger')),
         horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth || workspace.scrollWidth > workspace.clientWidth,
@@ -127,7 +130,7 @@ app.whenReady().then(async () => {
       };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (state.schemaVersion !== 15 || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.hatchCount < 1 || state.annotationCount !== 10 || state.userAnnotationCount !== 8 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note|feature-control-frame|balloon' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || !state.gdtFrame || !state.balloonVisible || state.tables !== 2 || state.bomRows < 1 || state.holeRows < 1 || state.revisions !== 1 || state.partNumber !== 'MC-VERIFY-001' || state.associatedViewCount !== 3 || !state.pdfEnabled || !state.dxfEnabled || (!state.visibleRibbonGroups.includes('TABELE') && !state.overflowVisible) || state.horizontalOverflow || !state.paperInsideStage) {
+    if (state.schemaVersion !== 15 || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.hatchCount < 1 || state.annotationCount !== 10 || state.userAnnotationCount !== 8 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note|feature-control-frame|balloon' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || !state.gdtFrame || !state.balloonVisible || state.tables !== 2 || state.bomRows < 1 || state.holeRows < 1 || state.revisions !== 1 || state.partNumber !== 'MC-VERIFY-001' || state.associatedViewCount !== 3 || !state.pdfEnabled || !state.dxfEnabled || !state.outputInFileMenu || (!state.visibleRibbonGroups.includes('TABELE') && !state.overflowVisible) || state.horizontalOverflow || !state.paperInsideStage) {
       throw new Error(`Niepoprawny obszar dokumentacji: ${JSON.stringify(state)}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...state }, null, 2)}\n`);

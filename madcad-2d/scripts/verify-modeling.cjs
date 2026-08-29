@@ -271,8 +271,6 @@ async function runUiFlow(window) {
     'Zaokrąglij', 'Fazuj', 'Shell', 'Draft', 'Offset Face', 'Delete Face + Heal', 'Split Body', 'Split Face',
     'Replace Face', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj',
   ]);
-  const exportWorkspaceLabels = new Set(['STEP / STL / 3MF', 'STEP', 'STL', '3MF']);
-  const printWorkspaceLabels = new Set(['Panel druku 3D']);
   const ribbonHasTool = (label) => window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)})`);
   const clickWorkspace = (workspaceLabel) => window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === ${JSON.stringify(workspaceLabel)});
@@ -281,7 +279,7 @@ async function runUiFlow(window) {
   })()`);
   const clickTool = async (label) => {
     if (!await ribbonHasTool(label)) {
-      const workspaceLabel = toolsWorkspaceLabels.has(label) ? 'PROJEKT' : constructionWorkspaceLabels.has(label) ? 'KONSTRUKCJA' : modifyWorkspaceLabels.has(label) ? 'EDYCJA 3D' : printWorkspaceLabels.has(label) ? 'DRUK 3D' : exportWorkspaceLabels.has(label) ? 'PLIKI CAD' : 'MODELUJ';
+      const workspaceLabel = toolsWorkspaceLabels.has(label) ? 'PROJEKT' : constructionWorkspaceLabels.has(label) ? 'KONSTRUKCJA' : modifyWorkspaceLabels.has(label) ? 'EDYCJA 3D' : 'MODELUJ';
       await clickWorkspace(workspaceLabel);
       await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)})`, `narzędzie ${label} w obszarze ${workspaceLabel}`);
     }
@@ -583,7 +581,10 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.at(-1)?.entities?.length === 8; })()`, 'autozapis importu SVG');
   progress('local DWG sketch import through converted DXF');
   const dwgDxfFixture = ['0', 'SECTION', '2', 'HEADER', '9', '$INSUNITS', '70', '4', '0', 'ENDSEC', '0', 'SECTION', '2', 'ENTITIES', '0', 'LINE', '10', '50', '20', '0', '11', '70', '21', '0', '0', 'LINE', '10', '70', '20', '0', '11', '70', '21', '10', '0', 'LINE', '10', '70', '20', '10', '11', '50', '21', '10', '0', 'LINE', '10', '50', '20', '10', '11', '50', '21', '0', '0', 'ENDSEC', '0', 'EOF'].join('\n');
-  await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === 'Import DWG')`, 'przycisk lokalnego importu DWG');
+  await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
+  await waitForUi(window, `Boolean(document.querySelector('#fileImportDwgBtn:not([disabled])'))`, 'przycisk lokalnego importu DWG w menu Plik');
+  await window.webContents.executeJavaScript(`document.querySelector('.file-backstage header button')?.click()`);
+  await waitForUi(window, `!document.querySelector('.file-backstage')`, 'zamknięcie menu Plik przed importem DWG');
   await waitForUi(window, `typeof window.__madcadVerifyDwgImport === 'function'`, 'testowy interfejs importu DWG');
   await window.webContents.executeJavaScript(`window.__madcadVerifyDwgImport({ ok: true, canceled: false, fileName: 'fixture.dwg', converter: 'libredwg', text: ${JSON.stringify(dwgDxfFixture)} })`);
   await waitForUi(window, `document.querySelector('.import-sketch-dialog .confirm') && [...document.querySelectorAll('.import-sketch-dialog input')].some((input) => input.value === 'DWG')`, 'dialog lokalnego importu DWG');
@@ -2478,7 +2479,7 @@ async function runUiFlow(window) {
   progress('parameters and undo/redo');
   await clickTool('Parametry');
   await waitForUi(window, `document.querySelector('.parameters-dialog')`, 'okno parametrów');
-  progress('print workspace');
+  progress('print panel from File menu');
   await window.webContents.executeJavaScript(`(() => {
     const add = [...document.querySelectorAll('.parameters-dialog button')].find((item) => item.textContent.includes('Dodaj parametr'));
     const key = Object.keys(add).find((item) => item.startsWith('__reactProps'));
@@ -2499,13 +2500,9 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelectorAll('.parameter-row').length === 1`, 'ponowienie parametru skrótem');
   await confirmParameters();
 
-  await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === 'DRUK 3D');
-    if (!button) throw new Error('Brak obszaru DRUK 3D');
-    const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
-    button[key].onClick();
-  })()`);
-  await clickTool('Panel druku 3D');
+  await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
+  await waitForUi(window, `document.querySelector('.file-backstage')`, 'menu Plik');
+  await window.webContents.executeJavaScript(`document.querySelector('#filePrint3dBtn')?.click()`);
   await waitForUi(window, `document.querySelector('.print-inspector')`, 'obszar przygotowania druku');
 
   await window.webContents.executeJavaScript(`(() => {
@@ -2747,7 +2744,7 @@ app.whenReady().then(async () => {
     }
     const image = await window.webContents.capturePage();
     await fs.writeFile(outputPath, image.toPNG());
-    window.setContentSize(1100, 760);
+    window.setContentSize(760, 760);
     await new Promise((resolve) => setTimeout(resolve, 300));
     await fs.writeFile(narrowOutputPath, (await window.webContents.capturePage()).toPNG());
     const narrowViewport = await window.webContents.executeJavaScript(`({

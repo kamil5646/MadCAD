@@ -9,6 +9,7 @@ const drawingScreenshotPath = path.join(artifactsDir, '03-drawing-fixed.png');
 const overflowScreenshotPath = path.join(artifactsDir, '04-visible-more-menu.png');
 const modifyScreenshotPath = path.join(artifactsDir, '05-edit-3d-fixed.png');
 const constructionScreenshotPath = path.join(artifactsDir, '06-construction-fixed.png');
+const fileMenuScreenshotPath = path.join(artifactsDir, '07-file-menu-fixed.png');
 
 async function waitFor(window, expression, label, timeoutMs = 45000) {
   const startedAt = Date.now();
@@ -43,8 +44,29 @@ app.whenReady().then(async () => {
 
     const emptyModelGroups = await ribbonGroups(window);
     const tabs = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.workspace-tabs button')].map((item) => item.textContent.trim())`);
-    const expectedTabs = ['MODELUJ', 'EDYCJA 3D', 'ARKUSZ 2D', 'KONSTRUKCJA', 'PROJEKT', 'PLIKI CAD', 'DRUK 3D'];
+    const expectedTabs = ['MODELUJ', 'EDYCJA 3D', 'ARKUSZ 2D', 'KONSTRUKCJA', 'PROJEKT'];
     if (tabs.join('|') !== expectedTabs.join('|')) throw new Error(`Nielogiczny podział obszarów: ${tabs.join('|')}`);
+
+    await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.file-backstage')`, 'lewe menu Plik');
+    const fileMenu = await window.webContents.executeJavaScript(`(() => {
+      const menu = document.querySelector('.file-backstage');
+      const rect = menu?.getBoundingClientRect();
+      const requiredIds = ['fileImportModelBtn', 'fileImportSketchBtn', 'fileImportDwgBtn', 'fileExportStepBtn', 'fileExportStlBtn', 'fileExport3mfBtn', 'fileExportPdfBtn', 'fileExportDxfBtn', 'filePrint3dBtn'];
+      return {
+        headings: [...menu.querySelectorAll('h2')].map((item) => item.textContent.trim()),
+        requiredActions: requiredIds.map((id) => ({ id, available: Boolean(document.querySelector('#' + id)) })),
+        leftAligned: Boolean(rect && rect.left === 0),
+        insideWindow: Boolean(rect && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight),
+        legacyLayoutsRemoved: !document.querySelector('.workspace-layout-control, .workspace-layout-menu'),
+        fileTabsRemoved: ![...document.querySelectorAll('.workspace-tabs button')].some((item) => ['PLIKI CAD', 'DRUK 3D'].includes(item.textContent.trim())),
+      };
+    })()`);
+    const expectedHeadings = ['PROJEKT', 'IMPORT', 'EKSPORT MODELU', 'RYSUNEK TECHNICZNY', 'DRUK 3D'];
+    if (fileMenu.headings.join('|') !== expectedHeadings.join('|') || fileMenu.requiredActions.some((item) => !item.available) || !fileMenu.leftAligned || !fileMenu.insideWindow || !fileMenu.legacyLayoutsRemoved || !fileMenu.fileTabsRemoved) throw new Error(`Menu Plik nie porządkuje operacji wejścia i wyjścia: ${JSON.stringify(fileMenu)}`);
+    await fs.writeFile(fileMenuScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`document.querySelector('.file-backstage header button')?.click()`);
+    await waitFor(window, `!document.querySelector('.file-backstage')`, 'zamknięcie menu Plik');
 
     const expectedModelGroups = ['1 · SZKIC', '2 · UTWÓRZ BRYŁĘ', '3 · OPERACJE BRYŁOWE', 'TRYB'];
     if (emptyModelGroups.join('|') !== expectedModelGroups.join('|')) throw new Error(`Niestabilny pusty obszar modelowania: ${emptyModelGroups.join('|')}`);
@@ -86,7 +108,7 @@ app.whenReady().then(async () => {
     if (!(await clickText(window, '.workspace-tabs button', 'ARKUSZ 2D'))) throw new Error('Brak karty ARKUSZ 2D.');
     await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'ARKUSZ 2D'`, 'karta arkusza');
     const emptyDrawingGroups = await ribbonGroups(window);
-    const expectedDrawingGroups = ['ARKUSZE', 'DODAJ WIDOK', 'WYBRANY WIDOK', 'WYMIARY I OPISY', 'OZNACZENIE', 'TABELE', 'WYJŚCIE'];
+    const expectedDrawingGroups = ['ARKUSZE', 'DODAJ WIDOK', 'WYBRANY WIDOK', 'WYMIARY I OPISY', 'OZNACZENIE', 'TABELE'];
     if (emptyDrawingGroups.join('|') !== expectedDrawingGroups.join('|')) throw new Error(`Niestabilny pusty arkusz: ${emptyDrawingGroups.join('|')}`);
     await clickText(window, '.ribbon-tool', 'Nowy arkusz');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.length === 1`, 'nowy arkusz');
@@ -114,7 +136,7 @@ app.whenReady().then(async () => {
     if (!/^Więcej \(\d+\)$/.test(overflow.label) || !overflow.title.includes('Pokaż ukryte grupy:') || overflow.sections.length !== overflow.hiddenGroups) throw new Error(`Nieczytelne menu pozostałych narzędzi: ${JSON.stringify(overflow)}`);
     await fs.writeFile(overflowScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
-    process.stdout.write(`${JSON.stringify({ ok: true, tabs, emptyModelGroups, loadedModelGroups, modifyGroups, constructionGroups, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, modifyScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, tabs, fileMenu, emptyModelGroups, loadedModelGroups, modifyGroups, constructionGroups, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, modifyScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);
