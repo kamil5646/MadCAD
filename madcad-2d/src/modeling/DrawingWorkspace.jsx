@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { FilePlus2, FileText, Plus, Trash2 } from 'lucide-react';
 import { drawingBomItemNumber, drawingSheetScene, formatDrawingScale } from '../cad-core/drawing-sheets.js';
 
@@ -133,19 +133,29 @@ function AnnotationControls({ annotation, rendered, bodies, allBodies, component
   </div>;
 }
 
-export default function DrawingWorkspace({ document, bodies, activeSheetId, selectedViewId, selectedAnnotationId, readOnly = false, onCreateSheet, onSelectSheet, onUpdateSheet, onSelectView, onUpdateView, onDeleteView, onSelectAnnotation, onUpdateAnnotation, onDeleteAnnotation, onAddRevision, onUpdateRevision, onDeleteRevision, onUpdateTable, onDeleteTable }) {
+export default function DrawingWorkspace({ document, bodies, activeSheetId, selectedViewId, selectedAnnotationId, focusSection = null, readOnly = false, onCreateSheet, onSelectSheet, onUpdateSheet, onSelectView, onUpdateView, onDeleteView, onSelectAnnotation, onUpdateAnnotation, onDeleteAnnotation, onAddRevision, onUpdateRevision, onDeleteRevision, onUpdateTable, onDeleteTable }) {
+  const titleBlockRef = useRef(null);
+  const revisionsRef = useRef(null);
   const activeSheet = document.drawings.find((sheet) => sheet.id === activeSheetId) || document.drawings[0] || null;
   const activeScene = useMemo(() => activeSheet ? drawingSheetScene(activeSheet, bodies, { components: document.components || [], componentInstances: document.componentInstances || [], sketches: document.sketches || [], parameters: document.parameters || [], layers: document.layers || [] }) : null, [activeSheet, bodies, document.components, document.componentInstances, document.sketches, document.parameters, document.layers]);
   const selectedView = activeScene?.views.find((view) => view.id === selectedViewId) || null;
   const selectedAnnotation = activeSheet?.annotations?.find((annotation) => annotation.id === selectedAnnotationId) || null;
   const renderedSelectedAnnotation = activeScene?.annotations.find((annotation) => annotation.id === selectedAnnotationId) || null;
   const drawableSketches = (document.sketches || []).filter((sketch) => (sketch.entities || []).some((entity) => !['point', 'text'].includes(entity.type) && entity.role !== 'construction'));
+  useEffect(() => {
+    const target = focusSection?.section === 'revisions' ? revisionsRef.current : focusSection?.section === 'title-block' ? titleBlockRef.current : null;
+    if (!target) return;
+    target.open = true;
+    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    target.querySelector('input, button, select')?.focus({ preventScroll: true });
+  }, [focusSection]);
 
   if (!activeSheet) {
     return <section className="drawing-workspace drawing-empty" aria-label="Dokumentacja techniczna">
       <FileText size={46} />
       <h2>Utwórz pierwszy arkusz techniczny</h2>
       <p>Arkusz jest zapisany w projekcie i aktualizuje widoki po każdej zmianie modelu albo szkicu 2D.</p>
+      <div className="drawing-empty-features" aria-label="Możliwości arkusza"><span>A4 / A3</span><span>Rzuty, przekroje i detale</span><span>Wymiary i GD&amp;T</span><span>Tabliczka, rewizje i BOM</span></div>
       <button type="button" onClick={onCreateSheet} disabled={readOnly}><FilePlus2 size={17} /> Nowy arkusz A4</button>
     </section>;
   }
@@ -162,13 +172,13 @@ export default function DrawingWorkspace({ document, bodies, activeSheetId, sele
       <header><FileText size={16} /><strong>Właściwości</strong></header>
       <label><span>Nazwa arkusza</span><input value={activeSheet.name} disabled={readOnly} onChange={(event) => { const name = event.target.value.slice(0, 80); if (name.trim()) onUpdateSheet({ name }); }} /></label>
       <div className="drawing-property-row"><label><span>Format</span><select value={activeSheet.pageSize} disabled={readOnly} onChange={(event) => onUpdateSheet({ pageSize: event.target.value })}><option value="A4">A4</option><option value="A3">A3</option></select></label><label><span>Orientacja</span><select value={activeSheet.orientation} disabled={readOnly} onChange={(event) => onUpdateSheet({ orientation: event.target.value })}><option value="landscape">Pozioma</option><option value="portrait">Pionowa</option></select></label></div>
-      <details className="drawing-sheet-details">
+      <details className="drawing-sheet-details" ref={titleBlockRef}>
         <summary>Tabliczka rysunkowa</summary>
         <label><span>Tytuł</span><input value={activeSheet.titleBlock?.title || ''} placeholder={document.name} disabled={readOnly} onChange={(event) => onUpdateSheet({ titleBlock: { ...activeSheet.titleBlock, title: event.target.value.slice(0, 80) } })} /></label>
         <div className="drawing-property-row"><label><span>Numer części</span><input value={activeSheet.titleBlock?.partNumber || ''} disabled={readOnly} onChange={(event) => onUpdateSheet({ titleBlock: { ...activeSheet.titleBlock, partNumber: event.target.value.slice(0, 40) } })} /></label><label><span>Materiał</span><input value={activeSheet.titleBlock?.material || ''} disabled={readOnly} onChange={(event) => onUpdateSheet({ titleBlock: { ...activeSheet.titleBlock, material: event.target.value.slice(0, 40) } })} /></label></div>
         <div className="drawing-property-row"><label><span>Autor</span><input value={activeSheet.titleBlock?.author || ''} disabled={readOnly} onChange={(event) => onUpdateSheet({ titleBlock: { ...activeSheet.titleBlock, author: event.target.value.slice(0, 60) } })} /></label><label><span>Firma</span><input value={activeSheet.titleBlock?.company || ''} disabled={readOnly} onChange={(event) => onUpdateSheet({ titleBlock: { ...activeSheet.titleBlock, company: event.target.value.slice(0, 60) } })} /></label></div>
       </details>
-      <details className="drawing-sheet-details drawing-revisions">
+      <details className="drawing-sheet-details drawing-revisions" ref={revisionsRef}>
         <summary>Rewizje ({activeSheet.revisions?.length || 0})</summary>
         {(activeSheet.revisions || []).map((revision) => <div className="drawing-revision" key={revision.id}><div className="drawing-property-row"><label><span>Rew.</span><input value={revision.code} disabled={readOnly} onChange={(event) => onUpdateRevision(revision.id, { code: event.target.value.slice(0, 8) })} /></label><label><span>Data</span><input type="date" value={revision.date} disabled={readOnly} onChange={(event) => onUpdateRevision(revision.id, { date: event.target.value })} /></label></div><label><span>Opis</span><input value={revision.description} disabled={readOnly} onChange={(event) => onUpdateRevision(revision.id, { description: event.target.value.slice(0, 120) })} /></label><button type="button" className="drawing-revision-delete" title="Usuń rewizję" onClick={() => onDeleteRevision(revision.id)} disabled={readOnly}><Trash2 size={13} /> Usuń</button></div>)}
         <button type="button" className="drawing-add-revision" onClick={onAddRevision} disabled={readOnly}><Plus size={14} /> Dodaj rewizję</button>

@@ -215,12 +215,12 @@
 .document-tab button,
 .browser-heading button {
   display: inline-flex;
-  height: 28px;
+  height: 30px;
   align-items: center;
   justify-content: center;
   gap: 6px;
   border: 0;
-  border-radius: 2px;
+  border-radius: 5px;
   background: transparent;
   color: #b9c3cc;
   cursor: pointer;
@@ -235,7 +235,7 @@
 }
 
 .app-menu button > span {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
 }
 
@@ -323,7 +323,7 @@
   align-items: center;
   gap: 7px;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 7px;
   background: transparent;
   color: #e8eef2;
   text-align: left;
@@ -481,7 +481,7 @@
 .command-ribbon {
   display: grid;
   min-width: 0;
-  grid-template-rows: 31px minmax(0, 1fr);
+  grid-template-rows: 37px minmax(0, 1fr);
   background: #303b48;
 }
 
@@ -497,13 +497,13 @@
 
 .workspace-tabs button {
   position: relative;
-  height: 25px;
+  height: 30px;
   border: 1px solid transparent;
-  border-radius: 4px 4px 2px 2px;
+  border-radius: 8px 8px 4px 4px;
   background: rgba(21, 28, 36, 0.13);
   color: #c9d2da;
   padding: 0 16px;
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: 650;
   letter-spacing: 0.045em;
   cursor: pointer;
@@ -572,7 +572,7 @@
   display: flex;
   flex: 0 0 78px;
   min-width: 78px;
-  height: 76px;
+  height: 88px;
   padding: 2px 5px 14px;
   align-items: stretch;
   border-right: 1px solid #465360;
@@ -582,12 +582,12 @@
   display: grid;
   width: 68px;
   min-width: 68px;
-  height: 58px;
+  height: 70px;
   padding: 4px 3px 3px;
-  grid-template-rows: 34px 16px;
+  grid-template-rows: 44px 18px;
   place-items: center;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: 8px;
   color: #e4eaf0;
   background: transparent;
   cursor: pointer;
@@ -701,13 +701,13 @@
   display: flex;
   flex: 0 0 auto;
   align-items: stretch;
-  height: 76px;
+  height: 88px;
   padding: 2px 8px 14px 7px;
   overflow: visible;
   border: 0;
   border-right: 1px solid #465360;
   border-radius: 0;
-  background: rgba(255, 255, 255, 0.018);
+  background: transparent;
   box-shadow: none;
   margin-right: 3px;
 }
@@ -719,17 +719,17 @@
   bottom: 0;
   left: 2px;
   display: flex;
-  height: 12px;
+  height: 14px;
   padding: 0;
   align-items: center;
   justify-content: center;
   border: 0;
   background: transparent;
   color: #b7c3ce;
-  font-size: 9px;
+  font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.075em;
-  line-height: 12px;
+  line-height: 14px;
   white-space: nowrap;
 }
 
@@ -745,7 +745,7 @@
   display: grid;
   grid-auto-columns: max-content;
   grid-auto-flow: column;
-  grid-template-rows: repeat(2, 28px);
+  grid-template-rows: repeat(2, 34px);
   align-content: start;
   gap: 2px 3px;
 }
@@ -754,13 +754,13 @@
   display: block;
   width: auto;
   min-width: 96px;
-  height: 28px;
+  height: 34px;
 }
 
 .ribbon-tool-wrap.featured {
   width: auto;
   min-width: 88px;
-  height: 58px;
+  height: 70px;
   grid-row: 1 / span 2;
 }
 
@@ -778,7 +778,7 @@
 .ribbon-tool-submenu {
   position: absolute;
   z-index: 80;
-  top: 60px;
+  top: 72px;
   left: 0;
   display: grid;
   width: 290px;
@@ -787,20 +787,20 @@
   overflow: auto;
   gap: 3px;
   border: 1px solid #667789;
-  border-radius: 5px;
+  border-radius: 9px;
   background: #27323e;
   box-shadow: 0 16px 42px rgba(4, 9, 14, 0.56);
 }
 
 .ribbon-tool-submenu > button {
   display: grid;
-  min-height: 42px;
+  min-height: 46px;
   padding: 5px 7px;
   grid-template-columns: 28px minmax(0, 1fr);
   align-items: center;
   gap: 7px;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 7px;
   background: #35414e;
   color: #e4eaf0;
   text-align: left;
@@ -830,13 +830,13 @@
 }
 
 .ribbon-tool-submenu strong {
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .ribbon-tool-submenu small {
   overflow: hidden;
   color: #aab5c0;
-  font-size: 8.5px;
+  font-size: 9.5px;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -862,12 +862,12 @@
   display: grid;
   width: 100%;
   min-width: 96px;
-  height: 28px;
+  height: 34px;
   padding: 1px 7px;
-  grid-template-columns: 26px minmax(0, 1fr);
+  grid-template-columns: 32px minmax(0, 1fr);
   align-items: center;
   border: 1px solid transparent;
-  border-radius: 3px;
+  border-radius: 7px;
   background: transparent;
   color: #e4eaf0;
   box-shadow: none;
@@ -877,12 +877,12 @@
 
 .ribbon-tool.featured {
   min-width: 88px;
-  height: 58px;
+  height: 70px;
   padding: 2px 4px;
   grid-template-columns: 1fr;
-  grid-template-rows: 39px 15px;
+  grid-template-rows: 49px 17px;
   place-items: center;
-  border-radius: 5px;
+  border-radius: 9px;
 }
 
 .tool-help-tooltip {
@@ -937,7 +937,7 @@
 .ribbon-tool:disabled {
   border-color: transparent;
   background: transparent;
-  color: #687583;
+  color: #8795a3;
   box-shadow: none;
   cursor: default;
 }
@@ -945,8 +945,8 @@
 .ribbon-icon {
   position: relative;
   display: grid;
-  width: 25px;
-  height: 25px;
+  width: 31px;
+  height: 31px;
   place-items: center;
   color: #e4edf2;
   filter: none;
@@ -957,8 +957,8 @@
 .ribbon-glyph svg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
 .ribbon-glyph-depth { color: rgba(7, 13, 20, 0.78); opacity: 0.72; transform: translate(calc(-50% + 1.2px), calc(-50% + 1.5px)) !important; }
 .ribbon-glyph-face { filter: drop-shadow(0 1px 1px rgba(2, 8, 13, 0.38)); }
-.ribbon-tool:not(.featured) .ribbon-icon svg { width: 23px; height: 23px; }
-.ribbon-tool.featured .ribbon-icon { width: 40px; height: 36px; }
+.ribbon-tool:not(.featured) .ribbon-icon svg { width: 29px; height: 29px; }
+.ribbon-tool.featured .ribbon-icon { width: 48px; height: 46px; }
 
 .ribbon-tool.primary {
   border-color: color-mix(in srgb, var(--tool-accent) 34%, #4a5a69);
@@ -978,19 +978,20 @@
 
 .ribbon-tool:disabled .ribbon-icon {
   filter: none;
-  opacity: 0.56;
+  opacity: 0.72;
 }
 
 .ribbon-label {
   max-width: none;
   overflow: visible;
-  font-size: 10px;
-  font-weight: 560;
+  font-size: 11px;
+  font-weight: 620;
   text-align: left;
   white-space: nowrap;
 }
 
 .ribbon-tool.featured .ribbon-label { max-width: none; text-align: center; }
+.ribbon-tool-menu-wrap:last-child .ribbon-tool-submenu { right: 0; left: auto; }
 
 .modeling-content {
   display: grid;
@@ -1215,6 +1216,8 @@
 .drawing-empty svg { color: #58c5e8; }
 .drawing-empty h2 { margin: 4px 0 0; color: #f3f6f8; font-size: 18px; }
 .drawing-empty p { max-width: 480px; margin: 0 0 8px; line-height: 1.5; }
+.drawing-empty-features { display: flex; max-width: 680px; flex-wrap: wrap; justify-content: center; gap: 7px; margin: 2px 0 9px; }
+.drawing-empty-features span { padding: 5px 9px; border: 1px solid #526272; border-radius: 999px; background: #303c49; color: #d8e1e8; font-size: 10px; font-weight: 650; }
 .drawing-empty button,
 .drawing-actions button {
   display: inline-flex;

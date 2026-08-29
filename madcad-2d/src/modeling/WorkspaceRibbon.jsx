@@ -148,7 +148,7 @@ function shortcutLabel(shortcut) {
 
 
 function ToolGlyph({ icon: Icon, compact = false, featured = false }) {
-  const size = compact ? 20 : featured ? 34 : 28;
+  const size = compact ? 22 : featured ? 42 : 34;
   return (
     <span className="ribbon-glyph">
       <Icon className="ribbon-glyph-depth" size={size} strokeWidth={2.7} fill="currentColor" fillOpacity={0.32} aria-hidden="true" />
@@ -205,6 +205,27 @@ export function ToolButton({ id, icon: Icon, label, onClick, disabled = false, p
 export function ToolMenuButton({ icon: Icon, label, items, disabled = false, description }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
+  const itemsRef = useRef(items);
+  const toolHelp = React.useContext(ToolHelpContext);
+  itemsRef.current = items;
+  const shortcutEntries = items.flatMap((item) => {
+    const customCommand = toolHelp?.customizationForTool?.(item.label) || null;
+    const shortcuts = customCommand
+      ? [...new Set([customCommand.alias, customCommand.shortcut].filter(Boolean))]
+      : [TOOL_SHORTCUTS[item.label]].filter(Boolean);
+    return shortcuts.filter((value) => !['ESC', 'CTRL+ENTER'].includes(value)).map((shortcut) => ({ label: item.label, shortcut, disabled: disabled || item.disabled }));
+  });
+  const shortcutRegistryKey = shortcutEntries.map((entry) => `${entry.label}:${entry.shortcut}:${entry.disabled ? 1 : 0}`).join('|');
+  useEffect(() => {
+    const cleanups = shortcutEntries.map((entry) => toolHelp?.registerShortcut(entry.shortcut, {
+      label: entry.label,
+      disabled: entry.disabled,
+      onClick: (...args) => itemsRef.current.find((item) => item.label === entry.label)?.onClick?.(...args),
+    })).filter(Boolean);
+    return () => cleanups.forEach((cleanup) => cleanup());
+  // shortcutRegistryKey is the stable scalar representation of submenu shortcuts.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shortcutRegistryKey, toolHelp]);
   useEffect(() => {
     if (!open) return undefined;
     const close = (event) => { if (!menuRef.current?.contains(event.target)) setOpen(false); };
@@ -236,7 +257,10 @@ export function ToolMenuButton({ icon: Icon, label, items, disabled = false, des
         {items.map((item) => {
           const ItemIcon = item.icon;
           const help = item.description || TOOL_DESCRIPTIONS[item.label] || item.label;
-          return <button key={item.label} type="button" role="menuitem" disabled={item.disabled} title={help} onClick={(event) => { item.onClick?.(event); setOpen(false); }}>
+          const customCommand = toolHelp?.customizationForTool?.(item.label) || null;
+          const shortcut = customCommand ? (customCommand.shortcut || customCommand.alias) : (TOOL_SHORTCUTS[item.label] || null);
+          const fullHelp = `${help}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`;
+          return <button key={item.label} type="button" role="menuitem" disabled={item.disabled} title={fullHelp} aria-label={`${item.label}. ${fullHelp}`} onClick={(event) => { item.onClick?.(event); setOpen(false); }}>
             <span style={toolColorStyle(item.label)} aria-hidden="true"><ToolGlyph icon={ItemIcon} compact /></span>
             <span><strong>{item.label}</strong><small>{help}</small></span>
           </button>;

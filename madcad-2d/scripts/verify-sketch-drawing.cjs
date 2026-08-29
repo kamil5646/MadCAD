@@ -20,10 +20,16 @@ async function waitFor(window, expression, label, timeoutMs = 30000) {
 
 async function clickText(window, selector, label) {
   return window.webContents.executeJavaScript(`(() => {
-    const target = [...document.querySelectorAll(${JSON.stringify(selector)})].find((item) => item.textContent.trim() === ${JSON.stringify(label)} || item.querySelector('.ribbon-label')?.textContent.trim() === ${JSON.stringify(label)});
+    const target = [...document.querySelectorAll(${JSON.stringify(selector)})].find((item) => item.textContent.trim() === ${JSON.stringify(label)} || item.querySelector('.ribbon-label')?.textContent.trim() === ${JSON.stringify(label)} || item.querySelector('strong')?.textContent.trim() === ${JSON.stringify(label)});
     target?.click();
     return Boolean(target);
   })()`);
+}
+
+async function clickDimensionCommand(window, label) {
+  if (!(await clickText(window, '.ribbon-tool-menu-trigger', 'Wymiary'))) return false;
+  await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button strong')].some((item) => item.textContent.trim() === ${JSON.stringify(label)})`, `menu polecenia ${label}`);
+  return clickText(window, '.ribbon-tool-submenu button', label);
 }
 
 async function waitForPaint() {
@@ -53,7 +59,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.length === 1`, 'utworzony arkusz');
     if (!(await clickText(window, '.ribbon-tool', 'Szkic 2D'))) throw new Error('Brak polecenia Szkic 2D.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.[0]?.type === 'sketch' && document.querySelectorAll('.drawing-view line').length === 4`, 'widok szkicu 2D');
-    if (!(await clickText(window, '.ribbon-tool', 'Wymiar X'))) throw new Error('Brak polecenia Wymiar X.');
+    if (!(await clickDimensionCommand(window, 'Wymiar X'))) throw new Error('Brak polecenia Wymiar X.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.annotations?.length === 1 && document.querySelector('.drawing-linear-dimension')`, 'wymiar szkicu');
     await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
     await waitFor(window, `document.querySelector('.file-backstage')`, 'centralne menu Plik');

@@ -267,6 +267,12 @@ async function runUiFlow(window) {
     'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum',
     'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi',
   ]);
+  const solidToolMenus = new Map([
+    ...['Revolve', 'Sweep', 'Loft', 'Coil', 'Tekst 3D', 'Otwór'].map((label) => [label, 'Więcej brył']),
+    ...['Fazuj', 'Shell', 'Draft', 'Offset Face', 'Delete Face + Heal', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj'].map((label) => [label, 'Więcej zmian']),
+    ...['Boolean', 'Split Body', 'Split Face', 'Replace Face'].map((label) => [label, 'Łącz i dziel']),
+    ...['Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię'].map((label) => [label, 'Analiza']),
+  ]);
   const ribbonHasTool = (label) => window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool')].some((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)})`);
   const clickWorkspace = (workspaceLabel) => window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === ${JSON.stringify(workspaceLabel)});
@@ -274,22 +280,25 @@ async function runUiFlow(window) {
     button.click();
   })()`);
   const clickTool = async (label) => {
-    if (constructionWorkspaceLabels.has(label)) {
-      await clickWorkspace('PROJEKTUJ');
-      const menuLabel = label.startsWith('Płaszczyzna') || ['Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce'].includes(label)
+    const constructionMenuLabel = constructionWorkspaceLabels.has(label)
+      ? (label.startsWith('Płaszczyzna') || ['Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce'].includes(label)
         ? 'Płaszczyzny'
         : label.startsWith('Oś ')
           ? 'Osie'
-          : 'Punkty';
+          : 'Punkty')
+      : null;
+    const menuLabel = constructionMenuLabel || solidToolMenus.get(label);
+    if (menuLabel) {
+      await clickWorkspace('PROJEKTUJ');
       await window.webContents.executeJavaScript(`(() => {
         const button = [...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === ${JSON.stringify(menuLabel)});
-        if (!button) throw new Error('Brak menu konstrukcji: ${menuLabel}');
+        if (!button) throw new Error('Brak menu narzędzi: ${menuLabel}');
         button.click();
       })()`);
-      await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((item) => item.querySelector('strong')?.textContent === ${JSON.stringify(label)})`, `narzędzie konstrukcyjne ${label}`);
+      await waitForUi(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((item) => item.querySelector('strong')?.textContent === ${JSON.stringify(label)})`, `narzędzie w menu ${label}`);
       return window.webContents.executeJavaScript(`(() => {
         const button = [...document.querySelectorAll('.ribbon-tool-submenu button')].find((item) => item.querySelector('strong')?.textContent === ${JSON.stringify(label)});
-        if (!button || button.disabled) throw new Error('Nieaktywne narzędzie konstrukcyjne: ${label}');
+        if (!button || button.disabled) throw new Error('Nieaktywne narzędzie w menu: ${label}');
         button.click();
       })()`);
     }

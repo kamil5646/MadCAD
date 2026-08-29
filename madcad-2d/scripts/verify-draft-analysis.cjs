@@ -27,8 +27,10 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`(() => {
       [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'PROJEKTUJ')?.click();
     })()`);
-    await waitFor(window, `[...document.querySelectorAll('button')].some((button) => button.textContent.trim() === 'Sprawdź geometrię' && !button.disabled)`, 'przycisk analizy');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Sprawdź geometrię' && !button.disabled).click()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-menu-trigger')].some((button) => button.textContent.trim() === 'Analiza')`, 'menu analizy');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Analiza').click()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Sprawdź geometrię' && !button.disabled)`, 'przycisk analizy');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Sprawdź geometrię' && !button.disabled).click()`);
     await waitFor(window, `document.querySelector('.geometry-inspection-panel')`, 'panel analizy');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.geometryInspection?.draft?.faces?.length > 0`, 'mapa pochylenia');
     await window.webContents.executeJavaScript(`(() => {

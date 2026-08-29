@@ -70,16 +70,28 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.file-backstage header button')?.click()`);
     await waitFor(window, `!document.querySelector('.file-backstage')`, 'zamknięcie menu Plik');
 
-    const expectedModelGroups = ['UTWÓRZ', 'DODAJ', 'MODYFIKUJ', 'OPERACJE', 'POŁOŻENIE', 'KONSTRUKCJA', 'SPRAWDŹ'];
+    const expectedModelGroups = ['UTWÓRZ', 'EDYCJA', 'OPERACJE', 'KONSTRUKCJA', 'SPRAWDŹ'];
     if (emptyModelGroups.join('|') !== expectedModelGroups.join('|')) throw new Error(`Niestabilny pusty obszar modelowania: ${emptyModelGroups.join('|')}`);
     const designStructure = await window.webContents.executeJavaScript(`(() => ({
       legacyTabsRemoved: ![...document.querySelectorAll('.workspace-tabs button')].some((item) => ['MODELUJ', 'EDYCJA 3D', 'KONSTRUKCJA', 'PROJEKT'].includes(item.textContent.trim())),
       selectionModeGroupRemoved: ![...document.querySelectorAll('.ribbon-group')].some((item) => item.getAttribute('aria-label') === 'TRYB'),
-      constructionMenus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
+      menus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
       customCadIcons: document.querySelectorAll('.ribbon-tool svg path').length > 25,
       iconSize: document.querySelector('.ribbon-tool:not(.featured) .ribbon-icon svg')?.getBoundingClientRect().width || 0,
     }))()`);
-    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.constructionMenus.join('|') !== 'Płaszczyzny|Osie|Punkty' || !designStructure.customCadIcons || designStructure.iconSize < 22) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+    const expectedDesignMenus = ['Więcej brył', 'Więcej zmian', 'Łącz i dziel', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
+    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !designStructure.customCadIcons || designStructure.iconSize < 28) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+
+    window.setContentSize(1351, 877);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const normalWidthLayout = await window.webContents.executeJavaScript(`(() => ({
+      hiddenGroups: document.querySelectorAll('.modeling-ribbon > .ribbon-visible-groups > .ribbon-group[hidden]').length,
+      overflowLabel: document.querySelector('.ribbon-overflow-trigger')?.textContent.trim() || '',
+      horizontalOverflow: document.querySelector('.modeling-ribbon').scrollWidth > document.querySelector('.modeling-ribbon').clientWidth + 1,
+    }))()`);
+    if (normalWidthLayout.hiddenGroups > 1 || normalWidthLayout.horizontalOverflow) throw new Error(`Wstążka nadal gubi narzędzia w typowym oknie: ${JSON.stringify(normalWidthLayout)}`);
+    window.setContentSize(2200, 877);
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTimelineFixture()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'model testowy');
@@ -122,7 +134,7 @@ app.whenReady().then(async () => {
     if (!(await clickText(window, '.workspace-tabs button', 'ARKUSZ 2D'))) throw new Error('Brak karty ARKUSZ 2D.');
     await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'ARKUSZ 2D'`, 'karta arkusza');
     const emptyDrawingGroups = await ribbonGroups(window);
-    const expectedDrawingGroups = ['ARKUSZE', 'DODAJ WIDOK', 'WYBRANY WIDOK', 'WYMIARY I OPISY', 'OZNACZENIE', 'TABELE'];
+    const expectedDrawingGroups = ['ARKUSZ', 'WIDOKI', 'OPISZ', 'ZESTAWIENIA'];
     if (emptyDrawingGroups.join('|') !== expectedDrawingGroups.join('|')) throw new Error(`Niestabilny pusty arkusz: ${emptyDrawingGroups.join('|')}`);
     await clickText(window, '.ribbon-tool', 'Nowy arkusz');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.length === 1`, 'nowy arkusz');
@@ -135,19 +147,28 @@ app.whenReady().then(async () => {
 
     window.setContentSize(920, 697);
     await new Promise((resolve) => setTimeout(resolve, 300));
-    await waitFor(window, `document.querySelector('.ribbon-overflow-trigger')?.textContent.includes('Więcej')`, 'jawne menu pozostałych grup');
-    await window.webContents.executeJavaScript(`document.querySelector('.ribbon-overflow-trigger').click()`);
-    await waitFor(window, `document.querySelector('.ribbon-overflow-menu')`, 'otwarte menu pozostałych grup');
-    const overflow = await window.webContents.executeJavaScript(`(() => {
-      const trigger = document.querySelector('.ribbon-overflow-trigger');
-      return {
-        label: trigger.textContent.trim(),
-        title: trigger.title,
-        sections: [...document.querySelectorAll('.ribbon-overflow-section > strong')].map((item) => item.textContent.trim()),
-        hiddenGroups: document.querySelectorAll('.ribbon-group[hidden]').length,
-      };
-    })()`);
-    if (!/^Więcej \(\d+\)$/.test(overflow.label) || !overflow.title.includes('Pokaż ukryte grupy:') || overflow.sections.length !== overflow.hiddenGroups) throw new Error(`Nieczytelne menu pozostałych narzędzi: ${JSON.stringify(overflow)}`);
+    const narrowRibbon = await window.webContents.executeJavaScript(`(() => ({
+      hasOverflow: Boolean(document.querySelector('.ribbon-overflow-trigger')),
+      hiddenGroups: document.querySelectorAll('.ribbon-group[hidden]').length,
+      horizontalOverflow: document.querySelector('.modeling-ribbon').scrollWidth > document.querySelector('.modeling-ribbon').clientWidth + 1,
+    }))()`);
+    let overflow = { compactWithoutOverflow: true, ...narrowRibbon };
+    if (narrowRibbon.hasOverflow) {
+      await window.webContents.executeJavaScript(`document.querySelector('.ribbon-overflow-trigger').click()`);
+      await waitFor(window, `document.querySelector('.ribbon-overflow-menu')`, 'otwarte menu pozostałych grup');
+      overflow = await window.webContents.executeJavaScript(`(() => {
+        const trigger = document.querySelector('.ribbon-overflow-trigger');
+        return {
+          label: trigger.textContent.trim(),
+          title: trigger.title,
+          sections: [...document.querySelectorAll('.ribbon-overflow-section > strong')].map((item) => item.textContent.trim()),
+          hiddenGroups: document.querySelectorAll('.ribbon-group[hidden]').length,
+        };
+      })()`);
+      if (!/^Więcej \(\d+\)$/.test(overflow.label) || !overflow.title.includes('Pokaż ukryte grupy:') || overflow.sections.length !== overflow.hiddenGroups) throw new Error(`Nieczytelne menu pozostałych narzędzi: ${JSON.stringify(overflow)}`);
+    } else if (narrowRibbon.hiddenGroups || narrowRibbon.horizontalOverflow) {
+      throw new Error(`Wąska wstążka ukrywa narzędzia bez menu: ${JSON.stringify(narrowRibbon)}`);
+    }
     await fs.writeFile(overflowScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
     process.stdout.write(`${JSON.stringify({ ok: true, tabs, fileMenu, designStructure, emptyModelGroups, loadedModelGroups, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath }, null, 2)}\n`);

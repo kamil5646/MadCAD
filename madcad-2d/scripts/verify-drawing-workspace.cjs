@@ -16,10 +16,36 @@ async function waitFor(window, expression, label, timeoutMs = 30000) {
 
 async function clickText(window, selector, label) {
   return window.webContents.executeJavaScript(`(() => {
-    const target = [...document.querySelectorAll(${JSON.stringify(selector)})].find((item) => item.textContent.trim() === ${JSON.stringify(label)} || item.querySelector('.ribbon-label')?.textContent.trim() === ${JSON.stringify(label)});
+    const target = [...document.querySelectorAll(${JSON.stringify(selector)})].find((item) => item.textContent.trim() === ${JSON.stringify(label)} || item.querySelector('.ribbon-label')?.textContent.trim() === ${JSON.stringify(label)} || item.querySelector('strong')?.textContent.trim() === ${JSON.stringify(label)});
     target?.click();
     return Boolean(target);
   })()`);
+}
+
+const drawingCommandMenus = Object.freeze({
+  Rzut: 'Widoki zależne',
+  Przekrój: 'Widoki zależne',
+  Detal: 'Widoki zależne',
+  'Usuń widok': 'Widoki zależne',
+  'Wymiar X': 'Wymiary',
+  'Wymiar Y': 'Wymiary',
+  Oś: 'Osie i środki',
+  Środek: 'Osie i środki',
+  'Opis otworu': 'Opisy techniczne',
+  'Opis gwintu': 'Opisy techniczne',
+  Balon: 'Opisy techniczne',
+  'GD&T': 'Opisy techniczne',
+  'Usuń oznaczenie': 'Opisy techniczne',
+  'Tabliczka rysunkowa': 'Ustawienia',
+  'Rewizje arkusza': 'Ustawienia',
+});
+
+async function clickRibbonCommand(window, label) {
+  if (await clickText(window, '.ribbon-tool:not(.ribbon-tool-menu-trigger)', label)) return true;
+  const menuLabel = drawingCommandMenus[label];
+  if (!menuLabel || !(await clickText(window, '.ribbon-tool-menu-trigger', menuLabel))) return false;
+  await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button strong')].some((item) => item.textContent.trim() === ${JSON.stringify(label)})`, `menu polecenia ${label}`);
+  return clickText(window, '.ribbon-tool-submenu button', label);
 }
 
 app.whenReady().then(async () => {
@@ -38,6 +64,10 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.drawing-empty')`, 'pusty obszar dokumentacji');
     if (!(await clickText(window, '.ribbon-tool', 'Nowy arkusz'))) throw new Error('Brak polecenia Nowy arkusz.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.length === 1 && document.querySelector('.drawing-paper')`, 'utworzony arkusz');
+    if (!(await clickRibbonCommand(window, 'Tabliczka rysunkowa'))) throw new Error('Brak polecenia Tabliczka rysunkowa.');
+    await waitFor(window, `document.querySelector('.drawing-sheet-details[open]:not(.drawing-revisions)')`, 'widoczna tabliczka rysunkowa');
+    if (!(await clickRibbonCommand(window, 'Rewizje arkusza'))) throw new Error('Brak polecenia Rewizje arkusza.');
+    await waitFor(window, `document.querySelector('.drawing-revisions[open]')`, 'widoczna historia rewizji');
     if (!(await clickText(window, '.ribbon-tool', 'Model 3D'))) throw new Error('Brak polecenia Model 3D.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.length === 1 && document.querySelectorAll('.drawing-view line').length > 8`, 'skojarzony widok bazowy');
     await waitFor(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.drawings?.[0]?.views?.length === 1`, 'autozapis arkusza');
@@ -47,13 +77,13 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.length === 1`, 'redo widoku');
 
-    if (!(await clickText(window, '.ribbon-tool', 'Rzut'))) throw new Error('Brak polecenia Rzut.');
+    if (!(await clickRibbonCommand(window, 'Rzut'))) throw new Error('Brak polecenia Rzut.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.[1]?.type === 'projected'`, 'widok rzutowany');
     await window.webContents.executeJavaScript(`document.querySelectorAll('.drawing-view')[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
-    if (!(await clickText(window, '.ribbon-tool', 'Przekrój'))) throw new Error('Brak polecenia Przekrój.');
+    if (!(await clickRibbonCommand(window, 'Przekrój'))) throw new Error('Brak polecenia Przekrój.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.[2]?.type === 'section' && document.querySelectorAll('.drawing-hatch').length > 0`, 'przekrój i kreskowanie');
     await window.webContents.executeJavaScript(`document.querySelectorAll('.drawing-view')[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
-    if (!(await clickText(window, '.ribbon-tool', 'Detal'))) throw new Error('Brak polecenia Detal.');
+    if (!(await clickRibbonCommand(window, 'Detal'))) throw new Error('Brak polecenia Detal.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.[3]?.type === 'detail' && document.querySelector('.drawing-detail-border')`, 'powiększony detal');
     await waitFor(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.drawings?.[0]?.views?.length === 4`, 'autozapis widoków pochodnych');
 
@@ -69,7 +99,7 @@ app.whenReady().then(async () => {
 
     for (const label of ['Wymiar X', 'Wymiar Y', 'Oś', 'Środek', 'Opis otworu', 'Opis gwintu', 'GD&T', 'Balon']) {
       await window.webContents.executeJavaScript(`document.querySelectorAll('.drawing-view')[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
-      if (!(await clickText(window, '.ribbon-tool', label))) throw new Error(`Brak polecenia ${label}.`);
+      if (!(await clickRibbonCommand(window, label))) throw new Error(`Brak polecenia ${label}.`);
     }
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.annotations?.length === 8 && document.querySelectorAll('.drawing-user-annotation').length === 8 && document.querySelector('.drawing-feature-control-frame rect') && document.querySelector('.drawing-balloon circle')`, 'skojarzone adnotacje rysunkowe, GD&T i balon pozycji');
 
@@ -130,7 +160,7 @@ app.whenReady().then(async () => {
       };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (state.schemaVersion !== 15 || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.hatchCount < 1 || state.annotationCount !== 10 || state.userAnnotationCount !== 8 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note|feature-control-frame|balloon' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || !state.gdtFrame || !state.balloonVisible || state.tables !== 2 || state.bomRows < 1 || state.holeRows < 1 || state.revisions !== 1 || state.partNumber !== 'MC-VERIFY-001' || state.associatedViewCount !== 3 || !state.pdfEnabled || !state.dxfEnabled || !state.outputInFileMenu || (!state.visibleRibbonGroups.includes('TABELE') && !state.overflowVisible) || state.horizontalOverflow || !state.paperInsideStage) {
+    if (state.schemaVersion !== 15 || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.hatchCount < 1 || state.annotationCount !== 10 || state.userAnnotationCount !== 8 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note|feature-control-frame|balloon' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || !state.gdtFrame || !state.balloonVisible || state.tables !== 2 || state.bomRows < 1 || state.holeRows < 1 || state.revisions !== 1 || state.partNumber !== 'MC-VERIFY-001' || state.associatedViewCount !== 3 || !state.pdfEnabled || !state.dxfEnabled || !state.outputInFileMenu || (!state.visibleRibbonGroups.includes('ZESTAWIENIA') && !state.overflowVisible) || state.horizontalOverflow || !state.paperInsideStage) {
       throw new Error(`Niepoprawny obszar dokumentacji: ${JSON.stringify(state)}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...state }, null, 2)}\n`);
