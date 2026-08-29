@@ -58,12 +58,14 @@ app.whenReady().then(async () => {
         requiredActions: requiredIds.map((id) => ({ id, available: Boolean(document.querySelector('#' + id)) })),
         leftAligned: Boolean(rect && rect.left === 0),
         insideWindow: Boolean(rect && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight),
+        compactWidth: Boolean(rect && rect.width <= 370),
+        compactRows: Math.max(...[...menu.querySelectorAll('.file-backstage-content section > button')].map((item) => item.getBoundingClientRect().height)) <= 42,
         legacyLayoutsRemoved: !document.querySelector('.workspace-layout-control, .workspace-layout-menu'),
         fileTabsRemoved: ![...document.querySelectorAll('.workspace-tabs button')].some((item) => ['PLIKI CAD', 'DRUK 3D'].includes(item.textContent.trim())),
       };
     })()`);
     const expectedHeadings = ['PROJEKT', 'IMPORT', 'EKSPORT MODELU', 'RYSUNEK TECHNICZNY', 'DRUK 3D'];
-    if (fileMenu.headings.join('|') !== expectedHeadings.join('|') || fileMenu.requiredActions.some((item) => !item.available) || !fileMenu.leftAligned || !fileMenu.insideWindow || !fileMenu.legacyLayoutsRemoved || !fileMenu.fileTabsRemoved) throw new Error(`Menu Plik nie porządkuje operacji wejścia i wyjścia: ${JSON.stringify(fileMenu)}`);
+    if (fileMenu.headings.join('|') !== expectedHeadings.join('|') || fileMenu.requiredActions.some((item) => !item.available) || !fileMenu.leftAligned || !fileMenu.insideWindow || !fileMenu.compactWidth || !fileMenu.compactRows || !fileMenu.legacyLayoutsRemoved || !fileMenu.fileTabsRemoved) throw new Error(`Menu Plik nie porządkuje operacji wejścia i wyjścia: ${JSON.stringify(fileMenu)}`);
     await fs.writeFile(fileMenuScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`document.querySelector('.file-backstage header button')?.click()`);
     await waitFor(window, `!document.querySelector('.file-backstage')`, 'zamknięcie menu Plik');
@@ -75,8 +77,9 @@ app.whenReady().then(async () => {
       selectionModeGroupRemoved: ![...document.querySelectorAll('.ribbon-group')].some((item) => item.getAttribute('aria-label') === 'TRYB'),
       constructionMenus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
       customCadIcons: document.querySelectorAll('.ribbon-tool svg path').length > 25,
+      iconSize: document.querySelector('.ribbon-tool:not(.featured) .ribbon-icon svg')?.getBoundingClientRect().width || 0,
     }))()`);
-    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.constructionMenus.join('|') !== 'Płaszczyzny|Osie|Punkty' || !designStructure.customCadIcons) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.constructionMenus.join('|') !== 'Płaszczyzny|Osie|Punkty' || !designStructure.customCadIcons || designStructure.iconSize < 22) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
 
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTimelineFixture()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'model testowy');

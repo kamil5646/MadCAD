@@ -147,8 +147,8 @@ function shortcutLabel(shortcut) {
 }
 
 
-function ToolGlyph({ icon: Icon, compact = false }) {
-  const size = compact ? 18 : 25;
+function ToolGlyph({ icon: Icon, compact = false, featured = false }) {
+  const size = compact ? 20 : featured ? 34 : 28;
   return (
     <span className="ribbon-glyph">
       <Icon className="ribbon-glyph-depth" size={size} strokeWidth={2.7} fill="currentColor" fillOpacity={0.32} aria-hidden="true" />
@@ -195,7 +195,7 @@ export function ToolButton({ id, icon: Icon, label, onClick, disabled = false, p
         title={`${help}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`}
         aria-label={`${label}. ${help}${shortcut ? ` Skrót: ${shortcutLabel(shortcut)}.` : ''}`}
       >
-        <span className="ribbon-icon" aria-hidden="true"><ToolGlyph icon={Icon} compact={compact} /></span>
+        <span className="ribbon-icon" aria-hidden="true"><ToolGlyph icon={Icon} compact={compact} featured={featured} /></span>
         <span className="ribbon-label">{label}</span>
       </button>
     </span>
