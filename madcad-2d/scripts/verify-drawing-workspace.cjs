@@ -62,6 +62,7 @@ app.whenReady().then(async () => {
 
     if (!(await clickText(window, '.workspace-tabs button', 'ARKUSZ 2D'))) throw new Error('Brak obszaru ARKUSZ 2D.');
     await waitFor(window, `document.querySelector('.drawing-empty')`, 'pusty obszar dokumentacji');
+    await waitFor(window, `document.querySelector('.modeling-shell')?.classList.contains('drawing-mode') && !document.querySelector('.model-browser') && !document.querySelector('.timeline') && ![...document.querySelectorAll('.app-menu button')].some((button) => button.textContent.trim() === 'Panel')`, 'odseparowany obszar arkusza bez przeglądarki modelu i osi historii');
     if (!(await clickText(window, '.ribbon-tool', 'Nowy arkusz'))) throw new Error('Brak polecenia Nowy arkusz.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.length === 1 && document.querySelector('.drawing-paper')`, 'utworzony arkusz');
     if (!(await clickRibbonCommand(window, 'Tabliczka rysunkowa'))) throw new Error('Brak polecenia Tabliczka rysunkowa.');
@@ -86,6 +87,11 @@ app.whenReady().then(async () => {
     if (!(await clickRibbonCommand(window, 'Detal'))) throw new Error('Brak polecenia Detal.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.[3]?.type === 'detail' && document.querySelector('.drawing-detail-border')`, 'powiększony detal');
     await waitFor(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.drawings?.[0]?.views?.length === 4`, 'autozapis widoków pochodnych');
+
+    await window.webContents.executeJavaScript(`document.querySelector('.app-help-menu summary')?.click()`);
+    await waitFor(window, `document.querySelector('.app-help-menu')?.open`, 'otwarte menu Pomoc');
+    await window.webContents.executeJavaScript(`document.querySelector('.drawing-paper')?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`);
+    await waitFor(window, `!document.querySelector('.app-help-menu')?.open`, 'menu Pomoc zamknięte po kliknięciu poza nim');
 
     await window.webContents.executeJavaScript(`document.querySelectorAll('.drawing-view')[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
 
@@ -136,6 +142,12 @@ app.whenReady().then(async () => {
         orientation: window.__madcadVerifyDocumentState.drawings[0].views[0].orientation,
         viewTypes: window.__madcadVerifyDocumentState.drawings[0].views.map((view) => view.type),
         lineCount: document.querySelectorAll('.drawing-view line').length,
+        visibleProjectionLines: [...document.querySelectorAll('.drawing-view line')].filter((line) => line.getTotalLength() > 0.5 && !['none', 'transparent'].includes(getComputedStyle(line).stroke)).length,
+        projectedInkInsidePaper: [...document.querySelectorAll('.drawing-view line')].every((line) => {
+          const lineRect = line.getBoundingClientRect();
+          const paperRect = paper.getBoundingClientRect();
+          return lineRect.left >= paperRect.left - 1 && lineRect.right <= paperRect.right + 1 && lineRect.top >= paperRect.top - 1 && lineRect.bottom <= paperRect.bottom + 1;
+        }),
         hatchCount: document.querySelectorAll('.drawing-hatch').length,
         annotationCount: document.querySelectorAll('.drawing-annotation').length,
         userAnnotationCount: document.querySelectorAll('.drawing-user-annotation').length,
@@ -157,10 +169,16 @@ app.whenReady().then(async () => {
         overflowVisible: Boolean(document.querySelector('.ribbon-overflow-trigger')),
         horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth || workspace.scrollWidth > workspace.clientWidth,
         paperInsideStage: paper.getBoundingClientRect().left >= workspace.getBoundingClientRect().left && paper.getBoundingClientRect().right <= workspace.getBoundingClientRect().right,
+        drawingMode: document.querySelector('.modeling-shell')?.classList.contains('drawing-mode') || false,
+        projectBrowserHidden: !document.querySelector('.model-browser'),
+        timelineHidden: !document.querySelector('.timeline'),
       };
     })()`);
+    await window.webContents.executeJavaScript(`document.querySelector('.file-backstage-dismiss')?.click()`);
+    await waitFor(window, `!document.querySelector('.file-backstage')`, 'zamknięte menu Plik przed kontrolą wizualną');
+    await new Promise((resolve) => setTimeout(resolve, 120));
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (state.schemaVersion !== 15 || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.hatchCount < 1 || state.annotationCount !== 10 || state.userAnnotationCount !== 8 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note|feature-control-frame|balloon' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || !state.gdtFrame || !state.balloonVisible || state.tables !== 2 || state.bomRows < 1 || state.holeRows < 1 || state.revisions !== 1 || state.partNumber !== 'MC-VERIFY-001' || state.associatedViewCount !== 3 || !state.pdfEnabled || !state.dxfEnabled || !state.outputInFileMenu || (!state.visibleRibbonGroups.includes('ZESTAWIENIA') && !state.overflowVisible) || state.horizontalOverflow || !state.paperInsideStage) {
+    if (state.schemaVersion !== 15 || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.visibleProjectionLines < 20 || !state.projectedInkInsidePaper || state.hatchCount < 1 || state.annotationCount !== 10 || state.userAnnotationCount !== 8 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note|feature-control-frame|balloon' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || !state.gdtFrame || !state.balloonVisible || state.tables !== 2 || state.bomRows < 1 || state.holeRows < 1 || state.revisions !== 1 || state.partNumber !== 'MC-VERIFY-001' || state.associatedViewCount !== 3 || !state.pdfEnabled || !state.dxfEnabled || !state.outputInFileMenu || (!state.visibleRibbonGroups.includes('ZESTAWIENIA') && !state.overflowVisible) || state.horizontalOverflow || !state.paperInsideStage || !state.drawingMode || !state.projectBrowserHidden || !state.timelineHidden) {
       throw new Error(`Niepoprawny obszar dokumentacji: ${JSON.stringify(state)}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...state }, null, 2)}\n`);

@@ -793,10 +793,10 @@
   justify-content: center;
   border: 0;
   background: transparent;
-  color: #c5d0d9;
-  font-size: 9.5px;
+  color: #b4c0cb;
+  font-size: 8.5px;
   font-weight: 700;
-  letter-spacing: 0.075em;
+  letter-spacing: 0.06em;
   line-height: 11px;
   white-space: nowrap;
 }
@@ -1390,8 +1390,14 @@
 }
 
 .drawing-view { fill: none; stroke: #111; stroke-width: .28; cursor: pointer; }
-.drawing-view:hover,
-.drawing-view.selected { stroke: #008fbd; stroke-width: .48; }
+.drawing-view:hover > line { stroke: #008fbd; stroke-width: .48; }
+.drawing-view-selection {
+  fill: rgba(0, 143, 189, .035);
+  stroke: #008fbd;
+  stroke-width: .35;
+  stroke-dasharray: 2 1;
+  pointer-events: none;
+}
 .drawing-view-section { stroke-width: .5; }
 .drawing-view .drawing-hatch { stroke-width: .16; }
 .drawing-detail-border,
@@ -4879,6 +4885,14 @@
   min-width: 0;
   border-top: 1px solid #1e2630;
   background: #2f3844;
+}
+
+.modeling-shell.drawing-mode {
+  grid-template-rows: 34px 88px minmax(0, 1fr) 34px;
+}
+
+.drawing-mode .modeling-footer {
+  grid-template-rows: 34px;
 }
 
 .modeling-shell.timeline-empty {

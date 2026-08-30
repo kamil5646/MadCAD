@@ -550,6 +550,7 @@ export default function ModelingWorkspace() {
   const sketchPointerRef = useRef(null);
   const sketchDynamicLengthRef = useRef('');
   const currentCameraRef = useRef(null);
+  const helpMenuRef = useRef(null);
   const shortcutRegistryRef = useRef(new Map());
   const autosaveQueueRef = useRef(Promise.resolve());
   const autosaveSuspendedRef = useRef(false);
@@ -572,6 +573,25 @@ export default function ModelingWorkspace() {
     window.addEventListener('keydown', closeFileMenu);
     return () => window.removeEventListener('keydown', closeFileMenu);
   }, [fileMenuOpen]);
+  useEffect(() => {
+    setToolHelp(null);
+    helpMenuRef.current?.removeAttribute('open');
+    if (workspace === 'drawing') setBrowserOpen(false);
+  }, [workspace, activeSketchId, command?.type]);
+  useEffect(() => {
+    const dismissTransientChrome = (event) => {
+      setToolHelp(null);
+      if (event.type === 'keydown' && event.key !== 'Escape') return;
+      if (event.type === 'pointerdown' && helpMenuRef.current?.contains(event.target)) return;
+      helpMenuRef.current?.removeAttribute('open');
+    };
+    window.addEventListener('pointerdown', dismissTransientChrome, true);
+    window.addEventListener('keydown', dismissTransientChrome, true);
+    return () => {
+      window.removeEventListener('pointerdown', dismissTransientChrome, true);
+      window.removeEventListener('keydown', dismissTransientChrome, true);
+    };
+  }, []);
   useEffect(() => {
     const restoreLayoutForCurrentMonitor = () => {
       const nextKey = panelScreenKey(window.screen);
@@ -4930,6 +4950,8 @@ export default function ModelingWorkspace() {
   const switchWorkspace = (id) => {
     setCommand(null);
     setActiveSketchId(null);
+    setToolHelp(null);
+    if (id === 'drawing') setBrowserOpen(false);
     setWorkspace(id);
     setPrintPanelOpen(false);
     setNotice(id === 'drawing'
@@ -5421,7 +5443,7 @@ export default function ModelingWorkspace() {
 
   return (
     <ToolHelpContext.Provider value={toolHelpContext}>
-    <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${document.features.length ? '' : 'timeline-empty'}`} aria-label="Modelowanie parametryczne MadCAD">
+    <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${workspace === 'drawing' ? 'drawing-mode' : document.features.length ? '' : 'timeline-empty'}`} aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
         <div className="app-menu" role="toolbar" aria-label="Plik i przeglądarka projektu">
           <button id="fileMenuBtn" className={fileMenuOpen ? 'active' : ''} type="button" aria-label="Menu Plik" aria-expanded={fileMenuOpen} aria-controls="file-backstage" title="Projekt, import, eksport i druk" onClick={() => setFileMenuOpen((open) => !open)}><FileText size={15} /><span>Plik</span></button>
@@ -5430,7 +5452,7 @@ export default function ModelingWorkspace() {
           <button id="openProjectBtn" type="button" aria-label="Otwórz projekt" title="Otwórz projekt" onClick={requestOpenProject}><FolderOpen size={15} /><span>Otwórz</span></button>
           <button id="saveProjectBtn" type="button" aria-label={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} title={readOnly ? 'Zapis jest zablokowany dla projektu z nowszej wersji.' : dirty ? 'Zapisz zmiany' : 'Projekt jest zapisany'} disabled={readOnly} onClick={saveProject}><Save size={15} /><span>Zapisz</span></button>
           <span className="app-menu-separator" aria-hidden="true" />
-          <button className={browserOpen ? 'active' : ''} type="button" aria-label="Pokaż lub ukryj przeglądarkę" aria-pressed={browserOpen} title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={15} /><span>Panel</span></button>
+          {workspace !== 'drawing' && <button className={browserOpen ? 'active' : ''} type="button" aria-label="Pokaż lub ukryj przeglądarkę" aria-pressed={browserOpen} title="Pokaż lub ukryj przeglądarkę" onClick={() => setBrowserOpen((open) => !open)}><Grid2X2 size={15} /><span>Panel</span></button>}
           <button id="projectSearchBtn" className={projectSearchOpen ? 'active' : ''} type="button" aria-label="Idź do obiektu projektu" aria-pressed={projectSearchOpen} title="Wyszukaj obiekt w projekcie · Ctrl/⌘ K" onClick={() => { if (projectSearchOpen) setProjectSearchOpen(false); else openProjectSearch(); }}><Search size={15} /><span>Szukaj</span></button>
         </div>
         <input ref={fileInputRef} hidden type="file" accept=".madcad,.json,application/json" onChange={openProject} />
@@ -5441,7 +5463,7 @@ export default function ModelingWorkspace() {
           <button id="undoProjectBtn" type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button>
           <button id="redoProjectBtn" type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button>
           <button id="commandShortcutsBtn" className={commandCustomizationOpen ? 'active' : ''} type="button" aria-pressed={commandCustomizationOpen} title="Skróty klawiszowe i polecenia · F1" onClick={() => { setLayersOpen(false); setBlocksOpen(false); setComponentsOpen(false); setCommandCustomizationOpen((open) => !open); }}><Keyboard size={15} /><span>Skróty</span></button>
-          <details className="app-help-menu">
+          <details className="app-help-menu" ref={helpMenuRef}>
             <summary title="Pomoc i ustawienia"><CircleHelp size={15} /><span>Pomoc</span><ChevronDown size={12} /></summary>
             <div>
               <button type="button" title="Samouczek pierwszego projektu CAD" aria-label="Samouczek pierwszego projektu CAD" onClick={(event) => { setTutorialOpen(true); event.currentTarget.closest('details')?.removeAttribute('open'); }}><CircleHelp size={15} /><span>Samouczek</span></button>
@@ -5650,14 +5672,14 @@ export default function ModelingWorkspace() {
       </section>
 
       <div
-        className={`modeling-content command-dock-${panelLayout.commandDock} ${browserOpen ? '' : 'without-browser'} ${printPanelOpen ? 'with-print-panel' : ''}`}
+        className={`modeling-content command-dock-${panelLayout.commandDock} ${browserOpen && workspace !== 'drawing' ? '' : 'without-browser'} ${printPanelOpen ? 'with-print-panel' : ''}`}
         style={{
-          '--browser-column': browserOpen ? '252px' : '0px',
+          '--browser-column': browserOpen && workspace !== 'drawing' ? '252px' : '0px',
           '--command-column': isDockableCommand(command) ? (panelLayout.commandCollapsed ? '38px' : '280px') : '0px',
           '--print-column': printPanelOpen ? (panelLayout.printCollapsed ? '38px' : '286px') : '0px',
         }}
       >
-        {browserOpen && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onClose={() => setBrowserOpen(false)} />}
+        {browserOpen && workspace !== 'drawing' && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onClose={() => setBrowserOpen(false)} />}
         <CommandDialog
           command={command}
           profileName={command?.type === 'pipe' ? `Otwarta ścieżka (${command.previewFeature?.pathEntityIds?.length || command.pathEntityIds?.length || 0})` : command?.openChain ? `Otwarty łańcuch (${command.previewFeature?.openEntityIds?.length || 0})` : commandProfileName}
@@ -5850,7 +5872,7 @@ export default function ModelingWorkspace() {
           onCancel={handleCommandLineCancel}
           onSubmit={handleCommandLineSubmit}
         />
-        <div className="timeline" role="region" aria-label="Parametryczna oś czasu">
+        {workspace !== 'drawing' && <div className="timeline" role="region" aria-label="Parametryczna oś czasu">
           {document.features.length ? <><div className="timeline-controls" role="toolbar" aria-label="Nawigacja osi czasu"><button type="button" aria-label="Pierwszy krok historii" title="Zaznacz pierwszy krok parametrycznej historii." onClick={() => selectTimelineStep('start')}><SkipBack size={14} /></button><button type="button" aria-label="Poprzednia operacja" title="Zaznacz poprzednią operację w historii." onClick={() => selectTimelineStep('previous')}><StepBack size={14} /></button><button type="button" aria-label="Następna operacja" title="Zaznacz następną operację w historii." onClick={() => selectTimelineStep('next')}><StepForward size={14} /></button></div>
           {selectedTimelineGroup && <div className="timeline-selection-tools timeline-group-tools" role="toolbar" aria-label={`Zarządzaj grupą ${selectedTimelineGroup.name}`}>
             {timelineGroupRename?.id === selectedTimelineGroup.id ? <div className="timeline-rename"><input autoFocus aria-label="Nowa nazwa grupy historii" maxLength={80} value={timelineGroupRename.value} onChange={(event) => setTimelineGroupRename((current) => ({ ...current, value: event.target.value }))} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); confirmTimelineGroupRename(); } }} /><button type="button" data-timeline-action="confirm-group-rename" title="Zapisz nazwę grupy" aria-label="Zapisz nazwę grupy" onClick={confirmTimelineGroupRename}><Check size={13} /></button><button type="button" aria-label="Anuluj zmianę nazwy grupy" onClick={() => setTimelineGroupRename(null)}><X size={13} /></button></div> : <><strong title={selectedTimelineGroup.name}>{selectedTimelineGroup.name} · {selectedTimelineGroup.featureIds.length}</strong><button type="button" data-timeline-action="rename-group" title="Zmień nazwę grupy" aria-label="Zmień nazwę grupy" disabled={readOnly} onClick={() => setTimelineGroupRename({ id: selectedTimelineGroup.id, value: selectedTimelineGroup.name })}><Pencil size={13} /></button><button type="button" data-timeline-action="collapse-group" title={selectedTimelineGroup.collapsed ? 'Rozwiń grupę' : 'Zwiń grupę'} aria-label={selectedTimelineGroup.collapsed ? 'Rozwiń grupę historii' : 'Zwiń grupę historii'} onClick={toggleSelectedTimelineGroup}>{selectedTimelineGroup.collapsed ? <FolderOpen size={13} /> : <FolderPlus size={13} />}</button><button type="button" data-timeline-action="ungroup" title="Rozwiąż grupę bez usuwania operacji" aria-label="Rozwiąż grupę historii" disabled={readOnly} onClick={ungroupSelectedTimelineGroup}><Ungroup size={13} /></button></>}
@@ -5898,7 +5920,7 @@ export default function ModelingWorkspace() {
             );
           })}
           <span className="timeline-end" /></> : <span className="timeline-empty-label">Historia operacji pojawi się po utworzeniu pierwszej bryły.</span>}
-        </div>
+        </div>}
       </footer>
       {tutorialOpen && <FirstPartTutorial onClose={() => setTutorialOpen(false)} />}
       {licenseInfoOpen && <LicenseInfoDialog onClose={() => setLicenseInfoOpen(false)} onShowFullLicense={() => { setLicenseInfoOpen(false); setFullLicenseOpen(true); }} />}

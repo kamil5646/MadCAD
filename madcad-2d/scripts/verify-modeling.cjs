@@ -1878,7 +1878,7 @@ async function runUiFlow(window) {
   await new Promise((resolve) => setTimeout(resolve, 100));
   await fs.writeFile(tooltipOutputPath, (await window.webContents.capturePage()).toPNG());
   await sendKey('l');
-  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'line' && !document.querySelector('.cad-command-line')`, 'bezpośredni skrót L bez wiersza poleceń');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.type === 'line' && !document.querySelector('.cad-command-line') && !document.querySelector('.tool-help-tooltip')`, 'bezpośredni skrót L bez wiersza poleceń i bez starej podpowiedzi');
   const dynamicLineStart = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(0, 0)`);
   await sendMouse('mouseMove', dynamicLineStart);
   await sendMouse('mouseDown', dynamicLineStart);
