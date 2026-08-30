@@ -29,6 +29,7 @@ Ujednolicić aplikację według hierarchii znanej z Worda i kontekstowego sposob
 - [x] Ponowny audyt z aktualnych zrzutów po uwagach o kolizjach i niespójnych proporcjach.
 - [x] Usunięcie duplikatów w `ZARZĄDZAJ` i regresja funkcjonalna paneli projektu.
 - [x] Responsywne wykorzystanie wolnego miejsca we wstążce szkicu i zmniejszenie ikon.
+- [x] Zachowanie widoczności wcześniejszych szkiców podczas tworzenia następnego szkicu.
 
 ## Dziennik
 
@@ -61,3 +62,5 @@ Ujednolicić aplikację według hierarchii znanej z Worda i kontekstowego sposob
 - 2026-08-30: po zmianie zaliczone: `lint`, 105/105 testów komponentów, 185/185 testów core, `interface-consistency`, `sketch-drawing`, `ribbon-overflow`, `assistive-tech` oraz pełny `verify-modeling`. Test modelowania korzysta teraz z bezpośrednio widocznego narzędzia, a przy wąskiej wstążce nadal obsługuje jego pozycję w menu.
 - 2026-08-30: po korekcie gęstości ponownie zaliczone `lint`, 105/105 testów komponentów, 185/185 testów core, `interface-consistency` i pełny `verify-modeling`. Kontrola odrzuca teraz zarówno ukrycie podstawowego łuku, jak i wystawienie więcej niż 15 poleceń bezpośrednich.
 - 2026-08-30: poprawiony build `ca2dd45` podpisano lokalnie ad-hoc, zainstalowano w `/Applications/MadCAD.app` i uruchomiono. Ten sam stan szkicu przed i po poprawce sprawdzono w rzeczywistym oknie 1351 × 768; wspólny kadr zapisano w `artifacts/interface-recheck-2026-08-30/03-before-after-comparison.png`.
+- 2026-08-30: naprawiono znikanie wcześniejszej geometrii po uruchomieniu kolejnego szkicu. Poprzednie niepuste szkice pozostają widoczne jako jaśniejszy, przygaszony kontekst, ale nie przechwytują zaznaczania aktywnego szkicu.
+- 2026-08-30: regresję sprawdzono na tej samej płaszczyźnie oraz między XY i YZ w działającym scenariuszu Sweep. Zaliczone: `lint`, 106/106 testów komponentów, 185/185 testów core, `build:ui` i pełny `verify-modeling`; zrzut kontrolny zapisano w `artifacts/madcad-reference-sketch-visible.png`.

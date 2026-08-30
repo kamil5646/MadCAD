@@ -14,6 +14,7 @@ import { describeSketchDegreesOfFreedom } from '../cad-core/sketch-freedom-diagn
 import { normalizeComponentAppearance } from '../cad-core/components.js';
 import { calculateExplodedOffsets } from '../cad-core/exploded-view.js';
 import { configureCadMouseNavigation, shouldHandlePrimaryViewportPointer, VIEWPORT_NAVIGATION_MODES, viewportCursor } from './viewport-navigation.js';
+import { resolveReferenceSketchIds } from './sketch-visibility.js';
 
 const VIEW_DIRECTIONS = {
   iso: [1.25, -1.45, 1.15],
@@ -183,6 +184,8 @@ function addSketchEntities(group, sketch, parameters, plane, {
   planeOffset = 0,
   layers = [],
   underConstrainedPointIds = [],
+  reference = false,
+  pickable = true,
 } = {}) {
   const appearanceFor = (entity) => resolveEntityAppearance({ layers }, entity);
   const entityMap = new Map(sketch.entities.map((entity) => [entity.id, entity]));
@@ -292,19 +295,25 @@ function addSketchEntities(group, sketch, parameters, plane, {
           ? Math.hypot(localPoints[0][0] - localPoints.at(-1)[0], localPoints[0][1] - localPoints.at(-1)[1]) <= 1e-7
           : false);
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(localPoints.flatMap((point) => mapPlanePoint(point[0], point[1], plane, 0.12, planeOffset)), 3));
     const appearance = appearanceFor(entity);
-    const baseColor = sketchEntityColor(entity, selected.has(entity.id), hasError, appearance.color);
+    const baseColor = reference ? 0x90afbf : sketchEntityColor(entity, selected.has(entity.id), hasError, appearance.color);
     const lineType = lineTypeDefinition(appearance.lineType);
+    const lineOpacity = reference ? 0.72 : 0.96;
+    const lineElevation = reference ? 0.07 : 0.12;
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(localPoints.flatMap((point) => mapPlanePoint(point[0], point[1], plane, lineElevation, planeOffset)), 3));
     const material = lineType.id === 'continuous'
-      ? new THREE.LineBasicMaterial({ color: baseColor, linewidth: appearance.lineWeight, transparent: true, opacity: 0.96 })
-      : new THREE.LineDashedMaterial({ color: baseColor, linewidth: appearance.lineWeight, dashSize: lineType.dashSize, gapSize: lineType.gapSize, transparent: true, opacity: 0.96 });
+      ? new THREE.LineBasicMaterial({ color: baseColor, linewidth: appearance.lineWeight, transparent: true, opacity: lineOpacity })
+      : new THREE.LineDashedMaterial({ color: baseColor, linewidth: appearance.lineWeight, dashSize: lineType.dashSize, gapSize: lineType.gapSize, transparent: true, opacity: lineOpacity });
     const line = new THREE.Line(geometry, material);
+    if (reference) {
+      line.material.depthTest = false;
+      line.renderOrder = 2;
+    }
     if (lineType.id !== 'continuous') line.computeLineDistances();
     line.userData = { sketchEntityId: entity.id, sketchEntityType: entity.type, sketchState: sketchEntityState(entity, selected.has(entity.id), hasError), baseColor, layerId: appearance.layer.id, layerLocked: appearance.locked };
     group.add(line);
-    entries.push({ entity, object: line });
-    if (!appearance.locked) pickables.push(line);
+    entries.push({ entity, object: line, lineElevation });
+    if (pickable && !appearance.locked) pickables.push(line);
   }
 
   if (showPoints) {
@@ -325,7 +334,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
       point.userData = { sketchEntityId: entity.id, sketchEntityType: 'point', sketchState: sketchEntityState(entity, selected.has(entity.id), hasError), baseColor, layerId: appearance.layer.id, layerLocked: appearance.locked };
       group.add(point);
       entries.push({ entity, object: point });
-      if (!appearance.locked) pickables.unshift(point);
+      if (pickable && !appearance.locked) pickables.unshift(point);
     }
   }
 
@@ -338,7 +347,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
       }
       const localPoints = localPointsFor(entry.entity, overrides);
       entry.object.geometry.setAttribute('position', new THREE.Float32BufferAttribute(
-        localPoints.flatMap((point) => mapPlanePoint(point[0], point[1], plane, 0.12, planeOffset)),
+        localPoints.flatMap((point) => mapPlanePoint(point[0], point[1], plane, entry.lineElevation || 0.12, planeOffset)),
         3,
       ));
       entry.object.geometry.computeBoundingSphere();
@@ -511,6 +520,8 @@ export default function ModelViewport({
   const selectedTopologySet = useMemo(() => new Set(selectedTopologyIds), [selectedTopologyIds]);
   const selectedBodySet = useMemo(() => new Set(selectedBodyIds.length ? selectedBodyIds : [selectedBodyId].filter(Boolean)), [selectedBodyId, selectedBodyIds]);
   const activeSketch = sketches.find((sketch) => sketch.id === activeSketchId);
+  const referenceSketchIds = useMemo(() => resolveReferenceSketchIds({ activeSketchId, sketches }), [activeSketchId, sketches]);
+  const referenceSketches = useMemo(() => referenceSketchIds.map((sketchId) => sketches.find((sketch) => sketch.id === sketchId)).filter(Boolean), [referenceSketchIds, sketches]);
   const visibleSketch = !activeSketchId && visibleSketchId
     ? sketches.find((sketch) => sketch.id === visibleSketchId)
     : null;
@@ -1106,6 +1117,29 @@ export default function ModelViewport({
       });
       scene.add(completedSketchGroup);
     }
+
+    const referenceSketchGroup = new THREE.Group();
+    const referenceSketchRenders = [];
+    for (const referenceSketch of referenceSketches) {
+      const referencePlane = referenceSketch.plane || 'XY';
+      const referencePlaneOffset = numericValue(referenceSketch.planeOffset || 0, parameters);
+      referenceSketchRenders.push({
+        sketchId: referenceSketch.id,
+        render: addSketchEntities(referenceSketchGroup, referenceSketch, parameters, referencePlane, {
+          selectedIds: [],
+          errorIds: [],
+          showPoints: false,
+          showConstruction: showConstructionGeometry,
+          showProjected: showProjectedGeometry,
+          planeOffset: referencePlaneOffset,
+          layers,
+          underConstrainedPointIds: [],
+          reference: true,
+          pickable: false,
+        }),
+      });
+    }
+    if (referenceSketchRenders.length) scene.add(referenceSketchGroup);
 
     const contentBox = new THREE.Box3();
     let hasFramedContent = false;
@@ -1923,6 +1957,17 @@ export default function ModelViewport({
           profileCount: completedSketchProfileRender?.pickables?.length || 0,
           renderedObjects: completedSketchGroup.children.length,
         } : null;
+        window.__madcadReferenceSketchVisibilityState = {
+          sketchIds: referenceSketchRenders.map((entry) => entry.sketchId),
+          entityCount: referenceSketchRenders.reduce((total, entry) => total + entry.render.entries.length, 0),
+          pickableEntityCount: referenceSketchRenders.reduce((total, entry) => total + entry.render.pickables.length, 0),
+          renderedEntities: referenceSketchRenders.flatMap((entry) => entry.render.entries.map((rendered) => ({
+            id: rendered.entity.id,
+            color: rendered.object.material?.color?.getHexString?.() || '',
+            opacity: rendered.object.material?.opacity ?? 1,
+            depthTest: rendered.object.material?.depthTest ?? true,
+          }))),
+        };
       }
       if (!activeSketch && bodies.length && new URLSearchParams(window.location.search).has('verify')) {
         modelGroup.updateMatrixWorld(true);
@@ -1997,6 +2042,7 @@ export default function ModelViewport({
       disposeObject(sketchGroup);
       disposeObject(directGroup);
       disposeObject(completedSketchGroup);
+      disposeObject(referenceSketchGroup);
       disposeObject(constructionGroup);
       disposeObject(sectionGroup);
       if (plate) disposeObject(plate);
@@ -2008,6 +2054,7 @@ export default function ModelViewport({
       delete window.__madcadVerifySketchBoxSelection;
       delete window.__madcadSketchVisibilityState;
       delete window.__madcadCompletedSketchVisibilityState;
+      delete window.__madcadReferenceSketchVisibilityState;
       delete window.__madcadModelScreenState;
       delete window.__madcadModelVisualState;
       delete window.__madcadModelHover;
@@ -2021,7 +2068,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

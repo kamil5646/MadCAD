@@ -10,6 +10,7 @@ const sketchOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-sket
 const directOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-direct-extrude.png');
 const narrowOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-narrow.png');
 const ribbonOverflowOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-ribbon-overflow.png');
+const referenceSketchOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-reference-sketch-visible.png');
 const verificationStartedAt = Date.now();
 const isCi = Boolean(process.env.CI);
 const modelingTimeoutMs = isCi ? 60000 : 20000;
@@ -428,7 +429,7 @@ async function runUiFlow(window) {
       const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
       button[key].onClick();
     })()`);
-    await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, `tryb szkicu na płaszczyźnie ${plane}`);
+    await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view') && !document.querySelector('.plane-picker')`, `tryb szkicu na płaszczyźnie ${plane}`);
   };
   const toggleSketchOption = async (label) => {
     await window.webContents.executeJavaScript(`document.querySelector('.sketch-palette.collapsed .sketch-palette-toggle')?.click()`);
@@ -1244,6 +1245,26 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
   await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${revolveReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'revolve' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${300 * Math.PI}) < 0.05`, 'ponownie otwarty Revolve', modelingTimeoutMs);
 
+  progress('previous sketch remains visible while creating another sketch');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla widoczności poprzedniego szkicu');
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór pierwszej płaszczyzny testu widoczności');
+  await pickPlane('XY');
+  await clickTool('Linia');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'linia pierwszego szkicu testu widoczności');
+  await addSketchPoint([-20, -10], 1);
+  await addSketchPoint([20, 10], 3);
+  await waitForUi(window, `!document.querySelector('.command-dialog')`, 'zakończona linia pierwszego szkicu testu widoczności');
+  await clickTool('Zakończ szkic');
+  const visibleReferenceSketchId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].id`);
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór drugiej płaszczyzny testu widoczności');
+  await pickPlane('XY');
+  await waitForUi(window, `window.__madcadReferenceSketchVisibilityState?.sketchIds?.includes(${JSON.stringify(visibleReferenceSketchId)}) && window.__madcadReferenceSketchVisibilityState.entityCount >= 1 && window.__madcadReferenceSketchVisibilityState.pickableEntityCount === 0 && window.__madcadReferenceSketchVisibilityState.renderedEntities?.every((entry) => entry.color === '90afbf' && entry.opacity === 0.72 && entry.depthTest === false)`, 'wcześniejszy szkic widoczny jako przygaszony, nieinteraktywny kontekst');
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  await fs.writeFile(referenceSketchOutputPath, (await window.webContents.capturePage()).toPNG());
+
   progress('sweep profile along a separate sketch path');
   await clickByTitle('Nowy projekt');
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla Sweep');
@@ -1261,6 +1282,7 @@ async function runUiFlow(window) {
   await clickTool('Utwórz szkic');
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny profilu Sweep');
   await pickPlane('YZ');
+  await waitForUi(window, `window.__madcadReferenceSketchVisibilityState?.sketchIds?.includes(${JSON.stringify(sweepPathSketchId)}) && window.__madcadReferenceSketchVisibilityState.entityCount >= 1 && window.__madcadReferenceSketchVisibilityState.pickableEntityCount === 0 && window.__madcadReferenceSketchVisibilityState.renderedEntities?.every((entry) => entry.color === '90afbf' && entry.opacity === 0.72 && entry.depthTest === false)`, 'wcześniejszy szkic widoczny jako przygaszony, nieinteraktywny kontekst');
   await clickTool('Okrąg');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Okrąg')`, 'profil Sweep');
   await setCommandField('Średnica', '4');
@@ -2812,7 +2834,7 @@ app.whenReady().then(async () => {
     const slowBody = workerPerformance.bodies?.find((body) => body.durationMs > performanceBudgets.displayMeshPerBodyMs);
     if (slowBody) throw new Error(`Body meshing exceeded budget: ${JSON.stringify(slowBody)}.`);
     performance.worker = workerPerformance;
-    const report = { ...result, licenseUi, licenseDialog, screenshot: outputPath, narrowScreenshot: narrowOutputPath, ribbonOverflowScreenshot: ribbonOverflowOutputPath, narrowViewport, ribbonOverflow, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, wcag, englishUi, performance, rendererMessages };
+    const report = { ...result, licenseUi, licenseDialog, screenshot: outputPath, narrowScreenshot: narrowOutputPath, ribbonOverflowScreenshot: ribbonOverflowOutputPath, referenceSketchScreenshot: referenceSketchOutputPath, narrowViewport, ribbonOverflow, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, wcag, englishUi, performance, rendererMessages };
     await fs.writeFile(path.join(path.dirname(outputPath), 'verification-report.json'), JSON.stringify(report, null, 2));
     process.stdout.write(`${JSON.stringify(report)}\n`);
     if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.ribbonOverflowVisible || !narrowViewport.ribbonHasHiddenGroups || !ribbonOverflow.groups.length || !ribbonOverflow.tools || !narrowViewport.timelineVisible || !narrowViewport.repairPanelCompact) process.exitCode = 1;
