@@ -214,6 +214,7 @@ import {
   ThreePointPlaneCadIcon,
 } from './CadToolIcons.jsx';
 import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
+import { AdaptiveToolShelf } from './WorkspaceSketchUi.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectDashboard, ProjectDependenciesPanel, ProjectHealthPanel, ProjectSearchPalette, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
 import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, NamedViewsPanel, SectionPanel } from './WorkspacePanels.jsx';
@@ -935,6 +936,7 @@ export default function ModelingWorkspace() {
     selection,
     sketches: document.sketches,
     bodyCount: document.bodies.length,
+    featureCount: document.features.length,
   });
   const resumableSketchesByPlane = useMemo(() => Object.fromEntries(['XY', 'XZ', 'YZ']
     .map((plane) => [plane, resolveResumableSketch({
@@ -5473,6 +5475,103 @@ export default function ModelingWorkspace() {
               : { title: 'KROK 1 · dokończ szkic 2D', text: 'Szkic nie ma jeszcze zamkniętego obrysu. Domknij linie, zakończ szkic, potem zaznacz jego wnętrze.', action: `Edytuj: ${lastSketch.name}`, onAction: () => editSketch(lastSketch.id) }
             : { title: 'PROJEKTUJ · szkic 2D i model 3D', text: readyEngineLabel };
   const startPageVisible = workspace === 'solid' && !document.sketches.length && !engine.bodies.length && !command && !readOnly;
+  let adaptiveContext = null;
+  if (!command && activeSketchId && (selectedSketchEntityIds.length || selectedSketchConstraintId)) {
+    const recommended = [];
+    const more = [];
+    if (canAddCollinear) recommended.push({ icon: Minus, label: 'Współliniowe', onClick: () => addSelectedSketchConstraint('collinear'), primary: true });
+    if (canAddSymmetry) recommended.push({ icon: Frame, label: 'Symetria', onClick: () => addSelectedSketchConstraint('symmetry'), primary: true });
+    if (canAddCurvature) recommended.push({ icon: CircleDotDashed, label: 'Krzywizna G2', onClick: () => addSelectedSketchConstraint('curvature'), primary: true });
+    if (canAddOrdinate) {
+      recommended.push({ icon: Ruler, label: 'Wymiar X', onClick: () => openSketchDimension('ordinateX'), primary: true });
+      more.push({ icon: Ruler, label: 'Wymiar Y', onClick: () => openSketchDimension('ordinateY') });
+    }
+    if (canAddArcLength) recommended.push({ icon: RotateCw, label: 'Długość łuku', onClick: () => openSketchDimension('arcLength'), primary: true });
+    if (selectedSketchEntityIds.length) {
+      recommended.push({ icon: Move, label: 'Przesuń', onClick: openSketchMove });
+      more.push({ icon: RotateCw, label: 'Transformuj', onClick: openSketchTransform });
+    }
+    recommended.push({ icon: Trash2, label: 'Usuń', onClick: deleteSelectedSketchEntities, danger: true });
+    adaptiveContext = {
+      title: selectedSketchConstraintId ? 'Wybrany więz' : `${selectedSketchEntityIds.length} ${selectedSketchEntityIds.length === 1 ? 'element szkicu' : 'elementy szkicu'}`,
+      subtitle: 'Dostępne są tylko pasujące działania',
+      actions: recommended.slice(0, 4),
+      moreActions: [...recommended.slice(4), ...more],
+      onClear: () => handleSketchSelection([], 'replace'),
+    };
+  } else if (!command && !activeSketchId && workspace === 'solid') {
+    const clearModelSelection = () => setSelection({ kind: 'document', id: document.id });
+    if (selectedProfile) {
+      adaptiveContext = {
+        title: 'Zamknięty profil',
+        subtitle: 'Utwórz z niego bryłę albo powierzchnię',
+        actions: [
+          { icon: ExtrudeCadIcon, label: 'Wyciągnij', onClick: openExtrude, primary: true },
+          { icon: PressPullCadIcon, label: 'Naciśnij / wyciągnij', onClick: openPressPull },
+          { icon: RevolveCadIcon, label: 'Bryła obrotowa', onClick: openRevolve },
+        ],
+        moreActions: [
+          { icon: SweepCadIcon, label: 'Po ścieżce', onClick: openSweep },
+          { icon: LoftCadIcon, label: 'Loft', onClick: openLoft },
+        ],
+        onClear: clearModelSelection,
+      };
+    } else if (selectedFaceItems.length) {
+      adaptiveContext = {
+        title: selectedFaceItems.length === 1 ? 'Ściana' : `${selectedFaceItems.length} ściany`,
+        subtitle: 'Modeluj bezpośrednio na zaznaczonej geometrii',
+        actions: [
+          ...(selectedFaceItems.length === 1 ? [{ icon: SketchCadIcon, label: 'Szkic na ścianie', onClick: startSketch, primary: true }] : []),
+          ...(canPressPull ? [{ icon: PressPullCadIcon, label: 'Naciśnij / wyciągnij', onClick: openPressPull }] : []),
+          ...(selectedFaceItems.length === 1 ? [{ icon: OffsetFaceCadIcon, label: 'Odsuń ścianę', onClick: openOffsetFace }] : []),
+        ],
+        moreActions: [
+          { icon: ShellCadIcon, label: 'Powłoka', onClick: openShell },
+          { icon: DraftCadIcon, label: 'Pochylenie', onClick: openDraft },
+          { icon: DeleteFaceCadIcon, label: 'Usuń i napraw', onClick: openDeleteFace, danger: true },
+          ...(selectedFaceItems.length === 2 ? [{ icon: ReplaceFaceCadIcon, label: 'Zastąp ścianę', onClick: openReplaceFace }] : []),
+        ],
+        onClear: clearModelSelection,
+      };
+    } else if (selectedEdgeItems.length) {
+      adaptiveContext = {
+        title: selectedEdgeItems.length === 1 ? 'Krawędź' : `${selectedEdgeItems.length} krawędzie`,
+        subtitle: 'Zmień wybrane krawędzie bryły',
+        actions: [
+          { icon: FilletCadIcon, label: 'Zaokrąglij', onClick: () => openEdgeCommand('fillet'), primary: true },
+          { icon: ChamferCadIcon, label: 'Fazuj', onClick: () => openEdgeCommand('chamfer') },
+        ],
+        moreActions: [],
+        onClear: clearModelSelection,
+      };
+    } else if (selectedBodyIds.length) {
+      adaptiveContext = {
+        title: selectedBodyIds.length === 1 ? 'Bryła' : `${selectedBodyIds.length} bryły`,
+        subtitle: selectedBodyIds.length > 1 ? 'Wykonaj operację na wspólnym wyborze' : 'Przekształć albo powiel bryłę',
+        actions: [
+          ...(canBooleanSelectedBodies ? [{ icon: BooleanCadIcon, label: 'Połącz / odejmij', onClick: openBoolean, primary: true }] : []),
+          ...(selectedBodyIds.length === 1 ? [
+            { icon: MoveBodyCadIcon, label: 'Przesuń', onClick: () => openTransform('move'), primary: true },
+            { icon: RotateBodyCadIcon, label: 'Obróć', onClick: () => openTransform('rotate') },
+            { icon: PatternCadIcon, label: 'Szyk', onClick: openPattern },
+          ] : []),
+        ],
+        moreActions: selectedBodyIds.length === 1 ? [{ icon: SplitBodyCadIcon, label: 'Podziel bryłę', onClick: openSplitBody }] : [],
+        onClear: clearModelSelection,
+      };
+    } else if (['sketch', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)) {
+      adaptiveContext = {
+        title: selection.kind === 'sketch' ? 'Szkic' : selection.kind === 'feature' ? 'Operacja historii' : 'Geometria konstrukcyjna',
+        subtitle: 'Edytuj zaznaczony element projektu',
+        actions: [
+          ...(selection.kind === 'constructionPlane' ? [{ icon: SketchCadIcon, label: 'Szkic na płaszczyźnie', onClick: startSketch, primary: true }] : []),
+          { icon: EditFeatureCadIcon, label: 'Edytuj', onClick: editSelection, primary: selection.kind !== 'constructionPlane' },
+        ],
+        moreActions: [],
+        onClear: clearModelSelection,
+      };
+    }
+  }
 
   return (
     <ToolHelpContext.Provider value={toolHelpContext}>
@@ -5845,8 +5944,10 @@ export default function ModelingWorkspace() {
             printLayout={document.print}
           />
           </React.Suspense>}
-          {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
+          {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
+          {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
+          {workspace !== 'drawing' && workspace !== 'tools' && adaptiveContext && <AdaptiveToolShelf {...adaptiveContext} />}
           {notice && <div className={`workspace-notice ${command ? 'command-active' : ''}`} role="status" aria-live="polite" aria-atomic="true">{notice}</div>}
           <CrashRecoveryBanner
             info={recoveryInfo}

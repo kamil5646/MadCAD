@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, MoreHorizontal, X } from 'lucide-react';
 import { createParameter } from '../cad-core/document.js';
 import { useDialogFocus } from './use-dialog-focus.js';
 
@@ -21,8 +21,9 @@ function PlaneGlyph({ plane }) {
   );
 }
 
-export function PlanePicker({ existingSketchesByPlane = {}, onPick, onCancel }) {
-  const dialogRef = useDialogFocus();
+export function PlanePicker({ existingSketchesByPlane = {}, onPick, onCancel, variant = 'dialog' }) {
+  const canvasVariant = variant === 'canvas';
+  const dialogRef = useDialogFocus(true, { trap: !canvasVariant });
   const [forceNew, setForceNew] = useState(false);
   const hasExistingSketch = Object.values(existingSketchesByPlane).some(Boolean);
   useEffect(() => {
@@ -31,15 +32,18 @@ export function PlanePicker({ existingSketchesByPlane = {}, onPick, onCancel }) 
       if (plane) {
         event.preventDefault();
         onPick(plane, { forceNew });
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        onCancel();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [forceNew, onPick]);
-  return (
-    <div className="plane-picker-backdrop">
-      <section ref={dialogRef} className="plane-picker" role="dialog" aria-modal="true" aria-labelledby="planePickerTitle" tabIndex="-1">
+  }, [forceNew, onCancel, onPick]);
+  const picker = (
+      <section ref={dialogRef} className={`plane-picker ${canvasVariant ? 'plane-picker-canvas' : ''}`} role="dialog" aria-modal={canvasVariant ? 'false' : 'true'} aria-labelledby="planePickerTitle" aria-describedby="planePickerHint" tabIndex="-1">
         <header><div><strong id="planePickerTitle">Wybierz płaszczyznę szkicu</strong><span>Wskaż jedną z płaszczyzn początku.</span></div><button type="button" onClick={onCancel} title="Anuluj" aria-label="Anuluj wybór płaszczyzny"><X size={17} /></button></header>
+        {canvasVariant && <p id="planePickerHint" className="plane-picker-hint">Płaszczyzny pozostają na obszarze modelu. Kliknij widok albo użyj klawiszy 1–3; Esc anuluje.</p>}
         <div className="plane-options">
           {Object.entries(PLANE_LABELS).map(([plane, label], index) => {
             const existing = existingSketchesByPlane[plane];
@@ -53,7 +57,36 @@ export function PlanePicker({ existingSketchesByPlane = {}, onPick, onCancel }) 
         </div>
         {hasExistingSketch && <label className="plane-new-sketch-option"><input type="checkbox" checked={forceNew} onChange={(event) => setForceNew(event.target.checked)} /><span>Utwórz oddzielny szkic zamiast kontynuować istniejący</span></label>}
       </section>
-    </div>
+  );
+  return canvasVariant ? picker : <div className="plane-picker-backdrop">{picker}</div>;
+}
+
+export function AdaptiveToolShelf({ title, subtitle, actions = [], moreActions = [], onClear }) {
+  if (!actions.length && !moreActions.length) return null;
+  return (
+    <aside className="adaptive-tool-shelf" role="toolbar" aria-label={`Narzędzia dla zaznaczenia: ${title}`}>
+      <header>
+        <span><strong>{title}</strong>{subtitle && <small>{subtitle}</small>}</span>
+        {onClear && <button className="adaptive-tool-clear" type="button" title="Wyczyść zaznaczenie" aria-label="Wyczyść zaznaczenie" onClick={onClear}><X size={14} /></button>}
+      </header>
+      <div className="adaptive-tool-actions">
+        {actions.map(({ icon: Icon, label, onClick, disabled = false, primary = false, danger = false }) => (
+          <button key={label} className={`${primary ? 'primary' : ''} ${danger ? 'danger' : ''}`} type="button" disabled={disabled} onClick={onClick} title={label} aria-label={label}>
+            <Icon size={18} strokeWidth={1.9} /><span>{label}</span>
+          </button>
+        ))}
+        {moreActions.length > 0 && <details className="adaptive-tool-more">
+          <summary title="Więcej pasujących narzędzi"><MoreHorizontal size={18} /><span>Więcej</span></summary>
+          <div role="menu" aria-label="Więcej pasujących narzędzi">
+            {moreActions.map(({ icon: Icon, label, onClick, disabled = false, danger = false }) => (
+              <button key={label} className={danger ? 'danger' : ''} type="button" role="menuitem" disabled={disabled} onClick={(event) => { onClick?.(event); event.currentTarget.closest('details')?.removeAttribute('open'); }}>
+                <Icon size={17} strokeWidth={1.9} /><span>{label}</span>
+              </button>
+            ))}
+          </div>
+        </details>}
+      </div>
+    </aside>
   );
 }
 

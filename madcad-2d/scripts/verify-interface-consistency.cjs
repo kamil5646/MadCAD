@@ -131,6 +131,17 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'model testowy');
     const loadedModelGroups = await ribbonGroups(window);
     if (loadedModelGroups.join('|') !== emptyModelGroups.join('|')) throw new Error(`Grupy modelowania zmieniły położenie po wczytaniu bryły: ${loadedModelGroups.join('|')}`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'body', bodyId: window.__madcadVerifyEngineState.bodies[0].id }, 'replace')`);
+    await waitFor(window, `document.querySelector('.adaptive-tool-shelf')`, 'kontekstowe narzędzia zaznaczonej bryły');
+    const adaptiveSelection = await window.webContents.executeJavaScript(`(() => ({
+      title: document.querySelector('.adaptive-tool-shelf header strong')?.textContent.trim() || '',
+      actions: [...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-actions > button')].map((button) => button.textContent.trim()),
+      hasMore: Boolean(document.querySelector('.adaptive-tool-shelf .adaptive-tool-more')),
+      withinViewport: (() => { const shelf = document.querySelector('.adaptive-tool-shelf')?.getBoundingClientRect(); const stage = document.querySelector('.modeling-stage')?.getBoundingClientRect(); return Boolean(shelf && stage && shelf.left >= stage.left && shelf.right <= stage.right && shelf.top >= stage.top && shelf.bottom <= stage.bottom); })(),
+    }))()`);
+    if (adaptiveSelection.title !== 'Bryła' || !adaptiveSelection.actions.includes('Przesuń') || !adaptiveSelection.actions.includes('Obróć') || !adaptiveSelection.actions.includes('Szyk') || !adaptiveSelection.hasMore || !adaptiveSelection.withinViewport) throw new Error(`Kontekst wyboru nie prowadzi do właściwych narzędzi: ${JSON.stringify(adaptiveSelection)}`);
+    await window.webContents.executeJavaScript(`document.querySelector('.adaptive-tool-clear')?.click()`);
+    await waitFor(window, `!document.querySelector('.adaptive-tool-shelf')`, 'wyczyszczenie kontekstu zaznaczenia');
     await fs.writeFile(modelScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await fs.writeFile(designScreenshotPath, (await window.webContents.capturePage()).toPNG());
 

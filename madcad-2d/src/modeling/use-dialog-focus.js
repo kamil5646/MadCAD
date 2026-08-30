@@ -14,7 +14,7 @@ function focusableElements(dialog) {
     .filter((element) => element.getAttribute('aria-hidden') !== 'true' && !element.closest('[hidden]'));
 }
 
-export function useDialogFocus(active = true) {
+export function useDialogFocus(active = true, { trap = true } = {}) {
   const dialogRef = useRef(null);
   const previousFocusRef = useRef(null);
   const wasActiveRef = useRef(false);
@@ -52,15 +52,15 @@ export function useDialogFocus(active = true) {
       }
     };
 
-    dialog.addEventListener('keydown', trapFocus);
+    if (trap) dialog.addEventListener('keydown', trapFocus);
     return () => {
-      dialog.removeEventListener('keydown', trapFocus);
+      if (trap) dialog.removeEventListener('keydown', trapFocus);
       const previousFocus = previousFocusRef.current;
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
         previousFocus.focus({ preventScroll: true });
       }
     };
-  }, [active]);
+  }, [active, trap]);
 
   return dialogRef;
 }

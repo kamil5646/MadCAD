@@ -15,7 +15,7 @@ export function WorkspaceDialogStack({ state, actions }) {
   } = state;
   return (
     <>
-      {command?.type === 'plane' && <PlanePicker existingSketchesByPlane={resumableSketchesByPlane} onPick={actions.pickPlane} onCancel={actions.cancelPlane} />}
+      {command?.type === 'plane' && <PlanePicker variant="canvas" existingSketchesByPlane={resumableSketchesByPlane} onPick={actions.pickPlane} onCancel={actions.cancelPlane} />}
       <ImportModelDialog draft={importDraft} onChange={actions.changeModelImport} onConfirm={actions.confirmModelImport} onCancel={actions.cancelModelImport} />
       <ImportSketchDialog draft={sketchImportDraft} onChange={actions.changeSketchImport} onConfirm={actions.confirmSketchImport} onCancel={actions.cancelSketchImport} />
       <ImportRepairReportDialog report={importRepairReport} onSave={actions.saveImportReport} onClose={actions.closeImportReport} />

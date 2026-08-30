@@ -2069,6 +2069,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelectorAll('.timeline-item').length === 1`, 'dodane wyciągnięcie');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.startOffset === '2'`, 'parametryczne odsunięcie początku wyciągnięcia');
   await waitForUi(window, `document.querySelector('.engine-status')?.classList.contains('ready')`, 'przeliczona bryła', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadCompletedSketchVisibilityState === null`, 'zużyty szkic nie przechwytuje wyboru bryły', modelingTimeoutMs);
 
   await waitForUi(
     window,

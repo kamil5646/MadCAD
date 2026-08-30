@@ -16,6 +16,7 @@ describe('resolveVisibleSketchId', () => {
 
   it('nie nakłada niezaznaczonego szkicu na istniejącą bryłę', () => {
     expect(resolveVisibleSketchId({ sketches: [{ id: 'sketch-1' }], bodyCount: 1 })).toBeNull();
+    expect(resolveVisibleSketchId({ sketches: [{ id: 'sketch-1' }], featureCount: 1 })).toBeNull();
   });
 
   it('podczas edycji zachowuje wcześniejsze niepuste szkice jako kontekst', () => {

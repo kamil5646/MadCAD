@@ -68,22 +68,19 @@ app.whenReady().then(async () => {
       trigger.focus();
       trigger.click();
     })()`);
-    await waitFor(window, `document.querySelector('.plane-picker[role="dialog"][aria-modal="true"]')`, 'modal wyboru płaszczyzny');
+    await waitFor(window, `document.querySelector('.plane-picker[role="dialog"][aria-modal="false"]')`, 'wybór płaszczyzny na obszarze roboczym');
     const planeDialogInitial = await window.webContents.executeJavaScript(`(() => {
       const dialog = document.querySelector('.plane-picker');
       return {
         name: dialog?.getAttribute('aria-labelledby') ? document.getElementById(dialog.getAttribute('aria-labelledby'))?.textContent.trim() : '',
         focusInside: Boolean(dialog?.contains(document.activeElement)),
         activeText: document.activeElement?.textContent?.replace(/\\s+/g, ' ').trim() || '',
+        nonModal: dialog?.getAttribute('aria-modal') === 'false',
+        canvasVisible: Boolean(document.querySelector('.model-viewport') && !document.querySelector('.plane-picker-backdrop')),
       };
     })()`);
-    await window.webContents.executeJavaScript(`document.querySelector('.plane-picker header button')?.focus()`);
-    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab', modifiers: ['shift'] });
-    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab', modifiers: ['shift'] });
-    await new Promise((resolve) => setTimeout(resolve, 30));
-    const planeDialogWrappedFocus = await window.webContents.executeJavaScript(`document.activeElement?.textContent?.replace(/\\s+/g, ' ').trim() || ''`);
     await window.webContents.executeJavaScript(`document.querySelector('.plane-picker header button')?.click()`);
-    await waitFor(window, `!document.querySelector('.plane-picker')`, 'zamknięcie modalu wyboru płaszczyzny');
+    await waitFor(window, `!document.querySelector('.plane-picker')`, 'zamknięcie wyboru płaszczyzny');
     const planeDialogRestoredFocus = await window.webContents.executeJavaScript(`document.activeElement?.textContent?.replace(/\\s+/g, ' ').trim() || ''`);
     const result = {
       axNodes: nodes.length,
@@ -95,7 +92,6 @@ app.whenReady().then(async () => {
       distinctFocusNames,
       planeDialog: {
         initial: planeDialogInitial,
-        wrappedFocus: planeDialogWrappedFocus,
         restoredFocus: planeDialogRestoredFocus,
       },
     };
@@ -108,7 +104,8 @@ app.whenReady().then(async () => {
       || planeDialogInitial.name !== 'Wybierz płaszczyznę szkicu'
       || !planeDialogInitial.focusInside
       || !planeDialogInitial.activeText.includes('XY')
-      || !planeDialogWrappedFocus.includes('YZ')
+      || !planeDialogInitial.nonModal
+      || !planeDialogInitial.canvasVisible
       || !planeDialogRestoredFocus.includes('Utwórz szkic')) {
       throw new Error(`Interfejs nie przeszedł testu technologii asystujących: ${JSON.stringify(result)}`);
     }

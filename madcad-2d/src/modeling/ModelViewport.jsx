@@ -41,6 +41,14 @@ const SNAP_ICONS = Object.freeze({
   grid: Grid2X2,
 });
 
+const MODEL_SELECTION_FILTERS = Object.freeze([
+  ['auto', 'Wszystko', 'Tab'],
+  ['body', 'Bryły', 'B'],
+  ['face', 'Ściany', 'F'],
+  ['edge', 'Krawędzie', 'E'],
+  ['vertex', 'Punkty', null],
+]);
+
 function disposeObject(object) {
   object.traverse((child) => {
     child.geometry?.dispose();
@@ -491,6 +499,7 @@ export default function ModelViewport({
   const [selectionBox, setSelectionBox] = useState(null);
   const [snapFeedback, setSnapFeedback] = useState(null);
   const [selectionFilter, setSelectionFilter] = useState('auto');
+  const [selectionFiltersExpanded, setSelectionFiltersExpanded] = useState(false);
   useEffect(() => {
     if (activeSketchId && navigationMode !== VIEWPORT_NAVIGATION_MODES.SELECT) {
       setNavigationMode(VIEWPORT_NAVIGATION_MODES.SELECT);
@@ -553,6 +562,26 @@ export default function ModelViewport({
   useEffect(() => {
     if (!activeSketchId && selectionFilter === 'profile') setSelectionFilter('auto');
   }, [activeSketchId, selectionFilter]);
+  useEffect(() => {
+    if (activeSketchId || !selectionBox) return undefined;
+    const changeSelectionFilter = (event) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (!['tab', 'b', 'f', 'e'].includes(key)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (key === 'tab') {
+        setSelectionFilter((current) => {
+          const order = ['auto', 'body', 'face', 'edge'];
+          return order[(Math.max(0, order.indexOf(current)) + 1) % order.length];
+        });
+        return;
+      }
+      setSelectionFilter({ b: 'body', f: 'face', e: 'edge' }[key]);
+    };
+    window.addEventListener('keydown', changeSelectionFilter, true);
+    return () => window.removeEventListener('keydown', changeSelectionFilter, true);
+  }, [activeSketchId, selectionBox]);
   if (sketchInteractionRef.current.activeSketchId !== activeSketchId) {
     sketchInteractionRef.current = { activeSketchId, start: null, drag: null, box: null };
   }
@@ -2114,18 +2143,21 @@ export default function ModelViewport({
         </div>
       </div>}
       <div className="axis-indicator" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
-      {!activeSketchId && bodies.length > 0 && <div className="selection-filter-bar" role="toolbar" aria-label="Filtr wyboru geometrii">
-        <span className="selection-filter-label">Filtr:</span>
-        {[
-          ['auto', 'Wszystko'],
-          ['body', 'Bryły'],
-          ['face', 'Ściany'],
-          ['edge', 'Krawędzie'],
-          ['vertex', 'Punkty'],
-          ['profile', 'Profil'],
-        ].filter(([id]) => id !== 'profile').map(([id, label]) => <button key={id} className={selectionFilter === id ? 'active' : ''} type="button" aria-pressed={selectionFilter === id} title={`Filtr wyboru: ${label}`} onClick={() => setSelectionFilter(id)}>{label}</button>)}
+      {!activeSketchId && bodies.length > 0 && <div className={`selection-filter-bar ${selectionBox || selectionFiltersExpanded ? 'expanded' : 'collapsed'}`} role="toolbar" aria-label="Filtr wyboru geometrii">
+        <span className="selection-filter-label">Wybór</span>
+        {MODEL_SELECTION_FILTERS.map(([id, label, shortcut]) => {
+          const active = selectionFilter === id;
+          const expanded = Boolean(selectionBox || selectionFiltersExpanded);
+          return <button key={id} className={active ? 'active' : ''} type="button" aria-pressed={active} aria-expanded={active ? expanded : undefined} tabIndex={expanded || active ? 0 : -1} title={`${active && !expanded ? 'Pokaż filtry wyboru' : `Filtr wyboru: ${label}`}${shortcut ? ` · ${shortcut}` : ''}`} onClick={() => {
+            if (active && !selectionBox) setSelectionFiltersExpanded((current) => !current);
+            else {
+              setSelectionFilter(id);
+              if (!selectionBox) setSelectionFiltersExpanded(false);
+            }
+          }}><span>{label}</span>{shortcut && expanded && <kbd>{shortcut}</kbd>}</button>;
+        })}
       </div>}
-      {!activeSketchId && bodies.length > 0 && <div className="model-selection-hint">{`${multiSelectKeyLabel}: wiele · Shift+przeciągnij: obszar`}</div>}
+      {!activeSketchId && bodies.length > 0 && <div className={`model-selection-hint ${selectionBox ? 'visible' : ''}`}>{selectionBox ? 'Tab przełącza · B bryły · F ściany · E krawędzie' : `${multiSelectKeyLabel}: wiele · Shift+przeciągnij: obszar`}</div>}
       {directEnabled && (
         <div
           ref={directHandleRef}

@@ -1,8 +1,8 @@
-export function resolveVisibleSketchId({ activeSketchId = null, selection = null, sketches = [], bodyCount = 0 } = {}) {
+export function resolveVisibleSketchId({ activeSketchId = null, selection = null, sketches = [], bodyCount = 0, featureCount = 0 } = {}) {
   if (activeSketchId) return activeSketchId;
   if (selection?.sketchId) return selection.sketchId;
   if (selection?.kind === 'sketch') return selection.id;
-  if (bodyCount === 0) return sketches.at(-1)?.id || null;
+  if (bodyCount === 0 && featureCount === 0) return sketches.at(-1)?.id || null;
   return null;
 }
 

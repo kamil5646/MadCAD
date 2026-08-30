@@ -105,3 +105,33 @@ Sprawdzono pełny przepływ, a nie tylko widoczność linii:
 - szkice na innych płaszczyznach pozostają osobne dla Sweep i Loft.
 
 Wynik: **passed** — pełny `verify:modeling`, 186/186 testów rdzenia i 110/110 testów interfejsu bez regresji.
+
+## Przepływ adaptacyjny wzorowany na Shapr3D — 2026-08-30
+
+Punkt odniesienia zapisano z oficjalnej dokumentacji Shapr3D w
+`artifacts/shapr-reference-2026-08-30/01-adaptive-ui-official.png`. Porównanie
+dotyczy modelu interakcji, nie kopiowania brandingu ani ikon.
+
+1. **Wybór płaszczyzny — dobry.** Płótno i orientacja modelu pozostają widoczne;
+   karta XY/XZ/YZ nie blokuje całego okna, ma skróty `1–3` i zamknięcie `Esc`.
+2. **Aktywny szkic — dobry.** Narzędzia szkicu pozostają w stałej wstążce,
+   wcześniejsza geometria jest kontekstem i źródłem snap, a bieżący szkic nie
+   wymaga przełączania osobnego trybu zaznaczania.
+3. **Zamknięty profil — dobry.** Zaznaczenie profilu wystawia adaptacyjnie
+   `Wyciągnij`, `Naciśnij / wyciągnij` i `Bryła obrotowa`; pozostałe poprawne
+   działania są w `Więcej`.
+4. **Ściana, krawędź i bryła — dobry.** Lewa paleta zmienia zawartość na podstawie
+   rodzaju geometrii zamiast zasypywać płótno wszystkimi operacjami naraz.
+5. **Wybór obszarem — dobry.** Filtr jest zwinięty w spoczynku, a podczas
+   przeciągania pokazuje `Wszystko`, `Bryły`, `Ściany`, `Krawędzie`, `Punkty`
+   oraz skróty `Tab/B/F/E`.
+
+Kontrola rzeczywistego przepływu ujawniła i zamknęła dodatkową regresję:
+profil po `Wyciągnij` pozostawał widoczny nad gotową bryłą i przechwytywał jej
+zaznaczenie. Po poprawce zużyty szkic jest ukryty automatycznie, natomiast jego
+świadome zaznaczenie lub edycja nadal przywraca geometrię. Pełny test modelowania
+obejmuje teraz ten warunek po utworzeniu bryły.
+
+Ryzyko dostępności z samego zrzutu pozostaje ograniczone do oceny wizualnej.
+Osobne testy potwierdzają dostępne nazwy, kolejność fokusu, nieblokujący wybór
+płaszczyzny i widoczność płótna; nie stanowi to deklaracji pełnej zgodności WCAG.
