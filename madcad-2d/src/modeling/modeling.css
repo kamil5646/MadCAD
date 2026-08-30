@@ -150,7 +150,7 @@
 .license-info-card.license-info-commercial { border-color: rgba(241, 189, 98, 0.55); background: rgba(104, 72, 26, 0.2); }
 .license-info-card.license-info-commercial strong { color: #ffd489; }
 .license-info-support-copy { margin: 0; color: #cbd4dc; font-size: 11px; line-height: 1.4; }
-.license-info-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; padding-top: 2px; }
+.license-info-actions { display: grid; grid-template-columns: repeat(3, max-content); justify-content: start; gap: 7px; padding-top: 10px; border-top: 1px solid #4f5c69; }
 .license-info-actions a { display: inline-flex; min-height: 31px; align-items: center; justify-content: center; padding: 0 10px; border: 1px solid #627282; border-radius: 4px; color: #e7edf2; background: #354250; font-size: 11px; text-decoration: none; }
 .license-info-actions a:hover { border-color: #7f93a6; background: #405061; }
 .license-info-actions a.commercial { border-color: #8d7042; color: #ffe2a7; background: #4a3b28; }
@@ -159,7 +159,7 @@
 .license-info-actions a.support:hover { background: #3a5566; }
 .license-info-actions button { min-height: 31px; padding: 0 11px; border: 1px solid #687786; border-radius: 4px; color: #e9f0f4; background: #42505e; font-size: 11px; cursor: pointer; }
 .license-info-actions button:hover { background: #4d5e6e; }
-.license-info-actions button.confirm { order: 5; min-height: 34px; border-color: #40b9df; color: white; background: #117fa8; font-weight: 700; }
+.license-info-actions button.confirm { grid-column: 1 / -1; min-width: 170px; min-height: 34px; justify-self: end; border-color: #40b9df; color: white; background: #117fa8; font-weight: 700; }
 .license-info-actions button.confirm:hover { background: #1596c2; }
 .full-license-dialog { width: min(720px, 100%); }
 .full-license-dialog pre { max-height: min(62vh, 680px); margin: 0; padding: 18px; overflow: auto; color: #d9e2e9; background: #202934; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; }
@@ -170,6 +170,10 @@
   .tutorial-backdrop { padding: 10px; }
   .tutorial-body ol { grid-template-columns: 1fr; }
   .license-info-backdrop { padding: 10px; }
+  .license-info-actions { grid-template-columns: 1fr; }
+  .license-info-actions a,
+  .license-info-actions button,
+  .license-info-actions button.confirm { grid-column: 1; width: 100%; justify-self: stretch; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -511,6 +515,23 @@
   .document-tab {
     min-width: 280px;
     max-width: 34vw;
+  }
+}
+
+@media (max-width: 1180px) {
+  .app-menu button {
+    width: 30px;
+    min-width: 30px;
+    padding: 0;
+  }
+
+  .app-menu button > span {
+    display: none;
+  }
+
+  .document-tab {
+    min-width: 250px;
+    max-width: 28vw;
   }
 }
 
@@ -869,7 +890,7 @@
   top: 48px;
   left: 0;
   display: grid;
-  width: 290px;
+  width: 340px;
   max-height: min(520px, calc(100vh - 160px));
   padding: 6px;
   overflow: auto;
@@ -922,12 +943,10 @@
 }
 
 .ribbon-tool-submenu small {
-  overflow: hidden;
   color: #bac6ce;
   font-size: 9.5px;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .ribbon-overflow-submenu {
@@ -1303,7 +1322,7 @@
   z-index: 3;
   inset: 0;
   overflow: auto;
-  padding: 22px clamp(18px, 3vw, 38px) 32px;
+  padding: 18px clamp(18px, 3vw, 38px) 32px;
   background: #252d37;
   color: #dce5eb;
 }
@@ -1320,6 +1339,14 @@
   align-items: center;
   gap: 16px;
   border-left: 4px solid #35b7de;
+}
+
+.project-dashboard > header,
+.project-dashboard-summary,
+.project-dashboard-action-groups {
+  width: min(1180px, 100%);
+  margin-right: auto;
+  margin-left: auto;
 }
 
 .project-dashboard-guide strong { font-size: 13px; }
@@ -1371,12 +1398,29 @@
 .project-dashboard-summary .project-dashboard-health.warning { border-top-color: #d7a04c; }
 .project-dashboard-summary .project-dashboard-health.critical { border-top-color: #d96d76; }
 
+.project-dashboard-action-groups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.project-dashboard-action-groups > section {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.project-dashboard-action-groups h2 {
+  margin: 0 0 0 3px;
+  color: #b9c7d1;
+  font-size: 10px;
+  letter-spacing: .075em;
+}
+
 .project-dashboard-actions {
   display: grid;
-  max-width: 1180px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
-  margin: 12px auto 0;
+  gap: 6px;
 }
 
 .project-dashboard-actions > button {
@@ -1396,6 +1440,7 @@
 }
 
 .project-dashboard-actions > button:hover { border-color: #68b9d5; background: #364653; }
+.project-dashboard-actions > button:disabled { color: #83919c; cursor: default; opacity: .65; }
 .project-dashboard-actions > button > svg:first-child { color: #6fc7e5; }
 .project-dashboard-actions > button > svg:last-child { color: #8fa5b3; }
 .project-dashboard-actions span { display: grid; min-width: 0; gap: 3px; }
@@ -1405,7 +1450,7 @@
 @media (max-width: 850px) {
   .project-dashboard { padding: 12px; }
   .project-dashboard-summary,
-  .project-dashboard-actions { grid-template-columns: 1fr; }
+  .project-dashboard-action-groups { grid-template-columns: 1fr; }
   .project-dashboard-guide small { display: block; }
 }
 
@@ -5070,6 +5115,23 @@
 .modeling-shell.drawing-mode {
   grid-template-rows: 34px 100px minmax(0, 1fr) 34px;
 }
+
+.modeling-shell.tools-mode {
+  grid-template-rows: 34px 30px minmax(0, 1fr) 34px;
+}
+
+.tools-mode .command-ribbon { grid-template-rows: 30px 0; }
+.tools-mode .modeling-ribbon {
+  height: 0;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tools-mode .modeling-footer { grid-template-rows: 34px; }
 
 .drawing-mode .modeling-footer {
   grid-template-rows: 34px;

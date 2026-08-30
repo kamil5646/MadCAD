@@ -26,6 +26,8 @@ Ujednolicić aplikację według hierarchii znanej z Worda i kontekstowego sposob
 - [x] Pakiet 3: pulpit `ZARZĄDZAJ`, arkusz i menu Plik.
 - [x] Pakiet 4: dialogi, skróty i licencja.
 - [x] Pełna walidacja i lokalna instalacja macOS.
+- [x] Ponowny audyt z aktualnych zrzutów po uwagach o kolizjach i niespójnych proporcjach.
+- [x] Usunięcie duplikatów w `ZARZĄDZAJ` i regresja funkcjonalna paneli projektu.
 
 ## Dziennik
 
@@ -45,3 +47,11 @@ Ujednolicić aplikację według hierarchii znanej z Worda i kontekstowego sposob
 - 2026-08-30: zbudowano wyłącznie lokalny pakiet macOS 6.4.6, bez publikacji i bez certyfikatu dystrybucyjnego. Pakiet podpisano lokalnie ad-hoc, zweryfikowano `codesign --verify --deep --strict` i zainstalowano w `/Applications/MadCAD.app`; suma SHA-256 `app.asar` jest zgodna z przetestowanym buildem.
 - 2026-08-30: po kontroli na rzeczywistym ekranie poprawiono ucinanie drugiego rzędu ikon wstążki bez zwiększania jej całkowitej wysokości. Ramka fokusowa pozostaje widoczna przy sterowaniu klawiaturą, ale nie dubluje obramowania zakładki klikniętej myszą. Ponownie zaliczono testy arkusza 2D, przepełnienia wstążki i technologii asystujących oraz sprawdzono zrzut wizualnie.
 - 2026-08-30: po ponownej kontroli dodano 4 px dolnego marginesu wstążki, ponieważ nieucięty drugi rząd nadal był optycznie zbyt blisko krawędzi. Zachowano dotychczasowy rozmiar ikon i etykiet.
+- 2026-08-30: ponowny audyt wizualny wykonano na świeżych zrzutach: start szeroki i wąski, licencja, wybór płaszczyzny, model 3D, menu konstrukcji, pulpit projektu, arkusz 2D, menu Plik, skróty oraz odzyskiwanie po awarii.
+- 2026-08-30: naprawiono kolizję paska tytułu przy szerokości 1100 px. Etykiety lewego paska przechodzą wtedy w czytelne ikony, a nazwa dokumentu ma gwarantowany odstęp od lewej i prawej grupy. Test mierzy rzeczywiste prostokąty elementów i odrzuca ich nachodzenie.
+- 2026-08-30: karta `ZARZĄDZAJ` nie dubluje już dziewięciu poleceń na wstążce i w treści. Wstążka jest w tym obszarze zwinięta, a polecenia zebrano w trzy sekcje: `PARAMETRY I WERSJE`, `KONTROLA`, `STRUKTURA`. Dodano brakujące tworzenie części, złożenia i zapisane widoki.
+- 2026-08-30: `Zapisane widoki` automatycznie wracają do modelu 3D i otwierają panel nad widokiem, aby użytkownik nie musiał ręcznie wyłączać jednego obszaru przed użyciem drugiego.
+- 2026-08-30: menu konstrukcji poszerzono do 340 px i usunięto ucinanie opisów wielokropkiem. Test potwierdza, że pełne opisy sześciu rodzajów płaszczyzn mieszczą się w menu i nie wychodzą poza okno.
+- 2026-08-30: stopkę komunikatu licencyjnego ustawiono w przewidywalnym układzie: trzy działania informacyjne w pierwszym rzędzie, a główne `Przejdź do programu` osobno po prawej. Na małym ekranie akcje przechodzą w jedną kolumnę.
+- 2026-08-30: po poprawkach zaliczone: `lint`, 105/105 testów komponentów, 185/185 testów core, `start-experience`, `interface-consistency`, `project-snapshots`, `project-health`, `project-dependencies`, `named-views`, `drawing-workspace`, `ribbon-overflow`, `extrude-after-sketch` i `assistive-tech`. Jednorazowy `UnknownVizError` testu zrzutu wystąpił przy równoległym uruchomieniu wielu instancji Electron; powtórzenie testu wstążki osobno zakończyło się powodzeniem.
+- 2026-08-30: pełny `verify-modeling` po końcowym układzie zaliczony. Obejmuje m.in. szkic myszą i dokładną długość jak w AutoCAD, zakończenie szkicu i wyciągnięcie, operacje B-Rep, konstrukcję, import/eksport, druk 3D, parametry z pulpitu `ZARZĄDZAJ`, skalowanie 100/150/200%, dostępność i interfejs angielski.

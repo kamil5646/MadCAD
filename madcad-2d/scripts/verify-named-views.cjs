@@ -38,15 +38,11 @@ app.whenReady().then(async () => {
     }
     await window.webContents.executeJavaScript(`document.querySelector('.cube-main').click()`);
     await fs.writeFile(viewCubeScreenshotPath, (await window.webContents.capturePage()).toPNG());
-    await window.webContents.executeJavaScript(`(() => {
-      const button = [...document.querySelectorAll('button')].find((item) => item.textContent.trim() === 'Zapisane widoki');
-      if (button) button.click();
-      else {
-        [...document.querySelectorAll('button')].find((item) => item.textContent.trim() === 'Więcej')?.click();
-        setTimeout(() => [...document.querySelectorAll('button')].find((item) => item.textContent.trim() === 'Zapisane widoki')?.click(), 50);
-      }
-    })()`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === 'ZARZĄDZAJ')?.click()`);
+    await waitFor(window, `document.querySelector('#projectNamedViewsBtn')`, 'polecenie zapisanych widoków w Zarządzaj');
+    await window.webContents.executeJavaScript(`document.querySelector('#projectNamedViewsBtn').click()`);
     await waitFor(window, `document.querySelector('.named-views-panel')`, 'panel zapisanych widoków');
+    await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'PROJEKTUJ'`, 'powrót do modelu z panelem widoków');
     await window.webContents.executeJavaScript(`(() => {
       const input = document.querySelector('input[aria-label="Nazwa nowego widoku"]');
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Montaż prawy');

@@ -6,6 +6,8 @@ const artifactsDir = path.join(__dirname, '..', 'artifacts', 'start-experience-a
 const wideScreenshotPath = path.join(artifactsDir, '02-after-start.png');
 const narrowScreenshotPath = path.join(artifactsDir, '03-narrow-start.png');
 const recoveryScreenshotPath = path.join(artifactsDir, '04-crash-recovery.png');
+const licenseScreenshotPath = path.join(artifactsDir, '01-license.png');
+const planeScreenshotPath = path.join(artifactsDir, '05-plane-picker.png');
 
 async function waitFor(window, expression, label, timeoutMs = 20000) {
   const startedAt = Date.now();
@@ -33,6 +35,20 @@ app.whenReady().then(async () => {
     await fs.mkdir(artifactsDir, { recursive: true });
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
     await waitFor(window, `document.querySelector('.modeling-shell')`, 'interfejs aplikacji');
+    await waitFor(window, `document.querySelector('.license-info-dialog')`, 'informacja licencyjna');
+    const licenseLayout = await window.webContents.executeJavaScript(`(() => {
+      const actions = document.querySelector('.license-info-actions');
+      const confirm = actions?.querySelector('.confirm');
+      const actionRect = actions?.getBoundingClientRect();
+      const confirmRect = confirm?.getBoundingClientRect();
+      return {
+        actionsInsideDialog: Boolean(actionRect && [...actions.children].every((item) => { const rect = item.getBoundingClientRect(); return rect.left >= actionRect.left && rect.right <= actionRect.right + 1; })),
+        primaryOnOwnRow: Boolean(confirmRect && [...actions.children].filter((item) => item !== confirm).every((item) => item.getBoundingClientRect().bottom <= confirmRect.top)),
+        primaryAlignedRight: Boolean(confirmRect && actionRect && (confirmRect.left + confirmRect.right) / 2 > (actionRect.left + actionRect.right) / 2),
+      };
+    })()`);
+    if (!licenseLayout.actionsInsideDialog || !licenseLayout.primaryOnOwnRow || !licenseLayout.primaryAlignedRight) throw new Error(`Akcje komunikatu licencyjnego mają przypadkowy układ: ${JSON.stringify(licenseLayout)}`);
+    await capture(window, licenseScreenshotPath);
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
     await waitFor(window, `!document.querySelector('.license-info-dialog')`, 'zamknięcie informacji licencyjnej');
     await waitFor(window, `document.querySelector('.start-page')`, 'strona startowa');
@@ -96,18 +112,23 @@ app.whenReady().then(async () => {
       const primary = page?.querySelector('.start-page-action.primary');
       const pageRect = page?.getBoundingClientRect();
       const buttonRect = primary?.getBoundingClientRect();
+      const appMenuRect = document.querySelector('.app-menu')?.getBoundingClientRect();
+      const documentRect = document.querySelector('.document-tab')?.getBoundingClientRect();
+      const titleActionsRect = document.querySelector('.title-actions')?.getBoundingClientRect();
       return {
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth || page.scrollWidth > page.clientWidth + 1,
         primaryVisible: Boolean(buttonRect && pageRect && buttonRect.left >= pageRect.left && buttonRect.right <= pageRect.right + 1),
         flowHidden: getComputedStyle(page.querySelector('.start-page-flow')).display === 'none',
+        titlebarClear: Boolean(appMenuRect && documentRect && titleActionsRect && appMenuRect.right + 8 <= documentRect.left && documentRect.right + 8 <= titleActionsRect.left),
       };
     })()`);
-    if (narrow.horizontalOverflow || !narrow.primaryVisible || !narrow.flowHidden) throw new Error(`Strona startowa nie mieści się w wąskim oknie: ${JSON.stringify(narrow)}`);
+    if (narrow.horizontalOverflow || !narrow.primaryVisible || !narrow.flowHidden || !narrow.titlebarClear) throw new Error(`Strona startowa nie mieści się w wąskim oknie: ${JSON.stringify(narrow)}`);
     await capture(window, narrowScreenshotPath);
 
     window.setContentSize(1600, 917);
     await window.webContents.executeJavaScript(`document.querySelector('.start-page-action.primary')?.click()`);
     await waitFor(window, `document.querySelector('.plane-picker')`, 'przejście ze strony startowej do wyboru płaszczyzny');
+    await capture(window, planeScreenshotPath);
 
     await window.webContents.executeJavaScript(`(() => {
       const recovered = JSON.parse(${JSON.stringify(recoveryDocumentText)});
@@ -137,7 +158,7 @@ app.whenReady().then(async () => {
     }
     await capture(window, recoveryScreenshotPath);
 
-    process.stdout.write(`${JSON.stringify({ ok: true, wideScreenshotPath, narrowScreenshotPath, recoveryScreenshotPath, wide, narrow, recovery, accessibility }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, licenseScreenshotPath, wideScreenshotPath, narrowScreenshotPath, recoveryScreenshotPath, planeScreenshotPath, licenseLayout, wide, narrow, recovery, accessibility }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

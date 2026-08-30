@@ -61,17 +61,26 @@ export function CrashRecoveryBanner({ info, onSave, onOpenSnapshots, onDismiss }
   );
 }
 
-export function ProjectDashboard({ document, bodyCount, health, snapshotCount, onOpenParameters, onOpenSnapshots, onOpenComparison, onOpenHealth, onOpenDependencies, onOpenComponents, onBack }) {
+export function ProjectDashboard({ document, bodyCount, health, snapshotCount, onOpenParameters, onOpenSnapshots, onOpenComparison, onOpenHealth, onOpenDependencies, onOpenComponents, onCreatePart, onCreateAssembly, onOpenNamedViews, readOnly = false, onBack }) {
   const counts = health?.counts || {};
   const healthLabel = health?.status === 'critical' ? 'Wymaga działania' : health?.status === 'warning' ? 'Wymaga uwagi' : 'Projekt zdrowy';
   const issueCount = (counts.critical || 0) + (counts.warning || 0);
-  const actions = [
-    [Settings2, 'Parametry', `${document.parameters.length} zdefiniowanych`, onOpenParameters],
-    [History, 'Punkty zapisu', `${snapshotCount} lokalnych wersji`, onOpenSnapshots],
-    [GitCompareArrows, 'Porównaj wersje', 'Sprawdź różnice bez zmiany projektu', onOpenComparison],
-    [ShieldCheck, 'Kondycja projektu', issueCount ? `${issueCount} elementów do sprawdzenia` : 'Brak wykrytych problemów', onOpenHealth],
-    [Network, 'Gdzie używane', 'Referencje i zależności obiektów', onOpenDependencies],
-    [Boxes, 'Komponenty', `${document.components.length} komponentów`, onOpenComponents],
+  const actionGroups = [
+    ['PARAMETRY I WERSJE', [
+      ['projectParametersBtn', Settings2, 'Parametry', `${document.parameters.length} zdefiniowanych`, onOpenParameters, readOnly],
+      ['projectSnapshotsBtn', History, 'Punkty zapisu', `${snapshotCount} lokalnych wersji`, onOpenSnapshots],
+      ['projectComparisonBtn', GitCompareArrows, 'Porównaj wersje', 'Sprawdź różnice bez zmiany projektu', onOpenComparison],
+    ]],
+    ['KONTROLA', [
+      ['projectHealthBtn', ShieldCheck, 'Kondycja projektu', issueCount ? `${issueCount} elementów do sprawdzenia` : 'Brak wykrytych problemów', onOpenHealth],
+      ['projectDependenciesBtn', Network, 'Gdzie używane', 'Referencje i zależności obiektów', onOpenDependencies],
+      ['projectNamedViewsBtn', Eye, 'Zapisane widoki', 'Pozycje kamery zapisane w projekcie', onOpenNamedViews],
+    ]],
+    ['STRUKTURA', [
+      ['projectComponentsBtn', Boxes, 'Komponenty', `${document.components.length} komponentów`, onOpenComponents],
+      ['projectCreatePartBtn', Box, 'Nowa część', 'Dodaj część do bieżącego dokumentu', onCreatePart, readOnly],
+      ['projectCreateAssemblyBtn', Boxes, 'Nowe złożenie', 'Dodaj złożenie i uporządkuj części', onCreateAssembly, readOnly],
+    ]],
   ];
   return (
     <section className="project-dashboard" aria-label="Pulpit zarządzania projektem">
@@ -88,9 +97,14 @@ export function ProjectDashboard({ document, bodyCount, health, snapshotCount, o
         <article><Layers3 size={23} /><div><span>Model</span><strong>{bodyCount} brył · {document.features.length} operacji</strong><small>{document.sketches.length} szkiców w projekcie</small></div></article>
         <article><FileBox size={23} /><div><span>Dokumentacja</span><strong>{document.drawings.length} arkuszy</strong><small>{document.drawings.reduce((total, sheet) => total + (sheet.views?.length || 0), 0)} widoków technicznych</small></div></article>
       </div>
-      <nav className="project-dashboard-actions" aria-label="Narzędzia zarządzania projektem">
-        {actions.map(([Icon, title, description, action]) => <button key={title} type="button" onClick={action}><Icon size={22} /><span><strong>{title}</strong><small>{description}</small></span><ArrowRight size={15} /></button>)}
-      </nav>
+      <div className="project-dashboard-action-groups">
+        {actionGroups.map(([groupLabel, actions]) => <section key={groupLabel} aria-label={groupLabel}>
+          <h2>{groupLabel}</h2>
+          <nav className="project-dashboard-actions" aria-label={groupLabel}>
+            {actions.map(([id, Icon, title, description, action, disabled]) => <button id={id} key={title} type="button" disabled={disabled} onClick={action}><Icon size={22} /><span><strong>{title}</strong><small>{description}</small></span><ArrowRight size={15} /></button>)}
+          </nav>
+        </section>)}
+      </div>
     </section>
   );
 }

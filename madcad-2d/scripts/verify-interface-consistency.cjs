@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { app, BrowserWindow } = require('electron');
 
-const artifactsDir = path.join(__dirname, '..', 'artifacts', 'interface-consistency-audit-2026-08-28');
+const artifactsDir = path.join(__dirname, '..', 'artifacts', 'full-interface-audit-2026-08-30');
 const modelScreenshotPath = path.join(artifactsDir, '01-model-fixed.png');
 const projectScreenshotPath = path.join(artifactsDir, '02-project-fixed.png');
 const drawingScreenshotPath = path.join(artifactsDir, '03-drawing-fixed.png');
@@ -83,7 +83,7 @@ app.whenReady().then(async () => {
       ribbonHeight: document.querySelector('.command-area')?.getBoundingClientRect().height || 0,
     }))()`);
     const expectedDesignMenus = ['Więcej brył', 'Więcej zmian', 'Łącz i dziel', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
-    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !designStructure.customCadIcons || designStructure.iconSize < 22 || designStructure.featuredIconSize < 33 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 98) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !designStructure.customCadIcons || designStructure.iconSize < 22 || designStructure.featuredIconSize < 33 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
 
     window.setContentSize(1351, 877);
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -115,9 +115,10 @@ app.whenReady().then(async () => {
         rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
         topElement: topElement?.className || topElement?.tagName,
         onTop: Boolean(topElement && menu.contains(topElement)),
+        descriptionsReadable: [...menu.querySelectorAll('small')].every((item) => item.scrollWidth <= item.clientWidth + 1 && item.scrollHeight <= item.clientHeight + 1),
       };
     })()`);
-    if (constructionMenu.items.join('|') !== 'Płaszczyzna odsunięta|Płaszczyzna środkowa|Przez 3 punkty|Pod kątem|Styczna|Na ścieżce' || !constructionMenu.visible || !constructionMenu.onTop) throw new Error(`Niepełne lub niewidoczne menu płaszczyzn: ${JSON.stringify(constructionMenu)}`);
+    if (constructionMenu.items.join('|') !== 'Płaszczyzna odsunięta|Płaszczyzna środkowa|Przez 3 punkty|Pod kątem|Styczna|Na ścieżce' || !constructionMenu.visible || !constructionMenu.onTop || !constructionMenu.descriptionsReadable) throw new Error(`Niepełne lub niewidoczne menu płaszczyzn: ${JSON.stringify(constructionMenu)}`);
     await new Promise((resolve) => setTimeout(resolve, 200));
     await fs.writeFile(constructionScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await clickText(window, '.ribbon-tool-menu-trigger', 'Płaszczyzny');
@@ -126,11 +127,13 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'ZARZĄDZAJ'`, 'karta zarządzania');
     const project = await window.webContents.executeJavaScript(`(() => ({
       topMenuRemoved: !document.querySelector('.project-tools-menu'),
-      controls: ['projectSnapshotsBtn', 'projectComparisonBtn', 'projectHealthBtn', 'projectDependenciesBtn'].map((id) => ({ id, inRibbon: Boolean(document.querySelector('.modeling-ribbon #' + id)) })),
+      controls: ['projectParametersBtn', 'projectSnapshotsBtn', 'projectComparisonBtn', 'projectHealthBtn', 'projectDependenciesBtn', 'projectNamedViewsBtn', 'projectComponentsBtn', 'projectCreatePartBtn', 'projectCreateAssemblyBtn'].map((id) => ({ id, inDashboard: Boolean(document.querySelector('.project-dashboard #' + id)) })),
       groups: [...document.querySelectorAll('.modeling-ribbon .ribbon-group')].map((item) => item.getAttribute('aria-label')),
+      dashboardGroups: [...document.querySelectorAll('.project-dashboard-action-groups h2')].map((item) => item.textContent.trim()),
+      ribbonCollapsed: document.querySelector('.command-area')?.getBoundingClientRect().height <= 32,
     }))()`);
-    const expectedProjectGroups = ['PARAMETRY', 'WERSJE', 'KONTROLA', 'STRUKTURA', 'WIDOK'];
-    if (!project.topMenuRemoved || project.controls.some((item) => !item.inRibbon) || project.groups.join('|') !== expectedProjectGroups.join('|')) throw new Error(`Narzędzia projektu nadal są pochowane lub pomieszane: ${JSON.stringify(project)}`);
+    const expectedProjectDashboardGroups = ['PARAMETRY I WERSJE', 'KONTROLA', 'STRUKTURA'];
+    if (!project.topMenuRemoved || project.controls.some((item) => !item.inDashboard) || project.groups.length || project.dashboardGroups.join('|') !== expectedProjectDashboardGroups.join('|') || !project.ribbonCollapsed) throw new Error(`Narzędzia projektu nadal są pochowane, powtórzone lub pomieszane: ${JSON.stringify(project)}`);
     await new Promise((resolve) => setTimeout(resolve, 200));
     await fs.writeFile(projectScreenshotPath, (await window.webContents.capturePage()).toPNG());
 

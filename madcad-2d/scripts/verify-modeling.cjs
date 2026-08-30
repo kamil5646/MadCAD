@@ -288,6 +288,15 @@ async function runUiFlow(window) {
     button.click();
   })()`);
   const clickTool = async (label) => {
+    if (toolsWorkspaceLabels.has(label)) {
+      await clickWorkspace('ZARZĄDZAJ');
+      await waitForUi(window, `[...document.querySelectorAll('.project-dashboard button')].some((item) => item.textContent.trim().startsWith(${JSON.stringify(label)}))`, `narzędzie ${label} w pulpicie ZARZĄDZAJ`);
+      return window.webContents.executeJavaScript(`(() => {
+        const button = [...document.querySelectorAll('.project-dashboard button')].find((item) => item.textContent.trim().startsWith(${JSON.stringify(label)}));
+        if (!button || button.disabled) throw new Error('Brak aktywnego polecenia pulpitu: ${label}');
+        button.click();
+      })()`);
+    }
     const constructionMenuLabel = constructionWorkspaceLabels.has(label)
       ? (label.startsWith('Płaszczyzna') || ['Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce'].includes(label)
         ? 'Płaszczyzny'
@@ -312,9 +321,8 @@ async function runUiFlow(window) {
       })()`);
     }
     if (!await ribbonHasTool(label)) {
-      const workspaceLabel = toolsWorkspaceLabels.has(label) ? 'ZARZĄDZAJ' : 'PROJEKTUJ';
-      await clickWorkspace(workspaceLabel);
-      await waitForUi(window, `document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]')`, `narzędzie ${label} w obszarze ${workspaceLabel}`);
+      await clickWorkspace('PROJEKTUJ');
+      await waitForUi(window, `document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]')`, `narzędzie ${label} w obszarze PROJEKTUJ`);
     }
     return window.webContents.executeJavaScript(`(() => {
     const button = document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]');

@@ -5,7 +5,6 @@ import {
   ArrowRight,
   Blocks,
   Box,
-  Boxes,
   Check,
   ChevronDown,
   ChevronRight,
@@ -22,7 +21,6 @@ import {
   FolderPlus,
   Frame,
   Grid2X2,
-  GitCompareArrows,
   HardDriveDownload,
   History,
   Hexagon,
@@ -36,7 +34,6 @@ import {
   MousePointer2,
   Move,
   Move3d,
-  Network,
   Pencil,
   PencilRuler,
   Printer,
@@ -48,7 +45,6 @@ import {
   ScanSearch,
   Search,
   Scissors,
-  ShieldCheck,
   Shapes,
   SkipBack,
   Square,
@@ -59,7 +55,6 @@ import {
   Type,
   Ungroup,
   Undo2,
-  Variable,
   Upload,
   X,
 } from 'lucide-react';
@@ -5444,7 +5439,7 @@ export default function ModelingWorkspace() {
 
   return (
     <ToolHelpContext.Provider value={toolHelpContext}>
-    <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${workspace === 'drawing' ? 'drawing-mode' : activeSketchId ? 'sketch-mode' : document.features.length ? '' : 'timeline-empty'} ${startPageVisible ? 'start-page-mode' : ''}`} aria-label="Modelowanie parametryczne MadCAD">
+    <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${workspace === 'drawing' ? 'drawing-mode' : workspace === 'tools' ? 'tools-mode' : activeSketchId ? 'sketch-mode' : document.features.length ? '' : 'timeline-empty'} ${startPageVisible ? 'start-page-mode' : ''}`} aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
         <div className="app-menu" role="toolbar" aria-label="Plik i przeglądarka projektu">
           <button id="fileMenuBtn" className={fileMenuOpen ? 'active' : ''} type="button" aria-label="Menu Plik" aria-expanded={fileMenuOpen} aria-controls="file-backstage" title="Projekt, import, eksport i druk" onClick={() => setFileMenuOpen((open) => !open)}><FileText size={15} /><span>Plik</span></button>
@@ -5602,15 +5597,7 @@ export default function ModelingWorkspace() {
                 ]} /></RibbonGroup>
                 <RibbonGroup label="ZESTAWIENIA"><ToolButton icon={Grid2X2} label="BOM" onClick={() => addDrawingTable('bom')} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Dodaj automatyczne zestawienie części z modelu 3D." /><ToolButton icon={Grid2X2} label="Tabela otworów" onClick={() => addDrawingTable('hole-table')} disabled={readOnly || !selectedDrawingView || selectedDrawingIsSketch || !engine.bodies.length} description="Dodaj tabelę średnic z zaznaczonego widoku modelu 3D." /></RibbonGroup>
               </>
-            ) : workspace === 'tools' ? (
-              <>
-                <RibbonGroup label="PARAMETRY"><ToolButton icon={Variable} label="Parametry" onClick={() => setCommand({ type: 'parameters' })} disabled={readOnly} primary /></RibbonGroup>
-                <RibbonGroup label="WERSJE"><ToolButton id="projectSnapshotsBtn" icon={History} label="Punkty zapisu" onClick={() => { if (projectSnapshotsOpen) setProjectSnapshotsOpen(false); else openProjectSnapshots(); }} primary={projectSnapshotsOpen} /><ToolButton id="projectComparisonBtn" icon={GitCompareArrows} label="Porównaj wersje" onClick={() => { if (projectComparisonOpen) setProjectComparisonOpen(false); else openProjectComparison(); }} primary={projectComparisonOpen} /></RibbonGroup>
-                <RibbonGroup label="KONTROLA"><ToolButton id="projectHealthBtn" icon={ShieldCheck} label="Kondycja projektu" onClick={() => { if (projectHealthOpen) setProjectHealthOpen(false); else openProjectHealth(); }} primary={projectHealthOpen} /><ToolButton id="projectDependenciesBtn" icon={Network} label="Gdzie używane" onClick={() => { if (projectDependenciesOpen) setProjectDependenciesOpen(false); else openProjectDependencies(); }} primary={projectDependenciesOpen} /></RibbonGroup>
-                <RibbonGroup label="STRUKTURA"><ToolButton icon={Boxes} label="Komponenty" onClick={openComponentManager} primary={componentsOpen} /><ToolButton icon={Box} label="Nowa część" onClick={() => createDocumentComponent('part')} disabled={readOnly} /><ToolButton icon={Boxes} label="Nowe złożenie" onClick={() => createDocumentComponent('assembly')} disabled={readOnly} /></RibbonGroup>
-                <RibbonGroup label="WIDOK"><ToolButton icon={Eye} label="Zapisane widoki" onClick={() => { setComponentsOpen(false); setNamedViewsOpen((open) => !open); }} primary={namedViewsOpen} /></RibbonGroup>
-              </>
-            ) : (
+            ) : workspace === 'tools' ? null : (
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolButton icon={PrimitiveCadIcon} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolMenuButton icon={RevolveCadIcon} label="Więcej brył" description="Bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
                   { icon: RevolveCadIcon, label: 'Revolve', displayLabel: 'Bryła obrotowa', onClick: openRevolve, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
@@ -5737,6 +5724,10 @@ export default function ModelingWorkspace() {
             onOpenHealth={openProjectHealth}
             onOpenDependencies={openProjectDependencies}
             onOpenComponents={openComponentManager}
+            onCreatePart={() => createDocumentComponent('part')}
+            onCreateAssembly={() => createDocumentComponent('assembly')}
+            onOpenNamedViews={() => { setComponentsOpen(false); setNamedViewsOpen((open) => !open); switchWorkspace('solid'); }}
+            readOnly={readOnly}
             onBack={() => switchWorkspace('solid')}
           /> : <React.Suspense fallback={<div className="viewport-loading" role="status">Uruchamianie widoku 3D…</div>}>
           <ModelViewport
