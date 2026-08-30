@@ -47,7 +47,6 @@
   display: none;
 }
 
-.modeling-shell button:focus,
 .modeling-shell input:focus,
 .modeling-shell select:focus,
 .modeling-shell button:focus-visible,
@@ -57,8 +56,6 @@
   outline-offset: 2px !important;
 }
 
-.modeling-shell [role="button"]:focus,
-.modeling-shell [tabindex]:focus,
 .modeling-shell [role="button"]:focus-visible,
 .modeling-shell [tabindex]:focus-visible {
   outline: 2px solid var(--mc-accent-strong) !important;
@@ -784,7 +781,7 @@
   flex: 0 0 auto;
   align-items: stretch;
   height: 66px;
-  padding: 16px 11px 1px;
+  padding: 15px 11px 0;
   overflow: visible;
   border: 0;
   border-top: 2px solid color-mix(in srgb, var(--group-accent) 62%, transparent);
@@ -836,22 +833,22 @@
   display: grid;
   grid-auto-columns: max-content;
   grid-auto-flow: column;
-  grid-template-rows: repeat(2, 25px);
+  grid-template-rows: repeat(2, 24px);
   align-content: start;
-  gap: 3px 7px;
+  gap: 1px 7px;
 }
 
 .ribbon-tool-wrap {
   display: block;
   width: auto;
   min-width: 100px;
-  height: 25px;
+  height: 24px;
 }
 
 .ribbon-tool-wrap.featured {
   width: auto;
   min-width: 82px;
-  height: 50px;
+  height: 49px;
   grid-row: 1 / span 2;
 }
 
@@ -953,7 +950,7 @@
   display: grid;
   width: 100%;
   min-width: 100px;
-  height: 25px;
+  height: 24px;
   padding: 0 9px;
   grid-template-columns: 24px minmax(0, 1fr);
   column-gap: 4px;
@@ -969,7 +966,7 @@
 
 .ribbon-tool.featured {
   min-width: 82px;
-  height: 50px;
+  height: 49px;
   padding: 1px 4px;
   grid-template-columns: 1fr;
   grid-template-rows: 33px 14px;
