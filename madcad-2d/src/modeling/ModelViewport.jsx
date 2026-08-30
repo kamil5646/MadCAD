@@ -6,7 +6,7 @@ import { calculatePrintLayout } from '../cad-core/print-layout.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
 import { analyzeSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
-import { DEFAULT_SNAP_THRESHOLD_PX, snapSketchPoint } from '../cad-core/sketch-snap.js';
+import { composeSketchSnapContext, DEFAULT_SNAP_THRESHOLD_PX, snapSketchPoint } from '../cad-core/sketch-snap.js';
 import { edgeGroupVertices, topologySelectionFromIntersection } from '../cad-core/brep-picking.js';
 import { lineTypeDefinition, resolveEntityAppearance } from '../cad-core/layers.js';
 import { inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-suggestions.js';
@@ -522,6 +522,8 @@ export default function ModelViewport({
   const activeSketch = sketches.find((sketch) => sketch.id === activeSketchId);
   const referenceSketchIds = useMemo(() => resolveReferenceSketchIds({ activeSketchId, sketches }), [activeSketchId, sketches]);
   const referenceSketches = useMemo(() => referenceSketchIds.map((sketchId) => sketches.find((sketch) => sketch.id === sketchId)).filter(Boolean), [referenceSketchIds, sketches]);
+  const sketchSnapContext = useMemo(() => composeSketchSnapContext(activeSketch, referenceSketches, parameters), [activeSketch, referenceSketches, parameters]);
+  const snapReferenceEntityIds = useMemo(() => new Set(sketchSnapContext.referenceEntityIds), [sketchSnapContext]);
   const visibleSketch = !activeSketchId && visibleSketchId
     ? sketches.find((sketch) => sketch.id === visibleSketchId)
     : null;
@@ -1326,12 +1328,13 @@ export default function ModelViewport({
         y,
         label: result.label,
         type: result.type,
+        reference: Boolean(result.reference),
         guides,
         placement: `${x > rect.width - 170 ? 'left' : 'right'} ${y > rect.height - 70 ? 'above' : 'below'}`,
       });
     };
     const resolveSnap = (event, rawPoint, rect, options = {}) => {
-      const result = snapSketchPoint(activeSketch, rawPoint, {
+      const result = snapSketchPoint(sketchSnapContext.sketch, rawPoint, {
         parameters,
         anchor: options.anchor || null,
         excludePointIds: options.excludePointIds || [],
@@ -1340,8 +1343,10 @@ export default function ModelViewport({
         thresholdPx: directRef.current.snapThresholdPx,
         disabled: !directRef.current.snapEnabled || alternateModifierPressed(event),
       });
-      updateSnapFeedback(result, rect);
-      return result;
+      const reference = Boolean(result.entityIds?.some((entityId) => snapReferenceEntityIds.has(entityId)));
+      const resolved = reference ? { ...result, reference: true, label: `Odniesienie · ${result.label}` } : result;
+      updateSnapFeedback(resolved, rect);
+      return resolved;
     };
     const pickSketchEntity = (event = null) => {
       const hits = sketchRender ? raycaster.intersectObjects(sketchRender.pickables, false) : [];
@@ -1563,10 +1568,11 @@ export default function ModelViewport({
         if (!worldPoint) return;
         event.preventDefault();
         renderer.domElement.focus({ preventScroll: true });
-        const point = resolveSnap(event, localPoint(worldPoint), rect, { anchor: polylineDraft?.lastPoint }).point;
+        const snapResult = resolveSnap(event, localPoint(worldPoint), rect, { anchor: polylineDraft?.lastPoint });
+        const point = snapResult.point;
         const roundedPoint = [Number(point[0].toFixed(3)), Number(point[1].toFixed(3))];
         sketchPointerMoveRef.current?.(roundedPoint);
-        sketchPointRef.current?.(roundedPoint);
+        sketchPointRef.current?.(roundedPoint, snapResult);
         return;
       }
       if (activeSketch && draftType) {
@@ -1759,13 +1765,14 @@ export default function ModelViewport({
         const rect = setRayFromEvent(event);
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
         if (!worldPoint) return;
-        const point = resolveSnap(event, localPoint(worldPoint), rect, { anchor: polylineDraft?.lastPoint }).point;
+        const snapResult = resolveSnap(event, localPoint(worldPoint), rect, { anchor: polylineDraft?.lastPoint });
+        const point = snapResult.point;
         const roundedPoint = [Number(point[0].toFixed(3)), Number(point[1].toFixed(3))];
         sketchPointerMoveRef.current?.(roundedPoint);
         if (sketchPreviewLine && polylineDraft?.lastPoint) {
           const deltaX = point[0] - polylineDraft.lastPoint[0];
           const deltaY = point[1] - polylineDraft.lastPoint[1];
-          const suggestion = autoConstraints ? inferLineConstraintSuggestion(polylineDraft.lastPoint, point) : null;
+          const suggestion = autoConstraints && !snapResult.snapped ? inferLineConstraintSuggestion(polylineDraft.lastPoint, point) : null;
           setConstraintSuggestion(suggestion ? {
             ...suggestion,
             x: event.clientX - rect.left + 34,
@@ -2166,7 +2173,7 @@ export default function ModelViewport({
           <svg className="sketch-snap-guides" aria-hidden="true">
             {snapFeedback.guides.map((guide, index) => <line key={`${snapFeedback.type}-${index}`} {...guide} />)}
           </svg>
-          <div className={`sketch-snap-marker ${snapFeedback.type} ${snapFeedback.placement}`} style={{ left: snapFeedback.x, top: snapFeedback.y }} data-snap-type={snapFeedback.type} role="status" aria-live="polite" aria-label={`Snap: ${snapFeedback.label}`}><i><SnapIcon size={13} strokeWidth={2.4} /></i><span><b>SNAP</b>{snapFeedback.label}</span></div>
+          <div className={`sketch-snap-marker ${snapFeedback.reference ? 'reference' : ''} ${snapFeedback.type} ${snapFeedback.placement}`} style={{ left: snapFeedback.x, top: snapFeedback.y }} data-snap-type={snapFeedback.type} data-snap-source={snapFeedback.reference ? 'reference' : 'active'} role="status" aria-live="polite" aria-label={`Snap: ${snapFeedback.label}`}><i><SnapIcon size={13} strokeWidth={2.4} /></i><span><b>SNAP</b>{snapFeedback.label}</span></div>
         </>
         );
       })()}

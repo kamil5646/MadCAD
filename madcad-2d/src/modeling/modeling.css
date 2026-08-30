@@ -2522,6 +2522,16 @@
   border-radius: 50%;
 }
 
+.sketch-snap-marker.reference i {
+  border-color: #b9d4e1;
+  background: rgba(31, 50, 61, 0.94);
+  box-shadow: 0 0 0 4px rgba(144, 175, 191, 0.28), 0 0 16px rgba(185, 212, 225, 0.72);
+}
+
+.sketch-snap-marker.reference span {
+  border-color: #90afbf;
+}
+
 .sketch-snap-marker span {
   position: absolute;
   top: 20px;

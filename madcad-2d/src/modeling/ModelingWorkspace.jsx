@@ -2287,7 +2287,7 @@ export default function ModelingWorkspace() {
     setNotice(command.segmentIds.length ? 'Zakończono rysowanie ścieżki.' : 'Anulowano pustą ścieżkę.');
   };
 
-  const appendSketchPoint = (coordinates) => {
+  const appendSketchPoint = (coordinates, snapResult = null) => {
     if (command?.type !== 'line' && command?.type !== 'polyline') return;
     const point = coordinates.map((value) => Number(value));
     if (point.some((value) => !Number.isFinite(value))) {
@@ -2316,7 +2316,7 @@ export default function ModelingWorkspace() {
       return;
     }
 
-    const suggestion = !closes && command.segmentMode === 'line' && sketchOptions.autoConstraints
+    const suggestion = !closes && !snapResult?.snapped && command.segmentMode === 'line' && sketchOptions.autoConstraints
       ? inferLineConstraintSuggestion(start, point)
       : null;
     const end = closes ? command.firstPoint : (suggestion?.adjustedEnd || point);

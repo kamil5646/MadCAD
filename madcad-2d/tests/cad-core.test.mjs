@@ -79,7 +79,7 @@ import {
   upsertSketchProfile,
 } from '../src/cad-core/sketch-model.js';
 import { analyzeSketchConstraints, applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../src/cad-core/sketch-solver.js';
-import { collectSketchSnapCandidates, snapSketchPoint } from '../src/cad-core/sketch-snap.js';
+import { collectSketchSnapCandidates, composeSketchSnapContext, snapSketchPoint } from '../src/cad-core/sketch-snap.js';
 import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketchLines, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../src/cad-core/sketch-modifiers.js';
 import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../src/cad-core/sketch-transforms.js';
 import { circularSketchPattern, parseSkippedPatternOccurrences, pathSketchPattern, rectangularSketchPattern } from '../src/cad-core/sketch-patterns.js';
@@ -3507,6 +3507,26 @@ test('snap szkicu rozpoznaje punkty charakterystyczne, przecięcia, styczność 
   const tangentCenter = createSketchPoint({ x: 0, y: 0 });
   const tangentSketch = createSketch({ entities: [tangentCenter, createSketchCircleEntity({ centerPointId: tangentCenter.id, radius: 5 })] });
   assert.equal(snapSketchPoint(tangentSketch, [-2.45, 4.25], { anchor: [-10, 0], pixelsPerUnit: 10, thresholdPx: 12 }).type, 'tangent');
+});
+
+test('nowy szkic korzysta ze snapu i przecięć wcześniejszego szkicu na tej samej płaszczyźnie', () => {
+  const referenceStart = createSketchPoint({ x: 0, y: 0 });
+  const referenceEnd = createSketchPoint({ x: 20, y: 0 });
+  const referenceLine = createSketchLine({ startPointId: referenceStart.id, endPointId: referenceEnd.id });
+  const referenceSketch = createSketch({ plane: 'XY', planeOffset: 5, entities: [referenceStart, referenceEnd, referenceLine] });
+  const activeStart = createSketchPoint({ x: 10, y: -10 });
+  const activeEnd = createSketchPoint({ x: 10, y: 10 });
+  const activeSketch = createSketch({ plane: 'XY', planeOffset: 5, entities: [activeStart, activeEnd, createSketchLine({ startPointId: activeStart.id, endPointId: activeEnd.id })] });
+
+  const context = composeSketchSnapContext(activeSketch, [referenceSketch]);
+  assert.ok(context.referenceEntityIds.includes(referenceLine.id));
+  assert.equal(snapSketchPoint(context.sketch, [0.4, 0.2], { pixelsPerUnit: 10, thresholdPx: 12 }).type, 'endpoint');
+  assert.equal(snapSketchPoint(context.sketch, [10.3, 0.2], { pixelsPerUnit: 10, thresholdPx: 12 }).type, 'intersection');
+
+  const otherPlane = composeSketchSnapContext(activeSketch, [{ ...referenceSketch, plane: 'YZ' }]);
+  const otherOffset = composeSketchSnapContext(activeSketch, [{ ...referenceSketch, planeOffset: 7 }]);
+  assert.deepEqual(otherPlane.referenceEntityIds, []);
+  assert.deepEqual(otherOffset.referenceEntityIds, []);
 });
 
 test('prowadnice obejmują poziom, pion, wyrównanie i przedłużenie, a Alt wyłącza snap', () => {

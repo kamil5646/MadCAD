@@ -206,6 +206,34 @@ export function sketchCurveGeometry(sketch, parameters = []) {
   return sketchGeometry(sketch, resolvedValues(parameters));
 }
 
+export function composeSketchSnapContext(activeSketch, referenceSketches = [], parameters = []) {
+  if (!activeSketch) return { sketch: activeSketch, referenceEntityIds: [] };
+  const values = resolvedValues(parameters);
+  const activePlane = activeSketch.plane || 'XY';
+  const activeOffset = numeric(activeSketch.planeOffset || 0, values);
+  const activeEntityIds = new Set((activeSketch.entities || []).map((entity) => entity.id));
+  const referenceEntityIds = [];
+  const referenceEntities = [];
+
+  for (const sketch of referenceSketches) {
+    if (!sketch || sketch.id === activeSketch.id || (sketch.plane || 'XY') !== activePlane) continue;
+    const referenceOffset = numeric(sketch.planeOffset || 0, values);
+    if (Math.abs(referenceOffset - activeOffset) > EPSILON) continue;
+    for (const entity of sketch.entities || []) {
+      if (activeEntityIds.has(entity.id)) continue;
+      referenceEntities.push(entity);
+      referenceEntityIds.push(entity.id);
+    }
+  }
+
+  return {
+    sketch: referenceEntities.length
+      ? { ...activeSketch, entities: [...(activeSketch.entities || []), ...referenceEntities] }
+      : activeSketch,
+    referenceEntityIds,
+  };
+}
+
 function candidate(type, point, options = {}) {
   return {
     type,
