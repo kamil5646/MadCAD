@@ -168,7 +168,7 @@ function ToolGlyph({ icon: Icon, compact = false, featured = false }) {
   );
 }
 
-export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClick, disabled = false, primary = false, compact = false, dense = false, title, description, disabledReason }) {
+export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClick, disabled = false, primary = false, compact = false, title, description, disabledReason }) {
   const help = description || title || TOOL_DESCRIPTIONS[label] || label;
   const contextualHelp = disabled
     ? `${disabledReason ? `Niedostępne. ${disabledReason}` : 'Niedostępne w bieżącym kontekście.'} ${help}`
@@ -198,10 +198,10 @@ export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClic
     });
   };
   return (
-    <span className={`ribbon-tool-wrap ${featured ? 'featured' : ''} ${dense ? 'dense' : ''} ${disabled ? 'disabled' : ''}`} onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
+    <span className={`ribbon-tool-wrap ${featured ? 'featured' : ''} ${disabled ? 'disabled' : ''}`} onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
       <button
         id={id}
-        className={`ribbon-tool ${featured ? 'featured' : ''} ${primary ? 'primary' : ''} ${compact ? 'compact' : ''} ${dense ? 'dense' : ''}`}
+        className={`ribbon-tool ${featured ? 'featured' : ''} ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
         type="button"
         onClick={onClick}
         disabled={disabled}

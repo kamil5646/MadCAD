@@ -99,7 +99,9 @@ app.whenReady().then(async () => {
       const ribbon = document.querySelector('.modeling-ribbon');
       return {
         directLabels,
-        requiredDirect: ['Łuk', 'Offset', 'Przesuń', 'Warstwy', 'Bloki', 'Zakończ szkic'].every((label) => directLabels.includes(label)),
+        requiredDirect: ['Łuk', 'Zakończ szkic'].every((label) => directLabels.includes(label)),
+        contextualToolsGrouped: ['Offset', 'Przesuń', 'Warstwy', 'Bloki'].every((label) => !directLabels.includes(label)),
+        balancedDirectCount: directLabels.length <= 15,
         menus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
         finishFollowsTools: Boolean(toolsGroup && finishGroup && finishGroup.left - toolsGroup.right <= 8),
         hiddenGroups: document.querySelectorAll('.ribbon-visible-groups > .ribbon-group[hidden]').length,
@@ -107,7 +109,7 @@ app.whenReady().then(async () => {
         horizontalOverflow: ribbon.scrollWidth > ribbon.clientWidth + 1,
       };
     })()`);
-    if (!expandedSketch.requiredDirect || !expandedSketch.finishFollowsTools || expandedSketch.hiddenGroups || expandedSketch.horizontalOverflow) throw new Error(`Szeroka wstążka szkicu nadal chowa podstawowe narzędzia mimo wolnego miejsca: ${JSON.stringify(expandedSketch)}`);
+    if (!expandedSketch.requiredDirect || !expandedSketch.contextualToolsGrouped || !expandedSketch.balancedDirectCount || !expandedSketch.finishFollowsTools || expandedSketch.hiddenGroups || expandedSketch.horizontalOverflow) throw new Error(`Wstążka szkicu nadal nie zachowuje hierarchii podstawowych i kontekstowych narzędzi: ${JSON.stringify(expandedSketch)}`);
     await fs.writeFile(sketchRibbonScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await clickText(window, '.ribbon-tool', 'Zakończ szkic');
     await waitFor(window, `!document.querySelector('.modeling-shell.sketch-mode')`, 'zakończenie szkicu po kontroli wstążki');

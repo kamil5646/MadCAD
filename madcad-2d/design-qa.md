@@ -22,27 +22,31 @@ Electron. Nie są atrapami ani statycznymi makietami.
 ## Porównanie wstążki szkicu — 2026-08-30
 
 - Źródło: `/var/folders/sf/jgwqqr_j0xzdg337ynw3fdkh0000gn/T/TemporaryItems/NSIRD_screencaptureui_h1Jh6A/Zrzut ekranu 2026-08-30 o 14.45.05.png`.
+- Odrzucona implementacja: `artifacts/interface-recheck-2026-08-30/01-overloaded-sketch-ribbon.jpg`.
 - Implementacja: `artifacts/full-interface-audit-2026-08-30/08-sketch-ribbon-expanded.png`.
 - Wspólny kadr porównawczy: `artifacts/full-interface-audit-2026-08-30/09-sketch-ribbon-comparison.png`.
 - Stan i viewport: pusty szkic XY, okno Electron 1459 × 877 CSS px, zrzuty Retina 2918 px szerokości.
 
 W źródle podstawowe polecenia były schowane w menu mimo dużej pustej przestrzeni,
-a grupa `3 · ZAKOŃCZ` była sztucznie odsunięta do prawej krawędzi. Po poprawce
-szeroka wstążka pokazuje bezpośrednio `Łuk`, `Odsuń`, `Przesuń`, `Warstwy` i
-`Bloki`, natomiast `Zakończ szkic` znajduje się od razu po grupie narzędzi.
-Przy węższym oknie te polecenia wracają do menu, więc wstążka nie przepełnia się.
+a grupa `3 · ZAKOŃCZ` była sztucznie odsunięta do prawej krawędzi. Pierwsza
+implementacja przesadziła w drugą stronę: wystawiła także polecenia kontekstowe
+i organizacyjne, przez co wstążka stała się ścianą ikon. W poprawionej wersji
+na szerokiej wstążce bezpośrednio pojawia się tylko podstawowy `Łuk`.
+`Odsuń` i `Przesuń` pozostają w `Modyfikuj`, a `Warstwy` i `Bloki` w
+`Więcej narzędzi`. `Zakończ szkic` nadal znajduje się zaraz po narzędziach.
 
 Kontrola powierzchni wizualnych:
 
 - typografia i paleta pozostały zgodne z istniejącym systemem;
-- odstępy wykorzystują szerokość bez przyklejania grupy zakończenia do krawędzi;
+- odstępy wykorzystują szerokość, ale pozostawiają oddech pomiędzy narzędziami zamiast zapełniać każdy piksel;
 - ikony zmniejszono o około 2 px, zachowując ich bibliotekę, kolory grup i czytelność;
 - teksty poleceń nie są ucinane, grupy nie nachodzą na siebie, brak poziomego przepełnienia;
 - pełny widok i skupiony kadr wstążki porównano razem, przy tym samym stanie i szerokości.
 
 Historia ustaleń:
 
-- P1: podstawowe narzędzia schowane mimo wolnego miejsca — naprawione responsywnym progiem 1260 px;
+- P1: pierwsza poprawka wystawiła zbyt wiele poleceń i zniszczyła hierarchię — usunięto cztery kontekstowe przyciski z głównego szeregu;
+- P1: podstawowy `Łuk` schowany mimo wolnego miejsca — pokazany bezpośrednio od 1260 px;
 - P1: odłączona grupa zakończenia szkicu — naprawione przez usunięcie wymuszonego wyrównania do końca;
 - P2: ikony zbyt duże względem dwurzędowego układu — zmniejszone do 21 px, a ikony wyróżnione do 32 × 29 px;
 - kontrola po poprawce: brak otwartych problemów P0, P1 i P2 w tym stanie.

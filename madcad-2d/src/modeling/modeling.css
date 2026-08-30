@@ -873,10 +873,6 @@
   grid-row: 1 / span 2;
 }
 
-.ribbon-tool-wrap.dense {
-  min-width: 82px;
-}
-
 .ribbon-tool-menu-wrap {
   position: relative;
 }
@@ -995,13 +991,6 @@
   grid-template-rows: 33px 14px;
   place-items: center;
   border-radius: 9px;
-}
-
-.ribbon-tool.dense {
-  min-width: 82px;
-  padding-right: 6px;
-  padding-left: 6px;
-  grid-template-columns: 22px minmax(0, 1fr);
 }
 
 .tool-help-tooltip {
