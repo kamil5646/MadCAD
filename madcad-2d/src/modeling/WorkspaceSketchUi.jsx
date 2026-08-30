@@ -21,30 +21,37 @@ function PlaneGlyph({ plane }) {
   );
 }
 
-export function PlanePicker({ onPick, onCancel }) {
+export function PlanePicker({ existingSketchesByPlane = {}, onPick, onCancel }) {
   const dialogRef = useDialogFocus();
+  const [forceNew, setForceNew] = useState(false);
+  const hasExistingSketch = Object.values(existingSketchesByPlane).some(Boolean);
   useEffect(() => {
     const onKeyDown = (event) => {
       const plane = { 1: 'XY', 2: 'XZ', 3: 'YZ' }[event.key];
       if (plane) {
         event.preventDefault();
-        onPick(plane);
+        onPick(plane, { forceNew });
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onPick]);
+  }, [forceNew, onPick]);
   return (
     <div className="plane-picker-backdrop">
       <section ref={dialogRef} className="plane-picker" role="dialog" aria-modal="true" aria-labelledby="planePickerTitle" tabIndex="-1">
         <header><div><strong id="planePickerTitle">Wybierz płaszczyznę szkicu</strong><span>Wskaż jedną z płaszczyzn początku.</span></div><button type="button" onClick={onCancel} title="Anuluj" aria-label="Anuluj wybór płaszczyzny"><X size={17} /></button></header>
         <div className="plane-options">
-          {Object.entries(PLANE_LABELS).map(([plane, label], index) => (
-            <button key={plane} type="button" aria-label={`${plane} · ${label}`} data-dialog-initial-focus={plane === 'XY' ? '' : undefined} onClick={() => onPick(plane)}>
-              <kbd>{index + 1}</kbd><PlaneGlyph plane={plane} /><strong>{label}</strong><span>Płaszczyzna {plane}</span>
-            </button>
-          ))}
+          {Object.entries(PLANE_LABELS).map(([plane, label], index) => {
+            const existing = existingSketchesByPlane[plane];
+            const continuing = Boolean(existing && !forceNew);
+            return (
+              <button key={plane} type="button" aria-label={`${plane} · ${label} · ${continuing ? `Kontynuuj ${existing.name}` : 'Nowy szkic'}`} data-dialog-initial-focus={plane === 'XY' ? '' : undefined} onClick={() => onPick(plane, { forceNew })}>
+                <kbd>{index + 1}</kbd><PlaneGlyph plane={plane} /><strong>{label}</strong><span>{continuing ? `Kontynuuj ${existing.name}` : `Nowy szkic · ${plane}`}</span>
+              </button>
+            );
+          })}
         </div>
+        {hasExistingSketch && <label className="plane-new-sketch-option"><input type="checkbox" checked={forceNew} onChange={(event) => setForceNew(event.target.checked)} /><span>Utwórz oddzielny szkic zamiast kontynuować istniejący</span></label>}
       </section>
     </div>
   );

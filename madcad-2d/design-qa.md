@@ -90,3 +90,18 @@ Historia ustaleń:
 **passed** — porównanie przeciążonej i poprawionej implementacji przy identycznym
 oknie potwierdza przywróconą hierarchię, mniejsze ikony, poprawną kolejność grup
 i brak przepełnienia.
+
+## Audyt ciągłości szkicu i modelu 3D — 2026-08-30
+
+Sprawdzono pełny przepływ, a nie tylko widoczność linii:
+
+- ponowne wybranie tej samej płaszczyzny kontynuuje ten sam szkic i zachowuje jego ID;
+- geometria dodana w kilku sesjach tworzy wspólny profil, zachowuje encje, wiązania, wymiary i bloki;
+- starszy projekt z dwoma rozdzielonymi szkicami XY jest bezpiecznie scalany przed powstaniem historii 3D;
+- odwołania komponentów i widoków szkicu w arkuszu 2D są przepinane na scalony szkic;
+- gotowy profil przechodzi przez rzeczywiste wyciągnięcie B-Rep, undo, redo, autozapis i ponowne otwarcie;
+- szkic wykorzystany przez istniejącą bryłę nie jest automatycznie otwierany do dopisywania geometrii;
+- świadomie oddzielne szkice nadal można tworzyć, a ich geometria jest widoczna i działa jako źródło snap;
+- szkice na innych płaszczyznach pozostają osobne dla Sweep i Loft.
+
+Wynik: **passed** — pełny `verify:modeling`, 186/186 testów rdzenia i 110/110 testów interfejsu bez regresji.

@@ -171,7 +171,7 @@ import {
   saveCommandCustomization,
 } from './command-customization.js';
 import { isDockableCommand, panelScreenKey, readPanelLayout, writePanelLayout } from './panel-layout.js';
-import { resolveVisibleSketchId } from './sketch-visibility.js';
+import { mergeResumableSketches, resolveResumableSketch, resolveResumableSketches, resolveVisibleSketchId } from './sketch-visibility.js';
 import { resolveExtrudeSource } from './extrude-source.js';
 import { multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
 import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumentHistory } from './workspace-document.js';
@@ -936,6 +936,14 @@ export default function ModelingWorkspace() {
     sketches: document.sketches,
     bodyCount: document.bodies.length,
   });
+  const resumableSketchesByPlane = useMemo(() => Object.fromEntries(['XY', 'XZ', 'YZ']
+    .map((plane) => [plane, resolveResumableSketch({
+      plane,
+      sketches: document.sketches,
+      bodyCount: document.bodies.length,
+      featureCount: document.features.length,
+    })])
+    .filter(([, sketch]) => Boolean(sketch))), [document.bodies.length, document.features.length, document.sketches]);
   const selectedSketchEntities = (document.sketches.find((item) => item.id === activeSketchId)?.entities || [])
     .filter((entity) => selectedSketchEntityIds.includes(entity.id));
   const selectedBlockInstance = (() => {
@@ -2168,8 +2176,29 @@ export default function ModelingWorkspace() {
     setNotice('Wybierz płaszczyznę szkicu.');
   };
 
-  const pickPlane = (plane) => {
+  const pickPlane = (plane, { forceNew = false } = {}) => {
     if (readOnly) return readOnlyNotice();
+    const resumableSketches = !forceNew ? resolveResumableSketches({
+      plane,
+      sketches: document.sketches,
+      bodyCount: engine.bodies.length,
+      featureCount: document.features.length,
+    }) : [];
+    const resumable = resumableSketches.at(-1) || null;
+    if (resumable) {
+      commit((next) => {
+        const result = mergeResumableSketches(next, plane);
+        if (result.sketch) refreshDetectedSketchProfiles(result.sketch, next.parameters);
+      });
+      setActiveSketchId(resumable.id);
+      setSelection({ kind: 'sketch', id: resumable.id });
+      setCommand(null);
+      setWorkspace('sketch');
+      setNotice(resumableSketches.length > 1
+        ? `Kontynuujesz ${resumable.name} na płaszczyźnie ${plane}. Połączono ${resumableSketches.length} wcześniejsze szkice, więc cała geometria tworzy wspólne profile.`
+        : `Kontynuujesz ${resumable.name} na płaszczyźnie ${plane}. Stara i nowa geometria tworzą wspólne profile.`);
+      return;
+    }
     const sketch = createSketch({ name: `Szkic ${document.sketches.length + 1}`, plane });
     commit((next) => next.sketches.push(sketch));
     setActiveSketchId(sketch.id);
@@ -3181,6 +3210,7 @@ export default function ModelingWorkspace() {
     };
     window.__madcadVerifyDocumentState = {
       schemaVersion: document.schemaVersion,
+      activeSketchId,
       sketches: document.sketches.map((sketch) => ({
         id: sketch.id,
         plane: sketch.plane,
@@ -5851,7 +5881,7 @@ export default function ModelingWorkspace() {
           {commandCustomizationOpen && <CommandCustomizationPanel customization={commandCustomization} onSave={saveCommandSettings} onReset={createDefaultCommandCustomization} onClose={() => setCommandCustomizationOpen(false)} />}
           {startPageVisible && <StartPage onStartSketch={startSketch} onOpenProject={requestOpenProject} commandCustomization={commandCustomization} />}
           <WorkspaceDialogStack
-            state={{ activeSketchId, command, document, importDraft, importRepairReport, sketchImportDraft, sketchOptions }}
+            state={{ activeSketchId, command, document, importDraft, importRepairReport, resumableSketchesByPlane, sketchImportDraft, sketchOptions }}
             actions={{
               cancelCommand: () => setCommand(null),
               cancelModelImport: () => setImportDraft(null),

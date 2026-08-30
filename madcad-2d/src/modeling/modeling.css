@@ -3458,6 +3458,22 @@
   font-size: 9.5px;
 }
 
+.plane-new-sketch-option {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  margin: 0 10px 10px;
+  padding: 7px 9px;
+  border: 1px solid #566371;
+  background: #2b3541;
+  color: #c8d2da;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.plane-new-sketch-option input { accent-color: #56c8ed; }
+
 .command-dialog {
   position: absolute;
   z-index: 7;

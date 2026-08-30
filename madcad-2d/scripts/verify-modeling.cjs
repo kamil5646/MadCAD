@@ -422,7 +422,15 @@ async function runUiFlow(window) {
     const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
     button[key].onClick();
   })()`);
-  const pickPlane = async (plane) => {
+  const pickPlane = async (plane, { forceNew = false } = {}) => {
+    if (forceNew) {
+      await window.webContents.executeJavaScript(`(() => {
+        const input = document.querySelector('.plane-new-sketch-option input');
+        if (!input) throw new Error('Brak opcji oddzielnego szkicu');
+        input.click();
+      })()`);
+      await waitForUi(window, `document.querySelector('.plane-new-sketch-option input')?.checked === true`, 'wybrana opcja oddzielnego szkicu');
+    }
     await window.webContents.executeJavaScript(`(() => {
       const button = [...document.querySelectorAll('.plane-options button')].find((item) => item.textContent.includes(${JSON.stringify(plane)}));
       if (!button) throw new Error('Brak płaszczyzny ${plane}');
@@ -1245,23 +1253,75 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
   await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${revolveReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'revolve' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${300 * Math.PI}) < 0.05`, 'ponownie otwarty Revolve', modelingTimeoutMs);
 
-  progress('previous sketch remains visible while creating another sketch');
+  progress('legacy same-plane sketch merge, continuation and extrusion');
   await clickByTitle('Nowy projekt');
-  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla widoczności poprzedniego szkicu');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla scalania szkiców');
   await clickTool('Utwórz szkic');
-  await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór pierwszej płaszczyzny testu widoczności');
+  await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór pierwszej płaszczyzny testu scalania');
   await pickPlane('XY');
   await clickTool('Linia');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'linia pierwszego szkicu testu widoczności');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'linia pierwszego rozdzielonego szkicu');
   await addSketchPoint([-20, -10], 1);
   await addSketchPoint([20, 10], 3);
-  await waitForUi(window, `!document.querySelector('.command-dialog')`, 'zakończona linia pierwszego szkicu testu widoczności');
+  await waitForUi(window, `!document.querySelector('.command-dialog')`, 'zakończona linia pierwszego rozdzielonego szkicu');
   await clickTool('Zakończ szkic');
   const visibleReferenceSketchId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].id`);
+  const preservedLegacyEntityIds = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.map((entity) => entity.id)`);
   await clickTool('Utwórz szkic');
-  await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór drugiej płaszczyzny testu widoczności');
+  await waitForUi(window, `document.querySelector('.plane-picker') && document.querySelector('.plane-new-sketch-option')`, 'jawny wybór drugiego szkicu tej samej płaszczyzny');
+  await pickPlane('XY', { forceNew: true });
+  const legacySplitSketchId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.activeSketchId`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.length === 2 && window.__madcadVerifyDocumentState.activeSketchId === ${JSON.stringify(legacySplitSketchId)} && window.__madcadVerifyDocumentState.activeSketchId !== ${JSON.stringify(visibleReferenceSketchId)}`, 'stan starszego projektu z rozdzielonymi szkicami');
+  await clickTool('Linia');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'pierwsza linia drugiego rozdzielonego szkicu');
+  await addSketchPoint([20, 10], 1);
+  await addSketchPoint([-20, 10], 3);
+  await clickTool('Linia');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'druga linia drugiego rozdzielonego szkicu');
+  await addSketchPoint([-20, 10], 4);
+  await addSketchPoint([-20, -10], 6);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.length === 2 && window.__madcadVerifyDocumentState.sketches.every((sketch) => sketch.profiles === 0)`, 'rozdzielone szkice nie udają wspólnego profilu');
+  await clickTool('Zakończ szkic');
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `document.querySelector('.plane-picker') && document.querySelector('.plane-new-sketch-option')`, 'ponowny wybór płaszczyzny z rozdzielonymi szkicami');
   await pickPlane('XY');
-  await waitForUi(window, `window.__madcadReferenceSketchVisibilityState?.sketchIds?.includes(${JSON.stringify(visibleReferenceSketchId)}) && window.__madcadReferenceSketchVisibilityState.entityCount >= 1 && window.__madcadReferenceSketchVisibilityState.pickableEntityCount === 0 && window.__madcadReferenceSketchVisibilityState.renderedEntities?.every((entry) => entry.color === '90afbf' && entry.opacity === 0.72 && entry.depthTest === false)`, 'wcześniejszy szkic widoczny jako przygaszony, nieinteraktywny kontekst');
+  await waitForUi(window, `(() => { const state = window.__madcadVerifyDocumentState; const sketch = state?.sketches?.[0]; return state?.activeSketchId === ${JSON.stringify(legacySplitSketchId)} && state?.sketches?.length === 1 && sketch?.profiles === 1 && ${JSON.stringify(preservedLegacyEntityIds)}.every((id) => sketch.entityData.some((entity) => entity.id === id)) && document.querySelector('.workspace-notice')?.textContent.includes('Połączono 2'); })()`, 'automatyczne scalenie starszych szkiców bez utraty geometrii');
+  await clickTool('Zakończ szkic');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'profile' && window.__madcadVerifyDocumentState.selection.id === window.__madcadVerifyDocumentState.sketches[0].profileIds[0]`, 'wspólny profil gotowy do operacji bryłowej');
+  await clickTool('Wyciągnij');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie') && window.__madcadVerifyEngineState?.timeline?.at(-1)?.status === 'ok'`, 'podgląd wyciągnięcia profilu z dwóch sesji szkicu', modelingTimeoutMs);
+  const resumedExtrudeRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await confirmDialog();
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${resumedExtrudeRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'extrude' && window.__madcadVerifyDocumentState.featureData[0].sketchId === ${JSON.stringify(legacySplitSketchId)} && window.__madcadVerifyEngineState?.bodies?.length === 1 && window.__madcadVerifyEngineState.status === 'ready'`, 'wyciągnięta bryła ze scalonej starej i nowej geometrii', modelingTimeoutMs);
+  await clickByTitle('Cofnij');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 0 && window.__madcadVerifyDocumentState?.sketches?.length === 1 && window.__madcadVerifyDocumentState.sketches[0].entities === 9 && window.__madcadVerifyEngineState?.bodies?.length === 0`, 'undo wyciągnięcia zachowuje cały scalony szkic', modelingTimeoutMs);
+  await clickByTitle('Ponów');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.sketchId === ${JSON.stringify(legacySplitSketchId)} && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'redo wyciągnięcia scalonego szkicu', modelingTimeoutMs);
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.length === 1 && saved.sketches[0].entities.length === 9 && saved?.features?.[0]?.sketchId === ${JSON.stringify(legacySplitSketchId)}; })()`, 'autozapis scalonego szkicu i wyciągnięcia');
+  const resumedReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
+  await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${resumedReopenRevision} && window.__madcadVerifyDocumentState?.sketches?.length === 1 && window.__madcadVerifyDocumentState.sketches[0].entities === 9 && window.__madcadVerifyDocumentState?.featureData?.[0]?.sketchId === ${JSON.stringify(legacySplitSketchId)} && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'ponownie otwarty scalony szkic i jego bryła', modelingTimeoutMs);
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `document.querySelector('.plane-picker') && [...document.querySelectorAll('.plane-options button')].find((button) => button.textContent.includes('XY'))?.textContent.includes('Nowy szkic') && !document.querySelector('.plane-new-sketch-option')`, 'zużyty szkic nie jest automatycznie kontynuowany po utworzeniu bryły');
+
+  progress('explicit separate same-plane sketch references and snap');
+  await clickByTitle('Nowy projekt');
+  await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt dla jawnie oddzielnego szkicu');
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór pierwszej płaszczyzny testu snap');
+  await pickPlane('XY');
+  await clickTool('Linia');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'linia szkicu odniesienia');
+  await addSketchPoint([-20, -10], 1);
+  await addSketchPoint([20, 10], 3);
+  await waitForUi(window, `!document.querySelector('.command-dialog')`, 'zakończona linia szkicu odniesienia');
+  await clickTool('Zakończ szkic');
+  const snapReferenceSketchId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].id`);
+  await clickTool('Utwórz szkic');
+  await waitForUi(window, `document.querySelector('.plane-picker') && document.querySelector('.plane-new-sketch-option')?.textContent.includes('oddzielny szkic')`, 'jawna opcja oddzielnego szkicu');
+  await pickPlane('XY', { forceNew: true });
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.activeSketchId !== ${JSON.stringify(snapReferenceSketchId)} && window.__madcadVerifyDocumentState?.sketches?.length === 2`, 'oddzielny szkic utworzony na wyraźne żądanie');
+  await waitForUi(window, `window.__madcadReferenceSketchVisibilityState?.sketchIds?.includes(${JSON.stringify(snapReferenceSketchId)}) && window.__madcadReferenceSketchVisibilityState.entityCount >= 1 && window.__madcadReferenceSketchVisibilityState.pickableEntityCount === 0 && window.__madcadReferenceSketchVisibilityState.renderedEntities?.every((entry) => entry.color === '90afbf' && entry.opacity === 0.72 && entry.depthTest === false)`, 'wcześniejszy szkic widoczny jako przygaszony, nieinteraktywny kontekst');
   await clickTool('Linia');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'linia korzystająca z wcześniejszego szkicu');
   const referenceEndpointScreen = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(-20, -10)`);

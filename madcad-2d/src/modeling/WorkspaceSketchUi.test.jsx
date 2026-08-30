@@ -37,4 +37,17 @@ describe('PlanePicker accessibility', () => {
     await waitFor(() => expect(trigger).toHaveFocus());
     expect(screen.queryByRole('dialog', { name: 'Wybierz płaszczyznę szkicu' })).not.toBeInTheDocument();
   });
+
+  it('domyślnie kontynuuje istniejący szkic i pozwala jawnie utworzyć oddzielny', () => {
+    const onPick = vi.fn();
+    render(<PlanePicker existingSketchesByPlane={{ XY: { id: 'sketch-1', name: 'Szkic 1' } }} onPick={onPick} onCancel={vi.fn()} />);
+
+    const xy = screen.getByRole('button', { name: /XY.*Kontynuuj Szkic 1/ });
+    fireEvent.click(xy);
+    expect(onPick).toHaveBeenLastCalledWith('XY', { forceNew: false });
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Utwórz oddzielny szkic/ }));
+    fireEvent.click(screen.getByRole('button', { name: /XY.*Nowy szkic/ }));
+    expect(onPick).toHaveBeenLastCalledWith('XY', { forceNew: true });
+  });
 });

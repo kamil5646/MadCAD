@@ -30,6 +30,7 @@ Ujednolicić aplikację według hierarchii znanej z Worda i kontekstowego sposob
 - [x] Usunięcie duplikatów w `ZARZĄDZAJ` i regresja funkcjonalna paneli projektu.
 - [x] Responsywne wykorzystanie wolnego miejsca we wstążce szkicu i zmniejszenie ikon.
 - [x] Zachowanie widoczności wcześniejszych szkiców podczas tworzenia następnego szkicu.
+- [x] Wspólna edycja starej i nowej geometrii szkicu oraz naprawa projektów zapisanych z rozdzielonymi szkicami tej samej płaszczyzny.
 
 ## Dziennik
 
@@ -66,3 +67,6 @@ Ujednolicić aplikację według hierarchii znanej z Worda i kontekstowego sposob
 - 2026-08-30: regresję sprawdzono na tej samej płaszczyźnie oraz między XY i YZ w działającym scenariuszu Sweep. Zaliczone: `lint`, 106/106 testów komponentów, 185/185 testów core, `build:ui` i pełny `verify-modeling`; zrzut kontrolny zapisano w `artifacts/madcad-reference-sketch-visible.png`.
 - 2026-08-30: wcześniejsze szkice na tej samej płaszczyźnie włączono do aktywnego systemu snap. Nowa geometria korzysta z ich końców, środków, krawędzi, przecięć, przedłużeń i wyrównań; znacznik pokazuje jawne `Odniesienie`, a snap ma pierwszeństwo przed sugestią automatycznego więzu.
 - 2026-08-30: test prawdziwego wejścia myszy ustawia kursor kilka pikseli obok obu końców starej linii i potwierdza, że nowa linia zapisuje dokładnie oba współrzędne źródłowe. Zaliczone: 106/106 testów komponentów, 186/186 testów core, `lint`, `build:ui` i pełny `verify-modeling`.
+- 2026-08-30: kolejne wybranie tej samej bazowej płaszczyzny przed utworzeniem bryły domyślnie kontynuuje istniejący szkic zamiast tworzyć odłączony obiekt. Wybór płaszczyzny jasno pokazuje `Kontynuuj Szkic`, a opcja `Utwórz oddzielny szkic` pozostawia kontrolę dla świadomych przepływów wieloszkicowych.
+- 2026-08-30: dodano naprawę starszych projektów utworzonych w czasie, gdy każda sesja szkicowania zakładała osobny szkic. Zgodne szkice bazowe na tej samej płaszczyźnie są scalane przed historią 3D; zachowywane są encje, wiązania, wymiary, wystąpienia bloków, przypisania komponentów i odwołania arkuszy 2D, a profile są wykrywane ponownie z pełnej geometrii. Szkice użyte już przez operacje 3D nigdy nie są scalane automatycznie.
+- 2026-08-30: pełny test okna Electron odtworzył stary błędny stan dwóch szkiców, scalił je do jednego zamkniętego profilu, wykonał rzeczywiste `Wyciągnij`, a następnie potwierdził bryłę, undo, redo, autozapis i ponowne otwarcie. Osobno potwierdzono jawnie rozdzielony szkic i snap myszy do starej geometrii, osobne płaszczyzny Sweep/Loft oraz brak automatycznego wznowienia szkicu użytego przez bryłę. Zaliczone: 110/110 testów komponentów, 186/186 testów core, `lint`, `build:ui` i pełny `verify-modeling`.
