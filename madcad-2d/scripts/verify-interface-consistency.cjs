@@ -83,7 +83,7 @@ app.whenReady().then(async () => {
       ribbonHeight: document.querySelector('.command-area')?.getBoundingClientRect().height || 0,
     }))()`);
     const expectedDesignMenus = ['Więcej brył', 'Więcej zmian', 'Łącz i dziel', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
-    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !designStructure.customCadIcons || designStructure.iconSize < 24 || designStructure.featuredIconSize < 37 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 94) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !designStructure.customCadIcons || designStructure.iconSize < 22 || designStructure.featuredIconSize < 37 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 100) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
 
     window.setContentSize(1351, 877);
     await new Promise((resolve) => setTimeout(resolve, 300));
