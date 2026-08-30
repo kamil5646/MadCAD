@@ -134,12 +134,12 @@ const FEATURED_TOOL_LABELS = new Set(['Utwórz szkic', 'Linia', 'Zakończ szkic'
 
 function ribbonGroupTone(label = '') {
   if (/RYSUJ|ARKUSZ/.test(label)) return 'sketch';
-  if (/EDYTUJ|EDYCJA/.test(label)) return 'edit';
-  if (/WIĘZY|KONSTRUKCJA/.test(label)) return 'reference';
+  if (/EDYTUJ|EDYCJA|ZMIEŃ/.test(label)) return 'edit';
+  if (/WIĘZY|WIĄZANIA|KONSTRUKCJA/.test(label)) return 'reference';
   if (/SPRAWDŹ|PARAMETRY|KONTROLA/.test(label)) return 'inspect';
   if (/ZESTAWIENIA|WERSJE/.test(label)) return 'output';
   if (/ZAKOŃCZ/.test(label)) return 'finish';
-  if (/UTWÓRZ|OPERACJE|WIDOKI|STRUKTURA|WIDOK|NARZĘDZIA/.test(label)) return 'solid';
+  if (/UTWÓRZ|OPERACJE|WIDOKI|STRUKTURA|WIDOK|NARZĘDZIA|WSTAW/.test(label)) return 'solid';
   return 'neutral';
 }
 

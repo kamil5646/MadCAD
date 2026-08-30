@@ -1,10 +1,10 @@
 import React from 'react';
-import { Check, ChevronDown, ChevronRight, PanelLeft, PanelRight, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { BSPT_THREAD_SIZES, ISO_CLEARANCE_THREAD_SIZES, ISO_INTERNAL_THREAD_CLASSES, ISO_METRIC_THREAD_SIZES, NPT_THREAD_SIZES, applyHoleStandard, findMetricThreadSize, findPipeThreadSize } from '../cad-core/hole-standards.js';
 import { isDockableCommand } from './panel-layout.js';
 import { Field } from './WorkspacePanels.jsx';
 
-export function CommandDialog({ command, profileName, collapsed, dock, onChange, onConfirm, onConfirmDynamic, onCancel, onUndoSegment, onFinishPath, onToggleCollapsed, onToggleDock }) {
+export function CommandDialog({ command, profileName, collapsed, dock, onChange, onConfirm, onConfirmDynamic, onCancel, onUndoSegment, onFinishPath, onToggleCollapsed }) {
   if (!isDockableCommand(command)) return null;
   const isRectangle = command.type === 'rectangle';
   const isCircle = command.type === 'circle';
@@ -72,7 +72,6 @@ export function CommandDialog({ command, profileName, collapsed, dock, onChange,
       <header>
         <strong>{title}</strong>
         <div className="dock-panel-actions">
-          {!collapsed && <button type="button" data-panel-action="dock" onClick={onToggleDock} title={dock === 'right' ? 'Przenieś panel na lewą stronę' : 'Przenieś panel na prawą stronę'} aria-label={dock === 'right' ? 'Przenieś panel na lewą stronę' : 'Przenieś panel na prawą stronę'}>{dock === 'right' ? <PanelLeft size={15} /> : <PanelRight size={15} />}</button>}
           <button type="button" data-panel-action="collapse" onClick={onToggleCollapsed} title={collapsed ? 'Rozwiń panel polecenia' : 'Zwiń panel polecenia'} aria-label={collapsed ? 'Rozwiń panel polecenia' : 'Zwiń panel polecenia'} aria-expanded={!collapsed}>{collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</button>
           {!collapsed && <button type="button" onClick={onCancel} title="Zamknij polecenie" aria-label="Zamknij polecenie"><X size={15} /></button>}
         </div>

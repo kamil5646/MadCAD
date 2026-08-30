@@ -234,5 +234,6 @@ Dodatkowo:
 6. [x] Interference P1.34a, Named Views P1.34b i pełny ViewCube P1.34c ukończono.
 7. [x] Ręczny przepływ VoiceOver na kandydacie macOS 6.4.0 objął uruchomienie, licencję, samouczek, linię od wskazanego punktu z długością `50 mm` zatwierdzoną Enterem, komunikaty snap/status, cofnięcie i aktualizator. Naprawiono fokus, ogłaszanie wyniku i Escape w aktualizatorze; regresja sprawdza teraz także przywrócenie fokusu mimo użycia `autoFocus`.
 8. W przyszłości skonfigurować certyfikaty i notaryzację, a następnie przetestować aktualizację między dwiema podpisanymi wersjami.
+9. [>] Przebudować przepływ i hierarchię interfejsu według lokalnie zweryfikowanego Autodesk Fusion; aktywna lista oraz kryteria odbioru: [docs/FUSION_UI_CHECKLIST.md](./docs/FUSION_UI_CHECKLIST.md).
 
 Dalsze pomysły produktowe pozostają w [BACKLOG.md](./BACKLOG.md) i wymagają osobnej priorytetyzacji.

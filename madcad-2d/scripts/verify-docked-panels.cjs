@@ -89,16 +89,14 @@ app.whenReady().then(async () => {
 
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog [data-panel-action="collapse"]')?.click()`);
     await waitFor(window, `document.querySelector('.command-dialog.docked:not(.collapsed)')`, 'rozwinięty panel polecenia');
-    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog [data-panel-action="dock"]')?.click()`);
-    await waitFor(window, `document.querySelector('.command-dialog.dock-left')`, 'panel po lewej stronie');
-    await new Promise((resolve) => setTimeout(resolve, 220));
-    const moved = await panelSnapshot(window);
+    const dockControlAbsent = await window.webContents.executeJavaScript(`!document.querySelector('.command-dialog [data-panel-action="dock"]')`);
+    const fixed = await panelSnapshot(window);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
 
     await window.reload();
     await waitFor(window, `document.querySelector('.modeling-shell')`, 'ponowne uruchomienie interfejsu');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
-    const stored = await window.webContents.executeJavaScript(`Object.values(localStorage).some((value) => value.includes('"commandDock":"left"'))`);
+    const storedRight = await window.webContents.executeJavaScript(`!Object.values(localStorage).some((value) => value.includes('"commandDock":"left"'))`);
     await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
     await waitFor(window, `document.querySelector('.file-backstage')`, 'menu Plik');
     await window.webContents.executeJavaScript(`document.querySelector('#filePrint3dBtn')?.click()`);
@@ -110,8 +108,8 @@ app.whenReady().then(async () => {
     await new Promise((resolve) => setTimeout(resolve, 220));
     const printCollapsed = await printPanelSnapshot(window);
 
-    const result = { screenshotPath, initial, collapsed, moved, stored, printInitial, printCollapsed };
-    if (initial.panelPosition === 'absolute' || initial.dock !== 'right' || !initial.besideCanvas || initial.panelWidth < 260 || collapsed.panelWidth > 40 || !collapsed.collapsed || !collapsed.besideCanvas || moved.dock !== 'left' || !moved.besideCanvas || moved.horizontalOverflow || !stored || printInitial.panelWidth < 270 || !printInitial.besideCanvas || printCollapsed.panelWidth > 40 || !printCollapsed.collapsed || !printCollapsed.besideCanvas || printCollapsed.horizontalOverflow) {
+    const result = { screenshotPath, initial, collapsed, fixed, dockControlAbsent, storedRight, printInitial, printCollapsed };
+    if (initial.panelPosition === 'absolute' || initial.dock !== 'right' || !initial.besideCanvas || initial.panelWidth < 260 || collapsed.panelWidth > 40 || !collapsed.collapsed || !collapsed.besideCanvas || fixed.dock !== 'right' || !fixed.besideCanvas || fixed.horizontalOverflow || !dockControlAbsent || !storedRight || printInitial.panelWidth < 270 || !printInitial.besideCanvas || printCollapsed.panelWidth > 40 || !printCollapsed.collapsed || !printCollapsed.besideCanvas || printCollapsed.horizontalOverflow) {
       throw new Error(`Niepoprawny układ paneli: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

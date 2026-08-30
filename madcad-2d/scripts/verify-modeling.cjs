@@ -269,9 +269,8 @@ async function runUiFlow(window) {
     'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi',
   ]);
   const solidToolMenus = new Map([
-    ...['Revolve', 'Sweep', 'Loft', 'Coil', 'Tekst 3D', 'Otwór'].map((label) => [label, 'Więcej brył']),
-    ...['Fazuj', 'Shell', 'Draft', 'Offset Face', 'Delete Face + Heal', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj'].map((label) => [label, 'Więcej zmian']),
-    ...['Boolean', 'Split Body', 'Split Face', 'Replace Face'].map((label) => [label, 'Łącz i dziel']),
+    ...['Prymityw', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Tekst 3D', 'Otwór'].map((label) => [label, 'Więcej brył']),
+    ...['Fazuj', 'Shell', 'Draft', 'Offset Face', 'Delete Face + Heal', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj', 'Pattern', 'Boolean', 'Split Body', 'Split Face', 'Replace Face'].map((label) => [label, 'Więcej zmian']),
     ...['Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię'].map((label) => [label, 'Analiza']),
   ]);
   const sketchToolMenus = new Map([
@@ -2170,7 +2169,9 @@ async function runUiFlow(window) {
   await waitForUi(window, `!document.querySelector('.reference-repair-panel') && window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(lostReferenceId)})?.topologyId !== window.__madcadVerifyEngineState.bodies[0].topology.edges[0].id + '-lost'`, 'ponowne przypisanie referencji', modelingTimeoutMs);
 
   progress('parametric offset construction plane');
-  await clickByTitle('Pokaż lub ukryj przeglądarkę');
+  if (!await window.webContents.executeJavaScript(`Boolean(document.querySelector('.model-browser'))`)) {
+    await clickByTitle('Pokaż lub ukryj przeglądarkę');
+  }
   await waitForUi(window, `document.querySelector('.model-browser')`, 'otwarcie przeglądarki projektu do testu drzewa');
   await clickTool('Płaszczyzna odsunięta');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna odsunięta')`, 'okno płaszczyzny odsuniętej');

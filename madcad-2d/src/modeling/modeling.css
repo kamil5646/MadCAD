@@ -2413,14 +2413,14 @@
   position: absolute;
   z-index: 5;
   bottom: 9px;
-  right: 14px;
+  left: 50%;
   display: flex;
   gap: 1px;
   padding: 2px;
   border: 1px solid #5a6572;
   border-radius: 2px;
   background: rgba(47, 56, 68, 0.92);
-  transform: none;
+  transform: translateX(-50%);
 }
 
 .navigation-bar button {

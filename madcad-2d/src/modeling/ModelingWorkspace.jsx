@@ -511,7 +511,7 @@ export default function ModelingWorkspace() {
   const [commandHistory, setCommandHistory] = useState([]);
   const [toolHelp, setToolHelp] = useState(null);
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
-  const [browserOpen, setBrowserOpen] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(true);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
   const [blocksOpen, setBlocksOpen] = useState(false);
@@ -4985,7 +4985,7 @@ export default function ModelingWorkspace() {
     setCommand(null);
     setActiveSketchId(null);
     setToolHelp(null);
-    if (id === 'drawing') setBrowserOpen(false);
+    setBrowserOpen(id !== 'drawing');
     setWorkspace(id);
     setPrintPanelOpen(false);
     setNotice(id === 'drawing'
@@ -5475,6 +5475,7 @@ export default function ModelingWorkspace() {
               : { title: 'KROK 1 · dokończ szkic 2D', text: 'Szkic nie ma jeszcze zamkniętego obrysu. Domknij linie, zakończ szkic, potem zaznacz jego wnętrze.', action: `Edytuj: ${lastSketch.name}`, onAction: () => editSketch(lastSketch.id) }
             : { title: 'PROJEKTUJ · szkic 2D i model 3D', text: readyEngineLabel };
   const startPageVisible = workspace === 'solid' && !document.sketches.length && !engine.bodies.length && !command && !readOnly;
+  const showProjectBrowser = browserOpen && workspace !== 'drawing' && !startPageVisible;
   let adaptiveContext = null;
   if (!command && activeSketchId && (selectedSketchEntityIds.length || selectedSketchConstraintId)) {
     const recommended = [];
@@ -5648,7 +5649,7 @@ export default function ModelingWorkspace() {
           <ResponsiveRibbon language={language}>
             {activeSketchId ? (
               <>
-                <RibbonGroup label="1 · RYSUJ">
+                <RibbonGroup label="UTWÓRZ">
                   <ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} />
                   <ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} />
                   <ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} />
@@ -5665,8 +5666,7 @@ export default function ModelingWorkspace() {
                     { icon: CircleDotDashed, label: 'Punkt', onClick: () => openMechanicalShape('point'), disabled: readOnly },
                   ]} />
                 </RibbonGroup>
-                <RibbonGroup label="2 · EDYTUJ">
-                  <ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { activateSelectionMode(); handleSketchSelection([], 'replace'); }} />
+                <RibbonGroup label="ZMIEŃ">
                   <ToolButton icon={Scissors} label="Trim" displayLabel="Przytnij" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} />
                   <ToolMenuButton icon={Copy} label="Modyfikuj" description="Przedłużanie, dzielenie, odsuwanie i dokładne przekształcenia." items={[
                     { icon: Maximize2, label: 'Extend', displayLabel: 'Przedłuż', onClick: () => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' }), disabled: readOnly },
@@ -5678,7 +5678,7 @@ export default function ModelingWorkspace() {
                   ]} />
                   <ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} disabledReason="Zaznacz geometrię albo więz." />
                 </RibbonGroup>
-                <RibbonGroup label="WIĘZY I WYMIARY">
+                <RibbonGroup label="WIĄZANIA">
                   <ToolButton icon={ScanSearch} label="Project" displayLabel="Rzutuj" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} />
                   <ToolMenuButton icon={Frame} label="Więzy" description="Zaawansowane więzy geometryczne zaznaczonej geometrii." items={[
                     { icon: Minus, label: 'Współliniowe', onClick: () => addSelectedSketchConstraint('collinear'), disabled: readOnly || !canAddCollinear, disabledReason: 'Zaznacz dwie linie.' },
@@ -5691,7 +5691,7 @@ export default function ModelingWorkspace() {
                     { icon: RotateCw, label: 'Długość łuku', onClick: () => openSketchDimension('arcLength'), disabled: readOnly || !canAddArcLength, disabledReason: 'Zaznacz łuk.' },
                   ]} />
                 </RibbonGroup>
-                <RibbonGroup label="NARZĘDZIA">
+                <RibbonGroup label="WSTAW I ORGANIZUJ">
                   <ToolMenuButton icon={Grid2X2} label="Więcej narzędzi" description="Transformacje, szyki, warstwy i bloki." items={[
                     { icon: RotateCw, label: 'Transformuj', onClick: openSketchTransform, disabled: readOnly || !selectedSketchEntityIds.length, disabledReason: 'Zaznacz geometrię szkicu.' },
                     { icon: Grid2X2, label: 'Szyk szkicu', onClick: openSketchPattern, disabled: readOnly || !selectedSketchEntityIds.length, disabledReason: 'Zaznacz geometrię szkicu.' },
@@ -5704,7 +5704,8 @@ export default function ModelingWorkspace() {
                     { icon: Cylinder, label: 'Pipe', displayLabel: 'Rura', onClick: openPipe, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągłą otwartą ścieżkę.' },
                   ]} />}
                 </RibbonGroup>
-                <RibbonGroup label="3 · ZAKOŃCZ"><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
+                <RibbonGroup label="WYBIERZ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { activateSelectionMode(); handleSketchSelection([], 'replace'); }} /></RibbonGroup>
+                <RibbonGroup label="ZAKOŃCZ SZKIC"><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
             ) : workspace === 'drawing' ? (
               <>
@@ -5736,7 +5737,8 @@ export default function ModelingWorkspace() {
               </>
             ) : workspace === 'tools' ? null : (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolButton icon={PrimitiveCadIcon} label="Prymityw" onClick={openPrimitive} disabled={readOnly} /><ToolMenuButton icon={RevolveCadIcon} label="Więcej brył" description="Bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolMenuButton icon={PrimitiveCadIcon} label="Więcej brył" description="Prymitywy, bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
+                  { icon: PrimitiveCadIcon, label: 'Prymityw', onClick: openPrimitive, disabled: readOnly },
                   { icon: RevolveCadIcon, label: 'Revolve', displayLabel: 'Bryła obrotowa', onClick: openRevolve, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
                   { icon: SweepCadIcon, label: 'Sweep', displayLabel: 'Przeciągnięcie po ścieżce', onClick: openSweep, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz profil i osobną ścieżkę.' },
                   { icon: LoftCadIcon, label: 'Loft', displayLabel: 'Bryła przejściowa', onClick: openLoft, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Przygotuj co najmniej dwa profile.' },
@@ -5744,7 +5746,7 @@ export default function ModelingWorkspace() {
                   { icon: Type, label: 'Tekst 3D', onClick: openTextSolid, disabled: readOnly },
                   { icon: HoleCadIcon, label: 'Otwór', onClick: openHole, disabled: readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length, disabledReason: 'Zaznacz punkt szkicu albo płaską ścianę i dwie krawędzie odniesienia.' },
                 ]} /></RibbonGroup>
-                <RibbonGroup label="EDYCJA"><ToolButton icon={PressPullCadIcon} label="Press Pull" displayLabel="Naciśnij / wyciągnij" onClick={openPressPull} disabled={readOnly || !canPressPull} disabledReason="Zaznacz zamknięty profil albo płaską ścianę." /><ToolButton icon={FilletCadIcon} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} disabledReason="Zaznacz co najmniej jedną krawędź bryły." /><ToolMenuButton icon={ChamferCadIcon} label="Więcej zmian" description="Fazowanie, powłoka, pochylenie, ściany i położenie bryły." items={[
+                <RibbonGroup label="ZMIEŃ"><ToolButton icon={PressPullCadIcon} label="Press Pull" displayLabel="Naciśnij / wyciągnij" onClick={openPressPull} disabled={readOnly || !canPressPull} disabledReason="Zaznacz zamknięty profil albo płaską ścianę." /><ToolButton icon={FilletCadIcon} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} disabledReason="Zaznacz co najmniej jedną krawędź bryły." /><ToolMenuButton icon={ChamferCadIcon} label="Więcej zmian" description="Fazowanie, powłoka, pochylenie, ściany i położenie bryły." items={[
                   { icon: ChamferCadIcon, label: 'Fazuj', onClick: () => openEdgeCommand('chamfer'), disabled: readOnly || !selectedEdgeItems.length, disabledReason: 'Zaznacz co najmniej jedną krawędź.' },
                   { icon: ShellCadIcon, label: 'Shell', displayLabel: 'Powłoka', onClick: openShell, disabled: readOnly || !selectedFaceItems.length, disabledReason: 'Zaznacz ścianę do usunięcia.' },
                   { icon: DraftCadIcon, label: 'Draft', displayLabel: 'Pochylenie ścian', onClick: openDraft, disabled: readOnly || !selectedFaceItems.length, disabledReason: 'Zaznacz ściany do pochylenia.' },
@@ -5753,8 +5755,7 @@ export default function ModelingWorkspace() {
                   { icon: MoveBodyCadIcon, label: 'Przesuń bryłę', onClick: () => openTransform('move'), disabled: readOnly || selection?.kind !== 'body' },
                   { icon: RotateBodyCadIcon, label: 'Obróć bryłę', onClick: () => openTransform('rotate'), disabled: readOnly || selection?.kind !== 'body' },
                   { icon: EditFeatureCadIcon, label: 'Edytuj', onClick: editSelection, disabled: readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind) },
-                ]} /></RibbonGroup>
-                <RibbonGroup label="OPERACJE"><ToolButton icon={PatternCadIcon} label="Pattern" displayLabel="Szyk" onClick={openPattern} disabled={readOnly || !targetBodyId || !targetBodySupportsSolidOperations || Boolean(activeSketchId)} description={!targetBodySupportsSolidOperations ? 'Otwarta siatka nie obsługuje bryłowego szyku z łączeniem.' : undefined} disabledReason="Zaznacz obsługiwaną bryłę i zakończ szkic." /><ToolMenuButton icon={BooleanCadIcon} label="Łącz i dziel" description="Łączenie brył, podział i naprawa ścian." items={[
+                  { icon: PatternCadIcon, label: 'Pattern', displayLabel: 'Szyk', onClick: openPattern, disabled: readOnly || !targetBodyId || !targetBodySupportsSolidOperations || Boolean(activeSketchId), disabledReason: 'Zaznacz obsługiwaną bryłę i zakończ szkic.' },
                   { icon: BooleanCadIcon, label: 'Boolean', displayLabel: 'Połącz / odejmij', onClick: openBoolean, disabled: readOnly || !canBooleanSelectedBodies, disabledReason: 'Zaznacz co najmniej dwie bryły.' },
                   { icon: SplitBodyCadIcon, label: 'Split Body', displayLabel: 'Podziel bryłę', onClick: openSplitBody, disabled: readOnly || selection?.kind !== 'body', disabledReason: 'Zaznacz bryłę.' },
                   { icon: SplitFaceCadIcon, label: 'Split Face', displayLabel: 'Podziel ścianę', onClick: openSplitFace, disabled: readOnly || !canSplitFace, disabledReason: 'Zaznacz profil szkicu i płaską ścianę.' },
@@ -5790,6 +5791,8 @@ export default function ModelingWorkspace() {
                   { icon: MassCadIcon, label: 'Właściwości masy', onClick: openMassProperties, disabled: !engine.bodies.length },
                   { icon: GeometryCheckCadIcon, label: 'Sprawdź geometrię', onClick: openGeometryInspection, disabled: !engine.bodies.length },
                 ]} /></RibbonGroup>
+                <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Import 3D" onClick={() => window.requestAnimationFrame(() => importInputRef.current?.click())} disabled={readOnly || modelImportBusy} description="Wstaw model STEP, STL albo 3MF do bieżącego projektu." /></RibbonGroup>
+                <RibbonGroup label="WYBIERZ" end><ToolButton icon={MousePointer2} label="Wybierz" onClick={activateSelectionMode} /></RibbonGroup>
               </>
             )}
           </ResponsiveRibbon>
@@ -5797,19 +5800,19 @@ export default function ModelingWorkspace() {
       </section>
 
       <div
-        className={`modeling-content command-dock-${panelLayout.commandDock} ${browserOpen && workspace !== 'drawing' ? '' : 'without-browser'} ${printPanelOpen ? 'with-print-panel' : ''}`}
+        className={`modeling-content command-dock-right ${showProjectBrowser ? '' : 'without-browser'} ${printPanelOpen ? 'with-print-panel' : ''}`}
         style={{
-          '--browser-column': browserOpen && workspace !== 'drawing' ? '252px' : '0px',
+          '--browser-column': showProjectBrowser ? '252px' : '0px',
           '--command-column': isDockableCommand(command) ? (panelLayout.commandCollapsed ? '38px' : '280px') : '0px',
           '--print-column': printPanelOpen ? (panelLayout.printCollapsed ? '38px' : '286px') : '0px',
         }}
       >
-        {browserOpen && workspace !== 'drawing' && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onClose={() => setBrowserOpen(false)} />}
+        {showProjectBrowser && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onClose={() => setBrowserOpen(false)} />}
         <CommandDialog
           command={command}
           profileName={command?.type === 'pipe' ? `Otwarta ścieżka (${command.previewFeature?.pathEntityIds?.length || command.pathEntityIds?.length || 0})` : command?.openChain ? `Otwarty łańcuch (${command.previewFeature?.openEntityIds?.length || 0})` : commandProfileName}
           collapsed={panelLayout.commandCollapsed}
-          dock={panelLayout.commandDock}
+          dock="right"
           onChange={updateCommand}
           onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
           onConfirmDynamic={confirmDynamicSketchSegment}
@@ -5817,7 +5820,6 @@ export default function ModelingWorkspace() {
           onUndoSegment={undoSketchSegment}
           onFinishPath={finishSketchPath}
           onToggleCollapsed={() => setPanelLayout((current) => ({ ...current, commandCollapsed: !current.commandCollapsed }))}
-          onToggleDock={() => setPanelLayout((current) => ({ ...current, commandDock: current.commandDock === 'right' ? 'left' : 'right' }))}
         />
         <main className="modeling-stage">
           {workspace === 'drawing' ? <DrawingWorkspace

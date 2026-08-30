@@ -20,7 +20,7 @@ export function panelScreenKey(screenLike = globalThis.screen) {
 
 export function normalizePanelLayout(value) {
   return {
-    commandDock: value?.commandDock === 'left' ? 'left' : 'right',
+    commandDock: 'right',
     commandCollapsed: Boolean(value?.commandCollapsed),
     printCollapsed: Boolean(value?.printCollapsed),
   };

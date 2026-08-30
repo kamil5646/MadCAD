@@ -18,7 +18,15 @@ async function clickAction(window, action) {
 }
 
 async function clickRibbonTool(window, label) {
-  await window.webContents.executeJavaScript(`([...document.querySelectorAll('.ribbon-tool')].find((button) => button.querySelector('.ribbon-label')?.textContent.trim() === ${JSON.stringify(label)}))?.click()`);
+  const direct = await window.webContents.executeJavaScript(`(() => {
+    const direct = [...document.querySelectorAll('.ribbon-tool')].find((button) => button.querySelector('.ribbon-label')?.textContent.trim() === ${JSON.stringify(label)});
+    direct?.click();
+    return Boolean(direct);
+  })()`);
+  if (direct) return;
+  await window.webContents.executeJavaScript(`document.querySelector('.ribbon-tool-menu-trigger[data-tool-label="Więcej brył"]')?.click()`);
+  await waitFor(window, `document.querySelector('.ribbon-tool-submenu button[data-tool-label=${JSON.stringify(label)}]')`, `pozycja menu ${label}`);
+  await window.webContents.executeJavaScript(`document.querySelector('.ribbon-tool-submenu button[data-tool-label=${JSON.stringify(label)}]')?.click()`);
 }
 
 app.whenReady().then(async () => {

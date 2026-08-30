@@ -71,7 +71,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.file-backstage header button')?.click()`);
     await waitFor(window, `!document.querySelector('.file-backstage')`, 'zamknięcie menu Plik');
 
-    const expectedModelGroups = ['UTWÓRZ', 'EDYCJA', 'OPERACJE', 'KONSTRUKCJA', 'SPRAWDŹ'];
+    const expectedModelGroups = ['UTWÓRZ', 'ZMIEŃ', 'KONSTRUKCJA', 'SPRAWDŹ', 'WSTAW', 'WYBIERZ'];
     if (emptyModelGroups.join('|') !== expectedModelGroups.join('|')) throw new Error(`Niestabilny pusty obszar modelowania: ${emptyModelGroups.join('|')}`);
     const designStructure = await window.webContents.executeJavaScript(`(() => ({
       legacyTabsRemoved: ![...document.querySelectorAll('.workspace-tabs button')].some((item) => ['MODELUJ', 'EDYCJA 3D', 'KONSTRUKCJA', 'PROJEKT'].includes(item.textContent.trim())),
@@ -83,7 +83,7 @@ app.whenReady().then(async () => {
       appIconSize: document.querySelector('.app-menu button svg')?.getBoundingClientRect().width || 0,
       ribbonHeight: document.querySelector('.command-area')?.getBoundingClientRect().height || 0,
     }))()`);
-    const expectedDesignMenus = ['Więcej brył', 'Więcej zmian', 'Łącz i dziel', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
+    const expectedDesignMenus = ['Więcej brył', 'Więcej zmian', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
     if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !designStructure.customCadIcons || designStructure.iconSize < 20 || designStructure.featuredIconSize < 31 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
 
     if (!(await clickText(window, '.ribbon-tool', 'Utwórz szkic'))) throw new Error('Brak polecenia Utwórz szkic.');
@@ -94,22 +94,22 @@ app.whenReady().then(async () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     const expandedSketch = await window.webContents.executeJavaScript(`(() => {
       const directLabels = [...document.querySelectorAll('.modeling-ribbon .ribbon-visible-groups > .ribbon-group .ribbon-tool')].map((item) => item.dataset.toolLabel).filter(Boolean);
-      const toolsGroup = document.querySelector('.ribbon-group[aria-label="NARZĘDZIA"]')?.getBoundingClientRect();
-      const finishGroup = document.querySelector('.ribbon-group[aria-label="3 · ZAKOŃCZ"]')?.getBoundingClientRect();
       const ribbon = document.querySelector('.modeling-ribbon');
+      const groupLabels = [...document.querySelectorAll('.modeling-ribbon > .ribbon-visible-groups > .ribbon-group, .modeling-ribbon > .ribbon-sticky-groups > .ribbon-group')].map((item) => item.getAttribute('aria-label'));
       return {
         directLabels,
         requiredDirect: ['Łuk', 'Zakończ szkic'].every((label) => directLabels.includes(label)),
         contextualToolsGrouped: ['Offset', 'Przesuń', 'Warstwy', 'Bloki'].every((label) => !directLabels.includes(label)),
         balancedDirectCount: directLabels.length <= 15,
         menus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
-        finishFollowsTools: Boolean(toolsGroup && finishGroup && finishGroup.left - toolsGroup.right <= 8),
+        groupLabels,
+        fusionOrder: groupLabels.join('|') === ['UTWÓRZ', 'ZMIEŃ', 'WIĄZANIA', 'WSTAW I ORGANIZUJ', 'WYBIERZ', 'ZAKOŃCZ SZKIC'].join('|'),
         hiddenGroups: document.querySelectorAll('.ribbon-visible-groups > .ribbon-group[hidden]').length,
         hiddenGroupLabels: [...document.querySelectorAll('.ribbon-visible-groups > .ribbon-group[hidden]')].map((item) => item.getAttribute('aria-label')),
         horizontalOverflow: ribbon.scrollWidth > ribbon.clientWidth + 1,
       };
     })()`);
-    if (!expandedSketch.requiredDirect || !expandedSketch.contextualToolsGrouped || !expandedSketch.balancedDirectCount || !expandedSketch.finishFollowsTools || expandedSketch.hiddenGroups || expandedSketch.horizontalOverflow) throw new Error(`Wstążka szkicu nadal nie zachowuje hierarchii podstawowych i kontekstowych narzędzi: ${JSON.stringify(expandedSketch)}`);
+    if (!expandedSketch.requiredDirect || !expandedSketch.contextualToolsGrouped || !expandedSketch.balancedDirectCount || !expandedSketch.fusionOrder || expandedSketch.hiddenGroups || expandedSketch.horizontalOverflow) throw new Error(`Wstążka szkicu nadal nie zachowuje hierarchii podstawowych i kontekstowych narzędzi: ${JSON.stringify(expandedSketch)}`);
     await fs.writeFile(sketchRibbonScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await clickText(window, '.ribbon-tool', 'Zakończ szkic');
     await waitFor(window, `!document.querySelector('.modeling-shell.sketch-mode')`, 'zakończenie szkicu po kontroli wstążki');
