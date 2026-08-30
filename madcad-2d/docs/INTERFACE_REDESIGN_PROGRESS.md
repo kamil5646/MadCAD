@@ -25,7 +25,7 @@ Ujednolicić aplikację według hierarchii znanej z Worda i kontekstowego sposob
 - [x] Pakiet 2: jeden system komunikatów, snap i stan szkicu.
 - [x] Pakiet 3: pulpit `ZARZĄDZAJ`, arkusz i menu Plik.
 - [x] Pakiet 4: dialogi, skróty i licencja.
-- [ ] Pełna walidacja i lokalna instalacja macOS.
+- [x] Pełna walidacja i lokalna instalacja macOS.
 
 ## Dziennik
 
@@ -41,3 +41,5 @@ Ujednolicić aplikację według hierarchii znanej z Worda i kontekstowego sposob
 - 2026-08-30: zaliczone testy `assistive-tech`, `snap-feedback`, `sketch-drawing`, `start-experience`, `docked-panels`, `ribbon-overflow` i `command-line`. W teście paska poleceń uwzględniono tolerancję 1 px dla skalowania ekranu macOS.
 - 2026-08-30: zaliczone testy wyciągnięcia po zakończeniu szkicu (profil zamknięty i otwarty), nawigacji kamery prawym przyciskiem/kółkiem oraz importu STEP, STL i 3MF.
 - 2026-08-30: pełny test modelowania wykrył dwie nieprzetłumaczone podpowiedzi nawigacji w angielskim interfejsie; dodano brakujące tłumaczenia przed ponownym uruchomieniem całej kontroli.
+- 2026-08-30: ponowny pełny `verify-modeling` zakończony powodzeniem: szkice, dokładne wpisywanie długości, wyciągnięcia, operacje B-Rep, import/eksport, druk, skalowanie 100/150/200%, dostępność i angielski interfejs bez wykrytych polskich pozostałości.
+- 2026-08-30: zbudowano wyłącznie lokalny pakiet macOS 6.4.6, bez publikacji i bez certyfikatu dystrybucyjnego. Pakiet podpisano lokalnie ad-hoc, zweryfikowano `codesign --verify --deep --strict` i zainstalowano w `/Applications/MadCAD.app`; suma SHA-256 `app.asar` jest zgodna z przetestowanym buildem.
