@@ -27,7 +27,7 @@
   inset: 0;
   z-index: 10000;
   display: grid;
-  grid-template-rows: 34px 96px minmax(0, 1fr) 69px;
+  grid-template-rows: 34px 100px minmax(0, 1fr) 69px;
   overflow: hidden;
   background: var(--mc-bg);
   color: var(--mc-text);
@@ -650,7 +650,7 @@
   display: flex;
   flex: 0 0 78px;
   min-width: 78px;
-  height: 66px;
+  height: 70px;
   padding: 14px 5px 1px;
   align-items: stretch;
   border-right: 1px solid #465360;
@@ -686,7 +686,7 @@
 .ribbon-overflow-menu {
   position: absolute;
   z-index: 30;
-  top: 67px;
+  top: 71px;
   right: 4px;
   display: grid;
   width: min(520px, calc(100vw - 24px));
@@ -780,8 +780,8 @@
   display: flex;
   flex: 0 0 auto;
   align-items: stretch;
-  height: 66px;
-  padding: 15px 11px 0;
+  height: 70px;
+  padding: 15px 11px 4px;
   overflow: visible;
   border: 0;
   border-top: 2px solid color-mix(in srgb, var(--group-accent) 62%, transparent);
@@ -5068,7 +5068,7 @@
 }
 
 .modeling-shell.drawing-mode {
-  grid-template-rows: 34px 96px minmax(0, 1fr) 34px;
+  grid-template-rows: 34px 100px minmax(0, 1fr) 34px;
 }
 
 .drawing-mode .modeling-footer {
@@ -5076,7 +5076,7 @@
 }
 
 .modeling-shell.sketch-mode {
-  grid-template-rows: 34px 96px minmax(0, 1fr) 34px;
+  grid-template-rows: 34px 100px minmax(0, 1fr) 34px;
 }
 
 .sketch-mode .modeling-footer {
@@ -5084,7 +5084,7 @@
 }
 
 .modeling-shell.timeline-empty {
-  grid-template-rows: 34px 96px minmax(0, 1fr) 34px;
+  grid-template-rows: 34px 100px minmax(0, 1fr) 34px;
 }
 
 .modeling-shell.start-page-mode,
