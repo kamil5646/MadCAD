@@ -1,20 +1,47 @@
-import React, { useState } from 'react';
-import { Check, ChevronDown, ChevronRight, Frame, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Check, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { createParameter } from '../cad-core/document.js';
 import { useDialogFocus } from './use-dialog-focus.js';
 
 const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
 
+function PlaneGlyph({ plane }) {
+  const polygons = {
+    XY: '8,24 28,14 48,24 28,34',
+    XZ: '10,31 10,10 46,17 46,38',
+    YZ: '12,17 32,8 48,18 28,29',
+  };
+  const accent = { XY: '#62d7f2', XZ: '#f3bd63', YZ: '#72d5a1' }[plane];
+  return (
+    <svg className={`plane-glyph plane-glyph-${plane.toLowerCase()}`} viewBox="0 0 56 44" aria-hidden="true">
+      <polygon points={polygons[plane]} fill={accent} fillOpacity="0.2" stroke={accent} strokeWidth="2" />
+      <path d="M28 22V4M28 22L52 34M28 22L5 37" fill="none" stroke="#d9e4eb" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="28" cy="22" r="2.2" fill={accent} />
+    </svg>
+  );
+}
+
 export function PlanePicker({ onPick, onCancel }) {
   const dialogRef = useDialogFocus();
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      const plane = { 1: 'XY', 2: 'XZ', 3: 'YZ' }[event.key];
+      if (plane) {
+        event.preventDefault();
+        onPick(plane);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onPick]);
   return (
     <div className="plane-picker-backdrop">
       <section ref={dialogRef} className="plane-picker" role="dialog" aria-modal="true" aria-labelledby="planePickerTitle" tabIndex="-1">
         <header><div><strong id="planePickerTitle">Wybierz płaszczyznę szkicu</strong><span>Wskaż jedną z płaszczyzn początku.</span></div><button type="button" onClick={onCancel} title="Anuluj" aria-label="Anuluj wybór płaszczyzny"><X size={17} /></button></header>
         <div className="plane-options">
-          {Object.entries(PLANE_LABELS).map(([plane, label]) => (
-            <button key={plane} type="button" data-dialog-initial-focus={plane === 'XY' ? '' : undefined} onClick={() => onPick(plane)}>
-              <Frame size={28} strokeWidth={1.25} /><strong>{plane}</strong><span>{label}</span>
+          {Object.entries(PLANE_LABELS).map(([plane, label], index) => (
+            <button key={plane} type="button" aria-label={`${plane} · ${label}`} data-dialog-initial-focus={plane === 'XY' ? '' : undefined} onClick={() => onPick(plane)}>
+              <kbd>{index + 1}</kbd><PlaneGlyph plane={plane} /><strong>{label}</strong><span>Płaszczyzna {plane}</span>
             </button>
           ))}
         </div>

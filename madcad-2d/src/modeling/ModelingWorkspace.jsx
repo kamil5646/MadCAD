@@ -220,7 +220,7 @@ import {
 } from './CadToolIcons.jsx';
 import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
-import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectDependenciesPanel, ProjectHealthPanel, ProjectSearchPalette, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
+import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectDashboard, ProjectDependenciesPanel, ProjectHealthPanel, ProjectSearchPalette, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
 import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, NamedViewsPanel, SectionPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
@@ -5726,6 +5726,18 @@ export default function ModelingWorkspace() {
             onDeleteTable={deleteDrawingTable}
             onExportPdf={() => { void exportActiveDrawingPdf(); }}
             onExportDxf={exportActiveDrawingDxf}
+          /> : workspace === 'tools' ? <ProjectDashboard
+            document={document}
+            bodyCount={engine.bodies.length}
+            health={projectHealthReport}
+            snapshotCount={projectSnapshots.length}
+            onOpenParameters={() => setCommand({ type: 'parameters' })}
+            onOpenSnapshots={openProjectSnapshots}
+            onOpenComparison={openProjectComparison}
+            onOpenHealth={openProjectHealth}
+            onOpenDependencies={openProjectDependencies}
+            onOpenComponents={openComponentManager}
+            onBack={() => switchWorkspace('solid')}
           /> : <React.Suspense fallback={<div className="viewport-loading" role="status">Uruchamianie widoku 3D…</div>}>
           <ModelViewport
             bodies={engine.bodies}
@@ -5804,9 +5816,9 @@ export default function ModelingWorkspace() {
             printLayout={document.print}
           />
           </React.Suspense>}
-          {workspace !== 'drawing' && !activeSketchId && !command && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
+          {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
-          {notice && <div className="workspace-notice" role="status" aria-live="polite" aria-atomic="true">{notice}</div>}
+          {notice && <div className={`workspace-notice ${command ? 'command-active' : ''}`} role="status" aria-live="polite" aria-atomic="true">{notice}</div>}
           <CrashRecoveryBanner
             info={recoveryInfo}
             onSave={() => { void saveProject(); }}

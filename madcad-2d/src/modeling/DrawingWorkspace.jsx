@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { FilePlus2, FileText, Plus, Trash2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { FilePlus2, FileText, Maximize2, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
 import { drawingBomItemNumber, drawingSheetScene, formatDrawingScale } from '../cad-core/drawing-sheets.js';
 
 const ORIENTATION_LABELS = {
@@ -39,12 +39,22 @@ function DrawingTableGraphic({ table }) {
   </g>;
 }
 
-function DrawingSheetPreview({ documentName, sheet, bodies, components, componentInstances, sketches, parameters, layers, selectedViewId, selectedAnnotationId, onSelectView, onSelectAnnotation }) {
+function DrawingSheetPreview({ documentName, sheet, bodies, components, componentInstances, sketches, parameters, layers, selectedViewId, selectedAnnotationId, zoom, sheetsOpen, propertiesOpen, onZoomChange, onToggleSheets, onToggleProperties, onSelectView, onSelectAnnotation }) {
   const scene = useMemo(() => drawingSheetScene(sheet, bodies, { components, componentInstances, sketches, parameters, layers }), [sheet, bodies, components, componentInstances, sketches, parameters, layers]);
   const titleTop = scene.height - scene.titleBlockHeight;
   return (
     <div className="drawing-paper-wrap">
-      <svg className="drawing-paper" viewBox={`0 0 ${scene.width} ${scene.height}`} role="img" aria-label={`Arkusz ${sheet.name}`}>
+      <div className="drawing-canvas-toolbar" role="toolbar" aria-label="Widok arkusza">
+        <button type="button" className={sheetsOpen ? 'active' : ''} title={sheetsOpen ? 'Ukryj listę arkuszy' : 'Pokaż listę arkuszy'} aria-label={sheetsOpen ? 'Ukryj listę arkuszy' : 'Pokaż listę arkuszy'} onClick={onToggleSheets}>{sheetsOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}<span>Arkusze</span></button>
+        <i />
+        <button type="button" title="Pomniejsz arkusz" aria-label="Pomniejsz arkusz" onClick={() => onZoomChange(Math.max(0.5, zoom - 0.1))}><ZoomOut size={15} /></button>
+        <output aria-label="Powiększenie arkusza">{Math.round(zoom * 100)}%</output>
+        <button type="button" title="Powiększ arkusz" aria-label="Powiększ arkusz" onClick={() => onZoomChange(Math.min(2, zoom + 0.1))}><ZoomIn size={15} /></button>
+        <button type="button" title="Dopasuj arkusz do okna" aria-label="Dopasuj arkusz do okna" onClick={() => onZoomChange(1)}><Maximize2 size={15} /><span>Dopasuj</span></button>
+        <i />
+        <button type="button" className={propertiesOpen ? 'active' : ''} title={propertiesOpen ? 'Ukryj właściwości' : 'Pokaż właściwości'} aria-label={propertiesOpen ? 'Ukryj właściwości' : 'Pokaż właściwości'} onClick={onToggleProperties}><span>Właściwości</span>{propertiesOpen ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}</button>
+      </div>
+      <svg className="drawing-paper" style={{ width: `${Math.round(zoom * 100)}%`, maxWidth: `${Math.round(1080 * zoom)}px`, maxHeight: zoom === 1 ? '100%' : 'none' }} viewBox={`0 0 ${scene.width} ${scene.height}`} role="img" aria-label={`Arkusz ${sheet.name}`}>
         <rect className="drawing-border" x={scene.margin} y={scene.margin} width={scene.width - scene.margin * 2} height={scene.height - scene.margin * 2} />
         {scene.views.map((view) => <g key={view.id} className={`drawing-view drawing-view-${view.type} ${selectedViewId === view.id ? 'selected' : ''}`} role="button" tabIndex="0" aria-label={`${view.name}, ${ORIENTATION_LABELS[view.orientation]}, skala ${formatDrawingScale(view.scale)}`} onClick={() => onSelectView(view.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelectView(view.id); } }}>
           {selectedViewId === view.id && <rect className="drawing-view-selection" x={view.x - Math.max(4, view.modelWidth * view.scale + 6) / 2} y={view.y - Math.max(4, view.modelHeight * view.scale + 6) / 2} width={Math.max(4, view.modelWidth * view.scale + 6)} height={Math.max(4, view.modelHeight * view.scale + 6)} />}
@@ -137,6 +147,9 @@ function AnnotationControls({ annotation, rendered, bodies, allBodies, component
 export default function DrawingWorkspace({ document, bodies, activeSheetId, selectedViewId, selectedAnnotationId, focusSection = null, readOnly = false, onCreateSheet, onSelectSheet, onUpdateSheet, onSelectView, onUpdateView, onDeleteView, onSelectAnnotation, onUpdateAnnotation, onDeleteAnnotation, onAddRevision, onUpdateRevision, onDeleteRevision, onUpdateTable, onDeleteTable }) {
   const titleBlockRef = useRef(null);
   const revisionsRef = useRef(null);
+  const [sheetsOpen, setSheetsOpen] = useState(true);
+  const [propertiesOpen, setPropertiesOpen] = useState(true);
+  const [zoom, setZoom] = useState(1);
   const activeSheet = document.drawings.find((sheet) => sheet.id === activeSheetId) || document.drawings[0] || null;
   const activeScene = useMemo(() => activeSheet ? drawingSheetScene(activeSheet, bodies, { components: document.components || [], componentInstances: document.componentInstances || [], sketches: document.sketches || [], parameters: document.parameters || [], layers: document.layers || [] }) : null, [activeSheet, bodies, document.components, document.componentInstances, document.sketches, document.parameters, document.layers]);
   const selectedView = activeScene?.views.find((view) => view.id === selectedViewId) || null;
@@ -161,13 +174,13 @@ export default function DrawingWorkspace({ document, bodies, activeSheetId, sele
     </section>;
   }
 
-  return <section className="drawing-workspace" aria-label="Dokumentacja techniczna">
+  return <section className={`drawing-workspace ${sheetsOpen ? '' : 'sheets-collapsed'} ${propertiesOpen ? '' : 'properties-collapsed'}`} aria-label="Dokumentacja techniczna">
     <nav className="drawing-sheet-list" aria-label="Arkusze dokumentacji">
       <header><strong>Arkusze</strong><button type="button" title="Nowy arkusz" aria-label="Nowy arkusz" onClick={onCreateSheet} disabled={readOnly}><Plus size={15} /></button></header>
       {document.drawings.map((sheet, index) => <button type="button" className={sheet.id === activeSheet.id ? 'active' : ''} key={sheet.id} onClick={() => onSelectSheet(sheet.id)}><FileText size={15} /><span><strong>{sheet.name}</strong><small>{sheet.pageSize} · {sheet.orientation === 'landscape' ? 'poziomo' : 'pionowo'} · {sheet.views.length} wid.</small></span><em>{index + 1}</em></button>)}
     </nav>
 
-    <DrawingSheetPreview documentName={document.name} sheet={activeSheet} bodies={bodies} components={document.components || []} componentInstances={document.componentInstances || []} sketches={document.sketches || []} parameters={document.parameters || []} layers={document.layers || []} selectedViewId={selectedViewId} selectedAnnotationId={selectedAnnotationId} onSelectView={onSelectView} onSelectAnnotation={onSelectAnnotation} />
+    <DrawingSheetPreview documentName={document.name} sheet={activeSheet} bodies={bodies} components={document.components || []} componentInstances={document.componentInstances || []} sketches={document.sketches || []} parameters={document.parameters || []} layers={document.layers || []} selectedViewId={selectedViewId} selectedAnnotationId={selectedAnnotationId} zoom={zoom} sheetsOpen={sheetsOpen} propertiesOpen={propertiesOpen} onZoomChange={setZoom} onToggleSheets={() => setSheetsOpen((open) => !open)} onToggleProperties={() => setPropertiesOpen((open) => !open)} onSelectView={onSelectView} onSelectAnnotation={onSelectAnnotation} />
 
     <aside className="drawing-properties" aria-label="Właściwości arkusza">
       <header><FileText size={16} /><strong>Właściwości</strong></header>

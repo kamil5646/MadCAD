@@ -2178,9 +2178,9 @@ export default function ModelViewport({
         </form>
       )}
       {activeSketchId && sliceModel && <div className="sketch-slice-badge">Slice · przekrój na {activePlane}</div>}
-      {activeSketchId && draftType && <div className="sketch-pointer-hint">Kliknij środek, a następnie punkt rozmiaru</div>}
-      {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
-      {activeSketchId && sketchTool && <div className="sketch-pointer-hint">{`${sketchToolPrompt || 'Klikaj kolejne punkty'} · ${sketchTool === 'line' && polylineDraft?.lastPoint ? 'wpisz długość i Enter lub kliknij koniec' : ['line', 'polyline', 'spline'].includes(sketchTool) ? 'Enter kończy' : 'Esc anuluje'}`}</div>}
+      {activeSketchId && draftType && <div className="sketch-pointer-hint visually-consolidated">Kliknij środek, a następnie punkt rozmiaru</div>}
+      {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint visually-consolidated">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
+      {activeSketchId && sketchTool && <div className="sketch-pointer-hint visually-consolidated">{`${sketchToolPrompt || 'Klikaj kolejne punkty'} · ${sketchTool === 'line' && polylineDraft?.lastPoint ? 'wpisz długość i Enter lub kliknij koniec' : ['line', 'polyline', 'spline'].includes(sketchTool) ? 'Enter kończy' : 'Esc anuluje'}`}</div>}
     </div>
   );
 }

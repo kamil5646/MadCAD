@@ -130,7 +130,18 @@ const TOOL_COLOR_GROUPS = Object.freeze({
 });
 
 const TOOL_GROUP_HUES = Object.freeze({ sketch: 190, solid: 218, edit: 38, reference: 166, inspect: 274, output: 138, destructive: 356, neutral: 208 });
-const FEATURED_TOOL_LABELS = new Set(['Utwórz szkic', 'Linia', 'Wyciągnij', 'Wybierz', 'Trim', 'Zakończ szkic', 'Parametry', 'STEP']);
+const FEATURED_TOOL_LABELS = new Set(['Utwórz szkic', 'Linia', 'Zakończ szkic', 'Parametry']);
+
+function ribbonGroupTone(label = '') {
+  if (/RYSUJ|ARKUSZ/.test(label)) return 'sketch';
+  if (/EDYTUJ|EDYCJA/.test(label)) return 'edit';
+  if (/WIĘZY|KONSTRUKCJA/.test(label)) return 'reference';
+  if (/SPRAWDŹ|PARAMETRY|KONTROLA/.test(label)) return 'inspect';
+  if (/ZESTAWIENIA|WERSJE/.test(label)) return 'output';
+  if (/ZAKOŃCZ/.test(label)) return 'finish';
+  if (/UTWÓRZ|OPERACJE|WIDOKI|STRUKTURA|WIDOK|NARZĘDZIA/.test(label)) return 'solid';
+  return 'neutral';
+}
 
 function toolColorStyle(label) {
   const group = Object.entries(TOOL_COLOR_GROUPS).find(([, labels]) => labels.has(label))?.[0] || 'neutral';
@@ -191,7 +202,6 @@ export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClic
       <button
         id={id}
         className={`ribbon-tool ${featured ? 'featured' : ''} ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
-        style={toolColorStyle(label)}
         type="button"
         onClick={onClick}
         disabled={disabled}
@@ -245,7 +255,6 @@ export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items,
     <span className="ribbon-tool-wrap ribbon-tool-menu-wrap" ref={menuRef}>
       <button
         className={`ribbon-tool ribbon-tool-menu-trigger ${open ? 'primary' : ''}`}
-        style={toolColorStyle(items[0]?.label || label)}
         type="button"
         disabled={disabled}
         data-tool-label={label}
@@ -280,8 +289,9 @@ export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items,
 }
 
 export const RibbonGroup = React.forwardRef(function RibbonGroup({ children, end = false, hidden = false, label }, ref) {
+  const tone = ribbonGroupTone(label);
   return (
-    <div ref={ref} className={`ribbon-group ${end ? 'ribbon-group-end' : ''}`} role="group" aria-label={label} hidden={hidden}>
+    <div ref={ref} className={`ribbon-group ribbon-group-${tone} ${end ? 'ribbon-group-end' : ''}`} data-ribbon-tone={tone} role="group" aria-label={label} hidden={hidden}>
       <div className="ribbon-group-heading">{label}</div>
       <div className="ribbon-tools">{children}</div>
     </div>

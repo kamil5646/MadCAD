@@ -58,14 +58,14 @@ app.whenReady().then(async () => {
         requiredActions: requiredIds.map((id) => ({ id, available: Boolean(document.querySelector('#' + id)) })),
         leftAligned: Boolean(rect && rect.left === 0),
         insideWindow: Boolean(rect && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight),
-        compactWidth: Boolean(rect && rect.width <= 370),
+        readableWidth: Boolean(rect && rect.width >= 390 && rect.width <= 440),
         compactRows: Math.max(...[...menu.querySelectorAll('.file-backstage-content section > button')].map((item) => item.getBoundingClientRect().height)) <= 42,
         legacyLayoutsRemoved: !document.querySelector('.workspace-layout-control, .workspace-layout-menu'),
         fileTabsRemoved: ![...document.querySelectorAll('.workspace-tabs button')].some((item) => ['PLIKI CAD', 'DRUK 3D'].includes(item.textContent.trim())),
       };
     })()`);
     const expectedHeadings = ['PROJEKT', 'IMPORT', 'EKSPORT MODELU', 'RYSUNEK TECHNICZNY', 'DRUK 3D'];
-    if (fileMenu.headings.join('|') !== expectedHeadings.join('|') || fileMenu.requiredActions.some((item) => !item.available) || !fileMenu.leftAligned || !fileMenu.insideWindow || !fileMenu.compactWidth || !fileMenu.compactRows || !fileMenu.legacyLayoutsRemoved || !fileMenu.fileTabsRemoved) throw new Error(`Menu Plik nie porządkuje operacji wejścia i wyjścia: ${JSON.stringify(fileMenu)}`);
+    if (fileMenu.headings.join('|') !== expectedHeadings.join('|') || fileMenu.requiredActions.some((item) => !item.available) || !fileMenu.leftAligned || !fileMenu.insideWindow || !fileMenu.readableWidth || !fileMenu.compactRows || !fileMenu.legacyLayoutsRemoved || !fileMenu.fileTabsRemoved) throw new Error(`Menu Plik nie porządkuje operacji wejścia i wyjścia: ${JSON.stringify(fileMenu)}`);
     await fs.writeFile(fileMenuScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`document.querySelector('.file-backstage header button')?.click()`);
     await waitFor(window, `!document.querySelector('.file-backstage')`, 'zamknięcie menu Plik');

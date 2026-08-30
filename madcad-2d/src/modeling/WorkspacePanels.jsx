@@ -361,7 +361,7 @@ export function CommandCustomizationPanel({ customization, onSave, onReset, onCl
         {!groups.length && <p className="command-customization-empty">Brak poleceń pasujących do wyszukiwania.</p>}
       </div>
       {!!validation.errors.length && <div className="command-customization-errors" role="alert">{validation.errors.slice(0, 4).map((error) => <span key={error}>{error}</span>)}</div>}
-      <footer><button type="button" onClick={() => { const reset = onReset(); setDraft(structuredClone(reset)); }}><RotateCcw size={14} /> Autodesk</button><button className="confirm" type="button" disabled={!validation.valid} onClick={() => onSave(validation.customization)}><Check size={14} /> Zapisz</button></footer>
+      <footer><button type="button" onClick={() => { const reset = onReset(); setDraft(structuredClone(reset)); }}><RotateCcw size={14} /> Przywróć skróty Autodesk</button><button className="confirm" type="button" disabled={!validation.valid} onClick={() => onSave(validation.customization)}><Check size={14} /> Zapisz</button></footer>
     </aside>
   );
 }

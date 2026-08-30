@@ -128,6 +128,15 @@ app.whenReady().then(async () => {
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.titleBlock?.partNumber === 'MC-VERIFY-001'`, 'konfigurowalna tabliczka');
 
+    await window.webContents.executeJavaScript(`document.querySelector('button[aria-label="Powiększ arkusz"]')?.click()`);
+    await waitFor(window, `document.querySelector('.drawing-canvas-toolbar output')?.textContent.trim() === '110%'`, 'powiększenie arkusza');
+    await window.webContents.executeJavaScript(`document.querySelector('button[aria-label="Ukryj listę arkuszy"]')?.click()`);
+    await waitFor(window, `document.querySelector('.drawing-workspace')?.classList.contains('sheets-collapsed') && !document.querySelector('.drawing-sheet-list')?.checkVisibility()`, 'zwinięta lista arkuszy');
+    await window.webContents.executeJavaScript(`document.querySelector('button[aria-label="Pokaż listę arkuszy"]')?.click(); document.querySelector('button[aria-label="Ukryj właściwości"]')?.click()`);
+    await waitFor(window, `!document.querySelector('.drawing-workspace')?.classList.contains('sheets-collapsed') && document.querySelector('.drawing-workspace')?.classList.contains('properties-collapsed') && !document.querySelector('.drawing-properties')?.checkVisibility()`, 'zwinięte właściwości');
+    await window.webContents.executeJavaScript(`document.querySelector('button[aria-label="Pokaż właściwości"]')?.click(); document.querySelector('button[aria-label="Dopasuj arkusz do okna"]')?.click()`);
+    await waitFor(window, `!document.querySelector('.drawing-workspace')?.classList.contains('properties-collapsed') && document.querySelector('.drawing-canvas-toolbar output')?.textContent.trim() === '100%'`, 'przywrócone panele i dopasowanie');
+
     await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
     await waitFor(window, `document.querySelector('.file-backstage')`, 'menu Plik z eksportem rysunku');
     const state = await window.webContents.executeJavaScript(`(() => {
@@ -172,13 +181,15 @@ app.whenReady().then(async () => {
         drawingMode: document.querySelector('.modeling-shell')?.classList.contains('drawing-mode') || false,
         projectBrowserHidden: !document.querySelector('.model-browser'),
         timelineHidden: !document.querySelector('.timeline'),
+        zoomToolbar: document.querySelector('.drawing-canvas-toolbar output')?.textContent.trim() === '100%',
+        panelToggles: Boolean(document.querySelector('button[aria-label="Ukryj listę arkuszy"]') && document.querySelector('button[aria-label="Ukryj właściwości"]')),
       };
     })()`);
     await window.webContents.executeJavaScript(`document.querySelector('.file-backstage-dismiss')?.click()`);
     await waitFor(window, `!document.querySelector('.file-backstage')`, 'zamknięte menu Plik przed kontrolą wizualną');
     await new Promise((resolve) => setTimeout(resolve, 120));
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (state.schemaVersion !== 15 || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.visibleProjectionLines < 20 || !state.projectedInkInsidePaper || state.hatchCount < 1 || state.annotationCount !== 10 || state.userAnnotationCount !== 8 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note|feature-control-frame|balloon' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || !state.gdtFrame || !state.balloonVisible || state.tables !== 2 || state.bomRows < 1 || state.holeRows < 1 || state.revisions !== 1 || state.partNumber !== 'MC-VERIFY-001' || state.associatedViewCount !== 3 || !state.pdfEnabled || !state.dxfEnabled || !state.outputInFileMenu || (!state.visibleRibbonGroups.includes('ZESTAWIENIA') && !state.overflowVisible) || state.horizontalOverflow || !state.paperInsideStage || !state.drawingMode || !state.projectBrowserHidden || !state.timelineHidden) {
+    if (state.schemaVersion !== 15 || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.visibleProjectionLines < 20 || !state.projectedInkInsidePaper || state.hatchCount < 1 || state.annotationCount !== 10 || state.userAnnotationCount !== 8 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note|feature-control-frame|balloon' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || !state.gdtFrame || !state.balloonVisible || state.tables !== 2 || state.bomRows < 1 || state.holeRows < 1 || state.revisions !== 1 || state.partNumber !== 'MC-VERIFY-001' || state.associatedViewCount !== 3 || !state.pdfEnabled || !state.dxfEnabled || !state.outputInFileMenu || (!state.visibleRibbonGroups.includes('ZESTAWIENIA') && !state.overflowVisible) || state.horizontalOverflow || !state.paperInsideStage || !state.drawingMode || !state.projectBrowserHidden || !state.timelineHidden || !state.zoomToolbar || !state.panelToggles) {
       throw new Error(`Niepoprawny obszar dokumentacji: ${JSON.stringify(state)}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...state }, null, 2)}\n`);

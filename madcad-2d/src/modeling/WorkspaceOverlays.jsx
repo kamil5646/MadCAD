@@ -61,6 +61,40 @@ export function CrashRecoveryBanner({ info, onSave, onOpenSnapshots, onDismiss }
   );
 }
 
+export function ProjectDashboard({ document, bodyCount, health, snapshotCount, onOpenParameters, onOpenSnapshots, onOpenComparison, onOpenHealth, onOpenDependencies, onOpenComponents, onBack }) {
+  const counts = health?.counts || {};
+  const healthLabel = health?.status === 'critical' ? 'Wymaga działania' : health?.status === 'warning' ? 'Wymaga uwagi' : 'Projekt zdrowy';
+  const issueCount = (counts.critical || 0) + (counts.warning || 0);
+  const actions = [
+    [Settings2, 'Parametry', `${document.parameters.length} zdefiniowanych`, onOpenParameters],
+    [History, 'Punkty zapisu', `${snapshotCount} lokalnych wersji`, onOpenSnapshots],
+    [GitCompareArrows, 'Porównaj wersje', 'Sprawdź różnice bez zmiany projektu', onOpenComparison],
+    [ShieldCheck, 'Kondycja projektu', issueCount ? `${issueCount} elementów do sprawdzenia` : 'Brak wykrytych problemów', onOpenHealth],
+    [Network, 'Gdzie używane', 'Referencje i zależności obiektów', onOpenDependencies],
+    [Boxes, 'Komponenty', `${document.components.length} komponentów`, onOpenComponents],
+  ];
+  return (
+    <section className="project-dashboard" aria-label="Pulpit zarządzania projektem">
+      <header className="workspace-guidebar project-dashboard-guide">
+        <div><strong>ZARZĄDZAJ · projekt i jego historia</strong><small>Najważniejsze informacje, wersje i zależności są widoczne bez przełączania się na pusty model 3D.</small></div>
+        <button type="button" onClick={onBack}>Wróć do projektowania <ArrowRight size={14} /></button>
+      </header>
+      <div className="project-dashboard-summary">
+        <article className={`project-dashboard-health ${health?.status || 'healthy'}`}>
+          <ShieldCheck size={24} />
+          <div><span>Kondycja</span><strong>{healthLabel}</strong><small>{issueCount ? `${issueCount} ostrzeżeń lub błędów` : 'Historia i referencje są spójne'}</small></div>
+          <button type="button" onClick={onOpenHealth}>Otwórz raport</button>
+        </article>
+        <article><Layers3 size={23} /><div><span>Model</span><strong>{bodyCount} brył · {document.features.length} operacji</strong><small>{document.sketches.length} szkiców w projekcie</small></div></article>
+        <article><FileBox size={23} /><div><span>Dokumentacja</span><strong>{document.drawings.length} arkuszy</strong><small>{document.drawings.reduce((total, sheet) => total + (sheet.views?.length || 0), 0)} widoków technicznych</small></div></article>
+      </div>
+      <nav className="project-dashboard-actions" aria-label="Narzędzia zarządzania projektem">
+        {actions.map(([Icon, title, description, action]) => <button key={title} type="button" onClick={action}><Icon size={22} /><span><strong>{title}</strong><small>{description}</small></span><ArrowRight size={15} /></button>)}
+      </nav>
+    </section>
+  );
+}
+
 export function ProjectSnapshotsPanel({ snapshots, loading, error, readOnly = false, onCreate, onRestore, onDelete, onClose }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
