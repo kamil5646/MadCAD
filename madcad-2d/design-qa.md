@@ -24,8 +24,8 @@ Electron. Nie są atrapami ani statycznymi makietami.
 - Źródło: `/var/folders/sf/jgwqqr_j0xzdg337ynw3fdkh0000gn/T/TemporaryItems/NSIRD_screencaptureui_h1Jh6A/Zrzut ekranu 2026-08-30 o 14.45.05.png`.
 - Odrzucona implementacja: `artifacts/interface-recheck-2026-08-30/01-overloaded-sketch-ribbon.jpg`.
 - Implementacja: `artifacts/full-interface-audit-2026-08-30/08-sketch-ribbon-expanded.png`.
-- Wspólny kadr porównawczy: `artifacts/full-interface-audit-2026-08-30/09-sketch-ribbon-comparison.png`.
-- Stan i viewport: pusty szkic XY, okno Electron 1459 × 877 CSS px, zrzuty Retina 2918 px szerokości.
+- Wspólny kadr porównawczy: `artifacts/interface-recheck-2026-08-30/03-before-after-comparison.png`.
+- Stan i viewport: pusty szkic XY, rzeczywiście zainstalowana aplikacja, okno 1351 × 768 px po obu stronach porównania.
 
 W źródle podstawowe polecenia były schowane w menu mimo dużej pustej przestrzeni,
 a grupa `3 · ZAKOŃCZ` była sztucznie odsunięta do prawej krawędzi. Pierwsza
@@ -87,5 +87,6 @@ Historia ustaleń:
 
 ## Wynik
 
-**passed** — porównanie źródła i implementacji potwierdza wykorzystanie wolnej
-przestrzeni, mniejsze ikony, poprawną kolejność grup i brak przepełnienia.
+**passed** — porównanie przeciążonej i poprawionej implementacji przy identycznym
+oknie potwierdza przywróconą hierarchię, mniejsze ikony, poprawną kolejność grup
+i brak przepełnienia.
