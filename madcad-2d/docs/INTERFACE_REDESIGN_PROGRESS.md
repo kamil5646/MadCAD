@@ -37,3 +37,7 @@ Ujednolicić aplikację według hierarchii znanej z Worda i kontekstowego sposob
 - 2026-08-30: arkusz 2D otrzymał powiększenie `50–200%`, polecenie `Dopasuj` oraz niezależnie zwijane panele arkuszy i właściwości.
 - 2026-08-30: menu Plik poszerzono i zwiększono czytelność sekcji; panel skrótów doprecyzowuje przywracanie ustawień Autodesk, a okno licencji rozróżnia kontynuację, zakup i wsparcie.
 - 2026-08-30: kontrola po pakietach: `build:ui`, `verify:interface-consistency` oraz rozszerzony `verify:drawing-workspace` zakończone powodzeniem; zrzuty sprawdzone wizualnie.
+- 2026-08-30: testy komponentów `vitest`: 25 plików, 105 testów — wszystkie zaliczone. Test płaszczyzn rozszerzony o jednoznaczne nazwy dostępności.
+- 2026-08-30: zaliczone testy `assistive-tech`, `snap-feedback`, `sketch-drawing`, `start-experience`, `docked-panels`, `ribbon-overflow` i `command-line`. W teście paska poleceń uwzględniono tolerancję 1 px dla skalowania ekranu macOS.
+- 2026-08-30: zaliczone testy wyciągnięcia po zakończeniu szkicu (profil zamknięty i otwarty), nawigacji kamery prawym przyciskiem/kółkiem oraz importu STEP, STL i 3MF.
+- 2026-08-30: pełny test modelowania wykrył dwie nieprzetłumaczone podpowiedzi nawigacji w angielskim interfejsie; dodano brakujące tłumaczenia przed ponownym uruchomieniem całej kontroli.

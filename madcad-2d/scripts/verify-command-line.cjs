@@ -76,7 +76,7 @@ app.whenReady().then(async () => {
       const rect = bar.getBoundingClientRect();
       return {
         visible: Boolean(bar && rect.width > 0 && rect.height > 0),
-        insideViewport: rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight,
+        insideViewport: rect.left >= -1 && rect.top >= -1 && rect.right <= innerWidth + 1 && rect.bottom <= innerHeight + 1,
         value: input.value,
         prompt: document.querySelector('.command-line-prompt')?.textContent.trim() || '',
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
