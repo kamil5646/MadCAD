@@ -56,8 +56,8 @@ app.whenReady().then(async () => {
 
     await window.webContents.executeJavaScript(`document.querySelector('.navigation-bar [aria-label="Orbita"]')?.click()`);
     await waitFor(window, `document.querySelector('.navigation-bar [aria-label="Orbita"]')?.getAttribute('aria-pressed') === 'true'`, 'włączenie orbity przyciskiem');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('button')].find((button) => button.getAttribute('aria-label')?.startsWith('Wybierz. Wyczyść zaznaczenie'))?.click()`);
-    await waitFor(window, `document.querySelector('.navigation-bar [aria-label="Orbita"]')?.getAttribute('aria-pressed') === 'false'`, 'powrót do zaznaczania górnym przyciskiem Wybierz');
+    await window.webContents.executeJavaScript(`document.querySelector('.navigation-bar [aria-label="Orbita"]')?.click()`);
+    await waitFor(window, `document.querySelector('.navigation-bar [aria-label="Orbita"]')?.getAttribute('aria-pressed') === 'false'`, 'powrót do zaznaczania tym samym przyciskiem Orbita');
     await window.webContents.executeJavaScript(`document.querySelector('.navigation-bar [aria-label="Przesuń widok"]')?.click()`);
     await waitFor(window, `document.querySelector('.navigation-bar [aria-label="Przesuń widok"]')?.getAttribute('aria-pressed') === 'true'`, 'włączenie przesuwania przyciskiem');
     await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);

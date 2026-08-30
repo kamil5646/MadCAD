@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { alternateModifierPressed, multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
-import { Box, CircleDot, Crosshair, Diamond, Grid2X2, Magnet, Maximize2, Move3d, Orbit, Square, Trash2, Triangle, X, ZoomIn } from 'lucide-react';
+import { Box, CircleDot, Crosshair, Diamond, Grid2X2, Magnet, Maximize2, Move3d, Orbit, Square, Triangle, X, ZoomIn } from 'lucide-react';
 import * as THREE from 'three';
 import { calculatePrintLayout } from '../cad-core/print-layout.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -389,7 +389,6 @@ export default function ModelViewport({
   onSketchSelection,
   onSketchConstraintSelection,
   onSketchConstraintValueChange,
-  onDeleteSketchSelection,
   sketchModifierMode = null,
   onSketchModify,
   onSketchProfileSelection,
@@ -2062,9 +2061,9 @@ export default function ModelViewport({
       </div>}
       <div className="axis-indicator" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
       {!activeSketchId && bodies.length > 0 && <div className="selection-filter-bar" role="toolbar" aria-label="Filtr wyboru geometrii">
-        <span className="selection-filter-label">Zaznaczaj:</span>
+        <span className="selection-filter-label">Filtr:</span>
         {[
-          ['auto', 'Auto'],
+          ['auto', 'Wszystko'],
           ['body', 'Bryły'],
           ['face', 'Ściany'],
           ['edge', 'Krawędzie'],
@@ -2093,8 +2092,8 @@ export default function ModelViewport({
         />
       )}
       <div className="navigation-bar" role="toolbar" aria-label="Nawigacja widoku">
-        {!activeSketchId && <button className={navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT ? 'active' : ''} type="button" aria-label="Orbita" aria-pressed={navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT} title="Orbita modelu 3D: przeciągnij prawym przyciskiem myszy. Ten przycisk włącza też orbitę lewym przyciskiem." onClick={() => setNavigationMode((mode) => mode === VIEWPORT_NAVIGATION_MODES.ORBIT ? VIEWPORT_NAVIGATION_MODES.SELECT : VIEWPORT_NAVIGATION_MODES.ORBIT)}><Orbit size={15} /><span>Orbita</span></button>}
-        <button className={navigationMode === VIEWPORT_NAVIGATION_MODES.PAN ? 'active' : ''} type="button" aria-label="Przesuń widok" aria-pressed={navigationMode === VIEWPORT_NAVIGATION_MODES.PAN} title="Przesuń widok: przytrzymaj kółko myszy i przeciągnij. Ten przycisk włącza też przesuwanie lewym przyciskiem." onClick={() => setNavigationMode((mode) => mode === VIEWPORT_NAVIGATION_MODES.PAN ? VIEWPORT_NAVIGATION_MODES.SELECT : VIEWPORT_NAVIGATION_MODES.PAN)}><Move3d size={15} /><span>Przesuń</span></button>
+        {!activeSketchId && <button className={navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT ? 'active' : ''} type="button" aria-label="Orbita" aria-pressed={navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT} title="Orbita modelu 3D: przeciągnij prawym przyciskiem myszy. Kliknij ponownie lub naciśnij Esc, aby wrócić do zaznaczania." onClick={() => setNavigationMode((mode) => mode === VIEWPORT_NAVIGATION_MODES.ORBIT ? VIEWPORT_NAVIGATION_MODES.SELECT : VIEWPORT_NAVIGATION_MODES.ORBIT)}><Orbit size={15} /><span>Orbita</span></button>}
+        <button className={navigationMode === VIEWPORT_NAVIGATION_MODES.PAN ? 'active' : ''} type="button" aria-label="Przesuń widok" aria-pressed={navigationMode === VIEWPORT_NAVIGATION_MODES.PAN} title="Przesuń widok: przytrzymaj kółko myszy i przeciągnij. Kliknij ponownie lub naciśnij Esc, aby wrócić do zaznaczania." onClick={() => setNavigationMode((mode) => mode === VIEWPORT_NAVIGATION_MODES.PAN ? VIEWPORT_NAVIGATION_MODES.SELECT : VIEWPORT_NAVIGATION_MODES.PAN)}><Move3d size={15} /><span>Przesuń</span></button>
         <button type="button" aria-label="Powiększ model" title="Powiększ model. Kółko myszy przybliża pod pozycją kursora." onClick={() => setZoomScale((scale) => Math.max(0.35, scale * 0.78))}><ZoomIn size={15} /><span>Zoom</span></button>
         <button type="button" aria-label="Dopasuj cały model" title="Dopasuj cały model do dostępnego obszaru." onClick={() => selectStandardView(activeSketchId ? (activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top') : 'iso')}><Maximize2 size={15} /><span>Dopasuj</span></button>
       </div>
@@ -2124,12 +2123,6 @@ export default function ModelViewport({
         </>
         );
       })()}
-      {activeSketchId && selectedSketchEntityIds.length > 0 && onDeleteSketchSelection && (
-        <div className="sketch-selection-actions" role="toolbar" aria-label="Akcje zaznaczenia szkicu">
-          <span>{selectedSketchEntityIds.length === 1 ? '1 element zaznaczony' : `${selectedSketchEntityIds.length} elementy zaznaczone`}</span>
-          <button type="button" title={`Usuń zaznaczenie (${window.desktopApp?.platform === 'darwin' ? '⌫' : 'Delete'})`} onClick={onDeleteSketchSelection}><Trash2 size={14} /> Usuń <kbd>{window.desktopApp?.platform === 'darwin' ? '⌫' : 'Del'}</kbd></button>
-        </div>
-      )}
       {selectionBox && <div className={`sketch-selection-box ${selectionBox.crossing ? 'crossing' : 'inside'}`} style={{ left: selectionBox.left, top: selectionBox.top, width: selectionBox.width, height: selectionBox.height }} />}
       {blockingSketchDiagnostics.length > 0 && (
         <div className="sketch-diagnostics" role="status">
@@ -2184,16 +2177,10 @@ export default function ModelViewport({
           <button type="submit">Zastosuj</button>
         </form>
       )}
-      {activeSketchId && <div className="sketch-plane-badge"><PencilRulerIcon /> Szkic · {activePlane}</div>}
       {activeSketchId && sliceModel && <div className="sketch-slice-badge">Slice · przekrój na {activePlane}</div>}
       {activeSketchId && draftType && <div className="sketch-pointer-hint">Kliknij środek, a następnie punkt rozmiaru</div>}
       {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
       {activeSketchId && sketchTool && <div className="sketch-pointer-hint">{`${sketchToolPrompt || 'Klikaj kolejne punkty'} · ${sketchTool === 'line' && polylineDraft?.lastPoint ? 'wpisz długość i Enter lub kliknij koniec' : ['line', 'polyline', 'spline'].includes(sketchTool) ? 'Enter kończy' : 'Esc anuluje'}`}</div>}
-      {activeSketchId && !sketchTool && !draftType && !sketchModifierMode && <div className="sketch-pointer-hint">Kliknij geometrię, aby ją zaznaczyć · przeciągnij tło, aby wybrać obszarem</div>}
     </div>
   );
-}
-
-function PencilRulerIcon() {
-  return <span className="sketch-badge-mark" aria-hidden="true"><Square size={12} /></span>;
 }

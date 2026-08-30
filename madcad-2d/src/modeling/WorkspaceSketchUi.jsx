@@ -8,16 +8,18 @@ const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
 export function PlanePicker({ onPick, onCancel }) {
   const dialogRef = useDialogFocus();
   return (
-    <section ref={dialogRef} className="plane-picker" role="dialog" aria-modal="true" aria-labelledby="planePickerTitle" tabIndex="-1">
-      <header><div><strong id="planePickerTitle">Wybierz płaszczyznę szkicu</strong><span>Wskaż jedną z płaszczyzn początku.</span></div><button type="button" onClick={onCancel} title="Anuluj" aria-label="Anuluj wybór płaszczyzny"><X size={17} /></button></header>
-      <div className="plane-options">
-        {Object.entries(PLANE_LABELS).map(([plane, label]) => (
-          <button key={plane} type="button" data-dialog-initial-focus={plane === 'XY' ? '' : undefined} onClick={() => onPick(plane)}>
-            <Frame size={28} strokeWidth={1.25} /><strong>{plane}</strong><span>{label}</span>
-          </button>
-        ))}
-      </div>
-    </section>
+    <div className="plane-picker-backdrop">
+      <section ref={dialogRef} className="plane-picker" role="dialog" aria-modal="true" aria-labelledby="planePickerTitle" tabIndex="-1">
+        <header><div><strong id="planePickerTitle">Wybierz płaszczyznę szkicu</strong><span>Wskaż jedną z płaszczyzn początku.</span></div><button type="button" onClick={onCancel} title="Anuluj" aria-label="Anuluj wybór płaszczyzny"><X size={17} /></button></header>
+        <div className="plane-options">
+          {Object.entries(PLANE_LABELS).map(([plane, label]) => (
+            <button key={plane} type="button" data-dialog-initial-focus={plane === 'XY' ? '' : undefined} onClick={() => onPick(plane)}>
+              <Frame size={28} strokeWidth={1.25} /><strong>{plane}</strong><span>{label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }
 

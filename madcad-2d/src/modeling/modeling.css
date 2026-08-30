@@ -27,7 +27,7 @@
   inset: 0;
   z-index: 10000;
   display: grid;
-  grid-template-rows: 34px 88px minmax(0, 1fr) 69px;
+  grid-template-rows: 34px 92px minmax(0, 1fr) 69px;
   overflow: hidden;
   background: var(--mc-bg);
   color: var(--mc-text);
@@ -39,6 +39,12 @@
 .modeling-shell input,
 .modeling-shell select {
   font: inherit;
+}
+
+.start-page-mode .view-cube,
+.start-page-mode .axis-indicator,
+.start-page-mode .navigation-bar {
+  display: none;
 }
 
 .modeling-shell button:focus,
@@ -640,8 +646,8 @@
   display: flex;
   flex: 0 0 78px;
   min-width: 78px;
-  height: 57px;
-  padding: 1px 5px 11px;
+  height: 61px;
+  padding: 14px 5px 1px;
   align-items: stretch;
   border-right: 1px solid #465360;
 }
@@ -650,7 +656,7 @@
   display: grid;
   width: 68px;
   min-width: 68px;
-  height: 45px;
+  height: 46px;
   padding: 2px 3px;
   grid-template-rows: 27px 14px;
   place-items: center;
@@ -676,7 +682,7 @@
 .ribbon-overflow-menu {
   position: absolute;
   z-index: 30;
-  top: 58px;
+  top: 62px;
   right: 4px;
   display: grid;
   width: min(520px, calc(100vw - 24px));
@@ -769,8 +775,8 @@
   display: flex;
   flex: 0 0 auto;
   align-items: stretch;
-  height: 57px;
-  padding: 1px 8px 11px 7px;
+  height: 61px;
+  padding: 14px 8px 1px 7px;
   overflow: visible;
   border: 0;
   border-right: 1px solid #465360;
@@ -784,10 +790,10 @@
   position: absolute;
   z-index: 2;
   right: 5px;
-  bottom: 0;
+  top: 1px;
   left: 2px;
   display: flex;
-  height: 11px;
+  height: 12px;
   padding: 0;
   align-items: center;
   justify-content: center;
@@ -797,7 +803,7 @@
   font-size: 8.5px;
   font-weight: 700;
   letter-spacing: 0.06em;
-  line-height: 11px;
+  line-height: 12px;
   white-space: nowrap;
 }
 
@@ -2323,54 +2329,6 @@
   to { box-shadow: 0 0 0 6px rgba(36, 181, 211, 0.34), 0 0 20px rgba(55, 225, 255, 1); }
 }
 
-.sketch-selection-actions {
-  position: absolute;
-  z-index: 11;
-  bottom: 43px;
-  left: 50%;
-  display: flex;
-  min-height: 32px;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 4px 3px 9px;
-  border: 1px solid #6b7d8c;
-  border-radius: 5px;
-  background: rgba(31, 40, 50, 0.96);
-  color: #cfdae1;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34);
-  font-size: 10px;
-  transform: translateX(-50%);
-}
-
-.sketch-selection-actions button {
-  display: flex;
-  min-height: 25px;
-  align-items: center;
-  gap: 5px;
-  padding: 0 7px;
-  border: 1px solid #e26a70;
-  border-radius: 3px;
-  background: #71373c;
-  color: #fff2f3;
-  font: 700 10px/1 system-ui, sans-serif;
-  cursor: pointer;
-}
-
-.sketch-selection-actions button:hover,
-.sketch-selection-actions button:focus-visible {
-  border-color: #ff959a;
-  background: #8a4147;
-}
-
-.sketch-selection-actions kbd {
-  padding: 2px 4px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 2px;
-  background: rgba(0, 0, 0, 0.22);
-  color: #ffd9dc;
-  font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .sketch-snap-marker i { animation: none; }
 }
@@ -3138,6 +3096,24 @@
   background: #343e4b;
   box-shadow: 0 22px 60px rgba(7, 12, 18, 0.48);
   transform: translate(-50%, -50%);
+}
+
+.plane-picker-backdrop {
+  position: fixed;
+  z-index: 11000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  background: rgba(10, 16, 23, 0.66);
+  backdrop-filter: blur(1px);
+}
+
+.plane-picker-backdrop .plane-picker {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
 }
 
 .plane-picker > header,
@@ -4329,8 +4305,9 @@
 .sketch-palette {
   position: absolute;
   z-index: 6;
-  top: 132px;
+  top: auto;
   right: 12px;
+  bottom: 48px;
   width: 218px;
   border: 1px solid #66717e;
   border-radius: 2px;
@@ -4339,7 +4316,11 @@
 }
 
 .sketch-palette.collapsed {
-  width: 190px;
+  width: 118px;
+}
+
+.sketch-palette.collapsed .sketch-palette-heading strong {
+  display: none;
 }
 
 .sketch-palette > header {
@@ -4888,15 +4869,23 @@
 }
 
 .modeling-shell.drawing-mode {
-  grid-template-rows: 34px 88px minmax(0, 1fr) 34px;
+  grid-template-rows: 34px 92px minmax(0, 1fr) 34px;
 }
 
 .drawing-mode .modeling-footer {
   grid-template-rows: 34px;
 }
 
+.modeling-shell.sketch-mode {
+  grid-template-rows: 34px 92px minmax(0, 1fr) 34px;
+}
+
+.sketch-mode .modeling-footer {
+  grid-template-rows: 34px;
+}
+
 .modeling-shell.timeline-empty {
-  grid-template-rows: 34px 88px minmax(0, 1fr) 34px;
+  grid-template-rows: 34px 92px minmax(0, 1fr) 34px;
 }
 
 .timeline-empty .modeling-footer {

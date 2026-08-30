@@ -2548,7 +2548,7 @@ async function runUiFlow(window) {
   const selectionFilters = await window.webContents.executeJavaScript(`(() => {
     const buttons = [...document.querySelectorAll('.selection-filter-bar button')];
     const vertex = buttons.find((button) => button.textContent === 'Punkty');
-    const automatic = buttons.find((button) => button.textContent === 'Auto');
+    const automatic = buttons.find((button) => button.textContent === 'Wszystko');
     if (!vertex || !automatic || vertex.disabled) return { count: buttons.length, switched: false };
     const vertexKey = Object.keys(vertex).find((item) => item.startsWith('__reactProps'));
     vertex[vertexKey].onClick();

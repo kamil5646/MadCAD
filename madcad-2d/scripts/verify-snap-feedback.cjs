@@ -96,11 +96,10 @@ app.whenReady().then(async () => {
       await waitFor(window, `document.querySelector('.model-viewport.sketch-view') && window.__madcadPatternFixtureIds?.lineIds?.length === 4`, 'szkic testowy usuwania');
       const lineId = await window.webContents.executeJavaScript(`window.__madcadPatternFixtureIds.lineIds[0]`);
       await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection([${JSON.stringify(lineId)}], 'replace')`);
-      await waitFor(window, `document.querySelector('.sketch-selection-actions button')?.textContent.includes('Usuń')`, 'widoczna akcja usuwania');
+      await waitFor(window, `document.querySelector('.ribbon-tool[data-tool-label="Usuń"]:not(:disabled)')`, 'dostępna akcja usuwania na wstążce');
       deleteAction = await window.webContents.executeJavaScript(`(() => {
-        const action = document.querySelector('.sketch-selection-actions');
-        const button = action?.querySelector('button');
-        return { visible: Boolean(action && button), text: action?.textContent?.trim() || '', title: button?.title || '' };
+        const button = document.querySelector('.ribbon-tool[data-tool-label="Usuń"]:not(:disabled)');
+        return { visible: Boolean(button), text: button?.textContent?.trim() || '', title: button?.getAttribute('aria-label') || button?.title || '' };
       })()`);
       await fs.writeFile(deleteScreenshotPath, (await window.webContents.capturePage()).toPNG());
       await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true }))`);
