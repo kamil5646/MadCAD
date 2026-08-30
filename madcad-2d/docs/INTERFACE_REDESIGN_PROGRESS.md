@@ -28,6 +28,7 @@ Ujednolicić aplikację według hierarchii znanej z Worda i kontekstowego sposob
 - [x] Pełna walidacja i lokalna instalacja macOS.
 - [x] Ponowny audyt z aktualnych zrzutów po uwagach o kolizjach i niespójnych proporcjach.
 - [x] Usunięcie duplikatów w `ZARZĄDZAJ` i regresja funkcjonalna paneli projektu.
+- [x] Responsywne wykorzystanie wolnego miejsca we wstążce szkicu i zmniejszenie ikon.
 
 ## Dziennik
 
@@ -55,3 +56,6 @@ Ujednolicić aplikację według hierarchii znanej z Worda i kontekstowego sposob
 - 2026-08-30: stopkę komunikatu licencyjnego ustawiono w przewidywalnym układzie: trzy działania informacyjne w pierwszym rzędzie, a główne `Przejdź do programu` osobno po prawej. Na małym ekranie akcje przechodzą w jedną kolumnę.
 - 2026-08-30: po poprawkach zaliczone: `lint`, 105/105 testów komponentów, 185/185 testów core, `start-experience`, `interface-consistency`, `project-snapshots`, `project-health`, `project-dependencies`, `named-views`, `drawing-workspace`, `ribbon-overflow`, `extrude-after-sketch` i `assistive-tech`. Jednorazowy `UnknownVizError` testu zrzutu wystąpił przy równoległym uruchomieniu wielu instancji Electron; powtórzenie testu wstążki osobno zakończyło się powodzeniem.
 - 2026-08-30: pełny `verify-modeling` po końcowym układzie zaliczony. Obejmuje m.in. szkic myszą i dokładną długość jak w AutoCAD, zakończenie szkicu i wyciągnięcie, operacje B-Rep, konstrukcję, import/eksport, druk 3D, parametry z pulpitu `ZARZĄDZAJ`, skalowanie 100/150/200%, dostępność i interfejs angielski.
+- 2026-08-30: szeroka wstążka szkicu nie chowa już podstawowych poleceń mimo wolnej przestrzeni. Przy szerokości od 1260 px bezpośrednio pokazuje `Łuk`, `Odsuń`, `Przesuń`, `Warstwy` i `Bloki`, a grupa `Zakończ szkic` następuje po narzędziach zamiast być przyklejona do prawego brzegu. Przy węższym oknie polecenia wracają do menu bez duplikatów.
+- 2026-08-30: ikony wstążki zmniejszono o około 2 px. Automatyczna kontrola przy 1459 × 877 potwierdza wszystkie wymagane etykiety, brak ukrytych grup i przepełnienia oraz sąsiedztwo grup `NARZĘDZIA` i `3 · ZAKOŃCZ`; wynik porównania wizualnego zapisano w `design-qa.md`.
+- 2026-08-30: po zmianie zaliczone: `lint`, 105/105 testów komponentów, 185/185 testów core, `interface-consistency`, `sketch-drawing`, `ribbon-overflow`, `assistive-tech` oraz pełny `verify-modeling`. Test modelowania korzysta teraz z bezpośrednio widocznego narzędzia, a przy wąskiej wstążce nadal obsługuje jego pozycję w menu.

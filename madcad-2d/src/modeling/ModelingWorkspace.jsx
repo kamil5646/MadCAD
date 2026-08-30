@@ -423,6 +423,13 @@ export default function ModelingWorkspace() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [licenseInfoOpen, setLicenseInfoOpen] = useState(true);
   const [fullLicenseOpen, setFullLicenseOpen] = useState(false);
+  const [expandedSketchRibbon, setExpandedSketchRibbon] = useState(() => window.matchMedia('(min-width: 1260px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1260px)');
+    const update = () => setExpandedSketchRibbon(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const [language] = useState(() => {
     const requestedLanguage = new URLSearchParams(window.location.search).get('verifyLanguage')
       || readStoredLanguage()
@@ -5517,8 +5524,9 @@ export default function ModelingWorkspace() {
                   <ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} />
                   <ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} />
                   <ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} />
+                  {expandedSketchRibbon && <ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} dense />}
                   <ToolMenuButton icon={Shapes} label="Więcej kształtów" description="Łuki, wielokąty, elipsy i pozostałe kształty szkicu." items={[
-                    { icon: Rotate3d, label: 'Łuk', onClick: () => openMechanicalShape('arc'), disabled: readOnly },
+                    ...(!expandedSketchRibbon ? [{ icon: Rotate3d, label: 'Łuk', onClick: () => openMechanicalShape('arc'), disabled: readOnly }] : []),
                     { icon: RotateCw, label: 'Łuk styczny', onClick: () => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current), disabled: readOnly || command?.type !== 'polyline' || !command.segmentIds.length, disabledReason: 'Najpierw rozpocznij polilinię i dodaj pierwszy odcinek.' },
                     { icon: Hexagon, label: 'Wielokąt', onClick: () => openMechanicalShape('polygon'), disabled: readOnly },
                     { icon: Shapes, label: 'Elipsa', onClick: () => openMechanicalShape('ellipse'), disabled: readOnly },
@@ -5531,11 +5539,15 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="2 · EDYTUJ">
                   <ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { activateSelectionMode(); handleSketchSelection([], 'replace'); }} />
                   <ToolButton icon={Scissors} label="Trim" displayLabel="Przytnij" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} />
+                  {expandedSketchRibbon && <ToolButton icon={Copy} label="Offset" displayLabel="Odsuń" onClick={openSketchOffset} disabled={readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile)} disabledReason="Zaznacz krzywą albo profil." dense />}
+                  {expandedSketchRibbon && <ToolButton icon={Move3d} label="Przesuń" onClick={openSketchMove} disabled={readOnly || !selectedSketchEntityIds.length} disabledReason="Zaznacz geometrię szkicu." dense />}
                   <ToolMenuButton icon={Copy} label="Modyfikuj" description="Przedłużanie, dzielenie, odsuwanie i dokładne przekształcenia." items={[
                     { icon: Maximize2, label: 'Extend', displayLabel: 'Przedłuż', onClick: () => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' }), disabled: readOnly },
                     { icon: Minus, label: 'Break', displayLabel: 'Podziel', onClick: () => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' }), disabled: readOnly },
-                    { icon: Copy, label: 'Offset', displayLabel: 'Odsuń', onClick: openSketchOffset, disabled: readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile), disabledReason: 'Zaznacz krzywą albo profil.' },
-                    { icon: Move3d, label: 'Przesuń', onClick: openSketchMove, disabled: readOnly || !selectedSketchEntityIds.length, disabledReason: 'Zaznacz geometrię szkicu.' },
+                    ...(!expandedSketchRibbon ? [
+                      { icon: Copy, label: 'Offset', displayLabel: 'Odsuń', onClick: openSketchOffset, disabled: readOnly || (!selectedSketchEntityIds.length && !activeOffsetProfile), disabledReason: 'Zaznacz krzywą albo profil.' },
+                      { icon: Move3d, label: 'Przesuń', onClick: openSketchMove, disabled: readOnly || !selectedSketchEntityIds.length, disabledReason: 'Zaznacz geometrię szkicu.' },
+                    ] : []),
                     { icon: CircleDotDashed, label: 'Fillet szkicu', displayLabel: 'Zaokrąglij narożnik', onClick: () => openSketchCorner('fillet'), disabled: readOnly || selectedSketchEntityIds.length !== 2, disabledReason: 'Zaznacz dokładnie dwie stykające się linie.' },
                     { icon: Triangle, label: 'Faza szkicu', displayLabel: 'Fazuj narożnik', onClick: () => openSketchCorner('chamfer'), disabled: readOnly || selectedSketchEntityIds.length !== 2, disabledReason: 'Zaznacz dokładnie dwie stykające się linie.' },
                   ]} />
@@ -5555,11 +5567,15 @@ export default function ModelingWorkspace() {
                   ]} />
                 </RibbonGroup>
                 <RibbonGroup label="NARZĘDZIA">
+                  {expandedSketchRibbon && <ToolButton icon={Layers3} label="Warstwy" onClick={() => { setBlocksOpen(false); setComponentsOpen(false); setLayersOpen(true); }} dense />}
+                  {expandedSketchRibbon && <ToolButton icon={Blocks} label="Bloki" onClick={() => { setLayersOpen(false); setComponentsOpen(false); setBlocksOpen(true); }} dense />}
                   <ToolMenuButton icon={Grid2X2} label="Więcej narzędzi" description="Transformacje, szyki, warstwy i bloki." items={[
                     { icon: RotateCw, label: 'Transformuj', onClick: openSketchTransform, disabled: readOnly || !selectedSketchEntityIds.length, disabledReason: 'Zaznacz geometrię szkicu.' },
                     { icon: Grid2X2, label: 'Szyk szkicu', onClick: openSketchPattern, disabled: readOnly || !selectedSketchEntityIds.length, disabledReason: 'Zaznacz geometrię szkicu.' },
-                    { icon: Layers3, label: 'Warstwy', onClick: () => { setBlocksOpen(false); setComponentsOpen(false); setLayersOpen(true); } },
-                    { icon: Blocks, label: 'Bloki', onClick: () => { setLayersOpen(false); setComponentsOpen(false); setBlocksOpen(true); } },
+                    ...(!expandedSketchRibbon ? [
+                      { icon: Layers3, label: 'Warstwy', onClick: () => { setBlocksOpen(false); setComponentsOpen(false); setLayersOpen(true); } },
+                      { icon: Blocks, label: 'Bloki', onClick: () => { setLayersOpen(false); setComponentsOpen(false); setBlocksOpen(true); } },
+                    ] : []),
                   ]} />
                   {Boolean(document.sketches.find((sketch) => sketch.id === activeSketchId)?.entities?.length) && <ToolMenuButton icon={Box} label="Utwórz 3D" description="Utwórz bryłę z otwartej geometrii szkicu." items={[
                     { icon: Box, label: 'Thin Extrude', displayLabel: 'Wyciągnij cienkościennie', onClick: openExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
@@ -5567,7 +5583,7 @@ export default function ModelingWorkspace() {
                     { icon: Cylinder, label: 'Pipe', displayLabel: 'Rura', onClick: openPipe, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągłą otwartą ścieżkę.' },
                   ]} />}
                 </RibbonGroup>
-                <RibbonGroup label="3 · ZAKOŃCZ" end><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
+                <RibbonGroup label="3 · ZAKOŃCZ"><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
             ) : workspace === 'drawing' ? (
               <>

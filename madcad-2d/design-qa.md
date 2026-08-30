@@ -1,6 +1,6 @@
 # MadCAD — audyt interfejsu
 
-Aktualizacja: 2026-08-13
+Aktualizacja: 2026-08-30
 Zakres: główny przepływ desktopowy, okno licencji, szkic, modelowanie 3D,
 utracone referencje, wąskie okno, klawiatura, skala 100–200% i PL/EN.
 
@@ -18,6 +18,34 @@ Automatyczny test zapisuje aktualne zrzuty w ignorowanym katalogu `artifacts/`:
 
 Zrzuty są generowane przez `npm run verify:modeling` z rzeczywistego okna
 Electron. Nie są atrapami ani statycznymi makietami.
+
+## Porównanie wstążki szkicu — 2026-08-30
+
+- Źródło: `/var/folders/sf/jgwqqr_j0xzdg337ynw3fdkh0000gn/T/TemporaryItems/NSIRD_screencaptureui_h1Jh6A/Zrzut ekranu 2026-08-30 o 14.45.05.png`.
+- Implementacja: `artifacts/full-interface-audit-2026-08-30/08-sketch-ribbon-expanded.png`.
+- Wspólny kadr porównawczy: `artifacts/full-interface-audit-2026-08-30/09-sketch-ribbon-comparison.png`.
+- Stan i viewport: pusty szkic XY, okno Electron 1459 × 877 CSS px, zrzuty Retina 2918 px szerokości.
+
+W źródle podstawowe polecenia były schowane w menu mimo dużej pustej przestrzeni,
+a grupa `3 · ZAKOŃCZ` była sztucznie odsunięta do prawej krawędzi. Po poprawce
+szeroka wstążka pokazuje bezpośrednio `Łuk`, `Odsuń`, `Przesuń`, `Warstwy` i
+`Bloki`, natomiast `Zakończ szkic` znajduje się od razu po grupie narzędzi.
+Przy węższym oknie te polecenia wracają do menu, więc wstążka nie przepełnia się.
+
+Kontrola powierzchni wizualnych:
+
+- typografia i paleta pozostały zgodne z istniejącym systemem;
+- odstępy wykorzystują szerokość bez przyklejania grupy zakończenia do krawędzi;
+- ikony zmniejszono o około 2 px, zachowując ich bibliotekę, kolory grup i czytelność;
+- teksty poleceń nie są ucinane, grupy nie nachodzą na siebie, brak poziomego przepełnienia;
+- pełny widok i skupiony kadr wstążki porównano razem, przy tym samym stanie i szerokości.
+
+Historia ustaleń:
+
+- P1: podstawowe narzędzia schowane mimo wolnego miejsca — naprawione responsywnym progiem 1260 px;
+- P1: odłączona grupa zakończenia szkicu — naprawione przez usunięcie wymuszonego wyrównania do końca;
+- P2: ikony zbyt duże względem dwurzędowego układu — zmniejszone do 21 px, a ikony wyróżnione do 32 × 29 px;
+- kontrola po poprawce: brak otwartych problemów P0, P1 i P2 w tym stanie.
 
 ## Przejście po interfejsie
 
@@ -55,6 +83,5 @@ Electron. Nie są atrapami ani statycznymi makietami.
 
 ## Wynik
 
-Główny przepływ nie ma znanego błędu wizualnego P0. Otwarte ryzyka to ręczna
-ocena kontrastu, test technologii asystujących oraz dalsze ograniczanie
-gęstości wstążki bez ukrywania funkcji CAD.
+**passed** — porównanie źródła i implementacji potwierdza wykorzystanie wolnej
+przestrzeni, mniejsze ikony, poprawną kolejność grup i brak przepełnienia.

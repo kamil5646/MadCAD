@@ -873,6 +873,10 @@
   grid-row: 1 / span 2;
 }
 
+.ribbon-tool-wrap.dense {
+  min-width: 82px;
+}
+
 .ribbon-tool-menu-wrap {
   position: relative;
 }
@@ -993,6 +997,13 @@
   border-radius: 9px;
 }
 
+.ribbon-tool.dense {
+  min-width: 82px;
+  padding-right: 6px;
+  padding-left: 6px;
+  grid-template-columns: 22px minmax(0, 1fr);
+}
+
 .tool-help-tooltip {
   position: fixed;
   z-index: 40;
@@ -1053,8 +1064,8 @@
 .ribbon-icon {
   position: relative;
   display: grid;
-  width: 23px;
-  height: 23px;
+  width: 21px;
+  height: 21px;
   place-items: center;
   color: #e4edf2;
   filter: none;
@@ -1065,8 +1076,8 @@
 .ribbon-glyph svg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
 .ribbon-glyph-depth { color: rgba(7, 13, 20, 0.78); opacity: 0.72; transform: translate(calc(-50% + 1.2px), calc(-50% + 1.5px)) !important; }
 .ribbon-glyph-face { filter: drop-shadow(0 1px 1px rgba(2, 8, 13, 0.28)); }
-.ribbon-tool:not(.featured) .ribbon-icon svg { width: 23px; height: 23px; }
-.ribbon-tool.featured .ribbon-icon { width: 34px; height: 31px; }
+.ribbon-tool:not(.featured) .ribbon-icon svg { width: 21px; height: 21px; }
+.ribbon-tool.featured .ribbon-icon { width: 32px; height: 29px; }
 
 .ribbon-tool.primary {
   border-color: color-mix(in srgb, var(--tool-accent) 34%, #4a5a69);

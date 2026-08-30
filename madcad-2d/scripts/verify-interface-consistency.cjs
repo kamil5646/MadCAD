@@ -10,6 +10,7 @@ const overflowScreenshotPath = path.join(artifactsDir, '04-visible-more-menu.png
 const designScreenshotPath = path.join(artifactsDir, '05-design-unified.png');
 const constructionScreenshotPath = path.join(artifactsDir, '06-construction-menu.png');
 const fileMenuScreenshotPath = path.join(artifactsDir, '07-file-menu-fixed.png');
+const sketchRibbonScreenshotPath = path.join(artifactsDir, '08-sketch-ribbon-expanded.png');
 
 async function waitFor(window, expression, label, timeoutMs = 45000) {
   const startedAt = Date.now();
@@ -83,7 +84,35 @@ app.whenReady().then(async () => {
       ribbonHeight: document.querySelector('.command-area')?.getBoundingClientRect().height || 0,
     }))()`);
     const expectedDesignMenus = ['Więcej brył', 'Więcej zmian', 'Łącz i dziel', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
-    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !designStructure.customCadIcons || designStructure.iconSize < 22 || designStructure.featuredIconSize < 33 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !designStructure.customCadIcons || designStructure.iconSize < 20 || designStructure.featuredIconSize < 31 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+
+    if (!(await clickText(window, '.ribbon-tool', 'Utwórz szkic'))) throw new Error('Brak polecenia Utwórz szkic.');
+    await waitFor(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny szkicu');
+    await window.webContents.executeJavaScript(`document.querySelector('.plane-options button')?.click()`);
+    await waitFor(window, `document.querySelector('.modeling-shell.sketch-mode')`, 'aktywny szkic');
+    window.setContentSize(1459, 877);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const expandedSketch = await window.webContents.executeJavaScript(`(() => {
+      const directLabels = [...document.querySelectorAll('.modeling-ribbon .ribbon-visible-groups > .ribbon-group .ribbon-tool')].map((item) => item.dataset.toolLabel).filter(Boolean);
+      const toolsGroup = document.querySelector('.ribbon-group[aria-label="NARZĘDZIA"]')?.getBoundingClientRect();
+      const finishGroup = document.querySelector('.ribbon-group[aria-label="3 · ZAKOŃCZ"]')?.getBoundingClientRect();
+      const ribbon = document.querySelector('.modeling-ribbon');
+      return {
+        directLabels,
+        requiredDirect: ['Łuk', 'Offset', 'Przesuń', 'Warstwy', 'Bloki', 'Zakończ szkic'].every((label) => directLabels.includes(label)),
+        menus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
+        finishFollowsTools: Boolean(toolsGroup && finishGroup && finishGroup.left - toolsGroup.right <= 8),
+        hiddenGroups: document.querySelectorAll('.ribbon-visible-groups > .ribbon-group[hidden]').length,
+        hiddenGroupLabels: [...document.querySelectorAll('.ribbon-visible-groups > .ribbon-group[hidden]')].map((item) => item.getAttribute('aria-label')),
+        horizontalOverflow: ribbon.scrollWidth > ribbon.clientWidth + 1,
+      };
+    })()`);
+    if (!expandedSketch.requiredDirect || !expandedSketch.finishFollowsTools || expandedSketch.hiddenGroups || expandedSketch.horizontalOverflow) throw new Error(`Szeroka wstążka szkicu nadal chowa podstawowe narzędzia mimo wolnego miejsca: ${JSON.stringify(expandedSketch)}`);
+    await fs.writeFile(sketchRibbonScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    await clickText(window, '.ribbon-tool', 'Zakończ szkic');
+    await waitFor(window, `!document.querySelector('.modeling-shell.sketch-mode')`, 'zakończenie szkicu po kontroli wstążki');
+    window.setContentSize(2200, 877);
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
     window.setContentSize(1351, 877);
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -177,7 +206,7 @@ app.whenReady().then(async () => {
     }
     await fs.writeFile(overflowScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
-    process.stdout.write(`${JSON.stringify({ ok: true, tabs, fileMenu, designStructure, emptyModelGroups, loadedModelGroups, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, tabs, fileMenu, designStructure, expandedSketch, emptyModelGroups, loadedModelGroups, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

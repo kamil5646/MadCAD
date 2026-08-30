@@ -305,7 +305,8 @@ async function runUiFlow(window) {
           : 'Punkty')
       : null;
     const sketchMenuLabel = sketchToolMenus.get(label);
-    const menuLabel = sketchMenuLabel || constructionMenuLabel || solidToolMenus.get(label);
+    const directRibbonTool = await ribbonHasTool(label);
+    const menuLabel = directRibbonTool ? null : (sketchMenuLabel || constructionMenuLabel || solidToolMenus.get(label));
     if (menuLabel) {
       if (!sketchMenuLabel) await clickWorkspace('PROJEKTUJ');
       await window.webContents.executeJavaScript(`(() => {
