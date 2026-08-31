@@ -3,11 +3,13 @@ import opencascadeWasm from 'replicad-opencascadejs/src/replicad_single.wasm?url
 import manifoldModule from 'manifold-3d';
 import manifoldWasm from 'manifold-3d/manifold.wasm?url';
 import {
+  addHolesInFace,
   Curve2D,
   FaceFinder,
   Plane,
   Vector,
   cast,
+  compoundShapes,
   drawCircle,
   drawEllipse,
   draw,
@@ -243,6 +245,83 @@ function drawingForProfile(profile) {
   throw new Error(`Nieobsługiwany profil: ${profile.type}`);
 }
 
+const PROFILE_PLANE_NORMALS = { XY: [0, 0, 1], XZ: [0, -1, 0], YZ: [1, 0, 0] };
+
+function planarPatchForProfile(profile) {
+  const plane = profile.plane || 'XY';
+  const planeOffset = Number(profile.planeOffset || 0);
+  const outerSketch = drawingForProfile(profile).sketchOnPlane(plane, planeOffset);
+  const face = outerSketch.face();
+  const holeWires = (profile.geometry.holes || []).map((hole) => {
+    const sketch = drawingForSegments(hole.segments, profile.id).sketchOnPlane(plane, planeOffset);
+    const wire = sketch.wire.clone();
+    sketch.delete();
+    return wire;
+  });
+  if (!holeWires.length) return face;
+  const patchedFace = addHolesInFace(face, holeWires);
+  face.delete();
+  holeWires.forEach((wire) => wire.delete());
+  return patchedFace;
+}
+
+function prismWireSurface(drawing, plane, planeOffset, distance) {
+  const sketch = drawing.sketchOnPlane(plane, planeOffset);
+  const wire = sketch.wire.clone();
+  const vector = new Vector(PROFILE_PLANE_NORMALS[plane].map((value) => value * distance));
+  const builder = new (getOC().BRepPrimAPI_MakePrism_1)(wire.wrapped, vector.wrapped, true, true);
+  const shape = cast(builder.Shape());
+  builder.delete();
+  vector.delete();
+  wire.delete();
+  sketch.delete();
+  return shape;
+}
+
+function extrudedSurfaceForProfile(profile, distance) {
+  const plane = profile.plane || 'XY';
+  const planeOffset = Number(profile.planeOffset || 0);
+  if (profile.type === 'open') return prismWireSurface(drawingForSegments(profile.geometry.segments, profile.id), plane, planeOffset, distance);
+  const surfaces = [prismWireSurface(drawingForProfile(profile), plane, planeOffset, distance)];
+  for (const hole of profile.geometry.holes || []) surfaces.push(prismWireSurface(drawingForSegments(hole.segments, profile.id), plane, planeOffset, distance));
+  return surfaces.length === 1 ? surfaces[0] : compoundShapes(surfaces);
+}
+
+function prismShape(shape, direction, distance, startOffset = 0) {
+  const moved = Math.abs(startOffset) > GEOMETRY_POLICY.linearTolerance
+    ? shape.clone().translate(direction.map((value) => value * startOffset))
+    : shape;
+  const vector = new Vector(direction.map((value) => value * distance));
+  const builder = new (getOC().BRepPrimAPI_MakePrism_1)(moved.wrapped, vector.wrapped, true, true);
+  const result = cast(builder.Shape());
+  builder.delete();
+  vector.delete();
+  if (moved !== shape) moved.delete();
+  return result;
+}
+
+function thickenSurfaceBody(target, feature) {
+  if (target.surfaceSourceType === 'patch') {
+    const direction = PROFILE_PLANE_NORMALS[target.surfaceProfile.plane || 'XY'];
+    const distance = feature.thicknessValue * (feature.reverse ? -1 : 1);
+    return prismShape(target.shape, direction, distance, feature.side === 'symmetric' ? -distance / 2 : 0);
+  }
+  if (target.surfaceSourceType === 'extrude') {
+    const wallSide = feature.side === 'symmetric' ? 'symmetric' : (feature.reverse ? 'inside' : 'outside');
+    const drawing = target.surfaceProfile.type === 'open'
+      ? openChainStrip(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, endCap: 'butt' })
+      : thinDrawingForProfile(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide });
+    let shape = drawing.sketchOnPlane(target.surfaceProfile.plane || 'XY', Number(target.surfaceProfile.planeOffset || 0)).extrude(target.surfaceDistance);
+    for (const transform of target.surfaceTransforms || []) {
+      shape = transform.mode === 'move'
+        ? shape.translate(...transform.translation)
+        : shape.rotate(transform.angle, transform.origin, [0, 0, 1]);
+    }
+    return shape;
+  }
+  throw new Error('Nie rozpoznano źródła powierzchni do pogrubienia.');
+}
+
 const THROUGH_ALL_DISTANCE = 1_000_000;
 
 function matchingTranslatedPlanarFaceIndex(reference, descriptors, sourceNormal) {
@@ -473,6 +552,55 @@ function makeCone(firstRadius, secondRadius, height, location, direction) {
 function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.status === FEATURE_STATUS.SUPPRESSED || feature.status === FEATURE_STATUS.ROLLED_BACK) return;
 
+  if (feature.type === 'surfacePatch') {
+    const bodyId = `body-${feature.id}`;
+    bodyMap.set(bodyId, {
+      id: bodyId,
+      name: feature.name,
+      sourceFeatureId: feature.id,
+      representation: 'brep',
+      bodyKind: 'surface',
+      surfaceSourceType: 'patch',
+      surfaceProfile: feature.profile,
+      shape: planarPatchForProfile(feature.profile),
+    });
+    bodyOrder.push(bodyId);
+    return;
+  }
+
+  if (feature.type === 'surfaceExtrude') {
+    const bodyId = `body-${feature.id}`;
+    bodyMap.set(bodyId, {
+      id: bodyId,
+      name: feature.name,
+      sourceFeatureId: feature.id,
+      representation: 'brep',
+      bodyKind: 'surface',
+      surfaceSourceType: 'extrude',
+      surfaceProfile: feature.profile,
+      surfaceDistance: feature.distanceValue,
+      shape: extrudedSurfaceForProfile(feature.profile, feature.distanceValue),
+    });
+    bodyOrder.push(bodyId);
+    return;
+  }
+
+  if (feature.type === 'thickenSurface') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target || target.bodyKind !== 'surface') throw new Error(`Nie znaleziono powierzchni dla ${feature.name}.`);
+    const sourceShape = target.shape;
+    target.shape = thickenSurfaceBody(target, feature);
+    sourceShape.delete?.();
+    target.bodyKind = 'solid';
+    target.name = feature.name;
+    target.sourceFeatureId = feature.id;
+    delete target.surfaceSourceType;
+    delete target.surfaceProfile;
+    delete target.surfaceDistance;
+    delete target.surfaceTransforms;
+    return;
+  }
+
   if (feature.type === 'importedModel') {
     if (!feature.importedShape) throw new Error(`Nie załadowano geometrii ${feature.name}.`);
     const bodyId = `body-${feature.id}`;
@@ -545,6 +673,11 @@ function runFeature(feature, bodyMap, bodyOrder) {
     if (feature.mode === 'move') target.shape = target.shape.translate(...feature.translation);
     else if (feature.mode === 'rotate') target.shape = target.shape.rotate(feature.angleValue, feature.origin, [0, 0, 1]);
     else throw new Error(`Nieobsługiwana transformacja: ${feature.mode}.`);
+    if (target.bodyKind === 'surface' && target.surfaceSourceType === 'extrude') {
+      target.surfaceTransforms = [...(target.surfaceTransforms || []), feature.mode === 'move'
+        ? { mode: 'move', translation: feature.translation }
+        : { mode: 'rotate', angle: feature.angleValue, origin: feature.origin }];
+    }
     return;
   }
 
@@ -1362,6 +1495,7 @@ function meshBody(body, index, quality = 'display') {
       id: body.id,
       name: body.name,
       sourceFeatureId: body.sourceFeatureId,
+      bodyKind: body.bodyKind || 'solid',
       representation: 'mesh-import',
       manufacturingHoles: body.manufacturingHoles || [],
       meshBooleanCapable: body.meshBooleanCapable !== false,
@@ -1410,6 +1544,7 @@ function meshBody(body, index, quality = 'display') {
     id: body.id,
     name: body.name,
     sourceFeatureId: body.sourceFeatureId,
+    bodyKind: body.bodyKind || 'solid',
     representation: body.representation || 'brep',
     manufacturingHoles: body.manufacturingHoles || [],
     color: ['#55b7db', '#81c784', '#ffb95c', '#c49cff'][index % 4],
@@ -1658,6 +1793,7 @@ async function validateExportRoundTrip(kernelBodies, blobs, format) {
 }
 
 function preparePrintBodies(kernelBodies, renderBodies, print) {
+  if (kernelBodies.some((body) => body.bodyKind === 'surface')) throw new Error('Druk 3D wymaga bryły zamkniętej. Użyj Pogrub na każdej powierzchni przed przejściem do WYTWARZAJ.');
   const layoutResult = calculatePrintLayout(renderBodies, print);
   const layout = normalizePrintLayout(print);
   return layoutResult.instances.flatMap(({ index, offsetX }) => kernelBodies.map((body) => {
@@ -1674,6 +1810,7 @@ function preparePrintBodies(kernelBodies, renderBodies, print) {
 async function exportBodies(kernelBodies, format, validateRoundTrip = false) {
   if (!kernelBodies.length) throw new Error('Brak bryły do eksportu.');
   if (!['step', 'stl', '3mf'].includes(format)) throw new Error(`Nieobsługiwany format eksportu: ${format}.`);
+  if (format !== 'step' && kernelBodies.some((body) => body.bodyKind === 'surface')) throw new Error('STL i 3MF wymagają zamkniętej bryły. Pogrub powierzchnię albo eksportuj ją jako STEP.');
   if (format === 'step' && kernelBodies.some((body) => body.representation === 'mesh-import')) {
     throw new Error('Eksport STEP wymaga dokładnej bryły B-Rep. Zaimportowany STL/3MF można zapisać jako STL lub 3MF.');
   }

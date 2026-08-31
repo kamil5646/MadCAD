@@ -961,6 +961,41 @@ test('szkic na planarnej ścianie zachowuje podporę i odsunięcie w przygotowan
   assert.equal(validateDocument(broken).issues.some((issue) => issue.path.endsWith('support.referenceId') && issue.code === 'BROKEN_REFERENCE'), true);
 });
 
+test('Patch, Surface Extrude i Thicken zachowują szkic, zależności i rozdział powierzchnia-bryła', () => {
+  const patchDocument = createDocument('Powierzchnia Patch');
+  const patchProfile = createRectangleProfile({ width: '40', height: '20' });
+  const patchSketch = createSketch({ name: 'Obrys powierzchni', profiles: [patchProfile] });
+  const patch = createFeature('surfacePatch', { sketchId: patchSketch.id, profileIds: [patchProfile.id] });
+  const thicken = createFeature('thickenSurface', { targetBodyId: `body-${patch.id}`, thickness: '2.5', side: 'symmetric', reverse: false });
+  patchDocument.sketches.push(patchSketch);
+  patchDocument.features.push(patch, thicken);
+  assert.equal(validateDocument(patchDocument).valid, true);
+  const preparedPatch = prepareDocument(patchDocument);
+  assert.equal(preparedPatch.features[0].profile.geometry.width, 40);
+  assert.equal(preparedPatch.features[1].thicknessValue, 2.5);
+  assert.equal(preparedPatch.features[1].side, 'symmetric');
+  const patchGraph = buildDependencyGraph(patchDocument);
+  assert.equal(patchGraph.producerOfBody(`body-${patch.id}`), patch.id);
+  assert.ok(patchGraph.affectedBy(patchProfile.id).includes(thicken.id));
+
+  const extrudeDocument = createDocument('Powierzchnia wyciągnięta');
+  const extrudeProfile = createCircleProfile({ diameter: '18' });
+  const extrudeSketch = createSketch({ name: 'Profil walcowy', profiles: [extrudeProfile] });
+  const surfaceExtrude = createFeature('surfaceExtrude', { sketchId: extrudeSketch.id, profileIds: [extrudeProfile.id], distance: '-25' });
+  const moveSurface = createFeature('transform', { targetBodyId: `body-${surfaceExtrude.id}`, mode: 'move', x: '35', y: '0', z: '0', angle: '0', originX: '0', originY: '0', originZ: '0' });
+  const thickenExtrude = createFeature('thickenSurface', { targetBodyId: `body-${surfaceExtrude.id}`, thickness: '2', side: 'one-side', reverse: false });
+  extrudeDocument.sketches.push(extrudeSketch);
+  extrudeDocument.features.push(surfaceExtrude, moveSurface, thickenExtrude);
+  assert.equal(validateDocument(extrudeDocument).valid, true);
+  const preparedExtrudeDocument = prepareDocument(extrudeDocument);
+  const preparedExtrude = preparedExtrudeDocument.features[0];
+  assert.equal(preparedExtrude.distanceValue, -25);
+  assert.equal(preparedExtrude.profile.geometry.diameter, 18);
+  assert.deepEqual(preparedExtrudeDocument.features[1].translation, [35, 0, 0]);
+  assert.equal(preparedExtrudeDocument.features[2].thicknessValue, 2);
+  assert.ok(buildDependencyGraph(extrudeDocument).affectedBy(extrudeProfile.id).includes(thickenExtrude.id));
+});
+
 test('Extrude przygotowuje odsunięty start, Join, Cut i Intersect z jedną, dwiema, symetryczną oraz Through All', () => {
   const document = createDocument('Zakresy Extrude');
   document.parameters.push(createParameter('start', '2'));

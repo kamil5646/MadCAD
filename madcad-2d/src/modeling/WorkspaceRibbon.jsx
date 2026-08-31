@@ -41,6 +41,9 @@ const TOOL_DESCRIPTIONS = {
   'Ordinate Y': 'Dodaj wymiar współrzędnej Y wybranego punktu.',
   'Długość łuku': 'Dodaj sterujący wymiar długości wybranego łuku.',
   'Wyciągnij': 'Wyciągnij zaznaczony profil w bryłę; możesz też przeciągnąć niebieską strzałkę.',
+  'Patch': 'Wypełnij zamknięty profil dokładną planarną powierzchnią B-Rep.',
+  'Surface Extrude': 'Wyciągnij zamknięty profil albo otwarty łańcuch jako otwartą powierzchnię.',
+  'Thicken': 'Nadaj wybranej powierzchni grubość i zamień ją w zamkniętą bryłę B-Rep.',
   'Revolve': 'Obróć profil wokół wskazanej osi i utwórz bryłę obrotową.',
   'Sweep': 'Przeciągnij profil wzdłuż osobnej ścieżki szkicu.',
   'Loft': 'Połącz dwa profile płynną albo odcinkową bryłą przejściową.',
@@ -122,7 +125,7 @@ const TOOL_SHORTCUTS = Object.freeze({
 
 const TOOL_COLOR_GROUPS = Object.freeze({
   sketch: new Set(['Utwórz szkic', 'Linia', 'Polilinia', 'Łuk styczny', 'Łuk', 'Prostokąt', 'Okrąg', 'Wielokąt', 'Elipsa', 'Slot', 'Spline', 'Conic', 'Punkt', 'Zakończ szkic']),
-  solid: new Set(['Wyciągnij', 'Thin Extrude', 'Rib/Web', 'Pipe', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Pattern', 'Press Pull', 'Prymityw', 'Tekst 3D', 'Boolean', 'Otwór']),
+  solid: new Set(['Wyciągnij', 'Patch', 'Surface Extrude', 'Thicken', 'Thin Extrude', 'Rib/Web', 'Pipe', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Pattern', 'Press Pull', 'Prymityw', 'Tekst 3D', 'Boolean', 'Otwór']),
   edit: new Set(['Trim', 'Extend', 'Break', 'Offset', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu', 'Przesuń', 'Zaokrąglij', 'Fazuj', 'Shell', 'Draft', 'Split Body', 'Split Face', 'Replace Face', 'Offset Face', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj']),
   reference: new Set(['Project', 'Współliniowe', 'Symetria', 'Krzywizna G2', 'Ordinate X', 'Ordinate Y', 'Długość łuku', 'Płaszczyzna odsunięta', 'Płaszczyzna środkowa', 'Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce', 'Oś z krawędzi', 'Oś walca', 'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum', 'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi']),
   inspect: new Set(['Parametry', 'Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię', 'Punkty zapisu', 'Porównaj wersje', 'Kondycja projektu', 'Gdzie używane', 'Wybierz']),

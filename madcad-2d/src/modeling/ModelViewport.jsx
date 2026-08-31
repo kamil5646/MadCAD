@@ -798,8 +798,9 @@ export default function ModelViewport({
         roughness: appearance.roughness,
         emissive: showCollisionColor && exactCollision ? '#5a1111' : showCollisionColor && colliding ? '#5b2d0c' : selected ? '#10394a' : '#000000',
         emissiveIntensity: showCollisionColor && exactCollision ? 0.9 : showCollisionColor && colliding ? 0.75 : selected ? 0.7 : 0,
-        transparent: Boolean(activeSketchId),
-        opacity: activeSketchId ? 0.38 : 1,
+        transparent: Boolean(activeSketchId) || body.bodyKind === 'surface',
+        opacity: activeSketchId ? 0.38 : body.bodyKind === 'surface' ? 0.62 : 1,
+        depthWrite: body.bodyKind !== 'surface',
         side: THREE.DoubleSide,
         clippingPlanes,
       });
@@ -831,7 +832,7 @@ export default function ModelViewport({
         const edgeGeometry = new THREE.BufferGeometry();
         edgeGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
         const edgeSelected = selectedTopologySet.has(edgeGroup.topologyId);
-        const edgeMaterial = new THREE.LineBasicMaterial({ color: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : 0x26333b), transparent: true, opacity: activeSketchId ? 0.34 : edgeSelected ? 1 : 0.72, clippingPlanes });
+        const edgeMaterial = new THREE.LineBasicMaterial({ color: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : body.bodyKind === 'surface' ? 0x5de1ff : 0x26333b), transparent: true, opacity: activeSketchId ? 0.34 : edgeSelected ? 1 : body.bodyKind === 'surface' ? 0.92 : 0.72, clippingPlanes });
         const edgeObject = new THREE.LineSegments(edgeGeometry, edgeMaterial);
         edgeObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, occurrenceId: placement.occurrenceId, topologyKind: 'edge', topologyId: edgeGroup.topologyId, baseColor: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : 0x26333b) };
         placeObject(edgeObject);

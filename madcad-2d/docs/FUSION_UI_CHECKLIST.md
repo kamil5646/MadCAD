@@ -66,7 +66,7 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 
 ## P1 — podział obszarów
 
-- [ ] `PROJEKTUJ` obejmuje szkic, bryłę, powierzchnię, konstrukcję, sprawdzanie i podstawowe złożenie.
+- [x] `PROJEKTUJ` obejmuje szkic, bryłę, powierzchnię, konstrukcję, sprawdzanie i podstawowe złożenie.
 - [x] `ARKUSZ 2D` obejmuje wyłącznie dokumentację techniczną, adnotacje i wydruk/eksport arkusza.
 - [x] `ZARZĄDZAJ` obejmuje parametry, wersje, zależności, kondycję i komponenty projektu.
 - [x] Import/eksport projektu i modelu pozostaje w menu `Plik`; nie dublować go w kilku wstążkach.
@@ -115,6 +115,12 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Kontrola obrazu w typowym oknie potwierdza rzeczywiste odmalowanie wstążki, nie tylko obecność niewidocznych kontrolek w drzewie dostępności.
 - [x] Finalny build 6.4.6 zainstalowano w `/Applications/MadCAD.app`, podpisano ad-hoc i sprawdzono w uruchomionej aplikacji; suma SHA-256 `app.asar` źródła i instalacji jest identyczna: `cb6524f20fb9d008c24c6ee66665711339aa0c6e7f825e38179836d8157d2806`.
 - [x] Odzyskany projekt użytkownika zabezpieczono jako `~/Documents/MadCAD-odzyskany-2026-08-31.madcad`; wcześniejszą aplikację zachowano odwracalnie w Koszu jako `MadCAD-before-license-ribbon-remount-20260831.app`.
+- [x] Dodano prawdziwe modelowanie powierzchniowe B-Rep: `Patch`, `Surface Extrude` dla profilu zamkniętego i otwartego łańcucha oraz `Thicken` z kierunkiem jednostronnym lub symetrycznym.
+- [x] Powierzchnie mają odrębny typ, półprzezroczysty wygląd i osobny folder w przeglądarce; operacje bryłowe i druk 3D nie traktują ich omyłkowo jako brył zamkniętych.
+- [x] Automatyczny przepływ `Patch → Thicken` zweryfikował objętość 3072 mm³, a `Surface Extrude → Move 35 mm → Thicken` 2940,5307 mm³ i środek X = 35 mm; oba kończą się poprawną bryłą w historii.
+- [x] Polecenia powierzchniowe mają aliasy `PA/PATCH`, `SE/SURFACEEXTRUDE` i `TH/THICKEN/POGRUB`, tooltipy oraz wspólny panel parametrów.
+- [x] Dowód wizualny zapisano w `artifacts/madcad-surface-modeling.png`, a raport techniczny w `docs/SURFACE_MODELING_AUDIT_2026-08-31.md`.
+- [x] Lokalny build arm64 z modelowaniem powierzchniowym zastąpił `/Applications/MadCAD.app`, przeszedł ścisłą kontrolę podpisu ad-hoc i ma identyczny `app.asar` SHA-256 `1e28ad1fed94900747f6881be251294f3d984018d3083b0269171a888fd8489d`; poprzedni build zachowano jako `MadCAD-before-surfaces-20260831.app`.
 
 ## Pliki główne
 

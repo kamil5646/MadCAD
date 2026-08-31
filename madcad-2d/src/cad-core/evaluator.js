@@ -250,6 +250,35 @@ export function prepareDocument(document) {
   const features = document.features.map((feature, featureIndex) => {
     if (featureIndex > rollbackIndex) return { ...feature, status: FEATURE_STATUS.ROLLED_BACK, diagnostics: [] };
     if (feature.suppressed) return { ...feature, status: FEATURE_STATUS.SUPPRESSED, diagnostics: [] };
+    if (feature.type === 'surfacePatch') {
+      const match = findProfile(document, feature.profileIds[0]);
+      if (!match) throw new Error(`Nie znaleziono profilu Patch ${feature.profileIds[0]}.`);
+      const profile = { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
+      return { ...feature, status: 'ready', diagnostics: [], profile };
+    }
+    if (feature.type === 'surfaceExtrude') {
+      const sourceSketch = document.sketches.find((sketch) => sketch.id === feature.sketchId);
+      const profile = feature.openEntityIds?.length
+        ? { ...resolveOpenChainProfile(sourceSketch, feature.openEntityIds, parameterResult.values, feature.id, 'Wyciągnięcie powierzchni'), plane: sourceSketch?.plane || 'XY', planeOffset: evaluateExpression(sourceSketch?.planeOffset || 0, parameterResult.values) }
+        : (() => {
+          const match = findProfile(document, feature.profileIds[0]);
+          if (!match) throw new Error(`Nie znaleziono profilu powierzchni ${feature.profileIds[0]}.`);
+          return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
+        })();
+      const distanceValue = evaluateExpression(feature.distance, parameterResult.values);
+      if (Math.abs(distanceValue) <= GEOMETRY_POLICY.linearTolerance) throw new Error('Odległość wyciągnięcia powierzchni musi być różna od zera.');
+      return { ...feature, status: 'ready', diagnostics: [], profile, distanceValue };
+    }
+    if (feature.type === 'thickenSurface') {
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        thicknessValue: positive(evaluateExpression(feature.thickness, parameterResult.values), 'Grubość powierzchni'),
+        side: feature.side || 'one-side',
+        reverse: Boolean(feature.reverse),
+      };
+    }
     if (feature.type === 'extrude') {
       const extent = feature.extent || 'one-side';
       const sourceSketch = document.sketches.find((sketch) => sketch.id === feature.sketchId);

@@ -316,7 +316,7 @@ export function ProjectSearchPalette({ index = [], language = 'pl', onNavigate, 
 }
 
 export function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onToggleSketchVisibility = () => {}, onToggleBodyVisibility = () => {}, onClose }) {
-  const [expanded, setExpanded] = useState({ origin: true, construction: true, components: true, joints: true, motionLinks: true, contactSets: true, configurations: true, sketches: true, bodies: true });
+  const [expanded, setExpanded] = useState({ origin: true, construction: true, components: true, joints: true, motionLinks: true, contactSets: true, configurations: true, sketches: true, surfaces: true, bodies: true });
   const toggle = (key) => setExpanded((current) => ({ ...current, [key]: !current[key] }));
   const constructionReferences = document.references.filter((reference) => ['construction-plane', 'construction-axis', 'construction-point'].includes(reference.kind));
   const componentRoots = componentInstanceTree(document);
@@ -335,6 +335,23 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
       {(instance.children || []).map((child) => renderComponent(child, depth + 1))}
     </React.Fragment>
   );
+  const solidBodies = bodies.filter((body) => body.bodyKind !== 'surface');
+  const surfaceBodies = bodies.filter((body) => body.bodyKind === 'surface');
+  const renderBody = (body) => {
+    const bodyVisible = document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false;
+    const surface = body.bodyKind === 'surface';
+    return <div className="tree-reference-row" key={body.id}>
+      <button
+        className={`tree-row tree-grandchild ${selection?.kind === 'body' && selection.id === body.id ? 'selected' : ''} ${bodyVisible ? '' : 'hidden-object'}`}
+        type="button"
+        title={surface ? `Zaznacz powierzchnię ${body.name}; użyj Pogrub, aby utworzyć bryłę.` : body.representation === 'mesh-import' ? `${body.name}: ${body.meshBooleanCapable === false ? 'otwarta siatka do pomiaru, transformacji i eksportu' : 'zamknięta siatka 3D'}.` : `Zaznacz dokładną bryłę B-Rep ${body.name} do dalszych operacji.`}
+        onClick={() => onSelect({ kind: 'body', id: body.id })}
+      >
+        <span />{surface ? <Frame size={13} /> : <Box size={13} />}<span>{body.name}</span><span className="body-kind"><small>{surface ? 'POW.' : body.representation === 'mesh-import' ? (body.meshBooleanCapable === false ? 'SIATKA OTW.' : 'SIATKA') : 'B-REP'}</small><i className="body-color" style={{ background: body.color }} /></span>
+      </button>
+      <button className="tree-reference-visibility" type="button" aria-pressed={bodyVisible} title={bodyVisible ? `Ukryj ${body.name}` : `Pokaż ${body.name}`} onClick={() => onToggleBodyVisibility(body.id)}>{bodyVisible ? <Eye size={13} /> : <EyeOff size={13} />}</button>
+    </div>;
+  };
   return (
     <aside className="model-browser" aria-label="Przeglądarka projektu">
       <div className="browser-heading"><strong>PRZEGLĄDARKA</strong><button type="button" title="Zwiń przeglądarkę" onClick={onClose}><PanelLeftClose size={14} /></button></div>
@@ -427,25 +444,15 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
         </React.Fragment>
       ))}
 
-      <button className="tree-row tree-child tree-folder" type="button" title={`${expanded.bodies ? 'Zwiń' : 'Rozwiń'} listę utworzonych brył.`} onClick={() => toggle('bodies')}>
-        {expanded.bodies ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<FolderOpen size={14} /><span>Bryły</span><small>{bodies.length}</small>
+      <button className="tree-row tree-child tree-folder" type="button" title={`${expanded.surfaces ? 'Zwiń' : 'Rozwiń'} listę powierzchni.`} onClick={() => toggle('surfaces')}>
+        {expanded.surfaces ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<FolderOpen size={14} /><span>Powierzchnie</span><small>{surfaceBodies.length}</small>
       </button>
-      {expanded.bodies && bodies.map((body) => {
-        const bodyVisible = document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false;
-        return <div className="tree-reference-row" key={body.id}>
-        <button
-          className={`tree-row tree-grandchild ${selection?.kind === 'body' && selection.id === body.id ? 'selected' : ''} ${bodyVisible ? '' : 'hidden-object'}`}
-          type="button"
-          title={body.representation === 'mesh-import'
-            ? `${body.name}: ${body.meshBooleanCapable === false ? 'otwarta siatka do pomiaru, transformacji i eksportu' : 'zamknięta siatka 3D'}.`
-            : `Zaznacz dokładną bryłę B-Rep ${body.name} do dalszych operacji.`}
-          onClick={() => onSelect({ kind: 'body', id: body.id })}
-        >
-          <span /><Box size={13} /><span>{body.name}</span><span className="body-kind"><small>{body.representation === 'mesh-import' ? (body.meshBooleanCapable === false ? 'SIATKA OTW.' : 'SIATKA') : 'B-REP'}</small><i className="body-color" style={{ background: body.color }} /></span>
-        </button>
-        <button className="tree-reference-visibility" type="button" aria-pressed={bodyVisible} title={bodyVisible ? `Ukryj ${body.name}` : `Pokaż ${body.name}`} onClick={() => onToggleBodyVisibility(body.id)}>{bodyVisible ? <Eye size={13} /> : <EyeOff size={13} />}</button>
-        </div>;
-      })}
+      {expanded.surfaces && surfaceBodies.map(renderBody)}
+
+      <button className="tree-row tree-child tree-folder" type="button" title={`${expanded.bodies ? 'Zwiń' : 'Rozwiń'} listę utworzonych brył.`} onClick={() => toggle('bodies')}>
+        {expanded.bodies ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<FolderOpen size={14} /><span>Bryły</span><small>{solidBodies.length}</small>
+      </button>
+      {expanded.bodies && solidBodies.map(renderBody)}
     </aside>
   );
 }

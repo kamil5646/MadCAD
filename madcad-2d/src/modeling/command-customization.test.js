@@ -45,7 +45,7 @@ describe('command customization', () => {
     expect(validation.errors.join(' ')).toContain('zarezerwowany przez interfejs');
     const rows = commandCustomizationRows(createDefaultCommandCustomization());
     expect(rows.length).toBeGreaterThanOrEqual(45);
-    expect(new Set(rows.map((row) => row.category))).toEqual(new Set(['RYSUJ 2D', 'EDYTUJ 2D', 'MODELUJ 3D', 'MODYFIKUJ 3D', 'SPRAWDŹ']));
+    expect(new Set(rows.map((row) => row.category))).toEqual(new Set(['RYSUJ 2D', 'EDYTUJ 2D', 'MODELUJ 3D', 'POWIERZCHNIE', 'MODYFIKUJ 3D', 'SPRAWDŹ']));
   });
 
   it('persists valid settings and falls back safely after corrupt storage', () => {

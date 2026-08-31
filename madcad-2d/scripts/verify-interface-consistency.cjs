@@ -128,7 +128,7 @@ app.whenReady().then(async () => {
       ribbonHeight: document.querySelector('.command-area')?.getBoundingClientRect().height || 0,
       duplicatedFlowTools: [...document.querySelectorAll('.modeling-ribbon [data-tool-label]')].map((item) => item.dataset.toolLabel).filter((label) => ['Import 3D', 'Wybierz'].includes(label)),
     }))()`);
-    const expectedDesignMenus = ['Więcej brył', 'Więcej zmian', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
+    const expectedDesignMenus = ['Powierzchnie', 'Więcej brył', 'Więcej zmian', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
     if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || designStructure.duplicatedFlowTools.length || !designStructure.customCadIcons || designStructure.iconSize < 20 || designStructure.featuredIconSize < 31 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
 
     if (!(await clickText(window, '.ribbon-tool', 'Utwórz szkic'))) throw new Error('Brak polecenia Utwórz szkic.');

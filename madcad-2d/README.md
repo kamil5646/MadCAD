@@ -4,7 +4,7 @@ Aktualna stabilna wersja: **6.4.6**.
 
 MadCAD jest aplikacją Electron z interfejsem React, parametrycznym dokumentem
 CAD i kernelem OpenCascade uruchamianym w workerze. Główny przepływ zaczyna się
-od precyzyjnego rysunku 2D, a następnie przechodzi do modelu bryłowego z historią.
+od precyzyjnego rysunku 2D, a następnie przechodzi do modelu powierzchniowego lub bryłowego z historią.
 Przygotowanie do druku 3D jest opcjonalnym dodatkiem w obszarze eksportu.
 
 ## Katalogi
@@ -36,6 +36,7 @@ npm run verify:repository
 npm run verify:start-experience
 npm run verify:drawing-workspace
 npm run verify:modeling
+npm run verify:surface-modeling
 npm run verify:electron-security
 npm audit --audit-level=high
 ```
@@ -85,7 +86,8 @@ użyć `Control` + klik i wybrać **Otwórz**.
 ## Interakcja CAD
 
 - Nawigacja CAD: naciśnięte kółko myszy przesuwa widok, przeciągnięcie prawym przyciskiem lub `Shift` + kółko obraca model 3D, rolka przybliża pod kursorem, a lewy przycisk zaznacza i rysuje. Aktywny szkic 2D pozostaje zablokowany prostopadle do swojej płaszczyzny; dostępne są w nim pan, zoom i dopasowanie widoku.
-- Import STEP/STL/3MF jest dostępny bezpośrednio w obszarze **Projektuj**; poprawny model zostaje dopasowany do widoku, a błędny import jest opisany i bezpiecznie usunięty z historii.
+- Import STEP/STL/3MF jest dostępny w menu **Plik**; poprawny model zostaje dopasowany do widoku, a błędny import jest opisany i bezpiecznie usunięty z historii.
+- Modelowanie powierzchniowe obejmuje `Patch`, `Surface Extrude` i `Thicken`; powierzchnie mają osobny folder, wygląd i bezpieczny przepływ do bryły.
 - Obszar **DOKUMENTACJA** tworzy zapisywane arkusze A4/A3, skojarzone widoki bazowe i rzutowane, przekroje A-A z kreskowaniem oraz powiększone detale. Widoki i ich wymiary, osie, znaczniki środka, opisy otworów/gwintów oraz tolerancje aktualizują się z modelem; tabliczka i rewizje są edytowalne, a gotowy arkusz można wyeksportować do PDF lub DXF.
 - Funkcje wstążki pokazują po najechaniu opis; skróty podstawowych narzędzi są widoczne tylko w podpowiedzi, nie na przyciskach.
 - **Import DWG** w aktywnym szkicu otwiera plik przez bezpieczny dialog desktopowy, konwertuje go lokalnie przez `dwgread`/`dwg2dxf` (GNU LibreDWG) albo ODA File Converter i przekazuje wynik do istniejącego importera DXF. Projekt nie jest wysyłany do usługi sieciowej.
@@ -112,5 +114,6 @@ Pełne warunki: [`../LICENSE`](../LICENSE). Kontakt handlowy:
 - [`FIRST_PART.md`](./FIRST_PART.md) — przejście od szkicu do pierwszej części.
 - [`ROADMAP.md`](./ROADMAP.md) — stan funkcji i dalszy kierunek.
 - [`docs/HOLE_STANDARDS.md`](./docs/HOLE_STANDARDS.md) — zakres otworów ISO, źródła danych i granice zgodności.
+- [`docs/SURFACE_MODELING_AUDIT_2026-08-31.md`](./docs/SURFACE_MODELING_AUDIT_2026-08-31.md) — przepływ Patch/Surface Extrude/Thicken i wyniki testów B-Rep.
 - [`CHANGELOG.md`](./CHANGELOG.md) — historia wydań.
 - [`design-qa.md`](./design-qa.md) — kryteria jakości interfejsu.

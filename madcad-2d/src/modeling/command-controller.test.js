@@ -9,6 +9,9 @@ describe('CAD command controller', () => {
     expect(resolveCommandAlias('arc')).toMatchObject({ shortcut: 'A', label: 'Łuk' });
     expect(resolveCommandAlias('array')).toMatchObject({ shortcut: 'AR', label: 'Szyk szkicu' });
     expect(resolveCommandAlias('revolve')).toMatchObject({ shortcut: 'REV', label: 'Revolve' });
+    expect(resolveCommandAlias('patch')).toMatchObject({ shortcut: 'PA', label: 'Patch' });
+    expect(resolveCommandAlias('surfaceextrude')).toMatchObject({ shortcut: 'SE', label: 'Surface Extrude' });
+    expect(resolveCommandAlias('pogrub')).toMatchObject({ shortcut: 'TH', label: 'Thicken' });
     expect(resolveCommandAlias('massprop')).toMatchObject({ shortcut: 'MP', label: 'Masa' });
   });
 
