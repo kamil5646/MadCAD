@@ -24,7 +24,7 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] `Esc` anuluje bieżące polecenie, ale nie niszczy modelu ani szkicu.
 - [x] Zakończenie szkicu nie ukrywa gotowego profilu i nie uruchamia ponownie wyboru płaszczyzny.
 - [x] Narzędzia 2D, modelowanie 3D, dokumentacja 2D i druk 3D mają odrębne miejsca.
-- [ ] Aktywny przycisk wykonuje operację; brak atrap i dublujących się poleceń.
+- [x] Aktywny przycisk wykonuje operację; brak atrap i dublujących się poleceń.
 - [x] Każdy tryb zachowuje stałe położenie przeglądarki, płótna, właściwości i historii.
 - [x] Ikona, tekst, stan aktywny, stan wyłączony i tooltip mają jednakową logikę w całej aplikacji.
 
@@ -62,7 +62,7 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Widoczność szkiców i brył jest przełączana ikoną oka przy obiekcie, utrwalana w projekcie i zsynchronizowana z płótnem.
 - [x] Prawy panel pokazuje tylko bieżące polecenie lub właściwości zaznaczenia; nie otwiera wielu nakładających się okien.
 - [x] Dolna historia pokazuje operacje w kolejności, stan aktywny, suppressed i marker rollbacku.
-- [ ] Komunikaty stanu mają być krótkie i pomocnicze; nie mogą konkurować z narzędziem ani zasłaniać modelu.
+- [x] Komunikaty stanu mają być krótkie i pomocnicze; nie mogą konkurować z narzędziem ani zasłaniać modelu.
 
 ## P1 — podział obszarów
 
@@ -121,6 +121,9 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Polecenia powierzchniowe mają aliasy `PA/PATCH`, `SE/SURFACEEXTRUDE` i `TH/THICKEN/POGRUB`, tooltipy oraz wspólny panel parametrów.
 - [x] Dowód wizualny zapisano w `artifacts/madcad-surface-modeling.png`, a raport techniczny w `docs/SURFACE_MODELING_AUDIT_2026-08-31.md`.
 - [x] Lokalny build arm64 z modelowaniem powierzchniowym zastąpił `/Applications/MadCAD.app`, przeszedł ścisłą kontrolę podpisu ad-hoc i ma identyczny `app.asar` SHA-256 `1e28ad1fed94900747f6881be251294f3d984018d3083b0269171a888fd8489d`; poprzedni build zachowano jako `MadCAD-before-surfaces-20260831.app`.
+- [x] Wspólny kontrakt wstążki automatycznie wyłącza każdy przycisk, element menu i polecenie w przepełnieniu bez przypisanej akcji; test komponentu celowo tworzy atrapę i potwierdza czytelny stan niedostępny.
+- [x] Audyt rzeczywistego interfejsu potwierdza `enabledWithoutAction: []` w modelowaniu i szkicu, brak zdublowanych narzędzi, kompaktowy komunikat stanu oraz jego ukrycie po uruchomieniu polecenia Linia.
+- [x] Build z ochroną aktywnych poleceń zastąpił `/Applications/MadCAD.app`, przeszedł `codesign --verify --deep --strict`, a źródłowy i zainstalowany `app.asar` mają SHA-256 `387018433134b6b659d8eb19dd57d03544522ef286fa79594468fa57be3a5001`; poprzedni build zachowano jako `MadCAD-before-ribbon-action-guard-20260831.app`.
 
 ## Pliki główne
 

@@ -196,18 +196,20 @@ function ToolGlyph({ icon: Icon, compact = false, featured = false }) {
 
 export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClick, disabled = false, primary = false, compact = false, title, description, disabledReason }) {
   const featured = FEATURED_TOOL_LABELS.has(label);
+  const operational = typeof onClick === 'function';
+  const effectiveDisabled = disabled || !operational;
   const toolHelp = React.useContext(ToolHelpContext);
   const customCommand = toolHelp?.customizationForTool?.(label) || null;
   const shortcut = preferredToolShortcut(label, customCommand);
-  const help = resolveToolHelp({ label, description, title, disabled, disabledReason, shortcut });
+  const help = resolveToolHelp({ label, description, title, disabled: effectiveDisabled, disabledReason: operational ? disabledReason : 'Polecenie nie ma przypisanej operacji.', shortcut });
   const registryShortcuts = registeredToolShortcuts(label, customCommand);
   const registryKey = registryShortcuts.join('|');
   useEffect(() => {
-    const cleanups = registryShortcuts.filter((value) => !['ESC', 'CTRL+ENTER'].includes(value)).map((value) => toolHelp?.registerShortcut(value, { label, onClick, disabled })).filter(Boolean);
+    const cleanups = registryShortcuts.filter((value) => !['ESC', 'CTRL+ENTER'].includes(value)).map((value) => toolHelp?.registerShortcut(value, { label, onClick, disabled: effectiveDisabled })).filter(Boolean);
     return () => cleanups.forEach((cleanup) => cleanup());
   // registryKey is the stable scalar representation of registryShortcuts.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [disabled, label, onClick, registryKey, toolHelp]);
+  }, [effectiveDisabled, label, onClick, registryKey, toolHelp]);
   const showHelp = (event) => {
     const rect = event.currentTarget.getBoundingClientRect();
     toolHelp?.setToolHelp({
@@ -220,14 +222,15 @@ export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClic
     });
   };
   return (
-    <span className={`ribbon-tool-wrap ${featured ? 'featured' : ''} ${disabled ? 'disabled' : ''}`} onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
+    <span className={`ribbon-tool-wrap ${featured ? 'featured' : ''} ${effectiveDisabled ? 'disabled' : ''}`} onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
       <button
         id={id}
         className={`ribbon-tool ${featured ? 'featured' : ''} ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
         type="button"
         onClick={onClick}
-        disabled={disabled}
+        disabled={effectiveDisabled}
         data-tool-label={label}
+        data-operational={operational ? 'true' : 'false'}
         title={help.text}
         aria-label={`${displayLabel}. ${help.text}`}
       >
@@ -250,7 +253,7 @@ export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items,
   const shortcutEntries = items.flatMap((item) => {
     const customCommand = toolHelp?.customizationForTool?.(item.label) || null;
     const shortcuts = registeredToolShortcuts(item.label, customCommand);
-    return shortcuts.filter((value) => !['ESC', 'CTRL+ENTER'].includes(value)).map((shortcut) => ({ label: item.label, shortcut, disabled: disabled || item.disabled }));
+    return shortcuts.filter((value) => !['ESC', 'CTRL+ENTER'].includes(value)).map((shortcut) => ({ label: item.label, shortcut, disabled: disabled || item.disabled || typeof item.onClick !== 'function' }));
   });
   const triggerShortcuts = registeredToolShortcuts(label, customCommand);
   const shortcutRegistryKey = [
@@ -299,6 +302,7 @@ export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items,
         type="button"
         disabled={disabled}
         data-tool-label={label}
+        data-operational="true"
         title={help.text}
         aria-label={`${displayLabel}. ${help.text}`}
         aria-haspopup="menu"
@@ -314,10 +318,12 @@ export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items,
           const customCommand = toolHelp?.customizationForTool?.(item.label) || null;
           const shortcut = preferredToolShortcut(item.label, customCommand);
           const itemDisplayLabel = item.displayLabel || item.label;
-          const itemHelp = resolveToolHelp({ label: item.label, description: item.description, disabled: item.disabled, disabledReason: item.disabledReason, shortcut });
-          return <button key={item.label} data-tool-label={item.label} type="button" role="menuitem" disabled={item.disabled} title={itemHelp.text} aria-label={`${itemDisplayLabel}. ${itemHelp.text}`} onClick={(event) => { item.onClick?.(event); setOpen(false); }}>
+          const operational = typeof item.onClick === 'function';
+          const itemDisabled = item.disabled || !operational;
+          const itemHelp = resolveToolHelp({ label: item.label, description: item.description, disabled: itemDisabled, disabledReason: operational ? item.disabledReason : 'Polecenie nie ma przypisanej operacji.', shortcut });
+          return <button key={item.label} data-tool-label={item.label} data-operational={operational ? 'true' : 'false'} type="button" role="menuitem" disabled={itemDisabled} title={itemHelp.text} aria-label={`${itemDisplayLabel}. ${itemHelp.text}`} onClick={(event) => { if (operational) item.onClick(event); setOpen(false); }}>
             <span style={toolColorStyle(item.label)} aria-hidden="true"><ToolGlyph icon={ItemIcon} compact /></span>
-            <span><strong>{itemDisplayLabel}</strong><small>{item.disabled ? itemHelp.state : itemHelp.help}</small></span>
+            <span><strong>{itemDisplayLabel}</strong><small>{itemDisabled ? itemHelp.state : itemHelp.help}</small></span>
           </button>;
         })}
       </div>}
@@ -373,23 +379,26 @@ function RibbonOverflowTool({ tool, onSelect }) {
       <strong><span className="ribbon-overflow-icon" aria-hidden="true"><ToolGlyph icon={Icon} compact /></span>{displayLabel}</strong>
       {items.map((item) => {
         const ItemIcon = item.icon;
-        return <button key={item.label} data-tool-label={item.label} className="ribbon-overflow-tool" style={toolColorStyle(item.label)} type="button" role="menuitem" disabled={item.disabled} onClick={(event) => { item.onClick?.(event); onSelect(); }}>
+        const operational = typeof item.onClick === 'function';
+        return <button key={item.label} data-tool-label={item.label} data-operational={operational ? 'true' : 'false'} className="ribbon-overflow-tool" style={toolColorStyle(item.label)} type="button" role="menuitem" disabled={item.disabled || !operational} onClick={(event) => { if (operational) item.onClick(event); onSelect(); }}>
           <span className="ribbon-overflow-icon" aria-hidden="true"><ToolGlyph icon={ItemIcon} compact /></span><span>{item.displayLabel || item.label}</span>
         </button>;
       })}
     </div>
   );
+  const operational = typeof onClick === 'function';
   return (
     <button
       className="ribbon-overflow-tool"
       data-tool-label={label}
+      data-operational={operational ? 'true' : 'false'}
       style={toolColorStyle(label)}
       type="button"
       role="menuitem"
-      disabled={disabled}
+      disabled={disabled || !operational}
       title={help}
       onClick={(event) => {
-        onClick?.(event);
+        if (operational) onClick(event);
         onSelect();
       }}
     >

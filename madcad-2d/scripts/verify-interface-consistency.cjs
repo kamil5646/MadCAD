@@ -117,19 +117,24 @@ app.whenReady().then(async () => {
 
     const expectedModelGroups = ['UTWÓRZ', 'ZMIEŃ', 'KONSTRUKCJA', 'SPRAWDŹ'];
     if (emptyModelGroups.join('|') !== expectedModelGroups.join('|')) throw new Error(`Niestabilny pusty obszar modelowania: ${emptyModelGroups.join('|')}`);
-    const designStructure = await window.webContents.executeJavaScript(`(() => ({
-      legacyTabsRemoved: ![...document.querySelectorAll('.workspace-tabs button')].some((item) => ['MODELUJ', 'EDYCJA 3D', 'KONSTRUKCJA', 'PROJEKT'].includes(item.textContent.trim())),
-      selectionModeGroupRemoved: ![...document.querySelectorAll('.ribbon-group')].some((item) => item.getAttribute('aria-label') === 'TRYB'),
-      menus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
-      customCadIcons: document.querySelectorAll('.ribbon-tool svg path').length > 25,
-      iconSize: document.querySelector('.ribbon-tool:not(.featured) .ribbon-icon svg')?.getBoundingClientRect().width || 0,
-      featuredIconSize: document.querySelector('.ribbon-tool.featured .ribbon-icon')?.getBoundingClientRect().width || 0,
-      appIconSize: document.querySelector('.app-menu button svg')?.getBoundingClientRect().width || 0,
-      ribbonHeight: document.querySelector('.command-area')?.getBoundingClientRect().height || 0,
-      duplicatedFlowTools: [...document.querySelectorAll('.modeling-ribbon [data-tool-label]')].map((item) => item.dataset.toolLabel).filter((label) => ['Import 3D', 'Wybierz'].includes(label)),
-    }))()`);
+    const designStructure = await window.webContents.executeJavaScript(`(() => {
+      const noticeRect = document.querySelector('.workspace-notice')?.getBoundingClientRect();
+      return {
+        legacyTabsRemoved: ![...document.querySelectorAll('.workspace-tabs button')].some((item) => ['MODELUJ', 'EDYCJA 3D', 'KONSTRUKCJA', 'PROJEKT'].includes(item.textContent.trim())),
+        selectionModeGroupRemoved: ![...document.querySelectorAll('.ribbon-group')].some((item) => item.getAttribute('aria-label') === 'TRYB'),
+        menus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
+        customCadIcons: document.querySelectorAll('.ribbon-tool svg path').length > 25,
+        iconSize: document.querySelector('.ribbon-tool:not(.featured) .ribbon-icon svg')?.getBoundingClientRect().width || 0,
+        featuredIconSize: document.querySelector('.ribbon-tool.featured .ribbon-icon')?.getBoundingClientRect().width || 0,
+        appIconSize: document.querySelector('.app-menu button svg')?.getBoundingClientRect().width || 0,
+        ribbonHeight: document.querySelector('.command-area')?.getBoundingClientRect().height || 0,
+        duplicatedFlowTools: [...document.querySelectorAll('.modeling-ribbon [data-tool-label]')].map((item) => item.dataset.toolLabel).filter((label) => ['Import 3D', 'Wybierz'].includes(label)),
+        enabledWithoutAction: [...document.querySelectorAll('.modeling-ribbon button[data-operational="false"]:not(:disabled)')].map((item) => item.dataset.toolLabel),
+        noticeCompact: !noticeRect || (noticeRect.width <= 520 && noticeRect.height <= 28 && noticeRect.left <= 20),
+      };
+    })()`);
     const expectedDesignMenus = ['Powierzchnie', 'Więcej brył', 'Więcej zmian', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
-    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || designStructure.duplicatedFlowTools.length || !designStructure.customCadIcons || designStructure.iconSize < 20 || designStructure.featuredIconSize < 31 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || designStructure.duplicatedFlowTools.length || designStructure.enabledWithoutAction.length || !designStructure.noticeCompact || !designStructure.customCadIcons || designStructure.iconSize < 20 || designStructure.featuredIconSize < 31 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
 
     if (!(await clickText(window, '.ribbon-tool', 'Utwórz szkic'))) throw new Error('Brak polecenia Utwórz szkic.');
     await waitFor(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny szkicu');
@@ -150,13 +155,20 @@ app.whenReady().then(async () => {
         groupLabels,
         fusionOrder: groupLabels.join('|') === ['UTWÓRZ', 'ZMIEŃ', 'WIĄZANIA', 'ORGANIZUJ', 'ZAKOŃCZ SZKIC'].join('|'),
         redundantSelectRemoved: !directLabels.includes('Wybierz'),
+        enabledWithoutAction: [...document.querySelectorAll('.modeling-ribbon button[data-operational="false"]:not(:disabled)')].map((item) => item.dataset.toolLabel),
         hiddenGroups: document.querySelectorAll('.ribbon-visible-groups > .ribbon-group[hidden]').length,
         hiddenGroupLabels: [...document.querySelectorAll('.ribbon-visible-groups > .ribbon-group[hidden]')].map((item) => item.getAttribute('aria-label')),
         horizontalOverflow: ribbon.scrollWidth > ribbon.clientWidth + 1,
         basicShortcutTitles: Object.fromEntries(['Linia', 'Prostokąt', 'Okrąg', 'Wymiary'].map((label) => [label, document.querySelector('[data-tool-label="' + label + '"]')?.title || ''])),
       };
     })()`);
-    if (!expandedSketch.requiredDirect || !expandedSketch.contextualToolsGrouped || !expandedSketch.balancedDirectCount || !expandedSketch.fusionOrder || !expandedSketch.redundantSelectRemoved || expandedSketch.hiddenGroups || expandedSketch.horizontalOverflow || !expandedSketch.basicShortcutTitles.Linia.includes('Skrót: L.') || !expandedSketch.basicShortcutTitles.Prostokąt.includes('Skrót: R.') || !expandedSketch.basicShortcutTitles.Okrąg.includes('Skrót: C.') || !expandedSketch.basicShortcutTitles.Wymiary.includes('Skrót: D.')) throw new Error(`Wstążka szkicu nadal nie zachowuje hierarchii podstawowych i kontekstowych narzędzi: ${JSON.stringify(expandedSketch)}`);
+    if (!expandedSketch.requiredDirect || !expandedSketch.contextualToolsGrouped || !expandedSketch.balancedDirectCount || !expandedSketch.fusionOrder || !expandedSketch.redundantSelectRemoved || expandedSketch.enabledWithoutAction.length || expandedSketch.hiddenGroups || expandedSketch.horizontalOverflow || !expandedSketch.basicShortcutTitles.Linia.includes('Skrót: L.') || !expandedSketch.basicShortcutTitles.Prostokąt.includes('Skrót: R.') || !expandedSketch.basicShortcutTitles.Okrąg.includes('Skrót: C.') || !expandedSketch.basicShortcutTitles.Wymiary.includes('Skrót: D.')) throw new Error(`Wstążka szkicu nadal nie zachowuje hierarchii podstawowych i kontekstowych narzędzi: ${JSON.stringify(expandedSketch)}`);
+    if (!(await clickText(window, '.ribbon-tool', 'Linia'))) throw new Error('Brak polecenia Linia do kontroli komunikatu stanu.');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'line'`, 'aktywne polecenie Linia');
+    const noticeHiddenDuringCommand = await window.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.workspace-notice')).display === 'none'`);
+    if (!noticeHiddenDuringCommand) throw new Error('Komunikat stanu konkuruje z aktywnym narzędziem Linia.');
+    await window.webContents.executeJavaScript(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+    await waitFor(window, `!window.__madcadVerifyDocumentState?.command`, 'powrót po kontroli komunikatu stanu');
     await window.webContents.executeJavaScript(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', bubbles: true }))`);
     await waitFor(window, `document.querySelector('.ribbon-tool-submenu[aria-label="Wymiary"]')?.checkVisibility()`, 'otwarcie wymiarów skrótem D');
     await window.webContents.executeJavaScript(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);

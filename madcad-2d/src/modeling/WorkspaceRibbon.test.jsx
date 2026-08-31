@@ -41,7 +41,7 @@ describe('ribbon tool help', () => {
           icon={Ruler}
           label="Wymiary"
           description="Dodaj wymiar szkicu."
-          items={[{ icon: Ruler, label: 'Ordinate X', displayLabel: 'Współrzędna X', disabled: true }]}
+          items={[{ icon: Ruler, label: 'Ordinate X', displayLabel: 'Współrzędna X', disabled: true, onClick: vi.fn() }]}
         />
       </ToolHelpContext.Provider>,
     );
@@ -52,5 +52,24 @@ describe('ribbon tool help', () => {
     fireEvent.click(trigger);
     const disabledItem = screen.getByRole('menuitem', { name: /Współrzędna X/ });
     expect(disabledItem).toHaveAttribute('title', expect.stringContaining('Niedostępne. Polecenie nie jest dostępne w bieżącym stanie projektu.'));
+  });
+
+  it('never leaves a visible ribbon command enabled without an action', () => {
+    const context = helpContext();
+    render(
+      <ToolHelpContext.Provider value={context}>
+        <ToolButton icon={Square} label="Wyciągnij" />
+        <ToolMenuButton icon={Ruler} label="Wymiary" items={[{ icon: Ruler, label: 'Ordinate X', displayLabel: 'Współrzędna X' }]} />
+      </ToolHelpContext.Provider>,
+    );
+
+    const direct = screen.getByRole('button', { name: /Wyciągnij/ });
+    expect(direct).toBeDisabled();
+    expect(direct).toHaveAttribute('data-operational', 'false');
+    expect(direct).toHaveAttribute('title', expect.stringContaining('Polecenie nie ma przypisanej operacji.'));
+    fireEvent.click(screen.getByRole('button', { name: /Wymiary/ }));
+    const menuItem = screen.getByRole('menuitem', { name: /Współrzędna X/ });
+    expect(menuItem).toBeDisabled();
+    expect(menuItem).toHaveAttribute('data-operational', 'false');
   });
 });
