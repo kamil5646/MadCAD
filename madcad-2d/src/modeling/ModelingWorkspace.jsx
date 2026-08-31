@@ -413,7 +413,7 @@ function featureIcon(type, size = 16) {
   if (type === 'replaceFace') return <Layers3 size={size} />;
   if (type === 'primitive') return <Box size={size} />;
   if (type === 'transform') return <Move3d size={size} />;
-  if (type === 'offsetFace') return <Layers3 size={size} />;
+  if (type === 'offsetFace' || type === 'surfaceOffset') return <Layers3 size={size} />;
   if (type === 'textSolid') return <Type size={size} />;
   if (type === 'importedModel') return <Upload size={size} />;
   return <Box size={size} />;
@@ -1910,6 +1910,14 @@ export default function ModelingWorkspace() {
           sketchIds: [sourceSketchId, next.endSketchId],
           profileIds: [sourceProfileId, next.endProfileId],
           loftMode: next.loftMode,
+        });
+        if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
+      }
+      if (next.type === 'surfaceOffset') {
+        next.previewFeature = createFeature('surfaceOffset', {
+          name: current.previewFeature?.name || `Odsunięcie powierzchni ${document.features.length + 1}`,
+          targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
+          distance: next.distance,
         });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
@@ -3776,6 +3784,15 @@ export default function ModelingWorkspace() {
     setNotice('Pogrub zamieni powierzchnię w edytowalną bryłę B-Rep.');
   };
 
+  const openSurfaceOffset = () => {
+    if (readOnly) return readOnlyNotice();
+    if (!selectedSurfaceBody) return setNotice('Zaznacz jedną powierzchnię do odsunięcia.');
+    const next = { type: 'surfaceOffset', targetBodyId: selectedSurfaceBody.id, targetName: selectedSurfaceBody.name, distance: '2', previewFeature: null };
+    setCommand(next);
+    window.setTimeout(() => updateCommand(next), 0);
+    setNotice('Surface Offset odsuwa całą powierzchnię o dokładną odległość. Wartość ujemna zmienia kierunek.');
+  };
+
   const beginOpenChainExtrude = (sketchId, entityIds) => {
     const operation = engine.bodies.length ? 'join' : 'new';
     const targetOptions = createExtrudeTargetOptions();
@@ -4543,6 +4560,10 @@ export default function ModelingWorkspace() {
     else if (feature.type === 'surfaceRevolve') setCommand({ type: 'surfaceRevolve', openChain: Boolean(feature.openEntityIds?.length), editId: feature.id, sourceSketchId: feature.sketchId, openEntityIds: feature.openEntityIds || [], axisId: feature.axisId, axisOptions: [{ id: 'X_AXIS', name: 'Oś bazowa X' }, { id: 'Y_AXIS', name: 'Oś bazowa Y' }, { id: 'Z_AXIS', name: 'Oś bazowa Z' }, ...constructionAxes.filter((axis) => axis.status === 'ok').map((axis) => ({ id: axis.id, name: axis.name }))], angle: feature.angle, previewFeature: feature });
     else if (feature.type === 'surfaceSweep') setCommand({ type: 'surfaceSweep', openChain: Boolean(feature.openEntityIds?.length), editId: feature.id, sourceSketchId: feature.sketchId, openEntityIds: feature.openEntityIds || [], pathOptions: sweepPathOptions(feature.sketchId), pathSketchId: feature.pathSketchId, pathEntityIds: feature.pathEntityIds, previewFeature: feature });
     else if (feature.type === 'surfaceLoft') setCommand({ type: 'surfaceLoft', editId: feature.id, profileOptions: loftProfileOptions(feature.sketchIds[0]), endProfileId: feature.profileIds[1], endSketchId: feature.sketchIds[1], loftMode: feature.loftMode || 'smooth', previewFeature: feature });
+    else if (feature.type === 'surfaceOffset') {
+      const surfaceBody = engine.bodies.find((body) => body.id === feature.targetBodyId);
+      setCommand({ type: 'surfaceOffset', editId: feature.id, targetBodyId: feature.targetBodyId, targetName: surfaceBody?.name || feature.targetBodyId, distance: feature.distance, previewFeature: feature });
+    }
     else if (feature.type === 'thickenSurface') {
       const surfaceBody = engine.bodies.find((body) => body.id === feature.targetBodyId);
       setCommand({ type: 'thickenSurface', editId: feature.id, targetBodyId: feature.targetBodyId, targetName: surfaceBody?.name || feature.targetBodyId, thickness: feature.thickness, side: feature.side || 'one-side', reverse: Boolean(feature.reverse), previewFeature: feature });
@@ -5838,7 +5859,7 @@ export default function ModelingWorkspace() {
         title: surfaceSelection ? 'Powierzchnia' : selectedBodyIds.length === 1 ? 'Bryła' : `${selectedBodyIds.length} bryły`,
         subtitle: surfaceSelection ? 'Zamień ją w bryłę albo zmień położenie' : selectedBodyIds.length > 1 ? 'Wykonaj operację na wspólnym wyborze' : 'Przekształć albo powiel bryłę',
         actions: [
-          ...(surfaceSelection ? [{ icon: ShellCadIcon, label: 'Pogrub', onClick: openThickenSurface, primary: true }] : []),
+          ...(surfaceSelection ? [{ icon: ShellCadIcon, label: 'Pogrub', onClick: openThickenSurface, primary: true }, { icon: Layers3, label: 'Odsuń powierzchnię', onClick: openSurfaceOffset }] : []),
           ...(canBooleanSelectedBodies ? [{ icon: BooleanCadIcon, label: 'Połącz / odejmij', onClick: openBoolean, primary: true }] : []),
           ...(selectedBodyIds.length === 1 ? [
             { icon: MoveBodyCadIcon, label: 'Przesuń', onClick: () => openTransform('move'), primary: !surfaceSelection },
@@ -6037,6 +6058,7 @@ export default function ModelingWorkspace() {
                   { icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Obróć powierzchnię', onClick: openSurfaceRevolve, disabled: readOnly || (!selectedProfile && !canExtrudeOpenChain), disabledReason: 'Zaznacz zamknięty profil albo ciągły otwarty łańcuch.' },
                   { icon: SweepCadIcon, label: 'Surface Sweep', displayLabel: 'Powierzchnia po ścieżce', onClick: openSurfaceSweep, disabled: readOnly || !selectedProfile || Boolean(activeSketchId) || !sweepPathOptions().length, disabledReason: 'Zaznacz profil i przygotuj osobny szkic ścieżki.' },
                   { icon: LoftCadIcon, label: 'Surface Loft', displayLabel: 'Powierzchnia przejściowa', onClick: openSurfaceLoft, disabled: readOnly || !selectedProfile || Boolean(activeSketchId) || !loftProfileOptions().length, disabledReason: 'Przygotuj dwa profile w osobnych szkicach.' },
+                  { icon: Layers3, label: 'Surface Offset', displayLabel: 'Odsuń powierzchnię', onClick: openSurfaceOffset, disabled: readOnly || !selectedSurfaceBody, disabledReason: 'Zaznacz jedną powierzchnię.' },
                   { icon: ShellCadIcon, label: 'Thicken', displayLabel: 'Pogrub powierzchnię', onClick: openThickenSurface, disabled: readOnly || !selectedSurfaceBody, disabledReason: 'Zaznacz jedną powierzchnię.' },
                 ]} /><ToolMenuButton icon={PrimitiveCadIcon} label="Więcej brył" description="Prymitywy, bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
                   { icon: PrimitiveCadIcon, label: 'Prymityw', onClick: openPrimitive, disabled: readOnly },

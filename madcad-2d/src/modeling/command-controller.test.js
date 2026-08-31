@@ -14,6 +14,7 @@ describe('CAD command controller', () => {
     expect(resolveCommandAlias('surfacerevolve')).toMatchObject({ shortcut: 'SR', label: 'Surface Revolve' });
     expect(resolveCommandAlias('surfacesweep')).toMatchObject({ shortcut: 'SS', label: 'Surface Sweep' });
     expect(resolveCommandAlias('surfaceloft')).toMatchObject({ shortcut: 'SLO', label: 'Surface Loft' });
+    expect(resolveCommandAlias('surfaceoffset')).toMatchObject({ shortcut: 'SO', label: 'Surface Offset' });
     expect(resolveCommandAlias('pogrub')).toMatchObject({ shortcut: 'TH', label: 'Thicken' });
     expect(resolveCommandAlias('massprop')).toMatchObject({ shortcut: 'MP', label: 'Masa' });
   });

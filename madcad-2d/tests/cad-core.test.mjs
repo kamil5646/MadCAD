@@ -1042,14 +1042,16 @@ test('Patch, Surface Extrude, Surface Revolve, Surface Sweep, Surface Loft i Thi
   const lowerSketch = createSketch({ name: 'Dolny szkic', plane: 'XY', planeOffset: '0', profiles: [lowerProfile] });
   const upperSketch = createSketch({ name: 'Górny szkic', plane: 'XY', planeOffset: '20', profiles: [upperProfile] });
   const surfaceLoft = createFeature('surfaceLoft', { sketchId: lowerSketch.id, sketchIds: [lowerSketch.id, upperSketch.id], profileIds: [lowerProfile.id, upperProfile.id], loftMode: 'smooth' });
+  const offsetLoft = createFeature('surfaceOffset', { targetBodyId: `body-${surfaceLoft.id}`, distance: '2' });
   const thickenLoft = createFeature('thickenSurface', { targetBodyId: `body-${surfaceLoft.id}`, thickness: '1.5', side: 'symmetric', reverse: false });
   loftDocument.sketches.push(lowerSketch, upperSketch);
-  loftDocument.features.push(surfaceLoft, thickenLoft);
+  loftDocument.features.push(surfaceLoft, offsetLoft, thickenLoft);
   assert.equal(validateDocument(loftDocument).valid, true);
   const preparedLoft = prepareDocument(loftDocument);
   assert.equal(preparedLoft.features[0].profiles.length, 2);
   assert.equal(preparedLoft.features[0].profiles[1].planeOffset, 20);
-  assert.equal(preparedLoft.features[1].thicknessValue, 1.5);
+  assert.equal(preparedLoft.features[1].distanceValue, 2);
+  assert.equal(preparedLoft.features[2].thicknessValue, 1.5);
   const loftGraph = buildDependencyGraph(loftDocument);
   assert.equal(loftGraph.producerOfBody(`body-${surfaceLoft.id}`), surfaceLoft.id);
   assert.ok(loftGraph.affectedBy(upperProfile.id).includes(thickenLoft.id));

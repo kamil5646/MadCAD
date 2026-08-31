@@ -324,6 +324,7 @@ export function prepareDocument(document) {
       if (holeCounts.size !== 1) throw new Error('Profile Surface Loft muszą mieć tę samą liczbę otworów.');
       return { ...feature, status: 'ready', diagnostics: [], profiles, loftMode: feature.loftMode || 'smooth' };
     }
+    if (feature.type === 'surfaceOffset') return { ...feature, status: 'ready', diagnostics: [], distanceValue: evaluateExpression(feature.distance, parameterResult.values) };
     if (feature.type === 'thickenSurface') {
       return {
         ...feature,

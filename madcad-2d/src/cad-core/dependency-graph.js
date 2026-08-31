@@ -26,7 +26,7 @@ function featureExpressions(feature) {
   if (feature.type === 'draft') return [feature.angle];
   if (feature.type === 'primitive') return [feature.x, feature.y, feature.z, feature.width, feature.depth, feature.height, feature.radius, feature.majorRadius, feature.minorRadius];
   if (feature.type === 'transform') return [feature.x, feature.y, feature.z, feature.angle, feature.originX, feature.originY, feature.originZ];
-  if (feature.type === 'offsetFace') return [feature.distance];
+  if (feature.type === 'offsetFace' || feature.type === 'surfaceOffset') return [feature.distance];
   if (feature.type === 'textSolid') return [feature.fontSize, feature.depth, feature.x, feature.y, feature.z];
   return [];
 }

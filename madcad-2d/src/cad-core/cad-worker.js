@@ -21,6 +21,7 @@ import {
   makeAx2,
   makeBox,
   makeCylinder,
+  makeOffset,
   makeSphere,
   sketchHelix,
   measureShapeSurfaceProperties,
@@ -332,8 +333,8 @@ function thickenSurfaceBody(target, feature) {
   if (target.surfaceSourceType === 'extrude') {
     const wallSide = feature.side === 'symmetric' ? 'symmetric' : (feature.reverse ? 'inside' : 'outside');
     const drawing = target.surfaceProfile.type === 'open'
-      ? openChainStrip(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, endCap: 'butt' })
-      : thinDrawingForProfile(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide });
+      ? openChainStrip(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, endCap: 'butt', surfaceOffset: target.surfaceOffsetDistance })
+      : thinDrawingForProfile(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, surfaceOffset: target.surfaceOffsetDistance });
     let shape = drawing.sketchOnPlane(target.surfaceProfile.plane || 'XY', Number(target.surfaceProfile.planeOffset || 0)).extrude(target.surfaceDistance);
     for (const transform of target.surfaceTransforms || []) {
       shape = transform.mode === 'move'
@@ -345,8 +346,8 @@ function thickenSurfaceBody(target, feature) {
   if (target.surfaceSourceType === 'revolve') {
     const wallSide = feature.side === 'symmetric' ? 'symmetric' : (feature.reverse ? 'inside' : 'outside');
     const drawing = target.surfaceProfile.type === 'open'
-      ? openChainStrip(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, endCap: 'butt' })
-      : thinDrawingForProfile(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide });
+      ? openChainStrip(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, endCap: 'butt', surfaceOffset: target.surfaceOffsetDistance })
+      : thinDrawingForProfile(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, surfaceOffset: target.surfaceOffsetDistance });
     let shape = drawing.sketchOnPlane(target.surfaceProfile.plane || 'XY', Number(target.surfaceProfile.planeOffset || 0)).revolve(target.surfaceAxis.direction, { origin: target.surfaceAxis.origin, angle: target.surfaceAngle });
     for (const transform of target.surfaceTransforms || []) {
       shape = transform.mode === 'move'
@@ -358,8 +359,8 @@ function thickenSurfaceBody(target, feature) {
   if (target.surfaceSourceType === 'sweep') {
     const wallSide = feature.side === 'symmetric' ? 'symmetric' : (feature.reverse ? 'inside' : 'outside');
     const drawing = target.surfaceProfile.type === 'open'
-      ? openChainStrip(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, endCap: 'butt' })
-      : thinDrawingForProfile(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide });
+      ? openChainStrip(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, endCap: 'butt', surfaceOffset: target.surfaceOffsetDistance })
+      : thinDrawingForProfile(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, surfaceOffset: target.surfaceOffsetDistance });
     let shape = sweepDrawing(drawing, target.surfacePath);
     for (const transform of target.surfaceTransforms || []) {
       shape = transform.mode === 'move'
@@ -370,7 +371,7 @@ function thickenSurfaceBody(target, feature) {
   }
   if (target.surfaceSourceType === 'loft') {
     const wallSide = feature.side === 'symmetric' ? 'symmetric' : (feature.reverse ? 'inside' : 'outside');
-    let shape = thickenLoftProfiles(target.surfaceProfiles, target.surfaceLoftMode, feature.thicknessValue, wallSide);
+    let shape = thickenLoftProfiles(target.surfaceProfiles, target.surfaceLoftMode, feature.thicknessValue, wallSide, target.surfaceOffsetDistance);
     for (const transform of target.surfaceTransforms || []) {
       shape = transform.mode === 'move'
         ? shape.translate(...transform.translation)
@@ -456,11 +457,12 @@ function openChainStrip(profile, feature) {
     return firstOrigin.map((value, axis) => value + firstDirection[axis] * alongFirst);
   });
   const thickness = feature.wallThicknessValue;
+  const baseOffset = Number(feature.surfaceOffset || 0);
   const [leftDistance, rightDistance] = feature.wallSide === 'outside'
-    ? [thickness, 0]
+    ? [baseOffset + thickness, baseOffset]
     : feature.wallSide === 'inside'
-      ? [0, -thickness]
-      : [thickness / 2, -thickness / 2];
+      ? [baseOffset, baseOffset - thickness]
+      : [baseOffset + thickness / 2, baseOffset - thickness / 2];
   const left = offsetPolyline(leftDistance);
   const right = offsetPolyline(rightDistance);
   if (feature.endCap === 'square') {
@@ -478,7 +480,8 @@ function openChainStrip(profile, feature) {
 
 function thinDrawingForProfile(profile, feature) {
   if (profile.type === 'open') return openChainStrip(profile, feature);
-  const drawing = drawingForProfile(profile);
+  const baseDrawing = drawingForProfile(profile);
+  const drawing = feature.surfaceOffset ? baseDrawing.offset(feature.surfaceOffset, { lineJoinType: 'miter' }) : baseDrawing;
   const thickness = feature.wallThicknessValue;
   const offset = (distance) => drawing.offset(distance, { lineJoinType: 'miter' });
   if (feature.wallSide === 'outside') return offset(thickness).cut(drawing);
@@ -581,12 +584,12 @@ function surfaceLoftProfiles(profiles, loftMode) {
   return surfaces.length === 1 ? surfaces[0] : compoundShapes(surfaces);
 }
 
-function thickenLoftProfiles(profiles, loftMode, thickness, wallSide) {
+function thickenLoftProfiles(profiles, loftMode, thickness, wallSide, surfaceOffset = 0) {
   const [outerDistance, innerDistance] = wallSide === 'outside'
-    ? [thickness, 0]
+    ? [surfaceOffset + thickness, surfaceOffset]
     : wallSide === 'inside'
-      ? [0, -thickness]
-      : [thickness / 2, -thickness / 2];
+      ? [surfaceOffset, surfaceOffset - thickness]
+      : [surfaceOffset + thickness / 2, surfaceOffset - thickness / 2];
   const loftBand = (drawings) => {
     const loftAtOffset = (distance) => {
       const sketches = drawings.map((drawing, index) => (distance ? drawing.offset(distance, { lineJoinType: 'miter' }) : drawing).sketchOnPlane(profiles[index].plane || 'XY', Number(profiles[index].planeOffset || 0)));
@@ -761,6 +764,19 @@ function runFeature(feature, bodyMap, bodyOrder) {
     return;
   }
 
+  if (feature.type === 'surfaceOffset') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target || target.bodyKind !== 'surface') throw new Error(`Nie znaleziono powierzchni dla ${feature.name}.`);
+    if (Math.abs(feature.distanceValue) <= GEOMETRY_POLICY.linearTolerance) return;
+    const sourceShape = target.shape;
+    target.shape = makeOffset(sourceShape, feature.distanceValue);
+    sourceShape.delete?.();
+    target.surfaceOffsetDistance = Number(target.surfaceOffsetDistance || 0) + feature.distanceValue;
+    target.name = feature.name;
+    target.sourceFeatureId = feature.id;
+    return;
+  }
+
   if (feature.type === 'thickenSurface') {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target || target.bodyKind !== 'surface') throw new Error(`Nie znaleziono powierzchni dla ${feature.name}.`);
@@ -778,6 +794,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
     delete target.surfacePath;
     delete target.surfaceProfiles;
     delete target.surfaceLoftMode;
+    delete target.surfaceOffsetDistance;
     delete target.surfaceTransforms;
     return;
   }

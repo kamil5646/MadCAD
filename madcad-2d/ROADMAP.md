@@ -157,6 +157,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.21b Surface Revolve: obrót zamkniętego profilu albo otwartego łańcucha wokół osi bazowej/konstrukcyjnej, kąt parametryczny, bezpośredni dostęp z aktywnego szkicu, edycja historii i współpraca z Thicken.
 - [x] P1.21c Surface Sweep: prowadzenie zamkniętego profilu albo otwartego łańcucha po osobnym ciągłym szkicu ścieżki, bezpośredni dostęp z aktywnego szkicu, edycja historii, graf zależności i współpraca z Thicken.
 - [x] P1.21d Surface Loft: otwarta powierzchnia gładka lub odcinkowa między dwoma zamkniętymi profilami z osobnych równoległych szkiców, edycja historii, graf zależności i współpraca z Thicken.
+- [x] P1.21e Surface Offset: dokładne odsunięcie istniejącej powierzchni B-Rep o dodatnią lub ujemną odległość, podgląd, edycja historii, graf zależności i współpraca z Thicken.
 
 ## P1 — organizacja dokumentu i produktywność klasycznego CAD
 
