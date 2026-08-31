@@ -82,6 +82,31 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'solid'`, 'podgląd pogrubionej powierzchni obrotowej');
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 2 && window.__madcadVerifyDocumentState.featureData[1].type === 'thickenSurface' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'solid'`, 'zapisane pogrubienie Surface Revolve');
+    const revolveSolidMetrics = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics`);
+
+    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSurfaceFixture('sweep-source')`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.activeSketchId && window.__madcadVerifyDocumentState?.sketches?.length === 2 && window.__madcadVerifyDocumentState?.featureData?.length === 0`, 'otwarty szkic Surface Sweep');
+    await window.webContents.executeJavaScript(`(() => {
+      const line = window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line');
+      if (!line) throw new Error('Brak profilu Surface Sweep.');
+      window.__madcadVerifySketchSelection([line.id], 'replace');
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketchEntities' && window.__madcadVerifyDocumentState.selection.ids?.length === 1`, 'zaznaczony profil Surface Sweep');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Utwórz 3D').click()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Powierzchnia po ścieżce' && !button.disabled)`, 'aktywne polecenie Surface Sweep');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Powierzchnia po ścieżce' && !button.disabled).click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'surfaceSweep' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'surface'`, 'podgląd Surface Sweep');
+    const sweepSurfaceMetrics = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics`);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 1 && window.__madcadVerifyDocumentState.featureData[0].type === 'surfaceSweep' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'surface'`, 'zapisany Surface Sweep');
+    await window.webContents.executeJavaScript(`(() => { const bodyId = window.__madcadVerifyDocumentState.bodyIds[0]; window.__madcadVerifyTopologySelection({ kind: 'body', id: bodyId, bodyId }); })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'zaznaczona powierzchnia Sweep');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled)`, 'Pogrub dla Surface Sweep');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled).click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'solid'`, 'podgląd pogrubionej powierzchni Sweep');
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 2 && window.__madcadVerifyDocumentState.featureData[1].type === 'thickenSurface' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'solid'`, 'zapisane pogrubienie Surface Sweep');
 
     const result = await window.webContents.executeJavaScript(`(() => ({
       featureTypes: window.__madcadVerifyDocumentState.featureData.map((feature) => feature.type),
@@ -95,15 +120,17 @@ app.whenReady().then(async () => {
     result.patchBoundsZ = [patchMetrics.bounds[0][2], patchMetrics.bounds[1][2]];
     result.revolveSurfaceArea = revolveSurfaceMetrics.area;
     result.revolveSurfaceVolume = revolveSurfaceMetrics.volume;
+    result.revolveSolidVolume = revolveSolidMetrics.volume;
+    result.sweepSurfaceArea = sweepSurfaceMetrics.area;
     result.extrudeCenterX = (extrudeMetrics.bounds[0][0] + extrudeMetrics.bounds[1][0]) / 2;
     result.extrudeVolume = extrudeMetrics.volume;
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (result.patchVolume <= 0 || Math.abs(result.patchBoundsZ[0] + 1) > 0.01 || Math.abs(result.patchBoundsZ[1] - 1) > 0.01 || result.extrudeVolume <= 0 || Math.abs(result.extrudeCenterX - 35) > 0.01 || result.volume <= 0 || result.revolveSurfaceArea <= 0 || !result.surfaceFolder || !result.solidFolder || result.horizontalOverflow) throw new Error(`Niepoprawny przepływ powierzchniowy: ${JSON.stringify(result)}`);
+    if (result.patchVolume <= 0 || Math.abs(result.patchBoundsZ[0] + 1) > 0.01 || Math.abs(result.patchBoundsZ[1] - 1) > 0.01 || result.extrudeVolume <= 0 || Math.abs(result.extrudeCenterX - 35) > 0.01 || result.revolveSolidVolume <= 0 || result.revolveSurfaceArea <= 0 || result.volume <= 0 || result.sweepSurfaceArea <= 0 || !result.surfaceFolder || !result.solidFolder || result.horizontalOverflow) throw new Error(`Niepoprawny przepływ powierzchniowy: ${JSON.stringify(result)}`);
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...result }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
     try {
-      const diagnostic = await window.webContents.executeJavaScript(`({ command: window.__madcadVerifyDocumentState?.command, engineStatus: window.__madcadVerifyEngineState?.status, diagnostics: window.__madcadVerifyEngineState?.diagnostics, featureTypes: window.__madcadVerifyDocumentState?.featureData?.map((feature) => feature.type) })`);
+      const diagnostic = await window.webContents.executeJavaScript(`({ command: window.__madcadVerifyDocumentState?.command, engineStatus: window.__madcadVerifyEngineState?.status, bodies: window.__madcadVerifyEngineState?.bodies, timeline: window.__madcadVerifyEngineState?.timeline, diagnostics: window.__madcadVerifyEngineState?.diagnostics, featureTypes: window.__madcadVerifyDocumentState?.featureData?.map((feature) => feature.type) })`);
       process.stderr.write(`${JSON.stringify(diagnostic, null, 2)}\n`);
     } catch {}
     process.stderr.write(`${error.stack || error.message}\n`);

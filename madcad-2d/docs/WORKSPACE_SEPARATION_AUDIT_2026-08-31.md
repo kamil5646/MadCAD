@@ -63,8 +63,8 @@ Stan pakietu: **zielony**. Główny przepływ ma trzy przewidywalne obszary, imp
 
 - Drzewo dostępności finalnej aplikacji zawiera nazwane zakładki, grupy, przyciski i ich przyczyny niedostępności.
 - Automatyczna kontrola nie zastępuje ręcznej oceny canvas, kontrastu na konkretnym monitorze ani pełnego testu VoiceOver; nie zgłaszam na tej podstawie pełnej zgodności WCAG.
-- Narzędzia powierzchniowe zostały domknięte w kolejnej paczce: `Patch`, `Surface Extrude` i `Thicken`; szczegóły zawiera `SURFACE_MODELING_AUDIT_2026-08-31.md`.
+- Narzędzia powierzchniowe zostały rozszerzone w kolejnej paczce: `Patch`, `Surface Extrude`, `Surface Revolve`, `Surface Sweep` i `Thicken`; szczegóły zawiera `SURFACE_MODELING_AUDIT_2026-08-31.md`.
 
 ## Zakres domknięty późniejszą paczką
 
-Modelowanie powierzchniowe zostało następnie wdrożone i zweryfikowane jako rzeczywiste operacje OpenCascade. Główna checklista oznacza ten zakres jako ukończony na podstawie testów `Patch → Thicken` oraz `Surface Extrude → Thicken`.
+Modelowanie powierzchniowe zostało następnie wdrożone i zweryfikowane jako rzeczywiste operacje OpenCascade. Główna checklista oznacza wykonany zakres na podstawie testów `Patch → Thicken`, `Surface Extrude → Thicken`, `Surface Revolve → Thicken` oraz `Surface Sweep → Thicken`.

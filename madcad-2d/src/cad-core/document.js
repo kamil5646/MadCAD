@@ -28,7 +28,7 @@ export const DOCUMENT_SCHEMA_VERSION = 15;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'surfacePatch', 'surfaceExtrude', 'surfaceRevolve', 'thickenSurface', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'pattern', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'surfacePatch', 'surfaceExtrude', 'surfaceRevolve', 'surfaceSweep', 'thickenSurface', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'pattern', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -343,7 +343,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', surfacePatch: 'Patch', surfaceExtrude: 'Wyciągnięcie powierzchni', surfaceRevolve: 'Obrót powierzchni', thickenSurface: 'Pogrubienie powierzchni', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', surfacePatch: 'Patch', surfaceExtrude: 'Wyciągnięcie powierzchni', surfaceRevolve: 'Obrót powierzchni', surfaceSweep: 'Powierzchnia po ścieżce', thickenSurface: 'Pogrubienie powierzchni', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -1060,8 +1060,27 @@ export function validateDocument(document) {
       surfaceBodyIds.add(bodyId);
     }
 
+    if (feature.type === 'surfaceSweep') {
+      if (!sketchIds.has(feature.sketchId) || !sketchIds.has(feature.pathSketchId)) add(`${base}.sketchId`, 'Surface Sweep wymaga szkicu profilu i osobnego szkicu ścieżki.', 'BROKEN_REFERENCE');
+      if (feature.sketchId === feature.pathSketchId) add(`${base}.pathSketchId`, 'Profil i ścieżka Surface Sweep muszą należeć do różnych szkiców.', 'VALUE');
+      const hasOpenChain = Array.isArray(feature.openEntityIds) && feature.openEntityIds.length > 0;
+      if (hasOpenChain) feature.openEntityIds.forEach((entityId, entityIndex) => {
+        const owner = entityOwners.get(entityId);
+        if (!owner || owner.sketchId !== feature.sketchId || owner.type !== 'line') add(`${base}.openEntityIds[${entityIndex}]`, 'Otwarty profil Surface Sweep musi składać się z połączonych linii szkicu źródłowego.', 'UNSUPPORTED');
+      });
+      else if (!Array.isArray(feature.profileIds) || feature.profileIds.length !== 1 || profileOwners.get(feature.profileIds[0]) !== feature.sketchId) add(`${base}.profileIds`, 'Surface Sweep wymaga jednego zamkniętego profilu albo otwartego łańcucha.', 'REQUIRED');
+      if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Surface Sweep wymaga ciągłej ścieżki z linii.', 'REQUIRED');
+      else feature.pathEntityIds.forEach((entityId, entityIndex) => {
+        const owner = entityOwners.get(entityId);
+        if (!owner || owner.sketchId !== feature.pathSketchId || owner.type !== 'line') add(`${base}.pathEntityIds[${entityIndex}]`, 'Ścieżka Surface Sweep musi składać się z linii wskazanego szkicu.', 'UNSUPPORTED');
+      });
+      const bodyId = `body-${feature.id}`;
+      bodyIds.add(bodyId);
+      surfaceBodyIds.add(bodyId);
+    }
+
     if (feature.type === 'thickenSurface') {
-      if (!surfaceBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Pogrubienie wymaga wcześniejszej powierzchni Patch, Surface Extrude albo Surface Revolve.', 'BROKEN_REFERENCE');
+      if (!surfaceBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Pogrubienie wymaga wcześniejszej powierzchni Patch, Surface Extrude, Surface Revolve albo Surface Sweep.', 'BROKEN_REFERENCE');
       if (typeof feature.thickness !== 'string' && typeof feature.thickness !== 'number') add(`${base}.thickness`, 'Pogrubienie wymaga parametrycznej grubości.', 'TYPE');
       if (!['one-side', 'symmetric'].includes(feature.side || 'one-side')) add(`${base}.side`, 'Nieobsługiwana strona pogrubienia powierzchni.', 'UNSUPPORTED');
       surfaceBodyIds.delete(feature.targetBodyId);

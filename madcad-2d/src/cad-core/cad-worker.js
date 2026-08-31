@@ -355,6 +355,19 @@ function thickenSurfaceBody(target, feature) {
     }
     return shape;
   }
+  if (target.surfaceSourceType === 'sweep') {
+    const wallSide = feature.side === 'symmetric' ? 'symmetric' : (feature.reverse ? 'inside' : 'outside');
+    const drawing = target.surfaceProfile.type === 'open'
+      ? openChainStrip(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, endCap: 'butt' })
+      : thinDrawingForProfile(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide });
+    let shape = sweepDrawing(drawing, target.surfacePath);
+    for (const transform of target.surfaceTransforms || []) {
+      shape = transform.mode === 'move'
+        ? shape.translate(...transform.translation)
+        : shape.rotate(transform.angle, transform.origin, [0, 0, 1]);
+    }
+    return shape;
+  }
   throw new Error('Nie rozpoznano źródła powierzchni do pogrubienia.');
 }
 
@@ -485,16 +498,51 @@ function revolveProfile(profile, axis, angle) {
   return shape;
 }
 
+function sweepDrawing(profileDrawing, path) {
+  const [first, ...rest] = path.geometry.points;
+  const spinePen = draw(first);
+  rest.forEach((point) => spinePen.lineTo(point));
+  const spine = spinePen.done().sketchOnPlane(path.plane || 'XY', Number(path.planeOffset || 0));
+  return spine.sweepSketch((plane) => profileDrawing.sketchOnPlane(plane), { transitionMode: 'round' });
+}
+
+function surfaceSweepDrawing(profileDrawing, path) {
+  const [first, ...rest] = path.geometry.points;
+  const spinePen = draw(first);
+  rest.forEach((point) => spinePen.lineTo(point));
+  const spine = spinePen.done().sketchOnPlane(path.plane || 'XY', Number(path.planeOffset || 0));
+  const startPoint = spine.wire.startPoint;
+  const tangent = spine.wire.tangentAt(1e-9);
+  const normal = tangent.multiply(-1).normalize();
+  const defaultDirection = spine.defaultDirection;
+  const crossDirection = normal.cross(defaultDirection);
+  const xDir = crossDirection.multiply(-1);
+  const profilePlane = new Plane(startPoint, xDir, normal);
+  const profileSketch = profileDrawing.sketchOnPlane(profilePlane);
+  const builder = new (getOC().BRepOffsetAPI_MakePipe_1)(spine.wire.wrapped, profileSketch.wire.wrapped);
+  const shape = cast(builder.Shape());
+  builder.delete();
+  profileSketch.delete();
+  profilePlane.delete();
+  xDir.delete();
+  crossDirection.delete();
+  normal.delete();
+  tangent.delete();
+  startPoint.delete();
+  spine.delete();
+  return shape;
+}
+
+function sweptSurfaceForProfile(profile, path) {
+  if (profile.type === 'open') return surfaceSweepDrawing(drawingForSegments(profile.geometry.segments, profile.id), path);
+  const surfaces = [surfaceSweepDrawing(drawingForProfile(profile), path)];
+  for (const hole of profile.geometry.holes || []) surfaces.push(surfaceSweepDrawing(drawingForSegments(hole.segments, profile.id), path));
+  return surfaces.length === 1 ? surfaces[0] : compoundShapes(surfaces);
+}
+
 function sweepProfile(profile, path) {
-  const sweepDrawing = (profileDrawing) => {
-    const [first, ...rest] = path.geometry.points;
-    const spinePen = draw(first);
-    rest.forEach((point) => spinePen.lineTo(point));
-    const spine = spinePen.done().sketchOnPlane(path.plane || 'XY', Number(path.planeOffset || 0));
-    return spine.sweepSketch((plane) => profileDrawing.sketchOnPlane(plane), { transitionMode: 'round' });
-  };
-  let shape = sweepDrawing(drawingForProfile(profile));
-  for (const hole of profile.geometry.holes || []) shape = shape.cut(sweepDrawing(drawingForSegments(hole.segments, profile.id)));
+  let shape = sweepDrawing(drawingForProfile(profile), path);
+  for (const hole of profile.geometry.holes || []) shape = shape.cut(sweepDrawing(drawingForSegments(hole.segments, profile.id), path));
   return shape;
 }
 
@@ -639,6 +687,23 @@ function runFeature(feature, bodyMap, bodyOrder) {
     return;
   }
 
+  if (feature.type === 'surfaceSweep') {
+    const bodyId = `body-${feature.id}`;
+    bodyMap.set(bodyId, {
+      id: bodyId,
+      name: feature.name,
+      sourceFeatureId: feature.id,
+      representation: 'brep',
+      bodyKind: 'surface',
+      surfaceSourceType: 'sweep',
+      surfaceProfile: feature.profile,
+      surfacePath: feature.path,
+      shape: sweptSurfaceForProfile(feature.profile, feature.path),
+    });
+    bodyOrder.push(bodyId);
+    return;
+  }
+
   if (feature.type === 'thickenSurface') {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target || target.bodyKind !== 'surface') throw new Error(`Nie znaleziono powierzchni dla ${feature.name}.`);
@@ -653,6 +718,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
     delete target.surfaceDistance;
     delete target.surfaceAxis;
     delete target.surfaceAngle;
+    delete target.surfacePath;
     delete target.surfaceTransforms;
     return;
   }

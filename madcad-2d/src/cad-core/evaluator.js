@@ -299,6 +299,19 @@ export function prepareDocument(document) {
       const { axis, angleValue } = resolveRevolveAxis(document, feature, profile, parameterResult.values, 'obrotu powierzchni');
       return { ...feature, status: 'ready', diagnostics: [], profile, axis, angleValue };
     }
+    if (feature.type === 'surfaceSweep') {
+      const sourceSketch = document.sketches.find((sketch) => sketch.id === feature.sketchId);
+      const pathSketch = document.sketches.find((sketch) => sketch.id === feature.pathSketchId);
+      const profile = feature.openEntityIds?.length
+        ? { ...resolveOpenChainProfile(sourceSketch, feature.openEntityIds, parameterResult.values, feature.id, 'Surface Sweep'), plane: sourceSketch?.plane || 'XY', planeOffset: evaluateExpression(sourceSketch?.planeOffset || 0, parameterResult.values) }
+        : (() => {
+          const match = findProfile(document, feature.profileIds[0]);
+          if (!match) throw new Error(`Nie znaleziono profilu Surface Sweep ${feature.profileIds[0]}.`);
+          return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
+        })();
+      const path = { ...resolveOpenChainProfile(pathSketch, feature.pathEntityIds, parameterResult.values, feature.id, 'Surface Sweep'), plane: pathSketch?.plane || 'XY', planeOffset: evaluateExpression(pathSketch?.planeOffset || 0, parameterResult.values) };
+      return { ...feature, status: 'ready', diagnostics: [], profile, path };
+    }
     if (feature.type === 'thickenSurface') {
       return {
         ...feature,

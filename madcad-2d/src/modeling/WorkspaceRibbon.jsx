@@ -43,6 +43,8 @@ const TOOL_DESCRIPTIONS = {
   'Wyciągnij': 'Wyciągnij zaznaczony profil w bryłę; możesz też przeciągnąć niebieską strzałkę.',
   'Patch': 'Wypełnij zamknięty profil dokładną planarną powierzchnią B-Rep.',
   'Surface Extrude': 'Wyciągnij zamknięty profil albo otwarty łańcuch jako otwartą powierzchnię.',
+  'Surface Revolve': 'Obróć zamknięty profil albo otwarty łańcuch jako otwartą powierzchnię.',
+  'Surface Sweep': 'Poprowadź profil jako otwartą powierzchnię po osobnym szkicu ścieżki.',
   'Thicken': 'Nadaj wybranej powierzchni grubość i zamień ją w zamkniętą bryłę B-Rep.',
   'Revolve': 'Obróć profil wokół wskazanej osi i utwórz bryłę obrotową.',
   'Sweep': 'Przeciągnij profil wzdłuż osobnej ścieżki szkicu.',

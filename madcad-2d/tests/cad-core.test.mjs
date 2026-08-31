@@ -961,7 +961,7 @@ test('szkic na planarnej ścianie zachowuje podporę i odsunięcie w przygotowan
   assert.equal(validateDocument(broken).issues.some((issue) => issue.path.endsWith('support.referenceId') && issue.code === 'BROKEN_REFERENCE'), true);
 });
 
-test('Patch, Surface Extrude, Surface Revolve i Thicken zachowują szkic, zależności i rozdział powierzchnia-bryła', () => {
+test('Patch, Surface Extrude, Surface Revolve, Surface Sweep i Thicken zachowują szkic, zależności i rozdział powierzchnia-bryła', () => {
   const patchDocument = createDocument('Powierzchnia Patch');
   const patchProfile = createRectangleProfile({ width: '40', height: '20' });
   const patchSketch = createSketch({ name: 'Obrys powierzchni', profiles: [patchProfile] });
@@ -1013,6 +1013,28 @@ test('Patch, Surface Extrude, Surface Revolve i Thicken zachowują szkic, zależ
   const revolveGraph = buildDependencyGraph(revolveDocument);
   assert.equal(revolveGraph.producerOfBody(`body-${surfaceRevolve.id}`), surfaceRevolve.id);
   assert.ok(revolveGraph.affectedBy(line.id).includes(thickenRevolve.id));
+
+  const sweepDocument = createDocument('Powierzchnia po ścieżce');
+  const profileStart = createSketchPoint({ x: 0, y: '-6' });
+  const profileEnd = createSketchPoint({ x: 0, y: '6' });
+  const profileLine = createSketchLine({ startPointId: profileStart.id, endPointId: profileEnd.id });
+  const sweepProfileSketch = createSketch({ name: 'Otwarty profil', plane: 'XY', entities: [profileStart, profileEnd, profileLine] });
+  const pathStart = createSketchPoint({ x: 0, y: 0 });
+  const pathEnd = createSketchPoint({ x: 30, y: 0 });
+  const pathLine = createSketchLine({ startPointId: pathStart.id, endPointId: pathEnd.id });
+  const sweepPathSketch = createSketch({ name: 'Ścieżka', plane: 'XY', entities: [pathStart, pathEnd, pathLine] });
+  const surfaceSweep = createFeature('surfaceSweep', { sketchId: sweepProfileSketch.id, profileIds: [], openEntityIds: [profileLine.id], pathSketchId: sweepPathSketch.id, pathEntityIds: [pathLine.id] });
+  const thickenSweep = createFeature('thickenSurface', { targetBodyId: `body-${surfaceSweep.id}`, thickness: '1', side: 'one-side', reverse: false });
+  sweepDocument.sketches.push(sweepProfileSketch, sweepPathSketch);
+  sweepDocument.features.push(surfaceSweep, thickenSweep);
+  assert.equal(validateDocument(sweepDocument).valid, true);
+  const preparedSweep = prepareDocument(sweepDocument);
+  assert.equal(preparedSweep.features[0].profile.type, 'open');
+  assert.deepEqual(preparedSweep.features[0].path.geometry.points, [[0, 0], [30, 0]]);
+  assert.equal(preparedSweep.features[1].thicknessValue, 1);
+  const sweepGraph = buildDependencyGraph(sweepDocument);
+  assert.equal(sweepGraph.producerOfBody(`body-${surfaceSweep.id}`), surfaceSweep.id);
+  assert.ok(sweepGraph.affectedBy(pathLine.id).includes(thickenSweep.id));
 });
 
 test('Extrude przygotowuje odsunięty start, Join, Cut i Intersect z jedną, dwiema, symetryczną oraz Through All', () => {
