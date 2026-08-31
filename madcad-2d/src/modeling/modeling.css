@@ -3406,18 +3406,20 @@
 
 .plane-picker.plane-picker-canvas {
   z-index: 12;
-  top: 18px;
-  width: min(540px, calc(100% - 32px));
+  top: 12px;
+  left: 12px;
+  width: min(390px, calc(100% - 154px));
   border-color: #718091;
-  border-radius: 10px;
-  background: rgba(43, 53, 65, 0.96);
-  box-shadow: 0 16px 42px rgba(4, 9, 14, 0.46);
-  transform: translateX(-50%);
+  border-radius: 6px;
+  background: rgba(43, 53, 65, 0.92);
+  box-shadow: 0 10px 28px rgba(4, 9, 14, 0.38);
+  transform: none;
   backdrop-filter: blur(10px);
 }
 
 .plane-picker-canvas > header {
-  border-radius: 9px 9px 0 0;
+  min-height: 38px;
+  border-radius: 5px 5px 0 0;
   background: rgba(58, 70, 84, 0.82);
 }
 
@@ -3430,14 +3432,40 @@
 }
 
 .plane-picker-canvas .plane-options {
-  gap: 9px;
-  padding: 10px 12px 12px;
+  gap: 6px;
+  padding: 7px 8px 8px;
 }
 
 .plane-picker-canvas .plane-options button {
-  min-height: 106px;
-  border-radius: 8px;
+  min-height: 64px;
+  grid-template-columns: 34px 1fr;
+  grid-template-rows: auto auto;
+  justify-items: start;
+  column-gap: 5px;
+  padding: 5px 6px;
+  border-radius: 4px;
   background: rgba(31, 40, 50, 0.82);
+}
+
+.plane-picker-canvas .plane-options .plane-glyph {
+  grid-row: 1 / 3;
+  width: 34px;
+  height: 30px;
+  margin: 0;
+}
+
+.plane-picker-canvas .plane-options button > strong,
+.plane-picker-canvas .plane-options button > span {
+  justify-self: start;
+  text-align: left;
+}
+
+.plane-picker-canvas .plane-options button > kbd {
+  top: 3px;
+  right: 4px;
+  min-width: 15px;
+  padding: 1px 3px;
+  font-size: 8px;
 }
 
 .plane-picker-canvas .plane-options button:hover,
@@ -3569,13 +3597,13 @@
   top: 12px;
   left: 12px;
   display: grid;
-  width: 178px;
+  width: 220px;
   max-width: calc(100% - 154px);
   max-height: calc(100% - 24px);
   padding: 5px;
   gap: 5px;
   border: 1px solid #667687;
-  border-radius: 10px;
+  border-radius: 6px;
   background: rgba(39, 49, 61, 0.96);
   box-shadow: 0 10px 30px rgba(5, 10, 16, 0.38);
   color: #eaf0f5;
@@ -3603,7 +3631,7 @@
 .adaptive-tool-shelf > header strong {
   overflow: hidden;
   color: white;
-  font-size: 11.5px;
+  font-size: 12.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -3611,7 +3639,7 @@
 .adaptive-tool-shelf > header small {
   overflow: hidden;
   color: #aebbc7;
-  font-size: 8.5px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -3642,15 +3670,15 @@
   display: grid;
   width: 100%;
   min-width: 0;
-  min-height: 34px;
-  padding: 4px 8px;
+  min-height: 38px;
+  padding: 5px 9px;
   grid-template-columns: 24px minmax(0, 1fr);
   align-items: center;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 4px;
   background: transparent;
   color: #dce5ec;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 620;
   text-align: left;
   white-space: nowrap;

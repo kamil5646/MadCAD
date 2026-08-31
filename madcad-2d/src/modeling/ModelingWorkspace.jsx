@@ -5087,6 +5087,24 @@ export default function ModelingWorkspace() {
     setTimelineDeleteId(selection.id);
   };
 
+  const requestSelectedBodyDelete = () => {
+    if (readOnly) return readOnlyNotice();
+    if (selectedBodyIds.length !== 1) {
+      setNotice('Zaznacz jedną bryłę do usunięcia.');
+      return;
+    }
+    const body = engine.bodies.find((item) => item.id === selectedBodyIds[0]);
+    const sourceFeatureId = body?.sourceFeatureId || (body?.id?.startsWith('body-') ? body.id.slice(5) : '');
+    if (!sourceFeatureId || !document.features.some((feature) => feature.id === sourceFeatureId)) {
+      setNotice('Nie znaleziono operacji źródłowej tej bryły.');
+      return;
+    }
+    setSelection({ kind: 'feature', id: sourceFeatureId });
+    setTimelineRename(null);
+    setTimelineDeleteId(sourceFeatureId);
+    setNotice('Potwierdź usunięcie operacji źródłowej bryły i jej zależności na osi czasu.');
+  };
+
   const confirmTimelineDelete = () => {
     if (!timelineDeleteId) return;
     const deletedIds = dependentTimelineFeatureIds(document, timelineDeleteId);
@@ -5557,7 +5575,11 @@ export default function ModelingWorkspace() {
             { icon: PatternCadIcon, label: 'Szyk', onClick: openPattern },
           ] : []),
         ],
-        moreActions: selectedBodyIds.length === 1 ? [{ icon: SplitBodyCadIcon, label: 'Podziel bryłę', onClick: openSplitBody }] : [],
+        moreActions: selectedBodyIds.length === 1 ? [
+          { icon: MassCadIcon, label: 'Właściwości masy', onClick: openMassProperties },
+          { icon: SplitBodyCadIcon, label: 'Podziel bryłę', onClick: openSplitBody },
+          { icon: Trash2, label: 'Usuń bryłę', onClick: requestSelectedBodyDelete, danger: true },
+        ] : [],
         onClear: clearModelSelection,
       };
     } else if (['sketch', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)) {
@@ -5927,6 +5949,8 @@ export default function ModelingWorkspace() {
             onSelectJoint={(jointId) => { const joint = document.joints.find((item) => item.id === jointId); setSelection({ kind: 'joint', id: jointId, movingInstanceId: joint?.movingInstanceId }); setComponentsOpen(true); }}
             selectedTopologyIds={selectedTopologyIds}
             onSelectTopology={handleTopologySelection}
+            planeSelectionMode={command?.type === 'plane'}
+            onSelectOriginPlane={pickPlane}
             constructionPlanes={constructionPlanes}
             constructionAxes={constructionAxes}
             constructionPoints={constructionPoints}

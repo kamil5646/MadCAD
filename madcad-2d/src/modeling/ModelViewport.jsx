@@ -441,6 +441,8 @@ export default function ModelViewport({
   onSelectJoint,
   selectedTopologyIds = [],
   onSelectTopology,
+  planeSelectionMode = false,
+  onSelectOriginPlane,
   constructionPlanes = [],
   constructionAxes = [],
   constructionPoints = [],
@@ -478,6 +480,7 @@ export default function ModelViewport({
   const sketchInteractionRef = useRef({ activeSketchId: null, start: null, drag: null, box: null });
   const selectRef = useRef(onSelectBody);
   const topologySelectRef = useRef(onSelectTopology);
+  const originPlaneSelectRef = useRef(onSelectOriginPlane);
   const draftChangeRef = useRef(onDraftChange);
   const sketchPointRef = useRef(onSketchPoint);
   const sketchPointerMoveRef = useRef(onSketchPointerMove);
@@ -588,6 +591,7 @@ export default function ModelViewport({
   const directEnabled = Boolean((selectedProfile || directManipulator) && !activeSketchId);
   selectRef.current = onSelectBody;
   topologySelectRef.current = onSelectTopology;
+  originPlaneSelectRef.current = onSelectOriginPlane;
   draftChangeRef.current = onDraftChange;
   sketchPointRef.current = onSketchPoint;
   sketchPointerMoveRef.current = onSketchPointerMove;
@@ -1199,8 +1203,43 @@ export default function ModelViewport({
     if (activeSketch && !hasActiveSketchContent) center.set(...mapPlanePoint(0, 0, activePlane, 0, activePlaneOffset));
     const size = modelBox ? modelBox.getSize(new THREE.Vector3()) : new THREE.Vector3(80, 60, 20);
     const radius = Math.max(size.x, size.y, size.z, 55);
-    const constructionGroup = new THREE.Group();
     const planeSize = Math.max(60, radius * 1.15);
+    const originPlaneGroup = new THREE.Group();
+    const originPlanePickables = [];
+    if (planeSelectionMode) {
+      const originPlanes = [
+        { id: 'XY', color: 0x62d7f2, u: [1, 0, 0], v: [0, 1, 0] },
+        { id: 'XZ', color: 0xf3bd63, u: [1, 0, 0], v: [0, 0, 1] },
+        { id: 'YZ', color: 0x72d5a1, u: [0, 1, 0], v: [0, 0, 1] },
+      ];
+      const originPlaneSize = Math.max(72, Math.min(planeSize, 110));
+      for (const plane of originPlanes) {
+        const u = new THREE.Vector3(...plane.u).multiplyScalar(originPlaneSize / 2);
+        const v = new THREE.Vector3(...plane.v).multiplyScalar(originPlaneSize / 2);
+        const corners = [u.clone().negate().sub(v), u.clone().sub(v), u.clone().add(v), v.clone().sub(u)];
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(corners.flatMap((point) => point.toArray()), 3));
+        geometry.setIndex([0, 1, 2, 0, 2, 3]);
+        const material = new THREE.MeshBasicMaterial({
+          color: plane.color,
+          transparent: true,
+          opacity: 0.2,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.renderOrder = 3;
+        mesh.userData = { originPlane: plane.id, baseColor: plane.color, baseOpacity: 0.2, clickPoint: u.clone().multiplyScalar(0.55).add(v.clone().multiplyScalar(0.55)).toArray() };
+        const outlineGeometry = new THREE.BufferGeometry();
+        outlineGeometry.setAttribute('position', new THREE.Float32BufferAttribute([...corners, corners[0]].flatMap((point) => point.toArray()), 3));
+        const outline = new THREE.Line(outlineGeometry, new THREE.LineBasicMaterial({ color: plane.color, transparent: true, opacity: 0.95 }));
+        outline.renderOrder = 4;
+        originPlaneGroup.add(mesh, outline);
+        originPlanePickables.push(mesh);
+      }
+      scene.add(originPlaneGroup);
+    }
+    const constructionGroup = new THREE.Group();
     for (const plane of constructionPlanes) {
       if (!plane.visible || plane.status !== 'ok') continue;
       const origin = new THREE.Vector3(...plane.origin);
@@ -1311,6 +1350,7 @@ export default function ModelViewport({
     const sketchInteraction = sketchInteractionRef.current;
     let hoveredSketchObject = null;
     let hoveredModel = null;
+    let hoveredOriginPlane = null;
     let modelPickCycle = { x: NaN, y: NaN, index: 0 };
     let modelSelectionBox = null;
     const sketchPlane = activePlane === 'XZ'
@@ -1325,6 +1365,20 @@ export default function ModelViewport({
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
       return rect;
+    };
+    const pickOriginPlane = (event) => {
+      const hits = raycaster.intersectObjects(originPlanePickables, false);
+      if (hits.length < 2) return hits[0] || null;
+      const rect = renderer.domElement.getBoundingClientRect();
+      return hits.sort((first, second) => {
+        const screenDistance = (hit) => {
+          const projected = new THREE.Vector3(...hit.object.userData.clickPoint).project(camera);
+          const x = rect.left + (projected.x + 1) * rect.width / 2;
+          const y = rect.top + (1 - projected.y) * rect.height / 2;
+          return Math.hypot(event.clientX - x, event.clientY - y);
+        };
+        return screenDistance(first) - screenDistance(second);
+      })[0];
     };
     const screenPoint = (coordinate, rect) => {
       const projected = new THREE.Vector3(...mapPlanePoint(coordinate[0], coordinate[1], activePlane, 0.2, activePlaneOffset)).project(camera);
@@ -1434,6 +1488,19 @@ export default function ModelViewport({
         if (highlight) highlight.visible = true;
       } else if (hoveredModel?.object?.material?.color) hoveredModel.object.material.color.setHex(0xf4fbff);
       if (!activeSketch && !directDragRef.current) renderer.domElement.style.cursor = hoveredModel ? 'pointer' : 'grab';
+    };
+    const setOriginPlaneHover = (mesh) => {
+      if (hoveredOriginPlane === mesh) return;
+      if (hoveredOriginPlane?.material) {
+        hoveredOriginPlane.material.color.setHex(hoveredOriginPlane.userData.baseColor);
+        hoveredOriginPlane.material.opacity = hoveredOriginPlane.userData.baseOpacity;
+      }
+      hoveredOriginPlane = mesh || null;
+      if (hoveredOriginPlane?.material) {
+        hoveredOriginPlane.material.color.setHex(0xf4fbff);
+        hoveredOriginPlane.material.opacity = 0.42;
+      }
+      if (planeSelectionMode) renderer.domElement.style.cursor = hoveredOriginPlane ? 'pointer' : 'default';
     };
     const modelCandidates = () => selectionFilter === 'body' || selectionFilter === 'face'
       ? facePickables
@@ -1550,6 +1617,15 @@ export default function ModelViewport({
     const onPointerDown = (event) => {
       if (!shouldHandlePrimaryViewportPointer(event, { navigationMode, activeSketch: Boolean(activeSketch) })) return;
       const rect = setRayFromEvent(event);
+      if (planeSelectionMode) {
+        const planeHit = pickOriginPlane(event);
+        if (planeHit?.object?.userData?.originPlane) {
+          event.preventDefault();
+          event.stopPropagation();
+          originPlaneSelectRef.current?.(planeHit.object.userData.originPlane);
+        }
+        return;
+      }
       const fromDirectOverlay = event.currentTarget === directHandleElement;
       const directHit = fromDirectOverlay ? { object: directHead } : (directPickables.length ? raycaster.intersectObjects(directPickables, false)[0] : null);
       if (new URLSearchParams(window.location.search).has('verify')) {
@@ -1714,6 +1790,12 @@ export default function ModelViewport({
       else selectRef.current?.(topologySelection?.bodyId || null);
     };
     const onPointerMove = (event) => {
+      if (planeSelectionMode) {
+        setRayFromEvent(event);
+        const planeHit = pickOriginPlane(event);
+        setOriginPlaneHover(planeHit?.object || null);
+        return;
+      }
       const directDrag = directDragRef.current;
       if (directDrag && updateDirectVisual) {
         event.preventDefault();
@@ -1905,6 +1987,7 @@ export default function ModelViewport({
       if (!sketchInteraction.drag && !sketchInteraction.box) setSnapFeedback(null);
       setSketchDynamicLabel(null);
       setModelHover(null);
+      setOriginPlaneHover(null);
     };
     renderer.domElement.addEventListener('pointerleave', onPointerLeave);
     const directHandleElement = directHandleRef.current;
@@ -1918,6 +2001,18 @@ export default function ModelViewport({
       camera.updateProjectionMatrix();
       controls.update();
       camera.updateMatrixWorld(true);
+      if (planeSelectionMode && new URLSearchParams(window.location.search).has('verify')) {
+        originPlaneGroup.updateMatrixWorld(true);
+        const rect = renderer.domElement.getBoundingClientRect();
+        window.__madcadOriginPlaneState = originPlanePickables.map((mesh) => {
+          const point = new THREE.Vector3(...mesh.userData.clickPoint).project(camera);
+          return {
+            id: mesh.userData.originPlane,
+            x: Math.round(rect.left + (point.x + 1) * rect.width / 2),
+            y: Math.round(rect.top + (1 - point.y) * rect.height / 2),
+          };
+        });
+      }
       if (directHead && new URLSearchParams(window.location.search).has('verify')) {
         directGroup.updateMatrixWorld(true);
         const point = directHead.getWorldPosition(new THREE.Vector3()).project(camera);
@@ -2079,6 +2174,7 @@ export default function ModelViewport({
       disposeObject(directGroup);
       disposeObject(completedSketchGroup);
       disposeObject(referenceSketchGroup);
+      disposeObject(originPlaneGroup);
       disposeObject(constructionGroup);
       disposeObject(sectionGroup);
       if (plate) disposeObject(plate);
@@ -2094,6 +2190,7 @@ export default function ModelViewport({
       delete window.__madcadModelScreenState;
       delete window.__madcadModelVisualState;
       delete window.__madcadModelHover;
+      delete window.__madcadOriginPlaneState;
       delete window.__madcadConstructionPlaneState;
       delete window.__madcadConstructionAxisState;
       delete window.__madcadConstructionPointState;
@@ -2104,7 +2201,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

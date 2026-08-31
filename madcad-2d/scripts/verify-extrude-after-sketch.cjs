@@ -54,10 +54,21 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'document'`, 'utracone zaznaczenie profilu');
     await clickTool(window, 'Wyciągnij');
     await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie') && !document.querySelector('.plane-options')`, 'wyciagniecie bez ponownego wyboru plaszczyzny');
+    await waitFor(window, `document.querySelector('.direct-handle-hit[role="slider"]') && document.querySelector('.direct-extrude-hint')`, 'widoczny manipulator wyciagniecia');
     await fs.mkdir(path.dirname(artifactPath), { recursive: true });
     await fs.writeFile(artifactPath, (await window.webContents.capturePage()).toPNG());
 
-    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await window.webContents.executeJavaScript(`(() => {
+      const field = [...document.querySelectorAll('.command-dialog .command-field')].find((item) => item.querySelector(':scope > span')?.textContent.trim() === 'Odległość');
+      const input = field?.querySelector('input');
+      if (!input) throw new Error('Brak pola odległości wyciągnięcia');
+      input.focus();
+      input.select();
+    })()`);
+    await window.webContents.insertText('12');
+    await waitFor(window, `[...document.querySelectorAll('.command-dialog .command-field')].find((item) => item.querySelector(':scope > span')?.textContent.trim() === 'Odległość')?.querySelector('input')?.value === '12'`, 'odleglosc wyciagniecia wpisana z klawiatury');
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'utworzona bryla', 30000);
     const result = await window.webContents.executeJavaScript(`({
       sketches: window.__madcadVerifyDocumentState.sketches.length,
@@ -67,7 +78,7 @@ app.whenReady().then(async () => {
       volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume,
       planePickerVisible: Boolean(document.querySelector('.plane-options')),
     })`);
-    if (result.sketches !== 1 || result.profiles !== 1 || result.features !== 1 || result.bodies !== 1 || result.planePickerVisible || Math.abs(result.volume - 9600) > 0.01) {
+    if (result.sketches !== 1 || result.profiles !== 1 || result.features !== 1 || result.bodies !== 1 || result.planePickerVisible || Math.abs(result.volume - 11520) > 0.01) {
       throw new Error(`Bledny wynik przeplywu szkic -> Wyciagnij: ${JSON.stringify(result)}`);
     }
 

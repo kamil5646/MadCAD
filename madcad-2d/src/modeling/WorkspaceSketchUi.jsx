@@ -42,8 +42,8 @@ export function PlanePicker({ existingSketchesByPlane = {}, onPick, onCancel, va
   }, [forceNew, onCancel, onPick]);
   const picker = (
       <section ref={dialogRef} className={`plane-picker ${canvasVariant ? 'plane-picker-canvas' : ''}`} role="dialog" aria-modal={canvasVariant ? 'false' : 'true'} aria-labelledby="planePickerTitle" aria-describedby="planePickerHint" tabIndex="-1">
-        <header><div><strong id="planePickerTitle">Wybierz płaszczyznę szkicu</strong><span>Wskaż jedną z płaszczyzn początku.</span></div><button type="button" onClick={onCancel} title="Anuluj" aria-label="Anuluj wybór płaszczyzny"><X size={17} /></button></header>
-        {canvasVariant && <p id="planePickerHint" className="plane-picker-hint">Płaszczyzny pozostają na obszarze modelu. Kliknij widok albo użyj klawiszy 1–3; Esc anuluje.</p>}
+        <header><div><strong id="planePickerTitle">Wybierz płaszczyznę szkicu</strong><span>{canvasVariant ? 'Kliknij kolorową płaszczyznę bezpośrednio w modelu.' : 'Wskaż jedną z płaszczyzn początku.'}</span></div><button type="button" onClick={onCancel} title="Anuluj" aria-label="Anuluj wybór płaszczyzny"><X size={17} /></button></header>
+        {canvasVariant && <p id="planePickerHint" className="plane-picker-hint">Możesz też wybrać płaszczyznę z panelu projektu albo nacisnąć 1–3. Esc anuluje.</p>}
         <div className="plane-options">
           {Object.entries(PLANE_LABELS).map(([plane, label], index) => {
             const existing = existingSketchesByPlane[plane];

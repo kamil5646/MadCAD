@@ -63,7 +63,7 @@ app.whenReady().then(async () => {
       const startBrand = page?.querySelector('.start-page-brand img');
       const shell = page?.querySelector('.start-page-shell');
       const primary = page?.querySelector('.start-page-action.primary');
-      const browserToggle = document.querySelector('.app-menu button[title="Pokaż lub ukryj przeglądarkę"]');
+      const browserToggle = document.querySelector('.app-menu button[aria-label="Pokaż lub ukryj przeglądarkę"]');
       const labels = [...document.querySelectorAll('.workspace-tabs button')].map((item) => item.textContent.trim());
       const rect = page?.getBoundingClientRect();
       const stageRect = document.querySelector('.modeling-stage')?.getBoundingClientRect();
@@ -83,7 +83,7 @@ app.whenReady().then(async () => {
       };
     })()`);
 
-    if (!wide.title.includes('Zacznij od szkicu 2D') || !wide.primaryText.includes('Nowy szkic 2D') || !wide.workflowText.includes('Arkusz techniczny 2D') || !wide.workflowText.includes('Model parametryczny 3D') || !wide.workflowText.includes('Opcjonalnie: druk 3D') || wide.tabs.join('|') !== 'PROJEKTUJ|ARKUSZ 2D|ZARZĄDZAJ' || !wide.fileMenuAvailable || !wide.sharedIcon || !wide.logoAtRightEnd || !wide.browserHiddenByDefault || !wide.browserToggleAvailable || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
+    if (!wide.title.includes('Zacznij od szkicu 2D') || !wide.primaryText.includes('Nowy szkic 2D') || !wide.workflowText.includes('Arkusz techniczny 2D') || !wide.workflowText.includes('Model parametryczny 3D') || !wide.workflowText.includes('Opcjonalnie: druk 3D') || wide.tabs.join('|') !== 'PROJEKTUJ|ARKUSZ 2D|ZARZĄDZAJ' || !wide.fileMenuAvailable || !wide.sharedIcon || !wide.logoAtRightEnd || !wide.browserHiddenByDefault || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
       throw new Error(`Nieprawidłowa hierarchia strony startowej: ${JSON.stringify(wide)}`);
     }
 
@@ -128,7 +128,23 @@ app.whenReady().then(async () => {
     window.setContentSize(1600, 917);
     await window.webContents.executeJavaScript(`document.querySelector('.start-page-action.primary')?.click()`);
     await waitFor(window, `document.querySelector('.plane-picker')`, 'przejście ze strony startowej do wyboru płaszczyzny');
+    await waitFor(window, `window.__madcadOriginPlaneState?.length === 3`, 'klikalne płaszczyzny początku na płótnie');
+    const planeSelection = await window.webContents.executeJavaScript(`(() => {
+      const picker = document.querySelector('.plane-picker-canvas').getBoundingClientRect();
+      const viewport = document.querySelector('.model-viewport').getBoundingClientRect();
+      return {
+        hudAtCanvasEdge: picker.left >= viewport.left + 8 && picker.top >= viewport.top + 8 && picker.right < viewport.left + viewport.width * 0.55,
+        centerClear: picker.right < viewport.left + viewport.width * 0.5,
+        planes: window.__madcadOriginPlaneState,
+      };
+    })()`);
+    if (!planeSelection.hudAtCanvasEdge || !planeSelection.centerClear || planeSelection.planes.length !== 3) throw new Error(`Wybór płaszczyzny nadal zasłania środek modelu: ${JSON.stringify(planeSelection)}`);
     await capture(window, planeScreenshotPath);
+    const xyPlanePoint = planeSelection.planes.find((plane) => plane.id === 'XY');
+    window.webContents.sendInputEvent({ type: 'mouseMove', x: xyPlanePoint.x, y: xyPlanePoint.y });
+    window.webContents.sendInputEvent({ type: 'mouseDown', x: xyPlanePoint.x, y: xyPlanePoint.y, button: 'left', clickCount: 1 });
+    window.webContents.sendInputEvent({ type: 'mouseUp', x: xyPlanePoint.x, y: xyPlanePoint.y, button: 'left', clickCount: 1 });
+    await waitFor(window, `document.querySelector('.model-viewport.sketch-view') && !document.querySelector('.plane-picker')`, 'bezpośredni wybór płaszczyzny XY na płótnie');
 
     await window.webContents.executeJavaScript(`(() => {
       const recovered = JSON.parse(${JSON.stringify(recoveryDocumentText)});
@@ -158,7 +174,7 @@ app.whenReady().then(async () => {
     }
     await capture(window, recoveryScreenshotPath);
 
-    process.stdout.write(`${JSON.stringify({ ok: true, licenseScreenshotPath, wideScreenshotPath, narrowScreenshotPath, recoveryScreenshotPath, planeScreenshotPath, licenseLayout, wide, narrow, recovery, accessibility }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, licenseScreenshotPath, wideScreenshotPath, narrowScreenshotPath, recoveryScreenshotPath, planeScreenshotPath, licenseLayout, wide, narrow, planeSelection, recovery, accessibility }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

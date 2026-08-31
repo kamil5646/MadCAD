@@ -11,6 +11,10 @@ const designScreenshotPath = path.join(artifactsDir, '05-design-unified.png');
 const constructionScreenshotPath = path.join(artifactsDir, '06-construction-menu.png');
 const fileMenuScreenshotPath = path.join(artifactsDir, '07-file-menu-fixed.png');
 const sketchRibbonScreenshotPath = path.join(artifactsDir, '08-sketch-ribbon-expanded.png');
+const fusionAuditDir = path.join(__dirname, '..', 'artifacts', 'fusion-flow-audit-2026-08-31');
+const bodyContextScreenshotPath = path.join(fusionAuditDir, '03-body-context.png');
+const faceContextScreenshotPath = path.join(fusionAuditDir, '04-face-context.png');
+const edgeContextScreenshotPath = path.join(fusionAuditDir, '05-edge-context.png');
 
 async function waitFor(window, expression, label, timeoutMs = 45000) {
   const startedAt = Date.now();
@@ -38,6 +42,7 @@ app.whenReady().then(async () => {
   window.setContentSize(2200, 877);
   try {
     await fs.mkdir(artifactsDir, { recursive: true });
+    await fs.mkdir(fusionAuditDir, { recursive: true });
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
     await waitFor(window, `document.querySelector('.modeling-shell') && typeof window.__madcadVerifyLoadTimelineFixture === 'function'`, 'gotowy interfejs');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
@@ -131,17 +136,51 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'model testowy');
     const loadedModelGroups = await ribbonGroups(window);
     if (loadedModelGroups.join('|') !== emptyModelGroups.join('|')) throw new Error(`Grupy modelowania zmieniły położenie po wczytaniu bryły: ${loadedModelGroups.join('|')}`);
-    await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'body', bodyId: window.__madcadVerifyEngineState.bodies[0].id }, 'replace')`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'body', id: window.__madcadVerifyEngineState.bodies[0].id, bodyId: window.__madcadVerifyEngineState.bodies[0].id }, 'replace')`);
     await waitFor(window, `document.querySelector('.adaptive-tool-shelf')`, 'kontekstowe narzędzia zaznaczonej bryły');
     const adaptiveSelection = await window.webContents.executeJavaScript(`(() => ({
       title: document.querySelector('.adaptive-tool-shelf header strong')?.textContent.trim() || '',
       actions: [...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-actions > button')].map((button) => button.textContent.trim()),
       hasMore: Boolean(document.querySelector('.adaptive-tool-shelf .adaptive-tool-more')),
+      moreActions: [...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-more [role="menuitem"]')].map((button) => button.textContent.trim()),
       withinViewport: (() => { const shelf = document.querySelector('.adaptive-tool-shelf')?.getBoundingClientRect(); const stage = document.querySelector('.modeling-stage')?.getBoundingClientRect(); return Boolean(shelf && stage && shelf.left >= stage.left && shelf.right <= stage.right && shelf.top >= stage.top && shelf.bottom <= stage.bottom); })(),
     }))()`);
-    if (adaptiveSelection.title !== 'Bryła' || !adaptiveSelection.actions.includes('Przesuń') || !adaptiveSelection.actions.includes('Obróć') || !adaptiveSelection.actions.includes('Szyk') || !adaptiveSelection.hasMore || !adaptiveSelection.withinViewport) throw new Error(`Kontekst wyboru nie prowadzi do właściwych narzędzi: ${JSON.stringify(adaptiveSelection)}`);
+    if (adaptiveSelection.title !== 'Bryła' || !adaptiveSelection.actions.includes('Przesuń') || !adaptiveSelection.actions.includes('Obróć') || !adaptiveSelection.actions.includes('Szyk') || !adaptiveSelection.hasMore || !adaptiveSelection.moreActions.includes('Właściwości masy') || !adaptiveSelection.moreActions.includes('Podziel bryłę') || !adaptiveSelection.moreActions.includes('Usuń bryłę') || !adaptiveSelection.withinViewport) throw new Error(`Kontekst wyboru nie prowadzi do właściwych narzędzi: ${JSON.stringify(adaptiveSelection)}`);
+    await fs.writeFile(bodyContextScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`(() => {
+      const details = document.querySelector('.adaptive-tool-more');
+      details.open = true;
+      [...details.querySelectorAll('[role="menuitem"]')].find((button) => button.textContent.trim() === 'Usuń bryłę')?.click();
+    })()`);
+    await waitFor(window, `document.querySelector('.timeline-delete-confirm')?.textContent.includes('Usunąć')`, 'bezpieczne potwierdzenie usunięcia bryły');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.timeline-delete-confirm button')].find((button) => button.textContent.trim() === 'Anuluj')?.click()`);
+    await waitFor(window, `!document.querySelector('.timeline-delete-confirm')`, 'anulowanie usunięcia bryły bez zmiany modelu');
     await window.webContents.executeJavaScript(`document.querySelector('.adaptive-tool-clear')?.click()`);
     await waitFor(window, `!document.querySelector('.adaptive-tool-shelf')`, 'wyczyszczenie kontekstu zaznaczenia');
+
+    await window.webContents.executeJavaScript(`(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const face = body.topology.faces.find((item) => item.descriptor?.geometry === 'PLANE') || body.topology.faces[0];
+      window.__madcadVerifyTopologySelection({ kind: 'face', id: face.id, bodyId: body.id }, 'replace');
+    })()`);
+    await waitFor(window, `document.querySelector('.adaptive-tool-shelf header strong')?.textContent.trim() === 'Ściana'`, 'kontekstowe narzędzia ściany');
+    const faceActions = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-actions > button')].map((button) => button.textContent.trim())`);
+    if (!faceActions.includes('Szkic na ścianie') || !faceActions.includes('Naciśnij / wyciągnij') || !faceActions.includes('Odsuń ścianę')) throw new Error(`Brak bezpośrednich działań dla ściany: ${JSON.stringify(faceActions)}`);
+    await fs.writeFile(faceContextScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`document.querySelector('.adaptive-tool-clear')?.click()`);
+    await waitFor(window, `!document.querySelector('.adaptive-tool-shelf')`, 'wyczyszczenie kontekstu ściany');
+
+    await window.webContents.executeJavaScript(`(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const edge = body.topology.edges[0];
+      window.__madcadVerifyTopologySelection({ kind: 'edge', id: edge.id, bodyId: body.id }, 'replace');
+    })()`);
+    await waitFor(window, `document.querySelector('.adaptive-tool-shelf header strong')?.textContent.trim() === 'Krawędź'`, 'kontekstowe narzędzia krawędzi');
+    const edgeActions = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-actions > button')].map((button) => button.textContent.trim())`);
+    if (!edgeActions.includes('Zaokrąglij') || !edgeActions.includes('Fazuj')) throw new Error(`Brak bezpośrednich działań dla krawędzi: ${JSON.stringify(edgeActions)}`);
+    await fs.writeFile(edgeContextScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`document.querySelector('.adaptive-tool-clear')?.click()`);
+    await waitFor(window, `!document.querySelector('.adaptive-tool-shelf')`, 'wyczyszczenie kontekstu krawędzi');
     await fs.writeFile(modelScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await fs.writeFile(designScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
@@ -219,7 +258,7 @@ app.whenReady().then(async () => {
     }
     await fs.writeFile(overflowScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
-    process.stdout.write(`${JSON.stringify({ ok: true, tabs, fileMenu, designStructure, expandedSketch, emptyModelGroups, loadedModelGroups, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, tabs, fileMenu, designStructure, expandedSketch, emptyModelGroups, loadedModelGroups, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

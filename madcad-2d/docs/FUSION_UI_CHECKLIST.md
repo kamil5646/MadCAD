@@ -31,21 +31,21 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 ## P0 — przepływ szkic → bryła
 
 - [x] Ujednolicić stały szkielet ekranu zgodnie z Fusion: lewy browser, górna wstążka, środek, prawy panel polecenia, dolna historia.
-- [ ] Zastąpić osobny modal wyboru płaszczyzny wyborem bezpośrednio na płótnie z nieblokującą instrukcją.
+- [x] Zastąpić osobny modal wyboru płaszczyzny wyborem bezpośrednio na płótnie z nieblokującą instrukcją.
 - [x] Po `Zakończ szkic` zachować widoczność profilu i jego zaznaczenie lub jednoznacznie podświetlić profil gotowy do 3D.
 - [x] Kliknięcie `Wyciągnij` ma użyć istniejącego profilu; nie może ponownie pytać o płaszczyznę szkicu.
 - [x] Wyciągnięcie ma mieć jeden panel po prawej: profil, odległość, kierunek, zakres i operacja New/Join/Cut/Intersect.
-- [ ] Wartość odległości ma przyjmować wpis z klawiatury i zatwierdzenie Enterem oraz reagować na manipulator.
+- [x] Wartość odległości ma przyjmować wpis z klawiatury i zatwierdzenie Enterem oraz reagować na manipulator.
 - [x] Po zatwierdzeniu bryła, szkic i operacja muszą pozostać widoczne w przeglądarce i historii.
-- [ ] Zaznaczenie ściany ma oferować kontekstowo: szkic na ścianie, Press Pull, Offset Face.
-- [ ] Zaznaczenie krawędzi ma oferować kontekstowo: Fillet i Chamfer.
-- [ ] Zaznaczenie bryły ma oferować kontekstowo: Move/Copy, Pattern, właściwości i usuń.
+- [x] Zaznaczenie ściany ma oferować kontekstowo: szkic na ścianie, Press Pull, Offset Face.
+- [x] Zaznaczenie krawędzi ma oferować kontekstowo: Fillet i Chamfer.
+- [x] Zaznaczenie bryły ma oferować kontekstowo: Move/Copy, Pattern, właściwości i usuń.
 
 ## P0 — kamera i zaznaczanie
 
 - [x] Prawy przycisk myszy obraca kamerę zgodnie z decyzją użytkownika; `Esc` anuluje polecenie.
 - [x] Środkowy przycisk lub gest panoramuje; kółko przybliża bez skoków i zachowuje punkt pod kursorem.
-- [ ] W aktywnym szkicu kamera pozostaje ortogonalna do płaszczyzny, dopóki użytkownik świadomie nie opuści lub nie zmieni widoku.
+- [x] W aktywnym szkicu kamera pozostaje ortogonalna do płaszczyzny, dopóki użytkownik świadomie nie opuści lub nie zmieni widoku.
 - [ ] ViewCube ma jednoznaczne ściany, narożniki i widok izometryczny.
 - [x] Pasek nawigacji ma stałe, niekolidujące miejsce pośrodku pod płótnem i czytelne tooltipy.
 - [ ] Snap ma zawsze widoczny marker, typ punktu i krótką informację tekstową przed kliknięciem.
@@ -97,7 +97,12 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Zweryfikowano po ponownym uruchomieniu aplikacji ekran startowy, widok modelowania, wybór płaszczyzny i obszar szkicu.
 - [x] Zapisano zrzut zainstalowanego obszaru szkicu w `artifacts/fusion-ui-local-2026-08-30/01-sketch-workspace.jpeg`.
 - [x] Poprzednią aplikację przeniesiono do Kosza jako `MadCAD-before-fusion-ui-20260830.app`, więc podmiana jest odwracalna.
-- [ ] Następna paczka: bezpośredni wybór płaszczyzny na płótnie bez centralnego okna, manipulator i Enter dla wyciągnięcia oraz kontekstowe akcje ściany/krawędzi/bryły.
+- [x] Wybór XY/XZ/YZ działa bezpośrednio na kolorowych płaszczyznach modelu; panel instrukcji jest mały, nieblokujący i odsunięty od środka płótna.
+- [x] Wyciągnięcie przyjmuje odległość z klawiatury, reaguje na manipulator i zatwierdza operację Enterem.
+- [x] Ściana, krawędź i bryła pokazują właściwe akcje kontekstowe; usunięcie bryły prowadzi przez bezpieczne potwierdzenie zależności historii.
+- [x] Audyt przepływu oraz dowody wizualne zapisano w `docs/FUSION_FLOW_AUDIT_2026-08-31.md` i `artifacts/fusion-flow-audit-2026-08-31/`.
+- [x] Nowy build 6.4.6 podpisano ad-hoc, zainstalowano jako `/Applications/MadCAD.app` i sprawdzono w uruchomionej aplikacji; poprzedni build przeniesiono do Kosza jako `MadCAD-before-fusion-flow-20260831.app`.
+- [ ] Następna paczka: stale czytelny snap, jednoznaczny ViewCube i synchronizacja widoczności między przeglądarką a płótnem.
 
 ## Pliki główne
 
