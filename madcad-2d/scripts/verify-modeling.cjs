@@ -275,10 +275,10 @@ async function runUiFlow(window) {
   ]);
   const sketchToolMenus = new Map([
     ...['Łuk', 'Łuk styczny', 'Wielokąt', 'Elipsa', 'Slot', 'Spline', 'Conic', 'Punkt'].map((label) => [label, 'Więcej kształtów']),
-    ...['Extend', 'Break', 'Offset', 'Przesuń', 'Fillet szkicu', 'Faza szkicu'].map((label) => [label, 'Modyfikuj']),
+    ...['Extend', 'Break', 'Offset', 'Przesuń', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu'].map((label) => [label, 'Modyfikuj']),
     ...['Współliniowe', 'Symetria', 'Krzywizna G2'].map((label) => [label, 'Więzy']),
     ...['Ordinate X', 'Ordinate Y', 'Długość łuku'].map((label) => [label, 'Wymiary']),
-    ...['Transformuj', 'Szyk szkicu', 'Warstwy', 'Bloki'].map((label) => [label, 'Więcej narzędzi']),
+    ...['Warstwy', 'Bloki'].map((label) => [label, 'Warstwy i bloki']),
     ...['Thin Extrude', 'Rib/Web', 'Pipe'].map((label) => [label, 'Utwórz 3D']),
   ]);
   const ribbonHasTool = (label) => window.webContents.executeJavaScript(`Boolean(document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]'))`);
@@ -858,7 +858,8 @@ async function runUiFlow(window) {
   await addSketchPoint([0, 30], 11);
   await addSketchPoint([0, 0], 12);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.profiles === 1`, 'zamknięty profil L');
-  await clickTool('Wybierz');
+  await sendKey('Escape');
+  await waitForUi(window, `!document.querySelector('.command-dialog')`, 'automatyczny powrót do wyboru po zakończeniu polilinii');
   const profileInterior = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen?.(5, 5)`);
   await sendMouse('mouseDown', profileInterior);
   await sendMouse('mouseUp', profileInterior);
@@ -888,7 +889,7 @@ async function runUiFlow(window) {
   await clickSketchEntity(editTargets.neighborPointId, ['control']);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length === 1`, 'przełączenie wyboru Ctrl');
 
-  await clickTool('Wybierz');
+  await sendKey('Escape');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketch'`, 'wyczyszczenie wyboru przed inside');
   const insidePoints = await Promise.all([sketchScreenPoint(editTargets.concavePointId), sketchScreenPoint(editTargets.neighborPointId)]);
   await selectWithBox(
@@ -897,7 +898,7 @@ async function runUiFlow(window) {
   );
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length >= 2`, 'wybór oknem inside');
 
-  await clickTool('Wybierz');
+  await sendKey('Escape');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketch'`, 'wyczyszczenie wyboru przed crossing');
   const linePoint = await sketchScreenPoint(editTargets.lineId);
   await selectWithBox({ x: linePoint.x + 48, y: linePoint.y - 48 }, { x: linePoint.x - 48, y: linePoint.y + 48 });

@@ -31,7 +31,6 @@ import {
   Keyboard,
   Maximize2,
   Minus,
-  MousePointer2,
   Move,
   Move3d,
   Pencil,
@@ -500,12 +499,6 @@ export default function ModelingWorkspace() {
   const [selectedDrawingAnnotationId, setSelectedDrawingAnnotationId] = useState(null);
   const [drawingPropertyFocus, setDrawingPropertyFocus] = useState(null);
   const [selection, setSelection] = useState({ kind: 'document', id: document.id });
-  const [selectionModeRequestId, setSelectionModeRequestId] = useState(0);
-  const activateSelectionMode = () => {
-    setCommand(null);
-    setSelection({ kind: 'document', id: document.id });
-    setSelectionModeRequestId((requestId) => requestId + 1);
-  };
   const [activeSketchId, setActiveSketchId] = useState(null);
   const [command, setCommand] = useState(null);
   const [commandHistory, setCommandHistory] = useState([]);
@@ -5700,7 +5693,7 @@ export default function ModelingWorkspace() {
           <nav className="workspace-tabs" aria-label="Obszary robocze" role="tablist">
             {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item, index) => <button key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Szkicuj, twórz, modyfikuj i sprawdzaj geometrię.' : item.id === 'drawing' ? 'Przygotuj arkusz techniczny 2D.' : 'Parametry, wersje, struktura i kontrola projektu.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
           </nav>
-          <ResponsiveRibbon language={language}>
+          <ResponsiveRibbon key={licenseInfoOpen ? 'license-open' : 'license-closed'} language={language}>
             {activeSketchId ? (
               <>
                 <RibbonGroup label="UTWÓRZ">
@@ -5719,6 +5712,11 @@ export default function ModelingWorkspace() {
                     { icon: ScanSearch, label: 'Conic', displayLabel: 'Krzywa stożkowa', onClick: () => openMechanicalShape('conic'), disabled: readOnly },
                     { icon: CircleDotDashed, label: 'Punkt', onClick: () => openMechanicalShape('point'), disabled: readOnly },
                   ]} />
+                  {Boolean(document.sketches.find((sketch) => sketch.id === activeSketchId)?.entities?.length) && <ToolMenuButton icon={Box} label="Utwórz 3D" description="Utwórz bryłę z otwartej geometrii aktywnego szkicu." items={[
+                    { icon: Box, label: 'Thin Extrude', displayLabel: 'Wyciągnij cienkościennie', onClick: openExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
+                    { icon: Frame, label: 'Rib/Web', displayLabel: 'Żebro / ścianka', onClick: openRib, disabled: readOnly || !canCreateRib, disabledReason: 'Zaznacz otwartą linię połączoną z bryłą.' },
+                    { icon: Cylinder, label: 'Pipe', displayLabel: 'Rura', onClick: openPipe, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągłą otwartą ścieżkę.' },
+                  ]} />}
                 </RibbonGroup>
                 <RibbonGroup label="ZMIEŃ">
                   <ToolButton icon={Scissors} label="Trim" displayLabel="Przytnij" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} />
@@ -5729,6 +5727,8 @@ export default function ModelingWorkspace() {
                     { icon: Move3d, label: 'Przesuń', onClick: openSketchMove, disabled: readOnly || !selectedSketchEntityIds.length, disabledReason: 'Zaznacz geometrię szkicu.' },
                     { icon: CircleDotDashed, label: 'Fillet szkicu', displayLabel: 'Zaokrąglij narożnik', onClick: () => openSketchCorner('fillet'), disabled: readOnly || selectedSketchEntityIds.length !== 2, disabledReason: 'Zaznacz dokładnie dwie stykające się linie.' },
                     { icon: Triangle, label: 'Faza szkicu', displayLabel: 'Fazuj narożnik', onClick: () => openSketchCorner('chamfer'), disabled: readOnly || selectedSketchEntityIds.length !== 2, disabledReason: 'Zaznacz dokładnie dwie stykające się linie.' },
+                    { icon: RotateCw, label: 'Transformuj', onClick: openSketchTransform, disabled: readOnly || !selectedSketchEntityIds.length, disabledReason: 'Zaznacz geometrię szkicu.' },
+                    { icon: Grid2X2, label: 'Szyk szkicu', onClick: openSketchPattern, disabled: readOnly || !selectedSketchEntityIds.length, disabledReason: 'Zaznacz geometrię szkicu.' },
                   ]} />
                   <ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} disabledReason="Zaznacz geometrię albo więz." />
                 </RibbonGroup>
@@ -5745,20 +5745,12 @@ export default function ModelingWorkspace() {
                     { icon: RotateCw, label: 'Długość łuku', onClick: () => openSketchDimension('arcLength'), disabled: readOnly || !canAddArcLength, disabledReason: 'Zaznacz łuk.' },
                   ]} />
                 </RibbonGroup>
-                <RibbonGroup label="WSTAW I ORGANIZUJ">
-                  <ToolMenuButton icon={Grid2X2} label="Więcej narzędzi" description="Transformacje, szyki, warstwy i bloki." items={[
-                    { icon: RotateCw, label: 'Transformuj', onClick: openSketchTransform, disabled: readOnly || !selectedSketchEntityIds.length, disabledReason: 'Zaznacz geometrię szkicu.' },
-                    { icon: Grid2X2, label: 'Szyk szkicu', onClick: openSketchPattern, disabled: readOnly || !selectedSketchEntityIds.length, disabledReason: 'Zaznacz geometrię szkicu.' },
+                <RibbonGroup label="ORGANIZUJ">
+                  <ToolMenuButton icon={Layers3} label="Warstwy i bloki" description="Porządkuj geometrię szkicu za pomocą warstw i bloków wielokrotnego użytku." items={[
                     { icon: Layers3, label: 'Warstwy', onClick: () => { setBlocksOpen(false); setComponentsOpen(false); setLayersOpen(true); } },
                     { icon: Blocks, label: 'Bloki', onClick: () => { setLayersOpen(false); setComponentsOpen(false); setBlocksOpen(true); } },
                   ]} />
-                  {Boolean(document.sketches.find((sketch) => sketch.id === activeSketchId)?.entities?.length) && <ToolMenuButton icon={Box} label="Utwórz 3D" description="Utwórz bryłę z otwartej geometrii szkicu." items={[
-                    { icon: Box, label: 'Thin Extrude', displayLabel: 'Wyciągnij cienkościennie', onClick: openExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
-                    { icon: Frame, label: 'Rib/Web', displayLabel: 'Żebro / ścianka', onClick: openRib, disabled: readOnly || !canCreateRib, disabledReason: 'Zaznacz otwartą linię połączoną z bryłą.' },
-                    { icon: Cylinder, label: 'Pipe', displayLabel: 'Rura', onClick: openPipe, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągłą otwartą ścieżkę.' },
-                  ]} />}
                 </RibbonGroup>
-                <RibbonGroup label="WYBIERZ"><ToolButton icon={MousePointer2} label="Wybierz" onClick={() => { activateSelectionMode(); handleSketchSelection([], 'replace'); }} /></RibbonGroup>
                 <RibbonGroup label="ZAKOŃCZ SZKIC"><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
               </>
             ) : workspace === 'drawing' ? (
@@ -5845,8 +5837,6 @@ export default function ModelingWorkspace() {
                   { icon: MassCadIcon, label: 'Właściwości masy', onClick: openMassProperties, disabled: !engine.bodies.length },
                   { icon: GeometryCheckCadIcon, label: 'Sprawdź geometrię', onClick: openGeometryInspection, disabled: !engine.bodies.length },
                 ]} /></RibbonGroup>
-                <RibbonGroup label="WSTAW"><ToolButton icon={Upload} label="Import 3D" onClick={() => window.requestAnimationFrame(() => importInputRef.current?.click())} disabled={readOnly || modelImportBusy} description="Wstaw model STEP, STL albo 3MF do bieżącego projektu." /></RibbonGroup>
-                <RibbonGroup label="WYBIERZ" end><ToolButton icon={MousePointer2} label="Wybierz" onClick={activateSelectionMode} /></RibbonGroup>
               </>
             )}
           </ResponsiveRibbon>
@@ -5971,7 +5961,6 @@ export default function ModelingWorkspace() {
             explodeAmount={explodeAmount}
             cameraRequest={cameraRequest}
             fitRequest={fitViewRequest}
-            selectionModeRequestId={selectionModeRequestId}
             activeCommand={command}
             onCameraStateChange={(camera) => { currentCameraRef.current = camera; }}
             selectedComponentInstanceId={selectedInstance?.id || null}
@@ -6130,6 +6119,7 @@ export default function ModelingWorkspace() {
       {toolHelp && (
         <div className="tool-help-tooltip" role="tooltip" style={{ left: toolHelp.x, top: toolHelp.y }}>
           <header><strong>{toolHelp.label}</strong>{toolHelp.shortcut && <kbd>{toolHelp.shortcut}</kbd>}</header>
+          {toolHelp.state && <p className="tool-help-state">Niedostępne · {toolHelp.state}</p>}
           <p>{toolHelp.help}</p>
         </div>
       )}

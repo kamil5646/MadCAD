@@ -23,10 +23,10 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Jedno narzędzie wyboru; po zakończeniu lub anulowaniu polecenia wybór ma działać automatycznie.
 - [x] `Esc` anuluje bieżące polecenie, ale nie niszczy modelu ani szkicu.
 - [x] Zakończenie szkicu nie ukrywa gotowego profilu i nie uruchamia ponownie wyboru płaszczyzny.
-- [ ] Narzędzia 2D, modelowanie 3D, dokumentacja 2D i druk 3D mają odrębne miejsca.
+- [x] Narzędzia 2D, modelowanie 3D, dokumentacja 2D i druk 3D mają odrębne miejsca.
 - [ ] Aktywny przycisk wykonuje operację; brak atrap i dublujących się poleceń.
-- [ ] Każdy tryb zachowuje stałe położenie przeglądarki, płótna, właściwości i historii.
-- [ ] Ikona, tekst, stan aktywny, stan wyłączony i tooltip mają jednakową logikę w całej aplikacji.
+- [x] Każdy tryb zachowuje stałe położenie przeglądarki, płótna, właściwości i historii.
+- [x] Ikona, tekst, stan aktywny, stan wyłączony i tooltip mają jednakową logikę w całej aplikacji.
 
 ## P0 — przepływ szkic → bryła
 
@@ -53,11 +53,11 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 
 ## P1 — hierarchia interfejsu Fusion
 
-- [ ] Zmniejszyć liczbę równorzędnych zakładek na górze; główny przełącznik obszaru ma być jeden i przewidywalny.
+- [x] Zmniejszyć liczbę równorzędnych zakładek na górze; główny przełącznik obszaru ma być jeden i przewidywalny.
 - [x] W modelowaniu pokazywać tylko grupy adekwatne do aktualnego trybu i szerokości okna.
-- [ ] Najczęstsze narzędzia mają pełną ikonę i etykietę; rzadsze trafiają do menu grupy, bez chowania wolnego miejsca.
+- [x] Najczęstsze narzędzia mają pełną ikonę i etykietę; rzadsze trafiają do menu grupy, bez chowania wolnego miejsca.
 - [x] Wstążka nie może dociskać ikon do krawędzi ani nakładać ich na siebie przy szerokościach 1280, 1440 i 1920 px.
-- [ ] Ujednolicić proporcje: wysokość wstążki, rozmiar ikon, tekst narzędzi, nagłówki grup i odstępy.
+- [x] Ujednolicić proporcje: wysokość wstążki, rozmiar ikon, tekst narzędzi, nagłówki grup i odstępy.
 - [x] Przeglądarka projektu ma strukturę Fusion: dokument, ustawienia, początek, szkice, bryły, komponenty i konstrukcja.
 - [x] Widoczność szkiców i brył jest przełączana ikoną oka przy obiekcie, utrwalana w projekcie i zsynchronizowana z płótnem.
 - [x] Prawy panel pokazuje tylko bieżące polecenie lub właściwości zaznaczenia; nie otwiera wielu nakładających się okien.
@@ -67,19 +67,19 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 ## P1 — podział obszarów
 
 - [ ] `PROJEKTUJ` obejmuje szkic, bryłę, powierzchnię, konstrukcję, sprawdzanie i podstawowe złożenie.
-- [ ] `ARKUSZ 2D` obejmuje wyłącznie dokumentację techniczną, adnotacje i wydruk/eksport arkusza.
-- [ ] `ZARZĄDZAJ` obejmuje parametry, wersje, zależności, kondycję i komponenty projektu.
-- [ ] Import/eksport projektu i modelu pozostaje w menu `Plik`; nie dublować go w kilku wstążkach.
-- [ ] Druk 3D pozostaje osobnym dodatkiem uruchamianym z `Plik`, bez mieszania z dokumentacją 2D.
-- [ ] Usunąć zapisywane presety układu z głównego przepływu; zachować jeden dobry układ adaptacyjny.
+- [x] `ARKUSZ 2D` obejmuje wyłącznie dokumentację techniczną, adnotacje i wydruk/eksport arkusza.
+- [x] `ZARZĄDZAJ` obejmuje parametry, wersje, zależności, kondycję i komponenty projektu.
+- [x] Import/eksport projektu i modelu pozostaje w menu `Plik`; nie dublować go w kilku wstążkach.
+- [x] Druk 3D pozostaje osobnym dodatkiem uruchamianym z `Plik`, bez mieszania z dokumentacją 2D.
+- [x] Usunąć zapisywane presety układu z głównego przepływu; zachować jeden dobry układ adaptacyjny.
 
 ## P1 — skróty, nazwy i pomoc
 
-- [ ] Zachować skróty inspirowane Autodesk dla podstaw: `L` linia, `R` prostokąt, `C` okrąg, `E` wyciągnij, `M` przesuń, `F` zaokrąglij, `D` wymiar.
-- [ ] Skrót nie jest drukowany na każdym przycisku; jest widoczny w tooltipie i menu narzędzia.
-- [ ] Nazwy są polskie i konsekwentne; angielska nazwa techniczna może być drugą linią tylko tam, gdzie pomaga w wymianie danych.
-- [ ] Tooltip wyjaśnia działanie, wymagany wybór, skrót i powód niedostępności.
-- [ ] Linia poleceń przyjmuje aliasy, ale pozostaje pomocnicza wobec bezpośredniej pracy myszą.
+- [x] Zachować skróty inspirowane Autodesk dla podstaw: `L` linia, `R` prostokąt, `C` okrąg, `E` wyciągnij, `M` przesuń, `F` zaokrąglij, `D` wymiar.
+- [x] Skrót nie jest drukowany na każdym przycisku; jest widoczny w tooltipie i menu narzędzia.
+- [x] Nazwy są polskie i konsekwentne; angielska nazwa techniczna może być drugą linią tylko tam, gdzie pomaga w wymianie danych.
+- [x] Tooltip wyjaśnia działanie, wymagany wybór, skrót i powód niedostępności.
+- [x] Linia poleceń przyjmuje aliasy, ale pozostaje pomocnicza wobec bezpośredniej pracy myszą.
 
 ## Weryfikacja każdej paczki
 
@@ -106,7 +106,15 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] ViewCube pokazuje aktualny widok i wszystkie podstawowe kierunki czytelnym tekstem.
 - [x] Ikony oka przy szkicach i bryłach sterują rzeczywistą widocznością na płótnie; foldery służą wyłącznie do zwijania listy.
 - [x] Finalny lokalny build z tym pakietem zastąpił `/Applications/MadCAD.app`; poprzedni build jest odwracalnie zachowany w Koszu jako `MadCAD-before-visibility-20260831.app`.
-- [ ] Następna paczka: uproszczenie głównego przełącznika obszarów, domknięcie podziału Projektuj/Arkusz 2D/Zarządzaj i ujednolicenie tooltipów.
+- [x] Uproszczono główny przełącznik obszarów, domknięto podział Projektuj/Arkusz 2D/Zarządzaj i ujednolicono tooltipy.
+- [x] Usunięto z wstążki zdublowane `Import 3D` i ręczny `Wybierz`; import pozostaje w `Plik`, a wybór wraca automatycznie po zakończeniu lub anulowaniu polecenia.
+- [x] Szkic ma logiczne grupy `UTWÓRZ`, `ZMIEŃ`, `WIĄZANIA`, `ORGANIZUJ` i `ZAKOŃCZ SZKIC`; transformacje i szyki są częścią modyfikacji, a warstwy i bloki częścią organizacji.
+- [x] Tooltipy przycisków i menu pokazują opis, skrót, stan oraz dokładny lub bezpieczny domyślny powód niedostępności; `D` otwiera menu wymiarów.
+- [x] Audyt pakietu i porównanie ekranów zapisano w `docs/WORKSPACE_SEPARATION_AUDIT_2026-08-31.md` oraz `artifacts/workspace-separation-audit-2026-08-31/`.
+- [x] Usunięto błąd, przez który strona startowa mogła pozostawić pustą wstążkę po zamknięciu komunikatu licencyjnego; wstążka jest ponownie montowana po zamknięciu komunikatu i zawsze pokazuje cztery grupy `PROJEKTUJ`.
+- [x] Kontrola obrazu w typowym oknie potwierdza rzeczywiste odmalowanie wstążki, nie tylko obecność niewidocznych kontrolek w drzewie dostępności.
+- [x] Finalny build 6.4.6 zainstalowano w `/Applications/MadCAD.app`, podpisano ad-hoc i sprawdzono w uruchomionej aplikacji; suma SHA-256 `app.asar` źródła i instalacji jest identyczna: `cb6524f20fb9d008c24c6ee66665711339aa0c6e7f825e38179836d8157d2806`.
+- [x] Odzyskany projekt użytkownika zabezpieczono jako `~/Documents/MadCAD-odzyskany-2026-08-31.madcad`; wcześniejszą aplikację zachowano odwracalnie w Koszu jako `MadCAD-before-license-ribbon-remount-20260831.app`.
 
 ## Pliki główne
 
