@@ -325,6 +325,7 @@ export function prepareDocument(document) {
       return { ...feature, status: 'ready', diagnostics: [], profiles, loftMode: feature.loftMode || 'smooth' };
     }
     if (feature.type === 'surfaceOffset') return { ...feature, status: 'ready', diagnostics: [], distanceValue: evaluateExpression(feature.distance, parameterResult.values) };
+    if (feature.type === 'surfaceStitch') return { ...feature, status: 'ready', diagnostics: [], toleranceValue: positive(evaluateExpression(feature.tolerance, parameterResult.values), 'Tolerancja Stitch') };
     if (feature.type === 'thickenSurface') {
       return {
         ...feature,

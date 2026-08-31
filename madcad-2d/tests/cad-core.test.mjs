@@ -961,7 +961,7 @@ test('szkic na planarnej ścianie zachowuje podporę i odsunięcie w przygotowan
   assert.equal(validateDocument(broken).issues.some((issue) => issue.path.endsWith('support.referenceId') && issue.code === 'BROKEN_REFERENCE'), true);
 });
 
-test('Patch, Surface Extrude, Surface Revolve, Surface Sweep, Surface Loft i Thicken zachowują szkic, zależności i rozdział powierzchnia-bryła', () => {
+test('Patch, Surface Extrude, Surface Revolve, Surface Sweep, Surface Loft, Surface Offset, Stitch i Thicken zachowują szkic, zależności i rozdział powierzchnia-bryła', () => {
   const patchDocument = createDocument('Powierzchnia Patch');
   const patchProfile = createRectangleProfile({ width: '40', height: '20' });
   const patchSketch = createSketch({ name: 'Obrys powierzchni', profiles: [patchProfile] });
@@ -1055,6 +1055,22 @@ test('Patch, Surface Extrude, Surface Revolve, Surface Sweep, Surface Loft i Thi
   const loftGraph = buildDependencyGraph(loftDocument);
   assert.equal(loftGraph.producerOfBody(`body-${surfaceLoft.id}`), surfaceLoft.id);
   assert.ok(loftGraph.affectedBy(upperProfile.id).includes(thickenLoft.id));
+
+  const stitchDocument = createDocument('Zszywanie powierzchni');
+  const firstStitchProfile = createRectangleProfile({ width: 20, height: 10 });
+  const secondStitchProfile = createRectangleProfile({ width: 20, height: 10 });
+  const firstStitchSketch = createSketch({ plane: 'XY', planeOffset: '0', profiles: [firstStitchProfile] });
+  const secondStitchSketch = createSketch({ plane: 'XY', planeOffset: '10', profiles: [secondStitchProfile] });
+  const firstPatch = createFeature('surfacePatch', { sketchId: firstStitchSketch.id, profileIds: [firstStitchProfile.id] });
+  const secondPatch = createFeature('surfacePatch', { sketchId: secondStitchSketch.id, profileIds: [secondStitchProfile.id] });
+  const stitch = createFeature('surfaceStitch', { targetBodyIds: [`body-${firstPatch.id}`, `body-${secondPatch.id}`], tolerance: '0.01' });
+  stitchDocument.sketches.push(firstStitchSketch, secondStitchSketch);
+  stitchDocument.features.push(firstPatch, secondPatch, stitch);
+  assert.equal(validateDocument(stitchDocument).valid, true);
+  assert.equal(prepareDocument(stitchDocument).features[2].toleranceValue, 0.01);
+  const stitchGraph = buildDependencyGraph(stitchDocument);
+  assert.equal(stitchGraph.producerOfBody(`body-${stitch.id}`), stitch.id);
+  assert.ok(stitchGraph.affectedBy(firstPatch.id).includes(stitch.id));
 });
 
 test('Extrude przygotowuje odsunięty start, Join, Cut i Intersect z jedną, dwiema, symetryczną oraz Through All', () => {

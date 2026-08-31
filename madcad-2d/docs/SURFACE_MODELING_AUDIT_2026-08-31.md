@@ -5,7 +5,7 @@ Zakres: obszar `PROJEKTUJ`, jądro OpenCascade, historia parametryczna i lokalna
 
 ## Wynik
 
-MadCAD obsługuje teraz siedem współpracujących operacji powierzchniowych:
+MadCAD obsługuje teraz osiem współpracujących operacji powierzchniowych:
 
 - `Patch` tworzy dokładną planarną powierzchnię B-Rep z zamkniętego profilu szkicu, także na płaszczyznach XY, XZ i YZ.
 - `Surface Extrude` tworzy otwartą powierzchnię z zamkniętego profilu albo ciągłego otwartego łańcucha linii.
@@ -13,6 +13,7 @@ MadCAD obsługuje teraz siedem współpracujących operacji powierzchniowych:
 - `Surface Sweep` prowadzi zamknięty profil albo ciągły otwarty łańcuch po osobnym ciągłym szkicu ścieżki.
 - `Surface Loft` łączy dwa zamknięte profile z osobnych równoległych szkiców gładką albo odcinkową otwartą powierzchnią.
 - `Surface Offset` odsuwa istniejącą powierzchnię B-Rep o dodatnią albo ujemną odległość bez zamiany na siatkę.
+- `Stitch` zszywa wspólne krawędzie wielu powierzchni z zadaną tolerancją; otwarty wynik pozostaje płaszczem, a szczelny automatycznie staje się bryłą.
 - `Thicken` nadaje powierzchni grubość jednostronną albo symetryczną i zamienia ją w zamkniętą bryłę B-Rep.
 
 Każda operacja jest zapisana w osi czasu, zachowuje zależność od szkicu i bierze udział w grafie wpływu zmian. Powierzchnia oraz bryła nie są mylone: mają osobne oznaczenie, osobne foldery w przeglądarce i właściwe działania kontekstowe.
@@ -22,9 +23,10 @@ Każda operacja jest zapisana w osi czasu, zachowuje zależność od szkicu i bi
 - Narzędzia znajdują się w jednym menu `Powierzchnie` w grupie `UTWÓRZ`; `Surface Extrude`, `Surface Revolve` i `Surface Sweep` są także dostępne w menu `Utwórz 3D` podczas edycji szkicu.
 - Zaznaczony profil proponuje `Patch` oraz `Wyciągnij powierzchnię`.
 - Zaznaczona powierzchnia proponuje `Pogrub` jako działanie główne oraz `Odsuń powierzchnię` jako działanie kontekstowe.
+- Wielokrotny wybór samych powierzchni proponuje `Zszyj powierzchnie`; panel pokazuje liczbę elementów i tolerancję.
 - Panel polecenia pokazuje wyłącznie parametry danej operacji.
 - Powierzchnia jest półprzezroczysta i ma cyjanowe krawędzie, a po pogrubieniu wraca do wyglądu bryły.
-- Polecenia linii poleceń: `PA`/`PATCH`, `SE`/`SURFACEEXTRUDE`, `SR`/`SURFACEREVOLVE`, `SS`/`SURFACESWEEP`, `SLO`/`SURFACELOFT`, `SO`/`SURFACEOFFSET`, `TH`/`THICKEN`/`POGRUB`.
+- Polecenia linii poleceń: `PA`/`PATCH`, `SE`/`SURFACEEXTRUDE`, `SR`/`SURFACEREVOLVE`, `SS`/`SURFACESWEEP`, `SLO`/`SURFACELOFT`, `SO`/`SURFACEOFFSET`, `STI`/`STITCH`, `TH`/`THICKEN`/`POGRUB`.
 
 ## Zabezpieczenia przepływu
 
@@ -47,6 +49,8 @@ Każda operacja jest zapisana w osi czasu, zachowuje zależność od szkicu i bi
 | `Surface Revolve R12 × 20, 270° → Thicken 2 mm` | powierzchnia 1507,9645 mm², następnie bryła 2764,6015 mm³ |
 | `Surface Sweep 12 mm po ścieżce 25 + 18 mm → Thicken 2 mm` | powierzchnia 516 mm², następnie bryła 984 mm³ |
 | `Surface Loft 24 × 16 → 12 × 8 na wysokości 20 mm → Surface Offset 2 mm → Thicken 2 mm` | powierzchnia przed i po odsunięciu 1243,5121 mm², następnie bryła 3360 mm³ |
+| `Stitch` pięciu ścian pudełka 20 × 10 × 8 mm | jeden otwarty płaszcz 680 mm² |
+| `Stitch` sześciu ścian pudełka 20 × 10 × 8 mm | automatyczna szczelna bryła 1600 mm³ |
 | Przepełnienie poziome 1440 px | brak |
 | Pełny scenariusz modelowania | poprawny, od szkicu przez B-Rep do eksportów |
 | Szkic → Extrude | profil zamknięty i otwarty łańcuch poprawne |
@@ -59,6 +63,6 @@ Scenariusz wykonuje `scripts/verify-surface-modeling.cjs`. Zrzut końcowy znajdu
 
 - Zbudowano aplikację arm64 bez automatycznego wykrywania certyfikatu producenta, aby uniknąć blokującego podpisu z pęku kluczy.
 - `/Applications/MadCAD.app` ma lokalny podpis ad-hoc i przechodzi `codesign --verify --deep --strict`.
-- Zainstalowany `app.asar` jest identyczny z wynikiem kompilacji Surface Offset: SHA-256 `7422f088b9920840ae0e94b41bfd06f5adaf3ee9fd8e0ef3d31ef3545a9ec890`.
-- Poprzednia aplikacja została zachowana odwracalnie w Koszu jako `MadCAD-before-surface-offset-20260831.app`; wcześniejsze kopie kontrolne pozostały nienaruszone.
+- Zainstalowany `app.asar` jest identyczny z wynikiem kompilacji Stitch: SHA-256 `c1f71f8bd7111754b4c40d5c66c51745ad1289561b53198f650fa6bde130e207`.
+- Poprzednia aplikacja została zachowana odwracalnie w Koszu jako `MadCAD-before-surface-stitch-20260831.app`; wcześniejsze kopie kontrolne pozostały nienaruszone.
 - Aplikacja została uruchomiona z `/Applications`; nie utworzono wydania ani tagu GitHub.

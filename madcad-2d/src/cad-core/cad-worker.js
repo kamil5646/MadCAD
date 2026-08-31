@@ -22,6 +22,7 @@ import {
   makeBox,
   makeCylinder,
   makeOffset,
+  makeSolid,
   makeSphere,
   sketchHelix,
   measureShapeSurfaceProperties,
@@ -603,6 +604,29 @@ function thickenLoftProfiles(profiles, loftMode, thickness, wallSide, surfaceOff
   return solids.length === 1 ? solids[0] : compoundShapes(solids);
 }
 
+function stitchSurfaceShapes(shapes, tolerance) {
+  const oc = getOC();
+  const sewing = new oc.BRepBuilderAPI_Sewing(tolerance, true, true, true, false);
+  const progress = new oc.Message_ProgressRange_1();
+  try {
+    shapes.forEach((shape) => sewing.Add(shape.wrapped));
+    sewing.Perform(progress);
+    const freeEdges = Number(sewing.NbFreeEdges());
+    const stitched = cast(sewing.SewedShape());
+    if (stitched.wrapped.ShapeType() !== oc.TopAbs_ShapeEnum.TopAbs_SHELL) {
+      stitched.delete();
+      throw new Error('Wybrane powierzchnie nie tworzą jednego połączonego płaszcza.');
+    }
+    if (freeEdges > 0) return { shape: stitched, bodyKind: 'surface', freeEdges };
+    const solid = makeSolid([stitched]);
+    stitched.delete();
+    return { shape: solid, bodyKind: 'solid', freeEdges: 0 };
+  } finally {
+    progress.delete();
+    sewing.delete();
+  }
+}
+
 function ribProfile(feature) {
   const inPlaneThickness = feature.ribMode === 'rib' ? feature.depthValue : feature.thicknessValue;
   const normalDistance = feature.ribMode === 'rib' ? feature.thicknessValue : feature.depthValue;
@@ -774,6 +798,31 @@ function runFeature(feature, bodyMap, bodyOrder) {
     target.surfaceOffsetDistance = Number(target.surfaceOffsetDistance || 0) + feature.distanceValue;
     target.name = feature.name;
     target.sourceFeatureId = feature.id;
+    return;
+  }
+
+  if (feature.type === 'surfaceStitch') {
+    const targets = [...new Set(feature.targetBodyIds)].map((bodyId) => bodyMap.get(bodyId));
+    if (targets.some((target) => !target || target.bodyKind !== 'surface')) throw new Error(`Stitch „${feature.name}” wymaga istniejących powierzchni.`);
+    const result = stitchSurfaceShapes(targets.map((target) => target.shape), feature.toleranceValue);
+    for (const target of targets) {
+      target.shape.delete?.();
+      bodyMap.delete(target.id);
+      const index = bodyOrder.indexOf(target.id);
+      if (index >= 0) bodyOrder.splice(index, 1);
+    }
+    const bodyId = `body-${feature.id}`;
+    bodyMap.set(bodyId, {
+      id: bodyId,
+      name: feature.name,
+      sourceFeatureId: feature.id,
+      representation: 'brep',
+      bodyKind: result.bodyKind,
+      surfaceSourceType: result.bodyKind === 'surface' ? 'stitch' : undefined,
+      surfaceFreeEdges: result.freeEdges,
+      shape: result.shape,
+    });
+    bodyOrder.push(bodyId);
     return;
   }
 

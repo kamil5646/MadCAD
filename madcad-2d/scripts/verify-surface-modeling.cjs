@@ -155,8 +155,28 @@ app.whenReady().then(async () => {
     result.loftSolidVolume = loftSolidMetrics.volume;
     result.extrudeCenterX = (extrudeMetrics.bounds[0][0] + extrudeMetrics.bounds[1][0]) / 2;
     result.extrudeVolume = extrudeMetrics.volume;
+
+    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSurfaceFixture('stitch-open')`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1 && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'surfaceStitch' && window.__madcadVerifyDocumentState?.bodyKinds?.[0] === 'surface'`, 'otwarty płaszcz Stitch pozostaje powierzchnią');
+    result.openStitchArea = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.area`);
+
+    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSurfaceFixture('stitch-box')`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 6 && window.__madcadVerifyDocumentState?.bodyKinds?.every((kind) => kind === 'surface')`, 'sześć powierzchni pudełka Stitch');
+    await window.webContents.executeJavaScript(`(() => {
+      const bodies = window.__madcadVerifyEngineState.bodies;
+      bodies.forEach((body, index) => window.__madcadVerifyTopologySelection({ kind: 'body', id: body.id, bodyId: body.id }, index ? 'add' : 'replace'));
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.items?.length === 6`, 'wielokrotny wybór powierzchni Stitch');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Zszyj powierzchnie' && !button.disabled)`, 'aktywne polecenie Stitch');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Zszyj powierzchnie' && !button.disabled).click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'surfaceStitch' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1 && window.__madcadVerifyEngineState.bodies[0].bodyKind === 'solid'`, 'podgląd zamkniętej bryły Stitch');
+    const stitchMetrics = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics`);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'surfaceStitch' && window.__madcadVerifyDocumentState.bodyKinds.length === 1 && window.__madcadVerifyDocumentState.bodyKinds[0] === 'solid'`, 'zapisany Stitch');
+    result.stitchVolume = stitchMetrics.volume;
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (result.patchVolume <= 0 || Math.abs(result.patchBoundsZ[0] + 1) > 0.01 || Math.abs(result.patchBoundsZ[1] - 1) > 0.01 || result.extrudeVolume <= 0 || Math.abs(result.extrudeCenterX - 35) > 0.01 || result.revolveSolidVolume <= 0 || result.revolveSurfaceArea <= 0 || result.volume <= 0 || result.sweepSurfaceArea <= 0 || result.loftSurfaceArea <= 0 || result.offsetSurfaceArea <= 0 || result.loftSolidVolume <= 0 || !result.surfaceFolder || !result.solidFolder || result.horizontalOverflow) throw new Error(`Niepoprawny przepływ powierzchniowy: ${JSON.stringify(result)}`);
+    if (result.patchVolume <= 0 || Math.abs(result.patchBoundsZ[0] + 1) > 0.01 || Math.abs(result.patchBoundsZ[1] - 1) > 0.01 || result.extrudeVolume <= 0 || Math.abs(result.extrudeCenterX - 35) > 0.01 || result.revolveSolidVolume <= 0 || result.revolveSurfaceArea <= 0 || result.volume <= 0 || result.sweepSurfaceArea <= 0 || result.loftSurfaceArea <= 0 || result.offsetSurfaceArea <= 0 || result.loftSolidVolume <= 0 || result.openStitchArea <= 0 || Math.abs(result.stitchVolume - 1600) > 0.01 || !result.surfaceFolder || !result.solidFolder || result.horizontalOverflow) throw new Error(`Niepoprawny przepływ powierzchniowy: ${JSON.stringify(result)}`);
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...result }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
