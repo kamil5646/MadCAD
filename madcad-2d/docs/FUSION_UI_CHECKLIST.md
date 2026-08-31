@@ -105,6 +105,7 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Snap pokazuje duży marker, ikonę i typ; test wizualny potwierdza marker wewnątrz płótna.
 - [x] ViewCube pokazuje aktualny widok i wszystkie podstawowe kierunki czytelnym tekstem.
 - [x] Ikony oka przy szkicach i bryłach sterują rzeczywistą widocznością na płótnie; foldery służą wyłącznie do zwijania listy.
+- [x] Finalny lokalny build z tym pakietem zastąpił `/Applications/MadCAD.app`; poprzedni build jest odwracalnie zachowany w Koszu jako `MadCAD-before-visibility-20260831.app`.
 - [ ] Następna paczka: uproszczenie głównego przełącznika obszarów, domknięcie podziału Projektuj/Arkusz 2D/Zarządzaj i ujednolicenie tooltipów.
 
 ## Pliki główne

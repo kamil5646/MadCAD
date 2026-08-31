@@ -36,7 +36,7 @@ Sprawdzono krytyczny przepływ użytkownika: wybór płaszczyzny → szkic → w
 - `scripts/verify-interface-consistency.cjs` sprawdza akcje bryły, ściany i krawędzi oraz anulowanie usunięcia bez zmiany modelu.
 - `scripts/verify-interface-consistency.cjs` ukrywa bryłę ikoną oka, sprawdza zniknięcie z renderu, pokazuje ją ponownie i weryfikuje opis ViewCube.
 - `scripts/verify-snap-feedback.cjs` sprawdza marker, typ snapa i położenie w granicach płótna.
-- Zainstalowany `app.asar` ma ten sam SHA-256 co świeży build: `e4aa95c5e6dd7f4135ee3d7fa53afa709c335b75f490fbaaaa969bf82ccb615d`.
+- Zainstalowany `app.asar` ma ten sam SHA-256 co finalny świeży build: `ca9916795ee46c130f9e38954fe7463ec77dff57ffb9b4185e609280a87f2624`.
 
 ## Następny pakiet
 
