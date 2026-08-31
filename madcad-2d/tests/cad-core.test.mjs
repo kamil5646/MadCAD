@@ -961,7 +961,7 @@ test('szkic na planarnej ścianie zachowuje podporę i odsunięcie w przygotowan
   assert.equal(validateDocument(broken).issues.some((issue) => issue.path.endsWith('support.referenceId') && issue.code === 'BROKEN_REFERENCE'), true);
 });
 
-test('Patch, Surface Extrude i Thicken zachowują szkic, zależności i rozdział powierzchnia-bryła', () => {
+test('Patch, Surface Extrude, Surface Revolve i Thicken zachowują szkic, zależności i rozdział powierzchnia-bryła', () => {
   const patchDocument = createDocument('Powierzchnia Patch');
   const patchProfile = createRectangleProfile({ width: '40', height: '20' });
   const patchSketch = createSketch({ name: 'Obrys powierzchni', profiles: [patchProfile] });
@@ -994,6 +994,25 @@ test('Patch, Surface Extrude i Thicken zachowują szkic, zależności i rozdzia�
   assert.deepEqual(preparedExtrudeDocument.features[1].translation, [35, 0, 0]);
   assert.equal(preparedExtrudeDocument.features[2].thicknessValue, 2);
   assert.ok(buildDependencyGraph(extrudeDocument).affectedBy(extrudeProfile.id).includes(thickenExtrude.id));
+
+  const revolveDocument = createDocument('Powierzchnia obrotowa');
+  const start = createSketchPoint({ x: '12', y: '-10' });
+  const end = createSketchPoint({ x: '12', y: '10' });
+  const line = createSketchLine({ startPointId: start.id, endPointId: end.id });
+  const revolveSketch = createSketch({ name: 'Tworząca powierzchni', plane: 'XY', entities: [start, end, line] });
+  const surfaceRevolve = createFeature('surfaceRevolve', { sketchId: revolveSketch.id, profileIds: [], openEntityIds: [line.id], axisId: 'Y_AXIS', angle: '270' });
+  const thickenRevolve = createFeature('thickenSurface', { targetBodyId: `body-${surfaceRevolve.id}`, thickness: '1.5', side: 'symmetric', reverse: false });
+  revolveDocument.sketches.push(revolveSketch);
+  revolveDocument.features.push(surfaceRevolve, thickenRevolve);
+  assert.equal(validateDocument(revolveDocument).valid, true);
+  const preparedRevolve = prepareDocument(revolveDocument);
+  assert.equal(preparedRevolve.features[0].profile.type, 'open');
+  assert.deepEqual(preparedRevolve.features[0].axis.direction, [0, 1, 0]);
+  assert.equal(preparedRevolve.features[0].angleValue, 270);
+  assert.equal(preparedRevolve.features[1].thicknessValue, 1.5);
+  const revolveGraph = buildDependencyGraph(revolveDocument);
+  assert.equal(revolveGraph.producerOfBody(`body-${surfaceRevolve.id}`), surfaceRevolve.id);
+  assert.ok(revolveGraph.affectedBy(line.id).includes(thickenRevolve.id));
 });
 
 test('Extrude przygotowuje odsunięty start, Join, Cut i Intersect z jedną, dwiema, symetryczną oraz Through All', () => {

@@ -154,6 +154,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.20 Pattern bryły w jednym wspólnym narzędziu: prostokątny z parametrycznymi wierszami/kolumnami i odstępami, kołowy wokół osi bazowej/konstrukcyjnej oraz równomierny po ciągłej ścieżce, z limitem 100 wystąpień, edycją trybu, undo/redo i autozapisem.
 - [x] P1.21 Zaawansowane Emboss/Deboss tekstu na wskazanej planarnej ścianie: trwała referencja topologii, lokalny układ powierzchni, kierunek zgodny z normalną dla Emboss i przeciwny dla Deboss, edycja, undo/redo, autozapis i ponowne otwarcie.
 - [x] P1.21a Modelowanie powierzchniowe B-Rep: Patch z zamkniętego profilu, Surface Extrude z profilu lub otwartego łańcucha oraz Thicken jednostronny/symetryczny; osobny typ ciała, historia, graf zależności, przeglądarka i desktop E2E.
+- [x] P1.21b Surface Revolve: obrót zamkniętego profilu albo otwartego łańcucha wokół osi bazowej/konstrukcyjnej, kąt parametryczny, bezpośredni dostęp z aktywnego szkicu, edycja historii i współpraca z Thicken.
 
 ## P1 — organizacja dokumentu i produktywność klasycznego CAD
 

@@ -53,19 +53,52 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'solid'`, 'podgląd pogrubionej powierzchni wyciągniętej');
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 3 && window.__madcadVerifyDocumentState.featureData[2].type === 'thickenSurface' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'solid'`, 'zapisane pogrubienie przesuniętej powierzchni wyciągniętej');
+    const extrudeMetrics = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics`);
+
+    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSurfaceFixture('revolve-source')`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.activeSketchId && window.__madcadVerifyDocumentState?.featureData?.length === 0`, 'otwarty szkic Surface Revolve');
+    await window.webContents.executeJavaScript(`(() => {
+      const line = window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line');
+      if (!line) throw new Error('Brak tworzącej Surface Revolve.');
+      window.__madcadVerifySketchSelection([line.id], 'replace');
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'sketchEntities' && window.__madcadVerifyDocumentState.selection.ids?.length === 1`, 'zaznaczona tworząca Surface Revolve');
+    await window.webContents.executeJavaScript(`(() => {
+      const trigger = [...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Utwórz 3D');
+      if (!trigger) throw new Error('Brak menu Utwórz 3D.');
+      trigger.click();
+    })()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Obróć powierzchnię' && !button.disabled)`, 'aktywne polecenie Surface Revolve');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Obróć powierzchnię' && !button.disabled).click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'surfaceRevolve' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'surface'`, 'podgląd obrotu powierzchni');
+    const revolveSurfaceMetrics = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics`);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 1 && window.__madcadVerifyDocumentState.featureData[0].type === 'surfaceRevolve' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'surface'`, 'zapisany Surface Revolve');
+    await window.webContents.executeJavaScript(`(() => { const bodyId = window.__madcadVerifyDocumentState.bodyIds[0]; window.__madcadVerifyTopologySelection({ kind: 'body', id: bodyId, bodyId }); })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'zaznaczona powierzchnia obrotowa');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled)`, 'Pogrub dla Surface Revolve');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled).click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'solid'`, 'podgląd pogrubionej powierzchni obrotowej');
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 2 && window.__madcadVerifyDocumentState.featureData[1].type === 'thickenSurface' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'solid'`, 'zapisane pogrubienie Surface Revolve');
+
     const result = await window.webContents.executeJavaScript(`(() => ({
       featureTypes: window.__madcadVerifyDocumentState.featureData.map((feature) => feature.type),
       bodyKinds: window.__madcadVerifyDocumentState.bodyKinds,
       volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume,
-      centerX: (window.__madcadVerifyEngineState.bodies[0].metrics.bounds[0][0] + window.__madcadVerifyEngineState.bodies[0].metrics.bounds[1][0]) / 2,
       surfaceFolder: [...document.querySelectorAll('.tree-folder span')].some((item) => item.textContent.trim() === 'Powierzchnie'),
       solidFolder: [...document.querySelectorAll('.tree-folder span')].some((item) => item.textContent.trim() === 'Bryły'),
       horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
     }))()`);
     result.patchVolume = patchMetrics.volume;
     result.patchBoundsZ = [patchMetrics.bounds[0][2], patchMetrics.bounds[1][2]];
+    result.revolveSurfaceArea = revolveSurfaceMetrics.area;
+    result.revolveSurfaceVolume = revolveSurfaceMetrics.volume;
+    result.extrudeCenterX = (extrudeMetrics.bounds[0][0] + extrudeMetrics.bounds[1][0]) / 2;
+    result.extrudeVolume = extrudeMetrics.volume;
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (result.patchVolume <= 0 || Math.abs(result.patchBoundsZ[0] + 1) > 0.01 || Math.abs(result.patchBoundsZ[1] - 1) > 0.01 || result.volume <= 0 || Math.abs(result.centerX - 35) > 0.01 || !result.surfaceFolder || !result.solidFolder || result.horizontalOverflow) throw new Error(`Niepoprawny przepływ powierzchniowy: ${JSON.stringify(result)}`);
+    if (result.patchVolume <= 0 || Math.abs(result.patchBoundsZ[0] + 1) > 0.01 || Math.abs(result.patchBoundsZ[1] - 1) > 0.01 || result.extrudeVolume <= 0 || Math.abs(result.extrudeCenterX - 35) > 0.01 || result.volume <= 0 || result.revolveSurfaceArea <= 0 || !result.surfaceFolder || !result.solidFolder || result.horizontalOverflow) throw new Error(`Niepoprawny przepływ powierzchniowy: ${JSON.stringify(result)}`);
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...result }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;

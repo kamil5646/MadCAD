@@ -234,6 +234,24 @@ function resolveOpenChainProfile(sketch, entityIds, parameters, featureId, opera
   return { id: `open-${featureId}`, name: 'Otwarty łańcuch', type: 'open', geometry: { segments, points: [segments[0].start, ...segments.map((segment) => segment.end)], holes: [] } };
 }
 
+function resolveRevolveAxis(document, feature, profile, parameters, operationName = 'Revolve') {
+  const baseAxes = {
+    X_AXIS: { id: 'X_AXIS', origin: [0, 0, 0], direction: [1, 0, 0] },
+    Y_AXIS: { id: 'Y_AXIS', origin: [0, 0, 0], direction: [0, 1, 0] },
+    Z_AXIS: { id: 'Z_AXIS', origin: [0, 0, 0], direction: [0, 0, 1] },
+  };
+  const axisReference = document.references.find((reference) => reference.id === feature.axisId);
+  const axis = baseAxes[feature.axisId] || resolveConstructionAxis(axisReference, document.references, parameters);
+  const angleValue = evaluateExpression(feature.angle, parameters);
+  if (Math.abs(angleValue) <= GEOMETRY_POLICY.angularTolerance || Math.abs(angleValue) > 360) throw new Error(`Kąt ${operationName} musi należeć do zakresu -360°–360° i być różny od zera.`);
+  const frame = BASE_PLANE_FRAMES[profile.plane];
+  const planeOrigin = frame.origin.map((value, index) => value + frame.normal[index] * profile.planeOffset);
+  const directionNormal = Math.abs(frame.normal.reduce((sum, value, index) => sum + value * axis.direction[index], 0));
+  const originDistance = Math.abs(frame.normal.reduce((sum, value, index) => sum + value * (axis.origin[index] - planeOrigin[index]), 0));
+  if (directionNormal > GEOMETRY_POLICY.angularTolerance || originDistance > GEOMETRY_POLICY.linearTolerance) throw new Error(`Oś ${operationName} musi leżeć w płaszczyźnie szkicu.`);
+  return { axis: { origin: axis.origin, direction: axis.direction }, angleValue };
+}
+
 export function prepareDocument(document) {
   const validation = validateDocument(document);
   if (!validation.valid) throw new Error(validation.errors.join(' '));
@@ -268,6 +286,18 @@ export function prepareDocument(document) {
       const distanceValue = evaluateExpression(feature.distance, parameterResult.values);
       if (Math.abs(distanceValue) <= GEOMETRY_POLICY.linearTolerance) throw new Error('Odległość wyciągnięcia powierzchni musi być różna od zera.');
       return { ...feature, status: 'ready', diagnostics: [], profile, distanceValue };
+    }
+    if (feature.type === 'surfaceRevolve') {
+      const sourceSketch = document.sketches.find((sketch) => sketch.id === feature.sketchId);
+      const profile = feature.openEntityIds?.length
+        ? { ...resolveOpenChainProfile(sourceSketch, feature.openEntityIds, parameterResult.values, feature.id, 'Obrót powierzchni'), plane: sourceSketch?.plane || 'XY', planeOffset: evaluateExpression(sourceSketch?.planeOffset || 0, parameterResult.values) }
+        : (() => {
+          const match = findProfile(document, feature.profileIds[0]);
+          if (!match) throw new Error(`Nie znaleziono profilu obrotu powierzchni ${feature.profileIds[0]}.`);
+          return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
+        })();
+      const { axis, angleValue } = resolveRevolveAxis(document, feature, profile, parameterResult.values, 'obrotu powierzchni');
+      return { ...feature, status: 'ready', diagnostics: [], profile, axis, angleValue };
     }
     if (feature.type === 'thickenSurface') {
       return {
@@ -312,21 +342,8 @@ export function prepareDocument(document) {
       const match = findProfile(document, feature.profileIds[0]);
       if (!match) throw new Error(`Nie znaleziono profilu ${feature.profileIds[0]}.`);
       const profile = { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
-      const baseAxes = {
-        X_AXIS: { id: 'X_AXIS', origin: [0, 0, 0], direction: [1, 0, 0] },
-        Y_AXIS: { id: 'Y_AXIS', origin: [0, 0, 0], direction: [0, 1, 0] },
-        Z_AXIS: { id: 'Z_AXIS', origin: [0, 0, 0], direction: [0, 0, 1] },
-      };
-      const axisReference = document.references.find((reference) => reference.id === feature.axisId);
-      const axis = baseAxes[feature.axisId] || resolveConstructionAxis(axisReference, document.references, parameterResult.values);
-      const angleValue = evaluateExpression(feature.angle, parameterResult.values);
-      if (Math.abs(angleValue) <= GEOMETRY_POLICY.angularTolerance || Math.abs(angleValue) > 360) throw new Error('Kąt Revolve musi należeć do zakresu -360°–360° i być różny od zera.');
-      const frame = BASE_PLANE_FRAMES[profile.plane];
-      const planeOrigin = frame.origin.map((value, index) => value + frame.normal[index] * profile.planeOffset);
-      const directionNormal = Math.abs(frame.normal.reduce((sum, value, index) => sum + value * axis.direction[index], 0));
-      const originDistance = Math.abs(frame.normal.reduce((sum, value, index) => sum + value * (axis.origin[index] - planeOrigin[index]), 0));
-      if (directionNormal > GEOMETRY_POLICY.angularTolerance || originDistance > GEOMETRY_POLICY.linearTolerance) throw new Error('Oś Revolve musi leżeć w płaszczyźnie szkicu.');
-      return { ...feature, status: 'ready', diagnostics: [], profile, axis: { origin: axis.origin, direction: axis.direction }, angleValue };
+      const { axis, angleValue } = resolveRevolveAxis(document, feature, profile, parameterResult.values);
+      return { ...feature, status: 'ready', diagnostics: [], profile, axis, angleValue };
     }
     if (feature.type === 'sweep') {
       const match = findProfile(document, feature.profileIds[0]);

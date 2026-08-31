@@ -17,6 +17,7 @@ import {
   getOC,
   importSTEP,
   importSTLAsMesh,
+  makeAx1,
   makeAx2,
   makeBox,
   makeCylinder,
@@ -287,6 +288,28 @@ function extrudedSurfaceForProfile(profile, distance) {
   return surfaces.length === 1 ? surfaces[0] : compoundShapes(surfaces);
 }
 
+function revolveWireSurface(drawing, plane, planeOffset, axis, angle) {
+  const sketch = drawing.sketchOnPlane(plane, planeOffset);
+  const wire = sketch.wire.clone();
+  const revolutionAxis = makeAx1(axis.origin, axis.direction);
+  const builder = new (getOC().BRepPrimAPI_MakeRevol_1)(wire.wrapped, revolutionAxis, angle * Math.PI / 180, true);
+  const shape = cast(builder.Shape());
+  builder.delete();
+  revolutionAxis.delete();
+  wire.delete();
+  sketch.delete();
+  return shape;
+}
+
+function revolvedSurfaceForProfile(profile, axis, angle) {
+  const plane = profile.plane || 'XY';
+  const planeOffset = Number(profile.planeOffset || 0);
+  if (profile.type === 'open') return revolveWireSurface(drawingForSegments(profile.geometry.segments, profile.id), plane, planeOffset, axis, angle);
+  const surfaces = [revolveWireSurface(drawingForProfile(profile), plane, planeOffset, axis, angle)];
+  for (const hole of profile.geometry.holes || []) surfaces.push(revolveWireSurface(drawingForSegments(hole.segments, profile.id), plane, planeOffset, axis, angle));
+  return surfaces.length === 1 ? surfaces[0] : compoundShapes(surfaces);
+}
+
 function prismShape(shape, direction, distance, startOffset = 0) {
   const moved = Math.abs(startOffset) > GEOMETRY_POLICY.linearTolerance
     ? shape.clone().translate(direction.map((value) => value * startOffset))
@@ -312,6 +335,19 @@ function thickenSurfaceBody(target, feature) {
       ? openChainStrip(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, endCap: 'butt' })
       : thinDrawingForProfile(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide });
     let shape = drawing.sketchOnPlane(target.surfaceProfile.plane || 'XY', Number(target.surfaceProfile.planeOffset || 0)).extrude(target.surfaceDistance);
+    for (const transform of target.surfaceTransforms || []) {
+      shape = transform.mode === 'move'
+        ? shape.translate(...transform.translation)
+        : shape.rotate(transform.angle, transform.origin, [0, 0, 1]);
+    }
+    return shape;
+  }
+  if (target.surfaceSourceType === 'revolve') {
+    const wallSide = feature.side === 'symmetric' ? 'symmetric' : (feature.reverse ? 'inside' : 'outside');
+    const drawing = target.surfaceProfile.type === 'open'
+      ? openChainStrip(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, endCap: 'butt' })
+      : thinDrawingForProfile(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide });
+    let shape = drawing.sketchOnPlane(target.surfaceProfile.plane || 'XY', Number(target.surfaceProfile.planeOffset || 0)).revolve(target.surfaceAxis.direction, { origin: target.surfaceAxis.origin, angle: target.surfaceAngle });
     for (const transform of target.surfaceTransforms || []) {
       shape = transform.mode === 'move'
         ? shape.translate(...transform.translation)
@@ -585,6 +621,24 @@ function runFeature(feature, bodyMap, bodyOrder) {
     return;
   }
 
+  if (feature.type === 'surfaceRevolve') {
+    const bodyId = `body-${feature.id}`;
+    bodyMap.set(bodyId, {
+      id: bodyId,
+      name: feature.name,
+      sourceFeatureId: feature.id,
+      representation: 'brep',
+      bodyKind: 'surface',
+      surfaceSourceType: 'revolve',
+      surfaceProfile: feature.profile,
+      surfaceAxis: feature.axis,
+      surfaceAngle: feature.angleValue,
+      shape: revolvedSurfaceForProfile(feature.profile, feature.axis, feature.angleValue),
+    });
+    bodyOrder.push(bodyId);
+    return;
+  }
+
   if (feature.type === 'thickenSurface') {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target || target.bodyKind !== 'surface') throw new Error(`Nie znaleziono powierzchni dla ${feature.name}.`);
@@ -597,6 +651,8 @@ function runFeature(feature, bodyMap, bodyOrder) {
     delete target.surfaceSourceType;
     delete target.surfaceProfile;
     delete target.surfaceDistance;
+    delete target.surfaceAxis;
+    delete target.surfaceAngle;
     delete target.surfaceTransforms;
     return;
   }
@@ -673,7 +729,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
     if (feature.mode === 'move') target.shape = target.shape.translate(...feature.translation);
     else if (feature.mode === 'rotate') target.shape = target.shape.rotate(feature.angleValue, feature.origin, [0, 0, 1]);
     else throw new Error(`Nieobsługiwana transformacja: ${feature.mode}.`);
-    if (target.bodyKind === 'surface' && target.surfaceSourceType === 'extrude') {
+    if (target.bodyKind === 'surface') {
       target.surfaceTransforms = [...(target.surfaceTransforms || []), feature.mode === 'move'
         ? { mode: 'move', translation: feature.translation }
         : { mode: 'rotate', angle: feature.angleValue, origin: feature.origin }];

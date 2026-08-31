@@ -5,22 +5,23 @@ Zakres: obszar `PROJEKTUJ`, jądro OpenCascade, historia parametryczna i lokalna
 
 ## Wynik
 
-MadCAD obsługuje teraz trzy współpracujące operacje powierzchniowe:
+MadCAD obsługuje teraz cztery współpracujące operacje powierzchniowe:
 
 - `Patch` tworzy dokładną planarną powierzchnię B-Rep z zamkniętego profilu szkicu, także na płaszczyznach XY, XZ i YZ.
 - `Surface Extrude` tworzy otwartą powierzchnię z zamkniętego profilu albo ciągłego otwartego łańcucha linii.
+- `Surface Revolve` obraca zamknięty profil albo ciągły otwarty łańcuch wokół osi bazowej lub konstrukcyjnej o parametryczny kąt.
 - `Thicken` nadaje powierzchni grubość jednostronną albo symetryczną i zamienia ją w zamkniętą bryłę B-Rep.
 
 Każda operacja jest zapisana w osi czasu, zachowuje zależność od szkicu i bierze udział w grafie wpływu zmian. Powierzchnia oraz bryła nie są mylone: mają osobne oznaczenie, osobne foldery w przeglądarce i właściwe działania kontekstowe.
 
 ## Zachowanie interfejsu
 
-- Narzędzia znajdują się w jednym menu `Powierzchnie` w grupie `UTWÓRZ`.
+- Narzędzia znajdują się w jednym menu `Powierzchnie` w grupie `UTWÓRZ`; otwarte `Surface Extrude` i `Surface Revolve` są także dostępne w menu `Utwórz 3D` podczas edycji szkicu.
 - Zaznaczony profil proponuje `Patch` oraz `Wyciągnij powierzchnię`.
 - Zaznaczona powierzchnia proponuje `Pogrub` jako działanie główne.
 - Panel polecenia pokazuje wyłącznie parametry danej operacji.
 - Powierzchnia jest półprzezroczysta i ma cyjanowe krawędzie, a po pogrubieniu wraca do wyglądu bryły.
-- Polecenia linii poleceń: `PA`/`PATCH`, `SE`/`SURFACEEXTRUDE`, `TH`/`THICKEN`/`POGRUB`.
+- Polecenia linii poleceń: `PA`/`PATCH`, `SE`/`SURFACEEXTRUDE`, `SR`/`SURFACEREVOLVE`, `TH`/`THICKEN`/`POGRUB`.
 
 ## Zabezpieczenia przepływu
 
@@ -35,11 +36,12 @@ Każda operacja jest zapisana w osi czasu, zachowuje zależność od szkicu i bi
 | Kontrola | Wynik |
 | --- | --- |
 | Testy jądra | 187/187 |
-| Testy UI | 115/115 |
+| Testy UI | 116/116 |
 | ESLint | bez błędów i ostrzeżeń |
 | Build Vite | poprawny |
 | `Patch 48 × 32 → Thicken 2 mm` | bryła 3072 mm³ |
 | `Surface Extrude Ø24 × 18 → Move 35 mm → Thicken 2 mm` | bryła 2940,5307 mm³, środek X = 35 mm |
+| `Surface Revolve R12 × 20, 270° → Thicken 2 mm` | powierzchnia 1507,9645 mm², następnie bryła 2764,6015 mm³ |
 | Przepełnienie poziome 1440 px | brak |
 | Pełny scenariusz modelowania | poprawny, od szkicu przez B-Rep do eksportów |
 | Szkic → Extrude | profil zamknięty i otwarty łańcuch poprawne |
@@ -52,6 +54,6 @@ Scenariusz wykonuje `scripts/verify-surface-modeling.cjs`. Zrzut końcowy znajdu
 
 - Zbudowano aplikację arm64 bez automatycznego wykrywania certyfikatu producenta, aby uniknąć blokującego podpisu z pęku kluczy.
 - `/Applications/MadCAD.app` ma lokalny podpis ad-hoc i przechodzi `codesign --verify --deep --strict`.
-- Zainstalowany `app.asar` jest identyczny z wynikiem kompilacji: SHA-256 `1e28ad1fed94900747f6881be251294f3d984018d3083b0269171a888fd8489d`.
-- Poprzednia aplikacja została zachowana odwracalnie w Koszu jako `MadCAD-before-surfaces-20260831.app`; pośredni build kontrolny jako `MadCAD-before-surface-memory-fix-20260831.app`.
+- Zainstalowany `app.asar` jest identyczny z wynikiem kompilacji Surface Revolve: SHA-256 `219a2af15f4c99b44a85256bcc553260d43dedeec21c5af6598e8a73d27c2ad6`.
+- Poprzednia aplikacja została zachowana odwracalnie w Koszu jako `MadCAD-before-surface-revolve-20260831.app`; wcześniejsze kopie kontrolne pozostały nienaruszone.
 - Aplikacja została uruchomiona z `/Applications`; nie utworzono wydania ani tagu GitHub.

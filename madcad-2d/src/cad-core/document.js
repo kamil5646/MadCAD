@@ -28,7 +28,7 @@ export const DOCUMENT_SCHEMA_VERSION = 15;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'surfacePatch', 'surfaceExtrude', 'thickenSurface', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'pattern', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'surfacePatch', 'surfaceExtrude', 'surfaceRevolve', 'thickenSurface', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'pattern', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -343,7 +343,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', surfacePatch: 'Patch', surfaceExtrude: 'Wyciągnięcie powierzchni', thickenSurface: 'Pogrubienie powierzchni', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', surfacePatch: 'Patch', surfaceExtrude: 'Wyciągnięcie powierzchni', surfaceRevolve: 'Obrót powierzchni', thickenSurface: 'Pogrubienie powierzchni', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -1041,8 +1041,27 @@ export function validateDocument(document) {
       surfaceBodyIds.add(bodyId);
     }
 
+    if (feature.type === 'surfaceRevolve') {
+      if (!sketchIds.has(feature.sketchId)) add(`${base}.sketchId`, `Nie znaleziono szkicu „${feature.sketchId ?? ''}”.`, 'BROKEN_REFERENCE');
+      const hasOpenChain = Array.isArray(feature.openEntityIds) && feature.openEntityIds.length > 0;
+      if (hasOpenChain) feature.openEntityIds.forEach((entityId, entityIndex) => {
+        const owner = entityOwners.get(entityId);
+        if (!owner) add(`${base}.openEntityIds[${entityIndex}]`, `Nie znaleziono encji „${entityId}”.`, 'BROKEN_REFERENCE');
+        else if (owner.sketchId !== feature.sketchId) add(`${base}.openEntityIds[${entityIndex}]`, `Encja „${entityId}” nie należy do szkicu „${feature.sketchId}”.`, 'BROKEN_REFERENCE');
+        else if (owner.type !== 'line') add(`${base}.openEntityIds[${entityIndex}]`, 'Otwarty obrót powierzchni obsługuje obecnie połączone linie.', 'UNSUPPORTED');
+      });
+      else if (!Array.isArray(feature.profileIds) || feature.profileIds.length !== 1) add(`${base}.profileIds`, 'Obrót powierzchni wymaga jednego zamkniętego profilu albo otwartego łańcucha.', 'REQUIRED');
+      else if (!profileOwners.has(feature.profileIds[0]) || profileOwners.get(feature.profileIds[0]) !== feature.sketchId) add(`${base}.profileIds[0]`, 'Profil obrotu powierzchni musi należeć do wskazanego szkicu.', 'BROKEN_REFERENCE');
+      const axisReference = references.find((reference) => reference.id === feature.axisId);
+      if (!['X_AXIS', 'Y_AXIS', 'Z_AXIS'].includes(feature.axisId) && axisReference?.kind !== 'construction-axis') add(`${base}.axisId`, `Nie znaleziono osi obrotu „${feature.axisId ?? ''}”.`, 'BROKEN_REFERENCE');
+      if (typeof feature.angle !== 'string' && typeof feature.angle !== 'number') add(`${base}.angle`, 'Obrót powierzchni wymaga parametrycznego kąta.', 'TYPE');
+      const bodyId = `body-${feature.id}`;
+      bodyIds.add(bodyId);
+      surfaceBodyIds.add(bodyId);
+    }
+
     if (feature.type === 'thickenSurface') {
-      if (!surfaceBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Pogrubienie wymaga wcześniejszej powierzchni Patch albo Surface Extrude.', 'BROKEN_REFERENCE');
+      if (!surfaceBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Pogrubienie wymaga wcześniejszej powierzchni Patch, Surface Extrude albo Surface Revolve.', 'BROKEN_REFERENCE');
       if (typeof feature.thickness !== 'string' && typeof feature.thickness !== 'number') add(`${base}.thickness`, 'Pogrubienie wymaga parametrycznej grubości.', 'TYPE');
       if (!['one-side', 'symmetric'].includes(feature.side || 'one-side')) add(`${base}.side`, 'Nieobsługiwana strona pogrubienia powierzchni.', 'UNSUPPORTED');
       surfaceBodyIds.delete(feature.targetBodyId);

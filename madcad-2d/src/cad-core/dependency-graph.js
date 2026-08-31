@@ -12,6 +12,7 @@ function expressionDependencies(value) {
 function featureExpressions(feature) {
   if (feature.type === 'extrude') return [feature.distance, feature.secondDistance, feature.startOffset, feature.wallThickness];
   if (feature.type === 'surfaceExtrude') return [feature.distance];
+  if (feature.type === 'surfaceRevolve') return [feature.angle];
   if (feature.type === 'thickenSurface') return [feature.thickness];
   if (feature.type === 'revolve') return [feature.angle];
   if (feature.type === 'rib') return [feature.thickness, feature.depth];
@@ -151,7 +152,7 @@ export function buildDependencyGraph(document) {
     if (feature.type === 'draft' && !['XY', 'XZ', 'YZ'].includes(feature.neutralPlaneId)) addEdge(feature.neutralPlaneId, feature.id, 'neutral-plane');
     if (feature.type === 'splitBody' && !['XY', 'XZ', 'YZ'].includes(feature.planeId)) addEdge(feature.planeId, feature.id, 'split-plane');
     if (feature.type === 'extrude' && feature.extent === 'to-object') addEdge(feature.targetReferenceId, feature.id, 'to-object');
-    if (feature.type === 'revolve' && !['X_AXIS', 'Y_AXIS', 'Z_AXIS'].includes(feature.axisId)) addEdge(feature.axisId, feature.id, 'revolve-axis');
+    if (['revolve', 'surfaceRevolve'].includes(feature.type) && !['X_AXIS', 'Y_AXIS', 'Z_AXIS'].includes(feature.axisId)) addEdge(feature.axisId, feature.id, 'revolve-axis');
     if (feature.type === 'coil' && !['X_AXIS', 'Y_AXIS', 'Z_AXIS'].includes(feature.axisId)) addEdge(feature.axisId, feature.id, 'coil-axis');
     if (feature.type === 'pattern' && feature.patternType === 'circular' && !['X_AXIS', 'Y_AXIS', 'Z_AXIS'].includes(feature.axisId)) addEdge(feature.axisId, feature.id, 'pattern-axis');
     for (const value of featureExpressions(feature)) {
@@ -160,7 +161,7 @@ export function buildDependencyGraph(document) {
 
     if (feature.targetBodyId) addEdge(feature.targetBodyId, feature.id, 'modifies');
     if (feature.toolBodyId) addEdge(feature.toolBodyId, feature.id, 'consumes');
-    if ((['extrude', 'revolve', 'sweep', 'loft', 'coil', 'pipe'].includes(feature.type) && feature.operation === 'new') || ['surfacePatch', 'surfaceExtrude'].includes(feature.type) || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
+    if ((['extrude', 'revolve', 'sweep', 'loft', 'coil', 'pipe'].includes(feature.type) && feature.operation === 'new') || ['surfacePatch', 'surfaceExtrude', 'surfaceRevolve'].includes(feature.type) || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
       const bodyId = `body-${feature.id}`;
       addNode(bodyId, 'body', feature.name, { persisted: false, producerFeatureId: feature.id });
       bodyProducerById.set(bodyId, feature.id);

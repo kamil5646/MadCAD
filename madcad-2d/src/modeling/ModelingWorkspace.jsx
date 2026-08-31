@@ -394,7 +394,7 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
 }
 
 function featureIcon(type, size = 16) {
-  if (type === 'revolve') return <Rotate3d size={size} />;
+  if (type === 'revolve' || type === 'surfaceRevolve') return <Rotate3d size={size} />;
   if (type === 'sweep') return <Move3d size={size} />;
   if (type === 'loft') return <Layers3 size={size} />;
   if (type === 'rib') return <Frame size={size} />;
@@ -1879,6 +1879,17 @@ export default function ModelingWorkspace() {
         });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
+      if (next.type === 'surfaceRevolve') {
+        next.previewFeature = createFeature('surfaceRevolve', {
+          name: current.previewFeature?.name || `Powierzchnia obrotowa ${document.features.length + 1}`,
+          sketchId: current.previewFeature?.sketchId || next.sourceSketchId || selectedProfileMatch?.sketch.id,
+          profileIds: current.previewFeature?.profileIds || (next.openChain ? [] : (selectedProfile ? [selectedProfile.id] : [])),
+          openEntityIds: current.previewFeature?.openEntityIds || (next.openChain ? next.openEntityIds : undefined),
+          axisId: next.axisId,
+          angle: next.angle,
+        });
+        if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
+      }
       if (next.type === 'thickenSurface') {
         next.previewFeature = createFeature('thickenSurface', {
           name: current.previewFeature?.name || `Pogrubienie ${document.features.length + 1}`,
@@ -3268,15 +3279,21 @@ export default function ModelingWorkspace() {
     window.__madcadVerifyLoadSurfaceFixture = (mode = 'patch') => {
       const fixture = createDocument('Przepływ powierzchniowy');
       const isExtrude = mode.startsWith('extrude');
+      const isRevolve = mode.startsWith('revolve');
       const profile = isExtrude
         ? createCircleProfile({ name: 'Profil powierzchni wyciągniętej', diameter: 24, x: 0, y: 0 })
-        : createRectangleProfile({ name: 'Profil Patch', width: 48, height: 32, x: 0, y: 0 });
-      const sketch = createSketch({ name: 'Szkic powierzchni', plane: 'XY', profiles: [profile] });
+        : isRevolve ? null : createRectangleProfile({ name: 'Profil Patch', width: 48, height: 32, x: 0, y: 0 });
+      const revolveStart = isRevolve ? createSketchPoint({ x: 12, y: -10 }) : null;
+      const revolveEnd = isRevolve ? createSketchPoint({ x: 12, y: 10 }) : null;
+      const revolveLine = isRevolve ? createSketchLine({ startPointId: revolveStart.id, endPointId: revolveEnd.id }) : null;
+      const sketch = createSketch({ name: 'Szkic powierzchni', plane: 'XY', profiles: profile ? [profile] : [], entities: isRevolve ? [revolveStart, revolveEnd, revolveLine] : [] });
       const surface = isExtrude
         ? createFeature('surfaceExtrude', { name: 'Powierzchnia walcowa', sketchId: sketch.id, profileIds: [profile.id], distance: '18' })
+        : isRevolve
+          ? createFeature('surfaceRevolve', { name: 'Powierzchnia obrotowa', sketchId: sketch.id, profileIds: [], openEntityIds: [revolveLine.id], axisId: 'Y_AXIS', angle: '270' })
         : createFeature('surfacePatch', { name: 'Powierzchnia bazowa', sketchId: sketch.id, profileIds: [profile.id] });
       fixture.sketches.push(sketch);
-      fixture.features.push(surface);
+      if (mode !== 'revolve-source') fixture.features.push(surface);
       if (mode === 'extrude-transformed') {
         fixture.features.push(createFeature('transform', {
           name: 'Przesuń powierzchnię',
@@ -3286,9 +3303,9 @@ export default function ModelingWorkspace() {
         }));
       }
       history.replace(fixture);
-      setActiveSketchId(null);
-      setWorkspace('solid');
-      setSelection({ kind: 'document', id: fixture.id });
+      setActiveSketchId(mode === 'revolve-source' ? sketch.id : null);
+      setWorkspace(mode === 'revolve-source' ? 'sketch' : 'solid');
+      setSelection(mode === 'revolve-source' ? { kind: 'sketch', id: sketch.id } : { kind: 'document', id: fixture.id });
       setCommand(null);
     };
     window.__madcadVerifyDocumentState = {
@@ -3677,9 +3694,44 @@ export default function ModelingWorkspace() {
     setNotice('Wyciągnięcie powierzchni tworzy otwartą powłokę bez zamykania jej w bryłę.');
   };
 
+  const openSurfaceRevolve = () => {
+    if (readOnly) return readOnlyNotice();
+    const sourceSketch = canExtrudeOpenChain
+      ? document.sketches.find((sketch) => sketch.id === activeSketchId)
+      : selectedProfileMatch?.sketch;
+    if (!sourceSketch || (!canExtrudeOpenChain && (!selectedProfile || activeSketchId))) {
+      setNotice(activeSketchId ? 'Zaznacz ciągły otwarty łańcuch linii.' : 'Zaznacz zamknięty profil albo otwarty łańcuch do obrotu powierzchni.');
+      return;
+    }
+    const axisOptions = [
+      { id: 'X_AXIS', name: 'Oś bazowa X' },
+      { id: 'Y_AXIS', name: 'Oś bazowa Y' },
+      { id: 'Z_AXIS', name: 'Oś bazowa Z' },
+      ...constructionAxes.filter((axis) => axis.status === 'ok').map((axis) => ({ id: axis.id, name: axis.name })),
+    ];
+    const defaultAxisId = sourceSketch.plane === 'XZ' ? 'X_AXIS' : 'Y_AXIS';
+    const next = {
+      type: 'surfaceRevolve',
+      openChain: Boolean(canExtrudeOpenChain),
+      sourceSketchId: sourceSketch.id,
+      openEntityIds: canExtrudeOpenChain ? [...selectedSketchEntityIds] : [],
+      axisId: defaultAxisId,
+      axisOptions,
+      angle: '360',
+      previewFeature: null,
+    };
+    setCommand(next);
+    if (canExtrudeOpenChain) {
+      setActiveSketchId(null);
+      setWorkspace('solid');
+    }
+    window.setTimeout(() => updateCommand(next), 0);
+    setNotice('Obrót powierzchni tworzy powłokę wokół osi bez automatycznego zamykania jej w bryłę.');
+  };
+
   const openThickenSurface = () => {
     if (readOnly) return readOnlyNotice();
-    if (!selectedSurfaceBody) return setNotice('Zaznacz jedną powierzchnię Patch albo Surface Extrude.');
+    if (!selectedSurfaceBody) return setNotice('Zaznacz jedną powierzchnię Patch, Surface Extrude albo Surface Revolve.');
     const next = { type: 'thickenSurface', targetBodyId: selectedSurfaceBody.id, targetName: selectedSurfaceBody.name, thickness: '2', side: 'one-side', reverse: false, previewFeature: null };
     setCommand(next);
     window.setTimeout(() => updateCommand(next), 0);
@@ -4412,6 +4464,7 @@ export default function ModelingWorkspace() {
     if (profile) setSelection({ kind: 'profile', id: profile.id });
     if (feature.type === 'surfacePatch') setCommand({ type: 'surfacePatch', editId: feature.id, previewFeature: feature });
     else if (feature.type === 'surfaceExtrude') setCommand({ type: 'surfaceExtrude', openChain: Boolean(feature.openEntityIds?.length), editId: feature.id, sourceSketchId: feature.sketchId, openEntityIds: feature.openEntityIds || [], distance: feature.distance, previewFeature: feature });
+    else if (feature.type === 'surfaceRevolve') setCommand({ type: 'surfaceRevolve', openChain: Boolean(feature.openEntityIds?.length), editId: feature.id, sourceSketchId: feature.sketchId, openEntityIds: feature.openEntityIds || [], axisId: feature.axisId, axisOptions: [{ id: 'X_AXIS', name: 'Oś bazowa X' }, { id: 'Y_AXIS', name: 'Oś bazowa Y' }, { id: 'Z_AXIS', name: 'Oś bazowa Z' }, ...constructionAxes.filter((axis) => axis.status === 'ok').map((axis) => ({ id: axis.id, name: axis.name }))], angle: feature.angle, previewFeature: feature });
     else if (feature.type === 'thickenSurface') {
       const surfaceBody = engine.bodies.find((body) => body.id === feature.targetBodyId);
       setCommand({ type: 'thickenSurface', editId: feature.id, targetBodyId: feature.targetBodyId, targetName: surfaceBody?.name || feature.targetBodyId, thickness: feature.thickness, side: feature.side || 'one-side', reverse: Boolean(feature.reverse), previewFeature: feature });
@@ -5585,6 +5638,9 @@ export default function ModelingWorkspace() {
     const sourceSketch = document.sketches.find((sketch) => sketch.id === command.previewFeature?.sketchId);
     const axis = sourceSketch?.plane === 'XZ' ? [0, -1, 0] : sourceSketch?.plane === 'YZ' ? [1, 0, 0] : [0, 0, 1];
     directManipulator = { kind: 'extrude', value: command.distance, origin: [0, 0, 0], axis, min: -100000, max: 100000, label: 'Wyciągnij powierzchnię', hint: 'Przeciągnij uchwyt albo wpisz dokładną odległość', onCommit: (value) => updateCommand({ distance: String(value) }) };
+  } else if (command?.type === 'surfaceRevolve') {
+    const axes = { X_AXIS: [1, 0, 0], Y_AXIS: [0, 1, 0], Z_AXIS: [0, 0, 1] };
+    directManipulator = { kind: 'rotate', value: command.angle, origin: [0, 0, 0], axis: axes[command.axisId] || [0, 1, 0], min: -360, max: 360, label: 'Obróć powierzchnię', hint: 'Przeciągnij uchwyt albo wpisz dokładny kąt', onCommit: (value) => updateCommand({ angle: String(value) }) };
   } else if (command?.type === 'offsetFace') {
     const referenceId = command.previewFeature?.referenceIds?.[0];
     const reference = command.topologyReferences?.[0] || document.references.find((item) => item.id === referenceId);
@@ -5662,6 +5718,7 @@ export default function ModelingWorkspace() {
         ],
         moreActions: [
           { icon: ExtrudeCadIcon, label: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude },
+          { icon: RevolveCadIcon, label: 'Obróć powierzchnię', onClick: openSurfaceRevolve },
           { icon: SweepCadIcon, label: 'Po ścieżce', onClick: openSweep },
           { icon: LoftCadIcon, label: 'Loft', onClick: openLoft },
         ],
@@ -5822,6 +5879,8 @@ export default function ModelingWorkspace() {
                   ]} />
                   {Boolean(document.sketches.find((sketch) => sketch.id === activeSketchId)?.entities?.length) && <ToolMenuButton icon={Box} label="Utwórz 3D" description="Utwórz bryłę z otwartej geometrii aktywnego szkicu." items={[
                     { icon: Box, label: 'Thin Extrude', displayLabel: 'Wyciągnij cienkościennie', onClick: openExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
+                    { icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
+                    { icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Obróć powierzchnię', onClick: openSurfaceRevolve, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągły otwarty łańcuch.' },
                     { icon: Frame, label: 'Rib/Web', displayLabel: 'Żebro / ścianka', onClick: openRib, disabled: readOnly || !canCreateRib, disabledReason: 'Zaznacz otwartą linię połączoną z bryłą.' },
                     { icon: Cylinder, label: 'Pipe', displayLabel: 'Rura', onClick: openPipe, disabled: readOnly || !canExtrudeOpenChain, disabledReason: 'Zaznacz ciągłą otwartą ścieżkę.' },
                   ]} />}
@@ -5891,9 +5950,10 @@ export default function ModelingWorkspace() {
               </>
             ) : workspace === 'tools' ? null : (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolMenuButton icon={PlaneCadIcon} label="Powierzchnie" description="Patch, otwarta powierzchnia wyciągnięta i zamiana powierzchni w bryłę." items={[
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolMenuButton icon={PlaneCadIcon} label="Powierzchnie" description="Patch, powierzchnie wyciągnięte i obrotowe oraz zamiana powierzchni w bryłę." items={[
                   { icon: PlaneCadIcon, label: 'Patch', displayLabel: 'Wypełnij profil', onClick: openSurfacePatch, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
                   { icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude, disabled: readOnly || (!selectedProfile && !canExtrudeOpenChain), disabledReason: 'Zaznacz zamknięty profil albo ciągły otwarty łańcuch.' },
+                  { icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Obróć powierzchnię', onClick: openSurfaceRevolve, disabled: readOnly || (!selectedProfile && !canExtrudeOpenChain), disabledReason: 'Zaznacz zamknięty profil albo ciągły otwarty łańcuch.' },
                   { icon: ShellCadIcon, label: 'Thicken', displayLabel: 'Pogrub powierzchnię', onClick: openThickenSurface, disabled: readOnly || !selectedSurfaceBody, disabledReason: 'Zaznacz jedną powierzchnię.' },
                 ]} /><ToolMenuButton icon={PrimitiveCadIcon} label="Więcej brył" description="Prymitywy, bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
                   { icon: PrimitiveCadIcon, label: 'Prymityw', onClick: openPrimitive, disabled: readOnly },
