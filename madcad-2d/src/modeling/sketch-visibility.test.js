@@ -19,6 +19,13 @@ describe('resolveVisibleSketchId', () => {
     expect(resolveVisibleSketchId({ sketches: [{ id: 'sketch-1' }], featureCount: 1 })).toBeNull();
   });
 
+  it('respektuje widoczność szkicu ustawioną w przeglądarce projektu', () => {
+    const sketches = [{ id: 'hidden', visible: false }, { id: 'shown', visible: true }];
+    expect(resolveVisibleSketchId({ sketches, selection: { kind: 'sketch', id: 'hidden' } })).toBeNull();
+    expect(resolveVisibleSketchId({ sketches, selection: { kind: 'sketch', id: 'shown' }, bodyCount: 1 })).toBe('shown');
+    expect(resolveVisibleSketchId({ sketches, selection: { kind: 'profile', id: 'profile', sketchId: 'hidden' } })).toBeNull();
+  });
+
   it('podczas edycji zachowuje wcześniejsze niepuste szkice jako kontekst', () => {
     expect(resolveReferenceSketchIds({
       activeSketchId: 'sketch-3',

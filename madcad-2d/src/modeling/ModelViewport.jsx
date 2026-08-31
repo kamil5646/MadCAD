@@ -26,6 +26,8 @@ const VIEW_DIRECTIONS = {
   left: [-2, 0, 0],
 };
 
+const VIEW_LABELS = Object.freeze({ iso: 'Izometryczny', top: 'Góra', bottom: 'Dół', front: 'Przód', back: 'Tył', right: 'Prawo', left: 'Lewo' });
+
 const SNAP_ICONS = Object.freeze({
   endpoint: Square,
   center: CircleDot,
@@ -2227,6 +2229,7 @@ export default function ModelViewport({
       }}
     >
       {!activeSketchId && <div className="view-cube" role="toolbar" aria-label="Kostka widoku">
+        <div className="view-cube-heading"><span>WIDOK</span><strong>{customViewActive ? 'Dowolny' : VIEW_LABELS[view]}</strong></div>
         <div className="view-cube-primary">
           <button className="cube-top" type="button" aria-label="Widok z góry" aria-pressed={!customViewActive && view === 'top'} title="Ustaw kamerę prostopadle do płaszczyzny XY." onClick={() => selectStandardView('top')}>GÓRA</button>
           <button className="cube-main" type="button" aria-label="Widok izometryczny" aria-pressed={!customViewActive && view === 'iso'} onClick={() => selectStandardView('iso')} title="Widok izometryczny"><Box size={30} strokeWidth={1.25} /></button>

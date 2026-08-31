@@ -1608,6 +1608,7 @@ export default function ModelingWorkspace() {
   const constructionPoints = useMemo(() => resolveConstructionPoints(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
   const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => (['extrude', 'revolve', 'sweep', 'loft', 'coil', 'pipe'].includes(feature.type) && feature.operation === 'new') || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')).map((feature) => `body-${feature.id}`)), [document.features]);
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
+  const visibleViewportBodies = engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false);
   useEffect(() => {
     if (!pendingModelImport) return;
     const rollbackFailedImport = (message) => {
@@ -2579,6 +2580,36 @@ export default function ModelingWorkspace() {
     });
   };
 
+  const toggleSketchVisibility = (sketchId) => {
+    if (readOnly) return readOnlyNotice();
+    let willBeVisible = false;
+    commit((next) => {
+      const sketch = next.sketches.find((item) => item.id === sketchId);
+      if (!sketch) return;
+      sketch.visible = sketch.visible === false;
+      willBeVisible = sketch.visible;
+    });
+    if (willBeVisible) setSelection({ kind: 'sketch', id: sketchId });
+    else if (selection?.id === sketchId || selection?.sketchId === sketchId) setSelection({ kind: 'document', id: document.id });
+    setNotice(willBeVisible ? 'Szkic jest widoczny na płótnie.' : 'Szkic ukryto na płótnie.');
+  };
+
+  const toggleBodyVisibility = (bodyId) => {
+    if (readOnly) return readOnlyNotice();
+    const body = engine.bodies.find((item) => item.id === bodyId);
+    const sourceFeatureId = body?.sourceFeatureId || (body?.id?.startsWith('body-') ? body.id.slice(5) : '');
+    let willBeVisible = false;
+    commit((next) => {
+      const feature = next.features.find((item) => item.id === sourceFeatureId);
+      if (!feature) return;
+      feature.visible = feature.visible === false;
+      willBeVisible = feature.visible;
+    });
+    if (!willBeVisible && (selection?.id === bodyId || selection?.bodyId === bodyId)) setSelection({ kind: 'document', id: document.id });
+    else if (willBeVisible) setSelection({ kind: 'body', id: bodyId });
+    setNotice(willBeVisible ? 'Bryła jest widoczna na płótnie.' : 'Bryłę ukryto na płótnie.');
+  };
+
   const moveSketchEntities = ({ ids = selectedSketchEntityIds, dx = 0, dy = 0 } = {}) => {
     if (readOnly) return readOnlyNotice();
     if (!activeSketchId || !ids.length) {
@@ -3217,6 +3248,7 @@ export default function ModelingWorkspace() {
         id: sketch.id,
         plane: sketch.plane,
         planeOffset: sketch.planeOffset,
+        visible: sketch.visible !== false,
         support: sketch.support,
         entities: sketch.entities.length,
         entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, role: entity.role, fixed: entity.fixed, layerId: entity.layerId, color: entity.color, lineType: entity.lineType, lineWeight: entity.lineWeight, projectionReferenceId: entity.projectionReferenceId, pointIds: entity.pointIds, geometry: entity.geometry })),
@@ -3252,7 +3284,7 @@ export default function ModelingWorkspace() {
       bodyIds: engine.bodies.map((body) => body.id),
       drawings: document.drawings.map((sheet) => ({ ...sheet, views: sheet.views.map((view) => ({ ...view })) })),
       featureIds: document.features.map((feature) => feature.id),
-      featureData: document.features.map((feature) => ({ id: feature.id, name: feature.name, type: feature.type, suppressed: feature.suppressed, sketchId: feature.sketchId, sketchIds: feature.sketchIds, profileId: feature.profileId, profileIds: feature.profileIds, pathSketchId: feature.pathSketchId, pathEntityIds: feature.pathEntityIds, loftMode: feature.loftMode, ribMode: feature.ribMode, patternType: feature.patternType, countX: feature.countX, countY: feature.countY, spacingX: feature.spacingX, spacingY: feature.spacingY, occurrences: feature.occurrences, totalAngle: feature.totalAngle, thickness: feature.thickness, reverse: feature.reverse, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, holeStandard: feature.holeStandard, holeApplication: feature.holeApplication, standardSize: feature.standardSize, clearanceClass: feature.clearanceClass, threadClass: feature.threadClass, threadDesignation: feature.threadDesignation, threadInspection: feature.threadInspection, pipePreparation: feature.pipePreparation, threadTaper: feature.threadTaper, threadProfileAngle: feature.threadProfileAngle, diameterToleranceLower: feature.diameterToleranceLower, diameterToleranceUpper: feature.diameterToleranceUpper, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, outsideDiameter: feature.outsideDiameter, wallSide: feature.wallSide, endCap: feature.endCap, openEntityIds: feature.openEntityIds, depth: feature.depth, diameter: feature.diameter, coilDiameter: feature.coilDiameter, wireDiameter: feature.wireDiameter, pitch: feature.pitch, turns: feature.turns, handedness: feature.handedness, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, neutralPlaneId: feature.neutralPlaneId, planeId: feature.planeId, axisId: feature.axisId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
+      featureData: document.features.map((feature) => ({ id: feature.id, name: feature.name, type: feature.type, suppressed: feature.suppressed, visible: feature.visible !== false, sketchId: feature.sketchId, sketchIds: feature.sketchIds, profileId: feature.profileId, profileIds: feature.profileIds, pathSketchId: feature.pathSketchId, pathEntityIds: feature.pathEntityIds, loftMode: feature.loftMode, ribMode: feature.ribMode, patternType: feature.patternType, countX: feature.countX, countY: feature.countY, spacingX: feature.spacingX, spacingY: feature.spacingY, occurrences: feature.occurrences, totalAngle: feature.totalAngle, thickness: feature.thickness, reverse: feature.reverse, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, holeStandard: feature.holeStandard, holeApplication: feature.holeApplication, standardSize: feature.standardSize, clearanceClass: feature.clearanceClass, threadClass: feature.threadClass, threadDesignation: feature.threadDesignation, threadInspection: feature.threadInspection, pipePreparation: feature.pipePreparation, threadTaper: feature.threadTaper, threadProfileAngle: feature.threadProfileAngle, diameterToleranceLower: feature.diameterToleranceLower, diameterToleranceUpper: feature.diameterToleranceUpper, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, outsideDiameter: feature.outsideDiameter, wallSide: feature.wallSide, endCap: feature.endCap, openEntityIds: feature.openEntityIds, depth: feature.depth, diameter: feature.diameter, coilDiameter: feature.coilDiameter, wireDiameter: feature.wireDiameter, pitch: feature.pitch, turns: feature.turns, handedness: feature.handedness, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, neutralPlaneId: feature.neutralPlaneId, planeId: feature.planeId, axisId: feature.axisId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
       references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, rotationAxis: reference.rotationAxis, angle: reference.angle, surfaceType: reference.surfaceType, center: reference.center, point: reference.point, axis: reference.axis, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, distance: reference.distance, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId, repairedAt: reference.repairedAt })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
@@ -5829,7 +5861,7 @@ export default function ModelingWorkspace() {
           '--print-column': printPanelOpen ? (panelLayout.printCollapsed ? '38px' : '286px') : '0px',
         }}
       >
-        {showProjectBrowser && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onClose={() => setBrowserOpen(false)} />}
+        {showProjectBrowser && <ProjectBrowser document={document} bodies={engine.bodies} selection={selection} activeSketchId={activeSketchId} onSelect={handleBrowserSelection} onToggleReference={toggleConstructionVisibility} onToggleSketchVisibility={toggleSketchVisibility} onToggleBodyVisibility={toggleBodyVisibility} onClose={() => setBrowserOpen(false)} />}
         <CommandDialog
           command={command}
           profileName={command?.type === 'pipe' ? `Otwarta ścieżka (${command.previewFeature?.pathEntityIds?.length || command.pathEntityIds?.length || 0})` : command?.openChain ? `Otwarty łańcuch (${command.previewFeature?.openEntityIds?.length || 0})` : commandProfileName}
@@ -5846,7 +5878,7 @@ export default function ModelingWorkspace() {
         <main className="modeling-stage">
           {workspace === 'drawing' ? <DrawingWorkspace
             document={document}
-            bodies={engine.bodies}
+            bodies={visibleViewportBodies}
             activeSheetId={activeDrawingSheetId}
             selectedViewId={selectedDrawingViewId}
             selectedAnnotationId={selectedDrawingAnnotationId}
@@ -5892,7 +5924,7 @@ export default function ModelingWorkspace() {
             onBack={() => switchWorkspace('solid')}
           /> : <React.Suspense fallback={<div className="viewport-loading" role="status">Uruchamianie widoku 3D…</div>}>
           <ModelViewport
-            bodies={engine.bodies}
+            bodies={visibleViewportBodies}
             sketches={document.sketches}
             layers={document.layers}
             activeSketchId={activeSketchId}

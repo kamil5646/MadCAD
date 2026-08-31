@@ -1,8 +1,14 @@
 export function resolveVisibleSketchId({ activeSketchId = null, selection = null, sketches = [], bodyCount = 0, featureCount = 0 } = {}) {
   if (activeSketchId) return activeSketchId;
-  if (selection?.sketchId) return selection.sketchId;
-  if (selection?.kind === 'sketch') return selection.id;
-  if (bodyCount === 0 && featureCount === 0) return sketches.at(-1)?.id || null;
+  if (!sketches.length) {
+    if (selection?.sketchId) return selection.sketchId;
+    if (selection?.kind === 'sketch') return selection.id;
+    return null;
+  }
+  const visibleSketchIds = new Set(sketches.filter((sketch) => sketch.visible !== false).map((sketch) => sketch.id));
+  if (selection?.sketchId) return visibleSketchIds.has(selection.sketchId) ? selection.sketchId : null;
+  if (selection?.kind === 'sketch') return visibleSketchIds.has(selection.id) ? selection.id : null;
+  if (bodyCount === 0 && featureCount === 0) return sketches.findLast((sketch) => sketch.visible !== false)?.id || null;
   return null;
 }
 

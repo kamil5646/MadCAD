@@ -11,6 +11,8 @@ Sprawdzono krytyczny przepływ użytkownika: wybór płaszczyzny → szkic → w
 3. **Kontekst bryły — zdrowy.** Najczęstsze akcje to Przesuń, Obróć i Szyk. W menu dodatkowym są właściwości masy, podział i bezpieczne usuwanie przez operację źródłową w historii.
 4. **Kontekst ściany — zdrowy.** Zaznaczenie ściany oferuje Szkic na ścianie, Press Pull i Offset Face bez przełączania osobnego trybu wyboru.
 5. **Kontekst krawędzi — zdrowy.** Zaznaczenie krawędzi oferuje Zaokrąglij i Fazuj bez wyłączania bieżącego wyboru.
+6. **Snap — zdrowy.** Marker ma własną ikonę, typ punktu, tekst `SNAP`, obwódkę i prowadnice; jest widoczny przed kliknięciem i mieści się w płótnie.
+7. **Widok i widoczność — zdrowe.** ViewCube podaje aktualną orientację oraz wszystkie kierunki. Ikony oka przy szkicach i bryłach sterują realnym renderowaniem, a zwinięcie folderu nie udaje już ukrywania geometrii.
 
 ## Korekty wizualne wykonane podczas audytu
 
@@ -27,11 +29,15 @@ Sprawdzono krytyczny przepływ użytkownika: wybór płaszczyzny → szkic → w
 - `artifacts/fusion-flow-audit-2026-08-31/04-face-context.png`
 - `artifacts/fusion-flow-audit-2026-08-31/05-edge-context.png`
 - `artifacts/fusion-flow-audit-2026-08-31/06-installed-plane-selection.png` — wynik uruchomiony z `/Applications/MadCAD.app`.
+- `artifacts/fusion-flow-audit-2026-08-31/07-visibility-viewcube.png`
+- `artifacts/fusion-flow-audit-2026-08-31/08-snap-feedback.png`
 - `scripts/verify-start-experience.cjs` wykonuje rzeczywiste kliknięcie płaszczyzny XY w scenie.
 - `scripts/verify-extrude-after-sketch.cjs` wpisuje `12`, zatwierdza Enterem i sprawdza objętość 11520.
 - `scripts/verify-interface-consistency.cjs` sprawdza akcje bryły, ściany i krawędzi oraz anulowanie usunięcia bez zmiany modelu.
+- `scripts/verify-interface-consistency.cjs` ukrywa bryłę ikoną oka, sprawdza zniknięcie z renderu, pokazuje ją ponownie i weryfikuje opis ViewCube.
+- `scripts/verify-snap-feedback.cjs` sprawdza marker, typ snapa i położenie w granicach płótna.
 - Zainstalowany `app.asar` ma ten sam SHA-256 co świeży build: `e4aa95c5e6dd7f4135ee3d7fa53afa709c335b75f490fbaaaa969bf82ccb615d`.
 
 ## Następny pakiet
 
-Do dalszej pracy pozostają trzy wysokowartościowe elementy: stale widoczny marker i typ snapa przed kliknięciem, jednoznaczny ViewCube oraz pełna synchronizacja widoczności obiektów pomiędzy przeglądarką projektu i płótnem.
+Następny pakiet dotyczy redukcji pozostałych równorzędnych wejść do obszarów, konsekwentnego podziału Projektuj/Arkusz 2D/Zarządzaj oraz wspólnej logiki tooltipów i stanów niedostępnych.

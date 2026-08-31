@@ -46,9 +46,9 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Prawy przycisk myszy obraca kamerę zgodnie z decyzją użytkownika; `Esc` anuluje polecenie.
 - [x] Środkowy przycisk lub gest panoramuje; kółko przybliża bez skoków i zachowuje punkt pod kursorem.
 - [x] W aktywnym szkicu kamera pozostaje ortogonalna do płaszczyzny, dopóki użytkownik świadomie nie opuści lub nie zmieni widoku.
-- [ ] ViewCube ma jednoznaczne ściany, narożniki i widok izometryczny.
+- [x] ViewCube ma jednoznaczne ściany, widoki przeciwne, nazwę aktualnej orientacji i widok izometryczny.
 - [x] Pasek nawigacji ma stałe, niekolidujące miejsce pośrodku pod płótnem i czytelne tooltipy.
-- [ ] Snap ma zawsze widoczny marker, typ punktu i krótką informację tekstową przed kliknięciem.
+- [x] Snap ma zawsze widoczny marker, typ punktu i krótką informację tekstową przed kliknięciem.
 - [x] Polecenie kończy się do stanu wyboru; użytkownik nie musi włączać osobnego `Wybierz` po każdym narzędziu.
 
 ## P1 — hierarchia interfejsu Fusion
@@ -59,7 +59,7 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Wstążka nie może dociskać ikon do krawędzi ani nakładać ich na siebie przy szerokościach 1280, 1440 i 1920 px.
 - [ ] Ujednolicić proporcje: wysokość wstążki, rozmiar ikon, tekst narzędzi, nagłówki grup i odstępy.
 - [x] Przeglądarka projektu ma strukturę Fusion: dokument, ustawienia, początek, szkice, bryły, komponenty i konstrukcja.
-- [ ] Widoczność obiektów jest przełączana przy obiekcie, a zaznaczenie z drzewa i płótna jest zsynchronizowane.
+- [x] Widoczność szkiców i brył jest przełączana ikoną oka przy obiekcie, utrwalana w projekcie i zsynchronizowana z płótnem.
 - [x] Prawy panel pokazuje tylko bieżące polecenie lub właściwości zaznaczenia; nie otwiera wielu nakładających się okien.
 - [x] Dolna historia pokazuje operacje w kolejności, stan aktywny, suppressed i marker rollbacku.
 - [ ] Komunikaty stanu mają być krótkie i pomocnicze; nie mogą konkurować z narzędziem ani zasłaniać modelu.
@@ -102,7 +102,10 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Ściana, krawędź i bryła pokazują właściwe akcje kontekstowe; usunięcie bryły prowadzi przez bezpieczne potwierdzenie zależności historii.
 - [x] Audyt przepływu oraz dowody wizualne zapisano w `docs/FUSION_FLOW_AUDIT_2026-08-31.md` i `artifacts/fusion-flow-audit-2026-08-31/`.
 - [x] Nowy build 6.4.6 podpisano ad-hoc, zainstalowano jako `/Applications/MadCAD.app` i sprawdzono w uruchomionej aplikacji; poprzedni build przeniesiono do Kosza jako `MadCAD-before-fusion-flow-20260831.app`.
-- [ ] Następna paczka: stale czytelny snap, jednoznaczny ViewCube i synchronizacja widoczności między przeglądarką a płótnem.
+- [x] Snap pokazuje duży marker, ikonę i typ; test wizualny potwierdza marker wewnątrz płótna.
+- [x] ViewCube pokazuje aktualny widok i wszystkie podstawowe kierunki czytelnym tekstem.
+- [x] Ikony oka przy szkicach i bryłach sterują rzeczywistą widocznością na płótnie; foldery służą wyłącznie do zwijania listy.
+- [ ] Następna paczka: uproszczenie głównego przełącznika obszarów, domknięcie podziału Projektuj/Arkusz 2D/Zarządzaj i ujednolicenie tooltipów.
 
 ## Pliki główne
 

@@ -15,6 +15,7 @@ const fusionAuditDir = path.join(__dirname, '..', 'artifacts', 'fusion-flow-audi
 const bodyContextScreenshotPath = path.join(fusionAuditDir, '03-body-context.png');
 const faceContextScreenshotPath = path.join(fusionAuditDir, '04-face-context.png');
 const edgeContextScreenshotPath = path.join(fusionAuditDir, '05-edge-context.png');
+const visibilityScreenshotPath = path.join(fusionAuditDir, '07-visibility-viewcube.png');
 
 async function waitFor(window, expression, label, timeoutMs = 45000) {
   const startedAt = Date.now();
@@ -136,6 +137,17 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'model testowy');
     const loadedModelGroups = await ribbonGroups(window);
     if (loadedModelGroups.join('|') !== emptyModelGroups.join('|')) throw new Error(`Grupy modelowania zmieniły położenie po wczytaniu bryły: ${loadedModelGroups.join('|')}`);
+    const viewCube = await window.webContents.executeJavaScript(`(() => ({ heading: document.querySelector('.view-cube-heading')?.textContent.trim() || '', labels: [...document.querySelectorAll('.view-cube button')].map((button) => button.textContent.trim() || button.getAttribute('aria-label')) }))()`);
+    if (!viewCube.heading.includes('WIDOK') || !viewCube.heading.includes('Izometryczny') || !['GÓRA', 'PRZÓD', 'PRAWO', 'LEWO', 'TYŁ', 'DÓŁ'].every((label) => viewCube.labels.includes(label))) throw new Error(`Kostka widoku nie opisuje jednoznacznie orientacji: ${JSON.stringify(viewCube)}`);
+    const visibilityTarget = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies[0]; return { id: body.id, name: body.name, featureId: body.sourceFeatureId }; })()`);
+    const hideResult = await window.webContents.executeJavaScript(`(() => { const button = [...document.querySelectorAll('.tree-reference-visibility')].find((item) => item.title === ${JSON.stringify(`Ukryj ${visibilityTarget.name}`)}); if (!button) return { clicked: false }; try { button.click(); return { clicked: true }; } catch (error) { return { clicked: false, error: error.stack || error.message }; } })()`);
+    if (!hideResult.clicked) throw new Error(`Nie udało się ukryć bryły z przeglądarki: ${JSON.stringify(hideResult)}`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.find((feature) => feature.id === ${JSON.stringify(visibilityTarget.featureId)})?.visible === false`, 'ukrycie bryły z przeglądarki');
+    await waitFor(window, `new Set((window.__madcadModelVisualState || []).map((item) => item.bodyId)).size === 1`, 'synchronizacja ukrytej bryły z płótnem');
+    await fs.writeFile(visibilityScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    const showResult = await window.webContents.executeJavaScript(`(() => { const button = [...document.querySelectorAll('.tree-reference-visibility')].find((item) => item.title === ${JSON.stringify(`Pokaż ${visibilityTarget.name}`)}); if (!button) return { clicked: false }; try { button.click(); return { clicked: true }; } catch (error) { return { clicked: false, error: error.stack || error.message }; } })()`);
+    if (!showResult.clicked) throw new Error(`Nie udało się pokazać bryły z przeglądarki: ${JSON.stringify(showResult)}`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.find((feature) => feature.id === ${JSON.stringify(visibilityTarget.featureId)})?.visible === true && new Set((window.__madcadModelVisualState || []).map((item) => item.bodyId)).size === 2`, 'ponowne pokazanie bryły na płótnie');
     await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'body', id: window.__madcadVerifyEngineState.bodies[0].id, bodyId: window.__madcadVerifyEngineState.bodies[0].id }, 'replace')`);
     await waitFor(window, `document.querySelector('.adaptive-tool-shelf')`, 'kontekstowe narzędzia zaznaczonej bryły');
     const adaptiveSelection = await window.webContents.executeJavaScript(`(() => ({
@@ -258,7 +270,7 @@ app.whenReady().then(async () => {
     }
     await fs.writeFile(overflowScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
-    process.stdout.write(`${JSON.stringify({ ok: true, tabs, fileMenu, designStructure, expandedSketch, emptyModelGroups, loadedModelGroups, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, tabs, fileMenu, designStructure, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

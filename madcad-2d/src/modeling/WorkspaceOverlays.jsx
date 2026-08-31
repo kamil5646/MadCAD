@@ -315,7 +315,7 @@ export function ProjectSearchPalette({ index = [], language = 'pl', onNavigate, 
   );
 }
 
-export function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onClose }) {
+export function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onToggleSketchVisibility = () => {}, onToggleBodyVisibility = () => {}, onClose }) {
   const [expanded, setExpanded] = useState({ origin: true, construction: true, components: true, joints: true, motionLinks: true, contactSets: true, configurations: true, sketches: true, bodies: true });
   const toggle = (key) => setExpanded((current) => ({ ...current, [key]: !current[key] }));
   const constructionReferences = document.references.filter((reference) => ['construction-plane', 'construction-axis', 'construction-point'].includes(reference.kind));
@@ -345,7 +345,7 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
         <span /><Settings2 size={14} /><span>Parametry modelu</span><small>mm</small>
       </button>
 
-      <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj płaszczyzny początku układu." onClick={() => toggle('origin')}>
+      <button className="tree-row tree-child tree-folder" type="button" title={`${expanded.origin ? 'Zwiń' : 'Rozwiń'} płaszczyzny początku układu.`} onClick={() => toggle('origin')}>
         {expanded.origin ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Layers3 size={14} /><span>Początek</span>
       </button>
       {expanded.origin && (
@@ -358,7 +358,7 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
         </div>
       )}
 
-      <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj geometrię konstrukcyjną." onClick={() => toggle('construction')}>
+      <button className="tree-row tree-child tree-folder" type="button" title={`${expanded.construction ? 'Zwiń' : 'Rozwiń'} geometrię konstrukcyjną.`} onClick={() => toggle('construction')}>
         {expanded.construction ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Frame size={14} /><span>Konstrukcja</span><small>{constructionReferences.length}</small>
       </button>
       {expanded.construction && constructionReferences.map((reference) => (
@@ -370,7 +370,7 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
         </div>
       ))}
 
-      <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj strukturę części i złożeń." onClick={() => toggle('components')}>
+      <button className="tree-row tree-child tree-folder" type="button" title={`${expanded.components ? 'Zwiń' : 'Rozwiń'} strukturę części i złożeń.`} onClick={() => toggle('components')}>
         {expanded.components ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Boxes size={14} /><span>Złożenie</span><small>{document.componentInstances?.length || 0}</small>
       </button>
       {expanded.components && (componentRoots.length
@@ -397,19 +397,22 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
       </button>
       {expanded.configurations && document.assemblyConfigurations.map((configuration) => <button className={`tree-row tree-configuration ${selection?.kind === 'assemblyConfiguration' && selection.id === configuration.id ? 'selected' : ''} ${document.activeAssemblyConfigurationId === configuration.id ? 'active' : ''}`} type="button" key={configuration.id} title={configuration.description || 'Zapisany stan złożenia'} onClick={() => onSelect({ kind: 'assemblyConfiguration', id: configuration.id })}><span /><Save size={13} /><span>{configuration.name}</span><small>{document.activeAssemblyConfigurationId === configuration.id ? 'AKTYWNA' : ''}</small></button>)}</>}
 
-      <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj szkice i ich profile." onClick={() => toggle('sketches')}>
+      <button className="tree-row tree-child tree-folder" type="button" title={`${expanded.sketches ? 'Zwiń' : 'Rozwiń'} listę szkiców i profili.`} onClick={() => toggle('sketches')}>
         {expanded.sketches ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<FolderOpen size={14} /><span>Szkice</span><small>{document.sketches.length}</small>
       </button>
       {expanded.sketches && document.sketches.map((sketch) => (
         <React.Fragment key={sketch.id}>
+          <div className="tree-reference-row">
           <button
-            className={`tree-row tree-grandchild ${selection?.kind === 'sketch' && selection.id === sketch.id ? 'selected' : ''} ${activeSketchId === sketch.id ? 'editing' : ''}`}
+            className={`tree-row tree-grandchild ${selection?.kind === 'sketch' && selection.id === sketch.id ? 'selected' : ''} ${activeSketchId === sketch.id ? 'editing' : ''} ${sketch.visible === false ? 'hidden-object' : ''}`}
             type="button"
             title={`Zaznacz ${sketch.name}; użyj Edytuj, aby wrócić do szkicu.`}
             onClick={() => onSelect({ kind: 'sketch', id: sketch.id })}
           >
             <span /><PencilRuler size={13} /><span>{sketch.name}</span><small>{sketch.plane}</small>
           </button>
+          <button className="tree-reference-visibility" type="button" aria-pressed={sketch.visible !== false} title={sketch.visible !== false ? `Ukryj ${sketch.name}` : `Pokaż ${sketch.name}`} onClick={() => onToggleSketchVisibility(sketch.id)}>{sketch.visible !== false ? <Eye size={13} /> : <EyeOff size={13} />}</button>
+          </div>
           {sketch.profiles.map((profile) => (
             <button
               className={`tree-row tree-profile ${selection?.kind === 'profile' && selection.id === profile.id ? 'selected' : ''}`}
@@ -424,13 +427,14 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
         </React.Fragment>
       ))}
 
-      <button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj utworzone bryły." onClick={() => toggle('bodies')}>
+      <button className="tree-row tree-child tree-folder" type="button" title={`${expanded.bodies ? 'Zwiń' : 'Rozwiń'} listę utworzonych brył.`} onClick={() => toggle('bodies')}>
         {expanded.bodies ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<FolderOpen size={14} /><span>Bryły</span><small>{bodies.length}</small>
       </button>
-      {expanded.bodies && bodies.map((body) => (
+      {expanded.bodies && bodies.map((body) => {
+        const bodyVisible = document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false;
+        return <div className="tree-reference-row" key={body.id}>
         <button
-          className={`tree-row tree-grandchild ${selection?.kind === 'body' && selection.id === body.id ? 'selected' : ''}`}
-          key={body.id}
+          className={`tree-row tree-grandchild ${selection?.kind === 'body' && selection.id === body.id ? 'selected' : ''} ${bodyVisible ? '' : 'hidden-object'}`}
           type="button"
           title={body.representation === 'mesh-import'
             ? `${body.name}: ${body.meshBooleanCapable === false ? 'otwarta siatka do pomiaru, transformacji i eksportu' : 'zamknięta siatka 3D'}.`
@@ -439,7 +443,9 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
         >
           <span /><Box size={13} /><span>{body.name}</span><span className="body-kind"><small>{body.representation === 'mesh-import' ? (body.meshBooleanCapable === false ? 'SIATKA OTW.' : 'SIATKA') : 'B-REP'}</small><i className="body-color" style={{ background: body.color }} /></span>
         </button>
-      ))}
+        <button className="tree-reference-visibility" type="button" aria-pressed={bodyVisible} title={bodyVisible ? `Ukryj ${body.name}` : `Pokaż ${body.name}`} onClick={() => onToggleBodyVisibility(body.id)}>{bodyVisible ? <Eye size={13} /> : <EyeOff size={13} />}</button>
+        </div>;
+      })}
     </aside>
   );
 }
