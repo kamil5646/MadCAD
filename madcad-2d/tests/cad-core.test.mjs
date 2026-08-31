@@ -961,7 +961,7 @@ test('szkic na planarnej ścianie zachowuje podporę i odsunięcie w przygotowan
   assert.equal(validateDocument(broken).issues.some((issue) => issue.path.endsWith('support.referenceId') && issue.code === 'BROKEN_REFERENCE'), true);
 });
 
-test('Patch, Surface Extrude, Surface Revolve, Surface Sweep i Thicken zachowują szkic, zależności i rozdział powierzchnia-bryła', () => {
+test('Patch, Surface Extrude, Surface Revolve, Surface Sweep, Surface Loft i Thicken zachowują szkic, zależności i rozdział powierzchnia-bryła', () => {
   const patchDocument = createDocument('Powierzchnia Patch');
   const patchProfile = createRectangleProfile({ width: '40', height: '20' });
   const patchSketch = createSketch({ name: 'Obrys powierzchni', profiles: [patchProfile] });
@@ -1035,6 +1035,24 @@ test('Patch, Surface Extrude, Surface Revolve, Surface Sweep i Thicken zachowuj�
   const sweepGraph = buildDependencyGraph(sweepDocument);
   assert.equal(sweepGraph.producerOfBody(`body-${surfaceSweep.id}`), surfaceSweep.id);
   assert.ok(sweepGraph.affectedBy(pathLine.id).includes(thickenSweep.id));
+
+  const loftDocument = createDocument('Powierzchnia przejściowa');
+  const lowerProfile = createRectangleProfile({ name: 'Dolny profil', width: 24, height: 16, x: 0, y: 0 });
+  const upperProfile = createRectangleProfile({ name: 'Górny profil', width: 12, height: 8, x: 3, y: 2 });
+  const lowerSketch = createSketch({ name: 'Dolny szkic', plane: 'XY', planeOffset: '0', profiles: [lowerProfile] });
+  const upperSketch = createSketch({ name: 'Górny szkic', plane: 'XY', planeOffset: '20', profiles: [upperProfile] });
+  const surfaceLoft = createFeature('surfaceLoft', { sketchId: lowerSketch.id, sketchIds: [lowerSketch.id, upperSketch.id], profileIds: [lowerProfile.id, upperProfile.id], loftMode: 'smooth' });
+  const thickenLoft = createFeature('thickenSurface', { targetBodyId: `body-${surfaceLoft.id}`, thickness: '1.5', side: 'symmetric', reverse: false });
+  loftDocument.sketches.push(lowerSketch, upperSketch);
+  loftDocument.features.push(surfaceLoft, thickenLoft);
+  assert.equal(validateDocument(loftDocument).valid, true);
+  const preparedLoft = prepareDocument(loftDocument);
+  assert.equal(preparedLoft.features[0].profiles.length, 2);
+  assert.equal(preparedLoft.features[0].profiles[1].planeOffset, 20);
+  assert.equal(preparedLoft.features[1].thicknessValue, 1.5);
+  const loftGraph = buildDependencyGraph(loftDocument);
+  assert.equal(loftGraph.producerOfBody(`body-${surfaceLoft.id}`), surfaceLoft.id);
+  assert.ok(loftGraph.affectedBy(upperProfile.id).includes(thickenLoft.id));
 });
 
 test('Extrude przygotowuje odsunięty start, Join, Cut i Intersect z jedną, dwiema, symetryczną oraz Through All', () => {

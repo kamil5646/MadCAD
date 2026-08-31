@@ -368,6 +368,16 @@ function thickenSurfaceBody(target, feature) {
     }
     return shape;
   }
+  if (target.surfaceSourceType === 'loft') {
+    const wallSide = feature.side === 'symmetric' ? 'symmetric' : (feature.reverse ? 'inside' : 'outside');
+    let shape = thickenLoftProfiles(target.surfaceProfiles, target.surfaceLoftMode, feature.thicknessValue, wallSide);
+    for (const transform of target.surfaceTransforms || []) {
+      shape = transform.mode === 'move'
+        ? shape.translate(...transform.translation)
+        : shape.rotate(transform.angle, transform.origin, [0, 0, 1]);
+    }
+    return shape;
+  }
   throw new Error('Nie rozpoznano źródła powierzchni do pogrubienia.');
 }
 
@@ -560,6 +570,36 @@ function loftProfiles(profiles, loftMode) {
   return shape;
 }
 
+function surfaceLoftProfiles(profiles, loftMode) {
+  const loftDrawings = (drawings) => {
+    const sketches = drawings.map((drawing, index) => drawing.sketchOnPlane(profiles[index].plane || 'XY', Number(profiles[index].planeOffset || 0)));
+    return sketches[0].loftWith(sketches.slice(1), { ruled: loftMode === 'ruled' }, true);
+  };
+  const surfaces = [loftDrawings(profiles.map((profile) => drawingForProfile(profile)))];
+  const holeCount = profiles[0].geometry.holes?.length || 0;
+  for (let holeIndex = 0; holeIndex < holeCount; holeIndex += 1) surfaces.push(loftDrawings(profiles.map((profile) => drawingForSegments(profile.geometry.holes[holeIndex].segments, profile.id))));
+  return surfaces.length === 1 ? surfaces[0] : compoundShapes(surfaces);
+}
+
+function thickenLoftProfiles(profiles, loftMode, thickness, wallSide) {
+  const [outerDistance, innerDistance] = wallSide === 'outside'
+    ? [thickness, 0]
+    : wallSide === 'inside'
+      ? [0, -thickness]
+      : [thickness / 2, -thickness / 2];
+  const loftBand = (drawings) => {
+    const loftAtOffset = (distance) => {
+      const sketches = drawings.map((drawing, index) => (distance ? drawing.offset(distance, { lineJoinType: 'miter' }) : drawing).sketchOnPlane(profiles[index].plane || 'XY', Number(profiles[index].planeOffset || 0)));
+      return sketches[0].loftWith(sketches.slice(1), { ruled: loftMode === 'ruled' });
+    };
+    return loftAtOffset(outerDistance).cut(loftAtOffset(innerDistance));
+  };
+  const solids = [loftBand(profiles.map((profile) => drawingForProfile(profile)))];
+  const holeCount = profiles[0].geometry.holes?.length || 0;
+  for (let holeIndex = 0; holeIndex < holeCount; holeIndex += 1) solids.push(loftBand(profiles.map((profile) => drawingForSegments(profile.geometry.holes[holeIndex].segments, profile.id))));
+  return solids.length === 1 ? solids[0] : compoundShapes(solids);
+}
+
 function ribProfile(feature) {
   const inPlaneThickness = feature.ribMode === 'rib' ? feature.depthValue : feature.thicknessValue;
   const normalDistance = feature.ribMode === 'rib' ? feature.thicknessValue : feature.depthValue;
@@ -704,6 +744,23 @@ function runFeature(feature, bodyMap, bodyOrder) {
     return;
   }
 
+  if (feature.type === 'surfaceLoft') {
+    const bodyId = `body-${feature.id}`;
+    bodyMap.set(bodyId, {
+      id: bodyId,
+      name: feature.name,
+      sourceFeatureId: feature.id,
+      representation: 'brep',
+      bodyKind: 'surface',
+      surfaceSourceType: 'loft',
+      surfaceProfiles: feature.profiles,
+      surfaceLoftMode: feature.loftMode,
+      shape: surfaceLoftProfiles(feature.profiles, feature.loftMode),
+    });
+    bodyOrder.push(bodyId);
+    return;
+  }
+
   if (feature.type === 'thickenSurface') {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target || target.bodyKind !== 'surface') throw new Error(`Nie znaleziono powierzchni dla ${feature.name}.`);
@@ -719,6 +776,8 @@ function runFeature(feature, bodyMap, bodyOrder) {
     delete target.surfaceAxis;
     delete target.surfaceAngle;
     delete target.surfacePath;
+    delete target.surfaceProfiles;
+    delete target.surfaceLoftMode;
     delete target.surfaceTransforms;
     return;
   }

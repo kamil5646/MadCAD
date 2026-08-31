@@ -27,6 +27,7 @@ const COMMAND_DEFINITIONS = Object.freeze([
   { category: 'POWIERZCHNIE', shortcut: 'SE', label: 'Surface Extrude', toolLabel: 'Surface Extrude', aliases: ['SE', 'SURFACEEXTRUDE', 'WYCIAGNIJPOWIERZCHNIE'] },
   { category: 'POWIERZCHNIE', shortcut: 'SR', label: 'Surface Revolve', toolLabel: 'Surface Revolve', aliases: ['SR', 'SURFACEREVOLVE', 'OBROCPOWIERZCHNIE'] },
   { category: 'POWIERZCHNIE', shortcut: 'SS', label: 'Surface Sweep', toolLabel: 'Surface Sweep', aliases: ['SS', 'SURFACESWEEP', 'POWIERZCHNIAPOSCIEZCE', 'POWIERZCHNIAPOŚCIEŻCE'] },
+  { category: 'POWIERZCHNIE', shortcut: 'SLO', label: 'Surface Loft', toolLabel: 'Surface Loft', aliases: ['SLO', 'SURFACELOFT', 'POWIERZCHNIAPRZEJSCIOWA', 'POWIERZCHNIAPRZEJŚCIOWA'] },
   { category: 'POWIERZCHNIE', shortcut: 'TH', label: 'Thicken', toolLabel: 'Thicken', aliases: ['TH', 'THICKEN', 'POGRUB'] },
   { category: 'MODELUJ 3D', shortcut: 'REV', label: 'Revolve', toolLabel: 'Revolve', aliases: ['REV', 'REVOLVE', 'OBROT'] },
   { category: 'MODELUJ 3D', shortcut: 'SW', label: 'Sweep', toolLabel: 'Sweep', aliases: ['SW', 'SWEEP', 'PRZECIAGNIJ'] },

@@ -28,7 +28,7 @@ export const DOCUMENT_SCHEMA_VERSION = 15;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'surfacePatch', 'surfaceExtrude', 'surfaceRevolve', 'surfaceSweep', 'thickenSurface', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'pattern', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'surfacePatch', 'surfaceExtrude', 'surfaceRevolve', 'surfaceSweep', 'surfaceLoft', 'thickenSurface', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'pattern', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -343,7 +343,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', surfacePatch: 'Patch', surfaceExtrude: 'Wyciągnięcie powierzchni', surfaceRevolve: 'Obrót powierzchni', surfaceSweep: 'Powierzchnia po ścieżce', thickenSurface: 'Pogrubienie powierzchni', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', surfacePatch: 'Patch', surfaceExtrude: 'Wyciągnięcie powierzchni', surfaceRevolve: 'Obrót powierzchni', surfaceSweep: 'Powierzchnia po ścieżce', surfaceLoft: 'Powierzchnia przejściowa', thickenSurface: 'Pogrubienie powierzchni', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -1079,8 +1079,24 @@ export function validateDocument(document) {
       surfaceBodyIds.add(bodyId);
     }
 
+    if (feature.type === 'surfaceLoft') {
+      if (!Array.isArray(feature.profileIds) || feature.profileIds.length !== 2) add(`${base}.profileIds`, 'Surface Loft wymaga dokładnie dwóch zamkniętych profili.', 'REQUIRED');
+      if (!Array.isArray(feature.sketchIds) || feature.sketchIds.length !== 2) add(`${base}.sketchIds`, 'Surface Loft wymaga dwóch osobnych szkiców.', 'REQUIRED');
+      else {
+        if (feature.sketchIds[0] === feature.sketchIds[1]) add(`${base}.sketchIds`, 'Profile Surface Loft muszą należeć do osobnych szkiców.', 'VALUE');
+        feature.profileIds?.forEach((profileId, index) => {
+          if (!profileOwners.has(profileId) || profileOwners.get(profileId) !== feature.sketchIds[index]) add(`${base}.profileIds[${index}]`, 'Profil Surface Loft musi należeć do odpowiadającego mu szkicu.', 'BROKEN_REFERENCE');
+        });
+      }
+      if (feature.sketchId !== feature.sketchIds?.[0]) add(`${base}.sketchId`, 'Pierwszy szkic Surface Loft musi być szkicem źródłowym.', 'VALUE');
+      if (!['smooth', 'ruled'].includes(feature.loftMode || 'smooth')) add(`${base}.loftMode`, 'Nieobsługiwany tryb Surface Loft.', 'UNSUPPORTED');
+      const bodyId = `body-${feature.id}`;
+      bodyIds.add(bodyId);
+      surfaceBodyIds.add(bodyId);
+    }
+
     if (feature.type === 'thickenSurface') {
-      if (!surfaceBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Pogrubienie wymaga wcześniejszej powierzchni Patch, Surface Extrude, Surface Revolve albo Surface Sweep.', 'BROKEN_REFERENCE');
+      if (!surfaceBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Pogrubienie wymaga wcześniejszej powierzchni Patch, Surface Extrude, Surface Revolve, Surface Sweep albo Surface Loft.', 'BROKEN_REFERENCE');
       if (typeof feature.thickness !== 'string' && typeof feature.thickness !== 'number') add(`${base}.thickness`, 'Pogrubienie wymaga parametrycznej grubości.', 'TYPE');
       if (!['one-side', 'symmetric'].includes(feature.side || 'one-side')) add(`${base}.side`, 'Nieobsługiwana strona pogrubienia powierzchni.', 'UNSUPPORTED');
       surfaceBodyIds.delete(feature.targetBodyId);

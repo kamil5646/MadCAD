@@ -312,6 +312,18 @@ export function prepareDocument(document) {
       const path = { ...resolveOpenChainProfile(pathSketch, feature.pathEntityIds, parameterResult.values, feature.id, 'Surface Sweep'), plane: pathSketch?.plane || 'XY', planeOffset: evaluateExpression(pathSketch?.planeOffset || 0, parameterResult.values) };
       return { ...feature, status: 'ready', diagnostics: [], profile, path };
     }
+    if (feature.type === 'surfaceLoft') {
+      const profiles = feature.profileIds.map((profileId) => {
+        const match = findProfile(document, profileId);
+        if (!match) throw new Error(`Nie znaleziono profilu Surface Loft ${profileId}.`);
+        return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
+      });
+      if (new Set(profiles.map((profile) => profile.plane)).size !== 1) throw new Error('Profile Surface Loft muszą leżeć na równoległych płaszczyznach szkicu.');
+      if (Math.abs(Number(profiles[0].planeOffset || 0) - Number(profiles[1].planeOffset || 0)) <= GEOMETRY_POLICY.linearTolerance) throw new Error('Profile Surface Loft muszą leżeć na różnych płaszczyznach.');
+      const holeCounts = new Set(profiles.map((profile) => profile.geometry.holes?.length || 0));
+      if (holeCounts.size !== 1) throw new Error('Profile Surface Loft muszą mieć tę samą liczbę otworów.');
+      return { ...feature, status: 'ready', diagnostics: [], profiles, loftMode: feature.loftMode || 'smooth' };
+    }
     if (feature.type === 'thickenSurface') {
       return {
         ...feature,
