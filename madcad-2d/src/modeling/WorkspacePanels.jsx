@@ -494,6 +494,28 @@ export function SurfaceAnalysisPanel({ analysis, continuity, curvature, onChange
   );
 }
 
+export function MeshToolsPanel({ body, report, onRepair, onClose }) {
+  const clean = report && !report.degenerateTriangles && !report.duplicateTriangles;
+  return (
+    <aside className="measure-panel mesh-tools-panel" aria-label="Diagnostyka i naprawa siatki">
+      <header><div><ScanSearch size={16} /><strong>Narzędzia siatki</strong></div><button type="button" title="Zamknij narzędzia siatki" aria-label="Zamknij narzędzia siatki" onClick={onClose}><X size={15} /></button></header>
+      <div className="measure-panel-body">
+        <strong>{body?.name || 'Siatka'}</strong>
+        <div className="measure-row"><span>Wierzchołki</span><strong>{report?.vertexCount?.toLocaleString('pl-PL') || 0}</strong></div>
+        <div className="measure-row"><span>Trójkąty</span><strong>{report?.triangleCount?.toLocaleString('pl-PL') || 0}</strong></div>
+        <div className="measure-row"><span>Duplikaty wierzchołków</span><strong>{report?.duplicateVertices || 0}</strong></div>
+        <div className="measure-row"><span>Trójkąty zdegenerowane</span><strong>{report?.degenerateTriangles || 0}</strong></div>
+        <div className="measure-row"><span>Trójkąty zdublowane</span><strong>{report?.duplicateTriangles || 0}</strong></div>
+        <div className="measure-row"><span>Krawędzie otwarte</span><strong>{report?.boundaryEdges || 0}</strong></div>
+        <div className="measure-row"><span>Krawędzie niemanifold</span><strong>{report?.nonManifoldEdges || 0}</strong></div>
+        <div className="measure-row"><span>Niespójna orientacja</span><strong>{report?.inconsistentEdges || 0}</strong></div>
+        <p>Bezpieczna naprawa scala zduplikowane wierzchołki oraz usuwa trójkąty zerowe i powtórzone. Nie wypełnia otworów i nie zgaduje brakującej geometrii.</p>
+        <button className="mesh-repair-button" type="button" disabled={!report || clean} onClick={onRepair}><RotateCcw size={14} />{clean ? 'Siatka nie wymaga czyszczenia' : 'Wykonaj bezpieczną naprawę'}</button>
+      </div>
+    </aside>
+  );
+}
+
 const IMPORT_UNIT_OPTIONS = [
   ['auto', 'Automatycznie / z pliku'],
   ['millimeter', 'Milimetry (mm)'],

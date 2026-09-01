@@ -4126,6 +4126,33 @@
 
 .curvature-map-legend em { font-style: normal; }
 
+.mesh-tools-panel .measure-panel-body {
+  display: grid;
+  gap: 6px;
+}
+
+.mesh-repair-button {
+  display: flex;
+  min-height: 31px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 3px;
+  border: 1px solid #36a9d1;
+  border-radius: 3px;
+  background: #256f8a;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mesh-repair-button:disabled {
+  border-color: #596573;
+  background: #38424e;
+  color: #9faab3;
+  cursor: default;
+}
+
 .layers-panel {
   top: 14px;
   right: 14px;

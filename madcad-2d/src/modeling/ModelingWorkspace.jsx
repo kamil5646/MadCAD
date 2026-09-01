@@ -127,7 +127,8 @@ import { DRAFT_DIRECTIONS, analyzeDraftAngles, summarizeGeometryInspection } fro
 import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profiles.js';
 import { calculatePrintLayout, orientationForBedFace } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
-import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit } from '../cad-core/model-import.js';
+import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../cad-core/model-import.js';
+import { inspectMesh, meshToBinaryStl, repairMesh } from '../cad-core/mesh-tools.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
@@ -217,7 +218,7 @@ import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import { AdaptiveToolShelf } from './WorkspaceSketchUi.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectDashboard, ProjectDependenciesPanel, ProjectHealthPanel, ProjectSearchPalette, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
-import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, NamedViewsPanel, SectionPanel, SurfaceAnalysisPanel } from './WorkspacePanels.jsx';
+import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, MeshToolsPanel, NamedViewsPanel, SectionPanel, SurfaceAnalysisPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
   clearLocalAutosave,
@@ -258,6 +259,10 @@ function arrayBufferToBase64(buffer) {
   let binary = '';
   for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
   return btoa(binary);
+}
+
+function base64ToBytes(value) {
+  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
 }
 
 const ModelViewport = React.lazy(() => import('./ModelViewport.jsx'));
@@ -507,6 +512,7 @@ export default function ModelingWorkspace() {
   const [toolHelp, setToolHelp] = useState(null);
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
   const [surfaceAnalysis, setSurfaceAnalysis] = useState(null);
+  const [meshToolsOpen, setMeshToolsOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(true);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
@@ -1105,6 +1111,16 @@ export default function ModelingWorkspace() {
   }, [document, command]);
   const engine = useCadEngine(previewDocument, { quality: command?.previewFeature ? 'preview' : 'display' });
   const selectedBodies = selectedBodyIds.map((bodyId) => engine.bodies.find((body) => body.id === bodyId)).filter(Boolean);
+  const selectedMeshBody = selectedBodies.length === 1 && selectedBodies[0].representation === 'mesh-import' ? selectedBodies[0] : null;
+  const selectedMeshFeature = selectedMeshBody ? document.features.find((feature) => feature.id === selectedMeshBody.sourceFeatureId && feature.type === 'importedModel' && feature.importFormat === 'stl') || null : null;
+  const selectedMeshReport = useMemo(() => {
+    if (!selectedMeshFeature) return null;
+    try {
+      return inspectMesh(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)));
+    } catch {
+      return null;
+    }
+  }, [selectedMeshFeature]);
   const selectedSurfaceBodies = selectedBodies.filter((body) => body.bodyKind === 'surface');
   const selectedSolidBodies = selectedBodies.filter((body) => body.bodyKind !== 'surface');
   const canStitchSelectedSurfaces = selectedBodyIds.length >= 2 && selectedSurfaceBodies.length === selectedBodyIds.length;
@@ -4226,6 +4242,37 @@ export default function ModelingWorkspace() {
     setNotice('Analiza powierzchni wyłączona; model nie został zmieniony.');
   };
 
+  const openMeshTools = () => {
+    if (!selectedMeshFeature) {
+      setNotice('Zaznacz jedną zaimportowaną siatkę STL albo 3MF. Dokładne modele STEP nie wymagają naprawy siatki źródłowej.');
+      return;
+    }
+    setImportRepairReport(null);
+    setMeshToolsOpen(true);
+    setNotice('Diagnostyka siatki jest gotowa. Naprawa nie wypełnia otworów ani nie zgaduje brakującej geometrii.');
+  };
+
+  const safelyRepairSelectedMesh = () => {
+    if (!selectedMeshFeature || readOnly) return;
+    try {
+      const result = repairMesh(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)));
+      const buffer = meshToBinaryStl(result.mesh);
+      commit((next) => {
+        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
+        feature.dataBase64 = arrayBufferToBase64(buffer);
+        feature.triangleCount = result.after.triangleCount;
+        feature.meshRepair = {
+          repairedAt: new Date().toISOString(),
+          removedTriangles: result.before.triangleCount - result.after.triangleCount,
+          weldedVertices: result.before.duplicateVertices,
+        };
+      });
+      setNotice(`Naprawiono siatkę: scalono ${result.before.duplicateVertices} duplikatów wierzchołków i usunięto ${result.before.triangleCount - result.after.triangleCount} niebezpiecznych trójkątów. Cofnij przywraca oryginał.`);
+    } catch (error) {
+      setNotice(`Nie udało się naprawić siatki: ${error.message}`);
+    }
+  };
+
   const openMassProperties = () => {
     setCommand({ type: 'massProperties', density: '1.24' });
     setNotice('Właściwości masowe liczą zaznaczone bryły albo cały model, gdy nic nie jest wskazane.');
@@ -6018,6 +6065,7 @@ export default function ModelingWorkspace() {
           ] : []),
         ],
         moreActions: selectedBodyIds.length === 1 ? [
+          ...(selectedMeshBody ? [{ icon: ScanSearch, label: 'Narzędzia siatki', onClick: openMeshTools }] : []),
           ...(!surfaceSelection ? [{ icon: MassCadIcon, label: 'Właściwości masy', onClick: openMassProperties }, { icon: SplitBodyCadIcon, label: 'Podziel bryłę', onClick: openSplitBody }] : []),
           { icon: Trash2, label: surfaceSelection ? 'Usuń powierzchnię' : 'Usuń bryłę', onClick: requestSelectedBodyDelete, danger: true },
         ] : [],
@@ -6228,6 +6276,7 @@ export default function ModelingWorkspace() {
                   { icon: DraftCadIcon, label: 'Draft', displayLabel: 'Pochylenie ścian', onClick: openDraft, disabled: readOnly || !selectedFaceItems.length, disabledReason: 'Zaznacz ściany do pochylenia.' },
                   { icon: OffsetFaceCadIcon, label: 'Offset Face', displayLabel: 'Odsuń ścianę', onClick: openOffsetFace, disabled: readOnly || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz dokładnie jedną płaską ścianę.' },
                   { icon: DeleteFaceCadIcon, label: 'Delete Face + Heal', displayLabel: 'Usuń i napraw ścianę', onClick: openDeleteFace, disabled: readOnly || !selectedFaceItems.length, disabledReason: 'Zaznacz ściany do usunięcia.' },
+                  { icon: ScanSearch, label: 'Narzędzia siatki', onClick: openMeshTools, disabled: readOnly || !selectedMeshFeature, disabledReason: 'Zaznacz jedną zaimportowaną siatkę STL albo 3MF.' },
                   { icon: MoveBodyCadIcon, label: 'Przesuń bryłę', onClick: () => openTransform('move'), disabled: readOnly || selection?.kind !== 'body' },
                   { icon: RotateBodyCadIcon, label: 'Obróć bryłę', onClick: () => openTransform('rotate'), disabled: readOnly || selection?.kind !== 'body' },
                   { icon: EditFeatureCadIcon, label: 'Edytuj', onClick: editSelection, disabled: readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind) },
@@ -6426,7 +6475,7 @@ export default function ModelingWorkspace() {
           {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
           {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
-          {workspace !== 'drawing' && workspace !== 'tools' && adaptiveContext && <AdaptiveToolShelf {...adaptiveContext} />}
+          {workspace !== 'drawing' && workspace !== 'tools' && adaptiveContext && !meshToolsOpen && <AdaptiveToolShelf {...adaptiveContext} />}
           {notice && <div className={`workspace-notice ${command ? 'command-active' : ''}`} role="status" aria-live="polite" aria-atomic="true">{notice}</div>}
           <CrashRecoveryBanner
             info={recoveryInfo}
@@ -6443,6 +6492,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
           {command?.type === 'surfaceAnalysis' && surfaceAnalysis && <SurfaceAnalysisPanel analysis={surfaceAnalysis} continuity={surfaceContinuity} curvature={surfaceCurvature} onChange={(patch) => setSurfaceAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSurfaceAnalysis} />}
+          {meshToolsOpen && selectedMeshBody && <MeshToolsPanel body={selectedMeshBody} report={selectedMeshReport} onRepair={safelyRepairSelectedMesh} onClose={() => setMeshToolsOpen(false)} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} draftDirection={command.draftDirection} draftTolerance={command.draftTolerance} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {namedViewsOpen && <NamedViewsPanel views={document.namedViews || []} currentCamera={currentCameraRef.current} readOnly={readOnly} onCreate={saveNamedView} onActivate={activateNamedView} onDelete={removeNamedView} onClose={() => setNamedViewsOpen(false)} />}

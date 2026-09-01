@@ -19,6 +19,7 @@
     "verify:surface-modeling": "npm run build:ui && electron scripts/verify-surface-modeling.cjs",
     "verify:extrude-after-sketch": "npm run build:ui && electron scripts/verify-extrude-after-sketch.cjs",
     "verify:model-import": "npm run build:ui && electron scripts/verify-model-import.cjs",
+    "verify:mesh-repair": "npm run build:ui && electron scripts/verify-mesh-repair.cjs",
     "verify:viewport-navigation": "npm run build:ui && electron scripts/verify-viewport-navigation.cjs",
     "verify:external-compatibility": "npm run build:ui && electron scripts/verify-external-compatibility.cjs",
     "verify:start-experience": "npm run build:ui && electron scripts/verify-start-experience.cjs",
