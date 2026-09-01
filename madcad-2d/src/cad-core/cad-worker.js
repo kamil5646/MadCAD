@@ -252,6 +252,46 @@ function drawingForProfile(profile) {
 
 const PROFILE_PLANE_NORMALS = { XY: [0, 0, 1], XZ: [0, -1, 0], YZ: [1, 0, 0] };
 
+function vectorSubtract(left, right) {
+  return left.map((value, index) => value - right[index]);
+}
+
+function vectorAdd(left, right) {
+  return left.map((value, index) => value + right[index]);
+}
+
+function vectorScale(vector, scale) {
+  return vector.map((value) => value * scale);
+}
+
+function vectorDot(left, right) {
+  return left.reduce((sum, value, index) => sum + value * right[index], 0);
+}
+
+function vectorCross(left, right) {
+  return [
+    left[1] * right[2] - left[2] * right[1],
+    left[2] * right[0] - left[0] * right[2],
+    left[0] * right[1] - left[1] * right[0],
+  ];
+}
+
+function vectorNormalized(vector) {
+  const length = Math.hypot(...vector);
+  if (length <= GEOMETRY_POLICY.linearTolerance) throw new Error('Nie można wyznaczyć kierunku z zerowego wektora.');
+  return vectorScale(vector, 1 / length);
+}
+
+function sheetProfileCenter(sheetMetal) {
+  const profile = sheetMetal.baseProfile;
+  const x = Number(profile?.geometry?.x || 0);
+  const y = Number(profile?.geometry?.y || 0);
+  const offset = Number(sheetMetal.midPlaneOffset ?? profile?.planeOffset ?? 0);
+  if (profile?.plane === 'XZ') return [x, -offset, y];
+  if (profile?.plane === 'YZ') return [offset, x, y];
+  return [x, y, offset];
+}
+
 function planarPatchForProfile(profile) {
   const plane = profile.plane || 'XY';
   const planeOffset = Number(profile.planeOffset || 0);
@@ -1274,10 +1314,72 @@ function runFeature(feature, bodyMap, bodyOrder) {
         side: feature.side,
         reverse: feature.reverse,
         baseProfile: feature.profile,
+        midPlaneOffset: Number(feature.profile.planeOffset || 0) + startDelta + feature.thicknessValue / 2,
         bends: [],
       },
     });
     bodyOrder.push(bodyId);
+    return;
+  }
+
+  if (feature.type === 'sheetFlange') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target?.sheetMetal) throw new Error(`Nie znaleziono bryły blachowej dla ${feature.name}.`);
+    const reference = feature.topologyReferences[0];
+    const descriptor = reference?.descriptor;
+    if (descriptor?.geometry !== 'LINE' || !Array.isArray(descriptor.endpoints) || descriptor.endpoints.length !== 2) throw new Error('Kołnierz wymaga jednej prostej krawędzi blachy.');
+
+    const normal = PROFILE_PLANE_NORMALS[target.sheetMetal.baseProfile?.plane || 'XY'];
+    const edgeDirection = vectorNormalized(vectorSubtract(descriptor.endpoints[1], descriptor.endpoints[0]));
+    if (Math.abs(vectorDot(edgeDirection, normal)) > GEOMETRY_POLICY.angularTolerance) throw new Error('Wybrana krawędź nie leży w płaszczyźnie bazowej blachy.');
+    const midPlaneOffset = Number(target.sheetMetal.midPlaneOffset ?? target.sheetMetal.baseProfile?.planeOffset ?? 0);
+    const projectToMidPlane = (point) => vectorSubtract(point, vectorScale(normal, vectorDot(point, normal) - midPlaneOffset));
+    const start = projectToMidPlane(descriptor.endpoints[0]);
+    const end = projectToMidPlane(descriptor.endpoints[1]);
+    const angle = feature.angleValue * Math.PI / 180;
+    let transverse = vectorNormalized(vectorCross(edgeDirection, normal));
+    const edgeCenter = vectorScale(vectorAdd(start, end), 0.5);
+    if (vectorDot(transverse, vectorSubtract(edgeCenter, sheetProfileCenter(target.sheetMetal))) < 0) transverse = vectorScale(transverse, -1);
+    const bendNormal = feature.reverse ? vectorScale(normal, -1) : normal;
+    const thickness = target.sheetMetal.thickness;
+    const midRadius = feature.bendRadiusValue + thickness / 2;
+    const outerRadius = feature.bendRadiusValue + thickness;
+    const innerRadius = feature.bendRadiusValue;
+    const arcPoint = (radius, arcAngle) => [radius * Math.sin(arcAngle), midRadius - radius * Math.cos(arcAngle)];
+    const outerEnd = arcPoint(outerRadius, angle);
+    const innerEnd = arcPoint(innerRadius, angle);
+    const outerFar = [outerEnd[0] + Math.cos(angle) * feature.lengthValue, outerEnd[1] + Math.sin(angle) * feature.lengthValue];
+    const innerFar = [innerEnd[0] + Math.cos(angle) * feature.lengthValue, innerEnd[1] + Math.sin(angle) * feature.lengthValue];
+    const crossSection = draw([0, -thickness / 2])
+      .threePointsArcTo(outerEnd, arcPoint(outerRadius, angle / 2))
+      .lineTo(outerFar)
+      .lineTo(innerFar)
+      .lineTo(innerEnd)
+      .threePointsArcTo([0, thickness / 2], arcPoint(innerRadius, angle / 2))
+      .close();
+    const sectionNormal = vectorNormalized(vectorCross(transverse, bendNormal));
+    const sectionPlane = new Plane(start, transverse, sectionNormal);
+    const sectionSketch = crossSection.sketchOnPlane(sectionPlane);
+    const flangeShape = sectionSketch.extrude(Math.hypot(...vectorSubtract(end, start)), { extrusionDirection: edgeDirection });
+    const fusedShape = target.shape.fuse(flangeShape);
+    sectionPlane.delete();
+    flangeShape.delete();
+    target.shape = fusedShape;
+    target.sheetMetal = {
+      ...target.sheetMetal,
+      bends: [
+        ...(target.sheetMetal.bends || []),
+        {
+          featureId: feature.id,
+          referenceId: reference.id,
+          length: feature.lengthValue,
+          angle: feature.angleValue,
+          bendRadius: feature.bendRadiusValue,
+          reverse: feature.reverse,
+          neutralAllowance: (feature.bendRadiusValue + target.sheetMetal.kFactor * target.sheetMetal.thickness) * angle,
+        },
+      ],
+    };
     return;
   }
 

@@ -1150,6 +1150,34 @@ test('baza blachowa zachowuje grubość, promień gięcia, współczynnik K i pr
   assert.throws(() => prepareDocument(invalid), /zakresu 0–1/);
 });
 
+test('kołnierz blachy dziedziczy bryłę bazową i przygotowuje kąt, długość oraz trwałą krawędź', () => {
+  const document = createDocument('Kołnierz blachy');
+  document.parameters.push(createParameter('wysokosc', '18'));
+  const profile = createRectangleProfile({ width: '80', height: '40' });
+  const sketch = createSketch({ name: 'Obrys blachy', profiles: [profile] });
+  const base = createFeature('sheetBase', { sketchId: sketch.id, profileIds: [profile.id], thickness: '2', bendRadius: '3', kFactor: '0.45', side: 'symmetric', reverse: false });
+  const bodyId = `body-${base.id}`;
+  const edge = { ...createTopologyReference({ selection: { kind: 'edge', id: 'edge-sheet', bodyId, sourceFeatureId: base.id }, descriptor: { geometry: 'LINE', endpoints: [[40, -20, 1], [40, 20, 1]], length: 40, closed: false }, label: 'Kołnierz blachy — krawędź' }), scope: 'feature-input' };
+  const flange = createFeature('sheetFlange', { targetBodyId: bodyId, referenceIds: [edge.id], length: 'wysokosc', angle: '90', bendRadius: '3', reverse: false });
+  document.sketches.push(sketch);
+  document.references.push(edge);
+  document.features.push(base, flange);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[1];
+  assert.equal(prepared.lengthValue, 18);
+  assert.equal(prepared.angleValue, 90);
+  assert.equal(prepared.bendRadiusValue, 3);
+  assert.equal(prepared.topologyReferences[0].id, edge.id);
+  const graph = buildDependencyGraph(document);
+  assert.ok(graph.edges.some((relation) => relation.from === bodyId && relation.to === flange.id && relation.kind === 'modifies'));
+  assert.ok(graph.edges.some((relation) => relation.from === document.parameters[0].id && relation.to === flange.id && relation.kind === 'drives'));
+
+  const invalid = structuredClone(document);
+  invalid.features[1].angle = '180';
+  assert.throws(() => prepareDocument(invalid), /zakresu 0–180/);
+});
+
 test('Extrude To Object kończy się dokładnie na równoległej płaszczyźnie konstrukcyjnej', () => {
   const document = createDocument('Extrude To Object');
   document.parameters.push(createParameter('cel', '12'));

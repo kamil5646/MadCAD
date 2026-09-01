@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { app, BrowserWindow } = require('electron');
 
-const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-sheet-metal-base.png');
+const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-sheet-metal-flange.png');
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
   const startedAt = Date.now();
@@ -10,7 +10,8 @@ async function waitFor(window, expression, label, timeoutMs = 30000) {
     if (await window.webContents.executeJavaScript(`Boolean(${expression})`)) return;
     await new Promise((resolve) => setTimeout(resolve, 60));
   }
-  throw new Error(`Nie osiągnięto stanu: ${label}`);
+  const diagnostic = await window.webContents.executeJavaScript(`JSON.stringify({ engine: window.__madcadVerifyEngineState, command: window.__madcadVerifyDocumentState?.command })`);
+  throw new Error(`Nie osiągnięto stanu: ${label}. ${diagnostic}`);
 }
 
 async function clickTool(window, label) {
@@ -55,8 +56,8 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'profile' && !window.__madcadVerifyDocumentState?.activeSketchId`, 'profil gotowy do modelowania');
 
     await window.webContents.executeJavaScript(`(() => {
-      const trigger = [...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Więcej brył');
-      if (!trigger) throw new Error('Brak menu Więcej brył.');
+      const trigger = [...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Blacha');
+      if (!trigger) throw new Error('Brak menu Blacha.');
       trigger.click();
     })()`);
     await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Baza blachowa' && !button.disabled)`, 'aktywna Baza blachowa');
@@ -85,7 +86,38 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.features === 1 && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.thickness === 2`, 'ponowiona baza blachowa');
 
-    process.stdout.write(`${JSON.stringify({ ok: true, screenshotPath, result })}\n`);
+    const flangeEdge = await window.webContents.executeJavaScript(`(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const edge = body.topology.edges.find((item) => item.descriptor.geometry === 'LINE' && Math.abs(item.descriptor.length - 24) < 0.01 && item.descriptor.endpoints.every((point) => Math.abs(point[2] - 1) < 0.01));
+      if (!edge) throw new Error('Nie znaleziono górnej krawędzi bazy blachowej.');
+      window.__madcadVerifyTopologySelection({ kind: 'edge', id: edge.id, bodyId: body.id }, 'replace');
+      return { id: edge.id, bodyId: body.id };
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'edge'`, 'wybrana krawędź blachy');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Blacha').click()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Kołnierz blachy' && !button.disabled)`, 'aktywny Kołnierz blachy');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Kołnierz blachy' && !button.disabled).click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sheetFlange' && document.querySelector('.command-dialog')?.textContent.includes('Kąt gięcia')`, 'panel kołnierza');
+    await setField(window, 'Długość kołnierza', '10');
+    await setField(window, 'Kąt gięcia', '90');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.bends?.length === 1`, 'podgląd kołnierza');
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'sheetFlange' && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.bends?.length === 1`, 'zapisany kołnierz');
+
+    const flangeResult = await window.webContents.executeJavaScript(`(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      return { feature: window.__madcadVerifyDocumentState.featureData[1], bend: body.sheetMetal.bends[0], volume: body.metrics.volume, bounds: body.metrics.bounds };
+    })()`);
+    if (flangeResult.feature.targetBodyId !== flangeEdge.bodyId || flangeResult.bend.length !== 10 || flangeResult.bend.angle !== 90 || flangeResult.bend.bendRadius !== 3 || flangeResult.volume <= 1920 || flangeResult.bounds[1][2] < 9.9) {
+      throw new Error(`Błędny wynik kołnierza: ${JSON.stringify(flangeResult)}`);
+    }
+    await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 1 && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.bends?.length === 0`, 'cofnięty kołnierz');
+    await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 2 && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.bends?.length === 1`, 'ponowiony kołnierz');
+
+    process.stdout.write(`${JSON.stringify({ ok: true, screenshotPath, result, flangeResult })}\n`);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);
     exitCode = 1;

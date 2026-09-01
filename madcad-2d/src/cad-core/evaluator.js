@@ -348,6 +348,22 @@ export function prepareDocument(document) {
       if (!Number.isFinite(kFactorValue) || kFactorValue < 0 || kFactorValue > 1) throw new Error('Współczynnik K musi należeć do zakresu 0–1.');
       return { ...feature, status: 'ready', diagnostics: [], profile, thicknessValue, bendRadiusValue, kFactorValue, side: feature.side || 'one-side', reverse: Boolean(feature.reverse) };
     }
+    if (feature.type === 'sheetFlange') {
+      const lengthValue = positive(evaluateExpression(feature.length, parameterResult.values), 'Długość kołnierza');
+      const angleValue = evaluateExpression(feature.angle, parameterResult.values);
+      const bendRadiusValue = positive(evaluateExpression(feature.bendRadius, parameterResult.values), 'Promień gięcia');
+      if (!Number.isFinite(angleValue) || angleValue <= 0 || angleValue >= 180) throw new Error('Kąt kołnierza musi należeć do zakresu 0–180° bez wartości granicznych.');
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        lengthValue,
+        angleValue,
+        bendRadiusValue,
+        reverse: Boolean(feature.reverse),
+        topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
+      };
+    }
     if (feature.type === 'extrude') {
       const extent = feature.extent || 'one-side';
       const sourceSketch = document.sketches.find((sketch) => sketch.id === feature.sketchId);
