@@ -428,6 +428,24 @@ export function prepareDocument(document) {
         topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
       };
     }
+    if (feature.type === 'plasticGrille') {
+      const ribCountValue = evaluateExpression(feature.ribCount, parameterResult.values);
+      if (!Number.isInteger(ribCountValue) || ribCountValue < 2 || ribCountValue > 100) throw new Error('Liczba żeber Grille musi być liczbą całkowitą od 2 do 100.');
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        ribCountValue,
+        ribWidthValue: positive(evaluateExpression(feature.ribWidth, parameterResult.values), 'Szerokość żebra Grille'),
+        gapValue: positive(evaluateExpression(feature.gap, parameterResult.values), 'Prześwit Grille'),
+        lengthValue: positive(evaluateExpression(feature.length, parameterResult.values), 'Długość szczelin Grille'),
+        depthValue: positive(evaluateExpression(feature.depth, parameterResult.values), 'Głębokość Grille'),
+        offsetXValue: evaluateExpression(feature.offsetX, parameterResult.values),
+        offsetYValue: evaluateExpression(feature.offsetY, parameterResult.values),
+        reverse: Boolean(feature.reverse),
+        topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
+      };
+    }
     if (feature.type === 'extrude') {
       const extent = feature.extent || 'one-side';
       const sourceSketch = document.sketches.find((sketch) => sketch.id === feature.sketchId);

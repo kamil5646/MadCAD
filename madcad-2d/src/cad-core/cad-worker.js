@@ -1641,6 +1641,53 @@ function runFeature(feature, bodyMap, bodyOrder) {
     return;
   }
 
+  if (feature.type === 'plasticGrille') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target || target.bodyKind === 'surface') throw new Error(`Nie znaleziono bryły docelowej dla ${feature.name}.`);
+    const descriptor = feature.topologyReferences?.[0]?.descriptor;
+    if (descriptor?.geometry !== 'PLANE' || !descriptor.center || !descriptor.normal) throw new Error('Grille wymaga planarnej ściany z prawidłową normalną.');
+    const baseNormal = vectorNormalized(descriptor.normal);
+    const direction = feature.reverse ? baseNormal : vectorScale(baseNormal, -1);
+    const helper = Math.abs(direction[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    const xDirection = vectorNormalized(vectorCross(helper, direction));
+    const yDirection = vectorNormalized(vectorCross(direction, xDirection));
+    const center = vectorAdd(descriptor.center, vectorAdd(vectorScale(xDirection, feature.offsetXValue), vectorScale(yDirection, feature.offsetYValue)));
+    const overlap = Math.max(GEOMETRY_POLICY.linearTolerance * 10, 0.02);
+    const origin = vectorAdd(center, vectorScale(direction, -overlap));
+    const plane = new Plane(origin, xDirection, direction);
+    const totalWidth = (feature.ribCountValue * feature.ribWidthValue) + ((feature.ribCountValue - 1) * feature.gapValue);
+    let result = target.shape;
+    for (let index = 0; index < feature.ribCountValue - 1; index += 1) {
+      const slotCenter = (-totalWidth / 2) + feature.ribWidthValue + (feature.gapValue / 2) + (index * (feature.ribWidthValue + feature.gapValue));
+      const cutter = drawRectangle(feature.lengthValue, feature.gapValue)
+        .translate(0, slotCenter)
+        .sketchOnPlane(plane)
+        .extrude(feature.depthValue + overlap, { extrusionDirection: direction });
+      const nextResult = result.cut(cutter);
+      if (result !== target.shape) result.delete();
+      cutter.delete();
+      result = nextResult;
+    }
+    plane.delete();
+    target.shape = result;
+    target.plasticFeatures = [...(target.plasticFeatures || []), {
+      featureId: feature.id,
+      type: 'grille',
+      referenceId: feature.topologyReferences[0].id,
+      ribCount: feature.ribCountValue,
+      ribWidth: feature.ribWidthValue,
+      gap: feature.gapValue,
+      length: feature.lengthValue,
+      depth: feature.depthValue,
+      offsetX: feature.offsetXValue,
+      offsetY: feature.offsetYValue,
+      reverse: feature.reverse,
+      center,
+      direction,
+    }];
+    return;
+  }
+
   if (feature.type === 'extrude') {
     const span = extrusionSpan(feature, bodyMap);
     const tool = combineShapes(feature.profiles.map((profile) => extrudeProfile(profile, span, feature)));

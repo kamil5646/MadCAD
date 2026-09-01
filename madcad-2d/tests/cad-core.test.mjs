@@ -1291,6 +1291,35 @@ test('Snap-fit tworzy parametryczne ramię z zaczepem na trwałej planarnej ści
   assert.throws(() => prepareDocument(invalid), /krótszy/);
 });
 
+test('Grille wycina parametryczne szczeliny i zachowuje trwałą referencję ściany', () => {
+  const document = createDocument('Plastic Grille');
+  document.parameters.push(createParameter('grille_n', '5'));
+  const base = createFeature('primitive', { primitiveType: 'box', x: '-30', y: '-20', z: '0', width: '60', depth: '40', height: '8' });
+  const bodyId = `body-${base.id}`;
+  const face = { ...createTopologyReference({ selection: { kind: 'face', id: 'top-face', bodyId, sourceFeatureId: base.id }, descriptor: { geometry: 'PLANE', center: [0, 0, 8], normal: [0, 0, 1], area: 2400 }, label: 'Grille — powierzchnia bazowa' }), scope: 'feature-input' };
+  const grille = createFeature('plasticGrille', { targetBodyId: bodyId, referenceIds: [face.id], ribCount: 'grille_n', ribWidth: '2', gap: '2.5', length: '20', depth: '4', offsetX: '0', offsetY: '15', reverse: false });
+  document.references.push(face);
+  document.features.push(base, grille);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[1];
+  assert.equal(prepared.ribCountValue, 5);
+  assert.equal(prepared.ribWidthValue, 2);
+  assert.equal(prepared.gapValue, 2.5);
+  assert.equal(prepared.lengthValue, 20);
+  assert.equal(prepared.depthValue, 4);
+  assert.equal(prepared.offsetXValue, 0);
+  assert.equal(prepared.offsetYValue, 15);
+  assert.equal(prepared.topologyReferences[0].id, face.id);
+  const graph = buildDependencyGraph(document);
+  assert.ok(graph.edges.some((edge) => edge.from === bodyId && edge.to === grille.id && edge.kind === 'modifies'));
+  assert.ok(graph.affectedBy(document.parameters[0].id).includes(grille.id));
+
+  const invalid = structuredClone(document);
+  invalid.features[1].ribCount = '2.5';
+  assert.throws(() => prepareDocument(invalid), /całkowitą/);
+});
+
 test('Extrude To Object kończy się dokładnie na równoległej płaszczyźnie konstrukcyjnej', () => {
   const document = createDocument('Extrude To Object');
   document.parameters.push(createParameter('cel', '12'));

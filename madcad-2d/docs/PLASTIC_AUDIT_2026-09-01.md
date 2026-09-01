@@ -1,6 +1,6 @@
 # MadCAD — moduł Plastic
 
-## Ukończone etapy: analiza geometrii, Boss i Snap-fit
+## Ukończony moduł: analiza geometrii, Boss, Snap-fit i Grille
 
 Wspólny panel `Analiza geometrii` ma dwa jawne tryby. `Pochylenie` klasyfikuje ściany względem kierunku wyciągania formy jako dodatnie, zerowe, ujemne albo mieszane. `Grubość` szuka najbliższej przeciwległej powierzchni dla każdej ściany B-Rep:
 
@@ -20,6 +20,8 @@ Analiza jest nieinwazyjna: nie dopisuje operacji do historii i nie zmienia geome
 
 `Snap-fit` tworzy na trwałej referencji ściany wspornik zatrzaskowy, a nie tylko dekoracyjny występ. Ma osobną stopę scaloną z korpusem, prześwit pozostawiający uginaną część ramienia oraz pogrubiony hak na wolnym końcu. Długość, szerokość, grubość, prześwit, wymiary zaczepu i pozycja X/Y pozostają parametryczne.
 
+`Grille` wycina w planarnej ścianie równoległe szczeliny wentylacyjne, pozostawiając kontrolowane żebra w tej samej bryle. Parametry obejmują liczbę i szerokość żeber, prześwit, długość i głębokość szczelin, pozycję lokalną X/Y oraz kierunek cięcia. Operacja używa trwałej referencji ściany, dokładnego B-Rep oraz zachowuje się tak samo w historii jak Boss i Snap-fit.
+
 ## Walidacja
 
 - testy rdzenia obejmują parę płaszczyzn o grubości `2 mm`, współosiowe walce o grubości `1,6 mm`, klasyfikację względem tolerancji oraz brak deskryptora w siatce importowanej;
@@ -27,12 +29,12 @@ Analiza jest nieinwazyjna: nie dopisuje operacji do historii i nie zmienia geome
 - test rdzenia tworzy Boss na trwałej referencji, sprawdza parametry i graf zależności oraz odrzuca otwór nie mniejszy od średnicy zewnętrznej;
 - test desktopowy `verify:plastic-boss` wybiera ścianę rzeczywistej bryły, uruchamia narzędzie z menu `Plastic`, zmienia sześć wymiarów, sprawdza dokładną operację fuse/cut oraz Cofnij/Ponów;
 - test desktopowy `verify:plastic-snap-fit` uruchamia zatrzask na niezależnej bryle, zmienia siedem wymiarów, sprawdza wzrost objętości i obwiedni, jedną bryłę wynikową oraz Cofnij/Ponów;
+- test desktopowy `verify:plastic-grille` wycina trzy szczeliny pozostawiające cztery żebra, potwierdza spadek objętości, trwałą referencję, podgląd, Cofnij/Ponów oraz ponowne otwarcie dokumentu;
 - dowód wizualny jest zapisywany w `artifacts/madcad-draft-analysis.png`.
 - dowód wizualny Bossa jest zapisywany w `artifacts/madcad-plastic-boss.png`.
 - dowód wizualny zatrzasku jest zapisywany w `artifacts/madcad-plastic-snap-fit.png`.
+- dowód wizualny grilla jest zapisywany w `artifacts/madcad-plastic-grille.png`.
 
 ## Dalsza kolejność
 
-1. Grille z kontrolą liczby żeber, szerokości i prześwitu.
-
-Każda operacja ma korzystać z tej samej historii, podglądu oraz mechanizmu trwałych referencji co pozostałe narzędzia MadCAD.
+Pakiet Plastic z bieżącej listy jest ukończony. Kolejny niezależny moduł backlogu to Form: SubD/T-Spline z kontrolowaną konwersją do B-Rep.

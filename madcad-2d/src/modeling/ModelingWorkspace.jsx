@@ -2095,6 +2095,22 @@ export default function ModelingWorkspace() {
         });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
+      if (next.type === 'plasticGrille') {
+        next.previewFeature = createFeature('plasticGrille', {
+          name: current.previewFeature?.name || `Grille ${document.features.length + 1}`,
+          targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
+          referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
+          ribCount: next.ribCount,
+          ribWidth: next.ribWidth,
+          gap: next.gap,
+          length: next.length,
+          depth: next.depth,
+          offsetX: next.offsetX,
+          offsetY: next.offsetY,
+          reverse: Boolean(next.reverse),
+        });
+        if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
+      }
       if (next.type === 'extrude') {
         if (next.extent === 'through-all' && !['cut', 'intersect'].includes(next.operation)) next.extent = 'one-side';
         if (next.extent === 'to-object' && !next.targetReferenceId) next.targetReferenceId = next.targetOptions[0]?.id;
@@ -3441,6 +3457,15 @@ export default function ModelingWorkspace() {
       setSelection({ kind: 'document', id: opened.document.id });
       setCommand(null);
     };
+    window.__madcadVerifyReopenCurrentDocument = () => {
+      const opened = openDocument(JSON.parse(JSON.stringify(document)));
+      history.replace(opened.document);
+      setSavedDocumentText(JSON.stringify(opened.document));
+      setActiveSketchId(null);
+      setWorkspace('solid');
+      setSelection({ kind: 'document', id: opened.document.id });
+      setCommand(null);
+    };
     window.__madcadVerifyLoadPointHoleFixture = () => {
       const fixture = createDocument('Otwór z punktu');
       const baseProfile = createRectangleProfile({ width: 40, height: 30, x: 0, y: 0 });
@@ -3645,6 +3670,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyLoadPatternFixture;
       delete window.__madcadVerifyUpdateConstraint;
       delete window.__madcadVerifyReopenAutosave;
+      delete window.__madcadVerifyReopenCurrentDocument;
       delete window.__madcadVerifyLoadPointHoleFixture;
       delete window.__madcadVerifyLoadTimelineFixture;
       delete window.__madcadVerifyLoadSurfaceFixture;
@@ -4009,6 +4035,21 @@ export default function ModelingWorkspace() {
     setCommand(next);
     window.setTimeout(() => updateCommand(next), 0);
     setNotice('Podgląd Snap-fit jest aktywny. Ustaw ramię, zaczep i pozycję na ścianie.');
+  };
+
+  const openPlasticGrille = () => {
+    if (readOnly) return readOnlyNotice();
+    if (activeSketchId) return setNotice('Najpierw zakończ szkic.');
+    if (selectedFaceItems.length !== 1) return setNotice('Grille wymaga zaznaczenia dokładnie jednej planarnej ściany bryły.');
+    const selectedFace = selectedFaceItems[0];
+    const body = engine.bodies.find((candidate) => candidate.id === selectedFace.bodyId);
+    const face = body?.topology?.faces?.find((candidate) => candidate.id === selectedFace.id);
+    if (!body || body.bodyKind === 'surface' || body.representation !== 'brep' || face?.descriptor?.geometry !== 'PLANE') return setNotice('Grille można wykonać wyłącznie na planarnej ścianie bryły B-Rep.');
+    const reference = { ...createTopologyReference({ selection: selectedFace, descriptor: face.descriptor, label: 'Grille — powierzchnia bazowa' }), scope: 'feature-input' };
+    const next = { type: 'plasticGrille', targetBodyId: body.id, faceLabel: body.name, ribCount: '5', ribWidth: '2', gap: '2', length: '20', depth: '4', offsetX: '0', offsetY: '0', reverse: false, topologyReferences: [reference], previewFeature: null };
+    setCommand(next);
+    window.setTimeout(() => updateCommand(next), 0);
+    setNotice('Podgląd Grille jest aktywny. Ustaw liczbę żeber, szczeliny, głębokość i pozycję na ścianie.');
   };
 
   const addSheetStateFeature = (type) => {
@@ -5135,6 +5176,10 @@ export default function ModelingWorkspace() {
     else if (feature.type === 'plasticSnapFit') {
       const topologyReferences = (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean);
       setCommand({ type: 'plasticSnapFit', editId: feature.id, targetBodyId: feature.targetBodyId, faceLabel: topologyReferences[0]?.label || 'Planarna ściana', length: feature.length, width: feature.width, thickness: feature.thickness, clearance: feature.clearance, hookLength: feature.hookLength, hookHeight: feature.hookHeight, offsetX: feature.offsetX, offsetY: feature.offsetY, reverse: Boolean(feature.reverse), topologyReferences, previewFeature: feature });
+    }
+    else if (feature.type === 'plasticGrille') {
+      const topologyReferences = (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean);
+      setCommand({ type: 'plasticGrille', editId: feature.id, targetBodyId: feature.targetBodyId, faceLabel: topologyReferences[0]?.label || 'Planarna ściana', ribCount: feature.ribCount, ribWidth: feature.ribWidth, gap: feature.gap, length: feature.length, depth: feature.depth, offsetX: feature.offsetX, offsetY: feature.offsetY, reverse: Boolean(feature.reverse), topologyReferences, previewFeature: feature });
     }
     else if (feature.type === 'surfaceExtrude') setCommand({ type: 'surfaceExtrude', openChain: Boolean(feature.openEntityIds?.length), editId: feature.id, sourceSketchId: feature.sketchId, openEntityIds: feature.openEntityIds || [], distance: feature.distance, previewFeature: feature });
     else if (feature.type === 'surfaceRevolve') setCommand({ type: 'surfaceRevolve', openChain: Boolean(feature.openEntityIds?.length), editId: feature.id, sourceSketchId: feature.sketchId, openEntityIds: feature.openEntityIds || [], axisId: feature.axisId, axisOptions: [{ id: 'X_AXIS', name: 'Oś bazowa X' }, { id: 'Y_AXIS', name: 'Oś bazowa Y' }, { id: 'Z_AXIS', name: 'Oś bazowa Z' }, ...constructionAxes.filter((axis) => axis.status === 'ok').map((axis) => ({ id: axis.id, name: axis.name }))], angle: feature.angle, previewFeature: feature });
@@ -6426,7 +6471,7 @@ export default function ModelingWorkspace() {
           ...(selectedFaceItems.length === 1 ? [{ icon: OffsetFaceCadIcon, label: 'Odsuń ścianę', onClick: openOffsetFace }] : []),
         ],
         moreActions: [
-          ...(selectedFaceItems.length === 1 ? [{ icon: CircleDotDashed, label: 'Boss', onClick: openPlasticBoss }, { icon: Blocks, label: 'Snap-fit', onClick: openPlasticSnapFit }] : []),
+          ...(selectedFaceItems.length === 1 ? [{ icon: CircleDotDashed, label: 'Boss', onClick: openPlasticBoss }, { icon: Blocks, label: 'Snap-fit', onClick: openPlasticSnapFit }, { icon: Grid2X2, label: 'Grille', onClick: openPlasticGrille }] : []),
           { icon: ShellCadIcon, label: 'Powłoka', onClick: openShell },
           { icon: DraftCadIcon, label: 'Pochylenie', onClick: openDraft },
           { icon: DeleteFaceCadIcon, label: 'Usuń i napraw', onClick: openDeleteFace, danger: true },
@@ -6675,6 +6720,7 @@ export default function ModelingWorkspace() {
                 ]} /><ToolMenuButton icon={CircleDotDashed} label="Plastic" description="Funkcje konstrukcyjne elementów z tworzyw sztucznych." items={[
                   { icon: CircleDotDashed, label: 'Boss', onClick: openPlasticBoss, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły B-Rep.' },
                   { icon: Blocks, label: 'Snap-fit', onClick: openPlasticSnapFit, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły B-Rep.' },
+                  { icon: Grid2X2, label: 'Grille', onClick: openPlasticGrille, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły B-Rep.' },
                 ]} /><ToolMenuButton icon={PrimitiveCadIcon} label="Więcej brył" description="Prymitywy, bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
                   { icon: PrimitiveCadIcon, label: 'Prymityw', onClick: openPrimitive, disabled: readOnly },
                   { icon: RevolveCadIcon, label: 'Revolve', displayLabel: 'Bryła obrotowa', onClick: openRevolve, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },

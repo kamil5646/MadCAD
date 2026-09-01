@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { app, BrowserWindow } = require('electron');
 
-const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-plastic-boss.png');
+const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-plastic-grille.png');
 
 async function waitFor(window, expression, label, timeoutMs = 45000) {
   const startedAt = Date.now();
@@ -27,7 +27,7 @@ async function setField(window, label, value) {
 }
 
 app.whenReady().then(async () => {
-  const window = new BrowserWindow({ width: 1440, height: 900, show: true, webPreferences: { partition: `madcad-plastic-boss-${Date.now()}` } });
+  const window = new BrowserWindow({ width: 1440, height: 900, show: true, webPreferences: { partition: `madcad-plastic-grille-${Date.now()}` } });
   window.setContentSize(1440, 837);
   let exitCode = 0;
   try {
@@ -39,12 +39,13 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'model testowy');
 
     const source = await window.webContents.executeJavaScript(`(() => {
-      const bodies = window.__madcadVerifyEngineState.bodies;
-      const body = bodies.find((item) => item.representation === 'brep' && item.topology?.faces?.some((face) => face.descriptor?.geometry === 'PLANE'));
+      const body = [...window.__madcadVerifyEngineState.bodies]
+        .filter((item) => item.representation === 'brep' && item.topology?.faces?.some((face) => face.descriptor?.geometry === 'PLANE'))
+        .sort((a, b) => b.metrics.volume - a.metrics.volume)[0];
       const face = body?.topology.faces
         .filter((item) => item.descriptor?.geometry === 'PLANE' && item.descriptor?.normal?.[2] > 0.9)
         .sort((a, b) => b.descriptor.center[2] - a.descriptor.center[2])[0];
-      if (!body || !face) throw new Error('Brak planarnej górnej ściany do testu Boss.');
+      if (!body || !face) throw new Error('Brak planarnej górnej ściany do testu Grille.');
       window.__madcadVerifyTopologySelection({ kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }, 'replace');
       return { bodyId: body.id, volume: body.metrics.volume, bounds: body.metrics.bounds, faceId: face.id };
     })()`);
@@ -55,48 +56,48 @@ app.whenReady().then(async () => {
       if (!trigger) throw new Error('Brak menu Plastic.');
       trigger.click();
     })()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Boss' && !button.disabled)`, 'aktywne narzędzie Boss');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Boss' && !button.disabled).click()`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'plasticBoss' && document.querySelector('.command-dialog')?.textContent.includes('Głębokość otworu')`, 'panel Boss');
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Grille' && !button.disabled)`, 'aktywne narzędzie Grille');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Grille' && !button.disabled).click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'plasticGrille' && document.querySelector('.command-dialog')?.textContent.includes('Liczba żeber')`, 'panel Grille');
 
-    await setField(window, 'Średnica zewnętrzna', '12');
-    await setField(window, 'Średnica otworu', '4');
-    await setField(window, 'Wysokość', '10');
-    await setField(window, 'Głębokość otworu', '3');
-    await setField(window, 'Przesunięcie X', '2');
-    await setField(window, 'Przesunięcie Y', '-1');
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.id === ${JSON.stringify(source.bodyId)})?.plasticFeatures?.[0]?.outerDiameter === 12`, 'parametryczny podgląd Boss');
+    await setField(window, 'Liczba żeber', '4');
+    await setField(window, 'Szerokość żebra', '2');
+    await setField(window, 'Prześwit', '2');
+    await setField(window, 'Długość szczelin', '20');
+    await setField(window, 'Głębokość', '4');
+    await setField(window, 'Przesunięcie X', '0');
+    await setField(window, 'Przesunięcie Y', '18');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.id === ${JSON.stringify(source.bodyId)})?.plasticFeatures?.[0]?.ribCount === 4`, 'parametryczny podgląd Grille');
 
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'plasticBoss' && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.id === ${JSON.stringify(source.bodyId)})?.plasticFeatures?.length === 1`, 'zapisany Boss');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'plasticGrille' && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.id === ${JSON.stringify(source.bodyId)})?.plasticFeatures?.length === 1`, 'zapisane Grille');
 
     const result = await window.webContents.executeJavaScript(`(() => {
       const body = window.__madcadVerifyEngineState.bodies.find((item) => item.id === ${JSON.stringify(source.bodyId)});
-      const boss = body.plasticFeatures[0];
+      const grille = body.plasticFeatures[0];
       const feature = window.__madcadVerifyDocumentState.featureData.at(-1);
-      const dialog = document.querySelector('.command-dialog');
       return {
         bodyCount: window.__madcadVerifyEngineState.bodies.length,
         volume: body.metrics.volume,
         bounds: body.metrics.bounds,
-        boss,
+        grille,
         featureType: feature.type,
         referenceCount: feature.referenceIds?.length,
-        dialogClosed: !dialog,
+        dialogClosed: !document.querySelector('.command-dialog'),
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (result.bodyCount !== 2 || result.volume <= source.volume || result.bounds[1][2] <= source.bounds[1][2] || result.boss.outerDiameter !== 12 || result.boss.holeDiameter !== 4 || result.boss.height !== 10 || result.boss.holeDepth !== 3 || result.featureType !== 'plasticBoss' || result.referenceCount !== 1 || !result.dialogClosed || result.horizontalOverflow) {
-      throw new Error(`Niepoprawny wynik Boss: ${JSON.stringify({ source, result })}`);
+    if (result.bodyCount !== 2 || result.volume >= source.volume || result.grille.ribCount !== 4 || result.grille.ribWidth !== 2 || result.grille.gap !== 2 || result.grille.length !== 20 || result.grille.depth !== 4 || result.featureType !== 'plasticGrille' || result.referenceCount !== 1 || !result.dialogClosed || result.horizontalOverflow) {
+      throw new Error(`Niepoprawny wynik Grille: ${JSON.stringify({ source, result })}`);
     }
 
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && !window.__madcadVerifyEngineState?.bodies?.find((body) => body.id === ${JSON.stringify(source.bodyId)})?.plasticFeatures?.length`, 'cofnięty Boss');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && !window.__madcadVerifyEngineState?.bodies?.find((body) => body.id === ${JSON.stringify(source.bodyId)})?.plasticFeatures?.length`, 'cofnięte Grille');
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.id === ${JSON.stringify(source.bodyId)})?.plasticFeatures?.[0]?.outerDiameter === 12`, 'ponowiony Boss');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.id === ${JSON.stringify(source.bodyId)})?.plasticFeatures?.[0]?.ribCount === 4`, 'ponowione Grille');
     await window.webContents.executeJavaScript(`window.__madcadVerifyReopenCurrentDocument()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'plasticBoss' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.id === ${JSON.stringify(source.bodyId)})?.plasticFeatures?.[0]?.holeDepth === 3`, 'Boss po ponownym otwarciu projektu');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'plasticGrille' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.id === ${JSON.stringify(source.bodyId)})?.plasticFeatures?.[0]?.depth === 4`, 'Grille po ponownym otwarciu projektu');
 
     process.stdout.write(`${JSON.stringify({ screenshotPath, source, result }, null, 2)}\n`);
   } catch (error) {

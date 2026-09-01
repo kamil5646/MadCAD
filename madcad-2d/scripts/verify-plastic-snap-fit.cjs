@@ -76,6 +76,8 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && !window.__madcadVerifyEngineState?.bodies?.find((body) => body.id === ${JSON.stringify(source.bodyId)})?.plasticFeatures?.length`, 'cofnięty Snap-fit');
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.id === ${JSON.stringify(source.bodyId)})?.plasticFeatures?.[0]?.type === 'snap-fit'`, 'ponowiony Snap-fit');
+    await window.webContents.executeJavaScript(`window.__madcadVerifyReopenCurrentDocument()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'plasticSnapFit' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.id === ${JSON.stringify(source.bodyId)})?.plasticFeatures?.[0]?.clearance === 1.5`, 'Snap-fit po ponownym otwarciu projektu');
     process.stdout.write(`${JSON.stringify({ screenshotPath, source, result }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
