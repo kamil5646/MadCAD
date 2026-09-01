@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { app, BrowserWindow } = require('electron');
 
-const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-sheet-metal-hem-rip.png');
+const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-sheet-metal-flat-pattern.png');
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
   const startedAt = Date.now();
@@ -156,7 +156,27 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.features === 4 && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.rips?.length === 1`, 'ponowiona szczelina');
 
-    process.stdout.write(`${JSON.stringify({ ok: true, screenshotPath, result, flangeResult, hemResult, ripResult })}\n`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Blacha').click()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Rozwiń blachę' && !button.disabled)`, 'aktywne rozwinięcie blachy');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Rozwiń blachę' && !button.disabled).click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.[4]?.type === 'sheetUnfold' && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.unfolded === true`, 'wzór płaski');
+    const flatResult = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies[0]; const badge = [...document.querySelectorAll('.model-browser .body-kind small')].find((item) => item.textContent.includes('ROZWINIĘTA'))?.textContent.trim(); return { feature: window.__madcadVerifyDocumentState.featureData[4], sheetMetal: body.sheetMetal, volume: body.metrics.volume, bounds: body.metrics.bounds, badge }; })()`);
+    if (!flatResult.sheetMetal.unfolded || flatResult.sheetMetal.flatSegments.length !== 2 || flatResult.volume <= ripResult.volume || flatResult.bounds[0][0] > -45 || Math.abs(flatResult.bounds[1][2] - flatResult.bounds[0][2] - 2) > 0.05 || flatResult.badge !== 'ROZWINIĘTA · 2 mm') throw new Error(`Błędny wzór płaski: ${JSON.stringify(flatResult)}`);
+    await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
+
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Blacha').click()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Zagnij ponownie' && !button.disabled)`, 'aktywne ponowne zagięcie');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Zagnij ponownie' && !button.disabled).click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.[5]?.type === 'sheetRefold' && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.unfolded === false`, 'ponownie zagięta blacha');
+    const refoldResult = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies[0]; return { feature: window.__madcadVerifyDocumentState.featureData[5], sheetMetal: body.sheetMetal, volume: body.metrics.volume, bounds: body.metrics.bounds }; })()`);
+    if (refoldResult.sheetMetal.unfolded || Math.abs(refoldResult.volume - ripResult.volume) > 0.01 || refoldResult.bounds[1][2] < 13) throw new Error(`Błędne ponowne zagięcie: ${JSON.stringify(refoldResult)}`);
+
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 5 && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.unfolded === true`, 'cofnięte ponowne zagięcie');
+    await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 6 && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.unfolded === false`, 'ponowione zagięcie');
+
+    process.stdout.write(`${JSON.stringify({ ok: true, screenshotPath, result, flangeResult, hemResult, ripResult, flatResult, refoldResult })}\n`);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);
     exitCode = 1;

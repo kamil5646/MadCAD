@@ -1676,9 +1676,13 @@ export default function ModelingWorkspace() {
   const targetBodyId = selection?.kind === 'body' ? selection.id : (selection?.bodyId || engine.bodies[0]?.id || firstBodyId || null);
   const targetBody = engine.bodies.find((body) => body.id === targetBodyId);
   const targetBodySupportsSolidOperations = targetBody?.bodyKind !== 'surface' && targetBody?.meshBooleanCapable !== false;
+  const sheetBodies = engine.bodies.filter((body) => body.sheetMetal);
+  const activeSheetBody = targetBody?.sheetMetal ? targetBody : sheetBodies.length === 1 ? sheetBodies[0] : null;
+  const canUnfoldSheet = Boolean(activeSheetBody && !activeSheetBody.sheetMetal.unfolded && activeSheetBody.sheetMetal.flatSegments?.length);
+  const canRefoldSheet = Boolean(activeSheetBody?.sheetMetal.unfolded);
   const selectedSheetEdgeBody = selectedEdgeItems.length === 1 ? engine.bodies.find((body) => body.id === selectedEdgeItems[0].bodyId && body.sheetMetal) || null : null;
   const selectedSheetEdgeDescriptor = selectedSheetEdgeBody?.topology?.edges?.find((edge) => edge.id === selectedEdgeItems[0]?.id)?.descriptor || null;
-  const canCreateSheetFlange = Boolean(selectedSheetEdgeBody && selectedSheetEdgeDescriptor?.geometry === 'LINE' && !selectedSheetEdgeDescriptor?.closed);
+  const canCreateSheetFlange = Boolean(selectedSheetEdgeBody && !selectedSheetEdgeBody.sheetMetal.unfolded && selectedSheetEdgeDescriptor?.geometry === 'LINE' && !selectedSheetEdgeDescriptor?.closed);
   const selectedSurfaceBody = selectedBodyIds.length === 1 && selectedBodies[0]?.bodyKind === 'surface' ? selectedBodies[0] : null;
   const selectedSurfaceEdgeBody = selectedEdgeItems.length === 1 ? engine.bodies.find((body) => body.id === selectedEdgeItems[0].bodyId && body.bodyKind === 'surface') || null : null;
   const selectedSurfaceEdgeDescriptor = selectedSurfaceEdgeBody?.topology?.edges?.find((edge) => edge.id === selectedEdgeItems[0]?.id)?.descriptor || null;
@@ -3937,6 +3941,26 @@ export default function ModelingWorkspace() {
     setNotice('Podgląd szczeliny jest aktywny. Operacja usuwa kontrolowany pas materiału wzdłuż wybranej krawędzi.');
   };
 
+  const addSheetStateFeature = (type) => {
+    if (readOnly) return readOnlyNotice();
+    if (activeSketchId) return setNotice('Najpierw zakończ szkic.');
+    if (!activeSheetBody) return setNotice('Zaznacz bryłę blachową albo pozostaw w projekcie tylko jedną blachę.');
+    if (type === 'sheetUnfold' && !canUnfoldSheet) return setNotice(activeSheetBody.sheetMetal.unfolded ? 'Blacha jest już rozwinięta.' : 'Rozwinięcie wymaga co najmniej jednego gięcia albo zawinięcia.');
+    if (type === 'sheetRefold' && !canRefoldSheet) return setNotice('Ponowne zagięcie wymaga wcześniej rozwiniętej blachy.');
+    const feature = createFeature(type, {
+      name: `${type === 'sheetUnfold' ? 'Rozwinięcie blachy' : 'Ponowne zagięcie blachy'} ${document.features.length + 1}`,
+      targetBodyId: activeSheetBody.id,
+    });
+    commit((next) => insertTimelineFeature(next, feature));
+    setSelection({ kind: 'feature', id: feature.id });
+    setWorkspace('solid');
+    setCommand(null);
+    setFitViewRequest({ requestId: `${type}:${feature.id}:${Date.now()}` });
+    setNotice(type === 'sheetUnfold'
+      ? 'Blacha została rozwinięta według promieni gięcia i współczynnika K. Linie kolejnych odcinków zachowują naddatki gięcia.'
+      : 'Przywrócono dokładną geometrię zagiętej blachy bez utraty wcześniejszych operacji.');
+  };
+
   const openSurfacePatch = () => {
     if (readOnly) return readOnlyNotice();
     if (!selectedProfile || activeSketchId) return setNotice(activeSketchId ? 'Najpierw zakończ szkic.' : 'Patch wymaga zaznaczonego zamkniętego profilu.');
@@ -5014,6 +5038,10 @@ export default function ModelingWorkspace() {
     if (selection?.kind !== 'feature') return;
     const feature = document.features.find((item) => item.id === selection.id);
     if (!feature) return;
+    if (feature.type === 'sheetUnfold' || feature.type === 'sheetRefold') {
+      setNotice('Ta operacja nie ma osobnych parametrów. Zmień regułę blachy, kołnierz albo zawinięcie wcześniej na osi czasu.');
+      return;
+    }
     const profile = document.sketches.flatMap((sketch) => sketch.profiles).find((item) => feature.profileIds?.includes(item.id) || feature.profileId === item.id);
     if (profile) setSelection({ kind: 'profile', id: profile.id });
     if (feature.type === 'surfacePatch') setCommand({ type: 'surfacePatch', editId: feature.id, previewFeature: feature });
@@ -6367,12 +6395,14 @@ export default function ModelingWorkspace() {
         onClear: clearModelSelection,
       };
     } else if (['sketch', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind)) {
+      const selectedHistoryFeature = selection.kind === 'feature' ? document.features.find((feature) => feature.id === selection.id) : null;
+      const historyFeatureEditable = !['sheetUnfold', 'sheetRefold'].includes(selectedHistoryFeature?.type);
       adaptiveContext = {
         title: selection.kind === 'sketch' ? 'Szkic' : selection.kind === 'feature' ? 'Operacja historii' : 'Geometria konstrukcyjna',
-        subtitle: 'Edytuj zaznaczony element projektu',
+        subtitle: historyFeatureEditable ? 'Edytuj zaznaczony element projektu' : 'Stan blachy sterowany kolejnością osi czasu',
         actions: [
           ...(selection.kind === 'constructionPlane' ? [{ icon: SketchCadIcon, label: 'Szkic na płaszczyźnie', onClick: startSketch, primary: true }] : []),
-          { icon: EditFeatureCadIcon, label: 'Edytuj', onClick: editSelection, primary: selection.kind !== 'constructionPlane' },
+          ...(historyFeatureEditable ? [{ icon: EditFeatureCadIcon, label: 'Edytuj', onClick: editSelection, primary: selection.kind !== 'constructionPlane' }] : []),
         ],
         moreActions: [],
         onClear: clearModelSelection,
@@ -6550,6 +6580,8 @@ export default function ModelingWorkspace() {
                   { icon: Layers3, label: 'Kołnierz blachy', onClick: openSheetFlange, disabled: readOnly || !canCreateSheetFlange || Boolean(activeSketchId), disabledReason: 'Zaznacz jedną prostą krawędź istniejącej blachy.' },
                   { icon: Layers3, label: 'Zawinięcie blachy', onClick: openSheetHem, disabled: readOnly || !canCreateSheetFlange || Boolean(activeSketchId), disabledReason: 'Zaznacz jedną prostą krawędź istniejącej blachy.' },
                   { icon: Scissors, label: 'Szczelina blachy', onClick: openSheetRip, disabled: readOnly || !canCreateSheetFlange || Boolean(activeSketchId), disabledReason: 'Zaznacz jedną prostą krawędź istniejącej blachy.' },
+                  { icon: Ungroup, label: 'Rozwiń blachę', onClick: () => addSheetStateFeature('sheetUnfold'), disabled: readOnly || !canUnfoldSheet || Boolean(activeSketchId), disabledReason: activeSheetBody?.sheetMetal.unfolded ? 'Blacha jest już rozwinięta.' : 'Zaznacz blachę z co najmniej jednym gięciem.' },
+                  { icon: Layers3, label: 'Zagnij ponownie', onClick: () => addSheetStateFeature('sheetRefold'), disabled: readOnly || !canRefoldSheet || Boolean(activeSketchId), disabledReason: 'Najpierw rozwiń blachę.' },
                 ]} /><ToolMenuButton icon={PlaneCadIcon} label="Powierzchnie" description="Twórz, odsuwaj, zszywaj i pogrubiaj dokładne powierzchnie B-Rep." items={[
                   { icon: PlaneCadIcon, label: 'Patch', displayLabel: 'Wypełnij profil', onClick: openSurfacePatch, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
                   { icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude, disabled: readOnly || (!selectedProfile && !canExtrudeOpenChain), disabledReason: 'Zaznacz zamknięty profil albo ciągły otwarty łańcuch.' },

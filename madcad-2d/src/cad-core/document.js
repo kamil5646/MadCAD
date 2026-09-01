@@ -28,7 +28,7 @@ export const DOCUMENT_SCHEMA_VERSION = 15;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'sheetBase', 'sheetFlange', 'sheetHem', 'sheetRip', 'surfacePatch', 'surfaceExtrude', 'surfaceRevolve', 'surfaceSweep', 'surfaceLoft', 'surfaceOffset', 'surfaceStitch', 'surfaceTrim', 'surfaceExtend', 'thickenSurface', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'pattern', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'sheetBase', 'sheetFlange', 'sheetHem', 'sheetRip', 'sheetUnfold', 'sheetRefold', 'surfacePatch', 'surfaceExtrude', 'surfaceRevolve', 'surfaceSweep', 'surfaceLoft', 'surfaceOffset', 'surfaceStitch', 'surfaceTrim', 'surfaceExtend', 'thickenSurface', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'pattern', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -343,7 +343,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', sheetBase: 'Baza blachowa', sheetFlange: 'Kołnierz blachy', sheetHem: 'Zawinięcie blachy', sheetRip: 'Szczelina blachy', surfacePatch: 'Patch', surfaceExtrude: 'Wyciągnięcie powierzchni', surfaceRevolve: 'Obrót powierzchni', surfaceSweep: 'Powierzchnia po ścieżce', surfaceLoft: 'Powierzchnia przejściowa', surfaceOffset: 'Odsunięcie powierzchni', surfaceStitch: 'Zszycie powierzchni', surfaceTrim: 'Przycięcie powierzchni', surfaceExtend: 'Przedłużenie powierzchni', thickenSurface: 'Pogrubienie powierzchni', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', sheetBase: 'Baza blachowa', sheetFlange: 'Kołnierz blachy', sheetHem: 'Zawinięcie blachy', sheetRip: 'Szczelina blachy', sheetUnfold: 'Rozwinięcie blachy', sheetRefold: 'Ponowne zagięcie blachy', surfacePatch: 'Patch', surfaceExtrude: 'Wyciągnięcie powierzchni', surfaceRevolve: 'Obrót powierzchni', surfaceSweep: 'Powierzchnia po ścieżce', surfaceLoft: 'Powierzchnia przejściowa', surfaceOffset: 'Odsunięcie powierzchni', surfaceStitch: 'Zszycie powierzchni', surfaceTrim: 'Przycięcie powierzchni', surfaceExtend: 'Przedłużenie powierzchni', thickenSurface: 'Pogrubienie powierzchni', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -915,6 +915,7 @@ export function validateDocument(document) {
   const bodyIds = new Set();
   const surfaceBodyIds = new Set();
   const sheetBodyIds = new Set();
+  const unfoldedSheetBodyIds = new Set();
   bodies.forEach((body, index) => {
     const base = `bodies[${index}]`;
     if (!isRecord(body)) {
@@ -1154,6 +1155,7 @@ export function validateDocument(document) {
 
     if (feature.type === 'sheetFlange') {
       if (!sheetBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Kołnierz wymaga wcześniejszej bryły blachowej.', 'BROKEN_REFERENCE');
+      if (!feature.suppressed && unfoldedSheetBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Kołnierz można dodać dopiero po ponownym zagięciu blachy.', 'SEQUENCE');
       if (!Array.isArray(feature.referenceIds) || feature.referenceIds.length !== 1) add(`${base}.referenceIds`, 'Kołnierz wymaga dokładnie jednej prostej krawędzi blachy.', 'REQUIRED');
       else {
         const edgeReference = references.find((reference) => reference.id === feature.referenceIds[0]);
@@ -1168,6 +1170,7 @@ export function validateDocument(document) {
     if (feature.type === 'sheetHem' || feature.type === 'sheetRip') {
       const label = feature.type === 'sheetHem' ? 'Zawinięcie' : 'Szczelina';
       if (!sheetBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `${label} wymaga wcześniejszej bryły blachowej.`, 'BROKEN_REFERENCE');
+      if (!feature.suppressed && unfoldedSheetBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `${label} można dodać dopiero po ponownym zagięciu blachy.`, 'SEQUENCE');
       if (!Array.isArray(feature.referenceIds) || feature.referenceIds.length !== 1) add(`${base}.referenceIds`, `${label} wymaga dokładnie jednej prostej krawędzi blachy.`, 'REQUIRED');
       else {
         const edgeReference = references.find((reference) => reference.id === feature.referenceIds[0]);
@@ -1176,6 +1179,20 @@ export function validateDocument(document) {
       if (typeof feature.gap !== 'string' && typeof feature.gap !== 'number') add(`${base}.gap`, `${label} wymaga parametrycznej szerokości szczeliny.`, 'TYPE');
       if (feature.type === 'sheetHem' && typeof feature.length !== 'string' && typeof feature.length !== 'number') add(`${base}.length`, 'Zawinięcie wymaga parametrycznej długości zakładki.', 'TYPE');
       if (feature.type === 'sheetHem' && typeof feature.reverse !== 'boolean') add(`${base}.reverse`, 'Kierunek zawinięcia musi być wartością logiczną.', 'TYPE');
+    }
+
+    if (feature.type === 'sheetUnfold' || feature.type === 'sheetRefold') {
+      const label = feature.type === 'sheetUnfold' ? 'Rozwinięcie' : 'Ponowne zagięcie';
+      if (!sheetBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, `${label} wymaga wcześniejszej bryły blachowej.`, 'BROKEN_REFERENCE');
+      if (feature.suppressed) {
+        // Wyłączona operacja nie zmienia bieżącego stanu blachy na osi czasu.
+      } else if (feature.type === 'sheetUnfold') {
+        if (unfoldedSheetBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Blacha jest już rozwinięta.', 'SEQUENCE');
+        unfoldedSheetBodyIds.add(feature.targetBodyId);
+      } else {
+        if (!unfoldedSheetBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Ponowne zagięcie wymaga wcześniejszego rozwinięcia.', 'SEQUENCE');
+        unfoldedSheetBodyIds.delete(feature.targetBodyId);
+      }
     }
 
     if (feature.type === 'extrude') {

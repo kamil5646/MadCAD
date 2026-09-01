@@ -1,6 +1,6 @@
 # MadCAD — moduł blach
 
-## Ukończony zakres: baza, kołnierz, Hem i Rip
+## Ukończony zakres: baza, kołnierz, Hem, Rip i wzór płaski
 
 Osobne menu `Blacha` porządkuje narzędzia poza zwykłymi operacjami bryłowymi. `Blacha → Baza blachowa` rozpoczyna model blachowy z jednego zamkniętego profilu zakończonego szkicu. Operacja nie jest przemianowanym zwykłym wyciągnięciem: zapisuje jawny kontrakt technologiczny używany przez kolejne operacje:
 
@@ -18,6 +18,8 @@ Operacja współpracuje z istniejącym podglądem, historią, edycją parametró
 
 `Zawinięcie blachy` wykonuje pełny łuk `180°` na wskazanej prostej krawędzi. Użytkownik steruje długością równoległej zakładki, prześwitem między warstwami i kierunkiem; prześwit wyznacza fizyczny promień wewnętrzny zawinięcia. `Szczelina blachy` odejmuje dokładnym Boolean Cut pas o zadanej szerokości wzdłuż całej wskazanej krawędzi. Obie operacje pozostają częścią tej samej bryły, mają trwałe referencje topologii, podgląd, edycję historii i osobne Cofnij/Ponów.
 
+`Rozwiń blachę` nie jest zmianą kamery ani płaskim obrazem bryły. Operacja przebudowuje tę samą blachę jako ciągłą planarną bryłę B-Rep o zachowanej grubości. Dla każdego kołnierza i zawinięcia odkłada długość prostą oraz naddatek osi neutralnej `BA = (R + K × t) × kąt`; kolejne odcinki tej samej krawędzi są układane jeden za drugim, a Rip jest ponownie odjęty od wzoru płaskiego. `Zagnij ponownie` przywraca dokładny stan zagięty sprzed rozwinięcia. Oba stany należą do osi czasu, obsługują Cofnij/Ponów i blokują operacje w niewłaściwej kolejności.
+
 ## Walidacja
 
 - test rdzenia sprawdza zapis i obliczenie grubości, promienia, współczynnika K, strony materiału oraz zależności od profilu;
@@ -25,12 +27,12 @@ Operacja współpracuje z istniejącym podglądem, historią, edycją parametró
 - wynik ma grubość `2 mm`, promień `3 mm`, współczynnik K `0,45`, tryb symetryczny i objętość `1920 mm³` dla profilu `40 × 24 mm`;
 - ten sam test wybiera górną prostą krawędź, tworzy kołnierz `10 mm / 90° / R3`, sprawdza wzrost objętości, zasięg geometrii, zapis gięcia i niezależne `Cofnij/Ponów`;
 - na wolnej krawędzi kołnierza test dodaje Hem `6 mm / 0,5 mm`, a na drugiej krawędzi szczelinę `1 mm`; sprawdza odpowiednio wzrost i spadek objętości, metadane oraz Cofnij/Ponów;
-- dowód wizualny gotowej bryły jest zapisany w `artifacts/madcad-sheet-metal-hem-rip.png`.
+- następnie test rozwija oba kolejne odcinki do jednego arkusza o grubości `2 mm`, sprawdza zasięg wynikający z obu naddatków, ponownie zagina blachę i potwierdza odzyskanie objętości oraz granic bryły sprzed rozwinięcia;
+- dowód wizualny ciągłego wzoru płaskiego jest zapisany w `artifacts/madcad-sheet-metal-flat-pattern.png`.
 
 ## Dalsza kolejność
 
-1. Unfold/Refold oraz flat pattern liczony z promienia, grubości i współczynnika K.
-2. Skojarzona tabela gięć dla arkusza 2D.
+1. Skojarzona tabela gięć dla arkusza 2D.
 
 Każdy etap ma zachować jedną parametryczną historię oraz współpracować z poprzednimi narzędziami; interfejs nie będzie wymagał ręcznego wyłączania jednej funkcji, aby uruchomić następną.
 

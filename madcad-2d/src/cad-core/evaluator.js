@@ -384,6 +384,9 @@ export function prepareDocument(document) {
         topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
       };
     }
+    if (feature.type === 'sheetUnfold' || feature.type === 'sheetRefold') {
+      return { ...feature, status: 'ready', diagnostics: [] };
+    }
     if (feature.type === 'extrude') {
       const extent = feature.extent || 'one-side';
       const sourceSketch = document.sketches.find((sketch) => sketch.id === feature.sketchId);

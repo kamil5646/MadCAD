@@ -46,6 +46,8 @@ const TOOL_DESCRIPTIONS = {
   'Kołnierz blachy': 'Dodaj parametryczny kołnierz do jednej prostej krawędzi istniejącej blachy.',
   'Zawinięcie blachy': 'Zawiń prostą krawędź o 180° z kontrolowaną długością zakładki i szczeliną.',
   'Szczelina blachy': 'Usuń pas materiału o zadanej szerokości wzdłuż prostej krawędzi blachy.',
+  'Rozwiń blachę': 'Utwórz wzór płaski z naddatkami obliczonymi z promienia gięcia i współczynnika K.',
+  'Zagnij ponownie': 'Przywróć dokładną geometrię zagiętą po kontroli wzoru płaskiego.',
   'Patch': 'Wypełnij zamknięty profil dokładną planarną powierzchnią B-Rep.',
   'Surface Extrude': 'Wyciągnij zamknięty profil albo otwarty łańcuch jako otwartą powierzchnię.',
   'Surface Revolve': 'Obróć zamknięty profil albo otwarty łańcuch jako otwartą powierzchnię.',
@@ -137,7 +139,7 @@ const TOOL_SHORTCUTS = Object.freeze({
 
 const TOOL_COLOR_GROUPS = Object.freeze({
   sketch: new Set(['Utwórz szkic', 'Linia', 'Polilinia', 'Łuk styczny', 'Łuk', 'Prostokąt', 'Okrąg', 'Wielokąt', 'Elipsa', 'Slot', 'Spline', 'Conic', 'Punkt', 'Zakończ szkic']),
-  solid: new Set(['Wyciągnij', 'Blacha', 'Baza blachowa', 'Kołnierz blachy', 'Zawinięcie blachy', 'Patch', 'Surface Extrude', 'Surface Revolve', 'Surface Sweep', 'Surface Loft', 'Surface Offset', 'Surface Trim', 'Surface Extend', 'Stitch', 'Thicken', 'Thin Extrude', 'Rib/Web', 'Pipe', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Pattern', 'Press Pull', 'Prymityw', 'Tekst 3D', 'Boolean', 'Otwór']),
+  solid: new Set(['Wyciągnij', 'Blacha', 'Baza blachowa', 'Kołnierz blachy', 'Zawinięcie blachy', 'Rozwiń blachę', 'Zagnij ponownie', 'Patch', 'Surface Extrude', 'Surface Revolve', 'Surface Sweep', 'Surface Loft', 'Surface Offset', 'Surface Trim', 'Surface Extend', 'Stitch', 'Thicken', 'Thin Extrude', 'Rib/Web', 'Pipe', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Pattern', 'Press Pull', 'Prymityw', 'Tekst 3D', 'Boolean', 'Otwór']),
   destructive: new Set(['Usuń', 'Delete Face + Heal', 'Szczelina blachy']),
   edit: new Set(['Trim', 'Extend', 'Break', 'Offset', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu', 'Przesuń', 'Zaokrąglij', 'Fazuj', 'Shell', 'Draft', 'Split Body', 'Split Face', 'Replace Face', 'Offset Face', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj']),
   reference: new Set(['Project', 'Współliniowe', 'Symetria', 'Krzywizna G2', 'Ordinate X', 'Ordinate Y', 'Długość łuku', 'Płaszczyzna odsunięta', 'Płaszczyzna środkowa', 'Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce', 'Oś z krawędzi', 'Oś walca', 'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum', 'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi']),

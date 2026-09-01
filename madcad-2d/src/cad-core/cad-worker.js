@@ -51,7 +51,10 @@ const revisionCache = new RevisionCache({
   maxEntries: GEOMETRY_POLICY.cache.maxRevisions,
   maxBytes: GEOMETRY_POLICY.cache.maxMeshBytes,
   onEvict: (entry) => {
-    for (const body of entry?.kernelBodies || []) body.shape?.delete?.();
+    for (const body of entry?.kernelBodies || []) {
+      body.shape?.delete?.();
+      body.foldedShape?.delete?.();
+    }
   },
 });
 const topologyHistory = new Map();
@@ -331,6 +334,86 @@ function sheetBendShape(sheetMetal, descriptor, { length, angle, innerRadius, re
   const shape = sectionSketch.extrude(frame.edgeLength, { extrusionDirection: frame.edgeDirection });
   sectionPlane.delete();
   return { shape, frame };
+}
+
+function serializableSheetFrame(frame) {
+  return {
+    start: [...frame.start],
+    end: [...frame.end],
+    edgeDirection: [...frame.edgeDirection],
+    transverse: [...frame.transverse],
+    edgeLength: frame.edgeLength,
+  };
+}
+
+function sheetFlatStripShape(sheetMetal, { start, edgeDirection, transverse, edgeLength, offset, developmentLength }) {
+  const normal = PROFILE_PLANE_NORMALS[sheetMetal.baseProfile?.plane || 'XY'];
+  const origin = vectorSubtract(
+    vectorAdd(start, vectorScale(transverse, offset)),
+    vectorScale(normal, sheetMetal.thickness / 2),
+  );
+  const plane = new Plane(origin, edgeDirection, normal);
+  const drawing = draw([0, 0])
+    .lineTo([edgeLength, 0])
+    .lineTo([edgeLength, developmentLength])
+    .lineTo([0, developmentLength])
+    .close();
+  const shape = drawing.sketchOnPlane(plane).extrude(sheetMetal.thickness, { extrusionDirection: normal });
+  plane.delete();
+  return shape;
+}
+
+function sheetRipCutter(sheetMetal, descriptor, gap) {
+  const frame = sheetEdgeFrame(sheetMetal, descriptor, false);
+  const margin = Math.max(sheetMetal.thickness, gap, 1);
+  const cutterStart = vectorSubtract(frame.start, vectorScale(frame.edgeDirection, margin));
+  const cutterPlane = new Plane(cutterStart, frame.transverse, frame.sectionNormal);
+  const cutter = drawRectangle(gap, sheetMetal.thickness + 2 * margin).sketchOnPlane(cutterPlane).extrude(frame.edgeLength + 2 * margin, { extrusionDirection: frame.edgeDirection });
+  cutterPlane.delete();
+  return cutter;
+}
+
+function sheetFlatShape(sheetMetal) {
+  const startDelta = sheetMetal.side === 'symmetric' ? -sheetMetal.thickness / 2 : sheetMetal.reverse ? -sheetMetal.thickness : 0;
+  let flatShape = extrudeProfile(sheetMetal.baseProfile, { startDelta, distance: sheetMetal.thickness }, { thin: false });
+  const groups = new Map();
+  const keyNumber = (value) => Math.round(value * 1e5) / 1e5;
+  for (const segment of sheetMetal.flatSegments || []) {
+    const frame = segment.frame;
+    const directionKey = frame.edgeDirection.map((value) => keyNumber(Math.abs(value))).join(',');
+    const sideKey = frame.transverse.map((value) => keyNumber(value)).join(',');
+    const key = `${sideKey}|${directionKey}|${keyNumber(frame.edgeLength)}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = { start: frame.start, direction: frame.edgeDirection, transverse: frame.transverse, offset: 0, edgeLength: frame.edgeLength };
+      groups.set(key, group);
+    }
+    const alignedDirection = vectorDot(group.direction, frame.edgeDirection) < 0 ? vectorScale(frame.edgeDirection, -1) : frame.edgeDirection;
+    const strip = sheetFlatStripShape(sheetMetal, {
+      start: group.start,
+      edgeDirection: alignedDirection,
+      transverse: group.transverse,
+      edgeLength: Math.min(group.edgeLength, frame.edgeLength),
+      offset: group.offset,
+      developmentLength: segment.developmentLength,
+    });
+    const previousShape = flatShape;
+    const fused = previousShape.fuse(strip);
+    previousShape.delete();
+    strip.delete();
+    flatShape = fused;
+    group.offset += segment.developmentLength;
+  }
+  for (const rip of sheetMetal.rips || []) {
+    if (!rip.descriptor) continue;
+    const cutter = sheetRipCutter(sheetMetal, rip.descriptor, rip.gap);
+    const previousShape = flatShape;
+    const cut = previousShape.cut(cutter);
+    previousShape.delete();
+    cutter.delete();
+    flatShape = cut;
+  }
+  return flatShape;
 }
 
 function planarPatchForProfile(profile) {
@@ -1359,6 +1442,8 @@ function runFeature(feature, bodyMap, bodyOrder) {
         bends: [],
         hems: [],
         rips: [],
+        flatSegments: [],
+        unfolded: false,
       },
     });
     bodyOrder.push(bodyId);
@@ -1368,15 +1453,17 @@ function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.type === 'sheetFlange') {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target?.sheetMetal) throw new Error(`Nie znaleziono bryły blachowej dla ${feature.name}.`);
+    if (target.sheetMetal.unfolded) throw new Error('Najpierw zagnij blachę ponownie, a dopiero potem dodaj kołnierz.');
     const reference = feature.topologyReferences[0];
     const descriptor = reference?.descriptor;
     if (descriptor?.geometry !== 'LINE' || !Array.isArray(descriptor.endpoints) || descriptor.endpoints.length !== 2) throw new Error('Kołnierz wymaga jednej prostej krawędzi blachy.');
 
     const angle = feature.angleValue * Math.PI / 180;
-    const { shape: flangeShape } = sheetBendShape(target.sheetMetal, descriptor, { length: feature.lengthValue, angle, innerRadius: feature.bendRadiusValue, reverse: feature.reverse });
+    const { shape: flangeShape, frame } = sheetBendShape(target.sheetMetal, descriptor, { length: feature.lengthValue, angle, innerRadius: feature.bendRadiusValue, reverse: feature.reverse });
     const fusedShape = target.shape.fuse(flangeShape);
     flangeShape.delete();
     target.shape = fusedShape;
+    const neutralAllowance = (feature.bendRadiusValue + target.sheetMetal.kFactor * target.sheetMetal.thickness) * angle;
     target.sheetMetal = {
       ...target.sheetMetal,
       bends: [
@@ -1388,9 +1475,10 @@ function runFeature(feature, bodyMap, bodyOrder) {
           angle: feature.angleValue,
           bendRadius: feature.bendRadiusValue,
           reverse: feature.reverse,
-          neutralAllowance: (feature.bendRadiusValue + target.sheetMetal.kFactor * target.sheetMetal.thickness) * angle,
+          neutralAllowance,
         },
       ],
+      flatSegments: [...(target.sheetMetal.flatSegments || []), { featureId: feature.id, type: 'flange', frame: serializableSheetFrame(frame), developmentLength: feature.lengthValue + neutralAllowance }],
     };
     return;
   }
@@ -1398,16 +1486,19 @@ function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.type === 'sheetHem') {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target?.sheetMetal) throw new Error(`Nie znaleziono bryły blachowej dla ${feature.name}.`);
+    if (target.sheetMetal.unfolded) throw new Error('Najpierw zagnij blachę ponownie, a dopiero potem dodaj zawinięcie.');
     const reference = feature.topologyReferences[0];
     const descriptor = reference?.descriptor;
     const innerRadius = feature.gapValue / 2;
-    const { shape: hemShape } = sheetBendShape(target.sheetMetal, descriptor, { length: feature.lengthValue, angle: Math.PI, innerRadius, reverse: feature.reverse });
+    const { shape: hemShape, frame } = sheetBendShape(target.sheetMetal, descriptor, { length: feature.lengthValue, angle: Math.PI, innerRadius, reverse: feature.reverse });
     const fusedShape = target.shape.fuse(hemShape);
     hemShape.delete();
     target.shape = fusedShape;
+    const neutralAllowance = (innerRadius + target.sheetMetal.kFactor * target.sheetMetal.thickness) * Math.PI;
     target.sheetMetal = {
       ...target.sheetMetal,
-      hems: [...(target.sheetMetal.hems || []), { featureId: feature.id, referenceId: reference.id, length: feature.lengthValue, gap: feature.gapValue, reverse: feature.reverse }],
+      hems: [...(target.sheetMetal.hems || []), { featureId: feature.id, referenceId: reference.id, length: feature.lengthValue, gap: feature.gapValue, reverse: feature.reverse, neutralAllowance }],
+      flatSegments: [...(target.sheetMetal.flatSegments || []), { featureId: feature.id, type: 'hem', frame: serializableSheetFrame(frame), developmentLength: feature.lengthValue + neutralAllowance }],
     };
     return;
   }
@@ -1415,20 +1506,39 @@ function runFeature(feature, bodyMap, bodyOrder) {
   if (feature.type === 'sheetRip') {
     const target = bodyMap.get(feature.targetBodyId);
     if (!target?.sheetMetal) throw new Error(`Nie znaleziono bryły blachowej dla ${feature.name}.`);
+    if (target.sheetMetal.unfolded) throw new Error('Najpierw zagnij blachę ponownie, a dopiero potem dodaj szczelinę.');
     const reference = feature.topologyReferences[0];
-    const frame = sheetEdgeFrame(target.sheetMetal, reference?.descriptor, false);
-    const margin = Math.max(target.sheetMetal.thickness, feature.gapValue, 1);
-    const cutterStart = vectorSubtract(frame.start, vectorScale(frame.edgeDirection, margin));
-    const cutterPlane = new Plane(cutterStart, frame.transverse, frame.sectionNormal);
-    const cutter = drawRectangle(feature.gapValue, target.sheetMetal.thickness + 2 * margin).sketchOnPlane(cutterPlane).extrude(frame.edgeLength + 2 * margin, { extrusionDirection: frame.edgeDirection });
+    const cutter = sheetRipCutter(target.sheetMetal, reference?.descriptor, feature.gapValue);
     const cutShape = target.shape.cut(cutter);
     cutter.delete();
-    cutterPlane.delete();
     target.shape = cutShape;
     target.sheetMetal = {
       ...target.sheetMetal,
-      rips: [...(target.sheetMetal.rips || []), { featureId: feature.id, referenceId: reference.id, gap: feature.gapValue }],
+      rips: [...(target.sheetMetal.rips || []), { featureId: feature.id, referenceId: reference.id, descriptor: reference.descriptor, gap: feature.gapValue }],
     };
+    return;
+  }
+
+  if (feature.type === 'sheetUnfold') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target?.sheetMetal) throw new Error(`Nie znaleziono bryły blachowej dla ${feature.name}.`);
+    if (target.sheetMetal.unfolded || target.foldedShape) throw new Error('Blacha jest już rozwinięta.');
+    if (!(target.sheetMetal.flatSegments || []).length) throw new Error('Rozwinięcie wymaga co najmniej jednego gięcia albo zawinięcia.');
+    const flatShape = sheetFlatShape(target.sheetMetal);
+    target.foldedShape = target.shape;
+    target.shape = flatShape;
+    target.sheetMetal = { ...target.sheetMetal, unfolded: true, unfoldedByFeatureId: feature.id };
+    return;
+  }
+
+  if (feature.type === 'sheetRefold') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target?.sheetMetal) throw new Error(`Nie znaleziono bryły blachowej dla ${feature.name}.`);
+    if (!target.sheetMetal.unfolded || !target.foldedShape) throw new Error('Ponowne zagięcie wymaga wcześniej rozwiniętej blachy.');
+    target.shape.delete();
+    target.shape = target.foldedShape;
+    delete target.foldedShape;
+    target.sheetMetal = { ...target.sheetMetal, unfolded: false, refoldedByFeatureId: feature.id };
     return;
   }
 

@@ -1205,6 +1205,34 @@ test('Hem i Rip przygotowują zawinięcie 180 stopni oraz kontrolowaną szczelin
   assert.throws(() => prepareDocument(invalid), /Szczelina zawinięcia/);
 });
 
+test('Rozwiń i Zagnij ponownie pilnują kolejności parametrycznej blachy', () => {
+  const document = createDocument('Rozwinięcie blachy');
+  const profile = createRectangleProfile({ width: '60', height: '30' });
+  const sketch = createSketch({ profiles: [profile] });
+  const base = createFeature('sheetBase', { sketchId: sketch.id, profileIds: [profile.id], thickness: '2', bendRadius: '3', kFactor: '0.45', side: 'symmetric', reverse: false });
+  const bodyId = `body-${base.id}`;
+  const edge = { ...createTopologyReference({ selection: { kind: 'edge', id: 'edge-flat', bodyId, sourceFeatureId: base.id }, descriptor: { geometry: 'LINE', endpoints: [[-30, -15, 1], [-30, 15, 1]], length: 30, closed: false }, label: 'Kołnierz blachy — krawędź' }), scope: 'feature-input' };
+  const flange = createFeature('sheetFlange', { targetBodyId: bodyId, referenceIds: [edge.id], length: '12', angle: '90', bendRadius: '3', reverse: false });
+  const unfold = createFeature('sheetUnfold', { targetBodyId: bodyId });
+  const refold = createFeature('sheetRefold', { targetBodyId: bodyId });
+  document.sketches.push(sketch);
+  document.references.push(edge);
+  document.features.push(base, flange, unfold, refold);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document);
+  assert.deepEqual(prepared.features.slice(2).map((feature) => feature.type), ['sheetUnfold', 'sheetRefold']);
+  assert.equal(buildDependencyGraph(document).edges.some((relation) => relation.from === bodyId && relation.to === unfold.id && relation.kind === 'modifies'), true);
+
+  const duplicateUnfold = structuredClone(document);
+  duplicateUnfold.features.splice(3, 0, createFeature('sheetUnfold', { targetBodyId: bodyId }));
+  assert.equal(validateDocument(duplicateUnfold).issues.some((issue) => issue.code === 'SEQUENCE' && issue.message.includes('już rozwinięta')), true);
+
+  const missingUnfold = structuredClone(document);
+  missingUnfold.features.splice(2, 1);
+  assert.equal(validateDocument(missingUnfold).issues.some((issue) => issue.code === 'SEQUENCE' && issue.message.includes('wymaga wcześniejszego rozwinięcia')), true);
+});
+
 test('Extrude To Object kończy się dokładnie na równoległej płaszczyźnie konstrukcyjnej', () => {
   const document = createDocument('Extrude To Object');
   document.parameters.push(createParameter('cel', '12'));

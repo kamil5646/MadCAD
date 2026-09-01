@@ -74,10 +74,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Baza blachowa z regułą grubości, promienia gięcia i współczynnika K, rzeczywistą bryłą B-Rep, podglądem, edycją historii oraz Cofnij/Ponów.
   - [x] Kołnierz krawędziowy z wyborem trwałej prostej krawędzi, długością, kątem, promieniem, odwróceniem kierunku, dziedziczeniem reguły blachy i zapisem naddatku neutralnego.
   - [x] Hem 180° z długością zakładki i kontrolowanym prześwitem oraz Rip odejmujący parametryczną szczelinę wzdłuż trwałej krawędzi.
-  - [ ] Unfold/Refold, flat pattern oraz skojarzona tabela gięć arkusza 2D.
-  - [ ] Kołnierz krawędziowy i gięcie z kontrolą kąta, długości oraz strony materiału.
-  - [ ] Hem i Rip przygotowujące zamknięcie oraz szczelinę technologiczną.
-  - [ ] Unfold/Refold, flat pattern i skojarzona tabela gięć.
+  - [x] Unfold/Refold oraz ciągły flat pattern z naddatkami liczonymi z promienia, grubości i współczynnika K; ponowne zagięcie odzyskuje dokładną bryłę B-Rep.
+  - [ ] Skojarzona tabela gięć arkusza 2D.
 - Boss, snap-fit, grille oraz analizy grubości i pochylenia.
 - SubD/T-Spline Form i konwersja do B-Rep.
 - Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.

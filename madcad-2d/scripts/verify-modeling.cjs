@@ -269,7 +269,7 @@ async function runUiFlow(window) {
     'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi',
   ]);
   const solidToolMenus = new Map([
-    ...['Baza blachowa', 'Kołnierz blachy', 'Zawinięcie blachy', 'Szczelina blachy'].map((label) => [label, 'Blacha']),
+    ...['Baza blachowa', 'Kołnierz blachy', 'Zawinięcie blachy', 'Szczelina blachy', 'Rozwiń blachę', 'Zagnij ponownie'].map((label) => [label, 'Blacha']),
     ...['Prymityw', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Tekst 3D', 'Otwór'].map((label) => [label, 'Więcej brył']),
     ...['Fazuj', 'Shell', 'Draft', 'Offset Face', 'Delete Face + Heal', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj', 'Pattern', 'Boolean', 'Split Body', 'Split Face', 'Replace Face'].map((label) => [label, 'Więcej zmian']),
     ...['Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię'].map((label) => [label, 'Analiza']),
