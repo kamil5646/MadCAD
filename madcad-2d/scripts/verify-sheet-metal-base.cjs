@@ -3,6 +3,7 @@ const path = require('node:path');
 const { app, BrowserWindow } = require('electron');
 
 const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-sheet-metal-flat-pattern.png');
+const bendTableScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-sheet-metal-bend-table.png');
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
   const startedAt = Date.now();
@@ -176,7 +177,18 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.features === 6 && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.unfolded === false`, 'ponowione zagięcie');
 
-    process.stdout.write(`${JSON.stringify({ ok: true, screenshotPath, result, flangeResult, hemResult, ripResult, flatResult, refoldResult })}\n`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.workspace-tabs button')].find((button) => button.textContent.trim() === 'ARKUSZ 2D').click()`);
+    await waitFor(window, `document.querySelector('.drawing-empty')`, 'pusty obszar arkusza 2D');
+    await clickTool(window, 'Nowy arkusz');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.length === 1 && document.querySelector('.drawing-paper')`, 'arkusz dla tabeli gięć');
+    await clickTool(window, 'Tabela gięć');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.tables?.[0]?.type === 'bend-table' && document.querySelector('.modeling-shell')?.classList.contains('drawing-mode') && document.querySelector('.drawing-paper')?.checkVisibility() && document.querySelector('.drawing-table-bend-table')?.checkVisibility() && document.querySelector('.drawing-table-bend-table')?.textContent.includes('TABELA GIĘĆ') && document.querySelector('.drawing-table-bend-table')?.textContent.includes('Kołnierz') && document.querySelector('.drawing-table-bend-table')?.textContent.includes('Hem')`, 'widoczna skojarzona tabela gięć');
+    await window.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const bendTableResult = await window.webContents.executeJavaScript(`(() => { const table = document.querySelector('.drawing-table-bend-table'); const bounds = table.getBoundingClientRect(); return { type: window.__madcadVerifyDocumentState.drawings[0].tables[0].type, text: table.textContent.replace(/\\s+/g, ' ').trim(), rows: table.querySelectorAll('.drawing-table-row').length, visible: table.checkVisibility(), drawingMode: document.querySelector('.modeling-shell').classList.contains('drawing-mode'), bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height } }; })()`);
+    await fs.writeFile(bendTableScreenshotPath, (await window.webContents.capturePage()).toPNG());
+
+    process.stdout.write(`${JSON.stringify({ ok: true, screenshotPath, bendTableScreenshotPath, result, flangeResult, hemResult, ripResult, flatResult, refoldResult, bendTableResult })}\n`);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);
     exitCode = 1;

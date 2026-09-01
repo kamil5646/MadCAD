@@ -11,7 +11,7 @@ export const DRAWING_VIEW_ORIENTATIONS = Object.freeze(['front', 'top', 'right',
 export const DRAWING_VIEW_TYPES = Object.freeze(['base', 'sketch', 'projected', 'section', 'detail']);
 export const DRAWING_VIEW_ALIGNMENTS = Object.freeze(['horizontal', 'vertical', 'free']);
 export const DRAWING_ANNOTATION_TYPES = Object.freeze(['linear-dimension', 'centerline', 'center-mark', 'hole-note', 'feature-control-frame', 'balloon']);
-export const DRAWING_TABLE_TYPES = Object.freeze(['bom', 'hole-table']);
+export const DRAWING_TABLE_TYPES = Object.freeze(['bom', 'hole-table', 'bend-table']);
 
 const PAGE_MARGIN = 10;
 const TITLE_BLOCK_HEIGHT = 24;
@@ -129,8 +129,8 @@ export function createBalloonDrawingAnnotation({ viewId, bodyId = '', center = [
 
 export function createDrawingTable({ type = 'bom', viewId = '', x, y, sheet } = {}) {
   const page = pageDimensions(sheet?.pageSize, sheet?.orientation);
-  const normalizedType = type === 'hole-table' ? 'hole-table' : 'bom';
-  const width = normalizedType === 'bom' ? 86 : 69;
+  const normalizedType = DRAWING_TABLE_TYPES.includes(type) ? type : 'bom';
+  const width = normalizedType === 'bom' ? 86 : normalizedType === 'bend-table' ? 99 : 69;
   return {
     id: createId('drawing-table'),
     type: normalizedType,
@@ -658,15 +658,46 @@ function holeTableRows(view, bodies) {
     .map((group, index) => [String(index + 1), `⌀${Number(group.diameter.toFixed(3))}`, String(group.count), 'Otwór walcowy']);
 }
 
+function drawingNumber(value, digits = 3) {
+  return Number(Number(value || 0).toFixed(digits)).toString();
+}
+
+function bendTableRows(bodies) {
+  const rows = [];
+  for (const body of bodies.filter((item) => item.sheetMetal)) {
+    const sheetMetal = body.sheetMetal;
+    for (const segment of sheetMetal.flatSegments || []) {
+      const bend = segment.type === 'hem'
+        ? (sheetMetal.hems || []).find((item) => item.featureId === segment.featureId)
+        : (sheetMetal.bends || []).find((item) => item.featureId === segment.featureId);
+      if (!bend) continue;
+      const radius = segment.type === 'hem' ? Number(bend.gap || 0) / 2 : Number(bend.bendRadius || sheetMetal.bendRadius || 0);
+      rows.push([
+        String(rows.length + 1),
+        body.name || body.id,
+        segment.type === 'hem' ? 'Hem' : 'Kołnierz',
+        `${drawingNumber(segment.type === 'hem' ? 180 : bend.angle, 2)}°`,
+        drawingNumber(radius),
+        drawingNumber(segment.frame?.edgeLength),
+        drawingNumber(bend.neutralAllowance),
+      ]);
+    }
+  }
+  return rows;
+}
+
 function renderedTable(source, resolvedViews, bodies, components, componentInstances) {
   const bom = source.type === 'bom';
+  const bendTable = source.type === 'bend-table';
   const columns = bom
     ? [{ label: 'Poz.', width: 8 }, { label: 'Nr części', width: 20 }, { label: 'Nazwa', width: 30 }, { label: 'Ilość', width: 8 }, { label: 'Materiał', width: 20 }]
-    : [{ label: 'Poz.', width: 8 }, { label: 'Wymiar', width: 22 }, { label: 'Ilość', width: 10 }, { label: 'Opis', width: 68 }];
-  const rawRows = bom ? bomRows(bodies, components, componentInstances) : holeTableRows(resolvedViews.get(source.viewId), bodies);
+    : bendTable
+      ? [{ label: 'Poz.', width: 8 }, { label: 'Część', width: 24 }, { label: 'Typ', width: 14 }, { label: 'Kąt', width: 12 }, { label: 'R', width: 12 }, { label: 'Dł.', width: 13 }, { label: 'BA', width: 16 }]
+      : [{ label: 'Poz.', width: 8 }, { label: 'Wymiar', width: 22 }, { label: 'Ilość', width: 10 }, { label: 'Opis', width: 68 }];
+  const rawRows = bom ? bomRows(bodies, components, componentInstances) : bendTable ? bendTableRows(bodies) : holeTableRows(resolvedViews.get(source.viewId), bodies);
   return {
     ...source,
-    title: bom ? 'ZESTAWIENIE CZĘŚCI' : 'TABELA OTWORÓW',
+    title: bom ? 'ZESTAWIENIE CZĘŚCI' : bendTable ? 'TABELA GIĘĆ' : 'TABELA OTWORÓW',
     columns,
     rows: rawRows.map((row) => row.slice(0, columns.length).map((cell, index) => fitDrawingTableCell(cell, columns[index].width))),
     rowMetadata: bom ? rawRows.map((row) => ({ bodyIds: row.at(-1) })) : [],

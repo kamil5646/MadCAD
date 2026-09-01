@@ -70,12 +70,12 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 
 ### Sheet Metal, Plastic, Form i szkic 3D
 
-- [ ] Parametryczne modelowanie blach: baza, flange, bend, hem, rip, unfold/refold, flat pattern i bend table.
+- [x] Parametryczne modelowanie blach: baza, flange, bend, hem, rip, unfold/refold, flat pattern i bend table.
   - [x] Baza blachowa z regułą grubości, promienia gięcia i współczynnika K, rzeczywistą bryłą B-Rep, podglądem, edycją historii oraz Cofnij/Ponów.
   - [x] Kołnierz krawędziowy z wyborem trwałej prostej krawędzi, długością, kątem, promieniem, odwróceniem kierunku, dziedziczeniem reguły blachy i zapisem naddatku neutralnego.
   - [x] Hem 180° z długością zakładki i kontrolowanym prześwitem oraz Rip odejmujący parametryczną szczelinę wzdłuż trwałej krawędzi.
   - [x] Unfold/Refold oraz ciągły flat pattern z naddatkami liczonymi z promienia, grubości i współczynnika K; ponowne zagięcie odzyskuje dokładną bryłę B-Rep.
-  - [ ] Skojarzona tabela gięć arkusza 2D.
+  - [x] Skojarzona tabela gięć arkusza 2D z automatycznymi wierszami kołnierzy i Hem oraz eksportem PDF/DXF.
 - Boss, snap-fit, grille oraz analizy grubości i pochylenia.
 - SubD/T-Spline Form i konwersja do B-Rep.
 - Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.

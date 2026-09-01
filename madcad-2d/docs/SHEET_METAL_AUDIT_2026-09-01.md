@@ -1,6 +1,6 @@
 # MadCAD — moduł blach
 
-## Ukończony zakres: baza, kołnierz, Hem, Rip i wzór płaski
+## Ukończony zakres: baza, kołnierz, Hem, Rip, wzór płaski i tabela gięć
 
 Osobne menu `Blacha` porządkuje narzędzia poza zwykłymi operacjami bryłowymi. `Blacha → Baza blachowa` rozpoczyna model blachowy z jednego zamkniętego profilu zakończonego szkicu. Operacja nie jest przemianowanym zwykłym wyciągnięciem: zapisuje jawny kontrakt technologiczny używany przez kolejne operacje:
 
@@ -20,6 +20,8 @@ Operacja współpracuje z istniejącym podglądem, historią, edycją parametró
 
 `Rozwiń blachę` nie jest zmianą kamery ani płaskim obrazem bryły. Operacja przebudowuje tę samą blachę jako ciągłą planarną bryłę B-Rep o zachowanej grubości. Dla każdego kołnierza i zawinięcia odkłada długość prostą oraz naddatek osi neutralnej `BA = (R + K × t) × kąt`; kolejne odcinki tej samej krawędzi są układane jeden za drugim, a Rip jest ponownie odjęty od wzoru płaskiego. `Zagnij ponownie` przywraca dokładny stan zagięty sprzed rozwinięcia. Oba stany należą do osi czasu, obsługują Cofnij/Ponów i blokują operacje w niewłaściwej kolejności.
 
+`Arkusz 2D → Tabela gięć` dodaje skojarzone zestawienie dla wszystkich blach w dokumencie. Każdy kołnierz i Hem otrzymuje osobny wiersz z częścią, typem operacji, kątem, promieniem, długością krawędzi i obliczonym naddatkiem `BA`. Tabela aktualizuje się z modelem, pozostaje zapisana w dokumencie i jest uwzględniana w eksporcie PDF/DXF.
+
 ## Walidacja
 
 - test rdzenia sprawdza zapis i obliczenie grubości, promienia, współczynnika K, strony materiału oraz zależności od profilu;
@@ -29,10 +31,11 @@ Operacja współpracuje z istniejącym podglądem, historią, edycją parametró
 - na wolnej krawędzi kołnierza test dodaje Hem `6 mm / 0,5 mm`, a na drugiej krawędzi szczelinę `1 mm`; sprawdza odpowiednio wzrost i spadek objętości, metadane oraz Cofnij/Ponów;
 - następnie test rozwija oba kolejne odcinki do jednego arkusza o grubości `2 mm`, sprawdza zasięg wynikający z obu naddatków, ponownie zagina blachę i potwierdza odzyskanie objętości oraz granic bryły sprzed rozwinięcia;
 - dowód wizualny ciągłego wzoru płaskiego jest zapisany w `artifacts/madcad-sheet-metal-flat-pattern.png`.
+- na końcu test przechodzi rzeczywistym interfejsem do `Arkusz 2D`, tworzy tabelę gięć, sprawdza jej faktyczną widoczność oraz wiersze `Kołnierz` i `Hem`; dowód jest zapisany w `artifacts/madcad-sheet-metal-bend-table.png`.
 
 ## Dalsza kolejność
 
-1. Skojarzona tabela gięć dla arkusza 2D.
+Pakiet modelowania blach z bieżącej listy jest ukończony. Kolejny niezależny moduł z backlogu to Plastic: Boss, snap-fit, grille oraz analizy grubości i pochylenia.
 
 Każdy etap ma zachować jedną parametryczną historię oraz współpracować z poprzednimi narzędziami; interfejs nie będzie wymagał ręcznego wyłączania jednej funkcji, aby uruchomić następną.
 

@@ -2302,6 +2302,17 @@ test('migracja v8 dodaje tabele, a BOM, balony i tabela otworów pozostają skoj
   currentSheet.annotations.push(createBalloonDrawingAnnotation({ viewId: view.id, bodyId: body.id, itemNumber: 1 }));
   currentSheet.tables.push(createDrawingTable({ type: 'bom', sheet: currentSheet }));
   currentSheet.tables.push(createDrawingTable({ type: 'hole-table', viewId: view.id, sheet: currentSheet }));
+  currentSheet.tables.push(createDrawingTable({ type: 'bend-table', sheet: currentSheet }));
+  body.sheetMetal = {
+    thickness: 2,
+    bendRadius: 3,
+    bends: [{ featureId: 'bend-1', angle: 90, bendRadius: 3, neutralAllowance: 6.126 }],
+    hems: [{ featureId: 'hem-1', gap: 0.5, neutralAllowance: 3.613 }],
+    flatSegments: [
+      { featureId: 'bend-1', type: 'flange', frame: { edgeLength: 40 }, developmentLength: 16.126 },
+      { featureId: 'hem-1', type: 'hem', frame: { edgeLength: 40 }, developmentLength: 9.613 },
+    ],
+  };
   opened.document.bodies.push({ id: body.id });
   createComponent(opened.document, { name: 'Korpus', partNumber: 'MC-100', material: 'S235', quantity: 2, bodyIds: [body.id] });
 
@@ -2312,6 +2323,7 @@ test('migracja v8 dodaje tabele, a BOM, balony i tabela otworów pozostają skoj
   assert.deepEqual(scene.tables[0].rows, [['1', 'MC-100', 'Korpus', '2', 'S235']]);
   assert.equal(drawingBomItemNumber(body.id, [body], opened.document.components), 1);
   assert.deepEqual(scene.tables[1].rows, [['1', '⌀4', '1', 'Otwór walcowy'], ['2', '⌀8', '2', 'Otwór walcowy']]);
+  assert.deepEqual(scene.tables[2].rows, [['1', 'Korpus', 'Kołnierz', '90°', '3', '40', '6.126'], ['2', 'Korpus', 'Hem', '180°', '0.25', '40', '3.613']]);
   const standardizedHoleBody = { ...body, manufacturingHoles: [{ diameter: 6.75, quantity: 1, holeStandard: 'iso-metric', holeApplication: 'tapped', standardSize: 'M8', threadDesignation: 'M8×1.25', threadClass: '6H', through: true }] };
   assert.deepEqual(drawingSheetScene(currentSheet, [standardizedHoleBody], { components: opened.document.components }).tables[1].rows, [['1', 'M8×1.25 - 6H', '1', 'Gwint wewnętrzny · wiertło ⌀6.75 · przelotowy']]);
   const pipeHoleBody = { ...body, manufacturingHoles: [{ diameter: 8.74, quantity: 1, holeStandard: 'asme-b1.20.1', holeApplication: 'npt-tapped', standardSize: 'npt-1-8', threadDesignation: '1/8-27 NPT', threadInspection: 'sprawdzian ASME B1.20.1', threadTaper: 0.0625, pipePreparation: 'conical', diameterToleranceLower: -0.05, diameterToleranceUpper: 0.1 }] };
@@ -2321,10 +2333,12 @@ test('migracja v8 dodaje tabele, a BOM, balony i tabela otworów pozostają skoj
   const html = drawingSheetHtml(currentSheet, [body], { components: opened.document.components });
   assert.match(html, /ZESTAWIENIE CZĘŚCI/);
   assert.match(html, /TABELA OTWORÓW/);
+  assert.match(html, /TABELA GIĘĆ/);
   assert.match(html, /drawing-balloon/);
   const dxf = drawingSheetDxf(currentSheet, [body], { components: opened.document.components });
   assert.match(dxf, /8\nBALLOON/);
   assert.match(dxf, /8\nTABLE/);
+  assert.match(dxf, /TABELA GIĘĆ/);
   assert.deepEqual(openDocument(JSON.parse(JSON.stringify(opened.document))).document.drawings, opened.document.drawings);
 });
 

@@ -5687,13 +5687,13 @@ export default function ModelingWorkspace() {
 
   const addDrawingTable = (type) => {
     if (!activeDrawingSheet || readOnly || (type === 'hole-table' && !selectedDrawingView)) return;
-    if ((activeDrawingSheet.tables || []).some((table) => table.type === type && (type === 'bom' || table.viewId === selectedDrawingView?.id))) {
-      setNotice(type === 'bom' ? 'Arkusz ma już zestawienie części.' : 'Wybrany widok ma już tabelę otworów.');
+    if ((activeDrawingSheet.tables || []).some((table) => table.type === type && (type !== 'hole-table' || table.viewId === selectedDrawingView?.id))) {
+      setNotice(type === 'bom' ? 'Arkusz ma już zestawienie części.' : type === 'bend-table' ? 'Arkusz ma już tabelę gięć.' : 'Wybrany widok ma już tabelę otworów.');
       return;
     }
     const table = createDrawingTable({ type, viewId: selectedDrawingView?.id, sheet: activeDrawingSheet });
     commit((next) => { next.drawings.find((sheet) => sheet.id === activeDrawingSheet.id)?.tables.push(table); });
-    setNotice(type === 'bom' ? 'Dodano skojarzone zestawienie części.' : 'Dodano skojarzoną tabelę otworów.');
+    setNotice(type === 'bom' ? 'Dodano skojarzone zestawienie części.' : type === 'bend-table' ? 'Dodano skojarzoną tabelę gięć blachy.' : 'Dodano skojarzoną tabelę otworów.');
   };
 
   const updateDrawingTable = (tableId, patch) => {
@@ -6571,7 +6571,7 @@ export default function ModelingWorkspace() {
                   { icon: Crosshair, label: 'GD&T', onClick: () => addDrawingAnnotation('feature-control-frame'), disabled: readOnly || !selectedDrawingView },
                   { icon: Trash2, label: 'Usuń oznaczenie', onClick: deleteSelectedDrawingAnnotation, disabled: readOnly || !selectedDrawingAnnotation },
                 ]} /></RibbonGroup>
-                <RibbonGroup label="ZESTAWIENIA"><ToolButton icon={Grid2X2} label="BOM" onClick={() => addDrawingTable('bom')} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Dodaj automatyczne zestawienie części z modelu 3D." /><ToolButton icon={Grid2X2} label="Tabela otworów" onClick={() => addDrawingTable('hole-table')} disabled={readOnly || !selectedDrawingView || selectedDrawingIsSketch || !engine.bodies.length} description="Dodaj tabelę średnic z zaznaczonego widoku modelu 3D." /></RibbonGroup>
+                <RibbonGroup label="ZESTAWIENIA"><ToolButton icon={Grid2X2} label="BOM" onClick={() => addDrawingTable('bom')} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Dodaj automatyczne zestawienie części z modelu 3D." /><ToolButton icon={Grid2X2} label="Tabela otworów" onClick={() => addDrawingTable('hole-table')} disabled={readOnly || !selectedDrawingView || selectedDrawingIsSketch || !engine.bodies.length} description="Dodaj tabelę średnic z zaznaczonego widoku modelu 3D." /><ToolButton icon={Grid2X2} label="Tabela gięć" onClick={() => addDrawingTable('bend-table')} disabled={readOnly || !activeDrawingSheet || !sheetBodies.some((body) => body.sheetMetal.flatSegments?.length)} description="Dodaj skojarzoną tabelę kątów, promieni, długości i naddatków gięcia blachy." /></RibbonGroup>
               </>
             ) : workspace === 'tools' ? null : (
               <>
