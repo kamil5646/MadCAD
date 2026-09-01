@@ -432,8 +432,9 @@ export function MassPropertiesPanel({ density, result, error, onDensityChange, o
   );
 }
 
-export function GeometryInspectionPanel({ result, draftDirection = 'z-positive', draftTolerance = '0.5', onChange, onClose }) {
+export function GeometryInspectionPanel({ result, inspectionMode = 'draft', draftDirection = 'z-positive', draftTolerance = '0.5', thicknessTarget = '2', thicknessTolerance = '0.25', onChange, onClose }) {
   const draft = result.draft;
+  const thickness = result.thickness;
   return (
     <aside className="measure-panel geometry-inspection-panel" aria-label="Analiza geometrii">
       <header><div><ScanSearch size={16} /><strong>Analiza geometrii</strong></div><button type="button" title="Zamknij analizę geometrii" onClick={onClose}><X size={15} /></button></header>
@@ -444,7 +445,8 @@ export function GeometryInspectionPanel({ result, draftDirection = 'z-positive',
         {result.skippedPairs > 0 && <div className="measure-row"><span>Pominięte pary</span><strong>{result.skippedPairs} · niezgodna/otwarta siatka</strong></div>}
         {result.collisions.map((collision) => <div className="collision-row" key={`${collision.firstBodyId}:${collision.secondBodyId}`}><span>{collision.firstBodyId} ↔ {collision.secondBodyId}</span><strong>{measureValue(collision.volume, 'mm³')}</strong></div>)}
         {!result.collisions.length && <p>{result.skippedPairs ? 'Nie wykryto kolizji w sprawdzonych parach; pominięte pary nie mają dokładnego wyniku.' : 'Nie wykryto wspólnej objętości pomiędzy bryłami.'}</p>}
-        <div className="draft-analysis-section">
+        <div className="geometry-analysis-mode" role="tablist" aria-label="Tryb analizy geometrii"><button type="button" role="tab" aria-selected={inspectionMode === 'draft'} className={inspectionMode === 'draft' ? 'active' : ''} onClick={() => onChange?.({ inspectionMode: 'draft' })}>Pochylenie</button><button type="button" role="tab" aria-selected={inspectionMode === 'thickness'} className={inspectionMode === 'thickness' ? 'active' : ''} onClick={() => onChange?.({ inspectionMode: 'thickness' })}>Grubość</button></div>
+        {inspectionMode === 'draft' ? <div className="draft-analysis-section">
           <strong>Analiza pochylenia ścian</strong>
           <label><span>Kierunek wyciągania</span><select value={draftDirection} onChange={(event) => onChange?.({ draftDirection: event.target.value })}><option value="x-positive">+X</option><option value="x-negative">−X</option><option value="y-positive">+Y</option><option value="y-negative">−Y</option><option value="z-positive">+Z</option><option value="z-negative">−Z</option></select></label>
           <Field label="Tolerancja" value={draftTolerance} onChange={(value) => onChange?.({ draftTolerance: value })} suffix="°" />
@@ -452,7 +454,18 @@ export function GeometryInspectionPanel({ result, draftDirection = 'z-positive',
             {[['positive', 'Dodatnie'], ['neutral', 'Zerowe'], ['negative', 'Ujemne'], ['mixed', 'Mieszane']].map(([classification, label]) => <div key={classification} className={classification}><span aria-hidden="true" /><em>{label}</em><strong>{draft?.counts?.[classification] || 0}</strong></div>)}
           </div>
           {draft?.unsupportedBodies?.length > 0 && <p>Brak mapy ścian dla {draft.unsupportedBodies.length} zaimportowanej siatki.</p>}
-        </div>
+        </div> : <div className="thickness-analysis-section">
+          <strong>Analiza grubości ścian</strong>
+          <Field label="Grubość docelowa" value={thicknessTarget} onChange={(value) => onChange?.({ thicknessTarget: value })} suffix="mm" />
+          <Field label="Tolerancja" value={thicknessTolerance} onChange={(value) => onChange?.({ thicknessTolerance: value })} suffix="mm" />
+          <div className="measure-row"><span>Najmniejsza</span><strong>{thickness?.minimum === null ? 'Brak par powierzchni' : measureValue(thickness.minimum, 'mm')}</strong></div>
+          <div className="measure-row"><span>Największa</span><strong>{thickness?.maximum === null ? '—' : measureValue(thickness.maximum, 'mm')}</strong></div>
+          <div className="thickness-analysis-legend" aria-label="Legenda analizy grubości">
+            {[['thin', 'Za cienkie'], ['nominal', 'W tolerancji'], ['thick', 'Za grube'], ['unknown', 'Bez pary']].map(([classification, label]) => <div key={classification} className={classification}><span aria-hidden="true" /><em>{label}</em><strong>{thickness?.counts?.[classification] || 0}</strong></div>)}
+          </div>
+          {thickness?.unsupportedBodies?.length > 0 && <p>Dla {thickness.unsupportedBodies.length} brył nie znaleziono przeciwległych powierzchni planarnych ani współosiowych walcowych.</p>}
+          <p>Wynik jest mierzony między najbliższymi przeciwległymi powierzchniami i nie zmienia modelu.</p>
+        </div>}
       </div>
     </aside>
   );

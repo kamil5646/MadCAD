@@ -4025,7 +4025,31 @@
   line-height: 1.45;
 }
 
-.draft-analysis-section {
+.geometry-analysis-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.geometry-analysis-mode button {
+  min-height: 28px;
+  border: 1px solid #526171;
+  border-radius: 3px;
+  background: #2b3541;
+  color: #bfcbd5;
+  font: inherit;
+  cursor: pointer;
+}
+
+.geometry-analysis-mode button.active {
+  border-color: #58c8e8;
+  background: #244d5d;
+  color: #fff;
+}
+
+.draft-analysis-section,
+.thickness-analysis-section {
   display: grid;
   gap: 8px;
   margin-top: 10px;
@@ -4033,7 +4057,8 @@
   border-top: 1px solid #4f5b68;
 }
 
-.draft-analysis-section > label {
+.draft-analysis-section > label,
+.thickness-analysis-section > label {
   display: grid;
   grid-template-columns: 1fr 92px;
   align-items: center;
@@ -4042,7 +4067,8 @@
   font-size: 10px;
 }
 
-.draft-analysis-section select {
+.draft-analysis-section select,
+.thickness-analysis-section select {
   height: 27px;
   border: 1px solid #64707d;
   border-radius: 2px;
@@ -4050,13 +4076,15 @@
   color: #fff;
 }
 
-.draft-analysis-legend {
+.draft-analysis-legend,
+.thickness-analysis-legend {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 5px;
 }
 
-.draft-analysis-legend > div {
+.draft-analysis-legend > div,
+.thickness-analysis-legend > div {
   display: grid;
   grid-template-columns: 10px 1fr auto;
   align-items: center;
@@ -4068,13 +4096,20 @@
   color: #cbd4dc;
 }
 
-.draft-analysis-legend span { width: 8px; height: 8px; border-radius: 50%; }
-.draft-analysis-legend em { overflow: hidden; font-size: 9px; font-style: normal; text-overflow: ellipsis; }
-.draft-analysis-legend strong { font-size: 10px; }
+.draft-analysis-legend span,
+.thickness-analysis-legend span { width: 8px; height: 8px; border-radius: 50%; }
+.draft-analysis-legend em,
+.thickness-analysis-legend em { overflow: hidden; font-size: 9px; font-style: normal; text-overflow: ellipsis; }
+.draft-analysis-legend strong,
+.thickness-analysis-legend strong { font-size: 10px; }
 .draft-analysis-legend .positive span { background: #52c878; }
 .draft-analysis-legend .neutral span { background: #f0c75e; }
 .draft-analysis-legend .negative span { background: #ef6a6a; }
 .draft-analysis-legend .mixed span { background: #a985e8; }
+.thickness-analysis-legend .thin span { background: #ef6a6a; }
+.thickness-analysis-legend .nominal span { background: #52c878; }
+.thickness-analysis-legend .thick span { background: #5aa9e6; }
+.thickness-analysis-legend .unknown span { background: #8895a7; }
 
 .surface-analysis-panel .measure-panel-body {
   display: grid;

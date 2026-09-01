@@ -26,6 +26,13 @@ export const DRAFT_CLASS_COLORS = Object.freeze({
   mixed: '#a985e8',
 });
 
+export const THICKNESS_CLASS_COLORS = Object.freeze({
+  thin: '#ef6a6a',
+  nominal: '#52c878',
+  thick: '#5aa9e6',
+  unknown: '#8895a7',
+});
+
 function unitVector(vector) {
   const values = [0, 1, 2].map((axis) => Number(vector?.[axis]));
   const length = Math.hypot(...values);
@@ -86,6 +93,77 @@ export function analyzeDraftAngles(bodies, { direction = DRAFT_DIRECTIONS['z-pos
   const counts = { positive: 0, neutral: 0, negative: 0, mixed: 0 };
   faces.forEach((face) => { counts[face.classification] += 1; });
   return { direction: pullDirection, tolerance: threshold, faces, counts, unsupportedBodies: (bodies || []).filter((body) => !(body.faceGroups || []).length).map((body) => body.id) };
+}
+
+function dot(first, second) {
+  return first.reduce((sum, value, axis) => sum + value * second[axis], 0);
+}
+
+function subtract(first, second) {
+  return first.map((value, axis) => value - second[axis]);
+}
+
+function planarThickness(descriptor, candidates) {
+  if (!descriptor || descriptor.geometry !== 'PLANE' || !descriptor.center || !descriptor.normal) return null;
+  const normal = unitVector(descriptor.normal);
+  const distances = candidates
+    .filter((candidate) => candidate !== descriptor && candidate.geometry === 'PLANE' && candidate.center && candidate.normal)
+    .filter((candidate) => dot(normal, unitVector(candidate.normal)) < -0.98)
+    .map((candidate) => Math.abs(dot(subtract(candidate.center, descriptor.center), normal)))
+    .filter((distance) => distance > 1e-6);
+  return distances.length ? Math.min(...distances) : null;
+}
+
+function cylindricalThickness(descriptor, candidates) {
+  if (!descriptor || descriptor.geometry !== 'CYLINDRE' || !Number.isFinite(Number(descriptor.radius)) || !descriptor.axisDirection) return null;
+  const axis = unitVector(descriptor.axisDirection);
+  const distances = candidates
+    .filter((candidate) => candidate !== descriptor && candidate.geometry === 'CYLINDRE' && Number.isFinite(Number(candidate.radius)) && candidate.axisDirection)
+    .filter((candidate) => Math.abs(dot(axis, unitVector(candidate.axisDirection))) > 0.98)
+    .filter((candidate) => !descriptor.axisOrigin || !candidate.axisOrigin || Math.hypot(...subtract(candidate.axisOrigin, descriptor.axisOrigin)) < 1e-3)
+    .map((candidate) => Math.abs(Number(candidate.radius) - Number(descriptor.radius)))
+    .filter((distance) => distance > 1e-6);
+  return distances.length ? Math.min(...distances) : null;
+}
+
+export function analyzeWallThickness(bodies, { target = 2, tolerance = 0.25 } = {}) {
+  const targetValue = Number(target);
+  const toleranceValue = Number(tolerance);
+  if (!Number.isFinite(targetValue) || targetValue <= 0) throw new Error('Docelowa grubość musi być dodatnia.');
+  if (!Number.isFinite(toleranceValue) || toleranceValue < 0 || toleranceValue >= targetValue) throw new Error('Tolerancja grubości musi być nieujemna i mniejsza od wartości docelowej.');
+  const faces = [];
+  const unsupportedBodies = [];
+  for (const body of bodies || []) {
+    const descriptors = (body.topology?.faces || []).map((face) => face.descriptor).filter(Boolean);
+    let supported = 0;
+    for (const faceGroup of body.faceGroups || []) {
+      const descriptor = body.topology?.faces?.find((face) => face.id === faceGroup.topologyId)?.descriptor;
+      const thickness = planarThickness(descriptor, descriptors) ?? cylindricalThickness(descriptor, descriptors);
+      const classification = thickness === null
+        ? 'unknown'
+        : thickness < targetValue - toleranceValue
+          ? 'thin'
+          : thickness > targetValue + toleranceValue
+            ? 'thick'
+            : 'nominal';
+      if (thickness !== null) supported += 1;
+      faces.push({ bodyId: body.id, faceId: faceGroup.topologyId, thickness, classification, color: THICKNESS_CLASS_COLORS[classification] });
+    }
+    if (!supported) unsupportedBodies.push(body.id);
+  }
+  const counts = { thin: 0, nominal: 0, thick: 0, unknown: 0 };
+  faces.forEach((face) => { counts[face.classification] += 1; });
+  const measured = faces.map((face) => face.thickness).filter(Number.isFinite);
+  return {
+    target: targetValue,
+    tolerance: toleranceValue,
+    faces,
+    counts,
+    minimum: measured.length ? Math.min(...measured) : null,
+    maximum: measured.length ? Math.max(...measured) : null,
+    unsupportedBodies,
+    method: 'opposing-surfaces',
+  };
 }
 
 export function summarizeGeometryInspection(bodies, analysis = {}) {

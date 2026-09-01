@@ -123,7 +123,7 @@ import { projectTopologyToSketch, synchronizeProjectedGeometry } from '../cad-co
 import { resolveFaceEdgeHolePlacement } from '../cad-core/face-edge-hole.js';
 import { measureSelection } from '../cad-core/measure-selection.js';
 import { calculateMassProperties } from '../cad-core/mass-properties.js';
-import { DRAFT_DIRECTIONS, analyzeDraftAngles, summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
+import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profiles.js';
 import { calculatePrintLayout, orientationForBedFace } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
@@ -1633,7 +1633,14 @@ export default function ModelingWorkspace() {
       tolerance: Number.isFinite(Number(command.draftTolerance)) ? Math.min(45, Math.max(0, Number(command.draftTolerance))) : 0.5,
     })
     : null, [command?.type, command?.draftDirection, command?.draftTolerance, engine.bodies]);
-  const geometryInspection = useMemo(() => ({ ...summarizeGeometryInspection(engine.bodies, engine.analysis), draft: draftAnalysis }), [engine.bodies, engine.analysis, draftAnalysis]);
+  const thicknessAnalysis = useMemo(() => command?.type === 'geometryInspection'
+    ? analyzeWallThickness(engine.bodies, {
+      target: Number.isFinite(Number(command.thicknessTarget)) && Number(command.thicknessTarget) > 0 ? Number(command.thicknessTarget) : 2,
+      tolerance: Number.isFinite(Number(command.thicknessTolerance)) && Number(command.thicknessTolerance) >= 0 ? Math.min(Number(command.thicknessTolerance), Math.max(0, Number(command.thicknessTarget || 2) - 0.001)) : 0.25,
+    })
+    : null, [command?.type, command?.thicknessTarget, command?.thicknessTolerance, engine.bodies]);
+  const geometryInspection = useMemo(() => ({ ...summarizeGeometryInspection(engine.bodies, engine.analysis), draft: draftAnalysis, thickness: thicknessAnalysis }), [engine.bodies, engine.analysis, draftAnalysis, thicknessAnalysis]);
+  const activeGeometryFaceAnalysis = command?.type === 'geometryInspection' && command.inspectionMode === 'thickness' ? thicknessAnalysis : draftAnalysis;
   const surfaceContinuity = useMemo(() => analyzeSurfaceContinuity(engine.bodies), [engine.bodies]);
   const surfaceCurvature = useMemo(() => summarizeMeshCurvature(engine.bodies), [engine.bodies]);
   const selectedPrintFace = useMemo(() => {
@@ -3581,6 +3588,7 @@ export default function ModelingWorkspace() {
         measurement: command.type === 'measure' ? measurement : null,
         sectionAnalysis: command.type === 'sectionAnalysis' ? sectionAnalysis : null,
         massProperties: command.type === 'massProperties' ? massProperties : null,
+        inspectionMode: command.type === 'geometryInspection' ? command.inspectionMode : null,
         geometryInspection: command.type === 'geometryInspection' ? geometryInspection : null,
         surfaceAnalysis: command.type === 'surfaceAnalysis' ? { ...surfaceAnalysis, continuity: surfaceContinuity, curvature: surfaceCurvature } : null,
       } : null,
@@ -4587,7 +4595,7 @@ export default function ModelingWorkspace() {
     setNotice('Analiza geometrii: szybki filtr granic i dokładne sprawdzanie możliwych kolizji…');
     try {
       const analysis = await engine.analyzeCollisions();
-      setCommand({ type: 'geometryInspection', draftDirection: 'z-positive', draftTolerance: '0.5' });
+      setCommand({ type: 'geometryInspection', inspectionMode: 'draft', draftDirection: 'z-positive', draftTolerance: '0.5', thicknessTarget: '2', thicknessTolerance: '0.25' });
       setNotice(analysis.skippedPairs
         ? `Analiza częściowa · sprawdzono ${analysis.exactPairs}/${analysis.candidatePairs} par; pominięto ${analysis.skippedPairs} par mieszanych lub otwartych siatek.`
         : `Analiza zakończona · ${analysis.exactPairs}/${analysis.candidatePairs} par wymagało dokładnego przecięcia.`);
@@ -6761,7 +6769,7 @@ export default function ModelingWorkspace() {
             showProjectedGeometry={sketchOptions.projected}
             sliceModel={sketchOptions.slice}
             sectionAnalysis={sectionAnalysis}
-            draftAnalysis={draftAnalysis}
+            draftAnalysis={activeGeometryFaceAnalysis}
             surfaceAnalysis={surfaceAnalysis}
             parameters={document.parameters}
             showGrid={!activeSketchId || sketchOptions.grid}
@@ -6827,7 +6835,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'surfaceAnalysis' && surfaceAnalysis && <SurfaceAnalysisPanel analysis={surfaceAnalysis} continuity={surfaceContinuity} curvature={surfaceCurvature} onChange={(patch) => setSurfaceAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSurfaceAnalysis} />}
           {meshToolsOpen && selectedMeshBody && <MeshToolsPanel body={selectedMeshBody} report={selectedMeshReport} groups={selectedMeshFeature?.meshGroups || []} brepBlocker={meshBrepBlocker} readOnly={readOnly} onRepair={safelyRepairSelectedMesh} onOrient={orientSelectedMeshFaces} onFillHoles={fillSelectedMeshHoles} onReduce={reduceSelectedMesh} onSmooth={smoothSelectedMesh} onRemesh={remeshSelectedMesh} onGroup={groupSelectedMeshFaces} onConvertToBrep={convertSelectedMeshToBrep} onClose={() => setMeshToolsOpen(false)} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
-          {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} draftDirection={command.draftDirection} draftTolerance={command.draftTolerance} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
+          {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} inspectionMode={command.inspectionMode} draftDirection={command.draftDirection} draftTolerance={command.draftTolerance} thicknessTarget={command.thicknessTarget} thicknessTolerance={command.thicknessTolerance} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {namedViewsOpen && <NamedViewsPanel views={document.namedViews || []} currentCamera={currentCameraRef.current} readOnly={readOnly} onCreate={saveNamedView} onActivate={activateNamedView} onDelete={removeNamedView} onClose={() => setNamedViewsOpen(false)} />}
           {componentsOpen && <ComponentPanel
             document={document} bodies={engine.bodies} collisionResult={assemblyCollisionResult}

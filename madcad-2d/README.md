@@ -93,6 +93,7 @@ użyć `Control` + klik i wybrać **Otwórz**.
 - Osobne menu `Blacha` tworzy bazę z jednego zamkniętego profilu, parametryczne kołnierze z rzeczywistym promieniem, zawinięcia Hem 180° oraz kontrolowane szczeliny Rip na tej samej bryle B-Rep. `Rozwiń blachę` buduje ciągły wzór płaski z naddatkami promienia i K-factor, a `Zagnij ponownie` odzyskuje dokładną bryłę. Reguła zachowuje grubość, promień gięcia i współczynnik K; bryła jest oznaczona jako `BLACHA`, a wszystkie operacje współpracują z historią oraz Cofnij/Ponów bez utraty szkicu źródłowego. Arkusz 2D tworzy z tych danych skojarzoną tabelę gięć z kątem, promieniem, długością i naddatkiem BA, uwzględnianą w PDF/DXF.
 - Menu **SPRAWDŹ → Analiza powierzchni** udostępnia pasy zebra, mapę krzywizny, grzebień krzywizny krawędzi, izolinie XYZ i diagnostykę ciągłości granic ścian. Tryby są wyłącznie widokowe i nie dopisują operacji do historii.
 - Obszar **DOKUMENTACJA** tworzy zapisywane arkusze A4/A3, skojarzone widoki bazowe i rzutowane, przekroje A-A z kreskowaniem oraz powiększone detale. Widoki i ich wymiary, osie, znaczniki środka, opisy otworów/gwintów oraz tolerancje aktualizują się z modelem; tabliczka i rewizje są edytowalne, a gotowy arkusz można wyeksportować do PDF lub DXF.
+- `Analiza geometrii` przełącza mapę pochylenia i mapę grubości ścian. Grubość jest mierzona między najbliższymi przeciwległymi powierzchniami planarnymi lub współosiowymi walcami, porównywana z celem i tolerancją oraz kolorowana bez zmiany modelu.
 - Funkcje wstążki pokazują po najechaniu opis; skróty podstawowych narzędzi są widoczne tylko w podpowiedzi, nie na przyciskach.
 - **Import DWG** w aktywnym szkicu otwiera plik przez bezpieczny dialog desktopowy, konwertuje go lokalnie przez `dwgread`/`dwg2dxf` (GNU LibreDWG) albo ODA File Converter i przekazuje wynik do istniejącego importera DXF. Projekt nie jest wysyłany do usługi sieciowej.
 - Podstawowe skróty uruchamiają narzędzie natychmiast, bez osobnego wiersza poleceń.
@@ -121,5 +122,6 @@ Pełne warunki: [`../LICENSE`](../LICENSE). Kontakt handlowy:
 - [`docs/SURFACE_MODELING_AUDIT_2026-08-31.md`](./docs/SURFACE_MODELING_AUDIT_2026-08-31.md) — przepływ Patch/Surface Extrude/Thicken i wyniki testów B-Rep.
 - [`docs/MESH_TOOLS_AUDIT_2026-09-01.md`](./docs/MESH_TOOLS_AUDIT_2026-09-01.md) — diagnostyka, obróbka, remesh i bezpieczna konwersja siatki do B-Rep.
 - [`docs/SHEET_METAL_AUDIT_2026-09-01.md`](./docs/SHEET_METAL_AUDIT_2026-09-01.md) — kontrakt bazy blachowej, wynik B-Rep i dalsza kolejność modułu blach.
+- [`docs/PLASTIC_AUDIT_2026-09-01.md`](./docs/PLASTIC_AUDIT_2026-09-01.md) — zakres modułu Plastic, ukończone analizy i kolejność operacji konstrukcyjnych.
 - [`CHANGELOG.md`](./CHANGELOG.md) — historia wydań.
 - [`design-qa.md`](./design-qa.md) — kryteria jakości interfejsu.

@@ -76,7 +76,11 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Hem 180° z długością zakładki i kontrolowanym prześwitem oraz Rip odejmujący parametryczną szczelinę wzdłuż trwałej krawędzi.
   - [x] Unfold/Refold oraz ciągły flat pattern z naddatkami liczonymi z promienia, grubości i współczynnika K; ponowne zagięcie odzyskuje dokładną bryłę B-Rep.
   - [x] Skojarzona tabela gięć arkusza 2D z automatycznymi wierszami kołnierzy i Hem oraz eksportem PDF/DXF.
-- Boss, snap-fit, grille oraz analizy grubości i pochylenia.
+- [ ] Plastic: Boss, snap-fit, grille oraz analizy grubości i pochylenia.
+  - [x] Analiza pochylenia i grubości z mapą ścian, celem, tolerancją oraz rozpoznaniem par planarnych i współosiowych powierzchni walcowych.
+  - [ ] Parametryczny Boss osadzany na planarnej ścianie.
+  - [ ] Parametryczny snap-fit współpracujący z istniejącą bryłą.
+  - [ ] Parametryczne grille z kontrolą żeber i prześwitów.
 - SubD/T-Spline Form i konwersja do B-Rep.
 - Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.
 

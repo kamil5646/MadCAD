@@ -95,7 +95,7 @@ import { resolveFaceEdgeHolePlacement } from '../src/cad-core/face-edge-hole.js'
 import { applyHoleStandard } from '../src/cad-core/hole-standards.js';
 import { measureSelection } from '../src/cad-core/measure-selection.js';
 import { calculateMassProperties } from '../src/cad-core/mass-properties.js';
-import { DRAFT_DIRECTIONS, analyzeDraftAngles, boundsOverlap, summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
+import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, boundsOverlap, summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-profiles.js';
 import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, transformPrintPoint } from '../src/cad-core/print-layout.js';
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
@@ -1923,6 +1923,17 @@ test('analiza geometrii wybiera minimalny promień i zachowuje dokładne pary ko
   }], { direction: DRAFT_DIRECTIONS['z-positive'], tolerance: 0.5 });
   assert.deepEqual(draft.faces.map((face) => face.classification), ['positive', 'neutral', 'negative']);
   assert.deepEqual(draft.counts, { positive: 1, neutral: 1, negative: 1, mixed: 0 });
+  const thickness = analyzeWallThickness([{
+    id: 'shell-body',
+    topology: { faces: [
+      { id: 'outer', descriptor: { geometry: 'PLANE', center: [0, 0, 2], normal: [0, 0, 1] } },
+      { id: 'inner', descriptor: { geometry: 'PLANE', center: [0, 0, 0], normal: [0, 0, -1] } },
+    ] },
+    faceGroups: [{ topologyId: 'outer' }, { topologyId: 'inner' }],
+  }], { target: 2, tolerance: 0.2 });
+  assert.deepEqual(thickness.faces.map((face) => face.classification), ['nominal', 'nominal']);
+  assert.equal(thickness.minimum, 2);
+  assert.deepEqual(thickness.counts, { thin: 0, nominal: 2, thick: 0, unknown: 0 });
 });
 
 test('broad-phase kolizji odrzuca rozłączne AABB i zachowuje stykające się granice', () => {

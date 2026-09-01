@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DRAFT_DIRECTIONS, analyzeDraftAngles } from './geometry-inspection.js';
+import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness } from './geometry-inspection.js';
 
 describe('draft angle analysis', () => {
   it('classifies positive, negative, neutral and mixed faces from tessellated normals', () => {
@@ -25,5 +25,34 @@ describe('draft angle analysis', () => {
     expect(() => analyzeDraftAngles([], { direction: [0, 0, 0] })).toThrow(/niezerowym/);
     expect(() => analyzeDraftAngles([], { tolerance: 46 })).toThrow(/0–45/);
     expect(analyzeDraftAngles([{ id: 'mesh', faceGroups: [] }]).unsupportedBodies).toEqual(['mesh']);
+  });
+});
+
+describe('wall thickness analysis', () => {
+  it('measures opposing planes and concentric cylinders against a target', () => {
+    const faces = [
+      { id: 'outer-top', descriptor: { geometry: 'PLANE', center: [0, 0, 2], normal: [0, 0, 1] } },
+      { id: 'inner-top', descriptor: { geometry: 'PLANE', center: [0, 0, 0], normal: [0, 0, -1] } },
+      { id: 'outer-cylinder', descriptor: { geometry: 'CYLINDRE', radius: 8, axisOrigin: [0, 0, 0], axisDirection: [0, 0, 1] } },
+      { id: 'inner-cylinder', descriptor: { geometry: 'CYLINDRE', radius: 6.4, axisOrigin: [0, 0, 0], axisDirection: [0, 0, 1] } },
+    ];
+    const result = analyzeWallThickness([{ id: 'shell', topology: { faces }, faceGroups: faces.map((face, index) => ({ topologyId: face.id, start: index * 3, count: 3 })) }], { target: 2, tolerance: 0.25 });
+    expect(result.faces.map((face) => [face.faceId, face.thickness, face.classification])).toEqual([
+      ['outer-top', 2, 'nominal'],
+      ['inner-top', 2, 'nominal'],
+      ['outer-cylinder', 1.5999999999999996, 'thin'],
+      ['inner-cylinder', 1.5999999999999996, 'thin'],
+    ]);
+    expect(result.counts).toEqual({ thin: 2, nominal: 2, thick: 0, unknown: 0 });
+    expect(result.minimum).toBeCloseTo(1.6);
+    expect(result.method).toBe('opposing-surfaces');
+  });
+
+  it('reports unsupported faces and validates thresholds', () => {
+    const result = analyzeWallThickness([{ id: 'mesh', topology: { faces: [] }, faceGroups: [{ topologyId: 'face-1', start: 0, count: 3 }] }]);
+    expect(result.counts.unknown).toBe(1);
+    expect(result.unsupportedBodies).toEqual(['mesh']);
+    expect(() => analyzeWallThickness([], { target: 0 })).toThrow(/dodatnia/);
+    expect(() => analyzeWallThickness([], { target: 2, tolerance: 2 })).toThrow(/mniejsza/);
   });
 });

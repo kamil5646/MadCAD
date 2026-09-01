@@ -39,21 +39,28 @@ app.whenReady().then(async () => {
       select.dispatchEvent(new Event('change', { bubbles: true }));
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.geometryInspection?.draft?.direction?.[0] === 1`, 'zmiana kierunku');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.geometry-analysis-mode button')].find((button) => button.textContent.trim() === 'Grubość').click()`);
+    await waitFor(window, `document.querySelector('.thickness-analysis-section')?.checkVisibility() && window.__madcadVerifyDocumentState?.command?.inspectionMode === 'thickness' && window.__madcadVerifyDocumentState?.command?.geometryInspection?.thickness?.faces?.length > 0`, 'widoczna mapa grubości');
     const result = await window.webContents.executeJavaScript(`(() => {
       const panel = document.querySelector('.geometry-inspection-panel');
       const draft = window.__madcadVerifyDocumentState.command.geometryInspection.draft;
+      const thickness = window.__madcadVerifyDocumentState.command.geometryInspection.thickness;
       const rect = panel.getBoundingClientRect();
       return {
         faces: draft.faces.length,
         counts: draft.counts,
         direction: draft.direction,
-        legendEntries: panel.querySelectorAll('.draft-analysis-legend > div').length,
+        thicknessFaces: thickness.faces.length,
+        thicknessCounts: thickness.counts,
+        minimumThickness: thickness.minimum,
+        thicknessLegendEntries: panel.querySelectorAll('.thickness-analysis-legend > div').length,
+        activeMode: window.__madcadVerifyDocumentState.command.inspectionMode,
         insideViewport: rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight,
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (Object.values(result.counts).reduce((sum, value) => sum + value, 0) !== result.faces || result.legendEntries !== 4 || !result.insideViewport || result.horizontalOverflow) throw new Error(`Niepoprawna analiza pochylenia: ${JSON.stringify(result)}`);
+    if (Object.values(result.counts).reduce((sum, value) => sum + value, 0) !== result.faces || Object.values(result.thicknessCounts).reduce((sum, value) => sum + value, 0) !== result.thicknessFaces || result.thicknessLegendEntries !== 4 || result.activeMode !== 'thickness' || !result.insideViewport || result.horizontalOverflow) throw new Error(`Niepoprawna analiza pochylenia/grubości: ${JSON.stringify(result)}`);
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...result }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
