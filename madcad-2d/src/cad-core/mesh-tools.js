@@ -92,6 +92,171 @@ export function repairMesh(mesh, tolerance = DEFAULT_TOLERANCE) {
   return { mesh: repaired, before, after: inspectMesh(repaired, tolerance) };
 }
 
+function directedEdgeRecords(mesh) {
+  const edges = new Map();
+  for (let triangle = 0; triangle < mesh.triangles.length / 3; triangle += 1) {
+    const [a, b, c] = mesh.triangles.slice(triangle * 3, triangle * 3 + 3);
+    for (const [from, to] of [[a, b], [b, c], [c, a]]) {
+      const key = from < to ? `${from}:${to}` : `${to}:${from}`;
+      if (!edges.has(key)) edges.set(key, []);
+      edges.get(key).push({ triangle, from, to, key });
+    }
+  }
+  return edges;
+}
+
+function triangleSignedVolume(mesh, triangle, flipped = false) {
+  const indices = mesh.triangles.slice(triangle * 3, triangle * 3 + 3);
+  if (flipped) [indices[1], indices[2]] = [indices[2], indices[1]];
+  const [a, b, c] = indices.map((index) => point(mesh.vertices, index));
+  return dot(a, cross(b, c)) / 6;
+}
+
+export function orientMeshFaces(mesh, tolerance = DEFAULT_TOLERANCE) {
+  const repaired = repairMesh(mesh, tolerance).mesh;
+  const before = inspectMesh(repaired, tolerance);
+  const edges = directedEdgeRecords(repaired);
+  const adjacent = Array.from({ length: repaired.triangles.length / 3 }, () => []);
+  for (const records of edges.values()) {
+    if (records.length !== 2) continue;
+    adjacent[records[0].triangle].push([records[0], records[1]]);
+    adjacent[records[1].triangle].push([records[1], records[0]]);
+  }
+  const flips = new Array(repaired.triangles.length / 3).fill(null);
+  const components = [];
+  let orientationConflicts = 0;
+  for (let seed = 0; seed < flips.length; seed += 1) {
+    if (flips[seed] !== null) continue;
+    const component = [];
+    const queue = [seed];
+    flips[seed] = false;
+    for (let cursor = 0; cursor < queue.length; cursor += 1) {
+      const triangle = queue[cursor];
+      component.push(triangle);
+      for (const [current, neighbor] of adjacent[triangle]) {
+        const currentFrom = flips[triangle] ? current.to : current.from;
+        const currentTo = flips[triangle] ? current.from : current.to;
+        const requiredFlip = neighbor.from === currentFrom && neighbor.to === currentTo;
+        if (flips[neighbor.triangle] === null) {
+          flips[neighbor.triangle] = requiredFlip;
+          queue.push(neighbor.triangle);
+        } else if (flips[neighbor.triangle] !== requiredFlip) orientationConflicts += 1;
+      }
+    }
+    components.push(component);
+  }
+  let outwardComponents = 0;
+  for (const component of components) {
+    const componentSet = new Set(component);
+    const closed = [...edges.values()].every((records) => !records.some((record) => componentSet.has(record.triangle)) || records.length === 2);
+    if (!closed) continue;
+    const signedVolume = component.reduce((sum, triangle) => sum + triangleSignedVolume(repaired, triangle, flips[triangle]), 0);
+    if (signedVolume < -(tolerance ** 3)) {
+      component.forEach((triangle) => { flips[triangle] = !flips[triangle]; });
+      outwardComponents += 1;
+    }
+  }
+  const triangles = [...repaired.triangles];
+  flips.forEach((flipped, triangle) => {
+    if (!flipped) return;
+    const offset = triangle * 3;
+    [triangles[offset + 1], triangles[offset + 2]] = [triangles[offset + 2], triangles[offset + 1]];
+  });
+  const oriented = { vertices: [...repaired.vertices], triangles };
+  return {
+    mesh: oriented,
+    before,
+    after: inspectMesh(oriented, tolerance),
+    componentCount: components.length,
+    flippedTriangles: flips.filter(Boolean).length,
+    outwardComponents,
+    orientationConflicts: Math.floor(orientationConflicts / 2),
+  };
+}
+
+function boundaryLoops(mesh) {
+  const records = [...directedEdgeRecords(mesh).values()].filter((items) => items.length === 1).map((items) => items[0]);
+  const outgoing = new Map();
+  const incoming = new Map();
+  for (const record of records) {
+    if (!outgoing.has(record.from)) outgoing.set(record.from, []);
+    if (!incoming.has(record.to)) incoming.set(record.to, []);
+    outgoing.get(record.from).push(record);
+    incoming.get(record.to).push(record);
+  }
+  const invalidVertices = new Set([...new Set(records.flatMap((record) => [record.from, record.to]))].filter((vertex) => outgoing.get(vertex)?.length !== 1 || incoming.get(vertex)?.length !== 1));
+  const visited = new Set();
+  const loops = [];
+  let invalidChains = 0;
+  for (const seed of records) {
+    if (visited.has(seed.key)) continue;
+    const edges = [];
+    let current = seed;
+    let valid = true;
+    while (!visited.has(current.key)) {
+      visited.add(current.key);
+      edges.push(current);
+      if (invalidVertices.has(current.from) || invalidVertices.has(current.to)) { valid = false; break; }
+      const next = outgoing.get(current.to)?.[0];
+      if (!next) { valid = false; break; }
+      current = next;
+      if (current.from === seed.from) break;
+      if (edges.length > records.length) { valid = false; break; }
+    }
+    if (valid && current.from === seed.from && edges.length >= 3) loops.push(edges);
+    else invalidChains += 1;
+  }
+  return { loops, invalidChains };
+}
+
+export function fillMeshHoles(mesh, options = {}, tolerance = DEFAULT_TOLERANCE) {
+  const oriented = orientMeshFaces(mesh, tolerance);
+  if (oriented.after.nonManifoldEdges) throw new Error('Najpierw usuń krawędzie niemanifold; ich otoczenia nie można jednoznacznie uzupełnić.');
+  if (oriented.orientationConflicts) throw new Error('Siatka ma konflikt orientacji, którego nie można bezpiecznie rozwiązać automatycznie.');
+  const maximumDiameter = Number(options.maximumDiameter);
+  if (!Number.isFinite(maximumDiameter) || maximumDiameter <= tolerance * 10) throw new Error('Maksymalna średnica otworu musi być dodatnia.');
+  const maximumEdges = Math.min(256, Math.max(3, Math.round(Number(options.maximumEdges) || 64)));
+  const { loops, invalidChains } = boundaryLoops(oriented.mesh);
+  const vertices = [...oriented.mesh.vertices];
+  const triangles = [...oriented.mesh.triangles];
+  const filled = [];
+  const skipped = [];
+  for (const edges of loops) {
+    const loopVertices = edges.map((edge) => edge.from);
+    let diameter = 0;
+    for (let first = 0; first < loopVertices.length; first += 1) for (let second = first + 1; second < loopVertices.length; second += 1) {
+      diameter = Math.max(diameter, Math.hypot(...subtract(point(oriented.mesh.vertices, loopVertices[first]), point(oriented.mesh.vertices, loopVertices[second]))));
+    }
+    if (edges.length > maximumEdges || diameter > maximumDiameter) {
+      skipped.push({ edgeCount: edges.length, diameter, reason: edges.length > maximumEdges ? 'edge-limit' : 'diameter-limit' });
+      continue;
+    }
+    const center = [0, 0, 0];
+    loopVertices.forEach((vertex) => point(oriented.mesh.vertices, vertex).forEach((value, axis) => { center[axis] += value; }));
+    center.forEach((value, axis) => { center[axis] = value / loopVertices.length; });
+    const centerIndex = vertices.length / 3;
+    vertices.push(...center);
+    edges.forEach((edge) => triangles.push(edge.to, edge.from, centerIndex));
+    filled.push({ edgeCount: edges.length, diameter, insertedTriangles: edges.length });
+  }
+  const patched = cleanTriangles(vertices, triangles, tolerance);
+  const finalOrientation = orientMeshFaces(patched, tolerance);
+  return {
+    mesh: finalOrientation.mesh,
+    before: oriented.before,
+    after: finalOrientation.after,
+    holeCount: loops.length + invalidChains,
+    filledHoles: filled.length,
+    skippedHoles: skipped.length + invalidChains,
+    insertedTriangles: filled.reduce((sum, hole) => sum + hole.insertedTriangles, 0),
+    orientedTriangles: oriented.flippedTriangles + finalOrientation.flippedTriangles,
+    maximumDiameter,
+    maximumEdges,
+    filled,
+    skipped,
+  };
+}
+
 function clusterMesh(mesh, cellSize, tolerance) {
   const minimum = [Infinity, Infinity, Infinity];
   for (let index = 0; index < mesh.vertices.length / 3; index += 1) {

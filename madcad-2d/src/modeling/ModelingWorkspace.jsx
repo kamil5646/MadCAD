@@ -128,7 +128,7 @@ import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profi
 import { calculatePrintLayout, orientationForBedFace } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../cad-core/model-import.js';
-import { groupMeshFaces, inspectMesh, meshToBinaryStl, reduceMesh, remeshUniform, repairMesh, smoothMesh } from '../cad-core/mesh-tools.js';
+import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMeshFaces, reduceMesh, remeshUniform, repairMesh, smoothMesh } from '../cad-core/mesh-tools.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
@@ -4291,6 +4291,52 @@ export default function ModelingWorkspace() {
     }
   };
 
+  const orientSelectedMeshFaces = () => {
+    if (!selectedMeshFeature || readOnly) return;
+    try {
+      const result = orientMeshFaces(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)));
+      if (!result.flippedTriangles) {
+        setNotice('Kierunek ścian jest już spójny; nie zmieniono siatki.');
+        return;
+      }
+      const buffer = meshToBinaryStl(result.mesh);
+      commit((next) => {
+        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
+        feature.dataBase64 = arrayBufferToBase64(buffer);
+        feature.triangleCount = result.after.triangleCount;
+        feature.meshOperations = [...(feature.meshOperations || []), { type: 'orient', timestamp: new Date().toISOString(), flippedTriangles: result.flippedTriangles, componentCount: result.componentCount, outwardComponents: result.outwardComponents }];
+        feature.meshGroups = [];
+      });
+      setNotice(`Uporządkowano kierunek ${result.flippedTriangles.toLocaleString('pl-PL')} trójkątów w ${result.componentCount.toLocaleString('pl-PL')} komponentach. Cofnij przywraca poprzednią orientację.`);
+    } catch (error) {
+      setNotice(`Nie udało się uporządkować kierunku ścian: ${error.message}`);
+    }
+  };
+
+  const fillSelectedMeshHoles = (maximumDiameter) => {
+    if (!selectedMeshFeature || readOnly) return;
+    try {
+      const result = fillMeshHoles(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)), { maximumDiameter, maximumEdges: 64 });
+      if (!result.filledHoles) {
+        setNotice(result.holeCount
+          ? `Nie wypełniono otworów: wszystkie przekraczają limit ${result.maximumDiameter.toLocaleString('pl-PL')} mm albo nie tworzą prostej pętli.`
+          : 'Siatka nie ma otwartych pętli wymagających wypełnienia.');
+        return;
+      }
+      const buffer = meshToBinaryStl(result.mesh);
+      commit((next) => {
+        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
+        feature.dataBase64 = arrayBufferToBase64(buffer);
+        feature.triangleCount = result.after.triangleCount;
+        feature.meshOperations = [...(feature.meshOperations || []), { type: 'fillHoles', timestamp: new Date().toISOString(), maximumDiameter: result.maximumDiameter, maximumEdges: result.maximumEdges, filledHoles: result.filledHoles, skippedHoles: result.skippedHoles, insertedTriangles: result.insertedTriangles, orientedTriangles: result.orientedTriangles }];
+        feature.meshGroups = [];
+      });
+      setNotice(`Wypełniono ${result.filledHoles} ${result.filledHoles === 1 ? 'mały otwór' : 'małe otwory'} (${result.insertedTriangles} nowych trójkątów); pominięto ${result.skippedHoles}. Cofnij przywraca otwartą siatkę.`);
+    } catch (error) {
+      setNotice(`Nie udało się wypełnić otworów: ${error.message}`);
+    }
+  };
+
   const reduceSelectedMesh = (ratio) => {
     if (!selectedMeshFeature || readOnly) return;
     try {
@@ -6619,7 +6665,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
           {command?.type === 'surfaceAnalysis' && surfaceAnalysis && <SurfaceAnalysisPanel analysis={surfaceAnalysis} continuity={surfaceContinuity} curvature={surfaceCurvature} onChange={(patch) => setSurfaceAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSurfaceAnalysis} />}
-          {meshToolsOpen && selectedMeshBody && <MeshToolsPanel body={selectedMeshBody} report={selectedMeshReport} groups={selectedMeshFeature?.meshGroups || []} brepBlocker={meshBrepBlocker} readOnly={readOnly} onRepair={safelyRepairSelectedMesh} onReduce={reduceSelectedMesh} onSmooth={smoothSelectedMesh} onRemesh={remeshSelectedMesh} onGroup={groupSelectedMeshFaces} onConvertToBrep={convertSelectedMeshToBrep} onClose={() => setMeshToolsOpen(false)} />}
+          {meshToolsOpen && selectedMeshBody && <MeshToolsPanel body={selectedMeshBody} report={selectedMeshReport} groups={selectedMeshFeature?.meshGroups || []} brepBlocker={meshBrepBlocker} readOnly={readOnly} onRepair={safelyRepairSelectedMesh} onOrient={orientSelectedMeshFaces} onFillHoles={fillSelectedMeshHoles} onReduce={reduceSelectedMesh} onSmooth={smoothSelectedMesh} onRemesh={remeshSelectedMesh} onGroup={groupSelectedMeshFaces} onConvertToBrep={convertSelectedMeshToBrep} onClose={() => setMeshToolsOpen(false)} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} draftDirection={command.draftDirection} draftTolerance={command.draftTolerance} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {namedViewsOpen && <NamedViewsPanel views={document.namedViews || []} currentCamera={currentCameraRef.current} readOnly={readOnly} onCreate={saveNamedView} onActivate={activateNamedView} onDelete={removeNamedView} onClose={() => setNamedViewsOpen(false)} />}

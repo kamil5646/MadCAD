@@ -38,8 +38,16 @@ Zamknięta i spójnie zorientowana siatka bez degeneracji, duplikatów oraz kraw
 
 Konwersja jest celowo zablokowana dla siatek otwartych, niespójnych albo większych niż 2500 trójkątów, aby nie zamrażać interfejsu tysiącami faset B-Rep. Panel pokazuje stan `Niedostępne`, a pełny powód jest dostępny w podpowiedzi. Fasetową bryłę można jawnie przywrócić do siatki poleceniem `Przywróć siatkę`; oba kierunki zapisują się w historii i współpracują z Cofnij/Ponów.
 
-Test `verify:mesh-to-brep` importuje zamknięty sześcian STL z 12 trójkątów, uruchamia konwersję, czeka na rzeczywisty wynik B-Rep i potwierdza 12 ścian, 18 krawędzi oraz objętość 1000 mm³. Następnie sprawdza konwersję powrotną, Cofnij i Ponów. Dalszym, osobnym zakresem pozostaje naprawa kierunku ścian i kontrolowane uzupełnianie rzeczywistych otworów skanów.
+Test `verify:mesh-to-brep` importuje zamknięty sześcian STL z 12 trójkątów, uruchamia konwersję, czeka na rzeczywisty wynik B-Rep i potwierdza 12 ścian, 18 krawędzi oraz objętość 1000 mm³. Następnie sprawdza konwersję powrotną, Cofnij i Ponów.
+
+## Naprawa skanów
+
+Panel dzieli funkcje na dwie czytelne grupy `Naprawa` i `Obróbka`. `Kierunek ścian` przechodzi po spójnych komponentach, odwraca sąsiednie trójkąty mające jednakowy kierunek wspólnej krawędzi, a zamknięte komponenty ustawia normalnymi na zewnątrz według znaku objętości. Konflikt topologiczny zatrzymuje operację zamiast zgadywać wynik.
+
+`Małe otwory` działa wyłącznie na prostych, zamkniętych pętlach brzegowych siatki manifold. Użytkownik podaje maksymalną średnicę, a pojedynczy otwór ma dodatkowy limit 64 krawędzi. Większe lub niejednoznaczne braki są pomijane i raportowane; każdy zaakceptowany otwór otrzymuje wspólny punkt oraz wachlarz spójnie skierowanych trójkątów. Operacja zapisuje liczbę wypełnionych i pominiętych otworów, nowe trójkąty oraz korektę orientacji i jest w pełni odwracalna.
+
+Test `verify:mesh-scan-repair` importuje sześcian z odwróconą ścianą i otwartą górą. Interfejs wykrywa cztery otwarte krawędzie i niespójną orientację, porządkuje ściany, wypełnia jeden otwór czterema trójkątami, uzyskuje zamkniętą siatkę 14 trójkątów, a następnie tworzy B-Rep o objętości 1000 mm³. Test obejmuje Cofnij/Ponów, pełne zmieszczenie panelu w polu roboczym i brak przepełnienia.
 
 ## Instalacja lokalna
 
-Build arm64 z pełnym remeshem i odwracalną konwersją Mesh/B-Rep zastąpił `/Applications/MadCAD.app`, otrzymał lokalny podpis ad-hoc i przeszedł `codesign --verify --deep --strict`. Źródłowy i zainstalowany `app.asar` mają SHA-256 `444f709b2209cd640a308b884563163063302fd2da90970af4f73ab445603f8e`. Poprzednią aplikację zachowano odwracalnie w Koszu jako `MadCAD-before-mesh-brep-20260901.app`; GitHub nie został zmieniony.
+Build arm64 z pełnym remeshem, konwersją Mesh/B-Rep i kontrolowaną naprawą skanów zastąpił `/Applications/MadCAD.app`, otrzymał lokalny podpis ad-hoc i przeszedł `codesign --verify --deep --strict`. Źródłowy i zainstalowany `app.asar` mają SHA-256 `abe0cb70ffa7674b423f7785e5a4e7cd869c3522283403f9a72762545e299cf3`. Poprzednią aplikację zachowano odwracalnie w Koszu jako `MadCAD-before-scan-repair-20260901.app`; GitHub nie został zmieniony.

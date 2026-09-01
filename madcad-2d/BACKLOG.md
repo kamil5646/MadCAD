@@ -62,11 +62,11 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Surface Extrude, Surface Revolve, Surface Sweep, Surface Loft, Surface Offset, Patch, Stitch i Thicken.
 - [x] Surface Trim/Extend: przycinanie powierzchni bryłą oraz przedłużanie prostej krawędzi planarnej powierzchni, oba z historią, podglądem i współpracą z Thicken.
 - [x] Curvature map/comb, zebra, izolinie XYZ i diagnostyka ciągłości powierzchni w jednym nieinwazyjnym panelu analitycznym.
-- [ ] Mesh groups, convert mesh/B-Rep, reduce, remesh, smooth i naprawa skanów.
+- [x] Mesh groups, convert mesh/B-Rep, reduce, remesh, smooth i kontrolowana naprawa skanów.
   - [x] Diagnostyka siatki i bezpieczne czyszczenie: scalanie współrzędnych, usuwanie trójkątów zerowych i zdublowanych, raport otwartych/niemanifold krawędzi oraz niespójnej orientacji.
   - [x] Kontrolowana redukcja, wygładzanie z ochroną otwartych brzegów i grupowanie ścian według kąta cechy.
   - [x] Jednorodny remesh oraz kontrolowana, odwracalna konwersja zamkniętej siatki Mesh/B-Rep.
-  - [ ] Naprawa kierunku ścian i kontrolowane uzupełnianie otworów skanów z podglądem zakresu zmiany.
+  - [x] Naprawa kierunku ścian i kontrolowane uzupełnianie małych otworów skanów z jawnym limitem średnicy, licznikiem zmian oraz Cofnij/Ponów.
 
 ### Sheet Metal, Plastic, Form i szkic 3D
 

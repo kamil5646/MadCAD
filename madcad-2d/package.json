@@ -20,6 +20,7 @@
     "verify:extrude-after-sketch": "npm run build:ui && electron scripts/verify-extrude-after-sketch.cjs",
     "verify:model-import": "npm run build:ui && electron scripts/verify-model-import.cjs",
     "verify:mesh-repair": "npm run build:ui && electron scripts/verify-mesh-repair.cjs",
+    "verify:mesh-scan-repair": "npm run build:ui && electron scripts/verify-mesh-scan-repair.cjs",
     "verify:mesh-operations": "npm run build:ui && electron scripts/verify-mesh-operations.cjs",
     "verify:mesh-to-brep": "npm run build:ui && electron scripts/verify-mesh-to-brep.cjs",
     "verify:viewport-navigation": "npm run build:ui && electron scripts/verify-viewport-navigation.cjs",

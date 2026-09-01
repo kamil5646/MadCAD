@@ -45,6 +45,8 @@ app.whenReady().then(async () => {
     await waitFor(window, `[...document.querySelectorAll('.adaptive-tool-shelf button')].some((button) => button.textContent.includes('Narzędzia siatki'))`, 'kontekst narzędzi siatki');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-shelf button')].find((button) => button.textContent.includes('Narzędzia siatki')).click()`);
     await waitFor(window, `document.querySelector('.mesh-tools-panel')`, 'panel narzędzi');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.mesh-panel-tabs button')].find((button) => button.textContent.includes('Obróbka')).click()`);
+    await waitFor(window, `[...document.querySelectorAll('.mesh-operation-controls button')].some((button) => button.textContent.includes('Redukuj'))`, 'grupa obróbki siatki');
 
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.mesh-operation-controls button')].find((button) => button.textContent.includes('Redukuj')).click()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState.bodies[0].triangles.length / 3 < 128 && window.__madcadVerifyDocumentState.featureData.find((feature) => feature.type === 'importedModel')?.meshOperations?.at(-1)?.type === 'reduce'`, 'zredukowana siatka');

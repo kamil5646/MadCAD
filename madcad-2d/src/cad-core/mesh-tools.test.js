@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupMeshFaces, inspectMesh, meshToBinaryStl, reduceMesh, remeshUniform, repairMesh, smoothMesh } from './mesh-tools.js';
+import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMeshFaces, reduceMesh, remeshUniform, repairMesh, smoothMesh } from './mesh-tools.js';
 import { parseStlMesh } from './model-import.js';
 
 describe('mesh diagnostics and safe repair', () => {
@@ -73,5 +73,32 @@ describe('mesh diagnostics and safe repair', () => {
     expect(result.after.maximumEdgeLength).toBeLessThanOrEqual(7.5 + 1e-6);
     expect(Math.abs(result.after.averageEdgeLength - 5)).toBeLessThan(Math.abs(result.before.averageEdgeLength - 5));
     expect(result.after.degenerateTriangles).toBe(0);
+  });
+
+  it('orients adjacent faces consistently', () => {
+    const mesh = {
+      vertices: [0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0],
+      triangles: [0, 1, 2, 0, 3, 2],
+    };
+    expect(inspectMesh(mesh).inconsistentEdges).toBe(1);
+    const result = orientMeshFaces(mesh);
+    expect(result.flippedTriangles).toBe(1);
+    expect(result.after.inconsistentEdges).toBe(0);
+  });
+
+  it('fills only boundary loops within the explicit diameter limit', () => {
+    const openCube = {
+      vertices: [0, 0, 0, 10, 0, 0, 10, 10, 0, 0, 10, 0, 0, 0, 10, 10, 0, 10, 10, 10, 10, 0, 10, 10],
+      triangles: [0, 2, 1, 0, 3, 2, 0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7],
+    };
+    expect(inspectMesh(openCube).boundaryEdges).toBe(4);
+    const skipped = fillMeshHoles(openCube, { maximumDiameter: 5 });
+    expect(skipped.filledHoles).toBe(0);
+    expect(skipped.after.boundaryEdges).toBe(4);
+    const result = fillMeshHoles(openCube, { maximumDiameter: 20 });
+    expect(result.filledHoles).toBe(1);
+    expect(result.insertedTriangles).toBe(4);
+    expect(result.after.boundaryEdges).toBe(0);
+    expect(result.after.inconsistentEdges).toBe(0);
   });
 });
