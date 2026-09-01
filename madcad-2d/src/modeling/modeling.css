@@ -4128,10 +4128,21 @@
 
 .mesh-tools-panel .measure-panel-body {
   display: grid;
-  gap: 6px;
-  max-height: calc(100vh - 92px);
+  min-height: 0;
+  flex: 1;
+  gap: 5px;
+  padding: 8px 12px 9px;
   overflow-y: auto;
 }
+
+.mesh-tools-panel {
+  display: flex;
+  width: 300px;
+  max-height: calc(100% - 28px);
+  flex-direction: column;
+}
+
+.mesh-tools-panel > header { flex: 0 0 36px; }
 
 .mesh-diagnostics-grid {
   display: grid;
@@ -4153,7 +4164,7 @@
 
 .mesh-action-button {
   display: flex;
-  min-height: 31px;
+  min-height: 29px;
   align-items: center;
   justify-content: center;
   gap: 7px;
@@ -4175,17 +4186,18 @@
 
 .mesh-operation-section {
   display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
   gap: 5px;
+  align-items: end;
   margin-top: 2px;
-  padding-top: 7px;
+  padding-top: 5px;
   border-top: 1px solid #4f5b68;
 }
 
 .mesh-operation-section > header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
+  display: grid;
+  gap: 2px;
+  align-self: center;
 }
 
 .mesh-operation-section > header strong { font-size: 11px; }
@@ -4199,6 +4211,7 @@
 }
 
 .mesh-operation-controls.two-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 70px; }
+.mesh-operation-controls.single-button { grid-template-columns: 1fr; }
 .mesh-operation-controls .command-field { display: grid; grid-template-columns: 1fr; gap: 3px; }
 .mesh-operation-controls .command-field > span { font-size: 9px; }
 .mesh-operation-controls .command-input-wrap { min-width: 0; }
@@ -4219,6 +4232,7 @@
 
 .mesh-group-summary {
   display: flex;
+  grid-column: 2;
   justify-content: space-between;
   gap: 8px;
   color: #aebac4;
@@ -4226,6 +4240,13 @@
 }
 
 .mesh-group-summary strong { color: #dce7ee; font-size: 9px; }
+
+.mesh-conversion-section > header span {
+  overflow: hidden;
+  max-width: 82px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .layers-panel {
   top: 14px;

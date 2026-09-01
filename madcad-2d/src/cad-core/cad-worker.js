@@ -22,6 +22,7 @@ import {
   makeBox,
   makeCylinder,
   makeOffset,
+  makePolygon,
   makeSolid,
   makeSphere,
   sketchHelix,
@@ -40,6 +41,7 @@ import { calculatePrintLayout, normalizePrintLayout } from './print-layout.js';
 import { createThreeMfArchive } from './three-mf.js';
 import { boundsOverlap } from './geometry-inspection.js';
 import { parseStlMesh } from './model-import.js';
+import { inspectMesh } from './mesh-tools.js';
 
 let kernelPromise;
 let manifoldPromise;
@@ -650,6 +652,30 @@ function stitchSurfaceShapes(shapes, tolerance) {
   }
 }
 
+function facetedBrepFromMesh(mesh, tolerance = GEOMETRY_POLICY.linearTolerance) {
+  const report = inspectMesh(mesh, tolerance);
+  if (report.degenerateTriangles || report.duplicateTriangles) throw new Error('Konwersja B-Rep wymaga wcześniejszego oczyszczenia trójkątów zerowych i powtórzonych.');
+  if (report.boundaryEdges) throw new Error(`Konwersja B-Rep wymaga zamkniętej siatki; wykryto ${report.boundaryEdges} otwartych krawędzi.`);
+  if (report.nonManifoldEdges) throw new Error(`Konwersja B-Rep wymaga siatki manifold; wykryto ${report.nonManifoldEdges} krawędzi niemanifold.`);
+  if (report.inconsistentEdges) throw new Error(`Konwersja B-Rep wymaga spójnej orientacji; wykryto ${report.inconsistentEdges} niespójnych krawędzi.`);
+  if (report.triangleCount > 2500) throw new Error(`Kontrolowana konwersja B-Rep obsługuje do 2 500 trójkątów; bieżąca siatka ma ${report.triangleCount.toLocaleString('pl-PL')}. Najpierw użyj Redukcji.`);
+  const faces = [];
+  try {
+    for (let offset = 0; offset < mesh.triangles.length; offset += 3) {
+      const vertices = mesh.triangles.slice(offset, offset + 3).map((index) => mesh.vertices.slice(index * 3, index * 3 + 3));
+      faces.push(makePolygon(vertices));
+    }
+    const stitched = stitchSurfaceShapes(faces, Math.max(tolerance, 1e-5));
+    if (stitched.bodyKind !== 'solid') {
+      stitched.shape.delete?.();
+      throw new Error(`OpenCascade nie domknął płaszcza; pozostało ${stitched.freeEdges} wolnych krawędzi.`);
+    }
+    return stitched.shape;
+  } finally {
+    faces.forEach((face) => face.delete?.());
+  }
+}
+
 function trimSurfaceWithSolid(surface, tool) {
   const oc = getOC();
   const progress = new oc.Message_ProgressRange_1();
@@ -1019,8 +1045,8 @@ function runFeature(feature, bodyMap, bodyOrder) {
       id: bodyId,
       name: feature.name,
       sourceFeatureId: feature.id,
-      representation: feature.importFormat === 'step' ? 'brep' : 'mesh-import',
-      meshBooleanCapable: feature.importFormat === 'step' || feature.meshBooleanCapable !== false,
+      representation: feature.importFormat === 'step' || feature.representationMode === 'brep-faceted' ? 'brep' : 'mesh-import',
+      meshBooleanCapable: feature.importFormat === 'step' || feature.representationMode === 'brep-faceted' || feature.meshBooleanCapable !== false,
       shape: feature.importedShape,
     });
     bodyOrder.push(bodyId);
@@ -2016,6 +2042,7 @@ async function evaluateRevision(document, quality) {
     let importedShape;
     let meshBooleanCapable = true;
     if (feature.importFormat === 'step') importedShape = await importSTEP(blob);
+    else if (feature.representationMode === 'brep-faceted') importedShape = facetedBrepFromMesh(parseStlMesh(bytes));
     else {
       try {
         await ensureMeshKernel();

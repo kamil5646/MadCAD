@@ -128,7 +128,7 @@ import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profi
 import { calculatePrintLayout, orientationForBedFace } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../cad-core/model-import.js';
-import { groupMeshFaces, inspectMesh, meshToBinaryStl, reduceMesh, repairMesh, smoothMesh } from '../cad-core/mesh-tools.js';
+import { groupMeshFaces, inspectMesh, meshToBinaryStl, reduceMesh, remeshUniform, repairMesh, smoothMesh } from '../cad-core/mesh-tools.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
@@ -1113,6 +1113,9 @@ export default function ModelingWorkspace() {
   const selectedBodies = selectedBodyIds.map((bodyId) => engine.bodies.find((body) => body.id === bodyId)).filter(Boolean);
   const selectedMeshBody = selectedBodies.length === 1 && selectedBodies[0].representation === 'mesh-import' ? selectedBodies[0] : null;
   const selectedMeshFeature = selectedMeshBody ? document.features.find((feature) => feature.id === selectedMeshBody.sourceFeatureId && feature.type === 'importedModel' && feature.importFormat === 'stl') || null : null;
+  const selectedFacetedBrepFeature = selectedBodies.length === 1 && selectedBodies[0].representation === 'brep'
+    ? document.features.find((feature) => feature.id === selectedBodies[0].sourceFeatureId && feature.type === 'importedModel' && feature.representationMode === 'brep-faceted') || null
+    : null;
   const selectedMeshReport = useMemo(() => {
     if (!selectedMeshFeature) return null;
     try {
@@ -1121,6 +1124,19 @@ export default function ModelingWorkspace() {
       return null;
     }
   }, [selectedMeshFeature]);
+  const meshBrepBlocker = !selectedMeshReport
+    ? 'Nie można odczytać siatki.'
+    : selectedMeshReport.degenerateTriangles || selectedMeshReport.duplicateTriangles
+      ? 'Najpierw wykonaj bezpieczną naprawę.'
+      : selectedMeshReport.boundaryEdges
+        ? `Siatka ma ${selectedMeshReport.boundaryEdges} otwartych krawędzi.`
+        : selectedMeshReport.nonManifoldEdges
+          ? `Siatka ma ${selectedMeshReport.nonManifoldEdges} krawędzi niemanifold.`
+          : selectedMeshReport.inconsistentEdges
+            ? `Siatka ma ${selectedMeshReport.inconsistentEdges} niespójnych krawędzi.`
+            : selectedMeshReport.triangleCount > 2500
+              ? 'Najpierw zredukuj do 2 500 trójkątów.'
+              : '';
   const selectedSurfaceBodies = selectedBodies.filter((body) => body.bodyKind === 'surface');
   const selectedSolidBodies = selectedBodies.filter((body) => body.bodyKind !== 'surface');
   const canStitchSelectedSurfaces = selectedBodyIds.length >= 2 && selectedSurfaceBodies.length === selectedBodyIds.length;
@@ -3495,7 +3511,7 @@ export default function ModelingWorkspace() {
       bodyKinds: engine.bodies.map((body) => body.bodyKind || 'solid'),
       drawings: document.drawings.map((sheet) => ({ ...sheet, views: sheet.views.map((view) => ({ ...view })) })),
       featureIds: document.features.map((feature) => feature.id),
-      featureData: document.features.map((feature) => ({ id: feature.id, name: feature.name, type: feature.type, suppressed: feature.suppressed, visible: feature.visible !== false, sketchId: feature.sketchId, sketchIds: feature.sketchIds, profileId: feature.profileId, profileIds: feature.profileIds, pathSketchId: feature.pathSketchId, pathEntityIds: feature.pathEntityIds, loftMode: feature.loftMode, ribMode: feature.ribMode, patternType: feature.patternType, countX: feature.countX, countY: feature.countY, spacingX: feature.spacingX, spacingY: feature.spacingY, occurrences: feature.occurrences, totalAngle: feature.totalAngle, thickness: feature.thickness, tolerance: feature.tolerance, reverse: feature.reverse, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, holeStandard: feature.holeStandard, holeApplication: feature.holeApplication, standardSize: feature.standardSize, clearanceClass: feature.clearanceClass, threadClass: feature.threadClass, threadDesignation: feature.threadDesignation, threadInspection: feature.threadInspection, pipePreparation: feature.pipePreparation, threadTaper: feature.threadTaper, threadProfileAngle: feature.threadProfileAngle, diameterToleranceLower: feature.diameterToleranceLower, diameterToleranceUpper: feature.diameterToleranceUpper, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, outsideDiameter: feature.outsideDiameter, wallSide: feature.wallSide, endCap: feature.endCap, openEntityIds: feature.openEntityIds, depth: feature.depth, diameter: feature.diameter, coilDiameter: feature.coilDiameter, wireDiameter: feature.wireDiameter, pitch: feature.pitch, turns: feature.turns, handedness: feature.handedness, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, targetBodyIds: feature.targetBodyIds, toolBodyId: feature.toolBodyId, keepTool: feature.keepTool, neutralPlaneId: feature.neutralPlaneId, planeId: feature.planeId, axisId: feature.axisId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle, triangleCount: feature.triangleCount, meshGroups: feature.meshGroups, meshGroupAngle: feature.meshGroupAngle, meshOperations: feature.meshOperations })),
+      featureData: document.features.map((feature) => ({ id: feature.id, name: feature.name, type: feature.type, suppressed: feature.suppressed, visible: feature.visible !== false, sketchId: feature.sketchId, sketchIds: feature.sketchIds, profileId: feature.profileId, profileIds: feature.profileIds, pathSketchId: feature.pathSketchId, pathEntityIds: feature.pathEntityIds, loftMode: feature.loftMode, ribMode: feature.ribMode, patternType: feature.patternType, countX: feature.countX, countY: feature.countY, spacingX: feature.spacingX, spacingY: feature.spacingY, occurrences: feature.occurrences, totalAngle: feature.totalAngle, thickness: feature.thickness, tolerance: feature.tolerance, reverse: feature.reverse, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, holeStandard: feature.holeStandard, holeApplication: feature.holeApplication, standardSize: feature.standardSize, clearanceClass: feature.clearanceClass, threadClass: feature.threadClass, threadDesignation: feature.threadDesignation, threadInspection: feature.threadInspection, pipePreparation: feature.pipePreparation, threadTaper: feature.threadTaper, threadProfileAngle: feature.threadProfileAngle, diameterToleranceLower: feature.diameterToleranceLower, diameterToleranceUpper: feature.diameterToleranceUpper, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, outsideDiameter: feature.outsideDiameter, wallSide: feature.wallSide, endCap: feature.endCap, openEntityIds: feature.openEntityIds, depth: feature.depth, diameter: feature.diameter, coilDiameter: feature.coilDiameter, wireDiameter: feature.wireDiameter, pitch: feature.pitch, turns: feature.turns, handedness: feature.handedness, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, targetBodyIds: feature.targetBodyIds, toolBodyId: feature.toolBodyId, keepTool: feature.keepTool, neutralPlaneId: feature.neutralPlaneId, planeId: feature.planeId, axisId: feature.axisId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle, triangleCount: feature.triangleCount, representationMode: feature.representationMode, meshGroups: feature.meshGroups, meshGroupAngle: feature.meshGroupAngle, meshOperations: feature.meshOperations })),
       references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, rotationAxis: reference.rotationAxis, angle: reference.angle, surfaceType: reference.surfaceType, center: reference.center, point: reference.point, axis: reference.axis, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, distance: reference.distance, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId, repairedAt: reference.repairedAt })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
@@ -4315,6 +4331,28 @@ export default function ModelingWorkspace() {
     }
   };
 
+  const remeshSelectedMesh = (targetEdgeLength) => {
+    if (!selectedMeshFeature || readOnly) return;
+    try {
+      const result = remeshUniform(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)), targetEdgeLength);
+      if (!result.collapsedEdges && !result.insertedVertices) {
+        setNotice(`Siatka już mieści się w zakresie docelowej krawędzi ${result.targetEdgeLength.toLocaleString('pl-PL')} mm.`);
+        return;
+      }
+      const buffer = meshToBinaryStl(result.mesh);
+      commit((next) => {
+        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
+        feature.dataBase64 = arrayBufferToBase64(buffer);
+        feature.triangleCount = result.after.triangleCount;
+        feature.meshOperations = [...(feature.meshOperations || []), { type: 'remesh', timestamp: new Date().toISOString(), targetEdgeLength: result.targetEdgeLength, beforeTriangles: result.before.triangleCount, afterTriangles: result.after.triangleCount, collapsedEdges: result.collapsedEdges, insertedVertices: result.insertedVertices }];
+        feature.meshGroups = [];
+      });
+      setNotice(`Przebudowano siatkę do krawędzi około ${result.targetEdgeLength.toLocaleString('pl-PL')} mm: ${result.before.triangleCount.toLocaleString('pl-PL')} → ${result.after.triangleCount.toLocaleString('pl-PL')} trójkątów. Cofnij przywraca poprzednią siatkę.`);
+    } catch (error) {
+      setNotice(`Nie udało się wykonać remesh: ${error.message}`);
+    }
+  };
+
   const groupSelectedMeshFaces = (featureAngle) => {
     if (!selectedMeshFeature || readOnly) return;
     try {
@@ -4333,6 +4371,31 @@ export default function ModelingWorkspace() {
     } catch (error) {
       setNotice(`Nie udało się pogrupować ścian siatki: ${error.message}`);
     }
+  };
+
+  const convertSelectedMeshToBrep = () => {
+    if (!selectedMeshFeature || readOnly) return;
+    if (meshBrepBlocker) {
+      setNotice(`Nie można utworzyć B-Rep: ${meshBrepBlocker}`);
+      return;
+    }
+    commit((next) => {
+      const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
+      feature.representationMode = 'brep-faceted';
+      feature.meshOperations = [...(feature.meshOperations || []), { type: 'convertToBrep', timestamp: new Date().toISOString(), triangleCount: selectedMeshReport.triangleCount }];
+    });
+    setMeshToolsOpen(false);
+    setNotice(`Tworzenie fasetowej bryły B-Rep z ${selectedMeshReport.triangleCount.toLocaleString('pl-PL')} trójkątów. Cofnij przywraca edytowalną siatkę.`);
+  };
+
+  const restoreSelectedBrepToMesh = () => {
+    if (!selectedFacetedBrepFeature || readOnly) return;
+    commit((next) => {
+      const feature = next.features.find((item) => item.id === selectedFacetedBrepFeature.id);
+      feature.representationMode = 'mesh';
+      feature.meshOperations = [...(feature.meshOperations || []), { type: 'convertToMesh', timestamp: new Date().toISOString(), triangleCount: feature.triangleCount }];
+    });
+    setNotice('Przywracanie siatki źródłowej STL. Cofnij ponownie włącza fasetową bryłę B-Rep.');
   };
 
   const openMassProperties = () => {
@@ -6120,6 +6183,7 @@ export default function ModelingWorkspace() {
           ...(multipleSurfaceSelection ? [{ icon: Layers3, label: 'Zszyj powierzchnie', onClick: openSurfaceStitch, primary: true }] : []),
           ...(trimSelection ? [{ icon: Scissors, label: 'Przytnij powierzchnię', onClick: openSurfaceTrim, primary: true }] : []),
           ...(canBooleanSelectedBodies ? [{ icon: BooleanCadIcon, label: 'Połącz / odejmij', onClick: openBoolean, primary: true }] : []),
+          ...(selectedFacetedBrepFeature ? [{ icon: ScanSearch, label: 'Przywróć siatkę', onClick: restoreSelectedBrepToMesh, primary: true }] : []),
           ...(selectedBodyIds.length === 1 ? [
             { icon: MoveBodyCadIcon, label: 'Przesuń', onClick: () => openTransform('move'), primary: !surfaceSelection },
             { icon: RotateBodyCadIcon, label: 'Obróć', onClick: () => openTransform('rotate') },
@@ -6339,6 +6403,7 @@ export default function ModelingWorkspace() {
                   { icon: OffsetFaceCadIcon, label: 'Offset Face', displayLabel: 'Odsuń ścianę', onClick: openOffsetFace, disabled: readOnly || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz dokładnie jedną płaską ścianę.' },
                   { icon: DeleteFaceCadIcon, label: 'Delete Face + Heal', displayLabel: 'Usuń i napraw ścianę', onClick: openDeleteFace, disabled: readOnly || !selectedFaceItems.length, disabledReason: 'Zaznacz ściany do usunięcia.' },
                   { icon: ScanSearch, label: 'Narzędzia siatki', onClick: openMeshTools, disabled: readOnly || !selectedMeshFeature, disabledReason: 'Zaznacz jedną zaimportowaną siatkę STL albo 3MF.' },
+                  { icon: ScanSearch, label: 'Przywróć siatkę', onClick: restoreSelectedBrepToMesh, disabled: readOnly || !selectedFacetedBrepFeature, disabledReason: 'Zaznacz model STL przekonwertowany do fasetowego B-Rep.' },
                   { icon: MoveBodyCadIcon, label: 'Przesuń bryłę', onClick: () => openTransform('move'), disabled: readOnly || selection?.kind !== 'body' },
                   { icon: RotateBodyCadIcon, label: 'Obróć bryłę', onClick: () => openTransform('rotate'), disabled: readOnly || selection?.kind !== 'body' },
                   { icon: EditFeatureCadIcon, label: 'Edytuj', onClick: editSelection, disabled: readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind) },
@@ -6554,7 +6619,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
           {command?.type === 'surfaceAnalysis' && surfaceAnalysis && <SurfaceAnalysisPanel analysis={surfaceAnalysis} continuity={surfaceContinuity} curvature={surfaceCurvature} onChange={(patch) => setSurfaceAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSurfaceAnalysis} />}
-          {meshToolsOpen && selectedMeshBody && <MeshToolsPanel body={selectedMeshBody} report={selectedMeshReport} groups={selectedMeshFeature?.meshGroups || []} readOnly={readOnly} onRepair={safelyRepairSelectedMesh} onReduce={reduceSelectedMesh} onSmooth={smoothSelectedMesh} onGroup={groupSelectedMeshFaces} onClose={() => setMeshToolsOpen(false)} />}
+          {meshToolsOpen && selectedMeshBody && <MeshToolsPanel body={selectedMeshBody} report={selectedMeshReport} groups={selectedMeshFeature?.meshGroups || []} brepBlocker={meshBrepBlocker} readOnly={readOnly} onRepair={safelyRepairSelectedMesh} onReduce={reduceSelectedMesh} onSmooth={smoothSelectedMesh} onRemesh={remeshSelectedMesh} onGroup={groupSelectedMeshFaces} onConvertToBrep={convertSelectedMeshToBrep} onClose={() => setMeshToolsOpen(false)} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} draftDirection={command.draftDirection} draftTolerance={command.draftTolerance} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {namedViewsOpen && <NamedViewsPanel views={document.namedViews || []} currentCamera={currentCameraRef.current} readOnly={readOnly} onCreate={saveNamedView} onActivate={activateNamedView} onDelete={removeNamedView} onClose={() => setNamedViewsOpen(false)} />}

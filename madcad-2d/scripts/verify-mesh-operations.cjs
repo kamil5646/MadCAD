@@ -53,25 +53,37 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.mesh-operation-controls button')].find((button) => button.textContent.includes('Wygładź')).click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.featureData.find((feature) => feature.type === 'importedModel')?.meshOperations?.at(-1)?.type === 'smooth'`, 'wygładzona siatka');
 
+    await window.webContents.executeJavaScript(`(() => {
+      const section = [...document.querySelectorAll('.mesh-operation-section')].find((item) => item.textContent.includes('Przebudowa'));
+      const input = section.querySelector('input');
+      const key = Object.keys(input).find((item) => item.startsWith('__reactProps'));
+      input[key].onChange({ target: { value: '4' } });
+    })()`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.mesh-operation-controls button')].find((button) => button.textContent.includes('Przebuduj')).click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState.featureData.find((feature) => feature.type === 'importedModel')?.meshOperations?.at(-1)?.type === 'remesh'`, 'jednorodny remesh');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState.bodies[0].triangles.length / 3 === window.__madcadVerifyDocumentState.featureData.find((feature) => feature.type === 'importedModel')?.triangleCount`, 'przebudowana geometria w silniku');
+    const remeshedTriangles = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].triangles.length / 3`);
+
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.mesh-operation-controls button')].find((button) => button.textContent.includes('Grupuj')).click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.featureData.find((feature) => feature.type === 'importedModel')?.meshGroups?.length === 1`, 'grupy ścian');
-    await waitFor(window, `document.querySelector('.mesh-operation-section:last-of-type')?.textContent.includes('1 grup')`, 'odświeżony panel grup');
+    await waitFor(window, `[...document.querySelectorAll('.mesh-operation-section')].find((item) => item.textContent.includes('Grupy ścian'))?.textContent.includes('1 grup')`, 'odświeżony panel grup');
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `!window.__madcadVerifyDocumentState.featureData.find((feature) => feature.type === 'importedModel')?.meshGroups?.length`, 'cofnięte grupowanie');
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.featureData.find((feature) => feature.type === 'importedModel')?.meshGroups?.length === 1`, 'ponowione grupowanie');
-    await waitFor(window, `document.querySelector('.mesh-operation-section:last-of-type')?.textContent.includes('1 grup')`, 'panel po ponowieniu');
+    await waitFor(window, `[...document.querySelectorAll('.mesh-operation-section')].find((item) => item.textContent.includes('Grupy ścian'))?.textContent.includes('1 grup')`, 'panel po ponowieniu');
     await new Promise((resolve) => setTimeout(resolve, 250));
     const result = await window.webContents.executeJavaScript(`(() => {
       const panel = document.querySelector('.mesh-tools-panel');
       const body = panel.querySelector('.measure-panel-body');
       const rect = panel.getBoundingClientRect();
+      const stageRect = document.querySelector('.modeling-stage').getBoundingClientRect();
       const feature = window.__madcadVerifyDocumentState.featureData.find((item) => item.type === 'importedModel');
-      return { triangleCount: window.__madcadVerifyEngineState.bodies[0].triangles.length / 3, groupCount: feature.meshGroups.length, operationTypes: feature.meshOperations.map((item) => item.type), text: panel.textContent, insideViewport: rect.right <= innerWidth && rect.bottom <= innerHeight, contentFits: body.scrollHeight <= body.clientHeight + 1, horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
+      return { triangleCount: window.__madcadVerifyEngineState.bodies[0].triangles.length / 3, groupCount: feature.meshGroups.length, operationTypes: feature.meshOperations.map((item) => item.type), text: panel.textContent, insideWorkspace: rect.left >= stageRect.left && rect.right <= stageRect.right && rect.top >= stageRect.top && rect.bottom <= stageRect.bottom, contentFits: body.scrollHeight <= body.clientHeight + 1, horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (result.triangleCount !== reducedTriangles || result.groupCount !== 1 || result.operationTypes.join(',') !== 'reduce,smooth,group' || !result.insideViewport || !result.contentFits || result.horizontalOverflow) throw new Error(`Niepoprawny wynik operacji siatki: ${JSON.stringify(result)}`);
-    process.stdout.write(`${JSON.stringify({ screenshotPath, reducedTriangles, ...result }, null, 2)}\n`);
+    if (result.triangleCount !== remeshedTriangles || remeshedTriangles <= reducedTriangles || result.groupCount !== 1 || result.operationTypes.join(',') !== 'reduce,smooth,remesh,group' || !result.insideWorkspace || !result.contentFits || result.horizontalOverflow) throw new Error(`Niepoprawny wynik operacji siatki: ${JSON.stringify({ reducedTriangles, remeshedTriangles, ...result })}`);
+    process.stdout.write(`${JSON.stringify({ screenshotPath, reducedTriangles, remeshedTriangles, ...result }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
     process.stderr.write(`${error.stack || error.message}\n`);

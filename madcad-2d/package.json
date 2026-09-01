@@ -21,6 +21,7 @@
     "verify:model-import": "npm run build:ui && electron scripts/verify-model-import.cjs",
     "verify:mesh-repair": "npm run build:ui && electron scripts/verify-mesh-repair.cjs",
     "verify:mesh-operations": "npm run build:ui && electron scripts/verify-mesh-operations.cjs",
+    "verify:mesh-to-brep": "npm run build:ui && electron scripts/verify-mesh-to-brep.cjs",
     "verify:viewport-navigation": "npm run build:ui && electron scripts/verify-viewport-navigation.cjs",
     "verify:external-compatibility": "npm run build:ui && electron scripts/verify-external-compatibility.cjs",
     "verify:start-experience": "npm run build:ui && electron scripts/verify-start-experience.cjs",

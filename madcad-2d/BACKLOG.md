@@ -65,7 +65,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [ ] Mesh groups, convert mesh/B-Rep, reduce, remesh, smooth i naprawa skanów.
   - [x] Diagnostyka siatki i bezpieczne czyszczenie: scalanie współrzędnych, usuwanie trójkątów zerowych i zdublowanych, raport otwartych/niemanifold krawędzi oraz niespójnej orientacji.
   - [x] Kontrolowana redukcja, wygładzanie z ochroną otwartych brzegów i grupowanie ścian według kąta cechy.
-  - [ ] Jednorodny remesh oraz kontrolowana konwersja Mesh/B-Rep.
+  - [x] Jednorodny remesh oraz kontrolowana, odwracalna konwersja zamkniętej siatki Mesh/B-Rep.
+  - [ ] Naprawa kierunku ścian i kontrolowane uzupełnianie otworów skanów z podglądem zakresu zmiany.
 
 ### Sheet Metal, Plastic, Form i szkic 3D
 

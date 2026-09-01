@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupMeshFaces, inspectMesh, meshToBinaryStl, reduceMesh, repairMesh, smoothMesh } from './mesh-tools.js';
+import { groupMeshFaces, inspectMesh, meshToBinaryStl, reduceMesh, remeshUniform, repairMesh, smoothMesh } from './mesh-tools.js';
 import { parseStlMesh } from './model-import.js';
 
 describe('mesh diagnostics and safe repair', () => {
@@ -61,5 +61,17 @@ describe('mesh diagnostics and safe repair', () => {
     };
     expect(groupMeshFaces(mesh, 30).groups).toHaveLength(2);
     expect(groupMeshFaces(mesh, 100).groups).toHaveLength(1);
+  });
+
+  it('remeshes long edges to a controlled uniform target', () => {
+    const mesh = {
+      vertices: [0, 0, 0, 20, 0, 0, 20, 20, 0, 0, 20, 0],
+      triangles: [0, 1, 2, 0, 2, 3],
+    };
+    const result = remeshUniform(mesh, 5);
+    expect(result.after.triangleCount).toBeGreaterThan(result.before.triangleCount);
+    expect(result.after.maximumEdgeLength).toBeLessThanOrEqual(7.5 + 1e-6);
+    expect(Math.abs(result.after.averageEdgeLength - 5)).toBeLessThan(Math.abs(result.before.averageEdgeLength - 5));
+    expect(result.after.degenerateTriangles).toBe(0);
   });
 });

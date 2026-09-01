@@ -61,12 +61,14 @@ export function inspectMesh(mesh, tolerance = DEFAULT_TOLERANCE) {
     duplicateKeys.add(triangleKey);
     for (const [from, to] of [[indices[0], indices[1]], [indices[1], indices[2]], [indices[2], indices[0]]]) {
       const key = from < to ? `${from}:${to}` : `${to}:${from}`;
-      const record = edges.get(key) || { count: 0, balance: 0 };
+      const record = edges.get(key) || { count: 0, balance: 0, length: Math.hypot(...subtract(point(welded.vertices, from), point(welded.vertices, to))) };
       record.count += 1;
       record.balance += from < to ? 1 : -1;
       edges.set(key, record);
     }
   }
+  const edgeLengths = [...edges.values()].map((edge) => edge.length);
+  const edgeRange = edgeLengths.reduce((range, length) => [Math.min(range[0], length), Math.max(range[1], length)], [Infinity, -Infinity]);
   return {
     vertexCount: mesh.vertices.length / 3,
     weldedVertexCount: welded.vertices.length / 3,
@@ -77,6 +79,9 @@ export function inspectMesh(mesh, tolerance = DEFAULT_TOLERANCE) {
     boundaryEdges: [...edges.values()].filter((edge) => edge.count === 1).length,
     nonManifoldEdges: [...edges.values()].filter((edge) => edge.count > 2).length,
     inconsistentEdges: [...edges.values()].filter((edge) => edge.count === 2 && edge.balance !== 0).length,
+    minimumEdgeLength: edgeLengths.length ? edgeRange[0] : 0,
+    maximumEdgeLength: edgeLengths.length ? edgeRange[1] : 0,
+    averageEdgeLength: edgeLengths.length ? edgeLengths.reduce((sum, length) => sum + length, 0) / edgeLengths.length : 0,
   };
 }
 
@@ -245,6 +250,108 @@ export function groupMeshFaces(mesh, featureAngle = 30, tolerance = DEFAULT_TOLE
   }
   groups.sort((a, b) => b.triangleCount - a.triangleCount || a.id - b.id);
   return { mesh: repaired, featureAngle: angle, groups, triangleGroups: [...assigned] };
+}
+
+function collapseShortEdges(mesh, targetEdgeLength, tolerance) {
+  let current = mesh;
+  let collapsedEdges = 0;
+  for (let pass = 0; pass < 4; pass += 1) {
+    const { edgeTriangles } = edgeTopology(current);
+    const boundaryVertices = new Set();
+    const edges = [];
+    for (const [key, triangleIds] of edgeTriangles) {
+      const [from, to] = key.split(':').map(Number);
+      if (triangleIds.length !== 2) {
+        boundaryVertices.add(from);
+        boundaryVertices.add(to);
+      }
+      edges.push({ from, to, length: Math.hypot(...subtract(point(current.vertices, from), point(current.vertices, to))) });
+    }
+    edges.sort((a, b) => a.length - b.length);
+    const remap = Array.from({ length: current.vertices.length / 3 }, (_, index) => index);
+    const vertices = [...current.vertices];
+    const locked = new Set();
+    let collapsedThisPass = 0;
+    for (const edge of edges) {
+      if (edge.length >= targetEdgeLength * 0.55) break;
+      if (boundaryVertices.has(edge.from) || boundaryVertices.has(edge.to) || locked.has(edge.from) || locked.has(edge.to)) continue;
+      const midpoint = point(vertices, edge.from).map((value, axis) => (value + vertices[edge.to * 3 + axis]) / 2);
+      midpoint.forEach((value, axis) => { vertices[edge.from * 3 + axis] = value; });
+      remap[edge.to] = edge.from;
+      locked.add(edge.from);
+      locked.add(edge.to);
+      collapsedThisPass += 1;
+    }
+    if (!collapsedThisPass) break;
+    current = cleanTriangles(vertices, current.triangles.map((index) => remap[index]), tolerance);
+    collapsedEdges += collapsedThisPass;
+  }
+  return { mesh: current, collapsedEdges };
+}
+
+function splitLongEdges(mesh, targetEdgeLength, tolerance, maximumTriangles) {
+  let current = mesh;
+  let insertedVertices = 0;
+  for (let pass = 0; pass < 6; pass += 1) {
+    const edgeMidpoints = new Map();
+    const vertices = [...current.vertices];
+    const midpointFor = (from, to) => {
+      const key = from < to ? `${from}:${to}` : `${to}:${from}`;
+      if (edgeMidpoints.has(key)) return edgeMidpoints.get(key);
+      const a = point(vertices, from);
+      const b = point(vertices, to);
+      if (Math.hypot(...subtract(a, b)) <= targetEdgeLength * 1.5) return null;
+      const index = vertices.length / 3;
+      vertices.push(...a.map((value, axis) => (value + b[axis]) / 2));
+      edgeMidpoints.set(key, index);
+      return index;
+    };
+    for (let offset = 0; offset < current.triangles.length; offset += 3) {
+      const [a, b, c] = current.triangles.slice(offset, offset + 3);
+      midpointFor(a, b);
+      midpointFor(b, c);
+      midpointFor(c, a);
+    }
+    if (!edgeMidpoints.size) break;
+    const triangles = [];
+    for (let offset = 0; offset < current.triangles.length; offset += 3) {
+      const [a, b, c] = current.triangles.slice(offset, offset + 3);
+      const ab = edgeMidpoints.get(a < b ? `${a}:${b}` : `${b}:${a}`);
+      const bc = edgeMidpoints.get(b < c ? `${b}:${c}` : `${c}:${b}`);
+      const ca = edgeMidpoints.get(c < a ? `${c}:${a}` : `${a}:${c}`);
+      const mask = (ab !== undefined ? 1 : 0) | (bc !== undefined ? 2 : 0) | (ca !== undefined ? 4 : 0);
+      if (mask === 0) triangles.push(a, b, c);
+      else if (mask === 1) triangles.push(a, ab, c, ab, b, c);
+      else if (mask === 2) triangles.push(b, bc, a, bc, c, a);
+      else if (mask === 4) triangles.push(c, ca, b, ca, a, b);
+      else if (mask === 3) triangles.push(b, bc, ab, a, ab, c, ab, bc, c);
+      else if (mask === 6) triangles.push(c, ca, bc, b, bc, a, bc, ca, a);
+      else if (mask === 5) triangles.push(a, ab, ca, b, c, ab, c, ca, ab);
+      else triangles.push(a, ab, ca, ab, b, bc, ca, bc, c, ab, bc, ca);
+    }
+    if (triangles.length / 3 > maximumTriangles) throw new Error(`Remesh przekroczył bezpieczny limit ${maximumTriangles.toLocaleString('pl-PL')} trójkątów. Zwiększ docelową długość krawędzi.`);
+    insertedVertices += edgeMidpoints.size;
+    current = cleanTriangles(vertices, triangles, tolerance);
+  }
+  return { mesh: current, insertedVertices };
+}
+
+export function remeshUniform(mesh, targetEdgeLength, options = {}, tolerance = DEFAULT_TOLERANCE) {
+  const repaired = repairMesh(mesh, tolerance).mesh;
+  const before = inspectMesh(repaired, tolerance);
+  const target = Number(targetEdgeLength);
+  if (!Number.isFinite(target) || target <= tolerance * 10) throw new Error('Docelowa długość krawędzi musi być dodatnia.');
+  const maximumTriangles = Math.max(1000, Math.round(Number(options.maximumTriangles) || 500000));
+  const collapsed = collapseShortEdges(repaired, target, tolerance);
+  const split = splitLongEdges(collapsed.mesh, target, tolerance, maximumTriangles);
+  return {
+    mesh: split.mesh,
+    before,
+    after: inspectMesh(split.mesh, tolerance),
+    targetEdgeLength: target,
+    collapsedEdges: collapsed.collapsedEdges,
+    insertedVertices: split.insertedVertices,
+  };
 }
 
 export function meshToBinaryStl(mesh) {

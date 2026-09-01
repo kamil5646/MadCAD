@@ -494,10 +494,11 @@ export function SurfaceAnalysisPanel({ analysis, continuity, curvature, onChange
   );
 }
 
-export function MeshToolsPanel({ body, report, groups = [], readOnly = false, onRepair, onReduce, onSmooth, onGroup, onClose }) {
+export function MeshToolsPanel({ body, report, groups = [], brepBlocker = '', readOnly = false, onRepair, onReduce, onSmooth, onRemesh, onGroup, onConvertToBrep, onClose }) {
   const [reduction, setReduction] = React.useState('50');
   const [iterations, setIterations] = React.useState('2');
   const [strength, setStrength] = React.useState('25');
+  const [targetEdgeLength, setTargetEdgeLength] = React.useState(() => report?.averageEdgeLength ? Number(report.averageEdgeLength.toPrecision(3)).toString() : '5');
   const [featureAngle, setFeatureAngle] = React.useState('30');
   const clean = report && !report.degenerateTriangles && !report.duplicateTriangles;
   return (
@@ -520,15 +521,22 @@ export function MeshToolsPanel({ body, report, groups = [], readOnly = false, on
           <div className="mesh-operation-controls"><Field label="Pozostaw" type="number" value={reduction} onChange={setReduction} suffix="%" /><button type="button" disabled={readOnly || !report || report.triangleCount < 2} onClick={() => onReduce(Number(reduction) / 100)}>Redukuj</button></div>
         </section>
         <section className="mesh-operation-section">
-          <header><strong>Wygładzanie</strong><span>Otwarte brzegi chronione</span></header>
-          <div className="mesh-operation-controls two-fields"><Field label="Kroki" type="number" value={iterations} onChange={setIterations} /><Field label="Siła" type="number" value={strength} onChange={setStrength} suffix="%" /><button type="button" disabled={readOnly || !report} onClick={() => onSmooth({ iterations: Number(iterations), strength: Number(strength) / 100, preserveBoundary: true })}>Wygładź</button></div>
+          <header><strong>Wygładzanie</strong><span>Chroni brzegi</span></header>
+          <div className="mesh-operation-controls two-fields"><Field label="Kroki" type="number" value={iterations} onChange={setIterations} /><Field label="Siła %" type="number" value={strength} onChange={setStrength} /><button type="button" disabled={readOnly || !report} onClick={() => onSmooth({ iterations: Number(iterations), strength: Number(strength) / 100, preserveBoundary: true })}>Wygładź</button></div>
+        </section>
+        <section className="mesh-operation-section">
+          <header><strong>Przebudowa</strong><span>Równe krawędzie</span></header>
+          <div className="mesh-operation-controls"><Field label="Krawędź docelowa" type="number" value={targetEdgeLength} onChange={setTargetEdgeLength} suffix="mm" /><button type="button" disabled={readOnly || !report} onClick={() => onRemesh(Number(targetEdgeLength))}>Przebuduj</button></div>
         </section>
         <section className="mesh-operation-section">
           <header><strong>Grupy ścian</strong><span>{groups.length ? (groups.length === 1 ? '1 grupa' : `${groups.length} grup`) : 'Nie wyznaczono'}</span></header>
           <div className="mesh-operation-controls"><Field label="Kąt cechy" type="number" value={featureAngle} onChange={setFeatureAngle} suffix="°" /><button type="button" disabled={readOnly || !report} onClick={() => onGroup(Number(featureAngle))}>Grupuj</button></div>
           {groups.length > 0 && <div className="mesh-group-summary"><span>Największa grupa</span><strong>{groups[0].triangleCount.toLocaleString('pl-PL')} trójkątów</strong></div>}
         </section>
-        <p>Każda operacja trafia do projektu osobno; Cofnij przywraca poprzednią siatkę.</p>
+        <section className="mesh-operation-section mesh-conversion-section">
+          <header title={brepBlocker || 'Zamień zamkniętą siatkę na fasetową bryłę CAD.'}><strong>B-Rep</strong><span>{brepBlocker ? 'Niedostępne' : 'Gotowa bryła'}</span></header>
+          <div className="mesh-operation-controls single-button"><button type="button" title={brepBlocker || 'Utwórz fasetową bryłę CAD z tej siatki.'} disabled={readOnly || Boolean(brepBlocker)} onClick={onConvertToBrep}>Utwórz B-Rep</button></div>
+        </section>
       </div>
     </aside>
   );
