@@ -2032,6 +2032,26 @@ export default function ModelingWorkspace() {
         });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
+      if (next.type === 'sheetHem') {
+        next.previewFeature = createFeature('sheetHem', {
+          name: current.previewFeature?.name || `Zawinięcie blachy ${document.features.length + 1}`,
+          targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
+          referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
+          length: next.length,
+          gap: next.gap,
+          reverse: Boolean(next.reverse),
+        });
+        if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
+      }
+      if (next.type === 'sheetRip') {
+        next.previewFeature = createFeature('sheetRip', {
+          name: current.previewFeature?.name || `Szczelina blachy ${document.features.length + 1}`,
+          targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
+          referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
+          gap: next.gap,
+        });
+        if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
+      }
       if (next.type === 'extrude') {
         if (next.extent === 'through-all' && !['cut', 'intersect'].includes(next.operation)) next.extent = 'one-side';
         if (next.extent === 'to-object' && !next.targetReferenceId) next.targetReferenceId = next.targetOptions[0]?.id;
@@ -3893,6 +3913,30 @@ export default function ModelingWorkspace() {
     setNotice('Podgląd kołnierza jest aktywny. Ustaw długość, kąt i kierunek, a następnie potwierdź operację.');
   };
 
+  const openSheetHem = () => {
+    if (readOnly) return readOnlyNotice();
+    if (activeSketchId) return setNotice('Najpierw zakończ szkic.');
+    if (!canCreateSheetFlange) return setNotice('Zawinięcie wymaga dokładnie jednej prostej krawędzi istniejącej blachy.');
+    const selectionItem = selectedEdgeItems[0];
+    const reference = { ...createTopologyReference({ selection: selectionItem, descriptor: selectedSheetEdgeDescriptor, label: 'Zawinięcie blachy — krawędź' }), scope: 'feature-input' };
+    const next = { type: 'sheetHem', targetBodyId: selectionItem.bodyId, edgeLabel: `${Number(selectedSheetEdgeDescriptor.length || 0).toFixed(2)} mm`, length: '8', gap: '0.5', reverse: false, topologyReferences: [reference], previewFeature: null };
+    setCommand(next);
+    window.setTimeout(() => updateCommand(next), 0);
+    setNotice('Podgląd zawinięcia 180° jest aktywny. Szczelina określa prześwit między równoległymi warstwami.');
+  };
+
+  const openSheetRip = () => {
+    if (readOnly) return readOnlyNotice();
+    if (activeSketchId) return setNotice('Najpierw zakończ szkic.');
+    if (!canCreateSheetFlange) return setNotice('Szczelina wymaga dokładnie jednej prostej krawędzi istniejącej blachy.');
+    const selectionItem = selectedEdgeItems[0];
+    const reference = { ...createTopologyReference({ selection: selectionItem, descriptor: selectedSheetEdgeDescriptor, label: 'Szczelina blachy — krawędź' }), scope: 'feature-input' };
+    const next = { type: 'sheetRip', targetBodyId: selectionItem.bodyId, edgeLabel: `${Number(selectedSheetEdgeDescriptor.length || 0).toFixed(2)} mm`, gap: '1', topologyReferences: [reference], previewFeature: null };
+    setCommand(next);
+    window.setTimeout(() => updateCommand(next), 0);
+    setNotice('Podgląd szczeliny jest aktywny. Operacja usuwa kontrolowany pas materiału wzdłuż wybranej krawędzi.');
+  };
+
   const openSurfacePatch = () => {
     if (readOnly) return readOnlyNotice();
     if (!selectedProfile || activeSketchId) return setNotice(activeSketchId ? 'Najpierw zakończ szkic.' : 'Patch wymaga zaznaczonego zamkniętego profilu.');
@@ -4977,6 +5021,14 @@ export default function ModelingWorkspace() {
     else if (feature.type === 'sheetFlange') {
       const topologyReferences = (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean);
       setCommand({ type: 'sheetFlange', editId: feature.id, targetBodyId: feature.targetBodyId, edgeLabel: topologyReferences[0]?.descriptor?.length ? `${Number(topologyReferences[0].descriptor.length).toFixed(2)} mm` : '1 prosta krawędź', length: feature.length, angle: feature.angle, bendRadius: feature.bendRadius, reverse: Boolean(feature.reverse), topologyReferences, previewFeature: feature });
+    }
+    else if (feature.type === 'sheetHem') {
+      const topologyReferences = (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean);
+      setCommand({ type: 'sheetHem', editId: feature.id, targetBodyId: feature.targetBodyId, edgeLabel: topologyReferences[0]?.descriptor?.length ? `${Number(topologyReferences[0].descriptor.length).toFixed(2)} mm` : '1 prosta krawędź', length: feature.length, gap: feature.gap, reverse: Boolean(feature.reverse), topologyReferences, previewFeature: feature });
+    }
+    else if (feature.type === 'sheetRip') {
+      const topologyReferences = (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean);
+      setCommand({ type: 'sheetRip', editId: feature.id, targetBodyId: feature.targetBodyId, edgeLabel: topologyReferences[0]?.descriptor?.length ? `${Number(topologyReferences[0].descriptor.length).toFixed(2)} mm` : '1 prosta krawędź', gap: feature.gap, topologyReferences, previewFeature: feature });
     }
     else if (feature.type === 'surfaceExtrude') setCommand({ type: 'surfaceExtrude', openChain: Boolean(feature.openEntityIds?.length), editId: feature.id, sourceSketchId: feature.sketchId, openEntityIds: feature.openEntityIds || [], distance: feature.distance, previewFeature: feature });
     else if (feature.type === 'surfaceRevolve') setCommand({ type: 'surfaceRevolve', openChain: Boolean(feature.openEntityIds?.length), editId: feature.id, sourceSketchId: feature.sketchId, openEntityIds: feature.openEntityIds || [], axisId: feature.axisId, axisOptions: [{ id: 'X_AXIS', name: 'Oś bazowa X' }, { id: 'Y_AXIS', name: 'Oś bazowa Y' }, { id: 'Z_AXIS', name: 'Oś bazowa Z' }, ...constructionAxes.filter((axis) => axis.status === 'ok').map((axis) => ({ id: axis.id, name: axis.name }))], angle: feature.angle, previewFeature: feature });
@@ -6496,6 +6548,8 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolMenuButton icon={Layers3} label="Blacha" description="Utwórz bazę blachową, a następnie dodawaj kołnierze na jej krawędziach." items={[
                   { icon: Layers3, label: 'Baza blachowa', onClick: openSheetBase, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
                   { icon: Layers3, label: 'Kołnierz blachy', onClick: openSheetFlange, disabled: readOnly || !canCreateSheetFlange || Boolean(activeSketchId), disabledReason: 'Zaznacz jedną prostą krawędź istniejącej blachy.' },
+                  { icon: Layers3, label: 'Zawinięcie blachy', onClick: openSheetHem, disabled: readOnly || !canCreateSheetFlange || Boolean(activeSketchId), disabledReason: 'Zaznacz jedną prostą krawędź istniejącej blachy.' },
+                  { icon: Scissors, label: 'Szczelina blachy', onClick: openSheetRip, disabled: readOnly || !canCreateSheetFlange || Boolean(activeSketchId), disabledReason: 'Zaznacz jedną prostą krawędź istniejącej blachy.' },
                 ]} /><ToolMenuButton icon={PlaneCadIcon} label="Powierzchnie" description="Twórz, odsuwaj, zszywaj i pogrubiaj dokładne powierzchnie B-Rep." items={[
                   { icon: PlaneCadIcon, label: 'Patch', displayLabel: 'Wypełnij profil', onClick: openSurfacePatch, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
                   { icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude, disabled: readOnly || (!selectedProfile && !canExtrudeOpenChain), disabledReason: 'Zaznacz zamknięty profil albo ciągły otwarty łańcuch.' },

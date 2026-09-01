@@ -364,6 +364,26 @@ export function prepareDocument(document) {
         topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
       };
     }
+    if (feature.type === 'sheetHem') {
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        lengthValue: positive(evaluateExpression(feature.length, parameterResult.values), 'Długość zawinięcia'),
+        gapValue: positive(evaluateExpression(feature.gap, parameterResult.values), 'Szczelina zawinięcia'),
+        reverse: Boolean(feature.reverse),
+        topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
+      };
+    }
+    if (feature.type === 'sheetRip') {
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        gapValue: positive(evaluateExpression(feature.gap, parameterResult.values), 'Szerokość szczeliny'),
+        topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
+      };
+    }
     if (feature.type === 'extrude') {
       const extent = feature.extent || 'one-side';
       const sourceSketch = document.sketches.find((sketch) => sketch.id === feature.sketchId);

@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { app, BrowserWindow } = require('electron');
 
-const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-sheet-metal-flange.png');
+const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-sheet-metal-hem-rip.png');
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
   const startedAt = Date.now();
@@ -117,7 +117,46 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.features === 2 && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.bends?.length === 1`, 'ponowiony kołnierz');
 
-    process.stdout.write(`${JSON.stringify({ ok: true, screenshotPath, result, flangeResult })}\n`);
+    await window.webContents.executeJavaScript(`(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const edge = body.topology.edges.find((item) => item.descriptor.geometry === 'LINE' && Math.abs(item.descriptor.length - 24) < 0.05 && item.descriptor.endpoints.every((point) => point[2] > 13));
+      if (!edge) throw new Error('Nie znaleziono wolnej krawędzi kołnierza dla zawinięcia.');
+      window.__madcadVerifyTopologySelection({ kind: 'edge', id: edge.id, bodyId: body.id }, 'replace');
+    })()`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Blacha').click()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Zawinięcie blachy' && !button.disabled)`, 'aktywne Zawinięcie blachy');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Zawinięcie blachy' && !button.disabled).click()`);
+    await setField(window, 'Długość zakładki', '6');
+    await setField(window, 'Szczelina zawinięcia', '0.5');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.hems?.length === 1`, 'podgląd zawinięcia');
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.[2]?.type === 'sheetHem' && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.hems?.length === 1`, 'zapisane zawinięcie');
+    const hemResult = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies[0]; return { feature: window.__madcadVerifyDocumentState.featureData[2], hem: body.sheetMetal.hems[0], volume: body.metrics.volume }; })()`);
+    if (hemResult.hem.length !== 6 || hemResult.hem.gap !== 0.5 || hemResult.volume <= flangeResult.volume) throw new Error(`Błędny wynik zawinięcia: ${JSON.stringify(hemResult)}`);
+
+    await window.webContents.executeJavaScript(`(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const edge = body.topology.edges.find((item) => item.descriptor.geometry === 'LINE' && Math.abs(item.descriptor.length - 40) < 0.05 && item.descriptor.endpoints.every((point) => Math.abs(Math.abs(point[1]) - 12) < 0.05));
+      if (!edge) throw new Error('Nie znaleziono wolnej krawędzi bazy dla szczeliny.');
+      window.__madcadVerifyTopologySelection({ kind: 'edge', id: edge.id, bodyId: body.id }, 'replace');
+    })()`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Blacha').click()`);
+    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Szczelina blachy' && !button.disabled)`, 'aktywna Szczelina blachy');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Szczelina blachy' && !button.disabled).click()`);
+    await setField(window, 'Szerokość szczeliny', '1');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.rips?.length === 1`, 'podgląd szczeliny');
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.[3]?.type === 'sheetRip' && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.rips?.length === 1`, 'zapisana szczelina');
+    const ripResult = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies[0]; return { feature: window.__madcadVerifyDocumentState.featureData[3], rip: body.sheetMetal.rips[0], volume: body.metrics.volume }; })()`);
+    if (ripResult.rip.gap !== 1 || ripResult.volume >= hemResult.volume) throw new Error(`Błędny wynik szczeliny: ${JSON.stringify(ripResult)}`);
+
+    await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 3 && !window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.rips?.length`, 'cofnięta szczelina');
+    await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 4 && window.__madcadVerifyEngineState?.bodies?.[0]?.sheetMetal?.rips?.length === 1`, 'ponowiona szczelina');
+
+    process.stdout.write(`${JSON.stringify({ ok: true, screenshotPath, result, flangeResult, hemResult, ripResult })}\n`);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);
     exitCode = 1;

@@ -1178,6 +1178,33 @@ test('kołnierz blachy dziedziczy bryłę bazową i przygotowuje kąt, długoś�
   assert.throws(() => prepareDocument(invalid), /zakresu 0–180/);
 });
 
+test('Hem i Rip przygotowują zawinięcie 180 stopni oraz kontrolowaną szczelinę tej samej blachy', () => {
+  const document = createDocument('Hem i Rip');
+  const profile = createRectangleProfile({ width: '80', height: '40' });
+  const sketch = createSketch({ profiles: [profile] });
+  const base = createFeature('sheetBase', { sketchId: sketch.id, profileIds: [profile.id], thickness: '2', bendRadius: '3', kFactor: '0.45', side: 'symmetric', reverse: false });
+  const bodyId = `body-${base.id}`;
+  const hemEdge = { ...createTopologyReference({ selection: { kind: 'edge', id: 'edge-hem', bodyId, sourceFeatureId: base.id }, descriptor: { geometry: 'LINE', endpoints: [[-40, -20, 1], [-40, 20, 1]], length: 40, closed: false }, label: 'Zawinięcie blachy — krawędź' }), scope: 'feature-input' };
+  const ripEdge = { ...createTopologyReference({ selection: { kind: 'edge', id: 'edge-rip', bodyId, sourceFeatureId: base.id }, descriptor: { geometry: 'LINE', endpoints: [[-40, -20, -1], [40, -20, -1]], length: 80, closed: false }, label: 'Szczelina blachy — krawędź' }), scope: 'feature-input' };
+  const hem = createFeature('sheetHem', { targetBodyId: bodyId, referenceIds: [hemEdge.id], length: '8', gap: '0.5', reverse: false });
+  const rip = createFeature('sheetRip', { targetBodyId: bodyId, referenceIds: [ripEdge.id], gap: '1' });
+  document.sketches.push(sketch);
+  document.references.push(hemEdge, ripEdge);
+  document.features.push(base, hem, rip);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document);
+  assert.equal(prepared.features[1].lengthValue, 8);
+  assert.equal(prepared.features[1].gapValue, 0.5);
+  assert.equal(prepared.features[2].gapValue, 1);
+  assert.equal(prepared.features[1].topologyReferences[0].id, hemEdge.id);
+  assert.equal(prepared.features[2].topologyReferences[0].id, ripEdge.id);
+
+  const invalid = structuredClone(document);
+  invalid.features[1].gap = '0';
+  assert.throws(() => prepareDocument(invalid), /Szczelina zawinięcia/);
+});
+
 test('Extrude To Object kończy się dokładnie na równoległej płaszczyźnie konstrukcyjnej', () => {
   const document = createDocument('Extrude To Object');
   document.parameters.push(createParameter('cel', '12'));

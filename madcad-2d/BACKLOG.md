@@ -73,7 +73,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [ ] Parametryczne modelowanie blach: baza, flange, bend, hem, rip, unfold/refold, flat pattern i bend table.
   - [x] Baza blachowa z regułą grubości, promienia gięcia i współczynnika K, rzeczywistą bryłą B-Rep, podglądem, edycją historii oraz Cofnij/Ponów.
   - [x] Kołnierz krawędziowy z wyborem trwałej prostej krawędzi, długością, kątem, promieniem, odwróceniem kierunku, dziedziczeniem reguły blachy i zapisem naddatku neutralnego.
-  - [ ] Hem i Rip z kontrolowaną szczeliną technologiczną.
+  - [x] Hem 180° z długością zakładki i kontrolowanym prześwitem oraz Rip odejmujący parametryczną szczelinę wzdłuż trwałej krawędzi.
   - [ ] Unfold/Refold, flat pattern oraz skojarzona tabela gięć arkusza 2D.
   - [ ] Kołnierz krawędziowy i gięcie z kontrolą kąta, długości oraz strony materiału.
   - [ ] Hem i Rip przygotowujące zamknięcie oraz szczelinę technologiczną.

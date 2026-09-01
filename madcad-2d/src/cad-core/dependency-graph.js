@@ -12,6 +12,8 @@ function expressionDependencies(value) {
 function featureExpressions(feature) {
   if (feature.type === 'sheetBase') return [feature.thickness, feature.bendRadius, feature.kFactor];
   if (feature.type === 'sheetFlange') return [feature.length, feature.angle, feature.bendRadius];
+  if (feature.type === 'sheetHem') return [feature.length, feature.gap];
+  if (feature.type === 'sheetRip') return [feature.gap];
   if (feature.type === 'extrude') return [feature.distance, feature.secondDistance, feature.startOffset, feature.wallThickness];
   if (feature.type === 'surfaceExtrude') return [feature.distance];
   if (feature.type === 'surfaceRevolve') return [feature.angle];
