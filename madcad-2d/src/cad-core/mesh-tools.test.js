@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inspectMesh, meshToBinaryStl, repairMesh } from './mesh-tools.js';
+import { groupMeshFaces, inspectMesh, meshToBinaryStl, reduceMesh, repairMesh, smoothMesh } from './mesh-tools.js';
 import { parseStlMesh } from './model-import.js';
 
 describe('mesh diagnostics and safe repair', () => {
@@ -23,5 +23,43 @@ describe('mesh diagnostics and safe repair', () => {
     const parsed = parseStlMesh(meshToBinaryStl(repaired));
     expect(parsed.triangles).toHaveLength(3);
     expect(parsed.vertices).toHaveLength(9);
+  });
+
+  it('reduces a regular mesh toward the requested triangle ratio', () => {
+    const vertices = [];
+    const triangles = [];
+    for (let y = 0; y <= 8; y += 1) for (let x = 0; x <= 8; x += 1) vertices.push(x, y, 0);
+    for (let y = 0; y < 8; y += 1) for (let x = 0; x < 8; x += 1) {
+      const a = y * 9 + x;
+      const b = a + 1;
+      const c = a + 9;
+      const d = c + 1;
+      triangles.push(a, b, d, a, d, c);
+    }
+    const result = reduceMesh({ vertices, triangles }, 0.5);
+    expect(result.before.triangleCount).toBe(128);
+    expect(result.after.triangleCount).toBeLessThan(result.before.triangleCount);
+    expect(result.after.triangleCount).toBeGreaterThan(20);
+    expect(result.after.degenerateTriangles).toBe(0);
+  });
+
+  it('smooths the interior while protecting open boundary vertices', () => {
+    const mesh = {
+      vertices: [0, 0, 0, 1, 0, 0, 2, 0, 0, 0, 1, 0, 1, 1, 1, 2, 1, 0, 0, 2, 0, 1, 2, 0, 2, 2, 0],
+      triangles: [0, 1, 4, 0, 4, 3, 1, 2, 5, 1, 5, 4, 3, 4, 7, 3, 7, 6, 4, 5, 8, 4, 8, 7],
+    };
+    const result = smoothMesh(mesh, { iterations: 2, strength: 0.5, preserveBoundary: true });
+    expect(result.mesh.vertices.slice(0, 3)).toEqual([0, 0, 0]);
+    expect(result.mesh.vertices[4 * 3 + 2]).toBeLessThan(1);
+    expect(result.preservedBoundaryVertices).toBe(8);
+  });
+
+  it('groups connected faces using their feature angle', () => {
+    const mesh = {
+      vertices: [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1],
+      triangles: [0, 1, 2, 0, 3, 1],
+    };
+    expect(groupMeshFaces(mesh, 30).groups).toHaveLength(2);
+    expect(groupMeshFaces(mesh, 100).groups).toHaveLength(1);
   });
 });

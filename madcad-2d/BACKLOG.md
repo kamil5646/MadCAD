@@ -64,7 +64,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Curvature map/comb, zebra, izolinie XYZ i diagnostyka ciągłości powierzchni w jednym nieinwazyjnym panelu analitycznym.
 - [ ] Mesh groups, convert mesh/B-Rep, reduce, remesh, smooth i naprawa skanów.
   - [x] Diagnostyka siatki i bezpieczne czyszczenie: scalanie współrzędnych, usuwanie trójkątów zerowych i zdublowanych, raport otwartych/niemanifold krawędzi oraz niespójnej orientacji.
-  - [ ] Grupy ścian, redukcja, remesh, smooth i kontrolowana konwersja Mesh/B-Rep.
+  - [x] Kontrolowana redukcja, wygładzanie z ochroną otwartych brzegów i grupowanie ścian według kąta cechy.
+  - [ ] Jednorodny remesh oraz kontrolowana konwersja Mesh/B-Rep.
 
 ### Sheet Metal, Plastic, Form i szkic 3D
 

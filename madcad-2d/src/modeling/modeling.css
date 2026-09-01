@@ -4129,9 +4129,29 @@
 .mesh-tools-panel .measure-panel-body {
   display: grid;
   gap: 6px;
+  max-height: calc(100vh - 92px);
+  overflow-y: auto;
 }
 
-.mesh-repair-button {
+.mesh-diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.mesh-diagnostics-grid > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 5px 7px;
+  border: 1px solid #4f5b68;
+  background: #2d3641;
+}
+
+.mesh-diagnostics-grid span { overflow: hidden; color: #aebac4; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.mesh-diagnostics-grid strong { color: #eef4f8; font-size: 11px; }
+
+.mesh-action-button {
   display: flex;
   min-height: 31px;
   align-items: center;
@@ -4146,12 +4166,66 @@
   cursor: pointer;
 }
 
-.mesh-repair-button:disabled {
+.mesh-action-button:disabled {
   border-color: #596573;
   background: #38424e;
   color: #9faab3;
   cursor: default;
 }
+
+.mesh-operation-section {
+  display: grid;
+  gap: 5px;
+  margin-top: 2px;
+  padding-top: 7px;
+  border-top: 1px solid #4f5b68;
+}
+
+.mesh-operation-section > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.mesh-operation-section > header strong { font-size: 11px; }
+.mesh-operation-section > header span { color: #aebac4; font-size: 9px; }
+
+.mesh-operation-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px;
+  gap: 5px;
+  align-items: end;
+}
+
+.mesh-operation-controls.two-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 70px; }
+.mesh-operation-controls .command-field { display: grid; grid-template-columns: 1fr; gap: 3px; }
+.mesh-operation-controls .command-field > span { font-size: 9px; }
+.mesh-operation-controls .command-input-wrap { min-width: 0; }
+
+.mesh-operation-controls button {
+  min-height: 28px;
+  border: 1px solid #697684;
+  border-radius: 2px;
+  background: #465463;
+  color: #eef4f8;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mesh-operation-controls button:hover:not(:disabled) { border-color: #56c9e8; background: #536575; }
+.mesh-operation-controls button:disabled { color: #87939d; cursor: default; }
+
+.mesh-group-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #aebac4;
+  font-size: 9px;
+}
+
+.mesh-group-summary strong { color: #dce7ee; font-size: 9px; }
 
 .layers-panel {
   top: 14px;

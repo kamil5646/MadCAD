@@ -43,9 +43,9 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-shelf button')].find((button) => button.textContent.includes('Narzędzia siatki')).click()`);
     await waitFor(window, `document.querySelector('.mesh-tools-panel')`, 'panel diagnostyki');
     const before = await window.webContents.executeJavaScript(`document.querySelector('.mesh-tools-panel').textContent`);
-    if (!before.includes('Trójkąty zdegenerowane1') || !before.includes('Trójkąty zdublowane1')) throw new Error(`Błędna diagnostyka: ${before}`);
-    await window.webContents.executeJavaScript(`document.querySelector('.mesh-repair-button').click()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.triangles?.length === 3 && document.querySelector('.mesh-repair-button')?.disabled`, 'naprawiona siatka');
+    if (!before.includes('Zdegenerowane1') || !before.includes('Powtórzone1')) throw new Error(`Błędna diagnostyka: ${before}`);
+    await window.webContents.executeJavaScript(`document.querySelector('.mesh-action-button').click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.triangles?.length === 3 && document.querySelector('.mesh-action-button')?.disabled`, 'naprawiona siatka');
     const result = await window.webContents.executeJavaScript(`(() => { const panel = document.querySelector('.mesh-tools-panel'); const rect = panel.getBoundingClientRect(); return { triangleCount: window.__madcadVerifyEngineState.bodies[0].triangles.length / 3, text: panel.textContent, insideViewport: rect.right <= innerWidth && rect.bottom <= innerHeight, horizontalOverflow: document.documentElement.scrollWidth > innerWidth }; })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     if (result.triangleCount !== 1 || !result.insideViewport || result.horizontalOverflow) throw new Error(`Niepoprawny wynik naprawy: ${JSON.stringify(result)}`);

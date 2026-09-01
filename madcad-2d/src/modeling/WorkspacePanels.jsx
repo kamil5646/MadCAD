@@ -494,23 +494,41 @@ export function SurfaceAnalysisPanel({ analysis, continuity, curvature, onChange
   );
 }
 
-export function MeshToolsPanel({ body, report, onRepair, onClose }) {
+export function MeshToolsPanel({ body, report, groups = [], readOnly = false, onRepair, onReduce, onSmooth, onGroup, onClose }) {
+  const [reduction, setReduction] = React.useState('50');
+  const [iterations, setIterations] = React.useState('2');
+  const [strength, setStrength] = React.useState('25');
+  const [featureAngle, setFeatureAngle] = React.useState('30');
   const clean = report && !report.degenerateTriangles && !report.duplicateTriangles;
   return (
     <aside className="measure-panel mesh-tools-panel" aria-label="Diagnostyka i naprawa siatki">
       <header><div><ScanSearch size={16} /><strong>Narzędzia siatki</strong></div><button type="button" title="Zamknij narzędzia siatki" aria-label="Zamknij narzędzia siatki" onClick={onClose}><X size={15} /></button></header>
       <div className="measure-panel-body">
         <strong>{body?.name || 'Siatka'}</strong>
-        <div className="measure-row"><span>Wierzchołki</span><strong>{report?.vertexCount?.toLocaleString('pl-PL') || 0}</strong></div>
-        <div className="measure-row"><span>Trójkąty</span><strong>{report?.triangleCount?.toLocaleString('pl-PL') || 0}</strong></div>
-        <div className="measure-row"><span>Duplikaty wierzchołków</span><strong>{report?.duplicateVertices || 0}</strong></div>
-        <div className="measure-row"><span>Trójkąty zdegenerowane</span><strong>{report?.degenerateTriangles || 0}</strong></div>
-        <div className="measure-row"><span>Trójkąty zdublowane</span><strong>{report?.duplicateTriangles || 0}</strong></div>
-        <div className="measure-row"><span>Krawędzie otwarte</span><strong>{report?.boundaryEdges || 0}</strong></div>
-        <div className="measure-row"><span>Krawędzie niemanifold</span><strong>{report?.nonManifoldEdges || 0}</strong></div>
-        <div className="measure-row"><span>Niespójna orientacja</span><strong>{report?.inconsistentEdges || 0}</strong></div>
-        <p>Bezpieczna naprawa scala zduplikowane wierzchołki oraz usuwa trójkąty zerowe i powtórzone. Nie wypełnia otworów i nie zgaduje brakującej geometrii.</p>
-        <button className="mesh-repair-button" type="button" disabled={!report || clean} onClick={onRepair}><RotateCcw size={14} />{clean ? 'Siatka nie wymaga czyszczenia' : 'Wykonaj bezpieczną naprawę'}</button>
+        <div className="mesh-diagnostics-grid">
+          <div><span>Wierzchołki</span><strong>{report?.vertexCount?.toLocaleString('pl-PL') || 0}</strong></div>
+          <div><span>Trójkąty</span><strong>{report?.triangleCount?.toLocaleString('pl-PL') || 0}</strong></div>
+          <div><span>Zdegenerowane</span><strong>{report?.degenerateTriangles || 0}</strong></div>
+          <div><span>Powtórzone</span><strong>{report?.duplicateTriangles || 0}</strong></div>
+          <div><span>Otwarte brzegi</span><strong>{report?.boundaryEdges || 0}</strong></div>
+          <div><span>Niemanifold</span><strong>{report?.nonManifoldEdges || 0}</strong></div>
+        </div>
+        <p>Naprawa scala duplikaty i usuwa niebezpieczne trójkąty. Nie wypełnia otworów.</p>
+        <button className="mesh-action-button primary" type="button" disabled={readOnly || !report || clean} onClick={onRepair}><RotateCcw size={14} />{clean ? 'Geometria jest oczyszczona' : 'Bezpieczna naprawa'}</button>
+        <section className="mesh-operation-section">
+          <header><strong>Redukcja</strong><span>Mniej trójkątów</span></header>
+          <div className="mesh-operation-controls"><Field label="Pozostaw" type="number" value={reduction} onChange={setReduction} suffix="%" /><button type="button" disabled={readOnly || !report || report.triangleCount < 2} onClick={() => onReduce(Number(reduction) / 100)}>Redukuj</button></div>
+        </section>
+        <section className="mesh-operation-section">
+          <header><strong>Wygładzanie</strong><span>Otwarte brzegi chronione</span></header>
+          <div className="mesh-operation-controls two-fields"><Field label="Kroki" type="number" value={iterations} onChange={setIterations} /><Field label="Siła" type="number" value={strength} onChange={setStrength} suffix="%" /><button type="button" disabled={readOnly || !report} onClick={() => onSmooth({ iterations: Number(iterations), strength: Number(strength) / 100, preserveBoundary: true })}>Wygładź</button></div>
+        </section>
+        <section className="mesh-operation-section">
+          <header><strong>Grupy ścian</strong><span>{groups.length ? (groups.length === 1 ? '1 grupa' : `${groups.length} grup`) : 'Nie wyznaczono'}</span></header>
+          <div className="mesh-operation-controls"><Field label="Kąt cechy" type="number" value={featureAngle} onChange={setFeatureAngle} suffix="°" /><button type="button" disabled={readOnly || !report} onClick={() => onGroup(Number(featureAngle))}>Grupuj</button></div>
+          {groups.length > 0 && <div className="mesh-group-summary"><span>Największa grupa</span><strong>{groups[0].triangleCount.toLocaleString('pl-PL')} trójkątów</strong></div>}
+        </section>
+        <p>Każda operacja trafia do projektu osobno; Cofnij przywraca poprzednią siatkę.</p>
       </div>
     </aside>
   );
