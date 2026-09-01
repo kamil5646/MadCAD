@@ -81,7 +81,11 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Parametryczny Boss osadzany na trwałej referencji planarnej ściany, łączony z istniejącą bryłą, z otworem, głębokością, pozycją i kierunkiem.
   - [x] Parametryczny snap-fit z trwałą ścianą bazową, stopą mocującą, prześwitem pod uginanym ramieniem i kontrolowanym zaczepem.
   - [x] Parametryczne grille wycinające równoległe szczeliny na trwałej planarnej ścianie, z kontrolą liczby i szerokości żeber, prześwitu, długości, głębokości, pozycji oraz kierunku.
-- SubD/T-Spline Form i konwersja do B-Rep.
+- [ ] SubD/T-Spline Form i konwersja do B-Rep.
+  - [x] Parametryczna klatka bazowa 8 punktów/6 ścian, wygładzanie Catmulla–Clarka 1–3 poziomy i kontrolowana konwersja zamkniętej powierzchni do fasetowej bryły B-Rep.
+  - [ ] Bezpośrednia edycja punktów, krawędzi i ścian klatki manipulatorem w widoku.
+  - [ ] Insert Edge, Crease/Uncrease, symetria, Bridge i Fill Hole z podglądem powierzchni granicznej.
+  - [ ] Konwersja powierzchni Form do możliwie małej liczby gładkich płatów B-Rep zamiast jednej ściany na trójkąt.
 - Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.
 
 ### Render, Animation, Simulation i Generative

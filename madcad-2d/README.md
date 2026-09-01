@@ -41,6 +41,7 @@ npm run verify:sheet-metal-base
 npm run verify:plastic-boss
 npm run verify:plastic-snap-fit
 npm run verify:plastic-grille
+npm run verify:form
 npm run verify:electron-security
 npm audit --audit-level=high
 ```
@@ -53,6 +54,9 @@ Moduł `Plastic` zawiera mapy pochylenia i grubości ścian oraz parametryczny
 Boss łączony z istniejącą bryłą, Snap-fit ze stopą, prześwitem pod
 uginanym ramieniem i kontrolowanym zaczepem oraz Grille wycinające
 parametryczne szczeliny wentylacyjne bez rozbijania bryły.
+
+Pierwszy etap `Form` tworzy parametryczną klatkę prostopadłościanu, wygładza ją
+algorytmem Catmulla–Clarka i kończy jako zamkniętą fasetową bryłę B-Rep.
 
 ## Budowanie
 
@@ -131,5 +135,6 @@ Pełne warunki: [`../LICENSE`](../LICENSE). Kontakt handlowy:
 - [`docs/MESH_TOOLS_AUDIT_2026-09-01.md`](./docs/MESH_TOOLS_AUDIT_2026-09-01.md) — diagnostyka, obróbka, remesh i bezpieczna konwersja siatki do B-Rep.
 - [`docs/SHEET_METAL_AUDIT_2026-09-01.md`](./docs/SHEET_METAL_AUDIT_2026-09-01.md) — kontrakt bazy blachowej, wynik B-Rep i dalsza kolejność modułu blach.
 - [`docs/PLASTIC_AUDIT_2026-09-01.md`](./docs/PLASTIC_AUDIT_2026-09-01.md) — zakres modułu Plastic, ukończone analizy i kolejność operacji konstrukcyjnych.
+- [`docs/FORM_AUDIT_2026-09-02.md`](./docs/FORM_AUDIT_2026-09-02.md) — klatka SubD, algorytm Catmulla–Clarka, konwersja B-Rep i dalsza kolejność modułu Form.
 - [`CHANGELOG.md`](./CHANGELOG.md) — historia wydań.
 - [`design-qa.md`](./design-qa.md) — kryteria jakości interfejsu.

@@ -660,6 +660,24 @@ export function prepareDocument(document) {
         } : {}),
       };
     }
+    if (feature.type === 'formBody') {
+      const read = (value, label, requirePositive = false) => {
+        const result = evaluateExpression(value ?? 0, parameterResult.values);
+        return requirePositive ? positive(result, label) : result;
+      };
+      const subdivisionsValue = read(feature.subdivisions, 'Poziom wygładzenia Form');
+      if (!Number.isInteger(subdivisionsValue) || subdivisionsValue < 1 || subdivisionsValue > 3) throw new Error('Poziom wygładzenia Form musi być liczbą całkowitą od 1 do 3.');
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        widthValue: read(feature.width, 'Szerokość Form', true),
+        depthValue: read(feature.depth, 'Głębokość Form', true),
+        heightValue: read(feature.height, 'Wysokość Form', true),
+        subdivisionsValue,
+        position: [read(feature.x, 'Położenie X'), read(feature.y, 'Położenie Y'), read(feature.z, 'Położenie Z')],
+      };
+    }
     if (feature.type === 'importedModel') return { ...feature, status: 'ready', diagnostics: [] };
     if (feature.type === 'transform') {
       const read = (value) => evaluateExpression(value ?? 0, parameterResult.values);

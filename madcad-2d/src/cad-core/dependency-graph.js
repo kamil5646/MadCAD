@@ -17,6 +17,7 @@ function featureExpressions(feature) {
   if (feature.type === 'plasticBoss') return [feature.outerDiameter, feature.holeDiameter, feature.height, feature.holeDepth, feature.offsetX, feature.offsetY];
   if (feature.type === 'plasticSnapFit') return [feature.length, feature.width, feature.thickness, feature.clearance, feature.hookLength, feature.hookHeight, feature.offsetX, feature.offsetY];
   if (feature.type === 'plasticGrille') return [feature.ribCount, feature.ribWidth, feature.gap, feature.length, feature.depth, feature.offsetX, feature.offsetY];
+  if (feature.type === 'formBody') return [feature.width, feature.depth, feature.height, feature.subdivisions, feature.x, feature.y, feature.z];
   if (feature.type === 'extrude') return [feature.distance, feature.secondDistance, feature.startOffset, feature.wallThickness];
   if (feature.type === 'surfaceExtrude') return [feature.distance];
   if (feature.type === 'surfaceRevolve') return [feature.angle];
@@ -170,7 +171,7 @@ export function buildDependencyGraph(document) {
     if (feature.targetBodyId) addEdge(feature.targetBodyId, feature.id, 'modifies');
     for (const bodyId of feature.targetBodyIds || []) addEdge(bodyId, feature.id, 'consumes');
     if (feature.toolBodyId) addEdge(feature.toolBodyId, feature.id, feature.type === 'surfaceTrim' && feature.keepTool !== false ? 'trims-with' : 'consumes');
-    if ((['extrude', 'revolve', 'sweep', 'loft', 'coil', 'pipe'].includes(feature.type) && feature.operation === 'new') || feature.type === 'sheetBase' || ['surfacePatch', 'surfaceExtrude', 'surfaceRevolve', 'surfaceSweep', 'surfaceLoft', 'surfaceStitch'].includes(feature.type) || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
+    if ((['extrude', 'revolve', 'sweep', 'loft', 'coil', 'pipe'].includes(feature.type) && feature.operation === 'new') || feature.type === 'sheetBase' || ['surfacePatch', 'surfaceExtrude', 'surfaceRevolve', 'surfaceSweep', 'surfaceLoft', 'surfaceStitch'].includes(feature.type) || feature.type === 'primitive' || feature.type === 'formBody' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
       const bodyId = `body-${feature.id}`;
       addNode(bodyId, 'body', feature.name, { persisted: false, producerFeatureId: feature.id });
       bodyProducerById.set(bodyId, feature.id);

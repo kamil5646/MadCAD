@@ -21,6 +21,7 @@
     "verify:plastic-boss": "npm run build:ui && electron scripts/verify-plastic-boss.cjs",
     "verify:plastic-snap-fit": "npm run build:ui && electron scripts/verify-plastic-snap-fit.cjs",
     "verify:plastic-grille": "npm run build:ui && electron scripts/verify-plastic-grille.cjs",
+    "verify:form": "npm run build:ui && electron scripts/verify-form.cjs",
     "verify:extrude-after-sketch": "npm run build:ui && electron scripts/verify-extrude-after-sketch.cjs",
     "verify:model-import": "npm run build:ui && electron scripts/verify-model-import.cjs",
     "verify:mesh-repair": "npm run build:ui && electron scripts/verify-mesh-repair.cjs",

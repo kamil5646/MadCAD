@@ -42,6 +42,7 @@ import { createThreeMfArchive } from './three-mf.js';
 import { boundsOverlap } from './geometry-inspection.js';
 import { parseStlMesh } from './model-import.js';
 import { inspectMesh } from './mesh-tools.js';
+import { createRoundedBoxFormMesh } from './subdivision-form.js';
 
 let kernelPromise;
 let manifoldPromise;
@@ -1237,6 +1238,37 @@ function runFeature(feature, bodyMap, bodyOrder) {
     return;
   }
 
+  if (feature.type === 'formBody') {
+    const mesh = createRoundedBoxFormMesh({
+      width: feature.widthValue,
+      depth: feature.depthValue,
+      height: feature.heightValue,
+      subdivisions: feature.subdivisionsValue,
+    });
+    const translated = {
+      vertices: mesh.vertices.map((value, index) => value + feature.position[index % 3]),
+      triangles: mesh.triangles,
+    };
+    const shape = facetedBrepFromMesh(translated);
+    const bodyId = `body-${feature.id}`;
+    bodyMap.set(bodyId, {
+      id: bodyId,
+      name: feature.name,
+      sourceFeatureId: feature.id,
+      representation: 'brep',
+      shape,
+      form: {
+        controlVertexCount: mesh.controlVertexCount,
+        controlFaceCount: mesh.controlFaceCount,
+        surfaceVertexCount: mesh.surfaceVertexCount,
+        surfaceFaceCount: mesh.surfaceFaceCount,
+        subdivisions: mesh.subdivisions,
+      },
+    });
+    bodyOrder.push(bodyId);
+    return;
+  }
+
   if (feature.type === 'textSolid') {
     let tool;
     if (feature.placement === 'face') {
@@ -2417,6 +2449,7 @@ function meshBody(body, index, quality = 'display') {
     manufacturingHoles: body.manufacturingHoles || [],
     sheetMetal: body.sheetMetal || null,
     plasticFeatures: body.plasticFeatures || [],
+    form: body.form || null,
     color: ['#55b7db', '#81c784', '#ffb95c', '#c49cff'][index % 4],
     vertices: Float32Array.from(mesh.vertices),
     normals: Float32Array.from(mesh.normals),

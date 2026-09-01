@@ -100,6 +100,8 @@ import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-p
 import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, transformPrintPoint } from '../src/cad-core/print-layout.js';
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../src/cad-core/model-import.js';
+import { inspectMesh } from '../src/cad-core/mesh-tools.js';
+import { createRoundedBoxFormMesh } from '../src/cad-core/subdivision-form.js';
 import { analyzePrintability } from '../src/cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../src/cad-core/sketch-import.js';
 import {
@@ -1318,6 +1320,43 @@ test('Grille wycina parametryczne szczeliny i zachowuje trwałą referencję śc
   const invalid = structuredClone(document);
   invalid.features[1].ribCount = '2.5';
   assert.throws(() => prepareDocument(invalid), /całkowitą/);
+});
+
+test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersję B-Rep', () => {
+  const mesh = createRoundedBoxFormMesh({ width: 40, depth: 30, height: 20, subdivisions: 2 });
+  const report = inspectMesh(mesh);
+  assert.equal(mesh.controlVertexCount, 8);
+  assert.equal(mesh.controlFaceCount, 6);
+  assert.equal(mesh.surfaceFaceCount, 96);
+  assert.equal(report.triangleCount, 192);
+  assert.equal(report.boundaryEdges, 0);
+  assert.equal(report.nonManifoldEdges, 0);
+  assert.equal(report.inconsistentEdges, 0);
+  const xs = mesh.vertices.filter((_value, index) => index % 3 === 0);
+  const ys = mesh.vertices.filter((_value, index) => index % 3 === 1);
+  const zs = mesh.vertices.filter((_value, index) => index % 3 === 2);
+  assert.equal(Math.max(...xs) - Math.min(...xs), 40);
+  assert.equal(Math.max(...ys) - Math.min(...ys), 30);
+  assert.equal(Math.max(...zs) - Math.min(...zs), 20);
+
+  const document = createDocument('Form SubD');
+  document.parameters.push(createParameter('form_w', '40'));
+  const form = createFeature('formBody', { name: 'Obudowa Form', width: 'form_w', depth: '30', height: '20', subdivisions: '2', x: '5', y: '-3', z: '1' });
+  document.features.push(form);
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[0];
+  assert.equal(prepared.widthValue, 40);
+  assert.equal(prepared.depthValue, 30);
+  assert.equal(prepared.heightValue, 20);
+  assert.equal(prepared.subdivisionsValue, 2);
+  assert.deepEqual(prepared.position, [5, -3, 1]);
+  const graph = buildDependencyGraph(document);
+  assert.ok(graph.edges.some((edge) => edge.from === form.id && edge.to === `body-${form.id}` && edge.kind === 'produces'));
+  assert.ok(graph.affectedBy(document.parameters[0].id).includes(form.id));
+
+  const invalid = structuredClone(document);
+  invalid.features[0].subdivisions = '4';
+  assert.throws(() => prepareDocument(invalid), /od 1 do 3/);
 });
 
 test('Extrude To Object kończy się dokładnie na równoległej płaszczyźnie konstrukcyjnej', () => {
