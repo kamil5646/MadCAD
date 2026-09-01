@@ -406,6 +406,28 @@ export function prepareDocument(document) {
         topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
       };
     }
+    if (feature.type === 'plasticSnapFit') {
+      const lengthValue = positive(evaluateExpression(feature.length, parameterResult.values), 'Długość ramienia Snap-fit');
+      const hookLengthValue = positive(evaluateExpression(feature.hookLength, parameterResult.values), 'Długość zaczepu Snap-fit');
+      const clearanceValue = evaluateExpression(feature.clearance, parameterResult.values);
+      if (!Number.isFinite(clearanceValue) || clearanceValue < 0) throw new Error('Prześwit pod ramieniem Snap-fit nie może być ujemny.');
+      if (hookLengthValue >= lengthValue) throw new Error('Zaczep Snap-fit musi być krótszy od ramienia.');
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        lengthValue,
+        widthValue: positive(evaluateExpression(feature.width, parameterResult.values), 'Szerokość Snap-fit'),
+        thicknessValue: positive(evaluateExpression(feature.thickness, parameterResult.values), 'Grubość ramienia Snap-fit'),
+        clearanceValue,
+        hookLengthValue,
+        hookHeightValue: positive(evaluateExpression(feature.hookHeight, parameterResult.values), 'Wysokość zaczepu Snap-fit'),
+        offsetXValue: evaluateExpression(feature.offsetX, parameterResult.values),
+        offsetYValue: evaluateExpression(feature.offsetY, parameterResult.values),
+        reverse: Boolean(feature.reverse),
+        topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
+      };
+    }
     if (feature.type === 'extrude') {
       const extent = feature.extent || 'one-side';
       const sourceSketch = document.sketches.find((sketch) => sketch.id === feature.sketchId);

@@ -1,6 +1,6 @@
 # MadCAD — moduł Plastic
 
-## Ukończone etapy: analiza geometrii i Boss
+## Ukończone etapy: analiza geometrii, Boss i Snap-fit
 
 Wspólny panel `Analiza geometrii` ma dwa jawne tryby. `Pochylenie` klasyfikuje ściany względem kierunku wyciągania formy jako dodatnie, zerowe, ujemne albo mieszane. `Grubość` szuka najbliższej przeciwległej powierzchni dla każdej ściany B-Rep:
 
@@ -18,18 +18,21 @@ Analiza jest nieinwazyjna: nie dopisuje operacji do historii i nie zmienia geome
 - wycina współosiowy otwór przez słupek i na zadaną głębokość w podporę;
 - działa w podglądzie dokładnego B-Rep, historii parametrów oraz w Cofnij/Ponów.
 
+`Snap-fit` tworzy na trwałej referencji ściany wspornik zatrzaskowy, a nie tylko dekoracyjny występ. Ma osobną stopę scaloną z korpusem, prześwit pozostawiający uginaną część ramienia oraz pogrubiony hak na wolnym końcu. Długość, szerokość, grubość, prześwit, wymiary zaczepu i pozycja X/Y pozostają parametryczne.
+
 ## Walidacja
 
 - testy rdzenia obejmują parę płaszczyzn o grubości `2 mm`, współosiowe walce o grubości `1,6 mm`, klasyfikację względem tolerancji oraz brak deskryptora w siatce importowanej;
 - test desktopowy `verify:draft-analysis` otwiera rzeczywisty panel, sprawdza mapę pochylenia, przełącza się na `Grubość`, potwierdza cztery klasy legendy i brak poziomego przepełnienia;
 - test rdzenia tworzy Boss na trwałej referencji, sprawdza parametry i graf zależności oraz odrzuca otwór nie mniejszy od średnicy zewnętrznej;
 - test desktopowy `verify:plastic-boss` wybiera ścianę rzeczywistej bryły, uruchamia narzędzie z menu `Plastic`, zmienia sześć wymiarów, sprawdza dokładną operację fuse/cut oraz Cofnij/Ponów;
+- test desktopowy `verify:plastic-snap-fit` uruchamia zatrzask na niezależnej bryle, zmienia siedem wymiarów, sprawdza wzrost objętości i obwiedni, jedną bryłę wynikową oraz Cofnij/Ponów;
 - dowód wizualny jest zapisywany w `artifacts/madcad-draft-analysis.png`.
 - dowód wizualny Bossa jest zapisywany w `artifacts/madcad-plastic-boss.png`.
+- dowód wizualny zatrzasku jest zapisywany w `artifacts/madcad-plastic-snap-fit.png`.
 
 ## Dalsza kolejność
 
-1. Snap-fit budowany na istniejącej bryle.
-2. Grille z kontrolą liczby żeber, szerokości i prześwitu.
+1. Grille z kontrolą liczby żeber, szerokości i prześwitu.
 
 Każda operacja ma korzystać z tej samej historii, podglądu oraz mechanizmu trwałych referencji co pozostałe narzędzia MadCAD.

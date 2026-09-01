@@ -79,7 +79,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [ ] Plastic: Boss, snap-fit, grille oraz analizy grubości i pochylenia.
   - [x] Analiza pochylenia i grubości z mapą ścian, celem, tolerancją oraz rozpoznaniem par planarnych i współosiowych powierzchni walcowych.
   - [x] Parametryczny Boss osadzany na trwałej referencji planarnej ściany, łączony z istniejącą bryłą, z otworem, głębokością, pozycją i kierunkiem.
-  - [ ] Parametryczny snap-fit współpracujący z istniejącą bryłą.
+  - [x] Parametryczny snap-fit z trwałą ścianą bazową, stopą mocującą, prześwitem pod uginanym ramieniem i kontrolowanym zaczepem.
   - [ ] Parametryczne grille z kontrolą żeber i prześwitów.
 - SubD/T-Spline Form i konwersja do B-Rep.
 - Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.

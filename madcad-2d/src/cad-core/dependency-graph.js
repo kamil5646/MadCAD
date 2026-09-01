@@ -15,6 +15,7 @@ function featureExpressions(feature) {
   if (feature.type === 'sheetHem') return [feature.length, feature.gap];
   if (feature.type === 'sheetRip') return [feature.gap];
   if (feature.type === 'plasticBoss') return [feature.outerDiameter, feature.holeDiameter, feature.height, feature.holeDepth, feature.offsetX, feature.offsetY];
+  if (feature.type === 'plasticSnapFit') return [feature.length, feature.width, feature.thickness, feature.clearance, feature.hookLength, feature.hookHeight, feature.offsetX, feature.offsetY];
   if (feature.type === 'extrude') return [feature.distance, feature.secondDistance, feature.startOffset, feature.wallThickness];
   if (feature.type === 'surfaceExtrude') return [feature.distance];
   if (feature.type === 'surfaceRevolve') return [feature.angle];

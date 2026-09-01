@@ -39,6 +39,7 @@ npm run verify:modeling
 npm run verify:surface-modeling
 npm run verify:sheet-metal-base
 npm run verify:plastic-boss
+npm run verify:plastic-snap-fit
 npm run verify:electron-security
 npm audit --audit-level=high
 ```
@@ -48,8 +49,8 @@ szkice, więzy, operacje bryłowe, historię, import/eksport, dostępność, lic
 kontrolę responsywności.
 
 Moduł `Plastic` zawiera mapy pochylenia i grubości ścian oraz parametryczny
-Boss łączony z istniejącą bryłą, z kontrolowanym otworem, głębokością i
-położeniem na planarnej ścianie.
+Boss łączony z istniejącą bryłą oraz Snap-fit ze stopą, prześwitem pod
+uginanym ramieniem i kontrolowanym zaczepem.
 
 ## Budowanie
 

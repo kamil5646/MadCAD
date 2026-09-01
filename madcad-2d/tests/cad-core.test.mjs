@@ -1261,6 +1261,36 @@ test('Boss tworzy parametryczny słupek z otworem na trwałej planarnej ścianie
   assert.throws(() => prepareDocument(invalid), /mniejszy/);
 });
 
+test('Snap-fit tworzy parametryczne ramię z zaczepem na trwałej planarnej ścianie', () => {
+  const document = createDocument('Plastic Snap-fit');
+  document.parameters.push(createParameter('arm_l', '24'));
+  const base = createFeature('primitive', { primitiveType: 'box', x: '-20', y: '-15', z: '0', width: '40', depth: '30', height: '4' });
+  const bodyId = `body-${base.id}`;
+  const face = { ...createTopologyReference({ selection: { kind: 'face', id: 'top-face', bodyId, sourceFeatureId: base.id }, descriptor: { geometry: 'PLANE', center: [0, 0, 4], normal: [0, 0, 1], area: 1200 }, label: 'Snap-fit — powierzchnia bazowa' }), scope: 'feature-input' };
+  const snapFit = createFeature('plasticSnapFit', { targetBodyId: bodyId, referenceIds: [face.id], length: 'arm_l', width: '8', thickness: '2', clearance: '1.5', hookLength: '5', hookHeight: '3', offsetX: '-4', offsetY: '2', reverse: false });
+  document.references.push(face);
+  document.features.push(base, snapFit);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[1];
+  assert.equal(prepared.lengthValue, 24);
+  assert.equal(prepared.widthValue, 8);
+  assert.equal(prepared.thicknessValue, 2);
+  assert.equal(prepared.clearanceValue, 1.5);
+  assert.equal(prepared.hookLengthValue, 5);
+  assert.equal(prepared.hookHeightValue, 3);
+  assert.equal(prepared.offsetXValue, -4);
+  assert.equal(prepared.offsetYValue, 2);
+  assert.equal(prepared.topologyReferences[0].id, face.id);
+  const graph = buildDependencyGraph(document);
+  assert.ok(graph.edges.some((edge) => edge.from === bodyId && edge.to === snapFit.id && edge.kind === 'modifies'));
+  assert.ok(graph.affectedBy(document.parameters[0].id).includes(snapFit.id));
+
+  const invalid = structuredClone(document);
+  invalid.features[1].hookLength = '24';
+  assert.throws(() => prepareDocument(invalid), /krótszy/);
+});
+
 test('Extrude To Object kończy się dokładnie na równoległej płaszczyźnie konstrukcyjnej', () => {
   const document = createDocument('Extrude To Object');
   document.parameters.push(createParameter('cel', '12'));

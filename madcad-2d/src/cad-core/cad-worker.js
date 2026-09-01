@@ -1582,6 +1582,65 @@ function runFeature(feature, bodyMap, bodyOrder) {
     return;
   }
 
+  if (feature.type === 'plasticSnapFit') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target || target.bodyKind === 'surface') throw new Error(`Nie znaleziono bryły docelowej dla ${feature.name}.`);
+    const descriptor = feature.topologyReferences?.[0]?.descriptor;
+    if (descriptor?.geometry !== 'PLANE' || !descriptor.center || !descriptor.normal) throw new Error('Snap-fit wymaga planarnej ściany z prawidłową normalną.');
+    const baseNormal = vectorNormalized(descriptor.normal);
+    const direction = feature.reverse ? vectorScale(baseNormal, -1) : baseNormal;
+    const helper = Math.abs(direction[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    const xDirection = vectorNormalized(vectorCross(helper, direction));
+    const yDirection = vectorNormalized(vectorCross(direction, xDirection));
+    const center = vectorAdd(descriptor.center, vectorAdd(vectorScale(xDirection, feature.offsetXValue), vectorScale(yDirection, feature.offsetYValue)));
+    const overlap = Math.max(GEOMETRY_POLICY.linearTolerance * 10, 0.02);
+    const armOrigin = vectorAdd(center, vectorScale(direction, feature.clearanceValue));
+    const supportOrigin = vectorAdd(center, vectorScale(direction, -overlap));
+    const armPlane = new Plane(armOrigin, xDirection, direction);
+    const supportPlane = new Plane(supportOrigin, xDirection, direction);
+    const beam = drawRectangle(feature.lengthValue, feature.widthValue)
+      .translate(feature.lengthValue / 2, 0)
+      .sketchOnPlane(armPlane)
+      .extrude(feature.thicknessValue, { extrusionDirection: direction });
+    const hook = drawRectangle(feature.hookLengthValue, feature.widthValue)
+      .translate(feature.lengthValue - (feature.hookLengthValue / 2), 0)
+      .sketchOnPlane(armPlane)
+      .extrude(feature.thicknessValue + feature.hookHeightValue, { extrusionDirection: direction });
+    const rootLength = Math.min(feature.lengthValue / 3, Math.max(feature.hookLengthValue, feature.thicknessValue * 2));
+    const anchor = drawRectangle(rootLength, feature.widthValue)
+      .translate(rootLength / 2, 0)
+      .sketchOnPlane(supportPlane)
+      .extrude(feature.clearanceValue + feature.thicknessValue + overlap, { extrusionDirection: direction });
+    const armWithHook = beam.fuse(hook);
+    const snapFit = armWithHook.fuse(anchor);
+    const result = target.shape.fuse(snapFit);
+    beam.delete();
+    hook.delete();
+    anchor.delete();
+    armWithHook.delete();
+    snapFit.delete();
+    armPlane.delete();
+    supportPlane.delete();
+    target.shape = result;
+    target.plasticFeatures = [...(target.plasticFeatures || []), {
+      featureId: feature.id,
+      type: 'snap-fit',
+      referenceId: feature.topologyReferences[0].id,
+      length: feature.lengthValue,
+      width: feature.widthValue,
+      thickness: feature.thicknessValue,
+      clearance: feature.clearanceValue,
+      hookLength: feature.hookLengthValue,
+      hookHeight: feature.hookHeightValue,
+      offsetX: feature.offsetXValue,
+      offsetY: feature.offsetYValue,
+      reverse: feature.reverse,
+      center,
+      direction,
+    }];
+    return;
+  }
+
   if (feature.type === 'extrude') {
     const span = extrusionSpan(feature, bodyMap);
     const tool = combineShapes(feature.profiles.map((profile) => extrudeProfile(profile, span, feature)));

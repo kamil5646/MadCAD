@@ -2078,6 +2078,23 @@ export default function ModelingWorkspace() {
         });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
+      if (next.type === 'plasticSnapFit') {
+        next.previewFeature = createFeature('plasticSnapFit', {
+          name: current.previewFeature?.name || `Snap-fit ${document.features.length + 1}`,
+          targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
+          referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
+          length: next.length,
+          width: next.width,
+          thickness: next.thickness,
+          clearance: next.clearance,
+          hookLength: next.hookLength,
+          hookHeight: next.hookHeight,
+          offsetX: next.offsetX,
+          offsetY: next.offsetY,
+          reverse: Boolean(next.reverse),
+        });
+        if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
+      }
       if (next.type === 'extrude') {
         if (next.extent === 'through-all' && !['cut', 'intersect'].includes(next.operation)) next.extent = 'one-side';
         if (next.extent === 'to-object' && !next.targetReferenceId) next.targetReferenceId = next.targetOptions[0]?.id;
@@ -3979,6 +3996,21 @@ export default function ModelingWorkspace() {
     setNotice('Podgląd Boss jest aktywny. Ustaw średnice, wysokość, głębokość otworu i pozycję na ścianie.');
   };
 
+  const openPlasticSnapFit = () => {
+    if (readOnly) return readOnlyNotice();
+    if (activeSketchId) return setNotice('Najpierw zakończ szkic.');
+    if (selectedFaceItems.length !== 1) return setNotice('Snap-fit wymaga zaznaczenia dokładnie jednej planarnej ściany bryły.');
+    const selectedFace = selectedFaceItems[0];
+    const body = engine.bodies.find((candidate) => candidate.id === selectedFace.bodyId);
+    const face = body?.topology?.faces?.find((candidate) => candidate.id === selectedFace.id);
+    if (!body || body.bodyKind === 'surface' || body.representation !== 'brep' || face?.descriptor?.geometry !== 'PLANE') return setNotice('Snap-fit można osadzić wyłącznie na planarnej ścianie bryły B-Rep.');
+    const reference = { ...createTopologyReference({ selection: selectedFace, descriptor: face.descriptor, label: 'Snap-fit — powierzchnia bazowa' }), scope: 'feature-input' };
+    const next = { type: 'plasticSnapFit', targetBodyId: body.id, faceLabel: body.name, length: '24', width: '8', thickness: '2', clearance: '1.5', hookLength: '5', hookHeight: '3', offsetX: '0', offsetY: '0', reverse: false, topologyReferences: [reference], previewFeature: null };
+    setCommand(next);
+    window.setTimeout(() => updateCommand(next), 0);
+    setNotice('Podgląd Snap-fit jest aktywny. Ustaw ramię, zaczep i pozycję na ścianie.');
+  };
+
   const addSheetStateFeature = (type) => {
     if (readOnly) return readOnlyNotice();
     if (activeSketchId) return setNotice('Najpierw zakończ szkic.');
@@ -5099,6 +5131,10 @@ export default function ModelingWorkspace() {
     else if (feature.type === 'plasticBoss') {
       const topologyReferences = (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean);
       setCommand({ type: 'plasticBoss', editId: feature.id, targetBodyId: feature.targetBodyId, faceLabel: topologyReferences[0]?.label || 'Planarna ściana', outerDiameter: feature.outerDiameter, holeDiameter: feature.holeDiameter, height: feature.height, holeDepth: feature.holeDepth, offsetX: feature.offsetX, offsetY: feature.offsetY, reverse: Boolean(feature.reverse), topologyReferences, previewFeature: feature });
+    }
+    else if (feature.type === 'plasticSnapFit') {
+      const topologyReferences = (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean);
+      setCommand({ type: 'plasticSnapFit', editId: feature.id, targetBodyId: feature.targetBodyId, faceLabel: topologyReferences[0]?.label || 'Planarna ściana', length: feature.length, width: feature.width, thickness: feature.thickness, clearance: feature.clearance, hookLength: feature.hookLength, hookHeight: feature.hookHeight, offsetX: feature.offsetX, offsetY: feature.offsetY, reverse: Boolean(feature.reverse), topologyReferences, previewFeature: feature });
     }
     else if (feature.type === 'surfaceExtrude') setCommand({ type: 'surfaceExtrude', openChain: Boolean(feature.openEntityIds?.length), editId: feature.id, sourceSketchId: feature.sketchId, openEntityIds: feature.openEntityIds || [], distance: feature.distance, previewFeature: feature });
     else if (feature.type === 'surfaceRevolve') setCommand({ type: 'surfaceRevolve', openChain: Boolean(feature.openEntityIds?.length), editId: feature.id, sourceSketchId: feature.sketchId, openEntityIds: feature.openEntityIds || [], axisId: feature.axisId, axisOptions: [{ id: 'X_AXIS', name: 'Oś bazowa X' }, { id: 'Y_AXIS', name: 'Oś bazowa Y' }, { id: 'Z_AXIS', name: 'Oś bazowa Z' }, ...constructionAxes.filter((axis) => axis.status === 'ok').map((axis) => ({ id: axis.id, name: axis.name }))], angle: feature.angle, previewFeature: feature });
@@ -6390,7 +6426,7 @@ export default function ModelingWorkspace() {
           ...(selectedFaceItems.length === 1 ? [{ icon: OffsetFaceCadIcon, label: 'Odsuń ścianę', onClick: openOffsetFace }] : []),
         ],
         moreActions: [
-          ...(selectedFaceItems.length === 1 ? [{ icon: CircleDotDashed, label: 'Boss', onClick: openPlasticBoss }] : []),
+          ...(selectedFaceItems.length === 1 ? [{ icon: CircleDotDashed, label: 'Boss', onClick: openPlasticBoss }, { icon: Blocks, label: 'Snap-fit', onClick: openPlasticSnapFit }] : []),
           { icon: ShellCadIcon, label: 'Powłoka', onClick: openShell },
           { icon: DraftCadIcon, label: 'Pochylenie', onClick: openDraft },
           { icon: DeleteFaceCadIcon, label: 'Usuń i napraw', onClick: openDeleteFace, danger: true },
@@ -6638,6 +6674,7 @@ export default function ModelingWorkspace() {
                   { icon: ShellCadIcon, label: 'Thicken', displayLabel: 'Pogrub powierzchnię', onClick: openThickenSurface, disabled: readOnly || !selectedSurfaceBody, disabledReason: 'Zaznacz jedną powierzchnię.' },
                 ]} /><ToolMenuButton icon={CircleDotDashed} label="Plastic" description="Funkcje konstrukcyjne elementów z tworzyw sztucznych." items={[
                   { icon: CircleDotDashed, label: 'Boss', onClick: openPlasticBoss, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły B-Rep.' },
+                  { icon: Blocks, label: 'Snap-fit', onClick: openPlasticSnapFit, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły B-Rep.' },
                 ]} /><ToolMenuButton icon={PrimitiveCadIcon} label="Więcej brył" description="Prymitywy, bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
                   { icon: PrimitiveCadIcon, label: 'Prymityw', onClick: openPrimitive, disabled: readOnly },
                   { icon: RevolveCadIcon, label: 'Revolve', displayLabel: 'Bryła obrotowa', onClick: openRevolve, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
