@@ -55,8 +55,10 @@ Boss łączony z istniejącą bryłą, Snap-fit ze stopą, prześwitem pod
 uginanym ramieniem i kontrolowanym zaczepem oraz Grille wycinające
 parametryczne szczeliny wentylacyjne bez rozbijania bryły.
 
-Pierwszy etap `Form` tworzy parametryczną klatkę prostopadłościanu, wygładza ją
-algorytmem Catmulla–Clarka i kończy jako zamkniętą fasetową bryłę B-Rep.
+`Form` tworzy parametryczną klatkę prostopadłościanu, pozwala wybierać i
+przeciągać jej widoczne punkty bezpośrednio w widoku, deformować je dokładnymi
+przesunięciami XYZ oraz wiązać symetrią X/Y/Z. Wynik jest wygładzany algorytmem
+Catmulla–Clarka i kończy jako zamknięta fasetowa bryła B-Rep.
 
 ## Budowanie
 

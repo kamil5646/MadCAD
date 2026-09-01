@@ -83,6 +83,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Parametryczne grille wycinające równoległe szczeliny na trwałej planarnej ścianie, z kontrolą liczby i szerokości żeber, prześwitu, długości, głębokości, pozycji oraz kierunku.
 - [ ] SubD/T-Spline Form i konwersja do B-Rep.
   - [x] Parametryczna klatka bazowa 8 punktów/6 ścian, wygładzanie Catmulla–Clarka 1–3 poziomy i kontrolowana konwersja zamkniętej powierzchni do fasetowej bryły B-Rep.
+  - [x] Widoczna klatka w widoku 3D, bezpośredni wybór i przeciąganie każdego z 8 punktów oraz parametryczne przesunięcia XYZ przebudowujące powierzchnię.
+  - [x] Symetria deformacji punktów względem osi X, Y albo Z z parametrycznym lustrzanym przesunięciem sparowanego narożnika.
   - [ ] Bezpośrednia edycja punktów, krawędzi i ścian klatki manipulatorem w widoku.
   - [ ] Insert Edge, Crease/Uncrease, symetria, Bridge i Fill Hole z podglądem powierzchni granicznej.
   - [ ] Konwersja powierzchni Form do możliwie małej liczby gładkich płatów B-Rep zamiast jednej ściany na trójkąt.

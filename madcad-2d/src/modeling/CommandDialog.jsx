@@ -3,6 +3,7 @@ import { Check, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { BSPT_THREAD_SIZES, ISO_CLEARANCE_THREAD_SIZES, ISO_INTERNAL_THREAD_CLASSES, ISO_METRIC_THREAD_SIZES, NPT_THREAD_SIZES, applyHoleStandard, findMetricThreadSize, findPipeThreadSize } from '../cad-core/hole-standards.js';
 import { isDockableCommand } from './panel-layout.js';
 import { Field } from './WorkspacePanels.jsx';
+import { updateFormControlOffset as applyFormControlOffset } from '../cad-core/subdivision-form.js';
 
 export function CommandDialog({ command, profileName, collapsed, dock, onChange, onConfirm, onConfirmDynamic, onCancel, onUndoSegment, onFinishPath, onToggleCollapsed }) {
   if (!isDockableCommand(command)) return null;
@@ -44,6 +45,13 @@ export function CommandDialog({ command, profileName, collapsed, dock, onChange,
   const isBoolean = command.type === 'boolean';
   const isPrimitive = command.type === 'primitive';
   const isFormBody = command.type === 'formBody';
+  const formControlOffsets = Array.from({ length: 8 }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => command.controlOffsets?.[index]?.[axis] ?? '0'));
+  const selectedFormControlPoint = Math.min(7, Math.max(0, Number(command.selectedControlPoint) || 0));
+  const updateFormControlOffset = (axis, value) => {
+    const offset = [...formControlOffsets[selectedFormControlPoint]];
+    offset[axis] = value;
+    onChange({ controlOffsets: applyFormControlOffset(formControlOffsets, selectedFormControlPoint, offset, command.symmetry) });
+  };
   const isTransform = command.type === 'transform';
   const isOffsetFace = command.type === 'offsetFace';
   const isTextSolid = command.type === 'textSolid';
@@ -194,7 +202,22 @@ export function CommandDialog({ command, profileName, collapsed, dock, onChange,
             <Field label="Położenie Z" value={command.z} onChange={(z) => onChange({ z })} suffix="mm" />
           </>
         )}
-        {isFormBody && <><Field label="Nazwa" value={command.name} onChange={(name) => onChange({ name })} /><Field label="Szerokość klatki" value={command.width} onChange={(width) => onChange({ width })} suffix="mm" autoFocus /><Field label="Głębokość klatki" value={command.depth} onChange={(depth) => onChange({ depth })} suffix="mm" /><Field label="Wysokość klatki" value={command.height} onChange={(height) => onChange({ height })} suffix="mm" /><Field label="Poziom wygładzenia" value={command.subdivisions} onChange={(subdivisions) => onChange({ subdivisions })} /><Field label="Położenie X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" /><Field label="Położenie Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" /><Field label="Położenie Z" value={command.z} onChange={(z) => onChange({ z })} suffix="mm" /><p className="command-hint">Klatka 8 punktów i 6 ścian jest wygładzana algorytmem Catmulla–Clarka. Zatwierdzenie tworzy zamkniętą, fasetową bryłę B-Rep do dalszych operacji.</p></>}
+        {isFormBody && <>
+          <Field label="Nazwa" value={command.name} onChange={(name) => onChange({ name })} />
+          <Field label="Szerokość klatki" value={command.width} onChange={(width) => onChange({ width })} suffix="mm" autoFocus />
+          <Field label="Głębokość klatki" value={command.depth} onChange={(depth) => onChange({ depth })} suffix="mm" />
+          <Field label="Wysokość klatki" value={command.height} onChange={(height) => onChange({ height })} suffix="mm" />
+          <Field label="Poziom wygładzenia" value={command.subdivisions} onChange={(subdivisions) => onChange({ subdivisions })} />
+          <label className="command-field"><span>Symetria klatki</span><select value={command.symmetry || 'none'} onChange={(event) => onChange({ symmetry: event.target.value })}><option value="none">Wyłączona</option><option value="x">Względem X</option><option value="y">Względem Y</option><option value="z">Względem Z</option></select></label>
+          <label className="command-field"><span>Punkt kontrolny</span><select value={selectedFormControlPoint} onChange={(event) => onChange({ selectedControlPoint: Number(event.target.value) })}>{formControlOffsets.map((_point, index) => <option key={index} value={index}>Punkt {index + 1}</option>)}</select></label>
+          <Field label="Przesunięcie punktu X" value={formControlOffsets[selectedFormControlPoint][0]} onChange={(value) => updateFormControlOffset(0, value)} suffix="mm" />
+          <Field label="Przesunięcie punktu Y" value={formControlOffsets[selectedFormControlPoint][1]} onChange={(value) => updateFormControlOffset(1, value)} suffix="mm" />
+          <Field label="Przesunięcie punktu Z" value={formControlOffsets[selectedFormControlPoint][2]} onChange={(value) => updateFormControlOffset(2, value)} suffix="mm" />
+          <Field label="Położenie X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" />
+          <Field label="Położenie Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" />
+          <Field label="Położenie Z" value={command.z} onChange={(z) => onChange({ z })} suffix="mm" />
+          <p className="command-hint">Kliknij turkusowy punkt klatki w widoku i zmień jego przesunięcie. Powierzchnia Catmulla–Clarka przebudowuje się na żywo; zatwierdzenie tworzy zamkniętą bryłę B-Rep.</p>
+        </>}
         {isTransform && (command.mode === 'move' ? <><Field label="Przesunięcie X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" autoFocus /><Field label="Przesunięcie Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" /><Field label="Przesunięcie Z" value={command.z} onChange={(z) => onChange({ z })} suffix="mm" /></> : <><Field label="Kąt Z" value={command.angle} onChange={(angle) => onChange({ angle })} suffix="°" autoFocus /><Field label="Środek X" value={command.originX} onChange={(originX) => onChange({ originX })} suffix="mm" /><Field label="Środek Y" value={command.originY} onChange={(originY) => onChange({ originY })} suffix="mm" /><Field label="Środek Z" value={command.originZ} onChange={(originZ) => onChange({ originZ })} suffix="mm" /></>)}
         {isOffsetFace && <><Field label="Ściana" value={command.faceLabel || '1 wskazana'} disabled /><Field label="Odległość" value={command.distance} onChange={(distance) => onChange({ distance })} suffix="mm" autoFocus /></>}
         {isTextSolid && <><Field label="Tekst" value={command.text} onChange={(text) => onChange({ text })} autoFocus /><Field label="Rozmiar" value={command.fontSize} onChange={(fontSize) => onChange({ fontSize })} suffix="mm" /><Field label="Głębokość" value={command.depth} onChange={(depth) => onChange({ depth })} suffix="mm" /><label className="command-field"><span>Operacja</span><select value={command.operation} onChange={(event) => onChange({ operation: event.target.value })}><option value="new">Nowa bryła</option><option value="emboss" disabled={!command.targetBodyId}>Emboss — wypukły</option><option value="deboss" disabled={!command.targetBodyId}>Deboss — wklęsły</option></select></label>{command.placement === 'face' && <Field label="Powierzchnia" value="Planarna ściana (trwała referencja)" disabled />}<Field label="Położenie X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" /><Field label="Położenie Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" />{command.placement !== 'face' && <Field label={command.operation === 'new' ? 'Położenie Z' : 'Powierzchnia Z'} value={command.z} onChange={(z) => onChange({ z })} suffix="mm" />}</>}

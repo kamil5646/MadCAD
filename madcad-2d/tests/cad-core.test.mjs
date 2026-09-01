@@ -101,7 +101,7 @@ import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, tran
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../src/cad-core/model-import.js';
 import { inspectMesh } from '../src/cad-core/mesh-tools.js';
-import { createRoundedBoxFormMesh } from '../src/cad-core/subdivision-form.js';
+import { createRoundedBoxFormMesh, updateFormControlOffset } from '../src/cad-core/subdivision-form.js';
 import { analyzePrintability } from '../src/cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../src/cad-core/sketch-import.js';
 import {
@@ -1327,6 +1327,8 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   const report = inspectMesh(mesh);
   assert.equal(mesh.controlVertexCount, 8);
   assert.equal(mesh.controlFaceCount, 6);
+  assert.equal(mesh.controlVertices.length, 24);
+  assert.equal(mesh.controlFaces.length, 6);
   assert.equal(mesh.surfaceFaceCount, 96);
   assert.equal(report.triangleCount, 192);
   assert.equal(report.boundaryEdges, 0);
@@ -1339,9 +1341,23 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   assert.equal(Math.max(...ys) - Math.min(...ys), 30);
   assert.equal(Math.max(...zs) - Math.min(...zs), 20);
 
+  const symmetricOffsets = updateFormControlOffset([], 0, ['form_shift', '2', '3'], 'x');
+  assert.deepEqual(symmetricOffsets[0], ['form_shift', '2', '3']);
+  assert.deepEqual(symmetricOffsets[1], ['-(form_shift)', '2', '3']);
+  assert.deepEqual(updateFormControlOffset([], 6, ['1', '2', '3'], 'z')[2], ['1', '2', '-3']);
+
+  const deformed = createRoundedBoxFormMesh({ width: 40, depth: 30, height: 20, subdivisions: 2, controlOffsets: [[8, 0, 5]] });
+  assert.notDeepEqual(deformed.vertices, mesh.vertices);
+  assert.notDeepEqual(deformed.controlVertices, mesh.controlVertices);
+  const deformedReport = inspectMesh(deformed);
+  assert.equal(deformedReport.boundaryEdges, 0);
+  assert.equal(deformedReport.nonManifoldEdges, 0);
+  assert.equal(deformedReport.inconsistentEdges, 0);
+
   const document = createDocument('Form SubD');
   document.parameters.push(createParameter('form_w', '40'));
-  const form = createFeature('formBody', { name: 'Obudowa Form', width: 'form_w', depth: '30', height: '20', subdivisions: '2', x: '5', y: '-3', z: '1' });
+  document.parameters.push(createParameter('form_shift', '8'));
+  const form = createFeature('formBody', { name: 'Obudowa Form', width: 'form_w', depth: '30', height: '20', subdivisions: '2', symmetry: 'x', controlOffsets: [['form_shift', '0', '5'], ...Array.from({ length: 7 }, () => ['0', '0', '0'])], x: '5', y: '-3', z: '1' });
   document.features.push(form);
   assert.equal(validateDocument(document).valid, true);
   const prepared = prepareDocument(document).features[0];
@@ -1349,10 +1365,12 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   assert.equal(prepared.depthValue, 30);
   assert.equal(prepared.heightValue, 20);
   assert.equal(prepared.subdivisionsValue, 2);
+  assert.deepEqual(prepared.controlOffsets[0], [8, 0, 5]);
   assert.deepEqual(prepared.position, [5, -3, 1]);
   const graph = buildDependencyGraph(document);
   assert.ok(graph.edges.some((edge) => edge.from === form.id && edge.to === `body-${form.id}` && edge.kind === 'produces'));
   assert.ok(graph.affectedBy(document.parameters[0].id).includes(form.id));
+  assert.ok(graph.affectedBy(document.parameters[1].id).includes(form.id));
 
   const invalid = structuredClone(document);
   invalid.features[0].subdivisions = '4';

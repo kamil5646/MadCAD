@@ -439,6 +439,8 @@ export default function ModelViewport({
   fitRequest = null,
   selectionModeRequestId = 0,
   activeCommand = null,
+  onFormControlPointSelection,
+  onFormControlPointMove,
   onCameraStateChange,
   onSelectBody,
   onSelectComponentInstance,
@@ -492,6 +494,8 @@ export default function ModelViewport({
   const sketchProfileSelectionRef = useRef(onSketchProfileSelection);
   const sketchMoveRef = useRef(onSketchMove);
   const sketchModifyRef = useRef(onSketchModify);
+  const formControlPointSelectionRef = useRef(onFormControlPointSelection);
+  const formControlPointMoveRef = useRef(onFormControlPointMove);
   const directRef = useRef({});
   const [view, setView] = useState('iso');
   const [standardViewRequestId, setStandardViewRequestId] = useState(0);
@@ -603,6 +607,8 @@ export default function ModelViewport({
   sketchProfileSelectionRef.current = onSketchProfileSelection;
   sketchMoveRef.current = onSketchMove;
   sketchModifyRef.current = onSketchModify;
+  formControlPointSelectionRef.current = onFormControlPointSelection;
+  formControlPointMoveRef.current = onFormControlPointMove;
   directRef.current = {
     distance: directManipulator ? numericValue(directManipulator.value, parameters) : numericValue(directExtrudeDistance, parameters),
     onCommit: directManipulator?.onCommit || onDirectExtrude,
@@ -857,6 +863,56 @@ export default function ModelViewport({
       modelGroup.add(mesh);
       pickables.push(mesh);
       facePickables.push(mesh);
+
+      const showFormCage = Boolean(body.form?.controlVertices?.length
+        && ((activeCommand?.type === 'formBody' && body.sourceFeatureId === activeCommand.previewFeature?.id) || selected));
+      if (showFormCage) {
+        const controlVertices = body.form.controlVertices;
+        const edgeIndexes = [];
+        const seenEdges = new Set();
+        for (const face of body.form.controlFaces || []) {
+          face.forEach((first, index) => {
+            const second = face[(index + 1) % face.length];
+            const key = first < second ? `${first}:${second}` : `${second}:${first}`;
+            if (seenEdges.has(key)) return;
+            seenEdges.add(key);
+            edgeIndexes.push(first, second);
+          });
+        }
+        const cageLinePositions = new Float32Array(edgeIndexes.flatMap((index) => controlVertices.slice(index * 3, (index * 3) + 3)));
+        const cageGeometry = new THREE.BufferGeometry();
+        cageGeometry.setAttribute('position', new THREE.BufferAttribute(cageLinePositions, 3));
+        const cageLines = new THREE.LineSegments(cageGeometry, new THREE.LineBasicMaterial({ color: 0x55d9f2, transparent: true, opacity: 0.9, depthTest: false, clippingPlanes }));
+        cageLines.renderOrder = 8;
+        cageLines.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, occurrenceId: placement.occurrenceId, formControlCage: true };
+        placeObject(cageLines);
+        modelGroup.add(cageLines);
+
+        const pointGeometry = new THREE.BufferGeometry();
+        pointGeometry.setAttribute('position', new THREE.Float32BufferAttribute(controlVertices, 3));
+        const selectedControlPoint = activeCommand?.type === 'formBody' ? Math.min(7, Math.max(0, Number(activeCommand.selectedControlPoint) || 0)) : -1;
+        const pointColors = new Float32Array((controlVertices.length / 3) * 3);
+        for (let index = 0; index < controlVertices.length / 3; index += 1) {
+          const color = new THREE.Color(index === selectedControlPoint ? 0xffc857 : 0xdff9ff);
+          color.toArray(pointColors, index * 3);
+        }
+        pointGeometry.setAttribute('color', new THREE.BufferAttribute(pointColors, 3));
+        const cagePoints = new THREE.Points(pointGeometry, new THREE.PointsMaterial({ size: 11, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 1, depthTest: false, clippingPlanes }));
+        cagePoints.renderOrder = 9;
+        cagePoints.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, occurrenceId: placement.occurrenceId, formControlPoints: true };
+        placeObject(cagePoints);
+        modelGroup.add(cagePoints);
+        pickables.push(cagePoints);
+        for (let index = 0; index < controlVertices.length / 3; index += 1) {
+          const hitTarget = new THREE.Mesh(new THREE.SphereGeometry(2.4, 8, 6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+          hitTarget.position.fromArray(controlVertices, index * 3);
+          hitTarget.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, occurrenceId: placement.occurrenceId, formControlPoints: true, formControlPointIndex: index };
+          placeObject(hitTarget);
+          modelGroup.add(hitTarget);
+          pickables.push(hitTarget);
+        }
+        if (new URLSearchParams(window.location.search).has('verify')) window.__madcadFormCageState = { bodyId: body.id, pointCount: controlVertices.length / 3, edgeCount: edgeIndexes.length / 2, selectedControlPoint, screenPoint: (index) => projectedPoints(cagePoints, [index])[0] };
+      }
 
       for (const faceGroup of body.faceGroups || []) {
         const draftFace = draftFaceMap.get(`${body.id}:${faceGroup.topologyId}`);
@@ -1416,6 +1472,7 @@ export default function ModelViewport({
     let hoveredOriginPlane = null;
     let modelPickCycle = { x: NaN, y: NaN, index: 0 };
     let modelSelectionBox = null;
+    let formControlDrag = null;
     const sketchPlane = activePlane === 'XZ'
       ? new THREE.Plane(new THREE.Vector3(0, 1, 0), activePlaneOffset)
       : activePlane === 'YZ'
@@ -1823,7 +1880,37 @@ export default function ModelViewport({
         sketchProfileSelectionRef.current?.(completedProfileHit.object.userData.sketchProfileId, visibleSketch?.id || null);
         return;
       }
-      const hit = pickModel(event, alternateModifierPressed(event));
+      const formControlHit = activeCommand?.type === 'formBody'
+        ? raycaster.intersectObjects(pickables.filter((object) => Number.isInteger(object.userData.formControlPointIndex)), false)[0]
+        : null;
+      if (new URLSearchParams(window.location.search).has('verify')) window.__madcadFormPointerDebug = { activeCommand: activeCommand?.type || null, candidateCount: pickables.filter((object) => Number.isInteger(object.userData.formControlPointIndex)).length, hitIndex: formControlHit?.object?.userData?.formControlPointIndex ?? null, clientX: event.clientX, clientY: event.clientY };
+      const hit = formControlHit || pickModel(event, alternateModifierPressed(event));
+      const formControlPointIndex = hit?.object?.userData?.formControlPointIndex ?? hit?.index;
+      if (activeCommand?.type === 'formBody' && hit?.object?.userData?.formControlPoints && Number.isInteger(formControlPointIndex)) {
+        event.preventDefault();
+        formControlPointSelectionRef.current?.(formControlPointIndex);
+        if (formControlPointIndex === Math.min(7, Math.max(0, Number(activeCommand.selectedControlPoint) || 0))) {
+          const point = hit.object.getWorldPosition(new THREE.Vector3());
+          const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), point);
+          const startIntersection = raycaster.ray.intersectPlane(plane, new THREE.Vector3());
+          if (startIntersection) {
+            formControlDrag = {
+              index: formControlPointIndex,
+              plane,
+              startIntersection,
+              startClientX: event.clientX,
+              startClientY: event.clientY,
+              startOffset: Array.from({ length: 3 }, (_unused, axis) => numericValue(activeCommand.controlOffsets?.[formControlPointIndex]?.[axis] || '0', parameters)),
+              offset: null,
+              moved: false,
+            };
+            controls.enabled = false;
+            try { renderer.domElement.setPointerCapture?.(event.pointerId); } catch { /* Pointer capture is optional in synthetic tests. */ }
+            renderer.domElement.style.cursor = 'move';
+          }
+        }
+        return;
+      }
       if (event.shiftKey && !hit) {
         event.preventDefault();
         controls.enabled = false;
@@ -1853,6 +1940,19 @@ export default function ModelViewport({
       else selectRef.current?.(topologySelection?.bodyId || null);
     };
     const onPointerMove = (event) => {
+      if (formControlDrag) {
+        event.preventDefault();
+        const rect = setRayFromEvent(event);
+        const currentIntersection = raycaster.ray.intersectPlane(formControlDrag.plane, new THREE.Vector3());
+        if (!currentIntersection) return;
+        const delta = currentIntersection.sub(formControlDrag.startIntersection);
+        const step = alternateModifierPressed(event) ? 0.1 : 0.5;
+        formControlDrag.offset = formControlDrag.startOffset.map((value, axis) => Math.round((value + delta.getComponent(axis)) / step) * step);
+        formControlDrag.moved = Math.hypot(event.clientX - formControlDrag.startClientX, event.clientY - formControlDrag.startClientY) >= 3;
+        const magnitude = Math.hypot(...formControlDrag.offset.map((value, axis) => value - formControlDrag.startOffset[axis]));
+        setDragLabel({ value: magnitude, x: event.clientX - rect.left + 14, y: event.clientY - rect.top - 12 });
+        return;
+      }
       if (planeSelectionMode) {
         setRayFromEvent(event);
         const planeHit = pickOriginPlane(event);
@@ -1980,6 +2080,17 @@ export default function ModelViewport({
     };
     const onPointerUp = (event) => {
       if (window.__madcadPointerLog) window.__madcadPointerLog.upCalled = true;
+      if (formControlDrag) {
+        event.preventDefault();
+        const finished = formControlDrag;
+        formControlDrag = null;
+        controls.enabled = true;
+        try { renderer.domElement.releasePointerCapture?.(event.pointerId); } catch { /* Pointer capture may already be released. */ }
+        renderer.domElement.style.cursor = viewportCursor(navigationMode);
+        setDragLabel(null);
+        if (finished.moved && finished.offset) formControlPointMoveRef.current?.(finished.index, finished.offset);
+        return;
+      }
       const directDrag = directDragRef.current;
       if (modelSelectionBox) {
         event.preventDefault();
@@ -2261,10 +2372,12 @@ export default function ModelViewport({
       delete window.__madcadJointVisualState;
       delete window.__madcadCameraState;
       delete window.__madcadViewportNavigationState;
+      delete window.__madcadFormCageState;
+      delete window.__madcadFormPointerDebug;
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlPoint]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

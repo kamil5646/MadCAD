@@ -6,15 +6,37 @@ function edgeKey(first, second) {
   return first < second ? `${first}:${second}` : `${second}:${first}`;
 }
 
-export function createBoxControlCage(width, depth, height) {
+const SYMMETRY_PAIRS = {
+  x: [1, 0, 3, 2, 5, 4, 7, 6],
+  y: [3, 2, 1, 0, 7, 6, 5, 4],
+  z: [4, 5, 6, 7, 0, 1, 2, 3],
+};
+
+export function updateFormControlOffset(controlOffsets, pointIndex, offset, symmetry = 'none') {
+  const next = Array.from({ length: 8 }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => controlOffsets?.[index]?.[axis] ?? '0'));
+  next[pointIndex] = [...offset];
+  const pairedIndex = SYMMETRY_PAIRS[symmetry]?.[pointIndex];
+  if (Number.isInteger(pairedIndex)) {
+    const symmetryAxis = { x: 0, y: 1, z: 2 }[symmetry];
+    next[pairedIndex] = offset.map((value, axis) => {
+      if (axis !== symmetryAxis) return value;
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? String(-numeric) : `-(${value})`;
+    });
+  }
+  return next;
+}
+
+export function createBoxControlCage(width, depth, height, controlOffsets = []) {
   const x = width / 2;
   const y = depth / 2;
   const z = height / 2;
+  const baseVertices = [
+    [-x, -y, -z], [x, -y, -z], [x, y, -z], [-x, y, -z],
+    [-x, -y, z], [x, -y, z], [x, y, z], [-x, y, z],
+  ];
   return {
-    vertices: [
-      [-x, -y, -z], [x, -y, -z], [x, y, -z], [-x, y, -z],
-      [-x, -y, z], [x, -y, z], [x, y, z], [-x, y, z],
-    ],
+    vertices: baseVertices.map((point, index) => point.map((value, axis) => value + (Number(controlOffsets[index]?.[axis]) || 0))),
     faces: [
       [0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4],
       [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7],
@@ -68,7 +90,7 @@ export function subdivideCatmullClark(cage) {
   return { vertices, faces };
 }
 
-function fitBounds(vertices, width, depth, height) {
+function createBoundsFitter(vertices, width, depth, height) {
   const targets = [width, depth, height];
   const mins = [Infinity, Infinity, Infinity];
   const maxs = [-Infinity, -Infinity, -Infinity];
@@ -76,16 +98,19 @@ function fitBounds(vertices, width, depth, height) {
     mins[axis] = Math.min(mins[axis], value);
     maxs[axis] = Math.max(maxs[axis], value);
   }));
-  return vertices.map((point) => point.map((value, axis) => {
+  return (point) => point.map((value, axis) => {
     const span = maxs[axis] - mins[axis];
     return span ? (((value - mins[axis]) / span) - 0.5) * targets[axis] : 0;
-  }));
+  });
 }
 
-export function createRoundedBoxFormMesh({ width, depth, height, subdivisions = 2 }) {
-  let cage = createBoxControlCage(width, depth, height);
+export function createRoundedBoxFormMesh({ width, depth, height, subdivisions = 2, controlOffsets = [] }) {
+  const controlCage = createBoxControlCage(width, depth, height, controlOffsets);
+  let cage = controlCage;
   for (let iteration = 0; iteration < subdivisions; iteration += 1) cage = subdivideCatmullClark(cage);
-  const fittedVertices = fitBounds(cage.vertices, width, depth, height);
+  const fitPoint = createBoundsFitter(cage.vertices, width, depth, height);
+  const fittedVertices = cage.vertices.map(fitPoint);
+  const fittedControlVertices = controlCage.vertices.map(fitPoint);
   const vertices = fittedVertices.flat();
   const triangles = cage.faces.flatMap((face) => {
     const result = [];
@@ -97,6 +122,8 @@ export function createRoundedBoxFormMesh({ width, depth, height, subdivisions = 
     triangles,
     controlVertexCount: 8,
     controlFaceCount: 6,
+    controlVertices: fittedControlVertices.flat(),
+    controlFaces: controlCage.faces.map((face) => [...face]),
     surfaceVertexCount: fittedVertices.length,
     surfaceFaceCount: cage.faces.length,
     subdivisions,

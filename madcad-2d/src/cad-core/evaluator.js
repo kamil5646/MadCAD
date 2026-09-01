@@ -667,6 +667,7 @@ export function prepareDocument(document) {
       };
       const subdivisionsValue = read(feature.subdivisions, 'Poziom wygładzenia Form');
       if (!Number.isInteger(subdivisionsValue) || subdivisionsValue < 1 || subdivisionsValue > 3) throw new Error('Poziom wygładzenia Form musi być liczbą całkowitą od 1 do 3.');
+      const controlOffsets = Array.from({ length: 8 }, (_unused, pointIndex) => Array.from({ length: 3 }, (_axis, axisIndex) => read(feature.controlOffsets?.[pointIndex]?.[axisIndex] ?? '0', `Przesunięcie punktu Form ${pointIndex + 1}`)));
       return {
         ...feature,
         status: 'ready',
@@ -675,6 +676,7 @@ export function prepareDocument(document) {
         depthValue: read(feature.depth, 'Głębokość Form', true),
         heightValue: read(feature.height, 'Wysokość Form', true),
         subdivisionsValue,
+        controlOffsets,
         position: [read(feature.x, 'Położenie X'), read(feature.y, 'Położenie Y'), read(feature.z, 'Położenie Z')],
       };
     }
