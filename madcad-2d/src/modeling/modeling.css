@@ -1189,6 +1189,26 @@
   white-space: nowrap;
 }
 
+.tree-row.sheet-metal-body {
+  min-height: 39px;
+  grid-template-columns: 15px 16px minmax(0, 1fr);
+  grid-template-rows: 19px 14px;
+  column-gap: 5px;
+  row-gap: 0;
+}
+
+.sheet-metal-body .body-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-metal-body .body-kind {
+  grid-column: 3;
+  grid-row: 2;
+  justify-self: start;
+}
+
 .tree-root {
   min-height: 31px;
   border-bottom: 1px solid #39434f;

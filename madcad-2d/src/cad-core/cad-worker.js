@@ -1257,6 +1257,30 @@ function runFeature(feature, bodyMap, bodyOrder) {
     return;
   }
 
+  if (feature.type === 'sheetBase') {
+    const startDelta = feature.side === 'symmetric' ? -feature.thicknessValue / 2 : feature.reverse ? -feature.thicknessValue : 0;
+    const shape = extrudeProfile(feature.profile, { startDelta, distance: feature.thicknessValue }, { thin: false });
+    const bodyId = `body-${feature.id}`;
+    bodyMap.set(bodyId, {
+      id: bodyId,
+      name: feature.name,
+      sourceFeatureId: feature.id,
+      representation: 'brep',
+      shape,
+      sheetMetal: {
+        thickness: feature.thicknessValue,
+        bendRadius: feature.bendRadiusValue,
+        kFactor: feature.kFactorValue,
+        side: feature.side,
+        reverse: feature.reverse,
+        baseProfile: feature.profile,
+        bends: [],
+      },
+    });
+    bodyOrder.push(bodyId);
+    return;
+  }
+
   if (feature.type === 'extrude') {
     const span = extrusionSpan(feature, bodyMap);
     const tool = combineShapes(feature.profiles.map((profile) => extrudeProfile(profile, span, feature)));
@@ -1984,6 +2008,7 @@ function meshBody(body, index, quality = 'display') {
     bodyKind: body.bodyKind || 'solid',
     representation: body.representation || 'brep',
     manufacturingHoles: body.manufacturingHoles || [],
+    sheetMetal: body.sheetMetal || null,
     color: ['#55b7db', '#81c784', '#ffb95c', '#c49cff'][index % 4],
     vertices: Float32Array.from(mesh.vertices),
     normals: Float32Array.from(mesh.normals),

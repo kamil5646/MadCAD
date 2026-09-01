@@ -37,6 +37,7 @@ npm run verify:start-experience
 npm run verify:drawing-workspace
 npm run verify:modeling
 npm run verify:surface-modeling
+npm run verify:sheet-metal-base
 npm run verify:electron-security
 npm audit --audit-level=high
 ```
@@ -89,6 +90,7 @@ użyć `Control` + klik i wybrać **Otwórz**.
 - Import STEP/STL/3MF jest dostępny w menu **Plik**; poprawny model zostaje dopasowany do widoku, a błędny import jest opisany i bezpiecznie usunięty z historii.
 - Zaznaczenie importowanej siatki udostępnia **Narzędzia siatki** podzielone na `Naprawę` i `Obróbkę`: raport topologii, odwracalne czyszczenie, korektę kierunku ścian, limitowane wypełnianie małych otworów, redukcję, wygładzanie chroniące otwarte brzegi, jednorodny remesh i grupowanie ścian. Zamknięty, spójny STL do 2500 trójkątów można zamienić na prawdziwą fasetową bryłę B-Rep OpenCascade i przywrócić do siatki przez historię lub polecenie; program nie wypełnia dużych braków przekraczających jawną średnicę użytkownika.
 - Modelowanie powierzchniowe obejmuje `Patch`, `Surface Extrude`, `Surface Revolve`, `Surface Sweep`, `Surface Loft`, `Surface Offset`, `Stitch`, `Surface Trim`, `Surface Extend` i `Thicken`; powierzchnie mają osobny folder, wygląd i bezpieczny przepływ do bryły.
+- `Więcej brył → Baza blachowa` tworzy z jednego zamkniętego profilu dokładną bryłę B-Rep z zapisaną regułą grubości, promienia gięcia i współczynnika K. Bryła jest oznaczona w przeglądarce jako `BLACHA`, a parametry można edytować w historii i cofać lub ponawiać bez utraty szkicu źródłowego.
 - Menu **SPRAWDŹ → Analiza powierzchni** udostępnia pasy zebra, mapę krzywizny, grzebień krzywizny krawędzi, izolinie XYZ i diagnostykę ciągłości granic ścian. Tryby są wyłącznie widokowe i nie dopisują operacji do historii.
 - Obszar **DOKUMENTACJA** tworzy zapisywane arkusze A4/A3, skojarzone widoki bazowe i rzutowane, przekroje A-A z kreskowaniem oraz powiększone detale. Widoki i ich wymiary, osie, znaczniki środka, opisy otworów/gwintów oraz tolerancje aktualizują się z modelem; tabliczka i rewizje są edytowalne, a gotowy arkusz można wyeksportować do PDF lub DXF.
 - Funkcje wstążki pokazują po najechaniu opis; skróty podstawowych narzędzi są widoczne tylko w podpowiedzi, nie na przyciskach.
@@ -118,5 +120,6 @@ Pełne warunki: [`../LICENSE`](../LICENSE). Kontakt handlowy:
 - [`docs/HOLE_STANDARDS.md`](./docs/HOLE_STANDARDS.md) — zakres otworów ISO, źródła danych i granice zgodności.
 - [`docs/SURFACE_MODELING_AUDIT_2026-08-31.md`](./docs/SURFACE_MODELING_AUDIT_2026-08-31.md) — przepływ Patch/Surface Extrude/Thicken i wyniki testów B-Rep.
 - [`docs/MESH_TOOLS_AUDIT_2026-09-01.md`](./docs/MESH_TOOLS_AUDIT_2026-09-01.md) — diagnostyka, obróbka, remesh i bezpieczna konwersja siatki do B-Rep.
+- [`docs/SHEET_METAL_AUDIT_2026-09-01.md`](./docs/SHEET_METAL_AUDIT_2026-09-01.md) — kontrakt bazy blachowej, wynik B-Rep i dalsza kolejność modułu blach.
 - [`CHANGELOG.md`](./CHANGELOG.md) — historia wydań.
 - [`design-qa.md`](./design-qa.md) — kryteria jakości interfejsu.

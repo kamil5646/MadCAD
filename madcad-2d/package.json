@@ -17,6 +17,7 @@
     "build:ui": "vite build",
     "verify:modeling": "npm run build:ui && electron scripts/verify-modeling.cjs",
     "verify:surface-modeling": "npm run build:ui && electron scripts/verify-surface-modeling.cjs",
+    "verify:sheet-metal-base": "npm run build:ui && electron scripts/verify-sheet-metal-base.cjs",
     "verify:extrude-after-sketch": "npm run build:ui && electron scripts/verify-extrude-after-sketch.cjs",
     "verify:model-import": "npm run build:ui && electron scripts/verify-model-import.cjs",
     "verify:mesh-repair": "npm run build:ui && electron scripts/verify-mesh-repair.cjs",

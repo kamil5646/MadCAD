@@ -338,6 +338,16 @@ export function prepareDocument(document) {
         reverse: Boolean(feature.reverse),
       };
     }
+    if (feature.type === 'sheetBase') {
+      const match = findProfile(document, feature.profileIds[0]);
+      if (!match) throw new Error(`Nie znaleziono profilu bazy blachowej ${feature.profileIds[0]}.`);
+      const profile = { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
+      const thicknessValue = positive(evaluateExpression(feature.thickness, parameterResult.values), 'Grubość blachy');
+      const bendRadiusValue = positive(evaluateExpression(feature.bendRadius, parameterResult.values), 'Promień gięcia');
+      const kFactorValue = evaluateExpression(feature.kFactor, parameterResult.values);
+      if (!Number.isFinite(kFactorValue) || kFactorValue < 0 || kFactorValue > 1) throw new Error('Współczynnik K musi należeć do zakresu 0–1.');
+      return { ...feature, status: 'ready', diagnostics: [], profile, thicknessValue, bendRadiusValue, kFactorValue, side: feature.side || 'one-side', reverse: Boolean(feature.reverse) };
+    }
     if (feature.type === 'extrude') {
       const extent = feature.extent || 'one-side';
       const sourceSketch = document.sketches.find((sketch) => sketch.id === feature.sketchId);

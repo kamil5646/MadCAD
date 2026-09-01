@@ -1130,6 +1130,26 @@ test('Extrude przygotowuje odsunięty start, Join, Cut i Intersect z jedną, dwi
   assert.ok(validateDocument(invalid).issues.some((issue) => issue.path.endsWith('.extent')));
 });
 
+test('baza blachowa zachowuje grubość, promień gięcia, współczynnik K i profil źródłowy', () => {
+  const document = createDocument('Blacha bazowa');
+  const profile = createRectangleProfile({ width: '100', height: '60' });
+  const sketch = createSketch({ name: 'Obrys blachy', profiles: [profile] });
+  const base = createFeature('sheetBase', { sketchId: sketch.id, profileIds: [profile.id], thickness: '1.5', bendRadius: '2', kFactor: '0.42', side: 'symmetric', reverse: false });
+  document.sketches.push(sketch);
+  document.features.push(base);
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[0];
+  assert.equal(prepared.thicknessValue, 1.5);
+  assert.equal(prepared.bendRadiusValue, 2);
+  assert.equal(prepared.kFactorValue, 0.42);
+  assert.equal(prepared.profile.geometry.width, 100);
+  assert.equal(buildDependencyGraph(document).producerOfBody(`body-${base.id}`), base.id);
+
+  const invalid = structuredClone(document);
+  invalid.features[0].kFactor = '1.2';
+  assert.throws(() => prepareDocument(invalid), /zakresu 0–1/);
+});
+
 test('Extrude To Object kończy się dokładnie na równoległej płaszczyźnie konstrukcyjnej', () => {
   const document = createDocument('Extrude To Object');
   document.parameters.push(createParameter('cel', '12'));

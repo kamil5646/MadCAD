@@ -342,12 +342,12 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
     const surface = body.bodyKind === 'surface';
     return <div className="tree-reference-row" key={body.id}>
       <button
-        className={`tree-row tree-grandchild ${selection?.kind === 'body' && selection.id === body.id ? 'selected' : ''} ${bodyVisible ? '' : 'hidden-object'}`}
+        className={`tree-row tree-grandchild ${body.sheetMetal ? 'sheet-metal-body' : ''} ${selection?.kind === 'body' && selection.id === body.id ? 'selected' : ''} ${bodyVisible ? '' : 'hidden-object'}`}
         type="button"
         title={surface ? `Zaznacz powierzchnię ${body.name}; użyj Pogrub, aby utworzyć bryłę.` : body.representation === 'mesh-import' ? `${body.name}: ${body.meshBooleanCapable === false ? 'otwarta siatka do pomiaru, transformacji i eksportu' : 'zamknięta siatka 3D'}.` : `Zaznacz dokładną bryłę B-Rep ${body.name} do dalszych operacji.`}
         onClick={() => onSelect({ kind: 'body', id: body.id })}
       >
-        <span />{surface ? <Frame size={13} /> : <Box size={13} />}<span>{body.name}</span><span className="body-kind"><small>{surface ? 'POW.' : body.representation === 'mesh-import' ? (body.meshBooleanCapable === false ? 'SIATKA OTW.' : 'SIATKA') : 'B-REP'}</small><i className="body-color" style={{ background: body.color }} /></span>
+        <span />{surface ? <Frame size={13} /> : <Box size={13} />}<span className="body-name">{body.name}</span><span className="body-kind"><small>{surface ? 'POW.' : body.sheetMetal ? `BLACHA · ${body.sheetMetal.thickness} mm` : body.representation === 'mesh-import' ? (body.meshBooleanCapable === false ? 'SIATKA OTW.' : 'SIATKA') : 'B-REP'}</small><i className="body-color" style={{ background: body.color }} /></span>
       </button>
       <button className="tree-reference-visibility" type="button" aria-pressed={bodyVisible} title={bodyVisible ? `Ukryj ${body.name}` : `Pokaż ${body.name}`} onClick={() => onToggleBodyVisibility(body.id)}>{bodyVisible ? <Eye size={13} /> : <EyeOff size={13} />}</button>
     </div>;
