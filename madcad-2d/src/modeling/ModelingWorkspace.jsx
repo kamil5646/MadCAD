@@ -172,6 +172,7 @@ import {
 import { isDockableCommand, panelScreenKey, readPanelLayout, writePanelLayout } from './panel-layout.js';
 import { mergeResumableSketches, resolveResumableSketch, resolveResumableSketches, resolveVisibleSketchId } from './sketch-visibility.js';
 import { resolveExtrudeSource } from './extrude-source.js';
+import { analyzeSurfaceContinuity, summarizeMeshCurvature } from './surface-analysis.js';
 import { multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
 import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumentHistory } from './workspace-document.js';
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext, ToolMenuButton } from './WorkspaceRibbon.jsx';
@@ -216,7 +217,7 @@ import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import { AdaptiveToolShelf } from './WorkspaceSketchUi.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectDashboard, ProjectDependenciesPanel, ProjectHealthPanel, ProjectSearchPalette, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
-import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, NamedViewsPanel, SectionPanel } from './WorkspacePanels.jsx';
+import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, NamedViewsPanel, SectionPanel, SurfaceAnalysisPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
   clearLocalAutosave,
@@ -505,6 +506,7 @@ export default function ModelingWorkspace() {
   const [commandHistory, setCommandHistory] = useState([]);
   const [toolHelp, setToolHelp] = useState(null);
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
+  const [surfaceAnalysis, setSurfaceAnalysis] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(true);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
@@ -861,6 +863,9 @@ export default function ModelingWorkspace() {
   useEffect(() => {
     if (command?.type !== 'sectionAnalysis' && sectionAnalysis) setSectionAnalysis(null);
   }, [command?.type, sectionAnalysis]);
+  useEffect(() => {
+    if (command?.type !== 'surfaceAnalysis' && surfaceAnalysis) setSurfaceAnalysis(null);
+  }, [command?.type, surfaceAnalysis]);
   const readOnlyNotice = () => setNotice(`Projekt v${documentAccess.sourceVersion} jest otwarty tylko do odczytu. Utwórz nowy projekt albo otwórz obsługiwaną wersję, aby edytować.`);
   const commit = (mutator) => {
     if (readOnly) {
@@ -1597,6 +1602,8 @@ export default function ModelingWorkspace() {
     })
     : null, [command?.type, command?.draftDirection, command?.draftTolerance, engine.bodies]);
   const geometryInspection = useMemo(() => ({ ...summarizeGeometryInspection(engine.bodies, engine.analysis), draft: draftAnalysis }), [engine.bodies, engine.analysis, draftAnalysis]);
+  const surfaceContinuity = useMemo(() => analyzeSurfaceContinuity(engine.bodies), [engine.bodies]);
+  const surfaceCurvature = useMemo(() => summarizeMeshCurvature(engine.bodies), [engine.bodies]);
   const selectedPrintFace = useMemo(() => {
     if (selectedFaceItems.length !== 1) return null;
     const selected = selectedFaceItems[0];
@@ -3491,6 +3498,7 @@ export default function ModelingWorkspace() {
         sectionAnalysis: command.type === 'sectionAnalysis' ? sectionAnalysis : null,
         massProperties: command.type === 'massProperties' ? massProperties : null,
         geometryInspection: command.type === 'geometryInspection' ? geometryInspection : null,
+        surfaceAnalysis: command.type === 'surfaceAnalysis' ? { ...surfaceAnalysis, continuity: surfaceContinuity, curvature: surfaceCurvature } : null,
       } : null,
     };
     return () => {
@@ -3520,7 +3528,7 @@ export default function ModelingWorkspace() {
     };
   // Verification hooks refresh only when the state exposed to the desktop harness changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, massProperties, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses, projectHealthReport, projectDependencyInspection, projectSearchIndex, sketchOptions]);
+  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, surfaceAnalysis, surfaceContinuity, surfaceCurvature, massProperties, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses, projectHealthReport, projectDependencyInspection, projectSearchIndex, sketchOptions]);
 
   const confirmProfile = (sourceCommand = command) => {
     if (readOnly) return readOnlyNotice();
@@ -4204,6 +4212,18 @@ export default function ModelingWorkspace() {
     setSectionAnalysis(null);
     setCommand(null);
     setNotice('Section Analysis wyłączone; model nie został zmieniony.');
+  };
+
+  const openSurfaceAnalysis = () => {
+    setSurfaceAnalysis({ enabled: true, mode: 'zebra', bands: '12', curvatureMax: '0.2', combScale: '10', isocurveAxis: 'z', isocurveSpacing: '10', showEdges: true });
+    setCommand({ type: 'surfaceAnalysis' });
+    setNotice('Analiza powierzchni jest aktywna. Obracaj model, aby sprawdzić płynność pasów zebra na granicach ścian.');
+  };
+
+  const closeSurfaceAnalysis = () => {
+    setSurfaceAnalysis(null);
+    setCommand(null);
+    setNotice('Analiza powierzchni wyłączona; model nie został zmieniony.');
   };
 
   const openMassProperties = () => {
@@ -6244,6 +6264,7 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="SPRAWDŹ"><ToolMenuButton icon={GeometryCheckCadIcon} label="Analiza" description="Pomiary, przekrój, masa i kontrola geometrii." items={[
                   { icon: Ruler, label: 'Zmierz', onClick: openMeasure },
                   { icon: SectionCadIcon, label: 'Przekrój', onClick: openSectionAnalysis, disabled: !engine.bodies.length },
+                  { icon: ScanSearch, label: 'Analiza powierzchni', onClick: openSurfaceAnalysis, disabled: !engine.bodies.length },
                   { icon: MassCadIcon, label: 'Właściwości masy', onClick: openMassProperties, disabled: !engine.bodies.length },
                   { icon: GeometryCheckCadIcon, label: 'Sprawdź geometrię', onClick: openGeometryInspection, disabled: !engine.bodies.length },
                 ]} /></RibbonGroup>
@@ -6359,6 +6380,7 @@ export default function ModelingWorkspace() {
             sliceModel={sketchOptions.slice}
             sectionAnalysis={sectionAnalysis}
             draftAnalysis={draftAnalysis}
+            surfaceAnalysis={surfaceAnalysis}
             parameters={document.parameters}
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : (selection?.bodyId || null)}
@@ -6420,6 +6442,7 @@ export default function ModelingWorkspace() {
           <TopologyReferenceRepairPanel items={lostTopologyReferences} selection={selection} onReassign={repairTopologyReference} onPreview={(candidate) => handleTopologySelection(candidate)} />
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
+          {command?.type === 'surfaceAnalysis' && surfaceAnalysis && <SurfaceAnalysisPanel analysis={surfaceAnalysis} continuity={surfaceContinuity} curvature={surfaceCurvature} onChange={(patch) => setSurfaceAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSurfaceAnalysis} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} draftDirection={command.draftDirection} draftTolerance={command.draftTolerance} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {namedViewsOpen && <NamedViewsPanel views={document.namedViews || []} currentCamera={currentCameraRef.current} readOnly={readOnly} onCreate={saveNamedView} onActivate={activateNamedView} onDelete={removeNamedView} onClose={() => setNamedViewsOpen(false)} />}

@@ -161,6 +161,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.21f Stitch: zszywanie co najmniej dwóch stykających się powierzchni z parametryczną tolerancją; otwarty wynik pozostaje jednym płaszczem, a szczelny płaszcz automatycznie staje się bryłą.
 - [x] P1.21g Surface Trim: dokładne odjęcie bryły tnącej od powierzchni B-Rep, opcjonalne zachowanie narzędzia, podgląd, edycja historii i współpraca z Thicken.
 - [x] P1.21h Surface Extend: przedłużenie wskazanej prostej krawędzi planarnej powierzchni o parametryczną odległość, trwała referencja topologii i poprawne późniejsze Thicken.
+- [x] P1.21i Analiza powierzchni: zebra zależna od kamery, mapa krzywizny siatki z regulowanym zakresem, grzebień krzywizny krawędzi, izolinie XYZ oraz klasyfikacja płynnych, przejściowych i ostrych granic ścian bez zmiany historii modelu.
 
 ## P1 — organizacja dokumentu i produktywność klasycznego CAD
 

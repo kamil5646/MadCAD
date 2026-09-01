@@ -100,6 +100,9 @@ const ACTIVE_COMMAND_LABELS = Object.freeze({
   extrude: 'WYCIĄGNIJ',
   measure: 'ZMIERZ',
   geometryInspection: 'ANALIZA GEOMETRII',
+  surfaceAnalysis: 'ANALIZA POWIERZCHNI',
+  sectionAnalysis: 'PRZEKRÓJ',
+  massProperties: 'WŁAŚCIWOŚCI MASY',
   parameters: 'PARAMETRY',
 });
 
@@ -157,6 +160,11 @@ export function describeActiveCommand(command) {
     return `${name}: wskaż następny punkt lub wpisz długość`;
   }
   if (command.type === 'line' || command.type === 'polyline') return `${name}: wskaż pierwszy punkt`;
+  if (command.type === 'measure') return `${name}: zaznacz element; Esc kończy pomiar`;
+  if (command.type === 'surfaceAnalysis') return `${name}: obracaj model; Esc kończy analizę`;
+  if (command.type === 'geometryInspection') return `${name}: sprawdź wyniki; Esc kończy analizę`;
+  if (command.type === 'sectionAnalysis') return `${name}: ustaw płaszczyznę i położenie; Esc kończy przekrój`;
+  if (command.type === 'massProperties') return `${name}: sprawdź wynik; Esc zamyka panel`;
   return `${name}: ustaw parametry i zatwierdź Enterem`;
 }
 

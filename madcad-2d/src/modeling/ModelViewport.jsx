@@ -15,6 +15,7 @@ import { normalizeComponentAppearance } from '../cad-core/components.js';
 import { calculateExplodedOffsets } from '../cad-core/exploded-view.js';
 import { configureCadMouseNavigation, shouldHandlePrimaryViewportPointer, VIEWPORT_NAVIGATION_MODES, viewportCursor } from './viewport-navigation.js';
 import { resolveReferenceSketchIds } from './sketch-visibility.js';
+import { createCurvatureColors, createCurvatureCombVertices } from './surface-analysis.js';
 
 const VIEW_DIRECTIONS = {
   iso: [1.25, -1.45, 1.15],
@@ -421,6 +422,7 @@ export default function ModelViewport({
   sliceModel = false,
   sectionAnalysis = null,
   draftAnalysis = null,
+  surfaceAnalysis = null,
   parameters = [],
   showGrid = true,
   selectedBodyId,
@@ -786,6 +788,10 @@ export default function ModelViewport({
       geometry.setAttribute('position', new THREE.BufferAttribute(body.vertices, 3));
       if (body.normals.length) geometry.setAttribute('normal', new THREE.BufferAttribute(body.normals, 3));
       geometry.setIndex(new THREE.BufferAttribute(body.triangles, 1));
+      const curvatureAnalysis = surfaceAnalysis?.enabled && surfaceAnalysis.mode === 'curvature'
+        ? createCurvatureColors(body, surfaceAnalysis.curvatureMax)
+        : null;
+      if (curvatureAnalysis) geometry.setAttribute('color', new THREE.BufferAttribute(curvatureAnalysis.colors, 3));
       geometry.computeBoundingSphere();
       const selected = selectedBodySet.has(body.id) || placement.occurrenceId === selectedComponentInstanceId;
       const colliding = collisionInstanceSet.has(placement.occurrenceId);
@@ -793,17 +799,58 @@ export default function ModelViewport({
       const showCollisionColor = explodeAmount <= 0;
       const appearance = normalizeComponentAppearance(component?.appearance);
       const material = new THREE.MeshStandardMaterial({
-        color: showCollisionColor && exactCollision ? '#ef6a6a' : showCollisionColor && colliding ? '#f09a52' : selected ? '#72c9eb' : component ? appearance.color : body.color,
-        metalness: appearance.metalness,
-        roughness: appearance.roughness,
-        emissive: showCollisionColor && exactCollision ? '#5a1111' : showCollisionColor && colliding ? '#5b2d0c' : selected ? '#10394a' : '#000000',
-        emissiveIntensity: showCollisionColor && exactCollision ? 0.9 : showCollisionColor && colliding ? 0.75 : selected ? 0.7 : 0,
+        color: curvatureAnalysis ? '#ffffff' : showCollisionColor && exactCollision ? '#ef6a6a' : showCollisionColor && colliding ? '#f09a52' : selected ? '#72c9eb' : component ? appearance.color : body.color,
+        metalness: curvatureAnalysis ? 0 : appearance.metalness,
+        roughness: curvatureAnalysis ? 1 : appearance.roughness,
+        emissive: curvatureAnalysis ? '#202020' : showCollisionColor && exactCollision ? '#5a1111' : showCollisionColor && colliding ? '#5b2d0c' : selected ? '#10394a' : '#000000',
+        emissiveIntensity: curvatureAnalysis ? 0.38 : showCollisionColor && exactCollision ? 0.9 : showCollisionColor && colliding ? 0.75 : selected ? 0.7 : 0,
+        vertexColors: Boolean(curvatureAnalysis),
         transparent: Boolean(activeSketchId) || body.bodyKind === 'surface',
         opacity: activeSketchId ? 0.38 : body.bodyKind === 'surface' ? 0.62 : 1,
         depthWrite: body.bodyKind !== 'surface',
         side: THREE.DoubleSide,
         clippingPlanes,
       });
+      if (surfaceAnalysis?.enabled && surfaceAnalysis.mode === 'zebra') {
+        const bands = Math.min(32, Math.max(4, Number(surfaceAnalysis.bands) || 12));
+        material.onBeforeCompile = (shader) => {
+          shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <opaque_fragment>',
+            `
+              #include <opaque_fragment>
+              vec3 zebraReflection = reflect(normalize(vViewPosition), normalize(normal));
+              float zebraSignal = sin(zebraReflection.y * ${bands.toFixed(1)} * 3.14159265);
+              float zebraBand = smoothstep(-0.16, 0.16, zebraSignal);
+              vec3 zebraDark = vec3(0.025, 0.045, 0.060);
+              vec3 zebraLight = vec3(0.88, 0.95, 0.98);
+              gl_FragColor.rgb = mix(zebraDark, zebraLight, zebraBand);
+            `,
+          );
+        };
+        material.customProgramCacheKey = () => `surface-zebra-${bands}`;
+      }
+      if (surfaceAnalysis?.enabled && surfaceAnalysis.mode === 'isocurves') {
+        const axisIndex = { x: 0, y: 1, z: 2 }[surfaceAnalysis.isocurveAxis] ?? 2;
+        const spacing = Math.max(0.01, Number(surfaceAnalysis.isocurveSpacing) || 10);
+        material.onBeforeCompile = (shader) => {
+          shader.vertexShader = `varying vec3 vSurfaceAnalysisPosition;\n${shader.vertexShader}`.replace(
+            '#include <begin_vertex>',
+            '#include <begin_vertex>\nvSurfaceAnalysisPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+          );
+          shader.fragmentShader = `varying vec3 vSurfaceAnalysisPosition;\n${shader.fragmentShader}`.replace(
+            '#include <opaque_fragment>',
+            `
+              #include <opaque_fragment>
+              float isocurveCoordinate = vSurfaceAnalysisPosition[${axisIndex}] / ${spacing.toFixed(6)};
+              float isocurveDistance = min(fract(isocurveCoordinate), 1.0 - fract(isocurveCoordinate));
+              float isocurveWidth = max(fwidth(isocurveCoordinate) * 1.4, 0.003);
+              float isocurveLine = 1.0 - smoothstep(isocurveWidth, isocurveWidth * 2.2, isocurveDistance);
+              gl_FragColor.rgb = mix(gl_FragColor.rgb * 0.48, vec3(0.35, 0.92, 1.0), isocurveLine);
+            `,
+          );
+        };
+        material.customProgramCacheKey = () => `surface-isocurves-${axisIndex}-${spacing}`;
+      }
       const mesh = new THREE.Mesh(geometry, material);
       mesh.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, faceGroups: body.faceGroups, occurrenceId: placement.occurrenceId };
       placeObject(mesh);
@@ -834,11 +881,24 @@ export default function ModelViewport({
         const edgeSelected = selectedTopologySet.has(edgeGroup.topologyId);
         const edgeMaterial = new THREE.LineBasicMaterial({ color: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : body.bodyKind === 'surface' ? 0x5de1ff : 0x26333b), transparent: true, opacity: activeSketchId ? 0.34 : edgeSelected ? 1 : body.bodyKind === 'surface' ? 0.92 : 0.72, clippingPlanes });
         const edgeObject = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+        if (surfaceAnalysis?.enabled) edgeObject.visible = surfaceAnalysis.showEdges !== false;
         edgeObject.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, occurrenceId: placement.occurrenceId, topologyKind: 'edge', topologyId: edgeGroup.topologyId, baseColor: edgeSelected ? 0xffc857 : (selected ? 0xe4f8ff : 0x26333b) };
         placeObject(edgeObject);
         modelGroup.add(edgeObject);
         pickables.push(edgeObject);
         edgePickables.push(edgeObject);
+        if (surfaceAnalysis?.enabled && surfaceAnalysis.mode === 'comb') {
+          const combVertices = createCurvatureCombVertices(vertices, surfaceAnalysis.combScale);
+          if (combVertices.length) {
+            const combGeometry = new THREE.BufferGeometry();
+            combGeometry.setAttribute('position', new THREE.BufferAttribute(combVertices, 3));
+            const combObject = new THREE.LineSegments(combGeometry, new THREE.LineBasicMaterial({ color: 0x5de1ff, transparent: true, opacity: 0.94, depthTest: false, clippingPlanes }));
+            combObject.renderOrder = 7;
+            combObject.userData = { bodyId: body.id, occurrenceId: placement.occurrenceId, surfaceAnalysis: 'curvature-comb' };
+            placeObject(combObject);
+            modelGroup.add(combObject);
+          }
+        }
       }
 
       for (const vertex of body.topology?.vertices || []) {
@@ -2204,7 +2264,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

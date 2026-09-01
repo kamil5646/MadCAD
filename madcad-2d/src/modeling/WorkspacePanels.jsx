@@ -458,6 +458,42 @@ export function GeometryInspectionPanel({ result, draftDirection = 'z-positive',
   );
 }
 
+export function SurfaceAnalysisPanel({ analysis, continuity, curvature, onChange, onClose }) {
+  const counts = continuity?.counts || { smooth: 0, warning: 0, sharp: 0 };
+  return (
+    <aside className="measure-panel surface-analysis-panel" aria-label="Analiza powierzchni">
+      <header><div><ScanSearch size={16} /><strong>Analiza powierzchni</strong></div><button type="button" title="Zamknij analizę powierzchni" aria-label="Zamknij analizę powierzchni" onClick={onClose}><X size={15} /></button></header>
+      <div className="measure-panel-body">
+        <label className="command-field"><span>Tryb widoku</span><select value={analysis.mode} onChange={(event) => onChange({ mode: event.target.value })}><option value="zebra">Zebra ciągłości</option><option value="curvature">Mapa krzywizny</option><option value="comb">Grzebień krzywizny</option><option value="isocurves">Izolinie XYZ</option></select></label>
+        {analysis.mode === 'zebra' && <Field label="Gęstość pasów" type="number" value={analysis.bands} onChange={(bands) => onChange({ bands })} />}
+        {analysis.mode === 'curvature' && <>
+          <Field label="Górny zakres" type="number" value={analysis.curvatureMax} onChange={(curvatureMax) => onChange({ curvatureMax })} suffix="1/mm" />
+          <div className="curvature-map-legend" aria-label="Legenda mapy krzywizny"><span><i /><i /><i /><i /></span><div><em>0 · płasko</em><em>{Number(analysis.curvatureMax || 0.2).toLocaleString('pl-PL')} 1/mm</em></div></div>
+          <div className="measure-row"><span>Największa w modelu</span><strong>{Number(curvature?.maximum || 0).toLocaleString('pl-PL', { maximumFractionDigits: 5 })} 1/mm</strong></div>
+        </>}
+        {analysis.mode === 'isocurves' && <>
+          <label className="command-field"><span>Oś przekrojów</span><select value={analysis.isocurveAxis} onChange={(event) => onChange({ isocurveAxis: event.target.value })}><option value="x">X</option><option value="y">Y</option><option value="z">Z</option></select></label>
+          <Field label="Rozstaw" type="number" value={analysis.isocurveSpacing} onChange={(isocurveSpacing) => onChange({ isocurveSpacing })} suffix="mm" />
+        </>}
+        {analysis.mode === 'comb' && <Field label="Wzmocnienie" type="number" value={analysis.combScale} onChange={(combScale) => onChange({ combScale })} suffix="×" />}
+        <label className="section-toggle"><input type="checkbox" checked={analysis.showEdges} onChange={(event) => onChange({ showEdges: event.target.checked })} /><span>Pokaż krawędzie B-Rep</span></label>
+        <div className="surface-continuity-summary" aria-label="Diagnostyka ciągłości siatki powierzchni">
+          <strong>Granice ścian</strong>
+          <div className="surface-continuity-row smooth"><span aria-hidden="true" /><em>Płynne ≤ 2°</em><strong>{counts.smooth}</strong></div>
+          <div className="surface-continuity-row warning"><span aria-hidden="true" /><em>Przejściowe 2–8°</em><strong>{counts.warning}</strong></div>
+          <div className="surface-continuity-row sharp"><span aria-hidden="true" /><em>Ostre &gt; 8°</em><strong>{counts.sharp}</strong></div>
+        </div>
+        {continuity?.unsupportedBodyIds?.length > 0 && <p>Bez diagnostyki: {continuity.unsupportedBodyIds.length} elementów bez mapy ścian lub normalnych.</p>}
+        {analysis.mode === 'zebra' && <p>Pasy reagują na obrót kamery. Załamanie wzoru ujawnia zmianę styczności.</p>}
+        {analysis.mode === 'curvature' && <p>Kolor pokazuje zmianę normalnej na jednostkę długości: niebieski oznacza obszar płaski, czerwony największą krzywiznę zakresu.</p>}
+        {analysis.mode === 'comb' && <p>Turkusowe odcinki pokazują kierunek i względną wielkość zmiany stycznej na próbkowanych krawędziach krzywoliniowych.</p>}
+        {analysis.mode === 'isocurves' && <p>Linie pokazują przecięcia modelu z równoległymi płaszczyznami wybranej osi i pomagają ocenić przebieg powierzchni.</p>}
+        <p>Analiza nie zmienia modelu ani historii.</p>
+      </div>
+    </aside>
+  );
+}
+
 const IMPORT_UNIT_OPTIONS = [
   ['auto', 'Automatycznie / z pliku'],
   ['millimeter', 'Milimetry (mm)'],

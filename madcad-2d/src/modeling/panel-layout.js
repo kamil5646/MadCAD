@@ -54,6 +54,7 @@ export function isDockableCommand(command) {
     'sectionAnalysis',
     'massProperties',
     'geometryInspection',
+    'surfaceAnalysis',
     'sketchDimension',
     'trimSketch',
     'extendSketch',

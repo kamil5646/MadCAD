@@ -66,10 +66,21 @@ Każda operacja jest zapisana w osi czasu, zachowuje zależność od szkicu i bi
 
 Scenariusz wykonuje `scripts/verify-surface-modeling.cjs`. Zrzut końcowy znajduje się w `artifacts/madcad-surface-modeling.png`.
 
+## Analiza jakości powierzchni
+
+Panel `SPRAWDŹ → Analiza powierzchni` łączy cztery widoki, które nie modyfikują dokumentu:
+
+- pasy zebra reagujące na kamerę i ujawniające załamania styczności,
+- mapę zmiany normalnej na jednostkę długości z regulowanym górnym zakresem,
+- grzebień krzywizny próbkowanych krawędzi z regulowanym wzmocnieniem,
+- izolinie przecięć z równoległymi płaszczyznami X, Y albo Z i regulowanym rozstawem.
+
+Ten sam panel agreguje segmenty triangulacji do par sąsiednich ścian i klasyfikuje ich zmianę normalnych jako płynną (do 2°), przejściową (2–8°) albo ostrą (powyżej 8°). `scripts/verify-surface-analysis.cjs` przełącza wszystkie tryby w rzeczywistym Electronie, wykrywa błędy WebGL/shaderów, sprawdza rozmiar panelu i brak poziomego przepełnienia. Zrzuty znajdują się w `artifacts/madcad-surface-analysis.png`, `artifacts/madcad-surface-curvature.png`, `artifacts/madcad-surface-comb.png` i `artifacts/madcad-surface-isocurves.png`.
+
 ## Instalacja lokalna
 
 - Zbudowano aplikację arm64 bez automatycznego wykrywania certyfikatu producenta, aby uniknąć blokującego podpisu z pęku kluczy.
 - `/Applications/MadCAD.app` ma lokalny podpis ad-hoc i przechodzi `codesign --verify --deep --strict`.
-- Zainstalowany `app.asar` jest identyczny z wynikiem kompilacji pakietu Surface Trim/Extend: SHA-256 `d8048f8df71f430d11f8d17eba4ea3005dd8e5b165bad7c75f905980f7689afe`.
-- Poprzednia aplikacja została zachowana odwracalnie w Koszu jako `MadCAD-before-surface-trim-extend-20260901.app`; wcześniejsze kopie kontrolne pozostały nienaruszone.
+- Zainstalowany `app.asar` jest identyczny z wynikiem kompilacji pakietu analizy powierzchni: SHA-256 `86ac369e0cad21aaf9fe9abe500ed68649a6c610478779586747b2d13dffcb2d`.
+- Poprzednia aplikacja została zachowana odwracalnie w Koszu jako `MadCAD-before-surface-analysis-20260901.app`; wcześniejsze kopie kontrolne pozostały nienaruszone.
 - Aplikacja została uruchomiona z `/Applications`; nie utworzono wydania ani tagu GitHub.

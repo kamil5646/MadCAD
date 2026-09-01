@@ -45,6 +45,7 @@ describe('dockable command classification', () => {
     expect(isDockableCommand({ type: 'line' })).toBe(true);
     expect(isDockableCommand({ type: 'extrude' })).toBe(true);
     expect(isDockableCommand({ type: 'measure' })).toBe(false);
+    expect(isDockableCommand({ type: 'surfaceAnalysis' })).toBe(false);
     expect(isDockableCommand({ type: 'parameters' })).toBe(false);
     expect(isDockableCommand(null)).toBe(false);
   });
