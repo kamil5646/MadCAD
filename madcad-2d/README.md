@@ -87,7 +87,7 @@ użyć `Control` + klik i wybrać **Otwórz**.
 
 - Nawigacja CAD: naciśnięte kółko myszy przesuwa widok, przeciągnięcie prawym przyciskiem lub `Shift` + kółko obraca model 3D, rolka przybliża pod kursorem, a lewy przycisk zaznacza i rysuje. Aktywny szkic 2D pozostaje zablokowany prostopadle do swojej płaszczyzny; dostępne są w nim pan, zoom i dopasowanie widoku.
 - Import STEP/STL/3MF jest dostępny w menu **Plik**; poprawny model zostaje dopasowany do widoku, a błędny import jest opisany i bezpiecznie usunięty z historii.
-- Modelowanie powierzchniowe obejmuje `Patch`, `Surface Extrude` i `Thicken`; powierzchnie mają osobny folder, wygląd i bezpieczny przepływ do bryły.
+- Modelowanie powierzchniowe obejmuje `Patch`, `Surface Extrude`, `Surface Revolve`, `Surface Sweep`, `Surface Loft`, `Surface Offset`, `Stitch`, `Surface Trim`, `Surface Extend` i `Thicken`; powierzchnie mają osobny folder, wygląd i bezpieczny przepływ do bryły.
 - Obszar **DOKUMENTACJA** tworzy zapisywane arkusze A4/A3, skojarzone widoki bazowe i rzutowane, przekroje A-A z kreskowaniem oraz powiększone detale. Widoki i ich wymiary, osie, znaczniki środka, opisy otworów/gwintów oraz tolerancje aktualizują się z modelem; tabliczka i rewizje są edytowalne, a gotowy arkusz można wyeksportować do PDF lub DXF.
 - Funkcje wstążki pokazują po najechaniu opis; skróty podstawowych narzędzi są widoczne tylko w podpowiedzi, nie na przyciskach.
 - **Import DWG** w aktywnym szkicu otwiera plik przez bezpieczny dialog desktopowy, konwertuje go lokalnie przez `dwgread`/`dwg2dxf` (GNU LibreDWG) albo ODA File Converter i przekazuje wynik do istniejącego importera DXF. Projekt nie jest wysyłany do usługi sieciowej.

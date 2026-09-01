@@ -60,7 +60,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 ### Surface i zaawansowany Mesh
 
 - [x] Surface Extrude, Surface Revolve, Surface Sweep, Surface Loft, Surface Offset, Patch, Stitch i Thicken.
-- [ ] Surface Trim/Extend.
+- [x] Surface Trim/Extend: przycinanie powierzchni bryłą oraz przedłużanie prostej krawędzi planarnej powierzchni, oba z historią, podglądem i współpracą z Thicken.
 - Curvature map/comb, zebra, isocurve i diagnostyka ciągłości powierzchni.
 - Mesh groups, convert mesh/B-Rep, reduce, remesh, smooth i naprawa skanów.
 

@@ -326,6 +326,8 @@ export function prepareDocument(document) {
     }
     if (feature.type === 'surfaceOffset') return { ...feature, status: 'ready', diagnostics: [], distanceValue: evaluateExpression(feature.distance, parameterResult.values) };
     if (feature.type === 'surfaceStitch') return { ...feature, status: 'ready', diagnostics: [], toleranceValue: positive(evaluateExpression(feature.tolerance, parameterResult.values), 'Tolerancja Stitch') };
+    if (feature.type === 'surfaceTrim') return { ...feature, status: 'ready', diagnostics: [], keepTool: feature.keepTool !== false };
+    if (feature.type === 'surfaceExtend') return { ...feature, status: 'ready', diagnostics: [], distanceValue: positive(evaluateExpression(feature.distance, parameterResult.values), 'Odległość Surface Extend'), topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean) };
     if (feature.type === 'thickenSurface') {
       return {
         ...feature,

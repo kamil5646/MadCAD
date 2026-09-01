@@ -28,7 +28,7 @@ export const DOCUMENT_SCHEMA_VERSION = 15;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
-const FEATURE_TYPES = new Set(['extrude', 'surfacePatch', 'surfaceExtrude', 'surfaceRevolve', 'surfaceSweep', 'surfaceLoft', 'surfaceOffset', 'surfaceStitch', 'thickenSurface', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'pattern', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
+const FEATURE_TYPES = new Set(['extrude', 'surfacePatch', 'surfaceExtrude', 'surfaceRevolve', 'surfaceSweep', 'surfaceLoft', 'surfaceOffset', 'surfaceStitch', 'surfaceTrim', 'surfaceExtend', 'thickenSurface', 'revolve', 'sweep', 'loft', 'rib', 'coil', 'pipe', 'pattern', 'boolean', 'hole', 'fillet', 'chamfer', 'shell', 'draft', 'splitBody', 'splitFace', 'deleteFace', 'replaceFace', 'primitive', 'transform', 'offsetFace', 'textSolid', 'importedModel']);
 const PROFILE_TYPES = new Set(['rectangle', 'circle', 'closed']);
 const ENTITY_TYPES = new Set(SKETCH_ENTITY_TYPES);
 const ENTITY_ROLES = new Set(SKETCH_ENTITY_ROLES);
@@ -343,7 +343,7 @@ export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', 
 }
 
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', surfacePatch: 'Patch', surfaceExtrude: 'Wyciągnięcie powierzchni', surfaceRevolve: 'Obrót powierzchni', surfaceSweep: 'Powierzchnia po ścieżce', surfaceLoft: 'Powierzchnia przejściowa', surfaceOffset: 'Odsunięcie powierzchni', surfaceStitch: 'Zszycie powierzchni', thickenSurface: 'Pogrubienie powierzchni', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = { extrude: 'Wyciągnięcie', surfacePatch: 'Patch', surfaceExtrude: 'Wyciągnięcie powierzchni', surfaceRevolve: 'Obrót powierzchni', surfaceSweep: 'Powierzchnia po ścieżce', surfaceLoft: 'Powierzchnia przejściowa', surfaceOffset: 'Odsunięcie powierzchni', surfaceStitch: 'Zszycie powierzchni', surfaceTrim: 'Przycięcie powierzchni', surfaceExtend: 'Przedłużenie powierzchni', thickenSurface: 'Pogrubienie powierzchni', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -1112,6 +1112,23 @@ export function validateDocument(document) {
       const bodyId = `body-${feature.id}`;
       bodyIds.add(bodyId);
       surfaceBodyIds.add(bodyId);
+    }
+
+    if (feature.type === 'surfaceTrim') {
+      if (!surfaceBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Surface Trim wymaga istniejącej powierzchni.', 'BROKEN_REFERENCE');
+      if (!bodyIds.has(feature.toolBodyId) || surfaceBodyIds.has(feature.toolBodyId)) add(`${base}.toolBodyId`, 'Surface Trim wymaga istniejącej bryły tnącej.', 'BROKEN_REFERENCE');
+      if (feature.targetBodyId === feature.toolBodyId) add(`${base}.toolBodyId`, 'Powierzchnia i bryła tnąca muszą być różnymi obiektami.', 'VALUE');
+      if (feature.keepTool === false) bodyIds.delete(feature.toolBodyId);
+    }
+
+    if (feature.type === 'surfaceExtend') {
+      if (!surfaceBodyIds.has(feature.targetBodyId)) add(`${base}.targetBodyId`, 'Surface Extend wymaga istniejącej powierzchni.', 'BROKEN_REFERENCE');
+      if (typeof feature.distance !== 'string' && typeof feature.distance !== 'number') add(`${base}.distance`, 'Surface Extend wymaga parametrycznej odległości.', 'TYPE');
+      if (!Array.isArray(feature.referenceIds) || feature.referenceIds.length !== 1) add(`${base}.referenceIds`, 'Surface Extend wymaga dokładnie jednej krawędzi powierzchni.', 'REQUIRED');
+      else {
+        const edgeReference = references.find((reference) => reference.id === feature.referenceIds[0]);
+        if (edgeReference?.kind !== 'topology' || edgeReference.topologyKind !== 'edge' || edgeReference.bodyId !== feature.targetBodyId) add(`${base}.referenceIds[0]`, 'Surface Extend wymaga trwałej referencji krawędzi wybranej powierzchni.', 'UNSUPPORTED');
+      }
     }
 
     if (feature.type === 'thickenSurface') {

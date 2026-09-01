@@ -414,6 +414,7 @@ function featureIcon(type, size = 16) {
   if (type === 'primitive') return <Box size={size} />;
   if (type === 'transform') return <Move3d size={size} />;
   if (type === 'offsetFace' || type === 'surfaceOffset' || type === 'surfaceStitch') return <Layers3 size={size} />;
+  if (type === 'surfaceTrim' || type === 'surfaceExtend') return <Scissors size={size} />;
   if (type === 'textSolid') return <Type size={size} />;
   if (type === 'importedModel') return <Upload size={size} />;
   return <Box size={size} />;
@@ -1100,7 +1101,9 @@ export default function ModelingWorkspace() {
   const engine = useCadEngine(previewDocument, { quality: command?.previewFeature ? 'preview' : 'display' });
   const selectedBodies = selectedBodyIds.map((bodyId) => engine.bodies.find((body) => body.id === bodyId)).filter(Boolean);
   const selectedSurfaceBodies = selectedBodies.filter((body) => body.bodyKind === 'surface');
+  const selectedSolidBodies = selectedBodies.filter((body) => body.bodyKind !== 'surface');
   const canStitchSelectedSurfaces = selectedBodyIds.length >= 2 && selectedSurfaceBodies.length === selectedBodyIds.length;
+  const canTrimSelectedSurface = selectedBodyIds.length === 2 && selectedSurfaceBodies.length === 1 && selectedSolidBodies.length === 1;
   const assemblyCollisionResult = React.useMemo(() => detectAssemblyCollisions(document, engine.bodies), [document, engine.bodies]);
   const collisionInstanceIds = React.useMemo(() => [...new Set(assemblyCollisionResult.collisions.flatMap((collision) => [collision.firstInstanceId, collision.secondInstanceId]))], [assemblyCollisionResult]);
   const exactCollisionInstanceIds = React.useMemo(() => [...new Set(assemblyCollisionResult.collisions.filter((collision) => collision.status === 'exact').flatMap((collision) => [collision.firstInstanceId, collision.secondInstanceId]))], [assemblyCollisionResult]);
@@ -1635,6 +1638,9 @@ export default function ModelingWorkspace() {
   const targetBody = engine.bodies.find((body) => body.id === targetBodyId);
   const targetBodySupportsSolidOperations = targetBody?.bodyKind !== 'surface' && targetBody?.meshBooleanCapable !== false;
   const selectedSurfaceBody = selectedBodyIds.length === 1 && selectedBodies[0]?.bodyKind === 'surface' ? selectedBodies[0] : null;
+  const selectedSurfaceEdgeBody = selectedEdgeItems.length === 1 ? engine.bodies.find((body) => body.id === selectedEdgeItems[0].bodyId && body.bodyKind === 'surface') || null : null;
+  const selectedSurfaceEdgeDescriptor = selectedSurfaceEdgeBody?.topology?.edges?.find((edge) => edge.id === selectedEdgeItems[0]?.id)?.descriptor || null;
+  const canExtendSelectedSurface = Boolean(selectedSurfaceEdgeBody && selectedSurfaceEdgeDescriptor?.geometry === 'LINE' && !selectedSurfaceEdgeDescriptor?.closed);
   const topologyReferenceStates = useMemo(() => inspectTopologyReferences(document, actualBodies), [document, actualBodies]);
   const lostTopologyReferences = useMemo(
     () => engine.status === 'ready' && !command?.previewFeature ? topologyReferenceStates.filter((item) => item.status === 'lost') : [],
@@ -1928,6 +1934,24 @@ export default function ModelingWorkspace() {
           name: current.previewFeature?.name || `Zszycie powierzchni ${document.features.length + 1}`,
           targetBodyIds: current.previewFeature?.targetBodyIds || next.targetBodyIds,
           tolerance: next.tolerance,
+        });
+        if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
+      }
+      if (next.type === 'surfaceTrim') {
+        next.previewFeature = createFeature('surfaceTrim', {
+          name: current.previewFeature?.name || `Przycięcie powierzchni ${document.features.length + 1}`,
+          targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
+          toolBodyId: current.previewFeature?.toolBodyId || next.toolBodyId,
+          keepTool: next.keepTool !== false,
+        });
+        if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
+      }
+      if (next.type === 'surfaceExtend') {
+        next.previewFeature = createFeature('surfaceExtend', {
+          name: current.previewFeature?.name || `Przedłużenie powierzchni ${document.features.length + 1}`,
+          targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
+          distance: next.distance,
+          referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
         });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
@@ -3319,6 +3343,20 @@ export default function ModelingWorkspace() {
     };
     window.__madcadVerifyLoadSurfaceFixture = (mode = 'patch') => {
       const fixture = createDocument('Przepływ powierzchniowy');
+      if (mode === 'trim-source') {
+        const trimProfile = createRectangleProfile({ name: 'Profil powierzchni Trim', width: 48, height: 32, x: 0, y: 0 });
+        const trimSketch = createSketch({ name: 'Szkic powierzchni Trim', plane: 'XY', profiles: [trimProfile] });
+        const trimSurface = createFeature('surfacePatch', { name: 'Powierzchnia do przycięcia', sketchId: trimSketch.id, profileIds: [trimProfile.id] });
+        const trimTool = createFeature('primitive', { name: 'Bryła tnąca', primitiveType: 'box', x: '0', y: '-20', z: '-5', width: '30', depth: '40', height: '10' });
+        fixture.sketches.push(trimSketch);
+        fixture.features.push(trimSurface, trimTool);
+        history.replace(fixture);
+        setActiveSketchId(null);
+        setWorkspace('solid');
+        setSelection({ kind: 'document', id: fixture.id });
+        setCommand(null);
+        return;
+      }
       if (mode === 'stitch-box' || mode === 'stitch-open') {
         const definitions = [
           { name: 'Dół', plane: 'XY', planeOffset: '0', width: 20, height: 10 },
@@ -3434,7 +3472,7 @@ export default function ModelingWorkspace() {
       bodyKinds: engine.bodies.map((body) => body.bodyKind || 'solid'),
       drawings: document.drawings.map((sheet) => ({ ...sheet, views: sheet.views.map((view) => ({ ...view })) })),
       featureIds: document.features.map((feature) => feature.id),
-      featureData: document.features.map((feature) => ({ id: feature.id, name: feature.name, type: feature.type, suppressed: feature.suppressed, visible: feature.visible !== false, sketchId: feature.sketchId, sketchIds: feature.sketchIds, profileId: feature.profileId, profileIds: feature.profileIds, pathSketchId: feature.pathSketchId, pathEntityIds: feature.pathEntityIds, loftMode: feature.loftMode, ribMode: feature.ribMode, patternType: feature.patternType, countX: feature.countX, countY: feature.countY, spacingX: feature.spacingX, spacingY: feature.spacingY, occurrences: feature.occurrences, totalAngle: feature.totalAngle, thickness: feature.thickness, tolerance: feature.tolerance, reverse: feature.reverse, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, holeStandard: feature.holeStandard, holeApplication: feature.holeApplication, standardSize: feature.standardSize, clearanceClass: feature.clearanceClass, threadClass: feature.threadClass, threadDesignation: feature.threadDesignation, threadInspection: feature.threadInspection, pipePreparation: feature.pipePreparation, threadTaper: feature.threadTaper, threadProfileAngle: feature.threadProfileAngle, diameterToleranceLower: feature.diameterToleranceLower, diameterToleranceUpper: feature.diameterToleranceUpper, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, outsideDiameter: feature.outsideDiameter, wallSide: feature.wallSide, endCap: feature.endCap, openEntityIds: feature.openEntityIds, depth: feature.depth, diameter: feature.diameter, coilDiameter: feature.coilDiameter, wireDiameter: feature.wireDiameter, pitch: feature.pitch, turns: feature.turns, handedness: feature.handedness, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, targetBodyIds: feature.targetBodyIds, toolBodyId: feature.toolBodyId, neutralPlaneId: feature.neutralPlaneId, planeId: feature.planeId, axisId: feature.axisId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
+      featureData: document.features.map((feature) => ({ id: feature.id, name: feature.name, type: feature.type, suppressed: feature.suppressed, visible: feature.visible !== false, sketchId: feature.sketchId, sketchIds: feature.sketchIds, profileId: feature.profileId, profileIds: feature.profileIds, pathSketchId: feature.pathSketchId, pathEntityIds: feature.pathEntityIds, loftMode: feature.loftMode, ribMode: feature.ribMode, patternType: feature.patternType, countX: feature.countX, countY: feature.countY, spacingX: feature.spacingX, spacingY: feature.spacingY, occurrences: feature.occurrences, totalAngle: feature.totalAngle, thickness: feature.thickness, tolerance: feature.tolerance, reverse: feature.reverse, operation: feature.operation, placement: feature.placement, holeType: feature.holeType, holeStandard: feature.holeStandard, holeApplication: feature.holeApplication, standardSize: feature.standardSize, clearanceClass: feature.clearanceClass, threadClass: feature.threadClass, threadDesignation: feature.threadDesignation, threadInspection: feature.threadInspection, pipePreparation: feature.pipePreparation, threadTaper: feature.threadTaper, threadProfileAngle: feature.threadProfileAngle, diameterToleranceLower: feature.diameterToleranceLower, diameterToleranceUpper: feature.diameterToleranceUpper, extent: feature.extent, distance: feature.distance, startOffset: feature.startOffset, targetReferenceId: feature.targetReferenceId, thin: feature.thin, wallThickness: feature.wallThickness, outsideDiameter: feature.outsideDiameter, wallSide: feature.wallSide, endCap: feature.endCap, openEntityIds: feature.openEntityIds, depth: feature.depth, diameter: feature.diameter, coilDiameter: feature.coilDiameter, wireDiameter: feature.wireDiameter, pitch: feature.pitch, turns: feature.turns, handedness: feature.handedness, clearanceProfile: feature.clearanceProfile, clearance: feature.clearance, secondDistance: feature.secondDistance, firstOffset: feature.firstOffset, secondOffset: feature.secondOffset, counterboreDiameter: feature.counterboreDiameter, counterboreDepth: feature.counterboreDepth, countersinkDiameter: feature.countersinkDiameter, countersinkAngle: feature.countersinkAngle, threadMode: feature.threadMode, threadDiameter: feature.threadDiameter, threadPitch: feature.threadPitch, threadLength: feature.threadLength, threadDirection: feature.threadDirection, referenceIds: feature.referenceIds, targetBodyId: feature.targetBodyId, targetBodyIds: feature.targetBodyIds, toolBodyId: feature.toolBodyId, keepTool: feature.keepTool, neutralPlaneId: feature.neutralPlaneId, planeId: feature.planeId, axisId: feature.axisId, mode: feature.mode, x: feature.x, y: feature.y, z: feature.z, angle: feature.angle })),
       references: document.references.map((reference) => ({ id: reference.id, kind: reference.kind, planeType: reference.planeType, axisType: reference.axisType, pointType: reference.pointType, name: reference.name, basePlane: reference.basePlane, offset: reference.offset, firstOffset: reference.firstOffset, secondOffset: reference.secondOffset, rotationAxis: reference.rotationAxis, angle: reference.angle, surfaceType: reference.surfaceType, center: reference.center, point: reference.point, axis: reference.axis, points: reference.points, position: reference.position, origin: reference.origin, direction: reference.direction, distance: reference.distance, planeIds: reference.planeIds, planeId: reference.planeId, axisId: reference.axisId, visible: reference.visible, topologyId: reference.topologyId, topologyKind: reference.topologyKind, bodyId: reference.bodyId, sourceFeatureId: reference.sourceFeatureId, ownerFeatureId: reference.ownerFeatureId, repairedAt: reference.repairedAt })),
       selection: selection?.kind === 'sketchEntities'
         ? { kind: selection.kind, ids: selection.ids }
@@ -3836,6 +3874,36 @@ export default function ModelingWorkspace() {
     setCommand(next);
     window.setTimeout(() => updateCommand(next), 0);
     setNotice('Stitch łączy wspólne krawędzie powierzchni. Zamknięty płaszcz automatycznie staje się bryłą.');
+  };
+
+  const openSurfaceTrim = () => {
+    if (readOnly) return readOnlyNotice();
+    if (!canTrimSelectedSurface) return setNotice('Zaznacz jedną powierzchnię i jedną bryłę tnącą.');
+    const target = selectedSurfaceBodies[0];
+    const tool = selectedSolidBodies[0];
+    const next = {
+      type: 'surfaceTrim',
+      targetBodyId: target.id,
+      targetName: target.name,
+      toolBodyId: tool.id,
+      toolName: tool.name,
+      keepTool: true,
+      previewFeature: null,
+    };
+    setCommand(next);
+    window.setTimeout(() => updateCommand(next), 0);
+    setNotice('Surface Trim usuwa z powierzchni obszar przecinający bryłę tnącą.');
+  };
+
+  const openSurfaceExtend = () => {
+    if (readOnly) return readOnlyNotice();
+    if (!canExtendSelectedSurface) return setNotice('Zaznacz jedną prostą krawędź planarnej powierzchni.');
+    const selectedEdge = selectedEdgeItems[0];
+    const reference = { ...createTopologyReference({ selection: selectedEdge, descriptor: selectedSurfaceEdgeDescriptor, label: 'Surface Extend — krawędź' }), scope: 'feature-input' };
+    const next = { type: 'surfaceExtend', targetBodyId: selectedSurfaceEdgeBody.id, targetName: selectedSurfaceEdgeBody.name, edgeLabel: selectedSurfaceEdgeDescriptor.length ? `${selectedSurfaceEdgeDescriptor.length.toFixed(2)} mm` : selectedEdge.id, distance: '10', topologyReferences: [reference], previewFeature: null };
+    setCommand(next);
+    window.setTimeout(() => updateCommand(next), 0);
+    setNotice('Surface Extend przedłuża wskazaną krawędź planarnej powierzchni o dokładną odległość.');
   };
 
   const beginOpenChainExtrude = (sketchId, entityIds) => {
@@ -4610,6 +4678,16 @@ export default function ModelingWorkspace() {
       setCommand({ type: 'surfaceOffset', editId: feature.id, targetBodyId: feature.targetBodyId, targetName: surfaceBody?.name || feature.targetBodyId, distance: feature.distance, previewFeature: feature });
     }
     else if (feature.type === 'surfaceStitch') setCommand({ type: 'surfaceStitch', editId: feature.id, targetBodyIds: feature.targetBodyIds, tolerance: feature.tolerance, previewFeature: feature });
+    else if (feature.type === 'surfaceTrim') {
+      const surfaceBody = engine.bodies.find((body) => body.id === feature.targetBodyId);
+      const toolBody = engine.bodies.find((body) => body.id === feature.toolBodyId);
+      setCommand({ type: 'surfaceTrim', editId: feature.id, targetBodyId: feature.targetBodyId, targetName: surfaceBody?.name || feature.targetBodyId, toolBodyId: feature.toolBodyId, toolName: toolBody?.name || feature.toolBodyId, keepTool: feature.keepTool !== false, previewFeature: feature });
+    }
+    else if (feature.type === 'surfaceExtend') {
+      const surfaceBody = engine.bodies.find((body) => body.id === feature.targetBodyId);
+      const topologyReferences = (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean);
+      setCommand({ type: 'surfaceExtend', editId: feature.id, targetBodyId: feature.targetBodyId, targetName: surfaceBody?.name || feature.targetBodyId, edgeLabel: topologyReferences[0]?.label || '1 wybrana', distance: feature.distance, topologyReferences, previewFeature: feature });
+    }
     else if (feature.type === 'thickenSurface') {
       const surfaceBody = engine.bodies.find((body) => body.id === feature.targetBodyId);
       setCommand({ type: 'thickenSurface', editId: feature.id, targetBodyId: feature.targetBodyId, targetName: surfaceBody?.name || feature.targetBodyId, thickness: feature.thickness, side: feature.side || 'one-side', reverse: Boolean(feature.reverse), previewFeature: feature });
@@ -5890,24 +5968,28 @@ export default function ModelingWorkspace() {
       };
     } else if (selectedEdgeItems.length) {
       adaptiveContext = {
-        title: selectedEdgeItems.length === 1 ? 'Krawędź' : `${selectedEdgeItems.length} krawędzie`,
-        subtitle: 'Zmień wybrane krawędzie bryły',
-        actions: [
-          { icon: FilletCadIcon, label: 'Zaokrąglij', onClick: () => openEdgeCommand('fillet'), primary: true },
-          { icon: ChamferCadIcon, label: 'Fazuj', onClick: () => openEdgeCommand('chamfer') },
-        ],
+        title: selectedSurfaceEdgeBody ? 'Krawędź powierzchni' : selectedEdgeItems.length === 1 ? 'Krawędź' : `${selectedEdgeItems.length} krawędzie`,
+        subtitle: selectedSurfaceEdgeBody ? 'Przedłuż otwartą powierzchnię' : 'Zmień wybrane krawędzie bryły',
+        actions: selectedSurfaceEdgeBody
+          ? [{ icon: Scissors, label: 'Przedłuż powierzchnię', onClick: openSurfaceExtend, primary: true }]
+          : [
+            { icon: FilletCadIcon, label: 'Zaokrąglij', onClick: () => openEdgeCommand('fillet'), primary: true },
+            { icon: ChamferCadIcon, label: 'Fazuj', onClick: () => openEdgeCommand('chamfer') },
+          ],
         moreActions: [],
         onClear: clearModelSelection,
       };
     } else if (selectedBodyIds.length) {
       const surfaceSelection = selectedBodyIds.length === 1 && selectedSurfaceBody;
       const multipleSurfaceSelection = canStitchSelectedSurfaces;
+      const trimSelection = canTrimSelectedSurface;
       adaptiveContext = {
-        title: surfaceSelection ? 'Powierzchnia' : multipleSurfaceSelection ? `${selectedBodyIds.length} powierzchnie` : selectedBodyIds.length === 1 ? 'Bryła' : `${selectedBodyIds.length} bryły`,
-        subtitle: surfaceSelection ? 'Zamień ją w bryłę albo zmień położenie' : multipleSurfaceSelection ? 'Połącz wspólne krawędzie w jeden płaszcz' : selectedBodyIds.length > 1 ? 'Wykonaj operację na wspólnym wyborze' : 'Przekształć albo powiel bryłę',
+        title: surfaceSelection ? 'Powierzchnia' : multipleSurfaceSelection ? `${selectedBodyIds.length} powierzchnie` : trimSelection ? 'Powierzchnia + bryła' : selectedBodyIds.length === 1 ? 'Bryła' : `${selectedBodyIds.length} bryły`,
+        subtitle: surfaceSelection ? 'Zamień ją w bryłę albo zmień położenie' : multipleSurfaceSelection ? 'Połącz wspólne krawędzie w jeden płaszcz' : trimSelection ? 'Przytnij powierzchnię bryłą' : selectedBodyIds.length > 1 ? 'Wykonaj operację na wspólnym wyborze' : 'Przekształć albo powiel bryłę',
         actions: [
           ...(surfaceSelection ? [{ icon: ShellCadIcon, label: 'Pogrub', onClick: openThickenSurface, primary: true }, { icon: Layers3, label: 'Odsuń powierzchnię', onClick: openSurfaceOffset }] : []),
           ...(multipleSurfaceSelection ? [{ icon: Layers3, label: 'Zszyj powierzchnie', onClick: openSurfaceStitch, primary: true }] : []),
+          ...(trimSelection ? [{ icon: Scissors, label: 'Przytnij powierzchnię', onClick: openSurfaceTrim, primary: true }] : []),
           ...(canBooleanSelectedBodies ? [{ icon: BooleanCadIcon, label: 'Połącz / odejmij', onClick: openBoolean, primary: true }] : []),
           ...(selectedBodyIds.length === 1 ? [
             { icon: MoveBodyCadIcon, label: 'Przesuń', onClick: () => openTransform('move'), primary: !surfaceSelection },
@@ -6108,6 +6190,8 @@ export default function ModelingWorkspace() {
                   { icon: LoftCadIcon, label: 'Surface Loft', displayLabel: 'Powierzchnia przejściowa', onClick: openSurfaceLoft, disabled: readOnly || !selectedProfile || Boolean(activeSketchId) || !loftProfileOptions().length, disabledReason: 'Przygotuj dwa profile w osobnych szkicach.' },
                   { icon: Layers3, label: 'Surface Offset', displayLabel: 'Odsuń powierzchnię', onClick: openSurfaceOffset, disabled: readOnly || !selectedSurfaceBody, disabledReason: 'Zaznacz jedną powierzchnię.' },
                   { icon: Layers3, label: 'Stitch', displayLabel: 'Zszyj powierzchnie', onClick: openSurfaceStitch, disabled: readOnly || !canStitchSelectedSurfaces, disabledReason: 'Zaznacz co najmniej dwie powierzchnie.' },
+                  { icon: Scissors, label: 'Surface Trim', displayLabel: 'Przytnij powierzchnię', onClick: openSurfaceTrim, disabled: readOnly || !canTrimSelectedSurface, disabledReason: 'Zaznacz jedną powierzchnię i jedną bryłę tnącą.' },
+                  { icon: Scissors, label: 'Surface Extend', displayLabel: 'Przedłuż powierzchnię', onClick: openSurfaceExtend, disabled: readOnly || !canExtendSelectedSurface, disabledReason: 'Zaznacz jedną prostą krawędź planarnej powierzchni.' },
                   { icon: ShellCadIcon, label: 'Thicken', displayLabel: 'Pogrub powierzchnię', onClick: openThickenSurface, disabled: readOnly || !selectedSurfaceBody, disabledReason: 'Zaznacz jedną powierzchnię.' },
                 ]} /><ToolMenuButton icon={PrimitiveCadIcon} label="Więcej brył" description="Prymitywy, bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
                   { icon: PrimitiveCadIcon, label: 'Prymityw', onClick: openPrimitive, disabled: readOnly },

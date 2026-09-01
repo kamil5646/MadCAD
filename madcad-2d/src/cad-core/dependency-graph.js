@@ -26,7 +26,7 @@ function featureExpressions(feature) {
   if (feature.type === 'draft') return [feature.angle];
   if (feature.type === 'primitive') return [feature.x, feature.y, feature.z, feature.width, feature.depth, feature.height, feature.radius, feature.majorRadius, feature.minorRadius];
   if (feature.type === 'transform') return [feature.x, feature.y, feature.z, feature.angle, feature.originX, feature.originY, feature.originZ];
-  if (feature.type === 'offsetFace' || feature.type === 'surfaceOffset') return [feature.distance];
+  if (feature.type === 'offsetFace' || feature.type === 'surfaceOffset' || feature.type === 'surfaceExtend') return [feature.distance];
   if (feature.type === 'surfaceStitch') return [feature.tolerance];
   if (feature.type === 'textSolid') return [feature.fontSize, feature.depth, feature.x, feature.y, feature.z];
   return [];
@@ -162,7 +162,7 @@ export function buildDependencyGraph(document) {
 
     if (feature.targetBodyId) addEdge(feature.targetBodyId, feature.id, 'modifies');
     for (const bodyId of feature.targetBodyIds || []) addEdge(bodyId, feature.id, 'consumes');
-    if (feature.toolBodyId) addEdge(feature.toolBodyId, feature.id, 'consumes');
+    if (feature.toolBodyId) addEdge(feature.toolBodyId, feature.id, feature.type === 'surfaceTrim' && feature.keepTool !== false ? 'trims-with' : 'consumes');
     if ((['extrude', 'revolve', 'sweep', 'loft', 'coil', 'pipe'].includes(feature.type) && feature.operation === 'new') || ['surfacePatch', 'surfaceExtrude', 'surfaceRevolve', 'surfaceSweep', 'surfaceLoft', 'surfaceStitch'].includes(feature.type) || feature.type === 'primitive' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')) {
       const bodyId = `body-${feature.id}`;
       addNode(bodyId, 'body', feature.name, { persisted: false, producerFeatureId: feature.id });

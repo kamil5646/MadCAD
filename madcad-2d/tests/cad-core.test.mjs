@@ -961,7 +961,7 @@ test('szkic na planarnej ścianie zachowuje podporę i odsunięcie w przygotowan
   assert.equal(validateDocument(broken).issues.some((issue) => issue.path.endsWith('support.referenceId') && issue.code === 'BROKEN_REFERENCE'), true);
 });
 
-test('Patch, Surface Extrude, Surface Revolve, Surface Sweep, Surface Loft, Surface Offset, Stitch i Thicken zachowują szkic, zależności i rozdział powierzchnia-bryła', () => {
+test('Patch, Surface Extrude, Surface Revolve, Surface Sweep, Surface Loft, Surface Offset, Stitch, Surface Trim, Surface Extend i Thicken zachowują szkic, zależności i rozdział powierzchnia-bryła', () => {
   const patchDocument = createDocument('Powierzchnia Patch');
   const patchProfile = createRectangleProfile({ width: '40', height: '20' });
   const patchSketch = createSketch({ name: 'Obrys powierzchni', profiles: [patchProfile] });
@@ -1071,6 +1071,36 @@ test('Patch, Surface Extrude, Surface Revolve, Surface Sweep, Surface Loft, Surf
   const stitchGraph = buildDependencyGraph(stitchDocument);
   assert.equal(stitchGraph.producerOfBody(`body-${stitch.id}`), stitch.id);
   assert.ok(stitchGraph.affectedBy(firstPatch.id).includes(stitch.id));
+
+  const trimDocument = createDocument('Przycinanie powierzchni');
+  const trimProfile = createRectangleProfile({ width: 48, height: 32 });
+  const trimSketch = createSketch({ plane: 'XY', profiles: [trimProfile] });
+  const trimPatch = createFeature('surfacePatch', { sketchId: trimSketch.id, profileIds: [trimProfile.id] });
+  const trimTool = createFeature('primitive', { primitiveType: 'box', x: '0', y: '-20', z: '-5', width: '30', depth: '40', height: '10' });
+  const trim = createFeature('surfaceTrim', { targetBodyId: `body-${trimPatch.id}`, toolBodyId: `body-${trimTool.id}`, keepTool: true });
+  const thickenTrim = createFeature('thickenSurface', { targetBodyId: `body-${trimPatch.id}`, thickness: '2', side: 'one-side', reverse: false });
+  trimDocument.sketches.push(trimSketch);
+  trimDocument.features.push(trimPatch, trimTool, trim, thickenTrim);
+  assert.equal(validateDocument(trimDocument).valid, true);
+  assert.equal(prepareDocument(trimDocument).features[2].keepTool, true);
+  const trimGraph = buildDependencyGraph(trimDocument);
+  assert.ok(trimGraph.affectedBy(trimPatch.id).includes(trim.id));
+  assert.ok(trimGraph.affectedBy(trimTool.id).includes(trim.id));
+  assert.ok(trimGraph.affectedBy(trim.id).includes(thickenTrim.id));
+
+  const extendDocument = createDocument('Przedłużanie powierzchni');
+  const extendProfile = createRectangleProfile({ width: 48, height: 32 });
+  const extendSketch = createSketch({ plane: 'XY', profiles: [extendProfile] });
+  const extendPatch = createFeature('surfacePatch', { sketchId: extendSketch.id, profileIds: [extendProfile.id] });
+  const extendBodyId = `body-${extendPatch.id}`;
+  const extendEdge = { ...createTopologyReference({ selection: { kind: 'edge', id: 'edge-right', bodyId: extendBodyId, sourceFeatureId: extendPatch.id }, descriptor: { geometry: 'LINE', endpoints: [[24, -16, 0], [24, 16, 0]], length: 32, closed: false }, label: 'Surface Extend — krawędź' }), scope: 'feature-input' };
+  const extend = createFeature('surfaceExtend', { targetBodyId: extendBodyId, distance: '10', referenceIds: [extendEdge.id] });
+  extendDocument.sketches.push(extendSketch);
+  extendDocument.references.push(extendEdge);
+  extendDocument.features.push(extendPatch, extend);
+  assert.equal(validateDocument(extendDocument).valid, true);
+  assert.equal(prepareDocument(extendDocument).features[1].distanceValue, 10);
+  assert.ok(buildDependencyGraph(extendDocument).affectedBy(extendEdge.id).includes(extend.id));
 });
 
 test('Extrude przygotowuje odsunięty start, Join, Cut i Intersect z jedną, dwiema, symetryczną oraz Through All', () => {

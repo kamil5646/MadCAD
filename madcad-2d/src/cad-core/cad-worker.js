@@ -325,6 +325,29 @@ function prismShape(shape, direction, distance, startOffset = 0) {
   return result;
 }
 
+function thickenGenericSurface(shape, feature) {
+  const symmetric = feature.side === 'symmetric';
+  const offsetDirection = feature.reverse ? -1 : 1;
+  const base = symmetric ? makeOffset(shape, -feature.thicknessValue / 2) : shape;
+  const builder = new (getOC().BRepOffsetAPI_MakeThickSolid)();
+  try {
+    builder.MakeThickSolidBySimple(base.wrapped, feature.thicknessValue * (symmetric ? 1 : offsetDirection));
+    const result = cast(builder.Shape());
+    if (measureShapeVolumeProperties(result).volume < 0) result.wrapped.Reverse();
+    const faces = result.faces;
+    const hasFaces = faces.length > 0;
+    faces.forEach((face) => face.delete());
+    if (!hasFaces) {
+      result.delete();
+      throw new Error('Nie udało się utworzyć ścian pogrubienia.');
+    }
+    return result;
+  } finally {
+    builder.delete();
+    if (base !== shape) base.delete();
+  }
+}
+
 function thickenSurfaceBody(target, feature) {
   if (target.surfaceSourceType === 'patch') {
     const direction = PROFILE_PLANE_NORMALS[target.surfaceProfile.plane || 'XY'];
@@ -380,7 +403,7 @@ function thickenSurfaceBody(target, feature) {
     }
     return shape;
   }
-  throw new Error('Nie rozpoznano źródła powierzchni do pogrubienia.');
+  return thickenGenericSurface(target.shape, feature);
 }
 
 const THROUGH_ALL_DISTANCE = 1_000_000;
@@ -627,6 +650,114 @@ function stitchSurfaceShapes(shapes, tolerance) {
   }
 }
 
+function trimSurfaceWithSolid(surface, tool) {
+  const oc = getOC();
+  const progress = new oc.Message_ProgressRange_1();
+  const cutter = new oc.BRepAlgoAPI_Cut_3(surface.wrapped, tool.wrapped, progress);
+  let result;
+  try {
+    cutter.Build(progress);
+    if (!cutter.IsDone()) throw new Error('OpenCascade nie ukończył przycinania powierzchni.');
+    cutter.SimplifyResult(true, true, GEOMETRY_POLICY.linearTolerance);
+    result = cast(cutter.Shape());
+    const faces = result.faces;
+    const hasFaces = faces.length > 0;
+    faces.forEach((face) => face.delete());
+    const sourceArea = measureShapeSurfaceProperties(surface).area;
+    const resultArea = measureShapeSurfaceProperties(result).area;
+    if (!hasFaces || resultArea <= GEOMETRY_POLICY.linearTolerance ** 2) throw new Error('Bryła tnąca usunęła całą powierzchnię.');
+    if (sourceArea - resultArea <= GEOMETRY_POLICY.linearTolerance ** 2) throw new Error('Bryła tnąca nie przecina wybranej powierzchni.');
+    return result;
+  } catch (error) {
+    result?.delete?.();
+    throw error;
+  } finally {
+    cutter.delete();
+    progress.delete();
+  }
+}
+
+function extendPlanarSurfaceEdge(surface, reference, distance) {
+  const oc = getOC();
+  const faces = surface.faces;
+  const edges = surface.edges;
+  const pointHandles = [];
+  const edgeBuilders = [];
+  let wireBuilder;
+  let faceBuilder;
+  let strip;
+  let progress;
+  let fuser;
+  let result;
+  try {
+    if (faces.length !== 1 || faces[0].geomType !== 'PLANE') throw new Error('Surface Extend obsługuje obecnie pojedynczą planarną powierzchnię.');
+    const descriptors = edges.map((edge) => edgeDescriptor(edge));
+    const descriptor = descriptors[matchingEdgeIndex(reference, descriptors)];
+    if (descriptor.geometry !== 'LINE' || descriptor.closed) throw new Error('Surface Extend wymaga prostej, otwartej krawędzi powierzchni.');
+    const [start, end] = descriptor.endpoints;
+    const edgeVector = end.map((value, axis) => value - start[axis]);
+    const edgeLength = Math.hypot(...edgeVector);
+    if (edgeLength <= GEOMETRY_POLICY.linearTolerance) throw new Error('Wybrana krawędź jest zbyt krótka do przedłużenia.');
+    const direction = edgeVector.map((value) => value / edgeLength);
+    const center = faces[0].center.toTuple();
+    const normal = faces[0].normalAt(center).toTuple();
+    let outward = [
+      normal[1] * direction[2] - normal[2] * direction[1],
+      normal[2] * direction[0] - normal[0] * direction[2],
+      normal[0] * direction[1] - normal[1] * direction[0],
+    ];
+    const midpoint = start.map((value, axis) => (value + end[axis]) / 2);
+    const inward = center.map((value, axis) => value - midpoint[axis]);
+    if (outward.reduce((sum, value, axis) => sum + value * inward[axis], 0) > 0) outward = outward.map((value) => -value);
+    const outwardLength = Math.hypot(...outward) || 1;
+    outward = outward.map((value) => value * distance / outwardLength);
+    const extendedStart = start.map((value, axis) => value + outward[axis]);
+    const extendedEnd = end.map((value, axis) => value + outward[axis]);
+    const points = [start, end, extendedEnd, extendedStart].map((coordinates) => {
+      const point = new oc.gp_Pnt_3(...coordinates);
+      pointHandles.push(point);
+      return point;
+    });
+    for (let index = 0; index < 4; index += 1) edgeBuilders.push(new oc.BRepBuilderAPI_MakeEdge_3(points[index], points[(index + 1) % 4]));
+    wireBuilder = new oc.BRepBuilderAPI_MakeWire_5(...edgeBuilders.map((builder) => builder.Edge()));
+    if (!wireBuilder.IsDone()) throw new Error('OpenCascade nie utworzył obrysu przedłużenia.');
+    faceBuilder = new oc.BRepBuilderAPI_MakeFace_15(wireBuilder.Wire(), true);
+    if (!faceBuilder.IsDone()) throw new Error('OpenCascade nie utworzył płata przedłużenia.');
+    strip = cast(faceBuilder.Face());
+    progress = new oc.Message_ProgressRange_1();
+    fuser = new oc.BRepAlgoAPI_Fuse_3(surface.wrapped, strip.wrapped, progress);
+    fuser.Build(progress);
+    if (!fuser.IsDone()) throw new Error('OpenCascade nie połączył przedłużenia z powierzchnią.');
+    fuser.SimplifyResult(true, true, GEOMETRY_POLICY.linearTolerance);
+    result = cast(fuser.Shape());
+    const sourceArea = measureShapeSurfaceProperties(surface).area;
+    const resultArea = measureShapeSurfaceProperties(result).area;
+    const expectedIncrease = edgeLength * distance;
+    if (Math.abs((resultArea - sourceArea) - expectedIncrease) > Math.max(1e-5, expectedIncrease * 1e-6)) throw new Error('Surface Extend nie utworzył oczekiwanego płata powierzchni.');
+    const stitched = stitchSurfaceShapes([result], GEOMETRY_POLICY.linearTolerance * 10);
+    if (stitched.bodyKind !== 'surface') {
+      stitched.shape.delete?.();
+      throw new Error('Surface Extend nie zachował otwartego płaszcza powierzchni.');
+    }
+    result.delete?.();
+    result = stitched.shape;
+    return result;
+  } catch (error) {
+    result?.delete?.();
+    throw error;
+  } finally {
+    faces.forEach((face) => face.delete());
+    edges.forEach((edge) => edge.delete());
+    fuser?.delete();
+    progress?.delete();
+    strip?.delete();
+    faceBuilder?.delete();
+    wireBuilder?.delete();
+    edgeBuilders.forEach((builder) => builder.delete());
+    pointHandles.forEach((point) => point.delete());
+  }
+}
+
 function ribProfile(feature) {
   const inPlaneThickness = feature.ribMode === 'rib' ? feature.depthValue : feature.thicknessValue;
   const normalDistance = feature.ribMode === 'rib' ? feature.thicknessValue : feature.depthValue;
@@ -801,6 +932,38 @@ function runFeature(feature, bodyMap, bodyOrder) {
     return;
   }
 
+  if (feature.type === 'surfaceTrim') {
+    const target = bodyMap.get(feature.targetBodyId);
+    const tool = bodyMap.get(feature.toolBodyId);
+    if (!target || target.bodyKind !== 'surface') throw new Error(`Surface Trim „${feature.name}” wymaga istniejącej powierzchni.`);
+    if (!tool || tool.bodyKind === 'surface') throw new Error(`Surface Trim „${feature.name}” wymaga bryły tnącej.`);
+    const sourceShape = target.shape;
+    target.shape = trimSurfaceWithSolid(sourceShape, tool.shape);
+    sourceShape.delete?.();
+    target.surfaceSourceType = 'trim';
+    target.name = feature.name;
+    target.sourceFeatureId = feature.id;
+    if (feature.keepTool === false) {
+      tool.shape.delete?.();
+      bodyMap.delete(tool.id);
+      const index = bodyOrder.indexOf(tool.id);
+      if (index >= 0) bodyOrder.splice(index, 1);
+    }
+    return;
+  }
+
+  if (feature.type === 'surfaceExtend') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target || target.bodyKind !== 'surface') throw new Error(`Surface Extend „${feature.name}” wymaga istniejącej powierzchni.`);
+    const sourceShape = target.shape;
+    target.shape = extendPlanarSurfaceEdge(sourceShape, feature.topologyReferences?.[0], feature.distanceValue);
+    sourceShape.delete?.();
+    target.surfaceSourceType = 'extend';
+    target.name = feature.name;
+    target.sourceFeatureId = feature.id;
+    return;
+  }
+
   if (feature.type === 'surfaceStitch') {
     const targets = [...new Set(feature.targetBodyIds)].map((bodyId) => bodyMap.get(bodyId));
     if (targets.some((target) => !target || target.bodyKind !== 'surface')) throw new Error(`Stitch „${feature.name}” wymaga istniejących powierzchni.`);
@@ -844,6 +1007,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
     delete target.surfaceProfiles;
     delete target.surfaceLoftMode;
     delete target.surfaceOffsetDistance;
+    delete target.surfaceFreeEdges;
     delete target.surfaceTransforms;
     return;
   }
