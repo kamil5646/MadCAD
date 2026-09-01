@@ -1,6 +1,6 @@
 # MadCAD — moduł Plastic
 
-## Ukończony etap: analiza grubości i pochylenia
+## Ukończone etapy: analiza geometrii i Boss
 
 Wspólny panel `Analiza geometrii` ma dwa jawne tryby. `Pochylenie` klasyfikuje ściany względem kierunku wyciągania formy jako dodatnie, zerowe, ujemne albo mieszane. `Grubość` szuka najbliższej przeciwległej powierzchni dla każdej ściany B-Rep:
 
@@ -11,16 +11,25 @@ Wspólny panel `Analiza geometrii` ma dwa jawne tryby. `Pochylenie` klasyfikuje 
 
 Analiza jest nieinwazyjna: nie dopisuje operacji do historii i nie zmienia geometrii. Ściany bez odpowiedniej pary są jawnie oznaczone zamiast otrzymywać zgadywaną wartość.
 
+`Boss` jest operacją parametryczną osadzaną na jednej planarnej ścianie istniejącej bryły B-Rep. Użytkownik określa średnicę zewnętrzną, średnicę i głębokość otworu, wysokość, położenie lokalne X/Y oraz kierunek. Narzędzie:
+
+- przechowuje trwałą referencję wybranej ściany i bierze jej środek oraz normalną jako układ lokalny;
+- łączy słupek z tą samą bryłą zamiast tworzyć luźny korpus;
+- wycina współosiowy otwór przez słupek i na zadaną głębokość w podporę;
+- działa w podglądzie dokładnego B-Rep, historii parametrów oraz w Cofnij/Ponów.
+
 ## Walidacja
 
 - testy rdzenia obejmują parę płaszczyzn o grubości `2 mm`, współosiowe walce o grubości `1,6 mm`, klasyfikację względem tolerancji oraz brak deskryptora w siatce importowanej;
 - test desktopowy `verify:draft-analysis` otwiera rzeczywisty panel, sprawdza mapę pochylenia, przełącza się na `Grubość`, potwierdza cztery klasy legendy i brak poziomego przepełnienia;
+- test rdzenia tworzy Boss na trwałej referencji, sprawdza parametry i graf zależności oraz odrzuca otwór nie mniejszy od średnicy zewnętrznej;
+- test desktopowy `verify:plastic-boss` wybiera ścianę rzeczywistej bryły, uruchamia narzędzie z menu `Plastic`, zmienia sześć wymiarów, sprawdza dokładną operację fuse/cut oraz Cofnij/Ponów;
 - dowód wizualny jest zapisywany w `artifacts/madcad-draft-analysis.png`.
+- dowód wizualny Bossa jest zapisywany w `artifacts/madcad-plastic-boss.png`.
 
 ## Dalsza kolejność
 
-1. Parametryczny Boss na planarnej ścianie z trwałą referencją.
-2. Snap-fit budowany na istniejącej bryle.
-3. Grille z kontrolą liczby żeber, szerokości i prześwitu.
+1. Snap-fit budowany na istniejącej bryle.
+2. Grille z kontrolą liczby żeber, szerokości i prześwitu.
 
 Każda operacja ma korzystać z tej samej historii, podglądu oraz mechanizmu trwałych referencji co pozostałe narzędzia MadCAD.

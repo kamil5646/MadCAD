@@ -387,6 +387,25 @@ export function prepareDocument(document) {
     if (feature.type === 'sheetUnfold' || feature.type === 'sheetRefold') {
       return { ...feature, status: 'ready', diagnostics: [] };
     }
+    if (feature.type === 'plasticBoss') {
+      const outerDiameterValue = positive(evaluateExpression(feature.outerDiameter, parameterResult.values), 'Średnica zewnętrzna Boss');
+      const holeDiameterValue = evaluateExpression(feature.holeDiameter, parameterResult.values);
+      if (!Number.isFinite(holeDiameterValue) || holeDiameterValue < 0) throw new Error('Średnica otworu Boss nie może być ujemna.');
+      if (holeDiameterValue >= outerDiameterValue) throw new Error('Otwór Boss musi być mniejszy od średnicy zewnętrznej.');
+      return {
+        ...feature,
+        status: 'ready',
+        diagnostics: [],
+        outerDiameterValue,
+        holeDiameterValue,
+        heightValue: positive(evaluateExpression(feature.height, parameterResult.values), 'Wysokość Boss'),
+        holeDepthValue: positive(evaluateExpression(feature.holeDepth, parameterResult.values), 'Głębokość otworu Boss'),
+        offsetXValue: evaluateExpression(feature.offsetX, parameterResult.values),
+        offsetYValue: evaluateExpression(feature.offsetY, parameterResult.values),
+        reverse: Boolean(feature.reverse),
+        topologyReferences: (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean),
+      };
+    }
     if (feature.type === 'extrude') {
       const extent = feature.extent || 'one-side';
       const sourceSketch = document.sketches.find((sketch) => sketch.id === feature.sketchId);

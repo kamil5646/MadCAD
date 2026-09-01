@@ -78,7 +78,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Skojarzona tabela gięć arkusza 2D z automatycznymi wierszami kołnierzy i Hem oraz eksportem PDF/DXF.
 - [ ] Plastic: Boss, snap-fit, grille oraz analizy grubości i pochylenia.
   - [x] Analiza pochylenia i grubości z mapą ścian, celem, tolerancją oraz rozpoznaniem par planarnych i współosiowych powierzchni walcowych.
-  - [ ] Parametryczny Boss osadzany na planarnej ścianie.
+  - [x] Parametryczny Boss osadzany na trwałej referencji planarnej ściany, łączony z istniejącą bryłą, z otworem, głębokością, pozycją i kierunkiem.
   - [ ] Parametryczny snap-fit współpracujący z istniejącą bryłą.
   - [ ] Parametryczne grille z kontrolą żeber i prześwitów.
 - SubD/T-Spline Form i konwersja do B-Rep.

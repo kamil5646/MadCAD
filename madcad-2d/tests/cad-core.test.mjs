@@ -1233,6 +1233,34 @@ test('Rozwiń i Zagnij ponownie pilnują kolejności parametrycznej blachy', () 
   assert.equal(validateDocument(missingUnfold).issues.some((issue) => issue.code === 'SEQUENCE' && issue.message.includes('wymaga wcześniejszego rozwinięcia')), true);
 });
 
+test('Boss tworzy parametryczny słupek z otworem na trwałej planarnej ścianie', () => {
+  const document = createDocument('Plastic Boss');
+  document.parameters.push(createParameter('boss_h', '8'));
+  const base = createFeature('primitive', { primitiveType: 'box', x: '-20', y: '-15', z: '0', width: '40', depth: '30', height: '4' });
+  const bodyId = `body-${base.id}`;
+  const face = { ...createTopologyReference({ selection: { kind: 'face', id: 'top-face', bodyId, sourceFeatureId: base.id }, descriptor: { geometry: 'PLANE', center: [0, 0, 4], normal: [0, 0, 1], area: 1200 }, label: 'Boss — powierzchnia bazowa' }), scope: 'feature-input' };
+  const boss = createFeature('plasticBoss', { targetBodyId: bodyId, referenceIds: [face.id], outerDiameter: '12', holeDiameter: '4', height: 'boss_h', holeDepth: '3', offsetX: '5', offsetY: '-2', reverse: false });
+  document.references.push(face);
+  document.features.push(base, boss);
+
+  assert.equal(validateDocument(document).valid, true);
+  const prepared = prepareDocument(document).features[1];
+  assert.equal(prepared.outerDiameterValue, 12);
+  assert.equal(prepared.holeDiameterValue, 4);
+  assert.equal(prepared.heightValue, 8);
+  assert.equal(prepared.holeDepthValue, 3);
+  assert.equal(prepared.offsetXValue, 5);
+  assert.equal(prepared.offsetYValue, -2);
+  assert.equal(prepared.topologyReferences[0].id, face.id);
+  const graph = buildDependencyGraph(document);
+  assert.ok(graph.edges.some((edge) => edge.from === bodyId && edge.to === boss.id && edge.kind === 'modifies'));
+  assert.ok(graph.affectedBy(document.parameters[0].id).includes(boss.id));
+
+  const invalid = structuredClone(document);
+  invalid.features[1].holeDiameter = '12';
+  assert.throws(() => prepareDocument(invalid), /mniejszy/);
+});
+
 test('Extrude To Object kończy się dokładnie na równoległej płaszczyźnie konstrukcyjnej', () => {
   const document = createDocument('Extrude To Object');
   document.parameters.push(createParameter('cel', '12'));

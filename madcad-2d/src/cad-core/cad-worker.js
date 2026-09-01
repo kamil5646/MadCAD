@@ -1542,6 +1542,46 @@ function runFeature(feature, bodyMap, bodyOrder) {
     return;
   }
 
+  if (feature.type === 'plasticBoss') {
+    const target = bodyMap.get(feature.targetBodyId);
+    if (!target || target.bodyKind === 'surface') throw new Error(`Nie znaleziono bryły docelowej dla ${feature.name}.`);
+    const descriptor = feature.topologyReferences?.[0]?.descriptor;
+    if (descriptor?.geometry !== 'PLANE' || !descriptor.center || !descriptor.normal) throw new Error('Boss wymaga planarnej ściany z prawidłową normalną.');
+    const baseNormal = vectorNormalized(descriptor.normal);
+    const direction = feature.reverse ? vectorScale(baseNormal, -1) : baseNormal;
+    const helper = Math.abs(direction[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    const xDirection = vectorNormalized(vectorCross(helper, direction));
+    const yDirection = vectorNormalized(vectorCross(direction, xDirection));
+    const center = vectorAdd(descriptor.center, vectorAdd(vectorScale(xDirection, feature.offsetXValue), vectorScale(yDirection, feature.offsetYValue)));
+    const overlap = Math.max(GEOMETRY_POLICY.linearTolerance * 10, 0.02);
+    const outerOrigin = vectorAdd(center, vectorScale(direction, -overlap));
+    const outer = makeCylinder(feature.outerDiameterValue / 2, feature.heightValue + overlap, outerOrigin, direction);
+    let result = target.shape.fuse(outer);
+    if (feature.holeDiameterValue > GEOMETRY_POLICY.linearTolerance) {
+      const cutterOrigin = vectorAdd(center, vectorScale(direction, -feature.holeDepthValue));
+      const cutter = makeCylinder(feature.holeDiameterValue / 2, feature.heightValue + feature.holeDepthValue + overlap, cutterOrigin, direction);
+      result = result.cut(cutter);
+      cutter.delete();
+    }
+    outer.delete();
+    target.shape = result;
+    target.plasticFeatures = [...(target.plasticFeatures || []), {
+      featureId: feature.id,
+      type: 'boss',
+      referenceId: feature.topologyReferences[0].id,
+      outerDiameter: feature.outerDiameterValue,
+      holeDiameter: feature.holeDiameterValue,
+      height: feature.heightValue,
+      holeDepth: feature.holeDepthValue,
+      offsetX: feature.offsetXValue,
+      offsetY: feature.offsetYValue,
+      reverse: feature.reverse,
+      center,
+      direction,
+    }];
+    return;
+  }
+
   if (feature.type === 'extrude') {
     const span = extrusionSpan(feature, bodyMap);
     const tool = combineShapes(feature.profiles.map((profile) => extrudeProfile(profile, span, feature)));
@@ -2270,6 +2310,7 @@ function meshBody(body, index, quality = 'display') {
     representation: body.representation || 'brep',
     manufacturingHoles: body.manufacturingHoles || [],
     sheetMetal: body.sheetMetal || null,
+    plasticFeatures: body.plasticFeatures || [],
     color: ['#55b7db', '#81c784', '#ffb95c', '#c49cff'][index % 4],
     vertices: Float32Array.from(mesh.vertices),
     normals: Float32Array.from(mesh.normals),

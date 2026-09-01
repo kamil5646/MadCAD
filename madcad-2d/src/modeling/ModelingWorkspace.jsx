@@ -2063,6 +2063,21 @@ export default function ModelingWorkspace() {
         });
         if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
       }
+      if (next.type === 'plasticBoss') {
+        next.previewFeature = createFeature('plasticBoss', {
+          name: current.previewFeature?.name || `Boss ${document.features.length + 1}`,
+          targetBodyId: current.previewFeature?.targetBodyId || next.targetBodyId,
+          referenceIds: (next.topologyReferences || current.topologyReferences || []).map((reference) => reference.id),
+          outerDiameter: next.outerDiameter,
+          holeDiameter: next.holeDiameter,
+          height: next.height,
+          holeDepth: next.holeDepth,
+          offsetX: next.offsetX,
+          offsetY: next.offsetY,
+          reverse: Boolean(next.reverse),
+        });
+        if (current.previewFeature?.id) next.previewFeature.id = current.previewFeature.id;
+      }
       if (next.type === 'extrude') {
         if (next.extent === 'through-all' && !['cut', 'intersect'].includes(next.operation)) next.extent = 'one-side';
         if (next.extent === 'to-object' && !next.targetReferenceId) next.targetReferenceId = next.targetOptions[0]?.id;
@@ -3949,6 +3964,21 @@ export default function ModelingWorkspace() {
     setNotice('Podgląd szczeliny jest aktywny. Operacja usuwa kontrolowany pas materiału wzdłuż wybranej krawędzi.');
   };
 
+  const openPlasticBoss = () => {
+    if (readOnly) return readOnlyNotice();
+    if (activeSketchId) return setNotice('Najpierw zakończ szkic.');
+    if (selectedFaceItems.length !== 1) return setNotice('Boss wymaga zaznaczenia dokładnie jednej planarnej ściany bryły.');
+    const selectedFace = selectedFaceItems[0];
+    const body = engine.bodies.find((candidate) => candidate.id === selectedFace.bodyId);
+    const face = body?.topology?.faces?.find((candidate) => candidate.id === selectedFace.id);
+    if (!body || body.bodyKind === 'surface' || body.representation !== 'brep' || face?.descriptor?.geometry !== 'PLANE') return setNotice('Boss można osadzić wyłącznie na planarnej ścianie bryły B-Rep.');
+    const reference = { ...createTopologyReference({ selection: selectedFace, descriptor: face.descriptor, label: 'Boss — powierzchnia bazowa' }), scope: 'feature-input' };
+    const next = { type: 'plasticBoss', targetBodyId: body.id, faceLabel: body.name, outerDiameter: '10', holeDiameter: '4', height: '8', holeDepth: '4', offsetX: '0', offsetY: '0', reverse: false, topologyReferences: [reference], previewFeature: null };
+    setCommand(next);
+    window.setTimeout(() => updateCommand(next), 0);
+    setNotice('Podgląd Boss jest aktywny. Ustaw średnice, wysokość, głębokość otworu i pozycję na ścianie.');
+  };
+
   const addSheetStateFeature = (type) => {
     if (readOnly) return readOnlyNotice();
     if (activeSketchId) return setNotice('Najpierw zakończ szkic.');
@@ -5065,6 +5095,10 @@ export default function ModelingWorkspace() {
     else if (feature.type === 'sheetRip') {
       const topologyReferences = (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean);
       setCommand({ type: 'sheetRip', editId: feature.id, targetBodyId: feature.targetBodyId, edgeLabel: topologyReferences[0]?.descriptor?.length ? `${Number(topologyReferences[0].descriptor.length).toFixed(2)} mm` : '1 prosta krawędź', gap: feature.gap, topologyReferences, previewFeature: feature });
+    }
+    else if (feature.type === 'plasticBoss') {
+      const topologyReferences = (feature.referenceIds || []).map((referenceId) => document.references.find((reference) => reference.id === referenceId)).filter(Boolean);
+      setCommand({ type: 'plasticBoss', editId: feature.id, targetBodyId: feature.targetBodyId, faceLabel: topologyReferences[0]?.label || 'Planarna ściana', outerDiameter: feature.outerDiameter, holeDiameter: feature.holeDiameter, height: feature.height, holeDepth: feature.holeDepth, offsetX: feature.offsetX, offsetY: feature.offsetY, reverse: Boolean(feature.reverse), topologyReferences, previewFeature: feature });
     }
     else if (feature.type === 'surfaceExtrude') setCommand({ type: 'surfaceExtrude', openChain: Boolean(feature.openEntityIds?.length), editId: feature.id, sourceSketchId: feature.sketchId, openEntityIds: feature.openEntityIds || [], distance: feature.distance, previewFeature: feature });
     else if (feature.type === 'surfaceRevolve') setCommand({ type: 'surfaceRevolve', openChain: Boolean(feature.openEntityIds?.length), editId: feature.id, sourceSketchId: feature.sketchId, openEntityIds: feature.openEntityIds || [], axisId: feature.axisId, axisOptions: [{ id: 'X_AXIS', name: 'Oś bazowa X' }, { id: 'Y_AXIS', name: 'Oś bazowa Y' }, { id: 'Z_AXIS', name: 'Oś bazowa Z' }, ...constructionAxes.filter((axis) => axis.status === 'ok').map((axis) => ({ id: axis.id, name: axis.name }))], angle: feature.angle, previewFeature: feature });
@@ -6356,6 +6390,7 @@ export default function ModelingWorkspace() {
           ...(selectedFaceItems.length === 1 ? [{ icon: OffsetFaceCadIcon, label: 'Odsuń ścianę', onClick: openOffsetFace }] : []),
         ],
         moreActions: [
+          ...(selectedFaceItems.length === 1 ? [{ icon: CircleDotDashed, label: 'Boss', onClick: openPlasticBoss }] : []),
           { icon: ShellCadIcon, label: 'Powłoka', onClick: openShell },
           { icon: DraftCadIcon, label: 'Pochylenie', onClick: openDraft },
           { icon: DeleteFaceCadIcon, label: 'Usuń i napraw', onClick: openDeleteFace, danger: true },
@@ -6601,6 +6636,8 @@ export default function ModelingWorkspace() {
                   { icon: Scissors, label: 'Surface Trim', displayLabel: 'Przytnij powierzchnię', onClick: openSurfaceTrim, disabled: readOnly || !canTrimSelectedSurface, disabledReason: 'Zaznacz jedną powierzchnię i jedną bryłę tnącą.' },
                   { icon: Scissors, label: 'Surface Extend', displayLabel: 'Przedłuż powierzchnię', onClick: openSurfaceExtend, disabled: readOnly || !canExtendSelectedSurface, disabledReason: 'Zaznacz jedną prostą krawędź planarnej powierzchni.' },
                   { icon: ShellCadIcon, label: 'Thicken', displayLabel: 'Pogrub powierzchnię', onClick: openThickenSurface, disabled: readOnly || !selectedSurfaceBody, disabledReason: 'Zaznacz jedną powierzchnię.' },
+                ]} /><ToolMenuButton icon={CircleDotDashed} label="Plastic" description="Funkcje konstrukcyjne elementów z tworzyw sztucznych." items={[
+                  { icon: CircleDotDashed, label: 'Boss', onClick: openPlasticBoss, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły B-Rep.' },
                 ]} /><ToolMenuButton icon={PrimitiveCadIcon} label="Więcej brył" description="Prymitywy, bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
                   { icon: PrimitiveCadIcon, label: 'Prymityw', onClick: openPrimitive, disabled: readOnly },
                   { icon: RevolveCadIcon, label: 'Revolve', displayLabel: 'Bryła obrotowa', onClick: openRevolve, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },

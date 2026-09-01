@@ -38,6 +38,7 @@ npm run verify:drawing-workspace
 npm run verify:modeling
 npm run verify:surface-modeling
 npm run verify:sheet-metal-base
+npm run verify:plastic-boss
 npm run verify:electron-security
 npm audit --audit-level=high
 ```
@@ -45,6 +46,10 @@ npm audit --audit-level=high
 `verify:modeling` uruchamia prawdziwe okno Electron i przechodzi pełny przepływ:
 szkice, więzy, operacje bryłowe, historię, import/eksport, dostępność, licencję i
 kontrolę responsywności.
+
+Moduł `Plastic` zawiera mapy pochylenia i grubości ścian oraz parametryczny
+Boss łączony z istniejącą bryłą, z kontrolowanym otworem, głębokością i
+położeniem na planarnej ścianie.
 
 ## Budowanie
 
