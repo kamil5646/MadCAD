@@ -106,7 +106,19 @@ app.whenReady().then(async () => {
       canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX, clientY, pointerId: 43 }));
       canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX, clientY, pointerId: 43 }));
     })()`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.selectedControlEdge === 4 && window.__madcadFormCageState?.selectedControlEdge === 4`, 'wybór krawędzi klatki bezpośrednio w widoku');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.selectedControlKind === 'edge' && window.__madcadVerifyDocumentState?.command?.selectedControlEdge === 4 && window.__madcadFormCageState?.selectedControlKind === 'edge' && window.__madcadFormCageState?.selectedControlEdge === 4`, 'wybór krawędzi klatki bezpośrednio w widoku');
+    await window.webContents.executeJavaScript(`(() => {
+      window.__madcadFormEdgeBefore = window.__madcadVerifyDocumentState.command.controlOffsets.map((point) => point.map(Number));
+      const axis = window.__madcadFormCageState.screenAxis(1);
+      if (!axis) throw new Error('Brak manipulatora wybranej krawędzi.');
+      const [clientX, clientY] = axis.point;
+      const [directionX, directionY] = axis.direction;
+      const canvas = document.querySelector('.model-viewport canvas');
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX, clientY, pointerId: 45 }));
+      canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, button: 0, buttons: 1, clientX: clientX + directionX * 44, clientY: clientY + directionY * 44, pointerId: 45 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX: clientX + directionX * 44, clientY: clientY + directionY * 44, pointerId: 45 }));
+    })()`);
+    await waitFor(window, `(() => { const before = window.__madcadFormEdgeBefore; const offsets = window.__madcadVerifyDocumentState?.command?.controlOffsets?.map((point) => point.map(Number)); const firstDelta = offsets?.[4]?.[1] - before[4][1]; const secondDelta = offsets?.[5]?.[1] - before[5][1]; return window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(firstDelta) >= 0.5 && firstDelta === secondDelta && offsets[4][0] === before[4][0] && offsets[4][2] === before[4][2] && offsets[0][1] === before[0][1]; })()`, 'przesunięcie obu końców wybranej krawędzi po osi Y');
     await setSelect(window, 'Charakter krawędzi', 'crease');
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.command?.creaseEdges?.includes(4) && window.__madcadFormCageState?.creaseEdges?.includes(4) && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.creaseEdges?.includes(4))`, 'ostra krawędź Crease w podglądzie Form');
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());

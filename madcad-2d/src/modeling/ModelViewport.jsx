@@ -442,6 +442,7 @@ export default function ModelViewport({
   onFormControlPointSelection,
   onFormControlPointMove,
   onFormControlEdgeSelection,
+  onFormControlSelectionMove,
   onCameraStateChange,
   onSelectBody,
   onSelectComponentInstance,
@@ -498,6 +499,7 @@ export default function ModelViewport({
   const formControlPointSelectionRef = useRef(onFormControlPointSelection);
   const formControlPointMoveRef = useRef(onFormControlPointMove);
   const formControlEdgeSelectionRef = useRef(onFormControlEdgeSelection);
+  const formControlSelectionMoveRef = useRef(onFormControlSelectionMove);
   const directRef = useRef({});
   const [view, setView] = useState('iso');
   const [standardViewRequestId, setStandardViewRequestId] = useState(0);
@@ -612,6 +614,7 @@ export default function ModelViewport({
   formControlPointSelectionRef.current = onFormControlPointSelection;
   formControlPointMoveRef.current = onFormControlPointMove;
   formControlEdgeSelectionRef.current = onFormControlEdgeSelection;
+  formControlSelectionMoveRef.current = onFormControlSelectionMove;
   directRef.current = {
     distance: directManipulator ? numericValue(directManipulator.value, parameters) : numericValue(directExtrudeDistance, parameters),
     onCommit: directManipulator?.onCommit || onDirectExtrude,
@@ -885,11 +888,12 @@ export default function ModelViewport({
         const cageLinePositions = new Float32Array(edgeIndexes.flatMap((index) => controlVertices.slice(index * 3, (index * 3) + 3)));
         const cageGeometry = new THREE.BufferGeometry();
         cageGeometry.setAttribute('position', new THREE.BufferAttribute(cageLinePositions, 3));
+        const selectedControlKind = activeCommand?.type === 'formBody' ? activeCommand.selectedControlKind || 'point' : null;
         const selectedControlEdge = activeCommand?.type === 'formBody' ? Math.min((edgeIndexes.length / 2) - 1, Math.max(0, Number(activeCommand.selectedControlEdge) || 0)) : -1;
         const creaseEdges = new Set(body.form.creaseEdges || []);
         const edgeColors = new Float32Array(edgeIndexes.length * 3);
         for (let index = 0; index < edgeIndexes.length / 2; index += 1) {
-          const color = new THREE.Color(index === selectedControlEdge ? 0xffc857 : creaseEdges.has(index) ? 0xe688ff : 0x55d9f2);
+          const color = new THREE.Color(selectedControlKind === 'edge' && index === selectedControlEdge ? 0xffc857 : creaseEdges.has(index) ? 0xe688ff : 0x55d9f2);
           color.toArray(edgeColors, index * 6);
           color.toArray(edgeColors, (index * 6) + 3);
         }
@@ -920,7 +924,7 @@ export default function ModelViewport({
         const axisHitTargets = [];
         const pointColors = new Float32Array((controlVertices.length / 3) * 3);
         for (let index = 0; index < controlVertices.length / 3; index += 1) {
-          const color = new THREE.Color(index === selectedControlPoint ? 0xffc857 : 0xdff9ff);
+          const color = new THREE.Color(selectedControlKind === 'point' && index === selectedControlPoint ? 0xffc857 : 0xdff9ff);
           color.toArray(pointColors, index * 3);
         }
         pointGeometry.setAttribute('color', new THREE.BufferAttribute(pointColors, 3));
@@ -939,7 +943,10 @@ export default function ModelViewport({
           pickables.push(hitTarget);
         }
         if (selectedControlPoint >= 0) {
-          const selectedPosition = new THREE.Vector3().fromArray(controlVertices, selectedControlPoint * 3);
+          const manipulatedPointIndexes = selectedControlKind === 'edge'
+            ? [edgeIndexes[selectedControlEdge * 2], edgeIndexes[(selectedControlEdge * 2) + 1]]
+            : [selectedControlPoint];
+          const selectedPosition = manipulatedPointIndexes.reduce((sum, pointIndex) => sum.add(new THREE.Vector3().fromArray(controlVertices, pointIndex * 3)), new THREE.Vector3()).multiplyScalar(1 / manipulatedPointIndexes.length);
           const bounds = new THREE.Box3().setFromArray(controlVertices);
           const axisLength = Math.min(18, Math.max(8, Math.max(...bounds.getSize(new THREE.Vector3()).toArray()) * 0.28));
           const axes = [
@@ -959,7 +966,7 @@ export default function ModelViewport({
             const hitTarget = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.55, axisLength, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
             hitTarget.position.copy(selectedPosition).addScaledVector(direction, axisLength / 2);
             hitTarget.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
-            hitTarget.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, formControlAxisIndex: axisIndex, formControlAxisLength: axisLength, formControlPointIndex: selectedControlPoint };
+            hitTarget.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, formControlAxisIndex: axisIndex, formControlAxisLength: axisLength, formControlPointIndexes: manipulatedPointIndexes };
             placeObject(hitTarget);
             modelGroup.add(hitTarget);
             pickables.push(hitTarget);
@@ -972,6 +979,7 @@ export default function ModelViewport({
           edgeCount: edgeIndexes.length / 2,
           selectedControlPoint,
           selectedControlEdge,
+          selectedControlKind,
           creaseEdges: [...creaseEdges],
           screenPoint: (index) => projectedPoints(cagePoints, [index])[0],
           screenEdge: (index) => {
@@ -2004,14 +2012,13 @@ export default function ModelViewport({
         if (pixelsPerUnit > 0.01) {
           formControlDrag = {
             mode: 'axis',
-            index: target.userData.formControlPointIndex,
+            pointIndexes: target.userData.formControlPointIndexes,
             axisIndex: formControlAxisIndex,
             screenAxis: screenAxis.normalize(),
             pixelsPerUnit,
             startClientX: event.clientX,
             startClientY: event.clientY,
-            startOffset: Array.from({ length: 3 }, (_unused, axisIndex) => numericValue(activeCommand.controlOffsets?.[target.userData.formControlPointIndex]?.[axisIndex] || '0', parameters)),
-            offset: null,
+            delta: 0,
             moved: false,
           };
           controls.enabled = false;
@@ -2088,10 +2095,9 @@ export default function ModelViewport({
           const step = alternateModifierPressed(event) ? 0.1 : 0.5;
           const screenDelta = new THREE.Vector2(event.clientX - formControlDrag.startClientX, event.clientY - formControlDrag.startClientY);
           const axisDelta = screenDelta.dot(formControlDrag.screenAxis) / formControlDrag.pixelsPerUnit;
-          formControlDrag.offset = [...formControlDrag.startOffset];
-          formControlDrag.offset[formControlDrag.axisIndex] = Math.round((formControlDrag.startOffset[formControlDrag.axisIndex] + axisDelta) / step) * step;
+          formControlDrag.delta = Math.round(axisDelta / step) * step;
           formControlDrag.moved = screenDelta.length() >= 3;
-          setDragLabel({ value: formControlDrag.offset[formControlDrag.axisIndex] - formControlDrag.startOffset[formControlDrag.axisIndex], x: event.clientX - rect.left + 14, y: event.clientY - rect.top - 12 });
+          setDragLabel({ value: formControlDrag.delta, x: event.clientX - rect.left + 14, y: event.clientY - rect.top - 12 });
           return;
         }
         const currentIntersection = raycaster.ray.intersectPlane(formControlDrag.plane, new THREE.Vector3());
@@ -2239,7 +2245,8 @@ export default function ModelViewport({
         try { renderer.domElement.releasePointerCapture?.(event.pointerId); } catch { /* Pointer capture may already be released. */ }
         renderer.domElement.style.cursor = viewportCursor(navigationMode);
         setDragLabel(null);
-        if (finished.moved && finished.offset) formControlPointMoveRef.current?.(finished.index, finished.offset);
+        if (finished.mode === 'axis' && finished.moved && finished.delta) formControlSelectionMoveRef.current?.(finished.pointIndexes, finished.axisIndex, finished.delta);
+        else if (finished.moved && finished.offset) formControlPointMoveRef.current?.(finished.index, finished.offset);
         return;
       }
       const directDrag = directDragRef.current;
@@ -2528,7 +2535,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

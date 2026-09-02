@@ -101,7 +101,7 @@ import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, tran
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../src/cad-core/model-import.js';
 import { inspectMesh } from '../src/cad-core/mesh-tools.js';
-import { createBoxControlCage, createRoundedBoxFormMesh, subdivideCatmullClark, updateFormControlOffset } from '../src/cad-core/subdivision-form.js';
+import { createBoxControlCage, createRoundedBoxFormMesh, subdivideCatmullClark, translateFormControlPoints, updateFormControlOffset } from '../src/cad-core/subdivision-form.js';
 import { analyzePrintability } from '../src/cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../src/cad-core/sketch-import.js';
 import {
@@ -1345,6 +1345,12 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   assert.deepEqual(symmetricOffsets[0], ['form_shift', '2', '3']);
   assert.deepEqual(symmetricOffsets[1], ['-(form_shift)', '2', '3']);
   assert.deepEqual(updateFormControlOffset([], 6, ['1', '2', '3'], 'z')[2], ['1', '2', '-3']);
+  const translatedEdge = translateFormControlPoints([], [4, 5], 2, 6, 'x');
+  assert.deepEqual(translatedEdge[4], [0, 0, 6]);
+  assert.deepEqual(translatedEdge[5], [0, 0, 6]);
+  const translatedSymmetryPair = translateFormControlPoints([], [0, 1], 0, 4, 'x');
+  assert.deepEqual(translatedSymmetryPair[0], [4, 0, 0]);
+  assert.deepEqual(translatedSymmetryPair[1], [-4, 0, 0]);
 
   const deformed = createRoundedBoxFormMesh({ width: 40, depth: 30, height: 20, subdivisions: 2, controlOffsets: [[8, 0, 5]] });
   assert.notDeepEqual(deformed.vertices, mesh.vertices);

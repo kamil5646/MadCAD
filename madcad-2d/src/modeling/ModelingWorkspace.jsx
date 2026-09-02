@@ -75,7 +75,7 @@ import { compareProjectDocuments } from '../cad-core/project-diff.js';
 import { createProjectHealthReport } from '../cad-core/project-health.js';
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../cad-core/project-dependencies.js';
 import { buildProjectSearchIndex } from '../cad-core/project-search.js';
-import { updateFormControlOffset } from '../cad-core/subdivision-form.js';
+import { translateFormControlPoints, updateFormControlOffset } from '../cad-core/subdivision-form.js';
 import {
   addDrivingSketchDimension,
   createSketchArc,
@@ -3659,6 +3659,7 @@ export default function ModelingWorkspace() {
         dynamicLength: command.dynamicLength || '',
         selectedControlPoint: command.selectedControlPoint,
         selectedControlEdge: command.selectedControlEdge,
+        selectedControlKind: command.selectedControlKind,
         controlOffsets: command.controlOffsets,
         creaseEdges: command.creaseEdges,
         measurement: command.type === 'measure' ? measurement : null,
@@ -4755,7 +4756,7 @@ export default function ModelingWorkspace() {
     if (readOnly) return readOnlyNotice();
     if (activeSketchId) return setNotice('Najpierw zakończ szkic.');
     const sequence = document.features.filter((feature) => feature.type === 'formBody').length + 1;
-    const next = { type: 'formBody', name: `Form ${sequence}`, width: '40', depth: '30', height: '20', subdivisions: '2', symmetry: 'none', controlOffsets: Array.from({ length: 8 }, () => ['0', '0', '0']), selectedControlPoint: 0, selectedControlEdge: 0, creaseEdges: [], x: '0', y: '0', z: '0', previewFeature: null };
+    const next = { type: 'formBody', name: `Form ${sequence}`, width: '40', depth: '30', height: '20', subdivisions: '2', symmetry: 'none', controlOffsets: Array.from({ length: 8 }, () => ['0', '0', '0']), selectedControlKind: 'point', selectedControlPoint: 0, selectedControlEdge: 0, creaseEdges: [], x: '0', y: '0', z: '0', previewFeature: null };
     setCommand(next);
     window.setTimeout(() => updateCommand(next), 0);
     setNotice('Form tworzy wygładzoną powierzchnię z kontrolnej klatki i kończy ją jako edytowalną bryłę B-Rep.');
@@ -5249,7 +5250,7 @@ export default function ModelingWorkspace() {
     }
     else if (feature.type === 'boolean') setCommand({ type: 'boolean', editId: feature.id, operation: feature.operation, targetBodyId: feature.targetBodyId, toolBodyId: feature.toolBodyId, targetName: feature.targetBodyId, toolName: feature.toolBodyId, previewFeature: feature });
     else if (feature.type === 'primitive') setCommand({ type: 'primitive', editId: feature.id, name: feature.name, primitiveType: feature.primitiveType, x: feature.x, y: feature.y, z: feature.z, width: feature.width || '20', depth: feature.depth || '20', height: feature.height || '20', radius: feature.radius || '10', majorRadius: feature.majorRadius || '15', minorRadius: feature.minorRadius || '4', previewFeature: feature });
-    else if (feature.type === 'formBody') setCommand({ type: 'formBody', editId: feature.id, name: feature.name, width: feature.width, depth: feature.depth, height: feature.height, subdivisions: feature.subdivisions, symmetry: feature.symmetry || 'none', controlOffsets: feature.controlOffsets || Array.from({ length: 8 }, () => ['0', '0', '0']), selectedControlPoint: 0, selectedControlEdge: 0, creaseEdges: feature.creaseEdges || [], x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', previewFeature: feature });
+    else if (feature.type === 'formBody') setCommand({ type: 'formBody', editId: feature.id, name: feature.name, width: feature.width, depth: feature.depth, height: feature.height, subdivisions: feature.subdivisions, symmetry: feature.symmetry || 'none', controlOffsets: feature.controlOffsets || Array.from({ length: 8 }, () => ['0', '0', '0']), selectedControlKind: 'point', selectedControlPoint: 0, selectedControlEdge: 0, creaseEdges: feature.creaseEdges || [], x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', previewFeature: feature });
     else if (feature.type === 'transform') setCommand({ type: 'transform', editId: feature.id, targetBodyId: feature.targetBodyId, mode: feature.mode, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', angle: feature.angle || '0', originX: feature.originX || '0', originY: feature.originY || '0', originZ: feature.originZ || '0', previewFeature: feature });
     else if (feature.type === 'offsetFace') setCommand({ type: 'offsetFace', editId: feature.id, targetBodyId: feature.targetBodyId, distance: feature.distance, faceLabel: '1 wskazana', previewFeature: feature });
     else if (feature.type === 'textSolid') setCommand({ type: 'textSolid', editId: feature.id, text: feature.text, fontSize: feature.fontSize, depth: feature.depth, x: feature.x || '0', y: feature.y || '0', z: feature.z || '0', operation: feature.operation, targetBodyId: feature.targetBodyId || null, placement: feature.placement || 'world', topologyReferences: (feature.referenceIds || []).map((id) => document.references.find((reference) => reference.id === id)).filter(Boolean), previewFeature: feature });
@@ -6935,12 +6936,17 @@ export default function ModelingWorkspace() {
             cameraRequest={cameraRequest}
             fitRequest={fitViewRequest}
             activeCommand={command}
-            onFormControlPointSelection={(selectedControlPoint) => updateCommand({ selectedControlPoint })}
-            onFormControlEdgeSelection={(selectedControlEdge) => updateCommand({ selectedControlEdge })}
+            onFormControlPointSelection={(selectedControlPoint) => updateCommand({ selectedControlKind: 'point', selectedControlPoint })}
+            onFormControlEdgeSelection={(selectedControlEdge) => updateCommand({ selectedControlKind: 'edge', selectedControlEdge })}
             onFormControlPointMove={(selectedControlPoint, offset) => {
               const currentOffsets = Array.from({ length: 8 }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => command?.controlOffsets?.[index]?.[axis] ?? '0'));
               const controlOffsets = updateFormControlOffset(currentOffsets, selectedControlPoint, offset.map((value) => String(Number(value.toFixed(3)))), command?.symmetry);
               updateCommand({ selectedControlPoint, controlOffsets });
+            }}
+            onFormControlSelectionMove={(pointIndexes, axisIndex, delta) => {
+              const currentOffsets = Array.from({ length: 8 }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => command?.controlOffsets?.[index]?.[axis] ?? '0'));
+              const controlOffsets = translateFormControlPoints(currentOffsets, pointIndexes, axisIndex, delta, command?.symmetry).map((point) => point.map((value) => String(Number(value.toFixed(3)))));
+              updateCommand({ controlOffsets });
             }}
             onCameraStateChange={(camera) => { currentCameraRef.current = camera; }}
             selectedComponentInstanceId={selectedInstance?.id || null}

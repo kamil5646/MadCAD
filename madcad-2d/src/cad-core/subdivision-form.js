@@ -33,6 +33,21 @@ export function updateFormControlOffset(controlOffsets, pointIndex, offset, symm
   return next;
 }
 
+export function translateFormControlPoints(controlOffsets, pointIndexes, axisIndex, delta, symmetry = 'none') {
+  let next = Array.from({ length: 8 }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => Number(controlOffsets?.[index]?.[axis]) || 0));
+  const handled = new Set();
+  for (const pointIndex of [...new Set(pointIndexes)]) {
+    if (!Number.isInteger(pointIndex) || pointIndex < 0 || pointIndex > 7 || handled.has(pointIndex)) continue;
+    const offset = [...next[pointIndex]];
+    offset[axisIndex] += delta;
+    next = updateFormControlOffset(next, pointIndex, offset, symmetry).map((point) => point.map((value) => Number(value)));
+    handled.add(pointIndex);
+    const pairedIndex = SYMMETRY_PAIRS[symmetry]?.[pointIndex];
+    if (Number.isInteger(pairedIndex)) handled.add(pairedIndex);
+  }
+  return next;
+}
+
 export function createBoxControlCage(width, depth, height, controlOffsets = [], creaseEdgeIndexes = []) {
   const x = width / 2;
   const y = depth / 2;
