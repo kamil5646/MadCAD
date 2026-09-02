@@ -14,6 +14,8 @@ Wybranie krawędzi przenosi manipulator do jej środka. Przeciągnięcie osi prz
 
 Każdą z 6 ścian klatki można również wskazać bezpośrednio na modelu lub wybrać z listy. Wybrana ściana otrzymuje półprzezroczyste żółte wyróżnienie, a manipulator przechodzi do jej środka. Przeciągnięcie osi przesuwa razem wszystkie cztery narożniki ściany, pozostawia przeciwległą ścianę bez zmian i respektuje aktywną symetrię.
 
+Panel właściwości ma jeden jawny tryb edycji: punkt, krawędź albo ściana. Pokazuje wyłącznie pola dotyczące aktualnego wyboru; wskazanie elementu bezpośrednio na modelu przełącza ten tryb automatycznie. Parametry całej klatki i jej położenie pozostają dostępne niezależnie od wyboru.
+
 Rdzeń `subdivision-form.js` wykonuje rzeczywisty algorytm Catmulla–Clarka:
 
 - oblicza punkty ścian i krawędzi;

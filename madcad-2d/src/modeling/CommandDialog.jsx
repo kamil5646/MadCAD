@@ -49,6 +49,7 @@ export function CommandDialog({ command, profileName, collapsed, dock, onChange,
   const selectedFormControlPoint = Math.min(7, Math.max(0, Number(command.selectedControlPoint) || 0));
   const selectedFormControlEdge = Math.min(FORM_CONTROL_EDGES.length - 1, Math.max(0, Number(command.selectedControlEdge) || 0));
   const selectedFormControlFace = Math.min(FORM_CONTROL_FACES.length - 1, Math.max(0, Number(command.selectedControlFace) || 0));
+  const selectedFormControlKind = ['point', 'edge', 'face'].includes(command.selectedControlKind) ? command.selectedControlKind : 'point';
   const formCreaseEdges = new Set(command.creaseEdges || []);
   const updateFormControlOffset = (axis, value) => {
     const offset = [...formControlOffsets[selectedFormControlPoint]];
@@ -212,18 +213,23 @@ export function CommandDialog({ command, profileName, collapsed, dock, onChange,
           <Field label="Wysokość klatki" value={command.height} onChange={(height) => onChange({ height })} suffix="mm" />
           <Field label="Poziom wygładzenia" value={command.subdivisions} onChange={(subdivisions) => onChange({ subdivisions })} />
           <label className="command-field"><span>Symetria klatki</span><select value={command.symmetry || 'none'} onChange={(event) => onChange({ symmetry: event.target.value })}><option value="none">Wyłączona</option><option value="x">Względem X</option><option value="y">Względem Y</option><option value="z">Względem Z</option></select></label>
-          <label className="command-field"><span>Punkt kontrolny</span><select value={selectedFormControlPoint} onChange={(event) => onChange({ selectedControlKind: 'point', selectedControlPoint: Number(event.target.value) })}>{formControlOffsets.map((_point, index) => <option key={index} value={index}>Punkt {index + 1}</option>)}</select></label>
-          <Field label="Przesunięcie punktu X" value={formControlOffsets[selectedFormControlPoint][0]} onChange={(value) => updateFormControlOffset(0, value)} suffix="mm" />
-          <Field label="Przesunięcie punktu Y" value={formControlOffsets[selectedFormControlPoint][1]} onChange={(value) => updateFormControlOffset(1, value)} suffix="mm" />
-          <Field label="Przesunięcie punktu Z" value={formControlOffsets[selectedFormControlPoint][2]} onChange={(value) => updateFormControlOffset(2, value)} suffix="mm" />
-          <label className="command-field"><span>Krawędź kontrolna</span><select value={selectedFormControlEdge} onChange={(event) => onChange({ selectedControlKind: 'edge', selectedControlEdge: Number(event.target.value) })}>{FORM_CONTROL_EDGES.map(([first, second], index) => <option key={index} value={index}>Krawędź {index + 1} · P{first + 1}–P{second + 1}</option>)}</select></label>
-          <label className="command-field"><span>Charakter krawędzi</span><select value={formCreaseEdges.has(selectedFormControlEdge) ? 'crease' : 'smooth'} onChange={(event) => {
-            const creaseEdges = new Set(command.creaseEdges || []);
-            if (event.target.value === 'crease') creaseEdges.add(selectedFormControlEdge);
-            else creaseEdges.delete(selectedFormControlEdge);
-            onChange({ creaseEdges: [...creaseEdges].sort((first, second) => first - second) });
-          }}><option value="smooth">Gładka</option><option value="crease">Ostra · Crease</option></select></label>
-          <label className="command-field"><span>Ściana kontrolna</span><select value={selectedFormControlFace} onChange={(event) => onChange({ selectedControlKind: 'face', selectedControlFace: Number(event.target.value) })}>{FORM_CONTROL_FACES.map((face, index) => <option key={index} value={index}>Ściana {index + 1} · {face.map((point) => `P${point + 1}`).join('–')}</option>)}</select></label>
+          <label className="command-field"><span>Tryb edycji</span><select value={selectedFormControlKind} onChange={(event) => onChange({ selectedControlKind: event.target.value })}><option value="point">Punkt</option><option value="edge">Krawędź</option><option value="face">Ściana</option></select></label>
+          {selectedFormControlKind === 'point' && <>
+            <label className="command-field"><span>Punkt kontrolny</span><select value={selectedFormControlPoint} onChange={(event) => onChange({ selectedControlPoint: Number(event.target.value) })}>{formControlOffsets.map((_point, index) => <option key={index} value={index}>Punkt {index + 1}</option>)}</select></label>
+            <Field label="Przesunięcie punktu X" value={formControlOffsets[selectedFormControlPoint][0]} onChange={(value) => updateFormControlOffset(0, value)} suffix="mm" />
+            <Field label="Przesunięcie punktu Y" value={formControlOffsets[selectedFormControlPoint][1]} onChange={(value) => updateFormControlOffset(1, value)} suffix="mm" />
+            <Field label="Przesunięcie punktu Z" value={formControlOffsets[selectedFormControlPoint][2]} onChange={(value) => updateFormControlOffset(2, value)} suffix="mm" />
+          </>}
+          {selectedFormControlKind === 'edge' && <>
+            <label className="command-field"><span>Krawędź kontrolna</span><select value={selectedFormControlEdge} onChange={(event) => onChange({ selectedControlEdge: Number(event.target.value) })}>{FORM_CONTROL_EDGES.map(([first, second], index) => <option key={index} value={index}>Krawędź {index + 1} · P{first + 1}–P{second + 1}</option>)}</select></label>
+            <label className="command-field"><span>Charakter krawędzi</span><select value={formCreaseEdges.has(selectedFormControlEdge) ? 'crease' : 'smooth'} onChange={(event) => {
+              const creaseEdges = new Set(command.creaseEdges || []);
+              if (event.target.value === 'crease') creaseEdges.add(selectedFormControlEdge);
+              else creaseEdges.delete(selectedFormControlEdge);
+              onChange({ creaseEdges: [...creaseEdges].sort((first, second) => first - second) });
+            }}><option value="smooth">Gładka</option><option value="crease">Ostra · Crease</option></select></label>
+          </>}
+          {selectedFormControlKind === 'face' && <label className="command-field"><span>Ściana kontrolna</span><select value={selectedFormControlFace} onChange={(event) => onChange({ selectedControlFace: Number(event.target.value) })}>{FORM_CONTROL_FACES.map((face, index) => <option key={index} value={index}>Ściana {index + 1} · {face.map((point) => `P${point + 1}`).join('–')}</option>)}</select></label>}
           <Field label="Położenie X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" />
           <Field label="Położenie Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" />
           <Field label="Położenie Z" value={command.z} onChange={(z) => onChange({ z })} suffix="mm" />
