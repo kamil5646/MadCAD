@@ -426,7 +426,7 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
             title={`Zaznacz ${sketch.name}; użyj Edytuj, aby wrócić do szkicu.`}
             onClick={() => onSelect({ kind: 'sketch', id: sketch.id })}
           >
-            <span /><PencilRuler size={13} /><span>{sketch.name}</span><small>{sketch.plane}</small>
+            <span /><PencilRuler size={13} /><span>{sketch.name}</span><small>{sketch.space === '3d' ? '3D' : sketch.plane}</small>
           </button>
           <button className="tree-reference-visibility" type="button" aria-pressed={sketch.visible !== false} title={sketch.visible !== false ? `Ukryj ${sketch.name}` : `Pokaż ${sketch.name}`} onClick={() => onToggleSketchVisibility(sketch.id)}>{sketch.visible !== false ? <Eye size={13} /> : <EyeOff size={13} />}</button>
           </div>

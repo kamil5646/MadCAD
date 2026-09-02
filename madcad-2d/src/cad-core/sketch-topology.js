@@ -553,6 +553,11 @@ export function detectSketchProfiles(sketch, parameters = [], options = {}) {
 }
 
 export function refreshDetectedSketchProfiles(sketch, parameters = []) {
+  if (sketch?.space === '3d') {
+    sketch.profiles = [];
+    sketch.diagnostics = [];
+    return { profiles: [], diagnostics: [], graph: { vertices: [], edges: [], curveAnalyses: [], loops: [] } };
+  }
   const primitiveProfiles = (sketch.profiles || []).filter((profile) => profile.source === 'primitive');
   const detectedProfilesBySignature = new Map((sketch.profiles || [])
     .filter((profile) => profile.source !== 'primitive')

@@ -195,6 +195,17 @@ describe('NamedViewsPanel', () => {
 });
 
 describe('ProjectBrowser components', () => {
+  it('labels a spatial sketch as 3D instead of a base plane', () => {
+    const document = {
+      id: 'document-1', name: 'Projekt', components: [], componentInstances: [], rigidGroups: [], joints: [], motionLinks: [], contactSets: [], assemblyConfigurations: [], activeAssemblyConfigurationId: '', references: [],
+      sketches: [{ id: 'sketch-3d', name: 'Szkic 3D 1', space: '3d', plane: 'XY', visible: true, profiles: [] }],
+    };
+    render(<ProjectBrowser document={document} bodies={[]} selection={{ kind: 'document', id: 'document-1' }} onSelect={vi.fn()} onToggleReference={vi.fn()} onClose={vi.fn()} />);
+    const sketchRow = screen.getByTitle(/Zaznacz Szkic 3D 1/);
+    expect(sketchRow).toHaveTextContent('3D');
+    expect(sketchRow.querySelector('small')).toHaveTextContent('3D');
+  });
+
   it('shows the nested assembly tree and selects a component', () => {
     const onSelect = vi.fn();
     const motionLinks = [{ id: 'motion-1', name: 'Przełożenie testowe', sourceJointId: 'joint-1', targetJointId: 'joint-2', ratio: -2, offset: 0, enabled: true }];

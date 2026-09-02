@@ -4,9 +4,11 @@ import manifoldModule from 'manifold-3d';
 import manifoldWasm from 'manifold-3d/manifold.wasm?url';
 import {
   addHolesInFace,
+  assembleWire,
   Curve2D,
   FaceFinder,
   Plane,
+  Sketch,
   Vector,
   cast,
   compoundShapes,
@@ -21,6 +23,7 @@ import {
   makeAx2,
   makeBox,
   makeCylinder,
+  makeLine,
   makeOffset,
   makePolygon,
   makeSolid,
@@ -702,19 +705,33 @@ function revolveProfile(profile, axis, angle) {
   return shape;
 }
 
-function sweepDrawing(profileDrawing, path) {
+function pathSpine(path) {
   const [first, ...rest] = path.geometry.points;
-  const spinePen = draw(first);
-  rest.forEach((point) => spinePen.lineTo(point));
-  const spine = spinePen.done().sketchOnPlane(path.plane || 'XY', Number(path.planeOffset || 0));
+  if (path.space !== '3d') {
+    const spinePen = draw(first);
+    rest.forEach((point) => spinePen.lineTo(point));
+    return spinePen.done().sketchOnPlane(path.plane || 'XY', Number(path.planeOffset || 0));
+  }
+  const edges = rest.map((point, index) => makeLine(path.geometry.points[index], point));
+  try {
+    const wire = assembleWire(edges);
+    const tangent = wire.tangentAt(1e-9).normalize();
+    const tangentValues = tangent.toTuple();
+    const defaultDirection = Math.abs(tangentValues[2]) > 0.9 ? [0, 1, 0] : [0, 0, 1];
+    tangent.delete();
+    return new Sketch(wire, { defaultDirection });
+  } finally {
+    edges.forEach((edge) => edge.delete?.());
+  }
+}
+
+function sweepDrawing(profileDrawing, path) {
+  const spine = pathSpine(path);
   return spine.sweepSketch((plane) => profileDrawing.sketchOnPlane(plane), { transitionMode: 'round' });
 }
 
 function surfaceSweepDrawing(profileDrawing, path) {
-  const [first, ...rest] = path.geometry.points;
-  const spinePen = draw(first);
-  rest.forEach((point) => spinePen.lineTo(point));
-  const spine = spinePen.done().sketchOnPlane(path.plane || 'XY', Number(path.planeOffset || 0));
+  const spine = pathSpine(path);
   const startPoint = spine.wire.startPoint;
   const tangent = spine.wire.tangentAt(1e-9);
   const normal = tangent.multiply(-1).normalize();
@@ -973,10 +990,7 @@ function coilShape(feature) {
 
 function pipeShape(feature) {
   const sweepCircle = (radius) => {
-    const [first, ...rest] = feature.path.geometry.points;
-    const spinePen = draw(first);
-    rest.forEach((point) => spinePen.lineTo(point));
-    const spine = spinePen.done().sketchOnPlane(feature.path.plane || 'XY', Number(feature.path.planeOffset || 0));
+    const spine = pathSpine(feature.path);
     return spine.sweepSketch((plane) => drawCircle(radius).sketchOnPlane(plane), { transitionMode: 'round' });
   };
   return sweepCircle(feature.outsideDiameterValue / 2).cut(sweepCircle(feature.insideDiameterValue / 2));
@@ -991,7 +1005,7 @@ function patternTranslations(feature) {
   const frame = { XY: { u: [1, 0, 0], v: [0, 1, 0], n: [0, 0, 1] }, XZ: { u: [1, 0, 0], v: [0, 0, 1], n: [0, -1, 0] }, YZ: { u: [0, 1, 0], v: [0, 0, 1], n: [1, 0, 0] } }[feature.path.plane || 'XY'];
   const points = feature.path.geometry.points;
   const lengths = [0];
-  for (let index = 1; index < points.length; index += 1) lengths.push(lengths.at(-1) + Math.hypot(points[index][0] - points[index - 1][0], points[index][1] - points[index - 1][1]));
+  for (let index = 1; index < points.length; index += 1) lengths.push(lengths.at(-1) + Math.hypot(...points[index].map((value, axis) => value - points[index - 1][axis])));
   const total = lengths.at(-1);
   const sample = (distance) => {
     let segment = 1;
@@ -1002,6 +1016,7 @@ function patternTranslations(feature) {
   };
   const first = sample(0);
   return Array.from({ length: feature.occurrencesValue - 1 }, (_value, index) => sample(total * (index + 1) / (feature.occurrencesValue - 1))).map((point) => {
+    if (feature.path.space === '3d') return point.map((value, axis) => value - first[axis]);
     const dx = point[0] - first[0]; const dy = point[1] - first[1];
     return frame.u.map((value, axis) => (value * dx) + (frame.v[axis] * dy));
   });

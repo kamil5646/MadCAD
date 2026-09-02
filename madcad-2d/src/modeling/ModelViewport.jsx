@@ -150,10 +150,10 @@ function addSketchProfiles(group, sketch, parameters, plane, { selectedProfileId
   return { pickables };
 }
 
-function sketchPoint(entityMap, pointId, parameters) {
+function sketchPoint(entityMap, pointId, parameters, spatial = false) {
   const point = entityMap.get(pointId);
   if (point?.type !== 'point') return null;
-  return [numericValue(point.geometry.x, parameters), numericValue(point.geometry.y, parameters)];
+  return [numericValue(point.geometry.x, parameters), numericValue(point.geometry.y, parameters), ...(spatial ? [numericValue(point.geometry.z, parameters)] : [])];
 }
 
 function arcPoints(center, start, end, direction, steps = 32) {
@@ -198,6 +198,8 @@ function addSketchEntities(group, sketch, parameters, plane, {
   reference = false,
   pickable = true,
 } = {}) {
+  const spatial = sketch.space === '3d';
+  const worldPoint = (point, elevation = 0) => spatial ? point : mapPlanePoint(point[0], point[1], plane, elevation, planeOffset);
   const appearanceFor = (entity) => resolveEntityAppearance({ layers }, entity);
   const entityMap = new Map(sketch.entities.map((entity) => [entity.id, entity]));
   const selected = new Set(selectedIds);
@@ -213,7 +215,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
   const pickables = [];
   for (const entity of sketch.entities) {
     if (entity.type !== 'point') continue;
-    const coordinate = sketchPoint(entityMap, entity.id, parameters);
+    const coordinate = sketchPoint(entityMap, entity.id, parameters, spatial);
     if (coordinate) coordinates.set(entity.id, coordinate);
   }
   const readPoint = (pointId, overrides) => overrides?.get(pointId) || coordinates.get(pointId) || null;
@@ -299,7 +301,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
     const localPoints = localPointsFor(entity);
     if (localPoints.length < 2) continue;
     const hasError = errors.has(entity.id) || (entity.type === 'line'
-      ? Math.hypot(localPoints[1][0] - localPoints[0][0], localPoints[1][1] - localPoints[0][1]) <= 1e-7
+      ? Math.hypot(...localPoints[1].map((value, axis) => value - localPoints[0][axis])) <= 1e-7
       : entity.type === 'circle'
         ? !(numericValue(entity.geometry.radius, parameters) > 0)
         : entity.type === 'arc' || entity.type === 'ellipticalArc'
@@ -311,7 +313,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
     const lineType = lineTypeDefinition(appearance.lineType);
     const lineOpacity = reference ? 0.72 : 0.96;
     const lineElevation = reference ? 0.07 : 0.12;
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(localPoints.flatMap((point) => mapPlanePoint(point[0], point[1], plane, lineElevation, planeOffset)), 3));
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(localPoints.flatMap((point) => worldPoint(point, lineElevation)), 3));
     const material = lineType.id === 'continuous'
       ? new THREE.LineBasicMaterial({ color: baseColor, linewidth: appearance.lineWeight, transparent: true, opacity: lineOpacity })
       : new THREE.LineDashedMaterial({ color: baseColor, linewidth: appearance.lineWeight, dashSize: lineType.dashSize, gapSize: lineType.gapSize, transparent: true, opacity: lineOpacity });
@@ -340,7 +342,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
         new THREE.SphereGeometry(selected.has(entity.id) ? 1.25 : underConstrainedPoints.has(entity.id) ? 1.05 : 0.9, 14, 10),
         new THREE.MeshBasicMaterial({ color: baseColor, depthTest: false }),
       );
-      point.position.set(...mapPlanePoint(...coordinates.get(entity.id), plane, 0.18, planeOffset));
+      point.position.set(...worldPoint(coordinates.get(entity.id), 0.18));
       point.renderOrder = 5;
       point.userData = { sketchEntityId: entity.id, sketchEntityType: 'point', sketchState: sketchEntityState(entity, selected.has(entity.id), hasError), baseColor, layerId: appearance.layer.id, layerLocked: appearance.locked };
       group.add(point);
@@ -353,12 +355,12 @@ function addSketchEntities(group, sketch, parameters, plane, {
     for (const entry of entries) {
       if (entry.entity.type === 'point') {
         const point = readPoint(entry.entity.id, overrides);
-        if (point) entry.object.position.set(...mapPlanePoint(...point, plane, 0.18, planeOffset));
+        if (point) entry.object.position.set(...worldPoint(point, 0.18));
         continue;
       }
       const localPoints = localPointsFor(entry.entity, overrides);
       entry.object.geometry.setAttribute('position', new THREE.Float32BufferAttribute(
-        localPoints.flatMap((point) => mapPlanePoint(point[0], point[1], plane, entry.lineElevation || 0.12, planeOffset)),
+        localPoints.flatMap((point) => worldPoint(point, entry.lineElevation || 0.12)),
         3,
       ));
       entry.object.geometry.computeBoundingSphere();
@@ -546,6 +548,7 @@ export default function ModelViewport({
   const selectedTopologySet = useMemo(() => new Set(selectedTopologyIds), [selectedTopologyIds]);
   const selectedBodySet = useMemo(() => new Set(selectedBodyIds.length ? selectedBodyIds : [selectedBodyId].filter(Boolean)), [selectedBodyId, selectedBodyIds]);
   const activeSketch = sketches.find((sketch) => sketch.id === activeSketchId);
+  const activeSketchIs3D = activeSketch?.space === '3d';
   const referenceSketchIds = useMemo(() => resolveReferenceSketchIds({ activeSketchId, sketches }), [activeSketchId, sketches]);
   const referenceSketches = useMemo(() => referenceSketchIds.map((sketchId) => sketches.find((sketch) => sketch.id === sketchId)).filter(Boolean), [referenceSketchIds, sketches]);
   const sketchSnapContext = useMemo(() => composeSketchSnapContext(activeSketch, referenceSketches, parameters), [activeSketch, referenceSketches, parameters]);
@@ -562,13 +565,13 @@ export default function ModelViewport({
     if (!activeSketchId || !['line', 'polyline'].includes(sketchTool) || !autoConstraints) setConstraintSuggestion(null);
   }, [activeSketchId, sketchTool, autoConstraints]);
   const solverAnalysis = useMemo(() => {
-    if (!activeSketch) return null;
+    if (!activeSketch || activeSketchIs3D) return null;
     try {
       return analyzeSketchConstraints(activeSketch, parameters);
     } catch (error) {
       return { status: SKETCH_SOLVER_STATUS.CONFLICT, degreesOfFreedom: null, diagnostics: [{ message: error.message }], conflictConstraintIds: [] };
     }
-  }, [activeSketch, parameters]);
+  }, [activeSketch, activeSketchIs3D, parameters]);
   const blockingSketchDiagnostics = (activeSketch?.diagnostics || []).filter((entry) => entry.code !== 'GAP');
   const openEndpointCount = (activeSketch?.diagnostics || []).filter((entry) => entry.code === 'GAP').length;
   const freedomDiagnostics = useMemo(() => describeSketchDegreesOfFreedom(activeSketch, solverAnalysis), [activeSketch, solverAnalysis]);
@@ -719,7 +722,7 @@ export default function ModelViewport({
     }
 
     const modelGroup = new THREE.Group();
-    const sketchSlicePlane = activeSketch && sliceModel
+    const sketchSlicePlane = activeSketch && !activeSketchIs3D && sliceModel
       ? activePlane === 'XZ'
         ? new THREE.Plane(new THREE.Vector3(0, -1, 0), -activePlaneOffset)
         : activePlane === 'YZ'
@@ -1344,6 +1347,11 @@ export default function ModelViewport({
         ...mapPlanePoint(0, axisLength, activePlane, 0.06, activePlaneOffset),
       ], 3));
       sketchGroup.add(new THREE.Line(yAxisGeometry, new THREE.LineBasicMaterial({ color: 0x54c978, transparent: true, opacity: 0.9 })));
+      if (activeSketchIs3D) {
+        const zAxisGeometry = new THREE.BufferGeometry();
+        zAxisGeometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, -axisLength, 0, 0, axisLength], 3));
+        sketchGroup.add(new THREE.Line(zAxisGeometry, new THREE.LineBasicMaterial({ color: 0x579dff, transparent: true, opacity: 0.9 })));
+      }
       sketchProfileRender = addSketchProfiles(sketchGroup, activeSketch, parameters, activePlane, {
         selectedProfileId: selectedProfile?.id,
         visible: showSketchProfiles,
@@ -1357,7 +1365,7 @@ export default function ModelViewport({
         showProjected: showProjectedGeometry,
         planeOffset: activePlaneOffset,
         layers,
-        underConstrainedPointIds: freedomDiagnostics.affectedPointIds,
+        underConstrainedPointIds: activeSketchIs3D ? [] : freedomDiagnostics.affectedPointIds,
       });
       if (draftProfile) addSketchLine(sketchGroup, draftProfile, parameters, activePlane, true, activePlaneOffset);
       if (sketchTool && polylineDraft?.lastPoint) {
@@ -1551,7 +1559,7 @@ export default function ModelViewport({
       window.__madcadConstructionAxisState = constructionAxes.map((axis) => ({ id: axis.id, name: axis.name, axisType: axis.axisType, status: axis.status, visible: axis.visible, origin: axis.origin, direction: axis.direction }));
       window.__madcadConstructionPointState = constructionPoints.map((point) => ({ id: point.id, name: point.name, pointType: point.pointType, status: point.status, visible: point.visible, position: point.position }));
     }
-    const sketchView = activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top';
+    const sketchView = activeSketchIs3D ? 'iso' : activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top';
     const direction = VIEW_DIRECTIONS[activeSketch ? sketchView : view] || VIEW_DIRECTIONS.iso;
     camera.up.set(0, 0, 1);
     if ((activeSketch ? sketchView : view) === 'top') camera.up.set(0, 1, 0);
@@ -1567,7 +1575,7 @@ export default function ModelViewport({
     }
     // A 2D sketch is always viewed perpendicular to its support plane. Orbit is
     // intentionally available only in the 3D modeling workspace.
-    controls.enableRotate = !activeSketch;
+    controls.enableRotate = !activeSketch || activeSketchIs3D;
     controls.update();
     const publishCameraState = () => {
       const snapshot = {
@@ -2665,7 +2673,7 @@ export default function ModelViewport({
         {!activeSketchId && <button className={navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT ? 'active' : ''} type="button" aria-label="Orbita" aria-pressed={navigationMode === VIEWPORT_NAVIGATION_MODES.ORBIT} title="Orbita modelu 3D: przeciągnij prawym przyciskiem myszy. Kliknij ponownie lub naciśnij Esc, aby wrócić do zaznaczania." onClick={() => setNavigationMode((mode) => mode === VIEWPORT_NAVIGATION_MODES.ORBIT ? VIEWPORT_NAVIGATION_MODES.SELECT : VIEWPORT_NAVIGATION_MODES.ORBIT)}><Orbit size={15} /><span>Orbita</span></button>}
         <button className={navigationMode === VIEWPORT_NAVIGATION_MODES.PAN ? 'active' : ''} type="button" aria-label="Przesuń widok" aria-pressed={navigationMode === VIEWPORT_NAVIGATION_MODES.PAN} title="Przesuń widok: przytrzymaj kółko myszy i przeciągnij. Kliknij ponownie lub naciśnij Esc, aby wrócić do zaznaczania." onClick={() => setNavigationMode((mode) => mode === VIEWPORT_NAVIGATION_MODES.PAN ? VIEWPORT_NAVIGATION_MODES.SELECT : VIEWPORT_NAVIGATION_MODES.PAN)}><Move3d size={15} /><span>Przesuń</span></button>
         <button type="button" aria-label="Powiększ model" title="Powiększ model. Kółko myszy przybliża pod pozycją kursora." onClick={() => setZoomScale((scale) => Math.max(0.35, scale * 0.78))}><ZoomIn size={15} /><span>Zoom</span></button>
-        <button type="button" aria-label="Dopasuj cały model" title="Dopasuj cały model do dostępnego obszaru." onClick={() => selectStandardView(activeSketchId ? (activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top') : 'iso')}><Maximize2 size={15} /><span>Dopasuj</span></button>
+        <button type="button" aria-label="Dopasuj cały model" title="Dopasuj cały model do dostępnego obszaru." onClick={() => selectStandardView(activeSketchId && !activeSketchIs3D ? (activePlane === 'XZ' ? 'front' : activePlane === 'YZ' ? 'right' : 'top') : 'iso')}><Maximize2 size={15} /><span>Dopasuj</span></button>
       </div>
       {directEnabled && <div className="direct-extrude-hint">{directManipulator?.hint || 'Przeciągnij niebieską strzałkę, aby wyciągnąć profil'}</div>}
       {dragLabel && <div className="direct-dimension" style={{ left: dragLabel.x, top: dragLabel.y }}>{dragLabel.value.toFixed(1)} mm</div>}
@@ -2747,7 +2755,7 @@ export default function ModelViewport({
           <button type="submit">Zastosuj</button>
         </form>
       )}
-      {activeSketchId && sliceModel && <div className="sketch-slice-badge">Slice · przekrój na {activePlane}</div>}
+      {activeSketchId && !activeSketchIs3D && sliceModel && <div className="sketch-slice-badge">Slice · przekrój na {activePlane}</div>}
       {activeSketchId && draftType && <div className="sketch-pointer-hint visually-consolidated">Kliknij środek, a następnie punkt rozmiaru</div>}
       {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint visually-consolidated">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
       {activeSketchId && sketchTool && <div className="sketch-pointer-hint visually-consolidated">{`${sketchToolPrompt || 'Klikaj kolejne punkty'} · ${sketchTool === 'line' && polylineDraft?.lastPoint ? 'wpisz długość i Enter lub kliknij koniec' : ['line', 'polyline', 'spline'].includes(sketchTool) ? 'Enter kończy' : 'Esc anuluje'}`}</div>}

@@ -93,7 +93,11 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Bridge dwóch rozłącznych ścian quad jako parametryczny, zamknięty tunel z regulowanym otworem, edycją 8 nowych punktów, podglądem oraz współpracą z Insert Edge i symetrią.
   - [x] Fill Hole przebudowujący wskazaną granicę jako płaty ze wspólnym, edytowalnym punktem; automatycznie domyka lustrzaną parę i współpracuje z Bridge oraz Insert Edge.
   - [ ] Konwersja powierzchni Form do możliwie małej liczby gładkich płatów B-Rep zamiast jednej ściany na trójkąt.
-- Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.
+- [ ] Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.
+  - [x] Liniowy szkic 3D XYZ z ciągłą ścieżką, edycją kolejnych końców, Cofnij, Esc/Zakończ, widokiem izometrycznym i zapisem projektu.
+  - [x] Użycie liniowej ścieżki 3D przez dokładny Pipe B-Rep oraz przygotowanie jej dla Sweep i Pattern po ścieżce.
+  - [ ] Krzywe przestrzenne: łuk 3D, spline 3D i kontrola ciągłości G0/G1/G2.
+  - [ ] Ścieżki skojarzone z krawędzią lub powierzchnią modelu oraz edycja punktów bezpośrednio w widoku.
 
 ### Render, Animation, Simulation i Generative
 

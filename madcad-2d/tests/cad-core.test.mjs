@@ -72,6 +72,7 @@ import {
   createSketchEntity,
   createSketchLine,
   createSketchPoint,
+  createSketchPoint3D,
   createTangentArcContinuation,
   deleteSketchSelection,
   pruneDanglingSketchRelations,
@@ -1559,6 +1560,40 @@ test('Sweep przygotowuje profil i ciągłą ścieżkę osobnego szkicu', () => {
   disconnected.sketches[1].entities.push(third, fourth, extra);
   disconnected.features[0].pathEntityIds.push(extra.id);
   assert.throws(() => prepareDocument(disconnected), /jednego ciągłego łańcucha/);
+});
+
+test('Szkic 3D zapisuje liniową ścieżkę XYZ dla Sweep, Pipe i Pattern', () => {
+  const document = createDocument('Ścieżka przestrzenna');
+  const profile = createCircleProfile({ diameter: 4 });
+  const profileSketch = createSketch({ name: 'Profil', plane: 'YZ', profiles: [profile] });
+  const first = createSketchPoint3D({ x: 0, y: 0, z: 0 });
+  const corner = createSketchPoint3D({ x: 20, y: 0, z: 5 });
+  const last = createSketchPoint3D({ x: 20, y: 15, z: 12 });
+  const firstLine = createSketchLine({ startPointId: first.id, endPointId: corner.id });
+  const secondLine = createSketchLine({ startPointId: corner.id, endPointId: last.id });
+  const pathSketch = createSketch({ name: 'Szkic 3D 1', space: '3d', entities: [first, corner, last, firstLine, secondLine] });
+  const sweep = createFeature('sweep', { sketchId: profileSketch.id, profileIds: [profile.id], pathSketchId: pathSketch.id, pathEntityIds: [firstLine.id, secondLine.id], operation: 'new' });
+  document.sketches.push(profileSketch, pathSketch);
+  document.features.push(sweep);
+
+  const validation = validateDocument(document);
+  assert.equal(validation.valid, true, JSON.stringify(validation.issues));
+  const prepared = prepareDocument(document).features[0];
+  assert.equal(prepared.path.space, '3d');
+  assert.deepEqual(prepared.path.geometry.points, [[0, 0, 0], [20, 0, 5], [20, 15, 12]]);
+  assert.ok(buildDependencyGraph(document).affectedBy(firstLine.id).includes(sweep.id));
+
+  const pipeDocument = createDocument('Pipe 3D');
+  pipeDocument.sketches.push(structuredClone(pathSketch));
+  pipeDocument.features.push(createFeature('pipe', { pathSketchId: pathSketch.id, pathEntityIds: [firstLine.id, secondLine.id], outsideDiameter: '6', wallThickness: '1', operation: 'new' }));
+  assert.equal(prepareDocument(pipeDocument).features[0].path.space, '3d');
+
+  const missingZ = structuredClone(document);
+  delete missingZ.sketches[1].entities[0].geometry.z;
+  assert.ok(validateDocument(missingZ).issues.some((issue) => issue.path.endsWith('.geometry.z') && issue.code === 'REQUIRED'));
+  const unsupportedCurve = structuredClone(document);
+  unsupportedCurve.sketches[1].entities.push(createSketchCircleEntity({ centerPointId: first.id, radius: 5 }));
+  assert.ok(validateDocument(unsupportedCurve).issues.some((issue) => issue.message.includes('ciągłe linie przestrzenne')));
 });
 
 test('Loft przygotowuje uporządkowane profile z osobnych równoległych szkiców', () => {

@@ -14,8 +14,10 @@ export function resolveVisibleSketchId({ activeSketchId = null, selection = null
 
 export function resolveReferenceSketchIds({ activeSketchId = null, sketches = [] } = {}) {
   if (!activeSketchId) return [];
+  const activeSpace = sketches.find((sketch) => sketch.id === activeSketchId)?.space || '2d';
   return sketches
     .filter((sketch) => sketch.id !== activeSketchId
+      && (sketch.space || '2d') === activeSpace
       && (sketch.entities || []).some((entity) => entity.type !== 'point'))
     .map((sketch) => sketch.id);
 }
@@ -27,7 +29,7 @@ export function resolveResumableSketch({ plane = 'XY', sketches = [], bodyCount 
 export function resolveResumableSketches({ plane = 'XY', sketches = [], bodyCount = 0, featureCount = 0 } = {}) {
   if (bodyCount > 0 || featureCount > 0) return [];
   return sketches.filter((sketch) => {
-    if ((sketch.plane || 'XY') !== plane || sketch.support) return false;
+    if ((sketch.space || '2d') !== '2d' || (sketch.plane || 'XY') !== plane || sketch.support) return false;
     const offset = Number(sketch.planeOffset || 0);
     return Number.isFinite(offset) && Math.abs(offset) <= 1e-7;
   });

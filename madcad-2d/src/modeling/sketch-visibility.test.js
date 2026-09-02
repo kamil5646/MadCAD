@@ -37,6 +37,17 @@ describe('resolveVisibleSketchId', () => {
     })).toEqual(['sketch-1']);
   });
 
+  it('nie miesza kontekstu ani kontynuacji szkiców 2D i 3D', () => {
+    const sketches = [
+      { id: 'sketch-2d', space: '2d', plane: 'XY', planeOffset: '0', entities: [{ id: 'line-2d', type: 'line' }] },
+      { id: 'sketch-3d-a', space: '3d', plane: 'XY', planeOffset: '0', entities: [{ id: 'line-3d-a', type: 'line' }] },
+      { id: 'sketch-3d-b', space: '3d', plane: 'XY', planeOffset: '0', entities: [{ id: 'line-3d-b', type: 'line' }] },
+    ];
+    expect(resolveReferenceSketchIds({ activeSketchId: 'sketch-2d', sketches })).toEqual([]);
+    expect(resolveReferenceSketchIds({ activeSketchId: 'sketch-3d-b', sketches })).toEqual(['sketch-3d-a']);
+    expect(resolveResumableSketches({ plane: 'XY', sketches }).map((sketch) => sketch.id)).toEqual(['sketch-2d']);
+  });
+
   it('kontynuuje ostatni szkic na tej samej bazowej płaszczyźnie przed utworzeniem bryły', () => {
     const sketches = [
       { id: 'sketch-xy-old', plane: 'XY', planeOffset: '0' },

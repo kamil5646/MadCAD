@@ -74,6 +74,15 @@ export function createSketchPoint({ x = 0, y = 0, ...options } = {}) {
   return commonEntity('point', { ...options, pointIds: [], geometry: { x: expression(x), y: expression(y) } });
 }
 
+export function createSketchPoint3D({ x = 0, y = 0, z = 0, ...options } = {}) {
+  return commonEntity('point', {
+    ...options,
+    pointIds: [],
+    geometry: { x: expression(x), y: expression(y), z: expression(z) },
+    expressionKeys: ['x', 'y', 'z'],
+  });
+}
+
 export function createSketchLine({ startPointId, endPointId, ...options } = {}) {
   return commonEntity('line', { ...options, pointIds: [startPointId, endPointId], geometry: {} });
 }

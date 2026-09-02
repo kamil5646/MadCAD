@@ -325,11 +325,12 @@ export function createCircleProfile({ name = 'Okrąg', diameter = 'srednicaOtwor
   };
 }
 
-export function createSketch({ name = 'Szkic', plane = 'XY', planeOffset = '0', support = null, entities = [], profiles = [], constraints = [], dimensions = [], blockInstances = [] } = {}) {
+export function createSketch({ name = 'Szkic', space = '2d', plane = 'XY', planeOffset = '0', support = null, entities = [], profiles = [], constraints = [], dimensions = [], blockInstances = [] } = {}) {
   return normalizeSketchModel({
     id: createId('sketch'),
     name,
     type: 'sketch',
+    space,
     plane,
     planeOffset: String(planeOffset),
     ...(support ? { support: structuredClone(support) } : {}),
@@ -680,6 +681,8 @@ export function validateDocument(document) {
     registerId(sketch.id, `${base}.id`);
     if (typeof sketch.id === 'string') sketchIds.add(sketch.id);
     if (sketch.type !== 'sketch') add(`${base}.type`, 'Typ szkicu musi mieć wartość „sketch”.', 'VALUE');
+    const sketchSpace = sketch.space || '2d';
+    if (!['2d', '3d'].includes(sketchSpace)) add(`${base}.space`, 'Przestrzeń szkicu musi mieć wartość „2d” albo „3d”.', 'VALUE');
     if (!SUPPORTED_PLANES.has(sketch.plane)) add(`${base}.plane`, `Nieobsługiwana płaszczyzna: ${sketch.plane ?? ''}.`, 'UNSUPPORTED');
     if (typeof sketch.planeOffset !== 'string' && typeof sketch.planeOffset !== 'number' && sketch.planeOffset !== undefined) add(`${base}.planeOffset`, 'Odsunięcie płaszczyzny szkicu musi być wyrażeniem albo liczbą.', 'TYPE');
     if (sketch.support !== undefined && (!isRecord(sketch.support) || !['face', 'construction-plane'].includes(sketch.support.kind) || typeof sketch.support.referenceId !== 'string' || !sketch.support.referenceId)) add(`${base}.support`, 'Podpora szkicu wymaga trwałej referencji do ściany albo płaszczyzny.', 'TYPE');
@@ -688,6 +691,12 @@ export function validateDocument(document) {
     const constraints = requireArray(sketch, 'constraints', `${base}.constraints`);
     const dimensions = requireArray(sketch, 'dimensions', `${base}.dimensions`);
     const blockInstances = requireArray(sketch, 'blockInstances', `${base}.blockInstances`);
+    if (sketchSpace === '3d') {
+      if (profiles.length) add(`${base}.profiles`, 'Szkic 3D jest ścieżką przestrzenną i nie tworzy profili zamkniętych.', 'UNSUPPORTED');
+      if (constraints.length) add(`${base}.constraints`, 'Więzy szkicu 3D nie są jeszcze obsługiwane.', 'UNSUPPORTED');
+      if (dimensions.length) add(`${base}.dimensions`, 'Wymiary szkicu 3D nie są jeszcze obsługiwane.', 'UNSUPPORTED');
+      if (blockInstances.length) add(`${base}.blockInstances`, 'Bloki 2D nie mogą być wstawiane do szkicu 3D.', 'UNSUPPORTED');
+    }
     const entityIds = new Set();
     const entityMap = new Map();
     entities.forEach((entity, entityIndex) => {
@@ -733,12 +742,13 @@ export function validateDocument(document) {
       const pointCount = Array.isArray(entity.pointIds) ? entity.pointIds.length : 0;
       if (entity.type === 'point') {
         if (pointCount !== 0) add(`${entityBase}.pointIds`, 'Punkt nie może odwoływać się do innych punktów.', 'VALUE');
-        for (const coordinate of ['x', 'y']) {
+        for (const coordinate of sketchSpace === '3d' ? ['x', 'y', 'z'] : ['x', 'y']) {
           if (typeof entity.geometry?.[coordinate] !== 'string' && typeof entity.geometry?.[coordinate] !== 'number') {
             add(`${entityBase}.geometry.${coordinate}`, `Punkt wymaga współrzędnej ${coordinate}.`, 'REQUIRED');
           }
         }
       }
+      if (sketchSpace === '3d' && !['point', 'line'].includes(entity.type)) add(`${entityBase}.type`, 'Szkic 3D obsługuje obecnie ciągłe linie przestrzenne.', 'UNSUPPORTED');
       if (entity.type === 'line' && pointCount !== 2) add(`${entityBase}.pointIds`, 'Linia wymaga dwóch końców.', 'VALUE');
       if (entity.type === 'arc' && pointCount !== 3) add(`${entityBase}.pointIds`, 'Łuk wymaga centrum, początku i końca.', 'VALUE');
       if (entity.type === 'arc' && !['cw', 'ccw'].includes(entity.geometry?.direction)) add(`${entityBase}.geometry.direction`, 'Kierunek łuku musi mieć wartość cw albo ccw.', 'VALUE');

@@ -57,6 +57,7 @@
     "verify:import-report": "npm run build:ui && electron scripts/verify-import-report.cjs",
     "verify:drawing-workspace": "npm run build:ui && electron scripts/verify-drawing-workspace.cjs",
     "verify:sketch-drawing": "npm run build:ui && electron scripts/verify-sketch-drawing.cjs",
+    "verify:sketch-3d": "npm run build:ui && electron scripts/verify-sketch-3d.cjs",
     "verify:assistive-tech": "npm run build:ui && electron scripts/verify-assistive-tech.cjs",
     "verify:snap-feedback": "npm run build:ui && electron scripts/verify-snap-feedback.cjs",
     "verify:electron-security": "electron scripts/verify-electron-security.cjs",

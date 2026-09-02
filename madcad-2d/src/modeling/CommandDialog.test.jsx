@@ -74,6 +74,28 @@ describe('CommandDialog standard holes', () => {
 });
 
 describe('CommandDialog confirmation', () => {
+  it('edits a 3D path segment using explicit XYZ coordinates', () => {
+    const onChange = vi.fn();
+    const onConfirm = vi.fn();
+    render(<CommandDialog
+      command={{ type: 'sketch3d', startX: '0', startY: '0', startZ: '0', endX: '20', endY: '5', endZ: '10', pointIds: [], segmentIds: [] }}
+      collapsed={false}
+      dock="right"
+      onChange={onChange}
+      onConfirm={onConfirm}
+      onCancel={vi.fn()}
+      onUndoSegment={vi.fn()}
+      onFinishPath={vi.fn()}
+      onToggleCollapsed={vi.fn()}
+      onToggleDock={vi.fn()}
+    />);
+    expect(screen.getByRole('textbox', { name: /Początek Z/ })).toBeDisabled();
+    fireEvent.change(screen.getByRole('textbox', { name: /Koniec Z/ }), { target: { value: '18' } });
+    expect(onChange).toHaveBeenCalledWith({ endZ: '18' });
+    fireEvent.click(screen.getByRole('button', { name: /Dodaj odcinek/ }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
   it('confirms exact sketch data without leaking the click event into the command', () => {
     const onConfirm = vi.fn();
     render(<CommandDialog

@@ -82,6 +82,7 @@ import {
   createSketchConstraint,
   createSketchLine,
   createSketchPoint,
+  createSketchPoint3D,
   createTangentArcContinuation,
   deleteSketchSelection,
   translateSketchSelection,
@@ -937,6 +938,8 @@ export default function ModelingWorkspace() {
   const selectedSketchConstraintId = selection?.kind === 'sketchConstraint' && selection.sketchId === activeSketchId
     ? selection.id
     : null;
+  const activeSketch = document.sketches.find((item) => item.id === activeSketchId) || null;
+  const activeSketchIs3D = activeSketch?.space === '3d';
   const visibleSketchId = resolveVisibleSketchId({
     activeSketchId,
     selection,
@@ -2452,6 +2455,100 @@ export default function ModelingWorkspace() {
     setNotice('Wybierz płaszczyznę szkicu.');
   };
 
+  const startSketch3D = () => {
+    if (readOnly) return readOnlyNotice();
+    if (activeSketchId) {
+      setNotice('Najpierw zakończ aktywny szkic.');
+      return;
+    }
+    const sketch = createSketch({ name: `Szkic 3D ${document.sketches.filter((item) => item.space === '3d').length + 1}`, space: '3d' });
+    commit((next) => next.sketches.push(sketch));
+    setActiveSketchId(sketch.id);
+    setSelection({ kind: 'sketch', id: sketch.id });
+    setWorkspace('sketch');
+    setCommand({
+      type: 'sketch3d',
+      startX: '0', startY: '0', startZ: '0',
+      endX: '20', endY: '0', endZ: '0',
+      pointIds: [], segmentIds: [],
+    });
+    setNotice('Szkic 3D: wpisz współrzędne końca pierwszego odcinka. Kolejne odcinki tworzą jedną ciągłą ścieżkę XYZ.');
+  };
+
+  const confirmSketch3DSegment = () => {
+    if (command?.type !== 'sketch3d' || !activeSketchIs3D) return;
+    const start = [command.startX, command.startY, command.startZ].map(Number);
+    const end = [command.endX, command.endY, command.endZ].map(Number);
+    if ([...start, ...end].some((value) => !Number.isFinite(value))) {
+      setNotice('Współrzędne szkicu 3D muszą być liczbami.');
+      return;
+    }
+    if (Math.hypot(...end.map((value, axis) => value - start[axis])) <= 1e-7) {
+      setNotice('Odcinek 3D musi mieć dodatnią długość.');
+      return;
+    }
+    const startPoint = command.pointIds.length ? null : createSketchPoint3D({ x: command.startX, y: command.startY, z: command.startZ });
+    const endPoint = createSketchPoint3D({ x: command.endX, y: command.endY, z: command.endZ });
+    const startPointId = command.pointIds.at(-1) || startPoint.id;
+    const line = createSketchLine({ startPointId, endPointId: endPoint.id });
+    commit((next) => {
+      const sketch = next.sketches.find((item) => item.id === activeSketchId);
+      if (startPoint) sketch.entities.push(startPoint);
+      sketch.entities.push(endPoint, line);
+      refreshDetectedSketchProfiles(sketch, next.parameters);
+    });
+    const nextPointIds = command.pointIds.length ? [...command.pointIds, endPoint.id] : [startPoint.id, endPoint.id];
+    const nextSegmentIds = [...command.segmentIds, line.id];
+    setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: nextSegmentIds });
+    setCommand((current) => ({
+      ...current,
+      startX: current.endX, startY: current.endY, startZ: current.endZ,
+      endX: String(end[0] + 20), endY: String(end[1]), endZ: String(end[2]),
+      pointIds: nextPointIds,
+      segmentIds: nextSegmentIds,
+    }));
+    setNotice(`Dodano odcinek 3D ${nextSegmentIds.length}. Ścieżka jest gotowa dla Sweep, Pipe i Pattern.`);
+  };
+
+  const undoSketch3DSegment = () => {
+    if (command?.type !== 'sketch3d' || !command.segmentIds.length) return;
+    const segmentId = command.segmentIds.at(-1);
+    const endPointId = command.pointIds.at(-1);
+    const removesFirstPoint = command.segmentIds.length === 1;
+    const firstPointId = removesFirstPoint ? command.pointIds[0] : null;
+    const previousPointId = removesFirstPoint ? null : command.pointIds.at(-2);
+    const sketch = document.sketches.find((item) => item.id === activeSketchId);
+    const previousPoint = sketch?.entities.find((entity) => entity.id === previousPointId);
+    commit((next) => {
+      const nextSketch = next.sketches.find((item) => item.id === activeSketchId);
+      const removed = new Set([segmentId, endPointId, firstPointId].filter(Boolean));
+      nextSketch.entities = nextSketch.entities.filter((entity) => !removed.has(entity.id));
+    });
+    setCommand((current) => ({
+      ...current,
+      startX: previousPoint?.geometry.x || '0', startY: previousPoint?.geometry.y || '0', startZ: previousPoint?.geometry.z || '0',
+      endX: String(Number(previousPoint?.geometry.x || 0) + 20), endY: previousPoint?.geometry.y || '0', endZ: previousPoint?.geometry.z || '0',
+      pointIds: removesFirstPoint ? [] : current.pointIds.slice(0, -1),
+      segmentIds: current.segmentIds.slice(0, -1),
+    }));
+    const remaining = command.segmentIds.slice(0, -1);
+    setSelection(remaining.length ? { kind: 'sketchEntities', sketchId: activeSketchId, ids: remaining } : { kind: 'sketch', id: activeSketchId });
+    setNotice('Cofnięto ostatni odcinek szkicu 3D.');
+  };
+
+  const finishSketch3D = () => {
+    if (!activeSketchIs3D) return;
+    const sketchId = activeSketchId;
+    const segmentCount = activeSketch.entities.filter((entity) => entity.type === 'line').length;
+    setActiveSketchId(null);
+    setWorkspace('solid');
+    setCommand(null);
+    setSelection({ kind: 'sketch', id: sketchId });
+    setNotice(segmentCount
+      ? `Szkic 3D zakończony · ${segmentCount} ${segmentCount === 1 ? 'odcinek' : 'odcinki'}. Ścieżka jest dostępna w Sweep, Pipe i Pattern.`
+      : 'Zakończono pusty szkic 3D.');
+  };
+
   const pickPlane = (plane, { forceNew = false } = {}) => {
     if (readOnly) return readOnlyNotice();
     const resumableSketches = !forceNew ? resolveResumableSketches({
@@ -2490,8 +2587,19 @@ export default function ModelingWorkspace() {
     setActiveSketchId(sketch.id);
     setSelection({ kind: 'sketch', id: sketch.id });
     setWorkspace('sketch');
-    setCommand(null);
-    setNotice(`Edytujesz ${sketch.name}.`);
+    if (sketch.space === '3d') {
+      const pointIds = sketch.entities.filter((entity) => entity.type === 'point').map((entity) => entity.id);
+      const segmentIds = sketch.entities.filter((entity) => entity.type === 'line').map((entity) => entity.id);
+      const lastPoint = sketch.entities.find((entity) => entity.id === pointIds.at(-1));
+      const x = lastPoint?.geometry.x || '0';
+      const y = lastPoint?.geometry.y || '0';
+      const z = lastPoint?.geometry.z || '0';
+      setCommand({ type: 'sketch3d', startX: x, startY: y, startZ: z, endX: String(Number(x) + 20), endY: y, endZ: z, pointIds, segmentIds });
+      setNotice(`Edytujesz ${sketch.name}. Dodaj kolejny odcinek XYZ albo zakończ szkic.`);
+    } else {
+      setCommand(null);
+      setNotice(`Edytujesz ${sketch.name}.`);
+    }
   };
 
   const finishSketch = () => {
@@ -3615,6 +3723,7 @@ export default function ModelingWorkspace() {
       activeSketchId,
       sketches: document.sketches.map((sketch) => ({
         id: sketch.id,
+        space: sketch.space || '2d',
         plane: sketch.plane,
         planeOffset: sketch.planeOffset,
         visible: sketch.visible !== false,
@@ -6185,7 +6294,8 @@ export default function ModelingWorkspace() {
 
   const cancelActiveCommand = () => {
     if (!command) return false;
-    if (command.type === 'line' || command.type === 'polyline') finishSketchPath();
+    if (command.type === 'sketch3d') finishSketch3D();
+    else if (command.type === 'line' || command.type === 'polyline') finishSketchPath();
     else {
       if (command.openChain && command.sourceSketchId) {
         setActiveSketchId(command.sourceSketchId);
@@ -6199,6 +6309,10 @@ export default function ModelingWorkspace() {
 
   const executeCommandEnter = ({ preferExact = false } = {}) => {
     if (!command) return false;
+    if (command.type === 'sketch3d') {
+      confirmSketch3DSegment();
+      return true;
+    }
     if (command.type === 'line' || command.type === 'polyline') {
       if (preferExact && command.lastPoint) confirmExactSketchSegment();
       else if (command.lastPoint && sketchDynamicLengthRef.current) confirmDynamicSketchSegment();
@@ -6449,7 +6563,9 @@ export default function ModelingWorkspace() {
   const readyEngineLabel = command?.previewFeature
     ? `Podgląd operacji · ${bodyCountLabel}`
     : activeSketchId
-      ? `Krok 1/3 · Szkic 2D · ${document.sketches.find((sketch) => sketch.id === activeSketchId)?.plane || 'XY'}`
+      ? activeSketchIs3D
+        ? `Szkic 3D · ${activeSketch.entities.filter((entity) => entity.type === 'line').length} odc.`
+        : `Krok 1/3 · Szkic 2D · ${activeSketch?.plane || 'XY'}`
       : selectedProfile
         ? 'Krok 2/3 · Profil gotowy do wyciągnięcia'
         : engine.bodies.length > 0
@@ -6660,11 +6776,24 @@ export default function ModelingWorkspace() {
       <section className="command-area">
         <div className="command-ribbon">
           <nav className="workspace-tabs" aria-label="Obszary robocze" role="tablist">
-            {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title="Aktywny obszar edycji szkicu 2D.">SZKICUJ</button> : MAIN_TABS.map((item, index) => <button key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Szkicuj, twórz, modyfikuj i sprawdzaj geometrię.' : item.id === 'drawing' ? 'Przygotuj arkusz techniczny 2D.' : 'Parametry, wersje, struktura i kontrola projektu.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
+            {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title={activeSketchIs3D ? 'Aktywny obszar edycji szkicu przestrzennego.' : 'Aktywny obszar edycji szkicu 2D.'}>{activeSketchIs3D ? 'SZKIC 3D' : 'SZKICUJ'}</button> : MAIN_TABS.map((item, index) => <button key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Szkicuj, twórz, modyfikuj i sprawdzaj geometrię.' : item.id === 'drawing' ? 'Przygotuj arkusz techniczny 2D.' : 'Parametry, wersje, struktura i kontrola projektu.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
           </nav>
           <ResponsiveRibbon key={licenseInfoOpen ? 'license-open' : 'license-closed'} language={language}>
             {activeSketchId ? (
               <>
+                {activeSketchIs3D ? (
+                  <>
+                    <RibbonGroup label="ŚCIEŻKA 3D">
+                      <ToolButton icon={Move3d} label="Dodaj odcinek" onClick={confirmSketch3DSegment} primary disabled={readOnly} description="Dodaj odcinek od bieżącego punktu do współrzędnych XYZ z panelu po prawej." />
+                      <ToolButton icon={Undo2} label="Cofnij odcinek" onClick={undoSketch3DSegment} disabled={readOnly || !command?.segmentIds?.length} description="Usuń ostatni odcinek bez kończenia szkicu 3D." />
+                    </RibbonGroup>
+                    <RibbonGroup label="UŻYJ ŚCIEŻKI">
+                      <ToolButton icon={Cylinder} label="Pipe" displayLabel="Rura" onClick={openPipe} disabled={readOnly || !canExtrudeOpenChain} disabledReason="Dodaj co najmniej jeden odcinek ścieżki 3D." />
+                    </RibbonGroup>
+                    <RibbonGroup label="ZAKOŃCZ SZKIC"><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch3D} primary /></RibbonGroup>
+                  </>
+                ) : (
+                  <>
                 <RibbonGroup label="UTWÓRZ">
                   <ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} />
                   <ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} />
@@ -6724,6 +6853,8 @@ export default function ModelingWorkspace() {
                   ]} />
                 </RibbonGroup>
                 <RibbonGroup label="ZAKOŃCZ SZKIC"><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
+                  </>
+                )}
               </>
             ) : workspace === 'drawing' ? (
               <>
@@ -6755,7 +6886,7 @@ export default function ModelingWorkspace() {
               </>
             ) : workspace === 'tools' ? null : (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolMenuButton icon={Layers3} label="Blacha" description="Utwórz bazę blachową, a następnie dodawaj kołnierze na jej krawędziach." items={[
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Move3d} label="Szkic 3D" onClick={startSketch3D} disabled={readOnly} description="Utwórz ciągłą przestrzenną ścieżkę XYZ dla Sweep, Pipe i Pattern." /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolMenuButton icon={Layers3} label="Blacha" description="Utwórz bazę blachową, a następnie dodawaj kołnierze na jej krawędziach." items={[
                   { icon: Layers3, label: 'Baza blachowa', onClick: openSheetBase, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
                   { icon: Layers3, label: 'Kołnierz blachy', onClick: openSheetFlange, disabled: readOnly || !canCreateSheetFlange || Boolean(activeSketchId), disabledReason: 'Zaznacz jedną prostą krawędź istniejącej blachy.' },
                   { icon: Layers3, label: 'Zawinięcie blachy', onClick: openSheetHem, disabled: readOnly || !canCreateSheetFlange || Boolean(activeSketchId), disabledReason: 'Zaznacz jedną prostą krawędź istniejącej blachy.' },
@@ -6856,11 +6987,11 @@ export default function ModelingWorkspace() {
           collapsed={panelLayout.commandCollapsed}
           dock="right"
           onChange={updateCommand}
-          onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
+          onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : command?.type === 'sketch3d' ? confirmSketch3DSegment : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
           onConfirmDynamic={confirmDynamicSketchSegment}
-          onCancel={command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => { if (command?.openChain && command.sourceSketchId) { setActiveSketchId(command.sourceSketchId); setWorkspace('sketch'); } setCommand(null); setNotice('Anulowano polecenie.'); }}
-          onUndoSegment={undoSketchSegment}
-          onFinishPath={finishSketchPath}
+          onCancel={command?.type === 'sketch3d' ? finishSketch3D : command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => { if (command?.openChain && command.sourceSketchId) { setActiveSketchId(command.sourceSketchId); setWorkspace('sketch'); } setCommand(null); setNotice('Anulowano polecenie.'); }}
+          onUndoSegment={command?.type === 'sketch3d' ? undoSketch3DSegment : undoSketchSegment}
+          onFinishPath={command?.type === 'sketch3d' ? finishSketch3D : finishSketchPath}
           onToggleCollapsed={() => setPanelLayout((current) => ({ ...current, commandCollapsed: !current.commandCollapsed }))}
         />
         <main className="modeling-stage">

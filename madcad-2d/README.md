@@ -62,6 +62,12 @@ przełączać je między gładkimi a ostrymi `Crease`. `Insert Edge` dodaje peł
 pętlę krawędzi oraz cztery nowe, bezpośrednio edytowalne punkty. Wynik jest wygładzany
 algorytmem Catmulla–Clarka i kończy jako zamknięta fasetowa bryła B-Rep.
 
+`Szkic 3D` tworzy ciągłą liniową ścieżkę we współrzędnych XYZ. Każdy kolejny
+odcinek zaczyna się w końcu poprzedniego, można go cofnąć przed zakończeniem,
+a gotowa ścieżka pozostaje zapisana w projekcie i jest dostępna dla `Pipe`,
+`Sweep` oraz szyku po ścieżce. `Pipe` po takiej ścieżce tworzy dokładną bryłę
+B-Rep także wtedy, gdy kolejne odcinki wychodzą poza jedną płaszczyznę.
+
 ## Budowanie
 
 ```bash

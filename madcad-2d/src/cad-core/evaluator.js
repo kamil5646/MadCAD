@@ -203,7 +203,11 @@ function resolveOpenChainProfile(sketch, entityIds, parameters, featureId, opera
   const readPoint = (pointId) => {
     const point = entityMap.get(pointId);
     if (point?.type !== 'point') throw new Error(`Nie znaleziono punktu ${pointId} otwartego łańcucha.`);
-    return [evaluateExpression(point.geometry.x, parameters), evaluateExpression(point.geometry.y, parameters)];
+    return [
+      evaluateExpression(point.geometry.x, parameters),
+      evaluateExpression(point.geometry.y, parameters),
+      ...(sketch.space === '3d' ? [evaluateExpression(point.geometry.z, parameters)] : []),
+    ];
   };
   const lines = entityIds.map((entityId) => entityMap.get(entityId));
   if (lines.some((entity) => entity?.type !== 'line')) throw new Error(`${operationName} obsługuje obecnie wyłącznie ścieżki z linii.`);
@@ -215,7 +219,7 @@ function resolveOpenChainProfile(sketch, entityIds, parameters, featureId, opera
   if ([...incidents.values()].some((items) => items.length > 2)) throw new Error(`Ścieżka ${operationName} nie może mieć rozgałęzień.`);
   const endpoints = [...incidents.entries()].filter(([, items]) => items.length === 1).map(([pointId]) => pointId).sort((left, right) => {
     const first = readPoint(left); const second = readPoint(right);
-    return first[0] - second[0] || first[1] - second[1] || left.localeCompare(right);
+    return first[0] - second[0] || first[1] - second[1] || (first[2] || 0) - (second[2] || 0) || left.localeCompare(right);
   });
   if (endpoints.length !== 2) throw new Error(`${operationName} wymaga jednego ciągłego łańcucha otwartego z dwoma końcami.`);
   const ordered = [];
@@ -231,8 +235,8 @@ function resolveOpenChainProfile(sketch, entityIds, parameters, featureId, opera
   }
   if (currentPointId !== endpoints[1]) throw new Error(`Wybrane linie nie tworzą jednej otwartej ścieżki ${operationName}.`);
   const segments = ordered.map(({ line, startPointId, endPointId }) => ({ type: 'line', id: line.id, start: readPoint(startPointId), end: readPoint(endPointId) }));
-  segments.forEach((segment) => positive(Math.hypot(segment.end[0] - segment.start[0], segment.end[1] - segment.start[1]), 'Długość linii otwartego łańcucha'));
-  return { id: `open-${featureId}`, name: 'Otwarty łańcuch', type: 'open', geometry: { segments, points: [segments[0].start, ...segments.map((segment) => segment.end)], holes: [] } };
+  segments.forEach((segment) => positive(Math.hypot(...segment.end.map((value, axis) => value - segment.start[axis])), 'Długość linii otwartego łańcucha'));
+  return { id: `open-${featureId}`, name: 'Otwarty łańcuch', type: 'open', space: sketch.space || '2d', geometry: { segments, points: [segments[0].start, ...segments.map((segment) => segment.end)], holes: [] } };
 }
 
 function resolveRevolveAxis(document, feature, profile, parameters, operationName = 'Revolve') {
