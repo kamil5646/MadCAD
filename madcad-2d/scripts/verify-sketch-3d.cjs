@@ -101,12 +101,8 @@ app.whenReady().then(async () => {
 
     console.log('Etap: spline Béziera');
     await setSelect(window, 'Typ krzywej', 'spline');
-    await setField(window, 'Uchwyt 1 X', '60');
-    await setField(window, 'Uchwyt 1 Y', '15');
-    await setField(window, 'Uchwyt 1 Z', '0');
-    await setField(window, 'Uchwyt 2 X', '70');
-    await setField(window, 'Uchwyt 2 Y', '25');
-    await setField(window, 'Uchwyt 2 Z', '5');
+    await setSelect(window, 'Ciągłość początku', 'g2');
+    await setField(window, 'Długość uchwytu', '5');
     await setField(window, 'Koniec X', '75');
     await setField(window, 'Koniec Y', '25');
     await setField(window, 'Koniec Z', '10');
@@ -118,6 +114,15 @@ app.whenReady().then(async () => {
     if (JSON.stringify(points) !== JSON.stringify([[0, 0, 0], [30, 0, 0], [50, 0, 0], [60, 10, 0], [75, 25, 10]])) throw new Error(`Błędne punkty szkicu 3D: ${JSON.stringify(points)}`);
     const curveTypes = sketch.entityData.filter((entity) => entity.type !== 'point').map((entity) => entity.type);
     if (JSON.stringify(curveTypes) !== JSON.stringify(['line', 'line', 'arc3d', 'spline3d'])) throw new Error(`Błędne krzywe szkicu 3D: ${JSON.stringify(curveTypes)}`);
+    const spline = sketch.entityData.find((entity) => entity.type === 'spline3d');
+    const splineContinuity = {
+      continuity: spline.geometry.continuity,
+      handleLength: Number(spline.geometry.handleLength),
+      control1: ['X', 'Y', 'Z'].map((axis) => Number(spline.geometry[`control1${axis}`])),
+      control2: ['X', 'Y', 'Z'].map((axis) => Number(spline.geometry[`control2${axis}`])),
+    };
+    const near = (actual, expected) => actual.length === expected.length && actual.every((value, index) => Math.abs(value - expected[index]) < 1e-7);
+    if (splineContinuity.continuity !== 'g2' || splineContinuity.handleLength !== 5 || !near(splineContinuity.control1, [60, 15, 0]) || !near(splineContinuity.control2, [56.25, 20, 0])) throw new Error(`Błędna ciągłość G2 spline: ${JSON.stringify(splineContinuity)}`);
 
     console.log('Etap: Pipe');
     await clickTool(window, 'Rura');
@@ -152,7 +157,7 @@ app.whenReady().then(async () => {
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     await waitFor(window, `!window.__madcadVerifyDocumentState?.command && !window.__madcadVerifyDocumentState?.activeSketchId && window.__madcadVerifyDocumentState?.sketches?.length === 2`, 'bezpieczne zakończenie pustego szkicu 3D przez Esc');
 
-    console.log(JSON.stringify({ ok: true, sketchSegments: 4, curveTypes, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshot: artifactPath }, null, 2));
+    console.log(JSON.stringify({ ok: true, sketchSegments: 4, curveTypes, splineContinuity, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshot: artifactPath }, null, 2));
   } catch (error) {
     exitCode = 1;
     console.error(error);

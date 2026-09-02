@@ -753,6 +753,7 @@ export function validateDocument(document) {
       if (entity.type === 'line' && pointCount !== 2) add(`${entityBase}.pointIds`, 'Linia wymaga dwóch końców.', 'VALUE');
       if (entity.type === 'arc3d' && pointCount !== 2) add(`${entityBase}.pointIds`, 'Łuk 3D wymaga dwóch końców.', 'VALUE');
       if (entity.type === 'spline3d' && pointCount !== 2) add(`${entityBase}.pointIds`, 'Spline 3D wymaga dwóch końców.', 'VALUE');
+      if (entity.type === 'spline3d' && !['g0', 'g1', 'g2'].includes(entity.geometry?.continuity || 'g0')) add(`${entityBase}.geometry.continuity`, 'Ciągłość spline 3D musi mieć wartość G0, G1 albo G2.', 'VALUE');
       if (entity.type === 'arc' && pointCount !== 3) add(`${entityBase}.pointIds`, 'Łuk wymaga centrum, początku i końca.', 'VALUE');
       if (entity.type === 'arc' && !['cw', 'ccw'].includes(entity.geometry?.direction)) add(`${entityBase}.geometry.direction`, 'Kierunek łuku musi mieć wartość cw albo ccw.', 'VALUE');
       if (entity.type === 'circle') {

@@ -75,11 +75,13 @@ import {
   createSketchPoint,
   createSketchPoint3D,
   createSketchSpline3D,
+  continuousSpline3DControls,
   createTangentArcContinuation,
   deleteSketchSelection,
   pruneDanglingSketchRelations,
   translateSketchSelection,
   upsertSketchProfile,
+  spatialCurveEndDifferential,
 } from '../src/cad-core/sketch-model.js';
 import { analyzeSketchConstraints, applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../src/cad-core/sketch-solver.js';
 import { collectSketchSnapCandidates, composeSketchSnapContext, snapSketchPoint } from '../src/cad-core/sketch-snap.js';
@@ -1630,6 +1632,46 @@ test('Szkic 3D zachowuje dokładny łuk przez trzy punkty i spline Béziera', ()
   invalidArc.geometry.throughY = '0';
   invalidArc.geometry.throughZ = '5';
   assert.throws(() => prepareDocument(collinear), /niewspółliniowych/);
+});
+
+test('Spline 3D zachowuje automatyczną ciągłość G1 i G2 z poprzednią krzywą', () => {
+  const arcDifferential = spatialCurveEndDifferential({
+    type: 'arc3d',
+    start: [50, 0, 0],
+    through: [57.071067811865476, 2.9289321881345245, 0],
+    end: [60, 10, 0],
+  });
+  arcDifferential.tangent.forEach((value, axis) => assert.ok(Math.abs(value - [0, 1, 0][axis]) < 1e-9));
+  arcDifferential.curvature.forEach((value, axis) => assert.ok(Math.abs(value - [-0.1, 0, 0][axis]) < 1e-9));
+
+  const g1 = continuousSpline3DControls({
+    start: [60, 10, 0], control1: [0, 0, 0], control2: [70, 25, 5],
+    continuity: 'g1', tangent: arcDifferential.tangent, curvature: arcDifferential.curvature, handleLength: 5,
+  });
+  assert.deepEqual(g1, { control1: [60, 15, 0], control2: [70, 25, 5] });
+
+  const g2 = continuousSpline3DControls({
+    start: [60, 10, 0], control1: [0, 0, 0], control2: [0, 0, 0],
+    continuity: 'g2', tangent: arcDifferential.tangent, curvature: arcDifferential.curvature, handleLength: 5,
+  });
+  assert.deepEqual(g2, { control1: [60, 15, 0], control2: [56.25, 20, 0] });
+  const reversedSplineDifferential = spatialCurveEndDifferential({
+    type: 'spline3d', start: [75, 25, 10], controls: [g2.control2, g2.control1], end: [60, 10, 0],
+  });
+  reversedSplineDifferential.tangent.forEach((value, axis) => assert.ok(Math.abs(value - [0, -1, 0][axis]) < 1e-9));
+  reversedSplineDifferential.curvature.forEach((value, axis) => assert.ok(Math.abs(value - arcDifferential.curvature[axis]) < 1e-9));
+
+  const document = createDocument('Ciągłość spline 3D');
+  const start = createSketchPoint3D({ x: 60, y: 10, z: 0 });
+  const end = createSketchPoint3D({ x: 75, y: 25, z: 10 });
+  const spline = createSketchSpline3D({ startPointId: start.id, endPointId: end.id, ...g2, continuity: 'g2', handleLength: 5 });
+  document.sketches.push(createSketch({ name: 'G2', space: '3d', entities: [start, end, spline] }));
+  assert.equal(validateDocument(document).valid, true);
+  assert.equal(spline.geometry.continuity, 'g2');
+  assert.equal(spline.geometry.handleLength, '5');
+  const invalid = structuredClone(document);
+  invalid.sketches[0].entities.find((entity) => entity.type === 'spline3d').geometry.continuity = 'g3';
+  assert.ok(validateDocument(invalid).issues.some((issue) => issue.path.endsWith('.geometry.continuity')));
 });
 
 test('Loft przygotowuje uporządkowane profile z osobnych równoległych szkiców', () => {

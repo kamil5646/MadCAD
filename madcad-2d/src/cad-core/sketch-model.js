@@ -98,15 +98,85 @@ export function createSketchArc3D({ startPointId, endPointId, throughX = 0, thro
   });
 }
 
-export function createSketchSpline3D({ startPointId, endPointId, control1 = [0, 0, 0], control2 = [0, 0, 0], ...options } = {}) {
+const vectorSubtract = (left, right) => left.map((value, axis) => value - right[axis]);
+const vectorAdd = (left, right) => left.map((value, axis) => value + right[axis]);
+const vectorScale = (value, factor) => value.map((coordinate) => coordinate * factor);
+const vectorDot = (left, right) => left.reduce((sum, value, axis) => sum + value * right[axis], 0);
+const vectorCross = (left, right) => [
+  left[1] * right[2] - left[2] * right[1],
+  left[2] * right[0] - left[0] * right[2],
+  left[0] * right[1] - left[1] * right[0],
+];
+const vectorNormalize = (value, label) => {
+  const length = Math.hypot(...value);
+  if (!Number.isFinite(length) || length <= 1e-9) throw new Error(`${label} nie ma określonego kierunku.`);
+  return vectorScale(value, 1 / length);
+};
+
+export function spatialCurveEndDifferential({ type, start, end, through = null, controls = null } = {}) {
+  if (![start, end].every((point) => Array.isArray(point) && point.length === 3 && point.every(Number.isFinite))) {
+    throw new Error('Krzywa przestrzenna wymaga poprawnych punktów początku i końca.');
+  }
+  if (type === 'line') return { tangent: vectorNormalize(vectorSubtract(end, start), 'Linia 3D'), curvature: [0, 0, 0] };
+  if (type === 'spline3d') {
+    if (!Array.isArray(controls) || controls.length !== 2 || controls.flat().some((value) => !Number.isFinite(value))) throw new Error('Spline 3D wymaga dwóch uchwytów XYZ.');
+    const firstDerivative = vectorScale(vectorSubtract(end, controls[1]), 3);
+    const tangent = vectorNormalize(firstDerivative, 'Spline 3D');
+    const secondDerivative = vectorScale(vectorAdd(vectorSubtract(end, vectorScale(controls[1], 2)), controls[0]), 6);
+    const perpendicularAcceleration = vectorSubtract(secondDerivative, vectorScale(tangent, vectorDot(secondDerivative, tangent)));
+    return { tangent, curvature: vectorScale(perpendicularAcceleration, 1 / vectorDot(firstDerivative, firstDerivative)) };
+  }
+  if (type === 'arc3d') {
+    if (!Array.isArray(through) || through.length !== 3 || through.some((value) => !Number.isFinite(value))) throw new Error('Łuk 3D wymaga punktu pośredniego XYZ.');
+    const firstChord = vectorSubtract(through, start);
+    const secondChord = vectorSubtract(end, start);
+    const normalVector = vectorCross(firstChord, secondChord);
+    const denominator = 2 * vectorDot(normalVector, normalVector);
+    if (denominator <= 1e-18) throw new Error('Łuk 3D wymaga trzech niewspółliniowych punktów.');
+    const center = vectorAdd(start, vectorScale(vectorAdd(
+      vectorScale(vectorCross(secondChord, normalVector), vectorDot(firstChord, firstChord)),
+      vectorScale(vectorCross(normalVector, firstChord), vectorDot(secondChord, secondChord)),
+    ), 1 / denominator));
+    const radial = vectorSubtract(end, center);
+    const radiusSquared = vectorDot(radial, radial);
+    const normal = vectorNormalize(normalVector, 'Łuk 3D');
+    return {
+      tangent: vectorNormalize(vectorCross(normal, radial), 'Łuk 3D'),
+      curvature: vectorScale(vectorSubtract(center, end), 1 / radiusSquared),
+    };
+  }
+  throw new Error(`Nieobsługiwany typ krzywej przestrzennej: ${type}.`);
+}
+
+export function continuousSpline3DControls({ start, control1, control2, continuity = 'g0', tangent = null, curvature = null, handleLength = null } = {}) {
+  if (!['g0', 'g1', 'g2'].includes(continuity)) throw new Error(`Nieobsługiwany warunek ciągłości spline 3D: ${continuity}.`);
+  if (![start, control1, control2].every((point) => Array.isArray(point) && point.length === 3 && point.every(Number.isFinite))) throw new Error('Spline 3D wymaga poprawnych punktów i uchwytów XYZ.');
+  if (continuity === 'g0') return { control1: [...control1], control2: [...control2] };
+  const direction = vectorNormalize(tangent || [], 'Poprzednia krzywa');
+  const requestedLength = Number(handleLength);
+  const fallbackLength = Math.hypot(...vectorSubtract(control1, start));
+  const length = Number.isFinite(requestedLength) && requestedLength > 1e-9 ? requestedLength : fallbackLength;
+  if (!Number.isFinite(length) || length <= 1e-9) throw new Error('Długość uchwytu ciągłości musi być dodatnia.');
+  const nextControl1 = vectorAdd(start, vectorScale(direction, length));
+  if (continuity === 'g1') return { control1: nextControl1, control2: [...control2] };
+  if (!Array.isArray(curvature) || curvature.length !== 3 || curvature.some((value) => !Number.isFinite(value))) throw new Error('Ciągłość G2 wymaga poprawnej krzywizny poprzedniej krzywej.');
+  return {
+    control1: nextControl1,
+    control2: vectorAdd(vectorSubtract(vectorScale(nextControl1, 2), start), vectorScale(curvature, 1.5 * length * length)),
+  };
+}
+
+export function createSketchSpline3D({ startPointId, endPointId, control1 = [0, 0, 0], control2 = [0, 0, 0], continuity = 'g0', handleLength = 1, ...options } = {}) {
   return commonEntity('spline3d', {
     ...options,
     pointIds: [startPointId, endPointId],
     geometry: {
       control1X: expression(control1[0]), control1Y: expression(control1[1]), control1Z: expression(control1[2]),
       control2X: expression(control2[0]), control2Y: expression(control2[1]), control2Z: expression(control2[2]),
+      continuity,
+      handleLength: expression(handleLength, 1),
     },
-    expressionKeys: ['control1X', 'control1Y', 'control1Z', 'control2X', 'control2Y', 'control2Z'],
+    expressionKeys: ['control1X', 'control1Y', 'control1Z', 'control2X', 'control2Y', 'control2Z', 'handleLength'],
   });
 }
 

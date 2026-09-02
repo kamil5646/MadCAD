@@ -242,6 +242,7 @@ function resolveOpenChainProfile(sketch, entityIds, parameters, featureId, opera
     if (curve.type === 'arc3d') return { type: 'arc3d', id: curve.id, start, through: vector(curve, 'through'), end };
     if (curve.type === 'spline3d') {
       const controls = [vector(curve, 'control1'), vector(curve, 'control2')];
+      positive(evaluateExpression(curve.geometry.handleLength ?? '1', parameters), 'Długość uchwytu spline 3D');
       return { type: 'spline3d', id: curve.id, start, controls: reversed ? controls.reverse() : controls, end };
     }
     return { type: 'line', id: curve.id, start, end };

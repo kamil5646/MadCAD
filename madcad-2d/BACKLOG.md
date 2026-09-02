@@ -97,8 +97,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Liniowy szkic 3D XYZ z ciągłą ścieżką, edycją kolejnych końców, Cofnij, Esc/Zakończ, widokiem izometrycznym i zapisem projektu.
   - [x] Użycie liniowej ścieżki 3D przez dokładny Pipe B-Rep oraz przygotowanie jej dla Sweep i Pattern po ścieżce.
   - [x] Łuk 3D przez trzy punkty i sześcienny spline Béziera z uchwytami XYZ, wspólnym punktem G0, dokładnymi krawędziami B-Rep oraz współpracą z Pipe, Sweep i Pattern.
-  - [ ] Automatyczne i edytowalne warunki ciągłości stycznej G1 oraz krzywizny G2 pomiędzy krzywymi przestrzennymi.
-  - [ ] Ścieżki skojarzone z krawędzią lub powierzchnią modelu oraz edycja punktów bezpośrednio w widoku.
+  - [x] Automatyczny wybór ciągłości G1/G2 początku spline względem poprzedniej linii, łuku albo spline, z edytowalną długością uchwytu i trwałym zapisem warunku.
+  - [ ] Ścieżki skojarzone z krawędzią lub powierzchnią modelu oraz bezpośrednia edycja istniejących punktów, uchwytów i warunków w widoku.
 
 ### Render, Animation, Simulation i Generative
 

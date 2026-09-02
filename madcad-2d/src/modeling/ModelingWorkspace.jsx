@@ -85,10 +85,12 @@ import {
   createSketchPoint,
   createSketchPoint3D,
   createSketchSpline3D,
+  continuousSpline3DControls,
   createTangentArcContinuation,
   deleteSketchSelection,
   translateSketchSelection,
   upsertSketchProfile,
+  spatialCurveEndDifferential,
 } from '../cad-core/sketch-model.js';
 import {
   arcCenterStartEnd,
@@ -2477,6 +2479,7 @@ export default function ModelingWorkspace() {
       throughX: '10', throughY: '8', throughZ: '0',
       control1X: '7', control1Y: '0', control1Z: '5',
       control2X: '14', control2Y: '0', control2Z: '-5',
+      continuity: 'g0', handleLength: '7',
       pointIds: [], segmentIds: [],
     });
     setNotice('Szkic 3D: wpisz współrzędne końca pierwszego odcinka. Kolejne odcinki tworzą jedną ciągłą ścieżkę XYZ.');
@@ -2504,9 +2507,51 @@ export default function ModelingWorkspace() {
         return;
       }
     }
-    if (command.segmentType === 'spline' && [command.control1X, command.control1Y, command.control1Z, command.control2X, command.control2Y, command.control2Z].some((value) => !Number.isFinite(Number(value)))) {
-      setNotice('Uchwyty spline 3D muszą mieć poprawne współrzędne XYZ.');
-      return;
+    const continuity = command.segmentIds.length ? (command.continuity || 'g0') : 'g0';
+    let splineControls = null;
+    if (command.segmentType === 'spline') {
+      const control1 = [command.control1X, command.control1Y, command.control1Z].map(Number);
+      const control2 = [command.control2X, command.control2Y, command.control2Z].map(Number);
+      const requiredControls = continuity === 'g0' ? [...control1, ...control2] : continuity === 'g1' ? control2 : [];
+      if (requiredControls.some((value) => !Number.isFinite(value))) {
+        setNotice('Uchwyty spline 3D muszą mieć poprawne współrzędne XYZ.');
+        return;
+      }
+      const handleLength = Number(command.handleLength);
+      if (continuity !== 'g0' && (!Number.isFinite(handleLength) || handleLength <= 1e-7)) {
+        setNotice('Długość uchwytu ciągłości musi być dodatnia.');
+        return;
+      }
+      try {
+        let differential = null;
+        if (continuity !== 'g0') {
+          const previousCurve = activeSketch.entities.find((entity) => entity.id === command.segmentIds.at(-1));
+          const pointCoordinates = (pointId) => {
+            const point = activeSketch.entities.find((entity) => entity.id === pointId && entity.type === 'point');
+            return ['x', 'y', 'z'].map((axis) => Number(point?.geometry?.[axis]));
+          };
+          const vectorCoordinates = (curve, prefix) => ['X', 'Y', 'Z'].map((axis) => Number(curve?.geometry?.[`${prefix}${axis}`]));
+          differential = spatialCurveEndDifferential({
+            type: previousCurve?.type,
+            start: pointCoordinates(previousCurve?.pointIds?.[0]),
+            end: pointCoordinates(previousCurve?.pointIds?.at(-1)),
+            through: previousCurve?.type === 'arc3d' ? vectorCoordinates(previousCurve, 'through') : null,
+            controls: previousCurve?.type === 'spline3d' ? [vectorCoordinates(previousCurve, 'control1'), vectorCoordinates(previousCurve, 'control2')] : null,
+          });
+        }
+        splineControls = continuousSpline3DControls({
+          start,
+          control1,
+          control2,
+          continuity,
+          tangent: differential?.tangent,
+          curvature: differential?.curvature,
+          handleLength,
+        });
+      } catch (error) {
+        setNotice(error.message);
+        return;
+      }
     }
     const startPoint = command.pointIds.length ? null : createSketchPoint3D({ x: command.startX, y: command.startY, z: command.startZ });
     const endPoint = createSketchPoint3D({ x: command.endX, y: command.endY, z: command.endZ });
@@ -2514,7 +2559,7 @@ export default function ModelingWorkspace() {
     const segment = command.segmentType === 'arc'
       ? createSketchArc3D({ startPointId, endPointId: endPoint.id, throughX: command.throughX, throughY: command.throughY, throughZ: command.throughZ })
       : command.segmentType === 'spline'
-        ? createSketchSpline3D({ startPointId, endPointId: endPoint.id, control1: [command.control1X, command.control1Y, command.control1Z], control2: [command.control2X, command.control2Y, command.control2Z] })
+        ? createSketchSpline3D({ startPointId, endPointId: endPoint.id, control1: splineControls.control1, control2: splineControls.control2, continuity, handleLength: continuity === 'g0' ? 1 : command.handleLength })
         : createSketchLine({ startPointId, endPointId: endPoint.id });
     commit((next) => {
       const sketch = next.sketches.find((item) => item.id === activeSketchId);
@@ -2532,6 +2577,7 @@ export default function ModelingWorkspace() {
       throughX: String(end[0] + 10), throughY: String(end[1] + 8), throughZ: String(end[2]),
       control1X: String(end[0] + 7), control1Y: String(end[1]), control1Z: String(end[2] + 5),
       control2X: String(end[0] + 14), control2Y: String(end[1]), control2Z: String(end[2] - 5),
+      handleLength: current.handleLength || '7',
       pointIds: nextPointIds,
       segmentIds: nextSegmentIds,
     }));
@@ -2559,6 +2605,7 @@ export default function ModelingWorkspace() {
       throughX: String(Number(previousPoint?.geometry.x || 0) + 10), throughY: String(Number(previousPoint?.geometry.y || 0) + 8), throughZ: previousPoint?.geometry.z || '0',
       control1X: String(Number(previousPoint?.geometry.x || 0) + 7), control1Y: previousPoint?.geometry.y || '0', control1Z: String(Number(previousPoint?.geometry.z || 0) + 5),
       control2X: String(Number(previousPoint?.geometry.x || 0) + 14), control2Y: previousPoint?.geometry.y || '0', control2Z: String(Number(previousPoint?.geometry.z || 0) - 5),
+      continuity: current.segmentIds.length > 1 ? current.continuity : 'g0', handleLength: current.handleLength || '7',
       pointIds: removesFirstPoint ? [] : current.pointIds.slice(0, -1),
       segmentIds: current.segmentIds.slice(0, -1),
     }));
@@ -2625,7 +2672,7 @@ export default function ModelingWorkspace() {
       const x = lastPoint?.geometry.x || '0';
       const y = lastPoint?.geometry.y || '0';
       const z = lastPoint?.geometry.z || '0';
-      setCommand({ type: 'sketch3d', segmentType: 'line', startX: x, startY: y, startZ: z, endX: String(Number(x) + 20), endY: y, endZ: z, throughX: String(Number(x) + 10), throughY: String(Number(y) + 8), throughZ: z, control1X: String(Number(x) + 7), control1Y: y, control1Z: String(Number(z) + 5), control2X: String(Number(x) + 14), control2Y: y, control2Z: String(Number(z) - 5), pointIds, segmentIds });
+      setCommand({ type: 'sketch3d', segmentType: 'line', startX: x, startY: y, startZ: z, endX: String(Number(x) + 20), endY: y, endZ: z, throughX: String(Number(x) + 10), throughY: String(Number(y) + 8), throughZ: z, control1X: String(Number(x) + 7), control1Y: y, control1Z: String(Number(z) + 5), control2X: String(Number(x) + 14), control2Y: y, control2Z: String(Number(z) - 5), continuity: segmentIds.length ? 'g1' : 'g0', handleLength: '7', pointIds, segmentIds });
       setNotice(`Edytujesz ${sketch.name}. Dodaj kolejną krzywą XYZ albo zakończ szkic.`);
     } else {
       setCommand(null);

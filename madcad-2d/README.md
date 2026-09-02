@@ -64,7 +64,8 @@ algorytmem Catmulla–Clarka i kończy jako zamknięta fasetowa bryła B-Rep.
 
 `Szkic 3D` tworzy ciągłą ścieżkę XYZ z linii, łuków przez trzy punkty i
 sześciennych splajnów Béziera. Każda krzywa zaczyna się we wspólnym końcu
-poprzedniej, można ją cofnąć przed zakończeniem, a gotowa ścieżka pozostaje
+poprzedniej; spline może przejąć jej styczność G1 albo również krzywiznę G2,
+a długość uchwytu pozostaje pod kontrolą użytkownika. Krzywą można cofnąć przed zakończeniem, a gotowa ścieżka pozostaje
 zapisana w projekcie i jest dostępna dla `Pipe`, `Sweep` oraz szyku po ścieżce.
 OpenCascade zachowuje łuki i spline jako dokładne krzywe B-Rep; szyk korzysta
 z próbkowanej długości krzywej zamiast z prostej cięciwy.
