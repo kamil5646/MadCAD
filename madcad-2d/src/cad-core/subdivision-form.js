@@ -151,15 +151,77 @@ export function insertFormEdgeLoop(cage, selectedEdge, position = 0.5) {
   };
 }
 
-export function formControlSymmetryPairs(insertEdge, symmetry) {
+function squaredDistance(first, second) {
+  return first.reduce((sum, value, axis) => sum + ((value - second[axis]) ** 2), 0);
+}
+
+export function bridgeFormFaces(cage, firstFaceIndex, secondFaceIndex, inset = 0.45) {
+  if (!Number.isInteger(firstFaceIndex) || !Number.isInteger(secondFaceIndex) || firstFaceIndex < 0 || secondFaceIndex < 0 || firstFaceIndex >= cage.faces.length || secondFaceIndex >= cage.faces.length || firstFaceIndex === secondFaceIndex) throw new Error('Bridge wymaga dwóch różnych ścian klatki.');
+  if (!Number.isFinite(inset) || inset <= 0.1 || inset >= 0.9) throw new Error('Wcięcie Bridge musi być większe od 0,1 i mniejsze od 0,9.');
+  const firstFace = cage.faces[firstFaceIndex];
+  const secondFace = cage.faces[secondFaceIndex];
+  if (firstFace.length !== 4 || secondFace.length !== 4) throw new Error('Bridge obsługuje dwie ściany czworokątne.');
+  if (firstFace.some((vertexIndex) => secondFace.includes(vertexIndex))) throw new Error('Bridge wymaga dwóch rozłącznych ścian bez wspólnych wierzchołków.');
+
+  const vertices = cage.vertices.map((point) => [...point]);
+  const createInsetLoop = (face) => {
+    const center = average(face.map((index) => cage.vertices[index]));
+    return face.map((sourceVertexIndex) => vertices.push(cage.vertices[sourceVertexIndex].map((value, axis) => center[axis] + ((value - center[axis]) * inset))) - 1);
+  };
+  const firstLoop = createInsetLoop(firstFace);
+  const secondLoop = createInsetLoop(secondFace);
+
+  // Opposite winding is required so every tube edge cancels the matching rim edge.
+  const reversedSecond = [...secondFace].reverse();
+  let correspondence = reversedSecond;
+  let bestDistance = Infinity;
+  for (let shift = 0; shift < reversedSecond.length; shift += 1) {
+    const candidate = reversedSecond.map((_value, index) => reversedSecond[(index + shift) % reversedSecond.length]);
+    const distance = firstFace.reduce((sum, vertexIndex, index) => sum + squaredDistance(cage.vertices[vertexIndex], cage.vertices[candidate[index]]), 0);
+    if (distance < bestDistance) {
+      correspondence = candidate;
+      bestDistance = distance;
+    }
+  }
+  const secondLoopBySource = new Map(secondFace.map((sourceVertexIndex, index) => [sourceVertexIndex, secondLoop[index]]));
+  const matchedSecondLoop = correspondence.map((sourceVertexIndex) => secondLoopBySource.get(sourceVertexIndex));
+
+  const faces = cage.faces.filter((_face, index) => index !== firstFaceIndex && index !== secondFaceIndex).map((face) => [...face]);
+  const addRim = (face, loop) => face.forEach((outer, index) => faces.push([outer, face[(index + 1) % 4], loop[(index + 1) % 4], loop[index]]));
+  addRim(firstFace, firstLoop);
+  addRim(secondFace, secondLoop);
+  firstLoop.forEach((point, index) => faces.push([point, firstLoop[(index + 1) % 4], matchedSecondLoop[(index + 1) % 4], matchedSecondLoop[index]]));
+
+  return {
+    vertices,
+    faces,
+    creaseEdges: (cage.creaseEdges || []).map((edge) => [...edge]),
+    bridgeVertexIndexes: [...firstLoop, ...secondLoop],
+    bridgeVertexSourcePoints: [...firstFace, ...secondFace],
+    bridge: { firstFaceIndex, secondFaceIndex, inset },
+  };
+}
+
+export function formControlSymmetryPairs(insertEdge, symmetry, bridge = null) {
   const basePairs = [...(SYMMETRY_PAIRS[symmetry] || Array.from({ length: 8 }, (_unused, index) => index))];
-  if (!insertEdge?.enabled || !SYMMETRY_PAIRS[symmetry]) return basePairs;
-  const cage = insertFormEdgeLoop(createBoxControlCage(2, 2, 2), FORM_CONTROL_EDGES[insertEdge.edgeIndex], insertEdge.position);
-  const sourceIndexByKey = new Map(cage.insertedVertexSourceEdges.map(([first, second], index) => [edgeKey(first, second), index + 8]));
-  for (const [first, second] of cage.insertedVertexSourceEdges) {
-    const pointIndex = sourceIndexByKey.get(edgeKey(first, second));
-    const pairedIndex = sourceIndexByKey.get(edgeKey(basePairs[first], basePairs[second]));
-    basePairs[pointIndex] = pairedIndex;
+  if (!SYMMETRY_PAIRS[symmetry]) return basePairs;
+  let cage = createBoxControlCage(2, 2, 2);
+  if (insertEdge?.enabled) {
+    cage = insertFormEdgeLoop(cage, FORM_CONTROL_EDGES[insertEdge.edgeIndex], insertEdge.position);
+    const sourceIndexByKey = new Map(cage.insertedVertexSourceEdges.map(([first, second], index) => [edgeKey(first, second), index + 8]));
+    for (const [first, second] of cage.insertedVertexSourceEdges) {
+      const pointIndex = sourceIndexByKey.get(edgeKey(first, second));
+      const pairedIndex = sourceIndexByKey.get(edgeKey(basePairs[first], basePairs[second]));
+      basePairs[pointIndex] = pairedIndex;
+    }
+  }
+  if (bridge?.enabled) {
+    const sourcePointPairs = [...basePairs];
+    cage = bridgeFormFaces(cage, bridge.firstFaceIndex, bridge.secondFaceIndex, bridge.inset);
+    const bridgeIndexBySource = new Map(cage.bridgeVertexSourcePoints.map((sourcePoint, index) => [sourcePoint, cage.bridgeVertexIndexes[index]]));
+    cage.bridgeVertexSourcePoints.forEach((sourcePoint, index) => {
+      basePairs[cage.bridgeVertexIndexes[index]] = bridgeIndexBySource.get(sourcePointPairs[sourcePoint]);
+    });
   }
   return basePairs;
 }
@@ -243,12 +305,18 @@ function createBoundsFitter(vertices, width, depth, height) {
   });
 }
 
-export function createRoundedBoxFormMesh({ width, depth, height, subdivisions = 2, controlOffsets = [], creaseEdges = [], insertEdge = null, insertEdgeOffsets = [] }) {
+export function createRoundedBoxFormMesh({ width, depth, height, subdivisions = 2, controlOffsets = [], creaseEdges = [], insertEdge = null, insertEdgeOffsets = [], bridge = null, bridgeOffsets = [] }) {
   let controlCage = createBoxControlCage(width, depth, height, controlOffsets, creaseEdges);
   if (insertEdge?.enabled) {
     controlCage = insertFormEdgeLoop(controlCage, FORM_CONTROL_EDGES[insertEdge.edgeIndex], insertEdge.position);
     controlCage.insertedVertexIndexes.forEach((vertexIndex, index) => {
       controlCage.vertices[vertexIndex] = controlCage.vertices[vertexIndex].map((value, axis) => value + (Number(insertEdgeOffsets[index]?.[axis]) || 0));
+    });
+  }
+  if (bridge?.enabled) {
+    controlCage = bridgeFormFaces(controlCage, bridge.firstFaceIndex, bridge.secondFaceIndex, bridge.inset);
+    controlCage.bridgeVertexIndexes.forEach((vertexIndex, index) => {
+      controlCage.vertices[vertexIndex] = controlCage.vertices[vertexIndex].map((value, axis) => value + (Number(bridgeOffsets[index]?.[axis]) || 0));
     });
   }
   let cage = controlCage;
@@ -271,6 +339,7 @@ export function createRoundedBoxFormMesh({ width, depth, height, subdivisions = 
     controlFaces: controlCage.faces.map((face) => [...face]),
     creaseEdges: (controlCage.creaseEdges || []).map(([first, second]) => formControlEdges(controlCage.faces).findIndex((edge) => edgeKey(...edge) === edgeKey(first, second))).filter((index) => index >= 0),
     insertEdge: insertEdge?.enabled ? { edgeIndex: insertEdge.edgeIndex, position: insertEdge.position } : null,
+    bridge: bridge?.enabled ? { firstFaceIndex: bridge.firstFaceIndex, secondFaceIndex: bridge.secondFaceIndex, inset: bridge.inset } : null,
     surfaceVertexCount: fittedVertices.length,
     surfaceFaceCount: cage.faces.length,
     subdivisions,

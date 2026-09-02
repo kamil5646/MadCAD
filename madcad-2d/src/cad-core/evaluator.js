@@ -5,6 +5,7 @@ import { GEOMETRY_POLICY, isPositiveLength } from './geometry-policy.js';
 import { createTextProfile } from './text-profile.js';
 import { BASE_PLANE_FRAMES, resolveConstructionPlane } from './construction-planes.js';
 import { resolveConstructionAxis } from './construction-axes.js';
+import { FORM_CONTROL_EDGES, bridgeFormFaces, createBoxControlCage, formControlSymmetryPairs, insertFormEdgeLoop } from './subdivision-form.js';
 
 export const FEATURE_STATUS = Object.freeze({
   OK: 'ok',
@@ -676,6 +677,20 @@ export function prepareDocument(document) {
       const insertEdgeAxis = [1, 0, 1, 0, 0, 1, 0, 1, 2, 2, 2, 2][insertEdgeIndex];
       if (insertEdgeEnabled && { x: 0, y: 1, z: 2 }[feature.symmetry] === insertEdgeAxis && Math.abs(insertEdgePositionValue - 0.5) > 1e-9) throw new Error('Pętla biegnąca wzdłuż osi symetrii musi pozostać w położeniu 0,5.');
       const insertEdgeOffsets = Array.from({ length: insertEdgeEnabled ? 4 : 0 }, (_unused, pointIndex) => Array.from({ length: 3 }, (_axis, axisIndex) => read(feature.insertEdgeOffsets?.[pointIndex]?.[axisIndex] ?? '0', `Przesunięcie punktu Insert Edge ${pointIndex + 1}`)));
+      const bridgeEnabled = feature.bridgeEnabled === true;
+      const bridgeFirstFace = Number(feature.bridgeFirstFace ?? 0);
+      const bridgeSecondFace = Number(feature.bridgeSecondFace ?? 1);
+      const bridgeInsetValue = read(feature.bridgeInset ?? '0.45', 'Wcięcie Bridge');
+      let topologyCage = createBoxControlCage(2, 2, 2);
+      if (insertEdgeEnabled) topologyCage = insertFormEdgeLoop(topologyCage, FORM_CONTROL_EDGES[insertEdgeIndex], insertEdgePositionValue);
+      if (bridgeEnabled) bridgeFormFaces(topologyCage, bridgeFirstFace, bridgeSecondFace, bridgeInsetValue);
+      const bridgeOffsets = Array.from({ length: bridgeEnabled ? 8 : 0 }, (_unused, pointIndex) => Array.from({ length: 3 }, (_axis, axisIndex) => read(feature.bridgeOffsets?.[pointIndex]?.[axisIndex] ?? '0', `Przesunięcie punktu Bridge ${pointIndex + 1}`)));
+      const bridge = { enabled: bridgeEnabled, firstFaceIndex: bridgeFirstFace, secondFaceIndex: bridgeSecondFace, inset: bridgeInsetValue };
+      if (bridgeEnabled && feature.symmetry && feature.symmetry !== 'none') {
+        const symmetryPairs = formControlSymmetryPairs({ enabled: insertEdgeEnabled, edgeIndex: insertEdgeIndex, position: insertEdgePositionValue }, feature.symmetry, bridge);
+        const firstBridgePoint = topologyCage.vertices.length;
+        if (symmetryPairs.slice(firstBridgePoint, firstBridgePoint + 8).some((pointIndex) => !Number.isInteger(pointIndex))) throw new Error('Przy aktywnej symetrii ściany Bridge muszą tworzyć parę symetryczną.');
+      }
       return {
         ...feature,
         status: 'ready',
@@ -687,6 +702,8 @@ export function prepareDocument(document) {
         controlOffsets,
         insertEdge: { enabled: insertEdgeEnabled, edgeIndex: insertEdgeIndex, position: insertEdgePositionValue },
         insertEdgeOffsets,
+        bridge,
+        bridgeOffsets,
         position: [read(feature.x, 'Położenie X'), read(feature.y, 'Położenie Y'), read(feature.z, 'Położenie Z')],
       };
     }

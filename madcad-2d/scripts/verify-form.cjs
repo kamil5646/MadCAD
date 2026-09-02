@@ -178,10 +178,23 @@ app.whenReady().then(async () => {
       canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX: clientX + directionX * 14, clientY: clientY + directionY * 14, pointerId: 49 }));
     })()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState.revision > window.__madcadFormInsertedPointBeforeRevision && Math.abs(Number(window.__madcadVerifyDocumentState?.command?.insertEdgeOffsets?.[0]?.[1])) >= 0.5`, 'przesunięcie nowego punktu Insert Edge');
+    await setSelect(window, 'Tryb edycji', 'face');
+    await setSelect(window, 'Bridge', 'enabled');
+    await setField(window, 'Wielkość otworu', '0.5');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.command?.bridgeEnabled === true && window.__madcadVerifyDocumentState?.command?.bridgeFirstFace === 6 && window.__madcadVerifyDocumentState?.command?.bridgeSecondFace === 9 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlVertexCount === 20 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlFaceCount === 20 && window.__madcadFormCageState?.pointCount === 20 && window.__madcadFormCageState?.edgeCount === 40`, 'podgląd tunelu Bridge zgodnego z symetrią');
+    await window.webContents.executeJavaScript(`(() => {
+      const [clientX, clientY] = window.__madcadFormCageState.screenPoint(12);
+      const canvas = document.querySelector('.model-viewport canvas');
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX, clientY, pointerId: 50 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX, clientY, pointerId: 50 }));
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.selectedControlKind === 'point' && window.__madcadVerifyDocumentState?.command?.selectedControlPoint === 12`, 'wybór punktu utworzonego przez Bridge');
+    await setField(window, 'Przesunięcie punktu Z', '1.5');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.command?.bridgeOffsets?.[0]?.[2] === '1.5' && window.__madcadVerifyDocumentState?.command?.bridgeOffsets?.[5]?.[2] === '1.5'`, 'edycja punktu Bridge z symetrią X');
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
 
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'formBody' && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.surfaceFaceCount === 160)`, 'zapisany Form');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'formBody' && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.surfaceFaceCount === 320)`, 'zapisany Form z Bridge');
     const result = await window.webContents.executeJavaScript(`(() => {
       const body = window.__madcadVerifyEngineState.bodies.find((item) => item.form);
       return {
@@ -196,16 +209,16 @@ app.whenReady().then(async () => {
       };
     })()`);
     const dimensions = result.metrics.dimensions;
-    if (result.bodyCount !== 3 || result.representation !== 'brep' || result.bodyKind !== 'solid' || result.topologyFaces !== 320 || result.form.controlVertexCount !== 12 || result.form.controlFaceCount !== 10 || result.form.controlVertices.length !== 36 || result.form.controlFaces.length !== 10 || result.form.surfaceFaceCount !== 160 || result.form.subdivisions !== 2 || result.form.symmetry !== 'x' || result.form.creaseEdges.length !== 2 || result.form.insertEdge?.edgeIndex !== 4 || result.metrics.volume <= 0 || Math.abs(dimensions[0] - 40) > 0.2 || Math.abs(dimensions[1] - 30) > 0.2 || Math.abs(dimensions[2] - 20) > 0.2 || !result.dialogClosed || result.horizontalOverflow) {
+    if (result.bodyCount !== 3 || result.representation !== 'brep' || result.bodyKind !== 'solid' || result.topologyFaces !== 640 || result.form.controlVertexCount !== 20 || result.form.controlFaceCount !== 20 || result.form.controlVertices.length !== 60 || result.form.controlFaces.length !== 20 || result.form.surfaceFaceCount !== 320 || result.form.subdivisions !== 2 || result.form.symmetry !== 'x' || result.form.creaseEdges.length !== 2 || result.form.insertEdge?.edgeIndex !== 4 || result.form.bridge?.firstFaceIndex !== 6 || result.form.bridge?.secondFaceIndex !== 9 || result.form.bridge?.inset !== 0.5 || result.metrics.volume <= 0 || Math.abs(dimensions[0] - 40) > 0.2 || Math.abs(dimensions[1] - 30) > 0.2 || Math.abs(dimensions[2] - 20) > 0.2 || !result.dialogClosed || result.horizontalOverflow) {
       throw new Error(`Niepoprawny wynik Form: ${JSON.stringify(result)}`);
     }
 
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && !window.__madcadVerifyEngineState?.bodies?.some((body) => body.form)`, 'cofnięty Form');
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.subdivisions === 2 && body.form?.insertEdge?.edgeIndex === 4 && body.form?.controlVertexCount === 12)`, 'ponowiony Form');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.subdivisions === 2 && body.form?.insertEdge?.edgeIndex === 4 && body.form?.bridge?.firstFaceIndex === 6 && body.form?.controlVertexCount === 20)`, 'ponowiony Form z Bridge');
     await window.webContents.executeJavaScript(`window.__madcadVerifyReopenCurrentDocument()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'formBody' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.creaseEdges?.includes(4) && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.insertEdgeEnabled === true && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.surfaceFaceCount === 160 && body.form?.insertEdge?.edgeIndex === 4)`, 'Form po ponownym otwarciu projektu');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'formBody' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.creaseEdges?.includes(4) && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.insertEdgeEnabled === true && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.bridgeEnabled === true && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.bridgeOffsets?.[0]?.[2] === '1.5' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.surfaceFaceCount === 320 && body.form?.insertEdge?.edgeIndex === 4 && body.form?.bridge?.firstFaceIndex === 6)`, 'Form z Bridge po ponownym otwarciu projektu');
 
     process.stdout.write(`${JSON.stringify({ screenshotPath, result }, null, 2)}\n`);
   } catch (error) {

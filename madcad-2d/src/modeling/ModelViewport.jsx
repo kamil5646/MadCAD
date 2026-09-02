@@ -2087,7 +2087,15 @@ export default function ModelViewport({
               startIntersection,
               startClientX: event.clientX,
               startClientY: event.clientY,
-              startOffset: Array.from({ length: 3 }, (_unused, axis) => numericValue((formControlPointIndex < 8 ? activeCommand.controlOffsets?.[formControlPointIndex]?.[axis] : activeCommand.insertEdgeOffsets?.[formControlPointIndex - 8]?.[axis]) || '0', parameters)),
+              startOffset: Array.from({ length: 3 }, (_unused, axis) => {
+                const insertCount = activeCommand.insertEdgeEnabled ? 4 : 0;
+                const value = formControlPointIndex < 8
+                  ? activeCommand.controlOffsets?.[formControlPointIndex]?.[axis]
+                  : formControlPointIndex < 8 + insertCount
+                    ? activeCommand.insertEdgeOffsets?.[formControlPointIndex - 8]?.[axis]
+                    : activeCommand.bridgeOffsets?.[formControlPointIndex - 8 - insertCount]?.[axis];
+                return numericValue(value || '0', parameters);
+              }),
               offset: null,
               moved: false,
             };

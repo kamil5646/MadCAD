@@ -101,7 +101,7 @@ import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, tran
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../src/cad-core/model-import.js';
 import { inspectMesh } from '../src/cad-core/mesh-tools.js';
-import { FORM_CONTROL_EDGES, FORM_CONTROL_FACES, createBoxControlCage, createRoundedBoxFormMesh, formControlEdges, insertFormEdgeLoop, subdivideCatmullClark, translateFormControlPoints, updateFormControlOffset } from '../src/cad-core/subdivision-form.js';
+import { FORM_CONTROL_EDGES, FORM_CONTROL_FACES, bridgeFormFaces, createBoxControlCage, createRoundedBoxFormMesh, formControlEdges, formControlSymmetryPairs, insertFormEdgeLoop, subdivideCatmullClark, translateFormControlPoints, updateFormControlOffset } from '../src/cad-core/subdivision-form.js';
 import { analyzePrintability } from '../src/cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../src/cad-core/sketch-import.js';
 import {
@@ -1373,6 +1373,26 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   assert.equal(edgeLoopReport.inconsistentEdges, 0);
   assert.throws(() => insertFormEdgeLoop(createBoxControlCage(10, 10, 10), FORM_CONTROL_EDGES[0], 0.05), /większe od 0,05/);
 
+  const bridgedCage = bridgeFormFaces(createBoxControlCage(40, 30, 20), 0, 1, 0.45);
+  assert.equal(bridgedCage.vertices.length, 16);
+  assert.equal(bridgedCage.faces.length, 16);
+  assert.equal(formControlEdges(bridgedCage.faces).length, 32);
+  assert.equal(bridgedCage.bridgeVertexIndexes.length, 8);
+  const bridgedMesh = createRoundedBoxFormMesh({ width: 40, depth: 30, height: 20, subdivisions: 1, bridge: { enabled: true, firstFaceIndex: 0, secondFaceIndex: 1, inset: 0.45 } });
+  assert.equal(bridgedMesh.controlVertexCount, 16);
+  assert.equal(bridgedMesh.controlFaceCount, 16);
+  assert.equal(bridgedMesh.surfaceFaceCount, 64);
+  assert.deepEqual(bridgedMesh.bridge, { firstFaceIndex: 0, secondFaceIndex: 1, inset: 0.45 });
+  const bridgedReport = inspectMesh(bridgedMesh);
+  assert.equal(bridgedReport.boundaryEdges, 0);
+  assert.equal(bridgedReport.nonManifoldEdges, 0);
+  assert.equal(bridgedReport.inconsistentEdges, 0);
+  const bridgedSymmetryPairs = formControlSymmetryPairs({ enabled: true, edgeIndex: 4, position: 0.5 }, 'x', { enabled: true, firstFaceIndex: 6, secondFaceIndex: 9, inset: 0.45 });
+  assert.equal(bridgedSymmetryPairs[12], 17);
+  assert.equal(bridgedSymmetryPairs[17], 12);
+  assert.throws(() => bridgeFormFaces(createBoxControlCage(10, 10, 10), 0, 2, 0.45), /rozłącznych/);
+  assert.throws(() => bridgeFormFaces(createBoxControlCage(10, 10, 10), 0, 1, 0.1), /większe od 0,1/);
+
   const deformed = createRoundedBoxFormMesh({ width: 40, depth: 30, height: 20, subdivisions: 2, controlOffsets: [[8, 0, 5]] });
   assert.notDeepEqual(deformed.vertices, mesh.vertices);
   assert.notDeepEqual(deformed.controlVertices, mesh.controlVertices);
@@ -1395,7 +1415,8 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   document.parameters.push(createParameter('form_w', '40'));
   document.parameters.push(createParameter('form_shift', '8'));
   document.parameters.push(createParameter('edge_pos', '0.5'));
-  const form = createFeature('formBody', { name: 'Obudowa Form', width: 'form_w', depth: '30', height: '20', subdivisions: '2', symmetry: 'x', controlOffsets: [['form_shift', '0', '5'], ...Array.from({ length: 7 }, () => ['0', '0', '0'])], creaseEdges: [0, 4], insertEdgeEnabled: true, insertEdgeIndex: 4, insertEdgePosition: 'edge_pos', insertEdgeOffsets: Array.from({ length: 4 }, () => ['0', '0', '0']), x: '5', y: '-3', z: '1' });
+  document.parameters.push(createParameter('bridge_open', '0.45'));
+  const form = createFeature('formBody', { name: 'Obudowa Form', width: 'form_w', depth: '30', height: '20', subdivisions: '2', symmetry: 'x', controlOffsets: [['form_shift', '0', '5'], ...Array.from({ length: 7 }, () => ['0', '0', '0'])], creaseEdges: [0, 4], insertEdgeEnabled: true, insertEdgeIndex: 4, insertEdgePosition: 'edge_pos', insertEdgeOffsets: Array.from({ length: 4 }, () => ['0', '0', '0']), bridgeEnabled: true, bridgeFirstFace: 6, bridgeSecondFace: 9, bridgeInset: 'bridge_open', bridgeOffsets: Array.from({ length: 8 }, () => ['0', '0', '0']), x: '5', y: '-3', z: '1' });
   document.features.push(form);
   assert.equal(validateDocument(document).valid, true);
   const prepared = prepareDocument(document).features[0];
@@ -1407,12 +1428,15 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   assert.deepEqual(prepared.creaseEdges, [0, 4]);
   assert.deepEqual(prepared.insertEdge, { enabled: true, edgeIndex: 4, position: 0.5 });
   assert.equal(prepared.insertEdgeOffsets.length, 4);
+  assert.deepEqual(prepared.bridge, { enabled: true, firstFaceIndex: 6, secondFaceIndex: 9, inset: 0.45 });
+  assert.equal(prepared.bridgeOffsets.length, 8);
   assert.deepEqual(prepared.position, [5, -3, 1]);
   const graph = buildDependencyGraph(document);
   assert.ok(graph.edges.some((edge) => edge.from === form.id && edge.to === `body-${form.id}` && edge.kind === 'produces'));
   assert.ok(graph.affectedBy(document.parameters[0].id).includes(form.id));
   assert.ok(graph.affectedBy(document.parameters[1].id).includes(form.id));
   assert.ok(graph.affectedBy(document.parameters[2].id).includes(form.id));
+  assert.ok(graph.affectedBy(document.parameters[3].id).includes(form.id));
 
   const invalid = structuredClone(document);
   invalid.features[0].subdivisions = '4';

@@ -1382,6 +1382,11 @@ export function validateDocument(document) {
       if (feature.insertEdgeEnabled && (!Number.isInteger(feature.insertEdgeIndex) || feature.insertEdgeIndex < 0 || feature.insertEdgeIndex > 11)) add(`${base}.insertEdgeIndex`, 'Insert Edge wymaga indeksu krawędzi od 0 do 11.', 'VALUE');
       if (feature.insertEdgePosition !== undefined && typeof feature.insertEdgePosition !== 'string' && typeof feature.insertEdgePosition !== 'number') add(`${base}.insertEdgePosition`, 'Położenie Insert Edge musi być parametryczne.', 'TYPE');
       if (feature.insertEdgeEnabled && (!Array.isArray(feature.insertEdgeOffsets) || feature.insertEdgeOffsets.length !== 4 || feature.insertEdgeOffsets.some((point) => !Array.isArray(point) || point.length !== 3 || point.some((value) => typeof value !== 'string' && typeof value !== 'number')))) add(`${base}.insertEdgeOffsets`, 'Insert Edge wymaga czterech trójwymiarowych przesunięć nowych punktów.', 'TYPE');
+      if (feature.bridgeEnabled !== undefined && typeof feature.bridgeEnabled !== 'boolean') add(`${base}.bridgeEnabled`, 'Bridge wymaga wartości logicznej.', 'TYPE');
+      const formFaceCount = feature.insertEdgeEnabled ? 10 : 6;
+      if (feature.bridgeEnabled && (!Number.isInteger(feature.bridgeFirstFace) || !Number.isInteger(feature.bridgeSecondFace) || feature.bridgeFirstFace < 0 || feature.bridgeSecondFace < 0 || feature.bridgeFirstFace >= formFaceCount || feature.bridgeSecondFace >= formFaceCount || feature.bridgeFirstFace === feature.bridgeSecondFace)) add(`${base}.bridgeFirstFace`, `Bridge wymaga dwóch różnych indeksów ścian od 0 do ${formFaceCount - 1}.`, 'VALUE');
+      if (feature.bridgeInset !== undefined && typeof feature.bridgeInset !== 'string' && typeof feature.bridgeInset !== 'number') add(`${base}.bridgeInset`, 'Wcięcie Bridge musi być parametryczne.', 'TYPE');
+      if (feature.bridgeEnabled && (!Array.isArray(feature.bridgeOffsets) || feature.bridgeOffsets.length !== 8 || feature.bridgeOffsets.some((point) => !Array.isArray(point) || point.length !== 3 || point.some((value) => typeof value !== 'string' && typeof value !== 'number')))) add(`${base}.bridgeOffsets`, 'Bridge wymaga ośmiu trójwymiarowych przesunięć nowych punktów.', 'TYPE');
       bodyIds.add(`body-${feature.id}`);
     }
 
