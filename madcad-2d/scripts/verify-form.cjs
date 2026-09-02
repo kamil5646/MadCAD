@@ -89,6 +89,18 @@ app.whenReady().then(async () => {
     await setField(window, 'Przesunięcie punktu Y', '4');
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.command?.controlOffsets?.[6]?.[1] === '4'`, 'deformacja drugiego punktu klatki');
     await window.webContents.executeJavaScript(`(() => {
+      window.__madcadFormAxisBefore = window.__madcadVerifyDocumentState.command.controlOffsets[6].map(Number);
+      const axis = window.__madcadFormCageState.screenAxis(2);
+      if (!axis) throw new Error('Brak manipulatora osi Z.');
+      const [clientX, clientY] = axis.point;
+      const [directionX, directionY] = axis.direction;
+      const canvas = document.querySelector('.model-viewport canvas');
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX, clientY, pointerId: 44 }));
+      canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, button: 0, buttons: 1, clientX: clientX + directionX * 52, clientY: clientY + directionY * 52, pointerId: 44 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX: clientX + directionX * 52, clientY: clientY + directionY * 52, pointerId: 44 }));
+    })()`);
+    await waitFor(window, `(() => { const before = window.__madcadFormAxisBefore; const offsets = window.__madcadVerifyDocumentState?.command?.controlOffsets; return window.__madcadVerifyEngineState?.status === 'ready' && Number(offsets?.[6]?.[0]) === before[0] && Number(offsets?.[6]?.[1]) === before[1] && Number(offsets?.[6]?.[2]) !== before[2] && Number(offsets?.[7]?.[2]) === Number(offsets?.[6]?.[2]); })()`, 'przeciągnięcie punktu manipulatorem osi Z');
+    await window.webContents.executeJavaScript(`(() => {
       const [clientX, clientY] = window.__madcadFormCageState.screenEdge(4);
       const canvas = document.querySelector('.model-viewport canvas');
       canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX, clientY, pointerId: 43 }));

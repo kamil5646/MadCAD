@@ -917,6 +917,7 @@ export default function ModelViewport({
         const pointGeometry = new THREE.BufferGeometry();
         pointGeometry.setAttribute('position', new THREE.Float32BufferAttribute(controlVertices, 3));
         const selectedControlPoint = activeCommand?.type === 'formBody' ? Math.min(7, Math.max(0, Number(activeCommand.selectedControlPoint) || 0)) : -1;
+        const axisHitTargets = [];
         const pointColors = new Float32Array((controlVertices.length / 3) * 3);
         for (let index = 0; index < controlVertices.length / 3; index += 1) {
           const color = new THREE.Color(index === selectedControlPoint ? 0xffc857 : 0xdff9ff);
@@ -937,6 +938,34 @@ export default function ModelViewport({
           modelGroup.add(hitTarget);
           pickables.push(hitTarget);
         }
+        if (selectedControlPoint >= 0) {
+          const selectedPosition = new THREE.Vector3().fromArray(controlVertices, selectedControlPoint * 3);
+          const bounds = new THREE.Box3().setFromArray(controlVertices);
+          const axisLength = Math.min(18, Math.max(8, Math.max(...bounds.getSize(new THREE.Vector3()).toArray()) * 0.28));
+          const axes = [
+            { direction: new THREE.Vector3(1, 0, 0), color: 0xf05b61 },
+            { direction: new THREE.Vector3(0, 1, 0), color: 0x62c96b },
+            { direction: new THREE.Vector3(0, 0, 1), color: 0x579dff },
+          ];
+          axes.forEach(({ direction, color }, axisIndex) => {
+            const arrow = new THREE.ArrowHelper(direction, selectedPosition, axisLength, color, 2.6, 1.5);
+            arrow.renderOrder = 11;
+            arrow.traverse((object) => {
+              object.renderOrder = 11;
+              if (object.material) object.material.depthTest = false;
+            });
+            placeObject(arrow);
+            modelGroup.add(arrow);
+            const hitTarget = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.55, axisLength, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+            hitTarget.position.copy(selectedPosition).addScaledVector(direction, axisLength / 2);
+            hitTarget.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+            hitTarget.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, formControlAxisIndex: axisIndex, formControlAxisLength: axisLength, formControlPointIndex: selectedControlPoint };
+            placeObject(hitTarget);
+            modelGroup.add(hitTarget);
+            pickables.push(hitTarget);
+            axisHitTargets.push(hitTarget);
+          });
+        }
         if (new URLSearchParams(window.location.search).has('verify')) window.__madcadFormCageState = {
           bodyId: body.id,
           pointCount: controlVertices.length / 3,
@@ -951,6 +980,24 @@ export default function ModelViewport({
             const rect = renderer.domElement.getBoundingClientRect();
             const point = target.getWorldPosition(new THREE.Vector3()).project(camera);
             return [rect.left + ((point.x + 1) * rect.width / 2), rect.top + ((1 - point.y) * rect.height / 2)];
+          },
+          screenAxis: (index) => {
+            const target = axisHitTargets[index];
+            if (!target) return null;
+            const rect = renderer.domElement.getBoundingClientRect();
+            const axis = new THREE.Vector3(0, 1, 0).applyQuaternion(target.getWorldQuaternion(new THREE.Quaternion())).normalize();
+            const center = target.getWorldPosition(new THREE.Vector3());
+            const origin = center.clone().addScaledVector(axis, -target.userData.formControlAxisLength / 2);
+            const end = origin.clone().addScaledVector(axis, target.userData.formControlAxisLength);
+            const screen = (point) => {
+              const projected = point.project(camera);
+              return new THREE.Vector2(rect.left + ((projected.x + 1) * rect.width / 2), rect.top + ((1 - projected.y) * rect.height / 2));
+            };
+            const first = screen(origin);
+            const second = screen(end);
+            const direction = second.clone().sub(first).normalize();
+            const point = first.clone().lerp(second, 0.72);
+            return { point: point.toArray(), direction: direction.toArray() };
           },
         };
       }
@@ -1921,23 +1968,58 @@ export default function ModelViewport({
         sketchProfileSelectionRef.current?.(completedProfileHit.object.userData.sketchProfileId, visibleSketch?.id || null);
         return;
       }
+      const formControlAxisHit = activeCommand?.type === 'formBody'
+        ? raycaster.intersectObjects(pickables.filter((object) => Number.isInteger(object.userData.formControlAxisIndex)), false)[0]
+        : null;
       const formControlPointHit = activeCommand?.type === 'formBody'
         ? raycaster.intersectObjects(pickables.filter((object) => object.userData.formControlPoints), false)[0]
         : null;
       const formControlEdgeHit = activeCommand?.type === 'formBody'
         ? raycaster.intersectObjects(pickables.filter((object) => Number.isInteger(object.userData.formControlEdgeIndex)), false)[0]
         : null;
-      const formControlHit = formControlPointHit || formControlEdgeHit;
+      const formControlHit = formControlAxisHit || formControlPointHit || formControlEdgeHit;
       if (new URLSearchParams(window.location.search).has('verify')) window.__madcadFormPointerDebug = {
         activeCommand: activeCommand?.type || null,
         pointCandidateCount: pickables.filter((object) => Number.isInteger(object.userData.formControlPointIndex)).length,
         edgeCandidateCount: pickables.filter((object) => Number.isInteger(object.userData.formControlEdgeIndex)).length,
+        axisCandidateCount: pickables.filter((object) => Number.isInteger(object.userData.formControlAxisIndex)).length,
         hitPointIndex: formControlHit?.object?.userData?.formControlPointIndex ?? null,
         hitEdgeIndex: formControlHit?.object?.userData?.formControlEdgeIndex ?? null,
+        hitAxisIndex: formControlHit?.object?.userData?.formControlAxisIndex ?? null,
         clientX: event.clientX,
         clientY: event.clientY,
       };
       const hit = formControlHit || pickModel(event, alternateModifierPressed(event));
+      const formControlAxisIndex = hit?.object?.userData?.formControlAxisIndex;
+      if (activeCommand?.type === 'formBody' && Number.isInteger(formControlAxisIndex)) {
+        event.preventDefault();
+        const target = hit.object;
+        const axis = new THREE.Vector3(0, 1, 0).applyQuaternion(target.getWorldQuaternion(new THREE.Quaternion())).normalize();
+        const center = target.getWorldPosition(new THREE.Vector3());
+        const origin = center.clone().addScaledVector(axis, -target.userData.formControlAxisLength / 2);
+        const projectedOrigin = origin.clone().project(camera);
+        const projectedUnit = origin.clone().add(axis).project(camera);
+        const screenAxis = new THREE.Vector2((projectedUnit.x - projectedOrigin.x) * rect.width / 2, (projectedOrigin.y - projectedUnit.y) * rect.height / 2);
+        const pixelsPerUnit = screenAxis.length();
+        if (pixelsPerUnit > 0.01) {
+          formControlDrag = {
+            mode: 'axis',
+            index: target.userData.formControlPointIndex,
+            axisIndex: formControlAxisIndex,
+            screenAxis: screenAxis.normalize(),
+            pixelsPerUnit,
+            startClientX: event.clientX,
+            startClientY: event.clientY,
+            startOffset: Array.from({ length: 3 }, (_unused, axisIndex) => numericValue(activeCommand.controlOffsets?.[target.userData.formControlPointIndex]?.[axisIndex] || '0', parameters)),
+            offset: null,
+            moved: false,
+          };
+          controls.enabled = false;
+          try { renderer.domElement.setPointerCapture?.(event.pointerId); } catch { /* Pointer capture is optional in synthetic tests. */ }
+          renderer.domElement.style.cursor = 'move';
+        }
+        return;
+      }
       const formControlEdgeIndex = hit?.object?.userData?.formControlEdgeIndex;
       if (activeCommand?.type === 'formBody' && Number.isInteger(formControlEdgeIndex)) {
         event.preventDefault();
@@ -2002,6 +2084,16 @@ export default function ModelViewport({
       if (formControlDrag) {
         event.preventDefault();
         const rect = setRayFromEvent(event);
+        if (formControlDrag.mode === 'axis') {
+          const step = alternateModifierPressed(event) ? 0.1 : 0.5;
+          const screenDelta = new THREE.Vector2(event.clientX - formControlDrag.startClientX, event.clientY - formControlDrag.startClientY);
+          const axisDelta = screenDelta.dot(formControlDrag.screenAxis) / formControlDrag.pixelsPerUnit;
+          formControlDrag.offset = [...formControlDrag.startOffset];
+          formControlDrag.offset[formControlDrag.axisIndex] = Math.round((formControlDrag.startOffset[formControlDrag.axisIndex] + axisDelta) / step) * step;
+          formControlDrag.moved = screenDelta.length() >= 3;
+          setDragLabel({ value: formControlDrag.offset[formControlDrag.axisIndex] - formControlDrag.startOffset[formControlDrag.axisIndex], x: event.clientX - rect.left + 14, y: event.clientY - rect.top - 12 });
+          return;
+        }
         const currentIntersection = raycaster.ray.intersectPlane(formControlDrag.plane, new THREE.Vector3());
         if (!currentIntersection) return;
         const delta = currentIntersection.sub(formControlDrag.startIntersection);
