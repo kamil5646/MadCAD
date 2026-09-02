@@ -5,7 +5,7 @@ import { GEOMETRY_POLICY, isPositiveLength } from './geometry-policy.js';
 import { createTextProfile } from './text-profile.js';
 import { BASE_PLANE_FRAMES, resolveConstructionPlane } from './construction-planes.js';
 import { resolveConstructionAxis } from './construction-axes.js';
-import { FORM_CONTROL_EDGES, bridgeFormFaces, createBoxControlCage, formControlSymmetryPairs, insertFormEdgeLoop } from './subdivision-form.js';
+import { FORM_CONTROL_EDGES, bridgeFormFaces, createBoxControlCage, fillFormHoles, formControlSymmetryPairs, insertFormEdgeLoop, symmetricFormFaceIndexes } from './subdivision-form.js';
 
 export const FEATURE_STATUS = Object.freeze({
   OK: 'ok',
@@ -683,14 +683,23 @@ export function prepareDocument(document) {
       const bridgeInsetValue = read(feature.bridgeInset ?? '0.45', 'Wcięcie Bridge');
       let topologyCage = createBoxControlCage(2, 2, 2);
       if (insertEdgeEnabled) topologyCage = insertFormEdgeLoop(topologyCage, FORM_CONTROL_EDGES[insertEdgeIndex], insertEdgePositionValue);
-      if (bridgeEnabled) bridgeFormFaces(topologyCage, bridgeFirstFace, bridgeSecondFace, bridgeInsetValue);
+      const firstBridgePoint = topologyCage.vertices.length;
+      if (bridgeEnabled) topologyCage = bridgeFormFaces(topologyCage, bridgeFirstFace, bridgeSecondFace, bridgeInsetValue);
       const bridgeOffsets = Array.from({ length: bridgeEnabled ? 8 : 0 }, (_unused, pointIndex) => Array.from({ length: 3 }, (_axis, axisIndex) => read(feature.bridgeOffsets?.[pointIndex]?.[axisIndex] ?? '0', `Przesunięcie punktu Bridge ${pointIndex + 1}`)));
       const bridge = { enabled: bridgeEnabled, firstFaceIndex: bridgeFirstFace, secondFaceIndex: bridgeSecondFace, inset: bridgeInsetValue };
       if (bridgeEnabled && feature.symmetry && feature.symmetry !== 'none') {
         const symmetryPairs = formControlSymmetryPairs({ enabled: insertEdgeEnabled, edgeIndex: insertEdgeIndex, position: insertEdgePositionValue }, feature.symmetry, bridge);
-        const firstBridgePoint = topologyCage.vertices.length;
         if (symmetryPairs.slice(firstBridgePoint, firstBridgePoint + 8).some((pointIndex) => !Number.isInteger(pointIndex))) throw new Error('Przy aktywnej symetrii ściany Bridge muszą tworzyć parę symetryczną.');
       }
+      const fillHoleEnabled = feature.fillHoleEnabled === true;
+      const fillHoleFace = Number(feature.fillHoleFace ?? 0);
+      const topologySymmetryPairs = feature.symmetry && feature.symmetry !== 'none'
+        ? formControlSymmetryPairs({ enabled: insertEdgeEnabled, edgeIndex: insertEdgeIndex, position: insertEdgePositionValue }, feature.symmetry, bridge)
+        : null;
+      const fillHoleFaceIndexes = fillHoleEnabled ? symmetricFormFaceIndexes(topologyCage, topologySymmetryPairs, fillHoleFace) : [];
+      const fillHoleOffsets = Array.from({ length: fillHoleFaceIndexes.length }, (_unused, pointIndex) => Array.from({ length: 3 }, (_axis, axisIndex) => read(feature.fillHoleOffsets?.[pointIndex]?.[axisIndex] ?? '0', `Przesunięcie punktu Fill Hole ${pointIndex + 1}`)));
+      if (fillHoleEnabled) fillFormHoles(topologyCage, fillHoleFaceIndexes, fillHoleOffsets);
+      const fillHole = { enabled: fillHoleEnabled, faceIndex: fillHoleFace, faceIndexes: fillHoleFaceIndexes };
       return {
         ...feature,
         status: 'ready',
@@ -704,6 +713,8 @@ export function prepareDocument(document) {
         insertEdgeOffsets,
         bridge,
         bridgeOffsets,
+        fillHole,
+        fillHoleOffsets,
         position: [read(feature.x, 'Położenie X'), read(feature.y, 'Położenie Y'), read(feature.z, 'Położenie Z')],
       };
     }

@@ -202,7 +202,41 @@ export function bridgeFormFaces(cage, firstFaceIndex, secondFaceIndex, inset = 0
   };
 }
 
-export function formControlSymmetryPairs(insertEdge, symmetry, bridge = null) {
+export function symmetricFormFaceIndexes(cage, symmetryPairs, faceIndex) {
+  if (!Number.isInteger(faceIndex) || faceIndex < 0 || faceIndex >= cage.faces.length) throw new Error('Fill Hole wymaga poprawnej ściany granicznej.');
+  const sourceFace = cage.faces[faceIndex];
+  if (!symmetryPairs) return [faceIndex];
+  const mirroredPoints = new Set(sourceFace.map((pointIndex) => symmetryPairs[pointIndex]));
+  if ([...mirroredPoints].some((pointIndex) => !Number.isInteger(pointIndex))) throw new Error('Fill Hole nie może odtworzyć pary symetrycznej tej ściany.');
+  const mirroredFaceIndex = cage.faces.findIndex((face) => face.length === sourceFace.length && face.every((pointIndex) => mirroredPoints.has(pointIndex)));
+  if (mirroredFaceIndex < 0) throw new Error('Fill Hole nie znalazł symetrycznej granicy ściany.');
+  return mirroredFaceIndex === faceIndex ? [faceIndex] : [faceIndex, mirroredFaceIndex];
+}
+
+export function fillFormHoles(cage, faceIndexes, centerOffsets = []) {
+  const uniqueFaceIndexes = [...new Set(faceIndexes || [])];
+  if (!uniqueFaceIndexes.length) throw new Error('Fill Hole wymaga co najmniej jednej ściany granicznej.');
+  if (uniqueFaceIndexes.some((faceIndex) => !Number.isInteger(faceIndex) || faceIndex < 0 || faceIndex >= cage.faces.length)) throw new Error('Fill Hole wymaga poprawnej ściany granicznej.');
+  const vertices = cage.vertices.map((point) => [...point]);
+  const sourceFaces = uniqueFaceIndexes.map((faceIndex) => [...cage.faces[faceIndex]]);
+  const faces = cage.faces.filter((_face, faceIndex) => !uniqueFaceIndexes.includes(faceIndex)).map((face) => [...face]);
+  const filledVertexIndexes = sourceFaces.map((face, fillIndex) => {
+    if (face.length < 3) throw new Error('Fill Hole wymaga granicy z co najmniej trzech krawędzi.');
+    const center = average(face.map((pointIndex) => cage.vertices[pointIndex])).map((value, axis) => value + (Number(centerOffsets[fillIndex]?.[axis]) || 0));
+    const centerIndex = vertices.push(center) - 1;
+    face.forEach((pointIndex, index) => faces.push([pointIndex, face[(index + 1) % face.length], centerIndex]));
+    return centerIndex;
+  });
+  return {
+    vertices,
+    faces,
+    creaseEdges: (cage.creaseEdges || []).map((edge) => [...edge]),
+    filledVertexIndexes,
+    fillHole: { faceIndexes: uniqueFaceIndexes },
+  };
+}
+
+export function formControlSymmetryPairs(insertEdge, symmetry, bridge = null, fillHole = null) {
   const basePairs = [...(SYMMETRY_PAIRS[symmetry] || Array.from({ length: 8 }, (_unused, index) => index))];
   if (!SYMMETRY_PAIRS[symmetry]) return basePairs;
   let cage = createBoxControlCage(2, 2, 2);
@@ -222,6 +256,15 @@ export function formControlSymmetryPairs(insertEdge, symmetry, bridge = null) {
     cage.bridgeVertexSourcePoints.forEach((sourcePoint, index) => {
       basePairs[cage.bridgeVertexIndexes[index]] = bridgeIndexBySource.get(sourcePointPairs[sourcePoint]);
     });
+  }
+  if (fillHole?.enabled) {
+    const faceIndexes = symmetricFormFaceIndexes(cage, basePairs, fillHole.faceIndex);
+    cage = fillFormHoles(cage, faceIndexes);
+    if (cage.filledVertexIndexes.length === 1) basePairs[cage.filledVertexIndexes[0]] = cage.filledVertexIndexes[0];
+    else {
+      basePairs[cage.filledVertexIndexes[0]] = cage.filledVertexIndexes[1];
+      basePairs[cage.filledVertexIndexes[1]] = cage.filledVertexIndexes[0];
+    }
   }
   return basePairs;
 }
@@ -305,7 +348,7 @@ function createBoundsFitter(vertices, width, depth, height) {
   });
 }
 
-export function createRoundedBoxFormMesh({ width, depth, height, subdivisions = 2, controlOffsets = [], creaseEdges = [], insertEdge = null, insertEdgeOffsets = [], bridge = null, bridgeOffsets = [] }) {
+export function createRoundedBoxFormMesh({ width, depth, height, subdivisions = 2, controlOffsets = [], creaseEdges = [], insertEdge = null, insertEdgeOffsets = [], bridge = null, bridgeOffsets = [], fillHole = null, fillHoleOffsets = [] }) {
   let controlCage = createBoxControlCage(width, depth, height, controlOffsets, creaseEdges);
   if (insertEdge?.enabled) {
     controlCage = insertFormEdgeLoop(controlCage, FORM_CONTROL_EDGES[insertEdge.edgeIndex], insertEdge.position);
@@ -319,6 +362,7 @@ export function createRoundedBoxFormMesh({ width, depth, height, subdivisions = 
       controlCage.vertices[vertexIndex] = controlCage.vertices[vertexIndex].map((value, axis) => value + (Number(bridgeOffsets[index]?.[axis]) || 0));
     });
   }
+  if (fillHole?.enabled) controlCage = fillFormHoles(controlCage, fillHole.faceIndexes, fillHoleOffsets);
   let cage = controlCage;
   for (let iteration = 0; iteration < subdivisions; iteration += 1) cage = subdivideCatmullClark(cage);
   const fitPoint = createBoundsFitter(cage.vertices, width, depth, height);
@@ -340,6 +384,7 @@ export function createRoundedBoxFormMesh({ width, depth, height, subdivisions = 
     creaseEdges: (controlCage.creaseEdges || []).map(([first, second]) => formControlEdges(controlCage.faces).findIndex((edge) => edgeKey(...edge) === edgeKey(first, second))).filter((index) => index >= 0),
     insertEdge: insertEdge?.enabled ? { edgeIndex: insertEdge.edgeIndex, position: insertEdge.position } : null,
     bridge: bridge?.enabled ? { firstFaceIndex: bridge.firstFaceIndex, secondFaceIndex: bridge.secondFaceIndex, inset: bridge.inset } : null,
+    fillHole: fillHole?.enabled ? { faceIndexes: [...fillHole.faceIndexes] } : null,
     surfaceVertexCount: fittedVertices.length,
     surfaceFaceCount: cage.faces.length,
     subdivisions,

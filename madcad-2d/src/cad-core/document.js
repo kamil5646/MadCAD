@@ -1387,6 +1387,10 @@ export function validateDocument(document) {
       if (feature.bridgeEnabled && (!Number.isInteger(feature.bridgeFirstFace) || !Number.isInteger(feature.bridgeSecondFace) || feature.bridgeFirstFace < 0 || feature.bridgeSecondFace < 0 || feature.bridgeFirstFace >= formFaceCount || feature.bridgeSecondFace >= formFaceCount || feature.bridgeFirstFace === feature.bridgeSecondFace)) add(`${base}.bridgeFirstFace`, `Bridge wymaga dwóch różnych indeksów ścian od 0 do ${formFaceCount - 1}.`, 'VALUE');
       if (feature.bridgeInset !== undefined && typeof feature.bridgeInset !== 'string' && typeof feature.bridgeInset !== 'number') add(`${base}.bridgeInset`, 'Wcięcie Bridge musi być parametryczne.', 'TYPE');
       if (feature.bridgeEnabled && (!Array.isArray(feature.bridgeOffsets) || feature.bridgeOffsets.length !== 8 || feature.bridgeOffsets.some((point) => !Array.isArray(point) || point.length !== 3 || point.some((value) => typeof value !== 'string' && typeof value !== 'number')))) add(`${base}.bridgeOffsets`, 'Bridge wymaga ośmiu trójwymiarowych przesunięć nowych punktów.', 'TYPE');
+      if (feature.fillHoleEnabled !== undefined && typeof feature.fillHoleEnabled !== 'boolean') add(`${base}.fillHoleEnabled`, 'Fill Hole wymaga wartości logicznej.', 'TYPE');
+      const finalFormFaceCount = feature.bridgeEnabled ? formFaceCount + 10 : formFaceCount;
+      if (feature.fillHoleEnabled && (!Number.isInteger(feature.fillHoleFace) || feature.fillHoleFace < 0 || feature.fillHoleFace >= finalFormFaceCount)) add(`${base}.fillHoleFace`, `Fill Hole wymaga indeksu ściany od 0 do ${finalFormFaceCount - 1}.`, 'VALUE');
+      if (feature.fillHoleEnabled && (!Array.isArray(feature.fillHoleOffsets) || feature.fillHoleOffsets.length < 1 || feature.fillHoleOffsets.length > 2 || feature.fillHoleOffsets.some((point) => !Array.isArray(point) || point.length !== 3 || point.some((value) => typeof value !== 'string' && typeof value !== 'number')))) add(`${base}.fillHoleOffsets`, 'Fill Hole wymaga jednego albo dwóch trójwymiarowych przesunięć punktów zamknięcia.', 'TYPE');
       bodyIds.add(`body-${feature.id}`);
     }
 

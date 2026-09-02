@@ -3,7 +3,7 @@ import { Check, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { BSPT_THREAD_SIZES, ISO_CLEARANCE_THREAD_SIZES, ISO_INTERNAL_THREAD_CLASSES, ISO_METRIC_THREAD_SIZES, NPT_THREAD_SIZES, applyHoleStandard, findMetricThreadSize, findPipeThreadSize } from '../cad-core/hole-standards.js';
 import { isDockableCommand } from './panel-layout.js';
 import { Field } from './WorkspacePanels.jsx';
-import { FORM_CONTROL_EDGES, FORM_CONTROL_FACES, createBoxControlCage, formControlSymmetryPairs, insertFormEdgeLoop, updateFormControlOffset as applyFormControlOffset } from '../cad-core/subdivision-form.js';
+import { FORM_CONTROL_EDGES, FORM_CONTROL_FACES, bridgeFormFaces, createBoxControlCage, formControlSymmetryPairs, insertFormEdgeLoop, symmetricFormFaceIndexes, updateFormControlOffset as applyFormControlOffset } from '../cad-core/subdivision-form.js';
 
 export function CommandDialog({ command, profileName, collapsed, dock, onChange, onConfirm, onConfirmDynamic, onCancel, onUndoSegment, onFinishPath, onToggleCollapsed }) {
   if (!isDockableCommand(command)) return null;
@@ -47,11 +47,21 @@ export function CommandDialog({ command, profileName, collapsed, dock, onChange,
   const isFormBody = command.type === 'formBody';
   const baseFormControlOffsets = Array.from({ length: 8 }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => command.controlOffsets?.[index]?.[axis] ?? '0'));
   const insertedFormControlOffsets = command.insertEdgeEnabled ? Array.from({ length: 4 }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => command.insertEdgeOffsets?.[index]?.[axis] ?? '0')) : [];
-  const bridgeFormControlOffsets = command.bridgeEnabled ? Array.from({ length: 8 }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => command.bridgeOffsets?.[index]?.[axis] ?? '0')) : [];
-  const formControlOffsets = [...baseFormControlOffsets, ...insertedFormControlOffsets, ...bridgeFormControlOffsets];
   let formTopologyCage = createBoxControlCage(2, 2, 2);
   if (command.insertEdgeEnabled) formTopologyCage = insertFormEdgeLoop(formTopologyCage, FORM_CONTROL_EDGES[command.insertEdgeIndex || 0], Number(command.insertEdgePosition) || 0.5);
   const formControlFaces = formTopologyCage.faces;
+  const bridgeConfig = { enabled: command.bridgeEnabled, firstFaceIndex: command.bridgeFirstFace || 0, secondFaceIndex: command.bridgeSecondFace ?? 1, inset: Number(command.bridgeInset) > 0.1 && Number(command.bridgeInset) < 0.9 ? Number(command.bridgeInset) : 0.45 };
+  let fillTopologyCage = formTopologyCage;
+  if (bridgeConfig.enabled) fillTopologyCage = bridgeFormFaces(fillTopologyCage, bridgeConfig.firstFaceIndex, bridgeConfig.secondFaceIndex, bridgeConfig.inset);
+  const fillControlFaces = fillTopologyCage.faces;
+  const resolveFillHoleFaceIndexes = (faceIndex = command.fillHoleFace || 0, symmetry = command.symmetry) => symmetricFormFaceIndexes(
+    fillTopologyCage,
+    symmetry && symmetry !== 'none' ? formControlSymmetryPairs({ enabled: command.insertEdgeEnabled, edgeIndex: command.insertEdgeIndex || 0, position: Number(command.insertEdgePosition) || 0.5 }, symmetry, bridgeConfig) : null,
+    Math.min(fillControlFaces.length - 1, Math.max(0, Number(faceIndex) || 0)),
+  );
+  const bridgeFormControlOffsets = command.bridgeEnabled ? Array.from({ length: 8 }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => command.bridgeOffsets?.[index]?.[axis] ?? '0')) : [];
+  const fillHoleControlOffsets = command.fillHoleEnabled ? Array.from({ length: resolveFillHoleFaceIndexes().length }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => command.fillHoleOffsets?.[index]?.[axis] ?? '0')) : [];
+  const formControlOffsets = [...baseFormControlOffsets, ...insertedFormControlOffsets, ...bridgeFormControlOffsets, ...fillHoleControlOffsets];
   const findBridgePair = (preferredFace = 0, symmetry = command.symmetry, faces = formControlFaces, insertEdge = { enabled: command.insertEdgeEnabled, edgeIndex: command.insertEdgeIndex || 0, position: Number(command.insertEdgePosition) || 0.5 }) => {
     const pointPairs = formControlSymmetryPairs(insertEdge, symmetry);
     const candidates = [preferredFace, ...faces.map((_face, index) => index).filter((index) => index !== preferredFace)];
@@ -72,10 +82,11 @@ export function CommandDialog({ command, profileName, collapsed, dock, onChange,
   const updateFormControlOffset = (axis, value) => {
     const offset = [...formControlOffsets[selectedFormControlPoint]];
     offset[axis] = value;
-    const symmetryPairs = formControlSymmetryPairs({ enabled: command.insertEdgeEnabled, edgeIndex: command.insertEdgeIndex || 0, position: 0.5 }, command.symmetry, { enabled: command.bridgeEnabled, firstFaceIndex: command.bridgeFirstFace || 0, secondFaceIndex: command.bridgeSecondFace ?? 1, inset: Number(command.bridgeInset) || 0.45 });
+    const symmetryPairs = formControlSymmetryPairs({ enabled: command.insertEdgeEnabled, edgeIndex: command.insertEdgeIndex || 0, position: Number(command.insertEdgePosition) || 0.5 }, command.symmetry, bridgeConfig, { enabled: command.fillHoleEnabled, faceIndex: command.fillHoleFace || 0 });
     const nextOffsets = applyFormControlOffset(formControlOffsets, selectedFormControlPoint, offset, command.symmetry, symmetryPairs);
     const insertEnd = 8 + insertedFormControlOffsets.length;
-    onChange({ controlOffsets: nextOffsets.slice(0, 8), insertEdgeOffsets: nextOffsets.slice(8, insertEnd), bridgeOffsets: nextOffsets.slice(insertEnd) });
+    const bridgeEnd = insertEnd + bridgeFormControlOffsets.length;
+    onChange({ controlOffsets: nextOffsets.slice(0, 8), insertEdgeOffsets: nextOffsets.slice(8, insertEnd), bridgeOffsets: nextOffsets.slice(insertEnd, bridgeEnd), fillHoleOffsets: nextOffsets.slice(bridgeEnd) });
   };
   const isTransform = command.type === 'transform';
   const isOffsetFace = command.type === 'offsetFace';
@@ -283,6 +294,20 @@ export function CommandDialog({ command, profileName, collapsed, dock, onChange,
                 onChange({ bridgeFirstFace, bridgeSecondFace });
               }}>{formControlFaces.map((_face, index) => <option key={index} value={index} disabled={index === command.bridgeFirstFace || formControlFaces[index].some((point) => formControlFaces[command.bridgeFirstFace]?.includes(point))}>Ściana {index + 1}</option>)}</select></label>
               <Field label="Wielkość otworu" value={command.bridgeInset || '0.45'} onChange={(bridgeInset) => onChange({ bridgeInset })} suffix="0–1" />
+            </>}
+            <label className="command-field"><span>Fill Hole</span><select value={command.fillHoleEnabled ? 'enabled' : 'disabled'} onChange={(event) => {
+              const enabled = event.target.value === 'enabled';
+              const fillHoleFace = Math.min(fillControlFaces.length - 1, selectedFormControlFace);
+              const fillHoleCount = enabled ? resolveFillHoleFaceIndexes(fillHoleFace).length : 0;
+              onChange({ fillHoleEnabled: enabled, fillHoleFace, fillHoleOffsets: Array.from({ length: fillHoleCount }, (_unused, index) => command.fillHoleOffsets?.[index] || ['0', '0', '0']) });
+            }}><option value="disabled">Oryginalna ściana</option><option value="enabled">Zamknij granicę płatami</option></select></label>
+            {command.fillHoleEnabled && <>
+              <label className="command-field"><span>Granica do zamknięcia</span><select value={Math.min(fillControlFaces.length - 1, command.fillHoleFace || 0)} onChange={(event) => {
+                const fillHoleFace = Number(event.target.value);
+                const fillHoleCount = resolveFillHoleFaceIndexes(fillHoleFace).length;
+                onChange({ fillHoleFace, fillHoleOffsets: Array.from({ length: fillHoleCount }, (_unused, index) => command.fillHoleOffsets?.[index] || ['0', '0', '0']) });
+              }}>{fillControlFaces.map((_face, index) => <option key={index} value={index}>Granica ściany {index + 1}</option>)}</select></label>
+              <p className="command-hint">Fill Hole zastępuje wskazaną ścianę płatami zbiegającymi się w edytowalnym punkcie. Przy symetrii druga granica zamyka się automatycznie.</p>
             </>}
           </>}
           <Field label="Położenie X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" />

@@ -91,7 +91,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Bezpośredni wybór 6 ścian klatki i wspólny manipulator osiowy przesuwający cztery narożniki z zachowaniem symetrii.
   - [x] Insert Edge jako parametryczna pętla przecinająca pełny pierścień ścian quad, z edycją nowych punktów i ochroną symetrii.
   - [x] Bridge dwóch rozłącznych ścian quad jako parametryczny, zamknięty tunel z regulowanym otworem, edycją 8 nowych punktów, podglądem oraz współpracą z Insert Edge i symetrią.
-  - [ ] Fill Hole z podglądem powierzchni granicznej.
+  - [x] Fill Hole przebudowujący wskazaną granicę jako płaty ze wspólnym, edytowalnym punktem; automatycznie domyka lustrzaną parę i współpracuje z Bridge oraz Insert Edge.
   - [ ] Konwersja powierzchni Form do możliwie małej liczby gładkich płatów B-Rep zamiast jednej ściany na trójkąt.
 - Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.
 

@@ -927,7 +927,9 @@ export default function ModelViewport({
           const positions = new Float32Array(face.flatMap((pointIndex) => controlVertices.slice(pointIndex * 3, (pointIndex * 3) + 3)));
           const faceGeometry = new THREE.BufferGeometry();
           faceGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-          faceGeometry.setIndex([0, 1, 2, 0, 2, 3]);
+          const faceTriangles = [];
+          for (let triangleIndex = 1; triangleIndex < face.length - 1; triangleIndex += 1) faceTriangles.push(0, triangleIndex, triangleIndex + 1);
+          faceGeometry.setIndex(faceTriangles);
           const selectedFace = selectedControlKind === 'face' && index === selectedControlFace;
           const hitTarget = new THREE.Mesh(faceGeometry, new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: selectedFace ? 0.2 : 0, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
           hitTarget.renderOrder = 7;
@@ -2089,11 +2091,14 @@ export default function ModelViewport({
               startClientY: event.clientY,
               startOffset: Array.from({ length: 3 }, (_unused, axis) => {
                 const insertCount = activeCommand.insertEdgeEnabled ? 4 : 0;
+                const bridgeCount = activeCommand.bridgeEnabled ? 8 : 0;
                 const value = formControlPointIndex < 8
                   ? activeCommand.controlOffsets?.[formControlPointIndex]?.[axis]
                   : formControlPointIndex < 8 + insertCount
                     ? activeCommand.insertEdgeOffsets?.[formControlPointIndex - 8]?.[axis]
-                    : activeCommand.bridgeOffsets?.[formControlPointIndex - 8 - insertCount]?.[axis];
+                    : formControlPointIndex < 8 + insertCount + bridgeCount
+                      ? activeCommand.bridgeOffsets?.[formControlPointIndex - 8 - insertCount]?.[axis]
+                      : activeCommand.fillHoleOffsets?.[formControlPointIndex - 8 - insertCount - bridgeCount]?.[axis];
                 return numericValue(value || '0', parameters);
               }),
               offset: null,
