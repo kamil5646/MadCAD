@@ -88,6 +88,15 @@ app.whenReady().then(async () => {
     await waitFor(window, `(() => { const offsets = window.__madcadVerifyDocumentState?.command?.controlOffsets; return window.__madcadVerifyEngineState?.status === 'ready' && offsets?.[6]?.some((value) => Math.abs(Number(value)) >= 0.5) && Number(offsets[7][0]) === -Number(offsets[6][0]) && Number(offsets[7][1]) === Number(offsets[6][1]) && Number(offsets[7][2]) === Number(offsets[6][2]); })()`, 'przeciągnięcie punktu klatki z symetrią X');
     await setField(window, 'Przesunięcie punktu Y', '4');
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.command?.controlOffsets?.[6]?.[1] === '4'`, 'deformacja drugiego punktu klatki');
+    await window.webContents.executeJavaScript(`(() => {
+      const [clientX, clientY] = window.__madcadFormCageState.screenEdge(4);
+      const canvas = document.querySelector('.model-viewport canvas');
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX, clientY, pointerId: 43 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX, clientY, pointerId: 43 }));
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.selectedControlEdge === 4 && window.__madcadFormCageState?.selectedControlEdge === 4`, 'wybór krawędzi klatki bezpośrednio w widoku');
+    await setSelect(window, 'Charakter krawędzi', 'crease');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.command?.creaseEdges?.includes(4) && window.__madcadFormCageState?.creaseEdges?.includes(4) && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.creaseEdges?.includes(4))`, 'ostra krawędź Crease w podglądzie Form');
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
 
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
@@ -106,16 +115,16 @@ app.whenReady().then(async () => {
       };
     })()`);
     const dimensions = result.metrics.dimensions;
-    if (result.bodyCount !== 3 || result.representation !== 'brep' || result.bodyKind !== 'solid' || result.topologyFaces !== 192 || result.form.controlVertexCount !== 8 || result.form.controlFaceCount !== 6 || result.form.controlVertices.length !== 24 || result.form.controlFaces.length !== 6 || result.form.surfaceFaceCount !== 96 || result.form.subdivisions !== 2 || result.form.symmetry !== 'x' || result.metrics.volume <= 0 || Math.abs(dimensions[0] - 40) > 0.2 || Math.abs(dimensions[1] - 30) > 0.2 || Math.abs(dimensions[2] - 20) > 0.2 || !result.dialogClosed || result.horizontalOverflow) {
+    if (result.bodyCount !== 3 || result.representation !== 'brep' || result.bodyKind !== 'solid' || result.topologyFaces !== 192 || result.form.controlVertexCount !== 8 || result.form.controlFaceCount !== 6 || result.form.controlVertices.length !== 24 || result.form.controlFaces.length !== 6 || result.form.surfaceFaceCount !== 96 || result.form.subdivisions !== 2 || result.form.symmetry !== 'x' || !result.form.creaseEdges.includes(4) || result.metrics.volume <= 0 || Math.abs(dimensions[0] - 40) > 0.2 || Math.abs(dimensions[1] - 30) > 0.2 || Math.abs(dimensions[2] - 20) > 0.2 || !result.dialogClosed || result.horizontalOverflow) {
       throw new Error(`Niepoprawny wynik Form: ${JSON.stringify(result)}`);
     }
 
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && !window.__madcadVerifyEngineState?.bodies?.some((body) => body.form)`, 'cofnięty Form');
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.subdivisions === 2)`, 'ponowiony Form');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.subdivisions === 2 && body.form?.creaseEdges?.includes(4))`, 'ponowiony Form');
     await window.webContents.executeJavaScript(`window.__madcadVerifyReopenCurrentDocument()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'formBody' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.surfaceFaceCount === 96)`, 'Form po ponownym otwarciu projektu');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'formBody' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.creaseEdges?.includes(4) && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.surfaceFaceCount === 96 && body.form?.creaseEdges?.includes(4))`, 'Form po ponownym otwarciu projektu');
 
     process.stdout.write(`${JSON.stringify({ screenshotPath, result }, null, 2)}\n`);
   } catch (error) {

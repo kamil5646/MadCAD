@@ -441,6 +441,7 @@ export default function ModelViewport({
   activeCommand = null,
   onFormControlPointSelection,
   onFormControlPointMove,
+  onFormControlEdgeSelection,
   onCameraStateChange,
   onSelectBody,
   onSelectComponentInstance,
@@ -496,6 +497,7 @@ export default function ModelViewport({
   const sketchModifyRef = useRef(onSketchModify);
   const formControlPointSelectionRef = useRef(onFormControlPointSelection);
   const formControlPointMoveRef = useRef(onFormControlPointMove);
+  const formControlEdgeSelectionRef = useRef(onFormControlEdgeSelection);
   const directRef = useRef({});
   const [view, setView] = useState('iso');
   const [standardViewRequestId, setStandardViewRequestId] = useState(0);
@@ -609,6 +611,7 @@ export default function ModelViewport({
   sketchModifyRef.current = onSketchModify;
   formControlPointSelectionRef.current = onFormControlPointSelection;
   formControlPointMoveRef.current = onFormControlPointMove;
+  formControlEdgeSelectionRef.current = onFormControlEdgeSelection;
   directRef.current = {
     distance: directManipulator ? numericValue(directManipulator.value, parameters) : numericValue(directExtrudeDistance, parameters),
     onCommit: directManipulator?.onCommit || onDirectExtrude,
@@ -882,11 +885,34 @@ export default function ModelViewport({
         const cageLinePositions = new Float32Array(edgeIndexes.flatMap((index) => controlVertices.slice(index * 3, (index * 3) + 3)));
         const cageGeometry = new THREE.BufferGeometry();
         cageGeometry.setAttribute('position', new THREE.BufferAttribute(cageLinePositions, 3));
-        const cageLines = new THREE.LineSegments(cageGeometry, new THREE.LineBasicMaterial({ color: 0x55d9f2, transparent: true, opacity: 0.9, depthTest: false, clippingPlanes }));
+        const selectedControlEdge = activeCommand?.type === 'formBody' ? Math.min((edgeIndexes.length / 2) - 1, Math.max(0, Number(activeCommand.selectedControlEdge) || 0)) : -1;
+        const creaseEdges = new Set(body.form.creaseEdges || []);
+        const edgeColors = new Float32Array(edgeIndexes.length * 3);
+        for (let index = 0; index < edgeIndexes.length / 2; index += 1) {
+          const color = new THREE.Color(index === selectedControlEdge ? 0xffc857 : creaseEdges.has(index) ? 0xe688ff : 0x55d9f2);
+          color.toArray(edgeColors, index * 6);
+          color.toArray(edgeColors, (index * 6) + 3);
+        }
+        cageGeometry.setAttribute('color', new THREE.BufferAttribute(edgeColors, 3));
+        const cageLines = new THREE.LineSegments(cageGeometry, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.94, depthTest: false, clippingPlanes }));
         cageLines.renderOrder = 8;
         cageLines.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, occurrenceId: placement.occurrenceId, formControlCage: true };
         placeObject(cageLines);
         modelGroup.add(cageLines);
+        const edgeHitTargets = [];
+        for (let index = 0; index < edgeIndexes.length / 2; index += 1) {
+          const first = new THREE.Vector3().fromArray(controlVertices, edgeIndexes[index * 2] * 3);
+          const second = new THREE.Vector3().fromArray(controlVertices, edgeIndexes[(index * 2) + 1] * 3);
+          const direction = second.clone().sub(first);
+          const hitTarget = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, direction.length(), 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+          hitTarget.position.copy(first).add(second).multiplyScalar(0.5);
+          hitTarget.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+          hitTarget.userData = { bodyId: body.id, sourceFeatureId: body.sourceFeatureId, occurrenceId: placement.occurrenceId, formControlEdge: true, formControlEdgeIndex: index };
+          placeObject(hitTarget);
+          modelGroup.add(hitTarget);
+          pickables.push(hitTarget);
+          edgeHitTargets.push(hitTarget);
+        }
 
         const pointGeometry = new THREE.BufferGeometry();
         pointGeometry.setAttribute('position', new THREE.Float32BufferAttribute(controlVertices, 3));
@@ -911,7 +937,22 @@ export default function ModelViewport({
           modelGroup.add(hitTarget);
           pickables.push(hitTarget);
         }
-        if (new URLSearchParams(window.location.search).has('verify')) window.__madcadFormCageState = { bodyId: body.id, pointCount: controlVertices.length / 3, edgeCount: edgeIndexes.length / 2, selectedControlPoint, screenPoint: (index) => projectedPoints(cagePoints, [index])[0] };
+        if (new URLSearchParams(window.location.search).has('verify')) window.__madcadFormCageState = {
+          bodyId: body.id,
+          pointCount: controlVertices.length / 3,
+          edgeCount: edgeIndexes.length / 2,
+          selectedControlPoint,
+          selectedControlEdge,
+          creaseEdges: [...creaseEdges],
+          screenPoint: (index) => projectedPoints(cagePoints, [index])[0],
+          screenEdge: (index) => {
+            const target = edgeHitTargets[index];
+            if (!target) return null;
+            const rect = renderer.domElement.getBoundingClientRect();
+            const point = target.getWorldPosition(new THREE.Vector3()).project(camera);
+            return [rect.left + ((point.x + 1) * rect.width / 2), rect.top + ((1 - point.y) * rect.height / 2)];
+          },
+        };
       }
 
       for (const faceGroup of body.faceGroups || []) {
@@ -1880,11 +1921,29 @@ export default function ModelViewport({
         sketchProfileSelectionRef.current?.(completedProfileHit.object.userData.sketchProfileId, visibleSketch?.id || null);
         return;
       }
-      const formControlHit = activeCommand?.type === 'formBody'
-        ? raycaster.intersectObjects(pickables.filter((object) => Number.isInteger(object.userData.formControlPointIndex)), false)[0]
+      const formControlPointHit = activeCommand?.type === 'formBody'
+        ? raycaster.intersectObjects(pickables.filter((object) => object.userData.formControlPoints), false)[0]
         : null;
-      if (new URLSearchParams(window.location.search).has('verify')) window.__madcadFormPointerDebug = { activeCommand: activeCommand?.type || null, candidateCount: pickables.filter((object) => Number.isInteger(object.userData.formControlPointIndex)).length, hitIndex: formControlHit?.object?.userData?.formControlPointIndex ?? null, clientX: event.clientX, clientY: event.clientY };
+      const formControlEdgeHit = activeCommand?.type === 'formBody'
+        ? raycaster.intersectObjects(pickables.filter((object) => Number.isInteger(object.userData.formControlEdgeIndex)), false)[0]
+        : null;
+      const formControlHit = formControlPointHit || formControlEdgeHit;
+      if (new URLSearchParams(window.location.search).has('verify')) window.__madcadFormPointerDebug = {
+        activeCommand: activeCommand?.type || null,
+        pointCandidateCount: pickables.filter((object) => Number.isInteger(object.userData.formControlPointIndex)).length,
+        edgeCandidateCount: pickables.filter((object) => Number.isInteger(object.userData.formControlEdgeIndex)).length,
+        hitPointIndex: formControlHit?.object?.userData?.formControlPointIndex ?? null,
+        hitEdgeIndex: formControlHit?.object?.userData?.formControlEdgeIndex ?? null,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      };
       const hit = formControlHit || pickModel(event, alternateModifierPressed(event));
+      const formControlEdgeIndex = hit?.object?.userData?.formControlEdgeIndex;
+      if (activeCommand?.type === 'formBody' && Number.isInteger(formControlEdgeIndex)) {
+        event.preventDefault();
+        formControlEdgeSelectionRef.current?.(formControlEdgeIndex);
+        return;
+      }
       const formControlPointIndex = hit?.object?.userData?.formControlPointIndex ?? hit?.index;
       if (activeCommand?.type === 'formBody' && hit?.object?.userData?.formControlPoints && Number.isInteger(formControlPointIndex)) {
         event.preventDefault();
@@ -2377,7 +2436,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlPoint]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

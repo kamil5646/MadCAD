@@ -85,8 +85,9 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Parametryczna klatka bazowa 8 punktów/6 ścian, wygładzanie Catmulla–Clarka 1–3 poziomy i kontrolowana konwersja zamkniętej powierzchni do fasetowej bryły B-Rep.
   - [x] Widoczna klatka w widoku 3D, bezpośredni wybór i przeciąganie każdego z 8 punktów oraz parametryczne przesunięcia XYZ przebudowujące powierzchnię.
   - [x] Symetria deformacji punktów względem osi X, Y albo Z z parametrycznym lustrzanym przesunięciem sparowanego narożnika.
+  - [x] Bezpośredni wybór 12 krawędzi klatki oraz Crease/Uncrease z regułami ostrych krawędzi i narożników Catmulla–Clarka.
   - [ ] Bezpośrednia edycja punktów, krawędzi i ścian klatki manipulatorem w widoku.
-  - [ ] Insert Edge, Crease/Uncrease, symetria, Bridge i Fill Hole z podglądem powierzchni granicznej.
+  - [ ] Insert Edge, Bridge i Fill Hole z podglądem powierzchni granicznej.
   - [ ] Konwersja powierzchni Form do możliwie małej liczby gładkich płatów B-Rep zamiast jednej ściany na trójkąt.
 - Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.
 

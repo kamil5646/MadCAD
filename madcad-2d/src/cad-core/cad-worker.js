@@ -1245,6 +1245,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
       height: feature.heightValue,
       subdivisions: feature.subdivisionsValue,
       controlOffsets: feature.controlOffsets,
+      creaseEdges: feature.creaseEdges || [],
     });
     const translated = {
       vertices: mesh.vertices.map((value, index) => value + feature.position[index % 3]),
@@ -1267,6 +1268,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
         symmetry: feature.symmetry || 'none',
         controlVertices: mesh.controlVertices.map((value, index) => value + feature.position[index % 3]),
         controlFaces: mesh.controlFaces,
+        creaseEdges: mesh.creaseEdges,
       },
     });
     bodyOrder.push(bodyId);

@@ -8,6 +8,8 @@ Klatka jest widoczna nad powierzchnią niezależnie od zasłonięcia. Każdy pun
 
 Tryb symetrii X, Y albo Z wiąże wybrany narożnik z jego lustrzaną parą. Przeciąganie i dokładne wpisanie wartości aktualizuje oba punkty, odwracając znak tylko na osi symetrii; wyrażenia parametryczne są zachowywane jako wyrażenia, a nie zamieniane na stałe.
 
+Każdą z 12 krawędzi klatki można wskazać bezpośrednio w widoku lub wybrać z listy i przełączyć między stanem gładkim a `Crease`. Gładkie krawędzie są turkusowe, ostre fioletowe, a aktualnie wybrana krawędź żółta. Crease zmienia geometrię, a nie tylko jej wygląd: punkt krawędzi pozostaje średnią końców, dwa ostre odcinki stosują regułę `(6P + N1 + N2) / 8`, a trzy lub więcej zachowują narożnik. Ostre krawędzie są propagowane przez kolejne poziomy podziału.
+
 Rdzeń `subdivision-form.js` wykonuje rzeczywisty algorytm Catmulla–Clarka:
 
 - oblicza punkty ścian i krawędzi;
@@ -21,10 +23,10 @@ Poziomy 1–3 dają odpowiednio 24, 96 i 384 czworokątne płaty powierzchni gra
 ## Walidacja
 
 - test rdzenia sprawdza klatkę 40×30×20 mm na poziomie 2: 98 punktów powierzchni, 96 czworokątów i 192 trójkąty bez otwartych, niemanifold ani niespójnie zorientowanych krawędzi;
-- ten sam test sprawdza deformację klatki, parametryczne przesunięcie punktu, graf zależności, produkcję osobnej bryły i odrzucenie poziomu spoza zakresu 1–3;
-- test desktopowy `verify:form` uruchamia polecenie z prawdziwego menu, wybiera i przeciąga punkt klatki w widoku, deformuje dwa punkty, kontroluje 8 punktów, 12 krawędzi, 192 ściany B-Rep, dodatnią objętość, wymiary, brak overflow, Cofnij/Ponów i ponowne otwarcie projektu;
+- ten sam test sprawdza deformację klatki, propagację Crease, zmianę geometrii bez utraty manifold, parametryczne przesunięcie punktu, graf zależności, produkcję osobnej bryły i odrzucenie niepoprawnego poziomu lub indeksu krawędzi;
+- test desktopowy `verify:form` uruchamia polecenie z prawdziwego menu, wybiera i przeciąga punkt klatki, wskazuje krawędź w widoku, ustawia Crease, kontroluje 8 punktów, 12 krawędzi, 192 ściany B-Rep, dodatnią objętość, wymiary, brak overflow, Cofnij/Ponów i ponowne otwarcie projektu;
 - dowód wizualny jest zapisywany w `artifacts/madcad-form.png`.
 
 ## Kolejne etapy
 
-Następny pakiet powinien rozszerzyć działające przeciąganie punktów o osi wspólnego manipulatora oraz wybór krawędzi i ścian. Dopiero na tym fundamencie należy dodać Insert Edge, Crease, symetrię, Bridge i Fill Hole, a później konwersję do gładkich płatów B-Rep.
+Następny pakiet powinien rozszerzyć działające przeciąganie punktów o osi wspólnego manipulatora oraz transformację wybranych krawędzi i ścian. Następnie należy dodać Insert Edge, Bridge i Fill Hole, a później konwersję do gładkich płatów B-Rep.

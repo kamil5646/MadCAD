@@ -1377,6 +1377,7 @@ export function validateDocument(document) {
       }
       if (feature.controlOffsets !== undefined && (!Array.isArray(feature.controlOffsets) || feature.controlOffsets.length !== 8 || feature.controlOffsets.some((point) => !Array.isArray(point) || point.length !== 3 || point.some((value) => typeof value !== 'string' && typeof value !== 'number')))) add(`${base}.controlOffsets`, 'Form wymaga ośmiu trójwymiarowych przesunięć punktów kontrolnych.', 'TYPE');
       if (feature.symmetry !== undefined && !['none', 'x', 'y', 'z'].includes(feature.symmetry)) add(`${base}.symmetry`, 'Form obsługuje symetrię none, x, y albo z.', 'VALUE');
+      if (feature.creaseEdges !== undefined && (!Array.isArray(feature.creaseEdges) || feature.creaseEdges.some((index) => !Number.isInteger(index) || index < 0 || index > 11) || new Set(feature.creaseEdges).size !== feature.creaseEdges.length)) add(`${base}.creaseEdges`, 'Crease Form wymaga unikalnych indeksów krawędzi od 0 do 11.', 'VALUE');
       bodyIds.add(`body-${feature.id}`);
     }
 
