@@ -1,25 +1,25 @@
-# MadCAD — liniowy szkic 3D
+# MadCAD — szkic 3D i krzywe przestrzenne
 
 ## Zakres ukończonego pakietu
 
-W obszarze `PROJEKTUJ` polecenie `Szkic 3D` tworzy odrębny szkic przestrzenny. Użytkownik wpisuje współrzędne XYZ końca odcinka, zatwierdza Enterem lub przyciskiem `Dodaj odcinek`, a następny odcinek automatycznie zaczyna się w poprzednim końcu. `Cofnij odcinek` usuwa ostatni segment bez opuszczania narzędzia. `Esc`, zamknięcie panelu i `Zakończ szkic` kończą tryb w kontrolowany sposób i pozostawiają gotową ścieżkę w projekcie.
+W obszarze `PROJEKTUJ` polecenie `Szkic 3D` tworzy odrębny szkic przestrzenny. Użytkownik wybiera linię, łuk przez trzy punkty albo sześcienny spline Béziera, wpisuje współrzędne XYZ i zatwierdza Enterem lub przyciskiem `Dodaj krzywą`. Następna krzywa automatycznie zaczyna się we wspólnym końcu poprzedniej (ciągłość G0). `Cofnij krzywą` usuwa ostatnią krzywą bez opuszczania narzędzia. `Esc`, zamknięcie panelu i `Zakończ szkic` kończą tryb w kontrolowany sposób i pozostawiają gotową ścieżkę w projekcie.
 
-Szkic 3D ma własny kontrakt `space: 3d`. Nie jest przypadkowo scalany ze szkicem 2D na płaszczyźnie XY i nie uruchamia płaskiego solvera więzów, profili ani przekroju Slice. Punkty zawierają trwałe wyrażenia X, Y i Z, linie zachowują trwałe identyfikatory, a walidacja odrzuca geometrię 2D nieobsługiwaną w tym trybie.
+Szkic 3D ma własny kontrakt `space: 3d`. Nie jest przypadkowo scalany ze szkicem 2D na płaszczyźnie XY i nie uruchamia płaskiego solvera więzów, profili ani przekroju Slice. Punkty, punkty pośrednie łuku i uchwyty splajnu zawierają trwałe wyrażenia X, Y i Z, krzywe zachowują trwałe identyfikatory, a walidacja odrzuca geometrię 2D nieobsługiwaną w tym trybie.
 
 Widok przechodzi do orientacji izometrycznej, zachowuje obracanie kamery i pokazuje trzy osie. Przeglądarka projektu podpisuje przestrzenny szkic jako `3D`, a nie jako pozorną płaszczyznę `XY`.
 
 ## Integracja z modelowaniem
 
-Liniowa ścieżka XYZ jest rozwiązywana jako uporządkowany otwarty łańcuch w trzech wymiarach. Rdzeń oblicza rzeczywistą długość 3D i przekazuje punkty do `Sweep`, `Pipe` oraz `Pattern` po ścieżce. Worker OpenCascade składa osobne krawędzie 3D w jeden wire i tworzy na nim profil roboczy. `Pipe` prowadzi po tej ścieżce dwa kołowe przekroje i odejmuje wewnętrzny od zewnętrznego, dlatego wynikiem jest dokładna rurowa bryła B-Rep.
+Ścieżka XYZ jest rozwiązywana jako uporządkowany otwarty łańcuch w trzech wymiarach. Rdzeń zachowuje dokładne segmenty i próbkuje je wyłącznie do równomiernego rozstawienia szyku po rzeczywistej długości zamiast po cięciwach. Worker OpenCascade składa linie, łuki kołowe oraz krzywe Béziera w jeden wire. `Sweep` i `Pipe` prowadzą po nim dokładny profil B-Rep; prawidłowy, łagodny łańcuch mieszany przechodzi zapis i ponowne otwarcie bez zmiany bryły.
 
 ## Walidacja
 
-- 196 testów rdzenia potwierdza walidację, zapis XYZ, długość i przygotowanie ścieżki dla `Sweep`, `Pipe` oraz `Pattern`;
+- 197 testów rdzenia potwierdza walidację, zapis XYZ, dokładne segmenty, próbkowaną długość i przygotowanie ścieżki dla `Sweep`, `Pipe` oraz `Pattern`;
 - 136 testów komponentów sprawdza panel współrzędnych, rozdział 2D/3D i oznaczenie w przeglądarce;
-- `npm run verify:sketch-3d` uruchamia prawdziwe okno Electron, tworzy punkty `(0,0,0) → (30,0,0) → (30,20,15)`, buduje Pipe `⌀6 / ścianka 1 mm`, zapisuje operację i ponownie otwiera dokument;
-- przed i po ponownym otwarciu bryła ma tę samą objętość `301,0549 mm³` i te same wymiary obwiedni;
+- `npm run verify:sketch-3d` uruchamia prawdziwe okno Electron, tworzy kolejno dwie linie, łuk 3D i spline 3D, buduje Pipe `⌀6 / ścianka 1 mm`, zapisuje operację i ponownie otwiera dokument;
+- przed i po ponownym otwarciu bryła ma tę samą objętość około `1421,811 mm³` i te same wymiary obwiedni;
 - dowód wizualny jest zapisany w `artifacts/sketch-3d-pipe.png`.
 
 ## Następna kolejność
 
-Pakiet nie zamyka całego punktu backlogu. Kolejne etapy to łuki i spline przestrzenne z kontrolą ciągłości, a następnie skojarzone ścieżki leżące na krawędziach lub powierzchniach modelu.
+Kolejne etapy to automatyczne i edytowalne warunki G1/G2, a następnie skojarzone ścieżki leżące na krawędziach lub powierzchniach modelu.

@@ -748,8 +748,11 @@ export function validateDocument(document) {
           }
         }
       }
-      if (sketchSpace === '3d' && !['point', 'line'].includes(entity.type)) add(`${entityBase}.type`, 'Szkic 3D obsługuje obecnie ciągłe linie przestrzenne.', 'UNSUPPORTED');
+      if (sketchSpace === '3d' && !['point', 'line', 'arc3d', 'spline3d'].includes(entity.type)) add(`${entityBase}.type`, 'Szkic 3D obsługuje linie, łuki i spline przestrzenne.', 'UNSUPPORTED');
+      if (sketchSpace !== '3d' && ['arc3d', 'spline3d'].includes(entity.type)) add(`${entityBase}.type`, 'Przestrzenna krzywa wymaga szkicu 3D.', 'UNSUPPORTED');
       if (entity.type === 'line' && pointCount !== 2) add(`${entityBase}.pointIds`, 'Linia wymaga dwóch końców.', 'VALUE');
+      if (entity.type === 'arc3d' && pointCount !== 2) add(`${entityBase}.pointIds`, 'Łuk 3D wymaga dwóch końców.', 'VALUE');
+      if (entity.type === 'spline3d' && pointCount !== 2) add(`${entityBase}.pointIds`, 'Spline 3D wymaga dwóch końców.', 'VALUE');
       if (entity.type === 'arc' && pointCount !== 3) add(`${entityBase}.pointIds`, 'Łuk wymaga centrum, początku i końca.', 'VALUE');
       if (entity.type === 'arc' && !['cw', 'ccw'].includes(entity.geometry?.direction)) add(`${entityBase}.geometry.direction`, 'Kierunek łuku musi mieć wartość cw albo ccw.', 'VALUE');
       if (entity.type === 'circle') {
@@ -1081,10 +1084,10 @@ export function validateDocument(document) {
         if (!owner || owner.sketchId !== feature.sketchId || owner.type !== 'line') add(`${base}.openEntityIds[${entityIndex}]`, 'Otwarty profil Surface Sweep musi składać się z połączonych linii szkicu źródłowego.', 'UNSUPPORTED');
       });
       else if (!Array.isArray(feature.profileIds) || feature.profileIds.length !== 1 || profileOwners.get(feature.profileIds[0]) !== feature.sketchId) add(`${base}.profileIds`, 'Surface Sweep wymaga jednego zamkniętego profilu albo otwartego łańcucha.', 'REQUIRED');
-      if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Surface Sweep wymaga ciągłej ścieżki z linii.', 'REQUIRED');
+      if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Surface Sweep wymaga ciągłej ścieżki z krzywych.', 'REQUIRED');
       else feature.pathEntityIds.forEach((entityId, entityIndex) => {
         const owner = entityOwners.get(entityId);
-        if (!owner || owner.sketchId !== feature.pathSketchId || owner.type !== 'line') add(`${base}.pathEntityIds[${entityIndex}]`, 'Ścieżka Surface Sweep musi składać się z linii wskazanego szkicu.', 'UNSUPPORTED');
+        if (!owner || owner.sketchId !== feature.pathSketchId || !['line', 'arc3d', 'spline3d'].includes(owner.type)) add(`${base}.pathEntityIds[${entityIndex}]`, 'Ścieżka Surface Sweep musi składać się z obsługiwanych krzywych wskazanego szkicu.', 'UNSUPPORTED');
       });
       const bodyId = `body-${feature.id}`;
       bodyIds.add(bodyId);
@@ -1296,10 +1299,10 @@ export function validateDocument(document) {
       if (!sketchIds.has(feature.sketchId) || !sketchIds.has(feature.pathSketchId)) add(`${base}.sketchId`, 'Sweep wymaga szkicu profilu i osobnego szkicu ścieżki.', 'BROKEN_REFERENCE');
       if (feature.sketchId === feature.pathSketchId) add(`${base}.pathSketchId`, 'Profil i ścieżka Sweep muszą należeć do różnych szkiców.', 'VALUE');
       if (!Array.isArray(feature.profileIds) || feature.profileIds.length !== 1 || profileOwners.get(feature.profileIds[0]) !== feature.sketchId) add(`${base}.profileIds`, 'Sweep wymaga jednego zamkniętego profilu.', 'REQUIRED');
-      if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Sweep wymaga ciągłej ścieżki z linii szkicu.', 'REQUIRED');
+      if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Sweep wymaga ciągłej ścieżki z krzywych szkicu.', 'REQUIRED');
       else feature.pathEntityIds.forEach((entityId, index) => {
         const owner = entityOwners.get(entityId);
-        if (!owner || owner.sketchId !== feature.pathSketchId || owner.type !== 'line') add(`${base}.pathEntityIds[${index}]`, 'Ścieżka Sweep musi składać się z linii wskazanego szkicu.', 'UNSUPPORTED');
+        if (!owner || owner.sketchId !== feature.pathSketchId || !['line', 'arc3d', 'spline3d'].includes(owner.type)) add(`${base}.pathEntityIds[${index}]`, 'Ścieżka Sweep musi składać się z obsługiwanych krzywych wskazanego szkicu.', 'UNSUPPORTED');
       });
       if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, `Nieobsługiwana operacja Sweep: ${feature.operation ?? ''}.`, 'UNSUPPORTED');
       if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
@@ -1349,10 +1352,10 @@ export function validateDocument(document) {
 
     if (feature.type === 'pipe') {
       if (!sketchIds.has(feature.pathSketchId)) add(`${base}.pathSketchId`, 'Pipe wymaga szkicu ścieżki.', 'BROKEN_REFERENCE');
-      if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Pipe wymaga otwartego łańcucha linii.', 'REQUIRED');
+      if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Pipe wymaga otwartego łańcucha krzywych.', 'REQUIRED');
       else feature.pathEntityIds.forEach((entityId, index) => {
         const owner = entityOwners.get(entityId);
-        if (!owner || owner.sketchId !== feature.pathSketchId || owner.type !== 'line') add(`${base}.pathEntityIds[${index}]`, 'Pipe obsługuje połączone linie wskazanego szkicu.', 'UNSUPPORTED');
+        if (!owner || owner.sketchId !== feature.pathSketchId || !['line', 'arc3d', 'spline3d'].includes(owner.type)) add(`${base}.pathEntityIds[${index}]`, 'Pipe obsługuje połączone krzywe wskazanego szkicu.', 'UNSUPPORTED');
       });
       for (const [key, label] of [['outsideDiameter', 'średnicy zewnętrznej'], ['wallThickness', 'grubości ścianki']]) if (typeof feature[key] !== 'string' && typeof feature[key] !== 'number') add(`${base}.${key}`, `Pipe wymaga parametrycznej ${label}.`, 'TYPE');
       if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, 'Nieobsługiwana operacja Pipe.', 'UNSUPPORTED');
@@ -1371,7 +1374,11 @@ export function validateDocument(document) {
       }
       if (feature.patternType === 'path') {
         if (!sketchIds.has(feature.pathSketchId)) add(`${base}.pathSketchId`, 'Pattern po ścieżce wymaga szkicu.', 'BROKEN_REFERENCE');
-        if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Pattern po ścieżce wymaga łańcucha linii.', 'REQUIRED');
+        if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Pattern po ścieżce wymaga łańcucha krzywych.', 'REQUIRED');
+        else feature.pathEntityIds.forEach((entityId, index) => {
+          const owner = entityOwners.get(entityId);
+          if (!owner || owner.sketchId !== feature.pathSketchId || !['line', 'arc3d', 'spline3d'].includes(owner.type)) add(`${base}.pathEntityIds[${index}]`, 'Pattern po ścieżce wymaga obsługiwanych krzywych wskazanego szkicu.', 'UNSUPPORTED');
+        });
         if (typeof feature.occurrences !== 'string' && typeof feature.occurrences !== 'number') add(`${base}.occurrences`, 'Pattern po ścieżce wymaga liczby wystąpień.', 'TYPE');
       }
     }

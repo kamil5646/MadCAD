@@ -168,6 +168,49 @@ function arcPoints(center, start, end, direction, steps = 32) {
   });
 }
 
+function arc3DPoints(start, through, end, steps = 48) {
+  const p0 = new THREE.Vector3(...start);
+  const p1 = new THREE.Vector3(...through);
+  const p2 = new THREE.Vector3(...end);
+  const a = p1.clone().sub(p0);
+  const b = p2.clone().sub(p0);
+  const cross = a.clone().cross(b);
+  const denominator = 2 * cross.lengthSq();
+  if (denominator <= 1e-14) return [start, through, end];
+  const center = p0.clone().add(
+    b.clone().cross(cross).multiplyScalar(a.lengthSq())
+      .add(cross.clone().cross(a).multiplyScalar(b.lengthSq()))
+      .divideScalar(denominator),
+  );
+  const radiusVector = p0.clone().sub(center);
+  const radius = radiusVector.length();
+  const u = radiusVector.clone().normalize();
+  const normal = cross.normalize();
+  const v = normal.clone().cross(u).normalize();
+  const angleOf = (point) => {
+    const relative = new THREE.Vector3(...point).sub(center);
+    return Math.atan2(relative.dot(v), relative.dot(u));
+  };
+  let throughAngle = angleOf(through);
+  let endAngle = angleOf(end);
+  if (throughAngle < 0) throughAngle += Math.PI * 2;
+  if (endAngle < 0) endAngle += Math.PI * 2;
+  if (endAngle < throughAngle) endAngle += Math.PI * 2;
+  return Array.from({ length: steps + 1 }, (_value, index) => center.clone()
+    .add(u.clone().multiplyScalar(Math.cos((endAngle * index) / steps) * radius))
+    .add(v.clone().multiplyScalar(Math.sin((endAngle * index) / steps) * radius))
+    .toArray());
+}
+
+function spline3DPoints(start, controls, end, steps = 64) {
+  return new THREE.CubicBezierCurve3(
+    new THREE.Vector3(...start),
+    new THREE.Vector3(...controls[0]),
+    new THREE.Vector3(...controls[1]),
+    new THREE.Vector3(...end),
+  ).getPoints(steps).map((point) => point.toArray());
+}
+
 function sketchEntityColor(entity, selected = false, error = false, layerColor = '#74cef0') {
   if (error || entity.error) return 0xff5e66;
   if (selected) return 0xffc857;
@@ -221,6 +264,16 @@ function addSketchEntities(group, sketch, parameters, plane, {
   const readPoint = (pointId, overrides) => overrides?.get(pointId) || coordinates.get(pointId) || null;
   const localPointsFor = (entity, overrides) => {
     if (entity.type === 'line') return entity.pointIds.map((pointId) => readPoint(pointId, overrides)).filter(Boolean);
+    if (entity.type === 'arc3d') {
+      const [start, end] = entity.pointIds.map((pointId) => readPoint(pointId, overrides));
+      const through = ['X', 'Y', 'Z'].map((axis) => numericValue(entity.geometry[`through${axis}`], parameters));
+      return start && end ? arc3DPoints(start, through, end) : [];
+    }
+    if (entity.type === 'spline3d') {
+      const [start, end] = entity.pointIds.map((pointId) => readPoint(pointId, overrides));
+      const controls = ['control1', 'control2'].map((prefix) => ['X', 'Y', 'Z'].map((axis) => numericValue(entity.geometry[`${prefix}${axis}`], parameters)));
+      return start && end ? spline3DPoints(start, controls, end) : [];
+    }
     if (entity.type === 'circle') {
       const center = readPoint(entity.pointIds[0], overrides);
       const radius = numericValue(entity.geometry.radius, parameters);
@@ -300,7 +353,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
   for (const entity of visibleCurves) {
     const localPoints = localPointsFor(entity);
     if (localPoints.length < 2) continue;
-    const hasError = errors.has(entity.id) || (entity.type === 'line'
+    const hasError = errors.has(entity.id) || (['line', 'arc3d', 'spline3d'].includes(entity.type)
       ? Math.hypot(...localPoints[1].map((value, axis) => value - localPoints[0][axis])) <= 1e-7
       : entity.type === 'circle'
         ? !(numericValue(entity.geometry.radius, parameters) > 0)

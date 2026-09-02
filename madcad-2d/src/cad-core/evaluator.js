@@ -209,12 +209,13 @@ function resolveOpenChainProfile(sketch, entityIds, parameters, featureId, opera
       ...(sketch.space === '3d' ? [evaluateExpression(point.geometry.z, parameters)] : []),
     ];
   };
-  const lines = entityIds.map((entityId) => entityMap.get(entityId));
-  if (lines.some((entity) => entity?.type !== 'line')) throw new Error(`${operationName} obsługuje obecnie wyłącznie ścieżki z linii.`);
+  const curves = entityIds.map((entityId) => entityMap.get(entityId));
+  const supportedTypes = sketch.space === '3d' ? ['line', 'arc3d', 'spline3d'] : ['line'];
+  if (curves.some((entity) => !supportedTypes.includes(entity?.type))) throw new Error(`${operationName} wymaga ciągłej ścieżki z obsługiwanych krzywych.`);
   const incidents = new Map();
-  lines.forEach((line) => line.pointIds.forEach((pointId) => {
+  curves.forEach((curve) => [curve.pointIds[0], curve.pointIds.at(-1)].forEach((pointId) => {
     if (!incidents.has(pointId)) incidents.set(pointId, []);
-    incidents.get(pointId).push(line);
+    incidents.get(pointId).push(curve);
   }));
   if ([...incidents.values()].some((items) => items.length > 2)) throw new Error(`Ścieżka ${operationName} nie może mieć rozgałęzień.`);
   const endpoints = [...incidents.entries()].filter(([, items]) => items.length === 1).map(([pointId]) => pointId).sort((left, right) => {
@@ -223,20 +224,86 @@ function resolveOpenChainProfile(sketch, entityIds, parameters, featureId, opera
   });
   if (endpoints.length !== 2) throw new Error(`${operationName} wymaga jednego ciągłego łańcucha otwartego z dwoma końcami.`);
   const ordered = [];
-  const remaining = new Set(lines.map((line) => line.id));
+  const remaining = new Set(curves.map((curve) => curve.id));
   let currentPointId = endpoints[0];
   while (remaining.size) {
-    const line = (incidents.get(currentPointId) || []).find((candidate) => remaining.has(candidate.id));
-    if (!line) throw new Error(`Wybrane linie nie tworzą jednej ciągłej ścieżki ${operationName}.`);
-    const nextPointId = line.pointIds[0] === currentPointId ? line.pointIds[1] : line.pointIds[0];
-    ordered.push({ line, startPointId: currentPointId, endPointId: nextPointId });
-    remaining.delete(line.id);
+    const curve = (incidents.get(currentPointId) || []).find((candidate) => remaining.has(candidate.id));
+    if (!curve) throw new Error(`Wybrane krzywe nie tworzą jednej ciągłej ścieżki ${operationName}.`);
+    const nextPointId = curve.pointIds[0] === currentPointId ? curve.pointIds.at(-1) : curve.pointIds[0];
+    ordered.push({ curve, startPointId: currentPointId, endPointId: nextPointId, reversed: curve.pointIds[0] !== currentPointId });
+    remaining.delete(curve.id);
     currentPointId = nextPointId;
   }
-  if (currentPointId !== endpoints[1]) throw new Error(`Wybrane linie nie tworzą jednej otwartej ścieżki ${operationName}.`);
-  const segments = ordered.map(({ line, startPointId, endPointId }) => ({ type: 'line', id: line.id, start: readPoint(startPointId), end: readPoint(endPointId) }));
-  segments.forEach((segment) => positive(Math.hypot(...segment.end.map((value, axis) => value - segment.start[axis])), 'Długość linii otwartego łańcucha'));
-  return { id: `open-${featureId}`, name: 'Otwarty łańcuch', type: 'open', space: sketch.space || '2d', geometry: { segments, points: [segments[0].start, ...segments.map((segment) => segment.end)], holes: [] } };
+  if (currentPointId !== endpoints[1]) throw new Error(`Wybrane krzywe nie tworzą jednej otwartej ścieżki ${operationName}.`);
+  const vector = (curve, prefix) => ['X', 'Y', 'Z'].map((axis) => evaluateExpression(curve.geometry[`${prefix}${axis}`], parameters));
+  const segments = ordered.map(({ curve, startPointId, endPointId, reversed }) => {
+    const start = readPoint(startPointId);
+    const end = readPoint(endPointId);
+    if (curve.type === 'arc3d') return { type: 'arc3d', id: curve.id, start, through: vector(curve, 'through'), end };
+    if (curve.type === 'spline3d') {
+      const controls = [vector(curve, 'control1'), vector(curve, 'control2')];
+      return { type: 'spline3d', id: curve.id, start, controls: reversed ? controls.reverse() : controls, end };
+    }
+    return { type: 'line', id: curve.id, start, end };
+  });
+  segments.forEach((segment) => positive(Math.hypot(...segment.end.map((value, axis) => value - segment.start[axis])), 'Długość krzywej otwartego łańcucha'));
+  const subtract = (left, right) => left.map((value, axis) => value - right[axis]);
+  const add = (left, right) => left.map((value, axis) => value + right[axis]);
+  const scale = (vectorValue, factor) => vectorValue.map((value) => value * factor);
+  const dot = (left, right) => left.reduce((sum, value, axis) => sum + value * right[axis], 0);
+  const cross = (left, right) => [
+    left[1] * right[2] - left[2] * right[1],
+    left[2] * right[0] - left[0] * right[2],
+    left[0] * right[1] - left[1] * right[0],
+  ];
+  const normalized = (vectorValue) => {
+    const length = Math.hypot(...vectorValue);
+    return scale(vectorValue, 1 / length);
+  };
+  const sampleArc = (segment, divisions = 48) => {
+    const firstChord = subtract(segment.through, segment.start);
+    const secondChord = subtract(segment.end, segment.start);
+    const normalVector = cross(firstChord, secondChord);
+    const denominator = 2 * dot(normalVector, normalVector);
+    if (denominator <= GEOMETRY_POLICY.linearTolerance ** 2) throw new Error('Łuk 3D wymaga trzech niewspółliniowych punktów.');
+    const center = add(segment.start, scale(add(
+      scale(cross(secondChord, normalVector), dot(firstChord, firstChord)),
+      scale(cross(normalVector, firstChord), dot(secondChord, secondChord)),
+    ), 1 / denominator));
+    const xAxis = normalized(subtract(segment.start, center));
+    const normal = normalized(normalVector);
+    const yAxis = cross(normal, xAxis);
+    const angleOf = (point) => {
+      const relative = subtract(point, center);
+      const angle = Math.atan2(dot(relative, yAxis), dot(relative, xAxis));
+      return angle < 0 ? angle + (2 * Math.PI) : angle;
+    };
+    const throughAngle = angleOf(segment.through);
+    let endAngle = angleOf(segment.end);
+    if (throughAngle > endAngle) endAngle += 2 * Math.PI;
+    const radius = Math.hypot(...subtract(segment.start, center));
+    return Array.from({ length: divisions + 1 }, (_unused, index) => {
+      const angle = endAngle * (index / divisions);
+      return add(center, add(scale(xAxis, radius * Math.cos(angle)), scale(yAxis, radius * Math.sin(angle))));
+    });
+  };
+  const sampleSpline = (segment, divisions = 64) => Array.from({ length: divisions + 1 }, (_unused, index) => {
+    const t = index / divisions;
+    const oneMinusT = 1 - t;
+    return segment.start.map((value, axis) => (
+      (oneMinusT ** 3) * value
+      + 3 * (oneMinusT ** 2) * t * segment.controls[0][axis]
+      + 3 * oneMinusT * (t ** 2) * segment.controls[1][axis]
+      + (t ** 3) * segment.end[axis]
+    ));
+  });
+  const sampleSegment = (segment) => {
+    if (segment.type === 'arc3d') return sampleArc(segment);
+    if (segment.type === 'spline3d') return sampleSpline(segment);
+    return [segment.start, segment.end];
+  };
+  const sampledPoints = segments.flatMap((segment, index) => sampleSegment(segment).slice(index ? 1 : 0));
+  return { id: `open-${featureId}`, name: 'Otwarty łańcuch', type: 'open', space: sketch.space || '2d', geometry: { segments, points: sampledPoints, holes: [] } };
 }
 
 function resolveRevolveAxis(document, feature, profile, parameters, operationName = 'Revolve') {

@@ -5,6 +5,8 @@ import { normalizeEntityLayerStyle } from './layers.js';
 export const SKETCH_ENTITY_TYPES = Object.freeze([
   'point',
   'line',
+  'arc3d',
+  'spline3d',
   'arc',
   'circle',
   'ellipse',
@@ -85,6 +87,27 @@ export function createSketchPoint3D({ x = 0, y = 0, z = 0, ...options } = {}) {
 
 export function createSketchLine({ startPointId, endPointId, ...options } = {}) {
   return commonEntity('line', { ...options, pointIds: [startPointId, endPointId], geometry: {} });
+}
+
+export function createSketchArc3D({ startPointId, endPointId, throughX = 0, throughY = 0, throughZ = 0, ...options } = {}) {
+  return commonEntity('arc3d', {
+    ...options,
+    pointIds: [startPointId, endPointId],
+    geometry: { throughX: expression(throughX), throughY: expression(throughY), throughZ: expression(throughZ) },
+    expressionKeys: ['throughX', 'throughY', 'throughZ'],
+  });
+}
+
+export function createSketchSpline3D({ startPointId, endPointId, control1 = [0, 0, 0], control2 = [0, 0, 0], ...options } = {}) {
+  return commonEntity('spline3d', {
+    ...options,
+    pointIds: [startPointId, endPointId],
+    geometry: {
+      control1X: expression(control1[0]), control1Y: expression(control1[1]), control1Z: expression(control1[2]),
+      control2X: expression(control2[0]), control2Y: expression(control2[1]), control2Z: expression(control2[2]),
+    },
+    expressionKeys: ['control1X', 'control1Y', 'control1Z', 'control2X', 'control2Y', 'control2Z'],
+  });
 }
 
 export function createSketchArc({ centerPointId, startPointId, endPointId, direction = 'ccw', ...options } = {}) {

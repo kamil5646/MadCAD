@@ -92,7 +92,7 @@ describe('CommandDialog confirmation', () => {
     expect(screen.getByRole('textbox', { name: /Początek Z/ })).toBeDisabled();
     fireEvent.change(screen.getByRole('textbox', { name: /Koniec Z/ }), { target: { value: '18' } });
     expect(onChange).toHaveBeenCalledWith({ endZ: '18' });
-    fireEvent.click(screen.getByRole('button', { name: /Dodaj odcinek/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Dodaj krzywą/ }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 

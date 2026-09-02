@@ -383,14 +383,17 @@ export function CommandDialog({ command, profileName, collapsed, dock, onChange,
         )}
         {isSketch3D && (
           <>
-            <p className="command-hint">Dodawaj kolejne odcinki po dokładnych współrzędnych XYZ. Kamera pozostaje swobodna.</p>
+            <p className="command-hint">Dodawaj połączone linie, łuki i spline po dokładnych współrzędnych XYZ. Kamera pozostaje swobodna.</p>
+            <label className="command-field"><span>Typ krzywej</span><select value={command.segmentType || 'line'} onChange={(event) => onChange({ segmentType: event.target.value })}><option value="line">Linia 3D</option><option value="arc">Łuk przez 3 punkty</option><option value="spline">Spline Béziera</option></select></label>
             <Field label="Początek X" value={command.startX} disabled suffix="mm" />
             <Field label="Początek Y" value={command.startY} disabled suffix="mm" />
             <Field label="Początek Z" value={command.startZ} disabled suffix="mm" />
+            {command.segmentType === 'arc' && <><Field label="Punkt łuku X" value={command.throughX} onChange={(throughX) => onChange({ throughX })} suffix="mm" autoFocus /><Field label="Punkt łuku Y" value={command.throughY} onChange={(throughY) => onChange({ throughY })} suffix="mm" /><Field label="Punkt łuku Z" value={command.throughZ} onChange={(throughZ) => onChange({ throughZ })} suffix="mm" /></>}
+            {command.segmentType === 'spline' && <><Field label="Uchwyt 1 X" value={command.control1X} onChange={(control1X) => onChange({ control1X })} suffix="mm" autoFocus /><Field label="Uchwyt 1 Y" value={command.control1Y} onChange={(control1Y) => onChange({ control1Y })} suffix="mm" /><Field label="Uchwyt 1 Z" value={command.control1Z} onChange={(control1Z) => onChange({ control1Z })} suffix="mm" /><Field label="Uchwyt 2 X" value={command.control2X} onChange={(control2X) => onChange({ control2X })} suffix="mm" /><Field label="Uchwyt 2 Y" value={command.control2Y} onChange={(control2Y) => onChange({ control2Y })} suffix="mm" /><Field label="Uchwyt 2 Z" value={command.control2Z} onChange={(control2Z) => onChange({ control2Z })} suffix="mm" /></>}
             <Field label="Koniec X" value={command.endX} onChange={(endX) => onChange({ endX })} suffix="mm" autoFocus />
             <Field label="Koniec Y" value={command.endY} onChange={(endY) => onChange({ endY })} suffix="mm" />
             <Field label="Koniec Z" value={command.endZ} onChange={(endZ) => onChange({ endZ })} suffix="mm" />
-            <p className="command-hint">Utworzono odcinków: {command.segmentIds.length}. Ścieżka współpracuje z Sweep, Pipe i Pattern.</p>
+            <p className="command-hint">Utworzono krzywych: {command.segmentIds.length}. Ścieżka współpracuje z Sweep, Pipe i Pattern.</p>
           </>
         )}
         {!isSketch3D && isSketchPath && (
@@ -442,7 +445,7 @@ export function CommandDialog({ command, profileName, collapsed, dock, onChange,
         {!isSketchPath && <div className="command-preview-note"><span className="preview-dot" />{isSketchMove ? 'Wpisz dokładne przesunięcie zaznaczenia w osiach szkicu.' : isSketchOffset ? 'Operacja powstanie dopiero po zatwierdzeniu; Anuluj nie zmienia szkicu.' : isSketchCorner ? 'Oryginalne linie zachowają ID; zerwane więzy zostaną jawnie usunięte.' : isSketchTransform ? 'Transformacja jest transakcyjna; Scale odrzuca geometrię z blokującym wymiarem.' : isSketchPattern ? 'Szyk powstanie transakcyjnie; pominięte kopie nie zostaną utworzone.' : isConstructionPlane ? 'Współrzędne i odległości mogą być liczbami albo wyrażeniami z parametrów modelu.' : isPoint ? 'Kliknij położenie na płótnie. Pola X/Y są opcjonalnym wejściem dokładnym.' : isMechanicalShape ? 'Klikaj punkty figury na płótnie. Pola pozostają opcjonalnym wejściem dokładnym.' : isExtrude ? 'Przeciągnij niebieską strzałkę na modelu albo wpisz dokładną odległość.' : 'Podgląd jest przeliczany na dokładnej bryle B-Rep.'}</div>}
       </div>
       {isSketchPath ? (
-        <footer><button className="secondary" type="button" onClick={onUndoSegment} disabled={isSketch3D ? !command.segmentIds.length : !command.pointIds.length}>Cofnij segment</button><button className="secondary" type="button" onClick={onFinishPath}>Zakończ</button><button className="confirm" type="button" onClick={() => onConfirm()} disabled={!isSketch3D && !command.lastPoint}><Check size={14} /> {isSketch3D ? 'Dodaj odcinek' : 'Dodaj dokładnie'}</button></footer>
+        <footer><button className="secondary" type="button" onClick={onUndoSegment} disabled={isSketch3D ? !command.segmentIds.length : !command.pointIds.length}>{isSketch3D ? 'Cofnij krzywą' : 'Cofnij segment'}</button><button className="secondary" type="button" onClick={onFinishPath}>Zakończ</button><button className="confirm" type="button" onClick={() => onConfirm()} disabled={!isSketch3D && !command.lastPoint}><Check size={14} /> {isSketch3D ? 'Dodaj krzywą' : 'Dodaj dokładnie'}</button></footer>
       ) : (
         <footer><button className="secondary" type="button" onClick={onCancel}>Anuluj</button><button className="confirm" type="button" onClick={() => onConfirm()} disabled={featurePreviewPending} aria-busy={featurePreviewPending} title={featurePreviewPending ? 'Trwa obliczanie podglądu operacji' : undefined}><Check size={14} /> {featurePreviewPending ? 'Obliczanie…' : isMechanicalShape || isPoint ? 'Utwórz z danych' : 'OK'}</button></footer>
       )}

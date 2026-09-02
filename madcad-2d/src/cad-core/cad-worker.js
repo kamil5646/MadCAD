@@ -22,12 +22,14 @@ import {
   makeAx1,
   makeAx2,
   makeBox,
+  makeBezierCurve,
   makeCylinder,
   makeLine,
   makeOffset,
   makePolygon,
   makeSolid,
   makeSphere,
+  makeThreePointArc,
   sketchHelix,
   measureShapeSurfaceProperties,
   measureShapeVolumeProperties,
@@ -712,8 +714,17 @@ function pathSpine(path) {
     rest.forEach((point) => spinePen.lineTo(point));
     return spinePen.done().sketchOnPlane(path.plane || 'XY', Number(path.planeOffset || 0));
   }
-  const edges = rest.map((point, index) => makeLine(path.geometry.points[index], point));
+  const edges = [];
   try {
+    for (const segment of path.geometry.segments) {
+      try {
+        if (segment.type === 'arc3d') edges.push(makeThreePointArc(segment.start, segment.through, segment.end));
+        else if (segment.type === 'spline3d') edges.push(makeBezierCurve([segment.start, ...segment.controls, segment.end]));
+        else edges.push(makeLine(segment.start, segment.end));
+      } catch (error) {
+        throw new Error(`Nie udało się utworzyć krzywej ${segment.type} (${segment.id}): ${error.message || error}`);
+      }
+    }
     const wire = assembleWire(edges);
     const tangent = wire.tangentAt(1e-9).normalize();
     const tangentValues = tangent.toTuple();
@@ -727,7 +738,7 @@ function pathSpine(path) {
 
 function sweepDrawing(profileDrawing, path) {
   const spine = pathSpine(path);
-  return spine.sweepSketch((plane) => profileDrawing.sketchOnPlane(plane), { transitionMode: 'round' });
+  return spine.sweepSketch((plane) => profileDrawing.sketchOnPlane(plane), { transitionMode: 'round', frenet: path.space === '3d' });
 }
 
 function surfaceSweepDrawing(profileDrawing, path) {
@@ -989,11 +1000,20 @@ function coilShape(feature) {
 }
 
 function pipeShape(feature) {
-  const sweepCircle = (radius) => {
-    const spine = pathSpine(feature.path);
-    return spine.sweepSketch((plane) => drawCircle(radius).sketchOnPlane(plane), { transitionMode: 'round' });
+  const sweepCircle = (radius, label) => {
+    try {
+      return sweepDrawing(drawCircle(radius), feature.path);
+    } catch (error) {
+      throw new Error(`Kernel nie utworzył ${label} powierzchni Pipe: ${error.message || error}`);
+    }
   };
-  return sweepCircle(feature.outsideDiameterValue / 2).cut(sweepCircle(feature.insideDiameterValue / 2));
+  const outside = sweepCircle(feature.outsideDiameterValue / 2, 'zewnętrznej');
+  const inside = sweepCircle(feature.insideDiameterValue / 2, 'wewnętrznej');
+  try {
+    return outside.cut(inside);
+  } catch (error) {
+    throw new Error(`Kernel nie odjął wnętrza Pipe: ${error.message || error}`);
+  }
 }
 
 function patternTranslations(feature) {

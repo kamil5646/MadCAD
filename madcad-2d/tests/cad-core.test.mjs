@@ -66,6 +66,7 @@ import {
   addDrivingSketchDimension,
   createDetectedProfile,
   createSketchArc,
+  createSketchArc3D,
   createSketchCircleEntity,
   createSketchConstraint,
   createSketchDimension,
@@ -73,6 +74,7 @@ import {
   createSketchLine,
   createSketchPoint,
   createSketchPoint3D,
+  createSketchSpline3D,
   createTangentArcContinuation,
   deleteSketchSelection,
   pruneDanglingSketchRelations,
@@ -1593,7 +1595,41 @@ test('Szkic 3D zapisuje liniową ścieżkę XYZ dla Sweep, Pipe i Pattern', () =
   assert.ok(validateDocument(missingZ).issues.some((issue) => issue.path.endsWith('.geometry.z') && issue.code === 'REQUIRED'));
   const unsupportedCurve = structuredClone(document);
   unsupportedCurve.sketches[1].entities.push(createSketchCircleEntity({ centerPointId: first.id, radius: 5 }));
-  assert.ok(validateDocument(unsupportedCurve).issues.some((issue) => issue.message.includes('ciągłe linie przestrzenne')));
+  assert.ok(validateDocument(unsupportedCurve).issues.some((issue) => issue.message.includes('linie, łuki i spline przestrzenne')));
+});
+
+test('Szkic 3D zachowuje dokładny łuk przez trzy punkty i spline Béziera', () => {
+  const document = createDocument('Krzywe 3D');
+  const start = createSketchPoint3D({ x: 0, y: 0, z: 0 });
+  const arcEnd = createSketchPoint3D({ x: 20, y: 0, z: 10 });
+  const splineEnd = createSketchPoint3D({ x: 40, y: 15, z: 5 });
+  const arc = createSketchArc3D({ startPointId: start.id, endPointId: arcEnd.id, throughX: 10, throughY: 8, throughZ: 4 });
+  const spline = createSketchSpline3D({ startPointId: arcEnd.id, endPointId: splineEnd.id, control1: [25, 4, 16], control2: [35, 12, -2] });
+  const sketch = createSketch({ name: 'Krzywa przestrzenna', space: '3d', entities: [start, arcEnd, splineEnd, arc, spline] });
+  document.sketches.push(sketch);
+  document.features.push(createFeature('pipe', { pathSketchId: sketch.id, pathEntityIds: [arc.id, spline.id], outsideDiameter: '4', wallThickness: '0.5', operation: 'new' }));
+
+  const validation = validateDocument(document);
+  assert.equal(validation.valid, true, JSON.stringify(validation.issues));
+  const path = prepareDocument(document).features[0].path;
+  assert.deepEqual(path.geometry.segments, [
+    { type: 'arc3d', id: arc.id, start: [0, 0, 0], through: [10, 8, 4], end: [20, 0, 10] },
+    { type: 'spline3d', id: spline.id, start: [20, 0, 10], controls: [[25, 4, 16], [35, 12, -2]], end: [40, 15, 5] },
+  ]);
+  assert.equal(path.geometry.points.length, 113);
+  const sampledLength = path.geometry.points.slice(1).reduce((sum, point, index) => (
+    sum + Math.hypot(...point.map((value, axis) => value - path.geometry.points[index][axis]))
+  ), 0);
+  const endpointChordLength = Math.hypot(20, 0, 10) + Math.hypot(20, 15, -5);
+  assert.ok(sampledLength > endpointChordLength + 1, 'szyk po ścieżce powinien użyć długości krzywych, nie cięciw');
+  assert.ok(buildDependencyGraph(document).affectedBy(arc.id).includes(document.features[0].id));
+
+  const collinear = structuredClone(document);
+  const invalidArc = collinear.sketches[0].entities.find((entity) => entity.type === 'arc3d');
+  invalidArc.geometry.throughX = '10';
+  invalidArc.geometry.throughY = '0';
+  invalidArc.geometry.throughZ = '5';
+  assert.throws(() => prepareDocument(collinear), /niewspółliniowych/);
 });
 
 test('Loft przygotowuje uporządkowane profile z osobnych równoległych szkiców', () => {

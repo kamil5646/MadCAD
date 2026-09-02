@@ -80,9 +80,11 @@ import {
   addDrivingSketchDimension,
   createSketchArc,
   createSketchConstraint,
+  createSketchArc3D,
   createSketchLine,
   createSketchPoint,
   createSketchPoint3D,
+  createSketchSpline3D,
   createTangentArcContinuation,
   deleteSketchSelection,
   translateSketchSelection,
@@ -963,6 +965,7 @@ export default function ModelingWorkspace() {
     return document.sketches.find((item) => item.id === activeSketchId)?.blockInstances?.find((instance) => instance.id === instanceIds[0]) || null;
   })();
   const canExtrudeOpenChain = Boolean(activeSketchId && selectedSketchEntities.length && selectedSketchEntities.every((entity) => entity.type === 'line'));
+  const canUseSpatialPath = Boolean(activeSketchIs3D && selectedSketchEntities.length && selectedSketchEntities.every((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)));
   const canAddCollinear = selectedSketchEntities.length === 2 && selectedSketchEntities.every((entity) => entity.type === 'line');
   const canAddSymmetry = selectedSketchEntities.filter((entity) => entity.type === 'point').length === 2
     && selectedSketchEntities.filter((entity) => entity.type === 'line').length === 1
@@ -2468,8 +2471,12 @@ export default function ModelingWorkspace() {
     setWorkspace('sketch');
     setCommand({
       type: 'sketch3d',
+      segmentType: 'line',
       startX: '0', startY: '0', startZ: '0',
       endX: '20', endY: '0', endZ: '0',
+      throughX: '10', throughY: '8', throughZ: '0',
+      control1X: '7', control1Y: '0', control1Z: '5',
+      control2X: '14', control2Y: '0', control2Z: '-5',
       pointIds: [], segmentIds: [],
     });
     setNotice('Szkic 3D: wpisz współrzędne końca pierwszego odcinka. Kolejne odcinki tworzą jedną ciągłą ścieżkę XYZ.');
@@ -2484,30 +2491,51 @@ export default function ModelingWorkspace() {
       return;
     }
     if (Math.hypot(...end.map((value, axis) => value - start[axis])) <= 1e-7) {
-      setNotice('Odcinek 3D musi mieć dodatnią długość.');
+      setNotice('Krzywa 3D musi mieć różne punkty początku i końca.');
+      return;
+    }
+    if (command.segmentType === 'arc') {
+      const through = [command.throughX, command.throughY, command.throughZ].map(Number);
+      const a = through.map((value, axis) => value - start[axis]);
+      const b = end.map((value, axis) => value - start[axis]);
+      const cross = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+      if (through.some((value) => !Number.isFinite(value)) || Math.hypot(...cross) <= 1e-7) {
+        setNotice('Łuk 3D wymaga trzech różnych, niewspółliniowych punktów.');
+        return;
+      }
+    }
+    if (command.segmentType === 'spline' && [command.control1X, command.control1Y, command.control1Z, command.control2X, command.control2Y, command.control2Z].some((value) => !Number.isFinite(Number(value)))) {
+      setNotice('Uchwyty spline 3D muszą mieć poprawne współrzędne XYZ.');
       return;
     }
     const startPoint = command.pointIds.length ? null : createSketchPoint3D({ x: command.startX, y: command.startY, z: command.startZ });
     const endPoint = createSketchPoint3D({ x: command.endX, y: command.endY, z: command.endZ });
     const startPointId = command.pointIds.at(-1) || startPoint.id;
-    const line = createSketchLine({ startPointId, endPointId: endPoint.id });
+    const segment = command.segmentType === 'arc'
+      ? createSketchArc3D({ startPointId, endPointId: endPoint.id, throughX: command.throughX, throughY: command.throughY, throughZ: command.throughZ })
+      : command.segmentType === 'spline'
+        ? createSketchSpline3D({ startPointId, endPointId: endPoint.id, control1: [command.control1X, command.control1Y, command.control1Z], control2: [command.control2X, command.control2Y, command.control2Z] })
+        : createSketchLine({ startPointId, endPointId: endPoint.id });
     commit((next) => {
       const sketch = next.sketches.find((item) => item.id === activeSketchId);
       if (startPoint) sketch.entities.push(startPoint);
-      sketch.entities.push(endPoint, line);
+      sketch.entities.push(endPoint, segment);
       refreshDetectedSketchProfiles(sketch, next.parameters);
     });
     const nextPointIds = command.pointIds.length ? [...command.pointIds, endPoint.id] : [startPoint.id, endPoint.id];
-    const nextSegmentIds = [...command.segmentIds, line.id];
+    const nextSegmentIds = [...command.segmentIds, segment.id];
     setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: nextSegmentIds });
     setCommand((current) => ({
       ...current,
       startX: current.endX, startY: current.endY, startZ: current.endZ,
       endX: String(end[0] + 20), endY: String(end[1]), endZ: String(end[2]),
+      throughX: String(end[0] + 10), throughY: String(end[1] + 8), throughZ: String(end[2]),
+      control1X: String(end[0] + 7), control1Y: String(end[1]), control1Z: String(end[2] + 5),
+      control2X: String(end[0] + 14), control2Y: String(end[1]), control2Z: String(end[2] - 5),
       pointIds: nextPointIds,
       segmentIds: nextSegmentIds,
     }));
-    setNotice(`Dodano odcinek 3D ${nextSegmentIds.length}. Ścieżka jest gotowa dla Sweep, Pipe i Pattern.`);
+    setNotice(`Dodano krzywą 3D ${nextSegmentIds.length}. Ścieżka jest gotowa dla Sweep, Pipe i Pattern.`);
   };
 
   const undoSketch3DSegment = () => {
@@ -2528,24 +2556,27 @@ export default function ModelingWorkspace() {
       ...current,
       startX: previousPoint?.geometry.x || '0', startY: previousPoint?.geometry.y || '0', startZ: previousPoint?.geometry.z || '0',
       endX: String(Number(previousPoint?.geometry.x || 0) + 20), endY: previousPoint?.geometry.y || '0', endZ: previousPoint?.geometry.z || '0',
+      throughX: String(Number(previousPoint?.geometry.x || 0) + 10), throughY: String(Number(previousPoint?.geometry.y || 0) + 8), throughZ: previousPoint?.geometry.z || '0',
+      control1X: String(Number(previousPoint?.geometry.x || 0) + 7), control1Y: previousPoint?.geometry.y || '0', control1Z: String(Number(previousPoint?.geometry.z || 0) + 5),
+      control2X: String(Number(previousPoint?.geometry.x || 0) + 14), control2Y: previousPoint?.geometry.y || '0', control2Z: String(Number(previousPoint?.geometry.z || 0) - 5),
       pointIds: removesFirstPoint ? [] : current.pointIds.slice(0, -1),
       segmentIds: current.segmentIds.slice(0, -1),
     }));
     const remaining = command.segmentIds.slice(0, -1);
     setSelection(remaining.length ? { kind: 'sketchEntities', sketchId: activeSketchId, ids: remaining } : { kind: 'sketch', id: activeSketchId });
-    setNotice('Cofnięto ostatni odcinek szkicu 3D.');
+    setNotice('Cofnięto ostatnią krzywą szkicu 3D.');
   };
 
   const finishSketch3D = () => {
     if (!activeSketchIs3D) return;
     const sketchId = activeSketchId;
-    const segmentCount = activeSketch.entities.filter((entity) => entity.type === 'line').length;
+    const segmentCount = activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)).length;
     setActiveSketchId(null);
     setWorkspace('solid');
     setCommand(null);
     setSelection({ kind: 'sketch', id: sketchId });
     setNotice(segmentCount
-      ? `Szkic 3D zakończony · ${segmentCount} ${segmentCount === 1 ? 'odcinek' : 'odcinki'}. Ścieżka jest dostępna w Sweep, Pipe i Pattern.`
+      ? `Szkic 3D zakończony · ${segmentCount} ${segmentCount === 1 ? 'krzywa' : 'krzywe'}. Ścieżka jest dostępna w Sweep, Pipe i Pattern.`
       : 'Zakończono pusty szkic 3D.');
   };
 
@@ -2589,13 +2620,13 @@ export default function ModelingWorkspace() {
     setWorkspace('sketch');
     if (sketch.space === '3d') {
       const pointIds = sketch.entities.filter((entity) => entity.type === 'point').map((entity) => entity.id);
-      const segmentIds = sketch.entities.filter((entity) => entity.type === 'line').map((entity) => entity.id);
+      const segmentIds = sketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)).map((entity) => entity.id);
       const lastPoint = sketch.entities.find((entity) => entity.id === pointIds.at(-1));
       const x = lastPoint?.geometry.x || '0';
       const y = lastPoint?.geometry.y || '0';
       const z = lastPoint?.geometry.z || '0';
-      setCommand({ type: 'sketch3d', startX: x, startY: y, startZ: z, endX: String(Number(x) + 20), endY: y, endZ: z, pointIds, segmentIds });
-      setNotice(`Edytujesz ${sketch.name}. Dodaj kolejny odcinek XYZ albo zakończ szkic.`);
+      setCommand({ type: 'sketch3d', segmentType: 'line', startX: x, startY: y, startZ: z, endX: String(Number(x) + 20), endY: y, endZ: z, throughX: String(Number(x) + 10), throughY: String(Number(y) + 8), throughZ: z, control1X: String(Number(x) + 7), control1Y: y, control1Z: String(Number(z) + 5), control2X: String(Number(x) + 14), control2Y: y, control2Z: String(Number(z) - 5), pointIds, segmentIds });
+      setNotice(`Edytujesz ${sketch.name}. Dodaj kolejną krzywą XYZ albo zakończ szkic.`);
     } else {
       setCommand(null);
       setNotice(`Edytujesz ${sketch.name}.`);
@@ -4395,7 +4426,7 @@ export default function ModelingWorkspace() {
 
   const openPipe = () => {
     if (readOnly) return readOnlyNotice();
-    if (!canExtrudeOpenChain) return setNotice('Pipe wymaga zaznaczonego ciągłego otwartego łańcucha linii szkicu.');
+    if (!canExtrudeOpenChain && !canUseSpatialPath) return setNotice('Pipe wymaga zaznaczonego ciągłego otwartego łańcucha krzywych szkicu.');
     const next = { type: 'pipe', pathSketchId: activeSketchId, pathEntityIds: [...selectedSketchEntityIds], outsideDiameter: '4', wallThickness: '0.5', operation: 'new', previewFeature: null };
     setCommand(next);
     setActiveSketchId(null);
@@ -4426,7 +4457,7 @@ export default function ModelingWorkspace() {
 
   const sweepPathOptions = (profileSketchId = selectedProfileMatch?.sketch.id) => document.sketches
     .filter((sketch) => sketch.id !== profileSketchId)
-    .map((sketch) => ({ id: sketch.id, name: sketch.name, entityIds: sketch.entities.filter((entity) => entity.type === 'line' && entity.role !== 'construction').map((entity) => entity.id) }))
+    .map((sketch) => ({ id: sketch.id, name: sketch.name, entityIds: sketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type) && entity.role !== 'construction').map((entity) => entity.id) }))
     .filter((path) => path.entityIds.length);
 
   const openSurfaceSweep = () => {
@@ -6564,7 +6595,7 @@ export default function ModelingWorkspace() {
     ? `Podgląd operacji · ${bodyCountLabel}`
     : activeSketchId
       ? activeSketchIs3D
-        ? `Szkic 3D · ${activeSketch.entities.filter((entity) => entity.type === 'line').length} odc.`
+        ? `Szkic 3D · ${activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)).length} krzyw.`
         : `Krok 1/3 · Szkic 2D · ${activeSketch?.plane || 'XY'}`
       : selectedProfile
         ? 'Krok 2/3 · Profil gotowy do wyciągnięcia'
@@ -6784,11 +6815,11 @@ export default function ModelingWorkspace() {
                 {activeSketchIs3D ? (
                   <>
                     <RibbonGroup label="ŚCIEŻKA 3D">
-                      <ToolButton icon={Move3d} label="Dodaj odcinek" onClick={confirmSketch3DSegment} primary disabled={readOnly} description="Dodaj odcinek od bieżącego punktu do współrzędnych XYZ z panelu po prawej." />
-                      <ToolButton icon={Undo2} label="Cofnij odcinek" onClick={undoSketch3DSegment} disabled={readOnly || !command?.segmentIds?.length} description="Usuń ostatni odcinek bez kończenia szkicu 3D." />
+                      <ToolButton icon={Move3d} label="Dodaj krzywą" onClick={confirmSketch3DSegment} primary disabled={readOnly} description="Dodaj linię, łuk albo spline od bieżącego punktu według współrzędnych XYZ z panelu." />
+                      <ToolButton icon={Undo2} label="Cofnij krzywą" onClick={undoSketch3DSegment} disabled={readOnly || !command?.segmentIds?.length} description="Usuń ostatnią krzywą bez kończenia szkicu 3D." />
                     </RibbonGroup>
                     <RibbonGroup label="UŻYJ ŚCIEŻKI">
-                      <ToolButton icon={Cylinder} label="Pipe" displayLabel="Rura" onClick={openPipe} disabled={readOnly || !canExtrudeOpenChain} disabledReason="Dodaj co najmniej jeden odcinek ścieżki 3D." />
+                      <ToolButton icon={Cylinder} label="Pipe" displayLabel="Rura" onClick={openPipe} disabled={readOnly || !canUseSpatialPath} disabledReason="Dodaj co najmniej jedną krzywą ścieżki 3D." />
                     </RibbonGroup>
                     <RibbonGroup label="ZAKOŃCZ SZKIC"><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch3D} primary /></RibbonGroup>
                   </>

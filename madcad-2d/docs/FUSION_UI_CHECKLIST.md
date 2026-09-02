@@ -144,7 +144,9 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Audyt rzeczywistego interfejsu potwierdza `enabledWithoutAction: []` w modelowaniu i szkicu, brak zdublowanych narzędzi, kompaktowy komunikat stanu oraz jego ukrycie po uruchomieniu polecenia Linia.
 - [x] Build z ochroną aktywnych poleceń zastąpił `/Applications/MadCAD.app`, przeszedł `codesign --verify --deep --strict`, a źródłowy i zainstalowany `app.asar` mają SHA-256 `387018433134b6b659d8eb19dd57d03544522ef286fa79594468fa57be3a5001`; poprzedni build zachowano jako `MadCAD-before-ribbon-action-guard-20260831.app`.
 - [x] Dodano odrębny `Szkic 3D`: ciągłe odcinki XYZ, Cofnij, zakończenie przez Esc lub przycisk, izometryczny widok, jawne oznaczenie `3D` w przeglądarce oraz brak przypadkowego scalania z geometrią 2D.
-- [x] Pełny przepływ desktopowy tworzy niepłaską ścieżkę `(0,0,0) → (30,0,0) → (30,20,15)`, prowadzi po niej dokładny Pipe B-Rep, zapisuje i ponownie otwiera projekt bez zmiany objętości ani wymiarów; raport jest w `docs/SKETCH_3D_AUDIT_2026-09-02.md`.
+- [x] Pełny przepływ desktopowy prowadzi dokładny Pipe B-Rep po niepłaskiej ścieżce 3D, zapisuje i ponownie otwiera projekt bez zmiany objętości ani wymiarów; raport jest w `docs/SKETCH_3D_AUDIT_2026-09-02.md`.
+- [x] Panel szkicu 3D przełącza linię, łuk przez trzy punkty i spline Béziera bez opuszczania polecenia; wszystkie krzywe są widoczne w przestrzeni i mogą wspólnie prowadzić Pipe/Sweep.
+- [x] Regresja desktopowa prowadzi Pipe po jednej ścieżce `linia → linia → łuk → spline`, wymusza zakończenie przeliczenia parametrów przed zapisem i porównuje bryłę po ponownym otwarciu.
 - [x] Lokalny build arm64 ze szkicem 3D zastąpił `/Applications/MadCAD.app`, został podpisany ad-hoc bez certyfikatu producenta, przeszedł `codesign --verify --deep --strict` i uruchomił się jako świeży proces. Źródłowy oraz zainstalowany `app.asar` mają SHA-256 `bd293b493ad0f657898dd50051208d99f0f4decd8219d50113deba8e4f5cf930`; poprzedni build zachowano jako `MadCAD-before-sketch-3d-20260902-1241.app` w Koszu.
 
 ## Pliki główne
