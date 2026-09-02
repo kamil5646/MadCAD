@@ -16,6 +16,8 @@ Każdą z 6 ścian klatki można również wskazać bezpośrednio na modelu lub 
 
 Panel właściwości ma jeden jawny tryb edycji: punkt, krawędź albo ściana. Pokazuje wyłącznie pola dotyczące aktualnego wyboru; wskazanie elementu bezpośrednio na modelu przełącza ten tryb automatycznie. Parametry całej klatki i jej położenie pozostają dostępne niezależnie od wyboru.
 
+`Insert Edge` uruchamia się dla wybranej krawędzi i prowadzi pętlę przez kolejne przeciwległe krawędzie wszystkich ścian quad aż do zamknięcia pierścienia. Dla klatki bazowej dodaje 4 punkty, zwiększa liczbę ścian kontrolnych z 6 do 10 i zachowuje zamkniętą topologię manifold. Położenie pętli jest parametryczne w zakresie `0,05–0,95`; jeżeli pętla biegnie wzdłuż osi aktywnej symetrii, pozostaje w środku `0,5`, ponieważ pojedyncza niesymetryczna pętla nie miałaby lustrzanej pary. Nowe punkty można wskazywać i przesuwać tym samym manipulatorem co punkty bazowe.
+
 Rdzeń `subdivision-form.js` wykonuje rzeczywisty algorytm Catmulla–Clarka:
 
 - oblicza punkty ścian i krawędzi;
@@ -28,11 +30,11 @@ Poziomy 1–3 dają odpowiednio 24, 96 i 384 czworokątne płaty powierzchni gra
 
 ## Walidacja
 
-- test rdzenia sprawdza klatkę 40×30×20 mm na poziomie 2: 98 punktów powierzchni, 96 czworokątów i 192 trójkąty bez otwartych, niemanifold ani niespójnie zorientowanych krawędzi;
+- test rdzenia sprawdza klatkę 40×30×20 mm na poziomie 2: 98 punktów powierzchni, 96 czworokątów i 192 trójkąty bez otwartych, niemanifold ani niespójnie zorientowanych krawędzi; osobno kontroluje Insert Edge 8→12 punktów i 6→10 ścian;
 - ten sam test sprawdza deformację klatki, wspólne przesunięcie czterech punktów ściany, propagację Crease, zmianę geometrii bez utraty manifold, parametryczne przesunięcie punktu, graf zależności, produkcję osobnej bryły i odrzucenie niepoprawnego poziomu lub indeksu krawędzi;
-- test desktopowy `verify:form` uruchamia polecenie z prawdziwego menu, wybiera i przeciąga punkt klatki swobodnie oraz po pojedynczej osi, wskazuje krawędź i ścianę, przesuwa odpowiednio dwa i cztery narożniki wspólnym manipulatorem, ustawia Crease, kontroluje 8 punktów, 12 krawędzi, 6 ścian klatki, 192 ściany B-Rep, dodatnią objętość, wymiary, brak overflow, Cofnij/Ponów i ponowne otwarcie projektu;
+- test desktopowy `verify:form` uruchamia polecenie z prawdziwego menu, wybiera i przeciąga punkt klatki swobodnie oraz po pojedynczej osi, wskazuje krawędź i ścianę, przesuwa odpowiednio dwa i cztery narożniki wspólnym manipulatorem, ustawia Crease, dodaje Insert Edge, wskazuje i przesuwa nowy punkt, kontroluje 12 punktów, 20 krawędzi, 10 ścian klatki, 320 ścian B-Rep, dodatnią objętość, wymiary, brak overflow, Cofnij/Ponów i ponowne otwarcie projektu;
 - dowód wizualny jest zapisywany w `artifacts/madcad-form.png`.
 
 ## Kolejne etapy
 
-Następny pakiet powinien dodać Insert Edge, Bridge i Fill Hole, a później konwersję do gładkich płatów B-Rep.
+Następny pakiet powinien dodać Bridge i Fill Hole, a później konwersję do gładkich płatów B-Rep.

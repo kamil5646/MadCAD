@@ -89,7 +89,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Symetria deformacji punktów względem osi X, Y albo Z z parametrycznym lustrzanym przesunięciem sparowanego narożnika.
   - [x] Bezpośredni wybór 12 krawędzi klatki oraz Crease/Uncrease z regułami ostrych krawędzi i narożników Catmulla–Clarka.
   - [x] Bezpośredni wybór 6 ścian klatki i wspólny manipulator osiowy przesuwający cztery narożniki z zachowaniem symetrii.
-  - [ ] Insert Edge, Bridge i Fill Hole z podglądem powierzchni granicznej.
+  - [x] Insert Edge jako parametryczna pętla przecinająca pełny pierścień ścian quad, z edycją nowych punktów i ochroną symetrii.
+  - [ ] Bridge i Fill Hole z podglądem powierzchni granicznej.
   - [ ] Konwersja powierzchni Form do możliwie małej liczby gładkich płatów B-Rep zamiast jednej ściany na trójkąt.
 - Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.
 

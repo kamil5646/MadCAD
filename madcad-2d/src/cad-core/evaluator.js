@@ -668,6 +668,14 @@ export function prepareDocument(document) {
       const subdivisionsValue = read(feature.subdivisions, 'Poziom wygładzenia Form');
       if (!Number.isInteger(subdivisionsValue) || subdivisionsValue < 1 || subdivisionsValue > 3) throw new Error('Poziom wygładzenia Form musi być liczbą całkowitą od 1 do 3.');
       const controlOffsets = Array.from({ length: 8 }, (_unused, pointIndex) => Array.from({ length: 3 }, (_axis, axisIndex) => read(feature.controlOffsets?.[pointIndex]?.[axisIndex] ?? '0', `Przesunięcie punktu Form ${pointIndex + 1}`)));
+      const insertEdgeEnabled = feature.insertEdgeEnabled === true;
+      const insertEdgeIndex = Number(feature.insertEdgeIndex ?? 0);
+      const insertEdgePositionValue = read(feature.insertEdgePosition ?? '0.5', 'Położenie Insert Edge');
+      if (insertEdgeEnabled && (!Number.isInteger(insertEdgeIndex) || insertEdgeIndex < 0 || insertEdgeIndex > 11)) throw new Error('Insert Edge wymaga krawędzi klatki od 1 do 12.');
+      if (insertEdgeEnabled && (insertEdgePositionValue <= 0.05 || insertEdgePositionValue >= 0.95)) throw new Error('Położenie Insert Edge musi być większe od 0,05 i mniejsze od 0,95.');
+      const insertEdgeAxis = [1, 0, 1, 0, 0, 1, 0, 1, 2, 2, 2, 2][insertEdgeIndex];
+      if (insertEdgeEnabled && { x: 0, y: 1, z: 2 }[feature.symmetry] === insertEdgeAxis && Math.abs(insertEdgePositionValue - 0.5) > 1e-9) throw new Error('Pętla biegnąca wzdłuż osi symetrii musi pozostać w położeniu 0,5.');
+      const insertEdgeOffsets = Array.from({ length: insertEdgeEnabled ? 4 : 0 }, (_unused, pointIndex) => Array.from({ length: 3 }, (_axis, axisIndex) => read(feature.insertEdgeOffsets?.[pointIndex]?.[axisIndex] ?? '0', `Przesunięcie punktu Insert Edge ${pointIndex + 1}`)));
       return {
         ...feature,
         status: 'ready',
@@ -677,6 +685,8 @@ export function prepareDocument(document) {
         heightValue: read(feature.height, 'Wysokość Form', true),
         subdivisionsValue,
         controlOffsets,
+        insertEdge: { enabled: insertEdgeEnabled, edgeIndex: insertEdgeIndex, position: insertEdgePositionValue },
+        insertEdgeOffsets,
         position: [read(feature.x, 'Położenie X'), read(feature.y, 'Położenie Y'), read(feature.z, 'Położenie Z')],
       };
     }

@@ -940,7 +940,7 @@ export default function ModelViewport({
 
         const pointGeometry = new THREE.BufferGeometry();
         pointGeometry.setAttribute('position', new THREE.Float32BufferAttribute(controlVertices, 3));
-        const selectedControlPoint = activeCommand?.type === 'formBody' ? Math.min(7, Math.max(0, Number(activeCommand.selectedControlPoint) || 0)) : -1;
+        const selectedControlPoint = activeCommand?.type === 'formBody' ? Math.min((controlVertices.length / 3) - 1, Math.max(0, Number(activeCommand.selectedControlPoint) || 0)) : -1;
         const axisHitTargets = [];
         const pointColors = new Float32Array((controlVertices.length / 3) * 3);
         for (let index = 0; index < controlVertices.length / 3; index += 1) {
@@ -2076,7 +2076,7 @@ export default function ModelViewport({
       if (activeCommand?.type === 'formBody' && hit?.object?.userData?.formControlPoints && Number.isInteger(formControlPointIndex)) {
         event.preventDefault();
         formControlPointSelectionRef.current?.(formControlPointIndex);
-        if (formControlPointIndex === Math.min(7, Math.max(0, Number(activeCommand.selectedControlPoint) || 0))) {
+        if (formControlPointIndex === Math.min((hit.object.geometry?.getAttribute?.('position')?.count || 8) - 1, Math.max(0, Number(activeCommand.selectedControlPoint) || 0))) {
           const point = hit.object.getWorldPosition(new THREE.Vector3());
           const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), point);
           const startIntersection = raycaster.ray.intersectPlane(plane, new THREE.Vector3());
@@ -2087,7 +2087,7 @@ export default function ModelViewport({
               startIntersection,
               startClientX: event.clientX,
               startClientY: event.clientY,
-              startOffset: Array.from({ length: 3 }, (_unused, axis) => numericValue(activeCommand.controlOffsets?.[formControlPointIndex]?.[axis] || '0', parameters)),
+              startOffset: Array.from({ length: 3 }, (_unused, axis) => numericValue((formControlPointIndex < 8 ? activeCommand.controlOffsets?.[formControlPointIndex]?.[axis] : activeCommand.insertEdgeOffsets?.[formControlPointIndex - 8]?.[axis]) || '0', parameters)),
               offset: null,
               moved: false,
             };

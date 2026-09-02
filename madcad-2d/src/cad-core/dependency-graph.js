@@ -17,7 +17,7 @@ function featureExpressions(feature) {
   if (feature.type === 'plasticBoss') return [feature.outerDiameter, feature.holeDiameter, feature.height, feature.holeDepth, feature.offsetX, feature.offsetY];
   if (feature.type === 'plasticSnapFit') return [feature.length, feature.width, feature.thickness, feature.clearance, feature.hookLength, feature.hookHeight, feature.offsetX, feature.offsetY];
   if (feature.type === 'plasticGrille') return [feature.ribCount, feature.ribWidth, feature.gap, feature.length, feature.depth, feature.offsetX, feature.offsetY];
-  if (feature.type === 'formBody') return [feature.width, feature.depth, feature.height, feature.subdivisions, feature.x, feature.y, feature.z, ...(feature.controlOffsets || []).flat()];
+  if (feature.type === 'formBody') return [feature.width, feature.depth, feature.height, feature.subdivisions, feature.x, feature.y, feature.z, feature.insertEdgePosition, ...(feature.controlOffsets || []).flat(), ...(feature.insertEdgeOffsets || []).flat()];
   if (feature.type === 'extrude') return [feature.distance, feature.secondDistance, feature.startOffset, feature.wallThickness];
   if (feature.type === 'surfaceExtrude') return [feature.distance];
   if (feature.type === 'surfaceRevolve') return [feature.angle];

@@ -58,7 +58,8 @@ parametryczne szczeliny wentylacyjne bez rozbijania bryły.
 `Form` tworzy parametryczną klatkę prostopadłościanu, pozwala wybierać i
 przeciągać jej widoczne punkty bezpośrednio w widoku, deformować je dokładnymi
 przesunięciami XYZ albo manipulatorem osiowym, wiązać symetrią X/Y/Z oraz wybierać i przesuwać całe krawędzie lub ściany klatki i
-przełączać je między gładkimi a ostrymi `Crease`. Wynik jest wygładzany
+przełączać je między gładkimi a ostrymi `Crease`. `Insert Edge` dodaje pełną
+pętlę krawędzi oraz cztery nowe, bezpośrednio edytowalne punkty. Wynik jest wygładzany
 algorytmem Catmulla–Clarka i kończy jako zamknięta fasetowa bryła B-Rep.
 
 ## Budowanie

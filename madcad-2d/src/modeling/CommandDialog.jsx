@@ -3,7 +3,7 @@ import { Check, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { BSPT_THREAD_SIZES, ISO_CLEARANCE_THREAD_SIZES, ISO_INTERNAL_THREAD_CLASSES, ISO_METRIC_THREAD_SIZES, NPT_THREAD_SIZES, applyHoleStandard, findMetricThreadSize, findPipeThreadSize } from '../cad-core/hole-standards.js';
 import { isDockableCommand } from './panel-layout.js';
 import { Field } from './WorkspacePanels.jsx';
-import { FORM_CONTROL_EDGES, FORM_CONTROL_FACES, updateFormControlOffset as applyFormControlOffset } from '../cad-core/subdivision-form.js';
+import { FORM_CONTROL_EDGES, FORM_CONTROL_FACES, formControlSymmetryPairs, updateFormControlOffset as applyFormControlOffset } from '../cad-core/subdivision-form.js';
 
 export function CommandDialog({ command, profileName, collapsed, dock, onChange, onConfirm, onConfirmDynamic, onCancel, onUndoSegment, onFinishPath, onToggleCollapsed }) {
   if (!isDockableCommand(command)) return null;
@@ -45,16 +45,20 @@ export function CommandDialog({ command, profileName, collapsed, dock, onChange,
   const isBoolean = command.type === 'boolean';
   const isPrimitive = command.type === 'primitive';
   const isFormBody = command.type === 'formBody';
-  const formControlOffsets = Array.from({ length: 8 }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => command.controlOffsets?.[index]?.[axis] ?? '0'));
-  const selectedFormControlPoint = Math.min(7, Math.max(0, Number(command.selectedControlPoint) || 0));
-  const selectedFormControlEdge = Math.min(FORM_CONTROL_EDGES.length - 1, Math.max(0, Number(command.selectedControlEdge) || 0));
-  const selectedFormControlFace = Math.min(FORM_CONTROL_FACES.length - 1, Math.max(0, Number(command.selectedControlFace) || 0));
+  const baseFormControlOffsets = Array.from({ length: 8 }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => command.controlOffsets?.[index]?.[axis] ?? '0'));
+  const insertedFormControlOffsets = command.insertEdgeEnabled ? Array.from({ length: 4 }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => command.insertEdgeOffsets?.[index]?.[axis] ?? '0')) : [];
+  const formControlOffsets = [...baseFormControlOffsets, ...insertedFormControlOffsets];
+  const selectedFormControlPoint = Math.min(formControlOffsets.length - 1, Math.max(0, Number(command.selectedControlPoint) || 0));
+  const selectedFormControlEdge = command.insertEdgeEnabled ? Math.max(0, Number(command.selectedControlEdge) || 0) : Math.min(FORM_CONTROL_EDGES.length - 1, Math.max(0, Number(command.selectedControlEdge) || 0));
+  const selectedFormControlFace = command.insertEdgeEnabled ? Math.max(0, Number(command.selectedControlFace) || 0) : Math.min(FORM_CONTROL_FACES.length - 1, Math.max(0, Number(command.selectedControlFace) || 0));
   const selectedFormControlKind = ['point', 'edge', 'face'].includes(command.selectedControlKind) ? command.selectedControlKind : 'point';
   const formCreaseEdges = new Set(command.creaseEdges || []);
   const updateFormControlOffset = (axis, value) => {
     const offset = [...formControlOffsets[selectedFormControlPoint]];
     offset[axis] = value;
-    onChange({ controlOffsets: applyFormControlOffset(formControlOffsets, selectedFormControlPoint, offset, command.symmetry) });
+    const symmetryPairs = formControlSymmetryPairs({ enabled: command.insertEdgeEnabled, edgeIndex: command.insertEdgeIndex || 0, position: 0.5 }, command.symmetry);
+    const nextOffsets = applyFormControlOffset(formControlOffsets, selectedFormControlPoint, offset, command.symmetry, symmetryPairs);
+    onChange({ controlOffsets: nextOffsets.slice(0, 8), insertEdgeOffsets: nextOffsets.slice(8) });
   };
   const isTransform = command.type === 'transform';
   const isOffsetFace = command.type === 'offsetFace';
@@ -221,15 +225,18 @@ export function CommandDialog({ command, profileName, collapsed, dock, onChange,
             <Field label="Przesunięcie punktu Z" value={formControlOffsets[selectedFormControlPoint][2]} onChange={(value) => updateFormControlOffset(2, value)} suffix="mm" />
           </>}
           {selectedFormControlKind === 'edge' && <>
-            <label className="command-field"><span>Krawędź kontrolna</span><select value={selectedFormControlEdge} onChange={(event) => onChange({ selectedControlEdge: Number(event.target.value) })}>{FORM_CONTROL_EDGES.map(([first, second], index) => <option key={index} value={index}>Krawędź {index + 1} · P{first + 1}–P{second + 1}</option>)}</select></label>
-            <label className="command-field"><span>Charakter krawędzi</span><select value={formCreaseEdges.has(selectedFormControlEdge) ? 'crease' : 'smooth'} onChange={(event) => {
+            {!command.insertEdgeEnabled && <label className="command-field"><span>Krawędź kontrolna</span><select value={selectedFormControlEdge} onChange={(event) => onChange({ selectedControlEdge: Number(event.target.value) })}>{FORM_CONTROL_EDGES.map(([first, second], index) => <option key={index} value={index}>Krawędź {index + 1} · P{first + 1}–P{second + 1}</option>)}</select></label>}
+            {command.insertEdgeEnabled && <Field label="Krawędź kontrolna" value={`Krawędź ${selectedFormControlEdge + 1}`} disabled />}
+            {!command.insertEdgeEnabled && <label className="command-field"><span>Charakter krawędzi</span><select value={formCreaseEdges.has(selectedFormControlEdge) ? 'crease' : 'smooth'} onChange={(event) => {
               const creaseEdges = new Set(command.creaseEdges || []);
               if (event.target.value === 'crease') creaseEdges.add(selectedFormControlEdge);
               else creaseEdges.delete(selectedFormControlEdge);
               onChange({ creaseEdges: [...creaseEdges].sort((first, second) => first - second) });
-            }}><option value="smooth">Gładka</option><option value="crease">Ostra · Crease</option></select></label>
+            }}><option value="smooth">Gładka</option><option value="crease">Ostra · Crease</option></select></label>}
+            <label className="command-field"><span>Insert Edge</span><select value={command.insertEdgeEnabled ? 'enabled' : 'disabled'} onChange={(event) => onChange(event.target.value === 'enabled' ? { insertEdgeEnabled: true, insertEdgeIndex: selectedFormControlEdge, insertEdgePosition: command.insertEdgePosition || '0.5', insertEdgeOffsets: Array.from({ length: 4 }, () => ['0', '0', '0']) } : { insertEdgeEnabled: false, insertEdgeOffsets: Array.from({ length: 4 }, () => ['0', '0', '0']) })}><option value="disabled">Brak pętli</option><option value="enabled">Wstaw pętlę</option></select></label>
+            {command.insertEdgeEnabled && <><Field label="Krawędź źródłowa" value={`Krawędź ${(command.insertEdgeIndex || 0) + 1}`} disabled /><Field label="Położenie pętli" value={command.insertEdgePosition || '0.5'} onChange={(insertEdgePosition) => onChange({ insertEdgePosition })} suffix="0–1" /></>}
           </>}
-          {selectedFormControlKind === 'face' && <label className="command-field"><span>Ściana kontrolna</span><select value={selectedFormControlFace} onChange={(event) => onChange({ selectedControlFace: Number(event.target.value) })}>{FORM_CONTROL_FACES.map((face, index) => <option key={index} value={index}>Ściana {index + 1} · {face.map((point) => `P${point + 1}`).join('–')}</option>)}</select></label>}
+          {selectedFormControlKind === 'face' && (command.insertEdgeEnabled ? <Field label="Ściana kontrolna" value={`Ściana ${selectedFormControlFace + 1}`} disabled /> : <label className="command-field"><span>Ściana kontrolna</span><select value={selectedFormControlFace} onChange={(event) => onChange({ selectedControlFace: Number(event.target.value) })}>{FORM_CONTROL_FACES.map((face, index) => <option key={index} value={index}>Ściana {index + 1} · {face.map((point) => `P${point + 1}`).join('–')}</option>)}</select></label>)}
           <Field label="Położenie X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" />
           <Field label="Położenie Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" />
           <Field label="Położenie Z" value={command.z} onChange={(z) => onChange({ z })} suffix="mm" />

@@ -96,8 +96,8 @@ app.whenReady().then(async () => {
       const [clientX, clientY] = window.__madcadFormCageState.screenPoint(6);
       const canvas = document.querySelector('.model-viewport canvas');
       canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX, clientY, pointerId: 42 }));
-      canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, button: 0, buttons: 1, clientX: clientX + 48, clientY: clientY - 24, pointerId: 42 }));
-      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX: clientX + 48, clientY: clientY - 24, pointerId: 42 }));
+      canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, button: 0, buttons: 1, clientX: clientX + 12, clientY: clientY - 6, pointerId: 42 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX: clientX + 12, clientY: clientY - 6, pointerId: 42 }));
     })()`);
     await waitFor(window, `(() => { const offsets = window.__madcadVerifyDocumentState?.command?.controlOffsets; return window.__madcadVerifyEngineState?.status === 'ready' && offsets?.[6]?.some((value) => Math.abs(Number(value)) >= 0.5) && Number(offsets[7][0]) === -Number(offsets[6][0]) && Number(offsets[7][1]) === Number(offsets[6][1]) && Number(offsets[7][2]) === Number(offsets[6][2]); })()`, 'przeciągnięcie punktu klatki z symetrią X');
     await setField(window, 'Przesunięcie punktu Y', '4');
@@ -111,8 +111,8 @@ app.whenReady().then(async () => {
       const [directionX, directionY] = axis.direction;
       const canvas = document.querySelector('.model-viewport canvas');
       canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX, clientY, pointerId: 44 }));
-      canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, button: 0, buttons: 1, clientX: clientX + directionX * 52, clientY: clientY + directionY * 52, pointerId: 44 }));
-      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX: clientX + directionX * 52, clientY: clientY + directionY * 52, pointerId: 44 }));
+      canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, button: 0, buttons: 1, clientX: clientX + directionX * 16, clientY: clientY + directionY * 16, pointerId: 44 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX: clientX + directionX * 16, clientY: clientY + directionY * 16, pointerId: 44 }));
     })()`);
     await waitFor(window, `(() => { const before = window.__madcadFormAxisBefore; const offsets = window.__madcadVerifyDocumentState?.command?.controlOffsets; return window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState.revision > window.__madcadFormAxisBeforeRevision && Number(offsets?.[6]?.[0]) === before[0] && Number(offsets?.[6]?.[1]) === before[1] && Number(offsets?.[6]?.[2]) !== before[2] && Number(offsets?.[7]?.[2]) === Number(offsets?.[6]?.[2]); })()`, 'przeciągnięcie punktu manipulatorem osi Z');
     await window.webContents.executeJavaScript(`(() => {
@@ -131,8 +131,8 @@ app.whenReady().then(async () => {
       const [directionX, directionY] = axis.direction;
       const canvas = document.querySelector('.model-viewport canvas');
       canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX, clientY, pointerId: 45 }));
-      canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, button: 0, buttons: 1, clientX: clientX + directionX * 44, clientY: clientY + directionY * 44, pointerId: 45 }));
-      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX: clientX + directionX * 44, clientY: clientY + directionY * 44, pointerId: 45 }));
+      canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, button: 0, buttons: 1, clientX: clientX + directionX * 14, clientY: clientY + directionY * 14, pointerId: 45 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX: clientX + directionX * 14, clientY: clientY + directionY * 14, pointerId: 45 }));
     })()`);
     await waitFor(window, `(() => { const before = window.__madcadFormEdgeBefore; const offsets = window.__madcadVerifyDocumentState?.command?.controlOffsets?.map((point) => point.map(Number)); const firstDelta = offsets?.[4]?.[1] - before[4][1]; const secondDelta = offsets?.[5]?.[1] - before[5][1]; return window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState.revision > window.__madcadFormEdgeBeforeRevision && Math.abs(firstDelta) >= 0.5 && firstDelta === secondDelta && offsets[4][0] === before[4][0] && offsets[4][2] === before[4][2] && offsets[0][1] === before[0][1]; })()`, 'przesunięcie obu końców wybranej krawędzi po osi Y');
     await setSelect(window, 'Charakter krawędzi', 'crease');
@@ -152,14 +152,36 @@ app.whenReady().then(async () => {
       const [directionX, directionY] = axis.direction;
       const canvas = document.querySelector('.model-viewport canvas');
       canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX, clientY, pointerId: 47 }));
-      canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, button: 0, buttons: 1, clientX: clientX + directionX * 40, clientY: clientY + directionY * 40, pointerId: 47 }));
-      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX: clientX + directionX * 40, clientY: clientY + directionY * 40, pointerId: 47 }));
+      canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, button: 0, buttons: 1, clientX: clientX + directionX * 14, clientY: clientY + directionY * 14, pointerId: 47 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX: clientX + directionX * 14, clientY: clientY + directionY * 14, pointerId: 47 }));
     })()`);
     await waitFor(window, `(() => { const before = window.__madcadFormFaceBefore; const offsets = window.__madcadVerifyDocumentState?.command?.controlOffsets?.map((point) => point.map(Number)); const delta = offsets?.[4]?.[1] - before[4][1]; return window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState.revision > window.__madcadFormFaceBeforeRevision && Math.abs(delta) >= 0.5 && [4,5,6,7].every((index) => offsets[index][1] - before[index][1] === delta) && [0,1,2,3].every((index) => offsets[index][1] === before[index][1]); })()`, 'przesunięcie czterech punktów wybranej ściany po osi Y');
+    await setSelect(window, 'Tryb edycji', 'edge');
+    await setSelect(window, 'Insert Edge', 'enabled');
+    await setField(window, 'Położenie pętli', '0.5');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.command?.insertEdgeEnabled === true && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlVertexCount === 12 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlFaceCount === 10 && window.__madcadFormCageState?.pointCount === 12 && window.__madcadFormCageState?.edgeCount === 20`, 'podgląd pętli Insert Edge');
+    await window.webContents.executeJavaScript(`(() => {
+      const [clientX, clientY] = window.__madcadFormCageState.screenPoint(8);
+      const canvas = document.querySelector('.model-viewport canvas');
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX, clientY, pointerId: 48 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX, clientY, pointerId: 48 }));
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.selectedControlKind === 'point' && window.__madcadVerifyDocumentState?.command?.selectedControlPoint === 8 && window.__madcadFormCageState?.selectedControlPoint === 8`, 'wybór nowego punktu Insert Edge');
+    await window.webContents.executeJavaScript(`(() => {
+      window.__madcadFormInsertedPointBeforeRevision = window.__madcadVerifyEngineState.revision;
+      const axis = window.__madcadFormCageState.screenAxis(1);
+      const [clientX, clientY] = axis.point;
+      const [directionX, directionY] = axis.direction;
+      const canvas = document.querySelector('.model-viewport canvas');
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX, clientY, pointerId: 49 }));
+      canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, button: 0, buttons: 1, clientX: clientX + directionX * 14, clientY: clientY + directionY * 14, pointerId: 49 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, clientX: clientX + directionX * 14, clientY: clientY + directionY * 14, pointerId: 49 }));
+    })()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState.revision > window.__madcadFormInsertedPointBeforeRevision && Math.abs(Number(window.__madcadVerifyDocumentState?.command?.insertEdgeOffsets?.[0]?.[1])) >= 0.5`, 'przesunięcie nowego punktu Insert Edge');
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
 
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'formBody' && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.surfaceFaceCount === 96)`, 'zapisany Form');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'formBody' && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.surfaceFaceCount === 160)`, 'zapisany Form');
     const result = await window.webContents.executeJavaScript(`(() => {
       const body = window.__madcadVerifyEngineState.bodies.find((item) => item.form);
       return {
@@ -174,16 +196,16 @@ app.whenReady().then(async () => {
       };
     })()`);
     const dimensions = result.metrics.dimensions;
-    if (result.bodyCount !== 3 || result.representation !== 'brep' || result.bodyKind !== 'solid' || result.topologyFaces !== 192 || result.form.controlVertexCount !== 8 || result.form.controlFaceCount !== 6 || result.form.controlVertices.length !== 24 || result.form.controlFaces.length !== 6 || result.form.surfaceFaceCount !== 96 || result.form.subdivisions !== 2 || result.form.symmetry !== 'x' || !result.form.creaseEdges.includes(4) || result.metrics.volume <= 0 || Math.abs(dimensions[0] - 40) > 0.2 || Math.abs(dimensions[1] - 30) > 0.2 || Math.abs(dimensions[2] - 20) > 0.2 || !result.dialogClosed || result.horizontalOverflow) {
+    if (result.bodyCount !== 3 || result.representation !== 'brep' || result.bodyKind !== 'solid' || result.topologyFaces !== 320 || result.form.controlVertexCount !== 12 || result.form.controlFaceCount !== 10 || result.form.controlVertices.length !== 36 || result.form.controlFaces.length !== 10 || result.form.surfaceFaceCount !== 160 || result.form.subdivisions !== 2 || result.form.symmetry !== 'x' || result.form.creaseEdges.length !== 2 || result.form.insertEdge?.edgeIndex !== 4 || result.metrics.volume <= 0 || Math.abs(dimensions[0] - 40) > 0.2 || Math.abs(dimensions[1] - 30) > 0.2 || Math.abs(dimensions[2] - 20) > 0.2 || !result.dialogClosed || result.horizontalOverflow) {
       throw new Error(`Niepoprawny wynik Form: ${JSON.stringify(result)}`);
     }
 
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && !window.__madcadVerifyEngineState?.bodies?.some((body) => body.form)`, 'cofnięty Form');
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.subdivisions === 2 && body.form?.creaseEdges?.includes(4))`, 'ponowiony Form');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.subdivisions === 2 && body.form?.insertEdge?.edgeIndex === 4 && body.form?.controlVertexCount === 12)`, 'ponowiony Form');
     await window.webContents.executeJavaScript(`window.__madcadVerifyReopenCurrentDocument()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'formBody' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.creaseEdges?.includes(4) && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.surfaceFaceCount === 96 && body.form?.creaseEdges?.includes(4))`, 'Form po ponownym otwarciu projektu');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'formBody' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.creaseEdges?.includes(4) && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.insertEdgeEnabled === true && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.surfaceFaceCount === 160 && body.form?.insertEdge?.edgeIndex === 4)`, 'Form po ponownym otwarciu projektu');
 
     process.stdout.write(`${JSON.stringify({ screenshotPath, result }, null, 2)}\n`);
   } catch (error) {
