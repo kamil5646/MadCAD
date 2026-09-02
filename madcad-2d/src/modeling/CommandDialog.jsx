@@ -3,7 +3,7 @@ import { Check, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { BSPT_THREAD_SIZES, ISO_CLEARANCE_THREAD_SIZES, ISO_INTERNAL_THREAD_CLASSES, ISO_METRIC_THREAD_SIZES, NPT_THREAD_SIZES, applyHoleStandard, findMetricThreadSize, findPipeThreadSize } from '../cad-core/hole-standards.js';
 import { isDockableCommand } from './panel-layout.js';
 import { Field } from './WorkspacePanels.jsx';
-import { FORM_CONTROL_EDGES, updateFormControlOffset as applyFormControlOffset } from '../cad-core/subdivision-form.js';
+import { FORM_CONTROL_EDGES, FORM_CONTROL_FACES, updateFormControlOffset as applyFormControlOffset } from '../cad-core/subdivision-form.js';
 
 export function CommandDialog({ command, profileName, collapsed, dock, onChange, onConfirm, onConfirmDynamic, onCancel, onUndoSegment, onFinishPath, onToggleCollapsed }) {
   if (!isDockableCommand(command)) return null;
@@ -48,6 +48,7 @@ export function CommandDialog({ command, profileName, collapsed, dock, onChange,
   const formControlOffsets = Array.from({ length: 8 }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => command.controlOffsets?.[index]?.[axis] ?? '0'));
   const selectedFormControlPoint = Math.min(7, Math.max(0, Number(command.selectedControlPoint) || 0));
   const selectedFormControlEdge = Math.min(FORM_CONTROL_EDGES.length - 1, Math.max(0, Number(command.selectedControlEdge) || 0));
+  const selectedFormControlFace = Math.min(FORM_CONTROL_FACES.length - 1, Math.max(0, Number(command.selectedControlFace) || 0));
   const formCreaseEdges = new Set(command.creaseEdges || []);
   const updateFormControlOffset = (axis, value) => {
     const offset = [...formControlOffsets[selectedFormControlPoint]];
@@ -222,10 +223,11 @@ export function CommandDialog({ command, profileName, collapsed, dock, onChange,
             else creaseEdges.delete(selectedFormControlEdge);
             onChange({ creaseEdges: [...creaseEdges].sort((first, second) => first - second) });
           }}><option value="smooth">Gładka</option><option value="crease">Ostra · Crease</option></select></label>
+          <label className="command-field"><span>Ściana kontrolna</span><select value={selectedFormControlFace} onChange={(event) => onChange({ selectedControlKind: 'face', selectedControlFace: Number(event.target.value) })}>{FORM_CONTROL_FACES.map((face, index) => <option key={index} value={index}>Ściana {index + 1} · {face.map((point) => `P${point + 1}`).join('–')}</option>)}</select></label>
           <Field label="Położenie X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" />
           <Field label="Położenie Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" />
           <Field label="Położenie Z" value={command.z} onChange={(z) => onChange({ z })} suffix="mm" />
-          <p className="command-hint">Kliknij punkt klatki i przeciągnij czerwoną, zieloną lub niebieską oś, aby zmienić tylko X, Y lub Z. Kliknij krawędź, aby ustawić Crease: turkusowa jest gładka, fioletowa ostra, a żółta wybrana.</p>
+          <p className="command-hint">Kliknij punkt, krawędź albo ścianę klatki i przeciągnij oś X, Y lub Z. Crease działa na wybranej krawędzi: turkusowa jest gładka, fioletowa ostra, a żółta wybrana.</p>
         </>}
         {isTransform && (command.mode === 'move' ? <><Field label="Przesunięcie X" value={command.x} onChange={(x) => onChange({ x })} suffix="mm" autoFocus /><Field label="Przesunięcie Y" value={command.y} onChange={(y) => onChange({ y })} suffix="mm" /><Field label="Przesunięcie Z" value={command.z} onChange={(z) => onChange({ z })} suffix="mm" /></> : <><Field label="Kąt Z" value={command.angle} onChange={(angle) => onChange({ angle })} suffix="°" autoFocus /><Field label="Środek X" value={command.originX} onChange={(originX) => onChange({ originX })} suffix="mm" /><Field label="Środek Y" value={command.originY} onChange={(originY) => onChange({ originY })} suffix="mm" /><Field label="Środek Z" value={command.originZ} onChange={(originZ) => onChange({ originZ })} suffix="mm" /></>)}
         {isOffsetFace && <><Field label="Ściana" value={command.faceLabel || '1 wskazana'} disabled /><Field label="Odległość" value={command.distance} onChange={(distance) => onChange({ distance })} suffix="mm" autoFocus /></>}

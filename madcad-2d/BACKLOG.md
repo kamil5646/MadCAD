@@ -88,7 +88,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Wspólny manipulator osiowy wybranej krawędzi przesuwający oba punkty końcowe z zachowaniem symetrii i Crease.
   - [x] Symetria deformacji punktów względem osi X, Y albo Z z parametrycznym lustrzanym przesunięciem sparowanego narożnika.
   - [x] Bezpośredni wybór 12 krawędzi klatki oraz Crease/Uncrease z regułami ostrych krawędzi i narożników Catmulla–Clarka.
-  - [ ] Bezpośrednia edycja ścian klatki manipulatorem w widoku.
+  - [x] Bezpośredni wybór 6 ścian klatki i wspólny manipulator osiowy przesuwający cztery narożniki z zachowaniem symetrii.
   - [ ] Insert Edge, Bridge i Fill Hole z podglądem powierzchni granicznej.
   - [ ] Konwersja powierzchni Form do możliwie małej liczby gładkich płatów B-Rep zamiast jednej ściany na trójkąt.
 - Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.

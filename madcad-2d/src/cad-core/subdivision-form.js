@@ -18,6 +18,11 @@ export const FORM_CONTROL_EDGES = Object.freeze([
   [1, 5], [4, 0], [2, 6], [3, 7],
 ]);
 
+export const FORM_CONTROL_FACES = Object.freeze([
+  [0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4],
+  [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7],
+]);
+
 export function updateFormControlOffset(controlOffsets, pointIndex, offset, symmetry = 'none') {
   const next = Array.from({ length: 8 }, (_unused, index) => Array.from({ length: 3 }, (_axis, axis) => controlOffsets?.[index]?.[axis] ?? '0'));
   next[pointIndex] = [...offset];
@@ -58,10 +63,7 @@ export function createBoxControlCage(width, depth, height, controlOffsets = [], 
   ];
   return {
     vertices: baseVertices.map((point, index) => point.map((value, axis) => value + (Number(controlOffsets[index]?.[axis]) || 0))),
-    faces: [
-      [0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4],
-      [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7],
-    ],
+    faces: FORM_CONTROL_FACES.map((face) => [...face]),
     creaseEdges: creaseEdgeIndexes.map((index) => FORM_CONTROL_EDGES[index]).filter(Boolean).map((edge) => [...edge]),
   };
 }

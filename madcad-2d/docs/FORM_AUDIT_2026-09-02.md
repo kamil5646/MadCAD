@@ -12,6 +12,8 @@ Każdą z 12 krawędzi klatki można wskazać bezpośrednio w widoku lub wybrać
 
 Wybranie krawędzi przenosi manipulator do jej środka. Przeciągnięcie osi przesuwa oba punkty końcowe o identyczną wartość, nie zmienia współrzędnych na pozostałych osiach i respektuje aktywną symetrię. Dzięki temu wybór krawędzi, jej transformacja oraz Crease działają w jednym trybie, bez przełączania narzędzi.
 
+Każdą z 6 ścian klatki można również wskazać bezpośrednio na modelu lub wybrać z listy. Wybrana ściana otrzymuje półprzezroczyste żółte wyróżnienie, a manipulator przechodzi do jej środka. Przeciągnięcie osi przesuwa razem wszystkie cztery narożniki ściany, pozostawia przeciwległą ścianę bez zmian i respektuje aktywną symetrię.
+
 Rdzeń `subdivision-form.js` wykonuje rzeczywisty algorytm Catmulla–Clarka:
 
 - oblicza punkty ścian i krawędzi;
@@ -25,10 +27,10 @@ Poziomy 1–3 dają odpowiednio 24, 96 i 384 czworokątne płaty powierzchni gra
 ## Walidacja
 
 - test rdzenia sprawdza klatkę 40×30×20 mm na poziomie 2: 98 punktów powierzchni, 96 czworokątów i 192 trójkąty bez otwartych, niemanifold ani niespójnie zorientowanych krawędzi;
-- ten sam test sprawdza deformację klatki, propagację Crease, zmianę geometrii bez utraty manifold, parametryczne przesunięcie punktu, graf zależności, produkcję osobnej bryły i odrzucenie niepoprawnego poziomu lub indeksu krawędzi;
-- test desktopowy `verify:form` uruchamia polecenie z prawdziwego menu, wybiera i przeciąga punkt klatki swobodnie oraz po pojedynczej osi, wskazuje krawędź, przesuwa oba jej końce wspólnym manipulatorem, ustawia Crease, kontroluje 8 punktów, 12 krawędzi, 192 ściany B-Rep, dodatnią objętość, wymiary, brak overflow, Cofnij/Ponów i ponowne otwarcie projektu;
+- ten sam test sprawdza deformację klatki, wspólne przesunięcie czterech punktów ściany, propagację Crease, zmianę geometrii bez utraty manifold, parametryczne przesunięcie punktu, graf zależności, produkcję osobnej bryły i odrzucenie niepoprawnego poziomu lub indeksu krawędzi;
+- test desktopowy `verify:form` uruchamia polecenie z prawdziwego menu, wybiera i przeciąga punkt klatki swobodnie oraz po pojedynczej osi, wskazuje krawędź i ścianę, przesuwa odpowiednio dwa i cztery narożniki wspólnym manipulatorem, ustawia Crease, kontroluje 8 punktów, 12 krawędzi, 6 ścian klatki, 192 ściany B-Rep, dodatnią objętość, wymiary, brak overflow, Cofnij/Ponów i ponowne otwarcie projektu;
 - dowód wizualny jest zapisywany w `artifacts/madcad-form.png`.
 
 ## Kolejne etapy
 
-Następny pakiet powinien rozszerzyć manipulator na transformację wybranych ścian. Następnie należy dodać Insert Edge, Bridge i Fill Hole, a później konwersję do gładkich płatów B-Rep.
+Następny pakiet powinien dodać Insert Edge, Bridge i Fill Hole, a później konwersję do gładkich płatów B-Rep.
