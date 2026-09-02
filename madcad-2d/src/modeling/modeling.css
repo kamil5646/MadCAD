@@ -3832,6 +3832,8 @@
 
 .command-dialog.docked {
   position: relative;
+  display: flex;
+  flex-direction: column;
   z-index: 5;
   grid-area: command;
   top: auto;
@@ -3842,7 +3844,7 @@
   border-width: 0 0 0 1px;
   border-color: #202833;
   border-radius: 0;
-  overflow: auto;
+  overflow: hidden;
   box-shadow: none;
 }
 
@@ -3852,7 +3854,19 @@
 
 .command-dialog.docked.sketch-path-dialog {
   width: auto;
-  overflow: auto;
+  overflow: hidden;
+}
+
+.command-dialog.docked > header,
+.command-dialog.docked > footer {
+  flex: 0 0 auto;
+}
+
+.command-dialog.docked > .command-dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .dock-panel-actions {
