@@ -1,6 +1,6 @@
 # MadCAD Desktop — dokumentacja techniczna
 
-Aktualna stabilna wersja: **6.4.6**.
+Aktualna stabilna wersja: **6.4.7**.
 
 MadCAD jest aplikacją Electron z interfejsem React, parametrycznym dokumentem
 CAD i kernelem OpenCascade uruchamianym w workerze. Główny przepływ zaczyna się
@@ -86,7 +86,7 @@ npm run dist:linux:trusted
 Paczki trafiają do `release/`. Oficjalny workflow tworzy pliki `.sha256`,
 sprawdza format paczki i wykonuje testy na Windows, macOS oraz Linux.
 
-> Instalatory `v6.4.6` nie mają podpisu producenta. Windows SmartScreen lub
+> Instalatory `v6.4.7` nie mają podpisu producenta. Windows SmartScreen lub
 > macOS Gatekeeper mogą pokazać ostrzeżenie. Pobieraj paczki wyłącznie z
 > oficjalnego GitHub Release i porównaj dołączoną sumę SHA-256. Aktualizacja tej
 > wersji pobiera paczkę z oficjalnego wydania, sprawdza
@@ -102,7 +102,7 @@ użyć `Control` + klik i wybrać **Otwórz**.
 
 ## Wersje i aktualizacje
 
-- tag `v6.4.6` odpowiada wersji `6.4.6` w `package.json`;
+- tag `v6.4.7` odpowiada wersji `6.4.7` w `package.json`;
 - wersje bez sufiksu są publikowane w kanale stabilnym;
 - `-beta.N` i `-alpha.N` pozostają obsługiwanymi kanałami testowymi;
 - aktualizator przyjmuje wyłącznie zaufane adresy oficjalnego repozytorium.

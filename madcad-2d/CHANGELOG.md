@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.4.7 (2026-09-03)
+
+- Przebudowano układ pracy na spójny przepływ inspirowany Autodesk Fusion: kontekstowa wstążka prowadzi od szkicu przez modelowanie do dokumentacji, a import, eksport i druk są uporządkowane w menu pliku.
+- Kolejne sesje szkicu współpracują ze sobą: wcześniejsza geometria pozostaje widoczna, snap korzysta z poprzednich szkiców, a zakończony profil przechodzi bezpośrednio do wyciągnięcia bez ponownego wyboru płaszczyzny.
+- Dodano modelowanie powierzchniowe, blachy, narzędzia Plastic, środowisko Form/SubD oraz analizę jakości powierzchni i grubości ścian, wszystkie z historią, anulowaniem i dokładnym wynikiem B-Rep.
+- Rozbudowano obróbkę siatek o diagnostykę, naprawę, redukcję, wygładzanie, remesh i kontrolowaną konwersję zamkniętej siatki do fasetowej bryły B-Rep.
+- Dodano szkic 3D z liniami, łukami przez trzy punkty i splajnami Béziera, ciągłością G1/G2 oraz bezpośrednim użyciem ścieżki przez Pipe, Sweep i Pattern.
+- Narzędzie **Pobierz krawędzie** tworzy skojarzone linie ścieżki 3D z prostych krawędzi modelu i aktualizuje ich pełne współrzędne XYZ po przebudowie bryły.
+- Rozszerzono automatyczną kontrolę interfejsu, zachowania szkiców, dokładnej geometrii OpenCascade, zapisu/otwarcia i przepływów nowych obszarów pracy.
+
 ## 6.4.6 (2026-08-28)
 
 - Przeciągnięcie prawym przyciskiem myszy obraca kamerę modelu 3D, a `Escape` pozostaje jednoznacznym sposobem anulowania aktywnego polecenia. Prawy klik nie kończy już linii, polilinii ani spline.

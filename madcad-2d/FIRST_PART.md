@@ -1,6 +1,6 @@
 # MadCAD — pierwsza część do druku / Your first printable part
 
-Aktualne dla `6.4.6`. Interaktywną wersję otwiera przycisk **Samouczek** w górnym pasku modelera.
+Aktualne dla `6.4.7`. Interaktywną wersję otwiera przycisk **Samouczek** w górnym pasku modelera.
 
 ## Ścieżka PL
 
