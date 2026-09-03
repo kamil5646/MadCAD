@@ -47,6 +47,8 @@ describe('dockable command classification', () => {
     expect(isDockableCommand({ type: 'measure' })).toBe(false);
     expect(isDockableCommand({ type: 'surfaceAnalysis' })).toBe(false);
     expect(isDockableCommand({ type: 'parameters' })).toBe(false);
+    expect(isDockableCommand({ type: 'projectSketch' })).toBe(false);
+    expect(isDockableCommand({ type: 'projectSketch', resumeSketch3D: { type: 'sketch3d' } })).toBe(true);
     expect(isDockableCommand(null)).toBe(false);
   });
 });

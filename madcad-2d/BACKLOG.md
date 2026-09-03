@@ -98,7 +98,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Użycie liniowej ścieżki 3D przez dokładny Pipe B-Rep oraz przygotowanie jej dla Sweep i Pattern po ścieżce.
   - [x] Łuk 3D przez trzy punkty i sześcienny spline Béziera z uchwytami XYZ, wspólnym punktem G0, dokładnymi krawędziami B-Rep oraz współpracą z Pipe, Sweep i Pattern.
   - [x] Automatyczny wybór ciągłości G1/G2 początku spline względem poprzedniej linii, łuku albo spline, z edytowalną długością uchwytu i trwałym zapisem warunku.
-  - [ ] Ścieżki skojarzone z krawędzią lub powierzchnią modelu oraz bezpośrednia edycja istniejących punktów, uchwytów i warunków w widoku.
+  - [x] Skojarzone proste krawędzie B-Rep pobierane do szkicu 3D z trwałą referencją, automatycznym odświeżaniem XYZ i bezpośrednim użyciem przez Pipe.
+  - [ ] Skojarzone krawędzie krzywoliniowe i ścieżki na powierzchni oraz bezpośrednia edycja istniejących punktów, uchwytów i warunków w widoku.
 
 ### Render, Animation, Simulation i Generative
 

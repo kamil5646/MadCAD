@@ -151,13 +151,36 @@ app.whenReady().then(async () => {
     const afterReopen = await window.webContents.executeJavaScript(`({ volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume, dimensions: window.__madcadVerifyEngineState.bodies[0].metrics.dimensions })`);
     if (Math.abs(afterReopen.volume - beforeReopen.volume) > 0.001 || JSON.stringify(afterReopen.dimensions) !== JSON.stringify(beforeReopen.dimensions)) throw new Error(`Pipe 3D zmienił się po otwarciu: ${JSON.stringify({ beforeReopen, afterReopen })}`);
 
+    console.log('Etap: skojarzona ścieżka 3D z krawędzi modelu');
     await clickTool(window, 'Szkic 3D');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sketch3d' && window.__madcadVerifyDocumentState?.activeSketchId`, 'drugi tryb szkicu 3D');
+    await clickTool(window, 'Pobierz krawędzie');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'projectSketch' && document.querySelector('.command-dialog button.confirm')?.textContent.includes('Pobierz')`, 'wybór skojarzonej krawędzi 3D');
+    const associatedSource = await window.webContents.executeJavaScript(`(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const edge = body?.topology?.edges?.find((candidate) => candidate.descriptor?.geometry === 'LINE' && !candidate.descriptor?.closed);
+      if (!body || !edge) throw new Error('Brak prostej krawędzi Pipe do testu skojarzenia.');
+      window.__madcadVerifyTopologySelection({ kind: 'edge', id: edge.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }, 'replace');
+      return { edgeId: edge.id, bodyId: body.id, endpoints: edge.descriptor.endpoints };
+    })()`);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sketch3d' && window.__madcadVerifyDocumentState?.sketches?.[1]?.entities === 3 && window.__madcadVerifyDocumentState?.sketches?.[1]?.entityData?.some((entity) => entity.type === 'line' && entity.role === 'projected')`, 'skojarzona linia ścieżki 3D');
+    const associatedPath = await window.webContents.executeJavaScript(`(() => {
+      const sketch = window.__madcadVerifyDocumentState.sketches[1];
+      const line = sketch.entityData.find((entity) => entity.type === 'line' && entity.role === 'projected');
+      const points = line.pointIds.map((pointId) => {
+        const point = sketch.entityData.find((entity) => entity.id === pointId);
+        return ['x', 'y', 'z'].map((axis) => Number(point.geometry[axis]));
+      });
+      const pipeButton = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === 'Rura');
+      return { lineId: line.id, referenceId: line.projectionReferenceId, points, pipeEnabled: !pipeButton?.disabled };
+    })()`);
+    if (!associatedPath.referenceId || !associatedPath.pipeEnabled || JSON.stringify(associatedPath.points) !== JSON.stringify(associatedSource.endpoints)) throw new Error(`Błędna skojarzona ścieżka 3D: ${JSON.stringify({ associatedSource, associatedPath })}`);
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
-    await waitFor(window, `!window.__madcadVerifyDocumentState?.command && !window.__madcadVerifyDocumentState?.activeSketchId && window.__madcadVerifyDocumentState?.sketches?.length === 2`, 'bezpieczne zakończenie pustego szkicu 3D przez Esc');
+    await waitFor(window, `!window.__madcadVerifyDocumentState?.command && !window.__madcadVerifyDocumentState?.activeSketchId && window.__madcadVerifyDocumentState?.sketches?.length === 2`, 'bezpieczne zakończenie skojarzonego szkicu 3D przez Esc');
 
-    console.log(JSON.stringify({ ok: true, sketchSegments: 4, curveTypes, splineContinuity, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshot: artifactPath }, null, 2));
+    console.log(JSON.stringify({ ok: true, sketchSegments: 4, curveTypes, splineContinuity, associatedPath, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshot: artifactPath }, null, 2));
   } catch (error) {
     exitCode = 1;
     console.error(error);

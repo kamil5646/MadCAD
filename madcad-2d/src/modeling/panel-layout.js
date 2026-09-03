@@ -47,6 +47,7 @@ export function writePanelLayout(layout, storage = globalThis.localStorage, scre
 
 export function isDockableCommand(command) {
   if (!command?.type) return false;
+  if (command.type === 'projectSketch') return Boolean(command.resumeSketch3D);
   return ![
     'plane',
     'parameters',
@@ -59,6 +60,5 @@ export function isDockableCommand(command) {
     'trimSketch',
     'extendSketch',
     'breakSketch',
-    'projectSketch',
   ].includes(command.type);
 }

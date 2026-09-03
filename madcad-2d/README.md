@@ -69,6 +69,9 @@ a długość uchwytu pozostaje pod kontrolą użytkownika. Krzywą można cofną
 zapisana w projekcie i jest dostępna dla `Pipe`, `Sweep` oraz szyku po ścieżce.
 OpenCascade zachowuje łuki i spline jako dokładne krzywe B-Rep; szyk korzysta
 z próbkowanej długości krzywej zamiast z prostej cięciwy.
+Narzędzie `Pobierz krawędzie` dodaje proste krawędzie istniejącego modelu jako
+zablokowane, skojarzone linie 3D. Trwała referencja aktualizuje ich pełne XYZ
+po przebudowie źródłowej bryły, a pobraną linię można od razu wykorzystać w `Pipe`.
 
 ## Budowanie
 

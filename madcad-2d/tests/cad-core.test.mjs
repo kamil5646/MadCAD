@@ -2344,6 +2344,40 @@ test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwał
   assert.ok(lost.lostReferenceIds.includes(result.createdReferenceIds.at(-1)));
 });
 
+test('Project tworzy skojarzoną ścieżkę 3D i aktualizuje wszystkie współrzędne XYZ', () => {
+  const document = createDocument('Skojarzona ścieżka 3D');
+  const sketch = createSketch({ name: 'Krawędź modelu', space: '3d' });
+  document.sketches.push(sketch);
+  const source = {
+    selection: { kind: 'edge', id: 'edge-spatial', bodyId: 'body-a', sourceFeatureId: 'feature-a' },
+    descriptor: { geometry: 'LINE', endpoints: [[1, 2, 3], [11, 7, 13]], length: 15 },
+  };
+  const result = projectTopologyToSketch(document, sketch.id, [source]);
+  assert.equal(result.createdEntityIds.length, 1);
+  assert.equal(result.createdReferenceIds.length, 1);
+  const line = sketch.entities.find((entity) => entity.type === 'line');
+  assert.equal(line.role, 'projected');
+  assert.equal(line.sourceReferenceId, result.createdReferenceIds[0]);
+  assert.deepEqual(line.pointIds.map((pointId) => {
+    const point = sketch.entities.find((entity) => entity.id === pointId);
+    return ['x', 'y', 'z'].map((axis) => point.geometry[axis]);
+  }), [['1', '2', '3'], ['11', '7', '13']]);
+  assert.equal(validateDocument(document).valid, true);
+
+  const synchronized = synchronizeProjectedGeometry(document, [{
+    id: 'body-a',
+    topology: { faces: [], vertices: [], edges: [{ id: 'edge-spatial', descriptor: { geometry: 'LINE', endpoints: [[2, 4, 6], [12, 9, 16]], length: 15 } }] },
+  }]);
+  assert.ok(synchronized.updatedEntityIds.includes(line.id));
+  assert.deepEqual(line.pointIds.map((pointId) => {
+    const point = sketch.entities.find((entity) => entity.id === pointId);
+    return ['x', 'y', 'z'].map((axis) => point.geometry[axis]);
+  }), [['2', '4', '6'], ['12', '9', '16']]);
+
+  const curved = structuredClone(document);
+  assert.throws(() => projectTopologyToSketch(curved, sketch.id, [{ ...source, descriptor: { geometry: 'CIRCLE', endpoints: [[1, 0, 0], [1, 0, 0]], radius: 1 } }]), /proste krawędzie/);
+});
+
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {
   const queue = new SerialTaskQueue();
   const order = [];

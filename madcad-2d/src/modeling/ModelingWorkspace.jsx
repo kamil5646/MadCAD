@@ -3323,8 +3323,9 @@ export default function ModelingWorkspace() {
     if (readOnly) return readOnlyNotice();
     const selected = (selection?.items || (['edge', 'vertex'].includes(selection?.kind) ? [selection] : [])).filter((item) => ['edge', 'vertex'].includes(item.kind));
     if (command?.type !== 'projectSketch' || !selected.length) {
-      setCommand({ type: 'projectSketch' });
-      setNotice(`Project: kliknij wierzchołek albo krawędź modelu. ${multipleSelectionLabel(DESKTOP_PLATFORM)} dodaje kolejne; ponownie wybierz Project, aby zatwierdzić.`);
+      const resumeSketch3D = command?.type === 'projectSketch' ? command.resumeSketch3D : activeSketchIs3D && command?.type === 'sketch3d' ? command : null;
+      setCommand({ type: 'projectSketch', resumeSketch3D });
+      setNotice(`${activeSketchIs3D ? 'Pobierz krawędzie' : 'Project'}: kliknij wierzchołek albo krawędź modelu. ${multipleSelectionLabel(DESKTOP_PLATFORM)} dodaje kolejne; zatwierdź przyciskiem Pobierz.`);
       return;
     }
     try {
@@ -3339,8 +3340,8 @@ export default function ModelingWorkspace() {
       const result = projectTopologyToSketch(checked, activeSketchId, sources);
       commit((next) => Object.assign(next, checked));
       setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: result.createdEntityIds });
-      setCommand(null);
-      setNotice(`Project utworzył ${result.createdEntityIds.length} elementów z ${result.createdReferenceIds.length} trwałych referencji.`);
+      setCommand(command.resumeSketch3D || null);
+      setNotice(`${activeSketchIs3D ? 'Pobrano do ścieżki 3D' : 'Project utworzył'} ${result.createdEntityIds.length} elementów z ${result.createdReferenceIds.length} trwałych referencji.`);
     } catch (error) {
       setNotice(`Project nie został wykonany: ${error.message}`);
     }
@@ -6375,6 +6376,11 @@ export default function ModelingWorkspace() {
     if (command.type === 'sketch3d') finishSketch3D();
     else if (command.type === 'line' || command.type === 'polyline') finishSketchPath();
     else {
+      if (command.type === 'projectSketch' && command.resumeSketch3D) {
+        setCommand(command.resumeSketch3D);
+        setNotice('Anulowano pobieranie krawędzi. Szkic 3D pozostaje aktywny.');
+        return true;
+      }
       if (command.openChain && command.sourceSketchId) {
         setActiveSketchId(command.sourceSketchId);
         setWorkspace('sketch');
@@ -6864,6 +6870,7 @@ export default function ModelingWorkspace() {
                     <RibbonGroup label="ŚCIEŻKA 3D">
                       <ToolButton icon={Move3d} label="Dodaj krzywą" onClick={confirmSketch3DSegment} primary disabled={readOnly} description="Dodaj linię, łuk albo spline od bieżącego punktu według współrzędnych XYZ z panelu." />
                       <ToolButton icon={Undo2} label="Cofnij krzywą" onClick={undoSketch3DSegment} disabled={readOnly || !command?.segmentIds?.length} description="Usuń ostatnią krzywą bez kończenia szkicu 3D." />
+                      <ToolButton icon={ScanSearch} label="Pobierz krawędzie" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} description="Utwórz skojarzoną ścieżkę 3D z wybranych krawędzi modelu." />
                     </RibbonGroup>
                     <RibbonGroup label="UŻYJ ŚCIEŻKI">
                       <ToolButton icon={Cylinder} label="Pipe" displayLabel="Rura" onClick={openPipe} disabled={readOnly || !canUseSpatialPath} disabledReason="Dodaj co najmniej jedną krzywą ścieżki 3D." />
@@ -7065,9 +7072,9 @@ export default function ModelingWorkspace() {
           collapsed={panelLayout.commandCollapsed}
           dock="right"
           onChange={updateCommand}
-          onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : command?.type === 'sketch3d' ? confirmSketch3DSegment : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
+          onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : command?.type === 'sketch3d' ? confirmSketch3DSegment : command?.type === 'projectSketch' ? projectSelectedTopology : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
           onConfirmDynamic={confirmDynamicSketchSegment}
-          onCancel={command?.type === 'sketch3d' ? finishSketch3D : command?.type === 'line' || command?.type === 'polyline' ? finishSketchPath : () => { if (command?.openChain && command.sourceSketchId) { setActiveSketchId(command.sourceSketchId); setWorkspace('sketch'); } setCommand(null); setNotice('Anulowano polecenie.'); }}
+          onCancel={cancelActiveCommand}
           onUndoSegment={command?.type === 'sketch3d' ? undoSketch3DSegment : undoSketchSegment}
           onFinishPath={command?.type === 'sketch3d' ? finishSketch3D : finishSketchPath}
           onToggleCollapsed={() => setPanelLayout((current) => ({ ...current, commandCollapsed: !current.commandCollapsed }))}

@@ -8,18 +8,20 @@ Szkic 3D ma własny kontrakt `space: 3d`. Nie jest przypadkowo scalany ze szkice
 
 Widok przechodzi do orientacji izometrycznej, zachowuje obracanie kamery i pokazuje trzy osie. Przeglądarka projektu podpisuje przestrzenny szkic jako `3D`, a nie jako pozorną płaszczyznę `XY`.
 
+Narzędzie `Pobierz krawędzie` pozwala podczas szkicowania 3D wskazać prostą krawędź istniejącej bryły. Powstaje zablokowana linia `projected` z trwałą referencją topologiczną. Jej dwa końce zachowują rzeczywiste XYZ i są automatycznie synchronizowane, gdy przebudowa źródłowej bryły przesunie krawędź. Polecenie ma własny czytelny panel `Pobierz/Anuluj`, a po zatwierdzeniu wraca do rozpoczętego szkicu 3D zamiast wyłączać inne narzędzie.
+
 ## Integracja z modelowaniem
 
 Ścieżka XYZ jest rozwiązywana jako uporządkowany otwarty łańcuch w trzech wymiarach. Rdzeń zachowuje dokładne segmenty i próbkuje je wyłącznie do równomiernego rozstawienia szyku po rzeczywistej długości zamiast po cięciwach. Worker OpenCascade składa linie, łuki kołowe oraz krzywe Béziera w jeden wire. `Sweep` i `Pipe` prowadzą po nim dokładny profil B-Rep; prawidłowy, łagodny łańcuch mieszany przechodzi zapis i ponowne otwarcie bez zmiany bryły.
 
 ## Walidacja
 
-- 198 testów rdzenia potwierdza walidację, zapis XYZ, dokładne segmenty, obliczenia G1/G2, próbkowaną długość i przygotowanie ścieżki dla `Sweep`, `Pipe` oraz `Pattern`;
+- 199 testów rdzenia potwierdza walidację, zapis XYZ, dokładne segmenty, obliczenia G1/G2, synchronizację skojarzonej krawędzi, próbkowaną długość i przygotowanie ścieżki dla `Sweep`, `Pipe` oraz `Pattern`;
 - 136 testów komponentów sprawdza panel współrzędnych, rozdział 2D/3D i oznaczenie w przeglądarce;
-- `npm run verify:sketch-3d` uruchamia prawdziwe okno Electron, tworzy kolejno dwie linie, łuk 3D i spline 3D, buduje Pipe `⌀6 / ścianka 1 mm`, zapisuje operację i ponownie otwiera dokument;
+- `npm run verify:sketch-3d` uruchamia prawdziwe okno Electron, tworzy kolejno dwie linie, łuk 3D i spline 3D, buduje Pipe `⌀6 / ścianka 1 mm`, zapisuje operację i ponownie otwiera dokument, a następnie pobiera rzeczywistą prostą krawędź Pipe do drugiego szkicu 3D;
 - test wybiera G2 za łukiem kołowym, potwierdza wyliczone uchwyty, a przed i po ponownym otwarciu bryła ma tę samą objętość około `1451,148 mm³` i te same wymiary obwiedni;
 - dowód wizualny jest zapisany w `artifacts/sketch-3d-pipe.png`.
 
 ## Następna kolejność
 
-Kolejny etap to skojarzone ścieżki leżące na krawędziach lub powierzchniach modelu oraz bezpośrednia edycja istniejących punktów i uchwytów w widoku.
+Kolejny etap to zachowanie dokładnej geometrii dla skojarzonych krawędzi krzywoliniowych i ścieżek leżących na powierzchniach modelu, a następnie bezpośrednia edycja istniejących punktów i uchwytów w widoku.

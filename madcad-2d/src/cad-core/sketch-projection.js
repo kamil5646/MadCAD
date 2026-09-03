@@ -1,11 +1,12 @@
-import { createSketchLine, createSketchPoint } from './sketch-model.js';
+import { createSketchLine, createSketchPoint, createSketchPoint3D } from './sketch-model.js';
 import { createTopologyReference } from './topology-references.js';
 import { refreshDetectedSketchProfiles } from './sketch-topology.js';
 
-function localPoint(point, plane) {
+function localPoint(point, sketch) {
   if (!Array.isArray(point) || point.length !== 3) throw new Error('Projektowany punkt nie ma współrzędnych 3D.');
-  if (plane === 'XZ') return [point[0], point[2]];
-  if (plane === 'YZ') return [point[1], point[2]];
+  if (sketch.space === '3d') return [...point];
+  if (sketch.plane === 'XZ') return [point[0], point[2]];
+  if (sketch.plane === 'YZ') return [point[1], point[2]];
   return [point[0], point[1]];
 }
 
@@ -20,21 +21,19 @@ function resolvedRecord(reference, bodies) {
 }
 
 function setPointCoordinates(point, coordinates) {
-  const nextX = String(coordinates[0]);
-  const nextY = String(coordinates[1]);
-  if (String(point.geometry.x) === nextX && String(point.geometry.y) === nextY) return false;
-  point.geometry.x = nextX;
-  point.geometry.y = nextY;
-  return true;
+  const axes = coordinates.length === 3 ? ['x', 'y', 'z'] : ['x', 'y'];
+  const changed = axes.some((axis, index) => String(point.geometry[axis]) !== String(coordinates[index]));
+  if (!changed) return false;
+  axes.forEach((axis, index) => { point.geometry[axis] = String(coordinates[index]); });
+  return changed;
 }
 
 function findOrCreatePoint(sketch, coordinates, referenceId) {
   const existing = sketch.entities.find((entity) => entity.type === 'point' && entity.role === 'projected'
-    && Math.hypot(Number(entity.geometry.x) - coordinates[0], Number(entity.geometry.y) - coordinates[1]) <= 1e-9);
+    && Math.hypot(...coordinates.map((value, index) => Number(entity.geometry[['x', 'y', 'z'][index]]) - value)) <= 1e-9);
   if (existing) return existing;
-  const point = createSketchPoint({
-    x: coordinates[0],
-    y: coordinates[1],
+  const point = (sketch.space === '3d' ? createSketchPoint3D : createSketchPoint)({
+    x: coordinates[0], y: coordinates[1], ...(sketch.space === '3d' ? { z: coordinates[2] } : {}),
     role: 'projected',
     fixed: true,
     sourceReferenceId: referenceId,
@@ -48,22 +47,31 @@ export function projectTopologyToSketch(document, sketchId, sources = []) {
   const sketch = document.sketches.find((candidate) => candidate.id === sketchId);
   if (!sketch) throw new Error('Nie znaleziono aktywnego szkicu dla Project.');
   if (!Array.isArray(sources) || !sources.length) throw new Error('Project wymaga wybranego punktu albo krawędzi.');
+  for (const source of sources) {
+    if (!['vertex', 'edge'].includes(source.selection?.kind)) throw new Error('Project obsługuje wierzchołki i krawędzie.');
+    if (source.selection.kind === 'vertex') {
+      localPoint(source.descriptor?.point, sketch);
+      continue;
+    }
+    if (sketch.space === '3d' && source.descriptor?.geometry && source.descriptor.geometry !== 'LINE') throw new Error('Ścieżka skojarzona 3D obsługuje obecnie proste krawędzie modelu.');
+    const endpoints = source.descriptor?.endpoints;
+    if (!Array.isArray(endpoints) || endpoints.length !== 2) throw new Error('Projektowana krawędź nie ma dwóch końców.');
+    endpoints.forEach((point) => localPoint(point, sketch));
+  }
   const createdEntityIds = [];
   const createdReferenceIds = [];
   for (const source of sources) {
-    if (!['vertex', 'edge'].includes(source.selection?.kind)) throw new Error('Project obsługuje wierzchołki i krawędzie.');
     const reference = createTopologyReference({ selection: source.selection, descriptor: source.descriptor, label: `Project — ${source.selection.kind}` });
     document.references.push(reference);
     createdReferenceIds.push(reference.id);
     if (source.selection.kind === 'vertex') {
-      const point = findOrCreatePoint(sketch, localPoint(source.descriptor?.point, sketch.plane), reference.id);
+      const point = findOrCreatePoint(sketch, localPoint(source.descriptor?.point, sketch), reference.id);
       createdEntityIds.push(point.id);
       continue;
     }
     const endpoints = source.descriptor?.endpoints;
-    if (!Array.isArray(endpoints) || endpoints.length !== 2) throw new Error('Projektowana krawędź nie ma dwóch końców.');
-    const localEndpoints = endpoints.map((point) => localPoint(point, sketch.plane));
-    if (Math.hypot(localEndpoints[1][0] - localEndpoints[0][0], localEndpoints[1][1] - localEndpoints[0][1]) <= 1e-9) {
+    const localEndpoints = endpoints.map((point) => localPoint(point, sketch));
+    if (Math.hypot(...localEndpoints[1].map((value, axis) => value - localEndpoints[0][axis])) <= 1e-9) {
       const point = findOrCreatePoint(sketch, localEndpoints[0], reference.id);
       createdEntityIds.push(point.id);
       continue;
@@ -83,7 +91,7 @@ export function projectTopologyToSketch(document, sketchId, sources = []) {
     sketch.entities.push(line);
     createdEntityIds.push(line.id);
   }
-  refreshDetectedSketchProfiles(sketch, document.parameters);
+  if (sketch.space !== '3d') refreshDetectedSketchProfiles(sketch, document.parameters);
   return { createdEntityIds, createdReferenceIds };
 }
 
@@ -122,22 +130,22 @@ export function synchronizeProjectedGeometry(document, bodies = []) {
       const referenceId = point.projectionReferenceId || point.sourceReferenceId;
       const record = records.get(referenceId);
       const worldPoint = record?.descriptor?.point || record?.descriptor?.endpoints?.[0];
-      if (worldPoint && setPointCoordinates(point, localPoint(worldPoint, sketch.plane))) updatedEntityIds.add(point.id);
+      if (worldPoint && setPointCoordinates(point, localPoint(worldPoint, sketch))) updatedEntityIds.add(point.id);
     }
 
     for (const line of projectedLines) {
       const referenceId = line.projectionReferenceId || line.sourceReferenceId;
       const endpoints = records.get(referenceId)?.descriptor?.endpoints;
       if (!Array.isArray(endpoints) || endpoints.length !== 2) continue;
-      const localEndpoints = endpoints.map((point) => localPoint(point, sketch.plane));
-      if (Math.hypot(localEndpoints[1][0] - localEndpoints[0][0], localEndpoints[1][1] - localEndpoints[0][1]) <= 1e-9) continue;
+      const localEndpoints = endpoints.map((point) => localPoint(point, sketch));
+      if (Math.hypot(...localEndpoints[1].map((value, axis) => value - localEndpoints[0][axis])) <= 1e-9) continue;
       line.pointIds.forEach((pointId, index) => {
         const point = entityMap.get(pointId);
         if (point?.type === 'point' && setPointCoordinates(point, localEndpoints[index])) updatedEntityIds.add(point.id);
       });
       if (line.pointIds.some((pointId) => updatedEntityIds.has(pointId))) updatedEntityIds.add(line.id);
     }
-    if ((sketch.entities || []).some((entity) => updatedEntityIds.has(entity.id))) refreshDetectedSketchProfiles(sketch, document.parameters);
+    if (sketch.space !== '3d' && (sketch.entities || []).some((entity) => updatedEntityIds.has(entity.id))) refreshDetectedSketchProfiles(sketch, document.parameters);
   }
 
   return {
