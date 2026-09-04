@@ -2765,6 +2765,45 @@ export default function ModelingWorkspace() {
     setNotice('Zapisano krzywą 3D. Wszystkie operacje Pipe, Sweep i Pattern użyją jej nowego przebiegu.');
   };
 
+  const moveSketch3DHandle = ({ curveId, kind, pointId, coordinates, handleLength = null }) => {
+    if (readOnly) return readOnlyNotice();
+    if (!activeSketchIs3D || !curveId || !Array.isArray(coordinates) || coordinates.some((value) => !Number.isFinite(value))) return;
+    const values = coordinates.map((value) => String(Number(value.toFixed(3))));
+    const patch = {};
+    if (kind === 'start' || kind === 'end') {
+      ['X', 'Y', 'Z'].forEach((axis, index) => { patch[`${kind}${axis}`] = values[index]; });
+    } else if (kind === 'through') {
+      ['X', 'Y', 'Z'].forEach((axis, index) => { patch[`through${axis}`] = values[index]; });
+    } else if (kind === 'control1' || kind === 'control2') {
+      if (Number.isFinite(handleLength)) patch.handleLength = String(Number(handleLength.toFixed(3)));
+      else ['X', 'Y', 'Z'].forEach((axis, index) => { patch[`${kind}${axis}`] = values[index]; });
+    } else return;
+    try {
+      commit((next) => {
+        const sketch = next.sketches.find((item) => item.id === activeSketchId);
+        if (!sketch) throw new Error('Nie znaleziono aktywnego szkicu 3D.');
+        updateSketchCurve3D(sketch, curveId, patch, next.parameters);
+      });
+    } catch (error) {
+      setNotice(`Nie przesunięto uchwytu: ${error.message}`);
+      return;
+    }
+    setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: [curveId] });
+    if (command?.type === 'sketch3d' && pointId && command.pointIds?.at(-1) === pointId) {
+      setCommand((current) => current?.type === 'sketch3d' ? {
+        ...current,
+        startX: values[0], startY: values[1], startZ: values[2],
+        endX: String(coordinates[0] + 20), endY: values[1], endZ: values[2],
+        throughX: String(coordinates[0] + 10), throughY: String(coordinates[1] + 8), throughZ: values[2],
+        control1X: String(coordinates[0] + 7), control1Y: values[1], control1Z: String(coordinates[2] + 5),
+        control2X: String(coordinates[0] + 14), control2Y: values[1], control2Z: String(coordinates[2] - 5),
+      } : current);
+    }
+    setNotice(kind.startsWith('control') && Number.isFinite(handleLength)
+      ? `Ustawiono długość uchwytu ciągłości na ${Number(handleLength.toFixed(2))} mm.`
+      : 'Przesunięto uchwyt szkicu 3D. Zależne krzywe zostały przebudowane.');
+  };
+
   const finishSketch = () => {
     const sketch = document.sketches.find((item) => item.id === activeSketchId);
     const lastProfile = sketch?.profiles.at(-1);
@@ -7250,6 +7289,7 @@ export default function ModelingWorkspace() {
             onSketchModify={modifySketchAtPoint}
             onSketchProfileSelection={(profileId, sketchId) => setSelection({ kind: 'profile', id: profileId, sketchId: sketchId || activeSketchId })}
             onSketchMove={readOnly ? undefined : moveSketchEntities}
+            onSketch3DHandleMove={readOnly ? undefined : moveSketch3DHandle}
             showSketchPoints={sketchOptions.points}
             showSketchProfiles={sketchOptions.profiles}
             showSketchConstraints={sketchOptions.constraints}

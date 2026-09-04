@@ -262,16 +262,20 @@ function addSketchEntities(group, sketch, parameters, plane, {
     if (coordinate) coordinates.set(entity.id, coordinate);
   }
   const readPoint = (pointId, overrides) => overrides?.get(pointId) || coordinates.get(pointId) || null;
-  const localPointsFor = (entity, overrides) => {
+  const localPointsFor = (entity, overrides, spatialOverride = null) => {
     if (entity.type === 'line') return entity.pointIds.map((pointId) => readPoint(pointId, overrides)).filter(Boolean);
     if (entity.type === 'arc3d') {
       const [start, end] = entity.pointIds.map((pointId) => readPoint(pointId, overrides));
-      const through = ['X', 'Y', 'Z'].map((axis) => numericValue(entity.geometry[`through${axis}`], parameters));
+      const through = spatialOverride?.curveId === entity.id && spatialOverride.kind === 'through'
+        ? spatialOverride.coordinates
+        : ['X', 'Y', 'Z'].map((axis) => numericValue(entity.geometry[`through${axis}`], parameters));
       return start && end ? arc3DPoints(start, through, end) : [];
     }
     if (entity.type === 'spline3d') {
       const [start, end] = entity.pointIds.map((pointId) => readPoint(pointId, overrides));
-      const controls = ['control1', 'control2'].map((prefix) => ['X', 'Y', 'Z'].map((axis) => numericValue(entity.geometry[`${prefix}${axis}`], parameters)));
+      const controls = ['control1', 'control2'].map((prefix) => spatialOverride?.curveId === entity.id && spatialOverride.kind === prefix
+        ? spatialOverride.coordinates
+        : ['X', 'Y', 'Z'].map((axis) => numericValue(entity.geometry[`${prefix}${axis}`], parameters)));
       return start && end ? spline3DPoints(start, controls, end) : [];
     }
     if (entity.type === 'circle') {
@@ -404,14 +408,86 @@ function addSketchEntities(group, sketch, parameters, plane, {
     }
   }
 
-  const update = (overrides = null) => {
+  const spatialHandles = [];
+  const spatialGuides = [];
+  const selectedSpatialCurve = spatial && selectedIds.length === 1
+    ? entityMap.get(selectedIds[0])
+    : null;
+  if (selectedSpatialCurve && ['line', 'arc3d', 'spline3d'].includes(selectedSpatialCurve.type) && selectedSpatialCurve.role !== 'projected') {
+    const handleCoordinates = (kind, pointOverrides = null, spatialOverride = null) => {
+      if (kind === 'start' || kind === 'end') return readPoint(selectedSpatialCurve.pointIds[kind === 'start' ? 0 : 1], pointOverrides);
+      if (spatialOverride?.curveId === selectedSpatialCurve.id && spatialOverride.kind === kind) return spatialOverride.coordinates;
+      const prefix = kind === 'through' ? 'through' : kind;
+      return ['X', 'Y', 'Z'].map((axis) => numericValue(selectedSpatialCurve.geometry?.[`${prefix}${axis}`], parameters));
+    };
+    const addHandle = (kind, color, { pointId = null, axisOrigin = null, axisDirection = null, locked = false } = {}) => {
+      const coordinates = handleCoordinates(kind);
+      if (!coordinates || coordinates.some((value) => !Number.isFinite(value))) return null;
+      let marker = pointId ? entries.find((entry) => entry.entity.id === pointId)?.object : null;
+      if (!marker) {
+        marker = new THREE.Mesh(
+          new THREE.SphereGeometry(1.35, 16, 12),
+          new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: locked ? 0.58 : 1 }),
+        );
+        marker.position.set(...coordinates);
+        marker.renderOrder = 8;
+        group.add(marker);
+        if (pickable && !locked) pickables.unshift(marker);
+      } else marker.scale.setScalar(1.28);
+      marker.userData = {
+        ...marker.userData,
+        sketchEntityId: selectedSpatialCurve.id,
+        sketchEntityType: 'spatial-handle',
+        sketch3DHandle: kind,
+        sketch3DCurveId: selectedSpatialCurve.id,
+        sketch3DPointId: pointId,
+        sketch3DCoordinates: [...coordinates],
+        sketch3DAxisOrigin: axisOrigin ? [...axisOrigin] : null,
+        sketch3DAxisDirection: axisDirection ? [...axisDirection] : null,
+        sketch3DLocked: locked,
+      };
+      spatialHandles.push({ kind, pointId, object: marker });
+      return marker;
+    };
+    const addGuide = (fromKind, toKind) => {
+      const from = handleCoordinates(fromKind);
+      const to = handleCoordinates(toKind);
+      if (!from || !to) return;
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute([...from, ...to], 3));
+      const guide = new THREE.Line(geometry, new THREE.LineDashedMaterial({ color: 0x9db1c1, dashSize: 1.4, gapSize: 0.8, transparent: true, opacity: 0.8, depthTest: false }));
+      guide.computeLineDistances();
+      guide.renderOrder = 7;
+      group.add(guide);
+      spatialGuides.push({ fromKind, toKind, object: guide });
+    };
+    const start = handleCoordinates('start');
+    const control1 = selectedSpatialCurve.type === 'spline3d' ? handleCoordinates('control1') : null;
+    const continuity = selectedSpatialCurve.geometry?.continuity || 'g0';
+    const tangent = start && control1 ? control1.map((value, axis) => value - start[axis]) : null;
+    const tangentLength = tangent ? Math.hypot(...tangent) : 0;
+    addHandle('start', 0x65dfff, { pointId: selectedSpatialCurve.pointIds[0] });
+    addHandle('end', 0xffc857, { pointId: selectedSpatialCurve.pointIds[1] });
+    if (selectedSpatialCurve.type === 'arc3d') addHandle('through', 0xd58cff);
+    if (selectedSpatialCurve.type === 'spline3d') {
+      addGuide('start', 'control1');
+      addGuide('end', 'control2');
+      addHandle('control1', 0xd58cff, {
+        axisOrigin: continuity === 'g0' ? null : start,
+        axisDirection: continuity === 'g0' || tangentLength <= 1e-9 ? null : tangent.map((value) => value / tangentLength),
+      });
+      addHandle('control2', 0xd58cff, { locked: continuity === 'g2' });
+    }
+  }
+
+  const update = (overrides = null, spatialOverride = null) => {
     for (const entry of entries) {
       if (entry.entity.type === 'point') {
         const point = readPoint(entry.entity.id, overrides);
         if (point) entry.object.position.set(...worldPoint(point, 0.18));
         continue;
       }
-      const localPoints = localPointsFor(entry.entity, overrides);
+      const localPoints = localPointsFor(entry.entity, overrides, spatialOverride);
       entry.object.geometry.setAttribute('position', new THREE.Float32BufferAttribute(
         localPoints.flatMap((point) => worldPoint(point, entry.lineElevation || 0.12)),
         3,
@@ -419,8 +495,27 @@ function addSketchEntities(group, sketch, parameters, plane, {
       entry.object.geometry.computeBoundingSphere();
       if (entry.object.material?.isLineDashedMaterial) entry.object.computeLineDistances();
     }
+    const coordinatesForHandle = (handle) => {
+      if (!handle) return null;
+      if (handle.pointId) return readPoint(handle.pointId, overrides);
+      if (spatialOverride?.curveId === selectedSpatialCurve?.id && spatialOverride.kind === handle.kind) return spatialOverride.coordinates;
+      const prefix = handle.kind === 'through' ? 'through' : handle.kind;
+      return ['X', 'Y', 'Z'].map((axis) => numericValue(selectedSpatialCurve?.geometry?.[`${prefix}${axis}`], parameters));
+    };
+    for (const handle of spatialHandles) {
+      const coordinates = coordinatesForHandle(handle);
+      if (coordinates) handle.object.position.set(...coordinates);
+    }
+    for (const guide of spatialGuides) {
+      const from = coordinatesForHandle(spatialHandles.find((handle) => handle.kind === guide.fromKind));
+      const to = coordinatesForHandle(spatialHandles.find((handle) => handle.kind === guide.toKind));
+      if (!from || !to) continue;
+      guide.object.geometry.setAttribute('position', new THREE.Float32BufferAttribute([...from, ...to], 3));
+      guide.object.geometry.computeBoundingSphere();
+      guide.object.computeLineDistances();
+    }
   };
-  return { coordinates, entries, pickables, update };
+  return { coordinates, entries, pickables, spatialHandles, update };
 }
 
 function addSketchLine(group, profile, parameters, plane, draft = false, planeOffset = 0) {
@@ -468,6 +563,7 @@ export default function ModelViewport({
   onSketchModify,
   onSketchProfileSelection,
   onSketchMove,
+  onSketch3DHandleMove,
   showSketchPoints = true,
   showSketchProfiles = true,
   showSketchConstraints = true,
@@ -551,6 +647,7 @@ export default function ModelViewport({
   const sketchSelectionRef = useRef(onSketchSelection);
   const sketchProfileSelectionRef = useRef(onSketchProfileSelection);
   const sketchMoveRef = useRef(onSketchMove);
+  const sketch3DHandleMoveRef = useRef(onSketch3DHandleMove);
   const sketchModifyRef = useRef(onSketchModify);
   const formControlPointSelectionRef = useRef(onFormControlPointSelection);
   const formControlPointMoveRef = useRef(onFormControlPointMove);
@@ -565,6 +662,7 @@ export default function ModelViewport({
   const [zoomScale, setZoomScale] = useState(1);
   const [dragLabel, setDragLabel] = useState(null);
   const [sketchDragLabel, setSketchDragLabel] = useState(null);
+  const [sketch3DDragLabel, setSketch3DDragLabel] = useState(null);
   const [sketchDynamicLabel, setSketchDynamicLabel] = useState(null);
   const [constraintSuggestion, setConstraintSuggestion] = useState(null);
   const [freedomPanelOpen, setFreedomPanelOpen] = useState(false);
@@ -668,6 +766,7 @@ export default function ModelViewport({
   sketchSelectionRef.current = onSketchSelection;
   sketchProfileSelectionRef.current = onSketchProfileSelection;
   sketchMoveRef.current = onSketchMove;
+  sketch3DHandleMoveRef.current = onSketch3DHandleMove;
   sketchModifyRef.current = onSketchModify;
   formControlPointSelectionRef.current = onFormControlPointSelection;
   formControlPointMoveRef.current = onFormControlPointMove;
@@ -1660,6 +1759,7 @@ export default function ModelViewport({
     let modelPickCycle = { x: NaN, y: NaN, index: 0 };
     let modelSelectionBox = null;
     let formControlDrag = null;
+    let sketch3DHandleDrag = null;
     const sketchPlane = activePlane === 'XZ'
       ? new THREE.Plane(new THREE.Vector3(0, 1, 0), activePlaneOffset)
       : activePlane === 'YZ'
@@ -1975,6 +2075,41 @@ export default function ModelViewport({
         setDragLabel({ value: directDragRef.current.value, x: event.clientX - rect.left + 14, y: event.clientY - rect.top - 12 });
         return;
       }
+      const sketch3DHandleHit = activeSketchIs3D && sketchRender && activeCommand?.type !== 'editSketch3d'
+        ? raycaster.intersectObjects(sketchRender.spatialHandles.map((entry) => entry.object).filter((object) => !object.userData.sketch3DLocked), false)[0]
+        : null;
+      if (sketch3DHandleHit && sketch3DHandleMoveRef.current) {
+        event.preventDefault();
+        event.stopPropagation();
+        controls.enabled = false;
+        const object = sketch3DHandleHit.object;
+        const startCoordinates = [...object.userData.sketch3DCoordinates];
+        const startWorld = new THREE.Vector3(...startCoordinates);
+        const dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()).normalize(), startWorld);
+        const startIntersection = raycaster.ray.intersectPlane(dragPlane, new THREE.Vector3());
+        if (!startIntersection) {
+          controls.enabled = true;
+          return;
+        }
+        sketch3DHandleDrag = {
+          curveId: object.userData.sketch3DCurveId,
+          kind: object.userData.sketch3DHandle,
+          pointId: object.userData.sketch3DPointId || null,
+          startCoordinates,
+          startIntersection,
+          plane: dragPlane,
+          axisOrigin: object.userData.sketch3DAxisOrigin,
+          axisDirection: object.userData.sketch3DAxisDirection,
+          coordinates: startCoordinates,
+          handleLength: null,
+          startClientX: event.clientX,
+          startClientY: event.clientY,
+          moved: false,
+        };
+        try { renderer.domElement.setPointerCapture?.(event.pointerId); } catch { /* Pointer capture is optional in synthetic tests. */ }
+        renderer.domElement.style.cursor = 'move';
+        return;
+      }
       if (activeSketch && sketchTool) {
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
         if (!worldPoint) return;
@@ -2201,6 +2336,31 @@ export default function ModelViewport({
       else selectRef.current?.(topologySelection?.bodyId || null);
     };
     const onPointerMove = (event) => {
+      if (sketch3DHandleDrag && sketchRender) {
+        event.preventDefault();
+        const rect = setRayFromEvent(event);
+        const intersection = raycaster.ray.intersectPlane(sketch3DHandleDrag.plane, new THREE.Vector3());
+        if (!intersection) return;
+        const delta = intersection.sub(sketch3DHandleDrag.startIntersection);
+        const step = directRef.current.snapEnabled && !alternateModifierPressed(event) ? 0.5 : 0.1;
+        let coordinates = sketch3DHandleDrag.startCoordinates.map((value, axis) => Math.round((value + delta.getComponent(axis)) / step) * step);
+        let handleLength = null;
+        if (sketch3DHandleDrag.axisOrigin && sketch3DHandleDrag.axisDirection) {
+          const origin = new THREE.Vector3(...sketch3DHandleDrag.axisOrigin);
+          const direction = new THREE.Vector3(...sketch3DHandleDrag.axisDirection).normalize();
+          const projectedLength = Math.max(0.1, new THREE.Vector3(...coordinates).sub(origin).dot(direction));
+          handleLength = Math.round(projectedLength / step) * step;
+          coordinates = origin.addScaledVector(direction, handleLength).toArray();
+        }
+        sketch3DHandleDrag.coordinates = coordinates;
+        sketch3DHandleDrag.handleLength = handleLength;
+        sketch3DHandleDrag.moved = Math.hypot(event.clientX - sketch3DHandleDrag.startClientX, event.clientY - sketch3DHandleDrag.startClientY) >= 3;
+        const pointOverrides = sketch3DHandleDrag.pointId ? new Map([[sketch3DHandleDrag.pointId, coordinates]]) : null;
+        const spatialOverride = sketch3DHandleDrag.pointId ? null : { curveId: sketch3DHandleDrag.curveId, kind: sketch3DHandleDrag.kind, coordinates };
+        sketchRender.update(pointOverrides, spatialOverride);
+        setSketch3DDragLabel({ coordinates, x: event.clientX - rect.left + 14, y: event.clientY - rect.top - 30 });
+        return;
+      }
       if (formControlDrag) {
         event.preventDefault();
         const rect = setRayFromEvent(event);
@@ -2350,6 +2510,24 @@ export default function ModelViewport({
     };
     const onPointerUp = (event) => {
       if (window.__madcadPointerLog) window.__madcadPointerLog.upCalled = true;
+      if (sketch3DHandleDrag) {
+        event.preventDefault();
+        const finished = sketch3DHandleDrag;
+        sketch3DHandleDrag = null;
+        controls.enabled = true;
+        try { renderer.domElement.releasePointerCapture?.(event.pointerId); } catch { /* Pointer capture may already be released. */ }
+        renderer.domElement.style.cursor = 'crosshair';
+        setSketch3DDragLabel(null);
+        if (finished.moved) sketch3DHandleMoveRef.current?.({
+          curveId: finished.curveId,
+          kind: finished.kind,
+          pointId: finished.pointId,
+          coordinates: finished.coordinates,
+          handleLength: finished.handleLength,
+        });
+        else sketchRender?.update();
+        return;
+      }
       if (formControlDrag) {
         event.preventDefault();
         const finished = formControlDrag;
@@ -2525,6 +2703,17 @@ export default function ModelViewport({
           showProjectedGeometry,
           sliceModel,
         };
+        window.__madcadSketch3DHandleState = sketchRender.spatialHandles.map((handle) => {
+          const projected = handle.object.getWorldPosition(new THREE.Vector3()).project(camera);
+          return {
+            curveId: handle.object.userData.sketch3DCurveId,
+            kind: handle.kind,
+            locked: Boolean(handle.object.userData.sketch3DLocked),
+            x: Math.round(rect.left + ((projected.x + 1) * rect.width) / 2),
+            y: Math.round(rect.top + ((1 - projected.y) * rect.height) / 2),
+          };
+        });
+        window.__madcadVerifyMoveSketch3DHandle = (payload) => sketch3DHandleMoveRef.current?.(payload);
       }
       if (new URLSearchParams(window.location.search).has('verify')) {
         window.__madcadCompletedSketchVisibilityState = visibleSketch ? {
@@ -2630,6 +2819,8 @@ export default function ModelViewport({
       delete window.__madcadSketchLocalToScreen;
       delete window.__madcadVerifySketchBoxSelection;
       delete window.__madcadSketchVisibilityState;
+      delete window.__madcadSketch3DHandleState;
+      delete window.__madcadVerifyMoveSketch3DHandle;
       delete window.__madcadCompletedSketchVisibilityState;
       delete window.__madcadReferenceSketchVisibilityState;
       delete window.__madcadModelScreenState;
@@ -2668,7 +2859,7 @@ export default function ModelViewport({
       className={`model-viewport navigation-${navigationMode} ${activeSketchId ? 'sketch-view' : ''}`}
       ref={hostRef}
       role="region"
-      aria-label={activeSketchId ? 'Obszar rysowania szkicu 2D' : 'Obszar modelu 3D'}
+      aria-label={activeSketchId ? (activeSketchIs3D ? 'Obszar szkicu 3D' : 'Obszar rysowania szkicu 2D') : 'Obszar modelu 3D'}
       onContextMenu={(event) => {
         event.preventDefault();
       }}
@@ -2731,6 +2922,7 @@ export default function ModelViewport({
       {directEnabled && <div className="direct-extrude-hint">{directManipulator?.hint || 'Przeciągnij niebieską strzałkę, aby wyciągnąć profil'}</div>}
       {dragLabel && <div className="direct-dimension" style={{ left: dragLabel.x, top: dragLabel.y }}>{dragLabel.value.toFixed(1)} mm</div>}
       {sketchDragLabel && <div className="sketch-drag-dimension" style={{ left: sketchDragLabel.x, top: sketchDragLabel.y }}>ΔX {sketchDragLabel.dx.toFixed(1)} · ΔY {sketchDragLabel.dy.toFixed(1)} mm</div>}
+      {sketch3DDragLabel && <div className="sketch-drag-dimension" style={{ left: sketch3DDragLabel.x, top: sketch3DDragLabel.y }}>X {sketch3DDragLabel.coordinates[0].toFixed(1)} · Y {sketch3DDragLabel.coordinates[1].toFixed(1)} · Z {sketch3DDragLabel.coordinates[2].toFixed(1)} mm</div>}
       {sketchDynamicLabel && activeSketchId && ['line', 'polyline'].includes(sketchTool) && polylineDraft?.lastPoint && (
         <div className={`sketch-dynamic-input ${sketchDynamicLength ? 'typing' : ''}`} style={{ left: sketchDynamicLabel.x, top: sketchDynamicLabel.y }} role="status">
           <strong>{sketchDynamicLength || sketchDynamicLabel.distance.toFixed(2)}</strong>

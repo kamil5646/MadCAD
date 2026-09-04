@@ -3,6 +3,7 @@ const path = require('path');
 const { app, BrowserWindow } = require('electron');
 
 const artifactPath = path.join(__dirname, '..', 'artifacts', 'sketch-3d-pipe.png');
+const handleArtifactPath = path.join(__dirname, '..', 'artifacts', 'sketch-3d-handles.png');
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
   const startedAt = Date.now();
@@ -126,6 +127,11 @@ app.whenReady().then(async () => {
 
     console.log('Etap: edycja istniejącego spline 3D');
     await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection([${JSON.stringify(spline.id)}], 'replace')`);
+    await waitFor(window, `window.__madcadSketch3DHandleState?.length === 4 && window.__madcadSketch3DHandleState.some((handle) => handle.kind === 'control2' && handle.locked)`, 'uchwyty bezpośrednie spline G2 w widoku');
+    await fs.mkdir(path.dirname(handleArtifactPath), { recursive: true });
+    await fs.writeFile(handleArtifactPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`window.__madcadVerifyMoveSketch3DHandle({ curveId: ${JSON.stringify(spline.id)}, kind: 'end', pointId: ${JSON.stringify(spline.pointIds[1])}, coordinates: [74, 25, 10], handleLength: null })`);
+    await waitFor(window, `(() => { const sketch = window.__madcadVerifyDocumentState?.sketches?.[0]; const curve = sketch?.entityData?.find((entity) => entity.id === ${JSON.stringify(spline.id)}); const end = sketch?.entityData?.find((entity) => entity.id === curve?.pointIds?.[1]); return Number(end?.geometry?.x) === 74 && Number(end?.geometry?.y) === 25 && Number(end?.geometry?.z) === 10; })()`, 'bezpośrednie przesunięcie końca spline 3D');
     await clickTool(window, 'Edytuj krzywą');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'editSketch3d' && document.querySelector('.command-dialog')?.textContent.includes('Edytuj krzywą 3D')`, 'panel edycji spline 3D');
     await setField(window, 'Długość uchwytu', '6');
@@ -204,7 +210,7 @@ app.whenReady().then(async () => {
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     await waitFor(window, `!window.__madcadVerifyDocumentState?.command && !window.__madcadVerifyDocumentState?.activeSketchId && window.__madcadVerifyDocumentState?.sketches?.length === 2`, 'bezpieczne zakończenie skojarzonego szkicu 3D przez Esc');
 
-    console.log(JSON.stringify({ ok: true, sketchSegments: 4, curveTypes, splineContinuity, editedSpline, associatedPath, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshot: artifactPath }, null, 2));
+    console.log(JSON.stringify({ ok: true, sketchSegments: 4, curveTypes, splineContinuity, editedSpline, associatedPath, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshots: { handles: handleArtifactPath, pipe: artifactPath } }, null, 2));
   } catch (error) {
     exitCode = 1;
     console.error(error);
