@@ -169,7 +169,9 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Zmiana identyfikatora dokumentu kończy poprzedni worker CAD i odrzuca oczekujące obliczenia. Nowy projekt nie wyświetla brył, analizy ani historii poprzedniego dokumentu.
 - [x] Pełny lokalny scenariusz Electron przeszedł, w tym Coil → nowy projekt → Pipe, dalsze modelowanie i eksport STL/STEP/3MF.
 - [x] Raport awarii testu zawiera teraz zrzut ekranu oraz stan dokumentu, obliczeń i odzyskiwania autozapisu.
-- [ ] Ponowne potwierdzenie scenariusza na Windows w CI.
+- [x] CI run `33927651232`: pełny test modelowania/importu/bezpieczeństwa przeszedł na Windows (5m16s) i macOS (3m59s); jakość, audyt i core/build trzech systemów także przeszły. Testy instalatorów jeszcze trwały przy zapisie. Osobna integracja Cloudflare `madcadtoken` zgłosiła błąd; nie dotyczy to wyników desktopowego CI i nie oznaczono jej jako naprawionej.
+- [x] Lokalny build 6.4.7 z poprawkami B-spline, uchwytów i przełączania projektów zainstalowano w `/Applications/MadCAD.app`. Sprawdzono 27 plików renderer/Electron względem źródeł, podpis ad-hoc i gotowy ekran aplikacji przez interfejs macOS. SHA-256 `app.asar`: `e1125a227ef59f47c520ab2e68d3b932b77325db8075cee1530a7f4390fabadc`. Kopia poprzedniej aplikacji: `~/.Trash/MadCAD-before-3d-bspline-20260905.app`.
+- [x] Pakowanie lokalne korzystało ze stagingu zawierającego skompilowany renderer, moduły Electron i dokumentację, bez ponownego pakowania zależności renderera zawartych już w bundle. Standardowy lokalny builder blokował się podczas odczytu plików `node_modules`.
 
 - `src/modeling/ModelingWorkspace.jsx` — szkielet obszarów, przepływ poleceń i wybór.
 - `src/modeling/WorkspaceRibbon.jsx` — zachowanie wstążki i przepełnienia.
