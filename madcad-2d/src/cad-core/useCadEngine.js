@@ -42,6 +42,16 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     workerRef.current = worker;
     setState((current) => ({
       ...current,
+      ...(current.evaluatedDocument?.id !== document.id ? {
+        bodies: [],
+        timeline: [],
+        dependencyGraph: { nodes: [], edges: [] },
+        evaluatedDocument: null,
+        analysis: { collisions: [], collisionStatus: 'not-run', candidatePairs: 0, exactPairs: 0 },
+        performance: null,
+        cache: { entries: 0, bytes: 0 },
+        diagnostics: [],
+      } : {}),
       status: workerGeneration === 0 ? 'loading' : 'recovering',
       error: workerGeneration === 0 ? '' : 'Odtwarzanie silnika CAD po awarii…',
     }));
@@ -99,7 +109,7 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
       if (workerRef.current === worker) workerRef.current = null;
       rejectPending(engineError('Silnik CAD został zatrzymany.', 'WORKER_STOPPED'));
     };
-  }, [rejectPending, workerGeneration]);
+  }, [document.id, rejectPending, workerGeneration]);
 
   const send = useCallback((message) => new Promise((resolve, reject) => {
     if (!workerRef.current) {

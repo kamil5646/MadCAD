@@ -2915,9 +2915,16 @@ app.whenReady().then(async () => {
     exitCode = 1;
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     const notice = window.isDestroyed() ? '' : await window.webContents.executeJavaScript(`document.querySelector('.workspace-notice, .engine-status')?.textContent?.trim() || ''`);
+    const failureState = window.isDestroyed() ? null : await window.webContents.executeJavaScript(`({
+      document: window.__madcadVerifyDocumentState,
+      engine: { status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision, bodies: window.__madcadVerifyEngineState?.bodies?.length },
+      notice: document.querySelector('.workspace-notice')?.textContent,
+      persistenceReady: window.__madcadPersistenceReady?.(),
+    })`);
+    if (!window.isDestroyed()) await fs.writeFile(path.join(path.dirname(outputPath), 'modeling-failure.png'), (await window.webContents.capturePage()).toPNG());
     await fs.writeFile(
       path.join(path.dirname(outputPath), 'verification-report.json'),
-      JSON.stringify({ ok: false, error: error.stack || error.message, notice, rendererMessages }, null, 2),
+      JSON.stringify({ ok: false, error: error.stack || error.message, notice, failureState, rendererMessages }, null, 2),
     );
   } finally {
     window.destroy();

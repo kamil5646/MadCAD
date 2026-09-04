@@ -164,6 +164,13 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 
 ## Pliki główne
 
+### Weryfikacja 2026-09-05 — przełączanie projektów
+
+- [x] Zmiana identyfikatora dokumentu kończy poprzedni worker CAD i odrzuca oczekujące obliczenia. Nowy projekt nie wyświetla brył, analizy ani historii poprzedniego dokumentu.
+- [x] Pełny lokalny scenariusz Electron przeszedł, w tym Coil → nowy projekt → Pipe, dalsze modelowanie i eksport STL/STEP/3MF.
+- [x] Raport awarii testu zawiera teraz zrzut ekranu oraz stan dokumentu, obliczeń i odzyskiwania autozapisu.
+- [ ] Ponowne potwierdzenie scenariusza na Windows w CI.
+
 - `src/modeling/ModelingWorkspace.jsx` — szkielet obszarów, przepływ poleceń i wybór.
 - `src/modeling/WorkspaceRibbon.jsx` — zachowanie wstążki i przepełnienia.
 - `src/modeling/WorkspaceSketchUi.jsx` — wybór płaszczyzny, paleta szkicu i kontekstowe działania.
