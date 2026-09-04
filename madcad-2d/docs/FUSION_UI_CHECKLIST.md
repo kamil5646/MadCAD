@@ -156,6 +156,14 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 
 ## Pliki główne
 
+### Weryfikacja 2026-09-05 — skojarzone B-spline 3D
+
+- [x] Pobranie otwartej krawędzi B-spline zachowuje dokładne dane i referencję do bryły; próbki służą podglądowi.
+- [x] Pipe korzysta z dokładnej krzywej. Test desktopowy pobiera krawędź istniejącej rury, tworzy kolejną i porównuje objętość po otwarciu projektu (20.578120917363194 mm³).
+- [x] Naprawiono podwójne zwalnianie krzywej należącej do uchwytu OpenCascade; pełny scenariusz przechodzi bez awarii.
+- [x] Walidacja odrzuca niepoprawne współrzędne, wagi, węzły i próbki podglądu.
+- [ ] Osobna weryfikacja przeciągania uchwytów rzeczywistymi zdarzeniami myszy; dotychczasowy test wywołuje procedurę zmiany współrzędnych.
+
 - `src/modeling/ModelingWorkspace.jsx` — szkielet obszarów, przepływ poleceń i wybór.
 - `src/modeling/WorkspaceRibbon.jsx` — zachowanie wstążki i przepełnienia.
 - `src/modeling/WorkspaceSketchUi.jsx` — wybór płaszczyzny, paleta szkicu i kontekstowe działania.

@@ -1,4 +1,4 @@
-import { createSketchArc3D, createSketchLine, createSketchPoint, createSketchPoint3D } from './sketch-model.js';
+import { createProjectedSketchBSpline3D, createSketchArc3D, createSketchLine, createSketchPoint, createSketchPoint3D } from './sketch-model.js';
 import { createTopologyReference } from './topology-references.js';
 import { refreshDetectedSketchProfiles } from './sketch-topology.js';
 
@@ -46,6 +46,7 @@ function findOrCreatePoint(sketch, coordinates, referenceId) {
 function spatialEdgeType(descriptor) {
   if (descriptor?.geometry === 'LINE') return 'line';
   if (descriptor?.geometry === 'CIRCLE' && !descriptor.closed) return 'arc3d';
+  if (descriptor?.geometry === 'BSPLINE_CURVE' && !descriptor.closed && descriptor.bspline) return 'bspline3d';
   return null;
 }
 
@@ -59,11 +60,12 @@ export function projectTopologyToSketch(document, sketchId, sources = []) {
       localPoint(source.descriptor?.point, sketch);
       continue;
     }
-    if (sketch.space === '3d' && !spatialEdgeType(source.descriptor)) throw new Error('Ścieżka skojarzona 3D obsługuje proste krawędzie i otwarte łuki kołowe modelu.');
+    if (sketch.space === '3d' && !spatialEdgeType(source.descriptor)) throw new Error('Ścieżka skojarzona 3D obsługuje proste krawędzie oraz otwarte łuki i B-spline modelu.');
     const endpoints = source.descriptor?.endpoints;
     if (!Array.isArray(endpoints) || endpoints.length !== 2) throw new Error('Projektowana krawędź nie ma dwóch końców.');
     endpoints.forEach((point) => localPoint(point, sketch));
     if (sketch.space === '3d' && spatialEdgeType(source.descriptor) === 'arc3d') localPoint(source.descriptor?.midpoint, sketch);
+    if (sketch.space === '3d' && spatialEdgeType(source.descriptor) === 'bspline3d' && (!Array.isArray(source.descriptor.samples) || source.descriptor.samples.length < 2)) throw new Error('B-spline źródłowa nie ma danych podglądu krzywej.');
   }
   const createdEntityIds = [];
   const createdReferenceIds = [];
@@ -100,6 +102,16 @@ export function projectTopologyToSketch(document, sketchId, sources = []) {
         fixed: true,
         sourceReferenceId: reference.id,
       })
+      : spatialType === 'bspline3d'
+        ? createProjectedSketchBSpline3D({
+          startPointId: points[0].id,
+          endPointId: points[1].id,
+          bspline: source.descriptor.bspline,
+          samples: source.descriptor.samples,
+          role: 'projected',
+          fixed: true,
+          sourceReferenceId: reference.id,
+        })
       : createSketchLine({
         startPointId: points[0].id,
         endPointId: points[1].id,
@@ -143,7 +155,7 @@ export function synchronizeProjectedGeometry(document, bodies = []) {
   const updatedEntityIds = new Set();
   for (const sketch of document.sketches || []) {
     const entityMap = new Map((sketch.entities || []).map((entity) => [entity.id, entity]));
-    const projectedCurves = (sketch.entities || []).filter((entity) => ['line', 'arc3d'].includes(entity.type) && entity.role === 'projected');
+    const projectedCurves = (sketch.entities || []).filter((entity) => ['line', 'arc3d', 'bspline3d'].includes(entity.type) && entity.role === 'projected');
     const projectedCurvePointIds = new Set(projectedCurves.flatMap((curve) => curve.pointIds || []));
 
     for (const point of (sketch.entities || []).filter((entity) => entity.type === 'point' && entity.role === 'projected' && !projectedCurvePointIds.has(entity.id))) {
@@ -172,6 +184,13 @@ export function synchronizeProjectedGeometry(document, bodies = []) {
           curve.geometry[`through${axis}`] = String(through[index]);
           curveChanged = true;
         });
+      }
+      if (curve.type === 'bspline3d' && descriptor?.bspline && Array.isArray(descriptor.samples)) {
+        if (JSON.stringify(curve.geometry.bspline) !== JSON.stringify(descriptor.bspline) || JSON.stringify(curve.geometry.samples) !== JSON.stringify(descriptor.samples)) {
+          curve.geometry.bspline = structuredClone(descriptor.bspline);
+          curve.geometry.samples = structuredClone(descriptor.samples);
+          curveChanged = true;
+        }
       }
       if (curveChanged) updatedEntityIds.add(curve.id);
     }

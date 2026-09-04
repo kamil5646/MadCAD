@@ -236,7 +236,36 @@ app.whenReady().then(async () => {
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     await waitFor(window, `!window.__madcadVerifyDocumentState?.command && !window.__madcadVerifyDocumentState?.activeSketchId && window.__madcadVerifyDocumentState?.sketches?.length === 2`, 'bezpieczne zakończenie skojarzonego szkicu 3D przez Esc');
 
-    console.log(JSON.stringify({ ok: true, sketchSegments: 4, curveTypes, splineContinuity, editedSpline, curvedTopologyAudit, associatedPath, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshots: { handles: handleArtifactPath, pipe: artifactPath } }, null, 2));
+    console.log('Etap: dokładna B-spline z modelu i Pipe');
+    await clickTool(window, 'Szkic 3D');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sketch3d'`, 'trzeci szkic 3D');
+    await clickTool(window, 'Pobierz krawędzie');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'projectSketch'`, 'pobieranie B-spline');
+    const bsplineSource = await window.webContents.executeJavaScript(`(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const edge = body.topology.edges.filter((item) => item.descriptor?.bspline).sort((a, b) => b.descriptor.length - a.descriptor.length)[0];
+      if (!edge) throw new Error('Brak B-spline do testu.');
+      window.__madcadVerifyTopologySelection({ kind: 'edge', id: edge.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }, 'replace');
+      return edge.descriptor.bspline;
+    })()`);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[2]?.entityData?.some((entity) => entity.type === 'bspline3d')`, 'skojarzona B-spline');
+    const projectedSpline = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[2].entityData.find((entity) => entity.type === 'bspline3d')`);
+    if (JSON.stringify(projectedSpline.geometry.bspline) !== JSON.stringify(bsplineSource)) throw new Error('Projekcja zmieniła dokładne dane B-spline.');
+    await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection([${JSON.stringify(projectedSpline.id)}], 'replace')`);
+    await clickTool(window, 'Rura');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'pipe'`, 'Pipe po B-spline');
+    await setField(window, 'Średnica zewnętrzna', '1');
+    await setField(window, 'Grubość ścianki', '0.2');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'dokładny Pipe po B-spline', 45000);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
+    await waitFor(window, `!window.__madcadVerifyDocumentState?.command && window.__madcadVerifyDocumentState?.featureData?.length === 2 && window.__madcadVerifyEngineState?.status === 'ready'`, 'zapis Pipe po B-spline');
+    const splinePipeVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[1].metrics.volume`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyReopenCurrentDocument()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'ponowne otwarcie B-spline Pipe', 45000);
+    const reopenedSplineVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[1].metrics.volume`);
+    if (!(splinePipeVolume > 0) || Math.abs(reopenedSplineVolume - splinePipeVolume) > 0.001) throw new Error('Pipe po B-spline zmienił się po otwarciu.');
+    console.log(JSON.stringify({ ok: true, splinePipeVolume, sketchSegments: 4, curveTypes, splineContinuity, editedSpline, curvedTopologyAudit, associatedPath, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshots: { handles: handleArtifactPath, pipe: artifactPath } }, null, 2));
   } catch (error) {
     exitCode = 1;
     console.error(error);

@@ -210,7 +210,7 @@ function resolveOpenChainProfile(sketch, entityIds, parameters, featureId, opera
     ];
   };
   const curves = entityIds.map((entityId) => entityMap.get(entityId));
-  const supportedTypes = sketch.space === '3d' ? ['line', 'arc3d', 'spline3d'] : ['line'];
+  const supportedTypes = sketch.space === '3d' ? ['line', 'arc3d', 'spline3d', 'bspline3d'] : ['line'];
   if (curves.some((entity) => !supportedTypes.includes(entity?.type))) throw new Error(`${operationName} wymaga ciągłej ścieżki z obsługiwanych krzywych.`);
   const incidents = new Map();
   curves.forEach((curve) => [curve.pointIds[0], curve.pointIds.at(-1)].forEach((pointId) => {
@@ -244,6 +244,14 @@ function resolveOpenChainProfile(sketch, entityIds, parameters, featureId, opera
       const controls = [vector(curve, 'control1'), vector(curve, 'control2')];
       positive(evaluateExpression(curve.geometry.handleLength ?? '1', parameters), 'Długość uchwytu spline 3D');
       return { type: 'spline3d', id: curve.id, start, controls: reversed ? controls.reverse() : controls, end };
+    }
+    if (curve.type === 'bspline3d') {
+      const bspline = structuredClone(curve.geometry.bspline);
+      const sourceStart = bspline.startPoint;
+      const sourceDirectionReversed = Array.isArray(sourceStart)
+        && Math.hypot(...start.map((value, axis) => value - sourceStart[axis])) > Math.hypot(...end.map((value, axis) => value - sourceStart[axis]));
+      const samples = structuredClone(curve.geometry.samples || []);
+      return { type: 'bspline3d', id: curve.id, start, end, bspline, reversed: sourceDirectionReversed, samples: sourceDirectionReversed ? samples.reverse() : samples };
     }
     return { type: 'line', id: curve.id, start, end };
   });
@@ -301,6 +309,7 @@ function resolveOpenChainProfile(sketch, entityIds, parameters, featureId, opera
   const sampleSegment = (segment) => {
     if (segment.type === 'arc3d') return sampleArc(segment);
     if (segment.type === 'spline3d') return sampleSpline(segment);
+    if (segment.type === 'bspline3d') return segment.samples?.length ? segment.samples : [segment.start, segment.end];
     return [segment.start, segment.end];
   };
   const sampledPoints = segments.flatMap((segment, index) => sampleSegment(segment).slice(index ? 1 : 0));

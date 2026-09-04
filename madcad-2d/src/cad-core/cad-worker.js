@@ -707,6 +707,50 @@ function revolveProfile(profile, axis, angle) {
   return shape;
 }
 
+function makeExactBSplineEdge(data, reversed = false) {
+  const oc = getOC();
+  const poles = new oc.TColgp_Array1OfPnt_2(1, data.poles.length);
+  const weights = new oc.TColStd_Array1OfReal_2(1, data.weights.length);
+  const knots = new oc.TColStd_Array1OfReal_2(1, data.knots.length);
+  const multiplicities = new oc.TColStd_Array1OfInteger_2(1, data.multiplicities.length);
+  const points = [];
+  let spline;
+  let handle;
+  let builder;
+  let edge;
+  try {
+    data.poles.forEach((coordinates, index) => {
+      const point = new oc.gp_Pnt_3(coordinates[0], coordinates[1], coordinates[2]);
+      points.push(point);
+      poles.SetValue(index + 1, point);
+      weights.SetValue(index + 1, data.weights[index]);
+    });
+    data.knots.forEach((value, index) => {
+      knots.SetValue(index + 1, value);
+      multiplicities.SetValue(index + 1, data.multiplicities[index]);
+    });
+    spline = new oc.Geom_BSplineCurve_2(poles, weights, knots, multiplicities, data.degree, Boolean(data.periodic), true);
+    handle = new oc.Handle_Geom_Curve_2(spline);
+    builder = new oc.BRepBuilderAPI_MakeEdge_25(handle, data.firstParameter, data.lastParameter);
+    if (!builder.IsDone()) throw new Error('OpenCascade nie utworzył krawędzi z zapisanej B-spline.');
+    edge = cast(builder.Edge());
+    if (reversed) {
+      const flipped = edge.flipOrientation();
+      edge.delete();
+      edge = flipped;
+    }
+    return edge;
+  } finally {
+    points.forEach((point) => point.delete());
+    builder?.delete();
+    handle?.delete();
+    multiplicities.delete();
+    knots.delete();
+    weights.delete();
+    poles.delete();
+  }
+}
+
 function pathSpine(path) {
   const [first, ...rest] = path.geometry.points;
   if (path.space !== '3d') {
@@ -720,6 +764,7 @@ function pathSpine(path) {
       try {
         if (segment.type === 'arc3d') edges.push(makeThreePointArc(segment.start, segment.through, segment.end));
         else if (segment.type === 'spline3d') edges.push(makeBezierCurve([segment.start, ...segment.controls, segment.end]));
+        else if (segment.type === 'bspline3d') edges.push(makeExactBSplineEdge(segment.bspline, segment.reversed));
         else edges.push(makeLine(segment.start, segment.end));
       } catch (error) {
         throw new Error(`Nie udało się utworzyć krzywej ${segment.type} (${segment.id}): ${error.message || error}`);
@@ -2328,6 +2373,8 @@ function edgeDescriptor(edge) {
   let adaptor;
   let circle;
   let circleCenter;
+  let bsplineHandle;
+  let bspline;
   try {
     const start = edge.startPoint.toTuple();
     const end = edge.endPoint.toTuple();
@@ -2343,7 +2390,11 @@ function edgeDescriptor(edge) {
       length: edge.length,
       closed: edge.isClosed,
     };
-    if (descriptor.geometry !== 'LINE' && !descriptor.closed) descriptor.midpoint = edge.pointAt(0.5).toTuple();
+    const samplePoint = (parameter) => {
+      const point = edge.pointAt(parameter);
+      try { return point.toTuple(); } finally { point.delete(); }
+    };
+    if (descriptor.geometry !== 'LINE' && !descriptor.closed) descriptor.midpoint = samplePoint(0.5);
     if (descriptor.geometry === 'CIRCLE') {
       adaptor = edge._geomAdaptor();
       circle = adaptor.Circle();
@@ -2352,12 +2403,33 @@ function edgeDescriptor(edge) {
       descriptor.radius = circle.Radius();
       descriptor.diameter = descriptor.radius * 2;
     }
+    if (descriptor.geometry === 'BSPLINE_CURVE' && !descriptor.closed) {
+      adaptor = adaptor || edge._geomAdaptor();
+      bsplineHandle = adaptor.BSpline();
+      bspline = bsplineHandle.get();
+      descriptor.samples = Array.from({ length: 25 }, (_unused, index) => samplePoint(index / 24));
+      descriptor.bspline = {
+        degree: bspline.Degree(),
+        periodic: bspline.IsPeriodic(),
+        firstParameter: adaptor.FirstParameter(),
+        lastParameter: adaptor.LastParameter(),
+        startPoint: start,
+        poles: Array.from({ length: bspline.NbPoles() }, (_unused, index) => {
+          const point = bspline.Pole(index + 1);
+          try { return [point.X(), point.Y(), point.Z()]; } finally { point.delete(); }
+        }),
+        weights: Array.from({ length: bspline.NbPoles() }, (_unused, index) => bspline.Weight(index + 1)),
+        knots: Array.from({ length: bspline.NbKnots() }, (_unused, index) => bspline.Knot(index + 1)),
+        multiplicities: Array.from({ length: bspline.NbKnots() }, (_unused, index) => bspline.Multiplicity(index + 1)),
+      };
+    }
     return descriptor;
   } catch (_error) {
     return { geometry: 'UNKNOWN_EDGE' };
   } finally {
     circleCenter?.delete();
     circle?.delete();
+    bsplineHandle?.delete();
     adaptor?.delete();
   }
 }

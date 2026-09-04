@@ -968,7 +968,7 @@ export default function ModelingWorkspace() {
     return document.sketches.find((item) => item.id === activeSketchId)?.blockInstances?.find((instance) => instance.id === instanceIds[0]) || null;
   })();
   const canExtrudeOpenChain = Boolean(activeSketchId && selectedSketchEntities.length && selectedSketchEntities.every((entity) => entity.type === 'line'));
-  const canUseSpatialPath = Boolean(activeSketchIs3D && selectedSketchEntities.length && selectedSketchEntities.every((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)));
+  const canUseSpatialPath = Boolean(activeSketchIs3D && selectedSketchEntities.length && selectedSketchEntities.every((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)));
   const canAddCollinear = selectedSketchEntities.length === 2 && selectedSketchEntities.every((entity) => entity.type === 'line');
   const canAddSymmetry = selectedSketchEntities.filter((entity) => entity.type === 'point').length === 2
     && selectedSketchEntities.filter((entity) => entity.type === 'line').length === 1
@@ -2618,7 +2618,7 @@ export default function ModelingWorkspace() {
   const finishSketch3D = () => {
     if (!activeSketchIs3D) return;
     const sketchId = activeSketchId;
-    const segmentCount = activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)).length;
+    const segmentCount = activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)).length;
     setActiveSketchId(null);
     setWorkspace('solid');
     setCommand(null);
@@ -2668,7 +2668,7 @@ export default function ModelingWorkspace() {
     setWorkspace('sketch');
     if (sketch.space === '3d') {
       const pointIds = sketch.entities.filter((entity) => entity.type === 'point').map((entity) => entity.id);
-      const segmentIds = sketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)).map((entity) => entity.id);
+      const segmentIds = sketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)).map((entity) => entity.id);
       const lastPoint = sketch.entities.find((entity) => entity.id === pointIds.at(-1));
       const x = lastPoint?.geometry.x || '0';
       const y = lastPoint?.geometry.y || '0';
@@ -4629,7 +4629,7 @@ export default function ModelingWorkspace() {
 
   const sweepPathOptions = (profileSketchId = selectedProfileMatch?.sketch.id) => document.sketches
     .filter((sketch) => sketch.id !== profileSketchId)
-    .map((sketch) => ({ id: sketch.id, name: sketch.name, entityIds: sketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type) && entity.role !== 'construction').map((entity) => entity.id) }))
+    .map((sketch) => ({ id: sketch.id, name: sketch.name, entityIds: sketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type) && entity.role !== 'construction').map((entity) => entity.id) }))
     .filter((path) => path.entityIds.length);
 
   const openSurfaceSweep = () => {
@@ -6780,7 +6780,7 @@ export default function ModelingWorkspace() {
     ? `Podgląd operacji · ${bodyCountLabel}`
     : activeSketchId
       ? activeSketchIs3D
-        ? `Szkic 3D · ${activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)).length} krzyw.`
+        ? `Szkic 3D · ${activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)).length} krzyw.`
         : `Krok 1/3 · Szkic 2D · ${activeSketch?.plane || 'XY'}`
       : selectedProfile
         ? 'Krok 2/3 · Profil gotowy do wyciągnięcia'

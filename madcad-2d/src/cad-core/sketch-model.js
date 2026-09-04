@@ -7,6 +7,7 @@ export const SKETCH_ENTITY_TYPES = Object.freeze([
   'line',
   'arc3d',
   'spline3d',
+  'bspline3d',
   'arc',
   'circle',
   'ellipse',
@@ -177,6 +178,15 @@ export function createSketchSpline3D({ startPointId, endPointId, control1 = [0, 
       handleLength: expression(handleLength, 1),
     },
     expressionKeys: ['control1X', 'control1Y', 'control1Z', 'control2X', 'control2Y', 'control2Z', 'handleLength'],
+  });
+}
+
+export function createProjectedSketchBSpline3D({ startPointId, endPointId, bspline, samples = [], ...options } = {}) {
+  return commonEntity('bspline3d', {
+    ...options,
+    pointIds: [startPointId, endPointId],
+    geometry: { bspline: structuredClone(bspline), samples: structuredClone(samples) },
+    expressionKeys: [],
   });
 }
 

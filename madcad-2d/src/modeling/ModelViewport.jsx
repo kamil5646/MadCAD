@@ -278,6 +278,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
         : ['X', 'Y', 'Z'].map((axis) => numericValue(entity.geometry[`${prefix}${axis}`], parameters)));
       return start && end ? spline3DPoints(start, controls, end) : [];
     }
+    if (entity.type === 'bspline3d') return Array.isArray(entity.geometry?.samples) ? entity.geometry.samples : [];
     if (entity.type === 'circle') {
       const center = readPoint(entity.pointIds[0], overrides);
       const radius = numericValue(entity.geometry.radius, parameters);
@@ -357,7 +358,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
   for (const entity of visibleCurves) {
     const localPoints = localPointsFor(entity);
     if (localPoints.length < 2) continue;
-    const hasError = errors.has(entity.id) || (['line', 'arc3d', 'spline3d'].includes(entity.type)
+    const hasError = errors.has(entity.id) || (['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)
       ? Math.hypot(...localPoints[1].map((value, axis) => value - localPoints[0][axis])) <= 1e-7
       : entity.type === 'circle'
         ? !(numericValue(entity.geometry.radius, parameters) > 0)
