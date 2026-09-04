@@ -2411,7 +2411,29 @@ test('Project tworzy skojarzoną ścieżkę 3D i aktualizuje wszystkie współrz
   }), [['2', '4', '6'], ['12', '9', '16']]);
 
   const curved = structuredClone(document);
-  assert.throws(() => projectTopologyToSketch(curved, sketch.id, [{ ...source, descriptor: { geometry: 'CIRCLE', endpoints: [[1, 0, 0], [1, 0, 0]], radius: 1 } }]), /proste krawędzie/);
+  const curvedResult = projectTopologyToSketch(curved, sketch.id, [{
+    ...source,
+    selection: { ...source.selection, id: 'edge-arc' },
+    descriptor: { geometry: 'CIRCLE', endpoints: [[0, 0, 0], [10, 0, 0]], midpoint: [5, 5, 5], center: [5, 0, 5], radius: 5, length: Math.PI * 5, closed: false },
+  }]);
+  const curvedSketch = curved.sketches.find((entry) => entry.id === sketch.id);
+  const projectedArc = curvedSketch.entities.find((entity) => entity.type === 'arc3d' && entity.role === 'projected');
+  assert.equal(curvedResult.createdEntityIds.includes(projectedArc.id), true);
+  assert.deepEqual(['X', 'Y', 'Z'].map((axis) => projectedArc.geometry[`through${axis}`]), ['5', '5', '5']);
+  assert.equal(validateDocument(curved).valid, true);
+
+  const synchronizedArc = synchronizeProjectedGeometry(curved, [{
+    id: 'body-a',
+    topology: { faces: [], vertices: [], edges: [
+      { id: 'edge-spatial', descriptor: { geometry: 'LINE', endpoints: [[2, 4, 6], [12, 9, 16]], length: 15 } },
+      { id: 'edge-arc', descriptor: { geometry: 'CIRCLE', endpoints: [[1, 0, 0], [11, 0, 0]], midpoint: [6, 6, 6], center: [6, 0, 6], radius: 6, length: Math.PI * 6, closed: false } },
+    ] },
+  }]);
+  assert.ok(synchronizedArc.updatedEntityIds.includes(projectedArc.id));
+  assert.deepEqual(['X', 'Y', 'Z'].map((axis) => projectedArc.geometry[`through${axis}`]), ['6', '6', '6']);
+
+  const closedCircle = structuredClone(document);
+  assert.throws(() => projectTopologyToSketch(closedCircle, sketch.id, [{ ...source, descriptor: { geometry: 'CIRCLE', endpoints: [[1, 0, 0], [1, 0, 0]], midpoint: [-1, 0, 0], radius: 1, closed: true } }]), /otwarte łuki/);
 });
 
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {

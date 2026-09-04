@@ -2343,6 +2343,7 @@ function edgeDescriptor(edge) {
       length: edge.length,
       closed: edge.isClosed,
     };
+    if (descriptor.geometry !== 'LINE' && !descriptor.closed) descriptor.midpoint = edge.pointAt(0.5).toTuple();
     if (descriptor.geometry === 'CIRCLE') {
       adaptor = edge._geomAdaptor();
       circle = adaptor.Circle();

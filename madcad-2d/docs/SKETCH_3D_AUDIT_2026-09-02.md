@@ -10,6 +10,8 @@ Widok przechodzi do orientacji izometrycznej, zachowuje obracanie kamery i pokaz
 
 Narzędzie `Pobierz krawędzie` pozwala podczas szkicowania 3D wskazać prostą krawędź istniejącej bryły. Powstaje zablokowana linia `projected` z trwałą referencją topologiczną. Jej dwa końce zachowują rzeczywiste XYZ i są automatycznie synchronizowane, gdy przebudowa źródłowej bryły przesunie krawędź. Polecenie ma własny czytelny panel `Pobierz/Anuluj`, a po zatwierdzeniu wraca do rozpoczętego szkicu 3D zamiast wyłączać inne narzędzie.
 
+`Pobierz krawędzie` obsługuje również otwarte krawędzie kołowe B-Rep. Silnik zapisuje rzeczywisty punkt pośredni krzywej, a szkic tworzy z niego dokładny `arc3d`, nie łamaną aproksymację. Końce i punkt pośredni odświeżają się z tej samej trwałej referencji po przebudowie bryły. Pełny zamknięty okrąg jest celowo odrzucany do czasu dodania zamkniętych ścieżek 3D, zamiast tworzyć niepoprawny łuk o identycznym początku i końcu.
+
 Zaznaczoną linię, łuk albo spline można otworzyć poleceniem `Edytuj krzywą`. Panel pozwala zmienić dokładne współrzędne XYZ, punkt pośredni łuku, uchwyty spline oraz warunek G0/G1/G2. Edycja zachowuje identyfikatory krzywych i współdzielonych punktów, automatycznie przelicza dalszy łańcuch ciągłości i wraca do rozpoczętego polecenia szkicu 3D. Skojarzona geometria `projected` pozostaje tylko do odczytu, ponieważ jej przebieg kontroluje bryła źródłowa.
 
 Po zaznaczeniu jednej krzywej widok pokazuje jej bezpośrednie uchwyty: początek i koniec, punkt pośredni łuku albo dwa uchwyty spline połączone liniami kontrolnymi. Przeciąganie działa w aktualnym widoku kamery, pokazuje na żywo współrzędne XYZ i zapisuje jedną transakcję historii po puszczeniu myszy. Uchwyt sterowany warunkiem G1/G2 porusza się tylko wzdłuż obliczonej stycznej, a uchwyt całkowicie wynikowy dla G2 jest widoczny, lecz zablokowany; dzięki temu bezpośrednia edycja nie zrywa zadanej ciągłości.
@@ -28,4 +30,4 @@ Po zaznaczeniu jednej krzywej widok pokazuje jej bezpośrednie uchwyty: począte
 
 ## Następna kolejność
 
-Kolejny etap to zachowanie dokładnej geometrii skojarzonych krawędzi krzywoliniowych i ścieżek leżących na powierzchniach modelu.
+Kolejny etap to zachowanie dokładnej geometrii skojarzonych B-spline i ścieżek leżących na powierzchniach modelu.

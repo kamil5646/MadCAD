@@ -101,7 +101,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Skojarzone proste krawędzie B-Rep pobierane do szkicu 3D z trwałą referencją, automatycznym odświeżaniem XYZ i bezpośrednim użyciem przez Pipe.
   - [x] Parametryczna edycja istniejącej linii, łuku i spline w panelu XYZ, ze wspólnymi punktami, przebudową zależnych warunków G1/G2 i powrotem do aktywnego polecenia szkicu 3D.
   - [x] Bezpośrednie uchwyty końców, punktu łuku i spline w widoku, z podglądem XYZ, dokładnym snapem oraz ochroną zależnych uchwytów G1/G2.
-  - [ ] Skojarzone krawędzie krzywoliniowe i ścieżki leżące na powierzchni.
+  - [x] Skojarzone otwarte łuki kołowe B-Rep pobierane bez aproksymacji do dokładnego `arc3d` i odświeżane razem z bryłą źródłową.
+  - [ ] Skojarzone B-spline i ścieżki leżące na powierzchni.
 
 ### Render, Animation, Simulation i Generative
 

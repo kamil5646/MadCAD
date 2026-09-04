@@ -1,4 +1,4 @@
-import { createSketchLine, createSketchPoint, createSketchPoint3D } from './sketch-model.js';
+import { createSketchArc3D, createSketchLine, createSketchPoint, createSketchPoint3D } from './sketch-model.js';
 import { createTopologyReference } from './topology-references.js';
 import { refreshDetectedSketchProfiles } from './sketch-topology.js';
 
@@ -43,6 +43,12 @@ function findOrCreatePoint(sketch, coordinates, referenceId) {
   return point;
 }
 
+function spatialEdgeType(descriptor) {
+  if (descriptor?.geometry === 'LINE') return 'line';
+  if (descriptor?.geometry === 'CIRCLE' && !descriptor.closed) return 'arc3d';
+  return null;
+}
+
 export function projectTopologyToSketch(document, sketchId, sources = []) {
   const sketch = document.sketches.find((candidate) => candidate.id === sketchId);
   if (!sketch) throw new Error('Nie znaleziono aktywnego szkicu dla Project.');
@@ -53,10 +59,11 @@ export function projectTopologyToSketch(document, sketchId, sources = []) {
       localPoint(source.descriptor?.point, sketch);
       continue;
     }
-    if (sketch.space === '3d' && source.descriptor?.geometry && source.descriptor.geometry !== 'LINE') throw new Error('Ścieżka skojarzona 3D obsługuje obecnie proste krawędzie modelu.');
+    if (sketch.space === '3d' && !spatialEdgeType(source.descriptor)) throw new Error('Ścieżka skojarzona 3D obsługuje proste krawędzie i otwarte łuki kołowe modelu.');
     const endpoints = source.descriptor?.endpoints;
     if (!Array.isArray(endpoints) || endpoints.length !== 2) throw new Error('Projektowana krawędź nie ma dwóch końców.');
     endpoints.forEach((point) => localPoint(point, sketch));
+    if (sketch.space === '3d' && spatialEdgeType(source.descriptor) === 'arc3d') localPoint(source.descriptor?.midpoint, sketch);
   }
   const createdEntityIds = [];
   const createdReferenceIds = [];
@@ -80,16 +87,29 @@ export function projectTopologyToSketch(document, sketchId, sources = []) {
     const duplicate = sketch.entities.find((entity) => entity.type === 'line' && entity.role === 'projected'
       && ((entity.pointIds[0] === points[0].id && entity.pointIds[1] === points[1].id) || (entity.pointIds[0] === points[1].id && entity.pointIds[1] === points[0].id)));
     if (duplicate) continue;
-    const line = createSketchLine({
-      startPointId: points[0].id,
-      endPointId: points[1].id,
-      role: 'projected',
-      fixed: true,
-      sourceReferenceId: reference.id,
-    });
-    line.projectionReferenceId = reference.id;
-    sketch.entities.push(line);
-    createdEntityIds.push(line.id);
+    const spatialType = sketch.space === '3d' ? spatialEdgeType(source.descriptor) : 'line';
+    const through = spatialType === 'arc3d' ? localPoint(source.descriptor.midpoint, sketch) : null;
+    const curve = spatialType === 'arc3d'
+      ? createSketchArc3D({
+        startPointId: points[0].id,
+        endPointId: points[1].id,
+        throughX: through[0],
+        throughY: through[1],
+        throughZ: through[2],
+        role: 'projected',
+        fixed: true,
+        sourceReferenceId: reference.id,
+      })
+      : createSketchLine({
+        startPointId: points[0].id,
+        endPointId: points[1].id,
+        role: 'projected',
+        fixed: true,
+        sourceReferenceId: reference.id,
+      });
+    curve.projectionReferenceId = reference.id;
+    sketch.entities.push(curve);
+    createdEntityIds.push(curve.id);
   }
   if (sketch.space !== '3d') refreshDetectedSketchProfiles(sketch, document.parameters);
   return { createdEntityIds, createdReferenceIds };
@@ -123,27 +143,37 @@ export function synchronizeProjectedGeometry(document, bodies = []) {
   const updatedEntityIds = new Set();
   for (const sketch of document.sketches || []) {
     const entityMap = new Map((sketch.entities || []).map((entity) => [entity.id, entity]));
-    const projectedLines = (sketch.entities || []).filter((entity) => entity.type === 'line' && entity.role === 'projected');
-    const projectedLinePointIds = new Set(projectedLines.flatMap((line) => line.pointIds || []));
+    const projectedCurves = (sketch.entities || []).filter((entity) => ['line', 'arc3d'].includes(entity.type) && entity.role === 'projected');
+    const projectedCurvePointIds = new Set(projectedCurves.flatMap((curve) => curve.pointIds || []));
 
-    for (const point of (sketch.entities || []).filter((entity) => entity.type === 'point' && entity.role === 'projected' && !projectedLinePointIds.has(entity.id))) {
+    for (const point of (sketch.entities || []).filter((entity) => entity.type === 'point' && entity.role === 'projected' && !projectedCurvePointIds.has(entity.id))) {
       const referenceId = point.projectionReferenceId || point.sourceReferenceId;
       const record = records.get(referenceId);
       const worldPoint = record?.descriptor?.point || record?.descriptor?.endpoints?.[0];
       if (worldPoint && setPointCoordinates(point, localPoint(worldPoint, sketch))) updatedEntityIds.add(point.id);
     }
 
-    for (const line of projectedLines) {
-      const referenceId = line.projectionReferenceId || line.sourceReferenceId;
-      const endpoints = records.get(referenceId)?.descriptor?.endpoints;
+    for (const curve of projectedCurves) {
+      const referenceId = curve.projectionReferenceId || curve.sourceReferenceId;
+      const descriptor = records.get(referenceId)?.descriptor;
+      const endpoints = descriptor?.endpoints;
       if (!Array.isArray(endpoints) || endpoints.length !== 2) continue;
       const localEndpoints = endpoints.map((point) => localPoint(point, sketch));
       if (Math.hypot(...localEndpoints[1].map((value, axis) => value - localEndpoints[0][axis])) <= 1e-9) continue;
-      line.pointIds.forEach((pointId, index) => {
+      curve.pointIds.forEach((pointId, index) => {
         const point = entityMap.get(pointId);
         if (point?.type === 'point' && setPointCoordinates(point, localEndpoints[index])) updatedEntityIds.add(point.id);
       });
-      if (line.pointIds.some((pointId) => updatedEntityIds.has(pointId))) updatedEntityIds.add(line.id);
+      let curveChanged = curve.pointIds.some((pointId) => updatedEntityIds.has(pointId));
+      if (curve.type === 'arc3d' && Array.isArray(descriptor?.midpoint)) {
+        const through = localPoint(descriptor.midpoint, sketch);
+        ['X', 'Y', 'Z'].forEach((axis, index) => {
+          if (String(curve.geometry[`through${axis}`]) === String(through[index])) return;
+          curve.geometry[`through${axis}`] = String(through[index]);
+          curveChanged = true;
+        });
+      }
+      if (curveChanged) updatedEntityIds.add(curve.id);
     }
     if (sketch.space !== '3d' && (sketch.entities || []).some((entity) => updatedEntityIds.has(entity.id))) refreshDetectedSketchProfiles(sketch, document.parameters);
   }
