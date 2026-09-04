@@ -124,6 +124,30 @@ app.whenReady().then(async () => {
     const near = (actual, expected) => actual.length === expected.length && actual.every((value, index) => Math.abs(value - expected[index]) < 1e-7);
     if (splineContinuity.continuity !== 'g2' || splineContinuity.handleLength !== 5 || !near(splineContinuity.control1, [60, 15, 0]) || !near(splineContinuity.control2, [56.25, 20, 0])) throw new Error(`Błędna ciągłość G2 spline: ${JSON.stringify(splineContinuity)}`);
 
+    console.log('Etap: edycja istniejącego spline 3D');
+    await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection([${JSON.stringify(spline.id)}], 'replace')`);
+    await clickTool(window, 'Edytuj krzywą');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'editSketch3d' && document.querySelector('.command-dialog')?.textContent.includes('Edytuj krzywą 3D')`, 'panel edycji spline 3D');
+    await setField(window, 'Długość uchwytu', '6');
+    await setField(window, 'Koniec X', '78');
+    await setField(window, 'Koniec Y', '27');
+    await setField(window, 'Koniec Z', '12');
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sketch3d' && window.__madcadVerifyDocumentState?.selection?.ids?.length === 4`, 'powrót do aktywnej ścieżki po edycji');
+    const editedSpline = await window.webContents.executeJavaScript(`(() => {
+      const sketch = window.__madcadVerifyDocumentState.sketches[0];
+      const spline = sketch.entityData.find((entity) => entity.id === ${JSON.stringify(spline.id)});
+      const end = sketch.entityData.find((entity) => entity.id === spline.pointIds[1]);
+      return {
+        continuity: spline.geometry.continuity,
+        handleLength: Number(spline.geometry.handleLength),
+        control1: ['X', 'Y', 'Z'].map((axis) => Number(spline.geometry['control1' + axis])),
+        control2: ['X', 'Y', 'Z'].map((axis) => Number(spline.geometry['control2' + axis])),
+        end: ['x', 'y', 'z'].map((axis) => Number(end.geometry[axis])),
+      };
+    })()`);
+    if (editedSpline.continuity !== 'g2' || editedSpline.handleLength !== 6 || !near(editedSpline.control1, [60, 16, 0]) || !near(editedSpline.control2, [54.6, 22, 0]) || !near(editedSpline.end, [78, 27, 12])) throw new Error(`Błędna edycja spline 3D: ${JSON.stringify(editedSpline)}`);
+
     console.log('Etap: Pipe');
     await clickTool(window, 'Rura');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'pipe' && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'podgląd Pipe po ścieżce 3D', 45000);
@@ -180,7 +204,7 @@ app.whenReady().then(async () => {
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     await waitFor(window, `!window.__madcadVerifyDocumentState?.command && !window.__madcadVerifyDocumentState?.activeSketchId && window.__madcadVerifyDocumentState?.sketches?.length === 2`, 'bezpieczne zakończenie skojarzonego szkicu 3D przez Esc');
 
-    console.log(JSON.stringify({ ok: true, sketchSegments: 4, curveTypes, splineContinuity, associatedPath, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshot: artifactPath }, null, 2));
+    console.log(JSON.stringify({ ok: true, sketchSegments: 4, curveTypes, splineContinuity, editedSpline, associatedPath, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshot: artifactPath }, null, 2));
   } catch (error) {
     exitCode = 1;
     console.error(error);

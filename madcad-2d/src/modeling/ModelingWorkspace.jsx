@@ -89,6 +89,7 @@ import {
   createTangentArcContinuation,
   deleteSketchSelection,
   translateSketchSelection,
+  updateSketchCurve3D,
   upsertSketchProfile,
   spatialCurveEndDifferential,
 } from '../cad-core/sketch-model.js';
@@ -2678,6 +2679,90 @@ export default function ModelingWorkspace() {
       setCommand(null);
       setNotice(`Edytujesz ${sketch.name}.`);
     }
+  };
+
+  const openSketch3DEntityEditor = () => {
+    if (readOnly) return readOnlyNotice();
+    if (!activeSketchIs3D || selectedSketchEntities.length !== 1) {
+      setNotice('Zaznacz jedną linię, łuk albo spline szkicu 3D.');
+      return;
+    }
+    const curve = selectedSketchEntities[0];
+    if (!['line', 'arc3d', 'spline3d'].includes(curve.type)) {
+      setNotice('Edytować można linię, łuk albo spline szkicu 3D.');
+      return;
+    }
+    if (curve.role === 'projected') {
+      setNotice('Skojarzoną krzywą zmienia się przez edycję geometrii źródłowej modelu.');
+      return;
+    }
+    const pointById = new Map(activeSketch.entities.filter((entity) => entity.type === 'point').map((entity) => [entity.id, entity]));
+    const [startPoint, endPoint] = curve.pointIds.map((id) => pointById.get(id));
+    if (!startPoint || !endPoint) {
+      setNotice('Wybrana krzywa nie ma kompletnych punktów końcowych.');
+      return;
+    }
+    const pointValues = (point) => ({
+      x: String(point.geometry.x ?? '0'), y: String(point.geometry.y ?? '0'), z: String(point.geometry.z ?? '0'),
+    });
+    const start = pointValues(startPoint);
+    const end = pointValues(endPoint);
+    const geometry = curve.geometry || {};
+    setCommand({
+      type: 'editSketch3d',
+      sketchId: activeSketch.id,
+      curveId: curve.id,
+      curveType: curve.type,
+      curveLabel: curve.type === 'line' ? 'linię 3D' : curve.type === 'arc3d' ? 'łuk 3D' : 'spline Béziera 3D',
+      resumeSketch3D: command?.type === 'sketch3d' ? { ...command } : null,
+      startPointId: startPoint.id,
+      endPointId: endPoint.id,
+      startX: start.x, startY: start.y, startZ: start.z,
+      endX: end.x, endY: end.y, endZ: end.z,
+      throughX: String(geometry.throughX ?? '0'), throughY: String(geometry.throughY ?? '0'), throughZ: String(geometry.throughZ ?? '0'),
+      control1X: String(geometry.control1X ?? '0'), control1Y: String(geometry.control1Y ?? '0'), control1Z: String(geometry.control1Z ?? '0'),
+      control2X: String(geometry.control2X ?? '0'), control2Y: String(geometry.control2Y ?? '0'), control2Z: String(geometry.control2Z ?? '0'),
+      continuity: geometry.continuity || 'g0',
+      handleLength: String(geometry.handleLength ?? '7'),
+    });
+    setNotice(`Edytujesz ${curve.type === 'line' ? 'linię' : curve.type === 'arc3d' ? 'łuk' : 'spline'} 3D. Wpisz współrzędne albo wyrażenia parametrów i zatwierdź.`);
+  };
+
+  const confirmSketch3DEntityEditor = () => {
+    if (command?.type !== 'editSketch3d' || readOnly) return;
+    try {
+      commit((next) => {
+        const sketch = next.sketches.find((item) => item.id === command.sketchId);
+        if (!sketch) throw new Error('Nie znaleziono edytowanego szkicu 3D.');
+        updateSketchCurve3D(sketch, command.curveId, command, next.parameters);
+        refreshDetectedSketchProfiles(sketch, next.parameters);
+      });
+    } catch (error) {
+      setNotice(`Nie zapisano krzywej 3D: ${error.message}`);
+      return;
+    }
+    const resumeSketch3D = command.resumeSketch3D;
+    const resolved = resolveParameters(document.parameters);
+    const start = ['X', 'Y', 'Z'].map((axis) => evaluateExpression(command[`start${axis}`], resolved.values));
+    const end = ['X', 'Y', 'Z'].map((axis) => evaluateExpression(command[`end${axis}`], resolved.values));
+    setSelection({ kind: 'sketchEntities', sketchId: command.sketchId, ids: resumeSketch3D?.segmentIds?.length ? [...resumeSketch3D.segmentIds] : [command.curveId] });
+    if (resumeSketch3D) {
+      const lastPointId = resumeSketch3D.pointIds?.at(-1);
+      const changedLastPoint = lastPointId === command.startPointId
+        ? { x: command.startX, y: command.startY, z: command.startZ, numeric: start }
+        : lastPointId === command.endPointId
+          ? { x: command.endX, y: command.endY, z: command.endZ, numeric: end }
+          : null;
+      setCommand(changedLastPoint ? {
+        ...resumeSketch3D,
+        startX: changedLastPoint.x, startY: changedLastPoint.y, startZ: changedLastPoint.z,
+        endX: String(changedLastPoint.numeric[0] + 20), endY: String(changedLastPoint.numeric[1]), endZ: String(changedLastPoint.numeric[2]),
+        throughX: String(changedLastPoint.numeric[0] + 10), throughY: String(changedLastPoint.numeric[1] + 8), throughZ: String(changedLastPoint.numeric[2]),
+        control1X: String(changedLastPoint.numeric[0] + 7), control1Y: String(changedLastPoint.numeric[1]), control1Z: String(changedLastPoint.numeric[2] + 5),
+        control2X: String(changedLastPoint.numeric[0] + 14), control2Y: String(changedLastPoint.numeric[1]), control2Z: String(changedLastPoint.numeric[2] - 5),
+      } : resumeSketch3D);
+    } else setCommand(null);
+    setNotice('Zapisano krzywą 3D. Wszystkie operacje Pipe, Sweep i Pattern użyją jej nowego przebiegu.');
   };
 
   const finishSketch = () => {
@@ -6374,6 +6459,10 @@ export default function ModelingWorkspace() {
   const cancelActiveCommand = () => {
     if (!command) return false;
     if (command.type === 'sketch3d') finishSketch3D();
+    else if (command.type === 'editSketch3d' && command.resumeSketch3D) {
+      setCommand(command.resumeSketch3D);
+      setNotice('Anulowano edycję krzywej. Szkic 3D pozostaje aktywny.');
+    }
     else if (command.type === 'line' || command.type === 'polyline') finishSketchPath();
     else {
       if (command.type === 'projectSketch' && command.resumeSketch3D) {
@@ -6395,6 +6484,10 @@ export default function ModelingWorkspace() {
     if (!command) return false;
     if (command.type === 'sketch3d') {
       confirmSketch3DSegment();
+      return true;
+    }
+    if (command.type === 'editSketch3d') {
+      confirmSketch3DEntityEditor();
       return true;
     }
     if (command.type === 'line' || command.type === 'polyline') {
@@ -6868,14 +6961,17 @@ export default function ModelingWorkspace() {
                 {activeSketchIs3D ? (
                   <>
                     <RibbonGroup label="ŚCIEŻKA 3D">
-                      <ToolButton icon={Move3d} label="Dodaj krzywą" onClick={confirmSketch3DSegment} primary disabled={readOnly} description="Dodaj linię, łuk albo spline od bieżącego punktu według współrzędnych XYZ z panelu." />
-                      <ToolButton icon={Undo2} label="Cofnij krzywą" onClick={undoSketch3DSegment} disabled={readOnly || !command?.segmentIds?.length} description="Usuń ostatnią krzywą bez kończenia szkicu 3D." />
-                      <ToolButton icon={ScanSearch} label="Pobierz krawędzie" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} description="Utwórz skojarzoną ścieżkę 3D z wybranych krawędzi modelu." />
+                      <ToolButton icon={Move3d} label="Dodaj krzywą" onClick={confirmSketch3DSegment} primary disabled={readOnly || command?.type !== 'sketch3d'} description="Dodaj linię, łuk albo spline od bieżącego punktu według współrzędnych XYZ z panelu." />
+                      <ToolButton icon={Undo2} label="Cofnij krzywą" onClick={undoSketch3DSegment} disabled={readOnly || command?.type !== 'sketch3d' || !command?.segmentIds?.length} description="Usuń ostatnią krzywą bez kończenia szkicu 3D." />
+                      <ToolButton icon={ScanSearch} label="Pobierz krawędzie" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly || command?.type === 'editSketch3d'} description="Utwórz skojarzoną ścieżkę 3D z wybranych krawędzi modelu." />
+                    </RibbonGroup>
+                    <RibbonGroup label="EDYTUJ">
+                      <ToolButton icon={Pencil} label="Edytuj krzywą" onClick={openSketch3DEntityEditor} disabled={readOnly || command?.type === 'editSketch3d' || selectedSketchEntities.length !== 1 || selectedSketchEntities[0]?.role === 'projected' || !['line', 'arc3d', 'spline3d'].includes(selectedSketchEntities[0]?.type)} disabledReason="Zaznacz jedną zwykłą linię, łuk albo spline szkicu 3D." description="Zmień istniejącą krzywą i jej końce XYZ bez usuwania ścieżki." />
                     </RibbonGroup>
                     <RibbonGroup label="UŻYJ ŚCIEŻKI">
-                      <ToolButton icon={Cylinder} label="Pipe" displayLabel="Rura" onClick={openPipe} disabled={readOnly || !canUseSpatialPath} disabledReason="Dodaj co najmniej jedną krzywą ścieżki 3D." />
+                      <ToolButton icon={Cylinder} label="Pipe" displayLabel="Rura" onClick={openPipe} disabled={readOnly || command?.type === 'editSketch3d' || !canUseSpatialPath} disabledReason="Dodaj co najmniej jedną krzywą ścieżki 3D." />
                     </RibbonGroup>
-                    <RibbonGroup label="ZAKOŃCZ SZKIC"><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch3D} primary /></RibbonGroup>
+                    <RibbonGroup label="ZAKOŃCZ SZKIC"><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch3D} primary disabled={command?.type === 'editSketch3d'} /></RibbonGroup>
                   </>
                 ) : (
                   <>
@@ -7072,7 +7168,7 @@ export default function ModelingWorkspace() {
           collapsed={panelLayout.commandCollapsed}
           dock="right"
           onChange={updateCommand}
-          onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : command?.type === 'sketch3d' ? confirmSketch3DSegment : command?.type === 'projectSketch' ? projectSelectedTopology : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
+          onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : command?.type === 'sketch3d' ? confirmSketch3DSegment : command?.type === 'editSketch3d' ? confirmSketch3DEntityEditor : command?.type === 'projectSketch' ? projectSelectedTopology : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
           onConfirmDynamic={confirmDynamicSketchSegment}
           onCancel={cancelActiveCommand}
           onUndoSegment={command?.type === 'sketch3d' ? undoSketch3DSegment : undoSketchSegment}

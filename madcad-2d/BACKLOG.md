@@ -99,7 +99,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Łuk 3D przez trzy punkty i sześcienny spline Béziera z uchwytami XYZ, wspólnym punktem G0, dokładnymi krawędziami B-Rep oraz współpracą z Pipe, Sweep i Pattern.
   - [x] Automatyczny wybór ciągłości G1/G2 początku spline względem poprzedniej linii, łuku albo spline, z edytowalną długością uchwytu i trwałym zapisem warunku.
   - [x] Skojarzone proste krawędzie B-Rep pobierane do szkicu 3D z trwałą referencją, automatycznym odświeżaniem XYZ i bezpośrednim użyciem przez Pipe.
-  - [ ] Skojarzone krawędzie krzywoliniowe i ścieżki na powierzchni oraz bezpośrednia edycja istniejących punktów, uchwytów i warunków w widoku.
+  - [x] Parametryczna edycja istniejącej linii, łuku i spline w panelu XYZ, ze wspólnymi punktami, przebudową zależnych warunków G1/G2 i powrotem do aktywnego polecenia szkicu 3D.
+  - [ ] Bezpośrednie uchwyty punktów i spline w widoku oraz skojarzone krawędzie krzywoliniowe i ścieżki na powierzchni.
 
 ### Render, Animation, Simulation i Generative
 

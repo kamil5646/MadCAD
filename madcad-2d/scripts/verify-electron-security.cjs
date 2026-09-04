@@ -50,6 +50,17 @@ async function evaluateWithDebugger(webContents, expression, awaitPromise = fals
   return response.result.value;
 }
 
+async function waitForRendererHook(webContents, hookName, timeoutMs = 10_000) {
+  return evaluateWithDebugger(webContents, `(async () => {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < ${timeoutMs}) {
+      if (typeof window[${JSON.stringify(hookName)}] === 'function') return true;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('Renderer hook timed out: ' + ${JSON.stringify(hookName)});
+  })()`, true);
+}
+
 app.on('browser-window-created', (_event, mainWindow) => {
   if (started) return;
   started = true;
@@ -94,6 +105,7 @@ app.on('browser-window-created', (_event, mainWindow) => {
       ]);
       assert.equal(trustedUpdate.ok, true);
       assert.equal(trustedUpdate.supported, false);
+      await waitForRendererHook(mainWindow.webContents, '__madcadGetSessionExport');
       const trustedSnapshots = await evaluateWithDebugger(mainWindow.webContents, `(async () => {
         const text = window.__madcadGetSessionExport();
         const created = await window.desktopApp.projectSnapshotCreate({ name: 'Security smoke', description: 'Trusted IPC', text });

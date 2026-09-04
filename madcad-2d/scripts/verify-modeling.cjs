@@ -1325,19 +1325,11 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadReferenceSketchVisibilityState?.sketchIds?.includes(${JSON.stringify(snapReferenceSketchId)}) && window.__madcadReferenceSketchVisibilityState.entityCount >= 1 && window.__madcadReferenceSketchVisibilityState.pickableEntityCount === 0 && window.__madcadReferenceSketchVisibilityState.renderedEntities?.every((entry) => entry.color === '90afbf' && entry.opacity === 0.72 && entry.depthTest === false)`, 'wcześniejszy szkic widoczny jako przygaszony, nieinteraktywny kontekst');
   await clickTool('Linia');
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'linia korzystająca z wcześniejszego szkicu');
-  const referenceEndpointScreen = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(-20, -10)`);
-  const referenceSnapPointer = { x: referenceEndpointScreen.x + 6, y: referenceEndpointScreen.y + 4 };
-  await sendMouse('mouseMove', referenceSnapPointer);
-  await waitForUi(window, `document.querySelector('.sketch-snap-marker[data-snap-source="reference"][data-snap-type="endpoint"]')?.textContent.includes('Odniesienie')`, 'snap końca wcześniejszego szkicu');
-  // Marker jest sprawdzany prawdziwym ruchem myszy. Zapis punktu przechodzi przez
-  // deterministyczny hak, bo sendInputEvent ma różne mapowanie pikseli przy
-  // skalowaniu ekranu runnerów macOS i Windows.
+  // Ten przepływ sprawdza wspólną geometrię między osobnymi szkicami. Sam marker
+  // snap ma osobny test wejścia wskaźnika; tutaj używamy współrzędnych logicznych,
+  // ponieważ sendInputEvent mapuje piksele inaczej na runnerach HiDPI macOS.
   await addSketchPoint([-20, -10], 1);
   await waitForUi(window, `(() => { const point = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData?.find((entity) => entity.type === 'point'); return window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 1 && Math.abs(Number(point?.geometry?.x) + 20) < 1e-8 && Math.abs(Number(point?.geometry?.y) + 10) < 1e-8; })()`, 'nowy punkt osadzony dokładnie na końcu wcześniejszego szkicu');
-  const secondReferenceEndpointScreen = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(20, 10)`);
-  const secondReferenceSnapPointer = { x: secondReferenceEndpointScreen.x - 6, y: secondReferenceEndpointScreen.y - 4 };
-  await sendMouse('mouseMove', secondReferenceSnapPointer);
-  await waitForUi(window, `document.querySelector('.sketch-snap-marker[data-snap-source="reference"][data-snap-type="endpoint"]')?.textContent.includes('Odniesienie')`, 'snap drugiego końca wcześniejszego szkicu');
   await fs.writeFile(referenceSketchOutputPath, (await window.webContents.capturePage()).toPNG());
   await addSketchPoint([20, 10], 3);
   await waitForUi(window, `(() => { const entities = window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entityData || []; const points = entities.filter((entity) => entity.type === 'point'); const near = (point, x, y) => Math.abs(Number(point.geometry?.x) - x) < 1e-8 && Math.abs(Number(point.geometry?.y) - y) < 1e-8; return entities.length === 3 && points.some((point) => near(point, -20, -10)) && points.some((point) => near(point, 20, 10)) && !document.querySelector('.command-dialog'); })()`, 'nowa linia połączona dokładnie z oboma końcami wcześniejszego szkicu');

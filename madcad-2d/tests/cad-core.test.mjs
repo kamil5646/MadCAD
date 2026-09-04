@@ -80,6 +80,7 @@ import {
   deleteSketchSelection,
   pruneDanglingSketchRelations,
   translateSketchSelection,
+  updateSketchCurve3D,
   upsertSketchProfile,
   spatialCurveEndDifferential,
 } from '../src/cad-core/sketch-model.js';
@@ -1672,6 +1673,41 @@ test('Spline 3D zachowuje automatyczną ciągłość G1 i G2 z poprzednią krzyw
   const invalid = structuredClone(document);
   invalid.sketches[0].entities.find((entity) => entity.type === 'spline3d').geometry.continuity = 'g3';
   assert.ok(validateDocument(invalid).issues.some((issue) => issue.path.endsWith('.geometry.continuity')));
+});
+
+test('edycja krzywej szkicu 3D zachowuje wspólne punkty i przelicza ciągłość G2', () => {
+  const first = createSketchPoint3D({ x: 50, y: 0, z: 0 });
+  const joint = createSketchPoint3D({ x: 60, y: 10, z: 0 });
+  const end = createSketchPoint3D({ x: 75, y: 25, z: 10 });
+  const arc = createSketchArc3D({ startPointId: first.id, endPointId: joint.id, throughX: 57.071067811865476, throughY: 2.9289321881345245, throughZ: 0 });
+  const spline = createSketchSpline3D({ startPointId: joint.id, endPointId: end.id, control1: [60, 15, 0], control2: [56.25, 20, 0], continuity: 'g2', handleLength: 5 });
+  const sketch = createSketch({ name: 'Edytowalna ścieżka 3D', space: '3d', entities: [first, joint, end, arc, spline] });
+
+  updateSketchCurve3D(sketch, spline.id, { endX: '78', endY: '27', endZ: '12', handleLength: '6' });
+  const updatedSpline = sketch.entities.find((entity) => entity.id === spline.id);
+  const updatedEnd = sketch.entities.find((entity) => entity.id === end.id);
+  assert.deepEqual(['x', 'y', 'z'].map((axis) => updatedEnd.geometry[axis]), ['78', '27', '12']);
+  assert.deepEqual(['X', 'Y', 'Z'].map((axis) => Number(updatedSpline.geometry[`control1${axis}`])), [60, 16, 0]);
+  ['X', 'Y', 'Z'].map((axis) => Number(updatedSpline.geometry[`control2${axis}`])).forEach((value, axis) => assert.ok(Math.abs(value - [54.6, 22, 0][axis]) < 1e-9));
+
+  updateSketchCurve3D(sketch, arc.id, { endX: '62', endY: '12', endZ: '1', throughX: '57', throughY: '3', throughZ: '0' });
+  const changedArc = sketch.entities.find((entity) => entity.id === arc.id);
+  const changedSpline = sketch.entities.find((entity) => entity.id === spline.id);
+  const changedJoint = sketch.entities.find((entity) => entity.id === joint.id);
+  assert.deepEqual(['x', 'y', 'z'].map((axis) => changedJoint.geometry[axis]), ['62', '12', '1']);
+  assert.equal(changedArc.pointIds[1], changedSpline.pointIds[0]);
+  const arcDifferential = spatialCurveEndDifferential({
+    type: 'arc3d', start: [50, 0, 0], through: [57, 3, 0], end: [62, 12, 1],
+  });
+  const splineControl1 = ['X', 'Y', 'Z'].map((axis) => Number(changedSpline.geometry[`control1${axis}`]));
+  const splineDirection = splineControl1.map((value, axis) => (value - [62, 12, 1][axis]) / 6);
+  splineDirection.forEach((value, axis) => assert.ok(Math.abs(value - arcDifferential.tangent[axis]) < 1e-9));
+
+  const projected = structuredClone(sketch);
+  projected.entities.find((entity) => entity.id === arc.id).role = 'projected';
+  const beforeRejectedEdit = structuredClone(projected.entities);
+  assert.throws(() => updateSketchCurve3D(projected, arc.id, { endX: '100' }), /geometria źródłowa/);
+  assert.deepEqual(projected.entities, beforeRejectedEdit);
 });
 
 test('Loft przygotowuje uporządkowane profile z osobnych równoległych szkiców', () => {

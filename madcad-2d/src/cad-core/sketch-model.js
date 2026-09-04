@@ -180,6 +180,85 @@ export function createSketchSpline3D({ startPointId, endPointId, control1 = [0, 
   });
 }
 
+export function updateSketchCurve3D(sketch, curveId, patch = {}, parameters = []) {
+  if (!sketch || sketch.space !== '3d') throw new Error('Edycja krzywej 3D wymaga szkicu przestrzennego.');
+  const resolved = resolveParameters(parameters);
+  if (!resolved.valid) throw new Error('Parametry dokumentu zawierają błędy.');
+  const candidate = structuredClone(sketch);
+  const curve = candidate.entities.find((entity) => entity.id === curveId);
+  if (!curve || !['line', 'arc3d', 'spline3d'].includes(curve.type)) throw new Error('Nie znaleziono obsługiwanej krzywej szkicu 3D.');
+  if (curve.role === 'projected') throw new Error('Skojarzoną krzywą Project zmienia geometria źródłowa modelu.');
+  const [startPoint, endPoint] = curve.pointIds.map((pointId) => candidate.entities.find((entity) => entity.id === pointId && entity.type === 'point'));
+  if (!startPoint || !endPoint) throw new Error('Krzywa 3D nie ma kompletnych punktów końcowych.');
+  const pointPatch = (prefix, point) => ({
+    ...point.geometry,
+    x: expression(patch[`${prefix}X`], point.geometry.x),
+    y: expression(patch[`${prefix}Y`], point.geometry.y),
+    z: expression(patch[`${prefix}Z`], point.geometry.z),
+  });
+  startPoint.geometry = pointPatch('start', startPoint);
+  endPoint.geometry = pointPatch('end', endPoint);
+  if (curve.type === 'arc3d') curve.geometry = {
+    ...curve.geometry,
+    throughX: expression(patch.throughX, curve.geometry.throughX),
+    throughY: expression(patch.throughY, curve.geometry.throughY),
+    throughZ: expression(patch.throughZ, curve.geometry.throughZ),
+  };
+  if (curve.type === 'spline3d') curve.geometry = {
+    ...curve.geometry,
+    control1X: expression(patch.control1X, curve.geometry.control1X),
+    control1Y: expression(patch.control1Y, curve.geometry.control1Y),
+    control1Z: expression(patch.control1Z, curve.geometry.control1Z),
+    control2X: expression(patch.control2X, curve.geometry.control2X),
+    control2Y: expression(patch.control2Y, curve.geometry.control2Y),
+    control2Z: expression(patch.control2Z, curve.geometry.control2Z),
+    continuity: patch.continuity || curve.geometry.continuity || 'g0',
+    handleLength: expression(patch.handleLength, curve.geometry.handleLength || 1),
+  };
+  const evaluatedPoint = (pointId) => {
+    const point = candidate.entities.find((entity) => entity.id === pointId && entity.type === 'point');
+    return ['x', 'y', 'z'].map((axis) => evaluateExpression(point?.geometry?.[axis], resolved.values));
+  };
+  const evaluatedVector = (entity, prefix) => ['X', 'Y', 'Z'].map((axis) => evaluateExpression(entity?.geometry?.[`${prefix}${axis}`], resolved.values));
+  const curves = candidate.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type));
+  for (const [index, spatialCurve] of curves.entries()) {
+    const start = evaluatedPoint(spatialCurve.pointIds[0]);
+    const end = evaluatedPoint(spatialCurve.pointIds.at(-1));
+    if ([...start, ...end].some((value) => !Number.isFinite(value))) throw new Error('Punkty krzywej muszą mieć poprawne współrzędne XYZ.');
+    if (Math.hypot(...end.map((value, axis) => value - start[axis])) <= 1e-7) throw new Error('Krzywa 3D musi mieć różne punkty początku i końca.');
+    if (spatialCurve.type === 'arc3d') spatialCurveEndDifferential({ type: 'arc3d', start, end, through: evaluatedVector(spatialCurve, 'through') });
+    if (spatialCurve.type !== 'spline3d') continue;
+    const continuity = spatialCurve.geometry.continuity || 'g0';
+    const controls = [evaluatedVector(spatialCurve, 'control1'), evaluatedVector(spatialCurve, 'control2')];
+    if (controls.flat().some((value) => !Number.isFinite(value))) throw new Error('Spline 3D wymaga dwóch poprawnych uchwytów XYZ.');
+    if (continuity === 'g0') continue;
+    const previousCurve = curves.slice(0, index).reverse().find((entry) => entry.pointIds.at(-1) === spatialCurve.pointIds[0]);
+    if (!previousCurve) throw new Error(`Ciągłość ${continuity.toUpperCase()} wymaga poprzedniej połączonej krzywej.`);
+    const differential = spatialCurveEndDifferential({
+      type: previousCurve.type,
+      start: evaluatedPoint(previousCurve.pointIds[0]),
+      end: evaluatedPoint(previousCurve.pointIds.at(-1)),
+      through: previousCurve.type === 'arc3d' ? evaluatedVector(previousCurve, 'through') : null,
+      controls: previousCurve.type === 'spline3d' ? [evaluatedVector(previousCurve, 'control1'), evaluatedVector(previousCurve, 'control2')] : null,
+    });
+    const nextControls = continuousSpline3DControls({
+      start,
+      control1: controls[0],
+      control2: controls[1],
+      continuity,
+      tangent: differential.tangent,
+      curvature: differential.curvature,
+      handleLength: evaluateExpression(spatialCurve.geometry.handleLength, resolved.values),
+    });
+    ['X', 'Y', 'Z'].forEach((axis, axisIndex) => {
+      spatialCurve.geometry[`control1${axis}`] = String(nextControls.control1[axisIndex]);
+      spatialCurve.geometry[`control2${axis}`] = String(nextControls.control2[axisIndex]);
+    });
+  }
+  sketch.entities = candidate.entities;
+  return sketch.entities.find((entity) => entity.id === curveId);
+}
+
 export function createSketchArc({ centerPointId, startPointId, endPointId, direction = 'ccw', ...options } = {}) {
   return commonEntity('arc', {
     ...options,
