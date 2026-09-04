@@ -130,6 +130,27 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadSketch3DHandleState?.length === 4 && window.__madcadSketch3DHandleState.some((handle) => handle.kind === 'control2' && handle.locked)`, 'uchwyty bezpośrednie spline G2 w widoku');
     await fs.mkdir(path.dirname(handleArtifactPath), { recursive: true });
     await fs.writeFile(handleArtifactPath, (await window.webContents.capturePage()).toPNG());
+    const endHandle = await window.webContents.executeJavaScript(`window.__madcadSketch3DHandleState.find((handle) => handle.kind === 'end')`);
+    window.webContents.sendInputEvent({ type: 'mouseMove', x: endHandle.x, y: endHandle.y });
+    window.webContents.sendInputEvent({ type: 'mouseDown', x: endHandle.x, y: endHandle.y, button: 'left', clickCount: 1 });
+    window.webContents.sendInputEvent({ type: 'mouseMove', x: endHandle.x + 30, y: endHandle.y - 20, button: 'left' });
+    window.webContents.sendInputEvent({ type: 'mouseUp', x: endHandle.x + 30, y: endHandle.y - 20, button: 'left', clickCount: 1 });
+    await waitFor(window, `(() => {
+      const point = window.__madcadVerifyDocumentState?.sketches?.[0]?.entityData?.find((entity) => entity.id === ${JSON.stringify(spline.pointIds[1])});
+      return point && ['x', 'y', 'z'].some((axis, index) => Math.abs(Number(point.geometry[axis]) - [75, 25, 10][index]) > 0.01);
+    })()`, 'przeciągnięcie końca spline myszą');
+    await window.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+    const cancelState = await window.webContents.executeJavaScript(`({
+      handle: window.__madcadSketch3DHandleState.find((handle) => handle.kind === 'end'),
+      geometry: window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.id === ${JSON.stringify(spline.pointIds[1])}).geometry,
+    })`);
+    window.webContents.sendInputEvent({ type: 'mouseDown', x: cancelState.handle.x, y: cancelState.handle.y, button: 'left', clickCount: 1 });
+    window.webContents.sendInputEvent({ type: 'mouseMove', x: cancelState.handle.x + 25, y: cancelState.handle.y - 15, button: 'left' });
+    await window.webContents.executeJavaScript(`document.elementFromPoint(${cancelState.handle.x}, ${cancelState.handle.y}).dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, bubbles: true }))`);
+    window.webContents.sendInputEvent({ type: 'mouseUp', x: cancelState.handle.x + 25, y: cancelState.handle.y - 15, button: 'left', clickCount: 1 });
+    await window.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+    const cancelledGeometry = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.id === ${JSON.stringify(spline.pointIds[1])}).geometry`);
+    if (JSON.stringify(cancelledGeometry) !== JSON.stringify(cancelState.geometry)) throw new Error('Przerwanie przeciągania zapisało zmianę szkicu.');
     await window.webContents.executeJavaScript(`window.__madcadVerifyMoveSketch3DHandle({ curveId: ${JSON.stringify(spline.id)}, kind: 'end', pointId: ${JSON.stringify(spline.pointIds[1])}, coordinates: [74, 25, 10], handleLength: null })`);
     await waitFor(window, `(() => { const sketch = window.__madcadVerifyDocumentState?.sketches?.[0]; const curve = sketch?.entityData?.find((entity) => entity.id === ${JSON.stringify(spline.id)}); const end = sketch?.entityData?.find((entity) => entity.id === curve?.pointIds?.[1]); return Number(end?.geometry?.x) === 74 && Number(end?.geometry?.y) === 25 && Number(end?.geometry?.z) === 10; })()`, 'bezpośrednie przesunięcie końca spline 3D');
     await clickTool(window, 'Edytuj krzywą');

@@ -414,7 +414,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
   const selectedSpatialCurve = spatial && selectedIds.length === 1
     ? entityMap.get(selectedIds[0])
     : null;
-  if (selectedSpatialCurve && ['line', 'arc3d', 'spline3d'].includes(selectedSpatialCurve.type) && selectedSpatialCurve.role !== 'projected') {
+  if (selectedSpatialCurve && ['line', 'arc3d', 'spline3d'].includes(selectedSpatialCurve.type) && selectedSpatialCurve.role !== 'projected' && appearanceFor(selectedSpatialCurve).visible && !appearanceFor(selectedSpatialCurve).locked) {
     const handleCoordinates = (kind, pointOverrides = null, spatialOverride = null) => {
       if (kind === 'start' || kind === 'end') return readPoint(selectedSpatialCurve.pointIds[kind === 'start' ? 0 : 1], pointOverrides);
       if (spatialOverride?.curveId === selectedSpatialCurve.id && spatialOverride.kind === kind) return spatialOverride.coordinates;
@@ -2519,7 +2519,7 @@ export default function ModelViewport({
         try { renderer.domElement.releasePointerCapture?.(event.pointerId); } catch { /* Pointer capture may already be released. */ }
         renderer.domElement.style.cursor = 'crosshair';
         setSketch3DDragLabel(null);
-        if (finished.moved) sketch3DHandleMoveRef.current?.({
+        if (finished.moved && event.type !== 'pointercancel') sketch3DHandleMoveRef.current?.({
           curveId: finished.curveId,
           kind: finished.kind,
           pointId: finished.pointId,

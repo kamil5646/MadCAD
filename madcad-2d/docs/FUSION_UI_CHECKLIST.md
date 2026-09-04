@@ -154,15 +154,15 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Lokalny build arm64 z łukiem i spline 3D zastąpił `/Applications/MadCAD.app`, przeszedł podpis ad-hoc oraz `codesign --verify --deep --strict` i uruchomił się jako świeży proces. Źródłowy oraz zainstalowany `app.asar` mają SHA-256 `fd572e1588590315aa492c979668c01fe20ba023b95330846f0557967377ea0a`; poprzedni build zachowano jako `MadCAD-before-3d-curves-20260902-153522.app` w Koszu.
 - [x] Kandydat wydania 6.4.7 arm64 ze skojarzonymi ścieżkami 3D zastąpił `/Applications/MadCAD.app`, przeszedł podpis ad-hoc oraz `codesign --verify --deep --strict` i uruchomił się jako świeży proces PID `45541`. Źródłowy oraz zainstalowany `app.asar` mają SHA-256 `e3d364bbfb6ff9ae7c4dc0f00d61b782bd6175c809e14903aab49b9514a3081d`; poprzednią wersję zachowano jako `MadCAD-before-6.4.7-20260903-0853.app` w Koszu.
 
-## Pliki główne
-
 ### Weryfikacja 2026-09-05 — skojarzone B-spline 3D
 
 - [x] Pobranie otwartej krawędzi B-spline zachowuje dokładne dane i referencję do bryły; próbki służą podglądowi.
 - [x] Pipe korzysta z dokładnej krzywej. Test desktopowy pobiera krawędź istniejącej rury, tworzy kolejną i porównuje objętość po otwarciu projektu (20.578120917363194 mm³).
 - [x] Naprawiono podwójne zwalnianie krzywej należącej do uchwytu OpenCascade; pełny scenariusz przechodzi bez awarii.
 - [x] Walidacja odrzuca niepoprawne współrzędne, wagi, węzły i próbki podglądu.
-- [ ] Osobna weryfikacja przeciągania uchwytów rzeczywistymi zdarzeniami myszy; dotychczasowy test wywołuje procedurę zmiany współrzędnych.
+- [x] Osobna weryfikacja przeciągania końca spline rzeczywistymi zdarzeniami myszy Electron i anulowania przez `pointercancel`; przerwanie ruchu nie zapisuje zmiany. Ukryte i zablokowane warstwy nie udostępniają uchwytów.
+
+## Pliki główne
 
 - `src/modeling/ModelingWorkspace.jsx` — szkielet obszarów, przepływ poleceń i wybór.
 - `src/modeling/WorkspaceRibbon.jsx` — zachowanie wstążki i przepełnienia.
