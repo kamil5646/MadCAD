@@ -197,6 +197,20 @@ app.whenReady().then(async () => {
       };
     })()`);
     if (!curvedTopologyAudit.count || !curvedTopologyAudit.everyMidpoint) throw new Error(`Krzywoliniowa topologia nie zachowała punktów pośrednich: ${JSON.stringify(curvedTopologyAudit)}`);
+    const surfaceProjection = await window.webContents.executeJavaScript(`(async () => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const face = body.topology.faces.find((item) => !['PLANE', 'UNKNOWN_FACE'].includes(item.descriptor.geometry));
+      if (!face) throw new Error('Brak zakrzywionej ściany do Project to Surface.');
+      const center = face.descriptor.center;
+      const normal = face.descriptor.normal;
+      const base = Math.abs(normal[2]) < 0.9 ? [0, 0, 1] : [0, 1, 0];
+      const tangent = [normal[1] * base[2] - normal[2] * base[1], normal[2] * base[0] - normal[0] * base[2], normal[0] * base[1] - normal[1] * base[0]];
+      const tangentLength = Math.hypot(...tangent);
+      const points = [-1, -0.5, 0, 0.5, 1].map((position) => center.map((value, index) => value + normal[index] * (2 + position * position) + tangent[index] / tangentLength * position));
+      const descriptor = await window.__madcadVerifyProjectPointsToSurface({ bodyId: body.id, faceId: face.id, points });
+      return { faceId: face.id, descriptor };
+    })()`);
+    if (surfaceProjection.descriptor.geometry !== 'BSPLINE_CURVE' || !surfaceProjection.descriptor.bspline || surfaceProjection.descriptor.samples.length !== 25 || JSON.stringify(surfaceProjection.descriptor.surfaceFaceIds) !== JSON.stringify([surfaceProjection.faceId])) throw new Error(`Błędny Project to Surface: ${JSON.stringify(surfaceProjection)}`);
     const beforeReopen = await window.webContents.executeJavaScript(`({
       volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume,
       dimensions: window.__madcadVerifyEngineState.bodies[0].metrics.dimensions,
@@ -289,7 +303,35 @@ app.whenReady().then(async () => {
     if (!(splinePipeVolume > 0) || Math.abs(reopenedSplineVolume - splinePipeVolume) > 0.001) throw new Error('Pipe po B-spline zmienił się po otwarciu.');
     const reopenedSurfaceFaceIds = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[2].entityData.find((entity) => entity.type === 'bspline3d').surfaceFaceIds`);
     if (JSON.stringify(reopenedSurfaceFaceIds) !== JSON.stringify(bsplineSource.surfaceFaceIds)) throw new Error('Po otwarciu projektu ścieżka utraciła skojarzenie z powierzchnią.');
-    console.log(JSON.stringify({ ok: true, splinePipeVolume, sketchSegments: 4, curveTypes, splineContinuity, editedSpline, curvedTopologyAudit, associatedPath, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshots: { handles: handleArtifactPath, pipe: artifactPath } }, null, 2));
+
+    console.log('Etap: polecenie Project to Surface w interfejsie');
+    await clickTool(window, 'Szkic 3D');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sketch3d' && window.__madcadVerifyDocumentState?.sketches?.length === 4`, 'czwarty szkic 3D');
+    await setField(window, 'Koniec X', '12');
+    await setField(window, 'Koniec Y', '8');
+    await setField(window, 'Koniec Z', '6');
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.some((entity) => entity.type === 'line')`, 'źródłowa linia Project to Surface');
+    const surfaceCommandSource = await window.webContents.executeJavaScript(`(() => {
+      const sketch = window.__madcadVerifyDocumentState.sketches[3];
+      const curve = sketch.entityData.find((entity) => entity.type === 'line');
+      window.__madcadVerifySketchSelection([curve.id], 'replace');
+      return curve.id;
+    })()`);
+    await clickTool(window, 'Na powierzchnię');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'projectSurface' && document.querySelector('.command-dialog')?.textContent.includes('Project to Surface')`, 'panel Project to Surface');
+    const surfaceCommandFace = await window.webContents.executeJavaScript(`(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const face = body.topology.faces.find((item) => !['PLANE', 'UNKNOWN_FACE'].includes(item.descriptor.geometry));
+      if (!face) throw new Error('Brak zakrzywionej ściany dla polecenia Project to Surface.');
+      window.__madcadVerifyTopologySelection({ kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }, 'replace');
+      return face.id;
+    })()`);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sketch3d' && window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.some((entity) => entity.type === 'bspline3d' && entity.surfaceProjection)`, 'wynik polecenia Project to Surface', 45000);
+    const surfaceCommandResult = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[3].entityData.find((entity) => entity.type === 'bspline3d')`);
+    if (JSON.stringify(surfaceCommandResult.surfaceFaceIds) !== JSON.stringify([surfaceCommandFace]) || JSON.stringify(surfaceCommandResult.surfaceProjection.sourceEntityIds) !== JSON.stringify([surfaceCommandSource])) throw new Error('Polecenie Project to Surface nie zachowało pełnego skojarzenia.');
+    console.log(JSON.stringify({ ok: true, splinePipeVolume, sketchSegments: 4, curveTypes, splineContinuity, editedSpline, curvedTopologyAudit, associatedPath, surfaceCommand: { sourceEntityId: surfaceCommandSource, faceId: surfaceCommandFace, resultEntityId: surfaceCommandResult.id }, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshots: { handles: handleArtifactPath, pipe: artifactPath } }, null, 2));
   } catch (error) {
     exitCode = 1;
     console.error(error);

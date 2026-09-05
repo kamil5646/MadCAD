@@ -94,7 +94,7 @@ import { createTopologyReference, inspectTopologyReferences, reassignTopologyRef
 import { createAnglePlane, createMidplane, createOffsetPlane, createPathPlane, createTangentPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../src/cad-core/construction-planes.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createPlaneNormalAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../src/cad-core/construction-axes.js';
 import { createCenterPoint, createIntersectionPoint, createMidpointPoint, createPointOnAxis, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../src/cad-core/construction-points.js';
-import { projectTopologyToSketch, synchronizeProjectedGeometry } from '../src/cad-core/sketch-projection.js';
+import { createSurfaceProjectedSketchPath, projectTopologyToSketch, synchronizeProjectedGeometry } from '../src/cad-core/sketch-projection.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import { createTextProfile } from '../src/cad-core/text-profile.js';
 import { resolveFaceEdgeHolePlacement } from '../src/cad-core/face-edge-hole.js';
@@ -2460,6 +2460,30 @@ test('Project 3D rozróżnia pokrywające się krzywe i nie dubluje tej samej re
   assert.equal(repeated.createdEntityIds.length, 1);
   assert.equal(sketch.entities.length, entityCount);
   assert.equal(document.references.length, referenceCount);
+});
+
+test('Project to Surface zapisuje dokładną krzywą i obie strony skojarzenia', () => {
+  const document = createDocument('Krzywa na powierzchni');
+  const sketch = createSketch({ name: 'Ścieżka wejściowa', space: '3d' });
+  document.sketches.push(sketch);
+  const descriptor = {
+    geometry: 'BSPLINE_CURVE',
+    endpoints: [[0, 0, 1], [10, 0, 1]],
+    samples: [[0, 0, 1], [5, 2, 1], [10, 0, 1]],
+    bspline: { degree: 2, poles: [[0, 0, 1], [5, 2, 1], [10, 0, 1]], weights: [1, 1, 1], knots: [0, 1], multiplicities: [3, 3], periodic: false, firstParameter: 0, lastParameter: 1, startPoint: [0, 0, 1] },
+  };
+  const result = createSurfaceProjectedSketchPath(document, sketch.id, {
+    selection: { kind: 'face', id: 'face-curved', bodyId: 'body-a', sourceFeatureId: 'feature-a' },
+    descriptor,
+    sourceEntityIds: ['curve-a', 'curve-b'],
+  });
+  const curve = sketch.entities.find((entity) => entity.id === result.createdEntityId);
+  assert.equal(curve.type, 'bspline3d');
+  assert.deepEqual(curve.surfaceFaceIds, ['face-curved']);
+  assert.deepEqual(curve.surfaceProjection.sourceEntityIds, ['curve-a', 'curve-b']);
+  assert.equal(curve.surfaceProjection.faceReferenceId, result.createdReferenceId);
+  assert.equal(document.references.find((reference) => reference.id === result.createdReferenceId)?.topologyId, 'face-curved');
+  assert.equal(validateDocument(document).valid, true);
 });
 
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {

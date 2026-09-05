@@ -169,7 +169,10 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Każda krawędź B-Rep otrzymuje stabilną listę ścian, do których należy; ścieżka pobrana do szkicu 3D zachowuje tę listę i aktualizuje ją razem z geometrią.
 - [x] Dwie różne krzywe o wspólnych końcach nie są scalane, a ponowne pobranie tej samej krawędzi nie tworzy duplikatu ani osieroconej referencji.
 - [x] Test Electron potwierdza dokładną B-spline, jej ściany prowadzące, Pipe oraz zachowanie powiązania po otwarciu projektu; testy rdzenia obejmują kolidujące końce i idempotencję.
-- [ ] Dowolna krzywa szkicu rzutowana na wnętrze zakrzywionej ściany pozostaje osobnym zadaniem `Project to Surface`.
+- [x] `Project to Surface` rzutuje ciągły łańcuch zwykłych linii, łuków i spline szkicu 3D na wskazaną zakrzywioną ścianę. OpenCascade tworzy krzywą UV na powierzchni i odtwarza z niej dokładną B-spline 3D; dokument zachowuje ścianę oraz identyfikatory krzywych źródłowych.
+- [x] Polecenie ma osobny przycisk `Na powierzchnię`, dwuetapowy komunikat wyboru, panel `Project to Surface`, anulowanie z powrotem do aktywnego szkicu 3D i wynik gotowy do użycia jako ścieżka Pipe.
+- [x] Test rdzenia kontroluje trwały zapis obu stron skojarzenia, a test Electron wykonuje projekcję przez rzeczywisty worker OpenCascade i sprawdza dokładną B-spline oraz identyfikator powierzchni.
+- [ ] Automatyczna ponowna projekcja po zmianie krzywej źródłowej lub przebudowie ściany pozostaje kolejnym etapem skojarzenia.
 
 ### Weryfikacja 2026-09-05 — przełączanie projektów
 

@@ -2434,6 +2434,61 @@ function edgeDescriptor(edge) {
   }
 }
 
+function projectPointsToSurface(evaluated, { bodyId, faceId, points } = {}) {
+  if (!Array.isArray(points) || points.length < 2 || points.some((point) => !Array.isArray(point) || point.length !== 3 || point.some((value) => !Number.isFinite(value)))) {
+    throw new Error('Project to Surface wymaga co najmniej dwóch poprawnych punktów 3D.');
+  }
+  const bodyIndex = evaluated.kernelBodies.findIndex((body) => body.id === bodyId);
+  const topology = evaluated.topologyByBody.get(bodyId);
+  const faceIndex = topology?.faces?.findIndex((face) => face.id === faceId) ?? -1;
+  if (bodyIndex < 0 || faceIndex < 0) throw new Error('Nie znaleziono powierzchni docelowej Project to Surface.');
+  const faces = evaluated.kernelBodies[bodyIndex].shape.faces;
+  const face = faces[faceIndex];
+  const oc = getOC();
+  const uvArray = new oc.TColgp_Array1OfPnt2d_2(1, points.length);
+  const uvPoints = [];
+  let approximation;
+  let bspline2dHandle;
+  let curve2dHandle;
+  let surfaceHandle;
+  let builder;
+  let projectedEdge;
+  try {
+    points.forEach((point, index) => {
+      const [u, v] = face.uvCoordinates(point);
+      if (![u, v].every(Number.isFinite)) throw new Error('Nie udało się wyznaczyć współrzędnych UV na powierzchni.');
+      const uvPoint = new oc.gp_Pnt2d_3(u, v);
+      uvPoints.push(uvPoint);
+      uvArray.SetValue(index + 1, uvPoint);
+    });
+    const degree = Math.min(3, points.length - 1);
+    approximation = new oc.Geom2dAPI_PointsToBSpline_2(uvArray, degree, degree, oc.GeomAbs_Shape.GeomAbs_C0, GEOMETRY_POLICY.linearTolerance);
+    if (!approximation.IsDone()) throw new Error('OpenCascade nie utworzył krzywej UV na powierzchni.');
+    bspline2dHandle = approximation.Curve();
+    curve2dHandle = new oc.Handle_Geom2d_Curve_2(bspline2dHandle.get());
+    surfaceHandle = oc.BRep_Tool.Surface_2(face.wrapped);
+    builder = new oc.BRepBuilderAPI_MakeEdge_30(curve2dHandle, surfaceHandle);
+    if (!builder.IsDone()) throw new Error('OpenCascade nie utworzył krawędzi związanej z powierzchnią.');
+    projectedEdge = cast(builder.Edge());
+    if (!oc.BRepLib.BuildCurve3d(projectedEdge.wrapped, GEOMETRY_POLICY.linearTolerance, oc.GeomAbs_Shape.GeomAbs_C2, 14, 64)) {
+      throw new Error('OpenCascade nie odtworzył krzywej 3D z przebiegu UV.');
+    }
+    const descriptor = edgeDescriptor(projectedEdge);
+    if (descriptor.geometry !== 'BSPLINE_CURVE' || !descriptor.bspline) throw new Error('Project to Surface nie zwrócił dokładnej B-spline 3D.');
+    return { ...descriptor, surfaceFaceIds: [faceId] };
+  } finally {
+    projectedEdge?.delete();
+    builder?.delete();
+    surfaceHandle?.delete();
+    curve2dHandle?.delete();
+    bspline2dHandle?.delete();
+    approximation?.delete();
+    uvPoints.forEach((point) => point.delete());
+    uvArray.delete();
+    faces.forEach((item) => item.delete());
+  }
+}
+
 function measureBodyShape(shape) {
   const surface = measureShapeSurfaceProperties(shape);
   const volume = measureShapeVolumeProperties(shape);
@@ -2906,6 +2961,12 @@ async function handleMessage(data) {
       evaluated.performance = { ...evaluated.performance, collisionMs: collisionResult.collisionMs };
     }
     self.postMessage({ id, ok: true, type, result: { revision, analysis: evaluated.analysis, performance: evaluated.performance } });
+    return;
+  }
+  if (type === 'project-to-surface') {
+    const evaluated = await resolveRevision(document, revision, 'display');
+    const descriptor = projectPointsToSurface(evaluated, data.projection);
+    self.postMessage({ id, ok: true, type, result: { revision, descriptor } });
     return;
   }
   if (type === 'export') {

@@ -173,6 +173,13 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     return result.analysis;
   }, [document, send]);
 
+  const projectPointsToSurface = useCallback(async (projection) => {
+    const revision = revisionRef.current;
+    const result = await send({ type: 'project-to-surface', document, revision, projection });
+    if (result.revision !== revision || revisionRef.current !== revision) throw engineError('Silnik zwrócił projekcję z innej rewizji dokumentu.', 'PROJECTION_REVISION_MISMATCH');
+    return result.descriptor;
+  }, [document, send]);
+
   const restartWorkerForTest = useCallback(() => {
     if (!workerRef.current) throw engineError('Silnik CAD nie jest gotowy do testu odtwarzania.', 'WORKER_NOT_READY');
     const crash = engineError('Kontrolowana awaria workera w teście desktopowym.', 'WORKER_CRASH');
@@ -187,5 +194,5 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     setWorkerGeneration((generation) => generation + 1);
   }, [rejectPending]);
 
-  return { ...state, analyzeCollisions, exportExternalDocument, exportModel, restartWorkerForTest };
+  return { ...state, analyzeCollisions, exportExternalDocument, exportModel, projectPointsToSurface, restartWorkerForTest };
 }

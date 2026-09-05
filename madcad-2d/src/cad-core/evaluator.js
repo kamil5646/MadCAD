@@ -197,7 +197,7 @@ export function resolveProfile(profile, parameters, sketch = null) {
   throw new Error(`Nieobsługiwany profil: ${profile.type}`);
 }
 
-function resolveOpenChainProfile(sketch, entityIds, parameters, featureId, operationName = 'Thin Extrude') {
+export function resolveOpenChainProfile(sketch, entityIds, parameters, featureId, operationName = 'Thin Extrude') {
   if (!sketch) throw new Error(`${operationName} nie ma szkicu źródłowego.`);
   const entityMap = new Map(sketch.entities.map((entity) => [entity.id, entity]));
   const readPoint = (pointId) => {

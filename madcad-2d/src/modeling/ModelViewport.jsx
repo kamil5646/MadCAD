@@ -2150,6 +2150,14 @@ export default function ModelViewport({
         topologySelectRef.current?.(topology, selectionMode(event));
         return;
       }
+      if (activeSketch && sketchModifierMode === 'projectSurface') {
+        const hit = raycaster.intersectObjects(facePickables, false)[0];
+        const topology = hit ? topologySelectionFromIntersection(hit) : null;
+        if (!topology || topology.kind !== 'face') return;
+        event.preventDefault();
+        topologySelectRef.current?.(topology, 'replace');
+        return;
+      }
       if (activeSketch && sketchModifierMode && sketchRender) {
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
         const hit = pickSketchEntity(event);
@@ -3003,7 +3011,7 @@ export default function ModelViewport({
       )}
       {activeSketchId && !activeSketchIs3D && sliceModel && <div className="sketch-slice-badge">Slice · przekrój na {activePlane}</div>}
       {activeSketchId && draftType && <div className="sketch-pointer-hint visually-consolidated">Kliknij środek, a następnie punkt rozmiaru</div>}
-      {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint visually-consolidated">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
+      {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint visually-consolidated">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : sketchModifierMode === 'projectSurface' ? 'Na powierzchnię · kliknij ścianę modelu, potem Rzutuj' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
       {activeSketchId && sketchTool && <div className="sketch-pointer-hint visually-consolidated">{`${sketchToolPrompt || 'Klikaj kolejne punkty'} · ${sketchTool === 'line' && polylineDraft?.lastPoint ? 'wpisz długość i Enter lub kliknij koniec' : ['line', 'polyline', 'spline'].includes(sketchTool) ? 'Enter kończy' : 'Esc anuluje'}`}</div>}
     </div>
   );

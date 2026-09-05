@@ -151,6 +151,30 @@ export function projectTopologyToSketch(document, sketchId, sources = []) {
   };
 }
 
+export function createSurfaceProjectedSketchPath(document, sketchId, { selection, descriptor, sourceEntityIds = [] } = {}) {
+  const sketch = document.sketches.find((candidate) => candidate.id === sketchId);
+  if (!sketch || sketch.space !== '3d') throw new Error('Project to Surface wymaga aktywnego szkicu 3D.');
+  if (selection?.kind !== 'face' || !selection.id || !selection.bodyId) throw new Error('Project to Surface wymaga wybranej ściany modelu.');
+  if (descriptor?.geometry !== 'BSPLINE_CURVE' || !descriptor.bspline || !Array.isArray(descriptor.samples) || descriptor.samples.length < 2) throw new Error('Project to Surface nie otrzymał poprawnej krzywej wynikowej.');
+  const reference = createTopologyReference({ selection, descriptor: { surface: true }, label: 'Project to Surface — ściana' });
+  document.references.push(reference);
+  const endpoints = descriptor.endpoints.map((point) => findOrCreatePoint(sketch, localPoint(point, sketch), reference.id));
+  const curve = createProjectedSketchBSpline3D({
+    startPointId: endpoints[0].id,
+    endPointId: endpoints[1].id,
+    bspline: descriptor.bspline,
+    samples: descriptor.samples,
+    role: 'projected',
+    fixed: true,
+    sourceReferenceId: reference.id,
+    surfaceFaceIds: [selection.id],
+    surfaceProjection: { sourceSketchId: sketchId, sourceEntityIds: [...sourceEntityIds], faceReferenceId: reference.id },
+  });
+  curve.projectionReferenceId = reference.id;
+  sketch.entities.push(curve);
+  return { createdEntityId: curve.id, createdReferenceId: reference.id };
+}
+
 export function synchronizeProjectedGeometry(document, bodies = []) {
   const referenceMap = new Map((document.references || [])
     .filter((reference) => reference.kind === 'topology')
