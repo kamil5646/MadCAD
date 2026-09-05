@@ -36,7 +36,7 @@ import {
   setOC,
   setManifold,
 } from 'replicad';
-import { FEATURE_STATUS, prepareDocument } from './evaluator.js';
+import { FEATURE_STATUS, prepareDocument, resolveOpenChainProfile } from './evaluator.js';
 import { evaluateFeatureHistory } from './feature-history.js';
 import { GEOMETRY_POLICY } from './geometry-policy.js';
 import { resolveFaceEdgeHolePlacement } from './face-edge-hole.js';
@@ -2489,6 +2489,25 @@ function projectPointsToSurface(evaluated, { bodyId, faceId, points } = {}) {
   }
 }
 
+function evaluateSurfaceProjections(document, evaluated, parameters) {
+  const updates = [];
+  for (const sketch of document.sketches || []) {
+    for (const curve of (sketch.entities || []).filter((entity) => entity.type === 'bspline3d' && entity.surfaceProjection)) {
+      const metadata = curve.surfaceProjection;
+      const reference = (document.references || []).find((item) => item.id === metadata.faceReferenceId);
+      if (!reference?.bodyId || !reference?.topologyId) continue;
+      try {
+        const path = resolveOpenChainProfile(sketch, metadata.sourceEntityIds, parameters, `surface-projection-${curve.id}`, 'Project to Surface');
+        const descriptor = projectPointsToSurface(evaluated, { bodyId: reference.bodyId, faceId: reference.topologyId, points: path.geometry.points });
+        updates.push({ entityId: curve.id, descriptor });
+      } catch (error) {
+        updates.push({ entityId: curve.id, error: error.message });
+      }
+    }
+  }
+  return updates;
+}
+
 function measureBodyShape(shape) {
   const surface = measureShapeSurfaceProperties(shape);
   const volume = measureShapeVolumeProperties(shape);
@@ -2735,7 +2754,7 @@ async function evaluateRevision(document, quality) {
   const meshStartedAt = performance.now();
   const meshedBodies = kernelBodies.map((body, index) => meshBody(body, index, quality));
   const meshMs = performance.now() - meshStartedAt;
-  return {
+  const evaluated = {
     kernelBodies,
     renderBodies: meshedBodies.map((entry) => entry.renderBody),
     topologyByBody: new Map(meshedBodies.map((entry, index) => [kernelBodies[index].id, entry.topologyState])),
@@ -2755,6 +2774,8 @@ async function evaluateRevision(document, quality) {
       bodies: meshedBodies.map((entry) => entry.performance),
     },
   };
+  evaluated.surfaceProjectionUpdates = evaluateSurfaceProjections(document, evaluated, prepared.parameters);
+  return evaluated;
 }
 
 function analyzeBodyCollisions(kernelBodies, renderBodies) {
@@ -2949,6 +2970,7 @@ async function handleMessage(data) {
       cache: revisionCache.stats,
       analysis: evaluated.analysis,
       performance: evaluated.performance,
+      surfaceProjectionUpdates: evaluated.surfaceProjectionUpdates,
     };
     self.postMessage({ id, ok: true, type, result }, transferableBuffers(bodies));
     return;

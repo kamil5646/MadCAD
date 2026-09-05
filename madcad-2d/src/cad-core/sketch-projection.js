@@ -175,6 +175,25 @@ export function createSurfaceProjectedSketchPath(document, sketchId, { selection
   return { createdEntityId: curve.id, createdReferenceId: reference.id };
 }
 
+export function updateSurfaceProjectedSketchPath(document, entityId, descriptor) {
+  const sketch = document.sketches.find((candidate) => candidate.entities.some((entity) => entity.id === entityId));
+  const curve = sketch?.entities.find((entity) => entity.id === entityId && entity.type === 'bspline3d' && entity.surfaceProjection);
+  if (!curve || descriptor?.geometry !== 'BSPLINE_CURVE' || !descriptor.bspline || !Array.isArray(descriptor.samples) || descriptor.samples.length < 2) return false;
+  const sameGeometry = JSON.stringify(curve.geometry.bspline) === JSON.stringify(descriptor.bspline)
+    && JSON.stringify(curve.geometry.samples) === JSON.stringify(descriptor.samples)
+    && JSON.stringify(curve.surfaceFaceIds || []) === JSON.stringify(descriptor.surfaceFaceIds || []);
+  if (sameGeometry) return false;
+  const entityMap = new Map(sketch.entities.map((entity) => [entity.id, entity]));
+  descriptor.endpoints.forEach((coordinates, index) => {
+    const point = entityMap.get(curve.pointIds[index]);
+    if (point?.type === 'point') setPointCoordinates(point, localPoint(coordinates, sketch));
+  });
+  curve.geometry.bspline = structuredClone(descriptor.bspline);
+  curve.geometry.samples = structuredClone(descriptor.samples);
+  curve.surfaceFaceIds = [...new Set(descriptor.surfaceFaceIds || [])];
+  return true;
+}
+
 export function synchronizeProjectedGeometry(document, bodies = []) {
   const referenceMap = new Map((document.references || [])
     .filter((reference) => reference.kind === 'topology')

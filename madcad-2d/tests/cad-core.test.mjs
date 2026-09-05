@@ -94,7 +94,7 @@ import { createTopologyReference, inspectTopologyReferences, reassignTopologyRef
 import { createAnglePlane, createMidplane, createOffsetPlane, createPathPlane, createTangentPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../src/cad-core/construction-planes.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createPlaneNormalAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../src/cad-core/construction-axes.js';
 import { createCenterPoint, createIntersectionPoint, createMidpointPoint, createPointOnAxis, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../src/cad-core/construction-points.js';
-import { createSurfaceProjectedSketchPath, projectTopologyToSketch, synchronizeProjectedGeometry } from '../src/cad-core/sketch-projection.js';
+import { createSurfaceProjectedSketchPath, projectTopologyToSketch, synchronizeProjectedGeometry, updateSurfaceProjectedSketchPath } from '../src/cad-core/sketch-projection.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import { createTextProfile } from '../src/cad-core/text-profile.js';
 import { resolveFaceEdgeHolePlacement } from '../src/cad-core/face-edge-hole.js';
@@ -2483,6 +2483,17 @@ test('Project to Surface zapisuje dokładną krzywą i obie strony skojarzenia',
   assert.deepEqual(curve.surfaceProjection.sourceEntityIds, ['curve-a', 'curve-b']);
   assert.equal(curve.surfaceProjection.faceReferenceId, result.createdReferenceId);
   assert.equal(document.references.find((reference) => reference.id === result.createdReferenceId)?.topologyId, 'face-curved');
+  const rebuiltDescriptor = {
+    ...descriptor,
+    endpoints: [[0, 1, 1], [12, 3, 1]],
+    samples: [[0, 1, 1], [6, 4, 1], [12, 3, 1]],
+    bspline: { ...descriptor.bspline, poles: [[0, 1, 1], [6, 4, 1], [12, 3, 1]], startPoint: [0, 1, 1] },
+    surfaceFaceIds: ['face-curved'],
+  };
+  assert.equal(updateSurfaceProjectedSketchPath(document, curve.id, rebuiltDescriptor), true);
+  assert.deepEqual(curve.geometry.samples, rebuiltDescriptor.samples);
+  assert.deepEqual(sketch.entities.filter((entity) => curve.pointIds.includes(entity.id)).map((point) => [point.geometry.x, point.geometry.y, point.geometry.z].map(Number)), rebuiltDescriptor.endpoints);
+  assert.equal(updateSurfaceProjectedSketchPath(document, curve.id, rebuiltDescriptor), false);
   assert.equal(validateDocument(document).valid, true);
 });
 

@@ -316,7 +316,7 @@ app.whenReady().then(async () => {
       const sketch = window.__madcadVerifyDocumentState.sketches[3];
       const curve = sketch.entityData.find((entity) => entity.type === 'line');
       window.__madcadVerifySketchSelection([curve.id], 'replace');
-      return curve.id;
+      return { id: curve.id, endPointId: curve.pointIds[1] };
     })()`);
     await clickTool(window, 'Na powierzchnię');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'projectSurface' && document.querySelector('.command-dialog')?.textContent.includes('Project to Surface')`, 'panel Project to Surface');
@@ -330,8 +330,22 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sketch3d' && window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.some((entity) => entity.type === 'bspline3d' && entity.surfaceProjection)`, 'wynik polecenia Project to Surface', 45000);
     const surfaceCommandResult = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[3].entityData.find((entity) => entity.type === 'bspline3d')`);
-    if (JSON.stringify(surfaceCommandResult.surfaceFaceIds) !== JSON.stringify([surfaceCommandFace]) || JSON.stringify(surfaceCommandResult.surfaceProjection.sourceEntityIds) !== JSON.stringify([surfaceCommandSource])) throw new Error('Polecenie Project to Surface nie zachowało pełnego skojarzenia.');
-    console.log(JSON.stringify({ ok: true, splinePipeVolume, sketchSegments: 4, curveTypes, splineContinuity, editedSpline, curvedTopologyAudit, associatedPath, surfaceCommand: { sourceEntityId: surfaceCommandSource, faceId: surfaceCommandFace, resultEntityId: surfaceCommandResult.id }, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshots: { handles: handleArtifactPath, pipe: artifactPath } }, null, 2));
+    if (JSON.stringify(surfaceCommandResult.surfaceFaceIds) !== JSON.stringify([surfaceCommandFace]) || JSON.stringify(surfaceCommandResult.surfaceProjection.sourceEntityIds) !== JSON.stringify([surfaceCommandSource.id])) throw new Error('Polecenie Project to Surface nie zachowało pełnego skojarzenia.');
+    const initialSurfaceSamples = JSON.stringify(surfaceCommandResult.geometry.samples);
+    const projectionRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyMoveSketch3DHandle({ curveId: ${JSON.stringify(surfaceCommandSource.id)}, kind: 'end', pointId: ${JSON.stringify(surfaceCommandSource.endPointId)}, coordinates: [16, 11, 8], handleLength: null })`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${projectionRevision} && JSON.stringify(window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.find((entity) => entity.id === ${JSON.stringify(surfaceCommandResult.id)})?.geometry?.samples) !== ${JSON.stringify(initialSurfaceSamples)}`, 'automatyczna przebudowa Project to Surface', 45000);
+    const rebuiltSurfaceCommand = await window.webContents.executeJavaScript(`(() => {
+      const sketch = window.__madcadVerifyDocumentState.sketches[3];
+      const source = sketch.entityData.find((entity) => entity.id === ${JSON.stringify(surfaceCommandSource.id)});
+      const endpoint = sketch.entityData.find((entity) => entity.id === source.pointIds[1]);
+      const result = sketch.entityData.find((entity) => entity.id === ${JSON.stringify(surfaceCommandResult.id)});
+      window.__madcadVerifySketchSelection([result.id], 'replace');
+      const pipeButton = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === 'Rura');
+      return { endpoint: ['x', 'y', 'z'].map((axis) => Number(endpoint.geometry[axis])), sampleCount: result.geometry.samples.length, pipeEnabled: !pipeButton?.disabled };
+    })()`);
+    if (!near(rebuiltSurfaceCommand.endpoint, [16, 11, 8]) || rebuiltSurfaceCommand.sampleCount !== 25 || !rebuiltSurfaceCommand.pipeEnabled) throw new Error(`Project to Surface nie współpracuje poprawnie po przebudowie: ${JSON.stringify(rebuiltSurfaceCommand)}`);
+    console.log(JSON.stringify({ ok: true, splinePipeVolume, sketchSegments: 4, curveTypes, splineContinuity, editedSpline, curvedTopologyAudit, associatedPath, surfaceCommand: { sourceEntityId: surfaceCommandSource.id, faceId: surfaceCommandFace, resultEntityId: surfaceCommandResult.id, rebuilt: rebuiltSurfaceCommand }, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshots: { handles: handleArtifactPath, pipe: artifactPath } }, null, 2));
   } catch (error) {
     exitCode = 1;
     console.error(error);

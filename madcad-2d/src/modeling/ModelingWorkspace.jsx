@@ -128,7 +128,7 @@ import { createTopologyReference, inspectTopologyReferences, reassignTopologyRef
 import { createAnglePlane, createMidplane, createOffsetPlane, createPathPlane, createTangentPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createPlaneNormalAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../cad-core/construction-axes.js';
 import { createCenterPoint, createIntersectionPoint, createMidpointPoint, createPointOnAxis, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../cad-core/construction-points.js';
-import { createSurfaceProjectedSketchPath, projectTopologyToSketch, synchronizeProjectedGeometry } from '../cad-core/sketch-projection.js';
+import { createSurfaceProjectedSketchPath, projectTopologyToSketch, synchronizeProjectedGeometry, updateSurfaceProjectedSketchPath } from '../cad-core/sketch-projection.js';
 import { resolveFaceEdgeHolePlacement } from '../cad-core/face-edge-hole.js';
 import { measureSelection } from '../cad-core/measure-selection.js';
 import { calculateMassProperties } from '../cad-core/mass-properties.js';
@@ -1860,6 +1860,17 @@ export default function ModelingWorkspace() {
     history.synchronize((next) => synchronizeProjectedGeometry(next, actualBodies));
     setNotice(`Project odświeżony automatycznie · ${result.updatedEntityIds.length} ${result.updatedEntityIds.length === 1 ? 'element' : 'elementów'}.`);
   }, [document, actualBodies, command?.previewFeature, engine.status, engine.evaluatedDocument, history, readOnly]);
+
+  useEffect(() => {
+    if (readOnly || engine.status !== 'ready' || engine.evaluatedDocument !== document) return;
+    const updates = (engine.surfaceProjectionUpdates || []).filter((update) => update.descriptor);
+    if (!updates.length) return;
+    const probe = cloneDocument(document);
+    const changed = updates.filter((update) => updateSurfaceProjectedSketchPath(probe, update.entityId, update.descriptor));
+    if (!changed.length) return;
+    history.synchronize((next) => changed.forEach((update) => updateSurfaceProjectedSketchPath(next, update.entityId, update.descriptor)));
+    setNotice(`Project to Surface przebudowany automatycznie · ${changed.length} ${changed.length === 1 ? 'krzywa' : 'krzywe'}.`);
+  }, [document, engine.evaluatedDocument, engine.status, engine.surfaceProjectionUpdates, history, readOnly]);
 
   useEffect(() => {
     if (!persistenceReady || readOnly || !dirty) return undefined;
