@@ -3465,7 +3465,8 @@ export default function ModelingWorkspace() {
       commit((next) => Object.assign(next, checked));
       setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: result.createdEntityIds });
       setCommand(command.resumeSketch3D || null);
-      setNotice(`${activeSketchIs3D ? 'Pobrano do ścieżki 3D' : 'Project utworzył'} ${result.createdEntityIds.length} elementów z ${result.createdReferenceIds.length} trwałych referencji.`);
+      const surfaceLabel = result.surfaceFaceIds?.length ? ` Ścieżka pozostaje związana z ${result.surfaceFaceIds.length} ${result.surfaceFaceIds.length === 1 ? 'powierzchnią' : 'powierzchniami'} modelu.` : '';
+      setNotice(`${activeSketchIs3D ? 'Pobrano do ścieżki 3D' : 'Project utworzył'} ${result.createdEntityIds.length} elementów z ${result.createdReferenceIds.length} nowych trwałych referencji.${surfaceLabel}`);
     } catch (error) {
       setNotice(`Project nie został wykonany: ${error.message}`);
     }
@@ -3932,7 +3933,7 @@ export default function ModelingWorkspace() {
         visible: sketch.visible !== false,
         support: sketch.support,
         entities: sketch.entities.length,
-        entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, role: entity.role, fixed: entity.fixed, layerId: entity.layerId, color: entity.color, lineType: entity.lineType, lineWeight: entity.lineWeight, projectionReferenceId: entity.projectionReferenceId, pointIds: entity.pointIds, geometry: entity.geometry })),
+        entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, role: entity.role, fixed: entity.fixed, layerId: entity.layerId, color: entity.color, lineType: entity.lineType, lineWeight: entity.lineWeight, projectionReferenceId: entity.projectionReferenceId, surfaceFaceIds: entity.surfaceFaceIds, pointIds: entity.pointIds, geometry: entity.geometry })),
         profiles: sketch.profiles.length,
         profileIds: sketch.profiles.map((profile) => profile.id),
         constraints: sketch.constraints.map((constraint) => ({ id: constraint.id, type: constraint.type, entityIds: constraint.entityIds, value: constraint.value, automatic: constraint.automatic })),

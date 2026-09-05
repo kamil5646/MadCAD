@@ -2436,6 +2436,32 @@ test('Project tworzy skojarzoną ścieżkę 3D i aktualizuje wszystkie współrz
   assert.throws(() => projectTopologyToSketch(closedCircle, sketch.id, [{ ...source, descriptor: { geometry: 'CIRCLE', endpoints: [[1, 0, 0], [1, 0, 0]], midpoint: [-1, 0, 0], radius: 1, closed: true } }]), /otwarte łuki/);
 });
 
+test('Project 3D rozróżnia pokrywające się krzywe i nie dubluje tej samej referencji', () => {
+  const document = createDocument('Pokrywające się ścieżki');
+  const sketch = createSketch({ name: 'Ścieżki', space: '3d' });
+  document.sketches.push(sketch);
+  const line = {
+    selection: { kind: 'edge', id: 'edge-line', bodyId: 'body-a' },
+    descriptor: { geometry: 'LINE', endpoints: [[0, 0, 0], [10, 0, 0]], length: 10, closed: false, surfaceFaceIds: ['face-a', 'face-b'] },
+  };
+  const arc = {
+    selection: { kind: 'edge', id: 'edge-arc', bodyId: 'body-a' },
+    descriptor: { geometry: 'CIRCLE', endpoints: [[0, 0, 0], [10, 0, 0]], midpoint: [5, 5, 0], radius: 5, length: Math.PI * 5, closed: false },
+  };
+  const first = projectTopologyToSketch(document, sketch.id, [line, arc]);
+  assert.equal(first.createdReferenceIds.length, 2);
+  assert.deepEqual(first.surfaceFaceIds, ['face-a', 'face-b']);
+  assert.deepEqual(sketch.entities.filter((entity) => entity.type !== 'point').map((entity) => entity.type), ['line', 'arc3d']);
+  assert.deepEqual(sketch.entities.find((entity) => entity.type === 'line').surfaceFaceIds, ['face-a', 'face-b']);
+  const entityCount = sketch.entities.length;
+  const referenceCount = document.references.length;
+  const repeated = projectTopologyToSketch(document, sketch.id, [line]);
+  assert.equal(repeated.createdReferenceIds.length, 0);
+  assert.equal(repeated.createdEntityIds.length, 1);
+  assert.equal(sketch.entities.length, entityCount);
+  assert.equal(document.references.length, referenceCount);
+});
+
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {
   const queue = new SerialTaskQueue();
   const order = [];

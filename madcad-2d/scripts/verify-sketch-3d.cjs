@@ -146,7 +146,7 @@ app.whenReady().then(async () => {
     })`);
     window.webContents.sendInputEvent({ type: 'mouseDown', x: cancelState.handle.x, y: cancelState.handle.y, button: 'left', clickCount: 1 });
     window.webContents.sendInputEvent({ type: 'mouseMove', x: cancelState.handle.x + 25, y: cancelState.handle.y - 15, button: 'left' });
-    await window.webContents.executeJavaScript(`document.elementFromPoint(${cancelState.handle.x}, ${cancelState.handle.y}).dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, bubbles: true }))`);
+    await window.webContents.executeJavaScript(`document.querySelector('.model-viewport canvas').dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, pointerType: 'mouse', clientX: ${cancelState.handle.x + 25}, clientY: ${cancelState.handle.y - 15}, bubbles: true }))`);
     window.webContents.sendInputEvent({ type: 'mouseUp', x: cancelState.handle.x + 25, y: cancelState.handle.y - 15, button: 'left', clickCount: 1 });
     await window.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
     const cancelledGeometry = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.id === ${JSON.stringify(spline.pointIds[1])}).geometry`);
@@ -267,12 +267,13 @@ app.whenReady().then(async () => {
       const edge = body.topology.edges.filter((item) => item.descriptor?.bspline).sort((a, b) => b.descriptor.length - a.descriptor.length)[0];
       if (!edge) throw new Error('Brak B-spline do testu.');
       window.__madcadVerifyTopologySelection({ kind: 'edge', id: edge.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }, 'replace');
-      return edge.descriptor.bspline;
+      return { bspline: edge.descriptor.bspline, surfaceFaceIds: edge.descriptor.surfaceFaceIds };
     })()`);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[2]?.entityData?.some((entity) => entity.type === 'bspline3d')`, 'skojarzona B-spline');
     const projectedSpline = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[2].entityData.find((entity) => entity.type === 'bspline3d')`);
-    if (JSON.stringify(projectedSpline.geometry.bspline) !== JSON.stringify(bsplineSource)) throw new Error('Projekcja zmieniła dokładne dane B-spline.');
+    if (JSON.stringify(projectedSpline.geometry.bspline) !== JSON.stringify(bsplineSource.bspline)) throw new Error('Projekcja zmieniła dokładne dane B-spline.');
+    if (!bsplineSource.surfaceFaceIds?.length || JSON.stringify(projectedSpline.surfaceFaceIds) !== JSON.stringify(bsplineSource.surfaceFaceIds)) throw new Error('Projekcja nie zachowała powierzchni prowadzących B-spline.');
     await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection([${JSON.stringify(projectedSpline.id)}], 'replace')`);
     await clickTool(window, 'Rura');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'pipe'`, 'Pipe po B-spline');
@@ -286,6 +287,8 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'ponowne otwarcie B-spline Pipe', 45000);
     const reopenedSplineVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[1].metrics.volume`);
     if (!(splinePipeVolume > 0) || Math.abs(reopenedSplineVolume - splinePipeVolume) > 0.001) throw new Error('Pipe po B-spline zmienił się po otwarciu.');
+    const reopenedSurfaceFaceIds = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[2].entityData.find((entity) => entity.type === 'bspline3d').surfaceFaceIds`);
+    if (JSON.stringify(reopenedSurfaceFaceIds) !== JSON.stringify(bsplineSource.surfaceFaceIds)) throw new Error('Po otwarciu projektu ścieżka utraciła skojarzenie z powierzchnią.');
     console.log(JSON.stringify({ ok: true, splinePipeVolume, sketchSegments: 4, curveTypes, splineContinuity, editedSpline, curvedTopologyAudit, associatedPath, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshots: { handles: handleArtifactPath, pipe: artifactPath } }, null, 2));
   } catch (error) {
     exitCode = 1;

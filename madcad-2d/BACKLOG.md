@@ -103,7 +103,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Bezpośrednie uchwyty końców, punktu łuku i spline w widoku, z podglądem XYZ, dokładnym snapem oraz ochroną zależnych uchwytów G1/G2.
   - [x] Skojarzone otwarte łuki kołowe B-Rep pobierane bez aproksymacji do dokładnego `arc3d` i odświeżane razem z bryłą źródłową.
   - [x] Skojarzone otwarte B-spline z dokładnymi biegunami, wagami i węzłami; tworzenie Pipe i odtworzenie po otwarciu projektu sprawdzone w Electron.
-  - [ ] Ścieżki leżące na powierzchni.
+  - [x] Pobrane ścieżki krawędziowe zachowują identyfikatory wszystkich powierzchni, na których leżą; powiązanie odświeża się z topologią i pozostaje po ponownym otwarciu projektu.
+  - [ ] Project to Surface dla dowolnej krzywej szkicu rzutowanej na zakrzywioną ścianę.
 
 ### Render, Animation, Simulation i Generative
 

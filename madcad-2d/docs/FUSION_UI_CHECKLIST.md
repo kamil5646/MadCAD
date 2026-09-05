@@ -164,6 +164,13 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 
 ## Pliki główne
 
+### Weryfikacja 2026-09-05 — ścieżki związane z powierzchnią
+
+- [x] Każda krawędź B-Rep otrzymuje stabilną listę ścian, do których należy; ścieżka pobrana do szkicu 3D zachowuje tę listę i aktualizuje ją razem z geometrią.
+- [x] Dwie różne krzywe o wspólnych końcach nie są scalane, a ponowne pobranie tej samej krawędzi nie tworzy duplikatu ani osieroconej referencji.
+- [x] Test Electron potwierdza dokładną B-spline, jej ściany prowadzące, Pipe oraz zachowanie powiązania po otwarciu projektu; testy rdzenia obejmują kolidujące końce i idempotencję.
+- [ ] Dowolna krzywa szkicu rzutowana na wnętrze zakrzywionej ściany pozostaje osobnym zadaniem `Project to Surface`.
+
 ### Weryfikacja 2026-09-05 — przełączanie projektów
 
 - [x] Zmiana identyfikatora dokumentu kończy poprzedni worker CAD i odrzuca oczekujące obliczenia. Nowy projekt nie wyświetla brył, analizy ani historii poprzedniego dokumentu.

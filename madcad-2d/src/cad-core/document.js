@@ -739,6 +739,9 @@ export function validateDocument(document) {
       if (entity.role === 'projected' && (typeof entity.sourceReferenceId !== 'string' || !entity.sourceReferenceId.trim())) {
         add(`${entityBase}.sourceReferenceId`, 'Geometria projected wymaga referencji źródłowej.', 'BROKEN_REFERENCE');
       }
+      if (entity.surfaceFaceIds !== undefined && (!Array.isArray(entity.surfaceFaceIds) || entity.surfaceFaceIds.some((faceId) => typeof faceId !== 'string' || !faceId.trim()) || new Set(entity.surfaceFaceIds).size !== entity.surfaceFaceIds.length)) {
+        add(`${entityBase}.surfaceFaceIds`, 'Skojarzenie ścieżki z powierzchnią wymaga unikalnych identyfikatorów ścian.', 'VALUE');
+      }
       const pointCount = Array.isArray(entity.pointIds) ? entity.pointIds.length : 0;
       if (entity.type === 'point') {
         if (pointCount !== 0) add(`${entityBase}.pointIds`, 'Punkt nie może odwoływać się do innych punktów.', 'VALUE');

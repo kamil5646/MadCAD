@@ -66,6 +66,7 @@ function commonEntity(type, options = {}) {
     ...(options.blockInstanceId ? { blockInstanceId: options.blockInstanceId } : {}),
     ...(options.blockSourceEntityId ? { blockSourceEntityId: options.blockSourceEntityId } : {}),
     ...(role === 'projected' ? { sourceReferenceId: options.sourceReferenceId || null } : {}),
+    ...(Array.isArray(options.surfaceFaceIds) && options.surfaceFaceIds.length ? { surfaceFaceIds: [...new Set(options.surfaceFaceIds)] } : {}),
   }, options.layerId);
 }
 

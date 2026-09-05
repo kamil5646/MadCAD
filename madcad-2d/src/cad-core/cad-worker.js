@@ -2554,14 +2554,34 @@ function meshBody(body, index, quality = 'display') {
   });
   const shapeFaces = body.shape.faces;
   const shapeEdges = body.shape.edges;
+  const faceHashesByEdgeHash = new Map();
+  shapeFaces.forEach((face) => {
+    const faceEdges = face.edges;
+    try {
+      faceEdges.forEach((edge) => {
+        const hashes = faceHashesByEdgeHash.get(edge.hashCode) || new Set();
+        hashes.add(face.hashCode);
+        faceHashesByEdgeHash.set(edge.hashCode, hashes);
+      });
+    } finally {
+      faceEdges.forEach((edge) => edge.delete());
+    }
+  });
   const previousTopology = topologyHistory.get(body.id) || { faces: [], edges: [], vertices: [] };
   const faces = assignStableTopologyIds(body.id, 'face', shapeFaces.map(faceDescriptor), previousTopology.faces)
     .map((record, faceIndex) => ({ ...record, sourceHash: shapeFaces[faceIndex].hashCode }));
-  const stableEdges = assignStableTopologyIds(body.id, 'edge', shapeEdges.map(edgeDescriptor), previousTopology.edges)
+  const stableEdgeRecords = assignStableTopologyIds(body.id, 'edge', shapeEdges.map(edgeDescriptor), previousTopology.edges)
     .map((record, edgeIndex) => ({ ...record, sourceHash: shapeEdges[edgeIndex].hashCode }));
+  const faceIds = new Map(faces.map((face) => [face.sourceHash, face.id]));
+  const stableEdges = stableEdgeRecords.map((edge) => ({
+    ...edge,
+    descriptor: {
+      ...edge.descriptor,
+      surfaceFaceIds: [...(faceHashesByEdgeHash.get(edge.sourceHash) || [])].map((hash) => faceIds.get(hash)).filter(Boolean).sort(),
+    },
+  }));
   const vertexDescriptors = [...new Map(stableEdges.flatMap((edge) => (edge.descriptor.endpoints || []).map((point) => [JSON.stringify(point), { point }]))).values()];
   const stableVertices = assignStableTopologyIds(body.id, 'vertex', vertexDescriptors, previousTopology.vertices);
-  const faceIds = new Map(faces.map((face) => [face.sourceHash, face.id]));
   const edgeIds = new Map(stableEdges.map((edge) => [edge.sourceHash, edge.id]));
   const renderBody = {
     id: body.id,
