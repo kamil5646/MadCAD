@@ -878,7 +878,7 @@ function stitchSurfaceShapes(shapes, tolerance) {
     const stitched = cast(sewing.SewedShape());
     if (stitched.wrapped.ShapeType() !== oc.TopAbs_ShapeEnum.TopAbs_SHELL) {
       stitched.delete();
-      throw new Error('Wybrane powierzchnie nie tworzą jednego połączonego płaszcza.');
+      throw new Error(`Wybrane powierzchnie nie tworzą jednego połączonego płaszcza; wykryto ${freeEdges} wolnych krawędzi.`);
     }
     if (freeEdges > 0) return { shape: stitched, bodyKind: 'surface', freeEdges };
     const solid = makeSolid([stitched]);
@@ -907,6 +907,75 @@ function facetedBrepFromMesh(mesh, tolerance = GEOMETRY_POLICY.linearTolerance) 
     if (stitched.bodyKind !== 'solid') {
       stitched.shape.delete?.();
       throw new Error(`OpenCascade nie domknął płaszcza; pozostało ${stitched.freeEdges} wolnych krawędzi.`);
+    }
+    return stitched.shape;
+  } finally {
+    faces.forEach((face) => face.delete?.());
+  }
+}
+
+function smoothBrepFromPatches(patches, tolerance = GEOMETRY_POLICY.linearTolerance) {
+  const oc = getOC();
+  const faces = [];
+  const knotData = (poleCount) => {
+    const degree = Math.min(3, poleCount - 1);
+    const knotCount = poleCount - degree + 1;
+    return {
+      degree,
+      values: Array.from({ length: knotCount }, (_unused, index) => index / (knotCount - 1)),
+      multiplicities: Array.from({ length: knotCount }, (_unused, index) => (index === 0 || index === knotCount - 1 ? degree + 1 : 1)),
+    };
+  };
+  try {
+    for (const grid of patches) {
+      const rows = grid.length;
+      const columns = grid[0]?.length || 0;
+      if (rows < 3 || columns < 3 || grid.some((row) => row.length !== columns)) throw new Error('Gładki Form wymaga regularnej siatki punktów każdego płata.');
+      const points = new oc.TColgp_Array2OfPnt_2(1, rows, 1, columns);
+      const allocatedPoints = [];
+      const u = knotData(rows);
+      const v = knotData(columns);
+      const uKnots = new oc.TColStd_Array1OfReal_2(1, u.values.length);
+      const vKnots = new oc.TColStd_Array1OfReal_2(1, v.values.length);
+      const uMultiplicities = new oc.TColStd_Array1OfInteger_2(1, u.multiplicities.length);
+      const vMultiplicities = new oc.TColStd_Array1OfInteger_2(1, v.multiplicities.length);
+      let spline;
+      let surfaceHandle;
+      let maker;
+      try {
+        grid.forEach((row, rowIndex) => row.forEach((coordinates, columnIndex) => {
+          const point = new oc.gp_Pnt_3(...coordinates);
+          allocatedPoints.push(point);
+          points.SetValue(rowIndex + 1, columnIndex + 1, point);
+        }));
+        u.values.forEach((value, index) => {
+          uKnots.SetValue(index + 1, value);
+          uMultiplicities.SetValue(index + 1, u.multiplicities[index]);
+        });
+        v.values.forEach((value, index) => {
+          vKnots.SetValue(index + 1, value);
+          vMultiplicities.SetValue(index + 1, v.multiplicities[index]);
+        });
+        spline = new oc.Geom_BSplineSurface_1(points, uKnots, vKnots, uMultiplicities, vMultiplicities, u.degree, v.degree, false, false);
+        surfaceHandle = new oc.Handle_Geom_Surface_2(spline);
+        maker = new oc.BRepBuilderAPI_MakeFace_8(surfaceHandle, Math.max(tolerance, 1e-6));
+        if (!maker.IsDone()) throw new Error('OpenCascade nie utworzył ściany B-spline Form.');
+        faces.push(cast(maker.Face()));
+      } finally {
+        maker?.delete();
+        surfaceHandle?.delete();
+        vMultiplicities.delete();
+        uMultiplicities.delete();
+        vKnots.delete();
+        uKnots.delete();
+        allocatedPoints.forEach((point) => point.delete());
+        points.delete();
+      }
+    }
+    const stitched = stitchSurfaceShapes(faces, Math.max(tolerance, 1e-3));
+    if (stitched.bodyKind !== 'solid') {
+      stitched.shape.delete?.();
+      throw new Error(`Gładkie płaty Form nie utworzyły zamkniętej bryły; pozostało ${stitched.freeEdges} wolnych krawędzi.`);
     }
     return stitched.shape;
   } finally {
@@ -1337,7 +1406,18 @@ function runFeature(feature, bodyMap, bodyOrder) {
       vertices: mesh.vertices.map((value, index) => value + feature.position[index % 3]),
       triangles: mesh.triangles,
     };
-    const shape = facetedBrepFromMesh(translated);
+    const translatedPatches = mesh.smoothPatches.map((grid) => grid.map((row) => row.map((point) => point.map((value, axis) => value + feature.position[axis]))));
+    let shape;
+    let brepMode = 'faceted';
+    if (translatedPatches.length) {
+      try {
+        shape = smoothBrepFromPatches(translatedPatches);
+        brepMode = 'smooth-patches';
+      } catch (error) {
+        console.warn(`Gładka konwersja Form nie powiodła się, użyto zgodnej geometrii fasetowej: ${error.message}`);
+      }
+    }
+    if (!shape) shape = facetedBrepFromMesh(translated);
     const bodyId = `body-${feature.id}`;
     bodyMap.set(bodyId, {
       id: bodyId,
@@ -1350,6 +1430,8 @@ function runFeature(feature, bodyMap, bodyOrder) {
         controlFaceCount: mesh.controlFaceCount,
         surfaceVertexCount: mesh.surfaceVertexCount,
         surfaceFaceCount: mesh.surfaceFaceCount,
+        brepMode,
+        brepPatchCount: brepMode === 'smooth-patches' ? translatedPatches.length : mesh.triangles.length / 3,
         subdivisions: mesh.subdivisions,
         symmetry: feature.symmetry || 'none',
         controlVertices: mesh.controlVertices.map((value, index) => value + feature.position[index % 3]),

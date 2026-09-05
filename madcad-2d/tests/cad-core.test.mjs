@@ -1336,6 +1336,8 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   assert.equal(mesh.controlVertices.length, 24);
   assert.equal(mesh.controlFaces.length, 6);
   assert.equal(mesh.surfaceFaceCount, 96);
+  assert.equal(mesh.smoothPatches.length, 6);
+  assert.deepEqual(mesh.smoothPatches.map((grid) => [grid.length, grid[0].length]), Array.from({ length: 6 }, () => [5, 5]));
   assert.equal(report.triangleCount, 192);
   assert.equal(report.boundaryEdges, 0);
   assert.equal(report.nonManifoldEdges, 0);
@@ -1372,6 +1374,7 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   assert.equal(edgeLoopMesh.controlVertexCount, 12);
   assert.equal(edgeLoopMesh.controlFaceCount, 10);
   assert.equal(edgeLoopMesh.surfaceFaceCount, 40);
+  assert.equal(edgeLoopMesh.smoothPatches.length, 10);
   assert.equal(edgeLoopMesh.creaseEdges.length, 2);
   const edgeLoopReport = inspectMesh(edgeLoopMesh);
   assert.equal(edgeLoopReport.boundaryEdges, 0);
@@ -1388,6 +1391,7 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   assert.equal(bridgedMesh.controlVertexCount, 16);
   assert.equal(bridgedMesh.controlFaceCount, 16);
   assert.equal(bridgedMesh.surfaceFaceCount, 64);
+  assert.equal(bridgedMesh.smoothPatches.length, 16);
   assert.deepEqual(bridgedMesh.bridge, { firstFaceIndex: 0, secondFaceIndex: 1, inset: 0.45 });
   const bridgedReport = inspectMesh(bridgedMesh);
   assert.equal(bridgedReport.boundaryEdges, 0);
@@ -1410,6 +1414,8 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   assert.equal(filledMesh.controlVertexCount, 22);
   assert.equal(filledMesh.controlFaceCount, 26);
   assert.equal(filledMesh.surfaceFaceCount, 96);
+  assert.equal(filledMesh.smoothPatches.length, 20);
+  assert.notDeepEqual(filledMesh.smoothPatches[0][1][1], createRoundedBoxFormMesh({ width: 40, depth: 30, height: 20, subdivisions: 1, insertEdge: { enabled: true, edgeIndex: 4, position: 0.5 }, bridge: { enabled: true, firstFaceIndex: 6, secondFaceIndex: 9, inset: 0.45 } }).smoothPatches[0][1][1]);
   const filledReport = inspectMesh(filledMesh);
   assert.equal(filledReport.boundaryEdges, 0);
   assert.equal(filledReport.nonManifoldEdges, 0);

@@ -174,6 +174,12 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Test rdzenia kontroluje trwały zapis obu stron skojarzenia, a test Electron wykonuje projekcję przez rzeczywisty worker OpenCascade i sprawdza dokładną B-spline oraz identyfikator powierzchni.
 - [x] Worker ponownie rzutuje skojarzoną krzywą po zmianie źródła lub przebudowie ściany, interfejs zapisuje wynik bez pętli rewizji, a test Electron potwierdza zmianę próbek B-spline oraz objętości zależnej bryły Pipe.
 
+### Weryfikacja 2026-09-05 — gładki Form B-Rep
+
+- [x] Regularne obszary klatki Catmulla-Clarka są grupowane według ścian kontrolnych i zamieniane na zszyte płaty B-spline zamiast dwóch planarnych ścian na każdy quad podziału.
+- [x] Insert Edge i Bridge zachowują dokładne wspólne granice płatów, a Fill Hole deformuje wnętrze płata funkcją zanikającą na brzegu, dzięki czemu zszyty B-Rep pozostaje zamknięty.
+- [x] Pełny scenariusz Form z symetrią, Crease, Insert Edge, Bridge i dwoma Fill Hole zmniejsza topologię z 768 faset do 20 ścian `BSPLINE_SURFACE`; Undo/Redo i ponowne otwarcie zachowują gładką bryłę.
+
 ### Weryfikacja 2026-09-05 — przełączanie projektów
 
 - [x] Zmiana identyfikatora dokumentu kończy poprzedni worker CAD i odrzuca oczekujące obliczenia. Nowy projekt nie wyświetla brył, analizy ani historii poprzedniego dokumentu.
