@@ -184,6 +184,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.34c ViewCube udostępnia komplet widoków Góra/Dół/Przód/Tył/Lewo/Prawo oraz izometrię w zwartej, przestrzennej kontrolce. Każdy kierunek ma nazwę dostępności, stan aktywny i test rzeczywistego wektora kamery; forma pozostaje płaska bez gradientów i nie zasłania narzędzi nawigacji.
 - [x] P1.35a Appearance zapisuje na definicji komponentu preset, kolor, metaliczność i chropowatość, stosuje je do wszystkich wystąpień w widoku 3D oraz zachowuje zgodność ze starszymi dokumentami bez pola wyglądu. Testy potwierdzają zapis/otwarcie, Undo/Redo, rzeczywisty materiał renderera i układ panelu bez przepełnienia.
 - [x] P1.35b Exploded View rozsuwa widoczne wystąpienia części od środka złożenia deterministycznym suwakiem 0–100%, nie zmieniając położeń projektowych, jointów, kolizji ani historii. Kolory kolizji zostają wyłączone wyłącznie w rozstrzelonym podglądzie, a test desktopowy potwierdza rozsunięcie, powrót do położeń projektowych i układ panelu bez przepełnienia.
+- [x] P1.35c Scena i render zapisuje w projekcie preset Studio/Warsztat/Światło dzienne/Noc, kolor tła, trzy poziomy oświetlenia, kierunek i wysokość światła, ekspozycję, cienie oraz podłoże. Three.js stosuje tonemapping ACES i miękkie cienie na żywo, a eksport PNG używa aktualnej kamery i wyglądu komponentów, ale usuwa siatkę roboczą. Migracja zgodnego schematu v15, walidacja, Undo/Redo, zapis prawdziwego PNG oraz układ panelu bez overflow są sprawdzane automatycznie i wizualnie.
 
 ## P2 — dokumentacja techniczna 2D
 

@@ -12,6 +12,7 @@ import { lineTypeDefinition, resolveEntityAppearance } from '../cad-core/layers.
 import { inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-suggestions.js';
 import { describeSketchDegreesOfFreedom } from '../cad-core/sketch-freedom-diagnostics.js';
 import { normalizeComponentAppearance } from '../cad-core/components.js';
+import { normalizeRenderScene } from '../cad-core/render-scene.js';
 import { calculateExplodedOffsets } from '../cad-core/exploded-view.js';
 import { configureCadMouseNavigation, shouldHandlePrimaryViewportPointer, VIEWPORT_NAVIGATION_MODES, viewportCursor } from './viewport-navigation.js';
 import { resolveReferenceSketchIds } from './sketch-visibility.js';
@@ -622,6 +623,8 @@ export default function ModelViewport({
   bed,
   showBed,
   printLayout,
+  renderScene,
+  renderCaptureRef,
 }) {
   const hostRef = useRef(null);
   const desktopPlatform = window.desktopApp?.platform;
@@ -798,11 +801,14 @@ export default function ModelViewport({
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return undefined;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
     renderer.domElement.tabIndex = 0;
     renderer.domElement.style.outline = 'none';
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     host.appendChild(renderer.domElement);
     rendererRef.current = renderer;
     return () => {
@@ -829,8 +835,10 @@ export default function ModelViewport({
       cameraSnapshotRef.current = null;
     }
 
+    const sceneSettings = normalizeRenderScene(renderScene);
+    renderer.toneMappingExposure = sceneSettings.exposure;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#2c333e');
+    scene.background = new THREE.Color(sceneSettings.background);
     const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100000);
     camera.up.set(0, 0, 1);
     renderer.localClippingEnabled = Boolean((activeSketch && sliceModel) || sectionAnalysis?.enabled);
@@ -851,13 +859,32 @@ export default function ModelViewport({
       controls.addEventListener('change', () => { window.__madcadViewportNavigationState.changes += 1; });
     }
 
-    scene.add(new THREE.HemisphereLight(0xf1f7fb, 0x28323d, 2.1));
-    const key = new THREE.DirectionalLight(0xffffff, 2.5);
-    key.position.set(260, -220, 360);
+    scene.add(new THREE.HemisphereLight(0xf1f7fb, 0x28323d, sceneSettings.ambientIntensity));
+    const key = new THREE.DirectionalLight(0xffffff, sceneSettings.keyIntensity);
+    const azimuth = sceneSettings.keyAzimuth * Math.PI / 180;
+    const elevation = sceneSettings.keyElevation * Math.PI / 180;
+    key.position.set(Math.cos(azimuth) * Math.cos(elevation) * 420, Math.sin(azimuth) * Math.cos(elevation) * 420, Math.sin(elevation) * 420);
+    key.castShadow = sceneSettings.shadows;
+    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.camera.left = -400;
+    key.shadow.camera.right = 400;
+    key.shadow.camera.top = 400;
+    key.shadow.camera.bottom = -400;
     scene.add(key);
-    const fill = new THREE.DirectionalLight(0x9ccfff, 0.72);
+    const fill = new THREE.DirectionalLight(0x9ccfff, sceneSettings.fillIntensity);
     fill.position.set(-180, 100, 120);
     scene.add(fill);
+
+    let ground;
+    if (sceneSettings.ground && !activeSketchId && !showBed) {
+      ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(1600, 1600),
+        new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.18 }),
+      );
+      ground.position.z = -0.2;
+      ground.receiveShadow = sceneSettings.shadows;
+      scene.add(ground);
+    }
 
     const gridSize = Math.max(800, bed?.bedWidth || 220, bed?.bedDepth || 220);
     const grid = new THREE.GridHelper(gridSize, Math.round(gridSize / 10), 0x737e8b, 0x4b5562);
@@ -2799,6 +2826,25 @@ export default function ModelViewport({
     };
     render();
 
+    modelGroup.traverse((object) => {
+      if (object.isMesh) {
+        object.castShadow = sceneSettings.shadows;
+        object.receiveShadow = sceneSettings.shadows;
+      }
+    });
+    if (renderCaptureRef) renderCaptureRef.current = () => {
+      const gridWasVisible = grid.visible;
+      grid.visible = false;
+      renderer.render(scene, camera);
+      const dataUrl = renderer.domElement.toDataURL('image/png');
+      grid.visible = gridWasVisible;
+      renderer.render(scene, camera);
+      return dataUrl;
+    };
+    if (new URLSearchParams(window.location.search).has('verify')) {
+      window.__madcadRenderSceneState = { ...sceneSettings, keyPosition: key.position.toArray() };
+    }
+
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
@@ -2821,6 +2867,8 @@ export default function ModelViewport({
       disposeObject(constructionGroup);
       disposeObject(sectionGroup);
       if (plate) disposeObject(plate);
+      if (ground) disposeObject(ground);
+      if (renderCaptureRef?.current) renderCaptureRef.current = null;
       grid.geometry.dispose();
       grid.material.dispose();
       delete window.__madcadDirectHandlePoint;
@@ -2845,10 +2893,11 @@ export default function ModelViewport({
       delete window.__madcadViewportNavigationState;
       delete window.__madcadFormCageState;
       delete window.__madcadFormPointerDebug;
+      delete window.__madcadRenderSceneState;
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

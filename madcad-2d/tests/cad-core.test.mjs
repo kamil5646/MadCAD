@@ -54,6 +54,7 @@ import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/p
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
+import { DEFAULT_RENDER_SCENE, normalizeRenderScene, renderEnvironmentPreset } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
@@ -2909,6 +2910,28 @@ test('zapisane widoki zachowują dokładną kamerę, unikalne nazwy i round-trip
   assert.throws(() => createNamedView(document, { name: 'Błędny', camera: { ...camera, target: camera.position } }), /musi różnić/);
   assert.equal(deleteNamedView(document, view.id).id, view.id);
   assert.equal(validateDocument(document).valid, true);
+});
+
+test('scena renderu ma bezpieczne presety, walidację i migrację starszego projektu', () => {
+  const document = createDocument('Render Scene');
+  assert.deepEqual(document.renderScene, normalizeRenderScene());
+  assert.equal(validateDocument(document).valid, true);
+
+  const daylight = normalizeRenderScene({ ...document.renderScene, ...renderEnvironmentPreset('daylight'), preset: 'daylight', shadows: false });
+  assert.equal(daylight.preset, 'daylight');
+  assert.equal(daylight.shadows, false);
+  assert.equal(daylight.background, '#b9cad8');
+  document.renderScene = daylight;
+  assert.equal(openDocument(JSON.parse(JSON.stringify(document))).document.renderScene.exposure, 1.05);
+
+  const legacy = JSON.parse(JSON.stringify(document));
+  delete legacy.renderScene;
+  const migrated = openDocument(legacy).document;
+  assert.deepEqual(migrated.renderScene, DEFAULT_RENDER_SCENE);
+  assert.equal(validateDocument(migrated).valid, true);
+
+  document.renderScene.exposure = 99;
+  assert.equal(validateDocument(document).valid, false);
 });
 
 test('round-trip .madcad zachowuje dokument bez utraty danych', () => {

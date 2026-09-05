@@ -54,6 +54,7 @@
     "verify:draft-analysis": "npm run build:ui && electron scripts/verify-draft-analysis.cjs",
     "verify:surface-analysis": "npm run build:ui && electron scripts/verify-surface-analysis.cjs",
     "verify:named-views": "npm run build:ui && electron scripts/verify-named-views.cjs",
+    "verify:render-scene": "npm run build:ui && electron scripts/verify-render-scene.cjs",
     "verify:import-report": "npm run build:ui && electron scripts/verify-import-report.cjs",
     "verify:drawing-workspace": "npm run build:ui && electron scripts/verify-drawing-workspace.cjs",
     "verify:sketch-drawing": "npm run build:ui && electron scripts/verify-sketch-drawing.cjs",

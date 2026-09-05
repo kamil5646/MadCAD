@@ -4379,6 +4379,22 @@
 .named-view-row > button:last-child { color: #efb1b1; }
 .named-view-note { padding: 7px 9px; border-top: 1px solid #596573; background: #29343f; }
 
+.render-scene-panel { top: 14px; right: 14px; display: grid; width: min(330px, calc(100% - 28px)); max-height: calc(100% - 28px); overflow: auto; }
+.render-scene-panel > label { display: grid; grid-template-columns: 105px minmax(0, 1fr); align-items: center; gap: 8px; padding: 8px 10px 0; color: #c7d1da; font-size: 10px; }
+.render-scene-panel select { min-width: 0; min-height: 29px; padding: 4px 7px; border: 1px solid #697785; border-radius: 3px; background: #27313c; color: #f2f6f9; font: inherit; }
+.render-scene-panel .render-color-field input { width: 100%; height: 29px; padding: 2px; border: 1px solid #697785; border-radius: 3px; background: #27313c; }
+.render-scene-section { display: grid; gap: 7px; margin-top: 9px; padding: 9px 10px; border-top: 1px solid #596573; border-bottom: 1px solid #596573; background: #303b47; }
+.render-scene-section > strong { display: flex; align-items: center; gap: 6px; color: #e8eef2; font-size: 10px; }
+.render-scene-section label { display: grid; gap: 3px; color: #bcc8d1; font-size: 9px; }
+.render-scene-section label span { display: flex; justify-content: space-between; gap: 8px; }
+.render-scene-section label em { color: #7bd1ea; font-style: normal; font-variant-numeric: tabular-nums; }
+.render-scene-section input[type='range'] { width: 100%; accent-color: #5fc4df; }
+.render-scene-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 9px 10px 5px; }
+.render-scene-toggles label { display: flex; min-height: 29px; align-items: center; gap: 6px; padding: 0 8px; border: 1px solid #657381; border-radius: 3px; background: #35414d; color: #dce5eb; font-size: 10px; }
+.render-scene-toggles input { accent-color: #5fc4df; }
+.render-save-button { display: flex; min-height: 32px; align-items: center; justify-content: center; gap: 6px; margin: 5px 10px; border: 1px solid #55aac1; border-radius: 3px; background: #286477; color: #f4fbfd; font: inherit; font-size: 10px; cursor: pointer; }
+.render-scene-panel > p { margin: 3px 10px 10px; color: #aeb9c3; font-size: 9px; line-height: 1.45; }
+
 .component-toolbar {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

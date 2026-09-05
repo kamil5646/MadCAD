@@ -227,7 +227,7 @@ import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import { AdaptiveToolShelf } from './WorkspaceSketchUi.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectDashboard, ProjectDependenciesPanel, ProjectHealthPanel, ProjectSearchPalette, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
-import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, MeshToolsPanel, NamedViewsPanel, SectionPanel, SurfaceAnalysisPanel } from './WorkspacePanels.jsx';
+import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, MeshToolsPanel, NamedViewsPanel, RenderScenePanel, SectionPanel, SurfaceAnalysisPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
   clearLocalAutosave,
@@ -529,6 +529,7 @@ export default function ModelingWorkspace() {
   const [componentsOpen, setComponentsOpen] = useState(false);
   const [explodeAmount, setExplodeAmount] = useState(0);
   const [namedViewsOpen, setNamedViewsOpen] = useState(false);
+  const [renderSceneOpen, setRenderSceneOpen] = useState(false);
   const [cameraRequest, setCameraRequest] = useState(null);
   const [linkedProjectStatuses, setLinkedProjectStatuses] = useState({});
   const [commandCustomizationOpen, setCommandCustomizationOpen] = useState(false);
@@ -564,6 +565,7 @@ export default function ModelingWorkspace() {
   const sketchPointerRef = useRef(null);
   const sketchDynamicLengthRef = useRef('');
   const currentCameraRef = useRef(null);
+  const renderCaptureRef = useRef(null);
   const helpMenuRef = useRef(null);
   const shortcutRegistryRef = useRef(new Map());
   const autosaveQueueRef = useRef(Promise.resolve());
@@ -906,6 +908,25 @@ export default function ModelingWorkspace() {
       setNotice(`Zapisano widok „${created.name}”.`);
     } catch (error) {
       setNotice(error.message);
+    }
+  };
+
+  const updateRenderScene = (renderScene) => {
+    commit((next) => { next.renderScene = renderScene; });
+  };
+
+  const saveLocalRender = async () => {
+    try {
+      const dataUrl = renderCaptureRef.current?.();
+      if (!dataUrl) throw new Error('Widok 3D nie jest jeszcze gotowy.');
+      const encoded = dataUrl.split(',')[1];
+      if (!encoded) throw new Error('Widok 3D zwrócił nieprawidłowy obraz.');
+      const binary = window.atob(encoded);
+      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      downloadBlob(new Blob([bytes], { type: 'image/png' }), `${safeName(document.name)}-render.png`);
+      setNotice('Zapisano bieżący widok jako PNG.');
+    } catch (error) {
+      setNotice(`Nie udało się zapisać renderu: ${error.message}`);
     }
   };
   const activateNamedView = (view) => {
@@ -4004,6 +4025,7 @@ export default function ModelingWorkspace() {
       projectSnapshots: projectSnapshots.map((snapshot) => ({ ...snapshot })),
       linkedProjects: document.linkedProjects.map((link) => ({ ...link, proxyFeatureIds: [...link.proxyFeatureIds] })),
       namedViews: (document.namedViews || []).map((view) => ({ ...view, camera: structuredClone(view.camera) })),
+      renderScene: structuredClone(document.renderScene),
       linkedProjectStatuses: structuredClone(linkedProjectStatuses),
       projectHealth: structuredClone(projectHealthReport),
       projectDependencies: structuredClone(projectDependencyInspection),
@@ -7326,6 +7348,7 @@ export default function ModelingWorkspace() {
             onCreatePart={() => createDocumentComponent('part')}
             onCreateAssembly={() => createDocumentComponent('assembly')}
             onOpenNamedViews={() => { setComponentsOpen(false); setNamedViewsOpen((open) => !open); switchWorkspace('solid'); }}
+            onOpenRenderScene={() => { setComponentsOpen(false); setNamedViewsOpen(false); setRenderSceneOpen(true); switchWorkspace('solid'); }}
             readOnly={readOnly}
             onBack={() => switchWorkspace('solid')}
           /> : <React.Suspense fallback={<div className="viewport-loading" role="status">Uruchamianie widoku 3D…</div>}>
@@ -7428,6 +7451,8 @@ export default function ModelingWorkspace() {
             bed={document.print}
             showBed={printPanelOpen}
             printLayout={document.print}
+            renderScene={document.renderScene}
+            renderCaptureRef={renderCaptureRef}
           />
           </React.Suspense>}
           {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
@@ -7454,6 +7479,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} inspectionMode={command.inspectionMode} draftDirection={command.draftDirection} draftTolerance={command.draftTolerance} thicknessTarget={command.thicknessTarget} thicknessTolerance={command.thicknessTolerance} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {namedViewsOpen && <NamedViewsPanel views={document.namedViews || []} currentCamera={currentCameraRef.current} readOnly={readOnly} onCreate={saveNamedView} onActivate={activateNamedView} onDelete={removeNamedView} onClose={() => setNamedViewsOpen(false)} />}
+          {renderSceneOpen && <RenderScenePanel scene={document.renderScene} readOnly={readOnly} onChange={updateRenderScene} onSaveRender={() => { void saveLocalRender(); }} onClose={() => setRenderSceneOpen(false)} />}
           {componentsOpen && <ComponentPanel
             document={document} bodies={engine.bodies} collisionResult={assemblyCollisionResult}
             selectedComponentId={selectedComponent?.id || ''} selectedInstanceId={selectedInstance?.id || ''} selectedJointId={selectedJoint?.id || ''} selectedMotionLinkId={selectedMotionLink?.id || ''} selectedConfigurationId={selectedAssemblyConfiguration?.id || ''} selectedContactSetId={selectedContactSet?.id || ''} selectedBodyIds={selectedBodyIds}

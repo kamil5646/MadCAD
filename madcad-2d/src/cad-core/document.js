@@ -14,6 +14,7 @@ import { JOINT_AXES, JOINT_TYPES, ensureDocumentJoints } from './assembly-joints
 import { ensureDocumentAssemblyMotion } from './assembly-motion.js';
 import { ensureDocumentLinkedProjects } from './linked-projects.js';
 import { MAX_NAMED_VIEWS, ensureDocumentNamedViews, normalizeNamedViewCamera } from './named-views.js';
+import { ensureDocumentRenderScene, normalizeRenderScene } from './render-scene.js';
 import { validateHoleStandard } from './hole-standards.js';
 import { DRAWING_ANNOTATION_TYPES, DRAWING_PAGE_SIZES, DRAWING_TABLE_TYPES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
 import {
@@ -376,6 +377,7 @@ export function createDocument(name = 'Nowy projekt') {
     contactSets: [],
     assemblyConfigurations: [],
     activeAssemblyConfigurationId: '',
+    renderScene: normalizeRenderScene(),
     references: [],
     blocks: [],
     drawings: [],
@@ -461,11 +463,11 @@ export function migrateDocument(source, { now = new Date().toISOString() } = {})
     document = migration(document, now);
     version = readSchemaVersion(document);
   }
-  return ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document))))))));
+  return ensureDocumentRenderScene(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document)))))))));
 }
 
 function projectFutureDocument(source) {
-  const projected = ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source))))))))));
+  const projected = ensureDocumentRenderScene(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source)))))))))));
   projected.schemaVersion = DOCUMENT_SCHEMA_VERSION;
   projected.metadata = {
     ...(isRecord(projected.metadata) ? projected.metadata : {}),
@@ -531,6 +533,11 @@ export function validateDocument(document) {
   if (typeof document.id !== 'string' || !document.id.trim()) add('id', 'Dokument musi mieć niepuste ID.', 'REQUIRED');
   if (typeof document.name !== 'string' || !document.name.trim()) add('name', 'Projekt musi mieć nazwę.', 'REQUIRED');
   if (document.units !== 'mm') add('units', 'Bieżąca wersja obsługuje jednostkę dokumentu „mm”.', 'UNSUPPORTED');
+  if (!isRecord(document.renderScene)) add('renderScene', 'Wymagane są ustawienia sceny renderu.', 'TYPE');
+  else {
+    const normalizedRenderScene = normalizeRenderScene(document.renderScene);
+    if (Object.entries(normalizedRenderScene).some(([key, value]) => document.renderScene[key] !== value)) add('renderScene', 'Ustawienia sceny renderu są nieprawidłowe.', 'INVALID');
+  }
 
   const parameters = requireArray(document, 'parameters');
   const sketches = requireArray(document, 'sketches');

@@ -1,9 +1,10 @@
 import React from 'react';
-import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, FolderOpen, GitCompareArrows, Keyboard, Layers3, Link2, Lock, LockOpen, Magnet, PackageOpen, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Search, Trash2, Ungroup, X, XCircle } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, FolderOpen, GitCompareArrows, ImageDown, Keyboard, Layers3, Lightbulb, Link2, Lock, LockOpen, Magnet, PackageOpen, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Search, Sun, Trash2, Ungroup, X, XCircle } from 'lucide-react';
 import { detectAssemblyCollisions } from '../cad-core/assembly-motion.js';
 import { COMPONENT_APPEARANCE_PRESETS, componentAppearancePreset, componentDescendantIds, componentInstanceDescendantIds, componentInstanceTree, componentParentMap, componentTree, normalizeComponentAppearance } from '../cad-core/components.js';
 import { formatModelFileSize } from '../cad-core/model-import.js';
 import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
+import { RENDER_ENVIRONMENT_PRESETS, normalizeRenderScene, renderEnvironmentPreset } from '../cad-core/render-scene.js';
 import { commandCustomizationRows, validateCommandCustomization } from './command-customization.js';
 import { multipleSelectionLabel } from './platform-shortcuts.js';
 import { useDialogFocus } from './use-dialog-focus.js';
@@ -40,6 +41,30 @@ export function NamedViewsPanel({ views = [], currentCamera = null, readOnly = f
         {views.map((view) => <div className="named-view-row" key={view.id}><button type="button" onClick={() => onActivate(view)}><Eye size={14} /><span><strong>{view.name}</strong><small>{view.camera.position.map((value) => value.toFixed(1)).join(', ')}</small></span></button><button type="button" aria-label={`Usuń zapisany widok ${view.name}`} disabled={readOnly} onClick={() => onDelete(view.id)}><Trash2 size={13} /></button></div>)}
       </div>
       <p className="named-view-note">Widok zapisuje pozycję kamery, punkt celu i kierunek góry. Nie zmienia geometrii modelu.</p>
+    </aside>
+  );
+}
+
+export function RenderScenePanel({ scene, readOnly = false, onChange, onSaveRender, onClose }) {
+  const settings = normalizeRenderScene(scene);
+  const update = (patch) => onChange(normalizeRenderScene({ ...settings, ...patch }));
+  const applyPreset = (presetId) => update({ ...renderEnvironmentPreset(presetId), preset: presetId, shadows: settings.shadows, ground: settings.ground });
+  return (
+    <aside className="measure-panel render-scene-panel" aria-label="Scena i render lokalny">
+      <header><div><Sun size={16} /><strong>Scena i render</strong></div><button type="button" title="Zamknij scenę i render" aria-label="Zamknij scenę i render" onClick={onClose}><X size={15} /></button></header>
+      <label><span>Środowisko</span><select id="renderScenePreset" value={settings.preset} disabled={readOnly} onChange={(event) => applyPreset(event.target.value)}>{Object.values(RENDER_ENVIRONMENT_PRESETS).map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select></label>
+      <label className="render-color-field"><span>Tło</span><input aria-label="Kolor tła renderu" type="color" value={settings.background} disabled={readOnly} onChange={(event) => update({ background: event.target.value })} /></label>
+      <div className="render-scene-section"><strong><Lightbulb size={14} /> Oświetlenie</strong>
+        <label><span>Światło otoczenia <em>{settings.ambientIntensity.toFixed(1)}</em></span><input aria-label="Natężenie światła otoczenia" type="range" min="0" max="8" step="0.1" value={settings.ambientIntensity} disabled={readOnly} onChange={(event) => update({ ambientIntensity: event.target.value })} /></label>
+        <label><span>Światło główne <em>{settings.keyIntensity.toFixed(1)}</em></span><input aria-label="Natężenie światła głównego" type="range" min="0" max="12" step="0.1" value={settings.keyIntensity} disabled={readOnly} onChange={(event) => update({ keyIntensity: event.target.value })} /></label>
+        <label><span>Światło wypełniające <em>{settings.fillIntensity.toFixed(1)}</em></span><input aria-label="Natężenie światła wypełniającego" type="range" min="0" max="8" step="0.1" value={settings.fillIntensity} disabled={readOnly} onChange={(event) => update({ fillIntensity: event.target.value })} /></label>
+        <label><span>Ekspozycja <em>{settings.exposure.toFixed(2)}</em></span><input aria-label="Ekspozycja renderu" type="range" min="0.25" max="3" step="0.05" value={settings.exposure} disabled={readOnly} onChange={(event) => update({ exposure: event.target.value })} /></label>
+        <label><span>Kierunek <em>{Math.round(settings.keyAzimuth)}°</em></span><input aria-label="Kierunek światła głównego" type="range" min="-180" max="180" step="5" value={settings.keyAzimuth} disabled={readOnly} onChange={(event) => update({ keyAzimuth: event.target.value })} /></label>
+        <label><span>Wysokość <em>{Math.round(settings.keyElevation)}°</em></span><input aria-label="Wysokość światła głównego" type="range" min="0" max="90" step="5" value={settings.keyElevation} disabled={readOnly} onChange={(event) => update({ keyElevation: event.target.value })} /></label>
+      </div>
+      <div className="render-scene-toggles"><label><input type="checkbox" checked={settings.shadows} disabled={readOnly} onChange={(event) => update({ shadows: event.target.checked })} /> Cienie</label><label><input type="checkbox" checked={settings.ground} disabled={readOnly} onChange={(event) => update({ ground: event.target.checked })} /> Podłoże</label></div>
+      <button id="saveLocalRenderBtn" className="render-save-button" type="button" onClick={onSaveRender}><ImageDown size={15} /> Zapisz bieżący widok jako PNG</button>
+      <p>Render korzysta z aktualnej kamery, wyglądu komponentów i ustawień zapisanych w projekcie.</p>
     </aside>
   );
 }
