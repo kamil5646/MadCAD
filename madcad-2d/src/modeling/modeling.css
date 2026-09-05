@@ -4394,6 +4394,27 @@
 .render-scene-toggles input { accent-color: #5fc4df; }
 .render-save-button { display: flex; min-height: 32px; align-items: center; justify-content: center; gap: 6px; margin: 5px 10px; border: 1px solid #55aac1; border-radius: 3px; background: #286477; color: #f4fbfd; font: inherit; font-size: 10px; cursor: pointer; }
 .render-scene-panel > p { margin: 3px 10px 10px; color: #aeb9c3; font-size: 9px; line-height: 1.45; }
+.render-decal-section { display: grid; gap: 6px; padding: 9px 10px; border-top: 1px solid #596573; background: #2d3743; }
+.render-decal-section > strong { display: flex; align-items: center; gap: 6px; color: #edf3f6; font-size: 10px; }
+.render-decal-section > p { overflow: hidden; margin: 0; color: #afbbc5; font-size: 9px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.render-decal-input { display: none; }
+.render-decal-section > button { display: flex; min-height: 29px; align-items: center; justify-content: center; gap: 6px; border: 1px solid #687786; border-radius: 3px; background: #3b4855; color: #e8eff3; font: inherit; font-size: 9px; cursor: pointer; }
+.render-decal-section > button:disabled { opacity: .42; cursor: default; }
+.render-decal-list { display: grid; max-height: 210px; gap: 5px; overflow: auto; }
+.render-decal-list > small { padding: 5px; color: #93a2ae; font-size: 9px; text-align: center; }
+.render-decal-list article { display: grid; gap: 5px; padding: 6px 7px; border: 1px solid #596978; border-radius: 3px; background: #26313c; }
+.render-decal-list article.missing { border-color: #a76a57; background: #3b2d2b; }
+.render-decal-list article > p { margin: 0; color: #f1b29e; font-size: 8px; }
+.render-decal-list .render-decal-reassign { display: flex; min-height: 25px; align-items: center; justify-content: center; gap: 5px; border: 1px solid #627483; border-radius: 3px; background: #35424e; color: #dce7ed; font: inherit; font-size: 8px; cursor: pointer; }
+.render-decal-list .render-decal-reassign:disabled { opacity: .4; cursor: default; }
+.render-decal-list article header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.render-decal-list article header label { display: flex; min-width: 0; align-items: center; gap: 5px; color: #e3ebf0; font-size: 9px; }
+.render-decal-list article header span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.render-decal-list article header button { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border: 0; background: transparent; color: #efaaaa; cursor: pointer; }
+.render-decal-list article > label { display: grid; gap: 2px; color: #b9c5ce; font-size: 8px; }
+.render-decal-list article > label span { display: flex; justify-content: space-between; }
+.render-decal-list article em { color: #72cce5; font-style: normal; }
+.render-decal-list article input[type='range'] { width: 100%; accent-color: #5fc4df; }
 
 .component-toolbar {
   display: grid;

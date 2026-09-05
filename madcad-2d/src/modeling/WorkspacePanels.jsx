@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, FolderOpen, GitCompareArrows, ImageDown, Keyboard, Layers3, Lightbulb, Link2, Lock, LockOpen, Magnet, PackageOpen, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Search, Sun, Trash2, Ungroup, X, XCircle } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, FolderOpen, GitCompareArrows, ImageDown, ImagePlus, Keyboard, Layers3, Lightbulb, Link2, Lock, LockOpen, Magnet, PackageOpen, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Search, Sun, Trash2, Ungroup, X, XCircle } from 'lucide-react';
 import { detectAssemblyCollisions } from '../cad-core/assembly-motion.js';
 import { COMPONENT_APPEARANCE_PRESETS, componentAppearancePreset, componentDescendantIds, componentInstanceDescendantIds, componentInstanceTree, componentParentMap, componentTree, normalizeComponentAppearance } from '../cad-core/components.js';
 import { formatModelFileSize } from '../cad-core/model-import.js';
@@ -45,8 +45,9 @@ export function NamedViewsPanel({ views = [], currentCamera = null, readOnly = f
   );
 }
 
-export function RenderScenePanel({ scene, readOnly = false, onChange, onSaveRender, onClose }) {
+export function RenderScenePanel({ scene, bodies = [], selectedFace = null, readOnly = false, onChange, onAddDecal, onUpdateDecal, onDeleteDecal, onSaveRender, onClose }) {
   const settings = normalizeRenderScene(scene);
+  const decalInputRef = React.useRef(null);
   const update = (patch) => onChange(normalizeRenderScene({ ...settings, ...patch }));
   const applyPreset = (presetId) => update({ ...renderEnvironmentPreset(presetId), preset: presetId, shadows: settings.shadows, ground: settings.ground });
   return (
@@ -63,6 +64,26 @@ export function RenderScenePanel({ scene, readOnly = false, onChange, onSaveRend
         <label><span>Wysokość <em>{Math.round(settings.keyElevation)}°</em></span><input aria-label="Wysokość światła głównego" type="range" min="0" max="90" step="5" value={settings.keyElevation} disabled={readOnly} onChange={(event) => update({ keyElevation: event.target.value })} /></label>
       </div>
       <div className="render-scene-toggles"><label><input type="checkbox" checked={settings.shadows} disabled={readOnly} onChange={(event) => update({ shadows: event.target.checked })} /> Cienie</label><label><input type="checkbox" checked={settings.ground} disabled={readOnly} onChange={(event) => update({ ground: event.target.checked })} /> Podłoże</label></div>
+      <section className="render-decal-section" aria-label="Naklejki na modelu">
+        <strong><ImagePlus size={14} /> Naklejki</strong>
+        <p>{selectedFace ? `Wybrana ściana: ${selectedFace.id}` : 'Wybierz jedną ścianę modelu, aby dodać obraz.'}</p>
+        <input ref={decalInputRef} className="render-decal-input" aria-label="Plik obrazu naklejki" type="file" accept="image/png,image/jpeg,image/webp" disabled={readOnly || !selectedFace} onChange={(event) => { const file = event.target.files?.[0]; if (file) onAddDecal(file, selectedFace); event.target.value = ''; }} />
+        <button id="addRenderDecalBtn" type="button" disabled={readOnly || !selectedFace} onClick={() => decalInputRef.current?.click()}><ImagePlus size={14} /> Dodaj obraz na wybraną ścianę</button>
+        <div className="render-decal-list">
+          {!settings.decals.length && <small>Brak naklejek w projekcie.</small>}
+          {settings.decals.map((decal) => {
+            const faceExists = bodies.some((body) => body.id === decal.bodyId && body.topology?.faces?.some((face) => face.id === decal.faceId));
+            return <article className={faceExists ? '' : 'missing'} key={decal.id}>
+            <header><label><input type="checkbox" checked={decal.visible} disabled={readOnly} onChange={(event) => onUpdateDecal(decal.id, { visible: event.target.checked })} /> <span>{decal.name}</span></label><button type="button" aria-label={`Usuń naklejkę ${decal.name}`} disabled={readOnly} onClick={() => onDeleteDecal(decal.id)}><Trash2 size={13} /></button></header>
+            {!faceExists && <p>Utracono ścianę źródłową.</p>}
+            <button className="render-decal-reassign" type="button" disabled={readOnly || !selectedFace || (selectedFace.bodyId === decal.bodyId && selectedFace.id === decal.faceId)} onClick={() => onUpdateDecal(decal.id, { bodyId: selectedFace.bodyId, faceId: selectedFace.id })}><Link2 size={12} /> Przypisz do zaznaczonej ściany</button>
+            <label><span>Rozmiar <em>{Math.round(decal.scale * 100)}%</em></span><input aria-label={`Rozmiar naklejki ${decal.name}`} type="range" min="0.1" max="1" step="0.05" value={decal.scale} disabled={readOnly} onChange={(event) => onUpdateDecal(decal.id, { scale: event.target.value })} /></label>
+            <label><span>Krycie <em>{Math.round(decal.opacity * 100)}%</em></span><input aria-label={`Krycie naklejki ${decal.name}`} type="range" min="0.05" max="1" step="0.05" value={decal.opacity} disabled={readOnly} onChange={(event) => onUpdateDecal(decal.id, { opacity: event.target.value })} /></label>
+            <label><span>Obrót <em>{Math.round(decal.rotation)}°</em></span><input aria-label={`Obrót naklejki ${decal.name}`} type="range" min="-180" max="180" step="5" value={decal.rotation} disabled={readOnly} onChange={(event) => onUpdateDecal(decal.id, { rotation: event.target.value })} /></label>
+          </article>;
+          })}
+        </div>
+      </section>
       <button id="saveLocalRenderBtn" className="render-save-button" type="button" onClick={onSaveRender}><ImageDown size={15} /> Zapisz bieżący widok jako PNG</button>
       <p>Render korzysta z aktualnej kamery, wyglądu komponentów i ustawień zapisanych w projekcie.</p>
     </aside>

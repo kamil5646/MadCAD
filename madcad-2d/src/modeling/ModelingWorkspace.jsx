@@ -147,6 +147,7 @@ import { assignBodiesToComponent, componentParentMap, createComponent, createCom
 import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../cad-core/assembly-joints.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../cad-core/assembly-motion.js';
 import { createNamedView, deleteNamedView } from '../cad-core/named-views.js';
+import { MAX_RENDER_DECAL_BYTES, createRenderDecal, deleteRenderDecal, updateRenderDecal } from '../cad-core/render-scene.js';
 import {
   addBlockAttributeDefinition,
   createBlockDefinition,
@@ -913,6 +914,35 @@ export default function ModelingWorkspace() {
 
   const updateRenderScene = (renderScene) => {
     commit((next) => { next.renderScene = renderScene; });
+  };
+
+  const addRenderDecal = async (file, face) => {
+    try {
+      if (!face?.bodyId || !face?.id) throw new Error('Wybierz jedną ścianę modelu.');
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error('Wybierz obraz PNG, JPEG albo WebP.');
+      if (file.size > MAX_RENDER_DECAL_BYTES) throw new Error('Obraz naklejki może mieć maksymalnie 2 MB.');
+      const imageData = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error('Nie udało się odczytać obrazu.'));
+        reader.readAsDataURL(file);
+      });
+      let decal;
+      commit((next) => { decal = createRenderDecal(next, { name: file.name.replace(/\.[^.]+$/, ''), bodyId: face.bodyId, faceId: face.id, imageData }); });
+      setNotice(`Dodano naklejkę „${decal.name}” do wybranej ściany.`);
+    } catch (error) {
+      setNotice(`Nie dodano naklejki: ${error.message}`);
+    }
+  };
+
+  const changeRenderDecal = (decalId, patch) => {
+    try { commit((next) => { updateRenderDecal(next, decalId, patch); }); }
+    catch (error) { setNotice(`Nie zmieniono naklejki: ${error.message}`); }
+  };
+
+  const removeRenderDecal = (decalId) => {
+    try { commit((next) => { deleteRenderDecal(next, decalId); }); setNotice('Usunięto naklejkę. Cofnij przywraca ją na ścianę.'); }
+    catch (error) { setNotice(`Nie usunięto naklejki: ${error.message}`); }
   };
 
   const saveLocalRender = async () => {
@@ -7458,7 +7488,7 @@ export default function ModelingWorkspace() {
           {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
           {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
-          {workspace !== 'drawing' && workspace !== 'tools' && adaptiveContext && !meshToolsOpen && <AdaptiveToolShelf {...adaptiveContext} />}
+          {workspace !== 'drawing' && workspace !== 'tools' && adaptiveContext && !meshToolsOpen && !renderSceneOpen && <AdaptiveToolShelf {...adaptiveContext} />}
           {notice && <div className={`workspace-notice ${command ? 'command-active' : ''}`} role="status" aria-live="polite" aria-atomic="true">{notice}</div>}
           <CrashRecoveryBanner
             info={recoveryInfo}
@@ -7479,7 +7509,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} inspectionMode={command.inspectionMode} draftDirection={command.draftDirection} draftTolerance={command.draftTolerance} thicknessTarget={command.thicknessTarget} thicknessTolerance={command.thicknessTolerance} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {namedViewsOpen && <NamedViewsPanel views={document.namedViews || []} currentCamera={currentCameraRef.current} readOnly={readOnly} onCreate={saveNamedView} onActivate={activateNamedView} onDelete={removeNamedView} onClose={() => setNamedViewsOpen(false)} />}
-          {renderSceneOpen && <RenderScenePanel scene={document.renderScene} readOnly={readOnly} onChange={updateRenderScene} onSaveRender={() => { void saveLocalRender(); }} onClose={() => setRenderSceneOpen(false)} />}
+          {renderSceneOpen && <RenderScenePanel scene={document.renderScene} bodies={engine.bodies} selectedFace={selectedFaceItems.length === 1 ? selectedFaceItems[0] : null} readOnly={readOnly} onChange={updateRenderScene} onAddDecal={(file, face) => { void addRenderDecal(file, face); }} onUpdateDecal={changeRenderDecal} onDeleteDecal={removeRenderDecal} onSaveRender={() => { void saveLocalRender(); }} onClose={() => setRenderSceneOpen(false)} />}
           {componentsOpen && <ComponentPanel
             document={document} bodies={engine.bodies} collisionResult={assemblyCollisionResult}
             selectedComponentId={selectedComponent?.id || ''} selectedInstanceId={selectedInstance?.id || ''} selectedJointId={selectedJoint?.id || ''} selectedMotionLinkId={selectedMotionLink?.id || ''} selectedConfigurationId={selectedAssemblyConfiguration?.id || ''} selectedContactSetId={selectedContactSet?.id || ''} selectedBodyIds={selectedBodyIds}

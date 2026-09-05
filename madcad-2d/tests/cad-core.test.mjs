@@ -54,7 +54,7 @@ import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/p
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
-import { DEFAULT_RENDER_SCENE, normalizeRenderScene, renderEnvironmentPreset } from '../src/cad-core/render-scene.js';
+import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
@@ -2932,6 +2932,20 @@ test('scena renderu ma bezpieczne presety, walidację i migrację starszego proj
 
   document.renderScene.exposure = 99;
   assert.equal(validateDocument(document).valid, false);
+});
+
+test('naklejka renderu zachowuje trwałą ścianę, parametry i Undo-ready operacje', () => {
+  const document = createDocument('Decal');
+  const imageData = 'data:image/png;base64,iVBORw0KGgo=';
+  const decal = createRenderDecal(document, { name: 'Logo', bodyId: 'body-a', faceId: 'face-a', imageData });
+  assert.equal(decal.scale, 0.55);
+  assert.equal(validateDocument(document).valid, true);
+  updateRenderDecal(document, decal.id, { scale: 0.8, opacity: 0.65, rotation: 30 });
+  assert.deepEqual(document.renderScene.decals.map(({ name, bodyId, faceId, scale, opacity, rotation }) => ({ name, bodyId, faceId, scale, opacity, rotation })), [{ name: 'Logo', bodyId: 'body-a', faceId: 'face-a', scale: 0.8, opacity: 0.65, rotation: 30 }]);
+  assert.equal(openDocument(structuredClone(document)).document.renderScene.decals[0].imageData, imageData);
+  assert.equal(deleteRenderDecal(document, decal.id).id, decal.id);
+  assert.equal(document.renderScene.decals.length, 0);
+  assert.throws(() => createRenderDecal(document, { bodyId: 'body-a', faceId: 'face-a', imageData: 'data:text/plain;base64,QQ==' }), /PNG|JPEG|WebP/);
 });
 
 test('round-trip .madcad zachowuje dokument bez utraty danych', () => {

@@ -4,6 +4,7 @@ import { Box, CircleDot, Crosshair, Diamond, Grid2X2, Magnet, Maximize2, Move3d,
 import * as THREE from 'three';
 import { calculatePrintLayout } from '../cad-core/print-layout.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { DecalGeometry } from 'three/examples/jsm/geometries/DecalGeometry.js';
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
 import { analyzeSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { composeSketchSnapContext, DEFAULT_SNAP_THRESHOLD_PX, snapSketchPoint } from '../cad-core/sketch-snap.js';
@@ -56,9 +57,35 @@ const MODEL_SELECTION_FILTERS = Object.freeze([
 function disposeObject(object) {
   object.traverse((child) => {
     child.geometry?.dispose();
-    if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose());
-    else child.material?.dispose();
+    const materials = Array.isArray(child.material) ? child.material : [child.material].filter(Boolean);
+    materials.forEach((material) => { material.map?.dispose(); material.dispose(); });
   });
+}
+
+function faceDecalProjector(faceGroup, mesh, decal) {
+  const position = mesh.geometry.getAttribute('position');
+  const normalAttribute = mesh.geometry.getAttribute('normal');
+  const index = mesh.geometry.getIndex();
+  const vertexIndexes = Array.from({ length: faceGroup.count }, (_unused, offset) => index.getX(faceGroup.start + offset));
+  if (!vertexIndexes.length) return null;
+  mesh.updateMatrixWorld(true);
+  const points = vertexIndexes.map((vertexIndex) => mesh.localToWorld(new THREE.Vector3().fromBufferAttribute(position, vertexIndex)));
+  const center = points.reduce((sum, point) => sum.add(point), new THREE.Vector3()).multiplyScalar(1 / points.length);
+  const normal = vertexIndexes.reduce((sum, vertexIndex) => {
+    if (normalAttribute) sum.add(new THREE.Vector3().fromBufferAttribute(normalAttribute, vertexIndex));
+    return sum;
+  }, new THREE.Vector3());
+  if (normal.lengthSq() < 1e-8) normal.copy(new THREE.Triangle(points[0], points[1], points[2]).getNormal(new THREE.Vector3()));
+  normal.transformDirection(mesh.matrixWorld).normalize();
+  const tangent = new THREE.Vector3().crossVectors(Math.abs(normal.z) < 0.9 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0), normal).normalize();
+  const bitangent = new THREE.Vector3().crossVectors(normal, tangent).normalize();
+  const projections = points.map((point) => point.clone().sub(center));
+  const width = Math.max(0.1, ...projections.map((point) => Math.abs(point.dot(tangent)) * 2));
+  const height = Math.max(0.1, ...projections.map((point) => Math.abs(point.dot(bitangent)) * 2));
+  center.addScaledVector(tangent, width * decal.offsetU).addScaledVector(bitangent, height * decal.offsetV).addScaledVector(normal, 0.02);
+  const orientation = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal));
+  orientation.z += decal.rotation * Math.PI / 180;
+  return { position: center, orientation, size: new THREE.Vector3(width * decal.scale, height * decal.scale, Math.max(width, height) * 0.25 + 0.2) };
 }
 
 function numericValue(value, parameters) {
@@ -1055,6 +1082,22 @@ export default function ModelViewport({
       modelGroup.add(mesh);
       pickables.push(mesh);
       facePickables.push(mesh);
+
+      for (const decal of sceneSettings.decals.filter((item) => item.visible && item.bodyId === body.id)) {
+        const faceGroup = (body.faceGroups || []).find((group) => group.topologyId === decal.faceId);
+        const projector = faceGroup ? faceDecalProjector(faceGroup, mesh, decal) : null;
+        if (!projector) continue;
+        const texture = new THREE.TextureLoader().load(decal.imageData, () => {
+          if (window.__madcadRenderSceneState) window.__madcadRenderSceneState.loadedDecals = (window.__madcadRenderSceneState.loadedDecals || 0) + 1;
+        });
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        const decalMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: decal.opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, side: THREE.DoubleSide });
+        const decalMesh = new THREE.Mesh(new DecalGeometry(mesh, projector.position, projector.orientation, projector.size), decalMaterial);
+        decalMesh.renderOrder = 5;
+        decalMesh.userData = { decalId: decal.id, bodyId: body.id, occurrenceId: placement.occurrenceId };
+        modelGroup.add(decalMesh);
+      }
 
       const showFormCage = Boolean(body.form?.controlVertices?.length
         && ((activeCommand?.type === 'formBody' && body.sourceFeatureId === activeCommand.previewFeature?.id) || selected));
@@ -2834,15 +2877,24 @@ export default function ModelViewport({
     });
     if (renderCaptureRef) renderCaptureRef.current = () => {
       const gridWasVisible = grid.visible;
+      const hiddenHelpers = [];
+      modelGroup.traverse((object) => {
+        if (object.visible && object.userData?.topologyKind) {
+          hiddenHelpers.push(object);
+          object.visible = false;
+        }
+      });
       grid.visible = false;
       renderer.render(scene, camera);
       const dataUrl = renderer.domElement.toDataURL('image/png');
       grid.visible = gridWasVisible;
+      hiddenHelpers.forEach((object) => { object.visible = true; });
       renderer.render(scene, camera);
       return dataUrl;
     };
     if (new URLSearchParams(window.location.search).has('verify')) {
-      window.__madcadRenderSceneState = { ...sceneSettings, keyPosition: key.position.toArray() };
+      const { decals: sceneDecals, ...sceneDebug } = sceneSettings;
+      window.__madcadRenderSceneState = { ...sceneDebug, decals: sceneDecals.map(({ imageData: _imageData, ...decal }) => decal), loadedDecals: 0, keyPosition: key.position.toArray() };
     }
 
     return () => {

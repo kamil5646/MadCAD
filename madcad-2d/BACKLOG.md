@@ -110,7 +110,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 ### Render, Animation, Simulation i Generative
 
 - [x] Appearance: presety i parametry wyglądu komponentów ukończono jako `P1.35a`.
-- [x] Scena, oświetlenie i render lokalny ukończono jako `P1.35c`: presety środowiska, światła, ekspozycja, cienie, podłoże oraz czysty eksport PNG są zapisane w projekcie i działają z Undo/Redo. Decals pozostają osobnym zakresem `P1.35d`.
+- [x] Scena, oświetlenie i render lokalny ukończono jako `P1.35c`: presety środowiska, światła, ekspozycja, cienie, podłoże oraz czysty eksport PNG są zapisane w projekcie i działają z Undo/Redo.
+- [x] Decals ukończono jako `P1.35d`: obraz PNG/JPEG/WebP jest skojarzony z trwałą ścianą, ma rozmiar, krycie, obrót i widoczność, sygnalizuje utratę ściany i pozwala na ponowne przypisanie.
 - [x] Roboczy Exploded View złożeń ukończono jako `P1.35b`; storyboard i animacja pozostają późniejszym zakresem.
 - Walidowane analizy statyczne/termiczne oraz późniejsza optymalizacja topologii.
 

@@ -7,6 +7,8 @@
 - ręczna regulacja tła, światła otoczenia, głównego i wypełniającego, ekspozycji oraz kierunku światła;
 - tonemapping ACES, miękkie cienie i opcjonalne podłoże w rzeczywistym widoku Three.js;
 - lokalny eksport PNG z aktualnej kamery i wyglądu komponentów, bez siatki edycyjnej;
+- naklejki PNG/JPEG/WebP projektowane na wskazaną ścianę, z regulacją rozmiaru, krycia, obrotu i widoczności;
+- jawne wskazanie utraconej ściany naklejki oraz ponowne przypisanie do aktualnie zaznaczonej ściany;
 - wejście przez `ZARZĄDZAJ → Scena i render`, bez dodawania kolejnej zakładki głównej.
 
 ## Dowody odbioru
@@ -15,6 +17,6 @@
 - `npm run verify:render-scene` zmienia preset w uruchomionej aplikacji, sprawdza stan renderera, Undo/Redo, układ panelu i zapisuje prawdziwy PNG;
 - artefakty kontroli: `artifacts/madcad-render-scene.png` i `artifacts/madcad-render-scene-export.png`.
 
-## Następny zakres
+## Granica zakresu
 
-P1.35d powinien dodać decals jako skojarzone obrazy nakładane na wskazaną ścianę. Plik źródłowy, transformacja UV, krycie i utracona referencja muszą być zapisane w projekcie; obraz nie może być mylony z materiałem całego komponentu.
+Naklejki są projekcją wizualną renderera i nie modyfikują geometrii B-Rep, arkusza technicznego ani materiału całego komponentu. Eksport STEP/STL/3MF celowo ich nie wypala w geometrii.

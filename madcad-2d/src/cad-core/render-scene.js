@@ -16,6 +16,7 @@ export const DEFAULT_RENDER_SCENE = Object.freeze({
   exposure: RENDER_ENVIRONMENT_PRESETS.studio.exposure,
   shadows: true,
   ground: true,
+  decals: Object.freeze([]),
 });
 
 const finite = (value, fallback, min, max) => {
@@ -24,6 +25,23 @@ const finite = (value, fallback, min, max) => {
 };
 
 const color = (value, fallback) => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : fallback;
+
+function normalizeRenderDecal(decal) {
+  if (!decal || typeof decal !== 'object' || typeof decal.id !== 'string' || !decal.id.trim() || typeof decal.bodyId !== 'string' || !decal.bodyId.trim() || typeof decal.faceId !== 'string' || !decal.faceId.trim() || typeof decal.imageData !== 'string' || !DECAL_DATA_PATTERN.test(decal.imageData)) return null;
+  return {
+    id: decal.id,
+    name: String(decal.name || 'Naklejka').trim().slice(0, 80) || 'Naklejka',
+    bodyId: decal.bodyId,
+    faceId: decal.faceId,
+    imageData: decal.imageData,
+    opacity: finite(decal.opacity, 1, 0.05, 1),
+    scale: finite(decal.scale, 0.55, 0.1, 1),
+    offsetU: finite(decal.offsetU, 0, -0.75, 0.75),
+    offsetV: finite(decal.offsetV, 0, -0.75, 0.75),
+    rotation: finite(decal.rotation, 0, -180, 180),
+    visible: decal.visible === undefined ? true : Boolean(decal.visible),
+  };
+}
 
 export function renderEnvironmentPreset(preset = 'studio') {
   return RENDER_ENVIRONMENT_PRESETS[preset] || RENDER_ENVIRONMENT_PRESETS.studio;
@@ -42,10 +60,53 @@ export function normalizeRenderScene(scene = {}) {
     exposure: finite(scene.exposure, preset.exposure, 0.25, 3),
     shadows: scene.shadows === undefined ? true : Boolean(scene.shadows),
     ground: scene.ground === undefined ? true : Boolean(scene.ground),
+    decals: Array.isArray(scene.decals) ? scene.decals.map(normalizeRenderDecal).filter(Boolean) : [],
   };
+}
+
+export function isRenderSceneValid(scene) {
+  if (!scene || typeof scene !== 'object' || !Array.isArray(scene.decals)) return false;
+  const normalized = normalizeRenderScene(scene);
+  for (const [key, value] of Object.entries(normalized)) {
+    if (key === 'decals') continue;
+    if (scene[key] !== value) return false;
+  }
+  if (scene.decals.length !== normalized.decals.length) return false;
+  return normalized.decals.every((decal, index) => Object.entries(decal).every(([key, value]) => scene.decals[index]?.[key] === value));
+}
+
+export function createRenderDecal(document, options) {
+  if (!options?.bodyId || !options?.faceId) throw new Error('Wybierz jedną ścianę dla naklejki.');
+  if (typeof options.imageData !== 'string' || !DECAL_DATA_PATTERN.test(options.imageData)) throw new Error('Naklejka wymaga obrazu PNG, JPEG albo WebP.');
+  const decal = normalizeRenderDecal({ id: createId('decal'), ...options });
+  if (!decal) throw new Error('Nie udało się przygotować naklejki.');
+  document.renderScene = normalizeRenderScene(document.renderScene);
+  document.renderScene.decals.push(decal);
+  return decal;
+}
+
+export function updateRenderDecal(document, decalId, patch) {
+  document.renderScene = normalizeRenderScene(document.renderScene);
+  const index = document.renderScene.decals.findIndex((decal) => decal.id === decalId);
+  if (index < 0) throw new Error('Nie znaleziono naklejki.');
+  const updated = normalizeRenderDecal({ ...document.renderScene.decals[index], ...patch });
+  if (!updated) throw new Error('Nieprawidłowe ustawienia naklejki.');
+  document.renderScene.decals[index] = updated;
+  return updated;
+}
+
+export function deleteRenderDecal(document, decalId) {
+  document.renderScene = normalizeRenderScene(document.renderScene);
+  const index = document.renderScene.decals.findIndex((decal) => decal.id === decalId);
+  if (index < 0) throw new Error('Nie znaleziono naklejki.');
+  return document.renderScene.decals.splice(index, 1)[0];
 }
 
 export function ensureDocumentRenderScene(document) {
   document.renderScene = normalizeRenderScene(document.renderScene);
   return document;
 }
+import { createId } from './ids.js';
+
+export const MAX_RENDER_DECAL_BYTES = 2 * 1024 * 1024;
+const DECAL_DATA_PATTERN = /^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i;
