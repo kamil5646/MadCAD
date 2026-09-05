@@ -105,7 +105,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Skojarzone otwarte B-spline z dokładnymi biegunami, wagami i węzłami; tworzenie Pipe i odtworzenie po otwarciu projektu sprawdzone w Electron.
   - [x] Pobrane ścieżki krawędziowe zachowują identyfikatory wszystkich powierzchni, na których leżą; powiązanie odświeża się z topologią i pozostaje po ponownym otwarciu projektu.
   - [x] Project to Surface dla ciągłego łańcucha linii, łuków i spline szkicu 3D: wybór zakrzywionej ściany, dokładna krzywa UV/B-spline B-Rep, trwała referencja ściany i użycie wyniku przez Pipe.
-  - [x] Automatyczna ponowna projekcja Project to Surface po zmianie krzywej źródłowej albo przebudowie ściany; wynik pozostaje skojarzoną ścieżką gotową dla Pipe.
+  - [x] Automatyczna ponowna projekcja Project to Surface po zmianie krzywej źródłowej albo przebudowie ściany; zależny Pipe przebudowuje swoją bryłę z nowej ścieżki.
 
 ### Render, Animation, Simulation i Generative
 

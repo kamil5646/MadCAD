@@ -3636,6 +3636,7 @@ export default function ModelingWorkspace() {
     };
     window.__madcadVerifyMoveSketch = moveSketchEntities;
     window.__madcadVerifyDeleteSketch = deleteSelectedSketchEntities;
+    window.__madcadVerifyEditSketch = editSketch;
     window.__madcadVerifyOpenFirstSketch = () => {
       const sketch = document.sketches[0];
       if (!sketch) throw new Error('Brak szkicu do otwarcia.');
@@ -4077,6 +4078,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyBreakProjectedReference;
       delete window.__madcadVerifyMoveSketch;
       delete window.__madcadVerifyDeleteSketch;
+      delete window.__madcadVerifyEditSketch;
       delete window.__madcadVerifyOpenFirstSketch;
       delete window.__madcadVerifyLoadTopologyFixture;
       delete window.__madcadVerifyLoadSketchDrawingFixture;

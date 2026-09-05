@@ -345,7 +345,22 @@ app.whenReady().then(async () => {
       return { endpoint: ['x', 'y', 'z'].map((axis) => Number(endpoint.geometry[axis])), sampleCount: result.geometry.samples.length, pipeEnabled: !pipeButton?.disabled };
     })()`);
     if (!near(rebuiltSurfaceCommand.endpoint, [16, 11, 8]) || rebuiltSurfaceCommand.sampleCount !== 25 || !rebuiltSurfaceCommand.pipeEnabled) throw new Error(`Project to Surface nie współpracuje poprawnie po przebudowie: ${JSON.stringify(rebuiltSurfaceCommand)}`);
-    console.log(JSON.stringify({ ok: true, splinePipeVolume, sketchSegments: 4, curveTypes, splineContinuity, editedSpline, curvedTopologyAudit, associatedPath, surfaceCommand: { sourceEntityId: surfaceCommandSource.id, faceId: surfaceCommandFace, resultEntityId: surfaceCommandResult.id, rebuilt: rebuiltSurfaceCommand }, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshots: { handles: handleArtifactPath, pipe: artifactPath } }, null, 2));
+    console.log('Etap: zależny Pipe po Project to Surface');
+    await clickTool(window, 'Rura');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'pipe'`, 'Pipe po Project to Surface');
+    await setField(window, 'Średnica zewnętrzna', '0.8');
+    await setField(window, 'Grubość ścianki', '0.15');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 3`, 'podgląd Pipe po Project to Surface', 45000);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
+    await waitFor(window, `!window.__madcadVerifyDocumentState?.command && window.__madcadVerifyDocumentState?.featureData?.length === 3 && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 3`, 'zapis Pipe po Project to Surface', 45000);
+    const surfacePipeBefore = await window.webContents.executeJavaScript(`({ revision: window.__madcadVerifyEngineState.revision, volume: window.__madcadVerifyEngineState.bodies[2].metrics.volume, samples: JSON.stringify(window.__madcadVerifyDocumentState.sketches[3].entityData.find((entity) => entity.id === ${JSON.stringify(surfaceCommandResult.id)}).geometry.samples) })`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyEditSketch(${JSON.stringify(surfaceCommandResult.surfaceProjection.sourceSketchId)})`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.activeSketchId === ${JSON.stringify(surfaceCommandResult.surfaceProjection.sourceSketchId)} && window.__madcadVerifyDocumentState?.command?.type === 'sketch3d'`, 'ponowna edycja źródłowego szkicu 3D');
+    await window.webContents.executeJavaScript(`window.__madcadVerifyMoveSketch3DHandle({ curveId: ${JSON.stringify(surfaceCommandSource.id)}, kind: 'end', pointId: ${JSON.stringify(surfaceCommandSource.endPointId)}, coordinates: [18, 13, 9], handleLength: null })`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${surfacePipeBefore.revision} && window.__madcadVerifyEngineState?.bodies?.length === 3 && JSON.stringify(window.__madcadVerifyDocumentState.sketches[3].entityData.find((entity) => entity.id === ${JSON.stringify(surfaceCommandResult.id)}).geometry.samples) !== ${JSON.stringify(surfacePipeBefore.samples)} && Math.abs(window.__madcadVerifyEngineState.bodies[2].metrics.volume - ${surfacePipeBefore.volume}) > 0.0001`, 'automatyczna przebudowa zależnego Pipe', 45000);
+    const dependentSurfacePipe = await window.webContents.executeJavaScript(`({ volumeBefore: ${surfacePipeBefore.volume}, volumeAfter: window.__madcadVerifyEngineState.bodies[2].metrics.volume, timelineStatus: window.__madcadVerifyEngineState.timeline.at(-1).status })`);
+    if (dependentSurfacePipe.timelineStatus !== 'ok' || !(dependentSurfacePipe.volumeAfter > 0)) throw new Error(`Zależny Pipe po Project to Surface nie został poprawnie przebudowany: ${JSON.stringify(dependentSurfacePipe)}`);
+    console.log(JSON.stringify({ ok: true, splinePipeVolume, sketchSegments: 4, curveTypes, splineContinuity, editedSpline, curvedTopologyAudit, associatedPath, surfaceCommand: { sourceEntityId: surfaceCommandSource.id, faceId: surfaceCommandFace, resultEntityId: surfaceCommandResult.id, rebuilt: rebuiltSurfaceCommand, dependentPipe: dependentSurfacePipe }, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshots: { handles: handleArtifactPath, pipe: artifactPath } }, null, 2));
   } catch (error) {
     exitCode = 1;
     console.error(error);
