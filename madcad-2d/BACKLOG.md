@@ -81,7 +81,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Parametryczny Boss osadzany na trwałej referencji planarnej ściany, łączony z istniejącą bryłą, z otworem, głębokością, pozycją i kierunkiem.
   - [x] Parametryczny snap-fit z trwałą ścianą bazową, stopą mocującą, prześwitem pod uginanym ramieniem i kontrolowanym zaczepem.
   - [x] Parametryczne grille wycinające równoległe szczeliny na trwałej planarnej ścianie, z kontrolą liczby i szerokości żeber, prześwitu, długości, głębokości, pozycji oraz kierunku.
-- [ ] SubD/T-Spline Form i konwersja do B-Rep.
+- [x] SubD/T-Spline Form i konwersja do B-Rep.
   - [x] Parametryczna klatka bazowa 8 punktów/6 ścian, wygładzanie Catmulla–Clarka 1–3 poziomy i kontrolowana konwersja zamkniętej powierzchni do fasetowej bryły B-Rep.
   - [x] Widoczna klatka w widoku 3D, bezpośredni wybór i przeciąganie każdego z 8 punktów oraz parametryczne przesunięcia XYZ przebudowujące powierzchnię.
   - [x] Manipulator osi X/Y/Z wybranego punktu klatki z krokiem 0,5 mm i precyzyjnym krokiem 0,1 mm.
@@ -92,8 +92,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Insert Edge jako parametryczna pętla przecinająca pełny pierścień ścian quad, z edycją nowych punktów i ochroną symetrii.
   - [x] Bridge dwóch rozłącznych ścian quad jako parametryczny, zamknięty tunel z regulowanym otworem, edycją 8 nowych punktów, podglądem oraz współpracą z Insert Edge i symetrią.
   - [x] Fill Hole przebudowujący wskazaną granicę jako płaty ze wspólnym, edytowalnym punktem; automatycznie domyka lustrzaną parę i współpracuje z Bridge oraz Insert Edge.
-  - [ ] Konwersja powierzchni Form do możliwie małej liczby gładkich płatów B-Rep zamiast jednej ściany na trójkąt.
-- [ ] Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.
+  - [x] Konwersja powierzchni Form do możliwie małej liczby gładkich płatów B-Rep zamiast jednej ściany na trójkąt: klatka, Insert Edge, Bridge i Fill Hole tworzą zszyte płaty B-spline.
+- [x] Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.
   - [x] Liniowy szkic 3D XYZ z ciągłą ścieżką, edycją kolejnych końców, Cofnij, Esc/Zakończ, widokiem izometrycznym i zapisem projektu.
   - [x] Użycie liniowej ścieżki 3D przez dokładny Pipe B-Rep oraz przygotowanie jej dla Sweep i Pattern po ścieżce.
   - [x] Łuk 3D przez trzy punkty i sześcienny spline Béziera z uchwytami XYZ, wspólnym punktem G0, dokładnymi krawędziami B-Rep oraz współpracą z Pipe, Sweep i Pattern.
@@ -102,7 +102,10 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Parametryczna edycja istniejącej linii, łuku i spline w panelu XYZ, ze wspólnymi punktami, przebudową zależnych warunków G1/G2 i powrotem do aktywnego polecenia szkicu 3D.
   - [x] Bezpośrednie uchwyty końców, punktu łuku i spline w widoku, z podglądem XYZ, dokładnym snapem oraz ochroną zależnych uchwytów G1/G2.
   - [x] Skojarzone otwarte łuki kołowe B-Rep pobierane bez aproksymacji do dokładnego `arc3d` i odświeżane razem z bryłą źródłową.
-  - [ ] Skojarzone B-spline i ścieżki leżące na powierzchni.
+  - [x] Skojarzone otwarte B-spline z dokładnymi biegunami, wagami i węzłami; tworzenie Pipe i odtworzenie po otwarciu projektu sprawdzone w Electron.
+  - [x] Pobrane ścieżki krawędziowe zachowują identyfikatory wszystkich powierzchni, na których leżą; powiązanie odświeża się z topologią i pozostaje po ponownym otwarciu projektu.
+  - [x] Project to Surface dla ciągłego łańcucha linii, łuków i spline szkicu 3D: wybór zakrzywionej ściany, dokładna krzywa UV/B-spline B-Rep, trwała referencja ściany i użycie wyniku przez Pipe.
+  - [x] Automatyczna ponowna projekcja Project to Surface po zmianie krzywej źródłowej albo przebudowie ściany; zależny Pipe przebudowuje swoją bryłę z nowej ścieżki.
 
 ### Render, Animation, Simulation i Generative
 

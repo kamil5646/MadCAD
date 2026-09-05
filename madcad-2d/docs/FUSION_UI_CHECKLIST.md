@@ -154,7 +154,40 @@ MadCAD ma korzystać z czytelnego przepływu Autodesk Fusion: stały przegląd p
 - [x] Lokalny build arm64 z łukiem i spline 3D zastąpił `/Applications/MadCAD.app`, przeszedł podpis ad-hoc oraz `codesign --verify --deep --strict` i uruchomił się jako świeży proces. Źródłowy oraz zainstalowany `app.asar` mają SHA-256 `fd572e1588590315aa492c979668c01fe20ba023b95330846f0557967377ea0a`; poprzedni build zachowano jako `MadCAD-before-3d-curves-20260902-153522.app` w Koszu.
 - [x] Kandydat wydania 6.4.7 arm64 ze skojarzonymi ścieżkami 3D zastąpił `/Applications/MadCAD.app`, przeszedł podpis ad-hoc oraz `codesign --verify --deep --strict` i uruchomił się jako świeży proces PID `45541`. Źródłowy oraz zainstalowany `app.asar` mają SHA-256 `e3d364bbfb6ff9ae7c4dc0f00d61b782bd6175c809e14903aab49b9514a3081d`; poprzednią wersję zachowano jako `MadCAD-before-6.4.7-20260903-0853.app` w Koszu.
 
+### Weryfikacja 2026-09-05 — skojarzone B-spline 3D
+
+- [x] Pobranie otwartej krawędzi B-spline zachowuje dokładne dane i referencję do bryły; próbki służą podglądowi.
+- [x] Pipe korzysta z dokładnej krzywej. Test desktopowy pobiera krawędź istniejącej rury, tworzy kolejną i porównuje objętość po otwarciu projektu (20.578120917363194 mm³).
+- [x] Naprawiono podwójne zwalnianie krzywej należącej do uchwytu OpenCascade; pełny scenariusz przechodzi bez awarii.
+- [x] Walidacja odrzuca niepoprawne współrzędne, wagi, węzły i próbki podglądu.
+- [x] Osobna weryfikacja przeciągania końca spline rzeczywistymi zdarzeniami myszy Electron i anulowania przez `pointercancel`; przerwanie ruchu nie zapisuje zmiany. Ukryte i zablokowane warstwy nie udostępniają uchwytów.
+
 ## Pliki główne
+
+### Weryfikacja 2026-09-05 — ścieżki związane z powierzchnią
+
+- [x] Każda krawędź B-Rep otrzymuje stabilną listę ścian, do których należy; ścieżka pobrana do szkicu 3D zachowuje tę listę i aktualizuje ją razem z geometrią.
+- [x] Dwie różne krzywe o wspólnych końcach nie są scalane, a ponowne pobranie tej samej krawędzi nie tworzy duplikatu ani osieroconej referencji.
+- [x] Test Electron potwierdza dokładną B-spline, jej ściany prowadzące, Pipe oraz zachowanie powiązania po otwarciu projektu; testy rdzenia obejmują kolidujące końce i idempotencję.
+- [x] `Project to Surface` rzutuje ciągły łańcuch zwykłych linii, łuków i spline szkicu 3D na wskazaną zakrzywioną ścianę. OpenCascade tworzy krzywą UV na powierzchni i odtwarza z niej dokładną B-spline 3D; dokument zachowuje ścianę oraz identyfikatory krzywych źródłowych.
+- [x] Polecenie ma osobny przycisk `Na powierzchnię`, dwuetapowy komunikat wyboru, panel `Project to Surface`, anulowanie z powrotem do aktywnego szkicu 3D i wynik gotowy do użycia jako ścieżka Pipe.
+- [x] Test rdzenia kontroluje trwały zapis obu stron skojarzenia, a test Electron wykonuje projekcję przez rzeczywisty worker OpenCascade i sprawdza dokładną B-spline oraz identyfikator powierzchni.
+- [x] Worker ponownie rzutuje skojarzoną krzywą po zmianie źródła lub przebudowie ściany, interfejs zapisuje wynik bez pętli rewizji, a test Electron potwierdza zmianę próbek B-spline oraz objętości zależnej bryły Pipe.
+
+### Weryfikacja 2026-09-05 — gładki Form B-Rep
+
+- [x] Regularne obszary klatki Catmulla-Clarka są grupowane według ścian kontrolnych i zamieniane na zszyte płaty B-spline zamiast dwóch planarnych ścian na każdy quad podziału.
+- [x] Insert Edge i Bridge zachowują dokładne wspólne granice płatów, a Fill Hole deformuje wnętrze płata funkcją zanikającą na brzegu, dzięki czemu zszyty B-Rep pozostaje zamknięty.
+- [x] Pełny scenariusz Form z symetrią, Crease, Insert Edge, Bridge i dwoma Fill Hole zmniejsza topologię z 768 faset do 20 ścian `BSPLINE_SURFACE`; Undo/Redo i ponowne otwarcie zachowują gładką bryłę.
+
+### Weryfikacja 2026-09-05 — przełączanie projektów
+
+- [x] Zmiana identyfikatora dokumentu kończy poprzedni worker CAD i odrzuca oczekujące obliczenia. Nowy projekt nie wyświetla brył, analizy ani historii poprzedniego dokumentu.
+- [x] Pełny lokalny scenariusz Electron przeszedł, w tym Coil → nowy projekt → Pipe, dalsze modelowanie i eksport STL/STEP/3MF.
+- [x] Raport awarii testu zawiera teraz zrzut ekranu oraz stan dokumentu, obliczeń i odzyskiwania autozapisu.
+- [x] CI run `33927651232`: pełny test modelowania/importu/bezpieczeństwa przeszedł na Windows (5m16s) i macOS (3m59s); jakość, audyt i core/build trzech systemów także przeszły. Testy instalatorów jeszcze trwały przy zapisie. Osobna integracja Cloudflare `madcadtoken` zgłosiła błąd; nie dotyczy to wyników desktopowego CI i nie oznaczono jej jako naprawionej.
+- [x] Lokalny build 6.4.7 z poprawkami B-spline, uchwytów i przełączania projektów zainstalowano w `/Applications/MadCAD.app`. Sprawdzono 27 plików renderer/Electron względem źródeł, podpis ad-hoc i gotowy ekran aplikacji przez interfejs macOS. SHA-256 `app.asar`: `e1125a227ef59f47c520ab2e68d3b932b77325db8075cee1530a7f4390fabadc`. Kopia poprzedniej aplikacji: `~/.Trash/MadCAD-before-3d-bspline-20260905.app`.
+- [x] Pakowanie lokalne korzystało ze stagingu zawierającego skompilowany renderer, moduły Electron i dokumentację, bez ponownego pakowania zależności renderera zawartych już w bundle. Standardowy lokalny builder blokował się podczas odczytu plików `node_modules`.
 
 - `src/modeling/ModelingWorkspace.jsx` — szkielet obszarów, przepływ poleceń i wybór.
 - `src/modeling/WorkspaceRibbon.jsx` — zachowanie wstążki i przepełnienia.

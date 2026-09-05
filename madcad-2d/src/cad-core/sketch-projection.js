@@ -1,4 +1,4 @@
-import { createSketchArc3D, createSketchLine, createSketchPoint, createSketchPoint3D } from './sketch-model.js';
+import { createProjectedSketchBSpline3D, createSketchArc3D, createSketchLine, createSketchPoint, createSketchPoint3D } from './sketch-model.js';
 import { createTopologyReference } from './topology-references.js';
 import { refreshDetectedSketchProfiles } from './sketch-topology.js';
 
@@ -46,7 +46,20 @@ function findOrCreatePoint(sketch, coordinates, referenceId) {
 function spatialEdgeType(descriptor) {
   if (descriptor?.geometry === 'LINE') return 'line';
   if (descriptor?.geometry === 'CIRCLE' && !descriptor.closed) return 'arc3d';
+  if (descriptor?.geometry === 'BSPLINE_CURVE' && !descriptor.closed && descriptor.bspline) return 'bspline3d';
   return null;
+}
+
+function referenceForSelection(document, selection) {
+  return (document.references || []).find((reference) => reference.kind === 'topology'
+    && reference.topologyKind === selection.kind
+    && reference.topologyId === selection.id
+    && reference.bodyId === selection.bodyId) || null;
+}
+
+function projectedEntityForReference(sketch, referenceId) {
+  return sketch.entities.find((entity) => entity.role === 'projected'
+    && (entity.projectionReferenceId === referenceId || entity.sourceReferenceId === referenceId)) || null;
 }
 
 export function projectTopologyToSketch(document, sketchId, sources = []) {
@@ -59,18 +72,27 @@ export function projectTopologyToSketch(document, sketchId, sources = []) {
       localPoint(source.descriptor?.point, sketch);
       continue;
     }
-    if (sketch.space === '3d' && !spatialEdgeType(source.descriptor)) throw new Error('Ścieżka skojarzona 3D obsługuje proste krawędzie i otwarte łuki kołowe modelu.');
+    if (sketch.space === '3d' && !spatialEdgeType(source.descriptor)) throw new Error('Ścieżka skojarzona 3D obsługuje proste krawędzie oraz otwarte łuki i B-spline modelu.');
     const endpoints = source.descriptor?.endpoints;
     if (!Array.isArray(endpoints) || endpoints.length !== 2) throw new Error('Projektowana krawędź nie ma dwóch końców.');
     endpoints.forEach((point) => localPoint(point, sketch));
     if (sketch.space === '3d' && spatialEdgeType(source.descriptor) === 'arc3d') localPoint(source.descriptor?.midpoint, sketch);
+    if (sketch.space === '3d' && spatialEdgeType(source.descriptor) === 'bspline3d' && (!Array.isArray(source.descriptor.samples) || source.descriptor.samples.length < 2)) throw new Error('B-spline źródłowa nie ma danych podglądu krzywej.');
   }
   const createdEntityIds = [];
   const createdReferenceIds = [];
   for (const source of sources) {
-    const reference = createTopologyReference({ selection: source.selection, descriptor: source.descriptor, label: `Project — ${source.selection.kind}` });
-    document.references.push(reference);
-    createdReferenceIds.push(reference.id);
+    let reference = referenceForSelection(document, source.selection);
+    const existingEntity = reference ? projectedEntityForReference(sketch, reference.id) : null;
+    if (existingEntity) {
+      createdEntityIds.push(existingEntity.id);
+      continue;
+    }
+    if (!reference) {
+      reference = createTopologyReference({ selection: source.selection, descriptor: source.descriptor, label: `Project — ${source.selection.kind}` });
+      document.references.push(reference);
+      createdReferenceIds.push(reference.id);
+    }
     if (source.selection.kind === 'vertex') {
       const point = findOrCreatePoint(sketch, localPoint(source.descriptor?.point, sketch), reference.id);
       createdEntityIds.push(point.id);
@@ -84,9 +106,6 @@ export function projectTopologyToSketch(document, sketchId, sources = []) {
       continue;
     }
     const points = localEndpoints.map((point) => findOrCreatePoint(sketch, point, reference.id));
-    const duplicate = sketch.entities.find((entity) => entity.type === 'line' && entity.role === 'projected'
-      && ((entity.pointIds[0] === points[0].id && entity.pointIds[1] === points[1].id) || (entity.pointIds[0] === points[1].id && entity.pointIds[1] === points[0].id)));
-    if (duplicate) continue;
     const spatialType = sketch.space === '3d' ? spatialEdgeType(source.descriptor) : 'line';
     const through = spatialType === 'arc3d' ? localPoint(source.descriptor.midpoint, sketch) : null;
     const curve = spatialType === 'arc3d'
@@ -99,20 +118,80 @@ export function projectTopologyToSketch(document, sketchId, sources = []) {
         role: 'projected',
         fixed: true,
         sourceReferenceId: reference.id,
+        surfaceFaceIds: source.descriptor.surfaceFaceIds,
       })
+      : spatialType === 'bspline3d'
+        ? createProjectedSketchBSpline3D({
+          startPointId: points[0].id,
+          endPointId: points[1].id,
+          bspline: source.descriptor.bspline,
+          samples: source.descriptor.samples,
+          role: 'projected',
+          fixed: true,
+          sourceReferenceId: reference.id,
+          surfaceFaceIds: source.descriptor.surfaceFaceIds,
+        })
       : createSketchLine({
         startPointId: points[0].id,
         endPointId: points[1].id,
         role: 'projected',
         fixed: true,
         sourceReferenceId: reference.id,
+        surfaceFaceIds: source.descriptor.surfaceFaceIds,
       });
     curve.projectionReferenceId = reference.id;
     sketch.entities.push(curve);
     createdEntityIds.push(curve.id);
   }
   if (sketch.space !== '3d') refreshDetectedSketchProfiles(sketch, document.parameters);
-  return { createdEntityIds, createdReferenceIds };
+  return {
+    createdEntityIds,
+    createdReferenceIds,
+    surfaceFaceIds: [...new Set(sources.flatMap((source) => source.descriptor?.surfaceFaceIds || []))],
+  };
+}
+
+export function createSurfaceProjectedSketchPath(document, sketchId, { selection, descriptor, sourceEntityIds = [] } = {}) {
+  const sketch = document.sketches.find((candidate) => candidate.id === sketchId);
+  if (!sketch || sketch.space !== '3d') throw new Error('Project to Surface wymaga aktywnego szkicu 3D.');
+  if (selection?.kind !== 'face' || !selection.id || !selection.bodyId) throw new Error('Project to Surface wymaga wybranej ściany modelu.');
+  if (descriptor?.geometry !== 'BSPLINE_CURVE' || !descriptor.bspline || !Array.isArray(descriptor.samples) || descriptor.samples.length < 2) throw new Error('Project to Surface nie otrzymał poprawnej krzywej wynikowej.');
+  const reference = createTopologyReference({ selection, descriptor: { surface: true }, label: 'Project to Surface — ściana' });
+  document.references.push(reference);
+  const endpoints = descriptor.endpoints.map((point) => findOrCreatePoint(sketch, localPoint(point, sketch), reference.id));
+  const curve = createProjectedSketchBSpline3D({
+    startPointId: endpoints[0].id,
+    endPointId: endpoints[1].id,
+    bspline: descriptor.bspline,
+    samples: descriptor.samples,
+    role: 'projected',
+    fixed: true,
+    sourceReferenceId: reference.id,
+    surfaceFaceIds: [selection.id],
+    surfaceProjection: { sourceSketchId: sketchId, sourceEntityIds: [...sourceEntityIds], faceReferenceId: reference.id },
+  });
+  curve.projectionReferenceId = reference.id;
+  sketch.entities.push(curve);
+  return { createdEntityId: curve.id, createdReferenceId: reference.id };
+}
+
+export function updateSurfaceProjectedSketchPath(document, entityId, descriptor) {
+  const sketch = document.sketches.find((candidate) => candidate.entities.some((entity) => entity.id === entityId));
+  const curve = sketch?.entities.find((entity) => entity.id === entityId && entity.type === 'bspline3d' && entity.surfaceProjection);
+  if (!curve || descriptor?.geometry !== 'BSPLINE_CURVE' || !descriptor.bspline || !Array.isArray(descriptor.samples) || descriptor.samples.length < 2) return false;
+  const sameGeometry = JSON.stringify(curve.geometry.bspline) === JSON.stringify(descriptor.bspline)
+    && JSON.stringify(curve.geometry.samples) === JSON.stringify(descriptor.samples)
+    && JSON.stringify(curve.surfaceFaceIds || []) === JSON.stringify(descriptor.surfaceFaceIds || []);
+  if (sameGeometry) return false;
+  const entityMap = new Map(sketch.entities.map((entity) => [entity.id, entity]));
+  descriptor.endpoints.forEach((coordinates, index) => {
+    const point = entityMap.get(curve.pointIds[index]);
+    if (point?.type === 'point') setPointCoordinates(point, localPoint(coordinates, sketch));
+  });
+  curve.geometry.bspline = structuredClone(descriptor.bspline);
+  curve.geometry.samples = structuredClone(descriptor.samples);
+  curve.surfaceFaceIds = [...new Set(descriptor.surfaceFaceIds || [])];
+  return true;
 }
 
 export function synchronizeProjectedGeometry(document, bodies = []) {
@@ -143,7 +222,7 @@ export function synchronizeProjectedGeometry(document, bodies = []) {
   const updatedEntityIds = new Set();
   for (const sketch of document.sketches || []) {
     const entityMap = new Map((sketch.entities || []).map((entity) => [entity.id, entity]));
-    const projectedCurves = (sketch.entities || []).filter((entity) => ['line', 'arc3d'].includes(entity.type) && entity.role === 'projected');
+    const projectedCurves = (sketch.entities || []).filter((entity) => ['line', 'arc3d', 'bspline3d'].includes(entity.type) && entity.role === 'projected');
     const projectedCurvePointIds = new Set(projectedCurves.flatMap((curve) => curve.pointIds || []));
 
     for (const point of (sketch.entities || []).filter((entity) => entity.type === 'point' && entity.role === 'projected' && !projectedCurvePointIds.has(entity.id))) {
@@ -165,6 +244,12 @@ export function synchronizeProjectedGeometry(document, bodies = []) {
         if (point?.type === 'point' && setPointCoordinates(point, localEndpoints[index])) updatedEntityIds.add(point.id);
       });
       let curveChanged = curve.pointIds.some((pointId) => updatedEntityIds.has(pointId));
+      const surfaceFaceIds = Array.isArray(descriptor?.surfaceFaceIds) ? [...new Set(descriptor.surfaceFaceIds)] : [];
+      if (JSON.stringify(curve.surfaceFaceIds || []) !== JSON.stringify(surfaceFaceIds)) {
+        if (surfaceFaceIds.length) curve.surfaceFaceIds = surfaceFaceIds;
+        else delete curve.surfaceFaceIds;
+        curveChanged = true;
+      }
       if (curve.type === 'arc3d' && Array.isArray(descriptor?.midpoint)) {
         const through = localPoint(descriptor.midpoint, sketch);
         ['X', 'Y', 'Z'].forEach((axis, index) => {
@@ -172,6 +257,13 @@ export function synchronizeProjectedGeometry(document, bodies = []) {
           curve.geometry[`through${axis}`] = String(through[index]);
           curveChanged = true;
         });
+      }
+      if (curve.type === 'bspline3d' && descriptor?.bspline && Array.isArray(descriptor.samples)) {
+        if (JSON.stringify(curve.geometry.bspline) !== JSON.stringify(descriptor.bspline) || JSON.stringify(curve.geometry.samples) !== JSON.stringify(descriptor.samples)) {
+          curve.geometry.bspline = structuredClone(descriptor.bspline);
+          curve.geometry.samples = structuredClone(descriptor.samples);
+          curveChanged = true;
+        }
       }
       if (curveChanged) updatedEntityIds.add(curve.id);
     }

@@ -46,6 +46,7 @@ import {
   Scissors,
   Shapes,
   SkipBack,
+  Spline,
   Square,
   StepBack,
   StepForward,
@@ -121,12 +122,13 @@ import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scal
 import { circularSketchPattern, pathSketchPattern, rectangularSketchPattern } from '../cad-core/sketch-patterns.js';
 import { applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
+import { resolveOpenChainProfile } from '../cad-core/evaluator.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../cad-core/topology-references.js';
 import { createAnglePlane, createMidplane, createOffsetPlane, createPathPlane, createTangentPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createPlaneNormalAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../cad-core/construction-axes.js';
 import { createCenterPoint, createIntersectionPoint, createMidpointPoint, createPointOnAxis, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../cad-core/construction-points.js';
-import { projectTopologyToSketch, synchronizeProjectedGeometry } from '../cad-core/sketch-projection.js';
+import { createSurfaceProjectedSketchPath, projectTopologyToSketch, synchronizeProjectedGeometry, updateSurfaceProjectedSketchPath } from '../cad-core/sketch-projection.js';
 import { resolveFaceEdgeHolePlacement } from '../cad-core/face-edge-hole.js';
 import { measureSelection } from '../cad-core/measure-selection.js';
 import { calculateMassProperties } from '../cad-core/mass-properties.js';
@@ -968,7 +970,8 @@ export default function ModelingWorkspace() {
     return document.sketches.find((item) => item.id === activeSketchId)?.blockInstances?.find((instance) => instance.id === instanceIds[0]) || null;
   })();
   const canExtrudeOpenChain = Boolean(activeSketchId && selectedSketchEntities.length && selectedSketchEntities.every((entity) => entity.type === 'line'));
-  const canUseSpatialPath = Boolean(activeSketchIs3D && selectedSketchEntities.length && selectedSketchEntities.every((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)));
+  const canUseSpatialPath = Boolean(activeSketchIs3D && selectedSketchEntities.length && selectedSketchEntities.every((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)));
+  const canProjectToSurface = Boolean(activeSketchIs3D && selectedSketchEntities.length && selectedSketchEntities.every((entity) => entity.role !== 'projected' && ['line', 'arc3d', 'spline3d'].includes(entity.type)));
   const canAddCollinear = selectedSketchEntities.length === 2 && selectedSketchEntities.every((entity) => entity.type === 'line');
   const canAddSymmetry = selectedSketchEntities.filter((entity) => entity.type === 'point').length === 2
     && selectedSketchEntities.filter((entity) => entity.type === 'line').length === 1
@@ -1859,6 +1862,17 @@ export default function ModelingWorkspace() {
   }, [document, actualBodies, command?.previewFeature, engine.status, engine.evaluatedDocument, history, readOnly]);
 
   useEffect(() => {
+    if (readOnly || engine.status !== 'ready' || engine.evaluatedDocument !== document) return;
+    const updates = (engine.surfaceProjectionUpdates || []).filter((update) => update.descriptor);
+    if (!updates.length) return;
+    const probe = cloneDocument(document);
+    const changed = updates.filter((update) => updateSurfaceProjectedSketchPath(probe, update.entityId, update.descriptor));
+    if (!changed.length) return;
+    history.synchronize((next) => changed.forEach((update) => updateSurfaceProjectedSketchPath(next, update.entityId, update.descriptor)));
+    setNotice(`Project to Surface przebudowany automatycznie · ${changed.length} ${changed.length === 1 ? 'krzywa' : 'krzywe'}.`);
+  }, [document, engine.evaluatedDocument, engine.status, engine.surfaceProjectionUpdates, history, readOnly]);
+
+  useEffect(() => {
     if (!persistenceReady || readOnly || !dirty) return undefined;
     let canceled = false;
     let timeout;
@@ -1925,8 +1939,9 @@ export default function ModelingWorkspace() {
         threadDirection: feature.threadDirection,
       })) || [],
     };
-    return () => { delete window.__madcadVerifyEngineState; };
-  }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline, engine.diagnostics, engine.performance, engine.evaluatedDocument]);
+    window.__madcadVerifyProjectPointsToSurface = engine.projectPointsToSurface;
+    return () => { delete window.__madcadVerifyEngineState; delete window.__madcadVerifyProjectPointsToSurface; };
+  }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline, engine.diagnostics, engine.performance, engine.evaluatedDocument, engine.projectPointsToSurface]);
 
   const updateCommand = (patch) => {
     if (Object.hasOwn(patch, 'dynamicLength')) sketchDynamicLengthRef.current = patch.dynamicLength;
@@ -2618,7 +2633,7 @@ export default function ModelingWorkspace() {
   const finishSketch3D = () => {
     if (!activeSketchIs3D) return;
     const sketchId = activeSketchId;
-    const segmentCount = activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)).length;
+    const segmentCount = activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)).length;
     setActiveSketchId(null);
     setWorkspace('solid');
     setCommand(null);
@@ -2668,7 +2683,7 @@ export default function ModelingWorkspace() {
     setWorkspace('sketch');
     if (sketch.space === '3d') {
       const pointIds = sketch.entities.filter((entity) => entity.type === 'point').map((entity) => entity.id);
-      const segmentIds = sketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)).map((entity) => entity.id);
+      const segmentIds = sketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)).map((entity) => entity.id);
       const lastPoint = sketch.entities.find((entity) => entity.id === pointIds.at(-1));
       const x = lastPoint?.geometry.x || '0';
       const y = lastPoint?.geometry.y || '0';
@@ -3465,9 +3480,54 @@ export default function ModelingWorkspace() {
       commit((next) => Object.assign(next, checked));
       setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: result.createdEntityIds });
       setCommand(command.resumeSketch3D || null);
-      setNotice(`${activeSketchIs3D ? 'Pobrano do ścieżki 3D' : 'Project utworzył'} ${result.createdEntityIds.length} elementów z ${result.createdReferenceIds.length} trwałych referencji.`);
+      const surfaceLabel = result.surfaceFaceIds?.length ? ` Ścieżka pozostaje związana z ${result.surfaceFaceIds.length} ${result.surfaceFaceIds.length === 1 ? 'powierzchnią' : 'powierzchniami'} modelu.` : '';
+      setNotice(`${activeSketchIs3D ? 'Pobrano do ścieżki 3D' : 'Project utworzył'} ${result.createdEntityIds.length} elementów z ${result.createdReferenceIds.length} nowych trwałych referencji.${surfaceLabel}`);
     } catch (error) {
       setNotice(`Project nie został wykonany: ${error.message}`);
+    }
+  };
+
+  const openProjectToSurface = () => {
+    if (readOnly) return readOnlyNotice();
+    if (!canProjectToSurface) {
+      setNotice('Project to Surface: zaznacz jeden ciągły łańcuch zwykłych krzywych szkicu 3D.');
+      return;
+    }
+    const resumeSketch3D = command?.type === 'sketch3d' ? command : null;
+    setCommand({ type: 'projectSurface', sourceSketchId: activeSketchId, sourceEntityIds: [...selectedSketchEntityIds], resumeSketch3D });
+    setSelection({ kind: 'sketch', id: activeSketchId });
+    setNotice('Project to Surface: kliknij zakrzywioną ścianę modelu, a następnie zatwierdź Rzutuj.');
+  };
+
+  const confirmProjectToSurface = async () => {
+    if (readOnly) return readOnlyNotice();
+    if (command?.type !== 'projectSurface') return;
+    const faceSelection = (selection?.items || (selection?.kind === 'face' ? [selection] : [])).find((item) => item.kind === 'face');
+    if (!faceSelection) {
+      setNotice('Project to Surface: wybierz ścianę modelu, na którą ma trafić krzywa.');
+      return;
+    }
+    try {
+      const body = engine.bodies.find((candidate) => candidate.id === faceSelection.bodyId);
+      const face = body?.topology?.faces?.find((candidate) => candidate.id === faceSelection.id);
+      if (!face) throw new Error('Nie znaleziono wybranej ściany w aktualnym modelu.');
+      const sketch = document.sketches.find((candidate) => candidate.id === command.sourceSketchId);
+      const parameters = resolveParameters(document.parameters);
+      if (!parameters.valid) throw new Error(parameters.errors[0] || 'Parametry projektu są niepoprawne.');
+      const path = resolveOpenChainProfile(sketch, command.sourceEntityIds, parameters.values, 'project-surface', 'Project to Surface');
+      const descriptor = await engine.projectPointsToSurface({ bodyId: faceSelection.bodyId, faceId: faceSelection.id, points: path.geometry.points });
+      const checked = cloneDocument(document);
+      const result = createSurfaceProjectedSketchPath(checked, command.sourceSketchId, {
+        selection: { ...faceSelection, sourceFeatureId: faceSelection.sourceFeatureId || body.sourceFeatureId },
+        descriptor,
+        sourceEntityIds: command.sourceEntityIds,
+      });
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'sketchEntities', sketchId: command.sourceSketchId, ids: [result.createdEntityId] });
+      setCommand(command.resumeSketch3D || null);
+      setNotice('Krzywa została dokładnie rzutowana na powierzchnię i zachowuje powiązanie ze ścianą oraz krzywą źródłową.');
+    } catch (error) {
+      setNotice(`Project to Surface nie został wykonany: ${error.message}`);
     }
   };
 
@@ -3576,6 +3636,7 @@ export default function ModelingWorkspace() {
     };
     window.__madcadVerifyMoveSketch = moveSketchEntities;
     window.__madcadVerifyDeleteSketch = deleteSelectedSketchEntities;
+    window.__madcadVerifyEditSketch = editSketch;
     window.__madcadVerifyOpenFirstSketch = () => {
       const sketch = document.sketches[0];
       if (!sketch) throw new Error('Brak szkicu do otwarcia.');
@@ -3932,7 +3993,7 @@ export default function ModelingWorkspace() {
         visible: sketch.visible !== false,
         support: sketch.support,
         entities: sketch.entities.length,
-        entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, role: entity.role, fixed: entity.fixed, layerId: entity.layerId, color: entity.color, lineType: entity.lineType, lineWeight: entity.lineWeight, projectionReferenceId: entity.projectionReferenceId, pointIds: entity.pointIds, geometry: entity.geometry })),
+        entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, role: entity.role, fixed: entity.fixed, layerId: entity.layerId, color: entity.color, lineType: entity.lineType, lineWeight: entity.lineWeight, projectionReferenceId: entity.projectionReferenceId, surfaceFaceIds: entity.surfaceFaceIds, surfaceProjection: entity.surfaceProjection, pointIds: entity.pointIds, geometry: entity.geometry })),
         profiles: sketch.profiles.length,
         profileIds: sketch.profiles.map((profile) => profile.id),
         constraints: sketch.constraints.map((constraint) => ({ id: constraint.id, type: constraint.type, entityIds: constraint.entityIds, value: constraint.value, automatic: constraint.automatic })),
@@ -4017,6 +4078,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyBreakProjectedReference;
       delete window.__madcadVerifyMoveSketch;
       delete window.__madcadVerifyDeleteSketch;
+      delete window.__madcadVerifyEditSketch;
       delete window.__madcadVerifyOpenFirstSketch;
       delete window.__madcadVerifyLoadTopologyFixture;
       delete window.__madcadVerifyLoadSketchDrawingFixture;
@@ -4629,7 +4691,7 @@ export default function ModelingWorkspace() {
 
   const sweepPathOptions = (profileSketchId = selectedProfileMatch?.sketch.id) => document.sketches
     .filter((sketch) => sketch.id !== profileSketchId)
-    .map((sketch) => ({ id: sketch.id, name: sketch.name, entityIds: sketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type) && entity.role !== 'construction').map((entity) => entity.id) }))
+    .map((sketch) => ({ id: sketch.id, name: sketch.name, entityIds: sketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type) && entity.role !== 'construction').map((entity) => entity.id) }))
     .filter((path) => path.entityIds.length);
 
   const openSurfaceSweep = () => {
@@ -6504,9 +6566,9 @@ export default function ModelingWorkspace() {
     }
     else if (command.type === 'line' || command.type === 'polyline') finishSketchPath();
     else {
-      if (command.type === 'projectSketch' && command.resumeSketch3D) {
+      if ((command.type === 'projectSketch' || command.type === 'projectSurface') && command.resumeSketch3D) {
         setCommand(command.resumeSketch3D);
-        setNotice('Anulowano pobieranie krawędzi. Szkic 3D pozostaje aktywny.');
+        setNotice(command.type === 'projectSurface' ? 'Anulowano rzutowanie na powierzchnię. Szkic 3D pozostaje aktywny.' : 'Anulowano pobieranie krawędzi. Szkic 3D pozostaje aktywny.');
         return true;
       }
       if (command.openChain && command.sourceSketchId) {
@@ -6527,6 +6589,10 @@ export default function ModelingWorkspace() {
     }
     if (command.type === 'editSketch3d') {
       confirmSketch3DEntityEditor();
+      return true;
+    }
+    if (command.type === 'projectSurface') {
+      confirmProjectToSurface();
       return true;
     }
     if (command.type === 'line' || command.type === 'polyline') {
@@ -6780,7 +6846,7 @@ export default function ModelingWorkspace() {
     ? `Podgląd operacji · ${bodyCountLabel}`
     : activeSketchId
       ? activeSketchIs3D
-        ? `Szkic 3D · ${activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)).length} krzyw.`
+        ? `Szkic 3D · ${activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)).length} krzyw.`
         : `Krok 1/3 · Szkic 2D · ${activeSketch?.plane || 'XY'}`
       : selectedProfile
         ? 'Krok 2/3 · Profil gotowy do wyciągnięcia'
@@ -7003,6 +7069,7 @@ export default function ModelingWorkspace() {
                       <ToolButton icon={Move3d} label="Dodaj krzywą" onClick={confirmSketch3DSegment} primary disabled={readOnly || command?.type !== 'sketch3d'} description="Dodaj linię, łuk albo spline od bieżącego punktu według współrzędnych XYZ z panelu." />
                       <ToolButton icon={Undo2} label="Cofnij krzywą" onClick={undoSketch3DSegment} disabled={readOnly || command?.type !== 'sketch3d' || !command?.segmentIds?.length} description="Usuń ostatnią krzywą bez kończenia szkicu 3D." />
                       <ToolButton icon={ScanSearch} label="Pobierz krawędzie" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly || command?.type === 'editSketch3d'} description="Utwórz skojarzoną ścieżkę 3D z wybranych krawędzi modelu." />
+                      <ToolButton icon={Spline} label="Project to Surface" displayLabel="Na powierzchnię" onClick={openProjectToSurface} primary={command?.type === 'projectSurface'} disabled={readOnly || command?.type === 'editSketch3d' || !canProjectToSurface} disabledReason="Zaznacz zwykłą krzywą lub ciągły łańcuch szkicu 3D." description="Rzutuj wybraną ścieżkę szkicu 3D na wskazaną zakrzywioną ścianę." />
                     </RibbonGroup>
                     <RibbonGroup label="EDYTUJ">
                       <ToolButton icon={Pencil} label="Edytuj krzywą" onClick={openSketch3DEntityEditor} disabled={readOnly || command?.type === 'editSketch3d' || selectedSketchEntities.length !== 1 || selectedSketchEntities[0]?.role === 'projected' || !['line', 'arc3d', 'spline3d'].includes(selectedSketchEntities[0]?.type)} disabledReason="Zaznacz jedną zwykłą linię, łuk albo spline szkicu 3D." description="Zmień istniejącą krzywą i jej końce XYZ bez usuwania ścieżki." />
@@ -7207,7 +7274,7 @@ export default function ModelingWorkspace() {
           collapsed={panelLayout.commandCollapsed}
           dock="right"
           onChange={updateCommand}
-          onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : command?.type === 'sketch3d' ? confirmSketch3DSegment : command?.type === 'editSketch3d' ? confirmSketch3DEntityEditor : command?.type === 'projectSketch' ? projectSelectedTopology : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
+          onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : command?.type === 'sketch3d' ? confirmSketch3DSegment : command?.type === 'editSketch3d' ? confirmSketch3DEntityEditor : command?.type === 'projectSketch' ? projectSelectedTopology : command?.type === 'projectSurface' ? confirmProjectToSurface : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
           onConfirmDynamic={confirmDynamicSketchSegment}
           onCancel={cancelActiveCommand}
           onUndoSegment={command?.type === 'sketch3d' ? undoSketch3DSegment : undoSketchSegment}
@@ -7285,7 +7352,7 @@ export default function ModelingWorkspace() {
             onSketchConstraintSelection={(constraintId) => setSelection({ kind: 'sketchConstraint', id: constraintId, sketchId: activeSketchId })}
             onSketchConstraintValueChange={updateSketchConstraintValue}
             onDeleteSketchSelection={readOnly ? undefined : deleteSelectedSketchEntities}
-            sketchModifierMode={command?.type === 'trimSketch' ? 'trim' : command?.type === 'extendSketch' ? 'extend' : command?.type === 'breakSketch' ? 'break' : command?.type === 'projectSketch' ? 'project' : null}
+            sketchModifierMode={command?.type === 'trimSketch' ? 'trim' : command?.type === 'extendSketch' ? 'extend' : command?.type === 'breakSketch' ? 'break' : command?.type === 'projectSketch' ? 'project' : command?.type === 'projectSurface' ? 'projectSurface' : null}
             onSketchModify={modifySketchAtPoint}
             onSketchProfileSelection={(profileId, sketchId) => setSelection({ kind: 'profile', id: profileId, sketchId: sketchId || activeSketchId })}
             onSketchMove={readOnly ? undefined : moveSketchEntities}

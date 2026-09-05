@@ -94,7 +94,7 @@ import { createTopologyReference, inspectTopologyReferences, reassignTopologyRef
 import { createAnglePlane, createMidplane, createOffsetPlane, createPathPlane, createTangentPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../src/cad-core/construction-planes.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createPlaneNormalAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../src/cad-core/construction-axes.js';
 import { createCenterPoint, createIntersectionPoint, createMidpointPoint, createPointOnAxis, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../src/cad-core/construction-points.js';
-import { projectTopologyToSketch, synchronizeProjectedGeometry } from '../src/cad-core/sketch-projection.js';
+import { createSurfaceProjectedSketchPath, projectTopologyToSketch, synchronizeProjectedGeometry, updateSurfaceProjectedSketchPath } from '../src/cad-core/sketch-projection.js';
 import { detectSketchProfiles, refreshDetectedSketchProfiles } from '../src/cad-core/sketch-topology.js';
 import { createTextProfile } from '../src/cad-core/text-profile.js';
 import { resolveFaceEdgeHolePlacement } from '../src/cad-core/face-edge-hole.js';
@@ -1336,6 +1336,8 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   assert.equal(mesh.controlVertices.length, 24);
   assert.equal(mesh.controlFaces.length, 6);
   assert.equal(mesh.surfaceFaceCount, 96);
+  assert.equal(mesh.smoothPatches.length, 6);
+  assert.deepEqual(mesh.smoothPatches.map((grid) => [grid.length, grid[0].length]), Array.from({ length: 6 }, () => [5, 5]));
   assert.equal(report.triangleCount, 192);
   assert.equal(report.boundaryEdges, 0);
   assert.equal(report.nonManifoldEdges, 0);
@@ -1372,6 +1374,7 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   assert.equal(edgeLoopMesh.controlVertexCount, 12);
   assert.equal(edgeLoopMesh.controlFaceCount, 10);
   assert.equal(edgeLoopMesh.surfaceFaceCount, 40);
+  assert.equal(edgeLoopMesh.smoothPatches.length, 10);
   assert.equal(edgeLoopMesh.creaseEdges.length, 2);
   const edgeLoopReport = inspectMesh(edgeLoopMesh);
   assert.equal(edgeLoopReport.boundaryEdges, 0);
@@ -1388,6 +1391,7 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   assert.equal(bridgedMesh.controlVertexCount, 16);
   assert.equal(bridgedMesh.controlFaceCount, 16);
   assert.equal(bridgedMesh.surfaceFaceCount, 64);
+  assert.equal(bridgedMesh.smoothPatches.length, 16);
   assert.deepEqual(bridgedMesh.bridge, { firstFaceIndex: 0, secondFaceIndex: 1, inset: 0.45 });
   const bridgedReport = inspectMesh(bridgedMesh);
   assert.equal(bridgedReport.boundaryEdges, 0);
@@ -1410,6 +1414,8 @@ test('Form wygładza zamkniętą klatkę Catmulla-Clarka i przygotowuje konwersj
   assert.equal(filledMesh.controlVertexCount, 22);
   assert.equal(filledMesh.controlFaceCount, 26);
   assert.equal(filledMesh.surfaceFaceCount, 96);
+  assert.equal(filledMesh.smoothPatches.length, 20);
+  assert.notDeepEqual(filledMesh.smoothPatches[0][1][1], createRoundedBoxFormMesh({ width: 40, depth: 30, height: 20, subdivisions: 1, insertEdge: { enabled: true, edgeIndex: 4, position: 0.5 }, bridge: { enabled: true, firstFaceIndex: 6, secondFaceIndex: 9, inset: 0.45 } }).smoothPatches[0][1][1]);
   const filledReport = inspectMesh(filledMesh);
   assert.equal(filledReport.boundaryEdges, 0);
   assert.equal(filledReport.nonManifoldEdges, 0);
@@ -2434,6 +2440,67 @@ test('Project tworzy skojarzoną ścieżkę 3D i aktualizuje wszystkie współrz
 
   const closedCircle = structuredClone(document);
   assert.throws(() => projectTopologyToSketch(closedCircle, sketch.id, [{ ...source, descriptor: { geometry: 'CIRCLE', endpoints: [[1, 0, 0], [1, 0, 0]], midpoint: [-1, 0, 0], radius: 1, closed: true } }]), /otwarte łuki/);
+});
+
+test('Project 3D rozróżnia pokrywające się krzywe i nie dubluje tej samej referencji', () => {
+  const document = createDocument('Pokrywające się ścieżki');
+  const sketch = createSketch({ name: 'Ścieżki', space: '3d' });
+  document.sketches.push(sketch);
+  const line = {
+    selection: { kind: 'edge', id: 'edge-line', bodyId: 'body-a' },
+    descriptor: { geometry: 'LINE', endpoints: [[0, 0, 0], [10, 0, 0]], length: 10, closed: false, surfaceFaceIds: ['face-a', 'face-b'] },
+  };
+  const arc = {
+    selection: { kind: 'edge', id: 'edge-arc', bodyId: 'body-a' },
+    descriptor: { geometry: 'CIRCLE', endpoints: [[0, 0, 0], [10, 0, 0]], midpoint: [5, 5, 0], radius: 5, length: Math.PI * 5, closed: false },
+  };
+  const first = projectTopologyToSketch(document, sketch.id, [line, arc]);
+  assert.equal(first.createdReferenceIds.length, 2);
+  assert.deepEqual(first.surfaceFaceIds, ['face-a', 'face-b']);
+  assert.deepEqual(sketch.entities.filter((entity) => entity.type !== 'point').map((entity) => entity.type), ['line', 'arc3d']);
+  assert.deepEqual(sketch.entities.find((entity) => entity.type === 'line').surfaceFaceIds, ['face-a', 'face-b']);
+  const entityCount = sketch.entities.length;
+  const referenceCount = document.references.length;
+  const repeated = projectTopologyToSketch(document, sketch.id, [line]);
+  assert.equal(repeated.createdReferenceIds.length, 0);
+  assert.equal(repeated.createdEntityIds.length, 1);
+  assert.equal(sketch.entities.length, entityCount);
+  assert.equal(document.references.length, referenceCount);
+});
+
+test('Project to Surface zapisuje dokładną krzywą i obie strony skojarzenia', () => {
+  const document = createDocument('Krzywa na powierzchni');
+  const sketch = createSketch({ name: 'Ścieżka wejściowa', space: '3d' });
+  document.sketches.push(sketch);
+  const descriptor = {
+    geometry: 'BSPLINE_CURVE',
+    endpoints: [[0, 0, 1], [10, 0, 1]],
+    samples: [[0, 0, 1], [5, 2, 1], [10, 0, 1]],
+    bspline: { degree: 2, poles: [[0, 0, 1], [5, 2, 1], [10, 0, 1]], weights: [1, 1, 1], knots: [0, 1], multiplicities: [3, 3], periodic: false, firstParameter: 0, lastParameter: 1, startPoint: [0, 0, 1] },
+  };
+  const result = createSurfaceProjectedSketchPath(document, sketch.id, {
+    selection: { kind: 'face', id: 'face-curved', bodyId: 'body-a', sourceFeatureId: 'feature-a' },
+    descriptor,
+    sourceEntityIds: ['curve-a', 'curve-b'],
+  });
+  const curve = sketch.entities.find((entity) => entity.id === result.createdEntityId);
+  assert.equal(curve.type, 'bspline3d');
+  assert.deepEqual(curve.surfaceFaceIds, ['face-curved']);
+  assert.deepEqual(curve.surfaceProjection.sourceEntityIds, ['curve-a', 'curve-b']);
+  assert.equal(curve.surfaceProjection.faceReferenceId, result.createdReferenceId);
+  assert.equal(document.references.find((reference) => reference.id === result.createdReferenceId)?.topologyId, 'face-curved');
+  const rebuiltDescriptor = {
+    ...descriptor,
+    endpoints: [[0, 1, 1], [12, 3, 1]],
+    samples: [[0, 1, 1], [6, 4, 1], [12, 3, 1]],
+    bspline: { ...descriptor.bspline, poles: [[0, 1, 1], [6, 4, 1], [12, 3, 1]], startPoint: [0, 1, 1] },
+    surfaceFaceIds: ['face-curved'],
+  };
+  assert.equal(updateSurfaceProjectedSketchPath(document, curve.id, rebuiltDescriptor), true);
+  assert.deepEqual(curve.geometry.samples, rebuiltDescriptor.samples);
+  assert.deepEqual(sketch.entities.filter((entity) => curve.pointIds.includes(entity.id)).map((point) => [point.geometry.x, point.geometry.y, point.geometry.z].map(Number)), rebuiltDescriptor.endpoints);
+  assert.equal(updateSurfaceProjectedSketchPath(document, curve.id, rebuiltDescriptor), false);
+  assert.equal(validateDocument(document).valid, true);
 });
 
 test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', async () => {

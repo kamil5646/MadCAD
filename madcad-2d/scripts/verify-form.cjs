@@ -53,6 +53,10 @@ async function setSelect(window, label, value) {
 
 app.whenReady().then(async () => {
   const window = new BrowserWindow({ width: 1440, height: 900, show: true, webPreferences: { partition: `madcad-form-${Date.now()}` } });
+  window.webContents.on('console-message', (event) => {
+    const message = event?.message;
+    if (/Gładka konwersja Form/.test(message || '')) console.log(`[form-worker] ${message}`);
+  });
   window.setContentSize(1440, 837);
   let exitCode = 0;
   try {
@@ -82,7 +86,7 @@ app.whenReady().then(async () => {
     await setField(window, 'Położenie X', '-25');
     await setField(window, 'Położenie Y', '35');
     await setField(window, 'Położenie Z', '12');
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form?.subdivisions === 2)?.topology?.faces?.length === 192 && window.__madcadFormCageState?.pointCount === 8 && window.__madcadFormCageState?.edgeCount === 12`, 'podgląd Form B-Rep i klatki kontrolnej');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form?.subdivisions === 2)?.form?.brepMode === 'smooth-patches' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.topology?.faces?.length <= 6 && window.__madcadFormCageState?.pointCount === 8 && window.__madcadFormCageState?.edgeCount === 12`, 'gładki podgląd Form B-Rep i klatki kontrolnej', 15000);
     await window.webContents.executeJavaScript(`(() => {
       const [clientX, clientY] = window.__madcadFormCageState.screenPoint(6);
       const canvas = document.querySelector('.model-viewport canvas');
@@ -159,7 +163,7 @@ app.whenReady().then(async () => {
     await setSelect(window, 'Tryb edycji', 'edge');
     await setSelect(window, 'Insert Edge', 'enabled');
     await setField(window, 'Położenie pętli', '0.5');
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.command?.insertEdgeEnabled === true && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlVertexCount === 12 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlFaceCount === 10 && window.__madcadFormCageState?.pointCount === 12 && window.__madcadFormCageState?.edgeCount === 20`, 'podgląd pętli Insert Edge');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.command?.insertEdgeEnabled === true && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlVertexCount === 12 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlFaceCount === 10 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.brepMode === 'smooth-patches' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.brepPatchCount === 10 && window.__madcadFormCageState?.pointCount === 12 && window.__madcadFormCageState?.edgeCount === 20`, 'gładki podgląd pętli Insert Edge');
     await window.webContents.executeJavaScript(`(() => {
       const [clientX, clientY] = window.__madcadFormCageState.screenPoint(8);
       const canvas = document.querySelector('.model-viewport canvas');
@@ -181,7 +185,7 @@ app.whenReady().then(async () => {
     await setSelect(window, 'Tryb edycji', 'face');
     await setSelect(window, 'Bridge', 'enabled');
     await setField(window, 'Wielkość otworu', '0.5');
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.command?.bridgeEnabled === true && window.__madcadVerifyDocumentState?.command?.bridgeFirstFace === 6 && window.__madcadVerifyDocumentState?.command?.bridgeSecondFace === 9 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlVertexCount === 20 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlFaceCount === 20 && window.__madcadFormCageState?.pointCount === 20 && window.__madcadFormCageState?.edgeCount === 40`, 'podgląd tunelu Bridge zgodnego z symetrią');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.command?.bridgeEnabled === true && window.__madcadVerifyDocumentState?.command?.bridgeFirstFace === 6 && window.__madcadVerifyDocumentState?.command?.bridgeSecondFace === 9 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlVertexCount === 20 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlFaceCount === 20 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.brepMode === 'smooth-patches' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.brepPatchCount === 20 && window.__madcadFormCageState?.pointCount === 20 && window.__madcadFormCageState?.edgeCount === 40`, 'gładki podgląd tunelu Bridge zgodnego z symetrią');
     await window.webContents.executeJavaScript(`(() => {
       const [clientX, clientY] = window.__madcadFormCageState.screenPoint(12);
       const canvas = document.querySelector('.model-viewport canvas');
@@ -194,7 +198,7 @@ app.whenReady().then(async () => {
     await setSelect(window, 'Tryb edycji', 'face');
     await setSelect(window, 'Fill Hole', 'enabled');
     await setSelect(window, 'Granica do zamknięcia', '0');
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.command?.fillHoleEnabled === true && window.__madcadVerifyDocumentState?.command?.fillHoleFace === 0 && window.__madcadVerifyDocumentState?.command?.fillHoleOffsets?.length === 2 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlVertexCount === 22 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlFaceCount === 26 && window.__madcadFormCageState?.pointCount === 22 && window.__madcadFormCageState?.edgeCount === 48`, 'podgląd Fill Hole na parze symetrycznych granic');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.command?.fillHoleEnabled === true && window.__madcadVerifyDocumentState?.command?.fillHoleFace === 0 && window.__madcadVerifyDocumentState?.command?.fillHoleOffsets?.length === 2 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlVertexCount === 22 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.controlFaceCount === 26 && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.brepMode === 'smooth-patches' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.form)?.form?.brepPatchCount === 20 && window.__madcadFormCageState?.pointCount === 22 && window.__madcadFormCageState?.edgeCount === 48`, 'gładki podgląd Fill Hole na parze symetrycznych granic');
     await window.webContents.executeJavaScript(`(() => {
       const [clientX, clientY] = window.__madcadFormCageState.screenPoint(20);
       const canvas = document.querySelector('.model-viewport canvas');
@@ -207,7 +211,7 @@ app.whenReady().then(async () => {
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
 
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'formBody' && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.surfaceFaceCount === 384)`, 'zapisany Form z Bridge i Fill Hole');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'formBody' && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.surfaceFaceCount === 384 && body.form?.brepMode === 'smooth-patches' && body.form?.brepPatchCount === 20)`, 'zapisany gładki Form z Bridge i Fill Hole');
     const result = await window.webContents.executeJavaScript(`(() => {
       const body = window.__madcadVerifyEngineState.bodies.find((item) => item.form);
       return {
@@ -216,22 +220,23 @@ app.whenReady().then(async () => {
         bodyKind: body.bodyKind,
         metrics: body.metrics,
         topologyFaces: body.topology.faces.length,
+        surfaceTypes: [...new Set(body.topology.faces.map((face) => face.descriptor.geometry))],
         form: body.form,
         dialogClosed: !document.querySelector('.command-dialog'),
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
     const dimensions = result.metrics.dimensions;
-    if (result.bodyCount !== 3 || result.representation !== 'brep' || result.bodyKind !== 'solid' || result.topologyFaces !== 768 || result.form.controlVertexCount !== 22 || result.form.controlFaceCount !== 26 || result.form.controlVertices.length !== 66 || result.form.controlFaces.length !== 26 || result.form.surfaceFaceCount !== 384 || result.form.subdivisions !== 2 || result.form.symmetry !== 'x' || result.form.creaseEdges.length !== 2 || result.form.insertEdge?.edgeIndex !== 4 || result.form.bridge?.firstFaceIndex !== 6 || result.form.bridge?.secondFaceIndex !== 9 || result.form.bridge?.inset !== 0.5 || result.form.fillHole?.faceIndexes?.join(',') !== '0,1' || result.metrics.volume <= 0 || Math.abs(dimensions[0] - 40) > 0.2 || Math.abs(dimensions[1] - 30) > 0.2 || Math.abs(dimensions[2] - 20) > 0.2 || !result.dialogClosed || result.horizontalOverflow) {
+    if (result.bodyCount !== 3 || result.representation !== 'brep' || result.bodyKind !== 'solid' || result.topologyFaces !== 20 || result.surfaceTypes.join(',') !== 'BSPLINE_SURFACE' || result.form.brepMode !== 'smooth-patches' || result.form.brepPatchCount !== 20 || result.form.controlVertexCount !== 22 || result.form.controlFaceCount !== 26 || result.form.controlVertices.length !== 66 || result.form.controlFaces.length !== 26 || result.form.surfaceFaceCount !== 384 || result.form.subdivisions !== 2 || result.form.symmetry !== 'x' || result.form.creaseEdges.length !== 2 || result.form.insertEdge?.edgeIndex !== 4 || result.form.bridge?.firstFaceIndex !== 6 || result.form.bridge?.secondFaceIndex !== 9 || result.form.bridge?.inset !== 0.5 || result.form.fillHole?.faceIndexes?.join(',') !== '0,1' || result.metrics.volume <= 0 || Math.abs(dimensions[0] - 40) > 2 || Math.abs(dimensions[1] - 30) > 2 || Math.abs(dimensions[2] - 20) > 2 || !result.dialogClosed || result.horizontalOverflow) {
       throw new Error(`Niepoprawny wynik Form: ${JSON.stringify(result)}`);
     }
 
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && !window.__madcadVerifyEngineState?.bodies?.some((body) => body.form)`, 'cofnięty Form');
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.subdivisions === 2 && body.form?.insertEdge?.edgeIndex === 4 && body.form?.bridge?.firstFaceIndex === 6 && body.form?.fillHole?.faceIndexes?.length === 2 && body.form?.controlVertexCount === 22)`, 'ponowiony Form z Bridge i Fill Hole');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.subdivisions === 2 && body.form?.insertEdge?.edgeIndex === 4 && body.form?.bridge?.firstFaceIndex === 6 && body.form?.fillHole?.faceIndexes?.length === 2 && body.form?.controlVertexCount === 22 && body.form?.brepMode === 'smooth-patches' && body.form?.brepPatchCount === 20)`, 'ponowiony gładki Form z Bridge i Fill Hole');
     await window.webContents.executeJavaScript(`window.__madcadVerifyReopenCurrentDocument()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'formBody' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.creaseEdges?.includes(4) && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.insertEdgeEnabled === true && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.bridgeEnabled === true && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.bridgeOffsets?.[0]?.[2] === '1.5' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.fillHoleEnabled === true && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.fillHoleOffsets?.[0]?.[2] === '2' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.surfaceFaceCount === 384 && body.form?.insertEdge?.edgeIndex === 4 && body.form?.bridge?.firstFaceIndex === 6 && body.form?.fillHole?.faceIndexes?.length === 2)`, 'Form z Bridge i Fill Hole po ponownym otwarciu projektu');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'formBody' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.creaseEdges?.includes(4) && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.insertEdgeEnabled === true && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.bridgeEnabled === true && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.bridgeOffsets?.[0]?.[2] === '1.5' && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.fillHoleEnabled === true && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.fillHoleOffsets?.[0]?.[2] === '2' && window.__madcadVerifyEngineState?.bodies?.some((body) => body.form?.surfaceFaceCount === 384 && body.form?.insertEdge?.edgeIndex === 4 && body.form?.bridge?.firstFaceIndex === 6 && body.form?.fillHole?.faceIndexes?.length === 2 && body.form?.brepMode === 'smooth-patches' && body.form?.brepPatchCount === 20)`, 'gładki Form z Bridge i Fill Hole po ponownym otwarciu projektu');
 
     process.stdout.write(`${JSON.stringify({ screenshotPath, result }, null, 2)}\n`);
   } catch (error) {

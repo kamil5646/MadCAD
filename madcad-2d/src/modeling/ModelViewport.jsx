@@ -278,6 +278,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
         : ['X', 'Y', 'Z'].map((axis) => numericValue(entity.geometry[`${prefix}${axis}`], parameters)));
       return start && end ? spline3DPoints(start, controls, end) : [];
     }
+    if (entity.type === 'bspline3d') return Array.isArray(entity.geometry?.samples) ? entity.geometry.samples : [];
     if (entity.type === 'circle') {
       const center = readPoint(entity.pointIds[0], overrides);
       const radius = numericValue(entity.geometry.radius, parameters);
@@ -357,7 +358,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
   for (const entity of visibleCurves) {
     const localPoints = localPointsFor(entity);
     if (localPoints.length < 2) continue;
-    const hasError = errors.has(entity.id) || (['line', 'arc3d', 'spline3d'].includes(entity.type)
+    const hasError = errors.has(entity.id) || (['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)
       ? Math.hypot(...localPoints[1].map((value, axis) => value - localPoints[0][axis])) <= 1e-7
       : entity.type === 'circle'
         ? !(numericValue(entity.geometry.radius, parameters) > 0)
@@ -413,7 +414,7 @@ function addSketchEntities(group, sketch, parameters, plane, {
   const selectedSpatialCurve = spatial && selectedIds.length === 1
     ? entityMap.get(selectedIds[0])
     : null;
-  if (selectedSpatialCurve && ['line', 'arc3d', 'spline3d'].includes(selectedSpatialCurve.type) && selectedSpatialCurve.role !== 'projected') {
+  if (selectedSpatialCurve && ['line', 'arc3d', 'spline3d'].includes(selectedSpatialCurve.type) && selectedSpatialCurve.role !== 'projected' && appearanceFor(selectedSpatialCurve).visible && !appearanceFor(selectedSpatialCurve).locked) {
     const handleCoordinates = (kind, pointOverrides = null, spatialOverride = null) => {
       if (kind === 'start' || kind === 'end') return readPoint(selectedSpatialCurve.pointIds[kind === 'start' ? 0 : 1], pointOverrides);
       if (spatialOverride?.curveId === selectedSpatialCurve.id && spatialOverride.kind === kind) return spatialOverride.coordinates;
@@ -2149,6 +2150,14 @@ export default function ModelViewport({
         topologySelectRef.current?.(topology, selectionMode(event));
         return;
       }
+      if (activeSketch && sketchModifierMode === 'projectSurface') {
+        const hit = raycaster.intersectObjects(facePickables, false)[0];
+        const topology = hit ? topologySelectionFromIntersection(hit) : null;
+        if (!topology || topology.kind !== 'face') return;
+        event.preventDefault();
+        topologySelectRef.current?.(topology, 'replace');
+        return;
+      }
       if (activeSketch && sketchModifierMode && sketchRender) {
         const worldPoint = raycaster.ray.intersectPlane(sketchPlane, new THREE.Vector3());
         const hit = pickSketchEntity(event);
@@ -2518,7 +2527,7 @@ export default function ModelViewport({
         try { renderer.domElement.releasePointerCapture?.(event.pointerId); } catch { /* Pointer capture may already be released. */ }
         renderer.domElement.style.cursor = 'crosshair';
         setSketch3DDragLabel(null);
-        if (finished.moved) sketch3DHandleMoveRef.current?.({
+        if (finished.moved && event.type !== 'pointercancel') sketch3DHandleMoveRef.current?.({
           curveId: finished.curveId,
           kind: finished.kind,
           pointId: finished.pointId,
@@ -3002,7 +3011,7 @@ export default function ModelViewport({
       )}
       {activeSketchId && !activeSketchIs3D && sliceModel && <div className="sketch-slice-badge">Slice · przekrój na {activePlane}</div>}
       {activeSketchId && draftType && <div className="sketch-pointer-hint visually-consolidated">Kliknij środek, a następnie punkt rozmiaru</div>}
-      {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint visually-consolidated">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
+      {activeSketchId && sketchModifierMode && <div className="sketch-pointer-hint visually-consolidated">{sketchModifierMode === 'trim' ? 'Trim · kliknij fragment do usunięcia' : sketchModifierMode === 'extend' ? 'Extend · kliknij koniec do przedłużenia' : sketchModifierMode === 'project' ? 'Project · kliknij punkt lub krawędź modelu, potem ponownie Project' : sketchModifierMode === 'projectSurface' ? 'Na powierzchnię · kliknij ścianę modelu, potem Rzutuj' : 'Break · kliknij miejsce podziału'} · Escape kończy</div>}
       {activeSketchId && sketchTool && <div className="sketch-pointer-hint visually-consolidated">{`${sketchToolPrompt || 'Klikaj kolejne punkty'} · ${sketchTool === 'line' && polylineDraft?.lastPoint ? 'wpisz długość i Enter lub kliknij koniec' : ['line', 'polyline', 'spline'].includes(sketchTool) ? 'Enter kończy' : 'Esc anuluje'}`}</div>}
     </div>
   );
