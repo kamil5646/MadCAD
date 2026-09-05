@@ -382,12 +382,20 @@ async function runUiFlow(window) {
           return;
         }
         handler({ target: { value: ${JSON.stringify(value)} } });
-        requestAnimationFrame(() => setTimeout(() => {
+        const verifyAcceptedValue = () => {
           const updatedField = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === expectedLabel);
           const updatedInput = updatedField?.querySelector('input, select');
-          if (String(updatedInput?.value) !== expectedValue) reject(new Error('Pole nie przyjęło wartości: ${label}'));
-          else resolve();
-        }, 30));
+          if (String(updatedInput?.value) === expectedValue) {
+            resolve();
+            return;
+          }
+          if (performance.now() < deadline) {
+            requestAnimationFrame(verifyAcceptedValue);
+            return;
+          }
+          reject(new Error('Pole nie przyjęło wartości: ${label}'));
+        };
+        requestAnimationFrame(verifyAcceptedValue);
       };
       updateWhenReady();
     });
