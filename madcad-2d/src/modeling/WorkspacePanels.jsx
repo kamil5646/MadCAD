@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, FolderOpen, GitCompareArrows, ImageDown, ImagePlus, Keyboard, Layers3, Lightbulb, Link2, Lock, LockOpen, Magnet, PackageOpen, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Search, Sun, Trash2, Ungroup, X, XCircle } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCircle2, Copy, Eye, EyeOff, FileDown, FolderOpen, GitCompareArrows, ImageDown, ImagePlus, Keyboard, Layers3, Lightbulb, Link2, Lock, LockOpen, Magnet, PackageOpen, Pause, Play, Plus, Printer, RotateCcw, Ruler, Save, ScanSearch, Search, Sun, Trash2, Ungroup, X, XCircle } from 'lucide-react';
 import { detectAssemblyCollisions } from '../cad-core/assembly-motion.js';
 import { COMPONENT_APPEARANCE_PRESETS, componentAppearancePreset, componentDescendantIds, componentInstanceDescendantIds, componentInstanceTree, componentParentMap, componentTree, normalizeComponentAppearance } from '../cad-core/components.js';
 import { formatModelFileSize } from '../cad-core/model-import.js';
@@ -129,7 +129,7 @@ export function LayersPanel({ document, selectedEntities = [], readOnly = false,
   );
 }
 
-export function ComponentPanel({ document, bodies = [], collisionResult = { collisions: [], contactSets: [], checkedPairs: 0 }, selectedComponentId = '', selectedInstanceId = '', selectedJointId = '', selectedMotionLinkId = '', selectedConfigurationId = '', selectedContactSetId = '', selectedBodyIds = [], linkedProjectStatuses = {}, readOnly = false, explodeAmount = 0, onExplodeAmountChange, onCreate, onLinkProject, onPackAndGo, onRefreshLinkedProject, onRepairLinkedProject, onUpdate, onAssignBodies, onMove, onDelete, onSelect, onSelectInstance, onCreateInstance, onUpdateInstance, onDuplicateInstance, onDeleteInstance, onCreateRigidGroup, onDeleteRigidGroup, onSelectJoint, onCreateJoint, onUpdateJoint, onSetJointValue, onDeleteJoint, onSelectMotionLink, onCreateMotionLink, onUpdateMotionLink, onDeleteMotionLink, onSelectConfiguration, onCreateConfiguration, onUpdateConfiguration, onApplyConfiguration, onDeleteConfiguration, onSelectContactSet, onCreateContactSet, onUpdateContactSet, onDeleteContactSet, onClose }) {
+export function ComponentPanel({ document, bodies = [], collisionResult = { collisions: [], contactSets: [], checkedPairs: 0 }, selectedComponentId = '', selectedInstanceId = '', selectedJointId = '', selectedMotionLinkId = '', selectedConfigurationId = '', selectedContactSetId = '', selectedBodyIds = [], linkedProjectStatuses = {}, readOnly = false, explodeAmount = 0, onExplodeAmountChange, activeStoryboardId = '', animationPlaying = false, animationTime = 0, onSelectStoryboard, onCreateStoryboard, onUpdateStoryboard, onDeleteStoryboard, onAddStoryboardKeyframe, onDeleteStoryboardKeyframe, onSeekStoryboard, onPlayStoryboard, onStopStoryboard, onCreate, onLinkProject, onPackAndGo, onRefreshLinkedProject, onRepairLinkedProject, onUpdate, onAssignBodies, onMove, onDelete, onSelect, onSelectInstance, onCreateInstance, onUpdateInstance, onDuplicateInstance, onDeleteInstance, onCreateRigidGroup, onDeleteRigidGroup, onSelectJoint, onCreateJoint, onUpdateJoint, onSetJointValue, onDeleteJoint, onSelectMotionLink, onCreateMotionLink, onUpdateMotionLink, onDeleteMotionLink, onSelectConfiguration, onCreateConfiguration, onUpdateConfiguration, onApplyConfiguration, onDeleteConfiguration, onSelectContactSet, onCreateContactSet, onUpdateContactSet, onDeleteContactSet, onClose }) {
   const [rigidMateId, setRigidMateId] = React.useState('');
   const [jointMateId, setJointMateId] = React.useState('');
   const [jointType, setJointType] = React.useState('revolute');
@@ -141,6 +141,7 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
   const [configurationName, setConfigurationName] = React.useState('');
   const [contactFirstId, setContactFirstId] = React.useState('');
   const [contactSecondId, setContactSecondId] = React.useState('');
+  const [storyboardName, setStoryboardName] = React.useState('');
   const [interferenceFirstId, setInterferenceFirstId] = React.useState('');
   const [interferenceSecondId, setInterferenceSecondId] = React.useState('');
   const [interferencePair, setInterferencePair] = React.useState([]);
@@ -165,6 +166,8 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
   componentInstanceTree(document).forEach((instance) => collectInstanceRows(instance));
   const instances = React.useMemo(() => document.componentInstances || [], [document.componentInstances]);
   const explodedOccurrenceCount = instances.filter((instance) => instance.visible && document.components.find((component) => component.id === instance.componentId)?.bodyIds?.length).length;
+  const storyboards = document.animationStoryboards || [];
+  const activeStoryboard = storyboards.find((item) => item.id === activeStoryboardId) || storyboards[0] || null;
   const interferenceResult = React.useMemo(() => (
     interferencePair.length === 2 && interferencePair.every((instanceId) => instances.some((instance) => instance.id === instanceId))
       ? detectAssemblyCollisions(document, bodies, { instanceIds: interferencePair })
@@ -209,6 +212,17 @@ export function ComponentPanel({ document, bodies = [], collisionResult = { coll
         <label><span>Rozłożenie</span><input aria-label="Stopień rozstrzelenia złożenia" type="range" min="0" max="1" step="0.05" value={explodeAmount} disabled={explodedOccurrenceCount < 2} onChange={(event) => onExplodeAmountChange?.(Number(event.target.value))} /><output>{Math.round(explodeAmount * 100)}%</output></label>
         <p>{explodedOccurrenceCount < 2 ? 'Wstaw co najmniej dwa wystąpienia części.' : 'Tylko podgląd: położenia, jointy i historia modelu pozostają bez zmian.'}</p>
       </div>
+      <section className="component-storyboard" aria-label="Storyboard animacji złożenia">
+        <div className="component-section-title"><strong>Storyboard i animacja</strong><span>{storyboards.length}</span></div>
+        <form onSubmit={(event) => { event.preventDefault(); onCreateStoryboard?.(storyboardName); setStoryboardName(''); }}><input aria-label="Nazwa nowego storyboardu" value={storyboardName} maxLength="60" placeholder={`Storyboard ${storyboards.length + 1}`} disabled={readOnly} onChange={(event) => setStoryboardName(event.target.value)} /><button type="submit" disabled={readOnly}><Plus size={13} /> Nowy</button></form>
+        {activeStoryboard && <>
+          <div className="storyboard-selection"><select aria-label="Aktywny storyboard" value={activeStoryboard.id} onChange={(event) => onSelectStoryboard?.(event.target.value)}>{storyboards.map((storyboard) => <option key={storyboard.id} value={storyboard.id}>{storyboard.name}</option>)}</select><button type="button" aria-label={`Usuń storyboard ${activeStoryboard.name}`} disabled={readOnly} onClick={() => onDeleteStoryboard?.(activeStoryboard.id)}><Trash2 size={12} /></button></div>
+          <div className="storyboard-properties"><label><span>Nazwa</span><input aria-label="Nazwa storyboardu" value={activeStoryboard.name} disabled={readOnly} onChange={(event) => onUpdateStoryboard?.(activeStoryboard.id, { name: event.target.value })} /></label><label><span>Czas trwania</span><input aria-label="Czas trwania storyboardu" type="number" min="0.1" max="300" step="0.5" value={activeStoryboard.duration} disabled={readOnly} onChange={(event) => onUpdateStoryboard?.(activeStoryboard.id, { duration: event.target.value })} /></label></div>
+          <div className="storyboard-transport"><button type="button" aria-label={animationPlaying ? 'Zatrzymaj animację' : 'Odtwórz animację'} onClick={() => animationPlaying ? onStopStoryboard?.() : onPlayStoryboard?.(activeStoryboard)}>{animationPlaying ? <Pause size={14} /> : <Play size={14} />}{animationPlaying ? ' Stop' : ' Odtwórz'}</button><button type="button" disabled={readOnly} onClick={() => onAddStoryboardKeyframe?.(activeStoryboard.id, animationTime, explodeAmount)}><Plus size={13} /> Klatka</button></div>
+          <label><span>Czas <em>{animationTime.toFixed(1)} s</em></span><input aria-label="Czas storyboardu" type="range" min="0" max={activeStoryboard.duration} step="0.05" value={Math.min(animationTime, activeStoryboard.duration)} onChange={(event) => onSeekStoryboard?.(activeStoryboard, Number(event.target.value))} /></label>
+          <div className="storyboard-keyframes">{activeStoryboard.keyframes.map((frame) => <div key={frame.id}><button type="button" title={`Przejdź do ${frame.time.toFixed(1)} s`} onClick={() => onSeekStoryboard?.(activeStoryboard, frame.time)}>{frame.time.toFixed(1)} s · {Math.round(frame.explodeAmount * 100)}%</button><button type="button" aria-label={`Usuń klatkę ${frame.time.toFixed(1)} s`} disabled={readOnly} onClick={() => onDeleteStoryboardKeyframe?.(activeStoryboard.id, frame.id)}><X size={11} /></button></div>)}</div>
+        </>}
+      </section>
       <div className="component-list" aria-label="Struktura dokumentu">
         <div className="component-section-title"><strong>Definicje</strong><span>{document.components.length}</span></div>
         {!document.components.length && <p>Utwórz część z zaznaczonej bryły albo puste złożenie nadrzędne.</p>}

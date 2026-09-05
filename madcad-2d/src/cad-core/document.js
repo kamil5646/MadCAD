@@ -12,6 +12,7 @@ import { ensureDocumentBlocks } from './blocks.js';
 import { COMPONENT_TYPES, DEFAULT_INSTANCE_TRANSFORM, ensureDocumentComponents } from './components.js';
 import { JOINT_AXES, JOINT_TYPES, ensureDocumentJoints } from './assembly-joints.js';
 import { ensureDocumentAssemblyMotion } from './assembly-motion.js';
+import { ensureDocumentAssemblyAnimations, isAssemblyStoryboardsValid } from './assembly-animation.js';
 import { ensureDocumentLinkedProjects } from './linked-projects.js';
 import { MAX_NAMED_VIEWS, ensureDocumentNamedViews, normalizeNamedViewCamera } from './named-views.js';
 import { ensureDocumentRenderScene, isRenderSceneValid, normalizeRenderScene } from './render-scene.js';
@@ -377,6 +378,7 @@ export function createDocument(name = 'Nowy projekt') {
     contactSets: [],
     assemblyConfigurations: [],
     activeAssemblyConfigurationId: '',
+    animationStoryboards: [],
     renderScene: normalizeRenderScene(),
     references: [],
     blocks: [],
@@ -463,11 +465,11 @@ export function migrateDocument(source, { now = new Date().toISOString() } = {})
     document = migration(document, now);
     version = readSchemaVersion(document);
   }
-  return ensureDocumentRenderScene(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document)))))))));
+  return ensureDocumentAssemblyAnimations(ensureDocumentRenderScene(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document))))))))));
 }
 
 function projectFutureDocument(source) {
-  const projected = ensureDocumentRenderScene(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source)))))))))));
+  const projected = ensureDocumentAssemblyAnimations(ensureDocumentRenderScene(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source))))))))))));
   projected.schemaVersion = DOCUMENT_SCHEMA_VERSION;
   projected.metadata = {
     ...(isRecord(projected.metadata) ? projected.metadata : {}),
@@ -535,6 +537,7 @@ export function validateDocument(document) {
   if (document.units !== 'mm') add('units', 'Bieżąca wersja obsługuje jednostkę dokumentu „mm”.', 'UNSUPPORTED');
   if (!isRecord(document.renderScene)) add('renderScene', 'Wymagane są ustawienia sceny renderu.', 'TYPE');
   else if (!isRenderSceneValid(document.renderScene)) add('renderScene', 'Ustawienia sceny renderu są nieprawidłowe.', 'INVALID');
+  if (!isAssemblyStoryboardsValid(document.animationStoryboards)) add('animationStoryboards', 'Storyboardy animacji złożenia są nieprawidłowe.', 'INVALID');
 
   const parameters = requireArray(document, 'parameters');
   const sketches = requireArray(document, 'sketches');

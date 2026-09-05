@@ -5,6 +5,7 @@ const { app, BrowserWindow } = require('electron');
 const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-components.png');
 const appearanceScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-component-appearance.png');
 const explodedScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-exploded-view.png');
+const storyboardScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-storyboard.png');
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
   const startedAt = Date.now();
@@ -57,8 +58,13 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`(() => { const bodyId = window.__madcadVerifyDocumentState.bodyIds[0]; window.__madcadVerifyTopologySelection({ kind: 'body', id: bodyId, bodyId }); })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'zaznaczona bryła');
 
-    if (!(await clickByText(window, '.ribbon-tool, .ribbon-overflow-menu button', 'Nowa część'))) throw new Error('Nie znaleziono polecenia Nowa część.');
+    if (!(await clickByText(window, '.ribbon-tool, .ribbon-overflow-menu button', 'Nowa część'))) {
+      await clickByText(window, '[role="tab"]', 'ZARZĄDZAJ');
+      await waitFor(window, `document.querySelector('#projectCreatePartBtn')`, 'przycisk Nowa część w Zarządzaj');
+      await window.webContents.executeJavaScript(`document.querySelector('#projectCreatePartBtn').click()`);
+    }
     await waitFor(window, `window.__madcadVerifyDocumentState?.components?.length === 1 && window.__madcadVerifyDocumentState.components[0].bodyIds.length === 1 && document.querySelector('.component-panel')`, 'część z bryły');
+    await clickByText(window, '[role="tab"]', 'PROJEKTUJ');
     const partId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.components[0].id`);
     await setInput(window, 'input[aria-label="Nazwa komponentu"]', 'Rama główna');
     await waitFor(window, `window.__madcadVerifyDocumentState.components.find((item) => item.id === ${JSON.stringify(partId)})?.name === 'Rama główna'`, 'nazwa części');
@@ -104,6 +110,24 @@ app.whenReady().then(async () => {
     await fs.writeFile(explodedScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await clickByText(window, '.component-exploded-view button', 'Złóż');
     await waitFor(window, `window.__madcadModelVisualState?.every((item) => Math.hypot(...item.explodedOffset) < 1e-6)`, 'złożony widok projektowy');
+    await setInput(window, '.component-storyboard input[aria-label="Nazwa nowego storyboardu"]', 'Montaż testowy');
+    if (!(await clickByText(window, '.component-storyboard form button', 'Nowy'))) throw new Error('Nie znaleziono tworzenia storyboardu.');
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const storyboardCreateDebug = await window.webContents.executeJavaScript(`({ storyboards: window.__madcadVerifyDocumentState.animationStoryboards, notice: document.querySelector('.workspace-notice')?.textContent, input: document.querySelector('.component-storyboard input')?.value })`);
+    if (storyboardCreateDebug.storyboards?.[0]?.keyframes?.length !== 1) throw new Error(`Nie utworzono storyboardu: ${JSON.stringify(storyboardCreateDebug)}`);
+    await setInput(window, '.component-storyboard input[aria-label="Czas storyboardu"]', '5');
+    await setInput(window, 'input[aria-label="Stopień rozstrzelenia złożenia"]', '0.8');
+    if (!(await clickByText(window, '.storyboard-transport button', 'Klatka'))) throw new Error('Nie znaleziono dodawania klatki storyboardu.');
+    await waitFor(window, `window.__madcadVerifyDocumentState.animationStoryboards[0].keyframes.length === 2`, 'druga klatka storyboardu');
+    if (!(await clickByText(window, '.storyboard-transport button', 'Odtwórz'))) throw new Error('Nie znaleziono odtwarzania storyboardu.');
+    await waitFor(window, `window.__madcadModelVisualState?.filter((item) => item.occurrenceId && Math.hypot(...item.explodedOffset) > 1).length >= 2`, 'odtwarzana animacja rozłożenia', 8000);
+    await waitFor(window, `document.querySelector('.component-storyboard input[aria-label="Czas storyboardu"]')?.value === '5'`, 'koniec animacji storyboardu', 8000);
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState.animationStoryboards[0].keyframes.length === 1`, 'undo klatki storyboardu');
+    await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState.animationStoryboards[0].keyframes.length === 2`, 'redo klatki storyboardu');
+    await window.webContents.executeJavaScript(`document.querySelector('.component-storyboard')?.scrollIntoView({ block: 'start' })`);
+    await fs.writeFile(storyboardScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`(() => {
       const select = document.querySelector('select[aria-label="Drugie wystąpienie grupy sztywnej"]');
       const option = [...select.options].find((item) => item.value);
@@ -230,6 +254,8 @@ app.whenReady().then(async () => {
         contactSets: state.contactSets.length,
         activeContactCollisions: state.assemblyCollisions.filter((item) => item.contactSetId).length,
         configurations: state.assemblyConfigurations.length,
+        storyboards: state.animationStoryboards?.length || 0,
+        storyboardFrames: state.animationStoryboards?.[0]?.keyframes?.length || 0,
         activeConfiguration: state.assemblyConfigurations.find((item) => item.id === state.activeAssemblyConfigurationId)?.name,
         sliderValue: state.joints.find((item) => item.id === ${JSON.stringify(sliderJointId)})?.value,
         sliderX: state.componentInstances.find((item) => item.id === ${JSON.stringify(sliderOccurrenceId)})?.transform.x,
@@ -250,10 +276,10 @@ app.whenReady().then(async () => {
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
-    if (result.schemaVersion !== 15 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.appearance?.preset !== 'brass' || result.appearance?.color !== '#c49a49' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.interferenceStatus !== 'exact' || !result.interferenceBounds.includes('Nakładanie obwiedni:') || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
+    if (result.schemaVersion !== 15 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.appearance?.preset !== 'brass' || result.appearance?.color !== '#c49a49' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.storyboards !== 1 || result.storyboardFrames !== 2 || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.interferenceStatus !== 'exact' || !result.interferenceBounds.includes('Nakładanie obwiedni:') || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
       throw new Error(`Niepoprawny przepływ komponentów: ${JSON.stringify(result)}`);
     }
-    process.stdout.write(`${JSON.stringify({ screenshotPath, appearanceScreenshotPath, explodedScreenshotPath, ...result }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ screenshotPath, appearanceScreenshotPath, explodedScreenshotPath, storyboardScreenshotPath, ...result }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

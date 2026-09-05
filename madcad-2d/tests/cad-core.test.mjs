@@ -153,6 +153,7 @@ import {
   updateBlockInstanceAttributes,
 } from '../src/cad-core/blocks.js';
 import { calculateExplodedOffsets } from '../src/cad-core/exploded-view.js';
+import { addStoryboardKeyframe, createAssemblyStoryboard, deleteAssemblyStoryboard, deleteStoryboardKeyframe, sampleAssemblyStoryboard, updateAssemblyStoryboard } from '../src/cad-core/assembly-animation.js';
 import { resolveModelingLanguage, translateModelingText } from '../src/modeling/i18n.js';
 import { tutorialForLanguage } from '../src/modeling/tutorial-content.js';
 import {
@@ -187,6 +188,23 @@ test('widok rozstrzelony wyznacza deterministyczne przesunięcia bez zmiany poł
   assert.ok(Math.abs(Math.hypot(...coincident.a) - 25) < 1e-9);
   assert.notDeepEqual(coincident.a, coincident.b);
   assert.deepEqual(calculateExplodedOffsets([{ id: 'a' }], 0, 25), { a: [0, 0, 0] });
+});
+
+test('storyboard zapisuje klatki rozłożenia i interpoluje je bez zmiany złożenia', () => {
+  const document = createDocument('Animacja złożenia');
+  const storyboard = createAssemblyStoryboard(document, { name: 'Montaż', duration: 4, keyframes: [{ time: 0, explodeAmount: 0 }] });
+  const end = addStoryboardKeyframe(document, storyboard.id, { time: 4, explodeAmount: 1 });
+  assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 0), 0);
+  assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 2), 0.5);
+  assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 4), 1);
+  const reopened = openDocument(structuredClone(document)).document;
+  assert.deepEqual(reopened.animationStoryboards[0].keyframes.map((frame) => [frame.time, frame.explodeAmount]), [[0, 0], [4, 1]]);
+  deleteStoryboardKeyframe(document, storyboard.id, end.id);
+  assert.equal(document.animationStoryboards[0].keyframes.length, 1);
+  updateAssemblyStoryboard(document, storyboard.id, { name: 'Demontaż', duration: 8 });
+  assert.equal(document.animationStoryboards[0].name, 'Demontaż');
+  deleteAssemblyStoryboard(document, storyboard.id);
+  assert.equal(document.animationStoryboards.length, 0);
 });
 
 test('komponenty budują bezpieczną hierarchię części i złożeń z własnością brył', () => {

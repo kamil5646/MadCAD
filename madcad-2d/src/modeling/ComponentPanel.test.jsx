@@ -27,6 +27,15 @@ function panelProps(overrides = {}) {
     selectedBodyIds: ['body-2'],
     explodeAmount: 0,
     onExplodeAmountChange: vi.fn(),
+    onSelectStoryboard: vi.fn(),
+    onCreateStoryboard: vi.fn(),
+    onUpdateStoryboard: vi.fn(),
+    onDeleteStoryboard: vi.fn(),
+    onAddStoryboardKeyframe: vi.fn(),
+    onDeleteStoryboardKeyframe: vi.fn(),
+    onSeekStoryboard: vi.fn(),
+    onPlayStoryboard: vi.fn(),
+    onStopStoryboard: vi.fn(),
     onCreate: vi.fn(),
     onUpdate: vi.fn(),
     onAssignBodies: vi.fn(),
@@ -108,6 +117,22 @@ describe('ComponentPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Złóż$/i }));
     expect(props.onExplodeAmountChange).toHaveBeenCalledWith(0);
     expect(screen.getByText(/jointy i historia modelu pozostają bez zmian/i)).toBeInTheDocument();
+  });
+
+  it('creates and controls a persistent exploded-view storyboard', () => {
+    const storyboard = { id: 'storyboard-1', name: 'Montaż', duration: 4, keyframes: [{ id: 'frame-1', time: 0, explodeAmount: 0 }, { id: 'frame-2', time: 4, explodeAmount: 1 }] };
+    const props = panelProps({ document: { components, componentInstances, rigidGroups: [], joints: [], motionLinks: [], contactSets: [], assemblyConfigurations: [], animationStoryboards: [storyboard], activeAssemblyConfigurationId: '', sketches: [], references: [] }, activeStoryboardId: storyboard.id, animationTime: 2, explodeAmount: 0.5 });
+    render(<ComponentPanel {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: /Odtwórz animację/i }));
+    expect(props.onPlayStoryboard).toHaveBeenCalledWith(storyboard);
+    fireEvent.click(screen.getByRole('button', { name: /Klatka/i }));
+    expect(props.onAddStoryboardKeyframe).toHaveBeenCalledWith(storyboard.id, 2, 0.5);
+    fireEvent.change(screen.getByRole('slider', { name: /Czas storyboardu/i }), { target: { value: '3' } });
+    expect(props.onSeekStoryboard).toHaveBeenCalledWith(storyboard, 3);
+    fireEvent.click(screen.getByRole('button', { name: /Usuń klatkę 4.0 s/i }));
+    expect(props.onDeleteStoryboardKeyframe).toHaveBeenCalledWith(storyboard.id, 'frame-2');
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Czas trwania storyboardu/i }), { target: { value: '8' } });
+    expect(props.onUpdateStoryboard).toHaveBeenCalledWith(storyboard.id, { duration: '8' });
   });
 
   it('creates a revolute joint between sibling occurrences', () => {

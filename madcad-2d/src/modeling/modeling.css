@@ -4466,6 +4466,24 @@
 .component-exploded-view input[type='range'] { min-width: 0; accent-color: var(--mc-accent); }
 .component-exploded-view output { color: #e3ebef; font-size: 9px; text-align: right; }
 .component-exploded-view p { margin: 0; color: #9eafbb; font-size: 8px; line-height: 1.35; }
+.component-storyboard { display: grid; gap: 6px; padding: 8px 10px; border-bottom: 1px solid #4b5967; background: #293440; }
+.component-storyboard form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; }
+.component-storyboard input, .component-storyboard select { min-width: 0; min-height: 26px; border: 1px solid #5a6b79; border-radius: 3px; background: #202b35; color: #eef3f6; padding: 3px 6px; font: inherit; }
+.storyboard-selection { display: grid; grid-template-columns: minmax(0, 1fr) 28px; gap: 4px; }
+.storyboard-properties { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(85px, .7fr); gap: 5px; }
+.storyboard-properties label { display: grid; gap: 2px; color: #aebbc4; font-size: 8px; }
+.component-storyboard button { min-height: 25px; border: 1px solid #5e7180; border-radius: 3px; background: #3a4855; color: #edf3f6; font: inherit; cursor: pointer; }
+.component-storyboard button:disabled { opacity: .42; cursor: default; }
+.storyboard-transport { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.storyboard-transport button { display: flex; align-items: center; justify-content: center; gap: 4px; }
+.component-storyboard > label { display: grid; gap: 3px; color: #b8c4cd; font-size: 9px; }
+.component-storyboard > label span { display: flex; justify-content: space-between; }
+.component-storyboard > label em { color: #70cee8; font-style: normal; }
+.component-storyboard input[type='range'] { min-height: auto; padding: 0; accent-color: var(--mc-accent); }
+.storyboard-keyframes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; max-height: 70px; overflow: auto; }
+.storyboard-keyframes > div { display: grid; grid-template-columns: minmax(0, 1fr) 24px; }
+.storyboard-keyframes > div > button:first-child { border-radius: 3px 0 0 3px; text-align: left; padding-inline: 6px; }
+.storyboard-keyframes > div > button:last-child { border-left: 0; border-radius: 0 3px 3px 0; padding: 0; }
 
 .component-toolbar button:disabled,
 .component-actions button:disabled { opacity: .45; cursor: default; }
