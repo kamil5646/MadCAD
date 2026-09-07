@@ -3,6 +3,7 @@ import { AlertOctagon, AlertTriangle, Anchor, Blocks, Box, Boxes, Check, CheckCi
 import { detectAssemblyCollisions } from '../cad-core/assembly-motion.js';
 import { COMPONENT_APPEARANCE_PRESETS, componentAppearancePreset, componentDescendantIds, componentInstanceDescendantIds, componentInstanceTree, componentParentMap, componentTree, normalizeComponentAppearance } from '../cad-core/components.js';
 import { formatModelFileSize } from '../cad-core/model-import.js';
+import { ENGINEERING_MATERIALS } from '../cad-core/static-screening.js';
 import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
 import { RENDER_ENVIRONMENT_PRESETS, normalizeRenderScene, renderEnvironmentPreset } from '../cad-core/render-scene.js';
 import { commandCustomizationRows, validateCommandCustomization } from './command-customization.js';
@@ -494,6 +495,34 @@ export function MassPropertiesPanel({ density, result, error, onDensityChange, o
           <div className="measure-row"><span>Masa</span><strong>{measureValue(result.mass, 'g')}</strong></div>
           <div className="measure-row"><span>Środek masy</span><strong>{measureVector(result.centerOfMass)}</strong></div>
         </>}
+      </div>
+    </aside>
+  );
+}
+
+export function StaticScreeningPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', fixedEnd = 'min', force = '1000', result, error = '', onChange, onClose }) {
+  const format = (value, digits = 2) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
+  return (
+    <aside className="measure-panel static-screening-panel" aria-label="Szybka analiza statyczna">
+      <header><div><ScanSearch size={16} /><strong>Szybka analiza statyczna</strong></div><button type="button" title="Zamknij analizę statyczną" aria-label="Zamknij analizę statyczną" onClick={onClose}><X size={15} /></button></header>
+      <div className="measure-panel-body">
+        <p className="analysis-scope">Wstępny szacunek belki wspornikowej — nie pełny solver MES.</p>
+        <label><span>Bryła</span><select aria-label="Bryła analizy statycznej" value={bodyId} onChange={(event) => onChange({ bodyId: event.target.value })}>{bodies.map((body) => <option key={body.id} value={body.id}>{body.name}</option>)}</select></label>
+        <label><span>Materiał</span><select aria-label="Materiał analizy statycznej" value={materialId} onChange={(event) => onChange({ materialId: event.target.value })}>{Object.values(ENGINEERING_MATERIALS).map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}</select></label>
+        <div className="static-axis-grid"><label><span>Oś długości</span><select aria-label="Oś długości belki" value={spanAxis} onChange={(event) => onChange({ spanAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label><label><span>Kierunek siły</span><select aria-label="Kierunek siły" value={loadAxis} onChange={(event) => onChange({ loadAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label></div>
+        <label><span>Utwierdzenie</span><select aria-label="Utwierdzony koniec belki" value={fixedEnd} onChange={(event) => onChange({ fixedEnd: event.target.value })}><option value="min">Początek osi (MIN)</option><option value="max">Koniec osi (MAX)</option></select></label>
+        <Field label="Siła na wolnym końcu" value={force} onChange={(value) => onChange({ force: value })} suffix="N" />
+        {error && <p className="measure-error">{error}</p>}
+        {result && <div className={`static-result ${result.status}`}>
+          <div className="static-result-heading"><strong>{result.status === 'safe' ? 'Zapas ≥ 2' : result.status === 'warning' ? 'Mały zapas' : 'Przekroczona granica plastyczności'}</strong><span>FoS {format(result.safetyFactor)}</span></div>
+          <div className="measure-row"><span>Długość obliczeniowa</span><strong>{format(result.length)} mm</strong></div>
+          <div className="measure-row"><span>Przekrój z obwiedni</span><strong>{format(result.sectionWidth)} × {format(result.sectionHeight)} mm</strong></div>
+          <div className="measure-row"><span>Maks. naprężenie</span><strong>{format(result.maximumStress)} MPa</strong></div>
+          <div className="measure-row"><span>Ugięcie końca</span><strong>{format(result.tipDeflection, 3)} mm</strong></div>
+          <div className="measure-row"><span>Granica materiału</span><strong>{format(result.material.yieldStrength)} MPa</strong></div>
+          {result.mass !== null && <div className="measure-row"><span>Szacowana masa</span><strong>{format(result.mass)} g</strong></div>}
+        </div>}
+        {result?.limitations.map((limitation) => <p className="static-limitation" key={limitation}>{limitation}</p>)}
       </div>
     </aside>
   );

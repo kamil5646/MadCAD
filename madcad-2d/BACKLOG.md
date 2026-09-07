@@ -119,7 +119,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Animowane wartości jointów w storyboardzie ukończono jako `P1.35i`.
 - [x] Eksport storyboardu do filmu WebM i drukowalnej instrukcji montażowej HTML ukończono jako `P1.35j`.
 - [x] Czyste widoki wszystkich klatek osadzone w instrukcji montażowej ukończono jako `P1.35k`.
-- Walidowane analizy statyczne/termiczne oraz późniejsza optymalizacja topologii.
+- [x] P1.36a Wstępny szacunek statyczny belki wspornikowej z materiałem, obciążeniem, naprężeniem, ugięciem i współczynnikiem bezpieczeństwa.
+- Walidowany solver MES dla dowolnej geometrii, analizy termiczne oraz późniejsza optymalizacja topologii.
 
 ### Manufacture / CAM
 

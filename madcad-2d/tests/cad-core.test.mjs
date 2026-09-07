@@ -102,6 +102,7 @@ import { resolveFaceEdgeHolePlacement } from '../src/cad-core/face-edge-hole.js'
 import { applyHoleStandard } from '../src/cad-core/hole-standards.js';
 import { measureSelection } from '../src/cad-core/measure-selection.js';
 import { calculateMassProperties } from '../src/cad-core/mass-properties.js';
+import { calculateCantileverScreening, ENGINEERING_MATERIALS } from '../src/cad-core/static-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, boundsOverlap, summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-profiles.js';
 import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, transformPrintPoint } from '../src/cad-core/print-layout.js';
@@ -2336,6 +2337,24 @@ test('właściwości masowe sumują bryły i ważą środek masy objętością',
   ], 1.24);
   assert.deepEqual(result, { bodyCount: 2, volume: 4000, area: 1800, density: 1.24, mass: 4.96, centerOfMass: [6, 3, 1.5] });
   assert.throws(() => calculateMassProperties([], 0), /Gęstość/);
+});
+
+test('wstępna analiza statyczna liczy belkę wspornikową i ujawnia ograniczenia modelu', () => {
+  const body = { id: 'body-beam', bodyKind: 'solid', metrics: { bounds: [[0, 0, 0], [100, 20, 10]], volume: 20000 } };
+  const result = calculateCantileverScreening(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', fixedEnd: 'min', force: 1000 });
+  assert.equal(result.length, 100);
+  assert.equal(result.sectionWidth, 20);
+  assert.equal(result.sectionHeight, 10);
+  assert.equal(result.secondMoment, 1666.6666666666667);
+  assert.ok(Math.abs(result.maximumStress - 300) < 1e-9);
+  assert.ok(Math.abs(result.tipDeflection - (1000 * 100 ** 3 / (3 * 210000 * result.secondMoment))) < 1e-12);
+  assert.ok(Math.abs(result.safetyFactor - ENGINEERING_MATERIALS.s235.yieldStrength / 300) < 1e-12);
+  assert.equal(result.status, 'failed');
+  assert.equal(result.mass, 157);
+  assert.equal(result.limitations.length, 3);
+  assert.throws(() => calculateCantileverScreening(body, { spanAxis: 'x', loadAxis: 'x', force: 100 }), /muszą być różne/);
+  assert.throws(() => calculateCantileverScreening(body, { force: 0 }), /Siła musi być dodatnia/);
+  assert.throws(() => calculateCantileverScreening({ ...body, bodyKind: 'surface' }, { force: 100 }), /wymaga bryły/);
 });
 
 test('analiza geometrii wybiera minimalny promień i zachowuje dokładne pary kolizji', () => {

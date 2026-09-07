@@ -4492,6 +4492,20 @@
 .storyboard-instance-motion > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
 .storyboard-instance-motion label { display: grid; grid-template-columns: 12px minmax(0, 1fr); align-items: center; gap: 2px; color: #91a5b2; font-size: 8px; }
 .storyboard-instance-motion input { width: 100%; }
+.static-screening-panel .measure-panel-body { gap: 7px; }
+.static-screening-panel label { display: grid; gap: 3px; }
+.static-screening-panel label > span { color: #aebbc4; font-size: 9px; font-weight: 700; }
+.analysis-scope { margin: 0; padding: 7px; border-left: 3px solid #40a9cb; background: #25333d; color: #c7d3da; }
+.static-axis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.static-result { border: 1px solid #526775; border-left-width: 4px; border-radius: 4px; overflow: hidden; }
+.static-result.safe { border-left-color: #43bd91; }
+.static-result.warning { border-left-color: #e8ad45; }
+.static-result.failed { border-left-color: #e56767; }
+.static-result-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 8px; background: #26343f; }
+.static-result-heading strong { color: #e5edf2; }
+.static-result-heading span { color: #86d4ea; font-weight: 800; }
+.static-result .measure-row { padding-inline: 8px; }
+.static-limitation { margin: 0; color: #97a8b3; font-size: 9px; line-height: 1.35; }
 
 .component-toolbar button:disabled,
 .component-actions button:disabled { opacity: .45; cursor: default; }
