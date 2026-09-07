@@ -615,6 +615,7 @@ export default function ModelViewport({
   collisionInstanceIds = [],
   exactCollisionInstanceIds = [],
   explodeAmount = 0,
+  animationInstanceOffsets = {},
   cameraRequest = null,
   fitRequest = null,
   selectionModeRequestId = 0,
@@ -973,7 +974,8 @@ export default function ModelViewport({
       if (!instance || visited.has(instance.id)) return new THREE.Matrix4();
       if (matrixCache.has(instance.id)) return matrixCache.get(instance.id).clone();
       const transform = instance.transform || {};
-      const position = new THREE.Vector3(Number(transform.x) || 0, Number(transform.y) || 0, Number(transform.z) || 0);
+      const animationOffset = animationInstanceOffsets[instance.id] || [0, 0, 0];
+      const position = new THREE.Vector3((Number(transform.x) || 0) + (Number(animationOffset[0]) || 0), (Number(transform.y) || 0) + (Number(animationOffset[1]) || 0), (Number(transform.z) || 0) + (Number(animationOffset[2]) || 0));
       const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(
         (Number(transform.rotationX) || 0) * Math.PI / 180,
         (Number(transform.rotationY) || 0) * Math.PI / 180,
@@ -1007,6 +1009,7 @@ export default function ModelViewport({
         if (explodedOffset) object.position.add(new THREE.Vector3(...explodedOffset));
         object.userData.occurrenceId = placement.occurrenceId;
         object.userData.explodedOffset = explodedOffset || [0, 0, 0];
+        object.userData.animationOffset = animationInstanceOffsets[placement.occurrenceId] || [0, 0, 0];
         return object;
       };
       const geometry = new THREE.BufferGeometry();
@@ -2854,6 +2857,7 @@ export default function ModelViewport({
           metalness: object.material.metalness,
           roughness: object.material.roughness,
           explodedOffset: object.userData.explodedOffset,
+          animationOffset: object.userData.animationOffset,
         }));
       }
     };
@@ -2949,7 +2953,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

@@ -4484,6 +4484,11 @@
 .storyboard-keyframes > div { display: grid; grid-template-columns: minmax(0, 1fr) 24px; }
 .storyboard-keyframes > div > button:first-child { border-radius: 3px 0 0 3px; text-align: left; padding-inline: 6px; }
 .storyboard-keyframes > div > button:last-child { border-left: 0; border-radius: 0 3px 3px 0; padding: 0; }
+.storyboard-instance-motion { display: grid; gap: 3px; padding: 5px; border: 1px solid #4d606e; border-radius: 3px; background: #25313b; }
+.storyboard-instance-motion > strong { color: #cbd7de; font-size: 8px; }
+.storyboard-instance-motion > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.storyboard-instance-motion label { display: grid; grid-template-columns: 12px minmax(0, 1fr); align-items: center; gap: 2px; color: #91a5b2; font-size: 8px; }
+.storyboard-instance-motion input { width: 100%; }
 
 .component-toolbar button:disabled,
 .component-actions button:disabled { opacity: .45; cursor: default; }

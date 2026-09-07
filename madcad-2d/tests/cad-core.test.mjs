@@ -153,7 +153,7 @@ import {
   updateBlockInstanceAttributes,
 } from '../src/cad-core/blocks.js';
 import { calculateExplodedOffsets } from '../src/cad-core/exploded-view.js';
-import { addStoryboardKeyframe, createAssemblyStoryboard, deleteAssemblyStoryboard, deleteStoryboardKeyframe, sampleAssemblyStoryboard, updateAssemblyStoryboard } from '../src/cad-core/assembly-animation.js';
+import { addStoryboardKeyframe, createAssemblyStoryboard, deleteAssemblyStoryboard, deleteStoryboardKeyframe, sampleAssemblyStoryboard, sampleAssemblyStoryboardState, updateAssemblyStoryboard } from '../src/cad-core/assembly-animation.js';
 import { resolveModelingLanguage, translateModelingText } from '../src/modeling/i18n.js';
 import { tutorialForLanguage } from '../src/modeling/tutorial-content.js';
 import {
@@ -192,11 +192,17 @@ test('widok rozstrzelony wyznacza deterministyczne przesunięcia bez zmiany poł
 
 test('storyboard zapisuje klatki rozłożenia i interpoluje je bez zmiany złożenia', () => {
   const document = createDocument('Animacja złożenia');
-  const storyboard = createAssemblyStoryboard(document, { name: 'Montaż', duration: 4, keyframes: [{ time: 0, explodeAmount: 0 }] });
-  const end = addStoryboardKeyframe(document, storyboard.id, { time: 4, explodeAmount: 1 });
+  const cameraStart = { position: [10, 10, 10], target: [0, 0, 0], up: [0, 0, 1] };
+  const cameraEnd = { position: [20, 10, 10], target: [5, 0, 0], up: [0, 0, 1] };
+  const storyboard = createAssemblyStoryboard(document, { name: 'Montaż', duration: 4, keyframes: [{ time: 0, explodeAmount: 0, instanceOffsets: { 'occurrence-a': [0, 0, 0] }, camera: cameraStart, note: 'Start' }] });
+  const end = addStoryboardKeyframe(document, storyboard.id, { time: 4, explodeAmount: 1, instanceOffsets: { 'occurrence-a': [20, 0, 0] }, camera: cameraEnd, note: 'Zdejmij osłonę' });
   assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 0), 0);
   assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 2), 0.5);
   assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 4), 1);
+  const halfway = sampleAssemblyStoryboardState(document.animationStoryboards[0], 2);
+  assert.deepEqual(halfway.instanceOffsets['occurrence-a'], [10, 0, 0]);
+  assert.deepEqual(halfway.camera.position, [15, 10, 10]);
+  assert.equal(halfway.note, 'Zdejmij osłonę');
   const reopened = openDocument(structuredClone(document)).document;
   assert.deepEqual(reopened.animationStoryboards[0].keyframes.map((frame) => [frame.time, frame.explodeAmount]), [[0, 0], [4, 1]]);
   deleteStoryboardKeyframe(document, storyboard.id, end.id);

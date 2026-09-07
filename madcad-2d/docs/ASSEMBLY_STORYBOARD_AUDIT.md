@@ -9,11 +9,13 @@ Storyboard rozwija istniejący, niedestrukcyjny `Exploded View`. Każda klatka z
 - trwały zapis w `.madcad`, zgodność starszych dokumentów bez pola `animationStoryboards`;
 - Undo/Redo dla tworzenia, edycji i usuwania;
 - PL/EN, dostępne nazwy kontrolek i zwarty panel wewnątrz istniejących narzędzi złożenia.
+- niezależne przesunięcia XYZ wystąpień, zapis bieżącej kamery oraz opis kroku w każdej klatce;
+- interpolacja położenia części, kamery i Exploded View pozostaje wyłącznie warstwą prezentacji.
 
 ## Granica
 
-Ten etap animuje rozłożenie całego złożenia. Niezależne ścieżki transformacji poszczególnych części, ruch kamery, adnotacje montażowe oraz eksport wideo pozostają kolejnymi rozszerzeniami i nie są przedstawiane jako gotowe.
+Ten etap animuje translację części oraz kamerę. Obrót części, animowane jointy, graficzne strzałki montażowe i eksport wideo pozostają kolejnymi rozszerzeniami i nie są przedstawiane jako gotowe.
 
 ## Weryfikacja
 
-Test rdzenia sprawdza interpolację, limity, round-trip i operacje CRUD. Test komponentu sprawdza kontrolki, a `verify:components` tworzy dwie klatki, odtwarza rzeczywisty ruch wystąpień, wykonuje Undo/Redo i kontroluje panel oraz poziomy overflow.
+Test rdzenia sprawdza interpolację rozłożenia, przesunięć i kamery, limity, round-trip i operacje CRUD. Test komponentu sprawdza kontrolki, a `verify:components` tworzy dwie klatki, zapisuje ruch wybranej części, kamerę i opis, odtwarza rzeczywisty ruch wystąpień, wykonuje Undo/Redo i kontroluje panel oraz poziomy overflow.

@@ -36,6 +36,8 @@ function panelProps(overrides = {}) {
     onSeekStoryboard: vi.fn(),
     onPlayStoryboard: vi.fn(),
     onStopStoryboard: vi.fn(),
+    onPreviewStoryboardOffset: vi.fn(),
+    onAnimationNoteChange: vi.fn(),
     onCreate: vi.fn(),
     onUpdate: vi.fn(),
     onAssignBodies: vi.fn(),
@@ -121,12 +123,14 @@ describe('ComponentPanel', () => {
 
   it('creates and controls a persistent exploded-view storyboard', () => {
     const storyboard = { id: 'storyboard-1', name: 'Montaż', duration: 4, keyframes: [{ id: 'frame-1', time: 0, explodeAmount: 0 }, { id: 'frame-2', time: 4, explodeAmount: 1 }] };
-    const props = panelProps({ document: { components, componentInstances, rigidGroups: [], joints: [], motionLinks: [], contactSets: [], assemblyConfigurations: [], animationStoryboards: [storyboard], activeAssemblyConfigurationId: '', sketches: [], references: [] }, activeStoryboardId: storyboard.id, animationTime: 2, explodeAmount: 0.5 });
+    const props = panelProps({ document: { components, componentInstances, rigidGroups: [], joints: [], motionLinks: [], contactSets: [], assemblyConfigurations: [], animationStoryboards: [storyboard], activeAssemblyConfigurationId: '', sketches: [], references: [] }, selectedInstanceId: 'occurrence-part-2', activeStoryboardId: storyboard.id, animationTime: 2, explodeAmount: 0.5, animationInstanceOffsets: { 'occurrence-part-2': [12, 0, 0] }, animationNote: 'Zdejmij ramę' });
     render(<ComponentPanel {...props} />);
     fireEvent.click(screen.getByRole('button', { name: /Odtwórz animację/i }));
     expect(props.onPlayStoryboard).toHaveBeenCalledWith(storyboard);
     fireEvent.click(screen.getByRole('button', { name: /Klatka/i }));
-    expect(props.onAddStoryboardKeyframe).toHaveBeenCalledWith(storyboard.id, 2, 0.5);
+    expect(props.onAddStoryboardKeyframe).toHaveBeenCalledWith(storyboard.id, 2, 0.5, { 'occurrence-part-2': [12, 0, 0] }, 'Zdejmij ramę');
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Przesunięcie animacji X/i }), { target: { value: '25' } });
+    expect(props.onPreviewStoryboardOffset).toHaveBeenCalledWith('occurrence-part-2', [25, 0, 0]);
     fireEvent.change(screen.getByRole('slider', { name: /Czas storyboardu/i }), { target: { value: '3' } });
     expect(props.onSeekStoryboard).toHaveBeenCalledWith(storyboard, 3);
     fireEvent.click(screen.getByRole('button', { name: /Usuń klatkę 4.0 s/i }));

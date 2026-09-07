@@ -117,11 +117,14 @@ app.whenReady().then(async () => {
     if (storyboardCreateDebug.storyboards?.[0]?.keyframes?.length !== 1) throw new Error(`Nie utworzono storyboardu: ${JSON.stringify(storyboardCreateDebug)}`);
     await setInput(window, '.component-storyboard input[aria-label="Czas storyboardu"]', '5');
     await setInput(window, 'input[aria-label="Stopień rozstrzelenia złożenia"]', '0.8');
+    await setInput(window, '.component-storyboard input[aria-label="Przesunięcie animacji X"]', '30');
+    await setInput(window, '.component-storyboard input[aria-label="Opis kroku storyboardu"]', 'Odsuń ramę');
     if (!(await clickByText(window, '.storyboard-transport button', 'Klatka'))) throw new Error('Nie znaleziono dodawania klatki storyboardu.');
-    await waitFor(window, `window.__madcadVerifyDocumentState.animationStoryboards[0].keyframes.length === 2`, 'druga klatka storyboardu');
+    await waitFor(window, `window.__madcadVerifyDocumentState.animationStoryboards[0].keyframes.length === 2 && window.__madcadVerifyDocumentState.animationStoryboards[0].keyframes[1].instanceOffsets[${JSON.stringify(duplicateId)}]?.[0] === 30 && window.__madcadVerifyDocumentState.animationStoryboards[0].keyframes[1].note === 'Odsuń ramę' && window.__madcadVerifyDocumentState.animationStoryboards[0].keyframes[1].camera`, 'druga klatka storyboardu z ruchem, kamerą i opisem');
     if (!(await clickByText(window, '.storyboard-transport button', 'Odtwórz'))) throw new Error('Nie znaleziono odtwarzania storyboardu.');
     await waitFor(window, `window.__madcadModelVisualState?.filter((item) => item.occurrenceId && Math.hypot(...item.explodedOffset) > 1).length >= 2`, 'odtwarzana animacja rozłożenia', 8000);
     await waitFor(window, `document.querySelector('.component-storyboard input[aria-label="Czas storyboardu"]')?.value === '5'`, 'koniec animacji storyboardu', 8000);
+    await waitFor(window, `window.__madcadModelVisualState?.some((item) => item.occurrenceId === ${JSON.stringify(duplicateId)} && item.animationOffset?.[0] === 30)`, 'niezależny ruch wybranego wystąpienia', 8000);
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.animationStoryboards[0].keyframes.length === 1`, 'undo klatki storyboardu');
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
@@ -256,6 +259,9 @@ app.whenReady().then(async () => {
         configurations: state.assemblyConfigurations.length,
         storyboards: state.animationStoryboards?.length || 0,
         storyboardFrames: state.animationStoryboards?.[0]?.keyframes?.length || 0,
+        storyboardMotionX: state.animationStoryboards?.[0]?.keyframes?.[1]?.instanceOffsets?.[${JSON.stringify(duplicateId)}]?.[0],
+        storyboardCamera: Boolean(state.animationStoryboards?.[0]?.keyframes?.[1]?.camera),
+        storyboardNote: state.animationStoryboards?.[0]?.keyframes?.[1]?.note,
         activeConfiguration: state.assemblyConfigurations.find((item) => item.id === state.activeAssemblyConfigurationId)?.name,
         sliderValue: state.joints.find((item) => item.id === ${JSON.stringify(sliderJointId)})?.value,
         sliderX: state.componentInstances.find((item) => item.id === ${JSON.stringify(sliderOccurrenceId)})?.transform.x,
@@ -276,7 +282,7 @@ app.whenReady().then(async () => {
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
-    if (result.schemaVersion !== 15 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.appearance?.preset !== 'brass' || result.appearance?.color !== '#c49a49' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.storyboards !== 1 || result.storyboardFrames !== 2 || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.interferenceStatus !== 'exact' || !result.interferenceBounds.includes('Nakładanie obwiedni:') || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
+    if (result.schemaVersion !== 15 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.appearance?.preset !== 'brass' || result.appearance?.color !== '#c49a49' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.storyboards !== 1 || result.storyboardFrames !== 2 || result.storyboardMotionX !== 30 || !result.storyboardCamera || result.storyboardNote !== 'Odsuń ramę' || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.interferenceStatus !== 'exact' || !result.interferenceBounds.includes('Nakładanie obwiedni:') || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
       throw new Error(`Niepoprawny przepływ komponentów: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, appearanceScreenshotPath, explodedScreenshotPath, storyboardScreenshotPath, ...result }, null, 2)}\n`);

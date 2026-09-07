@@ -113,6 +113,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Scena, oświetlenie i render lokalny ukończono jako `P1.35c`: presety środowiska, światła, ekspozycja, cienie, podłoże oraz czysty eksport PNG są zapisane w projekcie i działają z Undo/Redo.
 - [x] Decals ukończono jako `P1.35d`: obraz PNG/JPEG/WebP jest skojarzony z trwałą ścianą, ma rozmiar, krycie, obrót i widoczność, sygnalizuje utratę ściany i pozwala na ponowne przypisanie.
 - [x] Exploded View złożeń ukończono jako `P1.35b`, a trwałe storyboardy z klatkami, osią czasu i odtwarzaniem jako `P1.35e`.
+- [x] Niezależne przesunięcia części, kamera i opisy kroków w klatkach storyboardu ukończono jako `P1.35f`.
 - Walidowane analizy statyczne/termiczne oraz późniejsza optymalizacja topologii.
 
 ### Manufacture / CAM
