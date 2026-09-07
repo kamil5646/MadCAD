@@ -5,7 +5,7 @@ export const MAX_STORYBOARD_KEYFRAMES = 120;
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
 const vector3 = (value) => [0, 1, 2].map((axis) => clamp(value?.[axis], -100000, 100000));
-const normalizedOffsets = (source) => Object.fromEntries(Object.entries(source && typeof source === 'object' && !Array.isArray(source) ? source : {}).filter(([id]) => id && id.length <= 120).map(([id, value]) => [id, vector3(value)]).slice(0, 500));
+const normalizedVectors = (source) => Object.fromEntries(Object.entries(source && typeof source === 'object' && !Array.isArray(source) ? source : {}).filter(([id]) => id && id.length <= 120).map(([id, value]) => [id, vector3(value)]).slice(0, 500));
 const normalizedCamera = (source) => source && ['position', 'target', 'up'].every((key) => Array.isArray(source[key]) && source[key].length === 3)
   ? { position: vector3(source.position), target: vector3(source.target), up: vector3(source.up) }
   : null;
@@ -15,7 +15,8 @@ export function normalizeStoryboardKeyframe(source = {}, index = 0) {
     id: typeof source.id === 'string' && source.id ? source.id : createId('animation-keyframe'),
     time: clamp(source.time ?? index, 0, 300),
     explodeAmount: clamp(source.explodeAmount, 0, 1),
-    instanceOffsets: normalizedOffsets(source.instanceOffsets),
+    instanceOffsets: normalizedVectors(source.instanceOffsets),
+    instanceRotations: normalizedVectors(source.instanceRotations),
     camera: normalizedCamera(source.camera),
     note: String(source.note || '').trim().slice(0, 160),
   };
@@ -45,7 +46,7 @@ export function isAssemblyStoryboardsValid(storyboards) {
   return Array.isArray(storyboards) && storyboards.length <= MAX_ASSEMBLY_STORYBOARDS && storyboards.every((storyboard) => {
     if (!storyboard || typeof storyboard.id !== 'string' || !storyboard.id || typeof storyboard.name !== 'string' || !storyboard.name.trim()) return false;
     if (!Number.isFinite(storyboard.duration) || storyboard.duration < 0.1 || storyboard.duration > 300 || !Array.isArray(storyboard.keyframes) || storyboard.keyframes.length > MAX_STORYBOARD_KEYFRAMES) return false;
-    return storyboard.keyframes.every((frame, index) => frame && typeof frame.id === 'string' && frame.id && Number.isFinite(frame.time) && frame.time >= 0 && frame.time <= storyboard.duration && Number.isFinite(frame.explodeAmount) && frame.explodeAmount >= 0 && frame.explodeAmount <= 1 && frame.instanceOffsets && typeof frame.instanceOffsets === 'object' && !Array.isArray(frame.instanceOffsets) && Object.values(frame.instanceOffsets).every((value) => Array.isArray(value) && value.length === 3 && value.every(Number.isFinite)) && (frame.camera === null || ['position', 'target', 'up'].every((key) => Array.isArray(frame.camera?.[key]) && frame.camera[key].length === 3 && frame.camera[key].every(Number.isFinite))) && typeof frame.note === 'string' && frame.note.length <= 160 && (index === 0 || frame.time >= storyboard.keyframes[index - 1].time));
+    return storyboard.keyframes.every((frame, index) => frame && typeof frame.id === 'string' && frame.id && Number.isFinite(frame.time) && frame.time >= 0 && frame.time <= storyboard.duration && Number.isFinite(frame.explodeAmount) && frame.explodeAmount >= 0 && frame.explodeAmount <= 1 && [frame.instanceOffsets, frame.instanceRotations].every((values) => values && typeof values === 'object' && !Array.isArray(values) && Object.values(values).every((value) => Array.isArray(value) && value.length === 3 && value.every(Number.isFinite))) && (frame.camera === null || ['position', 'target', 'up'].every((key) => Array.isArray(frame.camera?.[key]) && frame.camera[key].length === 3 && frame.camera[key].every(Number.isFinite))) && typeof frame.note === 'string' && frame.note.length <= 160 && (index === 0 || frame.time >= storyboard.keyframes[index - 1].time));
   });
 }
 
@@ -62,7 +63,7 @@ export function addStoryboardKeyframe(document, storyboardId, options = {}) {
   const storyboard = document.animationStoryboards.find((item) => item.id === storyboardId);
   if (!storyboard) throw new Error('Nie znaleziono storyboardu.');
   if (storyboard.keyframes.length >= MAX_STORYBOARD_KEYFRAMES) throw new Error(`Storyboard może mieć maksymalnie ${MAX_STORYBOARD_KEYFRAMES} klatek.`);
-  const frame = normalizeStoryboardKeyframe({ time: options.time, explodeAmount: options.explodeAmount, instanceOffsets: options.instanceOffsets, camera: options.camera, note: options.note });
+  const frame = normalizeStoryboardKeyframe({ time: options.time, explodeAmount: options.explodeAmount, instanceOffsets: options.instanceOffsets, instanceRotations: options.instanceRotations, camera: options.camera, note: options.note });
   storyboard.keyframes.push(frame);
   storyboard.keyframes.sort((a, b) => a.time - b.time || a.id.localeCompare(b.id));
   storyboard.duration = Math.max(storyboard.duration, frame.time);
@@ -98,7 +99,7 @@ export function sampleAssemblyStoryboard(storyboard, time) {
 
 export function sampleAssemblyStoryboardState(storyboard, time) {
   const normalized = normalizeAssemblyStoryboard(storyboard);
-  if (!normalized.keyframes.length) return { explodeAmount: 0, instanceOffsets: {}, camera: null, note: '' };
+  if (!normalized.keyframes.length) return { explodeAmount: 0, instanceOffsets: {}, instanceRotations: {}, camera: null, note: '' };
   const cursor = clamp(time, 0, normalized.duration);
   const nextIndex = normalized.keyframes.findIndex((frame) => frame.time >= cursor);
   if (nextIndex <= 0) return { ...normalized.keyframes[0] };
@@ -110,6 +111,8 @@ export function sampleAssemblyStoryboardState(storyboard, time) {
   const lerpVector = (first = [0, 0, 0], second = [0, 0, 0]) => first.map((value, axis) => value + (second[axis] - value) * eased);
   const instanceIds = new Set([...Object.keys(before.instanceOffsets), ...Object.keys(after.instanceOffsets)]);
   const instanceOffsets = Object.fromEntries([...instanceIds].map((id) => [id, lerpVector(before.instanceOffsets[id], after.instanceOffsets[id])]));
+  const rotatedInstanceIds = new Set([...Object.keys(before.instanceRotations), ...Object.keys(after.instanceRotations)]);
+  const instanceRotations = Object.fromEntries([...rotatedInstanceIds].map((id) => [id, lerpVector(before.instanceRotations[id], after.instanceRotations[id])]));
   const camera = before.camera && after.camera ? { position: lerpVector(before.camera.position, after.camera.position), target: lerpVector(before.camera.target, after.camera.target), up: lerpVector(before.camera.up, after.camera.up) } : before.camera || after.camera;
-  return { explodeAmount: before.explodeAmount + (after.explodeAmount - before.explodeAmount) * eased, instanceOffsets, camera, note: progress < 0.5 ? before.note : after.note };
+  return { explodeAmount: before.explodeAmount + (after.explodeAmount - before.explodeAmount) * eased, instanceOffsets, instanceRotations, camera, note: progress < 0.5 ? before.note : after.note };
 }

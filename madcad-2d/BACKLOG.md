@@ -114,6 +114,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Decals ukończono jako `P1.35d`: obraz PNG/JPEG/WebP jest skojarzony z trwałą ścianą, ma rozmiar, krycie, obrót i widoczność, sygnalizuje utratę ściany i pozwala na ponowne przypisanie.
 - [x] Exploded View złożeń ukończono jako `P1.35b`, a trwałe storyboardy z klatkami, osią czasu i odtwarzaniem jako `P1.35e`.
 - [x] Niezależne przesunięcia części, kamera i opisy kroków w klatkach storyboardu ukończono jako `P1.35f`.
+- [x] Niezależne obroty XYZ części w klatkach storyboardu ukończono jako `P1.35g`.
 - Walidowane analizy statyczne/termiczne oraz późniejsza optymalizacja topologii.
 
 ### Manufacture / CAM
