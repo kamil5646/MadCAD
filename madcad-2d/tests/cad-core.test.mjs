@@ -103,6 +103,7 @@ import { applyHoleStandard } from '../src/cad-core/hole-standards.js';
 import { measureSelection } from '../src/cad-core/measure-selection.js';
 import { calculateMassProperties } from '../src/cad-core/mass-properties.js';
 import { calculateCantileverScreening, ENGINEERING_MATERIALS } from '../src/cad-core/static-screening.js';
+import { calculateThermalScreening, THERMAL_MATERIALS } from '../src/cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, boundsOverlap, summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-profiles.js';
 import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, transformPrintPoint } from '../src/cad-core/print-layout.js';
@@ -2355,6 +2356,25 @@ test('wstępna analiza statyczna liczy belkę wspornikową i ujawnia ograniczeni
   assert.throws(() => calculateCantileverScreening(body, { spanAxis: 'x', loadAxis: 'x', force: 100 }), /muszą być różne/);
   assert.throws(() => calculateCantileverScreening(body, { force: 0 }), /Siła musi być dodatnia/);
   assert.throws(() => calculateCantileverScreening({ ...body, bodyKind: 'surface' }, { force: 100 }), /wymaga bryły/);
+});
+
+test('wstępna analiza cieplna liczy przewodzenie 1D i ujawnia ograniczenia modelu', () => {
+  const body = { id: 'body-slab', bodyKind: 'solid', metrics: { bounds: [[0, 0, 0], [100, 20, 10]], volume: 20000 } };
+  const result = calculateThermalScreening(body, { materialId: 's235', axis: 'x', hotTemperature: 100, coldTemperature: 20 });
+  assert.equal(result.pathLength, 100);
+  assert.equal(result.area, 200);
+  assert.equal(result.deltaTemperature, 80);
+  assert.equal(result.thermalResistance, 10);
+  assert.equal(result.heatFlow, 8);
+  assert.equal(result.heatFlux, 40000);
+  assert.ok(Math.abs(result.freeExpansion - 0.096) < 1e-12);
+  assert.equal(result.status, 'safe');
+  assert.equal(result.material, THERMAL_MATERIALS.s235);
+  assert.equal(result.limitations.length, 3);
+  assert.equal(calculateThermalScreening(body, { materialId: 'petg', axis: 'x', hotTemperature: 90, coldTemperature: 20 }).status, 'warning');
+  assert.throws(() => calculateThermalScreening(body, { axis: 'x', hotTemperature: 20, coldTemperature: 20 }), /różne temperatury/);
+  assert.throws(() => calculateThermalScreening(body, { axis: 'q', hotTemperature: 100, coldTemperature: 20 }), /kierunek/);
+  assert.throws(() => calculateThermalScreening({ ...body, bodyKind: 'surface' }, { hotTemperature: 100, coldTemperature: 20 }), /wymaga bryły/);
 });
 
 test('analiza geometrii wybiera minimalny promień i zachowuje dokładne pary kolizji', () => {

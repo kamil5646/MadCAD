@@ -50,6 +50,7 @@ import {
   Square,
   StepBack,
   StepForward,
+  Sun,
   Triangle,
   Trash2,
   Type,
@@ -133,6 +134,7 @@ import { resolveFaceEdgeHolePlacement } from '../cad-core/face-edge-hole.js';
 import { measureSelection } from '../cad-core/measure-selection.js';
 import { calculateMassProperties } from '../cad-core/mass-properties.js';
 import { calculateCantileverScreening } from '../cad-core/static-screening.js';
+import { calculateThermalScreening } from '../cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profiles.js';
 import { calculatePrintLayout, orientationForBedFace } from '../cad-core/print-layout.js';
@@ -231,7 +233,7 @@ import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import { AdaptiveToolShelf } from './WorkspaceSketchUi.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectDashboard, ProjectDependenciesPanel, ProjectHealthPanel, ProjectSearchPalette, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
-import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, MeshToolsPanel, NamedViewsPanel, RenderScenePanel, SectionPanel, StaticScreeningPanel, SurfaceAnalysisPanel } from './WorkspacePanels.jsx';
+import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, MeshToolsPanel, NamedViewsPanel, RenderScenePanel, SectionPanel, StaticScreeningPanel, SurfaceAnalysisPanel, ThermalScreeningPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
   clearLocalAutosave,
@@ -1840,6 +1842,15 @@ export default function ModelingWorkspace() {
     try {
       const body = engine.bodies.find((item) => item.id === command.bodyId);
       return { result: calculateCantileverScreening(body, command), error: '' };
+    } catch (error) {
+      return { result: null, error: error.message };
+    }
+  }, [command, engine.bodies]);
+  const thermalScreening = useMemo(() => {
+    if (command?.type !== 'thermalScreening') return null;
+    try {
+      const body = engine.bodies.find((item) => item.id === command.bodyId);
+      return { result: calculateThermalScreening(body, command), error: '' };
     } catch (error) {
       return { result: null, error: error.message };
     }
@@ -4270,6 +4281,7 @@ export default function ModelingWorkspace() {
         sectionAnalysis: command.type === 'sectionAnalysis' ? sectionAnalysis : null,
         massProperties: command.type === 'massProperties' ? massProperties : null,
         staticScreening: command.type === 'staticScreening' ? staticScreening : null,
+        thermalScreening: command.type === 'thermalScreening' ? thermalScreening : null,
         inspectionMode: command.type === 'geometryInspection' ? command.inspectionMode : null,
         geometryInspection: command.type === 'geometryInspection' ? geometryInspection : null,
         surfaceAnalysis: command.type === 'surfaceAnalysis' ? { ...surfaceAnalysis, continuity: surfaceContinuity, curvature: surfaceCurvature } : null,
@@ -4304,7 +4316,7 @@ export default function ModelingWorkspace() {
     };
   // Verification hooks refresh only when the state exposed to the desktop harness changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, surfaceAnalysis, surfaceContinuity, surfaceCurvature, massProperties, staticScreening, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses, projectHealthReport, projectDependencyInspection, projectSearchIndex, sketchOptions]);
+  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, surfaceAnalysis, surfaceContinuity, surfaceCurvature, massProperties, staticScreening, thermalScreening, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses, projectHealthReport, projectDependencyInspection, projectSearchIndex, sketchOptions]);
 
   const confirmProfile = (sourceCommand = command) => {
     if (readOnly) return readOnlyNotice();
@@ -5332,6 +5344,17 @@ export default function ModelingWorkspace() {
     const loadIndex = [0, 1, 2].filter((axis) => axis !== spanIndex).sort((first, second) => dimensions[second] - dimensions[first])[0];
     setCommand({ type: 'staticScreening', bodyId: body.id, materialId: 's235', spanAxis: ['x', 'y', 'z'][spanIndex], loadAxis: ['x', 'y', 'z'][loadIndex], fixedEnd: 'min', force: '1000' });
     setNotice('Uruchomiono wstępny szacunek belki wspornikowej. Wynik nie zastępuje walidowanego MES ani obliczeń konstruktora.');
+  };
+
+  const openThermalScreening = () => {
+    const body = selectedBodies.find((item) => item.bodyKind !== 'surface') || engine.bodies.find((item) => item.bodyKind !== 'surface');
+    if (!body) return setNotice('Szybka analiza cieplna wymaga co najmniej jednej bryły.');
+    const bounds = body.metrics?.bounds;
+    if (!Array.isArray(bounds) || bounds.length !== 2 || bounds.some((point) => !Array.isArray(point) || point.length < 3)) return setNotice('Wybrana bryła nie ma poprawnych granic do analizy.');
+    const dimensions = bounds[1].map((value, index) => value - bounds[0][index]);
+    const axisIndex = dimensions.indexOf(Math.min(...dimensions));
+    setCommand({ type: 'thermalScreening', bodyId: body.id, materialId: 's235', axis: ['x', 'y', 'z'][axisIndex], hotTemperature: '100', coldTemperature: '20' });
+    setNotice('Uruchomiono wstępny model przewodzenia ciepła. Wynik nie zastępuje walidowanej analizy termicznej MES.');
   };
 
   const openGeometryInspection = async () => {
@@ -7473,6 +7496,7 @@ export default function ModelingWorkspace() {
                   { icon: ScanSearch, label: 'Analiza powierzchni', onClick: openSurfaceAnalysis, disabled: !engine.bodies.length },
                   { icon: MassCadIcon, label: 'Właściwości masy', onClick: openMassProperties, disabled: !engine.bodies.length },
                   { icon: ScanSearch, label: 'Szybka analiza statyczna', onClick: openStaticScreening, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
+                  { icon: Sun, label: 'Szybka analiza cieplna', onClick: openThermalScreening, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
                   { icon: GeometryCheckCadIcon, label: 'Sprawdź geometrię', onClick: openGeometryInspection, disabled: !engine.bodies.length },
                 ]} /></RibbonGroup>
               </>
@@ -7681,6 +7705,7 @@ export default function ModelingWorkspace() {
           {meshToolsOpen && selectedMeshBody && <MeshToolsPanel body={selectedMeshBody} report={selectedMeshReport} groups={selectedMeshFeature?.meshGroups || []} brepBlocker={meshBrepBlocker} readOnly={readOnly} onRepair={safelyRepairSelectedMesh} onOrient={orientSelectedMeshFaces} onFillHoles={fillSelectedMeshHoles} onReduce={reduceSelectedMesh} onSmooth={smoothSelectedMesh} onRemesh={remeshSelectedMesh} onGroup={groupSelectedMeshFaces} onConvertToBrep={convertSelectedMeshToBrep} onClose={() => setMeshToolsOpen(false)} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'staticScreening' && <StaticScreeningPanel bodies={engine.bodies.filter((body) => body.bodyKind !== 'surface')} bodyId={command.bodyId} materialId={command.materialId} spanAxis={command.spanAxis} loadAxis={command.loadAxis} fixedEnd={command.fixedEnd} force={command.force} result={staticScreening?.result} error={staticScreening?.error} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
+          {command?.type === 'thermalScreening' && <ThermalScreeningPanel bodies={engine.bodies.filter((body) => body.bodyKind !== 'surface')} bodyId={command.bodyId} materialId={command.materialId} axis={command.axis} hotTemperature={command.hotTemperature} coldTemperature={command.coldTemperature} result={thermalScreening?.result} error={thermalScreening?.error} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} inspectionMode={command.inspectionMode} draftDirection={command.draftDirection} draftTolerance={command.draftTolerance} thicknessTarget={command.thicknessTarget} thicknessTolerance={command.thicknessTolerance} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {namedViewsOpen && <NamedViewsPanel views={document.namedViews || []} currentCamera={currentCameraRef.current} readOnly={readOnly} onCreate={saveNamedView} onActivate={activateNamedView} onDelete={removeNamedView} onClose={() => setNamedViewsOpen(false)} />}
           {renderSceneOpen && <RenderScenePanel scene={document.renderScene} bodies={engine.bodies} selectedFace={selectedFaceItems.length === 1 ? selectedFaceItems[0] : null} readOnly={readOnly} onChange={updateRenderScene} onAddDecal={(file, face) => { void addRenderDecal(file, face); }} onUpdateDecal={changeRenderDecal} onDeleteDecal={removeRenderDecal} onSaveRender={() => { void saveLocalRender(); }} onClose={() => setRenderSceneOpen(false)} />}

@@ -4,6 +4,7 @@ import { detectAssemblyCollisions } from '../cad-core/assembly-motion.js';
 import { COMPONENT_APPEARANCE_PRESETS, componentAppearancePreset, componentDescendantIds, componentInstanceDescendantIds, componentInstanceTree, componentParentMap, componentTree, normalizeComponentAppearance } from '../cad-core/components.js';
 import { formatModelFileSize } from '../cad-core/model-import.js';
 import { ENGINEERING_MATERIALS } from '../cad-core/static-screening.js';
+import { THERMAL_MATERIALS } from '../cad-core/thermal-screening.js';
 import { BY_LAYER, DEFAULT_LAYER_ID, LINE_TYPES, LINE_WEIGHTS } from '../cad-core/layers.js';
 import { RENDER_ENVIRONMENT_PRESETS, normalizeRenderScene, renderEnvironmentPreset } from '../cad-core/render-scene.js';
 import { commandCustomizationRows, validateCommandCustomization } from './command-customization.js';
@@ -521,6 +522,34 @@ export function StaticScreeningPanel({ bodies = [], bodyId = '', materialId = 's
           <div className="measure-row"><span>Ugięcie końca</span><strong>{format(result.tipDeflection, 3)} mm</strong></div>
           <div className="measure-row"><span>Granica materiału</span><strong>{format(result.material.yieldStrength)} MPa</strong></div>
           {result.mass !== null && <div className="measure-row"><span>Szacowana masa</span><strong>{format(result.mass)} g</strong></div>}
+        </div>}
+        {result?.limitations.map((limitation) => <p className="static-limitation" key={limitation}>{limitation}</p>)}
+      </div>
+    </aside>
+  );
+}
+
+export function ThermalScreeningPanel({ bodies = [], bodyId = '', materialId = 's235', axis = 'x', hotTemperature = '100', coldTemperature = '20', result, error = '', onChange, onClose }) {
+  const format = (value, digits = 2) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
+  return (
+    <aside className="measure-panel static-screening-panel thermal-screening-panel" aria-label="Szybka analiza cieplna">
+      <header><div><Sun size={16} /><strong>Szybka analiza cieplna</strong></div><button type="button" title="Zamknij analizę cieplną" aria-label="Zamknij analizę cieplną" onClick={onClose}><X size={15} /></button></header>
+      <div className="measure-panel-body">
+        <p className="analysis-scope">Wstępny model przewodzenia 1D — nie pełny solver termiczny MES.</p>
+        <label><span>Bryła</span><select aria-label="Bryła analizy cieplnej" value={bodyId} onChange={(event) => onChange({ bodyId: event.target.value })}>{bodies.map((body) => <option key={body.id} value={body.id}>{body.name}</option>)}</select></label>
+        <label><span>Materiał</span><select aria-label="Materiał analizy cieplnej" value={materialId} onChange={(event) => onChange({ materialId: event.target.value })}>{Object.values(THERMAL_MATERIALS).map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}</select></label>
+        <label><span>Kierunek przepływu</span><select aria-label="Kierunek przepływu ciepła" value={axis} onChange={(event) => onChange({ axis: event.target.value })}>{['x', 'y', 'z'].map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}</select></label>
+        <div className="static-axis-grid"><Field label="Strona ciepła" value={hotTemperature} onChange={(value) => onChange({ hotTemperature: value })} suffix="°C" /><Field label="Strona chłodu" value={coldTemperature} onChange={(value) => onChange({ coldTemperature: value })} suffix="°C" /></div>
+        {error && <p className="measure-error">{error}</p>}
+        {result && <div className={`static-result ${result.status}`}>
+          <div className="static-result-heading"><strong>{result.status === 'safe' ? 'Zakres materiału' : 'Przekroczona temp. użytkowa'}</strong><span>ΔT {format(result.deltaTemperature)}°C</span></div>
+          <div className="measure-row"><span>Droga przewodzenia</span><strong>{format(result.pathLength)} mm</strong></div>
+          <div className="measure-row"><span>Pole przekroju</span><strong>{format(result.area)} mm²</strong></div>
+          <div className="measure-row"><span>Opór cieplny</span><strong>{format(result.thermalResistance, 4)} K/W</strong></div>
+          <div className="measure-row"><span>Przepływ ciepła</span><strong>{format(result.heatFlow, 3)} W</strong></div>
+          <div className="measure-row"><span>Strumień ciepła</span><strong>{format(result.heatFlux, 0)} W/m²</strong></div>
+          <div className="measure-row"><span>Swobodne wydłużenie</span><strong>{format(result.freeExpansion, 4)} mm</strong></div>
+          <div className="measure-row"><span>Limit materiału</span><strong>{format(result.material.maxServiceTemperature)}°C</strong></div>
         </div>}
         {result?.limitations.map((limitation) => <p className="static-limitation" key={limitation}>{limitation}</p>)}
       </div>
