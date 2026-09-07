@@ -118,6 +118,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Graficzne prowadnice przesunięcia i obrotu wybranej części ukończono jako `P1.35h`.
 - [x] Animowane wartości jointów w storyboardzie ukończono jako `P1.35i`.
 - [x] Eksport storyboardu do filmu WebM i drukowalnej instrukcji montażowej HTML ukończono jako `P1.35j`.
+- [x] Czyste widoki wszystkich klatek osadzone w instrukcji montażowej ukończono jako `P1.35k`.
 - Walidowane analizy statyczne/termiczne oraz późniejsza optymalizacja topologii.
 
 ### Manufacture / CAM

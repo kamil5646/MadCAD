@@ -192,6 +192,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.35h Wybrane wystąpienie animacji ma bezpośrednio w scenie turkusową strzałkę przesunięcia oraz bursztynowy łuk dominującego obrotu. Prowadnice są tylko informacją wizualną, nie trafiają do modelu ani eksportu i znikają przy zerowym ruchu.
 - [x] P1.35i Storyboard zapisuje i interpoluje wartości jointów, a renderer wyznacza z nich chwilową transformację względem osi, położenia spoczynkowego i limitów jointa bez zmiany dokumentu. Pierwsza klatka nowego storyboardu przejmuje aktualne wartości jointów.
 - [x] P1.35j Gotowy storyboard można wydać jako film WebM 24 fps do 1920×1080 oraz samodzielną, drukowalną instrukcję HTML. Film przechwytuje bieżącą scenę mimo przebudowy renderera między klatkami, a instrukcja porządkuje kroki, czas, opisy, rozłożenie, przesunięcia, obroty i wartości jointów oraz koduje treść projektu bezpiecznie dla HTML.
+- [x] P1.35k Instrukcja montażowa automatycznie renderuje czysty widok każdej klatki storyboardu, osadza obrazy PNG bezpośrednio w jednym przenośnym pliku HTML i po eksporcie przywraca czas, stan złożenia oraz kamerę użytkownika. Osadzane obrazy przechodzą ścisłą walidację schematu data URL.
 
 ## P2 — dokumentacja techniczna 2D
 
