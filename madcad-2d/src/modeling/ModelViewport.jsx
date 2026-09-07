@@ -1331,6 +1331,63 @@ export default function ModelViewport({
       }
       }
     }
+    const animationGuideGroup = new THREE.Group();
+    const animationGuideState = [];
+    const animatedInstance = instanceById.get(selectedComponentInstanceId);
+    if (!showBed && animatedInstance) {
+      const offset = new THREE.Vector3(...(animationInstanceOffsets[animatedInstance.id] || [0, 0, 0]));
+      const rotationValues = animationInstanceRotations[animatedInstance.id] || [0, 0, 0];
+      const currentOrigin = new THREE.Vector3().applyMatrix4(occurrenceMatrix(animatedInstance));
+      const animatedBounds = facePickables.filter((object) => object.userData.occurrenceId === animatedInstance.id).reduce((bounds, object) => {
+        object.updateWorldMatrix(true, false);
+        return bounds.union(new THREE.Box3().setFromObject(object));
+      }, new THREE.Box3());
+      const guideCenter = animatedBounds.isEmpty() ? currentOrigin : animatedBounds.getCenter(new THREE.Vector3());
+      const parent = animatedInstance.parentInstanceId ? instanceById.get(animatedInstance.parentInstanceId) : null;
+      const parentQuaternion = new THREE.Quaternion();
+      (parent ? occurrenceMatrix(parent) : new THREE.Matrix4()).decompose(new THREE.Vector3(), parentQuaternion, new THREE.Vector3());
+      const worldOffset = offset.clone().applyQuaternion(parentQuaternion);
+      if (worldOffset.length() > 1e-6) {
+        const start = guideCenter.clone().sub(worldOffset);
+        const arrow = new THREE.ArrowHelper(worldOffset.clone().normalize(), start, worldOffset.length(), 0x44d7ff, Math.min(5, Math.max(2.2, worldOffset.length() * 0.18)), 2.2);
+        arrow.renderOrder = 12;
+        arrow.traverse((object) => { object.renderOrder = 12; if (object.material) object.material.depthTest = false; });
+        animationGuideGroup.add(arrow);
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, Math.max(0.1, worldOffset.length() - 2), 10), new THREE.MeshBasicMaterial({ color: 0x44d7ff, depthTest: false }));
+        shaft.position.copy(start).add(guideCenter).multiplyScalar(0.5);
+        shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), worldOffset.clone().normalize());
+        shaft.renderOrder = 12;
+        animationGuideGroup.add(shaft);
+        animationGuideState.push({ kind: 'translation', instanceId: animatedInstance.id, length: worldOffset.length() });
+      }
+      const dominantAxis = rotationValues.reduce((best, value, index) => Math.abs(value) > Math.abs(rotationValues[best]) ? index : best, 0);
+      const degrees = Number(rotationValues[dominantAxis]) || 0;
+      if (Math.abs(degrees) > 1e-6) {
+        const axis = new THREE.Vector3(dominantAxis === 0 ? 1 : 0, dominantAxis === 1 ? 1 : 0, dominantAxis === 2 ? 1 : 0).applyQuaternion(parentQuaternion).normalize();
+        const basisA = new THREE.Vector3(0, 0, 1);
+        if (Math.abs(axis.dot(basisA)) > 0.9) basisA.set(0, 1, 0);
+        basisA.cross(axis).normalize();
+        const basisB = axis.clone().cross(basisA).normalize();
+        const radius = Math.max(10, Math.min(24, Math.max(...bodies.flatMap((body) => body.metrics?.dimensions || [0])) * 0.35));
+        const sweep = Math.sign(degrees) * Math.min(Math.PI * 1.75, Math.max(Math.PI * 0.45, Math.abs(degrees) * Math.PI / 180));
+        const points = Array.from({ length: 41 }, (_, index) => {
+          const angle = sweep * index / 40;
+          return guideCenter.clone().addScaledVector(basisA, Math.cos(angle) * radius).addScaledVector(basisB, Math.sin(angle) * radius);
+        });
+        const arc = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 40, 0.48, 8, false), new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.96, depthTest: false }));
+        arc.renderOrder = 12;
+        animationGuideGroup.add(arc);
+        const tangent = points.at(-1).clone().sub(points.at(-2)).normalize();
+        const arrowHead = new THREE.Mesh(new THREE.ConeGeometry(1.9, 5, 14), new THREE.MeshBasicMaterial({ color: 0xffc857, depthTest: false }));
+        arrowHead.position.copy(points.at(-1));
+        arrowHead.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
+        arrowHead.renderOrder = 13;
+        animationGuideGroup.add(arrowHead);
+        animationGuideState.push({ kind: 'rotation', instanceId: animatedInstance.id, axis: ['x', 'y', 'z'][dominantAxis], degrees });
+      }
+    }
+    scene.add(animationGuideGroup);
+    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadStoryboardGuideState = animationGuideState;
     const jointGroup = new THREE.Group();
     const jointVisuals = [];
     if (!showBed) {
@@ -2918,6 +2975,7 @@ export default function ModelViewport({
       if (cameraApiRef.current?.camera === camera) cameraApiRef.current = null;
       controls.dispose();
       disposeObject(modelGroup);
+      disposeObject(animationGuideGroup);
       disposeObject(jointGroup);
       disposeObject(sketchGroup);
       disposeObject(directGroup);
@@ -2949,6 +3007,7 @@ export default function ModelViewport({
       delete window.__madcadConstructionPointState;
       delete window.__madcadSectionViewState;
       delete window.__madcadJointVisualState;
+      delete window.__madcadStoryboardGuideState;
       delete window.__madcadCameraState;
       delete window.__madcadViewportNavigationState;
       delete window.__madcadFormCageState;

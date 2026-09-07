@@ -189,6 +189,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.35e Storyboard złożenia zapisuje do 12 nazwanych animacji i 120 klatek rozłożenia na storyboard. Oś 0,1–300 s ma płynne przejścia, ręczne przewijanie, odtwarzanie i zatrzymanie; zmienia wyłącznie podgląd Exploded View, bez mutowania transformacji, jointów ani historii geometrii. Tworzenie, nazwa, czas trwania, klatki i usuwanie współpracują z Undo/Redo oraz zapisem `.madcad`, a desktop E2E sprawdza rzeczywisty ruch renderera i układ bez overflow.
 - [x] P1.35f Klatka storyboardu zapisuje również niezależne przesunięcie XYZ każdego wystąpienia, bieżącą kamerę i opis kroku montażowego. Renderer interpoluje ruch części oraz pozycję i cel kamery bez zapisywania ich do transformacji projektowych; panel pokazuje ruch aktualnie wybranego wystąpienia, a desktop E2E potwierdza wartość 30 mm, kamerę, opis, odtwarzanie i Undo/Redo.
 - [x] P1.35g Klatka storyboardu zapisuje niezależny obrót XYZ każdego wystąpienia. Obrót jest płynnie interpolowany razem z przesunięciem i nakładany wyłącznie w rendererze, bez mutowania transformacji projektowej, jointów i historii modelu; panel rozdziela pola przesunięcia w milimetrach od obrotu w stopniach.
+- [x] P1.35h Wybrane wystąpienie animacji ma bezpośrednio w scenie turkusową strzałkę przesunięcia oraz bursztynowy łuk dominującego obrotu. Prowadnice są tylko informacją wizualną, nie trafiają do modelu ani eksportu i znikają przy zerowym ruchu.
 
 ## P2 — dokumentacja techniczna 2D
 

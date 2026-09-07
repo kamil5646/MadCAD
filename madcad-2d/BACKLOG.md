@@ -115,6 +115,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Exploded View złożeń ukończono jako `P1.35b`, a trwałe storyboardy z klatkami, osią czasu i odtwarzaniem jako `P1.35e`.
 - [x] Niezależne przesunięcia części, kamera i opisy kroków w klatkach storyboardu ukończono jako `P1.35f`.
 - [x] Niezależne obroty XYZ części w klatkach storyboardu ukończono jako `P1.35g`.
+- [x] Graficzne prowadnice przesunięcia i obrotu wybranej części ukończono jako `P1.35h`.
 - Walidowane analizy statyczne/termiczne oraz późniejsza optymalizacja topologii.
 
 ### Manufacture / CAM
