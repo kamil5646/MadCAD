@@ -15,6 +15,7 @@ import { describeSketchDegreesOfFreedom } from '../cad-core/sketch-freedom-diagn
 import { normalizeComponentAppearance } from '../cad-core/components.js';
 import { normalizeRenderScene } from '../cad-core/render-scene.js';
 import { calculateExplodedOffsets } from '../cad-core/exploded-view.js';
+import { jointDrivenTransform } from '../cad-core/assembly-joints.js';
 import { configureCadMouseNavigation, shouldHandlePrimaryViewportPointer, VIEWPORT_NAVIGATION_MODES, viewportCursor } from './viewport-navigation.js';
 import { resolveReferenceSketchIds } from './sketch-visibility.js';
 import { createCurvatureColors, createCurvatureCombVertices } from './surface-analysis.js';
@@ -617,6 +618,7 @@ export default function ModelViewport({
   explodeAmount = 0,
   animationInstanceOffsets = {},
   animationInstanceRotations = {},
+  animationJointValues = {},
   cameraRequest = null,
   fitRequest = null,
   selectionModeRequestId = 0,
@@ -974,7 +976,8 @@ export default function ModelViewport({
     const occurrenceMatrix = (instance, visited = new Set()) => {
       if (!instance || visited.has(instance.id)) return new THREE.Matrix4();
       if (matrixCache.has(instance.id)) return matrixCache.get(instance.id).clone();
-      const transform = instance.transform || {};
+      const controllingJoint = joints.find((joint) => joint.enabled !== false && joint.movingInstanceId === instance.id && Object.hasOwn(animationJointValues, joint.id));
+      const transform = controllingJoint ? jointDrivenTransform(controllingJoint, animationJointValues[controllingJoint.id]) : instance.transform || {};
       const animationOffset = animationInstanceOffsets[instance.id] || [0, 0, 0];
       const animationRotation = animationInstanceRotations[instance.id] || [0, 0, 0];
       const position = new THREE.Vector3((Number(transform.x) || 0) + (Number(animationOffset[0]) || 0), (Number(transform.y) || 0) + (Number(animationOffset[1]) || 0), (Number(transform.z) || 0) + (Number(animationOffset[2]) || 0));
@@ -1013,6 +1016,8 @@ export default function ModelViewport({
         object.userData.explodedOffset = explodedOffset || [0, 0, 0];
         object.userData.animationOffset = animationInstanceOffsets[placement.occurrenceId] || [0, 0, 0];
         object.userData.animationRotation = animationInstanceRotations[placement.occurrenceId] || [0, 0, 0];
+        const animatedJoint = joints.find((joint) => joint.movingInstanceId === placement.occurrenceId && Object.hasOwn(animationJointValues, joint.id));
+        object.userData.animationJointValue = animatedJoint ? animationJointValues[animatedJoint.id] : null;
         return object;
       };
       const geometry = new THREE.BufferGeometry();
@@ -2919,6 +2924,7 @@ export default function ModelViewport({
           explodedOffset: object.userData.explodedOffset,
           animationOffset: object.userData.animationOffset,
           animationRotation: object.userData.animationRotation,
+          animationJointValue: object.userData.animationJointValue,
         }));
       }
     };
@@ -3016,7 +3022,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

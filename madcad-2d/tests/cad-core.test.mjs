@@ -194,14 +194,15 @@ test('storyboard zapisuje klatki rozłożenia i interpoluje je bez zmiany złoż
   const document = createDocument('Animacja złożenia');
   const cameraStart = { position: [10, 10, 10], target: [0, 0, 0], up: [0, 0, 1] };
   const cameraEnd = { position: [20, 10, 10], target: [5, 0, 0], up: [0, 0, 1] };
-  const storyboard = createAssemblyStoryboard(document, { name: 'Montaż', duration: 4, keyframes: [{ time: 0, explodeAmount: 0, instanceOffsets: { 'occurrence-a': [0, 0, 0] }, instanceRotations: { 'occurrence-a': [0, 0, 0] }, camera: cameraStart, note: 'Start' }] });
-  const end = addStoryboardKeyframe(document, storyboard.id, { time: 4, explodeAmount: 1, instanceOffsets: { 'occurrence-a': [20, 0, 0] }, instanceRotations: { 'occurrence-a': [0, 0, 90] }, camera: cameraEnd, note: 'Zdejmij osłonę' });
+  const storyboard = createAssemblyStoryboard(document, { name: 'Montaż', duration: 4, keyframes: [{ time: 0, explodeAmount: 0, instanceOffsets: { 'occurrence-a': [0, 0, 0] }, instanceRotations: { 'occurrence-a': [0, 0, 0] }, jointValues: { 'joint-a': 10 }, camera: cameraStart, note: 'Start' }] });
+  const end = addStoryboardKeyframe(document, storyboard.id, { time: 4, explodeAmount: 1, instanceOffsets: { 'occurrence-a': [20, 0, 0] }, instanceRotations: { 'occurrence-a': [0, 0, 90] }, jointValues: { 'joint-a': 50 }, camera: cameraEnd, note: 'Zdejmij osłonę' });
   assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 0), 0);
   assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 2), 0.5);
   assert.equal(sampleAssemblyStoryboard(document.animationStoryboards[0], 4), 1);
   const halfway = sampleAssemblyStoryboardState(document.animationStoryboards[0], 2);
   assert.deepEqual(halfway.instanceOffsets['occurrence-a'], [10, 0, 0]);
   assert.deepEqual(halfway.instanceRotations['occurrence-a'], [0, 0, 45]);
+  assert.equal(halfway.jointValues['joint-a'], 30);
   assert.deepEqual(halfway.camera.position, [15, 10, 10]);
   assert.equal(halfway.note, 'Zdejmij osłonę');
   const reopened = openDocument(structuredClone(document)).document;

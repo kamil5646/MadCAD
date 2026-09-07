@@ -190,6 +190,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.35f Klatka storyboardu zapisuje również niezależne przesunięcie XYZ każdego wystąpienia, bieżącą kamerę i opis kroku montażowego. Renderer interpoluje ruch części oraz pozycję i cel kamery bez zapisywania ich do transformacji projektowych; panel pokazuje ruch aktualnie wybranego wystąpienia, a desktop E2E potwierdza wartość 30 mm, kamerę, opis, odtwarzanie i Undo/Redo.
 - [x] P1.35g Klatka storyboardu zapisuje niezależny obrót XYZ każdego wystąpienia. Obrót jest płynnie interpolowany razem z przesunięciem i nakładany wyłącznie w rendererze, bez mutowania transformacji projektowej, jointów i historii modelu; panel rozdziela pola przesunięcia w milimetrach od obrotu w stopniach.
 - [x] P1.35h Wybrane wystąpienie animacji ma bezpośrednio w scenie turkusową strzałkę przesunięcia oraz bursztynowy łuk dominującego obrotu. Prowadnice są tylko informacją wizualną, nie trafiają do modelu ani eksportu i znikają przy zerowym ruchu.
+- [x] P1.35i Storyboard zapisuje i interpoluje wartości jointów, a renderer wyznacza z nich chwilową transformację względem osi, położenia spoczynkowego i limitów jointa bez zmiany dokumentu. Pierwsza klatka nowego storyboardu przejmuje aktualne wartości jointów.
 
 ## P2 — dokumentacja techniczna 2D
 

@@ -173,6 +173,15 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.joints[0].value === 35`, 'redo ruchu jointa');
     await waitFor(window, `document.querySelector('input[aria-label="Numeryczna wartość jointa"]')?.value === '35' && [...document.querySelectorAll('.component-joint-list button')].some((button) => button.textContent.includes('35'))`, 'odświeżone sterowanie jointa');
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.storyboard-keyframes > div')[1]?.querySelector('button:last-child')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState.animationStoryboards[0].keyframes.length === 1`, 'usunięta końcowa klatka przed animacją jointa');
+    await setInput(window, '.component-storyboard input[aria-label="Czas storyboardu"]', '5');
+    await setInput(window, '.component-storyboard input[aria-label="Wartość jointa w animacji"]', '55');
+    await setInput(window, '.component-storyboard input[aria-label="Opis kroku storyboardu"]', 'Odsuń ramę');
+    if (!(await clickByText(window, '.storyboard-transport button', 'Klatka'))) throw new Error('Nie znaleziono zapisu klatki jointa.');
+    await waitFor(window, `window.__madcadVerifyDocumentState.animationStoryboards[0].keyframes[1].jointValues[${JSON.stringify(jointId)}] === 55`, 'klatka z wartością jointa');
+    if (!(await clickByText(window, '.storyboard-transport button', 'Odtwórz'))) throw new Error('Nie znaleziono odtwarzania jointa.');
+    await waitFor(window, `window.__madcadModelVisualState?.some((item) => item.occurrenceId === ${JSON.stringify(duplicateId)} && item.animationJointValue === 55)`, 'renderer animowanej wartości jointa', 8000);
 
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.component-occurrences > button')].find((button) => button.textContent.includes('Rama główna') && !button.textContent.includes(':2')).click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.selection.kind === 'componentInstance' && window.__madcadVerifyDocumentState.selection.id !== ${JSON.stringify(duplicateId)}`, 'bazowe wystąpienie dla drugiego jointa');
@@ -266,6 +275,7 @@ app.whenReady().then(async () => {
         storyboardMotionX: state.animationStoryboards?.[0]?.keyframes?.[1]?.instanceOffsets?.[${JSON.stringify(duplicateId)}]?.[0],
         storyboardRotationZ: state.animationStoryboards?.[0]?.keyframes?.[1]?.instanceRotations?.[${JSON.stringify(duplicateId)}]?.[2],
         storyboardGuides: Boolean(window.__madcadStoryboardGuidesVerified),
+        storyboardJointValue: state.animationStoryboards?.[0]?.keyframes?.[1]?.jointValues?.[${JSON.stringify(jointId)}],
         storyboardCamera: Boolean(state.animationStoryboards?.[0]?.keyframes?.[1]?.camera),
         storyboardNote: state.animationStoryboards?.[0]?.keyframes?.[1]?.note,
         activeConfiguration: state.assemblyConfigurations.find((item) => item.id === state.activeAssemblyConfigurationId)?.name,
@@ -288,7 +298,7 @@ app.whenReady().then(async () => {
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
-    if (result.schemaVersion !== 15 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.appearance?.preset !== 'brass' || result.appearance?.color !== '#c49a49' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.storyboards !== 1 || result.storyboardFrames !== 2 || result.storyboardMotionX !== 30 || result.storyboardRotationZ !== 45 || !result.storyboardGuides || !result.storyboardCamera || result.storyboardNote !== 'Odsuń ramę' || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.interferenceStatus !== 'exact' || !result.interferenceBounds.includes('Nakładanie obwiedni:') || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
+    if (result.schemaVersion !== 15 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.appearance?.preset !== 'brass' || result.appearance?.color !== '#c49a49' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.storyboards !== 1 || result.storyboardFrames !== 2 || result.storyboardMotionX !== 30 || result.storyboardRotationZ !== 45 || !result.storyboardGuides || result.storyboardJointValue !== 55 || !result.storyboardCamera || result.storyboardNote !== 'Odsuń ramę' || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.interferenceStatus !== 'exact' || !result.interferenceBounds.includes('Nakładanie obwiedni:') || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
       throw new Error(`Niepoprawny przepływ komponentów: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, appearanceScreenshotPath, explodedScreenshotPath, storyboardScreenshotPath, ...result }, null, 2)}\n`);

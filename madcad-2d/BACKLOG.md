@@ -116,6 +116,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Niezależne przesunięcia części, kamera i opisy kroków w klatkach storyboardu ukończono jako `P1.35f`.
 - [x] Niezależne obroty XYZ części w klatkach storyboardu ukończono jako `P1.35g`.
 - [x] Graficzne prowadnice przesunięcia i obrotu wybranej części ukończono jako `P1.35h`.
+- [x] Animowane wartości jointów w storyboardzie ukończono jako `P1.35i`.
 - Walidowane analizy statyczne/termiczne oraz późniejsza optymalizacja topologii.
 
 ### Manufacture / CAM
