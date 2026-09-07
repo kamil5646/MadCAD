@@ -4476,6 +4476,8 @@
 .component-storyboard button:disabled { opacity: .42; cursor: default; }
 .storyboard-transport { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .storyboard-transport button { display: flex; align-items: center; justify-content: center; gap: 4px; }
+.storyboard-export { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.storyboard-export button { display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; white-space: nowrap; }
 .component-storyboard > label { display: grid; gap: 3px; color: #b8c4cd; font-size: 9px; }
 .component-storyboard > label span { display: flex; justify-content: space-between; }
 .component-storyboard > label em { color: #70cee8; font-style: normal; }

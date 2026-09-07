@@ -147,6 +147,7 @@ import { assignBodiesToComponent, componentParentMap, createComponent, createCom
 import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../cad-core/assembly-joints.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../cad-core/assembly-motion.js';
 import { addStoryboardKeyframe, createAssemblyStoryboard, deleteAssemblyStoryboard, deleteStoryboardKeyframe, sampleAssemblyStoryboardState, updateAssemblyStoryboard } from '../cad-core/assembly-animation.js';
+import { assemblyInstructionHtml } from '../cad-core/assembly-instructions.js';
 import { createNamedView, deleteNamedView } from '../cad-core/named-views.js';
 import { MAX_RENDER_DECAL_BYTES, createRenderDecal, deleteRenderDecal, updateRenderDecal } from '../cad-core/render-scene.js';
 import {
@@ -532,6 +533,7 @@ export default function ModelingWorkspace() {
   const [explodeAmount, setExplodeAmount] = useState(0);
   const [activeStoryboardId, setActiveStoryboardId] = useState('');
   const [animationPlaying, setAnimationPlaying] = useState(false);
+  const [storyboardExporting, setStoryboardExporting] = useState(false);
   const [animationTime, setAnimationTime] = useState(0);
   const [animationInstanceOffsets, setAnimationInstanceOffsets] = useState({});
   const [animationInstanceRotations, setAnimationInstanceRotations] = useState({});
@@ -972,6 +974,71 @@ export default function ModelingWorkspace() {
     const sampled = sampleAssemblyStoryboardState(storyboard, time);
     setAnimationPlaying(false); setActiveStoryboardId(storyboard.id); setAnimationTime(time); setExplodeAmount(sampled.explodeAmount); setAnimationInstanceOffsets(sampled.instanceOffsets); setAnimationInstanceRotations(sampled.instanceRotations); setAnimationJointValues(sampled.jointValues); setAnimationNote(sampled.note);
     if (sampled.camera) setCameraRequest({ requestId: `storyboard-seek:${storyboard.id}:${time}:${Date.now()}`, camera: sampled.camera });
+  };
+
+  const exportStoryboardInstructions = (storyboard) => {
+    try {
+      const html = assemblyInstructionHtml(document, storyboard);
+      downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), `${safeName(document.name)}-${safeName(storyboard.name)}-instrukcja.html`);
+      setNotice('Zapisano drukowalną instrukcję montażową HTML.');
+    } catch (error) {
+      setNotice(`Nie zapisano instrukcji: ${error.message}`);
+    }
+  };
+
+  const exportStoryboardVideo = async (storyboard) => {
+    if (storyboardExporting) return;
+    let stream;
+    let recorder;
+    try {
+      if (!window.MediaRecorder) throw new Error('Ten system nie obsługuje eksportu WebM.');
+      const sourceCanvas = window.document.querySelector('.model-viewport canvas');
+      if (!sourceCanvas?.captureStream) throw new Error('Widok 3D nie jest jeszcze gotowy.');
+      setAnimationPlaying(false);
+      setStoryboardExporting(true);
+      const scale = Math.min(1, 1920 / sourceCanvas.width, 1080 / sourceCanvas.height);
+      const exportCanvas = window.document.createElement('canvas');
+      exportCanvas.width = Math.max(2, Math.round(sourceCanvas.width * scale));
+      exportCanvas.height = Math.max(2, Math.round(sourceCanvas.height * scale));
+      const context = exportCanvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('Nie udało się przygotować klatki filmu.');
+      stream = exportCanvas.captureStream(24);
+      const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((type) => window.MediaRecorder.isTypeSupported(type));
+      if (!mimeType) throw new Error('Brak dostępnego kodera WebM.');
+      const chunks = [];
+      recorder = new window.MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+      const stopped = new Promise((resolve, reject) => {
+        recorder.onstop = resolve;
+        recorder.onerror = () => reject(recorder.error || new Error('Koder przerwał nagrywanie.'));
+      });
+      const first = sampleAssemblyStoryboardState(storyboard, 0);
+      animationTimeRef.current = 0;
+      setActiveStoryboardId(storyboard.id); setAnimationTime(0); setExplodeAmount(first.explodeAmount); setAnimationInstanceOffsets(first.instanceOffsets); setAnimationInstanceRotations(first.instanceRotations); setAnimationJointValues(first.jointValues); setAnimationNote(first.note);
+      if (first.camera) setCameraRequest({ requestId: `storyboard-export:${storyboard.id}:0:${Date.now()}`, camera: first.camera });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      recorder.start(250);
+      setAnimationPlaying(true);
+      const startedAt = performance.now();
+      do {
+        const currentCanvas = window.document.querySelector('.model-viewport canvas');
+        if (currentCanvas) context.drawImage(currentCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      } while (performance.now() - startedAt < storyboard.duration * 1000 + 250);
+      recorder.stop();
+      await stopped;
+      const blob = new Blob(chunks, { type: mimeType });
+      if (blob.size < 1024) throw new Error('Koder nie zwrócił poprawnego filmu.');
+      downloadBlob(blob, `${safeName(document.name)}-${safeName(storyboard.name)}.webm`);
+      setNotice(`Zapisano film WebM ${exportCanvas.width}×${exportCanvas.height}.`);
+    } catch (error) {
+      if (recorder?.state === 'recording') recorder.stop();
+      setNotice(`Nie zapisano filmu: ${error.message}`);
+    } finally {
+      setAnimationPlaying(false);
+      stream?.getTracks().forEach((track) => track.stop());
+      setStoryboardExporting(false);
+    }
   };
 
   const addRenderDecal = async (file, face) => {
@@ -7575,9 +7642,9 @@ export default function ModelingWorkspace() {
           {componentsOpen && <ComponentPanel
             document={document} bodies={engine.bodies} collisionResult={assemblyCollisionResult}
             selectedComponentId={selectedComponent?.id || ''} selectedInstanceId={selectedInstance?.id || ''} selectedJointId={selectedJoint?.id || ''} selectedMotionLinkId={selectedMotionLink?.id || ''} selectedConfigurationId={selectedAssemblyConfiguration?.id || ''} selectedContactSetId={selectedContactSet?.id || ''} selectedBodyIds={selectedBodyIds}
-            linkedProjectStatuses={linkedProjectStatuses} readOnly={readOnly} explodeAmount={explodeAmount} onExplodeAmountChange={(amount) => { setAnimationPlaying(false); setExplodeAmount(amount); }} activeStoryboardId={activeStoryboardId} animationPlaying={animationPlaying} animationTime={animationTime} animationInstanceOffsets={animationInstanceOffsets} animationInstanceRotations={animationInstanceRotations} animationJointValues={animationJointValues} animationNote={animationNote}
+            linkedProjectStatuses={linkedProjectStatuses} readOnly={readOnly} explodeAmount={explodeAmount} onExplodeAmountChange={(amount) => { setAnimationPlaying(false); setExplodeAmount(amount); }} activeStoryboardId={activeStoryboardId} animationPlaying={animationPlaying} storyboardExporting={storyboardExporting} animationTime={animationTime} animationInstanceOffsets={animationInstanceOffsets} animationInstanceRotations={animationInstanceRotations} animationJointValues={animationJointValues} animationNote={animationNote}
             onPreviewStoryboardOffset={(instanceId, offset) => setAnimationInstanceOffsets((current) => ({ ...current, [instanceId]: offset }))} onPreviewStoryboardRotation={(instanceId, rotation) => setAnimationInstanceRotations((current) => ({ ...current, [instanceId]: rotation }))} onPreviewStoryboardJoint={(jointId, value) => setAnimationJointValues((current) => ({ ...current, [jointId]: value }))} onAnimationNoteChange={setAnimationNote}
-            onSelectStoryboard={(id) => { setAnimationPlaying(false); setActiveStoryboardId(id); setAnimationTime(0); setAnimationInstanceOffsets({}); setAnimationInstanceRotations({}); setAnimationJointValues({}); setAnimationNote(''); }} onCreateStoryboard={createStoryboard} onUpdateStoryboard={changeStoryboard} onDeleteStoryboard={removeStoryboard} onAddStoryboardKeyframe={addStoryboardFrame} onDeleteStoryboardKeyframe={deleteStoryboardFrame} onSeekStoryboard={seekStoryboard} onPlayStoryboard={(storyboard) => { setActiveStoryboardId(storyboard.id); if (animationTime >= storyboard.duration) { const first = sampleAssemblyStoryboardState(storyboard, 0); setAnimationTime(0); setExplodeAmount(first.explodeAmount); setAnimationInstanceOffsets(first.instanceOffsets); setAnimationInstanceRotations(first.instanceRotations); setAnimationJointValues(first.jointValues); setAnimationNote(first.note); } setAnimationPlaying(true); }} onStopStoryboard={() => setAnimationPlaying(false)}
+            onSelectStoryboard={(id) => { setAnimationPlaying(false); setActiveStoryboardId(id); setAnimationTime(0); setAnimationInstanceOffsets({}); setAnimationInstanceRotations({}); setAnimationJointValues({}); setAnimationNote(''); }} onCreateStoryboard={createStoryboard} onUpdateStoryboard={changeStoryboard} onDeleteStoryboard={removeStoryboard} onAddStoryboardKeyframe={addStoryboardFrame} onDeleteStoryboardKeyframe={deleteStoryboardFrame} onSeekStoryboard={seekStoryboard} onPlayStoryboard={(storyboard) => { setActiveStoryboardId(storyboard.id); if (animationTime >= storyboard.duration) { const first = sampleAssemblyStoryboardState(storyboard, 0); setAnimationTime(0); setExplodeAmount(first.explodeAmount); setAnimationInstanceOffsets(first.instanceOffsets); setAnimationInstanceRotations(first.instanceRotations); setAnimationJointValues(first.jointValues); setAnimationNote(first.note); } setAnimationPlaying(true); }} onStopStoryboard={() => setAnimationPlaying(false)} onExportStoryboardVideo={(storyboard) => { void exportStoryboardVideo(storyboard); }} onExportStoryboardInstructions={exportStoryboardInstructions}
             onCreate={createDocumentComponent} onLinkProject={() => { void linkExternalProject(); }} onPackAndGo={() => { void packAndGoProject(); }} onRefreshLinkedProject={(linkId) => { void refreshLinkedProject(linkId); }} onRepairLinkedProject={(linkId) => { void refreshLinkedProject(linkId, true); }}
             onUpdate={updateDocumentComponent} onAssignBodies={assignDocumentComponentBodies} onMove={moveDocumentComponent} onDelete={removeDocumentComponent} onSelect={(componentId) => setSelection({ kind: 'component', id: componentId })} onSelectInstance={(instanceId) => { const instance = document.componentInstances.find((item) => item.id === instanceId); setSelection({ kind: 'componentInstance', id: instanceId, componentId: instance?.componentId }); }} onCreateInstance={createDocumentComponentInstance} onUpdateInstance={updateDocumentComponentInstance} onDuplicateInstance={duplicateDocumentComponentInstance} onDeleteInstance={removeDocumentComponentInstance}
             onCreateRigidGroup={createDocumentRigidGroup} onDeleteRigidGroup={removeDocumentRigidGroup} onSelectJoint={(jointId) => setSelection(jointId ? { kind: 'joint', id: jointId } : { kind: 'document', id: document.id })} onCreateJoint={createDocumentJoint} onUpdateJoint={updateDocumentJoint} onSetJointValue={setDocumentJointValue} onDeleteJoint={removeDocumentJoint}

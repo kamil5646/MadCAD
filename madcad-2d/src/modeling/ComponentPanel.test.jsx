@@ -36,6 +36,8 @@ function panelProps(overrides = {}) {
     onSeekStoryboard: vi.fn(),
     onPlayStoryboard: vi.fn(),
     onStopStoryboard: vi.fn(),
+    onExportStoryboardVideo: vi.fn(),
+    onExportStoryboardInstructions: vi.fn(),
     onPreviewStoryboardOffset: vi.fn(),
     onPreviewStoryboardRotation: vi.fn(),
     onPreviewStoryboardJoint: vi.fn(),
@@ -141,6 +143,10 @@ describe('ComponentPanel', () => {
     expect(props.onDeleteStoryboardKeyframe).toHaveBeenCalledWith(storyboard.id, 'frame-2');
     fireEvent.change(screen.getByRole('spinbutton', { name: /Czas trwania storyboardu/i }), { target: { value: '8' } });
     expect(props.onUpdateStoryboard).toHaveBeenCalledWith(storyboard.id, { duration: '8' });
+    fireEvent.click(screen.getByRole('button', { name: /Film WebM/i }));
+    expect(props.onExportStoryboardVideo).toHaveBeenCalledWith(storyboard);
+    fireEvent.click(screen.getByRole('button', { name: /Instrukcja HTML/i }));
+    expect(props.onExportStoryboardInstructions).toHaveBeenCalledWith(storyboard);
   });
 
   it('creates a revolute joint between sibling occurrences', () => {

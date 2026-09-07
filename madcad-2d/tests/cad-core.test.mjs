@@ -154,6 +154,7 @@ import {
 } from '../src/cad-core/blocks.js';
 import { calculateExplodedOffsets } from '../src/cad-core/exploded-view.js';
 import { addStoryboardKeyframe, createAssemblyStoryboard, deleteAssemblyStoryboard, deleteStoryboardKeyframe, sampleAssemblyStoryboard, sampleAssemblyStoryboardState, updateAssemblyStoryboard } from '../src/cad-core/assembly-animation.js';
+import { assemblyInstructionHtml } from '../src/cad-core/assembly-instructions.js';
 import { resolveModelingLanguage, translateModelingText } from '../src/modeling/i18n.js';
 import { tutorialForLanguage } from '../src/modeling/tutorial-content.js';
 import {
@@ -213,6 +214,21 @@ test('storyboard zapisuje klatki rozłożenia i interpoluje je bez zmiany złoż
   assert.equal(document.animationStoryboards[0].name, 'Demontaż');
   deleteAssemblyStoryboard(document, storyboard.id);
   assert.equal(document.animationStoryboards.length, 0);
+});
+
+test('storyboard tworzy bezpieczną i drukowalną instrukcję montażową HTML', () => {
+  const document = createDocument('Projekt <ramy>');
+  document.componentInstances = [{ id: 'occurrence-a', name: 'Rama & osłona' }];
+  document.joints = [{ id: 'joint-a', name: 'Zawias "lewy"' }];
+  const storyboard = createAssemblyStoryboard(document, { name: 'Montaż <A>', duration: 4, keyframes: [{ time: 0, note: 'Start' }] });
+  addStoryboardKeyframe(document, storyboard.id, { time: 4, explodeAmount: 0.75, instanceOffsets: { 'occurrence-a': [20, 0, 5] }, instanceRotations: { 'occurrence-a': [0, 0, 90] }, jointValues: { 'joint-a': 45 }, note: 'Zdejmij <osłonę>' });
+  const html = assemblyInstructionHtml(document, document.animationStoryboards[0]);
+  assert.match(html, /Projekt &lt;ramy&gt;/);
+  assert.match(html, /Zdejmij &lt;osłonę&gt;/);
+  assert.match(html, /Rama &amp; osłona: X 20\.0, Y 0\.0, Z 5\.0 mm/);
+  assert.match(html, /Zawias &quot;lewy&quot;: 45\.0 °/);
+  assert.match(html, /75%/);
+  assert.doesNotMatch(html, /<osłonę>/);
 });
 
 test('komponenty budują bezpieczną hierarchię części i złożeń z własnością brył', () => {

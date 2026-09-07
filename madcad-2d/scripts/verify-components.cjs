@@ -6,6 +6,8 @@ const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-component
 const appearanceScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-component-appearance.png');
 const explodedScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-exploded-view.png');
 const storyboardScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-storyboard.png');
+const storyboardVideoPath = path.join(__dirname, '..', 'artifacts', 'madcad-storyboard.webm');
+const storyboardInstructionsPath = path.join(__dirname, '..', 'artifacts', 'madcad-storyboard-instrukcja.html');
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
   const startedAt = Date.now();
@@ -49,6 +51,13 @@ app.whenReady().then(async () => {
   window.setContentSize(1440, 837);
   try {
     await fs.mkdir(path.dirname(screenshotPath), { recursive: true });
+    await Promise.all([storyboardVideoPath, storyboardInstructionsPath].map((filePath) => fs.rm(filePath, { force: true })));
+    const downloads = [];
+    window.webContents.session.on('will-download', (_event, item) => {
+      const targetPath = item.getFilename().endsWith('.webm') ? storyboardVideoPath : storyboardInstructionsPath;
+      item.setSavePath(targetPath);
+      downloads.push(new Promise((resolve, reject) => item.once('done', (_doneEvent, state) => state === 'completed' ? resolve(targetPath) : reject(new Error(`Pobieranie ${item.getFilename()} zakończone: ${state}`)))));
+    });
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
     await waitFor(window, `document.querySelector('.modeling-shell')`, 'interfejs aplikacji');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
@@ -176,12 +185,25 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelectorAll('.storyboard-keyframes > div')[1]?.querySelector('button:last-child')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.animationStoryboards[0].keyframes.length === 1`, 'usunięta końcowa klatka przed animacją jointa');
     await setInput(window, '.component-storyboard input[aria-label="Czas storyboardu"]', '5');
+    await setInput(window, '.component-storyboard input[aria-label="Przesunięcie animacji X"]', '30');
+    await setInput(window, '.component-storyboard input[aria-label="Obrót animacji Z"]', '45');
     await setInput(window, '.component-storyboard input[aria-label="Wartość jointa w animacji"]', '55');
     await setInput(window, '.component-storyboard input[aria-label="Opis kroku storyboardu"]', 'Odsuń ramę');
     if (!(await clickByText(window, '.storyboard-transport button', 'Klatka'))) throw new Error('Nie znaleziono zapisu klatki jointa.');
     await waitFor(window, `window.__madcadVerifyDocumentState.animationStoryboards[0].keyframes[1].jointValues[${JSON.stringify(jointId)}] === 55`, 'klatka z wartością jointa');
     if (!(await clickByText(window, '.storyboard-transport button', 'Odtwórz'))) throw new Error('Nie znaleziono odtwarzania jointa.');
     await waitFor(window, `window.__madcadModelVisualState?.some((item) => item.occurrenceId === ${JSON.stringify(duplicateId)} && item.animationJointValue === 55)`, 'renderer animowanej wartości jointa', 8000);
+    if (!(await clickByText(window, '.storyboard-export button', 'Instrukcja HTML'))) throw new Error('Nie znaleziono eksportu instrukcji HTML.');
+    while (downloads.length < 1) await new Promise((resolve) => setTimeout(resolve, 50));
+    await downloads[0];
+    const instructionHtml = await fs.readFile(storyboardInstructionsPath, 'utf8');
+    if (!instructionHtml.includes('Odsuń ramę') || !instructionHtml.includes('55.0') || !instructionHtml.includes('Montaż testowy')) throw new Error('Instrukcja HTML nie zawiera danych storyboardu.');
+    if (!(await clickByText(window, '.storyboard-export button', 'Film WebM'))) throw new Error('Nie znaleziono eksportu filmu WebM.');
+    await waitFor(window, `document.querySelector('.storyboard-export button')?.textContent.includes('Nagrywanie')`, 'rozpoczęcie eksportu WebM');
+    while (downloads.length < 2) await new Promise((resolve) => setTimeout(resolve, 100));
+    await downloads[1];
+    const video = await fs.readFile(storyboardVideoPath);
+    if (video.length < 10_000 || !video.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) throw new Error(`Niepoprawny film WebM: ${video.length} B.`);
 
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.component-occurrences > button')].find((button) => button.textContent.includes('Rama główna') && !button.textContent.includes(':2')).click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.selection.kind === 'componentInstance' && window.__madcadVerifyDocumentState.selection.id !== ${JSON.stringify(duplicateId)}`, 'bazowe wystąpienie dla drugiego jointa');
@@ -301,7 +323,7 @@ app.whenReady().then(async () => {
     if (result.schemaVersion !== 15 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.appearance?.preset !== 'brass' || result.appearance?.color !== '#c49a49' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.storyboards !== 1 || result.storyboardFrames !== 2 || result.storyboardMotionX !== 30 || result.storyboardRotationZ !== 45 || !result.storyboardGuides || result.storyboardJointValue !== 55 || !result.storyboardCamera || result.storyboardNote !== 'Odsuń ramę' || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.interferenceStatus !== 'exact' || !result.interferenceBounds.includes('Nakładanie obwiedni:') || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
       throw new Error(`Niepoprawny przepływ komponentów: ${JSON.stringify(result)}`);
     }
-    process.stdout.write(`${JSON.stringify({ screenshotPath, appearanceScreenshotPath, explodedScreenshotPath, storyboardScreenshotPath, ...result }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ screenshotPath, appearanceScreenshotPath, explodedScreenshotPath, storyboardScreenshotPath, storyboardVideoPath, storyboardInstructionsPath, ...result }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);
