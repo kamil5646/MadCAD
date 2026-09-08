@@ -12,6 +12,7 @@ import {
   createPocketOperation,
   extractTopBoundaryLoops,
   offsetClosedContour,
+  simulateMaterialRemoval,
   validateManufacturing,
 } from './manufacturing.js';
 
@@ -148,6 +149,20 @@ describe('CAM contour operations', () => {
   it('rejects a safe plane that is below the stock top', () => {
     const setup = createManufacturingSetup({ bodyId: box.id, wcsOrigin: 'model-origin', safeHeight: 5 });
     expect(analyzeManufacturingProgram(setup, [box]).setupIssues.join(' ')).toContain('Płaszczyzna bezpieczna');
+  });
+
+  it('simulates progressive material removal and tracks the cutter', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id, stock: { topOffset: 2 } });
+    setup.operations.push(createPocketOperation({ targetDepth: 2, maxStepdown: 1 }));
+    const start = simulateMaterialRemoval(setup, [box], null, 0, 20);
+    const halfway = simulateMaterialRemoval(setup, [box], null, 0.5, 20);
+    const finished = simulateMaterialRemoval(setup, [box], null, 1, 20);
+    expect(start.removedVolume).toBe(0);
+    expect(halfway.removedVolume).toBeGreaterThan(0);
+    expect(finished.removedVolume).toBeGreaterThanOrEqual(halfway.removedVolume);
+    expect(finished.columns.length).toBeGreaterThan(0);
+    expect(finished.cutter.position).toHaveLength(3);
+    expect(finished.processedSegments).toBe(finished.totalSegments);
   });
 
   it('uses a persistent selected horizontal face and rejects a vertical face', () => {
