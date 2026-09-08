@@ -4512,6 +4512,12 @@
 .beam-fea-inputs .command-field { margin: 0; }
 .beam-fea-panel { display: flex; max-height: calc(100% - 28px); flex-direction: column; }
 .beam-fea-panel .measure-panel-body { min-height: 0; overflow-y: auto; }
+.beam-fea-legend { display: flex; flex-wrap: wrap; gap: 5px 10px; color: #aebbc4; font-size: 9px; font-weight: 700; }
+.beam-fea-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.beam-fea-legend i { width: 9px; height: 9px; border-radius: 2px; background: #52d3ef; }
+.beam-fea-legend i.support { background: #e85d75; }
+.beam-fea-legend i.load { border-radius: 50%; background: #ff7a45; }
+.beam-fea-legend i.deformation { height: 2px; border-radius: 0; background: #52d3ef; }
 .beam-fea-chart { display: grid; gap: 3px; padding: 6px 7px; border: 1px solid #4d606e; border-radius: 4px; background: #202d36; }
 .beam-fea-chart span { color: #aebbc4; font-size: 9px; font-weight: 700; }
 .beam-fea-chart svg { display: block; width: 100%; height: 58px; overflow: visible; }

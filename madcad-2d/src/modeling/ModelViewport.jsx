@@ -969,6 +969,31 @@ export default function ModelViewport({
           beamFeaVisualState.loadPoint = loadPoint.toArray();
           beamFeaVisualState.loadPosition = beamFeaVisualization.loadPosition;
         }
+        const supportSize = [0, 1, 2].map((index) => index === spanIndex ? 0.5 : Math.max(2, bounds[1][index] - bounds[0][index]));
+        const support = new THREE.Mesh(new THREE.BoxGeometry(...supportSize), new THREE.MeshBasicMaterial({ color: 0xe85d75, transparent: true, opacity: 0.42, depthTest: false }));
+        support.position.fromArray(center);
+        support.position.setComponent(spanIndex, bounds[0][spanIndex]);
+        support.renderOrder = 18;
+        scene.add(support);
+        const forceDirection = new THREE.Vector3(...[0, 1, 2].map((index) => index === loadIndex ? -1 : 0));
+        const arrowLength = Math.max(6, Math.min(20, beamFeaVisualization.length * 0.16));
+        const arrowPositions = beamFeaVisualization.loadType === 'distributed'
+          ? Array.from({ length: 6 }, (_, index) => beamFeaVisualization.length * (index + 0.5) / 6)
+          : [beamFeaVisualization.loadPosition];
+        arrowPositions.filter(Number.isFinite).forEach((position) => {
+          const origin = new THREE.Vector3(...center);
+          origin.setComponent(spanIndex, bounds[0][spanIndex] + position);
+          origin.setComponent(loadIndex, bounds[1][loadIndex] + arrowLength);
+          const arrow = new THREE.ArrowHelper(forceDirection, origin, arrowLength, 0xff7a45, Math.min(4, arrowLength * 0.35), Math.min(2.4, arrowLength * 0.22));
+          arrow.line.material.depthTest = false;
+          arrow.cone.material.depthTest = false;
+          arrow.line.renderOrder = 19;
+          arrow.cone.renderOrder = 19;
+          scene.add(arrow);
+        });
+        beamFeaVisualState.support = { position: bounds[0][spanIndex], axis: beamFeaVisualization.spanAxis };
+        beamFeaVisualState.loadArrowCount = arrowPositions.length;
+        beamFeaVisualState.loadType = beamFeaVisualization.loadType;
         beamFeaVisualState.visible = true;
         beamFeaVisualState.nodeCount = points.length;
         beamFeaVisualState.scale = scale;

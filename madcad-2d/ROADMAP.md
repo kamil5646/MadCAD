@@ -199,6 +199,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.36d Wynik MES belki ma wykres ugięcia w panelu oraz nałożoną na model linię zdeformowaną z automatyczną skalą, węzłami i mapą koloru od utwierdzenia do maksymalnego przemieszczenia. Wizualizacja jest wyłącznie podglądem i znika razem z poleceniem analizy.
 - [x] P1.36e MES belki obsługuje zarówno siłę skupioną na końcu, jak i równomiernie rozłożone obciążenie liniowe. Dla obciążenia rozłożonego solver składa zgodne siły węzłowe każdego elementu, a reakcje, moment, naprężenie i ugięcie są niezależnie sprawdzane rozwiązaniem analitycznym.
 - [x] P1.36f Siłę skupioną można umieścić w dowolnym położeniu 0–100% długości belki. Solver używa funkcji kształtu Hermite'a do zgodnego rozdzielenia siły i momentów między węzły elementu, zamiast zaokrąglać położenie do siatki.
+- [x] P1.36g Warunki brzegowe analizy są widoczne bezpośrednio na modelu: czerwone utwierdzenie oraz pomarańczowa strzałka siły skupionej albo sześć strzałek obciążenia rozłożonego. Panel ma spójną legendę kolorów deformacji, podpory i obciążenia.
 
 ## P2 — dokumentacja techniczna 2D
 
