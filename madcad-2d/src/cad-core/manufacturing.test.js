@@ -24,6 +24,11 @@ const box = {
     0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5,
     2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7,
   ]),
+  faceGroups: [
+    { topologyId: 'bottom-face', start: 0, count: 6 },
+    { topologyId: 'top-face', start: 6, count: 6 },
+    { topologyId: 'side-face', start: 12, count: 6 },
+  ],
 };
 
 describe('CAM contour operations', () => {
@@ -79,5 +84,17 @@ describe('CAM contour operations', () => {
       expect(segment.to[1]).toBeLessThanOrEqual(17);
     }
     expect(createGrblGcode(setup, operation, [box]).text).toContain('Kieszeń 2D');
+  });
+
+  it('uses a persistent selected horizontal face and rejects a vertical face', () => {
+    expect(extractTopBoundaryLoops(box, 'top-face')[0]).toHaveLength(4);
+    expect(extractTopBoundaryLoops(box, 'side-face')).toEqual([]);
+    const setup = createManufacturingSetup({ bodyId: box.id });
+    const selectedTop = createContourOperation({ targetDepth: 1, boundaryFaceId: 'top-face' });
+    expect(calculateContourToolpath(setup, selectedTop, [box]).valid).toBe(true);
+    const selectedSide = createContourOperation({ targetDepth: 1, boundaryFaceId: 'side-face' });
+    const result = calculateContourToolpath(setup, selectedSide, [box]);
+    expect(result.valid).toBe(false);
+    expect(result.warnings.join(' ')).toContain('nie jest pozioma');
   });
 });

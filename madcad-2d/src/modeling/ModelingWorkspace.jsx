@@ -966,13 +966,14 @@ export default function ModelingWorkspace() {
     const setup = next.manufacturing.setups.find((item) => item.id === setupId);
     if (!setup) return;
     const sameTypeCount = setup.operations.filter((item) => item.type === type).length + 1;
+    const selectedBoundaryFaceId = selection?.kind === 'face' && selection.bodyId === setup.bodyId ? selection.id : '';
     const operation = type === 'contour'
-      ? createContourOperation({ name: `Kontur 2D ${sameTypeCount}` })
+      ? createContourOperation({ name: `Kontur 2D ${sameTypeCount}`, boundaryFaceId: selectedBoundaryFaceId })
       : type === 'pocket'
-        ? createPocketOperation({ name: `Kieszeń 2D ${sameTypeCount}` })
+        ? createPocketOperation({ name: `Kieszeń 2D ${sameTypeCount}`, boundaryFaceId: selectedBoundaryFaceId })
         : createFacingOperation({ name: `Planowanie ${sameTypeCount}` });
     setup.operations.push(operation);
-    setNotice(type === 'face' ? 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.' : `Utworzono ${type === 'pocket' ? 'Kieszeń 2D' : 'Kontur 2D'}. Ustaw frez, głębokość, zejście i posuw.`);
+    setNotice(type === 'face' ? 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.' : `Utworzono ${type === 'pocket' ? 'Kieszeń 2D' : 'Kontur 2D'}${selectedBoundaryFaceId ? ' dla zaznaczonej ściany' : ' dla górnej powierzchni bryły'}. Ustaw frez, głębokość, zejście i posuw.`);
   });
   const updateCamOperation = (setupId, operationId, patch) => commit((next) => {
     const setup = next.manufacturing.setups.find((item) => item.id === setupId);

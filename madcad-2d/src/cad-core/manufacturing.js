@@ -44,6 +44,7 @@ export function normalizeContourOperation(operation = {}, index = 0) {
     plungeRate: Math.max(1, Number(operation.plungeRate) || 150),
     spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 8000)),
     compensation: 'outside',
+    boundaryFaceId: typeof operation.boundaryFaceId === 'string' ? operation.boundaryFaceId : '',
   };
 }
 
@@ -60,6 +61,7 @@ export function normalizePocketOperation(operation = {}, index = 0) {
     plungeRate: Math.max(1, Number(operation.plungeRate) || 150),
     spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 8000)),
     boundary: 'body-top',
+    boundaryFaceId: typeof operation.boundaryFaceId === 'string' ? operation.boundaryFaceId : '',
   };
 }
 
@@ -213,14 +215,20 @@ const signedPolygonArea = (points) => points.reduce((area, point, index) => {
   return area + point[0] * next[1] - next[0] * point[1];
 }, 0) / 2;
 
-export function extractTopBoundaryLoops(body) {
+export function extractTopBoundaryLoops(body, faceId = '') {
   const vertices = Array.from(body?.vertices || []);
-  const triangles = Array.from(body?.triangles || []);
+  const allTriangles = Array.from(body?.triangles || []);
   const bounds = body?.bounds || body?.metrics?.bounds;
-  if (vertices.length < 9 || triangles.length < 3 || !Array.isArray(bounds?.[1])) return [];
+  if (vertices.length < 9 || allTriangles.length < 3 || !Array.isArray(bounds?.[1])) return [];
+  const faceGroup = faceId ? body?.faceGroups?.find((group) => group.topologyId === faceId) : null;
+  if (faceId && !faceGroup) return [];
+  const triangles = faceGroup ? allTriangles.slice(faceGroup.start, faceGroup.start + faceGroup.count) : allTriangles;
   const span = Math.max(1, ...bounds[1].map((value, axis) => Math.abs(Number(value) - Number(bounds[0]?.[axis] || 0))));
   const tolerance = Math.max(1e-7, span * 1e-6);
-  const topZ = vertices.reduce((maximum, value, index) => index % 3 === 2 ? Math.max(maximum, value) : maximum, -Infinity);
+  const topZ = faceGroup
+    ? vertices[triangles[0] * 3 + 2]
+    : vertices.reduce((maximum, value, index) => index % 3 === 2 ? Math.max(maximum, value) : maximum, -Infinity);
+  if (faceGroup && triangles.some((vertexIndex) => Math.abs(vertices[vertexIndex * 3 + 2] - topZ) > tolerance)) return [];
   const points = new Map();
   const edges = new Map();
   const addEdge = (a, b) => {
@@ -304,6 +312,16 @@ export function offsetClosedContour(points, distance) {
   });
 }
 
+function boundaryPlaneZ(body, faceId = '') {
+  const vertices = Array.from(body?.vertices || []);
+  const triangles = Array.from(body?.triangles || []);
+  const faceGroup = faceId ? body?.faceGroups?.find((group) => group.topologyId === faceId) : null;
+  if (faceGroup && Number.isInteger(triangles[faceGroup.start])) return vertices[triangles[faceGroup.start] * 3 + 2];
+  return vertices.length >= 3
+    ? vertices.reduce((maximum, value, index) => index % 3 === 2 ? Math.max(maximum, value) : maximum, -Infinity)
+    : Number((body?.bounds || body?.metrics?.bounds)?.[1]?.[2]);
+}
+
 function summarizeToolpath(segments) {
   const segmentLength = (segment) => Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis]));
   return {
@@ -325,13 +343,10 @@ export function calculateContourToolpath(setup, operation, bodies = []) {
   const bodyHeight = Number(bodyBounds[1][2]) - Number(bodyBounds[0][2]);
   if (normalized.targetDepth > tool.fluteLength) return fail(`Głębokość przekracza długość ostrza narzędzia (${tool.fluteLength} mm).`);
   if (normalized.targetDepth > bodyHeight + setupResult.stockBounds[0][2] - Number(bodyBounds[0][2]) + 1e-7) return fail('Głębokość konturu przekracza wysokość dostępnego materiału.');
-  const loops = extractTopBoundaryLoops(setupResult.body);
-  if (!loops.length) return fail('Nie znaleziono zamkniętej górnej krawędzi bryły. Wybierz bryłę z płaską górną powierzchnią.');
+  const loops = extractTopBoundaryLoops(setupResult.body, normalized.boundaryFaceId);
+  if (!loops.length) return fail(normalized.boundaryFaceId ? 'Wybrana ściana nie istnieje albo nie jest pozioma i płaska.' : 'Nie znaleziono zamkniętej górnej krawędzi bryły. Wybierz bryłę z płaską górną powierzchnią.');
   const contour = offsetClosedContour(loops[0], tool.diameter / 2);
-  const vertexValues = Array.from(setupResult.body.vertices || []);
-  const topZ = vertexValues.length >= 3
-    ? vertexValues.reduce((maximum, value, index) => index % 3 === 2 ? Math.max(maximum, value) : maximum, -Infinity)
-    : Number(bodyBounds[1][2]);
+  const topZ = boundaryPlaneZ(setupResult.body, normalized.boundaryFaceId);
   const layerCount = Math.max(1, Math.ceil(normalized.targetDepth / normalized.maxStepdown));
   const segments = [];
   let previous = [contour[0][0], contour[0][1], setupResult.clearancePlaneZ];
@@ -394,8 +409,8 @@ export function calculatePocketToolpath(setup, operation, bodies = []) {
   const bodyBounds = setupResult.body.bounds || setupResult.body.metrics?.bounds;
   const bodyHeight = Number(bodyBounds[1][2]) - Number(bodyBounds[0][2]);
   if (normalized.targetDepth > bodyHeight + 1e-7) return fail('Głębokość kieszeni przekracza wysokość bryły.');
-  const loops = extractTopBoundaryLoops(setupResult.body);
-  if (!loops.length) return fail('Nie znaleziono zamkniętej górnej krawędzi bryły. Wybierz bryłę z płaską górną powierzchnią.');
+  const loops = extractTopBoundaryLoops(setupResult.body, normalized.boundaryFaceId);
+  if (!loops.length) return fail(normalized.boundaryFaceId ? 'Wybrana ściana nie istnieje albo nie jest pozioma i płaska.' : 'Nie znaleziono zamkniętej górnej krawędzi bryły. Wybierz bryłę z płaską górną powierzchnią.');
   const boundary = offsetClosedContour(loops[0], -tool.diameter / 2);
   const xs = boundary.map((point) => point[0]);
   const ys = boundary.map((point) => point[1]);
@@ -412,10 +427,7 @@ export function calculatePocketToolpath(setup, operation, bodies = []) {
     rows.push(...intervals.map((interval) => ({ y, interval })));
   }
   if (!rows.length) return fail('Nie udało się wyznaczyć bezpiecznych przejść wewnątrz kieszeni.');
-  const vertexValues = Array.from(setupResult.body.vertices || []);
-  const topZ = vertexValues.length >= 3
-    ? vertexValues.reduce((maximum, value, index) => index % 3 === 2 ? Math.max(maximum, value) : maximum, -Infinity)
-    : Number(bodyBounds[1][2]);
+  const topZ = boundaryPlaneZ(setupResult.body, normalized.boundaryFaceId);
   const layerCount = Math.max(1, Math.ceil(normalized.targetDepth / normalized.maxStepdown));
   const segments = [];
   let previous = [rows[0].interval[0], rows[0].y, setupResult.clearancePlaneZ];

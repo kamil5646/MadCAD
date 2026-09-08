@@ -6437,6 +6437,10 @@
 .manufacturing-operation > header small { color: #92a2ae; font-size: 9px; }
 .manufacturing-operation > header button { min-height: 25px; width: 27px; color: #efaaa4; }
 .manufacturing-operation .operation-form { padding: 9px; }
+.manufacturing-boundary { display: flex; align-items: center; gap: 7px; padding: 7px 8px; border: 1px solid #4d6170; border-radius: 3px; background: #25313c; color: #72cee7; }
+.manufacturing-boundary span { display: grid; gap: 1px; }
+.manufacturing-boundary strong { color: #dce6ec; font-size: 10px; }
+.manufacturing-boundary small { color: #9cabb6; font-size: 9px; }
 .manufacturing-toolpath-summary { display: flex; align-items: center; gap: 7px; margin: 0 9px 9px; padding: 8px; border-radius: 3px; background: #222c36; font-size: 10px; }
 .manufacturing-toolpath-summary.valid { color: #6bd5ab; }
 .manufacturing-toolpath-summary.invalid { color: #efb478; }

@@ -141,7 +141,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Biblioteka podstawowych frezów i warstwowa ścieżka planowania z podglądem 3D, posuwem oraz oszacowaniem czasu.
 - [x] Kontur 2D rzeczywistej górnej krawędzi bryły: kompensacja promienia freza, warstwy głębokości, wspólny podgląd 3D i eksport GRBL.
 - [x] Pocket 2D górnego obrysu bryły: kompensowana granica, bezpieczne przejścia wewnętrzne, warstwy Z, podgląd i eksport GRBL.
-- [ ] Adaptive oraz wskazywanie konkretnej ściany/profilu jako granicy obróbki.
+- [x] Trwałe wskazywanie konkretnej poziomej ściany jako granicy Konturu 2D i Pocket 2D, z walidacją utraconej lub niepoziomej referencji.
+- [ ] Adaptive oraz wskazywanie profilu szkicu jako granicy obróbki.
 - [ ] Symulacja usuwania materiału, kontrola kolizji i raport czasu obróbki.
 - [x] Pierwszy postprocesor GRBL: G-code metryczny względem WCS, limity obrotów, bezpieczny przejazd i ostrzeżenie przed uruchomieniem.
 - [ ] Podgląd tekstowy G-code, dodatkowe postprocesory obrabiarek i walidacja kolizji przed eksportem.
