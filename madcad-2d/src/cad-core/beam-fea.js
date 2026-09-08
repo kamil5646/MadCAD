@@ -41,6 +41,8 @@ export function calculateCantileverBeamFea(body, options = {}) {
   if (!Number.isFinite(loadPositionPercent) || loadPositionPercent <= 0 || loadPositionPercent > 100) throw new Error('Położenie siły musi być większe od 0% i nie większe niż 100% długości.');
   const elementCount = Number(options.elementCount);
   if (!Number.isInteger(elementCount) || elementCount < 1 || elementCount > 100) throw new Error('Liczba elementów MES musi być całkowita od 1 do 100.');
+  const requiredSafetyFactor = Number(options.requiredSafetyFactor ?? 2);
+  if (!Number.isFinite(requiredSafetyFactor) || requiredSafetyFactor < 1 || requiredSafetyFactor > 10) throw new Error('Wymagany współczynnik bezpieczeństwa musi wynosić od 1 do 10.');
   const dimensions = bounds[1].map((value, index) => value - bounds[0][index]);
   if (dimensions.some((value) => !Number.isFinite(value) || value <= 0)) throw new Error('Bryła musi mieć trzy dodatnie wymiary.');
   const spanIndex = AXIS_INDEX[spanAxis];
@@ -110,6 +112,8 @@ export function calculateCantileverBeamFea(body, options = {}) {
   const utilizationPercent = maximumStress / material.yieldStrength * 100;
   const yieldExceededNodeCount = bendingStresses.filter((node) => node.exceedsYield).length;
   const safetyFactor = maximumStress > 0 ? material.yieldStrength / maximumStress : Infinity;
+  const meetsSafetyTarget = safetyFactor >= requiredSafetyFactor;
+  const safetyMarginPercent = (safetyFactor / requiredSafetyFactor - 1) * 100;
   return {
     bodyId: body.id,
     material,
@@ -134,13 +138,16 @@ export function calculateCantileverBeamFea(body, options = {}) {
     utilizationPercent,
     yieldExceededNodeCount,
     safetyFactor,
+    requiredSafetyFactor,
+    meetsSafetyTarget,
+    safetyMarginPercent,
     reactionForce: Math.abs(reactions[0]),
     reactionMoment: Math.abs(reactions[1]),
     bendingMoments,
     bendingStresses,
     shearForces,
     nodalDeflections: Array.from({ length: elementCount + 1 }, (_, node) => ({ x: node * elementLength, displacement: displacement[node * 2], rotation: displacement[node * 2 + 1] })),
-    status: safetyFactor >= 2 ? 'safe' : safetyFactor >= 1 ? 'warning' : 'failed',
+    status: meetsSafetyTarget ? 'safe' : safetyFactor >= 1 ? 'warning' : 'failed',
     limitations: [
       `Liniowy MES Eulera-Bernoulliego dla prostej belki o stałym prostokątnym przekroju z obwiedni bryły i ${loadType === 'distributed' ? 'równomiernym obciążeniu rozłożonym' : 'sile skupionej na końcu'}.`,
       'Nie odwzorowuje lokalnej geometrii, otworów, karbów, kontaktów, plastyczności, wyboczenia ani dużych przemieszczeń.',

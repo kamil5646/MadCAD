@@ -529,7 +529,7 @@ export function StaticScreeningPanel({ bodies = [], bodyId = '', materialId = 's
   );
 }
 
-export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', loadType = 'tip', loadPositionPercent = '100', force = '1000', elementCount = '8', result, error = '', onChange, onClose }) {
+export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', loadType = 'tip', loadPositionPercent = '100', force = '1000', elementCount = '8', requiredSafetyFactor = '2', result, error = '', onChange, onClose }) {
   const [diagram, setDiagram] = React.useState('deflection');
   const format = (value, digits = 3) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
   const nodes = result?.nodalDeflections || [];
@@ -565,6 +565,7 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
         <div className="static-axis-grid"><label><span>Oś długości</span><select aria-label="Oś długości MES" value={spanAxis} onChange={(event) => onChange({ spanAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label><label><span>Kierunek siły</span><select aria-label="Kierunek siły MES" value={loadAxis} onChange={(event) => onChange({ loadAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label></div>
         <label><span>Obciążenie</span><select aria-label="Typ obciążenia MES" value={loadType} onChange={(event) => onChange({ loadType: event.target.value })}><option value="tip">Siła skupiona w położeniu</option><option value="distributed">Równomiernie rozłożone</option></select></label>
         <div className="beam-fea-inputs"><Field label={loadType === 'distributed' ? 'Obciążenie liniowe' : 'Siła skupiona'} value={force} onChange={(value) => onChange({ force: value })} suffix={loadType === 'distributed' ? 'N/mm' : 'N'} /><Field label="Elementy" value={elementCount} onChange={(value) => onChange({ elementCount: value })} /></div>
+        <Field label="Wymagany współczynnik bezpieczeństwa" value={requiredSafetyFactor} onChange={(value) => onChange({ requiredSafetyFactor: value })} />
         {loadType === 'tip' && <Field label="Położenie od utwierdzenia" value={loadPositionPercent} onChange={(value) => onChange({ loadPositionPercent: value })} suffix="%" />}
         <div className="beam-fea-legend" aria-label="Legenda warunków brzegowych"><span><i className="support" />Utwierdzenie</span><span><i className="load" />Obciążenie</span><span><i className="deformation" />Deformacja</span></div>
         {error && <p className="measure-error">{error}</p>}
@@ -579,7 +580,7 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
         {diagram === 'shear' && result?.shearForces?.length > 1 && <div className="beam-fea-chart beam-fea-shear-chart"><span>Siła tnąca · maks. {format(maximumShear)} N</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres siły tnącej MES"><line x1="8" y1="54" x2="232" y2="54" /><polyline points={shearPoints} />{result.shearForces.map((node, index) => <circle key={`${node.x}-${index}`} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={maximumShear ? 54 - node.shear / maximumShear * 46 : 54} r="1.5" />)}</svg></div>}
         {diagram === 'stress' && result?.bendingStresses?.length > 1 && <div className="beam-fea-chart beam-fea-stress-chart"><span>Wykorzystanie granicy · maks. {format(result.utilizationPercent)}%</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres naprężenia zginającego MES"><line x1="8" y1="54" x2="232" y2="54" /><polyline points={stressPoints} />{result.bendingStresses.map((node) => <circle className={node.exceedsYield ? 'failed' : node.utilizationPercent >= 50 ? 'warning' : 'safe'} key={node.x} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={result.maximumStress ? 54 - node.stress / result.maximumStress * 46 : 54} r={node.exceedsYield ? '2.5' : '1.5'} />)}</svg></div>}
         {result && <div className={`static-result ${result.status}`}>
-          <div className="static-result-heading"><strong>{result.status === 'safe' ? 'Zapas ≥ 2' : result.status === 'warning' ? 'Mały zapas' : 'Przekroczona plastyczność'}</strong><span>{result.elementCount} elem.</span></div>
+          <div className="static-result-heading"><strong>{result.status === 'safe' ? 'Cel bezpieczeństwa spełniony' : result.status === 'warning' ? 'Poniżej wymaganego celu' : 'Przekroczona plastyczność'}</strong><span>{result.elementCount} elem.</span></div>
           <div className="measure-row"><span>Węzły / DOF</span><strong>{result.nodeCount} / {result.nodeCount * 2}</strong></div>
           <div className="measure-row"><span>Ugięcie końca</span><strong>{format(result.tipDeflection)} mm</strong></div>
           <div className="measure-row"><span>Błąd walidacji</span><strong>{format(result.convergenceError, 6)}%</strong></div>
@@ -591,6 +592,8 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
           <div className="measure-row"><span>Siła wypadkowa</span><strong>{format(result.totalLoad)} N</strong></div>
           {result.loadType === 'tip' && <div className="measure-row"><span>Położenie siły</span><strong>{format(result.loadPosition)} mm</strong></div>}
           <div className="measure-row"><span>Współczynnik bezpieczeństwa</span><strong>{format(result.safetyFactor)}</strong></div>
+          <div className="measure-row"><span>Wymagany współczynnik</span><strong>{format(result.requiredSafetyFactor)}</strong></div>
+          <div className="measure-row"><span>Margines względem celu</span><strong>{result.safetyMarginPercent >= 0 ? '+' : ''}{format(result.safetyMarginPercent)}%</strong></div>
         </div>}
         {result?.limitations.map((limitation) => <p className="static-limitation" key={limitation}>{limitation}</p>)}
       </div>
