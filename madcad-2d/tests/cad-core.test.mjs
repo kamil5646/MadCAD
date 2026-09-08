@@ -2373,6 +2373,10 @@ test('MES belki składa macierz sztywności i zgadza się z rozwiązaniem analit
   assert.ok(Math.abs(Math.max(...result.bendingMoments.map((node) => node.moment)) - result.maximumMoment) < 1e-7);
   assert.equal(result.bendingStresses.length, 9);
   assert.ok(Math.abs(Math.max(...result.bendingStresses.map((node) => node.stress)) - result.maximumStress) < 1e-7);
+  assert.ok(Math.abs(result.utilizationPercent - 300 / 235 * 100) < 1e-7);
+  assert.ok(result.yieldExceededNodeCount > 0);
+  assert.equal(result.bendingStresses[0].exceedsYield, true);
+  assert.equal(result.bendingStresses.at(-1).exceedsYield, false);
   assert.equal(result.shearForces.length, 16);
   assert.ok(Math.abs(Math.max(...result.shearForces.map((node) => node.shear)) - result.reactionForce) < 1e-7);
   assert.equal(result.status, 'failed');

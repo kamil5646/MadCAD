@@ -4533,7 +4533,9 @@
 .beam-fea-shear-chart polyline { stroke: #b48cff; }
 .beam-fea-shear-chart circle { fill: #b48cff; }
 .beam-fea-stress-chart polyline { stroke: #ef5f70; }
-.beam-fea-stress-chart circle { fill: #ef5f70; }
+.beam-fea-stress-chart circle.safe { fill: #55cf91; }
+.beam-fea-stress-chart circle.warning { fill: #f1b64f; }
+.beam-fea-stress-chart circle.failed { fill: #ef5f70; }
 
 .component-toolbar button:disabled,
 .component-actions button:disabled { opacity: .45; cursor: default; }

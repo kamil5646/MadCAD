@@ -129,6 +129,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] P1.36h Diagram momentu zginającego z sił końcowych wszystkich elementów.
 - [x] P1.36i Diagram siły tnącej oraz zwarty przełącznik pojedynczego wykresu wyników.
 - [x] P1.36j Diagram naprężenia zginającego wzdłuż belki w MPa.
+- [x] P1.36k Mapa wykorzystania granicy plastyczności i oznaczenie przekroczonych węzłów.
 - Walidowany solver MES dla dowolnej geometrii 3D, sprzężona analiza termiczna oraz późniejsza optymalizacja topologii.
 
 ### Manufacture / CAM
