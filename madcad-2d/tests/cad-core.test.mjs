@@ -2388,6 +2388,18 @@ test('MES belki obsługuje równomierne obciążenie rozłożone', () => {
   assert.throws(() => calculateCantileverBeamFea(body, { loadType: 'distributed', force: 0, elementCount: 4 }), /Obciążenie liniowe musi być dodatnie/);
 });
 
+test('MES belki rozkłada siłę skupioną pomiędzy węzłami', () => {
+  const body = { id: 'body-beam-point', bodyKind: 'solid', metrics: { bounds: [[0, 0, 0], [100, 20, 10]], volume: 20000 } };
+  const result = calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', loadType: 'tip', loadPositionPercent: 37, force: 1000, elementCount: 8 });
+  assert.equal(result.loadPosition, 37);
+  assert.ok(Math.abs(result.tipDeflection - result.analyticalDeflection) < 1e-10);
+  assert.ok(result.convergenceError < 1e-8);
+  assert.ok(Math.abs(result.reactionForce - 1000) < 1e-7);
+  assert.ok(Math.abs(result.reactionMoment - 37000) < 1e-5);
+  assert.ok(Math.abs(result.maximumStress - 111) < 1e-7);
+  assert.throws(() => calculateCantileverBeamFea(body, { loadPositionPercent: 0, force: 1000, elementCount: 4 }), /większe od 0%/);
+});
+
 test('wstępna analiza cieplna liczy przewodzenie 1D i ujawnia ograniczenia modelu', () => {
   const body = { id: 'body-slab', bodyKind: 'solid', metrics: { bounds: [[0, 0, 0], [100, 20, 10]], volume: 20000 } };
   const result = calculateThermalScreening(body, { materialId: 's235', axis: 'x', hotTemperature: 100, coldTemperature: 20 });

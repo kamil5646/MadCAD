@@ -37,6 +37,8 @@ export function calculateCantileverBeamFea(body, options = {}) {
   const loadType = options.loadType === 'distributed' ? 'distributed' : 'tip';
   const force = Number(options.force);
   if (!Number.isFinite(force) || force <= 0 || force > 1e9) throw new Error(loadType === 'distributed' ? 'Obciążenie liniowe musi być dodatnie i nie większe niż 1 GN/mm.' : 'Siła musi być dodatnia i nie większa niż 1 GN.');
+  const loadPositionPercent = loadType === 'tip' ? Number(options.loadPositionPercent ?? 100) : 100;
+  if (!Number.isFinite(loadPositionPercent) || loadPositionPercent <= 0 || loadPositionPercent > 100) throw new Error('Położenie siły musi być większe od 0% i nie większe niż 100% długości.');
   const elementCount = Number(options.elementCount);
   if (!Number.isInteger(elementCount) || elementCount < 1 || elementCount > 100) throw new Error('Liczba elementów MES musi być całkowita od 1 do 100.');
   const dimensions = bounds[1].map((value, index) => value - bounds[0][index]);
@@ -60,16 +62,21 @@ export function calculateCantileverBeamFea(body, options = {}) {
     [6 * elementLength, 2 * elementLength ** 2, -6 * elementLength, 4 * elementLength ** 2],
   ].map((row) => row.map((value) => value * scale));
   const equivalentLoads = [];
+  const loadPosition = length * loadPositionPercent / 100;
+  const pointLoadElement = Math.min(elementCount - 1, Math.floor(loadPosition / elementLength));
   for (let element = 0; element < elementCount; element += 1) {
     const indices = [element * 2, element * 2 + 1, element * 2 + 2, element * 2 + 3];
     for (let row = 0; row < 4; row += 1) for (let column = 0; column < 4; column += 1) stiffness[indices[row]][indices[column]] += local[row][column];
-    const equivalent = loadType === 'distributed'
-      ? [-force * elementLength / 2, -force * elementLength ** 2 / 12, -force * elementLength / 2, force * elementLength ** 2 / 12]
-      : [0, 0, 0, 0];
+    let equivalent = [0, 0, 0, 0];
+    if (loadType === 'distributed') equivalent = [-force * elementLength / 2, -force * elementLength ** 2 / 12, -force * elementLength / 2, force * elementLength ** 2 / 12];
+    else if (element === pointLoadElement) {
+      const ratio = (loadPosition - element * elementLength) / elementLength;
+      const shape = [1 - 3 * ratio ** 2 + 2 * ratio ** 3, elementLength * (ratio - 2 * ratio ** 2 + ratio ** 3), 3 * ratio ** 2 - 2 * ratio ** 3, elementLength * (-(ratio ** 2) + ratio ** 3)];
+      equivalent = shape.map((value) => -force * value);
+    }
     equivalentLoads.push(equivalent);
     equivalent.forEach((value, index) => { load[indices[index]] += value; });
   }
-  if (loadType === 'tip') load[dofCount - 2] = -force;
   const freeIndices = Array.from({ length: dofCount - 2 }, (_, index) => index + 2);
   const reducedStiffness = freeIndices.map((row) => freeIndices.map((column) => stiffness[row][column]));
   const reducedLoad = freeIndices.map((index) => load[index]);
@@ -86,7 +93,7 @@ export function calculateCantileverBeamFea(body, options = {}) {
   const tipDeflection = Math.abs(displacement[dofCount - 2]);
   const analyticalDeflection = loadType === 'distributed'
     ? force * length ** 4 / (8 * material.elasticModulus * secondMoment)
-    : force * length ** 3 / (3 * material.elasticModulus * secondMoment);
+    : force * loadPosition ** 2 * (3 * length - loadPosition) / (6 * material.elasticModulus * secondMoment);
   const maximumStress = maximumMoment * sectionHeight / 2 / secondMoment;
   const safetyFactor = maximumStress > 0 ? material.yieldStrength / maximumStress : Infinity;
   return {
@@ -95,6 +102,8 @@ export function calculateCantileverBeamFea(body, options = {}) {
     spanAxis,
     loadAxis,
     loadType,
+    loadPositionPercent,
+    loadPosition,
     force,
     totalLoad: loadType === 'distributed' ? force * length : force,
     elementCount,

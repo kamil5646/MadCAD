@@ -124,6 +124,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] P1.36c Liniowy MES belki 1D z macierzą sztywności, podporą, reakcjami i walidacją analityczną.
 - [x] P1.36d Wykres ugięcia i przestrzenna wizualizacja zdeformowanej osi oraz węzłów MES.
 - [x] P1.36e Siła końcowa i równomierne obciążenie rozłożone ze zgodnymi siłami węzłowymi i walidacją analityczną.
+- [x] P1.36f Dowolne położenie siły skupionej ze zgodnym rozdzieleniem funkcjami kształtu elementu.
 - Walidowany solver MES dla dowolnej geometrii 3D, sprzężona analiza termiczna oraz późniejsza optymalizacja topologii.
 
 ### Manufacture / CAM

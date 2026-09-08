@@ -28,4 +28,12 @@ describe('BeamFeaPanel', () => {
     fireEvent.change(screen.getByRole('combobox', { name: /Typ obciążenia/i }), { target: { value: 'tip' } });
     expect(onChange).toHaveBeenCalledWith({ loadType: 'tip' });
   });
+
+  it('edits the position of a concentrated force', () => {
+    const onChange = vi.fn();
+    render(<BeamFeaPanel bodies={[{ id: 'body-1', name: 'Belka' }]} bodyId="body-1" loadType="tip" loadPositionPercent="37" force="500" onChange={onChange} onClose={vi.fn()} />);
+    expect(screen.getByRole('textbox', { name: /Położenie od utwierdzenia/i })).toHaveValue('37');
+    fireEvent.change(screen.getByRole('textbox', { name: /Położenie od utwierdzenia/i }), { target: { value: '50' } });
+    expect(onChange).toHaveBeenCalledWith({ loadPositionPercent: '50' });
+  });
 });

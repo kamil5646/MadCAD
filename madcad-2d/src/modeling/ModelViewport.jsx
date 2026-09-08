@@ -958,6 +958,17 @@ export default function ModelViewport({
           marker.renderOrder = 16;
           scene.add(marker);
         });
+        if (beamFeaVisualization.loadType === 'tip' && Number.isFinite(beamFeaVisualization.loadPosition)) {
+          const normalized = beamFeaVisualization.loadPosition / beamFeaVisualization.length * (points.length - 1);
+          const leftIndex = Math.min(points.length - 2, Math.max(0, Math.floor(normalized)));
+          const loadPoint = points[leftIndex].clone().lerp(points[leftIndex + 1], normalized - leftIndex);
+          const loadMarker = new THREE.Mesh(new THREE.SphereGeometry(2.25, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff7a45, depthTest: false }));
+          loadMarker.position.copy(loadPoint);
+          loadMarker.renderOrder = 17;
+          scene.add(loadMarker);
+          beamFeaVisualState.loadPoint = loadPoint.toArray();
+          beamFeaVisualState.loadPosition = beamFeaVisualization.loadPosition;
+        }
         beamFeaVisualState.visible = true;
         beamFeaVisualState.nodeCount = points.length;
         beamFeaVisualState.scale = scale;
