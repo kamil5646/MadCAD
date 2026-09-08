@@ -19,4 +19,13 @@ describe('BeamFeaPanel', () => {
     expect(screen.getByText(/od 1 do 100/i)).toBeInTheDocument();
     expect(screen.queryByText(/Ugięcie końca/i)).not.toBeInTheDocument();
   });
+
+  it('switches between point and distributed load units', () => {
+    const onChange = vi.fn();
+    render(<BeamFeaPanel bodies={[{ id: 'body-1', name: 'Belka' }]} bodyId="body-1" loadType="distributed" force="10" onChange={onChange} onClose={vi.fn()} />);
+    expect(screen.getByRole('textbox', { name: /Obciążenie liniowe/i })).toHaveValue('10');
+    expect(screen.getByText('N/mm')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: /Typ obciążenia/i }), { target: { value: 'tip' } });
+    expect(onChange).toHaveBeenCalledWith({ loadType: 'tip' });
+  });
 });

@@ -197,6 +197,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.36b Szybka analiza cieplna daje jawnie ograniczony model ustalonego przewodzenia 1D przez obwiednię wybranej bryły. Materiał, kierunek i dwie temperatury prowadzą do oporu cieplnego, przepływu i strumienia ciepła oraz swobodnego wydłużenia; panel ostrzega o przekroczeniu temperatury użytkowej i wyraźnie odróżnia wynik od termicznego MES.
 - [x] P1.36c MES belki 1D składa globalną macierz sztywności elementów Eulera-Bernoulliego, nakłada utwierdzenie i siłę końcową, rozwiązuje przemieszczenia oraz raportuje reakcję, moment, naprężenie i współczynnik bezpieczeństwa. Wynik jest automatycznie porównywany z rozwiązaniem analitycznym tego samego przypadku, a panel jawnie odróżnia model belkowy od MES dowolnej bryły 3D.
 - [x] P1.36d Wynik MES belki ma wykres ugięcia w panelu oraz nałożoną na model linię zdeformowaną z automatyczną skalą, węzłami i mapą koloru od utwierdzenia do maksymalnego przemieszczenia. Wizualizacja jest wyłącznie podglądem i znika razem z poleceniem analizy.
+- [x] P1.36e MES belki obsługuje zarówno siłę skupioną na końcu, jak i równomiernie rozłożone obciążenie liniowe. Dla obciążenia rozłożonego solver składa zgodne siły węzłowe każdego elementu, a reakcje, moment, naprężenie i ugięcie są niezależnie sprawdzane rozwiązaniem analitycznym.
 
 ## P2 — dokumentacja techniczna 2D
 

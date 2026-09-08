@@ -119,7 +119,8 @@
       "electron/**/*",
       "README.md",
       "FIRST_PART.md",
-      "package.json"
+      "package.json",
+      "!node_modules/**/*.map"
     ],
     "directories": {
       "output": "release"

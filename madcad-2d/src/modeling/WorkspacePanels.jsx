@@ -529,7 +529,7 @@ export function StaticScreeningPanel({ bodies = [], bodyId = '', materialId = 's
   );
 }
 
-export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', force = '1000', elementCount = '8', result, error = '', onChange, onClose }) {
+export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', loadType = 'tip', force = '1000', elementCount = '8', result, error = '', onChange, onClose }) {
   const format = (value, digits = 3) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
   const nodes = result?.nodalDeflections || [];
   const maximumDisplacement = Math.max(0, ...nodes.map((node) => Math.abs(node.displacement)));
@@ -546,7 +546,8 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
         <label><span>Bryła</span><select aria-label="Bryła MES belki" value={bodyId} onChange={(event) => onChange({ bodyId: event.target.value })}>{bodies.map((body) => <option key={body.id} value={body.id}>{body.name}</option>)}</select></label>
         <label><span>Materiał</span><select aria-label="Materiał MES belki" value={materialId} onChange={(event) => onChange({ materialId: event.target.value })}>{Object.values(ENGINEERING_MATERIALS).map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}</select></label>
         <div className="static-axis-grid"><label><span>Oś długości</span><select aria-label="Oś długości MES" value={spanAxis} onChange={(event) => onChange({ spanAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label><label><span>Kierunek siły</span><select aria-label="Kierunek siły MES" value={loadAxis} onChange={(event) => onChange({ loadAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label></div>
-        <div className="beam-fea-inputs"><Field label="Siła końcowa" value={force} onChange={(value) => onChange({ force: value })} suffix="N" /><Field label="Elementy" value={elementCount} onChange={(value) => onChange({ elementCount: value })} /></div>
+        <label><span>Obciążenie</span><select aria-label="Typ obciążenia MES" value={loadType} onChange={(event) => onChange({ loadType: event.target.value })}><option value="tip">Siła skupiona na końcu</option><option value="distributed">Równomiernie rozłożone</option></select></label>
+        <div className="beam-fea-inputs"><Field label={loadType === 'distributed' ? 'Obciążenie liniowe' : 'Siła końcowa'} value={force} onChange={(value) => onChange({ force: value })} suffix={loadType === 'distributed' ? 'N/mm' : 'N'} /><Field label="Elementy" value={elementCount} onChange={(value) => onChange({ elementCount: value })} /></div>
         {error && <p className="measure-error">{error}</p>}
         {nodes.length > 1 && <div className="beam-fea-chart"><span>Linia ugięcia · skala automatyczna</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres ugięcia węzłów MES"><line x1="8" y1="8" x2="232" y2="8" /><polyline points={chartPoints} />{nodes.map((node, index) => <circle key={node.x} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={maximumDisplacement ? 8 + Math.abs(node.displacement) / maximumDisplacement * 46 : 8} r={index === nodes.length - 1 ? 2.8 : 1.5} />)}</svg></div>}
         {result && <div className={`static-result ${result.status}`}>
@@ -557,6 +558,7 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
           <div className="measure-row"><span>Maks. naprężenie</span><strong>{format(result.maximumStress)} MPa</strong></div>
           <div className="measure-row"><span>Reakcja podpory</span><strong>{format(result.reactionForce)} N</strong></div>
           <div className="measure-row"><span>Moment podpory</span><strong>{format(result.reactionMoment)} N·mm</strong></div>
+          <div className="measure-row"><span>Siła wypadkowa</span><strong>{format(result.totalLoad)} N</strong></div>
           <div className="measure-row"><span>Współczynnik bezpieczeństwa</span><strong>{format(result.safetyFactor)}</strong></div>
         </div>}
         {result?.limitations.map((limitation) => <p className="static-limitation" key={limitation}>{limitation}</p>)}
