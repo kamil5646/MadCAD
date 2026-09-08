@@ -65,9 +65,27 @@ export function normalizePocketOperation(operation = {}, index = 0) {
   };
 }
 
+export function normalizeAdaptiveOperation(operation = {}, index = 0) {
+  return {
+    id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
+    name: String(operation.name || `Adaptacyjne 2D ${index + 1}`).trim().slice(0, 80) || `Adaptacyjne 2D ${index + 1}`,
+    type: 'adaptive',
+    toolId: CAM_TOOL_PRESETS[operation.toolId] ? operation.toolId : 'flat-6',
+    targetDepth: Math.max(0.05, Number(operation.targetDepth) || 2),
+    maxStepdown: Math.max(0.05, Number(operation.maxStepdown) || 1),
+    optimalLoad: Math.min(0.6, Math.max(0.1, Number(operation.optimalLoad) || 0.3)),
+    feedRate: Math.max(1, Number(operation.feedRate) || 650),
+    plungeRate: Math.max(1, Number(operation.plungeRate) || 160),
+    spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 9000)),
+    boundary: 'body-top',
+    boundaryFaceId: typeof operation.boundaryFaceId === 'string' ? operation.boundaryFaceId : '',
+  };
+}
+
 export function normalizeManufacturingOperation(operation = {}, index = 0) {
   if (operation?.type === 'contour') return normalizeContourOperation(operation, index);
   if (operation?.type === 'pocket') return normalizePocketOperation(operation, index);
+  if (operation?.type === 'adaptive') return normalizeAdaptiveOperation(operation, index);
   return normalizeFacingOperation(operation, index);
 }
 
@@ -160,6 +178,10 @@ export function createContourOperation(options = {}) {
 
 export function createPocketOperation(options = {}) {
   return normalizePocketOperation({ ...options, id: createId('cam-operation') });
+}
+
+export function createAdaptiveOperation(options = {}) {
+  return normalizeAdaptiveOperation({ ...options, id: createId('cam-operation') });
 }
 
 export function calculateFacingToolpath(setup, operation, bodies = []) {
@@ -463,9 +485,85 @@ export function calculatePocketToolpath(setup, operation, bodies = []) {
   };
 }
 
+export function calculateAdaptiveToolpath(setup, operation, bodies = []) {
+  const setupResult = calculateManufacturingSetup(setup, bodies);
+  const normalized = normalizeAdaptiveOperation(operation);
+  const tool = CAM_TOOL_PRESETS[normalized.toolId];
+  const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
+  if (!setupResult.body || !setupResult.stockBounds) return fail('Obróbka adaptacyjna wymaga poprawnego Setupu i bryły.');
+  if (!setupResult.valid) return fail('Popraw Setup przed obliczeniem obróbki adaptacyjnej.');
+  if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`);
+  if (normalized.targetDepth > tool.fluteLength) return fail(`Głębokość przekracza długość ostrza narzędzia (${tool.fluteLength} mm).`);
+  const bodyBounds = setupResult.body.bounds || setupResult.body.metrics?.bounds;
+  const bodyHeight = Number(bodyBounds[1][2]) - Number(bodyBounds[0][2]);
+  if (normalized.targetDepth > bodyHeight + 1e-7) return fail('Głębokość adaptacyjna przekracza wysokość bryły.');
+  const loops = extractTopBoundaryLoops(setupResult.body, normalized.boundaryFaceId);
+  if (!loops.length) return fail(normalized.boundaryFaceId ? 'Wybrana ściana nie istnieje albo nie jest pozioma i płaska.' : 'Nie znaleziono zamkniętej górnej krawędzi bryły.');
+  const radialStep = tool.diameter * normalized.optimalLoad;
+  const rings = [];
+  let ring = offsetClosedContour(loops[0], -tool.diameter / 2);
+  let previousArea = Math.abs(signedPolygonArea(ring));
+  for (let index = 0; index < 200 && previousArea > tool.diameter * tool.diameter * 0.2; index += 1) {
+    if (ring.some((point) => !point.every(Number.isFinite))) break;
+    rings.push(ring);
+    const next = offsetClosedContour(ring, -radialStep);
+    const nextArea = Math.abs(signedPolygonArea(next));
+    const xs = next.map((point) => point[0]);
+    const ys = next.map((point) => point[1]);
+    if (nextArea >= previousArea - 1e-7 || Math.max(...xs) - Math.min(...xs) < radialStep || Math.max(...ys) - Math.min(...ys) < radialStep) break;
+    ring = next;
+    previousArea = nextArea;
+  }
+  if (!rings.length) return fail('Obrys jest za mały dla wybranego narzędzia i obciążenia optymalnego.');
+  const topZ = boundaryPlaneZ(setupResult.body, normalized.boundaryFaceId);
+  const layerCount = Math.max(1, Math.ceil(normalized.targetDepth / normalized.maxStepdown));
+  const segments = [];
+  let previous = [rings[0][0][0], rings[0][0][1], setupResult.clearancePlaneZ];
+  const push = (kind, to, feed = null) => {
+    if (Math.hypot(...to.map((value, axis) => value - previous[axis])) <= 1e-9) return;
+    segments.push({ kind, from: previous, to, ...(feed ? { feed } : {}) });
+    previous = to;
+  };
+  for (let layer = 1; layer <= layerCount; layer += 1) {
+    const z = topZ - Math.min(normalized.targetDepth, layer * normalized.targetDepth / layerCount);
+    const outer = rings[0];
+    push('rapid', [outer[0][0], outer[0][1], setupResult.clearancePlaneZ]);
+    push('plunge', [outer[0][0], outer[0][1], topZ], normalized.plungeRate);
+    for (let index = 1; index <= outer.length; index += 1) {
+      const point = outer[index % outer.length];
+      const rampZ = topZ + (z - topZ) * index / outer.length;
+      push('cut', [point[0], point[1], rampZ], normalized.feedRate);
+    }
+    for (let ringIndex = 1; ringIndex < rings.length; ringIndex += 1) {
+      const current = rings[ringIndex];
+      push('cut', [current[0][0], current[0][1], z], normalized.feedRate);
+      for (let pointIndex = 1; pointIndex <= current.length; pointIndex += 1) {
+        const point = current[pointIndex % current.length];
+        push('cut', [point[0], point[1], z], normalized.feedRate);
+      }
+    }
+    push('rapid', [previous[0], previous[1], setupResult.clearancePlaneZ]);
+  }
+  return {
+    valid: true,
+    setup: setupResult,
+    stockBounds: setupResult.stockBounds,
+    origin: setupResult.origin,
+    clearancePlaneZ: setupResult.clearancePlaneZ,
+    operation: normalized,
+    tool,
+    segments,
+    layerCount,
+    ringCount: rings.length,
+    ...summarizeToolpath(segments),
+    warnings: [],
+  };
+}
+
 export function calculateOperationToolpath(setup, operation, bodies = []) {
   if (operation?.type === 'contour') return calculateContourToolpath(setup, operation, bodies);
   if (operation?.type === 'pocket') return calculatePocketToolpath(setup, operation, bodies);
+  if (operation?.type === 'adaptive') return calculateAdaptiveToolpath(setup, operation, bodies);
   return calculateFacingToolpath(setup, operation, bodies);
 }
 
@@ -532,10 +630,10 @@ export function validateManufacturing(manufacturing) {
       const operationBase = `${base}.operations[${operationIndex}]`;
       if (!operation || typeof operation !== 'object') issues.push({ path: operationBase, message: 'Operacja CAM musi być obiektem.', code: 'TYPE' });
       else {
-        if (!['face', 'contour', 'pocket'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
+        if (!['face', 'contour', 'pocket', 'adaptive'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
         if (!CAM_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
         for (const key of ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm']) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr operacji musi być dodatni.', code: 'VALUE' });
-        if (['contour', 'pocket'].includes(operation.type) && (!Number.isFinite(Number(operation.targetDepth)) || Number(operation.targetDepth) <= 0)) issues.push({ path: `${operationBase}.targetDepth`, message: 'Głębokość obróbki musi być dodatnia.', code: 'VALUE' });
+        if (['contour', 'pocket', 'adaptive'].includes(operation.type) && (!Number.isFinite(Number(operation.targetDepth)) || Number(operation.targetDepth) <= 0)) issues.push({ path: `${operationBase}.targetDepth`, message: 'Głębokość obróbki musi być dodatnia.', code: 'VALUE' });
       }
     });
   });

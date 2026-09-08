@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  calculateAdaptiveToolpath,
   calculateContourToolpath,
   calculatePocketToolpath,
   createContourOperation,
+  createAdaptiveOperation,
   createGrblGcode,
   createManufacturingSetup,
   createPocketOperation,
@@ -84,6 +86,20 @@ describe('CAM contour operations', () => {
       expect(segment.to[1]).toBeLessThanOrEqual(17);
     }
     expect(createGrblGcode(setup, operation, [box]).text).toContain('Kieszeń 2D');
+  });
+
+  it('creates constant-load adaptive rings with a ramped entry', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id });
+    const operation = createAdaptiveOperation({ targetDepth: 2, maxStepdown: 1, optimalLoad: 0.3, toolId: 'flat-6' });
+    setup.operations.push(operation);
+    const toolpath = calculateAdaptiveToolpath(setup, operation, [box]);
+    expect(toolpath.valid).toBe(true);
+    expect(toolpath.layerCount).toBe(2);
+    expect(toolpath.ringCount).toBeGreaterThan(2);
+    expect(toolpath.segments.some((segment) => segment.kind === 'plunge' && segment.to[2] === 10)).toBe(true);
+    const firstLayerCuts = toolpath.segments.filter((segment) => segment.kind === 'cut' && segment.to[2] <= 10 && segment.to[2] >= 9);
+    expect(firstLayerCuts.some((segment) => segment.to[2] > 9 && segment.to[2] < 10)).toBe(true);
+    expect(createGrblGcode(setup, operation, [box]).text).toContain('Adaptacyjne 2D');
   });
 
   it('uses a persistent selected horizontal face and rejects a vertical face', () => {
