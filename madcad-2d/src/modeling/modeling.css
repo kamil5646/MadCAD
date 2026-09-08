@@ -4556,6 +4556,7 @@
 .beam-fea-load-case small { color: #8fa2ae; }
 .beam-fea-load-case strong { color: #edf4f7; }
 .beam-fea-load-case em { min-width: 58px; color: #9eb0ba; font-style: normal; text-align: right; }
+.beam-fea-export { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 27px; }
 
 .component-toolbar button:disabled,
 .component-actions button:disabled { opacity: .45; cursor: default; }

@@ -25,6 +25,32 @@ function multiply(matrix, vector) {
   return matrix.map((row) => row.reduce((sum, value, index) => sum + value * vector[index], 0));
 }
 
+function csvCell(value) {
+  const text = String(value ?? '');
+  return /[;"\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+export function createBeamFeaReportCsv(result, projectName = 'MadCAD') {
+  if (!result?.material || !Array.isArray(result.loadCases)) throw new Error('Brak poprawnego wyniku MES do eksportu.');
+  const rows = [
+    ['Sekcja', 'Parametr', 'Wartość', 'Jednostka'],
+    ['Projekt', 'Nazwa', projectName, ''],
+    ['Model', 'Materiał', result.material.name, ''],
+    ['Model', 'Długość', result.length, 'mm'],
+    ['Model', 'Przekrój', `${result.sectionWidth} × ${result.sectionHeight}`, 'mm'],
+    ['Obciążenie', 'Typ', result.loadType, ''],
+    ['Obciążenie', 'Siła skupiona', result.force, 'N'],
+    ['Obciążenie', 'Obciążenie liniowe', result.distributedForce, 'N/mm'],
+    ['Wynik', 'Maksymalne naprężenie', result.maximumStress, 'MPa'],
+    ['Wynik', 'Ugięcie końca', result.tipDeflection, 'mm'],
+    ['Wynik', 'Współczynnik bezpieczeństwa', result.safetyFactor, ''],
+    ['Wynik', 'Wymagany współczynnik', result.requiredSafetyFactor, ''],
+    ['Wynik', 'Przypadek krytyczny', result.criticalLoadCase?.name || '', ''],
+    ...result.loadCases.map((loadCase) => ['Scenariusz', loadCase.name, loadCase.factor, `FoS ${loadCase.safetyFactor}`]),
+  ];
+  return `sep=;\n${rows.map((row) => row.map(csvCell).join(';')).join('\n')}\n`;
+}
+
 export function calculateCantileverBeamFea(body, options = {}) {
   const material = ENGINEERING_MATERIALS[options.materialId || 's235'];
   if (!material) throw new Error('Wybierz obsługiwany materiał.');

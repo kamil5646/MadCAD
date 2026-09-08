@@ -6,7 +6,8 @@ import { BeamFeaPanel } from './WorkspacePanels.jsx';
 describe('BeamFeaPanel', () => {
   it('shows validated results and updates mesh density', () => {
     const onChange = vi.fn();
-    render(<BeamFeaPanel bodies={[{ id: 'body-1', name: 'Belka' }]} bodyId="body-1" result={{ status: 'failed', elementCount: 8, nodeCount: 9, length: 100, nodalDeflections: [{ x: 0, displacement: 0 }, { x: 100, displacement: -0.5 }], bendingMoments: [{ x: 0, moment: 50000 }, { x: 100, moment: 0 }], bendingStresses: [{ x: 0, stress: 300, utilizationPercent: 127.66, exceedsYield: true }, { x: 100, stress: 0, utilizationPercent: 0, exceedsYield: false }], shearForces: [{ x: 0, shear: 500 }, { x: 100, shear: 0 }], tipDeflection: 0.5, convergenceError: 0, maximumMoment: 50000, maximumStress: 300, utilizationPercent: 127.66, yieldExceededNodeCount: 1, reactionForce: 500, reactionMoment: 50000, safetyFactor: 0.78, requiredSafetyFactor: 2, safetyMarginPercent: -61, loadCases: [{ id: 'base', name: 'Bazowy', factor: 1, safetyFactor: 0.78, meetsSafetyTarget: false, status: 'failed' }, { id: 'overload', name: 'Przeciążenie', factor: 1.5, safetyFactor: 0.52, meetsSafetyTarget: false, status: 'failed' }], criticalLoadCase: { id: 'overload', name: 'Przeciążenie', factor: 1.5 }, limitations: ['Model belkowy.'] }} onChange={onChange} onClose={vi.fn()} />);
+    const onExport = vi.fn();
+    render(<BeamFeaPanel bodies={[{ id: 'body-1', name: 'Belka' }]} bodyId="body-1" result={{ status: 'failed', elementCount: 8, nodeCount: 9, length: 100, nodalDeflections: [{ x: 0, displacement: 0 }, { x: 100, displacement: -0.5 }], bendingMoments: [{ x: 0, moment: 50000 }, { x: 100, moment: 0 }], bendingStresses: [{ x: 0, stress: 300, utilizationPercent: 127.66, exceedsYield: true }, { x: 100, stress: 0, utilizationPercent: 0, exceedsYield: false }], shearForces: [{ x: 0, shear: 500 }, { x: 100, shear: 0 }], tipDeflection: 0.5, convergenceError: 0, maximumMoment: 50000, maximumStress: 300, utilizationPercent: 127.66, yieldExceededNodeCount: 1, reactionForce: 500, reactionMoment: 50000, safetyFactor: 0.78, requiredSafetyFactor: 2, safetyMarginPercent: -61, loadCases: [{ id: 'base', name: 'Bazowy', factor: 1, safetyFactor: 0.78, meetsSafetyTarget: false, status: 'failed' }, { id: 'overload', name: 'Przeciążenie', factor: 1.5, safetyFactor: 0.52, meetsSafetyTarget: false, status: 'failed' }], criticalLoadCase: { id: 'overload', name: 'Przeciążenie', factor: 1.5 }, limitations: ['Model belkowy.'] }} onChange={onChange} onExport={onExport} onClose={vi.fn()} />);
     expect(screen.getByText(/nie MES dowolnej bryły 3D/i)).toBeInTheDocument();
     expect(screen.getByText('9 / 18')).toBeInTheDocument();
     expect(screen.getByLabelText(/Legenda warunków brzegowych/i)).toHaveTextContent('UtwierdzenieObciążenieDeformacja');
@@ -32,6 +33,8 @@ describe('BeamFeaPanel', () => {
     expect(onChange.mock.calls.at(-1)[0].loadCases).toHaveLength(4);
     fireEvent.click(screen.getByRole('button', { name: /Usuń scenariusz Roboczy/i }));
     expect(onChange.mock.calls.at(-1)[0].loadCases.map(({ name }) => name)).toEqual(['Bazowy', 'Przeciążenie']);
+    fireEvent.click(screen.getByRole('button', { name: /Eksportuj raport CSV/i }));
+    expect(onExport).toHaveBeenCalledOnce();
   });
 
   it('shows solver errors without stale results', () => {

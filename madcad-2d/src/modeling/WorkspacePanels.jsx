@@ -529,7 +529,7 @@ export function StaticScreeningPanel({ bodies = [], bodyId = '', materialId = 's
   );
 }
 
-export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', loadType = 'tip', loadPositionPercent = '100', force = '1000', distributedForce = '10', elementCount = '8', requiredSafetyFactor = '2', loadCases, result, error = '', onChange, onClose }) {
+export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', loadType = 'tip', loadPositionPercent = '100', force = '1000', distributedForce = '10', elementCount = '8', requiredSafetyFactor = '2', loadCases, result, error = '', onChange, onExport, onClose }) {
   const [diagram, setDiagram] = React.useState('deflection');
   const editableLoadCases = loadCases || [{ id: 'base', name: 'Bazowy', factor: '1' }, { id: 'working', name: 'Roboczy', factor: '1.25' }, { id: 'overload', name: 'Przeciążenie', factor: '1.5' }];
   const updateLoadCase = (id, patch) => onChange({ loadCases: editableLoadCases.map((loadCase) => loadCase.id === id ? { ...loadCase, ...patch } : loadCase) });
@@ -590,6 +590,7 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
           <div><strong>Obwiednia scenariuszy</strong><span>Krytyczny: {result.criticalLoadCase.name} ×{format(result.criticalLoadCase.factor, 2)}</span></div>
           {result.loadCases.map((loadCase) => <div className={`beam-fea-load-case ${loadCase.status}`} key={loadCase.id}><span>{loadCase.name} <small>×{format(loadCase.factor, 2)}</small></span><strong>FoS {format(loadCase.safetyFactor)}</strong><em>{loadCase.meetsSafetyTarget ? 'spełnia cel' : loadCase.status === 'failed' ? 'plastyczność' : 'poniżej celu'}</em></div>)}
         </div>}
+        {result && <button className="beam-fea-export" type="button" onClick={onExport}><FileDown size={13} /> Eksportuj raport CSV</button>}
         {result && <div className={`static-result ${result.status}`}>
           <div className="static-result-heading"><strong>{result.status === 'safe' ? 'Cel bezpieczeństwa spełniony' : result.status === 'warning' ? 'Poniżej wymaganego celu' : 'Przekroczona plastyczność'}</strong><span>{result.elementCount} elem.</span></div>
           <div className="measure-row"><span>Węzły / DOF</span><strong>{result.nodeCount} / {result.nodeCount * 2}</strong></div>

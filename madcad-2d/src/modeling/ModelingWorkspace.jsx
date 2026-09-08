@@ -134,7 +134,7 @@ import { resolveFaceEdgeHolePlacement } from '../cad-core/face-edge-hole.js';
 import { measureSelection } from '../cad-core/measure-selection.js';
 import { calculateMassProperties } from '../cad-core/mass-properties.js';
 import { calculateCantileverScreening } from '../cad-core/static-screening.js';
-import { calculateCantileverBeamFea } from '../cad-core/beam-fea.js';
+import { calculateCantileverBeamFea, createBeamFeaReportCsv } from '../cad-core/beam-fea.js';
 import { calculateThermalScreening } from '../cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profiles.js';
@@ -1856,6 +1856,18 @@ export default function ModelingWorkspace() {
       return { result: null, error: error.message };
     }
   }, [command, engine.bodies]);
+  const exportBeamFeaReport = async () => {
+    if (!beamFea?.result) return;
+    const text = `\uFEFF${createBeamFeaReportCsv(beamFea.result, document.name)}`;
+    const defaultName = `${safeName(document.name)}-mes-belki.csv`;
+    if (window.desktopApp?.saveTextFile) {
+      const saved = await window.desktopApp.saveTextFile({ defaultName, text, filters: [{ name: 'Raport CSV', extensions: ['csv'] }], atomic: true, createBackup: false });
+      setNotice(saved?.ok ? `Zapisano raport MES: ${saved.filePath}` : saved?.canceled ? 'Anulowano zapis raportu MES.' : `Nie udało się zapisać raportu MES: ${saved?.error || 'nieznany błąd'}`);
+      return;
+    }
+    downloadBlob(new Blob([text], { type: 'text/csv;charset=utf-8' }), defaultName);
+    setNotice('Pobrano raport MES CSV.');
+  };
   const thermalScreening = useMemo(() => {
     if (command?.type !== 'thermalScreening') return null;
     try {
@@ -7730,7 +7742,7 @@ export default function ModelingWorkspace() {
           {meshToolsOpen && selectedMeshBody && <MeshToolsPanel body={selectedMeshBody} report={selectedMeshReport} groups={selectedMeshFeature?.meshGroups || []} brepBlocker={meshBrepBlocker} readOnly={readOnly} onRepair={safelyRepairSelectedMesh} onOrient={orientSelectedMeshFaces} onFillHoles={fillSelectedMeshHoles} onReduce={reduceSelectedMesh} onSmooth={smoothSelectedMesh} onRemesh={remeshSelectedMesh} onGroup={groupSelectedMeshFaces} onConvertToBrep={convertSelectedMeshToBrep} onClose={() => setMeshToolsOpen(false)} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'staticScreening' && <StaticScreeningPanel bodies={engine.bodies.filter((body) => body.bodyKind !== 'surface')} bodyId={command.bodyId} materialId={command.materialId} spanAxis={command.spanAxis} loadAxis={command.loadAxis} fixedEnd={command.fixedEnd} force={command.force} result={staticScreening?.result} error={staticScreening?.error} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
-          {command?.type === 'beamFea' && <BeamFeaPanel bodies={engine.bodies.filter((body) => body.bodyKind !== 'surface')} bodyId={command.bodyId} materialId={command.materialId} spanAxis={command.spanAxis} loadAxis={command.loadAxis} loadType={command.loadType} loadPositionPercent={command.loadPositionPercent} force={command.force} distributedForce={command.distributedForce} elementCount={command.elementCount} requiredSafetyFactor={command.requiredSafetyFactor} loadCases={command.loadCases} result={beamFea?.result} error={beamFea?.error} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
+          {command?.type === 'beamFea' && <BeamFeaPanel bodies={engine.bodies.filter((body) => body.bodyKind !== 'surface')} bodyId={command.bodyId} materialId={command.materialId} spanAxis={command.spanAxis} loadAxis={command.loadAxis} loadType={command.loadType} loadPositionPercent={command.loadPositionPercent} force={command.force} distributedForce={command.distributedForce} elementCount={command.elementCount} requiredSafetyFactor={command.requiredSafetyFactor} loadCases={command.loadCases} result={beamFea?.result} error={beamFea?.error} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onExport={exportBeamFeaReport} onClose={() => setCommand(null)} />}
           {command?.type === 'thermalScreening' && <ThermalScreeningPanel bodies={engine.bodies.filter((body) => body.bodyKind !== 'surface')} bodyId={command.bodyId} materialId={command.materialId} axis={command.axis} hotTemperature={command.hotTemperature} coldTemperature={command.coldTemperature} result={thermalScreening?.result} error={thermalScreening?.error} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} inspectionMode={command.inspectionMode} draftDirection={command.draftDirection} draftTolerance={command.draftTolerance} thicknessTarget={command.thicknessTarget} thicknessTolerance={command.thicknessTolerance} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {namedViewsOpen && <NamedViewsPanel views={document.namedViews || []} currentCamera={currentCameraRef.current} readOnly={readOnly} onCreate={saveNamedView} onActivate={activateNamedView} onDelete={removeNamedView} onClose={() => setNamedViewsOpen(false)} />}

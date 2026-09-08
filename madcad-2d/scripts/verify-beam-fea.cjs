@@ -3,6 +3,7 @@ const path = require('node:path');
 const { app, BrowserWindow } = require('electron');
 
 const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-beam-fea.png');
+const reportPath = path.join(__dirname, '..', 'artifacts', 'madcad-beam-fea-report.csv');
 async function waitFor(window, expression, label, timeoutMs = 45000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -73,6 +74,15 @@ app.whenReady().then(async () => {
     result.deflectionDiagramVisible = deflectionDiagramVisible;
     result.momentDiagramVisible = momentDiagramVisible;
     result.shearDiagramVisible = shearDiagramVisible;
+    const reportDownload = new Promise((resolve, reject) => window.webContents.session.once('will-download', (_event, item) => {
+      item.setSavePath(reportPath);
+      item.once('done', (_downloadEvent, state) => state === 'completed' ? resolve() : reject(new Error(`Eksport raportu zakończony stanem ${state}`)));
+    }));
+    await window.webContents.executeJavaScript(`document.querySelector('.beam-fea-export').click()`);
+    await reportDownload;
+    const reportText = await fs.readFile(reportPath, 'utf8');
+    result.reportBytes = Buffer.byteLength(reportText);
+    result.reportValid = reportText.includes('Wynik;Przypadek krytyczny;Transport;') && reportText.includes('Scenariusz;Transport;3;FoS ');
     await setControl(window, '.beam-fea-panel input[type="text"]', '50000', 0);
     await waitFor(window, `window.__madcadVerifyDocumentState.command.beamFea.result?.yieldExceededNodeCount > 0 && document.querySelector('.beam-fea-stress-chart circle.failed')`, 'krytyczna strefa naprężenia');
     result.criticalYieldNodes = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.command.beamFea.result.yieldExceededNodeCount`);
@@ -81,8 +91,8 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState.command.beamFea.result?.force === 500 && window.__madcadVerifyDocumentState.command.beamFea.result?.yieldExceededNodeCount === 0`, 'powrót bezpiecznego obciążenia');
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     const transportCase = result.loadCases?.find((loadCase) => loadCase.name === 'Transport');
-    if (result.loadType !== 'tip' || result.force !== 500 || result.loadPositionPercent !== 37 || Math.abs(result.loadPosition - result.length * 0.37) > 1e-6 || result.totalLoad !== 500 || result.elements !== 12 || result.nodes !== 13 || result.momentNodes !== 13 || result.stressNodes !== 13 || result.shearNodes !== 24 || Math.abs(result.diagramMaximum - result.moment) > 1e-3 || Math.abs(result.stressMaximum - result.maximumStress) > 1e-6 || Math.abs(result.utilizationPercent - result.maximumStress / result.materialYield * 100) > 1e-6 || result.requiredSafetyFactor !== 2 || !result.meetsSafetyTarget || Math.abs(result.safetyMarginPercent - (result.safetyFactor / 2 - 1) * 100) > 1e-6 || result.loadCases?.length !== 4 || result.criticalLoadCase !== transportCase?.id || transportCase?.factor !== 3 || Math.abs(transportCase.safetyFactor - result.safetyFactor / 3) > 1e-6 || !result.loadCasesVisible || result.loadCaseRows !== 4 || result.yieldExceededNodeCount !== 0 || result.safeStressMarkers < 1 || result.criticalYieldNodes < 1 || result.failedStressMarkers < 1 || Math.abs(result.shearMaximum - result.reaction) > 1e-3 || !(result.deflection > 0) || result.error > 1e-5 || Math.abs(result.reaction - 500) > 1e-4 || Math.abs(result.moment - result.force * result.loadPosition) > 1e-3 || result.limitations !== 3 || !result.positionVisible || !result.legendVisible || !result.chartTabsVisible || !result.deflectionDiagramVisible || !result.momentDiagramVisible || !result.shearDiagramVisible || !result.stressDiagramVisible || result.viewportNodes !== 13 || Math.abs(result.viewportLoadPosition - result.loadPosition) > 1e-6 || result.viewportLoadPoint?.length !== 3 || result.loadArrowCount !== 1 || !result.support || !(result.deformationScale >= 1) || !result.insideViewport || result.horizontalOverflow || !result.scopeVisible) throw new Error(`Niepoprawny MES belki: ${JSON.stringify(result)}`);
-    process.stdout.write(`${JSON.stringify({ screenshotPath, ...result }, null, 2)}\n`);
+    if (result.loadType !== 'tip' || result.force !== 500 || result.loadPositionPercent !== 37 || Math.abs(result.loadPosition - result.length * 0.37) > 1e-6 || result.totalLoad !== 500 || result.elements !== 12 || result.nodes !== 13 || result.momentNodes !== 13 || result.stressNodes !== 13 || result.shearNodes !== 24 || Math.abs(result.diagramMaximum - result.moment) > 1e-3 || Math.abs(result.stressMaximum - result.maximumStress) > 1e-6 || Math.abs(result.utilizationPercent - result.maximumStress / result.materialYield * 100) > 1e-6 || result.requiredSafetyFactor !== 2 || !result.meetsSafetyTarget || Math.abs(result.safetyMarginPercent - (result.safetyFactor / 2 - 1) * 100) > 1e-6 || result.loadCases?.length !== 4 || result.criticalLoadCase !== transportCase?.id || transportCase?.factor !== 3 || Math.abs(transportCase.safetyFactor - result.safetyFactor / 3) > 1e-6 || !result.loadCasesVisible || result.loadCaseRows !== 4 || !result.reportValid || result.reportBytes < 300 || result.yieldExceededNodeCount !== 0 || result.safeStressMarkers < 1 || result.criticalYieldNodes < 1 || result.failedStressMarkers < 1 || Math.abs(result.shearMaximum - result.reaction) > 1e-3 || !(result.deflection > 0) || result.error > 1e-5 || Math.abs(result.reaction - 500) > 1e-4 || Math.abs(result.moment - result.force * result.loadPosition) > 1e-3 || result.limitations !== 3 || !result.positionVisible || !result.legendVisible || !result.chartTabsVisible || !result.deflectionDiagramVisible || !result.momentDiagramVisible || !result.shearDiagramVisible || !result.stressDiagramVisible || result.viewportNodes !== 13 || Math.abs(result.viewportLoadPosition - result.loadPosition) > 1e-6 || result.viewportLoadPoint?.length !== 3 || result.loadArrowCount !== 1 || !result.support || !(result.deformationScale >= 1) || !result.insideViewport || result.horizontalOverflow || !result.scopeVisible) throw new Error(`Niepoprawny MES belki: ${JSON.stringify(result)}`);
+    process.stdout.write(`${JSON.stringify({ screenshotPath, reportPath, ...result }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
     process.stderr.write(`${error.stack || error.message}\n`);
