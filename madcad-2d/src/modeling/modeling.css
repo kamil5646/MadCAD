@@ -6418,9 +6418,17 @@
 .manufacturing-operation-empty strong { font-size: 11px; }
 .manufacturing-operation-empty small { color: #9eabb6; font-size: 9px; }
 .manufacturing-operation-empty button { flex: 0 0 auto; padding: 0 9px; border-color: #4fa9c3; }
+.manufacturing-operation-list { margin-top: 2px; }
+.manufacturing-operation-list > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 12px 9px; padding-top: 2px; }
+.manufacturing-operation-list > header > div:first-child { display: grid; gap: 2px; }
+.manufacturing-operation-list > header strong { font-size: 12px; }
+.manufacturing-operation-list > header small { color: #9eabb6; font-size: 9px; }
+.manufacturing-add-actions { display: flex; gap: 5px; }
+.manufacturing-add-actions button { padding: 0 7px; border-color: #4b8294; font-size: 10px; }
 .manufacturing-operation { margin: 0 12px 11px; border: 1px solid #596978; border-radius: 4px; background: #293440; }
 .manufacturing-operation > header { display: flex; align-items: center; justify-content: space-between; padding: 8px 9px; border-bottom: 1px solid #4f5d6a; }
-.manufacturing-operation > header div { display: grid; gap: 2px; }
+.manufacturing-operation > header > div { display: flex; align-items: center; gap: 7px; }
+.manufacturing-operation > header span { display: grid; gap: 2px; }
 .manufacturing-operation > header strong { font-size: 11px; }
 .manufacturing-operation > header small { color: #92a2ae; font-size: 9px; }
 .manufacturing-operation > header button { min-height: 25px; width: 27px; color: #efaaa4; }

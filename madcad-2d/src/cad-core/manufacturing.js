@@ -32,6 +32,25 @@ export function normalizeFacingOperation(operation = {}, index = 0) {
   };
 }
 
+export function normalizeContourOperation(operation = {}, index = 0) {
+  return {
+    id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
+    name: String(operation.name || `Kontur 2D ${index + 1}`).trim().slice(0, 80) || `Kontur 2D ${index + 1}`,
+    type: 'contour',
+    toolId: CAM_TOOL_PRESETS[operation.toolId] ? operation.toolId : 'flat-6',
+    targetDepth: Math.max(0.05, Number(operation.targetDepth) || 2),
+    maxStepdown: Math.max(0.05, Number(operation.maxStepdown) || 1),
+    feedRate: Math.max(1, Number(operation.feedRate) || 500),
+    plungeRate: Math.max(1, Number(operation.plungeRate) || 150),
+    spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 8000)),
+    compensation: 'outside',
+  };
+}
+
+export function normalizeManufacturingOperation(operation = {}, index = 0) {
+  return operation?.type === 'contour' ? normalizeContourOperation(operation, index) : normalizeFacingOperation(operation, index);
+}
+
 const finiteNonNegative = (value, fallback) => {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : fallback;
@@ -53,7 +72,7 @@ export function normalizeManufacturingSetup(setup = {}, index = 0) {
     },
     wcsOrigin,
     safeHeight: finiteNonNegative(setup.safeHeight, 5),
-    operations: Array.isArray(setup.operations) ? setup.operations.map(normalizeFacingOperation) : [],
+    operations: Array.isArray(setup.operations) ? setup.operations.map(normalizeManufacturingOperation) : [],
   };
 }
 
@@ -115,6 +134,10 @@ export function createFacingOperation(options = {}) {
   return normalizeFacingOperation({ ...options, id: createId('cam-operation') });
 }
 
+export function createContourOperation(options = {}) {
+  return normalizeContourOperation({ ...options, id: createId('cam-operation') });
+}
+
 export function calculateFacingToolpath(setup, operation, bodies = []) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
   const normalized = normalizeFacingOperation(operation);
@@ -162,13 +185,178 @@ export function calculateFacingToolpath(setup, operation, bodies = []) {
   return { valid: setupResult.valid, setup: setupResult, stockBounds: setupResult.stockBounds, origin: setupResult.origin, clearancePlaneZ: setupResult.clearancePlaneZ, operation: normalized, tool, segments, layerCount, rowCount, distance, cuttingDistance, durationMinutes, warnings: setupResult.warnings };
 }
 
+const pointKey = (point, tolerance) => `${Math.round(point[0] / tolerance)},${Math.round(point[1] / tolerance)}`;
+const signedPolygonArea = (points) => points.reduce((area, point, index) => {
+  const next = points[(index + 1) % points.length];
+  return area + point[0] * next[1] - next[0] * point[1];
+}, 0) / 2;
+
+export function extractTopBoundaryLoops(body) {
+  const vertices = Array.from(body?.vertices || []);
+  const triangles = Array.from(body?.triangles || []);
+  const bounds = body?.bounds || body?.metrics?.bounds;
+  if (vertices.length < 9 || triangles.length < 3 || !Array.isArray(bounds?.[1])) return [];
+  const span = Math.max(1, ...bounds[1].map((value, axis) => Math.abs(Number(value) - Number(bounds[0]?.[axis] || 0))));
+  const tolerance = Math.max(1e-7, span * 1e-6);
+  const topZ = vertices.reduce((maximum, value, index) => index % 3 === 2 ? Math.max(maximum, value) : maximum, -Infinity);
+  const points = new Map();
+  const edges = new Map();
+  const addEdge = (a, b) => {
+    const aKey = pointKey(a, tolerance);
+    const bKey = pointKey(b, tolerance);
+    if (aKey === bKey) return;
+    points.set(aKey, [a[0], a[1]]);
+    points.set(bKey, [b[0], b[1]]);
+    const key = aKey < bKey ? `${aKey}|${bKey}` : `${bKey}|${aKey}`;
+    const entry = edges.get(key) || { a: aKey, b: bKey, count: 0 };
+    entry.count += 1;
+    edges.set(key, entry);
+  };
+  for (let index = 0; index + 2 < triangles.length; index += 3) {
+    const triangle = triangles.slice(index, index + 3).map((vertexIndex) => vertices.slice(vertexIndex * 3, vertexIndex * 3 + 3));
+    if (triangle.some((point) => point.length < 3 || Math.abs(point[2] - topZ) > tolerance)) continue;
+    addEdge(triangle[0], triangle[1]);
+    addEdge(triangle[1], triangle[2]);
+    addEdge(triangle[2], triangle[0]);
+  }
+  const boundary = [...edges.values()].filter((edge) => edge.count === 1);
+  const adjacency = new Map();
+  for (const edge of boundary) {
+    adjacency.set(edge.a, [...(adjacency.get(edge.a) || []), edge.b]);
+    adjacency.set(edge.b, [...(adjacency.get(edge.b) || []), edge.a]);
+  }
+  const unused = new Set(boundary.map((edge) => edge.a < edge.b ? `${edge.a}|${edge.b}` : `${edge.b}|${edge.a}`));
+  const loops = [];
+  while (unused.size) {
+    const firstEdge = unused.values().next().value;
+    const [start, next] = firstEdge.split('|');
+    const keys = [start];
+    let previous = start;
+    let current = next;
+    unused.delete(firstEdge);
+    while (current !== start && keys.length <= boundary.length + 1) {
+      keys.push(current);
+      const candidate = (adjacency.get(current) || []).find((item) => {
+        const edgeKey = current < item ? `${current}|${item}` : `${item}|${current}`;
+        return item !== previous && unused.has(edgeKey);
+      });
+      if (!candidate) break;
+      const edgeKey = current < candidate ? `${current}|${candidate}` : `${candidate}|${current}`;
+      unused.delete(edgeKey);
+      previous = current;
+      current = candidate;
+    }
+    if (current === start && keys.length >= 3) loops.push(keys.map((key) => points.get(key)));
+  }
+  return loops.sort((a, b) => Math.abs(signedPolygonArea(b)) - Math.abs(signedPolygonArea(a)));
+}
+
+export function offsetClosedContour(points, distance) {
+  if (!Array.isArray(points) || points.length < 3 || !(distance > 0)) return points?.map((point) => [...point]) || [];
+  const orientation = Math.sign(signedPolygonArea(points)) || 1;
+  const lineIntersection = (a, directionA, b, directionB) => {
+    const cross = directionA[0] * directionB[1] - directionA[1] * directionB[0];
+    if (Math.abs(cross) < 1e-9) return null;
+    const delta = [b[0] - a[0], b[1] - a[1]];
+    const t = (delta[0] * directionB[1] - delta[1] * directionB[0]) / cross;
+    return [a[0] + t * directionA[0], a[1] + t * directionA[1]];
+  };
+  return points.map((point, index) => {
+    const previous = points[(index - 1 + points.length) % points.length];
+    const next = points[(index + 1) % points.length];
+    const normalize = (vector) => {
+      const length = Math.hypot(...vector) || 1;
+      return vector.map((value) => value / length);
+    };
+    const incoming = normalize([point[0] - previous[0], point[1] - previous[1]]);
+    const outgoing = normalize([next[0] - point[0], next[1] - point[1]]);
+    const outward = (direction) => orientation > 0 ? [direction[1], -direction[0]] : [-direction[1], direction[0]];
+    const normalA = outward(incoming);
+    const normalB = outward(outgoing);
+    const offsetA = [point[0] + normalA[0] * distance, point[1] + normalA[1] * distance];
+    const offsetB = [point[0] + normalB[0] * distance, point[1] + normalB[1] * distance];
+    const intersection = lineIntersection(offsetA, incoming, offsetB, outgoing);
+    if (intersection && Math.hypot(intersection[0] - point[0], intersection[1] - point[1]) <= distance * 5) return intersection;
+    const bisector = normalize([normalA[0] + normalB[0], normalA[1] + normalB[1]]);
+    return [point[0] + bisector[0] * distance, point[1] + bisector[1] * distance];
+  });
+}
+
+function summarizeToolpath(segments) {
+  const segmentLength = (segment) => Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis]));
+  return {
+    distance: segments.reduce((sum, segment) => sum + segmentLength(segment), 0),
+    cuttingDistance: segments.filter((segment) => segment.kind !== 'rapid').reduce((sum, segment) => sum + segmentLength(segment), 0),
+    durationMinutes: segments.reduce((sum, segment) => sum + segmentLength(segment) / (segment.kind === 'rapid' ? 3000 : segment.feed), 0),
+  };
+}
+
+export function calculateContourToolpath(setup, operation, bodies = []) {
+  const setupResult = calculateManufacturingSetup(setup, bodies);
+  const normalized = normalizeContourOperation(operation);
+  const tool = CAM_TOOL_PRESETS[normalized.toolId];
+  const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
+  if (!setupResult.body || !setupResult.stockBounds) return fail('Kontur wymaga poprawnego Setupu i bryły.');
+  if (!setupResult.valid) return fail('Popraw Setup przed obliczeniem konturu.');
+  if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`);
+  const bodyBounds = setupResult.body.bounds || setupResult.body.metrics?.bounds;
+  const bodyHeight = Number(bodyBounds[1][2]) - Number(bodyBounds[0][2]);
+  if (normalized.targetDepth > tool.fluteLength) return fail(`Głębokość przekracza długość ostrza narzędzia (${tool.fluteLength} mm).`);
+  if (normalized.targetDepth > bodyHeight + setupResult.stockBounds[0][2] - Number(bodyBounds[0][2]) + 1e-7) return fail('Głębokość konturu przekracza wysokość dostępnego materiału.');
+  const loops = extractTopBoundaryLoops(setupResult.body);
+  if (!loops.length) return fail('Nie znaleziono zamkniętej górnej krawędzi bryły. Wybierz bryłę z płaską górną powierzchnią.');
+  const contour = offsetClosedContour(loops[0], tool.diameter / 2);
+  const vertexValues = Array.from(setupResult.body.vertices || []);
+  const topZ = vertexValues.length >= 3
+    ? vertexValues.reduce((maximum, value, index) => index % 3 === 2 ? Math.max(maximum, value) : maximum, -Infinity)
+    : Number(bodyBounds[1][2]);
+  const layerCount = Math.max(1, Math.ceil(normalized.targetDepth / normalized.maxStepdown));
+  const segments = [];
+  let previous = [contour[0][0], contour[0][1], setupResult.clearancePlaneZ];
+  const push = (kind, to, feed = null) => {
+    if (Math.hypot(...to.map((value, axis) => value - previous[axis])) <= 1e-9) return;
+    segments.push({ kind, from: previous, to, ...(feed ? { feed } : {}) });
+    previous = to;
+  };
+  for (let layer = 1; layer <= layerCount; layer += 1) {
+    const z = topZ - Math.min(normalized.targetDepth, layer * normalized.targetDepth / layerCount);
+    push('rapid', [contour[0][0], contour[0][1], setupResult.clearancePlaneZ]);
+    push('plunge', [contour[0][0], contour[0][1], z], normalized.plungeRate);
+    for (let index = 1; index <= contour.length; index += 1) {
+      const point = contour[index % contour.length];
+      push('cut', [point[0], point[1], z], normalized.feedRate);
+    }
+    push('rapid', [previous[0], previous[1], setupResult.clearancePlaneZ]);
+  }
+  return {
+    valid: true,
+    setup: setupResult,
+    stockBounds: setupResult.stockBounds,
+    origin: setupResult.origin,
+    clearancePlaneZ: setupResult.clearancePlaneZ,
+    operation: normalized,
+    tool,
+    segments,
+    layerCount,
+    contourPointCount: contour.length,
+    ...summarizeToolpath(segments),
+    warnings: [],
+  };
+}
+
+export function calculateOperationToolpath(setup, operation, bodies = []) {
+  return operation?.type === 'contour'
+    ? calculateContourToolpath(setup, operation, bodies)
+    : calculateFacingToolpath(setup, operation, bodies);
+}
+
 function gcodeNumber(value) {
   if (!Number.isFinite(Number(value))) throw new Error('Ścieżka CAM zawiera nieprawidłową współrzędną.');
   return Number(Number(value).toFixed(4)).toString();
 }
 
 export function createGrblGcode(setup, operation, bodies = [], { projectName = 'MadCAD' } = {}) {
-  const toolpath = calculateFacingToolpath(setup, operation, bodies);
+  const toolpath = calculateOperationToolpath(setup, operation, bodies);
   if (!toolpath.valid || !toolpath.segments.length) throw new Error(toolpath.warnings.join(' ') || 'Ścieżka CAM nie jest gotowa do eksportu.');
   const origin = toolpath.origin;
   const safeLocalZ = toolpath.clearancePlaneZ - origin[2];
@@ -225,9 +413,10 @@ export function validateManufacturing(manufacturing) {
       const operationBase = `${base}.operations[${operationIndex}]`;
       if (!operation || typeof operation !== 'object') issues.push({ path: operationBase, message: 'Operacja CAM musi być obiektem.', code: 'TYPE' });
       else {
-        if (operation.type !== 'face') issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
+        if (!['face', 'contour'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
         if (!CAM_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
         for (const key of ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm']) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr operacji musi być dodatni.', code: 'VALUE' });
+        if (operation.type === 'contour' && (!Number.isFinite(Number(operation.targetDepth)) || Number(operation.targetDepth) <= 0)) issues.push({ path: `${operationBase}.targetDepth`, message: 'Głębokość konturu musi być dodatnia.', code: 'VALUE' });
       }
     });
   });

@@ -3,7 +3,7 @@ const path = require('node:path');
 const { app, BrowserWindow } = require('electron');
 
 const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-manufacturing-setup.png');
-const gcodePath = path.join(__dirname, '..', 'artifacts', 'madcad-facing.nc');
+const gcodePath = path.join(__dirname, '..', 'artifacts', 'madcad-contour.nc');
 async function waitFor(window, expression, label, timeoutMs = 45000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -32,18 +32,22 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.manufacturing-summary.valid') && JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups.length === 1`, 'poprawny Setup CAM');
     await setControl(window, '.manufacturing-field-grid label:nth-child(2) input', '5');
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].stock.topOffset === 5`, 'zapis naddatku');
-    await window.webContents.executeJavaScript(`document.querySelector('.manufacturing-operation-empty button').click()`);
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.manufacturing-add-actions button')[0].click()`);
     await waitFor(window, `document.querySelector('.manufacturing-toolpath-summary.valid') && JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 1 && window.__madcadManufacturingVisualState?.segmentCount > 0`, 'ścieżka planowania');
-    const state = await window.webContents.executeJavaScript(`(() => { const panel = document.querySelector('.manufacturing-panel').getBoundingClientRect(); const saved = JSON.parse(window.__madcadGetSessionExport()); return { schemaVersion: saved.schemaVersion, setup: saved.manufacturing.setups[0], activeSetupId: saved.manufacturing.activeSetupId, valid: Boolean(document.querySelector('.manufacturing-summary.valid')), toolpathValid: Boolean(document.querySelector('.manufacturing-toolpath-summary.valid')), toolpathSegments: window.__madcadManufacturingVisualState?.segmentCount, stockVisible: window.__madcadManufacturingVisualState?.stockVisible, insideViewport: panel.left >= 0 && panel.top >= 0 && panel.right <= innerWidth && panel.bottom <= innerHeight, horizontalOverflow: document.documentElement.scrollWidth > innerWidth }; })()`);
-    if (state.schemaVersion !== 17 || !state.setup?.id || state.activeSetupId !== state.setup.id || state.setup.stock.topOffset !== 5 || state.setup.operations?.length !== 1 || !state.valid || !state.toolpathValid || !(state.toolpathSegments > 0) || !state.stockVisible || !state.insideViewport || state.horizontalOverflow) throw new Error(`Niepoprawny Setup CAM: ${JSON.stringify(state)}`);
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.manufacturing-add-actions button')[1].click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 2`, 'zapis operacji Kontur 2D');
+    const contourDiagnostic = await window.webContents.executeJavaScript(`(() => { const saved = JSON.parse(window.__madcadGetSessionExport()); const bodyId = saved.manufacturing.setups[0].bodyId; const body = window.__madcadVerifyEngineState.bodies.find((item) => item.id === bodyId); const topZ = body.bounds[1][2]; let topTriangles = 0; for (let i = 0; i < body.triangles.length; i += 3) { if ([body.triangles[i], body.triangles[i + 1], body.triangles[i + 2]].every((index) => Math.abs(body.vertices[index * 3 + 2] - topZ) < 1e-3)) topTriangles += 1; } return { summaries: [...document.querySelectorAll('.manufacturing-toolpath-summary')].map((item) => ({ valid: item.classList.contains('valid'), text: item.textContent.trim() })), operation: saved.manufacturing.setups[0].operations[1], body: { id: body.id, bounds: body.bounds, vertices: body.vertices.length, triangles: body.triangles.length, topTriangles, faceGroups: body.faceGroups?.length }, visual: window.__madcadManufacturingVisualState }; })()`);
+    if (contourDiagnostic.summaries.length !== 2 || !contourDiagnostic.summaries[1].valid) throw new Error(`Kontur 2D nie jest prawidłowy: ${JSON.stringify(contourDiagnostic)}`);
+    const state = await window.webContents.executeJavaScript(`(() => { const panel = document.querySelector('.manufacturing-panel').getBoundingClientRect(); const saved = JSON.parse(window.__madcadGetSessionExport()); return { schemaVersion: saved.schemaVersion, setup: saved.manufacturing.setups[0], activeSetupId: saved.manufacturing.activeSetupId, valid: Boolean(document.querySelector('.manufacturing-summary.valid')), validToolpaths: document.querySelectorAll('.manufacturing-toolpath-summary.valid').length, toolpathSegments: window.__madcadManufacturingVisualState?.segmentCount, stockVisible: window.__madcadManufacturingVisualState?.stockVisible, insideViewport: panel.left >= 0 && panel.top >= 0 && panel.right <= innerWidth && panel.bottom <= innerHeight, horizontalOverflow: document.documentElement.scrollWidth > innerWidth }; })()`);
+    if (state.schemaVersion !== 17 || !state.setup?.id || state.activeSetupId !== state.setup.id || state.setup.stock.topOffset !== 5 || state.setup.operations?.length !== 2 || state.setup.operations[1].type !== 'contour' || !state.valid || state.validToolpaths !== 2 || !(state.toolpathSegments > 0) || !state.stockVisible || !state.insideViewport || state.horizontalOverflow) throw new Error(`Niepoprawny Setup CAM: ${JSON.stringify(state)}`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     const download = new Promise((resolve, reject) => window.webContents.session.once('will-download', (_event, item) => { item.setSavePath(gcodePath); item.once('done', (_downloadEvent, status) => status === 'completed' ? resolve() : reject(new Error(`Eksport G-code: ${status}`))); }));
-    await window.webContents.executeJavaScript(`document.querySelector('.manufacturing-toolpath-summary button').click()`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-toolpath-summary button')].at(-1).click()`);
     await download;
     const gcode = await fs.readFile(gcodePath, 'utf8');
     if (!gcode.includes('\nG21\n') || !gcode.includes('\nG90\n') || !gcode.includes('\nM5\nM30\n')) throw new Error('Eksportowany G-code nie zawiera bezpiecznego nagłówka lub zakończenia.');
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
-    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 0`, 'Cofnij dodanie operacji CAM');
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 1`, 'Cofnij dodanie Konturu 2D');
     process.stdout.write(`${JSON.stringify({ screenshotPath, gcodePath, gcodeBytes: Buffer.byteLength(gcode), ...state }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;

@@ -139,7 +139,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 
 - [x] Setup frezowania 3-osiowego: wybór bryły i obrabiarki, półfabrykat z naddatkami, zero WCS, wysokość bezpieczna, kontrola przesuwu maszyny, zapis/migracja/Undo.
 - [x] Biblioteka podstawowych frezów i warstwowa ścieżka planowania z podglądem 3D, posuwem oraz oszacowaniem czasu.
-- [ ] Ścieżki 2D Contour, Pocket i Adaptive dla wskazanych ścian/profili.
+- [x] Kontur 2D rzeczywistej górnej krawędzi bryły: kompensacja promienia freza, warstwy głębokości, wspólny podgląd 3D i eksport GRBL.
+- [ ] Pocket 2D i Adaptive dla wskazanych ścian/profili.
 - [ ] Symulacja usuwania materiału, kontrola kolizji i raport czasu obróbki.
 - [x] Pierwszy postprocesor GRBL: G-code metryczny względem WCS, limity obrotów, bezpieczny przejazd i ostrzeżenie przed uruchomieniem.
 - [ ] Podgląd tekstowy G-code, dodatkowe postprocesory obrabiarek i walidacja kolizji przed eksportem.

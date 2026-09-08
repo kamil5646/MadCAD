@@ -145,7 +145,7 @@ import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMesh
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
-import { calculateFacingToolpath, createFacingOperation, createGrblGcode, createManufacturingSetup, normalizeFacingOperation, normalizeManufacturingSetup } from '../cad-core/manufacturing.js';
+import { calculateOperationToolpath, createContourOperation, createFacingOperation, createGrblGcode, createManufacturingSetup, normalizeManufacturingOperation, normalizeManufacturingSetup } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
@@ -962,16 +962,20 @@ export default function ModelingWorkspace() {
     next.manufacturing.activeSetupId = next.manufacturing.setups[0]?.id || '';
     setNotice('Usunięto Setup CAM. Cofnij, aby go przywrócić.');
   });
-  const createCamFacingOperation = (setupId) => commit((next) => {
+  const createCamOperation = (setupId, type = 'face') => commit((next) => {
     const setup = next.manufacturing.setups.find((item) => item.id === setupId);
     if (!setup) return;
-    setup.operations.push(createFacingOperation({ name: `Planowanie ${setup.operations.length + 1}` }));
-    setNotice('Utworzono ścieżkę planowania. Ustaw frez, stepover, zejście i posuw.');
+    const sameTypeCount = setup.operations.filter((item) => item.type === type).length + 1;
+    const operation = type === 'contour'
+      ? createContourOperation({ name: `Kontur 2D ${sameTypeCount}` })
+      : createFacingOperation({ name: `Planowanie ${sameTypeCount}` });
+    setup.operations.push(operation);
+    setNotice(type === 'contour' ? 'Utworzono Kontur 2D. Ustaw frez, głębokość, zejście i posuw.' : 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.');
   });
   const updateCamOperation = (setupId, operationId, patch) => commit((next) => {
     const setup = next.manufacturing.setups.find((item) => item.id === setupId);
     const index = setup?.operations.findIndex((item) => item.id === operationId) ?? -1;
-    if (index >= 0) setup.operations[index] = normalizeFacingOperation({ ...setup.operations[index], ...patch }, index);
+    if (index >= 0) setup.operations[index] = normalizeManufacturingOperation({ ...setup.operations[index], ...patch }, index);
   });
   const deleteCamOperation = (setupId, operationId) => commit((next) => {
     const setup = next.manufacturing.setups.find((item) => item.id === setupId);
@@ -7207,9 +7211,13 @@ export default function ModelingWorkspace() {
               : { title: 'KROK 1 · dokończ szkic 2D', text: 'Szkic nie ma jeszcze zamkniętego obrysu. Domknij linie, zakończ szkic, potem zaznacz jego wnętrze.', action: `Edytuj: ${lastSketch.name}`, onAction: () => editSketch(lastSketch.id) }
             : { title: 'PROJEKTUJ · szkic 2D i model 3D', text: readyEngineLabel };
   const activeCamSetup = document.manufacturing.setups.find((setup) => setup.id === document.manufacturing.activeSetupId) || null;
-  const manufacturingVisualization = workspace === 'manufacture' && activeCamSetup?.operations?.[0]
-    ? calculateFacingToolpath(activeCamSetup, activeCamSetup.operations[0], engine.bodies)
-    : null;
+  const manufacturingToolpaths = workspace === 'manufacture' && activeCamSetup
+    ? activeCamSetup.operations.map((operation) => calculateOperationToolpath(activeCamSetup, operation, engine.bodies)).filter((toolpath) => toolpath.valid)
+    : [];
+  const manufacturingVisualization = manufacturingToolpaths.length ? {
+    stockBounds: manufacturingToolpaths[0].stockBounds,
+    segments: manufacturingToolpaths.flatMap((toolpath) => toolpath.segments),
+  } : null;
   const startPageVisible = workspace === 'solid' && !document.sketches.length && !engine.bodies.length && !command && !readOnly;
   const showProjectBrowser = browserOpen && workspace !== 'drawing' && !startPageVisible;
   let adaptiveContext = null;
@@ -7790,7 +7798,7 @@ export default function ModelingWorkspace() {
             renderCaptureRef={renderCaptureRef}
           />
           </React.Suspense>}
-          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamFacingOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onExportOperation={exportCamOperation} />}
+          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onExportOperation={exportCamOperation} />}
           {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
           {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
