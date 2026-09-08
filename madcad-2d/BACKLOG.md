@@ -131,6 +131,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] P1.36j Diagram naprężenia zginającego wzdłuż belki w MPa.
 - [x] P1.36k Mapa wykorzystania granicy plastyczności i oznaczenie przekroczonych węzłów.
 - [x] P1.36l Konfigurowalny wymagany współczynnik bezpieczeństwa i margines względem celu.
+- [x] P1.36m Kombinacja siły skupionej i równomiernego obciążenia liniowego.
 - Walidowany solver MES dla dowolnej geometrii 3D, sprzężona analiza termiczna oraz późniejsza optymalizacja topologii.
 
 ### Manufacture / CAM

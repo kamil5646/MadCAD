@@ -529,7 +529,7 @@ export function StaticScreeningPanel({ bodies = [], bodyId = '', materialId = 's
   );
 }
 
-export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', loadType = 'tip', loadPositionPercent = '100', force = '1000', elementCount = '8', requiredSafetyFactor = '2', result, error = '', onChange, onClose }) {
+export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', loadType = 'tip', loadPositionPercent = '100', force = '1000', distributedForce = '10', elementCount = '8', requiredSafetyFactor = '2', result, error = '', onChange, onClose }) {
   const [diagram, setDiagram] = React.useState('deflection');
   const format = (value, digits = 3) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
   const nodes = result?.nodalDeflections || [];
@@ -563,10 +563,11 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
         <label><span>Bryła</span><select aria-label="Bryła MES belki" value={bodyId} onChange={(event) => onChange({ bodyId: event.target.value })}>{bodies.map((body) => <option key={body.id} value={body.id}>{body.name}</option>)}</select></label>
         <label><span>Materiał</span><select aria-label="Materiał MES belki" value={materialId} onChange={(event) => onChange({ materialId: event.target.value })}>{Object.values(ENGINEERING_MATERIALS).map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}</select></label>
         <div className="static-axis-grid"><label><span>Oś długości</span><select aria-label="Oś długości MES" value={spanAxis} onChange={(event) => onChange({ spanAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label><label><span>Kierunek siły</span><select aria-label="Kierunek siły MES" value={loadAxis} onChange={(event) => onChange({ loadAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label></div>
-        <label><span>Obciążenie</span><select aria-label="Typ obciążenia MES" value={loadType} onChange={(event) => onChange({ loadType: event.target.value })}><option value="tip">Siła skupiona w położeniu</option><option value="distributed">Równomiernie rozłożone</option></select></label>
+        <label><span>Obciążenie</span><select aria-label="Typ obciążenia MES" value={loadType} onChange={(event) => onChange({ loadType: event.target.value })}><option value="tip">Siła skupiona w położeniu</option><option value="distributed">Równomiernie rozłożone</option><option value="combined">Siła skupiona + rozłożone</option></select></label>
         <div className="beam-fea-inputs"><Field label={loadType === 'distributed' ? 'Obciążenie liniowe' : 'Siła skupiona'} value={force} onChange={(value) => onChange({ force: value })} suffix={loadType === 'distributed' ? 'N/mm' : 'N'} /><Field label="Elementy" value={elementCount} onChange={(value) => onChange({ elementCount: value })} /></div>
+        {loadType === 'combined' && <Field label="Obciążenie liniowe kombinacji" value={distributedForce} onChange={(value) => onChange({ distributedForce: value })} suffix="N/mm" />}
         <Field label="Wymagany współczynnik bezpieczeństwa" value={requiredSafetyFactor} onChange={(value) => onChange({ requiredSafetyFactor: value })} />
-        {loadType === 'tip' && <Field label="Położenie od utwierdzenia" value={loadPositionPercent} onChange={(value) => onChange({ loadPositionPercent: value })} suffix="%" />}
+        {loadType !== 'distributed' && <Field label="Położenie od utwierdzenia" value={loadPositionPercent} onChange={(value) => onChange({ loadPositionPercent: value })} suffix="%" />}
         <div className="beam-fea-legend" aria-label="Legenda warunków brzegowych"><span><i className="support" />Utwierdzenie</span><span><i className="load" />Obciążenie</span><span><i className="deformation" />Deformacja</span></div>
         {error && <p className="measure-error">{error}</p>}
         {result && <div className="beam-fea-chart-tabs" role="group" aria-label="Wynik wykresu MES">

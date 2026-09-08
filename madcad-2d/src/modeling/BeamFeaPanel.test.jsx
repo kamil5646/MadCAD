@@ -48,4 +48,14 @@ describe('BeamFeaPanel', () => {
     fireEvent.change(screen.getByRole('textbox', { name: /Położenie od utwierdzenia/i }), { target: { value: '50' } });
     expect(onChange).toHaveBeenCalledWith({ loadPositionPercent: '50' });
   });
+
+  it('shows both load inputs for a combined case', () => {
+    const onChange = vi.fn();
+    render(<BeamFeaPanel bodies={[{ id: 'body-1', name: 'Belka' }]} bodyId="body-1" loadType="combined" force="500" distributedForce="10" loadPositionPercent="40" onChange={onChange} onClose={vi.fn()} />);
+    expect(screen.getByRole('textbox', { name: /^Siła skupiona N$/i })).toHaveValue('500');
+    expect(screen.getByRole('textbox', { name: /Obciążenie liniowe kombinacji/i })).toHaveValue('10');
+    expect(screen.getByRole('textbox', { name: /Położenie od utwierdzenia/i })).toHaveValue('40');
+    fireEvent.change(screen.getByRole('textbox', { name: /Obciążenie liniowe kombinacji/i }), { target: { value: '12' } });
+    expect(onChange).toHaveBeenCalledWith({ distributedForce: '12' });
+  });
 });

@@ -29,6 +29,14 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('[data-tool-label="MES belki 1D"]')`, 'polecenie MES belki');
     await window.webContents.executeJavaScript(`document.querySelector('[data-tool-label="MES belki 1D"]').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.beamFea?.result && document.querySelector('.beam-fea-panel')`, 'wynik MES');
+    await setControl(window, '.beam-fea-panel select[aria-label="Typ obciążenia MES"]', 'combined');
+    await setControl(window, '.beam-fea-panel input[type="text"]', '500', 0);
+    await setControl(window, '.beam-fea-panel input[type="text"]', '12', 1);
+    await setControl(window, '.beam-fea-panel input[type="text"]', '10', 2);
+    await setControl(window, '.beam-fea-panel input[type="text"]', '37', 4);
+    await waitFor(window, `window.__madcadVerifyDocumentState.command.beamFea.result.loadType === 'combined' && window.__madcadBeamFeaVisualState?.loadArrowCount === 7`, 'kombinacja obciążeń');
+    const combined = await window.webContents.executeJavaScript(`(() => { const value = window.__madcadVerifyDocumentState.command.beamFea.result; return { point: value.force, distributed: value.distributedForce, length: value.length, position: value.loadPosition, total: value.totalLoad, reaction: value.reactionForce, moment: value.reactionMoment, error: value.convergenceError, arrows: window.__madcadBeamFeaVisualState?.loadArrowCount, loadPoint: window.__madcadBeamFeaVisualState?.loadPoint }; })()`);
+    if (combined.point !== 500 || combined.distributed !== 10 || Math.abs(combined.total - (500 + 10 * combined.length)) > 1e-6 || Math.abs(combined.reaction - combined.total) > 1e-4 || Math.abs(combined.moment - (500 * combined.position + 10 * combined.length ** 2 / 2)) > 1e-3 || combined.error > 1e-5 || combined.arrows !== 7 || combined.loadPoint?.length !== 3) throw new Error(`Niepoprawna kombinacja obciążeń: ${JSON.stringify(combined)}`);
     await setControl(window, '.beam-fea-panel select[aria-label="Typ obciążenia MES"]', 'distributed');
     await setControl(window, '.beam-fea-panel input[type="text"]', '10', 0);
     await setControl(window, '.beam-fea-panel input[type="text"]', '12', 1);

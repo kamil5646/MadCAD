@@ -34,10 +34,12 @@ export function calculateCantileverBeamFea(body, options = {}) {
   const spanAxis = String(options.spanAxis || 'x').toLowerCase();
   const loadAxis = String(options.loadAxis || 'z').toLowerCase();
   if (!(spanAxis in AXIS_INDEX) || !(loadAxis in AXIS_INDEX) || spanAxis === loadAxis) throw new Error('Oś długości i kierunek siły muszą być różne.');
-  const loadType = options.loadType === 'distributed' ? 'distributed' : 'tip';
+  const loadType = ['distributed', 'combined'].includes(options.loadType) ? options.loadType : 'tip';
   const force = Number(options.force);
   if (!Number.isFinite(force) || force <= 0 || force > 1e9) throw new Error(loadType === 'distributed' ? 'Obciążenie liniowe musi być dodatnie i nie większe niż 1 GN/mm.' : 'Siła musi być dodatnia i nie większa niż 1 GN.');
-  const loadPositionPercent = loadType === 'tip' ? Number(options.loadPositionPercent ?? 100) : 100;
+  const distributedForce = loadType === 'combined' ? Number(options.distributedForce) : loadType === 'distributed' ? force : 0;
+  if (!Number.isFinite(distributedForce) || distributedForce < 0 || distributedForce > 1e9 || (loadType !== 'tip' && distributedForce === 0)) throw new Error('Obciążenie liniowe musi być dodatnie i nie większe niż 1 GN/mm.');
+  const loadPositionPercent = loadType !== 'distributed' ? Number(options.loadPositionPercent ?? 100) : 100;
   if (!Number.isFinite(loadPositionPercent) || loadPositionPercent <= 0 || loadPositionPercent > 100) throw new Error('Położenie siły musi być większe od 0% i nie większe niż 100% długości.');
   const elementCount = Number(options.elementCount);
   if (!Number.isInteger(elementCount) || elementCount < 1 || elementCount > 100) throw new Error('Liczba elementów MES musi być całkowita od 1 do 100.');
@@ -69,12 +71,15 @@ export function calculateCantileverBeamFea(body, options = {}) {
   for (let element = 0; element < elementCount; element += 1) {
     const indices = [element * 2, element * 2 + 1, element * 2 + 2, element * 2 + 3];
     for (let row = 0; row < 4; row += 1) for (let column = 0; column < 4; column += 1) stiffness[indices[row]][indices[column]] += local[row][column];
-    let equivalent = [0, 0, 0, 0];
-    if (loadType === 'distributed') equivalent = [-force * elementLength / 2, -force * elementLength ** 2 / 12, -force * elementLength / 2, force * elementLength ** 2 / 12];
-    else if (element === pointLoadElement) {
+    const equivalent = [0, 0, 0, 0];
+    if (distributedForce > 0) {
+      const distributedEquivalent = [-distributedForce * elementLength / 2, -distributedForce * elementLength ** 2 / 12, -distributedForce * elementLength / 2, distributedForce * elementLength ** 2 / 12];
+      distributedEquivalent.forEach((value, index) => { equivalent[index] += value; });
+    }
+    if (loadType !== 'distributed' && element === pointLoadElement) {
       const ratio = (loadPosition - element * elementLength) / elementLength;
       const shape = [1 - 3 * ratio ** 2 + 2 * ratio ** 3, elementLength * (ratio - 2 * ratio ** 2 + ratio ** 3), 3 * ratio ** 2 - 2 * ratio ** 3, elementLength * (-(ratio ** 2) + ratio ** 3)];
-      equivalent = shape.map((value) => -force * value);
+      shape.forEach((value, index) => { equivalent[index] += -force * value; });
     }
     equivalentLoads.push(equivalent);
     equivalent.forEach((value, index) => { load[indices[index]] += value; });
@@ -101,9 +106,8 @@ export function calculateCantileverBeamFea(body, options = {}) {
     );
   }
   const tipDeflection = Math.abs(displacement[dofCount - 2]);
-  const analyticalDeflection = loadType === 'distributed'
-    ? force * length ** 4 / (8 * material.elasticModulus * secondMoment)
-    : force * loadPosition ** 2 * (3 * length - loadPosition) / (6 * material.elasticModulus * secondMoment);
+  const analyticalDeflection = distributedForce * length ** 4 / (8 * material.elasticModulus * secondMoment)
+    + (loadType !== 'distributed' ? force * loadPosition ** 2 * (3 * length - loadPosition) / (6 * material.elasticModulus * secondMoment) : 0);
   const maximumStress = maximumMoment * sectionHeight / 2 / secondMoment;
   const bendingStresses = bendingMoments.map((node) => {
     const stress = node.moment * sectionHeight / 2 / secondMoment;
@@ -123,7 +127,8 @@ export function calculateCantileverBeamFea(body, options = {}) {
     loadPositionPercent,
     loadPosition,
     force,
-    totalLoad: loadType === 'distributed' ? force * length : force,
+    distributedForce,
+    totalLoad: distributedForce * length + (loadType !== 'distributed' ? force : 0),
     elementCount,
     nodeCount: elementCount + 1,
     length,
@@ -149,7 +154,7 @@ export function calculateCantileverBeamFea(body, options = {}) {
     nodalDeflections: Array.from({ length: elementCount + 1 }, (_, node) => ({ x: node * elementLength, displacement: displacement[node * 2], rotation: displacement[node * 2 + 1] })),
     status: meetsSafetyTarget ? 'safe' : safetyFactor >= 1 ? 'warning' : 'failed',
     limitations: [
-      `Liniowy MES Eulera-Bernoulliego dla prostej belki o stałym prostokątnym przekroju z obwiedni bryły i ${loadType === 'distributed' ? 'równomiernym obciążeniu rozłożonym' : 'sile skupionej na końcu'}.`,
+      `Liniowy MES Eulera-Bernoulliego dla prostej belki o stałym prostokątnym przekroju z obwiedni bryły i ${loadType === 'combined' ? 'kombinacji siły skupionej z obciążeniem rozłożonym' : loadType === 'distributed' ? 'równomiernym obciążeniu rozłożonym' : 'sile skupionej'}.`,
       'Nie odwzorowuje lokalnej geometrii, otworów, karbów, kontaktów, plastyczności, wyboczenia ani dużych przemieszczeń.',
       'Wynik jest walidowany rozwiązaniem analitycznym tego samego przypadku, ale nie zastępuje analizy dowolnej bryły 3D.',
     ],

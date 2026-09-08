@@ -2418,6 +2418,21 @@ test('MES belki rozkłada siłę skupioną pomiędzy węzłami', () => {
   assert.throws(() => calculateCantileverBeamFea(body, { loadPositionPercent: 0, force: 1000, elementCount: 4 }), /większe od 0%/);
 });
 
+test('MES belki superponuje siłę skupioną i obciążenie rozłożone', () => {
+  const body = { id: 'body-beam-combined', bodyKind: 'solid', metrics: { bounds: [[0, 0, 0], [100, 20, 10]], volume: 20000 } };
+  const result = calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', loadType: 'combined', loadPositionPercent: 40, force: 500, distributedForce: 10, elementCount: 10 });
+  const pointDeflection = 500 * 40 ** 2 * (3 * 100 - 40) / (6 * 210000 * result.secondMoment);
+  const distributedDeflection = 10 * 100 ** 4 / (8 * 210000 * result.secondMoment);
+  assert.equal(result.loadType, 'combined');
+  assert.equal(result.totalLoad, 1500);
+  assert.equal(result.distributedForce, 10);
+  assert.ok(Math.abs(result.reactionForce - 1500) < 1e-6);
+  assert.ok(Math.abs(result.reactionMoment - (500 * 40 + 10 * 100 ** 2 / 2)) < 1e-5);
+  assert.ok(Math.abs(result.analyticalDeflection - pointDeflection - distributedDeflection) < 1e-12);
+  assert.ok(Math.abs(result.tipDeflection - result.analyticalDeflection) < 1e-10);
+  assert.throws(() => calculateCantileverBeamFea(body, { loadType: 'combined', force: 500, distributedForce: 0, elementCount: 4 }), /Obciążenie liniowe/);
+});
+
 test('wstępna analiza cieplna liczy przewodzenie 1D i ujawnia ograniczenia modelu', () => {
   const body = { id: 'body-slab', bodyKind: 'solid', metrics: { bounds: [[0, 0, 0], [100, 20, 10]], volume: 20000 } };
   const result = calculateThermalScreening(body, { materialId: 's235', axis: 'x', hotTemperature: 100, coldTemperature: 20 });

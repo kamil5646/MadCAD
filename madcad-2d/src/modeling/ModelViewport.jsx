@@ -958,7 +958,7 @@ export default function ModelViewport({
           marker.renderOrder = 16;
           scene.add(marker);
         });
-        if (beamFeaVisualization.loadType === 'tip' && Number.isFinite(beamFeaVisualization.loadPosition)) {
+        if (beamFeaVisualization.loadType !== 'distributed' && Number.isFinite(beamFeaVisualization.loadPosition)) {
           const normalized = beamFeaVisualization.loadPosition / beamFeaVisualization.length * (points.length - 1);
           const leftIndex = Math.min(points.length - 2, Math.max(0, Math.floor(normalized)));
           const loadPoint = points[leftIndex].clone().lerp(points[leftIndex + 1], normalized - leftIndex);
@@ -977,9 +977,10 @@ export default function ModelViewport({
         scene.add(support);
         const forceDirection = new THREE.Vector3(...[0, 1, 2].map((index) => index === loadIndex ? -1 : 0));
         const arrowLength = Math.max(6, Math.min(20, beamFeaVisualization.length * 0.16));
-        const arrowPositions = beamFeaVisualization.loadType === 'distributed'
-          ? Array.from({ length: 6 }, (_, index) => beamFeaVisualization.length * (index + 0.5) / 6)
-          : [beamFeaVisualization.loadPosition];
+        const arrowPositions = [
+          ...(beamFeaVisualization.distributedForce > 0 ? Array.from({ length: 6 }, (_, index) => beamFeaVisualization.length * (index + 0.5) / 6) : []),
+          ...(beamFeaVisualization.loadType !== 'distributed' ? [beamFeaVisualization.loadPosition] : []),
+        ];
         arrowPositions.filter(Number.isFinite).forEach((position) => {
           const origin = new THREE.Vector3(...center);
           origin.setComponent(spanIndex, bounds[0][spanIndex] + position);
