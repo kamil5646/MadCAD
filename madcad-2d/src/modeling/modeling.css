@@ -4524,6 +4524,8 @@
 .beam-fea-chart line { stroke: #536672; stroke-width: 1; stroke-dasharray: 3 3; }
 .beam-fea-chart polyline { fill: none; stroke: #5bd0eb; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .beam-fea-chart circle { fill: #f1b64f; stroke: #202d36; stroke-width: 1; }
+.beam-fea-moment-chart polyline { stroke: #ff8a55; }
+.beam-fea-moment-chart circle { fill: #ff8a55; }
 
 .component-toolbar button:disabled,
 .component-actions button:disabled { opacity: .45; cursor: default; }

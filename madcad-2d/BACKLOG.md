@@ -126,6 +126,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] P1.36e Siła końcowa i równomierne obciążenie rozłożone ze zgodnymi siłami węzłowymi i walidacją analityczną.
 - [x] P1.36f Dowolne położenie siły skupionej ze zgodnym rozdzieleniem funkcjami kształtu elementu.
 - [x] P1.36g Symbole utwierdzenia i obciążenia na modelu oraz legenda warunków brzegowych.
+- [x] P1.36h Diagram momentu zginającego z sił końcowych wszystkich elementów.
 - Walidowany solver MES dla dowolnej geometrii 3D, sprzężona analiza termiczna oraz późniejsza optymalizacja topologii.
 
 ### Manufacture / CAM
