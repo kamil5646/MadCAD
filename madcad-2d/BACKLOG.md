@@ -145,7 +145,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Adaptive 2D: wejście rampą, kolejne odsunięte obrysy ze stałym obciążeniem freza, warstwy Z, podgląd oraz GRBL.
 - [x] Skojarzony profil szkicu XY jako granica obróbki CAM: parametryczne przeliczanie, kontrola półfabrykatu i jawna diagnostyka utraconej referencji.
 - [x] Kontrola ścieżek i raport Setupu: szybkie przejazdy w materiale, płaszczyzna bezpieczna, zakres maszyny, oprawka, czas, długość skrawania i szacowana objętość.
-- [ ] Interaktywna symulacja usuwania materiału.
+- [x] Interaktywna symulacja usuwania materiału: odtwarzanie i suwak postępu, dyskretyzacja półfabrykatu, wizualizacja zdjętej objętości oraz bieżącego freza w 3D.
 - [x] Pierwszy postprocesor GRBL: G-code metryczny względem WCS, limity obrotów, bezpieczny przejazd i ostrzeżenie przed uruchomieniem.
 - [x] Blokada eksportu G-code po wykryciu problemu przez walidację kolizji i bezpieczeństwa.
 - [ ] Podgląd tekstowy G-code i dodatkowe postprocesory obrabiarek.

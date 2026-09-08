@@ -65,13 +65,22 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.manufacturing-program-report > header.valid') && document.querySelectorAll('.manufacturing-report-operations > div.valid').length === 4`, 'raport bezpieczeństwa i czasu CAM');
     const reportState = await window.webContents.executeJavaScript(`(() => ({ text: document.querySelector('.manufacturing-program-report').textContent, overflow: document.documentElement.scrollWidth > innerWidth }))()`);
     if (reportState.overflow || !reportState.text.includes('Szacowany czas') || !reportState.text.includes('Usuwany materiał') || !reportState.text.includes('Nie wykryto kolizji')) throw new Error(`Niepełny raport CAM: ${JSON.stringify(reportState)}`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-simulation-controls button')].find((button) => button.textContent.includes('Od początku')).click()`);
+    await waitFor(window, `document.querySelector('.manufacturing-simulation-controls output').textContent === '0%' && window.__madcadManufacturingVisualState?.segmentCount === 0 && window.__madcadManufacturingVisualState?.removedColumnCount === 0`, 'wyzerowanie symulacji CAM');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-simulation-controls button')].find((button) => button.textContent.includes('Odtwórz')).click()`);
+    await waitFor(window, `Number.parseInt(document.querySelector('.manufacturing-simulation-controls output').textContent, 10) > 0 && document.querySelector('.manufacturing-simulation-controls button')?.parentElement?.textContent.includes('Pauza')`, 'odtwarzanie symulacji CAM');
+    await setControl(window, '.manufacturing-simulation-controls input', '35');
+    await waitFor(window, `document.querySelector('.manufacturing-simulation-controls output').textContent === '35%' && window.__madcadManufacturingVisualState?.segmentCount > 0 && window.__madcadManufacturingVisualState?.removedColumnCount > 0 && window.__madcadManufacturingVisualState?.cutterVisible`, 'postęp usuwania materiału CAM');
+    const simulationState = await window.webContents.executeJavaScript(`({ progress: document.querySelector('.manufacturing-simulation-controls output').textContent, ...window.__madcadManufacturingVisualState })`);
+    if (simulationState.segmentCount >= state.toolpathSegments) throw new Error(`Symulacja nie ograniczyła widocznej ścieżki: ${JSON.stringify(simulationState)}`);
+    await new Promise((resolve) => setTimeout(resolve, 150));
     await fs.writeFile(reportScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-page-tabs button')].find((button) => button.textContent.includes('Operacje')).click()`);
     await window.webContents.executeJavaScript(`document.querySelector('.manufacturing-panel').scrollTop = document.querySelector('.manufacturing-panel').scrollHeight`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 3`, 'Cofnij operację profilu CAM');
-    process.stdout.write(`${JSON.stringify({ screenshotPath, reportScreenshotPath, gcodePath, gcodeBytes: Buffer.byteLength(gcode), profileBoundary: profileState, reportVerified: true, ...state }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ screenshotPath, reportScreenshotPath, gcodePath, gcodeBytes: Buffer.byteLength(gcode), profileBoundary: profileState, simulation: simulationState, reportVerified: true, ...state }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
     process.stderr.write(`${error.stack || error.message}\n`);

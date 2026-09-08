@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Box, CheckCircle2, Clock3, Crosshair, FileDown, Gauge, Layers3, Plus, Route, ScanLine, ShieldCheck, Trash2 } from 'lucide-react';
+import { AlertTriangle, Box, CheckCircle2, Clock3, Crosshair, FileDown, Gauge, Layers3, Pause, Play, Plus, RotateCcw, Route, ScanLine, ShieldCheck, Trash2 } from 'lucide-react';
 import { CAM_MACHINE_PRESETS, CAM_TOOL_PRESETS, CAM_WCS_ORIGINS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath } from '../cad-core/manufacturing.js';
 
 const millimeter = (value) => Number.isFinite(value) ? `${value.toFixed(2)} mm` : '—';
 
-export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument = null, readOnly = false, onCreate, onActivate, onUpdate, onDelete, onCreateOperation, onUpdateOperation, onDeleteOperation, onExportOperation }) {
+export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument = null, simulationProgress = 1, onSimulationProgress = () => {}, readOnly = false, onCreate, onActivate, onUpdate, onDelete, onCreateOperation, onUpdateOperation, onDeleteOperation, onExportOperation }) {
   const setups = manufacturing?.setups || [];
   const activeId = manufacturing?.activeSetupId || setups[0]?.id || '';
   const setup = setups.find((item) => item.id === activeId) || null;
@@ -13,7 +13,14 @@ export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument
   const solidBodies = bodies.filter((body) => body.bodyKind !== 'surface');
   const update = (patch) => setup && onUpdate(setup.id, patch);
   const [panelPage, setPanelPage] = useState('setup');
+  const [simulationPlaying, setSimulationPlaying] = useState(false);
   useEffect(() => setPanelPage('setup'), [setup?.id]);
+  useEffect(() => {
+    if (!simulationPlaying) return undefined;
+    if (simulationProgress >= 1) { setSimulationPlaying(false); return undefined; }
+    const timer = window.setTimeout(() => onSimulationProgress(Math.min(1, simulationProgress + 0.02)), 70);
+    return () => window.clearTimeout(timer);
+  }, [simulationPlaying, simulationProgress, onSimulationProgress]);
 
   return (
     <aside className="manufacturing-panel" aria-label="Setup wytwarzania CAM">
@@ -75,6 +82,7 @@ export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument
         {panelPage === 'report' && <section className="manufacturing-program-report" aria-label="Kontrola programu CAM">
           <header className={programReport?.valid ? 'valid' : 'invalid'}>{programReport?.valid ? <ShieldCheck size={22} /> : <AlertTriangle size={22} />}<span><strong>{programReport?.valid ? 'Program gotowy do symulacji' : 'Program wymaga poprawy'}</strong><small>{programReport?.valid ? 'Nie wykryto kolizji ani niebezpiecznych przejazdów.' : [...(programReport?.setupIssues || []), ...(programReport?.operations || []).flatMap((operation) => operation.issues.map((issue) => issue.message))].join(' ') || 'Dodaj co najmniej jedną operację.'}</small></span></header>
           <dl><div><dt><Clock3 size={13} /> Szacowany czas</dt><dd>{programReport ? `${Math.max(1, Math.ceil(programReport.durationMinutes))} min` : '—'}</dd></div><div><dt>Długość skrawania</dt><dd>{programReport ? `${programReport.cuttingDistance.toFixed(0)} mm` : '—'}</dd></div><div><dt>Usuwany materiał</dt><dd>{programReport ? `~${programReport.estimatedRemovedVolume.toFixed(0)} mm³` : '—'}</dd></div><div><dt>Udział półfabrykatu</dt><dd>{programReport ? `~${programReport.estimatedRemovalPercent.toFixed(1)}%` : '—'}</dd></div></dl>
+          <div className="manufacturing-simulation-controls"><header><span><strong>Symulacja usuwania materiału</strong><small>Ścieżka, frez i objętość zdjęta z półfabrykatu</small></span><output>{Math.round(simulationProgress * 100)}%</output></header><input aria-label="Postęp symulacji CAM" type="range" min="0" max="100" step="1" value={Math.round(simulationProgress * 100)} disabled={!programReport?.valid} onChange={(event) => { setSimulationPlaying(false); onSimulationProgress(Number(event.target.value) / 100); }} /><div><button type="button" disabled={!programReport?.valid} onClick={() => { setSimulationPlaying(false); onSimulationProgress(0); }}><RotateCcw size={13} /> Od początku</button><button type="button" disabled={!programReport?.valid} onClick={() => { if (simulationProgress >= 1) onSimulationProgress(0); setSimulationPlaying((value) => !value); }}>{simulationPlaying ? <Pause size={13} /> : <Play size={13} />}{simulationPlaying ? 'Pauza' : 'Odtwórz'}</button></div></div>
           <div className="manufacturing-report-operations">{programReport?.operations.map((operation, index) => <div key={operation.id} className={operation.valid ? 'valid' : 'invalid'}><span>{operation.valid ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}<strong>{index + 1} · {operation.name}</strong></span><small>{operation.valid ? `${operation.segmentCount} segmentów · ${Math.max(1, Math.ceil(operation.durationMinutes))} min` : operation.issues.map((issue) => issue.message).join(' ')}</small></div>)}</div>
           <p>Raport jest obliczany z pełnych ścieżek. Eksport G-code jest blokowany po wykryciu szybkiego przejazdu w materiale, przekroczenia zakresu lub kolizji oprawki.</p>
         </section>}

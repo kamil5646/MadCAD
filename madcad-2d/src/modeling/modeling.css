@@ -6387,7 +6387,7 @@
 .manufacturing-panel > nav { display: flex; gap: 4px; padding: 7px 9px 0; overflow-x: auto; }
 .manufacturing-panel > nav button { flex: 0 0 auto; padding: 0 10px; }
 .manufacturing-panel > nav button.active { border-color: #57c6e6; background: #245e75; color: white; }
-.manufacturing-page-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 8px 12px 10px; padding: 3px; border-radius: 4px; background: #252f3a; }
+.manufacturing-page-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 8px 12px 10px; padding: 3px; border-radius: 4px; background: #252f3a; }
 .manufacturing-page-tabs button { border-color: transparent; background: transparent; color: #aebbc6; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
 .manufacturing-page-tabs button.active { border-color: #5a7081; background: #3d4a58; color: #f2f6f8; }
 .manufacturing-page-tabs span { min-width: 18px; padding: 1px 5px; border-radius: 9px; background: #26323d; color: #67d0ed; font-size: 9px; }
@@ -6447,3 +6447,31 @@
 .manufacturing-toolpath-summary span { display: grid; gap: 2px; }
 .manufacturing-toolpath-summary small { color: #aab6bf; font-size: 9px; }
 .manufacturing-toolpath-summary button { margin-left: auto; min-height: 25px; padding: 0 7px; border-color: #3b8c74; color: #7be1b8; }
+.manufacturing-program-report { display: grid; gap: 10px; padding: 2px 12px 12px; }
+.manufacturing-program-report > header { display: flex; gap: 9px; padding: 11px; border: 1px solid #69604c; border-radius: 4px; background: #33382f; color: #efb568; }
+.manufacturing-program-report > header.valid { border-color: #43886f; background: #283a36; color: #6bd5ab; }
+.manufacturing-program-report > header span { display: grid; gap: 3px; }
+.manufacturing-program-report > header strong { font-size: 12px; }
+.manufacturing-program-report > header small { color: #b9c4cb; font-size: 9px; line-height: 1.45; }
+.manufacturing-program-report dl { display: grid; gap: 1px; margin: 0; border: 1px solid #50606e; border-radius: 4px; overflow: hidden; }
+.manufacturing-program-report dl div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 9px; background: #29343f; }
+.manufacturing-program-report dt { display: flex; align-items: center; gap: 5px; color: #aebbc5; font-size: 10px; }
+.manufacturing-program-report dd { margin: 0; color: #edf3f6; font-size: 10px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.manufacturing-simulation-controls { display: grid; gap: 8px; padding: 9px; border: 1px solid #4f6270; border-radius: 4px; background: #27323d; }
+.manufacturing-simulation-controls header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.manufacturing-simulation-controls header span { display: grid; gap: 2px; }
+.manufacturing-simulation-controls strong { color: #e5edf2; font-size: 10px; }
+.manufacturing-simulation-controls small { color: #94a4b0; font-size: 9px; }
+.manufacturing-simulation-controls output { color: #68d1ef; font-size: 11px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.manufacturing-simulation-controls input { width: 100%; accent-color: #41b3d4; }
+.manufacturing-simulation-controls > div { display: flex; justify-content: flex-end; gap: 6px; }
+.manufacturing-simulation-controls button { padding: 0 8px; font-size: 10px; }
+.manufacturing-simulation-controls button:last-child { border-color: #438ca2; background: #286d85; }
+.manufacturing-report-operations { display: grid; gap: 5px; }
+.manufacturing-report-operations > div { display: grid; gap: 3px; padding: 8px 9px; border-left: 3px solid #9d7247; border-radius: 3px; background: #28323d; }
+.manufacturing-report-operations > div.valid { border-left-color: #4ba982; }
+.manufacturing-report-operations span { display: flex; align-items: center; gap: 6px; color: #e1e9ee; font-size: 10px; }
+.manufacturing-report-operations div.valid span svg { color: #62d2a4; }
+.manufacturing-report-operations div.invalid span svg { color: #efab69; }
+.manufacturing-report-operations small { color: #9dabb6; font-size: 9px; }
+.manufacturing-program-report > p { margin: 0; color: #95a5b1; font-size: 9px; line-height: 1.5; }

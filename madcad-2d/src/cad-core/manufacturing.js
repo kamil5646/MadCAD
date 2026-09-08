@@ -688,6 +688,63 @@ export function analyzeManufacturingProgram(setup, bodies = [], document = null)
   };
 }
 
+export function simulateMaterialRemoval(setup, bodies = [], document = null, progress = 1, resolution = 36) {
+  const setupResult = calculateManufacturingSetup(setup, bodies);
+  const report = analyzeManufacturingProgram(setup, bodies, document);
+  if (!setupResult.valid || !report.operations.length) return { valid: false, progress: 0, columns: [], cutter: null, removedVolume: 0, warnings: setupResult.warnings };
+  const toolpaths = normalizeManufacturingSetup(setup).operations
+    .map((operation) => calculateOperationToolpath(setup, operation, bodies, document))
+    .filter((toolpath) => toolpath.valid);
+  const entries = toolpaths.flatMap((toolpath) => toolpath.segments.map((segment) => ({ segment, tool: toolpath.tool, operationId: toolpath.operation.id })));
+  const normalizedProgress = Math.min(1, Math.max(0, Number(progress) || 0));
+  const processedCount = Math.min(entries.length, Math.ceil(entries.length * normalizedProgress));
+  const [minimum, maximum] = setupResult.stockBounds;
+  const width = maximum[0] - minimum[0];
+  const depth = maximum[1] - minimum[1];
+  const baseResolution = Math.max(12, Math.min(64, Math.round(Number(resolution) || 36)));
+  const xCount = width >= depth ? baseResolution : Math.max(12, Math.round(baseResolution * width / depth));
+  const yCount = depth >= width ? baseResolution : Math.max(12, Math.round(baseResolution * depth / width));
+  const cellWidth = width / xCount;
+  const cellDepth = depth / yCount;
+  const stockTop = maximum[2];
+  const heights = new Float32Array(xCount * yCount).fill(stockTop);
+  let cutter = entries[0] ? { position: [...entries[0].segment.from], diameter: entries[0].tool.diameter, operationId: entries[0].operationId } : null;
+  for (const entry of entries.slice(0, processedCount)) {
+    cutter = { position: [...entry.segment.to], diameter: entry.tool.diameter, operationId: entry.operationId };
+    if (entry.segment.kind === 'rapid') continue;
+    const length = Math.hypot(...entry.segment.to.map((value, axis) => value - entry.segment.from[axis]));
+    const sampleStep = Math.max(0.1, Math.min(cellWidth, cellDepth, entry.tool.diameter / 2) / 2);
+    const samples = Math.max(1, Math.ceil(length / sampleStep));
+    const radius = entry.tool.diameter / 2;
+    for (let sample = 0; sample <= samples; sample += 1) {
+      const ratio = sample / samples;
+      const point = entry.segment.from.map((value, axis) => value + (entry.segment.to[axis] - value) * ratio);
+      const minX = Math.max(0, Math.floor((point[0] - radius - minimum[0]) / cellWidth));
+      const maxX = Math.min(xCount - 1, Math.floor((point[0] + radius - minimum[0]) / cellWidth));
+      const minY = Math.max(0, Math.floor((point[1] - radius - minimum[1]) / cellDepth));
+      const maxY = Math.min(yCount - 1, Math.floor((point[1] + radius - minimum[1]) / cellDepth));
+      for (let y = minY; y <= maxY; y += 1) for (let x = minX; x <= maxX; x += 1) {
+        const centerX = minimum[0] + (x + 0.5) * cellWidth;
+        const centerY = minimum[1] + (y + 0.5) * cellDepth;
+        if (Math.hypot(centerX - point[0], centerY - point[1]) <= radius + Math.hypot(cellWidth, cellDepth) / 2) {
+          const index = y * xCount + x;
+          heights[index] = Math.max(minimum[2], Math.min(heights[index], point[2]));
+        }
+      }
+    }
+  }
+  const columns = [];
+  let removedVolume = 0;
+  for (let y = 0; y < yCount; y += 1) for (let x = 0; x < xCount; x += 1) {
+    const top = heights[y * xCount + x];
+    if (stockTop - top <= 1e-7) continue;
+    const volume = (stockTop - top) * cellWidth * cellDepth;
+    removedVolume += volume;
+    columns.push({ x: minimum[0] + (x + 0.5) * cellWidth, y: minimum[1] + (y + 0.5) * cellDepth, bottom: top, top: stockTop, width: cellWidth, depth: cellDepth });
+  }
+  return { valid: report.valid, progress: normalizedProgress, columns, cutter, removedVolume, processedSegments: processedCount, totalSegments: entries.length, warnings: report.setupIssues };
+}
+
 function gcodeNumber(value) {
   if (!Number.isFinite(Number(value))) throw new Error('Ścieżka CAM zawiera nieprawidłową współrzędną.');
   return Number(Number(value).toFixed(4)).toString();
