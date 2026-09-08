@@ -1,10 +1,10 @@
 import React from 'react';
-import { AlertTriangle, Box, CheckCircle2, Crosshair, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Box, CheckCircle2, Crosshair, FileDown, Plus, Trash2 } from 'lucide-react';
 import { CAM_MACHINE_PRESETS, CAM_TOOL_PRESETS, CAM_WCS_ORIGINS, calculateFacingToolpath, calculateManufacturingSetup } from '../cad-core/manufacturing.js';
 
 const millimeter = (value) => Number.isFinite(value) ? `${value.toFixed(2)} mm` : '—';
 
-export function ManufacturingPanel({ manufacturing, bodies = [], readOnly = false, onCreate, onActivate, onUpdate, onDelete, onCreateOperation, onUpdateOperation, onDeleteOperation }) {
+export function ManufacturingPanel({ manufacturing, bodies = [], readOnly = false, onCreate, onActivate, onUpdate, onDelete, onCreateOperation, onUpdateOperation, onDeleteOperation, onExportOperation }) {
   const setups = manufacturing?.setups || [];
   const activeId = manufacturing?.activeSetupId || setups[0]?.id || '';
   const setup = setups.find((item) => item.id === activeId) || null;
@@ -51,7 +51,7 @@ export function ManufacturingPanel({ manufacturing, bodies = [], readOnly = fals
               <label><span>Posuw</span><input type="number" min="1" step="10" value={operation.feedRate} disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { feedRate: event.target.value })} /><em>mm/min</em></label>
             </div>
           </div>
-          <div className={`manufacturing-toolpath-summary ${toolpath?.valid ? 'valid' : 'invalid'}`}>{toolpath?.valid ? <><CheckCircle2 size={14} /><span><strong>{toolpath.segments.length} segmentów · {toolpath.layerCount} warstwy</strong><small>{toolpath.cuttingDistance.toFixed(0)} mm skrawania · ok. {Math.max(1, Math.ceil(toolpath.durationMinutes))} min</small></span></> : <><AlertTriangle size={14} /><span>{toolpath?.warnings.join(' ')}</span></>}</div>
+          <div className={`manufacturing-toolpath-summary ${toolpath?.valid ? 'valid' : 'invalid'}`}>{toolpath?.valid ? <><CheckCircle2 size={14} /><span><strong>{toolpath.segments.length} segmentów · {toolpath.layerCount} warstwy</strong><small>{toolpath.cuttingDistance.toFixed(0)} mm skrawania · ok. {Math.max(1, Math.ceil(toolpath.durationMinutes))} min</small></span><button type="button" disabled={readOnly} onClick={() => onExportOperation(setup.id, operation.id)}><FileDown size={13} /> G-code</button></> : <><AlertTriangle size={14} /><span>{toolpath?.warnings.join(' ')}</span></>}</div>
         </section>}
         <footer><span>Setup i ścieżka są zapisane w projekcie oraz działają z Cofnij/Ponów.</span><button type="button" disabled={readOnly} onClick={() => onDelete(setup.id)}><Trash2 size={14} /> Usuń Setup</button></footer>
       </>}

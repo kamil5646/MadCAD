@@ -141,7 +141,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Biblioteka podstawowych frezów i warstwowa ścieżka planowania z podglądem 3D, posuwem oraz oszacowaniem czasu.
 - [ ] Ścieżki 2D Contour, Pocket i Adaptive dla wskazanych ścian/profili.
 - [ ] Symulacja usuwania materiału, kontrola kolizji i raport czasu obróbki.
-- [ ] Postprocesory G-code z bezpiecznym podglądem oraz walidacją maszyny.
+- [x] Pierwszy postprocesor GRBL: G-code metryczny względem WCS, limity obrotów, bezpieczny przejazd i ostrzeżenie przed uruchomieniem.
+- [ ] Podgląd tekstowy G-code, dodatkowe postprocesory obrabiarek i walidacja kolizji przed eksportem.
 - [ ] Toczenie i cięcie.
 
 ### Electronics, chmura i rozszerzalność

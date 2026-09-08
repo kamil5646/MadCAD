@@ -54,7 +54,7 @@ import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/p
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
-import { calculateFacingToolpath, calculateManufacturingSetup, createFacingOperation, createManufacturingSetup, validateManufacturing } from '../src/cad-core/manufacturing.js';
+import { calculateFacingToolpath, calculateManufacturingSetup, createFacingOperation, createGrblGcode, createManufacturingSetup, validateManufacturing } from '../src/cad-core/manufacturing.js';
 import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
@@ -5534,6 +5534,21 @@ test('planowanie CAM tworzy warstwową ścieżkę z bezpiecznymi przejazdami i p
   assert.equal(result.segments.at(-1).to[2], result.setup.clearancePlaneZ);
   assert.ok(result.distance > result.cuttingDistance);
   assert.ok(result.durationMinutes > 0);
+});
+
+test('postprocesor GRBL zapisuje metryczny G-code względem WCS i bezpiecznie kończy program', () => {
+  const setup = createManufacturingSetup({ bodyId: 'body-test', stock: { sideOffset: 1, topOffset: 1, bottomOffset: 0 }, safeHeight: 4 });
+  const operation = createFacingOperation({ toolId: 'flat-6', maxStepdown: 1, feedRate: 500, plungeRate: 120, spindleRpm: 7000 });
+  const output = createGrblGcode(setup, operation, [{ id: 'body-test', bounds: [[10, 20, 0], [30, 40, 5]] }], { projectName: 'Detal; test\nA' });
+  assert.match(output.text, /^; Detal {2}test A/m);
+  assert.match(output.text, /^G21$/m);
+  assert.match(output.text, /^G90$/m);
+  assert.match(output.text, /^S7000 M3$/m);
+  assert.match(output.text, /^G1 X.* F120$/m);
+  assert.match(output.text, /^G1 X.* F500$/m);
+  assert.match(output.text, /M5\nM30\n$/);
+  assert.equal(output.postProcessor, 'grbl-mm-absolute');
+  assert.ok(output.lineCount > 10);
 });
 
 test('walidacja danych CAM odrzuca uszkodzony aktywny Setup i ujemny naddatek', () => {

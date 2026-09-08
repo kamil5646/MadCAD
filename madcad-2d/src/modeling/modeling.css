@@ -6430,3 +6430,4 @@
 .manufacturing-toolpath-summary.invalid { color: #efb478; }
 .manufacturing-toolpath-summary span { display: grid; gap: 2px; }
 .manufacturing-toolpath-summary small { color: #aab6bf; font-size: 9px; }
+.manufacturing-toolpath-summary button { margin-left: auto; min-height: 25px; padding: 0 7px; border-color: #3b8c74; color: #7be1b8; }

@@ -162,6 +162,42 @@ export function calculateFacingToolpath(setup, operation, bodies = []) {
   return { valid: setupResult.valid, setup: setupResult, stockBounds: setupResult.stockBounds, origin: setupResult.origin, clearancePlaneZ: setupResult.clearancePlaneZ, operation: normalized, tool, segments, layerCount, rowCount, distance, cuttingDistance, durationMinutes, warnings: setupResult.warnings };
 }
 
+function gcodeNumber(value) {
+  if (!Number.isFinite(Number(value))) throw new Error('Ścieżka CAM zawiera nieprawidłową współrzędną.');
+  return Number(Number(value).toFixed(4)).toString();
+}
+
+export function createGrblGcode(setup, operation, bodies = [], { projectName = 'MadCAD' } = {}) {
+  const toolpath = calculateFacingToolpath(setup, operation, bodies);
+  if (!toolpath.valid || !toolpath.segments.length) throw new Error(toolpath.warnings.join(' ') || 'Ścieżka CAM nie jest gotowa do eksportu.');
+  const origin = toolpath.origin;
+  const safeLocalZ = toolpath.clearancePlaneZ - origin[2];
+  const lines = [
+    `; ${String(projectName).replace(/[\r\n;]/g, ' ').trim() || 'MadCAD'}`,
+    `; ${operation.name} | ${toolpath.tool.name}`,
+    '; Sprawdź punkt zerowy WCS i wykonaj symulację bez materiału przed obróbką.',
+    'G21',
+    'G90',
+    'G17',
+    `T${Object.keys(CAM_TOOL_PRESETS).indexOf(toolpath.tool.id) + 1} M6`,
+    `S${toolpath.operation.spindleRpm} M3`,
+    `G0 Z${gcodeNumber(safeLocalZ)}`,
+  ];
+  let lastFeed = null;
+  for (const segment of toolpath.segments) {
+    const local = segment.to.map((value, axis) => value - origin[axis]);
+    if (segment.kind === 'rapid') lines.push(`G0 X${gcodeNumber(local[0])} Y${gcodeNumber(local[1])} Z${gcodeNumber(local[2])}`);
+    else {
+      const feed = segment.feed;
+      const feedWord = feed !== lastFeed ? ` F${gcodeNumber(feed)}` : '';
+      lines.push(`G1 X${gcodeNumber(local[0])} Y${gcodeNumber(local[1])} Z${gcodeNumber(local[2])}${feedWord}`);
+      lastFeed = feed;
+    }
+  }
+  lines.push(`G0 Z${gcodeNumber(safeLocalZ)}`, 'M5', 'M30', '');
+  return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: 'grbl-mm-absolute' };
+}
+
 export function validateManufacturing(manufacturing) {
   const issues = [];
   if (!manufacturing || typeof manufacturing !== 'object' || Array.isArray(manufacturing)) return [{ path: 'manufacturing', message: 'Wymagane są dane wytwarzania.', code: 'TYPE' }];
