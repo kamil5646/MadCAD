@@ -45,6 +45,12 @@ export function calculateCantileverBeamFea(body, options = {}) {
   if (!Number.isInteger(elementCount) || elementCount < 1 || elementCount > 100) throw new Error('Liczba elementów MES musi być całkowita od 1 do 100.');
   const requiredSafetyFactor = Number(options.requiredSafetyFactor ?? 2);
   if (!Number.isFinite(requiredSafetyFactor) || requiredSafetyFactor < 1 || requiredSafetyFactor > 10) throw new Error('Wymagany współczynnik bezpieczeństwa musi wynosić od 1 do 10.');
+  const loadCaseDefinitions = [
+    { id: 'base', name: 'Bazowy', factor: Number(options.baseLoadFactor ?? 1) },
+    { id: 'working', name: 'Roboczy', factor: Number(options.workingLoadFactor ?? 1.25) },
+    { id: 'overload', name: 'Przeciążenie', factor: Number(options.overloadLoadFactor ?? 1.5) },
+  ];
+  if (loadCaseDefinitions.some(({ factor }) => !Number.isFinite(factor) || factor < 0.1 || factor > 10)) throw new Error('Współczynniki scenariuszy muszą wynosić od 0,1 do 10.');
   const dimensions = bounds[1].map((value, index) => value - bounds[0][index]);
   if (dimensions.some((value) => !Number.isFinite(value) || value <= 0)) throw new Error('Bryła musi mieć trzy dodatnie wymiary.');
   const spanIndex = AXIS_INDEX[spanAxis];
@@ -118,11 +124,7 @@ export function calculateCantileverBeamFea(body, options = {}) {
   const safetyFactor = maximumStress > 0 ? material.yieldStrength / maximumStress : Infinity;
   const meetsSafetyTarget = safetyFactor >= requiredSafetyFactor;
   const safetyMarginPercent = (safetyFactor / requiredSafetyFactor - 1) * 100;
-  const loadCases = [
-    { id: 'base', name: 'Bazowy', factor: 1 },
-    { id: 'working', name: 'Roboczy', factor: 1.25 },
-    { id: 'overload', name: 'Przeciążenie', factor: 1.5 },
-  ].map((loadCase) => {
+  const loadCases = loadCaseDefinitions.map((loadCase) => {
     const caseSafetyFactor = safetyFactor / loadCase.factor;
     return {
       ...loadCase,

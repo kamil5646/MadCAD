@@ -144,3 +144,4 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - PCB/MCAD-ECAD wyłącznie po osobnej decyzji produktowej.
 - Wersjonowanie chmurowe, komentarze, uprawnienia i współpraca.
 - Publiczne API, sandbox wtyczek i marketplace po zamrożeniu kontraktów.
+- [x] P1.36o — edytowalne współczynniki przypadków obciążenia MES belki z walidacją i automatycznym wyborem krytycznego wariantu.

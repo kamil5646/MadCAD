@@ -529,7 +529,7 @@ export function StaticScreeningPanel({ bodies = [], bodyId = '', materialId = 's
   );
 }
 
-export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', loadType = 'tip', loadPositionPercent = '100', force = '1000', distributedForce = '10', elementCount = '8', requiredSafetyFactor = '2', result, error = '', onChange, onClose }) {
+export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', loadType = 'tip', loadPositionPercent = '100', force = '1000', distributedForce = '10', elementCount = '8', requiredSafetyFactor = '2', baseLoadFactor = '1', workingLoadFactor = '1.25', overloadLoadFactor = '1.5', result, error = '', onChange, onClose }) {
   const [diagram, setDiagram] = React.useState('deflection');
   const format = (value, digits = 3) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
   const nodes = result?.nodalDeflections || [];
@@ -568,6 +568,10 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
         {loadType === 'combined' && <Field label="Obciążenie liniowe kombinacji" value={distributedForce} onChange={(value) => onChange({ distributedForce: value })} suffix="N/mm" />}
         <Field label="Wymagany współczynnik bezpieczeństwa" value={requiredSafetyFactor} onChange={(value) => onChange({ requiredSafetyFactor: value })} />
         {loadType !== 'distributed' && <Field label="Położenie od utwierdzenia" value={loadPositionPercent} onChange={(value) => onChange({ loadPositionPercent: value })} suffix="%" />}
+        <div className="beam-fea-factor-editor" aria-label="Współczynniki scenariuszy obciążenia">
+          <strong>Współczynniki scenariuszy</strong>
+          <div><Field label="Bazowy" value={baseLoadFactor} onChange={(value) => onChange({ baseLoadFactor: value })} suffix="×" /><Field label="Roboczy" value={workingLoadFactor} onChange={(value) => onChange({ workingLoadFactor: value })} suffix="×" /><Field label="Przeciążenie" value={overloadLoadFactor} onChange={(value) => onChange({ overloadLoadFactor: value })} suffix="×" /></div>
+        </div>
         <div className="beam-fea-legend" aria-label="Legenda warunków brzegowych"><span><i className="support" />Utwierdzenie</span><span><i className="load" />Obciążenie</span><span><i className="deformation" />Deformacja</span></div>
         {error && <p className="measure-error">{error}</p>}
         {result && <div className="beam-fea-chart-tabs" role="group" aria-label="Wynik wykresu MES">

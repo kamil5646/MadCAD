@@ -26,6 +26,8 @@ describe('BeamFeaPanel', () => {
     expect(onChange).toHaveBeenCalledWith({ requiredSafetyFactor: '3' });
     fireEvent.change(screen.getByRole('textbox', { name: /Elementy/i }), { target: { value: '12' } });
     expect(onChange).toHaveBeenCalledWith({ elementCount: '12' });
+    fireEvent.change(screen.getByRole('textbox', { name: /^Roboczy ×$/i }), { target: { value: '1.4' } });
+    expect(onChange).toHaveBeenCalledWith({ workingLoadFactor: '1.4' });
   });
 
   it('shows solver errors without stale results', () => {
