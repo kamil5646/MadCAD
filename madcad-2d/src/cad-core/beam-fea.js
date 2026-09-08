@@ -1,0 +1,111 @@
+import { ENGINEERING_MATERIALS } from './static-screening.js';
+
+const AXIS_INDEX = Object.freeze({ x: 0, y: 1, z: 2 });
+
+function solveLinearSystem(matrix, vector) {
+  const size = vector.length;
+  const augmented = matrix.map((row, index) => [...row, vector[index]]);
+  for (let pivot = 0; pivot < size; pivot += 1) {
+    let selected = pivot;
+    for (let row = pivot + 1; row < size; row += 1) if (Math.abs(augmented[row][pivot]) > Math.abs(augmented[selected][pivot])) selected = row;
+    if (Math.abs(augmented[selected][pivot]) < 1e-12) throw new Error('Macierz sztywności jest osobliwa. Sprawdź podpory i przekrój.');
+    [augmented[pivot], augmented[selected]] = [augmented[selected], augmented[pivot]];
+    const divisor = augmented[pivot][pivot];
+    for (let column = pivot; column <= size; column += 1) augmented[pivot][column] /= divisor;
+    for (let row = 0; row < size; row += 1) {
+      if (row === pivot) continue;
+      const factor = augmented[row][pivot];
+      for (let column = pivot; column <= size; column += 1) augmented[row][column] -= factor * augmented[pivot][column];
+    }
+  }
+  return augmented.map((row) => row[size]);
+}
+
+function multiply(matrix, vector) {
+  return matrix.map((row) => row.reduce((sum, value, index) => sum + value * vector[index], 0));
+}
+
+export function calculateCantileverBeamFea(body, options = {}) {
+  const material = ENGINEERING_MATERIALS[options.materialId || 's235'];
+  if (!material) throw new Error('Wybierz obsługiwany materiał.');
+  if (body?.bodyKind === 'surface') throw new Error('MES belki wymaga bryły, nie powierzchni.');
+  const bounds = body?.metrics?.bounds;
+  if (!Array.isArray(bounds) || bounds.length !== 2 || !bounds.every((point) => Array.isArray(point) && point.length === 3 && point.every(Number.isFinite))) throw new Error('Bryła nie ma poprawnych wymiarów granicznych.');
+  const spanAxis = String(options.spanAxis || 'x').toLowerCase();
+  const loadAxis = String(options.loadAxis || 'z').toLowerCase();
+  if (!(spanAxis in AXIS_INDEX) || !(loadAxis in AXIS_INDEX) || spanAxis === loadAxis) throw new Error('Oś długości i kierunek siły muszą być różne.');
+  const force = Number(options.force);
+  if (!Number.isFinite(force) || force <= 0 || force > 1e9) throw new Error('Siła musi być dodatnia i nie większa niż 1 GN.');
+  const elementCount = Number(options.elementCount);
+  if (!Number.isInteger(elementCount) || elementCount < 1 || elementCount > 100) throw new Error('Liczba elementów MES musi być całkowita od 1 do 100.');
+  const dimensions = bounds[1].map((value, index) => value - bounds[0][index]);
+  if (dimensions.some((value) => !Number.isFinite(value) || value <= 0)) throw new Error('Bryła musi mieć trzy dodatnie wymiary.');
+  const spanIndex = AXIS_INDEX[spanAxis];
+  const loadIndex = AXIS_INDEX[loadAxis];
+  const widthIndex = [0, 1, 2].find((index) => index !== spanIndex && index !== loadIndex);
+  const length = dimensions[spanIndex];
+  const sectionHeight = dimensions[loadIndex];
+  const sectionWidth = dimensions[widthIndex];
+  const secondMoment = sectionWidth * sectionHeight ** 3 / 12;
+  const elementLength = length / elementCount;
+  const dofCount = (elementCount + 1) * 2;
+  const stiffness = Array.from({ length: dofCount }, () => Array(dofCount).fill(0));
+  const load = Array(dofCount).fill(0);
+  const scale = material.elasticModulus * secondMoment / elementLength ** 3;
+  const local = [
+    [12, 6 * elementLength, -12, 6 * elementLength],
+    [6 * elementLength, 4 * elementLength ** 2, -6 * elementLength, 2 * elementLength ** 2],
+    [-12, -6 * elementLength, 12, -6 * elementLength],
+    [6 * elementLength, 2 * elementLength ** 2, -6 * elementLength, 4 * elementLength ** 2],
+  ].map((row) => row.map((value) => value * scale));
+  for (let element = 0; element < elementCount; element += 1) {
+    const indices = [element * 2, element * 2 + 1, element * 2 + 2, element * 2 + 3];
+    for (let row = 0; row < 4; row += 1) for (let column = 0; column < 4; column += 1) stiffness[indices[row]][indices[column]] += local[row][column];
+  }
+  load[dofCount - 2] = -force;
+  const freeIndices = Array.from({ length: dofCount - 2 }, (_, index) => index + 2);
+  const reducedStiffness = freeIndices.map((row) => freeIndices.map((column) => stiffness[row][column]));
+  const reducedLoad = freeIndices.map((index) => load[index]);
+  const freeDisplacements = solveLinearSystem(reducedStiffness, reducedLoad);
+  const displacement = Array(dofCount).fill(0);
+  freeIndices.forEach((index, offset) => { displacement[index] = freeDisplacements[offset]; });
+  const reactions = multiply(stiffness, displacement).map((value, index) => value - load[index]);
+  let maximumMoment = 0;
+  for (let element = 0; element < elementCount; element += 1) {
+    const indices = [element * 2, element * 2 + 1, element * 2 + 2, element * 2 + 3];
+    const endForces = multiply(local, indices.map((index) => displacement[index]));
+    maximumMoment = Math.max(maximumMoment, Math.abs(endForces[1]), Math.abs(endForces[3]));
+  }
+  const tipDeflection = Math.abs(displacement[dofCount - 2]);
+  const analyticalDeflection = force * length ** 3 / (3 * material.elasticModulus * secondMoment);
+  const maximumStress = maximumMoment * sectionHeight / 2 / secondMoment;
+  const safetyFactor = maximumStress > 0 ? material.yieldStrength / maximumStress : Infinity;
+  return {
+    bodyId: body.id,
+    material,
+    spanAxis,
+    loadAxis,
+    force,
+    elementCount,
+    nodeCount: elementCount + 1,
+    length,
+    sectionWidth,
+    sectionHeight,
+    secondMoment,
+    tipDeflection,
+    analyticalDeflection,
+    convergenceError: analyticalDeflection ? Math.abs(tipDeflection - analyticalDeflection) / analyticalDeflection * 100 : 0,
+    maximumMoment,
+    maximumStress,
+    safetyFactor,
+    reactionForce: Math.abs(reactions[0]),
+    reactionMoment: Math.abs(reactions[1]),
+    nodalDeflections: Array.from({ length: elementCount + 1 }, (_, node) => ({ x: node * elementLength, displacement: displacement[node * 2], rotation: displacement[node * 2 + 1] })),
+    status: safetyFactor >= 2 ? 'safe' : safetyFactor >= 1 ? 'warning' : 'failed',
+    limitations: [
+      'Liniowy MES Eulera-Bernoulliego dla prostej belki o stałym prostokątnym przekroju z obwiedni bryły.',
+      'Nie odwzorowuje lokalnej geometrii, otworów, karbów, kontaktów, plastyczności, wyboczenia ani dużych przemieszczeń.',
+      'Wynik jest walidowany rozwiązaniem analitycznym tego samego przypadku, ale nie zastępuje analizy dowolnej bryły 3D.',
+    ],
+  };
+}

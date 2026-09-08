@@ -529,6 +529,34 @@ export function StaticScreeningPanel({ bodies = [], bodyId = '', materialId = 's
   );
 }
 
+export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', force = '1000', elementCount = '8', result, error = '', onChange, onClose }) {
+  const format = (value, digits = 3) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
+  return (
+    <aside className="measure-panel static-screening-panel beam-fea-panel" aria-label="MES belki 1D">
+      <header><div><ScanSearch size={16} /><strong>MES belki 1D</strong></div><button type="button" title="Zamknij MES belki" aria-label="Zamknij MES belki" onClick={onClose}><X size={15} /></button></header>
+      <div className="measure-panel-body">
+        <p className="analysis-scope">Liniowy solver elementów belkowych — nie MES dowolnej bryły 3D.</p>
+        <label><span>Bryła</span><select aria-label="Bryła MES belki" value={bodyId} onChange={(event) => onChange({ bodyId: event.target.value })}>{bodies.map((body) => <option key={body.id} value={body.id}>{body.name}</option>)}</select></label>
+        <label><span>Materiał</span><select aria-label="Materiał MES belki" value={materialId} onChange={(event) => onChange({ materialId: event.target.value })}>{Object.values(ENGINEERING_MATERIALS).map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}</select></label>
+        <div className="static-axis-grid"><label><span>Oś długości</span><select aria-label="Oś długości MES" value={spanAxis} onChange={(event) => onChange({ spanAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label><label><span>Kierunek siły</span><select aria-label="Kierunek siły MES" value={loadAxis} onChange={(event) => onChange({ loadAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label></div>
+        <div className="beam-fea-inputs"><Field label="Siła końcowa" value={force} onChange={(value) => onChange({ force: value })} suffix="N" /><Field label="Elementy" value={elementCount} onChange={(value) => onChange({ elementCount: value })} /></div>
+        {error && <p className="measure-error">{error}</p>}
+        {result && <div className={`static-result ${result.status}`}>
+          <div className="static-result-heading"><strong>{result.status === 'safe' ? 'Zapas ≥ 2' : result.status === 'warning' ? 'Mały zapas' : 'Przekroczona plastyczność'}</strong><span>{result.elementCount} elem.</span></div>
+          <div className="measure-row"><span>Węzły / DOF</span><strong>{result.nodeCount} / {result.nodeCount * 2}</strong></div>
+          <div className="measure-row"><span>Ugięcie końca</span><strong>{format(result.tipDeflection)} mm</strong></div>
+          <div className="measure-row"><span>Błąd walidacji</span><strong>{format(result.convergenceError, 6)}%</strong></div>
+          <div className="measure-row"><span>Maks. naprężenie</span><strong>{format(result.maximumStress)} MPa</strong></div>
+          <div className="measure-row"><span>Reakcja podpory</span><strong>{format(result.reactionForce)} N</strong></div>
+          <div className="measure-row"><span>Moment podpory</span><strong>{format(result.reactionMoment)} N·mm</strong></div>
+          <div className="measure-row"><span>Współczynnik bezpieczeństwa</span><strong>{format(result.safetyFactor)}</strong></div>
+        </div>}
+        {result?.limitations.map((limitation) => <p className="static-limitation" key={limitation}>{limitation}</p>)}
+      </div>
+    </aside>
+  );
+}
+
 export function ThermalScreeningPanel({ bodies = [], bodyId = '', materialId = 's235', axis = 'x', hotTemperature = '100', coldTemperature = '20', result, error = '', onChange, onClose }) {
   const format = (value, digits = 2) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
   return (

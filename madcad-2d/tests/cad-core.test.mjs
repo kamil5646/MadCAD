@@ -103,6 +103,7 @@ import { applyHoleStandard } from '../src/cad-core/hole-standards.js';
 import { measureSelection } from '../src/cad-core/measure-selection.js';
 import { calculateMassProperties } from '../src/cad-core/mass-properties.js';
 import { calculateCantileverScreening, ENGINEERING_MATERIALS } from '../src/cad-core/static-screening.js';
+import { calculateCantileverBeamFea } from '../src/cad-core/beam-fea.js';
 import { calculateThermalScreening, THERMAL_MATERIALS } from '../src/cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, boundsOverlap, summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-profiles.js';
@@ -2356,6 +2357,22 @@ test('wstępna analiza statyczna liczy belkę wspornikową i ujawnia ograniczeni
   assert.throws(() => calculateCantileverScreening(body, { spanAxis: 'x', loadAxis: 'x', force: 100 }), /muszą być różne/);
   assert.throws(() => calculateCantileverScreening(body, { force: 0 }), /Siła musi być dodatnia/);
   assert.throws(() => calculateCantileverScreening({ ...body, bodyKind: 'surface' }, { force: 100 }), /wymaga bryły/);
+});
+
+test('MES belki składa macierz sztywności i zgadza się z rozwiązaniem analitycznym', () => {
+  const body = { id: 'body-beam-fea', bodyKind: 'solid', metrics: { bounds: [[0, 0, 0], [100, 20, 10]], volume: 20000 } };
+  const result = calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', force: 1000, elementCount: 8 });
+  assert.equal(result.nodeCount, 9);
+  assert.equal(result.nodalDeflections.length, 9);
+  assert.ok(Math.abs(result.tipDeflection - result.analyticalDeflection) < 1e-10);
+  assert.ok(result.convergenceError < 1e-8);
+  assert.ok(Math.abs(result.reactionForce - 1000) < 1e-7);
+  assert.ok(Math.abs(result.reactionMoment - 100000) < 1e-5);
+  assert.ok(Math.abs(result.maximumStress - 300) < 1e-7);
+  assert.equal(result.status, 'failed');
+  assert.equal(result.limitations.length, 3);
+  assert.throws(() => calculateCantileverBeamFea(body, { spanAxis: 'x', loadAxis: 'x', force: 1000, elementCount: 4 }), /muszą być różne/);
+  assert.throws(() => calculateCantileverBeamFea(body, { force: 1000, elementCount: 0 }), /od 1 do 100/);
 });
 
 test('wstępna analiza cieplna liczy przewodzenie 1D i ujawnia ograniczenia modelu', () => {

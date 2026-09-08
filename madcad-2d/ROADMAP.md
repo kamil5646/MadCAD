@@ -195,6 +195,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.35k Instrukcja montażowa automatycznie renderuje czysty widok każdej klatki storyboardu, osadza obrazy PNG bezpośrednio w jednym przenośnym pliku HTML i po eksporcie przywraca czas, stan złożenia oraz kamerę użytkownika. Osadzane obrazy przechodzą ścisłą walidację schematu data URL.
 - [x] P1.36a Szybka analiza statyczna daje jawnie ograniczony szacunek belki wspornikowej dla wybranej bryły: materiał, kierunek długości i siły, utwierdzony koniec oraz obciążenie prowadzą do naprężenia zginającego, ugięcia, masy i współczynnika bezpieczeństwa. Panel wyraźnie odróżnia obliczenie przesiewowe od MES oraz ostrzega o otworach, karbach, kontaktach, wyboczeniu i anizotropii druku 3D, których model nie uwzględnia.
 - [x] P1.36b Szybka analiza cieplna daje jawnie ograniczony model ustalonego przewodzenia 1D przez obwiednię wybranej bryły. Materiał, kierunek i dwie temperatury prowadzą do oporu cieplnego, przepływu i strumienia ciepła oraz swobodnego wydłużenia; panel ostrzega o przekroczeniu temperatury użytkowej i wyraźnie odróżnia wynik od termicznego MES.
+- [x] P1.36c MES belki 1D składa globalną macierz sztywności elementów Eulera-Bernoulliego, nakłada utwierdzenie i siłę końcową, rozwiązuje przemieszczenia oraz raportuje reakcję, moment, naprężenie i współczynnik bezpieczeństwa. Wynik jest automatycznie porównywany z rozwiązaniem analitycznym tego samego przypadku, a panel jawnie odróżnia model belkowy od MES dowolnej bryły 3D.
 
 ## P2 — dokumentacja techniczna 2D
 

@@ -121,7 +121,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Czyste widoki wszystkich klatek osadzone w instrukcji montażowej ukończono jako `P1.35k`.
 - [x] P1.36a Wstępny szacunek statyczny belki wspornikowej z materiałem, obciążeniem, naprężeniem, ugięciem i współczynnikiem bezpieczeństwa.
 - [x] P1.36b Wstępny model przewodzenia ciepła 1D z oporem, przepływem, strumieniem i swobodnym wydłużeniem.
-- Walidowany solver MES dla dowolnej geometrii, sprzężona analiza termiczna oraz późniejsza optymalizacja topologii.
+- [x] P1.36c Liniowy MES belki 1D z macierzą sztywności, podporą, reakcjami i walidacją analityczną.
+- Walidowany solver MES dla dowolnej geometrii 3D, sprzężona analiza termiczna oraz późniejsza optymalizacja topologii.
 
 ### Manufacture / CAM
 
