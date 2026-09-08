@@ -145,7 +145,7 @@ import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMesh
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
-import { calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createFacingOperation, createGrblGcode, createManufacturingSetup, createPocketOperation, normalizeManufacturingOperation, normalizeManufacturingSetup, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
+import { calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createFacingOperation, createMachineGcode, createManufacturingSetup, createPocketOperation, normalizeManufacturingOperation, normalizeManufacturingSetup, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
@@ -998,9 +998,9 @@ export default function ModelingWorkspace() {
       const setup = document.manufacturing.setups.find((item) => item.id === setupId);
       const operation = setup?.operations.find((item) => item.id === operationId);
       if (!setup || !operation) throw new Error('Nie znaleziono operacji CAM.');
-      const output = createGrblGcode(setup, operation, engine.bodies, { projectName: document.name, document });
-      downloadBlob(new Blob([output.text], { type: 'text/plain;charset=utf-8' }), `${safeName(document.name)}-${safeName(operation.name)}.nc`);
-      setNotice(`Zapisano G-code GRBL: ${output.lineCount} linii. Przed obróbką sprawdź WCS i wykonaj przejazd bez materiału.`);
+      const output = createMachineGcode(setup, operation, engine.bodies, { projectName: document.name, document });
+      downloadBlob(new Blob([output.text], { type: 'text/plain;charset=utf-8' }), `${safeName(document.name)}-${safeName(operation.name)}.${output.extension}`);
+      setNotice(`Zapisano G-code ${output.postProcessor}: ${output.lineCount} linii. Przed obróbką sprawdź WCS i wykonaj przejazd bez materiału.`);
     } catch (error) {
       setNotice(`Eksport G-code nie powiódł się: ${error.message}`);
     }

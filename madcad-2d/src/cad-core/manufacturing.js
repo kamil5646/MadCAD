@@ -19,6 +19,14 @@ export const CAM_TOOL_PRESETS = Object.freeze({
   'face-16': Object.freeze({ id: 'face-16', name: 'Frez do planowania Ø16', type: 'face-mill', diameter: 16, fluteLength: 8, stickout: 25, holderDiameter: 32, flutes: 3 }),
 });
 
+export const CAM_POST_PROCESSORS = Object.freeze({
+  grbl: Object.freeze({ id: 'grbl', name: 'GRBL 1.1', extension: 'nc', commentStyle: 'semicolon', toolChange: false }),
+  linuxcnc: Object.freeze({ id: 'linuxcnc', name: 'LinuxCNC', extension: 'ngc', commentStyle: 'parentheses', toolChange: true }),
+  mach3: Object.freeze({ id: 'mach3', name: 'Mach3 / Mach4', extension: 'tap', commentStyle: 'parentheses', toolChange: true }),
+});
+
+const normalizePostProcessorId = (value) => CAM_POST_PROCESSORS[value] ? value : 'grbl';
+
 export function normalizeFacingOperation(operation = {}, index = 0) {
   return {
     id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
@@ -30,6 +38,7 @@ export function normalizeFacingOperation(operation = {}, index = 0) {
     feedRate: Math.max(1, Number(operation.feedRate) || 600),
     plungeRate: Math.max(1, Number(operation.plungeRate) || 180),
     spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 8000)),
+    postProcessorId: normalizePostProcessorId(operation.postProcessorId),
   };
 }
 
@@ -48,6 +57,7 @@ export function normalizeContourOperation(operation = {}, index = 0) {
     boundaryFaceId: typeof operation.boundaryFaceId === 'string' ? operation.boundaryFaceId : '',
     boundarySketchId: typeof operation.boundarySketchId === 'string' ? operation.boundarySketchId : '',
     boundaryProfileId: typeof operation.boundaryProfileId === 'string' ? operation.boundaryProfileId : '',
+    postProcessorId: normalizePostProcessorId(operation.postProcessorId),
   };
 }
 
@@ -67,6 +77,7 @@ export function normalizePocketOperation(operation = {}, index = 0) {
     boundaryFaceId: typeof operation.boundaryFaceId === 'string' ? operation.boundaryFaceId : '',
     boundarySketchId: typeof operation.boundarySketchId === 'string' ? operation.boundarySketchId : '',
     boundaryProfileId: typeof operation.boundaryProfileId === 'string' ? operation.boundaryProfileId : '',
+    postProcessorId: normalizePostProcessorId(operation.postProcessorId),
   };
 }
 
@@ -86,6 +97,7 @@ export function normalizeAdaptiveOperation(operation = {}, index = 0) {
     boundaryFaceId: typeof operation.boundaryFaceId === 'string' ? operation.boundaryFaceId : '',
     boundarySketchId: typeof operation.boundarySketchId === 'string' ? operation.boundarySketchId : '',
     boundaryProfileId: typeof operation.boundaryProfileId === 'string' ? operation.boundaryProfileId : '',
+    postProcessorId: normalizePostProcessorId(operation.postProcessorId),
   };
 }
 
@@ -750,24 +762,30 @@ function gcodeNumber(value) {
   return Number(Number(value).toFixed(4)).toString();
 }
 
-export function createGrblGcode(setup, operation, bodies = [], { projectName = 'MadCAD', document = null } = {}) {
+export function createMachineGcode(setup, operation, bodies = [], { projectName = 'MadCAD', document = null, postProcessorId = operation?.postProcessorId } = {}) {
   const toolpath = calculateOperationToolpath(setup, operation, bodies, document);
   if (!toolpath.valid || !toolpath.segments.length) throw new Error(toolpath.warnings.join(' ') || 'Ścieżka CAM nie jest gotowa do eksportu.');
   const safetyIssues = analyzeToolpathSafety(toolpath);
   if (safetyIssues.length) throw new Error(`Eksport zablokowany przez kontrolę bezpieczeństwa: ${safetyIssues.map((issue) => issue.message).join(' ')}`);
   const origin = toolpath.origin;
   const safeLocalZ = toolpath.clearancePlaneZ - origin[2];
-  const lines = [
-    `; ${String(projectName).replace(/[\r\n;]/g, ' ').trim() || 'MadCAD'}`,
-    `; ${operation.name} | ${toolpath.tool.name}`,
-    '; Sprawdź punkt zerowy WCS i wykonaj symulację bez materiału przed obróbką.',
-    'G21',
-    'G90',
-    'G17',
-    `T${Object.keys(CAM_TOOL_PRESETS).indexOf(toolpath.tool.id) + 1} M6`,
-    `S${toolpath.operation.spindleRpm} M3`,
-    `G0 Z${gcodeNumber(safeLocalZ)}`,
-  ];
+  const postProcessor = CAM_POST_PROCESSORS[postProcessorId] || CAM_POST_PROCESSORS.grbl;
+  const cleanComment = (value) => String(value).replace(/[\r\n;()]/g, ' ').trim();
+  const comment = (value) => postProcessor.commentStyle === 'parentheses' ? `(${cleanComment(value)})` : `; ${cleanComment(value)}`;
+  const toolNumber = Object.keys(CAM_TOOL_PRESETS).indexOf(toolpath.tool.id) + 1;
+  const lines = [];
+  if (postProcessor.id === 'linuxcnc') lines.push('%');
+  lines.push(
+    comment(cleanComment(projectName) || 'MadCAD'),
+    comment(`${operation.name} | ${toolpath.tool.name}`),
+    comment('Sprawdź punkt zerowy WCS i wykonaj symulację bez materiału przed obróbką.'),
+    'G21', 'G90', 'G17', 'G94',
+  );
+  if (postProcessor.id === 'linuxcnc') lines.push('G40', 'G49', 'G64 P0.01');
+  if (postProcessor.id === 'mach3') lines.push('G40', 'G49', 'G80');
+  if (postProcessor.toolChange) lines.push(`T${toolNumber} M6`);
+  else lines.push(comment(`Narzędzie T${toolNumber}: ${toolpath.tool.name} — zmień ręcznie przed startem`));
+  lines.push(`S${toolpath.operation.spindleRpm} M3`, `G0 Z${gcodeNumber(safeLocalZ)}`);
   let lastFeed = null;
   for (const segment of toolpath.segments) {
     const local = segment.to.map((value, axis) => value - origin[axis]);
@@ -779,8 +797,14 @@ export function createGrblGcode(setup, operation, bodies = [], { projectName = '
       lastFeed = feed;
     }
   }
-  lines.push(`G0 Z${gcodeNumber(safeLocalZ)}`, 'M5', 'M30', '');
-  return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: 'grbl-mm-absolute' };
+  lines.push(`G0 Z${gcodeNumber(safeLocalZ)}`, 'M5', postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
+  if (postProcessor.id === 'linuxcnc') lines.push('%');
+  lines.push('');
+  return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
+}
+
+export function createGrblGcode(setup, operation, bodies = [], options = {}) {
+  return createMachineGcode(setup, { ...operation, postProcessorId: 'grbl' }, bodies, { ...options, postProcessorId: 'grbl' });
 }
 
 export function validateManufacturing(manufacturing) {
@@ -812,6 +836,7 @@ export function validateManufacturing(manufacturing) {
       else {
         if (!['face', 'contour', 'pocket', 'adaptive'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
         if (!CAM_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
+        if (!CAM_POST_PROCESSORS[operation.postProcessorId]) issues.push({ path: `${operationBase}.postProcessorId`, message: 'Nieznany postprocesor CAM.', code: 'UNSUPPORTED' });
         for (const key of ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm']) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr operacji musi być dodatni.', code: 'VALUE' });
         if (['contour', 'pocket', 'adaptive'].includes(operation.type) && (!Number.isFinite(Number(operation.targetDepth)) || Number(operation.targetDepth) <= 0)) issues.push({ path: `${operationBase}.targetDepth`, message: 'Głębokość obróbki musi być dodatnia.', code: 'VALUE' });
       }

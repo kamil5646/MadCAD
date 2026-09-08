@@ -8,6 +8,7 @@ import {
   createContourOperation,
   createAdaptiveOperation,
   createGrblGcode,
+  createMachineGcode,
   createManufacturingSetup,
   createPocketOperation,
   extractTopBoundaryLoops,
@@ -64,6 +65,22 @@ describe('CAM contour operations', () => {
     expect(output.text).toContain('; Kontur test');
     expect(output.text).toContain('G1 X-23 Y-13 Z-3');
     expect(output.text).toContain('M30');
+    expect(output.text).not.toContain(' M6');
+  });
+
+  it('emits controller-specific safe headers for LinuxCNC and Mach3', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id });
+    const operation = createContourOperation({ targetDepth: 1 });
+    const linuxCnc = createMachineGcode(setup, operation, [box], { postProcessorId: 'linuxcnc' });
+    expect(linuxCnc.extension).toBe('ngc');
+    expect(linuxCnc.text).toMatch(/^%\n/);
+    expect(linuxCnc.text).toContain('G64 P0.01');
+    expect(linuxCnc.text).toContain('T2 M6');
+    expect(linuxCnc.text).toContain('\nM2\n%');
+    const mach3 = createMachineGcode(setup, operation, [box], { postProcessorId: 'mach3' });
+    expect(mach3.extension).toBe('tap');
+    expect(mach3.text).toContain('G80');
+    expect(mach3.text).toContain('\nM30\n');
   });
 
   it('rejects a cut deeper than the tool flute', () => {

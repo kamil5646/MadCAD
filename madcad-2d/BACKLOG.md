@@ -148,7 +148,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Interaktywna symulacja usuwania materiału: odtwarzanie i suwak postępu, dyskretyzacja półfabrykatu, wizualizacja zdjętej objętości oraz bieżącego freza w 3D.
 - [x] Pierwszy postprocesor GRBL: G-code metryczny względem WCS, limity obrotów, bezpieczny przejazd i ostrzeżenie przed uruchomieniem.
 - [x] Blokada eksportu G-code po wykryciu problemu przez walidację kolizji i bezpieczeństwa.
-- [ ] Podgląd tekstowy G-code i dodatkowe postprocesory obrabiarek.
+- [x] Podgląd tekstowy G-code oraz postprocesory GRBL 1.1, LinuxCNC i Mach3/Mach4 z właściwymi rozszerzeniami, nagłówkami i zmianą narzędzia.
 - [ ] Toczenie i cięcie.
 
 ### Electronics, chmura i rozszerzalność

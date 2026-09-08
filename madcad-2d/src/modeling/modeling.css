@@ -6446,7 +6446,23 @@
 .manufacturing-toolpath-summary.invalid { color: #efb478; }
 .manufacturing-toolpath-summary span { display: grid; gap: 2px; }
 .manufacturing-toolpath-summary small { color: #aab6bf; font-size: 9px; }
-.manufacturing-toolpath-summary button { margin-left: auto; min-height: 25px; padding: 0 7px; border-color: #3b8c74; color: #7be1b8; }
+.manufacturing-toolpath-summary > div { display: flex; gap: 4px; margin-left: auto; }
+.manufacturing-toolpath-summary button { min-height: 25px; padding: 0 7px; border-color: #3b8c74; color: #7be1b8; }
+.manufacturing-toolpath-summary button:first-child { border-color: #4d7383; color: #9ed9ea; }
+.manufacturing-gcode-preview { display: grid; grid-template-rows: auto minmax(260px, 1fr) auto; gap: 0; min-height: 520px; margin: 0 12px 11px; border: 1px solid #506474; border-radius: 4px; overflow: hidden; background: #202934; }
+.manufacturing-gcode-preview > header,
+.manufacturing-gcode-preview > footer { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 9px; background: #354351; }
+.manufacturing-gcode-preview > header > div { display: flex; align-items: center; gap: 8px; }
+.manufacturing-gcode-preview > header span { display: grid; gap: 2px; }
+.manufacturing-gcode-preview > header strong { font-size: 11px; }
+.manufacturing-gcode-preview > header small { color: #a7b4be; font-size: 9px; }
+.manufacturing-gcode-preview > header button { width: 28px; min-height: 27px; }
+.manufacturing-gcode-preview pre { box-sizing: border-box; max-height: 520px; margin: 0; padding: 11px; overflow: auto; background: #141b22; color: #bfe7ca; font: 10px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+.manufacturing-gcode-preview > footer { border-top: 1px solid #4e5e6c; color: #a8b5bf; font-size: 9px; }
+.manufacturing-gcode-preview > footer > div { display: flex; gap: 5px; }
+.manufacturing-gcode-preview > footer button { padding: 0 8px; font-size: 10px; }
+.manufacturing-gcode-preview > footer button:last-child { border-color: #3e8d73; color: #75dcb1; }
+.manufacturing-gcode-error { display: flex; align-items: flex-start; gap: 8px; padding: 15px; color: #efb277; font-size: 10px; line-height: 1.5; }
 .manufacturing-program-report { display: grid; gap: 10px; padding: 2px 12px 12px; }
 .manufacturing-program-report > header { display: flex; gap: 9px; padding: 11px; border: 1px solid #69604c; border-radius: 4px; background: #33382f; color: #efb568; }
 .manufacturing-program-report > header.valid { border-color: #43886f; background: #283a36; color: #6bd5ab; }

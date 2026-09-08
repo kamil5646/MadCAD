@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Box, CheckCircle2, Clock3, Crosshair, FileDown, Gauge, Layers3, Pause, Play, Plus, RotateCcw, Route, ScanLine, ShieldCheck, Trash2 } from 'lucide-react';
-import { CAM_MACHINE_PRESETS, CAM_TOOL_PRESETS, CAM_WCS_ORIGINS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath } from '../cad-core/manufacturing.js';
+import { AlertTriangle, Box, CheckCircle2, Clock3, Code2, Crosshair, FileDown, Gauge, Layers3, Pause, Play, Plus, RotateCcw, Route, ScanLine, ShieldCheck, Trash2, X } from 'lucide-react';
+import { CAM_MACHINE_PRESETS, CAM_POST_PROCESSORS, CAM_TOOL_PRESETS, CAM_WCS_ORIGINS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath, createMachineGcode } from '../cad-core/manufacturing.js';
 
 const millimeter = (value) => Number.isFinite(value) ? `${value.toFixed(2)} mm` : '—';
 
@@ -14,6 +14,7 @@ export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument
   const update = (patch) => setup && onUpdate(setup.id, patch);
   const [panelPage, setPanelPage] = useState('setup');
   const [simulationPlaying, setSimulationPlaying] = useState(false);
+  const [previewOperationId, setPreviewOperationId] = useState('');
   useEffect(() => setPanelPage('setup'), [setup?.id]);
   useEffect(() => {
     if (!simulationPlaying) return undefined;
@@ -21,6 +22,13 @@ export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument
     const timer = window.setTimeout(() => onSimulationProgress(Math.min(1, simulationProgress + 0.02)), 70);
     return () => window.clearTimeout(timer);
   }, [simulationPlaying, simulationProgress, onSimulationProgress]);
+  const previewOperation = setup?.operations.find((operation) => operation.id === previewOperationId) || null;
+  let gcodePreview = null;
+  let gcodePreviewError = '';
+  if (setup && previewOperation) {
+    try { gcodePreview = createMachineGcode(setup, previewOperation, bodies, { projectName: projectDocument?.name || 'MadCAD', document: projectDocument }); }
+    catch (error) { gcodePreviewError = error.message; }
+  }
 
   return (
     <aside className="manufacturing-panel" aria-label="Setup wytwarzania CAM">
@@ -67,6 +75,7 @@ export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument
                 <label><span>Nazwa</span><input value={operation.name} maxLength="80" disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { name: event.target.value })} /></label>
                 {(isContour || isPocket || isAdaptive) && <div className="manufacturing-boundary"><Crosshair size={13} /><span><strong>Granica</strong><small>{operation.boundaryProfileId ? 'Skojarzony profil szkicu XY' : operation.boundaryFaceId ? 'Zaznaczona pozioma ściana' : 'Automatycznie: górny obrys bryły'}</small></span></div>}
                 <label><span>Narzędzie</span><select value={operation.toolId} disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { toolId: event.target.value })}>{Object.values(CAM_TOOL_PRESETS).map((tool) => <option value={tool.id} key={tool.id}>{tool.name}</option>)}</select></label>
+                <label><span>Sterownik / postprocesor</span><select value={operation.postProcessorId} disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { postProcessorId: event.target.value })}>{Object.values(CAM_POST_PROCESSORS).map((post) => <option value={post.id} key={post.id}>{post.name} (.{post.extension})</option>)}</select></label>
                 <div className="manufacturing-field-grid">
                   {isContour || isPocket || isAdaptive ? <label><span>Głębokość</span><input type="number" min="0.05" step="0.1" value={operation.targetDepth} disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { targetDepth: event.target.value })} /><em>mm</em></label> : <label><span>Stepover</span><input type="number" min="0.1" max="0.9" step="0.05" value={operation.stepover} disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { stepover: event.target.value })} /><em>×D</em></label>}
                   {isPocket && <label><span>Zakładka</span><input type="number" min="0.1" max="0.8" step="0.05" value={operation.stepover} disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { stepover: event.target.value })} /><em>×D</em></label>}
@@ -75,7 +84,7 @@ export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument
                   <label><span>Posuw</span><input type="number" min="1" step="10" value={operation.feedRate} disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { feedRate: event.target.value })} /><em>mm/min</em></label>
                 </div>
               </div>
-              <div className={`manufacturing-toolpath-summary ${toolpath?.valid ? 'valid' : 'invalid'}`}>{toolpath?.valid ? <><CheckCircle2 size={14} /><span><strong>{toolpath.segments.length} segmentów · {toolpath.layerCount} warstwy</strong><small>{toolpath.cuttingDistance.toFixed(0)} mm skrawania · ok. {Math.max(1, Math.ceil(toolpath.durationMinutes))} min</small></span><button type="button" disabled={readOnly} onClick={() => onExportOperation(setup.id, operation.id)}><FileDown size={13} /> G-code</button></> : <><AlertTriangle size={14} /><span>{toolpath?.warnings.join(' ')}</span></>}</div>
+              <div className={`manufacturing-toolpath-summary ${toolpath?.valid ? 'valid' : 'invalid'}`}>{toolpath?.valid ? <><CheckCircle2 size={14} /><span><strong>{toolpath.segments.length} segmentów · {toolpath.layerCount} warstwy</strong><small>{toolpath.cuttingDistance.toFixed(0)} mm skrawania · ok. {Math.max(1, Math.ceil(toolpath.durationMinutes))} min</small></span><div><button type="button" onClick={() => { setPreviewOperationId(operation.id); setPanelPage('gcode'); }}><Code2 size={13} /> Podgląd</button><button type="button" disabled={readOnly} onClick={() => onExportOperation(setup.id, operation.id)}><FileDown size={13} /> Zapisz</button></div></> : <><AlertTriangle size={14} /><span>{toolpath?.warnings.join(' ')}</span></>}</div>
             </section>;
           })}
         </section>}
@@ -86,6 +95,7 @@ export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument
           <div className="manufacturing-report-operations">{programReport?.operations.map((operation, index) => <div key={operation.id} className={operation.valid ? 'valid' : 'invalid'}><span>{operation.valid ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}<strong>{index + 1} · {operation.name}</strong></span><small>{operation.valid ? `${operation.segmentCount} segmentów · ${Math.max(1, Math.ceil(operation.durationMinutes))} min` : operation.issues.map((issue) => issue.message).join(' ')}</small></div>)}</div>
           <p>Raport jest obliczany z pełnych ścieżek. Eksport G-code jest blokowany po wykryciu szybkiego przejazdu w materiale, przekroczenia zakresu lub kolizji oprawki.</p>
         </section>}
+        {panelPage === 'gcode' && previewOperation && <div className="manufacturing-gcode-preview" role="region" aria-label={`Podgląd G-code ${previewOperation.name}`}><header><div><Code2 size={18} /><span><strong>Podgląd G-code</strong><small>{previewOperation.name} · {CAM_POST_PROCESSORS[previewOperation.postProcessorId]?.name}</small></span></div><button type="button" aria-label="Zamknij podgląd G-code" onClick={() => { setPreviewOperationId(''); setPanelPage('operations'); }}><X size={16} /></button></header>{gcodePreviewError ? <div className="manufacturing-gcode-error"><AlertTriangle size={18} />{gcodePreviewError}</div> : <pre>{gcodePreview?.text}</pre>}<footer><span>{gcodePreview ? `${gcodePreview.lineCount} linii · .${gcodePreview.extension}` : 'Eksport zablokowany'}</span><div><button type="button" onClick={() => { setPreviewOperationId(''); setPanelPage('operations'); }}>Zamknij</button><button type="button" disabled={readOnly || !gcodePreview} onClick={() => onExportOperation(setup.id, previewOperation.id)}><FileDown size={13} /> Zapisz plik</button></div></footer></div>}
         <footer><span>Setup i ścieżka są zapisane w projekcie oraz działają z Cofnij/Ponów.</span><button type="button" disabled={readOnly} onClick={() => onDelete(setup.id)}><Trash2 size={14} /> Usuń Setup</button></footer>
       </>}
     </aside>
