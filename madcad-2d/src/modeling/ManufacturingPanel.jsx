@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Box, CheckCircle2, Crosshair, FileDown, Gauge, Layers3, Plus, Route, ScanLine, Trash2 } from 'lucide-react';
-import { CAM_MACHINE_PRESETS, CAM_TOOL_PRESETS, CAM_WCS_ORIGINS, calculateManufacturingSetup, calculateOperationToolpath } from '../cad-core/manufacturing.js';
+import { AlertTriangle, Box, CheckCircle2, Clock3, Crosshair, FileDown, Gauge, Layers3, Plus, Route, ScanLine, ShieldCheck, Trash2 } from 'lucide-react';
+import { CAM_MACHINE_PRESETS, CAM_TOOL_PRESETS, CAM_WCS_ORIGINS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath } from '../cad-core/manufacturing.js';
 
 const millimeter = (value) => Number.isFinite(value) ? `${value.toFixed(2)} mm` : '—';
 
@@ -9,6 +9,7 @@ export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument
   const activeId = manufacturing?.activeSetupId || setups[0]?.id || '';
   const setup = setups.find((item) => item.id === activeId) || null;
   const result = setup ? calculateManufacturingSetup(setup, bodies) : null;
+  const programReport = setup ? analyzeManufacturingProgram(setup, bodies, projectDocument) : null;
   const solidBodies = bodies.filter((body) => body.bodyKind !== 'surface');
   const update = (patch) => setup && onUpdate(setup.id, patch);
   const [panelPage, setPanelPage] = useState('setup');
@@ -22,7 +23,7 @@ export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument
       </header>
       {!solidBodies.length ? <div className="manufacturing-empty"><AlertTriangle size={22} /><strong>Najpierw utwórz bryłę</strong><p>Setup wymaga gotowego modelu 3D. Wróć do Projektuj, utwórz albo zaimportuj bryłę i uruchom Wytwarzanie ponownie.</p></div> : !setup ? <div className="manufacturing-empty"><Box size={26} /><strong>Przygotuj pierwszą obróbkę</strong><p>Setup łączy model z obrabiarką, półfabrykatem i układem współrzędnych.</p><button type="button" disabled={readOnly} onClick={onCreate}><Plus size={15} /> Utwórz Setup</button></div> : <>
         <nav aria-label="Setupy CAM">{setups.map((item) => <button key={item.id} type="button" className={item.id === setup.id ? 'active' : ''} onClick={() => onActivate(item.id)}>{item.name}</button>)}</nav>
-        <div className="manufacturing-page-tabs" role="tablist" aria-label="Sekcja Setupu CAM"><button type="button" role="tab" aria-selected={panelPage === 'setup'} className={panelPage === 'setup' ? 'active' : ''} onClick={() => setPanelPage('setup')}>Ustawienia</button><button type="button" role="tab" aria-selected={panelPage === 'operations'} className={panelPage === 'operations' ? 'active' : ''} onClick={() => setPanelPage('operations')}>Operacje <span>{setup.operations.length}</span></button></div>
+        <div className="manufacturing-page-tabs" role="tablist" aria-label="Sekcja Setupu CAM"><button type="button" role="tab" aria-selected={panelPage === 'setup'} className={panelPage === 'setup' ? 'active' : ''} onClick={() => setPanelPage('setup')}>Ustawienia</button><button type="button" role="tab" aria-selected={panelPage === 'operations'} className={panelPage === 'operations' ? 'active' : ''} onClick={() => setPanelPage('operations')}>Operacje <span>{setup.operations.length}</span></button><button type="button" role="tab" aria-selected={panelPage === 'report'} className={panelPage === 'report' ? 'active' : ''} onClick={() => setPanelPage('report')}>Kontrola</button></div>
         {panelPage === 'setup' && <>
         <div className="manufacturing-form">
           <label><span>Nazwa</span><input value={setup.name} maxLength="80" disabled={readOnly} onChange={(event) => update({ name: event.target.value })} /></label>
@@ -70,6 +71,12 @@ export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument
               <div className={`manufacturing-toolpath-summary ${toolpath?.valid ? 'valid' : 'invalid'}`}>{toolpath?.valid ? <><CheckCircle2 size={14} /><span><strong>{toolpath.segments.length} segmentów · {toolpath.layerCount} warstwy</strong><small>{toolpath.cuttingDistance.toFixed(0)} mm skrawania · ok. {Math.max(1, Math.ceil(toolpath.durationMinutes))} min</small></span><button type="button" disabled={readOnly} onClick={() => onExportOperation(setup.id, operation.id)}><FileDown size={13} /> G-code</button></> : <><AlertTriangle size={14} /><span>{toolpath?.warnings.join(' ')}</span></>}</div>
             </section>;
           })}
+        </section>}
+        {panelPage === 'report' && <section className="manufacturing-program-report" aria-label="Kontrola programu CAM">
+          <header className={programReport?.valid ? 'valid' : 'invalid'}>{programReport?.valid ? <ShieldCheck size={22} /> : <AlertTriangle size={22} />}<span><strong>{programReport?.valid ? 'Program gotowy do symulacji' : 'Program wymaga poprawy'}</strong><small>{programReport?.valid ? 'Nie wykryto kolizji ani niebezpiecznych przejazdów.' : [...(programReport?.setupIssues || []), ...(programReport?.operations || []).flatMap((operation) => operation.issues.map((issue) => issue.message))].join(' ') || 'Dodaj co najmniej jedną operację.'}</small></span></header>
+          <dl><div><dt><Clock3 size={13} /> Szacowany czas</dt><dd>{programReport ? `${Math.max(1, Math.ceil(programReport.durationMinutes))} min` : '—'}</dd></div><div><dt>Długość skrawania</dt><dd>{programReport ? `${programReport.cuttingDistance.toFixed(0)} mm` : '—'}</dd></div><div><dt>Usuwany materiał</dt><dd>{programReport ? `~${programReport.estimatedRemovedVolume.toFixed(0)} mm³` : '—'}</dd></div><div><dt>Udział półfabrykatu</dt><dd>{programReport ? `~${programReport.estimatedRemovalPercent.toFixed(1)}%` : '—'}</dd></div></dl>
+          <div className="manufacturing-report-operations">{programReport?.operations.map((operation, index) => <div key={operation.id} className={operation.valid ? 'valid' : 'invalid'}><span>{operation.valid ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}<strong>{index + 1} · {operation.name}</strong></span><small>{operation.valid ? `${operation.segmentCount} segmentów · ${Math.max(1, Math.ceil(operation.durationMinutes))} min` : operation.issues.map((issue) => issue.message).join(' ')}</small></div>)}</div>
+          <p>Raport jest obliczany z pełnych ścieżek. Eksport G-code jest blokowany po wykryciu szybkiego przejazdu w materiale, przekroczenia zakresu lub kolizji oprawki.</p>
         </section>}
         <footer><span>Setup i ścieżka są zapisane w projekcie oraz działają z Cofnij/Ponów.</span><button type="button" disabled={readOnly} onClick={() => onDelete(setup.id)}><Trash2 size={14} /> Usuń Setup</button></footer>
       </>}

@@ -3,6 +3,8 @@ import {
   calculateAdaptiveToolpath,
   calculateContourToolpath,
   calculatePocketToolpath,
+  analyzeManufacturingProgram,
+  analyzeToolpathSafety,
   createContourOperation,
   createAdaptiveOperation,
   createGrblGcode,
@@ -125,6 +127,27 @@ describe('CAM contour operations', () => {
     expect(updated.cuttingDistance).toBeLessThan(toolpath.cuttingDistance);
     document.sketches[0].profiles = [];
     expect(calculatePocketToolpath(setup, operation, [box], document).warnings.join(' ')).toContain('już nie istnieje');
+  });
+
+  it('blocks unsafe rapid motion and aggregates a setup time/removal report', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id });
+    const operation = createPocketOperation({ targetDepth: 2 });
+    setup.operations.push(operation);
+    const toolpath = calculatePocketToolpath(setup, operation, [box]);
+    const unsafe = structuredClone(toolpath);
+    unsafe.segments.push({ kind: 'rapid', from: [5, 5, 9], to: [20, 5, 9] });
+    expect(analyzeToolpathSafety(unsafe).some((issue) => issue.code === 'RAPID_IN_STOCK')).toBe(true);
+    const report = analyzeManufacturingProgram(setup, [box]);
+    expect(report.valid).toBe(true);
+    expect(report.operations).toHaveLength(1);
+    expect(report.durationMinutes).toBeGreaterThan(0);
+    expect(report.estimatedRemovedVolume).toBeGreaterThan(0);
+    expect(report.estimatedRemovalPercent).toBeGreaterThan(0);
+  });
+
+  it('rejects a safe plane that is below the stock top', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id, wcsOrigin: 'model-origin', safeHeight: 5 });
+    expect(analyzeManufacturingProgram(setup, [box]).setupIssues.join(' ')).toContain('Płaszczyzna bezpieczna');
   });
 
   it('uses a persistent selected horizontal face and rejects a vertical face', () => {

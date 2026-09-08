@@ -14,9 +14,9 @@ export const CAM_WCS_ORIGINS = Object.freeze([
 ]);
 
 export const CAM_TOOL_PRESETS = Object.freeze({
-  'flat-3': Object.freeze({ id: 'flat-3', name: 'Frez palcowy płaski Ø3', type: 'flat-end-mill', diameter: 3, fluteLength: 12, flutes: 2 }),
-  'flat-6': Object.freeze({ id: 'flat-6', name: 'Frez palcowy płaski Ø6', type: 'flat-end-mill', diameter: 6, fluteLength: 20, flutes: 2 }),
-  'face-16': Object.freeze({ id: 'face-16', name: 'Frez do planowania Ø16', type: 'face-mill', diameter: 16, fluteLength: 8, flutes: 3 }),
+  'flat-3': Object.freeze({ id: 'flat-3', name: 'Frez palcowy płaski Ø3', type: 'flat-end-mill', diameter: 3, fluteLength: 12, stickout: 20, holderDiameter: 16, flutes: 2 }),
+  'flat-6': Object.freeze({ id: 'flat-6', name: 'Frez palcowy płaski Ø6', type: 'flat-end-mill', diameter: 6, fluteLength: 20, stickout: 30, holderDiameter: 20, flutes: 2 }),
+  'face-16': Object.freeze({ id: 'face-16', name: 'Frez do planowania Ø16', type: 'face-mill', diameter: 16, fluteLength: 8, stickout: 25, holderDiameter: 32, flutes: 3 }),
 });
 
 export function normalizeFacingOperation(operation = {}, index = 0) {
@@ -163,6 +163,8 @@ export function calculateManufacturingSetup(setup, bodies = []) {
   const exceededAxes = dimensions.map((value, axis) => value > machine.travel[axis] ? ['X', 'Y', 'Z'][axis] : null).filter(Boolean);
   if (exceededAxes.length) warnings.push(`Półfabrykat przekracza przesuw maszyny w osi ${exceededAxes.join(', ')}.`);
   if (dimensions.some((value) => value <= 0)) warnings.push('Półfabrykat musi mieć dodatnie wymiary.');
+  const clearancePlaneZ = origin[2] + normalized.safeHeight;
+  if (clearancePlaneZ <= stockBounds[1][2] + 1e-7) warnings.push('Płaszczyzna bezpieczna musi znajdować się ponad górą półfabrykatu.');
   return {
     valid: warnings.length === 0,
     machine,
@@ -170,7 +172,7 @@ export function calculateManufacturingSetup(setup, bodies = []) {
     stockBounds,
     dimensions,
     origin,
-    clearancePlaneZ: origin[2] + normalized.safeHeight,
+    clearancePlaneZ,
     warnings,
   };
 }
@@ -235,7 +237,8 @@ export function calculateFacingToolpath(setup, operation, bodies = []) {
     const length = Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis]));
     return sum + length / (segment.kind === 'rapid' ? 3000 : segment.feed);
   }, 0);
-  return { valid: setupResult.valid, setup: setupResult, stockBounds: setupResult.stockBounds, origin: setupResult.origin, clearancePlaneZ: setupResult.clearancePlaneZ, operation: normalized, tool, segments, layerCount, rowCount, distance, cuttingDistance, durationMinutes, warnings: setupResult.warnings };
+  const estimatedRemovedVolume = Math.max(0, (stockMax[0] - stockMin[0]) * (stockMax[1] - stockMin[1]) * depth);
+  return { valid: setupResult.valid, setup: setupResult, stockBounds: setupResult.stockBounds, origin: setupResult.origin, clearancePlaneZ: setupResult.clearancePlaneZ, operation: normalized, tool, segments, layerCount, rowCount, distance, cuttingDistance, durationMinutes, estimatedRemovedVolume, warnings: setupResult.warnings };
 }
 
 const pointKey = (point, tolerance) => `${Math.round(point[0] / tolerance)},${Math.round(point[1] / tolerance)}`;
@@ -451,6 +454,10 @@ export function calculateContourToolpath(setup, operation, bodies = [], document
     segments,
     layerCount,
     contourPointCount: contour.length,
+    estimatedRemovedVolume: contour.reduce((sum, point, index) => {
+      const next = contour[(index + 1) % contour.length];
+      return sum + Math.hypot(next[0] - point[0], next[1] - point[1]);
+    }, 0) * tool.diameter * normalized.targetDepth,
     ...summarizeToolpath(segments),
     warnings: [],
   };
@@ -534,6 +541,7 @@ export function calculatePocketToolpath(setup, operation, bodies = [], document 
     segments,
     layerCount,
     rowCount: rows.length,
+    estimatedRemovedVolume: Math.abs(signedPolygonArea(boundary)) * normalized.targetDepth,
     ...summarizeToolpath(segments),
     warnings: [],
   };
@@ -610,6 +618,7 @@ export function calculateAdaptiveToolpath(setup, operation, bodies = [], documen
     segments,
     layerCount,
     ringCount: rings.length,
+    estimatedRemovedVolume: Math.abs(signedPolygonArea(loops[0])) * normalized.targetDepth,
     ...summarizeToolpath(segments),
     warnings: [],
   };
@@ -622,6 +631,63 @@ export function calculateOperationToolpath(setup, operation, bodies = [], docume
   return calculateFacingToolpath(setup, operation, bodies);
 }
 
+export function analyzeToolpathSafety(toolpath) {
+  const issues = [];
+  if (!toolpath?.valid) return (toolpath?.warnings || ['Ścieżka nie jest prawidłowa.']).map((message) => ({ code: 'INVALID_TOOLPATH', message }));
+  const points = toolpath.segments.flatMap((segment) => [segment.from, segment.to]);
+  if (points.some((point) => point.length !== 3 || point.some((value) => !Number.isFinite(value)))) issues.push({ code: 'NON_FINITE', message: 'Ścieżka zawiera nieprawidłową współrzędną.' });
+  const machine = toolpath.setup.machine;
+  for (let axis = 0; axis < 3; axis += 1) {
+    const values = points.map((point) => point[axis]);
+    if (Math.max(...values) - Math.min(...values) > machine.travel[axis] + 1e-7) issues.push({ code: 'MACHINE_TRAVEL', message: `Ścieżka przekracza przesuw maszyny w osi ${['X', 'Y', 'Z'][axis]}.` });
+  }
+  const stockTop = toolpath.stockBounds[1][2];
+  for (const segment of toolpath.segments) {
+    const horizontalDistance = Math.hypot(segment.to[0] - segment.from[0], segment.to[1] - segment.from[1]);
+    if (segment.kind === 'rapid' && horizontalDistance > 1e-7 && Math.min(segment.from[2], segment.to[2]) < stockTop - 1e-7) {
+      issues.push({ code: 'RAPID_IN_STOCK', message: 'Wykryto szybki przejazd poziomy poniżej góry półfabrykatu.' });
+      break;
+    }
+  }
+  const cuttingPoints = toolpath.segments.filter((segment) => segment.kind !== 'rapid').flatMap((segment) => [segment.from, segment.to]);
+  const minimumCutZ = cuttingPoints.length ? Math.min(...cuttingPoints.map((point) => point[2])) : stockTop;
+  if (stockTop - minimumCutZ > toolpath.tool.stickout + 1e-7) issues.push({ code: 'HOLDER_COLLISION', message: 'Głębokość ścieżki powoduje ryzyko kolizji oprawki z półfabrykatem.' });
+  return issues;
+}
+
+export function analyzeManufacturingProgram(setup, bodies = [], document = null) {
+  const normalized = normalizeManufacturingSetup(setup);
+  const operations = normalized.operations.map((operation) => {
+    const toolpath = calculateOperationToolpath(normalized, operation, bodies, document);
+    const issues = analyzeToolpathSafety(toolpath);
+    return {
+      id: operation.id,
+      name: operation.name,
+      type: operation.type,
+      valid: toolpath.valid && issues.length === 0,
+      segmentCount: toolpath.segments.length,
+      durationMinutes: toolpath.durationMinutes || 0,
+      cuttingDistance: toolpath.cuttingDistance || 0,
+      estimatedRemovedVolume: toolpath.estimatedRemovedVolume || 0,
+      issues,
+    };
+  });
+  const setupResult = calculateManufacturingSetup(normalized, bodies);
+  const stockVolume = setupResult.dimensions?.reduce((volume, dimension) => volume * dimension, 1) || 0;
+  const estimatedRemovedVolume = operations.reduce((sum, operation) => sum + operation.estimatedRemovedVolume, 0);
+  return {
+    valid: setupResult.valid && operations.length > 0 && operations.every((operation) => operation.valid),
+    setupIssues: setupResult.warnings,
+    operations,
+    segmentCount: operations.reduce((sum, operation) => sum + operation.segmentCount, 0),
+    durationMinutes: operations.reduce((sum, operation) => sum + operation.durationMinutes, 0),
+    cuttingDistance: operations.reduce((sum, operation) => sum + operation.cuttingDistance, 0),
+    stockVolume,
+    estimatedRemovedVolume,
+    estimatedRemovalPercent: stockVolume ? Math.min(100, estimatedRemovedVolume / stockVolume * 100) : 0,
+  };
+}
+
 function gcodeNumber(value) {
   if (!Number.isFinite(Number(value))) throw new Error('Ścieżka CAM zawiera nieprawidłową współrzędną.');
   return Number(Number(value).toFixed(4)).toString();
@@ -630,6 +696,8 @@ function gcodeNumber(value) {
 export function createGrblGcode(setup, operation, bodies = [], { projectName = 'MadCAD', document = null } = {}) {
   const toolpath = calculateOperationToolpath(setup, operation, bodies, document);
   if (!toolpath.valid || !toolpath.segments.length) throw new Error(toolpath.warnings.join(' ') || 'Ścieżka CAM nie jest gotowa do eksportu.');
+  const safetyIssues = analyzeToolpathSafety(toolpath);
+  if (safetyIssues.length) throw new Error(`Eksport zablokowany przez kontrolę bezpieczeństwa: ${safetyIssues.map((issue) => issue.message).join(' ')}`);
   const origin = toolpath.origin;
   const safeLocalZ = toolpath.clearancePlaneZ - origin[2];
   const lines = [

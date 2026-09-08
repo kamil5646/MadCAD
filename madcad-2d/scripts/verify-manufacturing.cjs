@@ -3,6 +3,7 @@ const path = require('node:path');
 const { app, BrowserWindow } = require('electron');
 
 const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-manufacturing-setup.png');
+const reportScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-manufacturing-report.png');
 const gcodePath = path.join(__dirname, '..', 'artifacts', 'madcad-contour.nc');
 async function waitFor(window, expression, label, timeoutMs = 45000) {
   const startedAt = Date.now();
@@ -60,11 +61,17 @@ app.whenReady().then(async () => {
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 4 && document.querySelectorAll('.manufacturing-toolpath-summary.valid').length === 4`, 'Pocket 2D z profilu szkicu');
     const profileState = await window.webContents.executeJavaScript(`(() => { const operation = JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.at(-1); return { type: operation.type, sketchId: operation.boundarySketchId, profileId: operation.boundaryProfileId, label: [...document.querySelectorAll('.manufacturing-boundary small')].at(-1)?.textContent }; })()`);
     if (profileState.type !== 'pocket' || profileState.sketchId !== selectedProfile.sketchId || profileState.profileId !== selectedProfile.profileId || !profileState.label?.includes('profil szkicu')) throw new Error(`Profil szkicu nie został powiązany z CAM: ${JSON.stringify(profileState)}`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-page-tabs button')].find((button) => button.textContent.includes('Kontrola')).click()`);
+    await waitFor(window, `document.querySelector('.manufacturing-program-report > header.valid') && document.querySelectorAll('.manufacturing-report-operations > div.valid').length === 4`, 'raport bezpieczeństwa i czasu CAM');
+    const reportState = await window.webContents.executeJavaScript(`(() => ({ text: document.querySelector('.manufacturing-program-report').textContent, overflow: document.documentElement.scrollWidth > innerWidth }))()`);
+    if (reportState.overflow || !reportState.text.includes('Szacowany czas') || !reportState.text.includes('Usuwany materiał') || !reportState.text.includes('Nie wykryto kolizji')) throw new Error(`Niepełny raport CAM: ${JSON.stringify(reportState)}`);
+    await fs.writeFile(reportScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-page-tabs button')].find((button) => button.textContent.includes('Operacje')).click()`);
     await window.webContents.executeJavaScript(`document.querySelector('.manufacturing-panel').scrollTop = document.querySelector('.manufacturing-panel').scrollHeight`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 3`, 'Cofnij operację profilu CAM');
-    process.stdout.write(`${JSON.stringify({ screenshotPath, gcodePath, gcodeBytes: Buffer.byteLength(gcode), profileBoundary: profileState, ...state }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ screenshotPath, reportScreenshotPath, gcodePath, gcodeBytes: Buffer.byteLength(gcode), profileBoundary: profileState, reportVerified: true, ...state }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
     process.stderr.write(`${error.stack || error.message}\n`);

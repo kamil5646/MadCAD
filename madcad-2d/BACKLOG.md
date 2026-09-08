@@ -144,9 +144,11 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Trwałe wskazywanie konkretnej poziomej ściany jako granicy Konturu 2D i Pocket 2D, z walidacją utraconej lub niepoziomej referencji.
 - [x] Adaptive 2D: wejście rampą, kolejne odsunięte obrysy ze stałym obciążeniem freza, warstwy Z, podgląd oraz GRBL.
 - [x] Skojarzony profil szkicu XY jako granica obróbki CAM: parametryczne przeliczanie, kontrola półfabrykatu i jawna diagnostyka utraconej referencji.
-- [ ] Symulacja usuwania materiału, kontrola kolizji i raport czasu obróbki.
+- [x] Kontrola ścieżek i raport Setupu: szybkie przejazdy w materiale, płaszczyzna bezpieczna, zakres maszyny, oprawka, czas, długość skrawania i szacowana objętość.
+- [ ] Interaktywna symulacja usuwania materiału.
 - [x] Pierwszy postprocesor GRBL: G-code metryczny względem WCS, limity obrotów, bezpieczny przejazd i ostrzeżenie przed uruchomieniem.
-- [ ] Podgląd tekstowy G-code, dodatkowe postprocesory obrabiarek i walidacja kolizji przed eksportem.
+- [x] Blokada eksportu G-code po wykryciu problemu przez walidację kolizji i bezpieczeństwa.
+- [ ] Podgląd tekstowy G-code i dodatkowe postprocesory obrabiarek.
 - [ ] Toczenie i cięcie.
 
 ### Electronics, chmura i rozszerzalność
