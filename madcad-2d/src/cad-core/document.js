@@ -27,7 +27,7 @@ import {
   normalizeSketchModel,
 } from './sketch-model.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 16;
+export const DOCUMENT_SCHEMA_VERSION = 17;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -304,6 +304,22 @@ function migrateV15ToV16(source, now) {
   return migrated;
 }
 
+function migrateV16ToV17(source, now) {
+  const migrated = ensureDocumentManufacturing(cloneDocument(source));
+  migrated.schemaVersion = 17;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 16,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 16, to: 17, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
@@ -319,6 +335,7 @@ const MIGRATIONS = new Map([
   [13, migrateV13ToV14],
   [14, migrateV14ToV15],
   [15, migrateV15ToV16],
+  [16, migrateV16ToV17],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {

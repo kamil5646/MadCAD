@@ -54,7 +54,7 @@ import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/p
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
-import { calculateManufacturingSetup, createManufacturingSetup, validateManufacturing } from '../src/cad-core/manufacturing.js';
+import { calculateFacingToolpath, calculateManufacturingSetup, createFacingOperation, createManufacturingSetup, validateManufacturing } from '../src/cad-core/manufacturing.js';
 import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
@@ -5511,15 +5511,29 @@ test('Setup CAM ostrzega o przekroczeniu przesuwu maszyny', () => {
   assert.match(result.warnings[0], /osi X/);
 });
 
-test('dokument v15 migruje dane wytwarzania do v16 i przechodzi walidację', () => {
+test('dokument v15 migruje dane wytwarzania do bieżącego schematu i przechodzi walidację', () => {
   const legacy = createDocument('Projekt CAM');
   legacy.schemaVersion = 15;
   delete legacy.manufacturing;
   const opened = openDocument(legacy, { now: '2026-09-08T12:00:00.000Z' });
-  assert.equal(opened.document.schemaVersion, 16);
+  assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(opened.document.manufacturing, { setups: [], activeSetupId: '' });
   assert.equal(validateDocument(opened.document).valid, true);
-  assert.deepEqual(opened.document.metadata.migrationHistory.at(-1), { from: 15, to: 16, at: '2026-09-08T12:00:00.000Z' });
+  assert.equal(opened.document.metadata.migrationHistory.some((entry) => entry.from === 15 && entry.to === 16), true);
+});
+
+test('planowanie CAM tworzy warstwową ścieżkę z bezpiecznymi przejazdami i posuwem', () => {
+  const setup = createManufacturingSetup({ bodyId: 'body-test', stock: { sideOffset: 2, topOffset: 2, bottomOffset: 0 }, safeHeight: 5 });
+  const operation = createFacingOperation({ toolId: 'flat-6', stepover: 0.5, maxStepdown: 0.75, feedRate: 600, plungeRate: 150, spindleRpm: 8000 });
+  const result = calculateFacingToolpath(setup, operation, [{ id: 'body-test', bounds: [[0, 0, 0], [40, 20, 10]] }]);
+  assert.equal(result.valid, true);
+  assert.equal(result.layerCount, 3);
+  assert.equal(result.segments[0].kind, 'rapid');
+  assert.equal(result.segments.some((segment) => segment.kind === 'plunge' && segment.feed === 150), true);
+  assert.equal(result.segments.some((segment) => segment.kind === 'cut' && segment.feed === 600), true);
+  assert.equal(result.segments.at(-1).to[2], result.setup.clearancePlaneZ);
+  assert.ok(result.distance > result.cuttingDistance);
+  assert.ok(result.durationMinutes > 0);
 });
 
 test('walidacja danych CAM odrzuca uszkodzony aktywny Setup i ujemny naddatek', () => {

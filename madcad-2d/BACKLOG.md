@@ -138,7 +138,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 ### Manufacture / CAM
 
 - [x] Setup frezowania 3-osiowego: wybór bryły i obrabiarki, półfabrykat z naddatkami, zero WCS, wysokość bezpieczna, kontrola przesuwu maszyny, zapis/migracja/Undo.
-- [ ] Biblioteka narzędzi i pierwsza ścieżka frezowania 2D Adaptive.
+- [x] Biblioteka podstawowych frezów i warstwowa ścieżka planowania z podglądem 3D, posuwem oraz oszacowaniem czasu.
+- [ ] Ścieżki 2D Contour, Pocket i Adaptive dla wskazanych ścian/profili.
 - [ ] Symulacja usuwania materiału, kontrola kolizji i raport czasu obróbki.
 - [ ] Postprocesory G-code z bezpiecznym podglądem oraz walidacją maszyny.
 - [ ] Toczenie i cięcie.

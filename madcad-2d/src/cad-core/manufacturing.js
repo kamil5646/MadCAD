@@ -12,6 +12,26 @@ export const CAM_WCS_ORIGINS = Object.freeze([
   Object.freeze({ id: 'model-origin', name: 'Początek układu modelu' }),
 ]);
 
+export const CAM_TOOL_PRESETS = Object.freeze({
+  'flat-3': Object.freeze({ id: 'flat-3', name: 'Frez palcowy płaski Ø3', type: 'flat-end-mill', diameter: 3, fluteLength: 12, flutes: 2 }),
+  'flat-6': Object.freeze({ id: 'flat-6', name: 'Frez palcowy płaski Ø6', type: 'flat-end-mill', diameter: 6, fluteLength: 20, flutes: 2 }),
+  'face-16': Object.freeze({ id: 'face-16', name: 'Frez do planowania Ø16', type: 'face-mill', diameter: 16, fluteLength: 8, flutes: 3 }),
+});
+
+export function normalizeFacingOperation(operation = {}, index = 0) {
+  return {
+    id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
+    name: String(operation.name || `Planowanie ${index + 1}`).trim().slice(0, 80) || `Planowanie ${index + 1}`,
+    type: 'face',
+    toolId: CAM_TOOL_PRESETS[operation.toolId] ? operation.toolId : 'flat-6',
+    stepover: Math.min(0.9, Math.max(0.1, Number(operation.stepover) || 0.6)),
+    maxStepdown: Math.max(0.05, Number(operation.maxStepdown) || 1),
+    feedRate: Math.max(1, Number(operation.feedRate) || 600),
+    plungeRate: Math.max(1, Number(operation.plungeRate) || 180),
+    spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 8000)),
+  };
+}
+
 const finiteNonNegative = (value, fallback) => {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : fallback;
@@ -33,6 +53,7 @@ export function normalizeManufacturingSetup(setup = {}, index = 0) {
     },
     wcsOrigin,
     safeHeight: finiteNonNegative(setup.safeHeight, 5),
+    operations: Array.isArray(setup.operations) ? setup.operations.map(normalizeFacingOperation) : [],
   };
 }
 
@@ -90,6 +111,57 @@ export function calculateManufacturingSetup(setup, bodies = []) {
   };
 }
 
+export function createFacingOperation(options = {}) {
+  return normalizeFacingOperation({ ...options, id: createId('cam-operation') });
+}
+
+export function calculateFacingToolpath(setup, operation, bodies = []) {
+  const setupResult = calculateManufacturingSetup(setup, bodies);
+  const normalized = normalizeFacingOperation(operation);
+  const tool = CAM_TOOL_PRESETS[normalized.toolId];
+  if (!setupResult.stockBounds || !setupResult.body) return { valid: false, tool, segments: [], warnings: setupResult.warnings };
+  const bodyBounds = setupResult.body.bounds || setupResult.body.metrics?.bounds;
+  const stockTop = setupResult.stockBounds[1][2];
+  const targetZ = Number(bodyBounds[1][2]);
+  const depth = stockTop - targetZ;
+  if (depth <= 1e-9) return { valid: false, tool, segments: [], warnings: ['Planowanie wymaga dodatniego naddatku na górze półfabrykatu.'] };
+  if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return { valid: false, tool, segments: [], warnings: [`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`] };
+  const radius = tool.diameter / 2;
+  const [stockMin, stockMax] = setupResult.stockBounds;
+  const xMin = stockMin[0] - radius;
+  const xMax = stockMax[0] + radius;
+  const yMin = stockMin[1] - radius;
+  const yMax = stockMax[1] + radius;
+  const layerCount = Math.max(1, Math.ceil(depth / normalized.maxStepdown));
+  const rowStep = tool.diameter * normalized.stepover;
+  const rowCount = Math.max(2, Math.ceil((yMax - yMin) / rowStep) + 1);
+  const segments = [];
+  let previous = [xMin, yMin, setupResult.clearancePlaneZ];
+  const push = (kind, to, feed = null) => { segments.push({ kind, from: previous, to, ...(feed ? { feed } : {}) }); previous = to; };
+  for (let layer = 1; layer <= layerCount; layer += 1) {
+    const z = stockTop - Math.min(depth, layer * depth / layerCount);
+    push('rapid', [xMin, yMin, setupResult.clearancePlaneZ]);
+    push('plunge', [xMin, yMin, z], normalized.plungeRate);
+    for (let row = 0; row < rowCount; row += 1) {
+      const y = Math.min(yMax, yMin + row * (yMax - yMin) / (rowCount - 1));
+      const x = row % 2 === 0 ? xMax : xMin;
+      push('cut', [x, y, z], normalized.feedRate);
+      if (row < rowCount - 1) {
+        const nextY = Math.min(yMax, yMin + (row + 1) * (yMax - yMin) / (rowCount - 1));
+        push('cut', [x, nextY, z], normalized.feedRate);
+      }
+    }
+    push('rapid', [previous[0], previous[1], setupResult.clearancePlaneZ]);
+  }
+  const distance = segments.reduce((sum, segment) => sum + Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis])), 0);
+  const cuttingDistance = segments.filter((segment) => segment.kind !== 'rapid').reduce((sum, segment) => sum + Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis])), 0);
+  const durationMinutes = segments.reduce((sum, segment) => {
+    const length = Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis]));
+    return sum + length / (segment.kind === 'rapid' ? 3000 : segment.feed);
+  }, 0);
+  return { valid: setupResult.valid, setup: setupResult, stockBounds: setupResult.stockBounds, origin: setupResult.origin, clearancePlaneZ: setupResult.clearancePlaneZ, operation: normalized, tool, segments, layerCount, rowCount, distance, cuttingDistance, durationMinutes, warnings: setupResult.warnings };
+}
+
 export function validateManufacturing(manufacturing) {
   const issues = [];
   if (!manufacturing || typeof manufacturing !== 'object' || Array.isArray(manufacturing)) return [{ path: 'manufacturing', message: 'Wymagane są dane wytwarzania.', code: 'TYPE' }];
@@ -112,6 +184,16 @@ export function validateManufacturing(manufacturing) {
     if (!CAM_WCS_ORIGINS.some((item) => item.id === setup.wcsOrigin)) issues.push({ path: `${base}.wcsOrigin`, message: 'Nieznany początek układu WCS.', code: 'UNSUPPORTED' });
     for (const key of ['sideOffset', 'topOffset', 'bottomOffset']) if (!Number.isFinite(Number(setup.stock?.[key])) || Number(setup.stock[key]) < 0) issues.push({ path: `${base}.stock.${key}`, message: 'Naddatek musi być liczbą nieujemną.', code: 'VALUE' });
     if (!Number.isFinite(Number(setup.safeHeight)) || Number(setup.safeHeight) < 0) issues.push({ path: `${base}.safeHeight`, message: 'Wysokość bezpieczna musi być liczbą nieujemną.', code: 'VALUE' });
+    if (!Array.isArray(setup.operations)) issues.push({ path: `${base}.operations`, message: 'Operacje CAM muszą być tablicą.', code: 'TYPE' });
+    else setup.operations.forEach((operation, operationIndex) => {
+      const operationBase = `${base}.operations[${operationIndex}]`;
+      if (!operation || typeof operation !== 'object') issues.push({ path: operationBase, message: 'Operacja CAM musi być obiektem.', code: 'TYPE' });
+      else {
+        if (operation.type !== 'face') issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
+        if (!CAM_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
+        for (const key of ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm']) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr operacji musi być dodatni.', code: 'VALUE' });
+      }
+    });
   });
   if (typeof manufacturing.activeSetupId !== 'string') issues.push({ path: 'manufacturing.activeSetupId', message: 'Aktywny setup musi być identyfikatorem tekstowym.', code: 'TYPE' });
   else if (manufacturing.activeSetupId && !ids.has(manufacturing.activeSetupId)) issues.push({ path: 'manufacturing.activeSetupId', message: 'Aktywny setup CAM nie istnieje.', code: 'BROKEN_REFERENCE' });

@@ -6413,3 +6413,20 @@
 .manufacturing-empty { display: grid; justify-items: center; gap: 9px; padding: 35px 24px; color: #cbd5dc; text-align: center; }
 .manufacturing-empty p { margin: 0; color: #9eabb6; font-size: 11px; line-height: 1.5; }
 .manufacturing-empty button { padding: 0 12px; border-color: #4fa9c3; background: #287d9d; }
+.manufacturing-operation-empty { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 12px 11px; padding: 10px; border: 1px dashed #627383; border-radius: 4px; }
+.manufacturing-operation-empty div { display: grid; gap: 3px; }
+.manufacturing-operation-empty strong { font-size: 11px; }
+.manufacturing-operation-empty small { color: #9eabb6; font-size: 9px; }
+.manufacturing-operation-empty button { flex: 0 0 auto; padding: 0 9px; border-color: #4fa9c3; }
+.manufacturing-operation { margin: 0 12px 11px; border: 1px solid #596978; border-radius: 4px; background: #293440; }
+.manufacturing-operation > header { display: flex; align-items: center; justify-content: space-between; padding: 8px 9px; border-bottom: 1px solid #4f5d6a; }
+.manufacturing-operation > header div { display: grid; gap: 2px; }
+.manufacturing-operation > header strong { font-size: 11px; }
+.manufacturing-operation > header small { color: #92a2ae; font-size: 9px; }
+.manufacturing-operation > header button { min-height: 25px; width: 27px; color: #efaaa4; }
+.manufacturing-operation .operation-form { padding: 9px; }
+.manufacturing-toolpath-summary { display: flex; align-items: center; gap: 7px; margin: 0 9px 9px; padding: 8px; border-radius: 3px; background: #222c36; font-size: 10px; }
+.manufacturing-toolpath-summary.valid { color: #6bd5ab; }
+.manufacturing-toolpath-summary.invalid { color: #efb478; }
+.manufacturing-toolpath-summary span { display: grid; gap: 2px; }
+.manufacturing-toolpath-summary small { color: #aab6bf; font-size: 9px; }

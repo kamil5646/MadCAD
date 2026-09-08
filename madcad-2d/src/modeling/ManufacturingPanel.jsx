@@ -1,14 +1,16 @@
 import React from 'react';
 import { AlertTriangle, Box, CheckCircle2, Crosshair, Plus, Trash2 } from 'lucide-react';
-import { CAM_MACHINE_PRESETS, CAM_WCS_ORIGINS, calculateManufacturingSetup } from '../cad-core/manufacturing.js';
+import { CAM_MACHINE_PRESETS, CAM_TOOL_PRESETS, CAM_WCS_ORIGINS, calculateFacingToolpath, calculateManufacturingSetup } from '../cad-core/manufacturing.js';
 
 const millimeter = (value) => Number.isFinite(value) ? `${value.toFixed(2)} mm` : '—';
 
-export function ManufacturingPanel({ manufacturing, bodies = [], readOnly = false, onCreate, onActivate, onUpdate, onDelete }) {
+export function ManufacturingPanel({ manufacturing, bodies = [], readOnly = false, onCreate, onActivate, onUpdate, onDelete, onCreateOperation, onUpdateOperation, onDeleteOperation }) {
   const setups = manufacturing?.setups || [];
   const activeId = manufacturing?.activeSetupId || setups[0]?.id || '';
   const setup = setups.find((item) => item.id === activeId) || null;
   const result = setup ? calculateManufacturingSetup(setup, bodies) : null;
+  const operation = setup?.operations?.[0] || null;
+  const toolpath = setup && operation ? calculateFacingToolpath(setup, operation, bodies) : null;
   const solidBodies = bodies.filter((body) => body.bodyKind !== 'surface');
   const update = (patch) => setup && onUpdate(setup.id, patch);
 
@@ -39,7 +41,19 @@ export function ManufacturingPanel({ manufacturing, bodies = [], readOnly = fals
           {result?.dimensions && <dl><div><dt>Półfabrykat X × Y × Z</dt><dd>{result.dimensions.map(millimeter).join(' × ')}</dd></div><div><dt>Zero WCS X / Y / Z</dt><dd>{result.origin.map(millimeter).join(' / ')}</dd></div><div><dt>Płaszczyzna bezpieczna Z</dt><dd>{millimeter(result.clearancePlaneZ)}</dd></div></dl>}
           {result?.warnings.map((warning) => <p key={warning}>{warning}</p>)}
         </section>
-        <footer><span>Kolejny etap: narzędzie i ścieżka 2D Adaptive.</span><button type="button" disabled={readOnly} onClick={() => onDelete(setup.id)}><Trash2 size={14} /> Usuń Setup</button></footer>
+        {!operation ? <section className="manufacturing-operation-empty"><div><strong>1 · Planowanie powierzchni</strong><small>Usuń górny naddatek równoległymi przejściami freza.</small></div><button type="button" disabled={readOnly || !result?.valid} onClick={() => onCreateOperation(setup.id)}><Plus size={14} /> Dodaj planowanie</button></section> : <section className="manufacturing-operation">
+          <header><div><strong>{operation.name}</strong><small>Ścieżka planowania</small></div><button type="button" aria-label={`Usuń operację ${operation.name}`} disabled={readOnly} onClick={() => onDeleteOperation(setup.id, operation.id)}><Trash2 size={13} /></button></header>
+          <div className="manufacturing-form operation-form">
+            <label><span>Narzędzie</span><select value={operation.toolId} disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { toolId: event.target.value })}>{Object.values(CAM_TOOL_PRESETS).map((tool) => <option value={tool.id} key={tool.id}>{tool.name}</option>)}</select></label>
+            <div className="manufacturing-field-grid">
+              <label><span>Stepover</span><input type="number" min="0.1" max="0.9" step="0.05" value={operation.stepover} disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { stepover: event.target.value })} /><em>×D</em></label>
+              <label><span>Zejście</span><input type="number" min="0.05" step="0.1" value={operation.maxStepdown} disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { maxStepdown: event.target.value })} /><em>mm</em></label>
+              <label><span>Posuw</span><input type="number" min="1" step="10" value={operation.feedRate} disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { feedRate: event.target.value })} /><em>mm/min</em></label>
+            </div>
+          </div>
+          <div className={`manufacturing-toolpath-summary ${toolpath?.valid ? 'valid' : 'invalid'}`}>{toolpath?.valid ? <><CheckCircle2 size={14} /><span><strong>{toolpath.segments.length} segmentów · {toolpath.layerCount} warstwy</strong><small>{toolpath.cuttingDistance.toFixed(0)} mm skrawania · ok. {Math.max(1, Math.ceil(toolpath.durationMinutes))} min</small></span></> : <><AlertTriangle size={14} /><span>{toolpath?.warnings.join(' ')}</span></>}</div>
+        </section>}
+        <footer><span>Setup i ścieżka są zapisane w projekcie oraz działają z Cofnij/Ponów.</span><button type="button" disabled={readOnly} onClick={() => onDelete(setup.id)}><Trash2 size={14} /> Usuń Setup</button></footer>
       </>}
     </aside>
   );
