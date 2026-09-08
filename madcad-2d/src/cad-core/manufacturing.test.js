@@ -102,6 +102,31 @@ describe('CAM contour operations', () => {
     expect(createGrblGcode(setup, operation, [box]).text).toContain('Adaptacyjne 2D');
   });
 
+  it('keeps an associative XY sketch profile as the machining boundary', () => {
+    const document = {
+      parameters: [{ name: 'W', expression: '20' }],
+      sketches: [{
+        id: 'sketch-cam',
+        space: '2d',
+        plane: 'XY',
+        planeOffset: '10',
+        profiles: [{ id: 'profile-cam', type: 'rectangle', geometry: { x: '20', y: '10', width: 'W', height: '10' } }],
+      }],
+    };
+    const setup = createManufacturingSetup({ bodyId: box.id });
+    const operation = createPocketOperation({ boundarySketchId: 'sketch-cam', boundaryProfileId: 'profile-cam', targetDepth: 1 });
+    const toolpath = calculatePocketToolpath(setup, operation, [box], document);
+    expect(toolpath.valid).toBe(true);
+    const cuts = toolpath.segments.filter((segment) => segment.kind === 'cut');
+    expect(Math.min(...cuts.flatMap((segment) => [segment.from[0], segment.to[0]]))).toBeGreaterThanOrEqual(13);
+    expect(Math.max(...cuts.flatMap((segment) => [segment.from[0], segment.to[0]]))).toBeLessThanOrEqual(27);
+    document.parameters[0].expression = '12';
+    const updated = calculatePocketToolpath(setup, operation, [box], document);
+    expect(updated.cuttingDistance).toBeLessThan(toolpath.cuttingDistance);
+    document.sketches[0].profiles = [];
+    expect(calculatePocketToolpath(setup, operation, [box], document).warnings.join(' ')).toContain('już nie istnieje');
+  });
+
   it('uses a persistent selected horizontal face and rejects a vertical face', () => {
     expect(extractTopBoundaryLoops(box, 'top-face')[0]).toHaveLength(4);
     expect(extractTopBoundaryLoops(box, 'side-face')).toEqual([]);

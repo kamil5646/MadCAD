@@ -143,7 +143,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Pocket 2D górnego obrysu bryły: kompensowana granica, bezpieczne przejścia wewnętrzne, warstwy Z, podgląd i eksport GRBL.
 - [x] Trwałe wskazywanie konkretnej poziomej ściany jako granicy Konturu 2D i Pocket 2D, z walidacją utraconej lub niepoziomej referencji.
 - [x] Adaptive 2D: wejście rampą, kolejne odsunięte obrysy ze stałym obciążeniem freza, warstwy Z, podgląd oraz GRBL.
-- [ ] Wskazywanie profilu szkicu jako granicy obróbki CAM.
+- [x] Skojarzony profil szkicu XY jako granica obróbki CAM: parametryczne przeliczanie, kontrola półfabrykatu i jawna diagnostyka utraconej referencji.
 - [ ] Symulacja usuwania materiału, kontrola kolizji i raport czasu obróbki.
 - [x] Pierwszy postprocesor GRBL: G-code metryczny względem WCS, limity obrotów, bezpieczny przejazd i ostrzeżenie przed uruchomieniem.
 - [ ] Podgląd tekstowy G-code, dodatkowe postprocesory obrabiarek i walidacja kolizji przed eksportem.

@@ -1,4 +1,5 @@
 import { createId } from './ids.js';
+import { evaluateExpression, resolveParameters } from './expressions.js';
 
 export const CAM_MACHINE_PRESETS = Object.freeze({
   'desktop-3018': Object.freeze({ id: 'desktop-3018', name: 'Frezarka biurkowa 3018', kind: 'mill-3axis', travel: [300, 180, 45], maxSpindleRpm: 10000 }),
@@ -45,6 +46,8 @@ export function normalizeContourOperation(operation = {}, index = 0) {
     spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 8000)),
     compensation: 'outside',
     boundaryFaceId: typeof operation.boundaryFaceId === 'string' ? operation.boundaryFaceId : '',
+    boundarySketchId: typeof operation.boundarySketchId === 'string' ? operation.boundarySketchId : '',
+    boundaryProfileId: typeof operation.boundaryProfileId === 'string' ? operation.boundaryProfileId : '',
   };
 }
 
@@ -62,6 +65,8 @@ export function normalizePocketOperation(operation = {}, index = 0) {
     spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 8000)),
     boundary: 'body-top',
     boundaryFaceId: typeof operation.boundaryFaceId === 'string' ? operation.boundaryFaceId : '',
+    boundarySketchId: typeof operation.boundarySketchId === 'string' ? operation.boundarySketchId : '',
+    boundaryProfileId: typeof operation.boundaryProfileId === 'string' ? operation.boundaryProfileId : '',
   };
 }
 
@@ -79,6 +84,8 @@ export function normalizeAdaptiveOperation(operation = {}, index = 0) {
     spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 9000)),
     boundary: 'body-top',
     boundaryFaceId: typeof operation.boundaryFaceId === 'string' ? operation.boundaryFaceId : '',
+    boundarySketchId: typeof operation.boundarySketchId === 'string' ? operation.boundarySketchId : '',
+    boundaryProfileId: typeof operation.boundaryProfileId === 'string' ? operation.boundaryProfileId : '',
   };
 }
 
@@ -344,6 +351,51 @@ function boundaryPlaneZ(body, faceId = '') {
     : Number((body?.bounds || body?.metrics?.bounds)?.[1]?.[2]);
 }
 
+function resolveSketchProfileBoundary(document, operation) {
+  if (!operation.boundarySketchId && !operation.boundaryProfileId) return null;
+  if (!document) throw new Error('Dokument projektu jest wymagany do odtworzenia granicy profilu szkicu.');
+  const sketch = document.sketches?.find((item) => item.id === operation.boundarySketchId);
+  const profile = sketch?.profiles?.find((item) => item.id === operation.boundaryProfileId);
+  if (!sketch || !profile) throw new Error('Wybrany profil szkicu już nie istnieje. Wskaż nową granicę operacji.');
+  if (sketch.space === '3d' || sketch.plane !== 'XY') throw new Error('CAM 2D wymaga profilu szkicu na poziomej płaszczyźnie XY.');
+  const parameters = resolveParameters(document.parameters || []);
+  if (!parameters.valid) throw new Error('Nie można obliczyć profilu, ponieważ jego parametry zawierają błąd.');
+  const read = (value) => evaluateExpression(value ?? 0, parameters.values);
+  let points;
+  if (profile.type === 'rectangle') {
+    const x = read(profile.geometry?.x);
+    const y = read(profile.geometry?.y);
+    const halfWidth = read(profile.geometry?.width) / 2;
+    const halfHeight = read(profile.geometry?.height) / 2;
+    points = [[x - halfWidth, y - halfHeight], [x + halfWidth, y - halfHeight], [x + halfWidth, y + halfHeight], [x - halfWidth, y + halfHeight]];
+  } else if (profile.type === 'circle') {
+    const x = read(profile.geometry?.x);
+    const y = read(profile.geometry?.y);
+    const radius = read(profile.geometry?.diameter) / 2;
+    points = Array.from({ length: 72 }, (_unused, index) => {
+      const angle = index / 72 * Math.PI * 2;
+      return [x + Math.cos(angle) * radius, y + Math.sin(angle) * radius];
+    });
+  } else {
+    points = (profile.geometry?.points || []).map((point) => [read(point.x), read(point.y)]);
+    if (points.length > 3 && Math.hypot(points[0][0] - points.at(-1)[0], points[0][1] - points.at(-1)[1]) <= 1e-7) points.pop();
+  }
+  if (points.length < 3 || points.some((point) => !point.every(Number.isFinite)) || Math.abs(signedPolygonArea(points)) <= 1e-7) throw new Error('Wybrany profil nie tworzy prawidłowej zamkniętej granicy CAM.');
+  return { loops: [points], planeZ: read(sketch.planeOffset || 0), source: 'sketch-profile' };
+}
+
+function resolveOperationBoundary(setupResult, operation, document) {
+  const sketchBoundary = resolveSketchProfileBoundary(document, operation);
+  if (sketchBoundary) {
+    const [minimum, maximum] = setupResult.stockBounds;
+    if (sketchBoundary.loops[0].some((point) => point[0] < minimum[0] || point[0] > maximum[0] || point[1] < minimum[1] || point[1] > maximum[1])) throw new Error('Wybrany profil szkicu wykracza poza półfabrykat.');
+    return sketchBoundary;
+  }
+  const loops = extractTopBoundaryLoops(setupResult.body, operation.boundaryFaceId);
+  if (!loops.length) throw new Error(operation.boundaryFaceId ? 'Wybrana ściana nie istnieje albo nie jest pozioma i płaska.' : 'Nie znaleziono zamkniętej górnej krawędzi bryły.');
+  return { loops, planeZ: boundaryPlaneZ(setupResult.body, operation.boundaryFaceId), source: operation.boundaryFaceId ? 'selected-face' : 'body-top' };
+}
+
 function summarizeToolpath(segments) {
   const segmentLength = (segment) => Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis]));
   return {
@@ -353,7 +405,7 @@ function summarizeToolpath(segments) {
   };
 }
 
-export function calculateContourToolpath(setup, operation, bodies = []) {
+export function calculateContourToolpath(setup, operation, bodies = [], document = null) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
   const normalized = normalizeContourOperation(operation);
   const tool = CAM_TOOL_PRESETS[normalized.toolId];
@@ -365,10 +417,11 @@ export function calculateContourToolpath(setup, operation, bodies = []) {
   const bodyHeight = Number(bodyBounds[1][2]) - Number(bodyBounds[0][2]);
   if (normalized.targetDepth > tool.fluteLength) return fail(`Głębokość przekracza długość ostrza narzędzia (${tool.fluteLength} mm).`);
   if (normalized.targetDepth > bodyHeight + setupResult.stockBounds[0][2] - Number(bodyBounds[0][2]) + 1e-7) return fail('Głębokość konturu przekracza wysokość dostępnego materiału.');
-  const loops = extractTopBoundaryLoops(setupResult.body, normalized.boundaryFaceId);
-  if (!loops.length) return fail(normalized.boundaryFaceId ? 'Wybrana ściana nie istnieje albo nie jest pozioma i płaska.' : 'Nie znaleziono zamkniętej górnej krawędzi bryły. Wybierz bryłę z płaską górną powierzchnią.');
+  let resolvedBoundary;
+  try { resolvedBoundary = resolveOperationBoundary(setupResult, normalized, document); } catch (error) { return fail(error.message); }
+  const { loops } = resolvedBoundary;
   const contour = offsetClosedContour(loops[0], tool.diameter / 2);
-  const topZ = boundaryPlaneZ(setupResult.body, normalized.boundaryFaceId);
+  const topZ = resolvedBoundary.planeZ;
   const layerCount = Math.max(1, Math.ceil(normalized.targetDepth / normalized.maxStepdown));
   const segments = [];
   let previous = [contour[0][0], contour[0][1], setupResult.clearancePlaneZ];
@@ -419,7 +472,7 @@ function scanlineIntervals(polygon, y) {
   return intervals;
 }
 
-export function calculatePocketToolpath(setup, operation, bodies = []) {
+export function calculatePocketToolpath(setup, operation, bodies = [], document = null) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
   const normalized = normalizePocketOperation(operation);
   const tool = CAM_TOOL_PRESETS[normalized.toolId];
@@ -431,8 +484,9 @@ export function calculatePocketToolpath(setup, operation, bodies = []) {
   const bodyBounds = setupResult.body.bounds || setupResult.body.metrics?.bounds;
   const bodyHeight = Number(bodyBounds[1][2]) - Number(bodyBounds[0][2]);
   if (normalized.targetDepth > bodyHeight + 1e-7) return fail('Głębokość kieszeni przekracza wysokość bryły.');
-  const loops = extractTopBoundaryLoops(setupResult.body, normalized.boundaryFaceId);
-  if (!loops.length) return fail(normalized.boundaryFaceId ? 'Wybrana ściana nie istnieje albo nie jest pozioma i płaska.' : 'Nie znaleziono zamkniętej górnej krawędzi bryły. Wybierz bryłę z płaską górną powierzchnią.');
+  let resolvedBoundary;
+  try { resolvedBoundary = resolveOperationBoundary(setupResult, normalized, document); } catch (error) { return fail(error.message); }
+  const { loops } = resolvedBoundary;
   const boundary = offsetClosedContour(loops[0], -tool.diameter / 2);
   const xs = boundary.map((point) => point[0]);
   const ys = boundary.map((point) => point[1]);
@@ -449,7 +503,7 @@ export function calculatePocketToolpath(setup, operation, bodies = []) {
     rows.push(...intervals.map((interval) => ({ y, interval })));
   }
   if (!rows.length) return fail('Nie udało się wyznaczyć bezpiecznych przejść wewnątrz kieszeni.');
-  const topZ = boundaryPlaneZ(setupResult.body, normalized.boundaryFaceId);
+  const topZ = resolvedBoundary.planeZ;
   const layerCount = Math.max(1, Math.ceil(normalized.targetDepth / normalized.maxStepdown));
   const segments = [];
   let previous = [rows[0].interval[0], rows[0].y, setupResult.clearancePlaneZ];
@@ -485,7 +539,7 @@ export function calculatePocketToolpath(setup, operation, bodies = []) {
   };
 }
 
-export function calculateAdaptiveToolpath(setup, operation, bodies = []) {
+export function calculateAdaptiveToolpath(setup, operation, bodies = [], document = null) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
   const normalized = normalizeAdaptiveOperation(operation);
   const tool = CAM_TOOL_PRESETS[normalized.toolId];
@@ -497,8 +551,9 @@ export function calculateAdaptiveToolpath(setup, operation, bodies = []) {
   const bodyBounds = setupResult.body.bounds || setupResult.body.metrics?.bounds;
   const bodyHeight = Number(bodyBounds[1][2]) - Number(bodyBounds[0][2]);
   if (normalized.targetDepth > bodyHeight + 1e-7) return fail('Głębokość adaptacyjna przekracza wysokość bryły.');
-  const loops = extractTopBoundaryLoops(setupResult.body, normalized.boundaryFaceId);
-  if (!loops.length) return fail(normalized.boundaryFaceId ? 'Wybrana ściana nie istnieje albo nie jest pozioma i płaska.' : 'Nie znaleziono zamkniętej górnej krawędzi bryły.');
+  let resolvedBoundary;
+  try { resolvedBoundary = resolveOperationBoundary(setupResult, normalized, document); } catch (error) { return fail(error.message); }
+  const { loops } = resolvedBoundary;
   const radialStep = tool.diameter * normalized.optimalLoad;
   const rings = [];
   let ring = offsetClosedContour(loops[0], -tool.diameter / 2);
@@ -515,7 +570,7 @@ export function calculateAdaptiveToolpath(setup, operation, bodies = []) {
     previousArea = nextArea;
   }
   if (!rings.length) return fail('Obrys jest za mały dla wybranego narzędzia i obciążenia optymalnego.');
-  const topZ = boundaryPlaneZ(setupResult.body, normalized.boundaryFaceId);
+  const topZ = resolvedBoundary.planeZ;
   const layerCount = Math.max(1, Math.ceil(normalized.targetDepth / normalized.maxStepdown));
   const segments = [];
   let previous = [rings[0][0][0], rings[0][0][1], setupResult.clearancePlaneZ];
@@ -560,10 +615,10 @@ export function calculateAdaptiveToolpath(setup, operation, bodies = []) {
   };
 }
 
-export function calculateOperationToolpath(setup, operation, bodies = []) {
-  if (operation?.type === 'contour') return calculateContourToolpath(setup, operation, bodies);
-  if (operation?.type === 'pocket') return calculatePocketToolpath(setup, operation, bodies);
-  if (operation?.type === 'adaptive') return calculateAdaptiveToolpath(setup, operation, bodies);
+export function calculateOperationToolpath(setup, operation, bodies = [], document = null) {
+  if (operation?.type === 'contour') return calculateContourToolpath(setup, operation, bodies, document);
+  if (operation?.type === 'pocket') return calculatePocketToolpath(setup, operation, bodies, document);
+  if (operation?.type === 'adaptive') return calculateAdaptiveToolpath(setup, operation, bodies, document);
   return calculateFacingToolpath(setup, operation, bodies);
 }
 
@@ -572,8 +627,8 @@ function gcodeNumber(value) {
   return Number(Number(value).toFixed(4)).toString();
 }
 
-export function createGrblGcode(setup, operation, bodies = [], { projectName = 'MadCAD' } = {}) {
-  const toolpath = calculateOperationToolpath(setup, operation, bodies);
+export function createGrblGcode(setup, operation, bodies = [], { projectName = 'MadCAD', document = null } = {}) {
+  const toolpath = calculateOperationToolpath(setup, operation, bodies, document);
   if (!toolpath.valid || !toolpath.segments.length) throw new Error(toolpath.warnings.join(' ') || 'Ścieżka CAM nie jest gotowa do eksportu.');
   const origin = toolpath.origin;
   const safeLocalZ = toolpath.clearancePlaneZ - origin[2];

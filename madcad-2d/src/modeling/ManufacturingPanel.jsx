@@ -4,7 +4,7 @@ import { CAM_MACHINE_PRESETS, CAM_TOOL_PRESETS, CAM_WCS_ORIGINS, calculateManufa
 
 const millimeter = (value) => Number.isFinite(value) ? `${value.toFixed(2)} mm` : '—';
 
-export function ManufacturingPanel({ manufacturing, bodies = [], readOnly = false, onCreate, onActivate, onUpdate, onDelete, onCreateOperation, onUpdateOperation, onDeleteOperation, onExportOperation }) {
+export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument = null, readOnly = false, onCreate, onActivate, onUpdate, onDelete, onCreateOperation, onUpdateOperation, onDeleteOperation, onExportOperation }) {
   const setups = manufacturing?.setups || [];
   const activeId = manufacturing?.activeSetupId || setups[0]?.id || '';
   const setup = setups.find((item) => item.id === activeId) || null;
@@ -48,7 +48,7 @@ export function ManufacturingPanel({ manufacturing, bodies = [], readOnly = fals
           <header><div><strong>Operacje</strong><small>Kolejność wykonania od góry</small></div><div className="manufacturing-add-actions"><button type="button" disabled={readOnly || !result?.valid} onClick={() => onCreateOperation(setup.id, 'face')}><ScanLine size={14} /> Planowanie</button><button type="button" disabled={readOnly || !result?.valid} onClick={() => onCreateOperation(setup.id, 'pocket')}><Layers3 size={14} /> Kieszeń</button><button type="button" disabled={readOnly || !result?.valid} onClick={() => onCreateOperation(setup.id, 'adaptive')}><Gauge size={14} /> Adaptacyjne</button><button type="button" disabled={readOnly || !result?.valid} onClick={() => onCreateOperation(setup.id, 'contour')}><Route size={14} /> Kontur</button></div></header>
           {!setup.operations.length && <div className="manufacturing-operation-empty"><div><strong>Dodaj pierwszą operację</strong><small>Bez zaznaczenia używana jest góra bryły. Aby ograniczyć kieszeń lub kontur, zaznacz wcześniej poziomą ścianę modelu.</small></div></div>}
           {setup.operations.map((operation, operationIndex) => {
-            const toolpath = calculateOperationToolpath(setup, operation, bodies);
+            const toolpath = calculateOperationToolpath(setup, operation, bodies, projectDocument);
             const isContour = operation.type === 'contour';
             const isPocket = operation.type === 'pocket';
             const isAdaptive = operation.type === 'adaptive';
@@ -57,7 +57,7 @@ export function ManufacturingPanel({ manufacturing, bodies = [], readOnly = fals
               <header><div><OperationIcon size={15} /><span><strong>{operationIndex + 1} · {operation.name}</strong><small>{isContour ? 'Zewnętrzny obrys górnej powierzchni' : isPocket ? 'Wnętrze górnego obrysu bryły' : isAdaptive ? 'Stałe obciążenie i wejście rampą' : 'Równoległe planowanie powierzchni'}</small></span></div><button type="button" aria-label={`Usuń operację ${operation.name}`} disabled={readOnly} onClick={() => onDeleteOperation(setup.id, operation.id)}><Trash2 size={13} /></button></header>
               <div className="manufacturing-form operation-form">
                 <label><span>Nazwa</span><input value={operation.name} maxLength="80" disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { name: event.target.value })} /></label>
-                {(isContour || isPocket || isAdaptive) && <div className="manufacturing-boundary"><Crosshair size={13} /><span><strong>Granica</strong><small>{operation.boundaryFaceId ? 'Zaznaczona pozioma ściana' : 'Automatycznie: górny obrys bryły'}</small></span></div>}
+                {(isContour || isPocket || isAdaptive) && <div className="manufacturing-boundary"><Crosshair size={13} /><span><strong>Granica</strong><small>{operation.boundaryProfileId ? 'Skojarzony profil szkicu XY' : operation.boundaryFaceId ? 'Zaznaczona pozioma ściana' : 'Automatycznie: górny obrys bryły'}</small></span></div>}
                 <label><span>Narzędzie</span><select value={operation.toolId} disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { toolId: event.target.value })}>{Object.values(CAM_TOOL_PRESETS).map((tool) => <option value={tool.id} key={tool.id}>{tool.name}</option>)}</select></label>
                 <div className="manufacturing-field-grid">
                   {isContour || isPocket || isAdaptive ? <label><span>Głębokość</span><input type="number" min="0.05" step="0.1" value={operation.targetDepth} disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { targetDepth: event.target.value })} /><em>mm</em></label> : <label><span>Stepover</span><input type="number" min="0.1" max="0.9" step="0.05" value={operation.stepover} disabled={readOnly} onChange={(event) => onUpdateOperation(setup.id, operation.id, { stepover: event.target.value })} /><em>×D</em></label>}

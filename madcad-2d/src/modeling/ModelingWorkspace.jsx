@@ -967,16 +967,20 @@ export default function ModelingWorkspace() {
     if (!setup) return;
     const sameTypeCount = setup.operations.filter((item) => item.type === type).length + 1;
     const selectedBoundaryFaceId = selection?.kind === 'face' && selection.bodyId === setup.bodyId ? selection.id : '';
+    const boundarySelection = selectedProfileMatch && !activeSketchId
+      ? { boundarySketchId: selectedProfileMatch.sketch.id, boundaryProfileId: selectedProfileMatch.profile.id }
+      : { boundaryFaceId: selectedBoundaryFaceId };
     const operation = type === 'contour'
-      ? createContourOperation({ name: `Kontur 2D ${sameTypeCount}`, boundaryFaceId: selectedBoundaryFaceId })
+      ? createContourOperation({ name: `Kontur 2D ${sameTypeCount}`, ...boundarySelection })
       : type === 'pocket'
-        ? createPocketOperation({ name: `Kieszeń 2D ${sameTypeCount}`, boundaryFaceId: selectedBoundaryFaceId })
+        ? createPocketOperation({ name: `Kieszeń 2D ${sameTypeCount}`, ...boundarySelection })
         : type === 'adaptive'
-          ? createAdaptiveOperation({ name: `Adaptacyjne 2D ${sameTypeCount}`, boundaryFaceId: selectedBoundaryFaceId })
+          ? createAdaptiveOperation({ name: `Adaptacyjne 2D ${sameTypeCount}`, ...boundarySelection })
         : createFacingOperation({ name: `Planowanie ${sameTypeCount}` });
     setup.operations.push(operation);
     const operationLabel = type === 'pocket' ? 'Kieszeń 2D' : type === 'adaptive' ? 'Adaptacyjne 2D' : 'Kontur 2D';
-    setNotice(type === 'face' ? 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.' : `Utworzono ${operationLabel}${selectedBoundaryFaceId ? ' dla zaznaczonej ściany' : ' dla górnej powierzchni bryły'}. Ustaw frez, głębokość, zejście i posuw.`);
+    const boundaryLabel = selectedProfileMatch && !activeSketchId ? ' dla zaznaczonego profilu szkicu' : selectedBoundaryFaceId ? ' dla zaznaczonej ściany' : ' dla górnej powierzchni bryły';
+    setNotice(type === 'face' ? 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.' : `Utworzono ${operationLabel}${boundaryLabel}. Ustaw frez, głębokość, zejście i posuw.`);
   });
   const updateCamOperation = (setupId, operationId, patch) => commit((next) => {
     const setup = next.manufacturing.setups.find((item) => item.id === setupId);
@@ -993,7 +997,7 @@ export default function ModelingWorkspace() {
       const setup = document.manufacturing.setups.find((item) => item.id === setupId);
       const operation = setup?.operations.find((item) => item.id === operationId);
       if (!setup || !operation) throw new Error('Nie znaleziono operacji CAM.');
-      const output = createGrblGcode(setup, operation, engine.bodies, { projectName: document.name });
+      const output = createGrblGcode(setup, operation, engine.bodies, { projectName: document.name, document });
       downloadBlob(new Blob([output.text], { type: 'text/plain;charset=utf-8' }), `${safeName(document.name)}-${safeName(operation.name)}.nc`);
       setNotice(`Zapisano G-code GRBL: ${output.lineCount} linii. Przed obróbką sprawdź WCS i wykonaj przejazd bez materiału.`);
     } catch (error) {
@@ -3912,6 +3916,7 @@ export default function ModelingWorkspace() {
     window.__madcadVerifyFinishCanvasSketchTool = finishCanvasSketchTool;
     window.__madcadVerifySketchSelection = handleSketchSelection;
     window.__madcadVerifyTopologySelection = handleTopologySelection;
+    window.__madcadVerifyProfileSelection = (sketchId, profileId) => setSelection({ kind: 'profile', id: profileId, sketchId });
     window.__madcadVerifyCreateLostTopologyReference = () => {
       const body = engine.bodies[0];
       const edge = body?.topology?.edges?.[0];
@@ -4382,6 +4387,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyFinishCanvasSketchTool;
       delete window.__madcadVerifySketchSelection;
       delete window.__madcadVerifyTopologySelection;
+      delete window.__madcadVerifyProfileSelection;
       delete window.__madcadVerifyCreateLostTopologyReference;
       delete window.__madcadVerifyBreakProjectedReference;
       delete window.__madcadVerifyMoveSketch;
@@ -7218,7 +7224,7 @@ export default function ModelingWorkspace() {
             : { title: 'PROJEKTUJ · szkic 2D i model 3D', text: readyEngineLabel };
   const activeCamSetup = document.manufacturing.setups.find((setup) => setup.id === document.manufacturing.activeSetupId) || null;
   const manufacturingToolpaths = workspace === 'manufacture' && activeCamSetup
-    ? activeCamSetup.operations.map((operation) => calculateOperationToolpath(activeCamSetup, operation, engine.bodies)).filter((toolpath) => toolpath.valid)
+    ? activeCamSetup.operations.map((operation) => calculateOperationToolpath(activeCamSetup, operation, engine.bodies, document)).filter((toolpath) => toolpath.valid)
     : [];
   const manufacturingVisualization = manufacturingToolpaths.length ? {
     stockBounds: manufacturingToolpaths[0].stockBounds,
@@ -7804,7 +7810,7 @@ export default function ModelingWorkspace() {
             renderCaptureRef={renderCaptureRef}
           />
           </React.Suspense>}
-          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onExportOperation={exportCamOperation} />}
+          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} projectDocument={document} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onExportOperation={exportCamOperation} />}
           {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
           {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
