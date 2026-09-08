@@ -47,8 +47,26 @@ export function normalizeContourOperation(operation = {}, index = 0) {
   };
 }
 
+export function normalizePocketOperation(operation = {}, index = 0) {
+  return {
+    id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
+    name: String(operation.name || `Kieszeń 2D ${index + 1}`).trim().slice(0, 80) || `Kieszeń 2D ${index + 1}`,
+    type: 'pocket',
+    toolId: CAM_TOOL_PRESETS[operation.toolId] ? operation.toolId : 'flat-6',
+    targetDepth: Math.max(0.05, Number(operation.targetDepth) || 2),
+    maxStepdown: Math.max(0.05, Number(operation.maxStepdown) || 1),
+    stepover: Math.min(0.8, Math.max(0.1, Number(operation.stepover) || 0.45)),
+    feedRate: Math.max(1, Number(operation.feedRate) || 500),
+    plungeRate: Math.max(1, Number(operation.plungeRate) || 150),
+    spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 8000)),
+    boundary: 'body-top',
+  };
+}
+
 export function normalizeManufacturingOperation(operation = {}, index = 0) {
-  return operation?.type === 'contour' ? normalizeContourOperation(operation, index) : normalizeFacingOperation(operation, index);
+  if (operation?.type === 'contour') return normalizeContourOperation(operation, index);
+  if (operation?.type === 'pocket') return normalizePocketOperation(operation, index);
+  return normalizeFacingOperation(operation, index);
 }
 
 const finiteNonNegative = (value, fallback) => {
@@ -136,6 +154,10 @@ export function createFacingOperation(options = {}) {
 
 export function createContourOperation(options = {}) {
   return normalizeContourOperation({ ...options, id: createId('cam-operation') });
+}
+
+export function createPocketOperation(options = {}) {
+  return normalizePocketOperation({ ...options, id: createId('cam-operation') });
 }
 
 export function calculateFacingToolpath(setup, operation, bodies = []) {
@@ -252,7 +274,7 @@ export function extractTopBoundaryLoops(body) {
 }
 
 export function offsetClosedContour(points, distance) {
-  if (!Array.isArray(points) || points.length < 3 || !(distance > 0)) return points?.map((point) => [...point]) || [];
+  if (!Array.isArray(points) || points.length < 3 || !Number.isFinite(distance) || Math.abs(distance) <= 1e-9) return points?.map((point) => [...point]) || [];
   const orientation = Math.sign(signedPolygonArea(points)) || 1;
   const lineIntersection = (a, directionA, b, directionB) => {
     const cross = directionA[0] * directionB[1] - directionA[1] * directionB[0];
@@ -276,7 +298,7 @@ export function offsetClosedContour(points, distance) {
     const offsetA = [point[0] + normalA[0] * distance, point[1] + normalA[1] * distance];
     const offsetB = [point[0] + normalB[0] * distance, point[1] + normalB[1] * distance];
     const intersection = lineIntersection(offsetA, incoming, offsetB, outgoing);
-    if (intersection && Math.hypot(intersection[0] - point[0], intersection[1] - point[1]) <= distance * 5) return intersection;
+    if (intersection && Math.hypot(intersection[0] - point[0], intersection[1] - point[1]) <= Math.abs(distance) * 5) return intersection;
     const bisector = normalize([normalA[0] + normalB[0], normalA[1] + normalB[1]]);
     return [point[0] + bisector[0] * distance, point[1] + bisector[1] * distance];
   });
@@ -344,10 +366,95 @@ export function calculateContourToolpath(setup, operation, bodies = []) {
   };
 }
 
+function scanlineIntervals(polygon, y) {
+  const intersections = [];
+  for (let index = 0; index < polygon.length; index += 1) {
+    const a = polygon[index];
+    const b = polygon[(index + 1) % polygon.length];
+    if ((a[1] > y) === (b[1] > y)) continue;
+    intersections.push(a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]));
+  }
+  intersections.sort((a, b) => a - b);
+  const intervals = [];
+  for (let index = 0; index + 1 < intersections.length; index += 2) {
+    if (intersections[index + 1] - intersections[index] > 1e-7) intervals.push([intersections[index], intersections[index + 1]]);
+  }
+  return intervals;
+}
+
+export function calculatePocketToolpath(setup, operation, bodies = []) {
+  const setupResult = calculateManufacturingSetup(setup, bodies);
+  const normalized = normalizePocketOperation(operation);
+  const tool = CAM_TOOL_PRESETS[normalized.toolId];
+  const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
+  if (!setupResult.body || !setupResult.stockBounds) return fail('Kieszeń wymaga poprawnego Setupu i bryły.');
+  if (!setupResult.valid) return fail('Popraw Setup przed obliczeniem kieszeni.');
+  if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`);
+  if (normalized.targetDepth > tool.fluteLength) return fail(`Głębokość przekracza długość ostrza narzędzia (${tool.fluteLength} mm).`);
+  const bodyBounds = setupResult.body.bounds || setupResult.body.metrics?.bounds;
+  const bodyHeight = Number(bodyBounds[1][2]) - Number(bodyBounds[0][2]);
+  if (normalized.targetDepth > bodyHeight + 1e-7) return fail('Głębokość kieszeni przekracza wysokość bryły.');
+  const loops = extractTopBoundaryLoops(setupResult.body);
+  if (!loops.length) return fail('Nie znaleziono zamkniętej górnej krawędzi bryły. Wybierz bryłę z płaską górną powierzchnią.');
+  const boundary = offsetClosedContour(loops[0], -tool.diameter / 2);
+  const xs = boundary.map((point) => point[0]);
+  const ys = boundary.map((point) => point[1]);
+  const minimumY = Math.min(...ys);
+  const maximumY = Math.max(...ys);
+  if (!(Math.max(...xs) - Math.min(...xs) > 1e-7) || !(maximumY - minimumY > 1e-7)) return fail('Obrys jest za mały dla wybranego narzędzia.');
+  const rowStep = tool.diameter * normalized.stepover;
+  const rowCount = Math.max(2, Math.ceil((maximumY - minimumY) / rowStep) + 1);
+  const rows = [];
+  for (let row = 0; row < rowCount; row += 1) {
+    const y = minimumY + (maximumY - minimumY) * row / (rowCount - 1);
+    const intervals = scanlineIntervals(boundary, y);
+    if (row % 2) intervals.reverse().forEach((interval) => interval.reverse());
+    rows.push(...intervals.map((interval) => ({ y, interval })));
+  }
+  if (!rows.length) return fail('Nie udało się wyznaczyć bezpiecznych przejść wewnątrz kieszeni.');
+  const vertexValues = Array.from(setupResult.body.vertices || []);
+  const topZ = vertexValues.length >= 3
+    ? vertexValues.reduce((maximum, value, index) => index % 3 === 2 ? Math.max(maximum, value) : maximum, -Infinity)
+    : Number(bodyBounds[1][2]);
+  const layerCount = Math.max(1, Math.ceil(normalized.targetDepth / normalized.maxStepdown));
+  const segments = [];
+  let previous = [rows[0].interval[0], rows[0].y, setupResult.clearancePlaneZ];
+  const push = (kind, to, feed = null) => {
+    if (Math.hypot(...to.map((value, axis) => value - previous[axis])) <= 1e-9) return;
+    segments.push({ kind, from: previous, to, ...(feed ? { feed } : {}) });
+    previous = to;
+  };
+  for (let layer = 1; layer <= layerCount; layer += 1) {
+    const z = topZ - Math.min(normalized.targetDepth, layer * normalized.targetDepth / layerCount);
+    for (const row of rows) {
+      const start = [row.interval[0], row.y, z];
+      const end = [row.interval[1], row.y, z];
+      push('rapid', [start[0], start[1], setupResult.clearancePlaneZ]);
+      push('plunge', start, normalized.plungeRate);
+      push('cut', end, normalized.feedRate);
+      push('rapid', [end[0], end[1], setupResult.clearancePlaneZ]);
+    }
+  }
+  return {
+    valid: true,
+    setup: setupResult,
+    stockBounds: setupResult.stockBounds,
+    origin: setupResult.origin,
+    clearancePlaneZ: setupResult.clearancePlaneZ,
+    operation: normalized,
+    tool,
+    segments,
+    layerCount,
+    rowCount: rows.length,
+    ...summarizeToolpath(segments),
+    warnings: [],
+  };
+}
+
 export function calculateOperationToolpath(setup, operation, bodies = []) {
-  return operation?.type === 'contour'
-    ? calculateContourToolpath(setup, operation, bodies)
-    : calculateFacingToolpath(setup, operation, bodies);
+  if (operation?.type === 'contour') return calculateContourToolpath(setup, operation, bodies);
+  if (operation?.type === 'pocket') return calculatePocketToolpath(setup, operation, bodies);
+  return calculateFacingToolpath(setup, operation, bodies);
 }
 
 function gcodeNumber(value) {
@@ -413,10 +520,10 @@ export function validateManufacturing(manufacturing) {
       const operationBase = `${base}.operations[${operationIndex}]`;
       if (!operation || typeof operation !== 'object') issues.push({ path: operationBase, message: 'Operacja CAM musi być obiektem.', code: 'TYPE' });
       else {
-        if (!['face', 'contour'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
+        if (!['face', 'contour', 'pocket'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
         if (!CAM_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
         for (const key of ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm']) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr operacji musi być dodatni.', code: 'VALUE' });
-        if (operation.type === 'contour' && (!Number.isFinite(Number(operation.targetDepth)) || Number(operation.targetDepth) <= 0)) issues.push({ path: `${operationBase}.targetDepth`, message: 'Głębokość konturu musi być dodatnia.', code: 'VALUE' });
+        if (['contour', 'pocket'].includes(operation.type) && (!Number.isFinite(Number(operation.targetDepth)) || Number(operation.targetDepth) <= 0)) issues.push({ path: `${operationBase}.targetDepth`, message: 'Głębokość obróbki musi być dodatnia.', code: 'VALUE' });
       }
     });
   });

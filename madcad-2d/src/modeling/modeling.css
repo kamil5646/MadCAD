@@ -6387,6 +6387,10 @@
 .manufacturing-panel > nav { display: flex; gap: 4px; padding: 7px 9px 0; overflow-x: auto; }
 .manufacturing-panel > nav button { flex: 0 0 auto; padding: 0 10px; }
 .manufacturing-panel > nav button.active { border-color: #57c6e6; background: #245e75; color: white; }
+.manufacturing-page-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 8px 12px 10px; padding: 3px; border-radius: 4px; background: #252f3a; }
+.manufacturing-page-tabs button { border-color: transparent; background: transparent; color: #aebbc6; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.manufacturing-page-tabs button.active { border-color: #5a7081; background: #3d4a58; color: #f2f6f8; }
+.manufacturing-page-tabs span { min-width: 18px; padding: 1px 5px; border-radius: 9px; background: #26323d; color: #67d0ed; font-size: 9px; }
 .manufacturing-form { display: grid; gap: 9px; padding: 11px 12px; }
 .manufacturing-form > label,
 .manufacturing-form fieldset > label,

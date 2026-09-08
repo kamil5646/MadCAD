@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   calculateContourToolpath,
+  calculatePocketToolpath,
   createContourOperation,
   createGrblGcode,
   createManufacturingSetup,
+  createPocketOperation,
   extractTopBoundaryLoops,
   offsetClosedContour,
   validateManufacturing,
@@ -58,5 +60,24 @@ describe('CAM contour operations', () => {
     const setup = createManufacturingSetup({ bodyId: box.id });
     const operation = createContourOperation({ targetDepth: 21, toolId: 'flat-6' });
     expect(calculateContourToolpath(setup, operation, [box]).warnings.join(' ')).toContain('długość ostrza');
+  });
+
+  it('clears a pocket with scanlines kept inside the compensated boundary', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id });
+    const operation = createPocketOperation({ targetDepth: 2, maxStepdown: 1, stepover: 0.5, toolId: 'flat-6' });
+    setup.operations.push(operation);
+    const toolpath = calculatePocketToolpath(setup, operation, [box]);
+    expect(toolpath.valid).toBe(true);
+    expect(toolpath.layerCount).toBe(2);
+    expect(toolpath.rowCount).toBeGreaterThanOrEqual(5);
+    const cuts = toolpath.segments.filter((segment) => segment.kind === 'cut');
+    expect(cuts.length).toBe(toolpath.rowCount * 2);
+    for (const segment of cuts) {
+      expect(segment.from[0]).toBeGreaterThanOrEqual(3);
+      expect(segment.to[0]).toBeLessThanOrEqual(37);
+      expect(segment.from[1]).toBeGreaterThanOrEqual(3);
+      expect(segment.to[1]).toBeLessThanOrEqual(17);
+    }
+    expect(createGrblGcode(setup, operation, [box]).text).toContain('Kieszeń 2D');
   });
 });

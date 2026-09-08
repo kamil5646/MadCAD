@@ -145,7 +145,7 @@ import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMesh
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
-import { calculateOperationToolpath, createContourOperation, createFacingOperation, createGrblGcode, createManufacturingSetup, normalizeManufacturingOperation, normalizeManufacturingSetup } from '../cad-core/manufacturing.js';
+import { calculateOperationToolpath, createContourOperation, createFacingOperation, createGrblGcode, createManufacturingSetup, createPocketOperation, normalizeManufacturingOperation, normalizeManufacturingSetup } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
@@ -968,9 +968,11 @@ export default function ModelingWorkspace() {
     const sameTypeCount = setup.operations.filter((item) => item.type === type).length + 1;
     const operation = type === 'contour'
       ? createContourOperation({ name: `Kontur 2D ${sameTypeCount}` })
-      : createFacingOperation({ name: `Planowanie ${sameTypeCount}` });
+      : type === 'pocket'
+        ? createPocketOperation({ name: `Kieszeń 2D ${sameTypeCount}` })
+        : createFacingOperation({ name: `Planowanie ${sameTypeCount}` });
     setup.operations.push(operation);
-    setNotice(type === 'contour' ? 'Utworzono Kontur 2D. Ustaw frez, głębokość, zejście i posuw.' : 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.');
+    setNotice(type === 'face' ? 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.' : `Utworzono ${type === 'pocket' ? 'Kieszeń 2D' : 'Kontur 2D'}. Ustaw frez, głębokość, zejście i posuw.`);
   });
   const updateCamOperation = (setupId, operationId, patch) => commit((next) => {
     const setup = next.manufacturing.setups.find((item) => item.id === setupId);
