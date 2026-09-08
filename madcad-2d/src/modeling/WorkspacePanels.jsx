@@ -530,6 +530,7 @@ export function StaticScreeningPanel({ bodies = [], bodyId = '', materialId = 's
 }
 
 export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', loadType = 'tip', loadPositionPercent = '100', force = '1000', elementCount = '8', result, error = '', onChange, onClose }) {
+  const [diagram, setDiagram] = React.useState('deflection');
   const format = (value, digits = 3) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
   const nodes = result?.nodalDeflections || [];
   const maximumDisplacement = Math.max(0, ...nodes.map((node) => Math.abs(node.displacement)));
@@ -541,6 +542,12 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
   const momentPoints = (result?.bendingMoments || []).map((node) => {
     const x = result.length ? 8 + node.x / result.length * 224 : 8;
     const y = result.maximumMoment ? 54 - node.moment / result.maximumMoment * 46 : 54;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(' ');
+  const maximumShear = Math.max(0, ...(result?.shearForces || []).map((node) => node.shear));
+  const shearPoints = (result?.shearForces || []).map((node) => {
+    const x = result.length ? 8 + node.x / result.length * 224 : 8;
+    const y = maximumShear ? 54 - node.shear / maximumShear * 46 : 54;
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   }).join(' ');
   return (
@@ -556,8 +563,14 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
         {loadType === 'tip' && <Field label="Położenie od utwierdzenia" value={loadPositionPercent} onChange={(value) => onChange({ loadPositionPercent: value })} suffix="%" />}
         <div className="beam-fea-legend" aria-label="Legenda warunków brzegowych"><span><i className="support" />Utwierdzenie</span><span><i className="load" />Obciążenie</span><span><i className="deformation" />Deformacja</span></div>
         {error && <p className="measure-error">{error}</p>}
-        {nodes.length > 1 && <div className="beam-fea-chart"><span>Linia ugięcia · skala automatyczna</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres ugięcia węzłów MES"><line x1="8" y1="8" x2="232" y2="8" /><polyline points={chartPoints} />{nodes.map((node, index) => <circle key={node.x} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={maximumDisplacement ? 8 + Math.abs(node.displacement) / maximumDisplacement * 46 : 8} r={index === nodes.length - 1 ? 2.8 : 1.5} />)}</svg></div>}
-        {result?.bendingMoments?.length > 1 && <div className="beam-fea-chart beam-fea-moment-chart"><span>Moment zginający · maks. {format(result.maximumMoment)} N·mm</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres momentu zginającego MES"><line x1="8" y1="54" x2="232" y2="54" /><polyline points={momentPoints} />{result.bendingMoments.map((node) => <circle key={node.x} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={result.maximumMoment ? 54 - node.moment / result.maximumMoment * 46 : 54} r="1.5" />)}</svg></div>}
+        {result && <div className="beam-fea-chart-tabs" role="group" aria-label="Wynik wykresu MES">
+          <button type="button" className={diagram === 'deflection' ? 'active' : ''} aria-pressed={diagram === 'deflection'} onClick={() => setDiagram('deflection')}>Ugięcie</button>
+          <button type="button" className={diagram === 'moment' ? 'active' : ''} aria-pressed={diagram === 'moment'} onClick={() => setDiagram('moment')}>Moment</button>
+          <button type="button" className={diagram === 'shear' ? 'active' : ''} aria-pressed={diagram === 'shear'} onClick={() => setDiagram('shear')}>Tnąca</button>
+        </div>}
+        {diagram === 'deflection' && nodes.length > 1 && <div className="beam-fea-chart"><span>Linia ugięcia · skala automatyczna</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres ugięcia węzłów MES"><line x1="8" y1="8" x2="232" y2="8" /><polyline points={chartPoints} />{nodes.map((node, index) => <circle key={node.x} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={maximumDisplacement ? 8 + Math.abs(node.displacement) / maximumDisplacement * 46 : 8} r={index === nodes.length - 1 ? 2.8 : 1.5} />)}</svg></div>}
+        {diagram === 'moment' && result?.bendingMoments?.length > 1 && <div className="beam-fea-chart beam-fea-moment-chart"><span>Moment zginający · maks. {format(result.maximumMoment)} N·mm</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres momentu zginającego MES"><line x1="8" y1="54" x2="232" y2="54" /><polyline points={momentPoints} />{result.bendingMoments.map((node) => <circle key={node.x} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={result.maximumMoment ? 54 - node.moment / result.maximumMoment * 46 : 54} r="1.5" />)}</svg></div>}
+        {diagram === 'shear' && result?.shearForces?.length > 1 && <div className="beam-fea-chart beam-fea-shear-chart"><span>Siła tnąca · maks. {format(maximumShear)} N</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres siły tnącej MES"><line x1="8" y1="54" x2="232" y2="54" /><polyline points={shearPoints} />{result.shearForces.map((node, index) => <circle key={`${node.x}-${index}`} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={maximumShear ? 54 - node.shear / maximumShear * 46 : 54} r="1.5" />)}</svg></div>}
         {result && <div className={`static-result ${result.status}`}>
           <div className="static-result-heading"><strong>{result.status === 'safe' ? 'Zapas ≥ 2' : result.status === 'warning' ? 'Mały zapas' : 'Przekroczona plastyczność'}</strong><span>{result.elementCount} elem.</span></div>
           <div className="measure-row"><span>Węzły / DOF</span><strong>{result.nodeCount} / {result.nodeCount * 2}</strong></div>

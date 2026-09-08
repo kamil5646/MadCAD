@@ -201,6 +201,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.36f Siłę skupioną można umieścić w dowolnym położeniu 0–100% długości belki. Solver używa funkcji kształtu Hermite'a do zgodnego rozdzielenia siły i momentów między węzły elementu, zamiast zaokrąglać położenie do siatki.
 - [x] P1.36g Warunki brzegowe analizy są widoczne bezpośrednio na modelu: czerwone utwierdzenie oraz pomarańczowa strzałka siły skupionej albo sześć strzałek obciążenia rozłożonego. Panel ma spójną legendę kolorów deformacji, podpory i obciążenia.
 - [x] P1.36h Solver zachowuje momenty zginające na końcach wszystkich elementów, a panel pokazuje diagram momentu wzdłuż całej belki obok wykresu ugięcia. Maksimum diagramu jest sprawdzane względem raportowanego naprężenia i reakcji utwierdzenia.
+- [x] P1.36i Solver zachowuje siły tnące na obu końcach każdego elementu. Panel wyników nie układa już wielu wykresów jeden pod drugim: wspólny przełącznik Ugięcie/Moment/Tnąca pokazuje jeden czytelny diagram naraz i ogranicza zajęte miejsce robocze.
 
 ## P2 — dokumentacja techniczna 2D
 

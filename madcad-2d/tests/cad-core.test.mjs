@@ -2371,6 +2371,8 @@ test('MES belki składa macierz sztywności i zgadza się z rozwiązaniem analit
   assert.ok(Math.abs(result.maximumStress - 300) < 1e-7);
   assert.equal(result.bendingMoments.length, 9);
   assert.ok(Math.abs(Math.max(...result.bendingMoments.map((node) => node.moment)) - result.maximumMoment) < 1e-7);
+  assert.equal(result.shearForces.length, 16);
+  assert.ok(Math.abs(Math.max(...result.shearForces.map((node) => node.shear)) - result.reactionForce) < 1e-7);
   assert.equal(result.status, 'failed');
   assert.equal(result.limitations.length, 3);
   assert.throws(() => calculateCantileverBeamFea(body, { spanAxis: 'x', loadAxis: 'x', force: 1000, elementCount: 4 }), /muszą być różne/);
@@ -2389,6 +2391,8 @@ test('MES belki obsługuje równomierne obciążenie rozłożone', () => {
   assert.ok(Math.abs(result.maximumStress - 150) < 1e-7);
   assert.equal(result.bendingMoments.length, 9);
   assert.ok(Math.abs(result.bendingMoments[0].moment - 50000) < 1e-5);
+  assert.equal(result.shearForces.length, 16);
+  assert.ok(Math.abs(Math.max(...result.shearForces.map((node) => node.shear)) - result.reactionForce) < 1e-7);
   assert.throws(() => calculateCantileverBeamFea(body, { loadType: 'distributed', force: 0, elementCount: 4 }), /Obciążenie liniowe musi być dodatnie/);
 });
 

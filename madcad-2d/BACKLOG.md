@@ -127,6 +127,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] P1.36f Dowolne położenie siły skupionej ze zgodnym rozdzieleniem funkcjami kształtu elementu.
 - [x] P1.36g Symbole utwierdzenia i obciążenia na modelu oraz legenda warunków brzegowych.
 - [x] P1.36h Diagram momentu zginającego z sił końcowych wszystkich elementów.
+- [x] P1.36i Diagram siły tnącej oraz zwarty przełącznik pojedynczego wykresu wyników.
 - Walidowany solver MES dla dowolnej geometrii 3D, sprzężona analiza termiczna oraz późniejsza optymalizacja topologii.
 
 ### Manufacture / CAM

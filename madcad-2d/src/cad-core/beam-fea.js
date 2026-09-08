@@ -86,12 +86,17 @@ export function calculateCantileverBeamFea(body, options = {}) {
   const reactions = multiply(stiffness, displacement).map((value, index) => value - load[index]);
   let maximumMoment = 0;
   const bendingMoments = [];
+  const shearForces = [];
   for (let element = 0; element < elementCount; element += 1) {
     const indices = [element * 2, element * 2 + 1, element * 2 + 2, element * 2 + 3];
     const endForces = multiply(local, indices.map((index) => displacement[index])).map((value, index) => value - equivalentLoads[element][index]);
     maximumMoment = Math.max(maximumMoment, Math.abs(endForces[1]), Math.abs(endForces[3]));
     if (element === 0) bendingMoments.push({ x: 0, moment: Math.abs(endForces[1]) });
     bendingMoments.push({ x: (element + 1) * elementLength, moment: Math.abs(endForces[3]) });
+    shearForces.push(
+      { x: element * elementLength, shear: Math.abs(endForces[0]) },
+      { x: (element + 1) * elementLength, shear: Math.abs(endForces[2]) },
+    );
   }
   const tipDeflection = Math.abs(displacement[dofCount - 2]);
   const analyticalDeflection = loadType === 'distributed'
@@ -124,6 +129,7 @@ export function calculateCantileverBeamFea(body, options = {}) {
     reactionForce: Math.abs(reactions[0]),
     reactionMoment: Math.abs(reactions[1]),
     bendingMoments,
+    shearForces,
     nodalDeflections: Array.from({ length: elementCount + 1 }, (_, node) => ({ x: node * elementLength, displacement: displacement[node * 2], rotation: displacement[node * 2 + 1] })),
     status: safetyFactor >= 2 ? 'safe' : safetyFactor >= 1 ? 'warning' : 'failed',
     limitations: [
