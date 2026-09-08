@@ -137,7 +137,11 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 
 ### Manufacture / CAM
 
-- Setup, stock, narzędzia, frezowanie, toczenie, cięcie, symulacja i postprocesory G-code.
+- [x] Setup frezowania 3-osiowego: wybór bryły i obrabiarki, półfabrykat z naddatkami, zero WCS, wysokość bezpieczna, kontrola przesuwu maszyny, zapis/migracja/Undo.
+- [ ] Biblioteka narzędzi i pierwsza ścieżka frezowania 2D Adaptive.
+- [ ] Symulacja usuwania materiału, kontrola kolizji i raport czasu obróbki.
+- [ ] Postprocesory G-code z bezpiecznym podglądem oraz walidacją maszyny.
+- [ ] Toczenie i cięcie.
 
 ### Electronics, chmura i rozszerzalność
 

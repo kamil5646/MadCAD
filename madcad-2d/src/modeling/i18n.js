@@ -85,6 +85,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Ustawienia, wersje i kontrola projektu.': 'Project settings, versions, and checks.',
   'PROJEKTUJ': 'DESIGN',
   'ZARZĄDZAJ': 'MANAGE',
+  'WYTWARZANIE': 'MANUFACTURE',
   'DODAJ': 'ADD',
   'OPERACJE': 'OPERATIONS',
   'SPRAWDŹ': 'INSPECT',

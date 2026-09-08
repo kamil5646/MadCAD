@@ -54,6 +54,7 @@ import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/p
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
+import { calculateManufacturingSetup, createManufacturingSetup, validateManufacturing } from '../src/cad-core/manufacturing.js';
 import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
@@ -5486,4 +5487,45 @@ test('brak miejsca podczas zapisu nie narusza ostatniej poprawnej wersji', async
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('Setup CAM wylicza półfabrykat, WCS i zgodność z obrabiarką', () => {
+  const setup = createManufacturingSetup({
+    bodyId: 'body-test',
+    machineId: 'desktop-3018',
+    stock: { sideOffset: 2, topOffset: 3, bottomOffset: 1 },
+    safeHeight: 6,
+  });
+  const result = calculateManufacturingSetup(setup, [{ id: 'body-test', name: 'Detal', bounds: [[10, 20, -2], [110, 70, 18]] }]);
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.stockBounds, [[8, 18, -3], [112, 72, 21]]);
+  assert.deepEqual(result.dimensions, [104, 54, 24]);
+  assert.deepEqual(result.origin, [60, 45, 21]);
+  assert.equal(result.clearancePlaneZ, 27);
+});
+
+test('Setup CAM ostrzega o przekroczeniu przesuwu maszyny', () => {
+  const setup = createManufacturingSetup({ bodyId: 'body-large', machineId: 'desktop-3018' });
+  const result = calculateManufacturingSetup(setup, [{ id: 'body-large', bounds: [[0, 0, 0], [400, 100, 20]] }]);
+  assert.equal(result.valid, false);
+  assert.match(result.warnings[0], /osi X/);
+});
+
+test('dokument v15 migruje dane wytwarzania do v16 i przechodzi walidację', () => {
+  const legacy = createDocument('Projekt CAM');
+  legacy.schemaVersion = 15;
+  delete legacy.manufacturing;
+  const opened = openDocument(legacy, { now: '2026-09-08T12:00:00.000Z' });
+  assert.equal(opened.document.schemaVersion, 16);
+  assert.deepEqual(opened.document.manufacturing, { setups: [], activeSetupId: '' });
+  assert.equal(validateDocument(opened.document).valid, true);
+  assert.deepEqual(opened.document.metadata.migrationHistory.at(-1), { from: 15, to: 16, at: '2026-09-08T12:00:00.000Z' });
+});
+
+test('walidacja danych CAM odrzuca uszkodzony aktywny Setup i ujemny naddatek', () => {
+  const setup = createManufacturingSetup({ bodyId: 'body-test' });
+  setup.stock.sideOffset = -1;
+  const issues = validateManufacturing({ setups: [setup], activeSetupId: 'missing' });
+  assert.equal(issues.some((issue) => issue.path.endsWith('sideOffset') && issue.code === 'VALUE'), true);
+  assert.equal(issues.some((issue) => issue.path === 'manufacturing.activeSetupId' && issue.code === 'BROKEN_REFERENCE'), true);
 });

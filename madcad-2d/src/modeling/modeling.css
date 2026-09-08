@@ -6349,3 +6349,67 @@
     grid-template-columns: 1fr;
   }
 }
+
+.manufacturing-panel {
+  position: absolute;
+  z-index: 7;
+  top: 14px;
+  right: 14px;
+  width: min(390px, calc(100% - 28px));
+  max-height: calc(100% - 28px);
+  overflow: auto;
+  border: 1px solid #5d6d7c;
+  border-radius: 5px;
+  background: #303a47;
+  box-shadow: 0 18px 42px rgba(7, 12, 18, 0.38);
+  color: #e6edf3;
+}
+
+.manufacturing-panel > header,
+.manufacturing-panel > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #3c4857;
+}
+
+.manufacturing-panel > header { border-bottom: 1px solid #566575; }
+.manufacturing-panel > footer { border-top: 1px solid #53606e; color: #aebbc7; font-size: 10px; }
+.manufacturing-panel > header > div { display: flex; align-items: center; gap: 9px; }
+.manufacturing-panel > header span { display: grid; gap: 2px; }
+.manufacturing-panel > header small { color: #adbac5; font-size: 10px; font-weight: 500; }
+.manufacturing-panel button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 29px; border: 1px solid #627383; border-radius: 4px; background: #374351; color: #e4ebf0; font: inherit; cursor: pointer; }
+.manufacturing-panel button:hover:not(:disabled) { border-color: #5cc8e7; background: #435363; }
+.manufacturing-panel button:disabled { opacity: .45; cursor: default; }
+.manufacturing-panel > header button { padding: 0 10px; border-color: #4592aa; background: #287d9d; }
+.manufacturing-panel > nav { display: flex; gap: 4px; padding: 7px 9px 0; overflow-x: auto; }
+.manufacturing-panel > nav button { flex: 0 0 auto; padding: 0 10px; }
+.manufacturing-panel > nav button.active { border-color: #57c6e6; background: #245e75; color: white; }
+.manufacturing-form { display: grid; gap: 9px; padding: 11px 12px; }
+.manufacturing-form > label,
+.manufacturing-form fieldset > label,
+.manufacturing-field-grid label { position: relative; display: grid; gap: 4px; color: #bdc8d1; font-size: 10px; font-weight: 700; }
+.manufacturing-form input,
+.manufacturing-form select { width: 100%; height: 30px; box-sizing: border-box; border: 1px solid #596978; border-radius: 3px; background: #222b35; color: #edf3f7; padding: 0 8px; font: inherit; }
+.manufacturing-form label > em { position: absolute; right: 7px; bottom: 8px; color: #7f909e; font-size: 9px; font-style: normal; pointer-events: none; }
+.manufacturing-form label > em + * { padding-right: 28px; }
+.manufacturing-form fieldset { display: grid; gap: 8px; margin: 0; padding: 9px; border: 1px solid #52606d; border-radius: 4px; }
+.manufacturing-form legend { display: flex; align-items: center; gap: 5px; padding: 0 5px; color: #dce5eb; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.manufacturing-field-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.manufacturing-summary { margin: 0 12px 11px; padding: 10px; border: 1px solid #596978; border-radius: 4px; background: #28323e; }
+.manufacturing-summary.valid { border-color: #3e8b72; }
+.manufacturing-summary.invalid { border-color: #a57449; }
+.manufacturing-summary h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 12px; }
+.manufacturing-summary.valid h3 { color: #6bd5ab; }
+.manufacturing-summary.invalid h3 { color: #f0ad69; }
+.manufacturing-summary dl { display: grid; gap: 5px; margin: 0; }
+.manufacturing-summary dl div { display: flex; justify-content: space-between; gap: 10px; }
+.manufacturing-summary dt { color: #9eacb8; font-size: 10px; }
+.manufacturing-summary dd { margin: 0; color: #eef3f6; font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
+.manufacturing-summary p { margin: 4px 0 0; color: #efb478; font-size: 10px; }
+.manufacturing-panel > footer button { flex: 0 0 auto; padding: 0 8px; color: #f0b0aa; }
+.manufacturing-empty { display: grid; justify-items: center; gap: 9px; padding: 35px 24px; color: #cbd5dc; text-align: center; }
+.manufacturing-empty p { margin: 0; color: #9eabb6; font-size: 11px; line-height: 1.5; }
+.manufacturing-empty button { padding: 0 12px; border-color: #4fa9c3; background: #287d9d; }

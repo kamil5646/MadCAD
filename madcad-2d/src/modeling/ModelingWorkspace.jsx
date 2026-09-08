@@ -145,6 +145,7 @@ import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMesh
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
+import { createManufacturingSetup, normalizeManufacturingSetup } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
@@ -193,6 +194,7 @@ import { analyzeSurfaceContinuity, summarizeMeshCurvature } from './surface-anal
 import { multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
 import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumentHistory } from './workspace-document.js';
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext, ToolMenuButton } from './WorkspaceRibbon.jsx';
+import { ManufacturingPanel } from './ManufacturingPanel.jsx';
 import {
   AnglePlaneCadIcon,
   AxisCadIcon,
@@ -289,6 +291,7 @@ const DESKTOP_PLATFORM = ['darwin', 'win32', 'linux'].includes(window.desktopApp
 const MAIN_TABS = [
   { id: 'solid', label: 'PROJEKTUJ' },
   { id: 'drawing', label: 'ARKUSZ 2D' },
+  { id: 'manufacture', label: 'WYTWARZANIE' },
   { id: 'tools', label: 'ZARZĄDZAJ' },
 ];
 const LANGUAGE_KEY = 'madcad:interface-language';
@@ -934,6 +937,31 @@ export default function ModelingWorkspace() {
       }
     });
   };
+
+  const createCamSetup = () => {
+    const solidBodies = engine.bodies.filter((body) => body.bodyKind !== 'surface');
+    if (!solidBodies.length) { setNotice('Setup CAM wymaga co najmniej jednej bryły 3D.'); return; }
+    const preferredBody = solidBodies.find((body) => body.id === selection?.id) || solidBodies[0];
+    let created;
+    commit((next) => {
+      created = createManufacturingSetup({ name: `Setup ${next.manufacturing.setups.length + 1}`, bodyId: preferredBody.id });
+      next.manufacturing.setups.push(created);
+      next.manufacturing.activeSetupId = created.id;
+    });
+    if (created) setNotice(`Utworzono ${created.name}: wybierz maszynę, naddatki i zero WCS.`);
+  };
+
+  const activateCamSetup = (setupId) => commit((next) => { next.manufacturing.activeSetupId = setupId; });
+  const updateCamSetup = (setupId, patch) => commit((next) => {
+    const index = next.manufacturing.setups.findIndex((setup) => setup.id === setupId);
+    if (index < 0) return;
+    next.manufacturing.setups[index] = normalizeManufacturingSetup({ ...next.manufacturing.setups[index], ...patch }, index);
+  });
+  const deleteCamSetup = (setupId) => commit((next) => {
+    next.manufacturing.setups = next.manufacturing.setups.filter((setup) => setup.id !== setupId);
+    next.manufacturing.activeSetupId = next.manufacturing.setups[0]?.id || '';
+    setNotice('Usunięto Setup CAM. Cofnij, aby go przywrócić.');
+  });
 
   const saveNamedView = (name) => {
     try {
@@ -6615,6 +6643,8 @@ export default function ModelingWorkspace() {
         ? 'Arkusz 2D: przygotuj rysunek techniczny do PDF albo DXF.'
       : id === 'tools'
         ? 'Zarządzaj: parametry, wersje, struktura i kondycja projektu.'
+      : id === 'manufacture'
+        ? 'Wytwarzanie: przygotuj obrabiarkę, półfabrykat i układ współrzędnych CAM.'
         : 'Projektuj: szkicuj, twórz, modyfikuj i sprawdzaj geometrię.');
   };
 
@@ -7141,6 +7171,8 @@ export default function ModelingWorkspace() {
     }
     : workspace === 'tools'
       ? { title: 'ZARZĄDZAJ · projekt i jego historia', text: 'Parametry, wersje, zależności i struktura projektu są zebrane w jednym miejscu.', action: 'Wróć do projektowania', onAction: () => switchWorkspace('solid') }
+      : workspace === 'manufacture'
+        ? { title: 'WYTWARZANIE · przygotowanie CAM', text: 'Wybierz bryłę, maszynę, półfabrykat i zero WCS przed utworzeniem ścieżki.' }
       : workspace === 'solid' && lastSketch && !engine.bodies.length
             ? hasSketchProfile
               ? { title: 'KROK 2 · utwórz bryłę z zamkniętego szkicu', text: selectedProfile ? 'Profil jest zaznaczony. Kliknij Wyciągnij i podaj wysokość.' : 'Kliknij wnętrze zamkniętego profilu, a następnie wybierz Wyciągnij.', action: selectedProfile ? 'Wyciągnij profil' : `Edytuj: ${lastSketch.name}`, onAction: selectedProfile ? openExtrude : () => editSketch(lastSketch.id) }
@@ -7269,7 +7301,7 @@ export default function ModelingWorkspace() {
 
   return (
     <ToolHelpContext.Provider value={toolHelpContext}>
-    <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${workspace === 'drawing' ? 'drawing-mode' : workspace === 'tools' ? 'tools-mode' : activeSketchId ? 'sketch-mode' : document.features.length ? '' : 'timeline-empty'} ${startPageVisible ? 'start-page-mode' : ''}`} aria-label="Modelowanie parametryczne MadCAD">
+    <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${workspace === 'drawing' ? 'drawing-mode' : workspace === 'tools' ? 'tools-mode' : workspace === 'manufacture' ? 'manufacture-mode' : activeSketchId ? 'sketch-mode' : document.features.length ? '' : 'timeline-empty'} ${startPageVisible ? 'start-page-mode' : ''}`} aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
         <div className="app-menu" role="toolbar" aria-label="Plik i przeglądarka projektu">
           <button id="fileMenuBtn" className={fileMenuOpen ? 'active' : ''} type="button" aria-label="Menu Plik" aria-expanded={fileMenuOpen} aria-controls="file-backstage" title="Projekt, import, eksport i druk" onClick={() => setFileMenuOpen((open) => !open)}><FileText size={15} /><span>Plik</span></button>
@@ -7337,7 +7369,7 @@ export default function ModelingWorkspace() {
       <section className="command-area">
         <div className="command-ribbon">
           <nav className="workspace-tabs" aria-label="Obszary robocze" role="tablist">
-            {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title={activeSketchIs3D ? 'Aktywny obszar edycji szkicu przestrzennego.' : 'Aktywny obszar edycji szkicu 2D.'}>{activeSketchIs3D ? 'SZKIC 3D' : 'SZKICUJ'}</button> : MAIN_TABS.map((item, index) => <button key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Szkicuj, twórz, modyfikuj i sprawdzaj geometrię.' : item.id === 'drawing' ? 'Przygotuj arkusz techniczny 2D.' : 'Parametry, wersje, struktura i kontrola projektu.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
+            {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title={activeSketchIs3D ? 'Aktywny obszar edycji szkicu przestrzennego.' : 'Aktywny obszar edycji szkicu 2D.'}>{activeSketchIs3D ? 'SZKIC 3D' : 'SZKICUJ'}</button> : MAIN_TABS.map((item, index) => <button key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Szkicuj, twórz, modyfikuj i sprawdzaj geometrię.' : item.id === 'drawing' ? 'Przygotuj arkusz techniczny 2D.' : item.id === 'manufacture' ? 'Przygotuj obróbkę CAM dla gotowej bryły.' : 'Parametry, wersje, struktura i kontrola projektu.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
           </nav>
           <ResponsiveRibbon key={licenseInfoOpen ? 'license-open' : 'license-closed'} language={language}>
             {activeSketchId ? (
@@ -7449,6 +7481,12 @@ export default function ModelingWorkspace() {
                   { icon: Trash2, label: 'Usuń oznaczenie', onClick: deleteSelectedDrawingAnnotation, disabled: readOnly || !selectedDrawingAnnotation },
                 ]} /></RibbonGroup>
                 <RibbonGroup label="ZESTAWIENIA"><ToolButton icon={Grid2X2} label="BOM" onClick={() => addDrawingTable('bom')} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Dodaj automatyczne zestawienie części z modelu 3D." /><ToolButton icon={Grid2X2} label="Tabela otworów" onClick={() => addDrawingTable('hole-table')} disabled={readOnly || !selectedDrawingView || selectedDrawingIsSketch || !engine.bodies.length} description="Dodaj tabelę średnic z zaznaczonego widoku modelu 3D." /><ToolButton icon={Grid2X2} label="Tabela gięć" onClick={() => addDrawingTable('bend-table')} disabled={readOnly || !activeDrawingSheet || !sheetBodies.some((body) => body.sheetMetal.flatSegments?.length)} description="Dodaj skojarzoną tabelę kątów, promieni, długości i naddatków gięcia blachy." /></RibbonGroup>
+              </>
+            ) : workspace === 'manufacture' ? (
+              <>
+                <RibbonGroup label="SETUP"><ToolButton icon={Box} label="Nowy Setup" onClick={createCamSetup} disabled={readOnly || !engine.bodies.some((body) => body.bodyKind !== 'surface')} primary description="Powiąż bryłę z obrabiarką, półfabrykatem i układem WCS." /></RibbonGroup>
+                <RibbonGroup label="WIDOK"><ToolButton icon={Crosshair} label="Dopasuj model" onClick={() => setFitViewRequest({ requestId: `cam-fit:${Date.now()}` })} disabled={!engine.bodies.length} /></RibbonGroup>
+                <RibbonGroup label="PRZYGOTOWANIE"><ToolButton icon={Ruler} label="Sprawdź Setup" onClick={() => setNotice('Panel Setup pokazuje bieżące wymiary półfabrykatu, zero WCS i zgodność z przesuwem maszyny.')} disabled={!document.manufacturing.setups.length} /></RibbonGroup>
               </>
             ) : workspace === 'tools' ? null : (
               <>
@@ -7719,6 +7757,7 @@ export default function ModelingWorkspace() {
             renderCaptureRef={renderCaptureRef}
           />
           </React.Suspense>}
+          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} />}
           {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
           {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}

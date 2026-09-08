@@ -86,7 +86,7 @@ app.whenReady().then(async () => {
     window.setContentSize(2200, 877);
     await new Promise((resolve) => setTimeout(resolve, 300));
     const tabs = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.workspace-tabs button')].map((item) => item.textContent.trim())`);
-    const expectedTabs = ['PROJEKTUJ', 'ARKUSZ 2D', 'ZARZĄDZAJ'];
+    const expectedTabs = ['PROJEKTUJ', 'ARKUSZ 2D', 'WYTWARZANIE', 'ZARZĄDZAJ'];
     if (tabs.join('|') !== expectedTabs.join('|')) throw new Error(`Nielogiczny podział obszarów: ${tabs.join('|')}`);
 
     await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);

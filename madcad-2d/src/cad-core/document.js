@@ -17,6 +17,7 @@ import { ensureDocumentLinkedProjects } from './linked-projects.js';
 import { MAX_NAMED_VIEWS, ensureDocumentNamedViews, normalizeNamedViewCamera } from './named-views.js';
 import { ensureDocumentRenderScene, isRenderSceneValid, normalizeRenderScene } from './render-scene.js';
 import { validateHoleStandard } from './hole-standards.js';
+import { ensureDocumentManufacturing, validateManufacturing } from './manufacturing.js';
 import { DRAWING_ANNOTATION_TYPES, DRAWING_PAGE_SIZES, DRAWING_TABLE_TYPES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
 import {
   SKETCH_ENTITY_ROLES,
@@ -26,7 +27,7 @@ import {
   normalizeSketchModel,
 } from './sketch-model.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 15;
+export const DOCUMENT_SCHEMA_VERSION = 16;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -287,6 +288,22 @@ function migrateV14ToV15(source, now) {
   return migrated;
 }
 
+function migrateV15ToV16(source, now) {
+  const migrated = ensureDocumentManufacturing(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureV3Collections(cloneDocument(source))))))));
+  migrated.schemaVersion = 16;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 15,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 15, to: 16, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
@@ -301,6 +318,7 @@ const MIGRATIONS = new Map([
   [12, migrateV12ToV13],
   [13, migrateV13ToV14],
   [14, migrateV14ToV15],
+  [15, migrateV15ToV16],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -385,6 +403,7 @@ export function createDocument(name = 'Nowy projekt') {
     drawings: [],
     layers: [createDefaultLayer()],
     activeLayerId: 'layer-0',
+    manufacturing: { setups: [], activeSetupId: '' },
     print: {
       profileId: 'creality-ender3', bedWidth: 220, bedDepth: 220, bedHeight: 250, material: 'PLA',
       positionX: 0, positionY: 0, positionZ: 0,
@@ -465,11 +484,11 @@ export function migrateDocument(source, { now = new Date().toISOString() } = {})
     document = migration(document, now);
     version = readSchemaVersion(document);
   }
-  return ensureDocumentAssemblyAnimations(ensureDocumentRenderScene(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document))))))))));
+  return ensureDocumentManufacturing(ensureDocumentAssemblyAnimations(ensureDocumentRenderScene(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document)))))))))));
 }
 
 function projectFutureDocument(source) {
-  const projected = ensureDocumentAssemblyAnimations(ensureDocumentRenderScene(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source))))))))))));
+  const projected = ensureDocumentManufacturing(ensureDocumentAssemblyAnimations(ensureDocumentRenderScene(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source)))))))))))));
   projected.schemaVersion = DOCUMENT_SCHEMA_VERSION;
   projected.metadata = {
     ...(isRecord(projected.metadata) ? projected.metadata : {}),
@@ -558,6 +577,7 @@ export function validateDocument(document) {
   const blocks = requireArray(document, 'blocks');
   const drawings = requireArray(document, 'drawings');
   if (!isRecord(document.print)) add('print', 'Wymagane są ustawienia druku.', 'TYPE');
+  validateManufacturing(document.manufacturing).forEach((issue) => add(issue.path, issue.message, issue.code));
   if (!isRecord(document.metadata)) add('metadata', 'Wymagane są metadane dokumentu.', 'TYPE');
 
   const allIds = new Map();

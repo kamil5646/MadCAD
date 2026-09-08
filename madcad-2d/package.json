@@ -58,6 +58,7 @@
     "verify:static-screening": "npm run build:ui && electron scripts/verify-static-screening.cjs",
     "verify:beam-fea": "npm run build:ui && electron scripts/verify-beam-fea.cjs",
     "verify:thermal-screening": "npm run build:ui && electron scripts/verify-thermal-screening.cjs",
+    "verify:manufacturing": "npm run build:ui && electron scripts/verify-manufacturing.cjs",
     "verify:import-report": "npm run build:ui && electron scripts/verify-import-report.cjs",
     "verify:drawing-workspace": "npm run build:ui && electron scripts/verify-drawing-workspace.cjs",
     "verify:sketch-drawing": "npm run build:ui && electron scripts/verify-sketch-drawing.cjs",
