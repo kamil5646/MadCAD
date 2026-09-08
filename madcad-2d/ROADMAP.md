@@ -206,6 +206,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.36k Wynik naprężenia pokazuje procent wykorzystania granicy plastyczności oraz liczbę przekroczonych węzłów. Punkty wykresu są klasyfikowane zielony/bursztynowy/czerwony, dzięki czemu strefa krytyczna jest widoczna bez ręcznego porównywania liczb.
 - [x] P1.36l Użytkownik ustawia wymagany współczynnik bezpieczeństwa 1–10. Wynik jawnie podaje spełnienie celu i procentowy margines, rozróżniając niespełniony cel projektowy od faktycznego przekroczenia plastyczności.
 - [x] P1.36m Jeden przypadek MES może łączyć siłę skupioną w dowolnym położeniu z równomiernym obciążeniem liniowym. Macierz obciążeń, reakcje, moment, ugięcie analityczne, naprężenia i siedem symboli w scenie wynikają z superpozycji obu składników.
+- [x] P1.36n Panel tworzy obwiednię nazwanych scenariuszy Bazowy ×1, Roboczy ×1,25 i Przeciążenie ×1,5. Dla każdego pokazuje FoS i spełnienie celu, a przypadek o najmniejszym zapasie jest automatycznie oznaczony jako krytyczny.
 
 ## P2 — dokumentacja techniczna 2D
 

@@ -4536,6 +4536,15 @@
 .beam-fea-stress-chart circle.safe { fill: #55cf91; }
 .beam-fea-stress-chart circle.warning { fill: #f1b64f; }
 .beam-fea-stress-chart circle.failed { fill: #ef5f70; }
+.beam-fea-load-cases { display: grid; gap: 3px; padding: 6px 7px; border: 1px solid #4d606e; border-radius: 4px; background: #202d36; }
+.beam-fea-load-cases > div:first-child { display: flex; justify-content: space-between; gap: 8px; color: #aebbc4; font-size: 9px; }
+.beam-fea-load-cases > div:first-child strong { color: #e5edf2; }
+.beam-fea-load-case { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; min-height: 23px; padding: 2px 6px; border-left: 3px solid #55cf91; background: #27353e; color: #cbd6dd; font-size: 9px; }
+.beam-fea-load-case.warning { border-left-color: #f1b64f; }
+.beam-fea-load-case.failed { border-left-color: #ef5f70; }
+.beam-fea-load-case small { color: #8fa2ae; }
+.beam-fea-load-case strong { color: #edf4f7; }
+.beam-fea-load-case em { min-width: 58px; color: #9eb0ba; font-style: normal; text-align: right; }
 
 .component-toolbar button:disabled,
 .component-actions button:disabled { opacity: .45; cursor: default; }

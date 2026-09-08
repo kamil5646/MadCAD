@@ -2383,6 +2383,11 @@ test('MES belki składa macierz sztywności i zgadza się z rozwiązaniem analit
   assert.equal(result.requiredSafetyFactor, 2);
   assert.equal(result.meetsSafetyTarget, false);
   assert.ok(result.safetyMarginPercent < 0);
+  assert.equal(result.loadCases.length, 3);
+  assert.equal(result.criticalLoadCase.id, 'overload');
+  assert.ok(Math.abs(result.loadCases[2].maximumStress - result.maximumStress * 1.5) < 1e-7);
+  assert.ok(Math.abs(result.loadCases[2].tipDeflection - result.tipDeflection * 1.5) < 1e-10);
+  assert.ok(Math.abs(result.loadCases[2].safetyFactor - result.safetyFactor / 1.5) < 1e-12);
   assert.equal(result.limitations.length, 3);
   assert.throws(() => calculateCantileverBeamFea(body, { spanAxis: 'x', loadAxis: 'x', force: 1000, elementCount: 4 }), /muszą być różne/);
   assert.throws(() => calculateCantileverBeamFea(body, { force: 1000, elementCount: 0 }), /od 1 do 100/);

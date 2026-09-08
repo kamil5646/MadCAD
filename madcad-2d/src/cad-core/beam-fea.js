@@ -118,6 +118,23 @@ export function calculateCantileverBeamFea(body, options = {}) {
   const safetyFactor = maximumStress > 0 ? material.yieldStrength / maximumStress : Infinity;
   const meetsSafetyTarget = safetyFactor >= requiredSafetyFactor;
   const safetyMarginPercent = (safetyFactor / requiredSafetyFactor - 1) * 100;
+  const loadCases = [
+    { id: 'base', name: 'Bazowy', factor: 1 },
+    { id: 'working', name: 'Roboczy', factor: 1.25 },
+    { id: 'overload', name: 'Przeciążenie', factor: 1.5 },
+  ].map((loadCase) => {
+    const caseSafetyFactor = safetyFactor / loadCase.factor;
+    return {
+      ...loadCase,
+      totalLoad: (distributedForce * length + (loadType !== 'distributed' ? force : 0)) * loadCase.factor,
+      tipDeflection: tipDeflection * loadCase.factor,
+      maximumStress: maximumStress * loadCase.factor,
+      safetyFactor: caseSafetyFactor,
+      meetsSafetyTarget: caseSafetyFactor >= requiredSafetyFactor,
+      status: caseSafetyFactor >= requiredSafetyFactor ? 'safe' : caseSafetyFactor >= 1 ? 'warning' : 'failed',
+    };
+  });
+  const criticalLoadCase = loadCases.reduce((critical, loadCase) => loadCase.safetyFactor < critical.safetyFactor ? loadCase : critical);
   return {
     bodyId: body.id,
     material,
@@ -146,6 +163,8 @@ export function calculateCantileverBeamFea(body, options = {}) {
     requiredSafetyFactor,
     meetsSafetyTarget,
     safetyMarginPercent,
+    loadCases,
+    criticalLoadCase,
     reactionForce: Math.abs(reactions[0]),
     reactionMoment: Math.abs(reactions[1]),
     bendingMoments,
