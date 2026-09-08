@@ -45,11 +45,19 @@ export function calculateCantileverBeamFea(body, options = {}) {
   if (!Number.isInteger(elementCount) || elementCount < 1 || elementCount > 100) throw new Error('Liczba elementów MES musi być całkowita od 1 do 100.');
   const requiredSafetyFactor = Number(options.requiredSafetyFactor ?? 2);
   if (!Number.isFinite(requiredSafetyFactor) || requiredSafetyFactor < 1 || requiredSafetyFactor > 10) throw new Error('Wymagany współczynnik bezpieczeństwa musi wynosić od 1 do 10.');
-  const loadCaseDefinitions = [
+  const defaultLoadCaseDefinitions = [
     { id: 'base', name: 'Bazowy', factor: Number(options.baseLoadFactor ?? 1) },
     { id: 'working', name: 'Roboczy', factor: Number(options.workingLoadFactor ?? 1.25) },
     { id: 'overload', name: 'Przeciążenie', factor: Number(options.overloadLoadFactor ?? 1.5) },
   ];
+  const loadCaseDefinitions = Array.isArray(options.loadCases) ? options.loadCases.map((loadCase, index) => ({
+    id: String(loadCase?.id || `case-${index + 1}`),
+    name: String(loadCase?.name || '').trim(),
+    factor: Number(loadCase?.factor),
+  })) : defaultLoadCaseDefinitions;
+  if (loadCaseDefinitions.length < 1 || loadCaseDefinitions.length > 8) throw new Error('Analiza wymaga od 1 do 8 scenariuszy obciążenia.');
+  if (loadCaseDefinitions.some(({ name }) => !name || name.length > 40)) throw new Error('Nazwa scenariusza musi mieć od 1 do 40 znaków.');
+  if (new Set(loadCaseDefinitions.map(({ id }) => id)).size !== loadCaseDefinitions.length || new Set(loadCaseDefinitions.map(({ name }) => name.toLocaleLowerCase('pl-PL'))).size !== loadCaseDefinitions.length) throw new Error('Scenariusze muszą mieć unikalne nazwy i identyfikatory.');
   if (loadCaseDefinitions.some(({ factor }) => !Number.isFinite(factor) || factor < 0.1 || factor > 10)) throw new Error('Współczynniki scenariuszy muszą wynosić od 0,1 do 10.');
   const dimensions = bounds[1].map((value, index) => value - bounds[0][index]);
   if (dimensions.some((value) => !Number.isFinite(value) || value <= 0)) throw new Error('Bryła musi mieć trzy dodatnie wymiary.');

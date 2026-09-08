@@ -26,8 +26,12 @@ describe('BeamFeaPanel', () => {
     expect(onChange).toHaveBeenCalledWith({ requiredSafetyFactor: '3' });
     fireEvent.change(screen.getByRole('textbox', { name: /Elementy/i }), { target: { value: '12' } });
     expect(onChange).toHaveBeenCalledWith({ elementCount: '12' });
-    fireEvent.change(screen.getByRole('textbox', { name: /^Roboczy ×$/i }), { target: { value: '1.4' } });
-    expect(onChange).toHaveBeenCalledWith({ workingLoadFactor: '1.4' });
+    fireEvent.change(screen.getByRole('textbox', { name: /Współczynnik scenariusza Roboczy/i }), { target: { value: '1.4' } });
+    expect(onChange).toHaveBeenCalledWith({ loadCases: [{ id: 'base', name: 'Bazowy', factor: '1' }, { id: 'working', name: 'Roboczy', factor: '1.4' }, { id: 'overload', name: 'Przeciążenie', factor: '1.5' }] });
+    fireEvent.click(screen.getByRole('button', { name: /Dodaj/i }));
+    expect(onChange.mock.calls.at(-1)[0].loadCases).toHaveLength(4);
+    fireEvent.click(screen.getByRole('button', { name: /Usuń scenariusz Roboczy/i }));
+    expect(onChange.mock.calls.at(-1)[0].loadCases.map(({ name }) => name)).toEqual(['Bazowy', 'Przeciążenie']);
   });
 
   it('shows solver errors without stale results', () => {

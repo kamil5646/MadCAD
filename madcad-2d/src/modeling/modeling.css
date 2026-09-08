@@ -4538,10 +4538,16 @@
 .beam-fea-stress-chart circle.failed { fill: #ef5f70; }
 .beam-fea-load-cases { display: grid; gap: 3px; padding: 6px 7px; border: 1px solid #4d606e; border-radius: 4px; background: #202d36; }
 .beam-fea-factor-editor { display: grid; gap: 4px; padding: 6px 7px; border: 1px solid #4d606e; border-radius: 4px; background: #25313b; }
-.beam-fea-factor-editor > strong { color: #cbd7de; font-size: 9px; }
-.beam-fea-factor-editor > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-.beam-fea-factor-editor .command-field { grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 3px; margin: 0; min-width: 0; }
-.beam-fea-factor-editor .command-input-wrap { min-width: 0; }
+.beam-fea-factor-editor > header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.beam-fea-factor-editor > header strong { color: #cbd7de; font-size: 9px; }
+.beam-fea-factor-editor > header button { display: inline-flex; align-items: center; gap: 3px; min-height: 22px; padding: 2px 6px; font-size: 8px; }
+.beam-fea-factor-rows { display: grid; gap: 3px; }
+.beam-fea-factor-row { display: grid; grid-template-columns: minmax(0, 1fr) 64px 24px; gap: 3px; }
+.beam-fea-factor-row > input { min-width: 0; }
+.beam-fea-factor-row > div { display: grid; grid-template-columns: minmax(0, 1fr) 13px; align-items: center; }
+.beam-fea-factor-row > div input { min-width: 0; border-radius: 3px 0 0 3px; }
+.beam-fea-factor-row > div span { display: grid; height: 100%; place-items: center; border: 1px solid #596b77; border-left: 0; border-radius: 0 3px 3px 0; color: #91a5b2; font-size: 9px; }
+.beam-fea-factor-row > button { display: grid; min-height: 0; padding: 0; place-items: center; }
 .beam-fea-load-cases > div:first-child { display: flex; justify-content: space-between; gap: 8px; color: #aebbc4; font-size: 9px; }
 .beam-fea-load-cases > div:first-child strong { color: #e5edf2; }
 .beam-fea-load-case { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; min-height: 23px; padding: 2px 6px; border-left: 3px solid #55cf91; background: #27353e; color: #cbd6dd; font-size: 9px; }

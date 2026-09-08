@@ -529,8 +529,10 @@ export function StaticScreeningPanel({ bodies = [], bodyId = '', materialId = 's
   );
 }
 
-export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', loadType = 'tip', loadPositionPercent = '100', force = '1000', distributedForce = '10', elementCount = '8', requiredSafetyFactor = '2', baseLoadFactor = '1', workingLoadFactor = '1.25', overloadLoadFactor = '1.5', result, error = '', onChange, onClose }) {
+export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', spanAxis = 'x', loadAxis = 'z', loadType = 'tip', loadPositionPercent = '100', force = '1000', distributedForce = '10', elementCount = '8', requiredSafetyFactor = '2', loadCases, result, error = '', onChange, onClose }) {
   const [diagram, setDiagram] = React.useState('deflection');
+  const editableLoadCases = loadCases || [{ id: 'base', name: 'Bazowy', factor: '1' }, { id: 'working', name: 'Roboczy', factor: '1.25' }, { id: 'overload', name: 'Przeciążenie', factor: '1.5' }];
+  const updateLoadCase = (id, patch) => onChange({ loadCases: editableLoadCases.map((loadCase) => loadCase.id === id ? { ...loadCase, ...patch } : loadCase) });
   const format = (value, digits = 3) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
   const nodes = result?.nodalDeflections || [];
   const maximumDisplacement = Math.max(0, ...nodes.map((node) => Math.abs(node.displacement)));
@@ -569,8 +571,8 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
         <Field label="Wymagany współczynnik bezpieczeństwa" value={requiredSafetyFactor} onChange={(value) => onChange({ requiredSafetyFactor: value })} />
         {loadType !== 'distributed' && <Field label="Położenie od utwierdzenia" value={loadPositionPercent} onChange={(value) => onChange({ loadPositionPercent: value })} suffix="%" />}
         <div className="beam-fea-factor-editor" aria-label="Współczynniki scenariuszy obciążenia">
-          <strong>Współczynniki scenariuszy</strong>
-          <div><Field label="Bazowy" value={baseLoadFactor} onChange={(value) => onChange({ baseLoadFactor: value })} suffix="×" /><Field label="Roboczy" value={workingLoadFactor} onChange={(value) => onChange({ workingLoadFactor: value })} suffix="×" /><Field label="Przeciążenie" value={overloadLoadFactor} onChange={(value) => onChange({ overloadLoadFactor: value })} suffix="×" /></div>
+          <header><strong>Scenariusze obciążenia</strong><button type="button" disabled={editableLoadCases.length >= 8} onClick={() => onChange({ loadCases: [...editableLoadCases, { id: `case-${Date.now()}`, name: `Przypadek ${editableLoadCases.length + 1}`, factor: '1' }] })}><Plus size={12} /> Dodaj</button></header>
+          <div className="beam-fea-factor-rows">{editableLoadCases.map((loadCase) => <div className="beam-fea-factor-row" key={loadCase.id}><input aria-label={`Nazwa scenariusza ${loadCase.name}`} maxLength="40" value={loadCase.name} onChange={(event) => updateLoadCase(loadCase.id, { name: event.target.value })} /><div><input aria-label={`Współczynnik scenariusza ${loadCase.name}`} value={loadCase.factor} onChange={(event) => updateLoadCase(loadCase.id, { factor: event.target.value })} /><span>×</span></div><button type="button" aria-label={`Usuń scenariusz ${loadCase.name}`} disabled={editableLoadCases.length <= 1} onClick={() => onChange({ loadCases: editableLoadCases.filter((item) => item.id !== loadCase.id) })}><Trash2 size={12} /></button></div>)}</div>
         </div>
         <div className="beam-fea-legend" aria-label="Legenda warunków brzegowych"><span><i className="support" />Utwierdzenie</span><span><i className="load" />Obciążenie</span><span><i className="deformation" />Deformacja</span></div>
         {error && <p className="measure-error">{error}</p>}

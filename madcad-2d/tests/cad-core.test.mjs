@@ -2392,6 +2392,11 @@ test('MES belki składa macierz sztywności i zgadza się z rozwiązaniem analit
   assert.deepEqual(customCases.loadCases.map(({ factor }) => factor), [0.8, 1.1, 2]);
   assert.equal(customCases.criticalLoadCase.id, 'overload');
   assert.throws(() => calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', loadType: 'tip', loadPositionPercent: 100, force: 500, elementCount: 12, overloadLoadFactor: 0 }), /od 0,1 do 10/);
+  const namedCases = calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', loadType: 'tip', loadPositionPercent: 100, force: 500, elementCount: 12, loadCases: [{ id: 'service', name: 'Serwis', factor: 0.75 }, { id: 'transport', name: 'Transport', factor: 2.5 }] });
+  assert.deepEqual(namedCases.loadCases.map(({ name, factor }) => ({ name, factor })), [{ name: 'Serwis', factor: 0.75 }, { name: 'Transport', factor: 2.5 }]);
+  assert.equal(namedCases.criticalLoadCase.id, 'transport');
+  assert.throws(() => calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', force: 500, elementCount: 12, loadCases: [] }), /od 1 do 8/);
+  assert.throws(() => calculateCantileverBeamFea(body, { materialId: 's235', spanAxis: 'x', loadAxis: 'z', force: 500, elementCount: 12, loadCases: [{ id: 'a', name: 'Test', factor: 1 }, { id: 'b', name: 'test', factor: 2 }] }), /unikalne/);
   assert.equal(result.limitations.length, 3);
   assert.throws(() => calculateCantileverBeamFea(body, { spanAxis: 'x', loadAxis: 'x', force: 1000, elementCount: 4 }), /muszą być różne/);
   assert.throws(() => calculateCantileverBeamFea(body, { force: 1000, elementCount: 0 }), /od 1 do 100/);

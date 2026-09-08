@@ -145,3 +145,4 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - Wersjonowanie chmurowe, komentarze, uprawnienia i współpraca.
 - Publiczne API, sandbox wtyczek i marketplace po zamrożeniu kontraktów.
 - [x] P1.36o — edytowalne współczynniki przypadków obciążenia MES belki z walidacją i automatycznym wyborem krytycznego wariantu.
+- [x] P1.36p — własne nazwy oraz dodawanie i usuwanie do ośmiu scenariuszy obciążenia w obwiedni MES belki.

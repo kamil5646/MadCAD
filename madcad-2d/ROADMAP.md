@@ -208,6 +208,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.36m Jeden przypadek MES może łączyć siłę skupioną w dowolnym położeniu z równomiernym obciążeniem liniowym. Macierz obciążeń, reakcje, moment, ugięcie analityczne, naprężenia i siedem symboli w scenie wynikają z superpozycji obu składników.
 - [x] P1.36n Panel tworzy obwiednię nazwanych scenariuszy Bazowy ×1, Roboczy ×1,25 i Przeciążenie ×1,5. Dla każdego pokazuje FoS i spełnienie celu, a przypadek o najmniejszym zapasie jest automatycznie oznaczony jako krytyczny.
 - [x] P1.36o Współczynniki trzech scenariuszy obciążenia są edytowalne w panelu w zakresie 0,1–10. Solver przelicza obwiednię na żywo, zachowuje nazwy i niezależnie wybiera krytyczny wariant po każdej zmianie.
+- [x] P1.36p Użytkownik może nazwać, dodać i usunąć od 1 do 8 własnych scenariuszy obciążenia. Nazwy i identyfikatory są walidowane jako unikalne, a dowolna liczba przypadków uczestniczy w tej samej automatycznej obwiedni.
 
 ## P2 — dokumentacja techniczna 2D
 
