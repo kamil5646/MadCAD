@@ -103,6 +103,7 @@ export function calculateCantileverBeamFea(body, options = {}) {
     ? force * length ** 4 / (8 * material.elasticModulus * secondMoment)
     : force * loadPosition ** 2 * (3 * length - loadPosition) / (6 * material.elasticModulus * secondMoment);
   const maximumStress = maximumMoment * sectionHeight / 2 / secondMoment;
+  const bendingStresses = bendingMoments.map((node) => ({ x: node.x, stress: node.moment * sectionHeight / 2 / secondMoment }));
   const safetyFactor = maximumStress > 0 ? material.yieldStrength / maximumStress : Infinity;
   return {
     bodyId: body.id,
@@ -129,6 +130,7 @@ export function calculateCantileverBeamFea(body, options = {}) {
     reactionForce: Math.abs(reactions[0]),
     reactionMoment: Math.abs(reactions[1]),
     bendingMoments,
+    bendingStresses,
     shearForces,
     nodalDeflections: Array.from({ length: elementCount + 1 }, (_, node) => ({ x: node * elementLength, displacement: displacement[node * 2], rotation: displacement[node * 2 + 1] })),
     status: safetyFactor >= 2 ? 'safe' : safetyFactor >= 1 ? 'warning' : 'failed',

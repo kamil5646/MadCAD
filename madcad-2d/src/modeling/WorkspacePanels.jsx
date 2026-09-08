@@ -550,6 +550,11 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
     const y = maximumShear ? 54 - node.shear / maximumShear * 46 : 54;
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   }).join(' ');
+  const stressPoints = (result?.bendingStresses || []).map((node) => {
+    const x = result.length ? 8 + node.x / result.length * 224 : 8;
+    const y = result.maximumStress ? 54 - node.stress / result.maximumStress * 46 : 54;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(' ');
   return (
     <aside className="measure-panel static-screening-panel beam-fea-panel" aria-label="MES belki 1D">
       <header><div><ScanSearch size={16} /><strong>MES belki 1D</strong></div><button type="button" title="Zamknij MES belki" aria-label="Zamknij MES belki" onClick={onClose}><X size={15} /></button></header>
@@ -567,10 +572,12 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
           <button type="button" className={diagram === 'deflection' ? 'active' : ''} aria-pressed={diagram === 'deflection'} onClick={() => setDiagram('deflection')}>Ugięcie</button>
           <button type="button" className={diagram === 'moment' ? 'active' : ''} aria-pressed={diagram === 'moment'} onClick={() => setDiagram('moment')}>Moment</button>
           <button type="button" className={diagram === 'shear' ? 'active' : ''} aria-pressed={diagram === 'shear'} onClick={() => setDiagram('shear')}>Tnąca</button>
+          <button type="button" className={diagram === 'stress' ? 'active' : ''} aria-pressed={diagram === 'stress'} onClick={() => setDiagram('stress')}>Naprężenie</button>
         </div>}
         {diagram === 'deflection' && nodes.length > 1 && <div className="beam-fea-chart"><span>Linia ugięcia · skala automatyczna</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres ugięcia węzłów MES"><line x1="8" y1="8" x2="232" y2="8" /><polyline points={chartPoints} />{nodes.map((node, index) => <circle key={node.x} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={maximumDisplacement ? 8 + Math.abs(node.displacement) / maximumDisplacement * 46 : 8} r={index === nodes.length - 1 ? 2.8 : 1.5} />)}</svg></div>}
         {diagram === 'moment' && result?.bendingMoments?.length > 1 && <div className="beam-fea-chart beam-fea-moment-chart"><span>Moment zginający · maks. {format(result.maximumMoment)} N·mm</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres momentu zginającego MES"><line x1="8" y1="54" x2="232" y2="54" /><polyline points={momentPoints} />{result.bendingMoments.map((node) => <circle key={node.x} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={result.maximumMoment ? 54 - node.moment / result.maximumMoment * 46 : 54} r="1.5" />)}</svg></div>}
         {diagram === 'shear' && result?.shearForces?.length > 1 && <div className="beam-fea-chart beam-fea-shear-chart"><span>Siła tnąca · maks. {format(maximumShear)} N</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres siły tnącej MES"><line x1="8" y1="54" x2="232" y2="54" /><polyline points={shearPoints} />{result.shearForces.map((node, index) => <circle key={`${node.x}-${index}`} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={maximumShear ? 54 - node.shear / maximumShear * 46 : 54} r="1.5" />)}</svg></div>}
+        {diagram === 'stress' && result?.bendingStresses?.length > 1 && <div className="beam-fea-chart beam-fea-stress-chart"><span>Naprężenie zginające · maks. {format(result.maximumStress)} MPa</span><svg viewBox="0 0 240 62" role="img" aria-label="Wykres naprężenia zginającego MES"><line x1="8" y1="54" x2="232" y2="54" /><polyline points={stressPoints} />{result.bendingStresses.map((node) => <circle key={node.x} cx={result.length ? 8 + node.x / result.length * 224 : 8} cy={result.maximumStress ? 54 - node.stress / result.maximumStress * 46 : 54} r="1.5" />)}</svg></div>}
         {result && <div className={`static-result ${result.status}`}>
           <div className="static-result-heading"><strong>{result.status === 'safe' ? 'Zapas ≥ 2' : result.status === 'warning' ? 'Mały zapas' : 'Przekroczona plastyczność'}</strong><span>{result.elementCount} elem.</span></div>
           <div className="measure-row"><span>Węzły / DOF</span><strong>{result.nodeCount} / {result.nodeCount * 2}</strong></div>

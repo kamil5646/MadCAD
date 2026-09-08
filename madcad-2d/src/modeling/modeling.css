@@ -4518,7 +4518,7 @@
 .beam-fea-legend i.support { background: #e85d75; }
 .beam-fea-legend i.load { border-radius: 50%; background: #ff7a45; }
 .beam-fea-legend i.deformation { height: 2px; border-radius: 0; background: #52d3ef; }
-.beam-fea-chart-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px; border: 1px solid #4d606e; border-radius: 4px; background: #202d36; }
+.beam-fea-chart-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; padding: 3px; border: 1px solid #4d606e; border-radius: 4px; background: #202d36; }
 .beam-fea-chart-tabs button { min-height: 25px; border: 0; border-radius: 3px; background: transparent; color: #aebbc4; font-size: 10px; font-weight: 750; cursor: pointer; }
 .beam-fea-chart-tabs button:hover { background: #2b3c47; color: #e5edf2; }
 .beam-fea-chart-tabs button.active { background: #315569; color: #eefaff; box-shadow: inset 0 -2px #5bd0eb; }
@@ -4532,6 +4532,8 @@
 .beam-fea-moment-chart circle { fill: #ff8a55; }
 .beam-fea-shear-chart polyline { stroke: #b48cff; }
 .beam-fea-shear-chart circle { fill: #b48cff; }
+.beam-fea-stress-chart polyline { stroke: #ef5f70; }
+.beam-fea-stress-chart circle { fill: #ef5f70; }
 
 .component-toolbar button:disabled,
 .component-actions button:disabled { opacity: .45; cursor: default; }
