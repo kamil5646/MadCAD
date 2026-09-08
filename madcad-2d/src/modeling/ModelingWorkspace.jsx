@@ -7638,6 +7638,7 @@ export default function ModelingWorkspace() {
             sectionAnalysis={sectionAnalysis}
             draftAnalysis={activeGeometryFaceAnalysis}
             surfaceAnalysis={surfaceAnalysis}
+            beamFeaVisualization={command?.type === 'beamFea' ? beamFea?.result : null}
             parameters={document.parameters}
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : (selection?.bodyId || null)}

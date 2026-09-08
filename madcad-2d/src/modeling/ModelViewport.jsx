@@ -604,6 +604,7 @@ export default function ModelViewport({
   sectionAnalysis = null,
   draftAnalysis = null,
   surfaceAnalysis = null,
+  beamFeaVisualization = null,
   parameters = [],
   showGrid = true,
   selectedBodyId,
@@ -924,6 +925,46 @@ export default function ModelViewport({
     scene.add(grid);
 
     let plate;
+    const beamFeaVisualState = { visible: false };
+    if (beamFeaVisualization?.nodalDeflections?.length > 1) {
+      const analyzedBody = bodies.find((body) => body.id === beamFeaVisualization.bodyId);
+      const bounds = analyzedBody?.metrics?.bounds;
+      const spanIndex = { x: 0, y: 1, z: 2 }[beamFeaVisualization.spanAxis];
+      const loadIndex = { x: 0, y: 1, z: 2 }[beamFeaVisualization.loadAxis];
+      if (bounds && Number.isInteger(spanIndex) && Number.isInteger(loadIndex)) {
+        const center = bounds[0].map((value, index) => (value + bounds[1][index]) / 2);
+        const maximum = Math.max(...beamFeaVisualization.nodalDeflections.map((node) => Math.abs(node.displacement)), 0);
+        const scale = maximum > 0 ? Math.min(500, Math.max(1, beamFeaVisualization.length * 0.2 / maximum)) : 1;
+        const points = beamFeaVisualization.nodalDeflections.map((node) => {
+          const point = [...center];
+          point[spanIndex] = bounds[0][spanIndex] + node.x;
+          point[loadIndex] += node.displacement * scale;
+          return new THREE.Vector3(...point);
+        });
+        const colors = new Float32Array(points.length * 3);
+        beamFeaVisualization.nodalDeflections.forEach((node, index) => {
+          const ratio = maximum > 0 ? Math.abs(node.displacement) / maximum : 0;
+          const color = new THREE.Color().lerpColors(new THREE.Color(0x52d3ef), new THREE.Color(0xf2aa4c), ratio);
+          color.toArray(colors, index * 3);
+        });
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false }));
+        line.renderOrder = 15;
+        scene.add(line);
+        points.forEach((point, index) => {
+          const marker = new THREE.Mesh(new THREE.SphereGeometry(index === points.length - 1 ? 1.7 : 1.1, 10, 8), new THREE.MeshBasicMaterial({ color: index === points.length - 1 ? 0xf2aa4c : 0x52d3ef, depthTest: false }));
+          marker.position.copy(point);
+          marker.renderOrder = 16;
+          scene.add(marker);
+        });
+        beamFeaVisualState.visible = true;
+        beamFeaVisualState.nodeCount = points.length;
+        beamFeaVisualState.scale = scale;
+        beamFeaVisualState.tip = points.at(-1).toArray();
+      }
+    }
+    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadBeamFeaVisualState = beamFeaVisualState;
     if (showBed) {
       const plateGeometry = new THREE.PlaneGeometry(bed.bedWidth, bed.bedDepth);
       const plateMaterial = new THREE.MeshStandardMaterial({ color: 0x384b55, roughness: 0.9, metalness: 0.04, transparent: true, opacity: 0.72, side: THREE.DoubleSide });
@@ -3022,7 +3063,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, beamFeaVisualization, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;
