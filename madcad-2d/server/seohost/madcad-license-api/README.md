@@ -20,3 +20,5 @@ Create `private_data/madcad-licensing/admin.secret` outside `public_html` with o
 - `/admin/revoke-device` accepts `email` and `installationId`.
 
 The administrative secret belongs only in the private hosting directory or an administrator password manager. The desktop app must never receive it, so a user cannot promote their own account by changing a request.
+
+Open `/api/madcad/v1/admin.html` to use the no-dependency administration page. It keeps the secret only in memory for the lifetime of the tab, renders all server values with `textContent`, and is protected by a restrictive Content Security Policy. Remove access to the page at the reverse proxy if administration will be performed exclusively through direct API calls.

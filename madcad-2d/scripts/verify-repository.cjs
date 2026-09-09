@@ -62,6 +62,7 @@ const preload = read('madcad-2d/electron/preload.js');
 const main = read('madcad-2d/electron/main.js');
 const licenseClient = read('madcad-2d/electron/license-client.cjs');
 const licenseApi = read('madcad-2d/server/seohost/madcad-license-api/index.php');
+const licenseAdmin = read('madcad-2d/server/seohost/madcad-license-api/admin.js');
 expectText(preload, /licenseGetStatus[\s\S]*licenseLogin[\s\S]*licenseRegister[\s\S]*licenseStartTrial[\s\S]*licenseLogout[\s\S]*licenseRequestPasswordReset[\s\S]*licenseResetPassword/, 'minimalne API konta licencji w preload');
 expectText(main, /https:\/\/madmagsystem\.pl\/api\/madcad\/v1/, 'stały adres HTTPS API licencji');
 expectText(main, /safeStorage\.encryptString/, 'systemowe szyfrowanie tokenu sesji');
@@ -71,6 +72,8 @@ expectText(licenseApi, /hash\('sha256', \$token\)/, 'haszowanie tokenów na SEOH
 expectText(licenseApi, /route === '\/health'[\s\S]*service' => 'madcad-license'/, 'endpoint kontroli wdrożenia SEOHost');
 expectText(licenseApi, /route === '\/auth\/request-reset'[\s\S]*route === '\/auth\/reset-password'/, 'jednorazowe odzyskiwanie hasła');
 expectText(licenseApi, /catch \(MadcadHttpResponse \$response\)[\s\S]*rename\(\$temporaryPath, \$path\)[\s\S]*throw \$deferredResponse/, 'atomowy zapis limitów także przy odrzuconych żądaniach');
+expectText(licenseAdmin, /textContent[\s\S]*admin\/grant-commercial[\s\S]*admin\/revoke-device/, 'bezpieczny panel administracyjny licencji');
+rejectText(licenseAdmin, /localStorage|sessionStorage|innerHTML|adminToken\s*=\s*['"][^'"]+/, 'utrwalanie sekretu lub niezaufany HTML w panelu licencji');
 rejectText(preload, /installOdaAddon|convertCadFile|getOdaStatus|chooseOdaConverterPath|openOdaDownload/, 'nieużywane API ODA w preload');
 rejectText(main, /install-oda-addon|convert-cad-file|get-oda-status|choose-oda|open-oda/, 'wycofany automatyczny instalator i stare kanały ODA w procesie głównym');
 expectText(main, /import-dwg-sketch/, 'zaufany kanał lokalnego importu DWG');
