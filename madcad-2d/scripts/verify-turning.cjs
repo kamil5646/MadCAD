@@ -47,7 +47,21 @@ app.whenReady().then(async () => {
     if (!layout.insideViewport || layout.overflow || !layout.title.includes('Toczenie 2-osiowe') || !layout.code.includes('T1 M6')) throw new Error(`Niepoprawny interfejs toczenia: ${JSON.stringify(layout)}`);
     await new Promise((resolve) => setTimeout(resolve, 150));
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    process.stdout.write(`${JSON.stringify({ screenshotPath, operations: state.setup.operations, segmentCount: state.visual.segmentCount, layoutVerified: true }, null, 2)}\n`);
+    await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'en' } });
+    await waitFor(window, `window.__madcadVerifyLoadTimelineFixture && document.querySelector('.workspace-tabs')`, 'English UI ready');
+    await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click(); window.__madcadVerifyLoadTimelineFixture()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'`, 'English fixture');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.workspace-tabs button')].find((button) => button.textContent.trim() === 'MANUFACTURE').click()`);
+    await waitFor(window, `document.querySelector('[data-tool-label="Nowy Setup"]')`, 'English manufacturing workspace');
+    await window.webContents.executeJavaScript(`document.querySelector('[data-tool-label="Nowy Setup"]').click()`);
+    await waitFor(window, `document.querySelector('.manufacturing-summary.valid')`, 'English base setup');
+    await changeSelectByLabel(window, 'Process type', 'turning-2axis');
+    await waitFor(window, `document.querySelector('.manufacturing-panel > header')?.textContent.includes('2-axis turning')`, 'English turning setup');
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.manufacturing-page-tabs button')[1].click()`);
+    await waitFor(window, `document.querySelector('.manufacturing-add-actions')?.textContent.includes('Outside turning')`, 'English turning operations');
+    const untranslated = await window.webContents.executeJavaScript(`(() => { const values = []; const pattern = /(?:[ąćęłńóśźż]|\\b(?:Zaznacz|Wybierz|Pokaż|Ukryj|Nowy|Usuń|Cofnij|Ponów|Płaszczyzna|Utwórz|Dodaj|Sprawdź|Średnica|Toczenie|Cięcie|Nóż|Oś)\\b)/i; document.querySelector('.manufacturing-panel').querySelectorAll('*').forEach((element) => { if (!element.children.length && pattern.test(element.textContent.trim())) values.push(element.textContent.trim()); for (const attribute of ['aria-label', 'title', 'placeholder']) { const value = element.getAttribute(attribute); if (value && pattern.test(value)) values.push(value); } }); return [...new Set(values)]; })()`);
+    if (untranslated.length) throw new Error(`English CAM contains untranslated Polish: ${JSON.stringify(untranslated)}`);
+    process.stdout.write(`${JSON.stringify({ screenshotPath, operations: state.setup.operations, segmentCount: state.visual.segmentCount, layoutVerified: true, englishVerified: true }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
     process.stderr.write(`${error.stack || error.message}\n`);
