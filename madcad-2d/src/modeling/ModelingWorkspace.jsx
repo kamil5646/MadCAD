@@ -334,6 +334,10 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
   const selectProfile = (profileId) => commit((next) => { next.print = applyPrinterProfile(next.print, profileId); });
   const selectMaterialProfile = (profileId) => commit((next) => { next.print = applyPrintMaterialProfile(next.print, profileId); });
   const materialProfile = PRINT_MATERIAL_PROFILES.find((profile) => profile.id === document.print.materialProfileId);
+  const generalMaterialProfiles = PRINT_MATERIAL_PROFILES.filter((profile) => profile.group === 'general');
+  const manufacturerMaterialProfiles = Object.groupBy
+    ? Object.groupBy(PRINT_MATERIAL_PROFILES.filter((profile) => profile.group === 'manufacturer'), (profile) => profile.manufacturer)
+    : PRINT_MATERIAL_PROFILES.filter((profile) => profile.group === 'manufacturer').reduce((groups, profile) => ({ ...groups, [profile.manufacturer]: [...(groups[profile.manufacturer] || []), profile] }), {});
   const orientToSelectedFace = () => commit((next) => {
     const orientation = orientationForBedFace(selectedFace.normal);
     const candidate = {
@@ -405,8 +409,8 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
       </div>
       <div className="print-section print-analysis-section">
         <div className="print-section-heading"><h3>Analiza drukowalności</h3><button id="printRiskMapBtn" type="button" className={document.print.showRiskMap ? 'active' : ''} aria-pressed={Boolean(document.print.showRiskMap)} disabled={readOnly || !bodies.length} onClick={() => commit((next) => { next.print.showRiskMap = !next.print.showRiskMap; })}>{document.print.showRiskMap ? 'Ukryj mapę' : 'Pokaż mapę'}</button></div>
-        <label className="command-field"><span>Profil materiału</span><select id="printMaterialProfile" value={document.print.materialProfileId || 'custom'} onChange={(event) => selectMaterialProfile(event.target.value)} disabled={readOnly}>{PRINT_MATERIAL_PROFILES.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}<option value="custom">Własne progi</option></select></label>
-        {materialProfile && <div className="print-material-guidance"><strong>{materialProfile.material} · dysza {materialProfile.nozzleTemperature} · stół {materialProfile.bedTemperature}</strong><span>{materialProfile.guidance}</span></div>}
+        <label className="command-field"><span>Profil analizy materiału</span><select id="printMaterialProfile" value={document.print.materialProfileId || 'custom'} onChange={(event) => selectMaterialProfile(event.target.value)} disabled={readOnly}><optgroup label="Ogólne">{generalMaterialProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</optgroup>{Object.entries(manufacturerMaterialProfiles).map(([manufacturer, profiles]) => <optgroup key={manufacturer} label={manufacturer}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</optgroup>)}<option value="custom">Własne progi</option></select></label>
+        {materialProfile && <div className="print-material-guidance"><strong>{materialProfile.manufacturer ? `${materialProfile.manufacturer} · ` : ''}{materialProfile.material}</strong><span>Dysza {materialProfile.nozzleTemperature} · stół {materialProfile.bedTemperature} · chłodzenie {materialProfile.cooling}{materialProfile.maxSpeed ? ` · ${materialProfile.maxSpeed}` : ''}</span><span>Komora: {materialProfile.enclosure}{materialProfile.drying ? ` · suszenie: ${materialProfile.drying}` : ''}</span><span>{materialProfile.guidance}</span>{materialProfile.sourceName && <small>Źródło parametrów: {materialProfile.sourceName} · zweryfikowano 09.09.2026</small>}</div>}
         <div className="print-field-grid">
           <Field type="number" label="Dysza" value={document.print.nozzleDiameter ?? 0.4} suffix="mm" onChange={(value) => updateAnalysis('nozzleDiameter', value)} disabled={readOnly} />
           <Field type="number" label="Min. ścianka" value={document.print.minimumWallThickness ?? 0.8} suffix="mm" onChange={(value) => updateAnalysis('minimumWallThickness', value)} disabled={readOnly} />

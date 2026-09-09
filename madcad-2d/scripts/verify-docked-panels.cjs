@@ -110,10 +110,10 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`(() => {
       const select = document.querySelector('#printMaterialProfile');
       const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
-      setter.call(select, 'petg');
+      setter.call(select, 'bambu-petg-hf');
       select.dispatchEvent(new Event('change', { bubbles: true }));
     })()`);
-    await waitFor(window, `document.querySelector('.print-material-guidance')?.textContent.includes('PETG') && document.querySelector('.print-material-guidance')?.textContent.includes('225–255°C')`, 'profil materiału PETG');
+    await waitFor(window, `document.querySelector('.print-material-guidance')?.textContent.includes('Bambu Lab') && document.querySelector('.print-material-guidance')?.textContent.includes('230–260°C') && document.querySelector('.print-material-guidance')?.textContent.includes('65°C przez 8 h')`, 'profil producenta Bambu PETG HF');
     await window.webContents.executeJavaScript(`document.querySelector('#printRiskMapBtn')?.click()`);
     await waitFor(window, `document.querySelector('#printRiskMapBtn')?.getAttribute('aria-pressed') === 'true' && window.__madcadPrintRiskMapState?.enabled && window.__madcadPrintRiskMapState?.overlays > 0`, 'mapa ryzyka druku');
     await new Promise((resolve) => setTimeout(resolve, 220));
@@ -128,6 +128,7 @@ app.whenReady().then(async () => {
         finite: Boolean(print && ['positionX', 'positionY', 'positionZ', 'orientationAngle'].every((key) => Number.isFinite(print[key]))),
         onBed: Boolean(print && print.positionZ >= -0.001),
         materialProfile: document.querySelector('#printMaterialProfile')?.value || '',
+        materialProfileGroups: [...document.querySelectorAll('#printMaterialProfile optgroup')].map((group) => group.label),
         materialGuidanceVisible: Boolean(document.querySelector('.print-material-guidance')?.getBoundingClientRect().height),
         riskMap: window.__madcadPrintRiskMapState,
         riskLegendVisible: Boolean(document.querySelector('.print-risk-legend')?.getBoundingClientRect().height),
@@ -140,7 +141,7 @@ app.whenReady().then(async () => {
     const printCollapsed = await printPanelSnapshot(window);
 
     const result = { screenshotPath, printScreenshotPath, initial, collapsed, fixed, dockControlAbsent, storedRight, printInitial, automaticOrientation, printCollapsed };
-    if (initial.panelPosition === 'absolute' || initial.dock !== 'right' || !initial.besideCanvas || initial.panelWidth < 260 || collapsed.panelWidth > 40 || !collapsed.collapsed || !collapsed.besideCanvas || fixed.dock !== 'right' || !fixed.besideCanvas || fixed.horizontalOverflow || !dockControlAbsent || !storedRight || printInitial.panelWidth < 270 || !printInitial.besideCanvas || !automaticOrientation.visible || !automaticOrientation.finite || !automaticOrientation.onBed || automaticOrientation.materialProfile !== 'petg' || !automaticOrientation.materialGuidanceVisible || !automaticOrientation.riskMap?.enabled || automaticOrientation.riskMap?.overlays < 1 || !automaticOrientation.riskLegendVisible || printCollapsed.panelWidth > 40 || !printCollapsed.collapsed || !printCollapsed.besideCanvas || printCollapsed.horizontalOverflow) {
+    if (initial.panelPosition === 'absolute' || initial.dock !== 'right' || !initial.besideCanvas || initial.panelWidth < 260 || collapsed.panelWidth > 40 || !collapsed.collapsed || !collapsed.besideCanvas || fixed.dock !== 'right' || !fixed.besideCanvas || fixed.horizontalOverflow || !dockControlAbsent || !storedRight || printInitial.panelWidth < 270 || !printInitial.besideCanvas || !automaticOrientation.visible || !automaticOrientation.finite || !automaticOrientation.onBed || automaticOrientation.materialProfile !== 'bambu-petg-hf' || !automaticOrientation.materialProfileGroups?.includes('Ogólne') || !automaticOrientation.materialProfileGroups?.includes('Bambu Lab') || !automaticOrientation.materialGuidanceVisible || !automaticOrientation.riskMap?.enabled || automaticOrientation.riskMap?.overlays < 1 || !automaticOrientation.riskLegendVisible || printCollapsed.panelWidth > 40 || !printCollapsed.collapsed || !printCollapsed.besideCanvas || printCollapsed.horizontalOverflow) {
       throw new Error(`Niepoprawny układ paneli: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

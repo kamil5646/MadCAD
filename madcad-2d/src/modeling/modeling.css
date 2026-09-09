@@ -5798,6 +5798,12 @@
   color: #aebbc5;
 }
 
+.print-material-guidance small {
+  margin-top: 2px;
+  color: #8ea1ae;
+  font-size: 8px;
+}
+
 .print-risk-legend {
   display: flex;
   flex-wrap: wrap;

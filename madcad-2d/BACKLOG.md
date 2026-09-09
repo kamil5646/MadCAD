@@ -33,7 +33,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Automatyczne ułożenie do druku ocenia rzeczywiste trójkąty modelu, pole podparcia, nawisy, wysokość i dopasowanie do stołu; centruje wybrany wariant i zachowuje ręczne sterowanie.
 - [x] Profile PLA, PETG, ASA/ABS i TPU ustawiają spójne progi analizy oraz pokazują zakres temperatur i krótkie zalecenie technologiczne bez udawania profilu slicera.
 - [x] Mapa technologiczna druku nakłada na gotowy model klasy bezpieczne/nawis/błąd siatki, ma czytelną legendę i nie przejmuje zaznaczania geometrii.
-- Zaawansowane, zależne od producenta profile materiałów.
+- [x] Profile producentów Bambu Lab, Prusament i Creality mają osobne grupy, jawne źródło, temperatury, chłodzenie, komorę, suszenie i prędkość; zmieniają progi analizy, ale nie nadpisują drukarki ani nie udają pełnego profilu slicera.
 
 ## Historia, projekty i zespoły
 

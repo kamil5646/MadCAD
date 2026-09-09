@@ -107,7 +107,7 @@ Tapered threads, wiele norm i klasy pasowania są `P1`.
 - [x] Lista problemów wskazuje geometrię; wynik opisuje ryzyko, nie gwarancję wydruku.
 - [x] Przekazanie pliku do Bambu Studio, PrusaSlicer lub Cura.
 
-Zaawansowane heatmapy, automatyczne rozmieszczanie wielu części i rozbudowany remesh są `P1`.
+Mapa ryzyka druku, automatyczna orientacja, profile analizy materiałów i kontrolowany remesh są ukończone. Pełne profile procesu pozostają odpowiedzialnością wybranego slicera.
 
 ## M10 — ciągły tor jakości i wydanie `P0`
 
