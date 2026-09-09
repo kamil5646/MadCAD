@@ -4526,6 +4526,13 @@
 .beam-fea-inputs .command-field { margin: 0; }
 .beam-fea-panel { display: flex; max-height: calc(100% - 28px); flex-direction: column; }
 .beam-fea-panel .measure-panel-body { min-height: 0; overflow-y: auto; }
+.solid-fea-panel { display: flex; max-height: calc(100% - 28px); flex-direction: column; }
+.solid-fea-panel .measure-panel-body { min-height: 0; overflow-y: auto; }
+.solid-fea-panel > header em { color: #6ed8f1; font-size: 8px; font-style: normal; letter-spacing: .08em; }
+.solid-fea-boundary { display: grid; gap: 4px; padding: 6px; border: 1px solid #43505d; border-radius: 4px; background: #242e38; }
+.solid-fea-boundary > strong { color: #d5e0e8; font-size: 9px; letter-spacing: .02em; }
+.solid-fea-face-reference { display: flex; min-height: 28px; align-items: center; gap: 7px; padding: 0 7px; border-radius: 3px; color: #ff8da0; background: #2d3640; font-size: 10px; font-weight: 700; }
+.solid-fea-face-reference.load { color: #ffb85d; }
 .beam-fea-legend { display: flex; flex-wrap: wrap; gap: 5px 10px; color: #aebbc4; font-size: 9px; font-weight: 700; }
 .beam-fea-legend span { display: inline-flex; align-items: center; gap: 4px; }
 .beam-fea-legend i { width: 9px; height: 9px; border-radius: 2px; background: #52d3ef; }

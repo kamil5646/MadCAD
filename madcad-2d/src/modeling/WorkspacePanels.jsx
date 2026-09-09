@@ -613,6 +613,40 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
   );
 }
 
+export function SolidFeaPanel({ bodies = [], bodyId = '', materialId = 's235', supportAxis = 'x', supportSide = 'min', supportFaceId = '', supportFaceLabel = '', loadAxis = 'z', loadSide = 'max', loadFaceId = '', loadFaceLabel = '', force = '1000', meshDensity = '6', result, error = '', onChange, onClose }) {
+  const format = (value, digits = 3) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
+  return (
+    <aside className="measure-panel static-screening-panel solid-fea-panel" aria-label="MES bryły 3D beta">
+      <header><div><ScanSearch size={16} /><strong>MES bryły 3D <em>BETA</em></strong></div><button type="button" title="Zamknij MES bryły 3D" aria-label="Zamknij MES bryły 3D" onClick={onClose}><X size={15} /></button></header>
+      <div className="measure-panel-body">
+        <p className="analysis-scope">Liniowa sprężystość 3D na objętościowej siatce czworościennej.</p>
+        <label><span>Bryła</span><select aria-label="Bryła MES 3D" value={bodyId} onChange={(event) => onChange({ bodyId: event.target.value })}>{bodies.map((body) => <option key={body.id} value={body.id}>{body.name}</option>)}</select></label>
+        <label><span>Materiał</span><select aria-label="Materiał MES 3D" value={materialId} onChange={(event) => onChange({ materialId: event.target.value })}>{Object.values(ENGINEERING_MATERIALS).map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}</select></label>
+        <section className="solid-fea-boundary"><strong>Utwierdzenie</strong>{supportFaceId ? <div className="solid-fea-face-reference"><Anchor size={13} /><span>{supportFaceLabel || 'Wskazana ściana modelu'}</span></div> : <div className="static-axis-grid"><label><span>Oś</span><select aria-label="Oś utwierdzenia MES 3D" value={supportAxis} onChange={(event) => onChange({ supportAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label><label><span>Strona</span><select aria-label="Strona utwierdzenia MES 3D" value={supportSide} onChange={(event) => onChange({ supportSide: event.target.value })}><option value="min">MIN</option><option value="max">MAX</option></select></label></div>}</section>
+        <section className="solid-fea-boundary"><strong>Obciążenie powierzchni</strong>{loadFaceId && <div className="solid-fea-face-reference load"><Anchor size={13} /><span>{loadFaceLabel || 'Wskazana ściana modelu'}</span></div>}<div className="static-axis-grid"><label><span>Kierunek</span><select aria-label="Kierunek siły MES 3D" value={loadAxis} onChange={(event) => onChange({ loadAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label>{!loadFaceId && <label><span>Strona</span><select aria-label="Strona obciążenia MES 3D" value={loadSide} onChange={(event) => onChange({ loadSide: event.target.value })}><option value="max">MAX</option><option value="min">MIN</option></select></label>}</div></section>
+        <div className="beam-fea-inputs"><Field label="Siła całkowita" value={force} onChange={(value) => onChange({ force: value })} suffix="N" /><Field label="Gęstość siatki" value={meshDensity} onChange={(value) => onChange({ meshDensity: value })} /></div>
+        {error && <p className="measure-error">{error}</p>}
+        {result && <>
+          <div className={`static-result ${result.status}`}>
+            <div className="static-result-heading"><strong>{result.status === 'safe' ? 'Zapas ≥ 2' : result.status === 'warning' ? 'Mały zapas' : 'Przekroczona granica'}</strong><span>FoS {format(result.safetyFactor, 2)}</span></div>
+            <div className="measure-row"><span>Siatka</span><strong>{result.nodeCount} węzłów · {result.elementCount} elem.</strong></div>
+            <div className="measure-row"><span>Utwierdzone / obciążone</span><strong>{result.fixedNodeCount} / {result.loadedNodeCount}</strong></div>
+            <div className="measure-row"><span>Maks. przemieszczenie</span><strong>{format(result.maximumDisplacement, 5)} mm</strong></div>
+            <div className="measure-row"><span>Maks. von Mises</span><strong>{format(result.maximumStress)} MPa</strong></div>
+            <div className="measure-row"><span>Błąd objętości siatki</span><strong>{result.volumeErrorPercent == null ? '—' : `${format(result.volumeErrorPercent, 2)}%`}</strong></div>
+            <div className="measure-row"><span>Błąd równowagi sił</span><strong>{format(result.equilibriumErrorPercent, 4)}%</strong></div>
+            <div className="measure-row"><span>Zbieżność siatki</span><strong>{result.convergence?.status === 'converged' ? '≤ 10%' : result.convergence?.status === 'refine' ? 'Zagęść siatkę' : 'Brak porównania'}</strong></div>
+            {result.convergence?.displacementChangePercent != null && <div className="measure-row"><span>Zmiana u / σ</span><strong>{format(result.convergence.displacementChangePercent, 1)}% / {format(result.convergence.stressChangePercent, 1)}%</strong></div>}
+            <div className="measure-row"><span>Solver</span><strong>{result.iterationCount} iteracji</strong></div>
+          </div>
+          <div className="beam-fea-legend" aria-label="Legenda MES bryły 3D"><span><i className="support" />Utwierdzenie</span><span><i className="load" />Obciążenie</span><span><i className="deformation" />Naprężenie</span></div>
+        </>}
+        {result?.limitations.map((limitation) => <p className="static-limitation" key={limitation}>{limitation}</p>)}
+      </div>
+    </aside>
+  );
+}
+
 export function ThermalScreeningPanel({ bodies = [], bodyId = '', materialId = 's235', axis = 'x', hotTemperature = '100', coldTemperature = '20', result, error = '', onChange, onClose }) {
   const format = (value, digits = 2) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
   return (

@@ -1,9 +1,9 @@
 export const ENGINEERING_MATERIALS = Object.freeze({
-  s235: Object.freeze({ id: 's235', name: 'Stal S235', elasticModulus: 210000, yieldStrength: 235, density: 7.85 }),
-  s355: Object.freeze({ id: 's355', name: 'Stal S355', elasticModulus: 210000, yieldStrength: 355, density: 7.85 }),
-  aluminum6061: Object.freeze({ id: 'aluminum6061', name: 'Aluminium 6061-T6', elasticModulus: 69000, yieldStrength: 276, density: 2.70 }),
-  abs: Object.freeze({ id: 'abs', name: 'ABS — orientacyjnie', elasticModulus: 2100, yieldStrength: 35, density: 1.04 }),
-  petg: Object.freeze({ id: 'petg', name: 'PETG — orientacyjnie', elasticModulus: 2000, yieldStrength: 45, density: 1.27 }),
+  s235: Object.freeze({ id: 's235', name: 'Stal S235', elasticModulus: 210000, poissonRatio: 0.3, yieldStrength: 235, density: 7.85 }),
+  s355: Object.freeze({ id: 's355', name: 'Stal S355', elasticModulus: 210000, poissonRatio: 0.3, yieldStrength: 355, density: 7.85 }),
+  aluminum6061: Object.freeze({ id: 'aluminum6061', name: 'Aluminium 6061-T6', elasticModulus: 69000, poissonRatio: 0.33, yieldStrength: 276, density: 2.70 }),
+  abs: Object.freeze({ id: 'abs', name: 'ABS — orientacyjnie', elasticModulus: 2100, poissonRatio: 0.35, yieldStrength: 35, density: 1.04 }),
+  petg: Object.freeze({ id: 'petg', name: 'PETG — orientacyjnie', elasticModulus: 2000, poissonRatio: 0.38, yieldStrength: 45, density: 1.27 }),
 });
 
 const AXIS_INDEX = Object.freeze({ x: 0, y: 1, z: 2 });

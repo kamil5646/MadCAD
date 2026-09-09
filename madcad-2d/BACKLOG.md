@@ -163,3 +163,6 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] P1.36o — edytowalne współczynniki przypadków obciążenia MES belki z walidacją i automatycznym wyborem krytycznego wariantu.
 - [x] P1.36p — własne nazwy oraz dodawanie i usuwanie do ośmiu scenariuszy obciążenia w obwiedni MES belki.
 - [x] P1.36q — eksport kompletnego raportu MES belki i scenariuszy do CSV.
+- [x] P1.36r — objętościowy MES bryły 3D beta z czworościanami, liniową sprężystością, naprężeniem von Mises, mapą deformacji oraz kontrolą objętości, równowagi i zbieżności.
+- [x] P1.36s — trwały wybór planarnych ścian B-Rep dla warunków brzegowych i automatyczna analiza zbieżności dwóch gęstości siatki.
+- [ ] P1.36t — niezależne benchmarki 3D, lokalna adaptacja siatki i kryteria wyjścia z wersji beta.

@@ -1,6 +1,6 @@
 # MadCAD — aktywny plan rozwoju
 
-Aktualizacja: 2026-09-03
+Aktualizacja: 2026-09-09
 Wersja bazowa: `6.4.7 stable`
 Gałąź wydania: `main`
 
@@ -210,6 +210,9 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.36o Współczynniki trzech scenariuszy obciążenia są edytowalne w panelu w zakresie 0,1–10. Solver przelicza obwiednię na żywo, zachowuje nazwy i niezależnie wybiera krytyczny wariant po każdej zmianie.
 - [x] P1.36p Użytkownik może nazwać, dodać i usunąć od 1 do 8 własnych scenariuszy obciążenia. Nazwy i identyfikatory są walidowane jako unikalne, a dowolna liczba przypadków uczestniczy w tej samej automatycznej obwiedni.
 - [x] P1.36q Wyniki MES belki można zapisać jako raport CSV zgodny z arkuszami kalkulacyjnymi. Plik obejmuje dane projektu, materiał, geometrię, obciążenia, główne wyniki oraz wszystkie scenariusze z ich współczynnikami i FoS.
+- [x] P1.36r Pierwszy rzeczywisty MES bryły 3D tworzy objętościową siatkę czworościenną z zamkniętej siatki powierzchniowej, składa macierz liniowej sprężystości z trzema przemieszczeniami na węzeł, nakłada utwierdzenie i siłę powierzchniową oraz pokazuje deformację i naprężenie von Mises. Panel jawnie raportuje błąd aproksymacji objętości, równowagę sił, zbieżność solvera i zakres beta; test rdzenia oraz Electron sprawdzają rzeczywistą bryłę OpenCascade i mapę w widoku.
+- [x] P1.36s MES bryły 3D przyjmuje dwie bezpośrednio wskazane planarne ściany B-Rep jako utwierdzenie i powierzchnię obciążenia, rozkłada siłę zgodnie z polami trójkątów granicznych i automatycznie porównuje przemieszczenie oraz naprężenie na dwóch kolejnych gęstościach siatki. Trwałe ID ścian, reakcja i wynik badania zbieżności przechodzą test rdzenia oraz pełny scenariusz Electron.
+- [>] P1.36t Zweryfikować solver niezależnym zestawem benchmarków 3D, dodać lokalne zagęszczanie przy krzywiźnie i karbach oraz dopiero wtedy ocenić usunięcie oznaczenia beta.
 
 ## P2 — dokumentacja techniczna 2D
 
