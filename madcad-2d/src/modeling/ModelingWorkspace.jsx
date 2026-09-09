@@ -140,7 +140,7 @@ import { calculateSolidFea } from '../cad-core/solid-fea.js';
 import { calculateThermalScreening } from '../cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
 import { applyPrinterProfile, applyPrintMaterialProfile, PRINTER_PROFILES, PRINT_MATERIAL_PROFILES } from '../cad-core/printer-profiles.js';
-import { confirmCommercialLicense, describeLicensePlan, loadLicensePlan, saveLicensePlan, selectLicensePlan } from './license-plan.js';
+import { DEFAULT_LICENSE_STATUS, describeLicensePlan, normalizeLicenseStatus } from './license-plan.js';
 import { calculatePrintLayout, orientationForBedFace, recommendPrintOrientation } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../cad-core/model-import.js';
@@ -470,17 +470,31 @@ export default function ModelingWorkspace() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [licenseInfoOpen, setLicenseInfoOpen] = useState(true);
   const [fullLicenseOpen, setFullLicenseOpen] = useState(false);
-  const [licensePlan, setLicensePlan] = useState(loadLicensePlan);
+  const [licensePlan, setLicensePlan] = useState(DEFAULT_LICENSE_STATUS);
+  const [licenseBusy, setLicenseBusy] = useState(false);
+  const [licenseError, setLicenseError] = useState('');
   const licensePlanStatus = describeLicensePlan(licensePlan);
-  const chooseLicensePlan = useCallback((mode, details) => {
-    setLicensePlan((current) => {
-      const next = mode === 'commercial-licensed'
-        ? confirmCommercialLicense(current, details)
-        : selectLicensePlan(current, mode);
-      saveLicensePlan(next);
-      return next;
-    });
+  const runLicenseAction = useCallback(async (action, payload) => {
+    const method = window.desktopApp?.[action];
+    if (typeof method !== 'function') {
+      setLicenseError('Zarządzanie kontem jest dostępne w zainstalowanej aplikacji desktopowej.');
+      return null;
+    }
+    setLicenseBusy(true);
+    setLicenseError('');
+    try {
+      const result = await method(payload);
+      if (result?.status) setLicensePlan(normalizeLicenseStatus(result.status));
+      if (!result?.ok) setLicenseError(result?.error || 'Nie udało się sprawdzić licencji.');
+      return result;
+    } catch (error) {
+      setLicenseError(error?.message || 'Nie udało się połączyć z serwerem licencji.');
+      return null;
+    } finally {
+      setLicenseBusy(false);
+    }
   }, []);
+  useEffect(() => { runLicenseAction('licenseGetStatus'); }, [runLicenseAction]);
   const [expandedSketchRibbon, setExpandedSketchRibbon] = useState(() => window.matchMedia('(min-width: 1260px)').matches);
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1260px)');
@@ -8054,7 +8068,7 @@ export default function ModelingWorkspace() {
         </div>}
       </footer>
       {tutorialOpen && <FirstPartTutorial onClose={() => setTutorialOpen(false)} />}
-      {licenseInfoOpen && <LicenseInfoDialog licensePlan={licensePlan} onSelectPlan={chooseLicensePlan} onClose={() => setLicenseInfoOpen(false)} onShowFullLicense={() => { setLicenseInfoOpen(false); setFullLicenseOpen(true); }} />}
+      {licenseInfoOpen && <LicenseInfoDialog licensePlan={licensePlan} busy={licenseBusy} error={licenseError} onLogin={(data) => runLicenseAction('licenseLogin', data)} onRegister={(data) => runLicenseAction('licenseRegister', data)} onStartTrial={() => runLicenseAction('licenseStartTrial')} onLogout={() => runLicenseAction('licenseLogout')} onRefresh={() => runLicenseAction('licenseGetStatus')} onClose={() => setLicenseInfoOpen(false)} onShowFullLicense={() => { setLicenseInfoOpen(false); setFullLicenseOpen(true); }} />}
       {fullLicenseOpen && <FullLicenseDialog onClose={() => setFullLicenseOpen(false)} />}
       {updateState.open && !updatePromptBlocked && <UpdateDialog state={updateState} onCheck={checkForUpdates} onInstall={installAvailableUpdate} onClose={() => setUpdateState((current) => ({ ...current, open: false, promptPending: false }))} />}
       {toolHelp && (

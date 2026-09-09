@@ -26,12 +26,13 @@ export function FirstPartTutorial({ onClose }) {
   );
 }
 
-export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { mode: 'personal' }, onSelectPlan = () => {} }) {
+export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { mode: 'personal' }, busy = false, error = '', onLogin = () => {}, onRegister = () => {}, onStartTrial = () => {}, onLogout = () => {}, onRefresh = () => {} }) {
   const dialogRef = useDialogFocus();
   const planStatus = describeLicensePlan(licensePlan);
-  const [commercialFormOpen, setCommercialFormOpen] = useState(false);
-  const [commercialHolder, setCommercialHolder] = useState(licensePlan.commercialHolder || '');
-  const [commercialReference, setCommercialReference] = useState(licensePlan.commercialReference || '');
+  const [accountMode, setAccountMode] = useState('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   useEffect(() => {
     const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKeyDown);
@@ -52,25 +53,37 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { 
           <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.</p>
           <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.4.7 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
           <div className={`license-plan-status ${planStatus.expired ? 'expired' : ''}`} role="status"><span>Aktywny plan</span><strong>{planStatus.label}</strong><small>{planStatus.detail}</small></div>
-          <div className="license-plan-grid" aria-label="Wybierz sposób korzystania z MadCAD">
-            <button type="button" className={licensePlan.mode === 'personal' ? 'selected' : ''} aria-pressed={licensePlan.mode === 'personal'} onClick={() => onSelectPlan('personal')}><strong>Osobista</strong><span>Bezpłatnie bez limitu czasu</span><small>Wyłącznie projekty prywatne, edukacyjne i niezarobkowe.</small></button>
-            <button type="button" className={licensePlan.mode === 'commercial-trial' ? 'selected' : ''} aria-pressed={licensePlan.mode === 'commercial-trial'} onClick={() => onSelectPlan('commercial-trial')}><strong>Ocena komercyjna</strong><span>40 dni pełnej wersji</span><small>Dla firmy lub organizacji przed zakupem.</small></button>
-            <button type="button" className={licensePlan.mode === 'commercial-licensed' ? 'selected' : ''} aria-pressed={licensePlan.mode === 'commercial-licensed'} aria-expanded={commercialFormOpen} onClick={() => setCommercialFormOpen((open) => !open)}><strong>Komercyjna</strong><span>Licencja stanowiskowa</span><small>Aktywuj lokalnie na podstawie faktury lub pisemnego potwierdzenia zakupu.</small></button>
+          <div className="license-plan-grid" aria-label="Plany MadCAD">
+            <article className={licensePlan.mode === 'personal' ? 'selected' : ''}><strong>Osobista</strong><span>Bezpłatnie bez limitu czasu</span><small>Wyłącznie projekty prywatne, edukacyjne i niezarobkowe. Konto nie jest wymagane.</small></article>
+            <article className={licensePlan.mode === 'commercial-trial' ? 'selected' : ''}><strong>Ocena komercyjna</strong><span>40 dni pełnej wersji</span><small>Jednorazowy okres oceny przypisany do konta. Wymaga połączenia przy aktywacji.</small></article>
+            <article className={licensePlan.mode === 'commercial' ? 'selected' : ''}><strong>Komercyjna</strong><span>Licencja imienna</span><small>Plan i liczba stanowisk są sprawdzane na serwerze. Po sprawdzeniu działa także offline.</small></article>
           </div>
-          {commercialFormOpen && (
-            <form className="commercial-license-form" onSubmit={(event) => { event.preventDefault(); onSelectPlan('commercial-licensed', { holder: commercialHolder, reference: commercialReference }); setCommercialFormOpen(false); }}>
-              <strong>Potwierdź zakup licencji</strong>
-              <label><span>Licencjobiorca</span><input value={commercialHolder} maxLength="120" required autoComplete="organization" onChange={(event) => setCommercialHolder(event.target.value)} placeholder="Osoba lub firma z dokumentu zakupu" /></label>
-              <label><span>Numer faktury lub potwierdzenia</span><input value={commercialReference} maxLength="120" required autoComplete="off" onChange={(event) => setCommercialReference(event.target.value)} placeholder="Np. FV/2026/001" /></label>
-              <small>Dane pozostają wyłącznie na tym komputerze. Ten zapis nie zastępuje dokumentu zakupu.</small>
-              <div><button type="button" onClick={() => setCommercialFormOpen(false)}>Anuluj</button><button className="commercial" type="submit">Potwierdź licencję</button></div>
+          {licensePlan.signedIn ? (
+            <section className="license-account-panel" aria-label="Konto MadCAD">
+              <div><strong>{licensePlan.account?.displayName || licensePlan.account?.email}</strong><small>{licensePlan.account?.email} · {licensePlan.connection === 'online' ? 'sprawdzono online' : 'tryb offline'}</small></div>
+              <div className="license-account-actions">
+                {licensePlan.mode === 'personal' && <button className="commercial" type="button" disabled={busy} onClick={onStartTrial}>Rozpocznij 40-dniową ocenę</button>}
+                <button type="button" disabled={busy} onClick={onRefresh}>Sprawdź licencję</button>
+                <button type="button" disabled={busy} onClick={onLogout}>Wyloguj</button>
+              </div>
+            </section>
+          ) : (
+            <form className="commercial-license-form license-account-form" onSubmit={(event) => { event.preventDefault(); const values = { email, password, displayName }; (accountMode === 'register' ? onRegister : onLogin)(values); }}>
+              <strong>{accountMode === 'register' ? 'Utwórz konto MadCAD' : 'Zaloguj się do MadCAD'}</strong>
+              {accountMode === 'register' && <label><span>Imię i nazwisko lub firma</span><input value={displayName} maxLength="120" minLength="2" required autoComplete="name" onChange={(event) => setDisplayName(event.target.value)} /></label>}
+              <label><span>E-mail</span><input type="email" value={email} maxLength="254" required autoComplete="email" onChange={(event) => setEmail(event.target.value)} /></label>
+              <label><span>Hasło</span><input type="password" value={password} minLength="10" maxLength="200" required autoComplete={accountMode === 'register' ? 'new-password' : 'current-password'} onChange={(event) => setPassword(event.target.value)} /></label>
+              <small>Hasło jest wysyłane szyfrowanym połączeniem wyłącznie podczas logowania i nie jest zapisywane w aplikacji.</small>
+              <div><button type="button" disabled={busy} onClick={() => setAccountMode((mode) => mode === 'login' ? 'register' : 'login')}>{accountMode === 'login' ? 'Utwórz konto' : 'Mam już konto'}</button><button className="commercial" type="submit" disabled={busy}>{busy ? 'Łączenie…' : accountMode === 'register' ? 'Zarejestruj' : 'Zaloguj'}</button></div>
             </form>
           )}
+          {error && <p className="license-account-error" role="alert"><AlertTriangle size={15} />{error}</p>}
           <div className="license-info-card license-info-commercial">
             <strong>Użytek komercyjny jest płatny</strong>
             <ul>
               <li>Po okresie oceny praca firmowa, zarobkowa lub dla klienta wymaga bezterminowej licencji na każde stanowisko.</li>
-              <li>Nie ma klucza ani aktywacji — status jest zapisywany lokalnie, a licencję potwierdza dokument zakupu.</li>
+              <li>Nie ma klucza do przepisywania — konto automatycznie pobiera plan i liczbę stanowisk z serwera MadCAD.</li>
+              <li>Po sprawdzeniu plan komercyjny może działać offline przez ograniczony czas; cofnięcie lub wygaśnięcie planu wymaga ponownego sprawdzenia.</li>
               <li>Dobrowolna darowizna wspiera rozwój, ale nie zastępuje licencji komercyjnej.</li>
             </ul>
           </div>

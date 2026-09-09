@@ -132,17 +132,19 @@ użyć `Control` + klik i wybrać **Otwórz**.
 
 ## Licencja
 
-Aplikacja nie zawiera klucza, identyfikatora urządzenia ani zdalnego rejestru.
-Na wzór czytelnego wyboru planu w programach Autodesk zapisuje lokalnie aktywny
-tryb użycia i przy każdym uruchomieniu pokazuje jego status:
+Aplikacja nie wymaga przepisywania klucza. Na wzór kont Autodesk rozpoznaje plan
+po zalogowaniu, a uprawnienie jest nadawane przez usługę MadCAD na serwerze
+SEOHost MAD-MAG. Przy każdym uruchomieniu pokazuje aktualny status:
 
 - prywatnie bezpłatnie bez limitu czasu;
 - 40 dni oceny dla firmy lub organizacji;
 - później płatna, bezterminowa licencja na każde stanowisko komercyjne.
 
-Przełączenie na ocenę komercyjną uruchamia jeden 40-dniowy licznik, którego nie
-resetuje powrót do trybu osobistego. Wybranie planu komercyjnego jest deklaracją
-posiadania faktury lub pisemnego potwierdzenia — aplikacja nadal nie wymaga klucza.
+Tryb osobisty działa także bez konta. Ocena i plan komercyjny są przypisane do
+użytkownika oraz limitu aktywnych urządzeń; po sprawdzeniu online mogą działać
+offline przez maksymalnie 30 dni. Hasło nie jest zapisywane w aplikacji, a token
+sesji chroni systemowy magazyn poświadczeń. Użytkownik nie może sam nadać sobie
+planu komercyjnego — robi to administrator po potwierdzeniu zakupu.
 
 Pełne warunki: [`../LICENSE`](../LICENSE). Kontakt handlowy:
 [kkasprzak15@icloud.com](mailto:kkasprzak15@icloud.com?subject=MadCAD%20-%20licencja%20komercyjna).

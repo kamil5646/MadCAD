@@ -2827,42 +2827,24 @@ app.whenReady().then(async () => {
       return {
         visible: Boolean(dialog),
         shownAtStartup: Boolean(dialog),
-        explainsNoKey: /nie ma klucza ani aktywacji|there is no key or activation/i.test(text),
+        explainsNoKey: /nie ma klucza do przepisywania|there is no key/i.test(text),
         privateUseOnly: /bez limitu czasu do użytku prywatnego|free without a time limit for private/i.test(text),
         commercialPaid: /komercyjny jest płatny|commercial use requires payment/i.test(text),
         commercialTrial: /40 dni|40 days/i.test(text),
-        perpetualPerSeat: /bezterminowej licencji na każde stanowisko|perpetual license for every workstation/i.test(text),
-        purchaseProof: /dokument zakupu|purchase document/i.test(text),
+        namedLicense: /licencja imienna|named-user license/i.test(text),
+        serverControlled: /pobiera plan.+z serwera|retrieves.+plan.+server/i.test(text),
         donationNotCommercial: /darowizna.+nie zastępuje licencji komercyjnej|donation.+does not replace a commercial license/i.test(text),
-        hasTokenInput: Boolean(dialog?.querySelector('input, textarea')),
-        planButtons: dialog?.querySelectorAll('.license-plan-grid button').length || 0,
-        personalSelected: dialog?.querySelector('.license-plan-grid button[aria-pressed="true"]')?.textContent.includes('Osobista') || false,
+        accountInputs: dialog?.querySelectorAll('.license-account-form input').length || 0,
+        invoiceInput: Boolean(dialog?.querySelector('input[name*="invoice"], input[name*="reference"]')),
+        planCards: dialog?.querySelectorAll('.license-plan-grid article').length || 0,
+        personalSelected: dialog?.querySelector('.license-plan-grid article.selected')?.textContent.includes('Osobista') || false,
         links: dialog?.querySelectorAll('a').length || 0,
         continueVisible: Boolean([...dialog?.querySelectorAll('button') || []].some((button) => /Przejdź do programu|Continue to MadCAD/i.test(button.textContent))),
       };
     })()`);
-    if (!licenseDialog.visible || !licenseDialog.shownAtStartup || !licenseDialog.explainsNoKey || !licenseDialog.privateUseOnly || !licenseDialog.commercialPaid || !licenseDialog.commercialTrial || !licenseDialog.perpetualPerSeat || !licenseDialog.purchaseProof || !licenseDialog.donationNotCommercial || licenseDialog.hasTokenInput || licenseDialog.planButtons !== 3 || !licenseDialog.personalSelected || licenseDialog.links < 2 || !licenseDialog.continueVisible) {
-      throw new Error(`Okno licencji nie wyjaśnia zasad prywatnych, 40-dniowej oceny, licencji stanowiskowej i darowizny: ${JSON.stringify(licenseDialog)}.`);
+    if (!licenseDialog.visible || !licenseDialog.shownAtStartup || !licenseDialog.explainsNoKey || !licenseDialog.privateUseOnly || !licenseDialog.commercialPaid || !licenseDialog.commercialTrial || !licenseDialog.namedLicense || !licenseDialog.serverControlled || !licenseDialog.donationNotCommercial || licenseDialog.accountInputs !== 2 || licenseDialog.invoiceInput || licenseDialog.planCards !== 3 || !licenseDialog.personalSelected || licenseDialog.links < 2 || !licenseDialog.continueVisible) {
+      throw new Error(`Okno licencji nie wyjaśnia osobistego, serwerowego modelu kont i planu komercyjnego: ${JSON.stringify(licenseDialog)}.`);
     }
-    await window.webContents.executeJavaScript(`document.querySelectorAll('.license-plan-grid button')[1]?.click()`);
-    await waitForUi(window, `document.querySelector('.license-plan-status strong')?.textContent.includes('40') && JSON.parse(localStorage.getItem('madcad:license-plan:v1') || '{}').mode === 'commercial-trial'`, 'lokalny plan oceny komercyjnej');
-    await window.webContents.executeJavaScript(`document.querySelectorAll('.license-plan-grid button')[2]?.click()`);
-    await waitForUi(window, `Boolean(document.querySelector('.commercial-license-form'))`, 'formularz lokalnego potwierdzenia licencji komercyjnej');
-    await window.webContents.executeJavaScript(`(() => {
-      const inputs = document.querySelectorAll('.commercial-license-form input');
-      const setValue = (input, value) => {
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-        setter.call(input, value);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      };
-      setValue(inputs[0], 'MadCAD E2E');
-      setValue(inputs[1], 'TEST/2026/001');
-      document.querySelector('.commercial-license-form')?.requestSubmit();
-    })()`);
-    await waitForUi(window, `(() => { const plan = JSON.parse(localStorage.getItem('madcad:license-plan:v1') || '{}'); return plan.mode === 'commercial-licensed' && plan.commercialHolder === 'MadCAD E2E' && plan.commercialReference === 'TEST/2026/001' && document.querySelector('.license-plan-status small')?.textContent.includes('TEST/2026/001'); })()`, 'lokalnie potwierdzony plan komercyjny');
-    await window.webContents.executeJavaScript(`document.querySelectorAll('.license-plan-grid button')[1]?.click()`);
-    await waitForUi(window, `JSON.parse(localStorage.getItem('madcad:license-plan:v1') || '{}').mode === 'commercial-trial'`, 'powrót do planu oceny po teście licencji');
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     await fs.writeFile(licenseOutputPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.license-info-dialog button')].find((button) => /Pełna treść licencji|Full license text/i.test(button.textContent))?.click()`);

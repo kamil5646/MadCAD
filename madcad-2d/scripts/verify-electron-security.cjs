@@ -94,11 +94,17 @@ app.on('browser-window-created', (_event, mainWindow) => {
       await new Promise((resolve) => setTimeout(resolve, 1_000));
       const trustedApi = await evaluateWithDebugger(mainWindow.webContents, `({
         api: Boolean(window.desktopApp && window.desktopApp.isDesktop),
-        legacyLicenseApi: Boolean(window.desktopApp && ('deviceId' in window.desktopApp || 'appendLicenseAudit' in window.desktopApp || 'clearLicenseStorage' in window.desktopApp))
+        legacyLicenseApi: Boolean(window.desktopApp && ('deviceId' in window.desktopApp || 'appendLicenseAudit' in window.desktopApp || 'clearLicenseStorage' in window.desktopApp)),
+        accountLicenseApi: Boolean(window.desktopApp && ['licenseGetStatus', 'licenseLogin', 'licenseRegister', 'licenseStartTrial', 'licenseLogout'].every((name) => typeof window.desktopApp[name] === 'function'))
       })`);
       assert.equal(trustedApi.api, true);
       assert.equal(trustedApi.legacyLicenseApi, false);
+      assert.equal(trustedApi.accountLicenseApi, true);
       phase = 'trusted-ipc';
+      const trustedLicense = await evaluateWithDebugger(mainWindow.webContents, 'window.desktopApp.licenseGetStatus()', true);
+      assert.equal(trustedLicense.ok, true);
+      assert.equal(trustedLicense.status.mode, 'personal');
+      assert.equal(trustedLicense.status.signedIn, false);
       const trustedUpdate = await Promise.race([
         evaluateWithDebugger(mainWindow.webContents, 'window.desktopApp.checkForUpdates()', true),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Trusted IPC timed out.')), 5_000)),

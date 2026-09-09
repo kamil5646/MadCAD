@@ -59,6 +59,10 @@ jobs:
         working-directory: madcad-2d
         run: npm test
 
+      - name: Run license client tests
+        working-directory: madcad-2d
+        run: npm run test:license
+
       - name: Audit app dependencies
         working-directory: madcad-2d
         run: npm audit --audit-level=high

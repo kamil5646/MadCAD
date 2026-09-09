@@ -51,8 +51,10 @@ const expectedShardMatrix = `shard: [${Object.keys(manifest).join(', ')}]`;
 if (!ci.includes(expectedShardMatrix)) throw new Error('CI nie uruchamia wszystkich części pełnej bramki desktopowej.');
 if (!/npm run verify:desktop-suite -- \$\{\{ matrix\.shard \}\}/.test(ci)) throw new Error('CI nie uruchamia dzielonej pełnej bramki desktopowej.');
 if (!ci.includes('npm run verify:solid-fea-benchmarks')) throw new Error('CI nie uruchamia benchmarków MES bryły 3D.');
+if (!ci.includes('npm run test:license')) throw new Error('CI nie uruchamia testów klienta licencji.');
 if (!release.includes('npm run verify:desktop-suite -- all')) throw new Error('Wydanie nie uruchamia pełnej bramki desktopowej.');
 if (!release.includes('npm run verify:solid-fea-benchmarks')) throw new Error('Wydanie nie uruchamia benchmarków MES bryły 3D.');
+if (!release.includes('npm run test:license')) throw new Error('Wydanie nie uruchamia testów klienta licencji.');
 
 const activeItems = roadmap.match(/^- \[>\].+$/gm) || [];
 if (activeItems.length !== 1) throw new Error(`Roadmapa musi mieć dokładnie jeden aktywny element, ma ${activeItems.length}.`);
