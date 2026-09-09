@@ -7872,7 +7872,7 @@ export default function ModelingWorkspace() {
             selectedProfile={selectedProfile}
             selectedProfilePlane={selectedProfileMatch?.sketch.plane || 'XY'}
             selectedProfilePlaneOffset={Number(selectedProfileMatch?.sketch.planeOffset || 0)}
-            selectedProfileFrame={selectedProfileMatch?.sketch.frame || null}
+            selectedProfileFrame={selectedProfileMatch?.sketch.frame || (selectedProfileMatch?.sketch.support?.kind === 'construction-plane' ? constructionPlanes.find((plane) => plane.id === selectedProfileMatch.sketch.support.referenceId && plane.status === 'ok') || null : null)}
             directExtrudeDistance={command?.type === 'extrude' ? command.distance : 0}
             onDirectExtrude={readOnly ? undefined : beginOrUpdateExtrude}
             directManipulator={readOnly ? null : directManipulator}

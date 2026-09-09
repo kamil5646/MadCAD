@@ -582,6 +582,13 @@ function configureGrid(grid, plane, planeOffset = 0, frame = null) {
   else grid.position.x = planeOffset;
 }
 
+function viewportSketchFrame(sketch, planeOffset, constructionPlanes) {
+  const support = sketch?.support?.kind === 'construction-plane'
+    ? constructionPlanes.find((plane) => plane.id === sketch.support.referenceId && plane.status === 'ok')
+    : null;
+  return resolveSketchFrame(support ? { frame: support } : { ...sketch, planeOffset });
+}
+
 export default function ModelViewport({
   bodies,
   sketches = [],
@@ -762,7 +769,11 @@ export default function ModelViewport({
     : null;
   const activePlane = activeSketch?.plane || 'XY';
   const activePlaneOffset = numericValue(activeSketch?.planeOffset || 0, parameters);
-  const activeFrame = useMemo(() => activeSketch ? resolveSketchFrame({ ...activeSketch, planeOffset: activePlaneOffset }) : null, [activeSketch, activePlaneOffset]);
+  const activeSupportPlane = activeSketch?.support?.kind === 'construction-plane'
+    ? constructionPlanes.find((plane) => plane.id === activeSketch.support.referenceId && plane.status === 'ok')
+    : null;
+  const activeUsesFrame = Boolean(activeSketch?.frame || activeSupportPlane);
+  const activeFrame = useMemo(() => activeSketch ? viewportSketchFrame(activeSketch, activePlaneOffset, constructionPlanes) : null, [activeSketch, activePlaneOffset, constructionPlanes]);
   useEffect(() => {
     if (!activeSketchId || !sketchTool || !snapEnabled) setSnapFeedback(null);
   }, [activeSketchId, sketchTool, snapEnabled]);
@@ -1085,7 +1096,7 @@ export default function ModelViewport({
 
     const modelGroup = new THREE.Group();
     const sketchSlicePlane = activeSketch && !activeSketchIs3D && sliceModel
-      ? activeSketch.frame
+      ? activeUsesFrame
         ? new THREE.Plane(new THREE.Vector3(...activeFrame.normal), -new THREE.Vector3(...activeFrame.normal).dot(new THREE.Vector3(...activeFrame.origin)))
         : activePlane === 'XZ'
         ? new THREE.Plane(new THREE.Vector3(0, -1, 0), -activePlaneOffset)
@@ -1859,7 +1870,7 @@ export default function ModelViewport({
     if (visibleSketch) {
       const visiblePlane = visibleSketch.plane || 'XY';
       const visiblePlaneOffset = numericValue(visibleSketch.planeOffset || 0, parameters);
-      const visibleFrame = resolveSketchFrame({ ...visibleSketch, planeOffset: visiblePlaneOffset });
+      const visibleFrame = viewportSketchFrame(visibleSketch, visiblePlaneOffset, constructionPlanes);
       completedSketchProfileRender = addSketchProfiles(completedSketchGroup, visibleSketch, parameters, visiblePlane, {
         selectedProfileId: selectedProfile?.id,
         visible: showSketchProfiles,
@@ -1885,7 +1896,7 @@ export default function ModelViewport({
     for (const referenceSketch of referenceSketches) {
       const referencePlane = referenceSketch.plane || 'XY';
       const referencePlaneOffset = numericValue(referenceSketch.planeOffset || 0, parameters);
-      const referenceFrame = resolveSketchFrame({ ...referenceSketch, planeOffset: referencePlaneOffset });
+      const referenceFrame = viewportSketchFrame(referenceSketch, referencePlaneOffset, constructionPlanes);
       referenceSketchRenders.push({
         sketchId: referenceSketch.id,
         render: addSketchEntities(referenceSketchGroup, referenceSketch, parameters, referencePlane, {
@@ -2040,7 +2051,7 @@ export default function ModelViewport({
     camera.up.set(0, 0, 1);
     if ((activeSketch ? sketchView : view) === 'top') camera.up.set(0, 1, 0);
     camera.position.set(center.x + direction[0] * radius * 1.7 * zoomScale, center.y + direction[1] * radius * 1.7 * zoomScale, center.z + direction[2] * radius * 1.7 * zoomScale);
-    if (activeSketch?.frame) {
+    if (activeUsesFrame) {
       camera.up.set(...activeFrame.v);
       camera.position.copy(center).addScaledVector(new THREE.Vector3(...activeFrame.normal), radius * 3.4 * zoomScale);
     }
@@ -2088,14 +2099,14 @@ export default function ModelViewport({
     let modelSelectionBox = null;
     let formControlDrag = null;
     let sketch3DHandleDrag = null;
-    const sketchPlane = activeSketch?.frame
+    const sketchPlane = activeUsesFrame
       ? new THREE.Plane(new THREE.Vector3(...activeFrame.normal), -new THREE.Vector3(...activeFrame.normal).dot(new THREE.Vector3(...activeFrame.origin)))
       : activePlane === 'XZ'
       ? new THREE.Plane(new THREE.Vector3(0, 1, 0), activePlaneOffset)
       : activePlane === 'YZ'
         ? new THREE.Plane(new THREE.Vector3(1, 0, 0), -activePlaneOffset)
         : new THREE.Plane(new THREE.Vector3(0, 0, 1), -activePlaneOffset);
-    const localPoint = (point) => activeSketch?.frame ? projectWorldPoint(activeFrame, point.toArray()).slice(0, 2) : activePlane === 'XZ' ? [point.x, point.z] : activePlane === 'YZ' ? [point.y, point.z] : [point.x, point.y];
+    const localPoint = (point) => activeUsesFrame ? projectWorldPoint(activeFrame, point.toArray()).slice(0, 2) : activePlane === 'XZ' ? [point.x, point.z] : activePlane === 'YZ' ? [point.y, point.z] : [point.x, point.y];
     const setRayFromEvent = (event) => {
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -3215,7 +3226,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeFrame, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, selectedProfileFrame, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, beamFeaVisualization, manufacturingVisualization, printRiskAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeFrame, activeUsesFrame, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, selectedProfileFrame, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, beamFeaVisualization, manufacturingVisualization, printRiskAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;
