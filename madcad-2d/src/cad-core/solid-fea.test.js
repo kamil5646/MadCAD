@@ -7,12 +7,46 @@ function boxBody(length = 40, width = 10, height = 10) {
   return { id: 'box', bodyKind: 'solid', vertices, triangles, faceGroups: [{ topologyId: 'bottom', start: 0, count: 6 }, { topologyId: 'top', start: 6, count: 6 }, { topologyId: 'front', start: 12, count: 6 }, { topologyId: 'x-max', start: 18, count: 6 }, { topologyId: 'back', start: 24, count: 6 }, { topologyId: 'x-min', start: 30, count: 6 }], metrics: { bounds: [[0, 0, 0], [length, width, height]], volume: length * width * height } };
 }
 
+function cylinderBody(radius = 10, height = 12, segments = 24) {
+  const vertices = [];
+  for (let ring = 0; ring < 2; ring += 1) for (let index = 0; index < segments; index += 1) {
+    const angle = index / segments * Math.PI * 2;
+    vertices.push(radius * Math.cos(angle), radius * Math.sin(angle), ring * height);
+  }
+  const bottomCenter = vertices.length / 3; vertices.push(0, 0, 0);
+  const topCenter = vertices.length / 3; vertices.push(0, 0, height);
+  const bottom = []; const top = []; const side = [];
+  for (let index = 0; index < segments; index += 1) {
+    const next = (index + 1) % segments;
+    bottom.push(bottomCenter, next, index);
+    top.push(topCenter, segments + index, segments + next);
+    side.push(index, next, segments + next, index, segments + next, segments + index);
+  }
+  return {
+    id: 'cylinder', bodyKind: 'solid', vertices, triangles: [...bottom, ...top, ...side],
+    faceGroups: [{ topologyId: 'bottom', start: 0, count: bottom.length }, { topologyId: 'top', start: bottom.length, count: top.length }, { topologyId: 'side', start: bottom.length + top.length, count: side.length }],
+    metrics: { bounds: [[-radius, -radius, 0], [radius, radius, height]], volume: Math.PI * radius * radius * height },
+  };
+}
+
 describe('solid 3D finite elements', () => {
   it('creates a conforming tetrahedral volume mesh for a closed box', () => {
     const mesh = createSolidFeaMesh(boxBody(), 4);
     expect(mesh.cellCounts).toEqual([4, 2, 2]);
     expect(mesh.tetrahedra).toHaveLength(96);
     expect(mesh.nodes).toHaveLength(45);
+    expect(mesh.adaptation).toMatchObject({ enabled: true, featurePointCount: 0, addedPlaneCount: 0 });
+  });
+
+  it('adds conforming feature-aligned planes around curved geometry', () => {
+    const body = cylinderBody();
+    const uniform = createSolidFeaMesh(body, 6, { adaptive: false });
+    const adaptive = createSolidFeaMesh(body, 6, { adaptive: true });
+    expect(uniform.adaptation).toMatchObject({ enabled: false, featurePointCount: 0, addedPlaneCount: 0 });
+    expect(adaptive.adaptation.featurePointCount).toBeGreaterThan(8);
+    expect(adaptive.adaptation.addedPlaneCount).toBeGreaterThanOrEqual(2);
+    expect(adaptive.nodes.length).toBeGreaterThan(uniform.nodes.length);
+    expect(adaptive.tetrahedra.length).toBeGreaterThan(uniform.tetrahedra.length);
   });
 
   it('solves a restrained solid and returns displacement and von Mises stress', () => {

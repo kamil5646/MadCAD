@@ -7729,7 +7729,7 @@ export default function ModelingWorkspace() {
                   { icon: ScanSearch, label: 'Analiza powierzchni', onClick: openSurfaceAnalysis, disabled: !engine.bodies.length },
                   { icon: MassCadIcon, label: 'Właściwości masy', onClick: openMassProperties, disabled: !engine.bodies.length },
                   { icon: ScanSearch, label: 'Szybka analiza statyczna', onClick: openStaticScreening, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
-                  { icon: ScanSearch, label: 'MES bryły 3D (beta)', onClick: openSolidFea, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
+                  { icon: ScanSearch, label: 'MES bryły 3D', onClick: openSolidFea, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
                   { icon: ScanSearch, label: 'MES belki 1D', onClick: openBeamFea, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
                   { icon: Sun, label: 'Szybka analiza cieplna', onClick: openThermalScreening, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
                   { icon: GeometryCheckCadIcon, label: 'Sprawdź geometrię', onClick: openGeometryInspection, disabled: !engine.bodies.length },

@@ -166,4 +166,4 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] P1.36r — objętościowy MES bryły 3D beta z czworościanami, liniową sprężystością, naprężeniem von Mises, mapą deformacji oraz kontrolą objętości, równowagi i zbieżności.
 - [x] P1.36s — trwały wybór planarnych ścian B-Rep dla warunków brzegowych i automatyczna analiza zbieżności dwóch gęstości siatki.
 - [x] P1.36t — niezależna bramka 11 benchmarków 3D, większa rozdzielczość smukłych siatek i kontrola jakości każdego wyniku.
-- [ ] P1.36u — zgodna lokalna adaptacja siatki przy krzywiźnie, otworach i karbach oraz benchmark koncentracji naprężeń przed wyjściem z beta.
+- [x] P1.36u — zgodna adaptacja siatki przy krzywiźnie, otworach i karbach, benchmark koncentracji naprężeń oraz wyjście z etykiety beta do jawnego zakresu liniowego.

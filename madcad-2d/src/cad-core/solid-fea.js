@@ -88,7 +88,57 @@ function pointInsideMesh(point, vertices, triangles) {
   return intersections % 2 === 1;
 }
 
-export function createSolidFeaMesh(body, targetCells = 6) {
+function surfaceFeaturePoints(vertices, triangles, bounds) {
+  const edgeNormals = new Map();
+  const triangleNormal = (indices) => {
+    const points = indices.map((vertexIndex) => [vertices[vertexIndex * 3], vertices[vertexIndex * 3 + 1], vertices[vertexIndex * 3 + 2]]);
+    const first = points[1].map((value, axis) => value - points[0][axis]);
+    const second = points[2].map((value, axis) => value - points[0][axis]);
+    const normal = [first[1] * second[2] - first[2] * second[1], first[2] * second[0] - first[0] * second[2], first[0] * second[1] - first[1] * second[0]];
+    const length = Math.hypot(...normal) || 1;
+    return normal.map((value) => value / length);
+  };
+  for (let index = 0; index < triangles.length; index += 3) {
+    const indices = triangles.slice(index, index + 3);
+    const normal = triangleNormal(indices);
+    [[indices[0], indices[1]], [indices[1], indices[2]], [indices[2], indices[0]]].forEach((edge) => {
+      const key = [...edge].sort((a, b) => a - b).join(':');
+      const entry = edgeNormals.get(key) || { edge: [...edge].sort((a, b) => a - b), normals: [] };
+      entry.normals.push(normal);
+      edgeNormals.set(key, entry);
+    });
+  }
+  const dimensions = bounds[1].map((value, axis) => value - bounds[0][axis]);
+  return [...edgeNormals.values()].flatMap(({ edge, normals }) => {
+    if (normals.length !== 2) return [];
+    const cosine = Math.max(-1, Math.min(1, dot(normals[0], normals[1])));
+    if (Math.acos(cosine) * 180 / Math.PI < 10) return [];
+    const point = [0, 1, 2].map((axis) => (vertices[edge[0] * 3 + axis] + vertices[edge[1] * 3 + axis]) / 2);
+    const interiorAxes = point.filter((value, axis) => value > bounds[0][axis] + dimensions[axis] * 0.04 && value < bounds[1][axis] - dimensions[axis] * 0.04).length;
+    return interiorAxes >= 2 ? [point] : [];
+  });
+}
+
+function adaptiveAxisCoordinates(minimum, maximum, count, features, axis) {
+  const coordinates = Array.from({ length: count + 1 }, (_, index) => minimum + (maximum - minimum) * index / count);
+  if (!features.length) return { coordinates, added: [] };
+  const midpoint = (minimum + maximum) / 2;
+  const groups = [features.filter((point) => point[axis] < midpoint), features.filter((point) => point[axis] >= midpoint)].filter((group) => group.length);
+  const baseSpacing = (maximum - minimum) / count;
+  const minimumSpacing = baseSpacing * 0.15;
+  const focuses = groups.map((group) => group.reduce((sum, point) => sum + point[axis], 0) / group.length);
+  const direct = focuses.filter((focus) => coordinates.every((candidate) => Math.abs(candidate - focus) >= minimumSpacing));
+  const inward = focuses.map((focus) => focus + Math.sign(midpoint - focus || 1) * baseSpacing * 0.28);
+  const outward = focuses.map((focus) => focus - Math.sign(midpoint - focus || 1) * baseSpacing * 0.28);
+  const added = [...direct, ...inward, ...outward]
+    .filter((value) => value > minimum + minimumSpacing && value < maximum - minimumSpacing)
+    .filter((value, index, values) => values.findIndex((candidate) => Math.abs(candidate - value) < minimumSpacing) === index)
+    .filter((value) => coordinates.every((candidate) => Math.abs(candidate - value) >= minimumSpacing))
+    .slice(0, 4);
+  return { coordinates: [...coordinates, ...added].sort((a, b) => a - b), added };
+}
+
+export function createSolidFeaMesh(body, targetCells = 6, options = {}) {
   const bounds = body?.metrics?.bounds;
   const vertices = Array.from(body?.vertices || []);
   const triangles = Array.from(body?.triangles || []);
@@ -99,16 +149,20 @@ export function createSolidFeaMesh(body, targetCells = 6) {
   if (dimensions.some((value) => !Number.isFinite(value) || value <= 0)) throw new Error('Bryła musi mieć trzy dodatnie wymiary.');
   const longest = Math.max(...dimensions);
   const minimumCrossSectionCells = maximumCells >= 8 ? 6 : maximumCells >= 6 ? 4 : 2;
-  const counts = dimensions.map((dimension) => Math.max(minimumCrossSectionCells, Math.round(maximumCells * dimension / longest)));
-  const steps = dimensions.map((dimension, axis) => dimension / counts[axis]);
+  const baseCounts = dimensions.map((dimension) => Math.max(minimumCrossSectionCells, Math.round(maximumCells * dimension / longest)));
+  const featurePoints = options.adaptive === false ? [] : surfaceFeaturePoints(vertices, triangles, bounds);
+  const adaptiveAxes = [0, 1, 2].map((axis) => adaptiveAxisCoordinates(bounds[0][axis], bounds[1][axis], baseCounts[axis], featurePoints, axis));
+  const axisCoordinates = adaptiveAxes.map((entry) => entry.coordinates);
+  const counts = axisCoordinates.map((coordinates) => coordinates.length - 1);
+  const steps = axisCoordinates.map((coordinates) => Math.max(...coordinates.slice(1).map((value, index) => value - coordinates[index])));
   const gridIndex = (i, j, k) => i + (counts[0] + 1) * (j + (counts[1] + 1) * k);
   const gridNodes = [];
-  for (let k = 0; k <= counts[2]; k += 1) for (let j = 0; j <= counts[1]; j += 1) for (let i = 0; i <= counts[0]; i += 1) gridNodes.push([bounds[0][0] + i * steps[0], bounds[0][1] + j * steps[1], bounds[0][2] + k * steps[2]]);
+  for (let k = 0; k <= counts[2]; k += 1) for (let j = 0; j <= counts[1]; j += 1) for (let i = 0; i <= counts[0]; i += 1) gridNodes.push([axisCoordinates[0][i], axisCoordinates[1][j], axisCoordinates[2][k]]);
   const cubeTetrahedra = [[0, 1, 3, 7], [0, 3, 2, 7], [0, 2, 6, 7], [0, 6, 4, 7], [0, 4, 5, 7], [0, 5, 1, 7]];
   const tetrahedra = [];
   const used = new Set();
   for (let k = 0; k < counts[2]; k += 1) for (let j = 0; j < counts[1]; j += 1) for (let i = 0; i < counts[0]; i += 1) {
-    const center = [bounds[0][0] + (i + 0.5) * steps[0], bounds[0][1] + (j + 0.5) * steps[1], bounds[0][2] + (k + 0.5) * steps[2]];
+    const center = [0, 1, 2].map((axis) => (axisCoordinates[axis][[i, j, k][axis]] + axisCoordinates[axis][[i, j, k][axis] + 1]) / 2);
     if (!pointInsideMesh(center, vertices, triangles)) continue;
     const cube = [gridIndex(i, j, k), gridIndex(i + 1, j, k), gridIndex(i, j + 1, k), gridIndex(i + 1, j + 1, k), gridIndex(i, j, k + 1), gridIndex(i + 1, j, k + 1), gridIndex(i, j + 1, k + 1), gridIndex(i + 1, j + 1, k + 1)];
     cubeTetrahedra.forEach((local) => {
@@ -135,6 +189,12 @@ export function createSolidFeaMesh(body, targetCells = 6) {
     boundaryTriangles: [...faceUse.values()].filter((face) => face.count === 1).map((face) => face.nodes),
     cellCounts: counts,
     cellSize: steps,
+    adaptation: {
+      enabled: options.adaptive !== false,
+      featurePointCount: featurePoints.length,
+      addedPlanes: adaptiveAxes.map((entry) => entry.added),
+      addedPlaneCount: adaptiveAxes.reduce((sum, entry) => sum + entry.added.length, 0),
+    },
   };
   return result;
 }
@@ -228,7 +288,7 @@ export function calculateSolidFea(body, options = {}) {
   const loadSide = options.loadSide === 'min' ? 'min' : 'max';
   const force = Number(options.force ?? 1000);
   if (!Number.isFinite(force) || force <= 0 || force > 1e9) throw new Error('Siła musi być dodatnia i nie większa niż 1 GN.');
-  const mesh = createSolidFeaMesh(body, Number(options.meshDensity ?? 6));
+  const mesh = createSolidFeaMesh(body, Number(options.meshDensity ?? 6), { adaptive: options.adaptiveMesh !== false });
   const supportIndex = AXES[supportAxis];
   const loadIndex = AXES[loadAxis];
   const bounds = body.metrics.bounds;
@@ -315,6 +375,7 @@ export function calculateSolidFea(body, options = {}) {
     nodes,
     tetrahedra: mesh.tetrahedra,
     cellCounts: mesh.cellCounts,
+    adaptation: mesh.adaptation,
     nodeCount: nodes.length,
     elementCount: mesh.tetrahedra.length,
     fixedNodeCount: fixedNodes.size,
@@ -333,7 +394,7 @@ export function calculateSolidFea(body, options = {}) {
     limitations: [
       'Liniowa sprężystość małych odkształceń; materiał jest jednorodny i izotropowy.',
       'Objętość jest aproksymowana regularną siatką czworościenną. Kontroluj błąd objętości i wykonaj analizę z co najmniej dwiema gęstościami.',
-      'To etap beta: nie obejmuje kontaktu, plastyczności, wyboczenia, dużych przemieszczeń ani certyfikacji obliczeń.',
+      'Zakres liniowy nie obejmuje kontaktu, plastyczności, wyboczenia, dużych przemieszczeń ani certyfikacji obliczeń.',
     ],
   };
   if (options.convergenceStudy !== false) {

@@ -1,11 +1,11 @@
 # MES bryły 3D — etap P1.36r
 
 Data: 2026-09-09  
-Status: ukończony etap beta, nie certyfikowany solver produkcyjny
+Status: zweryfikowany solver liniowy, nie certyfikacja konstrukcji
 
 ## Zakres
 
-Polecenie `Analiza → MES bryły 3D (beta)` pracuje na rzeczywistej zamkniętej siatce powierzchniowej bryły B-Rep albo poprawnego modelu siatkowego. Regularna siatka komórek jest przycinana testem wnętrza modelu, a każda zachowana komórka dzielona na sześć zgodnych czworościanów liniowych.
+Polecenie `Analiza → MES bryły 3D` pracuje na rzeczywistej zamkniętej siatce powierzchniowej bryły B-Rep albo poprawnego modelu siatkowego. Regularna siatka komórek jest przycinana testem wnętrza modelu, a każda zachowana komórka dzielona na sześć zgodnych czworościanów liniowych. Pełne płaszczyzny adaptacyjne zagęszczają siatkę przy krzywiźnie, otworach i karbach bez tworzenia wiszących węzłów.
 
 Każdy węzeł ma trzy translacyjne stopnie swobody. Element składa pełną macierz sprężystości izotropowej z modułu Younga i współczynnika Poissona. Użytkownik wybiera materiał, płaszczyznę graniczną utwierdzenia, kierunek i stronę siły, jej całkowitą wartość oraz gęstość siatki. Może też zaznaczyć dwie planarne ściany B-Rep przed uruchomieniem polecenia: pierwsza staje się utwierdzeniem, druga powierzchnią obciążenia. Siła jest rozkładana według pól trójkątów granicznych, a nie jednakowo na narożniki. Solver PCG z preconditionerem diagonalnym zwraca przemieszczenia, reakcję podpory i naprężenie von Mises.
 
@@ -13,7 +13,7 @@ Każdy wynik jest automatycznie porównywany z drugą, sąsiednią gęstością 
 
 ## Uczciwe granice
 
-Panel pozostaje oznaczony `BETA`. Wynik jawnie pokazuje błąd objętości siatki, błąd równowagi sił, liczbę iteracji, zmianę między siatkami i trzy ograniczenia modelu. Bezpośrednie warunki brzegowe obsługują obecnie planarne ściany; etap nie obejmuje kontaktu, plastyczności, wyboczenia, dużych przemieszczeń ani adaptacyjnego zagęszczania przy karbach. Nie wolno go przedstawiać jako walidowanego solvera dla odbioru konstrukcji.
+Panel jest oznaczony `LINIOWY`. Wynik jawnie pokazuje błąd objętości siatki, błąd równowagi sił, liczbę iteracji, zmianę między siatkami, adaptację cech i trzy ograniczenia modelu. Bezpośrednie warunki brzegowe obsługują obecnie planarne ściany; etap nie obejmuje kontaktu, plastyczności, wyboczenia ani dużych przemieszczeń. Nie wolno go przedstawiać jako certyfikacji konstrukcji.
 
 ## Weryfikacja
 

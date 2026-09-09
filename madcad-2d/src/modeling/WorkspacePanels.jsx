@@ -616,8 +616,8 @@ export function BeamFeaPanel({ bodies = [], bodyId = '', materialId = 's235', sp
 export function SolidFeaPanel({ bodies = [], bodyId = '', materialId = 's235', supportAxis = 'x', supportSide = 'min', supportFaceId = '', supportFaceLabel = '', loadAxis = 'z', loadSide = 'max', loadFaceId = '', loadFaceLabel = '', force = '1000', meshDensity = '6', result, error = '', onChange, onClose }) {
   const format = (value, digits = 3) => Number(value).toLocaleString('pl-PL', { maximumFractionDigits: digits });
   return (
-    <aside className="measure-panel static-screening-panel solid-fea-panel" aria-label="MES bryły 3D beta">
-      <header><div><ScanSearch size={16} /><strong>MES bryły 3D <em>BETA</em></strong></div><button type="button" title="Zamknij MES bryły 3D" aria-label="Zamknij MES bryły 3D" onClick={onClose}><X size={15} /></button></header>
+    <aside className="measure-panel static-screening-panel solid-fea-panel" aria-label="Liniowy MES bryły 3D">
+      <header><div><ScanSearch size={16} /><strong>MES bryły 3D <em>LINIOWY</em></strong></div><button type="button" title="Zamknij MES bryły 3D" aria-label="Zamknij MES bryły 3D" onClick={onClose}><X size={15} /></button></header>
       <div className="measure-panel-body">
         <p className="analysis-scope">Liniowa sprężystość 3D na objętościowej siatce czworościennej.</p>
         <label><span>Bryła</span><select aria-label="Bryła MES 3D" value={bodyId} onChange={(event) => onChange({ bodyId: event.target.value })}>{bodies.map((body) => <option key={body.id} value={body.id}>{body.name}</option>)}</select></label>
@@ -630,6 +630,7 @@ export function SolidFeaPanel({ bodies = [], bodyId = '', materialId = 's235', s
           <div className={`static-result ${result.status}`}>
             <div className="static-result-heading"><strong>{result.status === 'safe' ? 'Zapas ≥ 2' : result.status === 'warning' ? 'Mały zapas' : 'Przekroczona granica'}</strong><span>FoS {format(result.safetyFactor, 2)}</span></div>
             <div className="measure-row"><span>Siatka</span><strong>{result.nodeCount} węzłów · {result.elementCount} elem.</strong></div>
+            <div className="measure-row"><span>Adaptacja cech</span><strong>{result.adaptation?.addedPlaneCount ? `${result.adaptation.addedPlaneCount} płaszczyzn` : 'Niepotrzebna'}</strong></div>
             <div className="measure-row"><span>Utwierdzone / obciążone</span><strong>{result.fixedNodeCount} / {result.loadedNodeCount}</strong></div>
             <div className="measure-row"><span>Maks. przemieszczenie</span><strong>{format(result.maximumDisplacement, 5)} mm</strong></div>
             <div className="measure-row"><span>Maks. von Mises</span><strong>{format(result.maximumStress)} MPa</strong></div>

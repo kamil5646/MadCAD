@@ -2,7 +2,7 @@
 
 ## Zakres
 
-Solver jest sprawdzany poza scenariuszem interfejsu przez osobną bramkę `npm run verify:solid-fea-benchmarks`. Zestaw nie porównuje solvera z nim samym: oczekiwane wartości rozciągania pręta i zginania wspornika wynikają z klasycznych rozwiązań analitycznych. Dodatkowo sprawdzane są liniowość obciążenia, zależność od modułu Younga, niezależność naprężenia osiowego od modułu, bilans reakcji oraz dokładne wyzerowanie utwierdzonych stopni swobody.
+Solver jest sprawdzany poza scenariuszem interfejsu przez osobną bramkę `npm run verify:solid-fea-benchmarks`. Zestaw nie porównuje solvera z nim samym: oczekiwane wartości rozciągania pręta i zginania wspornika wynikają z klasycznych rozwiązań analitycznych. Dodatkowo sprawdzane są liniowość obciążenia, zależność od modułu Younga, niezależność naprężenia osiowego od modułu, bilans reakcji, dokładne wyzerowanie utwierdzonych stopni swobody oraz klasyczna koncentracja naprężeń przy okrągłym otworze.
 
 ## Wyniki referencyjne
 
@@ -13,7 +13,9 @@ Solver jest sprawdzany poza scenariuszem interfejsu przez osobną bramkę `npm r
 | Wspornik 40×10×10 mm, 1000 N | ugięcie końca | 0,121905 mm | 0,110022 mm | 9,75% | 12% |
 | Wspornik 40×10×10 mm, 1000 N | naprężenie | 240,000 MPa | 197,468 MPa | 17,72% | 20% |
 
-Wszystkie 11 kryteriów przechodzi. Błąd zginania jest jednak wyraźnie większy od błędu osiowego, dlatego moduł pozostaje oznaczony jako beta. Liniowe czworościany są podatne na nadmierną sztywność w zginaniu przy zbyt małej liczbie elementów przez przekrój.
+| Płyta 60×30×6 mm, otwór Ø10, 18 kN | koncentracja naprężeń | 300,000 MPa | 239,692 MPa | 20,10% | 25% |
+
+Wszystkie 14 kryteriów przechodzi. Błąd zginania i lokalnego maksimum jest wyraźnie większy od błędu osiowego, dlatego panel zachowuje jawne kryteria kontroli wyniku. Liniowe czworościany wymagają odpowiedniej liczby elementów przez przekrój i zagęszczenia w rejonie cech.
 
 ## Zmiany wynikające z benchmarku
 
@@ -21,7 +23,9 @@ Wszystkie 11 kryteriów przechodzi. Błąd zginania jest jednak wyraźnie więks
 - smukłe bryły dostają minimalną rozdzielczość 4–6 komórek przez przekrój przy wyższych poziomach gęstości;
 - każdy wynik ma bramkę jakości obejmującą błąd objętości, bilans sił, resztę solvera i zbieżność dwóch siatek;
 - panel nie nazywa wyniku zweryfikowanym, dopóki wszystkie cztery kontrole konkretnego przypadku nie przejdą.
+- zgodna adaptacja dodaje pełne płaszczyzny w rejonie zmiany normalnych powierzchni, więc nie tworzy wiszących węzłów;
+- dla płyty z otworem 11 dodatkowych płaszczyzn zmniejszyło błąd objętości z 4,15% do 0,17% i podniosło rozpoznane maksimum z 190,03 do 239,69 MPa.
 
-## Pozostałe kryterium wyjścia z beta
+## Decyzja o zakresie
 
-Przed zdjęciem etykiety beta należy dodać zgodne lokalne zagęszczanie siatki przy krzywiźnie, otworach i karbach, a następnie ponowić benchmark wspornika oraz osobny benchmark koncentracji naprężeń.
+Po dodaniu zgodnej adaptacji oraz przejściu benchmarku koncentracji naprężeń etykieta `BETA` została usunięta. Nazwa i panel mówią teraz wprost `LINIOWY`, a ograniczenia nadal wykluczają kontakt, plastyczność, wyboczenie, duże przemieszczenia i certyfikację obliczeń.
