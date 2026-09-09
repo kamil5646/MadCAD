@@ -29,6 +29,9 @@ Przekrojowo sprawdzić, czy funkcje opisane jako gotowe mają wykonywalną bramk
 - Test komponentów oczekiwał nieaktualnego schematu v15 mimo bieżącego v17. Komponenty, arkusz 2D, CAM i główny scenariusz modelowania pobierają teraz `DOCUMENT_SCHEMA_VERSION` ze źródła zamiast duplikować numer.
 - Test linkowanych projektów otwierał nieistniejący dawny kafelek `Menedżer`. Przepływ korzysta teraz z aktualnej ścieżki `ZARZĄDZAJ → Komponenty` w języku polskim i angielskim.
 - Snap kierunkowy poziomy/pionowy ukrywał podpowiedź więzu automatycznego. Podpowiedź i zapis więzu działają teraz równolegle ze snapem osiowym lub siatkowym, ale pozostają wyłączone przy snapie do końca albo przecięcia.
+- Audyt zależności wykrył dwie podatności wysokiego ryzyka (`js-yaml` i pośredni `sharp`) oraz dwie umiarkowane w narzędziach testowych Vitest. Zaktualizowano `manifold-3d` do 3.5.3, Vitest do 4.1.11, Vite do 8.2.2 i bezpośrednio powiązane wersje blokady; `npm audit` raportuje 0 podatności.
+- Ponowne uruchomienie całej bramki pod obciążeniem wykryło dwa wyścigi w samych scenariuszach: F3 był wysyłany przed zakończeniem wejścia do szkicu, a klik automatycznej naprawy referencji nie czekał na aktywny przycisk. Oba testy synchronizują się teraz z rzeczywistym stanem interfejsu zamiast polegać na czasie renderowania.
+- Równoległa kontrola obciążyła CPU na tyle, że poprawnie liczony zestaw 14 benchmarków MES przekroczył dawny limit 15 s o mniej niż sekundę. Limit wyłącznie dla tego ciężkiego testu zwiększono do 30 s; kryteria numeryczne i wszystkie bramki jakości solvera pozostały bez zmian.
 
 ## Weryfikacja lokalna
 
@@ -43,6 +46,7 @@ Przekrojowo sprawdzić, czy funkcje opisane jako gotowe mają wykonywalną bramk
 - bloki: definicja, dwa wystąpienia, atrybut, Undo/Redo i rozbicie;
 - komponenty: 2 definicje, 4 wystąpienia, jointy, Motion Link, Contact Set, konfiguracje, storyboard i kolizje dokładne;
 - sterowanie kamerą, odzyskiwanie po awarii, menu Plik, skróty, dostępność, snap i usuwanie przeszły rzeczywiste scenariusze Electron.
+- po aktualizacji bezpieczeństwa: 181/181 testów UI, 224/224 testów rdzenia, lint, build produkcyjny, kontrola repozytorium i manifest kompletności przeszły lokalnie.
 
 ## Pozostała część P1.37a
 

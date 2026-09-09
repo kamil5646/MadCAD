@@ -23,5 +23,5 @@ describe('independent solid FEA benchmarks', () => {
     expect(report.hole.stressErrorPercent).toBeLessThan(25);
     expect(report.hole.volumeImprovementPercent).toBeGreaterThan(80);
     expect(report.hole.adaptiveStress).toBeGreaterThan(report.hole.uniformStress);
-  }, 15000);
+  }, 30000);
 });

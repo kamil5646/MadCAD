@@ -88,6 +88,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTopologyFixture('XY')`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entityData?.length > 0`, 'dokument fixture');
     await window.webContents.executeJavaScript(`window.__madcadVerifyOpenFirstSketch()`);
+    await waitFor(window, `Boolean(window.__madcadVerifyDocumentState?.activeSketchId)`, 'wejście do aktywnego szkicu');
     await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F3', bubbles: true }))`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketchOptions?.snap === false`, 'przełączanie snapu przez F3');
     await waitFor(window, `document.querySelector('.ribbon-tool[aria-label^="Linia."]')?.title.includes('G')`, 'nowy skrót w tooltipie');

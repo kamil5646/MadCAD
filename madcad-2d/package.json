@@ -100,7 +100,7 @@
     "@electron/notarize": "^3.1.1",
     "@eslint/js": "^9.39.5",
     "@testing-library/jest-dom": "^7.0.1",
-    "@testing-library/react": "^16.3.2",
+    "@testing-library/react": "^16.3.3",
     "@vitejs/plugin-react": "6.0.5",
     "axe-core": "^4.10.3",
     "electron": "43.4.0",
@@ -110,8 +110,8 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "17.11.0",
     "jsdom": "^30.0.1",
-    "vite": "^8.2.1",
-    "vitest": "^4.1.10"
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   },
   "build": {
     "appId": "pl.kamilkasprzak.madcad2d",
@@ -184,7 +184,7 @@
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
-    "manifold-3d": "^3.5.1",
+    "manifold-3d": "3.5.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "replicad": "^0.23.1",
