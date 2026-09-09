@@ -57,6 +57,10 @@ export function inferLineConstraintSuggestion(start, end, options = {}) {
   return null;
 }
 
+export function allowsDirectionalConstraintSuggestion(snapResult) {
+  return !snapResult?.snapped || ['horizontal', 'vertical', 'grid'].includes(snapResult.type);
+}
+
 function hasConstraint(sketch, type, entityIds) {
   const expected = [...entityIds].sort().join('|');
   return (sketch.constraints || []).some((constraint) => constraint.type === type && [...(constraint.entityIds || [])].sort().join('|') === expected);
@@ -91,4 +95,3 @@ export function addAutomaticConstraintsForLine(sketch, lineId, parameters = [], 
   sketch.constraints = [...(sketch.constraints || []), ...added];
   return added;
 }
-

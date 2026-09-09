@@ -35,8 +35,12 @@ jobs:
         run: npm run lint
       - name: Run unit tests
         run: npm test
+      - name: Run solid FEA benchmark gate
+        run: npm run verify:solid-fea-benchmarks
       - name: Verify repository, website and licensing metadata
         run: npm run verify:repository
+      - name: Verify product completeness manifest
+        run: npm run verify:product-completeness
       - name: Audit production and build dependencies
         run: npm audit --audit-level=high
 
@@ -71,13 +75,14 @@ jobs:
         run: npm run build:ui
 
   desktop-e2e:
-    name: Desktop modeling E2E (${{ matrix.os }})
+    name: Desktop E2E ${{ matrix.shard }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: [quality, core]
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest]
+        shard: [modeling, interoperability, interface, project, analysis]
     defaults:
       run:
         working-directory: madcad-2d
@@ -92,19 +97,13 @@ jobs:
           cache-dependency-path: madcad-2d/package-lock.json
       - name: Install exact dependencies
         run: npm ci
-      - name: Run Electron modeling verification
-        run: npm run verify:modeling
-      - name: Verify STEP/STL/3MF import and AutoCAD-style viewport navigation
-        run: |
-          npm run verify:model-import
-          npm run verify:viewport-navigation
-      - name: Verify Electron sandbox and IPC boundary
-        run: npm run verify:electron-security
+      - name: Run complete Electron verification shard
+        run: npm run verify:desktop-suite -- ${{ matrix.shard }}
       - name: Upload verification artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: modeling-verification-${{ matrix.os }}
+          name: desktop-verification-${{ matrix.os }}-${{ matrix.shard }}
           path: madcad-2d/artifacts/
           if-no-files-found: warn
 

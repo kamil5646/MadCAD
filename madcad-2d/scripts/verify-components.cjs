@@ -1,5 +1,6 @@
 const fs = require('fs/promises');
 const path = require('path');
+const { pathToFileURL } = require('node:url');
 const { app, BrowserWindow } = require('electron');
 
 const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-components.png');
@@ -50,6 +51,7 @@ app.whenReady().then(async () => {
   const window = new BrowserWindow({ width: 1440, height: 900, show: true, webPreferences: { partition: `madcad-components-verifier-${Date.now()}` } });
   window.setContentSize(1440, 837);
   try {
+    const { DOCUMENT_SCHEMA_VERSION } = await import(pathToFileURL(path.join(__dirname, '..', 'src', 'cad-core', 'document.js')).href);
     await fs.mkdir(path.dirname(screenshotPath), { recursive: true });
     await Promise.all([storyboardVideoPath, storyboardInstructionsPath].map((filePath) => fs.rm(filePath, { force: true })));
     const downloads = [];
@@ -321,7 +323,7 @@ app.whenReady().then(async () => {
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     })()`);
-    if (result.schemaVersion !== 15 || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.appearance?.preset !== 'brass' || result.appearance?.color !== '#c49a49' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.storyboards !== 1 || result.storyboardFrames !== 2 || result.storyboardMotionX !== 30 || result.storyboardRotationZ !== 45 || !result.storyboardGuides || result.storyboardJointValue !== 55 || !result.storyboardCamera || result.storyboardNote !== 'Odsuń ramę' || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.interferenceStatus !== 'exact' || !result.interferenceBounds.includes('Nakładanie obwiedni:') || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
+    if (result.schemaVersion !== DOCUMENT_SCHEMA_VERSION || result.components !== 2 || result.assemblyChildren !== 1 || result.partNumber !== 'MC-RAMA-001' || result.material !== 'S355' || result.appearance?.preset !== 'brass' || result.appearance?.color !== '#c49a49' || result.ownedBodies !== 1 || result.instances !== 4 || result.rigidGroups !== 0 || result.joints !== 2 || result.jointType !== 'revolute' || result.jointAxis !== 'z' || result.jointValue !== 35 || result.jointMax !== 60 || result.jointVisuals !== 2 || result.motionLinks !== 1 || result.motionRatio !== 0.5 || result.contactSets !== 1 || result.activeContactCollisions !== 1 || result.configurations !== 2 || result.storyboards !== 1 || result.storyboardFrames !== 2 || result.storyboardMotionX !== 30 || result.storyboardRotationZ !== 45 || !result.storyboardGuides || result.storyboardJointValue !== 55 || !result.storyboardCamera || result.storyboardNote !== 'Odsuń ramę' || result.activeConfiguration !== 'Robocza' || result.sliderValue !== 17.5 || result.sliderX !== 62.5 || result.assemblyCollisions < 1 || result.exactCollisions < 1 || result.interferenceStatus !== 'exact' || !result.interferenceBounds.includes('Nakładanie obwiedni:') || result.grounded || result.duplicateX !== 45 || result.duplicateRotationZ !== 35 || result.rigidMateX !== 25 || result.browserRows !== 4 || result.browserJointRows !== 2 || result.browserMotionRows !== 1 || result.browserContactRows !== 1 || result.browserConfigurationRows !== 2 || !result.panelInsideViewport || result.horizontalOverflow) {
       throw new Error(`Niepoprawny przepływ komponentów: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify({ screenshotPath, appearanceScreenshotPath, explodedScreenshotPath, storyboardScreenshotPath, storyboardVideoPath, storyboardInstructionsPath, ...result }, null, 2)}\n`);

@@ -117,7 +117,7 @@ import {
   slotThreePoints,
 } from '../cad-core/sketch-primitives.js';
 import { refreshDetectedSketchProfiles } from '../cad-core/sketch-topology.js';
-import { addAutomaticConstraintsForLine, inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-suggestions.js';
+import { addAutomaticConstraintsForLine, allowsDirectionalConstraintSuggestion, inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-suggestions.js';
 import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketchLines, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../cad-core/sketch-modifiers.js';
 import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../cad-core/sketch-transforms.js';
 import { circularSketchPattern, pathSketchPattern, rectangularSketchPattern } from '../cad-core/sketch-patterns.js';
@@ -3311,7 +3311,7 @@ export default function ModelingWorkspace() {
       return;
     }
 
-    const suggestion = !closes && !snapResult?.snapped && command.segmentMode === 'line' && sketchOptions.autoConstraints
+    const suggestion = !closes && allowsDirectionalConstraintSuggestion(snapResult) && command.segmentMode === 'line' && sketchOptions.autoConstraints
       ? inferLineConstraintSuggestion(start, point)
       : null;
     const end = closes ? command.firstPoint : (suggestion?.adjustedEnd || point);

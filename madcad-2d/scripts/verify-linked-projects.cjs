@@ -21,6 +21,15 @@ async function clickByText(window, selector, text) {
   return window.webContents.executeJavaScript(`(() => { const target = [...document.querySelectorAll(${JSON.stringify(selector)})].find((item) => item.textContent.includes(${JSON.stringify(text)})); target?.click(); return Boolean(target); })()`);
 }
 
+async function openComponentManager(window, workspaceLabel) {
+  if (!(await window.webContents.executeJavaScript(`Boolean(document.querySelector('#projectComponentsBtn'))`))) {
+    if (!(await clickByText(window, '.workspace-tabs button', workspaceLabel))) throw new Error(`Nie znaleziono obszaru ${workspaceLabel}.`);
+    await waitFor(window, `document.querySelector('#projectComponentsBtn')`, 'pulpit zarządzania projektem');
+  }
+  await click(window, '#projectComponentsBtn');
+  await waitFor(window, `document.querySelector('.component-panel')`, 'menedżer komponentów');
+}
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({
     width: 1440,
@@ -39,7 +48,7 @@ app.whenReady().then(async () => {
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
     await waitFor(window, `typeof window.__madcadVerifyDocumentState === 'object'`, 'interfejs modelowania');
     await click(window, '.license-info-dialog button.confirm');
-    if (!(await clickByText(window, '.ribbon-tool, .ribbon-overflow-menu button', 'Menedżer'))) throw new Error('Nie znaleziono menedżera komponentów.');
+    await openComponentManager(window, 'ZARZĄDZAJ');
     await waitFor(window, `document.querySelector('[data-component-action="link-project"]')`, 'panel komponentów');
     await click(window, '[data-component-action="link-project"]');
     await waitFor(window, `window.__madcadVerifyDocumentState.linkedProjects?.length === 1 && window.__madcadVerifyDocumentState.bodyIds?.length === 1 && document.querySelector('[data-linked-project-state="current"]')`, 'utworzone łącze i proxy STEP');
@@ -47,7 +56,7 @@ app.whenReady().then(async () => {
 
     await window.webContents.executeJavaScript(`window.desktopApp.verifyLinkedProjectChange()`);
     await click(window, '.component-panel header button');
-    await clickByText(window, '.ribbon-tool, .ribbon-overflow-menu button', 'Menedżer');
+    await openComponentManager(window, 'ZARZĄDZAJ');
     await waitFor(window, `document.querySelector('[data-linked-project-state="changed"]')`, 'wykryta zmiana źródła');
     await click(window, '[data-linked-project-action="refresh"]');
     await waitFor(window, `document.querySelector('[data-linked-project-state="current"]') && window.__madcadVerifyDocumentState.linkedProjects[0].sourceHash === '${'2'.repeat(64)}'`, 'odświeżone proxy');
@@ -60,7 +69,7 @@ app.whenReady().then(async () => {
 
     await window.webContents.executeJavaScript(`window.desktopApp.verifyLinkedProjectMissing()`);
     await click(window, '.component-panel header button');
-    await clickByText(window, '.ribbon-tool, .ribbon-overflow-menu button', 'Menedżer');
+    await openComponentManager(window, 'ZARZĄDZAJ');
     await waitFor(window, `document.querySelector('[data-linked-project-state="missing"]')`, 'brakujący plik źródłowy');
     await click(window, '[data-linked-project-action="repair"]');
     await waitFor(window, `document.querySelector('[data-linked-project-state="current"]') && window.__madcadVerifyDocumentState.bodyIds.length === 1`, 'naprawione łącze');
@@ -79,7 +88,7 @@ app.whenReady().then(async () => {
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'en' } });
     await waitFor(window, `typeof window.__madcadVerifyDocumentState === 'object'`, 'angielski interfejs modelowania');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
-    if (!(await clickByText(window, '.ribbon-tool, .ribbon-overflow-menu button', 'Manager'))) throw new Error('The component manager was not available in English.');
+    await openComponentManager(window, 'MANAGE');
     await waitFor(window, `document.querySelector('[data-component-action="link-project"]')?.textContent.includes('Link project')`, 'angielski panel linkowania');
     const englishPanel = await window.webContents.executeJavaScript(`(() => {
       const panel = document.querySelector('.component-panel');

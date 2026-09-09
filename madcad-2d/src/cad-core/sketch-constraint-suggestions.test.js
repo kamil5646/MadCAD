@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createSketchLine, createSketchPoint } from './sketch-model.js';
-import { addAutomaticConstraintsForLine, inferLineConstraintSuggestion } from './sketch-constraint-suggestions.js';
+import { addAutomaticConstraintsForLine, allowsDirectionalConstraintSuggestion, inferLineConstraintSuggestion } from './sketch-constraint-suggestions.js';
 
 describe('automatic sketch constraint suggestions', () => {
   it('recognizes horizontal and vertical intent and adjusts only the free axis', () => {
@@ -22,5 +22,14 @@ describe('automatic sketch constraint suggestions', () => {
     expect(second).toEqual([]);
     expect(sketch.constraints).toHaveLength(2);
   });
-});
 
+  it('keeps directional suggestions visible for axis and grid snaps only', () => {
+    expect(allowsDirectionalConstraintSuggestion(null)).toBe(true);
+    expect(allowsDirectionalConstraintSuggestion({ snapped: false, type: null })).toBe(true);
+    expect(allowsDirectionalConstraintSuggestion({ snapped: true, type: 'horizontal' })).toBe(true);
+    expect(allowsDirectionalConstraintSuggestion({ snapped: true, type: 'vertical' })).toBe(true);
+    expect(allowsDirectionalConstraintSuggestion({ snapped: true, type: 'grid' })).toBe(true);
+    expect(allowsDirectionalConstraintSuggestion({ snapped: true, type: 'endpoint' })).toBe(false);
+    expect(allowsDirectionalConstraintSuggestion({ snapped: true, type: 'intersection' })).toBe(false);
+  });
+});

@@ -41,7 +41,9 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entityData?.length > 0`, 'dokument fixture');
     await window.webContents.executeJavaScript(`window.__madcadVerifyOpenFirstSketch()`);
     await waitFor(window, `window.__madcadSketchVisibilityState?.entityIds?.length > 0`, 'wyrenderowany szkic');
-    if (!(await clickByText(window, '.ribbon-tool, .ribbon-overflow-menu button', 'Warstwy'))) throw new Error('Nie znaleziono przycisku Warstwy.');
+    if (!(await clickByText(window, '[data-tool-label="Warstwy i bloki"]', 'Warstwy i bloki'))) throw new Error('Nie znaleziono menu Warstwy i bloki.');
+    await waitFor(window, `document.querySelector('.ribbon-tool-submenu[aria-label="Warstwy i bloki"]')`, 'menu warstw i bloków');
+    if (!(await clickByText(window, '.ribbon-tool-submenu[aria-label="Warstwy i bloki"] [role="menuitem"]', 'Warstwy'))) throw new Error('Nie znaleziono przycisku Warstwy.');
     await waitFor(window, `document.querySelector('.layers-panel')`, 'panel warstw');
     if (!(await clickByText(window, '.layers-toolbar button', 'Nowa warstwa'))) throw new Error('Nie znaleziono przycisku nowej warstwy.');
     await waitFor(window, `document.querySelectorAll('.layer-row').length === 2 && document.querySelector('.layer-row.active')`, 'nowa aktywna warstwa');

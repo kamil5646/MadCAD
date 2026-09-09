@@ -10,7 +10,7 @@ import { analyzeSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sket
 import { composeSketchSnapContext, DEFAULT_SNAP_THRESHOLD_PX, snapSketchPoint } from '../cad-core/sketch-snap.js';
 import { edgeGroupVertices, topologySelectionFromIntersection } from '../cad-core/brep-picking.js';
 import { lineTypeDefinition, resolveEntityAppearance } from '../cad-core/layers.js';
-import { inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-suggestions.js';
+import { allowsDirectionalConstraintSuggestion, inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-suggestions.js';
 import { describeSketchDegreesOfFreedom } from '../cad-core/sketch-freedom-diagnostics.js';
 import { normalizeComponentAppearance } from '../cad-core/components.js';
 import { normalizeRenderScene } from '../cad-core/render-scene.js';
@@ -2872,7 +2872,7 @@ export default function ModelViewport({
         if (sketchPreviewLine && polylineDraft?.lastPoint) {
           const deltaX = point[0] - polylineDraft.lastPoint[0];
           const deltaY = point[1] - polylineDraft.lastPoint[1];
-          const suggestion = autoConstraints && !snapResult.snapped ? inferLineConstraintSuggestion(polylineDraft.lastPoint, point) : null;
+          const suggestion = autoConstraints && allowsDirectionalConstraintSuggestion(snapResult) ? inferLineConstraintSuggestion(polylineDraft.lastPoint, point) : null;
           setConstraintSuggestion(suggestion ? {
             ...suggestion,
             x: event.clientX - rect.left + 34,

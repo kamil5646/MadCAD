@@ -1,5 +1,6 @@
 const fs = require('fs/promises');
 const path = require('path');
+const { pathToFileURL } = require('node:url');
 const { app, BrowserWindow } = require('electron');
 
 const outputPath = path.join(__dirname, '..', 'artifacts', 'modeling-checkpoint.png');
@@ -14,6 +15,7 @@ const referenceSketchOutputPath = path.join(__dirname, '..', 'artifacts', 'madca
 const verificationStartedAt = Date.now();
 const isCi = Boolean(process.env.CI);
 const modelingTimeoutMs = isCi ? 60000 : 20000;
+let expectedSchemaVersion = 0;
 
 async function waitForModel(window, timeoutMs = 30000) {
   const start = Date.now();
@@ -2648,7 +2650,7 @@ async function runUiFlow(window) {
     `(() => {
       try {
         const saved = JSON.parse(window.localStorage.getItem('madcad:modeling-document:v4') || 'null');
-        return saved?.schemaVersion === 17 && saved?.features?.length === 5 && saved?.sketches?.length === 4 && saved?.references?.some((item) => item.kind === 'construction-plane' && item.name === 'Płaszczyzna montażowa');
+        return saved?.schemaVersion === ${expectedSchemaVersion} && saved?.features?.length === 5 && saved?.sketches?.length === 4 && saved?.references?.some((item) => item.kind === 'construction-plane' && item.name === 'Płaszczyzna montażowa');
       } catch (_error) {
         return false;
       }
@@ -2684,7 +2686,7 @@ async function runUiFlow(window) {
     };
   })()`);
   const autosaveRoundTrip = autosaveState.available
-    && autosaveState.schemaVersion === 17
+    && autosaveState.schemaVersion === expectedSchemaVersion
     && autosaveState.features === 5
     && autosaveState.sketches === 4
     && autosaveState.entities === 13
@@ -2763,6 +2765,7 @@ async function runUiFlow(window) {
 }
 
 app.whenReady().then(async () => {
+  ({ DOCUMENT_SCHEMA_VERSION: expectedSchemaVersion } = await import(pathToFileURL(path.join(__dirname, '..', 'src', 'cad-core', 'document.js')).href));
   if (process.env.MADCAD_VERIFY_ENGLISH_ONLY === '1') {
     try {
       const state = await verifyEnglishModelingUi();
