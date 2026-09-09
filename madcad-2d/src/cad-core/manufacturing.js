@@ -1040,7 +1040,8 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
 }
 
 export function createGrblGcode(setup, operation, bodies = [], options = {}) {
-  return createMachineGcode(setup, { ...operation, postProcessorId: 'grbl' }, bodies, { ...options, postProcessorId: 'grbl' });
+  const output = createMachineGcode(setup, { ...operation, postProcessorId: 'grbl' }, bodies, { ...options, postProcessorId: 'grbl' });
+  return { ...output, postProcessor: 'grbl-mm-absolute' };
 }
 
 export function validateManufacturing(manufacturing) {

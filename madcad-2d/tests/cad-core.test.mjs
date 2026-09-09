@@ -54,7 +54,7 @@ import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/p
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
-import { calculateFacingToolpath, calculateManufacturingSetup, createFacingOperation, createGrblGcode, createManufacturingSetup, validateManufacturing } from '../src/cad-core/manufacturing.js';
+import { analyzeManufacturingProgram, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingSetup, createPocketOperation, createTurningOperation, extractTopBoundaryLoops, offsetClosedContour, simulateMaterialRemoval, validateManufacturing } from '../src/cad-core/manufacturing.js';
 import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
@@ -5489,6 +5489,26 @@ test('brak miejsca podczas zapisu nie narusza ostatniej poprawnej wersji', async
   }
 });
 
+const camBox = {
+  id: 'body-cam-box',
+  name: 'Korpus CAM',
+  bounds: [[0, 0, 0], [40, 20, 10]],
+  vertices: new Float32Array([
+    0, 0, 0, 40, 0, 0, 40, 20, 0, 0, 20, 0,
+    0, 0, 10, 40, 0, 10, 40, 20, 10, 0, 20, 10,
+  ]),
+  triangles: new Uint32Array([
+    0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7,
+    0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5,
+    2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7,
+  ]),
+  faceGroups: [
+    { topologyId: 'bottom-face', start: 0, count: 6 },
+    { topologyId: 'top-face', start: 6, count: 6 },
+    { topologyId: 'side-face', start: 12, count: 6 },
+  ],
+};
+
 test('Setup CAM wylicza półfabrykat, WCS i zgodność z obrabiarką', () => {
   const setup = createManufacturingSetup({
     bodyId: 'body-test',
@@ -5557,4 +5577,99 @@ test('walidacja danych CAM odrzuca uszkodzony aktywny Setup i ujemny naddatek', 
   const issues = validateManufacturing({ setups: [setup], activeSetupId: 'missing' });
   assert.equal(issues.some((issue) => issue.path.endsWith('sideOffset') && issue.code === 'VALUE'), true);
   assert.equal(issues.some((issue) => issue.path === 'manufacturing.activeSetupId' && issue.code === 'BROKEN_REFERENCE'), true);
+});
+
+test('CAM wyznacza rzeczywistą granicę bryły, kontur, kieszeń i adaptacyjne przejścia', () => {
+  const loops = extractTopBoundaryLoops(camBox);
+  assert.equal(loops.length, 1);
+  assert.equal(loops[0].length, 4);
+  const outside = offsetClosedContour(loops[0], 3);
+  assert.equal(Math.min(...outside.map((point) => point[0])), -3);
+  assert.equal(Math.max(...outside.map((point) => point[1])), 23);
+  const setup = createManufacturingSetup({ bodyId: camBox.id });
+  const contour = createContourOperation({ targetDepth: 3, maxStepdown: 1 });
+  const pocket = createPocketOperation({ targetDepth: 2, maxStepdown: 1, stepover: 0.5 });
+  const adaptive = createAdaptiveOperation({ targetDepth: 2, maxStepdown: 1, optimalLoad: 0.3 });
+  setup.operations.push(contour, pocket, adaptive);
+  const contourPath = calculateContourToolpath(setup, contour, [camBox]);
+  const pocketPath = calculatePocketToolpath(setup, pocket, [camBox]);
+  const adaptivePath = calculateAdaptiveToolpath(setup, adaptive, [camBox]);
+  assert.equal(contourPath.valid, true);
+  assert.equal(contourPath.layerCount, 3);
+  assert.equal(contourPath.segments.filter((segment) => segment.kind === 'cut').length, 12);
+  assert.equal(pocketPath.valid, true);
+  assert.equal(pocketPath.layerCount, 2);
+  assert.ok(pocketPath.rowCount >= 5);
+  assert.equal(adaptivePath.valid, true);
+  assert.ok(adaptivePath.ringCount >= 2);
+  assert.equal(adaptivePath.segments.some((segment) => segment.kind === 'cut' && segment.from[2] !== segment.to[2]), true);
+  const report = analyzeManufacturingProgram(setup, [camBox]);
+  assert.equal(report.valid, true);
+  assert.equal(report.operations.length, 3);
+  assert.ok(report.cuttingDistance > 0);
+  const simulation = simulateMaterialRemoval(setup, [camBox], null, 0.5, 24);
+  assert.equal(simulation.valid, true);
+  assert.ok(simulation.processedSegments > 0);
+  assert.ok(simulation.columns.length > 0);
+  assert.ok(simulation.cutter);
+});
+
+test('CAM eksportuje LinuxCNC i Mach3 oraz blokuje niebezpieczne ścieżki', () => {
+  const setup = createManufacturingSetup({ bodyId: camBox.id });
+  const contour = createContourOperation({ targetDepth: 1 });
+  const linuxCnc = createMachineGcode(setup, contour, [camBox], { postProcessorId: 'linuxcnc' });
+  assert.equal(linuxCnc.extension, 'ngc');
+  assert.match(linuxCnc.text, /^%\n/);
+  assert.match(linuxCnc.text, /G64 P0\.01/);
+  assert.match(linuxCnc.text, /\nM2\n%/);
+  const mach3 = createMachineGcode(setup, contour, [camBox], { postProcessorId: 'mach3' });
+  assert.equal(mach3.extension, 'tap');
+  assert.match(mach3.text, /G80/);
+  assert.match(mach3.text, /\nM30\n/);
+  const unsafe = calculateContourToolpath(setup, contour, [camBox]);
+  unsafe.segments.splice(1, 0, { kind: 'rapid', from: [0, 0, 5], to: [10, 0, 5] });
+  assert.equal(analyzeToolpathSafety(unsafe).some((issue) => issue.code === 'RAPID_IN_STOCK'), true);
+  const tooDeep = createContourOperation({ targetDepth: 30, toolId: 'flat-6' });
+  assert.match(calculateContourToolpath(setup, tooDeep, [camBox]).warnings.join(' '), /długość ostrza/);
+});
+
+test('CAM generuje skompensowane cięcie laserowe i plazmowe z kontrolą zgodności maszyny', () => {
+  const laserSetup = createManufacturingSetup({ bodyId: camBox.id, machineId: 'laser-600' });
+  const laserOperation = createCut2dOperation({ kerfWidth: 0.2, leadIn: 3, passes: 2, powerPercent: 70 });
+  laserSetup.operations.push(laserOperation);
+  const laserPath = calculateCut2dToolpath(laserSetup, laserOperation, [camBox]);
+  assert.equal(laserPath.valid, true);
+  assert.equal(laserPath.layerCount, 2);
+  assert.equal(laserPath.segments.filter((segment) => segment.kind === 'cut').length, 10);
+  const laser = createMachineGcode(laserSetup, laserOperation, [camBox]);
+  assert.equal(laser.postProcessor, 'grbl-laser');
+  assert.match(laser.text, /M4 S700/);
+  assert.match(laser.text, /\nM5\n/);
+  const mismatched = createCut2dOperation({ postProcessorId: 'linuxcnc-plasma' });
+  assert.match(calculateCut2dToolpath(laserSetup, mismatched, [camBox]).warnings.join(' '), /GRBL Laser/);
+  const plasmaSetup = createManufacturingSetup({ bodyId: camBox.id, machineId: 'plasma-1250' });
+  const plasmaOperation = createCut2dOperation({ postProcessorId: 'linuxcnc-plasma' });
+  const plasma = createMachineGcode(plasmaSetup, plasmaOperation, [camBox]);
+  assert.match(plasma.text, /^%\n/);
+  assert.match(plasma.text, /\nM3\nG4 P0\.5\n/);
+  assert.match(plasma.text, /\nM2\n%/);
+});
+
+test('CAM tokarki planuje czoło i średnicę zewnętrzną w układzie X/Z', () => {
+  const setup = createManufacturingSetup({ bodyId: camBox.id, machineId: 'lathe-300' });
+  const facing = createTurningOperation('turn-face', { stockDiameter: 24, targetDiameter: 20, axialLength: 40, maxDepthOfCut: 1 });
+  const profile = createTurningOperation('turn-profile', { stockDiameter: 24, targetDiameter: 20, axialLength: 30, maxDepthOfCut: 1, feedRate: 0.25 });
+  setup.operations.push(facing, profile);
+  const facePath = calculateTurningToolpath(setup, facing, [camBox]);
+  const profilePath = calculateTurningToolpath(setup, profile, [camBox]);
+  assert.equal(facePath.valid, true);
+  assert.equal(facePath.passCount, 2);
+  assert.equal(profilePath.valid, true);
+  assert.equal(profilePath.passCount, 2);
+  assert.deepEqual(validateManufacturing({ setups: [setup], activeSetupId: setup.id }), []);
+  const output = createMachineGcode(setup, profile, [camBox]);
+  assert.equal(output.postProcessor, 'linuxcnc-turn');
+  assert.match(output.text, /\nG18\nG95\n/);
+  assert.match(output.text, /G1 X20 Z-30/);
+  assert.match(output.text, /\nM5\nM2\n%/);
 });
