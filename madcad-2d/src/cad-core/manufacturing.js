@@ -7,6 +7,7 @@ export const CAM_MACHINE_PRESETS = Object.freeze({
   'mill-1000': Object.freeze({ id: 'mill-1000', name: 'Frezarka 3-osiowa 1000', kind: 'mill-3axis', travel: [1000, 600, 600], maxSpindleRpm: 18000 }),
   'laser-600': Object.freeze({ id: 'laser-600', name: 'Laser CNC 600 × 400', kind: 'cut-2d', process: 'laser', travel: [600, 400, 50], maxFeedRate: 6000 }),
   'plasma-1250': Object.freeze({ id: 'plasma-1250', name: 'Plazma CNC 1250 × 1250', kind: 'cut-2d', process: 'plasma', travel: [1250, 1250, 100], maxFeedRate: 12000 }),
+  'lathe-300': Object.freeze({ id: 'lathe-300', name: 'Tokarka CNC Ø300 × 500', kind: 'turning-2axis', travel: [500, 300, 300], maxSpindleRpm: 3500 }),
 });
 
 export const CAM_WCS_ORIGINS = Object.freeze([
@@ -21,12 +22,18 @@ export const CAM_TOOL_PRESETS = Object.freeze({
   'face-16': Object.freeze({ id: 'face-16', name: 'Frez do planowania Ø16', type: 'face-mill', diameter: 16, fluteLength: 8, stickout: 25, holderDiameter: 32, flutes: 3 }),
 });
 
+export const CAM_TURNING_TOOL_PRESETS = Object.freeze({
+  'turn-rough-r08': Object.freeze({ id: 'turn-rough-r08', name: 'Nóż zewnętrzny R0,8', type: 'turning-rough', noseRadius: 0.8, stickout: 25 }),
+  'turn-finish-r04': Object.freeze({ id: 'turn-finish-r04', name: 'Nóż wykańczający R0,4', type: 'turning-finish', noseRadius: 0.4, stickout: 20 }),
+});
+
 export const CAM_POST_PROCESSORS = Object.freeze({
   grbl: Object.freeze({ id: 'grbl', name: 'GRBL 1.1', extension: 'nc', commentStyle: 'semicolon', toolChange: false }),
   linuxcnc: Object.freeze({ id: 'linuxcnc', name: 'LinuxCNC', extension: 'ngc', commentStyle: 'parentheses', toolChange: true }),
   mach3: Object.freeze({ id: 'mach3', name: 'Mach3 / Mach4', extension: 'tap', commentStyle: 'parentheses', toolChange: true }),
   'grbl-laser': Object.freeze({ id: 'grbl-laser', name: 'GRBL Laser', extension: 'nc', commentStyle: 'semicolon', toolChange: false }),
   'linuxcnc-plasma': Object.freeze({ id: 'linuxcnc-plasma', name: 'LinuxCNC Plasma', extension: 'ngc', commentStyle: 'parentheses', toolChange: false }),
+  'linuxcnc-turn': Object.freeze({ id: 'linuxcnc-turn', name: 'LinuxCNC Tokarka', extension: 'ngc', commentStyle: 'parentheses', toolChange: true }),
 });
 
 const normalizePostProcessorId = (value) => CAM_POST_PROCESSORS[value] ? value : 'grbl';
@@ -123,11 +130,29 @@ export function normalizeCut2dOperation(operation = {}, index = 0) {
   };
 }
 
+export function normalizeTurningOperation(operation = {}, index = 0) {
+  const type = operation.type === 'turn-profile' ? 'turn-profile' : 'turn-face';
+  return {
+    id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
+    name: String(operation.name || (type === 'turn-profile' ? `Toczenie zewnętrzne ${index + 1}` : `Planowanie czoła ${index + 1}`)).trim().slice(0, 80),
+    type,
+    toolId: CAM_TURNING_TOOL_PRESETS[operation.toolId] ? operation.toolId : 'turn-rough-r08',
+    stockDiameter: Math.max(0.1, Number(operation.stockDiameter) || 50),
+    targetDiameter: Math.max(0.1, Number(operation.targetDiameter) || 40),
+    axialLength: Math.max(0.1, Number(operation.axialLength) || 20),
+    maxDepthOfCut: Math.max(0.05, Number(operation.maxDepthOfCut) || 1),
+    feedRate: Math.max(0.01, Number(operation.feedRate) || 0.2),
+    spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 1200)),
+    postProcessorId: 'linuxcnc-turn',
+  };
+}
+
 export function normalizeManufacturingOperation(operation = {}, index = 0) {
   if (operation?.type === 'contour') return normalizeContourOperation(operation, index);
   if (operation?.type === 'pocket') return normalizePocketOperation(operation, index);
   if (operation?.type === 'adaptive') return normalizeAdaptiveOperation(operation, index);
   if (operation?.type === 'cut2d') return normalizeCut2dOperation(operation, index);
+  if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') return normalizeTurningOperation(operation, index);
   return normalizeFacingOperation(operation, index);
 }
 
@@ -191,7 +216,8 @@ export function calculateManufacturingSetup(setup, bodies = []) {
   ];
   const dimensions = stockBounds[1].map((value, axis) => value - stockBounds[0][axis]);
   let origin;
-  if (normalized.wcsOrigin === 'model-origin') origin = [0, 0, 0];
+  if (machine.kind === 'turning-2axis') origin = [stockBounds[1][0], (stockBounds[0][1] + stockBounds[1][1]) / 2, (stockBounds[0][2] + stockBounds[1][2]) / 2];
+  else if (normalized.wcsOrigin === 'model-origin') origin = [0, 0, 0];
   else if (normalized.wcsOrigin === 'stock-top-front-left') origin = [stockBounds[0][0], stockBounds[0][1], stockBounds[1][2]];
   else origin = [(stockBounds[0][0] + stockBounds[1][0]) / 2, (stockBounds[0][1] + stockBounds[1][1]) / 2, stockBounds[1][2]];
   const warnings = [];
@@ -199,7 +225,7 @@ export function calculateManufacturingSetup(setup, bodies = []) {
   if (exceededAxes.length) warnings.push(`Półfabrykat przekracza przesuw maszyny w osi ${exceededAxes.join(', ')}.`);
   if (dimensions.some((value) => value <= 0)) warnings.push('Półfabrykat musi mieć dodatnie wymiary.');
   const clearancePlaneZ = origin[2] + normalized.safeHeight;
-  if (clearancePlaneZ <= stockBounds[1][2] + 1e-7) warnings.push('Płaszczyzna bezpieczna musi znajdować się ponad górą półfabrykatu.');
+  if (machine.kind !== 'turning-2axis' && clearancePlaneZ <= stockBounds[1][2] + 1e-7) warnings.push('Płaszczyzna bezpieczna musi znajdować się ponad górą półfabrykatu.');
   return {
     valid: warnings.length === 0,
     machine,
@@ -230,6 +256,10 @@ export function createAdaptiveOperation(options = {}) {
 
 export function createCut2dOperation(options = {}) {
   return normalizeCut2dOperation({ ...options, id: createId('cam-operation') });
+}
+
+export function createTurningOperation(type = 'turn-face', options = {}) {
+  return normalizeTurningOperation({ ...options, type, id: createId('cam-operation') });
 }
 
 export function calculateFacingToolpath(setup, operation, bodies = []) {
@@ -724,11 +754,81 @@ export function calculateCut2dToolpath(setup, operation, bodies = [], document =
   };
 }
 
+export function calculateTurningToolpath(setup, operation, bodies = []) {
+  const setupResult = calculateManufacturingSetup(setup, bodies);
+  const normalized = normalizeTurningOperation(operation);
+  const tool = CAM_TURNING_TOOL_PRESETS[normalized.toolId];
+  const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
+  if (!setupResult.body || !setupResult.stockBounds) return fail('Toczenie wymaga poprawnego Setupu i bryły.');
+  if (!setupResult.valid) return fail('Popraw Setup przed obliczeniem toczenia.');
+  if (setupResult.machine.kind !== 'turning-2axis') return fail('Operacja wymaga Setupu tokarki.');
+  if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit tokarki ${setupResult.machine.maxSpindleRpm} obr./min.`);
+  if (normalized.targetDiameter >= normalized.stockDiameter) return fail('Średnica docelowa musi być mniejsza od średnicy półfabrykatu.');
+  if (normalized.stockDiameter > setupResult.machine.travel[1]) return fail(`Średnica półfabrykatu przekracza zakres tokarki Ø${setupResult.machine.travel[1]} mm.`);
+  const bodyBounds = setupResult.body.bounds || setupResult.body.metrics?.bounds;
+  if (normalized.axialLength > setupResult.stockBounds[1][0] - setupResult.stockBounds[0][0] + 1e-7) return fail('Długość toczenia przekracza długość półfabrykatu w osi wrzeciona.');
+  const centerY = setupResult.origin[1];
+  const centerZ = setupResult.origin[2];
+  const stockRadius = normalized.stockDiameter / 2;
+  const targetRadius = normalized.targetDiameter / 2;
+  const safeRadius = stockRadius + Math.max(2, setup.safeHeight);
+  const stockFront = setupResult.stockBounds[1][0];
+  const bodyFront = Number(bodyBounds[1][0]);
+  const segments = [];
+  let previous = [stockFront + 2, centerY + safeRadius, centerZ];
+  const push = (kind, to, feed = null) => {
+    if (Math.hypot(...to.map((value, axis) => value - previous[axis])) <= 1e-9) return;
+    segments.push({ kind, from: previous, to, ...(feed ? { feed } : {}) });
+    previous = to;
+  };
+  let passCount = 0;
+  if (normalized.type === 'turn-face') {
+    const allowance = Math.max(0.05, stockFront - bodyFront);
+    passCount = Math.max(1, Math.ceil(allowance / normalized.maxDepthOfCut));
+    for (let pass = 1; pass <= passCount; pass += 1) {
+      const axial = stockFront - allowance * pass / passCount;
+      push('rapid', [axial + 1, centerY + safeRadius, centerZ]);
+      push('rapid', [axial, centerY + stockRadius + 1, centerZ]);
+      push('cut', [axial, centerY, centerZ], normalized.feedRate);
+      push('rapid', [axial + 1, centerY + safeRadius, centerZ]);
+    }
+  } else {
+    passCount = Math.max(1, Math.ceil((stockRadius - targetRadius) / normalized.maxDepthOfCut));
+    for (let pass = 1; pass <= passCount; pass += 1) {
+      const radius = stockRadius - (stockRadius - targetRadius) * pass / passCount;
+      push('rapid', [stockFront + 1, centerY + safeRadius, centerZ]);
+      push('rapid', [stockFront, centerY + radius, centerZ]);
+      push('cut', [stockFront - normalized.axialLength, centerY + radius, centerZ], normalized.feedRate);
+      push('rapid', [stockFront + 1, centerY + safeRadius, centerZ]);
+    }
+  }
+  const summary = summarizeToolpath(segments);
+  const removedArea = Math.PI * (stockRadius ** 2 - targetRadius ** 2);
+  return {
+    valid: true,
+    turning: true,
+    setup: setupResult,
+    stockBounds: setupResult.stockBounds,
+    origin: setupResult.origin,
+    clearancePlaneZ: setupResult.clearancePlaneZ,
+    operation: normalized,
+    tool: { ...tool, diameter: tool.noseRadius * 2, holderDiameter: 0 },
+    segments,
+    layerCount: passCount,
+    passCount,
+    estimatedRemovedVolume: normalized.type === 'turn-profile' ? removedArea * normalized.axialLength : Math.PI * stockRadius ** 2 * Math.max(0.05, stockFront - bodyFront),
+    ...summary,
+    durationMinutes: segments.reduce((sum, segment) => sum + Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis])) / (segment.kind === 'rapid' ? 3000 : normalized.feedRate * normalized.spindleRpm), 0),
+    warnings: [],
+  };
+}
+
 export function calculateOperationToolpath(setup, operation, bodies = [], document = null) {
   if (operation?.type === 'contour') return calculateContourToolpath(setup, operation, bodies, document);
   if (operation?.type === 'pocket') return calculatePocketToolpath(setup, operation, bodies, document);
   if (operation?.type === 'adaptive') return calculateAdaptiveToolpath(setup, operation, bodies, document);
   if (operation?.type === 'cut2d') return calculateCut2dToolpath(setup, operation, bodies, document);
+  if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') return calculateTurningToolpath(setup, operation, bodies);
   return calculateFacingToolpath(setup, operation, bodies);
 }
 
@@ -742,6 +842,7 @@ export function analyzeToolpathSafety(toolpath) {
     const values = points.map((point) => point[axis]);
     if (Math.max(...values) - Math.min(...values) > machine.travel[axis] + 1e-7) issues.push({ code: 'MACHINE_TRAVEL', message: `Ścieżka przekracza przesuw maszyny w osi ${['X', 'Y', 'Z'][axis]}.` });
   }
+  if (toolpath.turning) return issues;
   const stockTop = toolpath.stockBounds[1][2];
   for (const segment of toolpath.segments) {
     const horizontalDistance = Math.hypot(segment.to[0] - segment.from[0], segment.to[1] - segment.from[1]);
@@ -861,6 +962,24 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   const postProcessor = CAM_POST_PROCESSORS[postProcessorId] || CAM_POST_PROCESSORS.grbl;
   const cleanComment = (value) => String(value).replace(/[\r\n;()]/g, ' ').trim();
   const comment = (value) => postProcessor.commentStyle === 'parentheses' ? `(${cleanComment(value)})` : `; ${cleanComment(value)}`;
+  if (toolpath.turning) {
+    if (postProcessor.id !== 'linuxcnc-turn') throw new Error('Toczenie wymaga postprocesora LinuxCNC Tokarka.');
+    const toolNumber = Object.keys(CAM_TURNING_TOOL_PRESETS).indexOf(toolpath.operation.toolId) + 1;
+    const lines = ['%', comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź mocowanie, zero osi Z i średnicę X przed uruchomieniem.'), 'G21', 'G90', 'G18', 'G95', 'G40', `T${toolNumber} M6`, `S${toolpath.operation.spindleRpm} M3`];
+    let lastFeed = null;
+    for (const segment of toolpath.segments) {
+      const diameter = Math.abs(segment.to[1] - origin[1]) * 2;
+      const axial = segment.to[0] - origin[0];
+      if (segment.kind === 'rapid') lines.push(`G0 X${gcodeNumber(diameter)} Z${gcodeNumber(axial)}`);
+      else {
+        const feed = segment.feed || toolpath.operation.feedRate;
+        lines.push(`G1 X${gcodeNumber(diameter)} Z${gcodeNumber(axial)}${feed !== lastFeed ? ` F${gcodeNumber(feed)}` : ''}`);
+        lastFeed = feed;
+      }
+    }
+    lines.push('M5', 'M2', '%', '');
+    return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
+  }
   if (toolpath.operation.type === 'cut2d') {
     if (!['grbl-laser', 'linuxcnc-plasma'].includes(postProcessor.id)) throw new Error('Wybierz postprocesor przeznaczony do cięcia 2D.');
     const isPlasma = postProcessor.id === 'linuxcnc-plasma';
@@ -940,7 +1059,7 @@ export function validateManufacturing(manufacturing) {
     if (!name) issues.push({ path: `${base}.name`, message: 'Setup CAM wymaga nazwy.', code: 'REQUIRED' });
     else if (names.has(name.toLocaleLowerCase())) issues.push({ path: `${base}.name`, message: 'Nazwa setupu CAM jest powtórzona.', code: 'DUPLICATE' });
     else names.add(name.toLocaleLowerCase());
-    if (!['mill-3axis', 'cut-2d'].includes(setup.operationKind)) issues.push({ path: `${base}.operationKind`, message: 'Nieobsługiwany rodzaj obróbki.', code: 'UNSUPPORTED' });
+    if (!['mill-3axis', 'cut-2d', 'turning-2axis'].includes(setup.operationKind)) issues.push({ path: `${base}.operationKind`, message: 'Nieobsługiwany rodzaj obróbki.', code: 'UNSUPPORTED' });
     if (typeof setup.bodyId !== 'string') issues.push({ path: `${base}.bodyId`, message: 'Identyfikator bryły musi być tekstem.', code: 'TYPE' });
     if (!CAM_MACHINE_PRESETS[setup.machineId]) issues.push({ path: `${base}.machineId`, message: 'Nieznany profil obrabiarki.', code: 'UNSUPPORTED' });
     if (!CAM_WCS_ORIGINS.some((item) => item.id === setup.wcsOrigin)) issues.push({ path: `${base}.wcsOrigin`, message: 'Nieznany początek układu WCS.', code: 'UNSUPPORTED' });
@@ -951,14 +1070,18 @@ export function validateManufacturing(manufacturing) {
       const operationBase = `${base}.operations[${operationIndex}]`;
       if (!operation || typeof operation !== 'object') issues.push({ path: operationBase, message: 'Operacja CAM musi być obiektem.', code: 'TYPE' });
       else {
-        if (!['face', 'contour', 'pocket', 'adaptive', 'cut2d'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
-        if (operation.type !== 'cut2d' && !CAM_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
+        if (!['face', 'contour', 'pocket', 'adaptive', 'cut2d', 'turn-face', 'turn-profile'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
+        const isTurning = operation.type === 'turn-face' || operation.type === 'turn-profile';
+        if (operation.type !== 'cut2d' && !isTurning && !CAM_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
+        if (isTurning && !CAM_TURNING_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznany nóż tokarski.', code: 'UNSUPPORTED' });
         if (!CAM_POST_PROCESSORS[operation.postProcessorId]) issues.push({ path: `${operationBase}.postProcessorId`, message: 'Nieznany postprocesor CAM.', code: 'UNSUPPORTED' });
-        const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];
+        const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : isTurning ? ['stockDiameter', 'targetDiameter', 'axialLength', 'maxDepthOfCut', 'feedRate', 'spindleRpm'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];
         for (const key of positiveKeys) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr operacji musi być dodatni.', code: 'VALUE' });
         if (['contour', 'pocket', 'adaptive'].includes(operation.type) && (!Number.isFinite(Number(operation.targetDepth)) || Number(operation.targetDepth) <= 0)) issues.push({ path: `${operationBase}.targetDepth`, message: 'Głębokość obróbki musi być dodatnia.', code: 'VALUE' });
         if (setup.operationKind === 'cut-2d' && operation.type !== 'cut2d') issues.push({ path: `${operationBase}.type`, message: 'Setup cięcia może zawierać tylko operacje cięcia 2D.', code: 'INCOMPATIBLE' });
         if (setup.operationKind === 'mill-3axis' && operation.type === 'cut2d') issues.push({ path: `${operationBase}.type`, message: 'Operacja cięcia wymaga Setupu laserowego lub plazmowego.', code: 'INCOMPATIBLE' });
+        if (setup.operationKind === 'turning-2axis' && !isTurning) issues.push({ path: `${operationBase}.type`, message: 'Setup tokarki może zawierać tylko operacje toczenia.', code: 'INCOMPATIBLE' });
+        if (setup.operationKind !== 'turning-2axis' && isTurning) issues.push({ path: `${operationBase}.type`, message: 'Operacja toczenia wymaga Setupu tokarki.', code: 'INCOMPATIBLE' });
       }
     });
   });

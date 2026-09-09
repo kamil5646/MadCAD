@@ -150,7 +150,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Blokada eksportu G-code po wykryciu problemu przez walidację kolizji i bezpieczeństwa.
 - [x] Podgląd tekstowy G-code oraz postprocesory GRBL 1.1, LinuxCNC i Mach3/Mach4 z właściwymi rozszerzeniami, nagłówkami i zmianą narzędzia.
 - [x] Cięcie 2D laserem i plazmą: osobny typ Setupu, maszyny, kompensacja szczeliny, wejście, moc, wielokrotne przejścia, podgląd oraz G-code GRBL Laser/LinuxCNC Plasma.
-- [ ] Toczenie: Setup tokarki, profile narzędzi, planowanie czoła, toczenie zewnętrzne i postprocesor.
+- [x] Toczenie 2-osiowe: osobny Setup tokarki, noże z promieniem naroża, średnice półfabrykatu/docelową, planowanie czoła, warstwowe toczenie zewnętrzne, posuw na obrót, podgląd X/Z i postprocesor LinuxCNC Tokarka.
 
 ### Electronics, chmura i rozszerzalność
 

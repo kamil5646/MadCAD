@@ -4,6 +4,7 @@ import {
   calculateContourToolpath,
   calculateCut2dToolpath,
   calculatePocketToolpath,
+  calculateTurningToolpath,
   analyzeManufacturingProgram,
   analyzeToolpathSafety,
   createContourOperation,
@@ -13,6 +14,7 @@ import {
   createMachineGcode,
   createManufacturingSetup,
   createPocketOperation,
+  createTurningOperation,
   extractTopBoundaryLoops,
   offsetClosedContour,
   simulateMaterialRemoval,
@@ -105,6 +107,28 @@ describe('CAM contour operations', () => {
     expect(plasma.text).toMatch(/^%\n/);
     expect(plasma.text).toContain('\nM3\nG4 P0.5\n');
     expect(plasma.text).toContain('\nM2\n%');
+  });
+
+  it('creates face and outside turning passes with diameter-mode LinuxCNC code', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id, machineId: 'lathe-300' });
+    const facing = createTurningOperation('turn-face', { stockDiameter: 24, targetDiameter: 20, axialLength: 40, maxDepthOfCut: 1 });
+    const profile = createTurningOperation('turn-profile', { stockDiameter: 24, targetDiameter: 20, axialLength: 30, maxDepthOfCut: 1, feedRate: 0.25 });
+    setup.operations.push(facing, profile);
+    const facePath = calculateTurningToolpath(setup, facing, [box]);
+    const profilePath = calculateTurningToolpath(setup, profile, [box]);
+    expect(setup.operationKind).toBe('turning-2axis');
+    expect(facePath.valid).toBe(true);
+    expect(facePath.passCount).toBe(2);
+    expect(profilePath.valid).toBe(true);
+    expect(profilePath.passCount).toBe(2);
+    expect(validateManufacturing({ setups: [setup], activeSetupId: setup.id })).toEqual([]);
+    const output = createMachineGcode(setup, profile, [box]);
+    expect(output.postProcessor).toBe('linuxcnc-turn');
+    expect(output.text).toContain('\nG18\nG95\n');
+    expect(output.text).toContain('\nT1 M6\n');
+    expect(output.text).toContain('G1 X22 Z-30 F0.25');
+    expect(output.text).toContain('G1 X20 Z-30');
+    expect(output.text).toContain('\nM5\nM2\n%');
   });
 
   it('rejects a cut deeper than the tool flute', () => {

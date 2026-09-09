@@ -60,6 +60,7 @@
     "verify:thermal-screening": "npm run build:ui && electron scripts/verify-thermal-screening.cjs",
     "verify:manufacturing": "npm run build:ui && electron scripts/verify-manufacturing.cjs",
     "verify:cutting": "npm run build:ui && electron scripts/verify-cutting.cjs",
+    "verify:turning": "npm run build:ui && electron scripts/verify-turning.cjs",
     "verify:import-report": "npm run build:ui && electron scripts/verify-import-report.cjs",
     "verify:drawing-workspace": "npm run build:ui && electron scripts/verify-drawing-workspace.cjs",
     "verify:sketch-drawing": "npm run build:ui && electron scripts/verify-sketch-drawing.cjs",
