@@ -2843,6 +2843,23 @@ app.whenReady().then(async () => {
     }
     await window.webContents.executeJavaScript(`document.querySelectorAll('.license-plan-grid button')[1]?.click()`);
     await waitForUi(window, `document.querySelector('.license-plan-status strong')?.textContent.includes('40') && JSON.parse(localStorage.getItem('madcad:license-plan:v1') || '{}').mode === 'commercial-trial'`, 'lokalny plan oceny komercyjnej');
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.license-plan-grid button')[2]?.click()`);
+    await waitForUi(window, `Boolean(document.querySelector('.commercial-license-form'))`, 'formularz lokalnego potwierdzenia licencji komercyjnej');
+    await window.webContents.executeJavaScript(`(() => {
+      const inputs = document.querySelectorAll('.commercial-license-form input');
+      const setValue = (input, value) => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      setValue(inputs[0], 'MadCAD E2E');
+      setValue(inputs[1], 'TEST/2026/001');
+      document.querySelector('.commercial-license-form')?.requestSubmit();
+    })()`);
+    await waitForUi(window, `(() => { const plan = JSON.parse(localStorage.getItem('madcad:license-plan:v1') || '{}'); return plan.mode === 'commercial-licensed' && plan.commercialHolder === 'MadCAD E2E' && plan.commercialReference === 'TEST/2026/001' && document.querySelector('.license-plan-status small')?.textContent.includes('TEST/2026/001'); })()`, 'lokalnie potwierdzony plan komercyjny');
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.license-plan-grid button')[1]?.click()`);
+    await waitForUi(window, `JSON.parse(localStorage.getItem('madcad:license-plan:v1') || '{}').mode === 'commercial-trial'`, 'powrót do planu oceny po teście licencji');
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     await fs.writeFile(licenseOutputPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.license-info-dialog button')].find((button) => /Pełna treść licencji|Full license text/i.test(button.textContent))?.click()`);

@@ -38,11 +38,17 @@ describe('App', () => {
     expect(dialog).toHaveTextContent(/bezterminowej licencji na każde stanowisko/i);
     expect(dialog).toHaveTextContent(/licencję potwierdza dokument zakupu/i);
     expect(dialog).toHaveTextContent(/darowizna wspiera rozwój, ale nie zastępuje licencji komercyjnej/i);
-    expect(dialog.querySelector('input, textarea')).toBeNull();
     expect(screen.getByRole('button', { name: /Ocena komercyjna40 dni/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /KomercyjnaLicencja stanowiskowa/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Ocena komercyjna40 dni/i }));
     expect(onSelectPlan).toHaveBeenCalledWith('commercial-trial');
+    fireEvent.click(screen.getByRole('button', { name: /KomercyjnaLicencja stanowiskowa/i }));
+    expect(screen.getByRole('textbox', { name: /Licencjobiorca/i })).toBeRequired();
+    expect(screen.getByRole('textbox', { name: /Numer faktury lub potwierdzenia/i })).toBeRequired();
+    fireEvent.change(screen.getByRole('textbox', { name: /Licencjobiorca/i }), { target: { value: 'Mad-Mag System' } });
+    fireEvent.change(screen.getByRole('textbox', { name: /Numer faktury lub potwierdzenia/i }), { target: { value: 'FV/2026/001' } });
+    fireEvent.click(screen.getByRole('button', { name: /Potwierdź licencję/i }));
+    expect(onSelectPlan).toHaveBeenCalledWith('commercial-licensed', { holder: 'Mad-Mag System', reference: 'FV/2026/001' });
     expect(screen.getByRole('link', { name: /Kup licencję komercyjną/i })).toHaveAttribute('href', 'https://kamil5646.github.io/MadCAD/#licencja');
     expect(screen.getByRole('button', { name: /Pełna treść licencji/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Przejdź do programu/i })).toBeInTheDocument();

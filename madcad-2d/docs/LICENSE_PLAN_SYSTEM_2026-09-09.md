@@ -10,3 +10,5 @@ Koncepcja nawiązuje do rozdzielenia Autodesk Fusion for Personal Use, bezpłatn
 - <https://www.autodesk.com/products/fusion-360/new-trial-download>
 
 Interfejs nie twierdzi, że lokalny wybór jest dowodem zakupu. Wiążącym dowodem pozostaje faktura lub pisemne potwierdzenie zgodnie z plikiem `LICENSE`.
+
+Statusu komercyjnego nie można nadać przypadkowym pojedynczym kliknięciem. Użytkownik podaje nazwę licencjobiorcy oraz numer faktury lub pisemnego potwierdzenia; dane są przechowywane tylko lokalnie i są widoczne w opisie aktywnego planu. Aplikacja nie wysyła ich do serwera i nie udaje, że lokalny wpis weryfikuje zakup.

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import fullLicenseText from '../../LICENSE?raw';
 import { tutorialForLanguage } from './tutorial-content.js';
@@ -29,6 +29,9 @@ export function FirstPartTutorial({ onClose }) {
 export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { mode: 'personal' }, onSelectPlan = () => {} }) {
   const dialogRef = useDialogFocus();
   const planStatus = describeLicensePlan(licensePlan);
+  const [commercialFormOpen, setCommercialFormOpen] = useState(false);
+  const [commercialHolder, setCommercialHolder] = useState(licensePlan.commercialHolder || '');
+  const [commercialReference, setCommercialReference] = useState(licensePlan.commercialReference || '');
   useEffect(() => {
     const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKeyDown);
@@ -52,8 +55,17 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { 
           <div className="license-plan-grid" aria-label="Wybierz sposób korzystania z MadCAD">
             <button type="button" className={licensePlan.mode === 'personal' ? 'selected' : ''} aria-pressed={licensePlan.mode === 'personal'} onClick={() => onSelectPlan('personal')}><strong>Osobista</strong><span>Bezpłatnie bez limitu czasu</span><small>Wyłącznie projekty prywatne, edukacyjne i niezarobkowe.</small></button>
             <button type="button" className={licensePlan.mode === 'commercial-trial' ? 'selected' : ''} aria-pressed={licensePlan.mode === 'commercial-trial'} onClick={() => onSelectPlan('commercial-trial')}><strong>Ocena komercyjna</strong><span>40 dni pełnej wersji</span><small>Dla firmy lub organizacji przed zakupem.</small></button>
-            <button type="button" className={licensePlan.mode === 'commercial-licensed' ? 'selected' : ''} aria-pressed={licensePlan.mode === 'commercial-licensed'} onClick={() => onSelectPlan('commercial-licensed')}><strong>Komercyjna</strong><span>Licencja stanowiskowa</span><small>Wybierz, jeżeli masz fakturę lub pisemne potwierdzenie zakupu.</small></button>
+            <button type="button" className={licensePlan.mode === 'commercial-licensed' ? 'selected' : ''} aria-pressed={licensePlan.mode === 'commercial-licensed'} aria-expanded={commercialFormOpen} onClick={() => setCommercialFormOpen((open) => !open)}><strong>Komercyjna</strong><span>Licencja stanowiskowa</span><small>Aktywuj lokalnie na podstawie faktury lub pisemnego potwierdzenia zakupu.</small></button>
           </div>
+          {commercialFormOpen && (
+            <form className="commercial-license-form" onSubmit={(event) => { event.preventDefault(); onSelectPlan('commercial-licensed', { holder: commercialHolder, reference: commercialReference }); setCommercialFormOpen(false); }}>
+              <strong>Potwierdź zakup licencji</strong>
+              <label><span>Licencjobiorca</span><input value={commercialHolder} maxLength="120" required autoComplete="organization" onChange={(event) => setCommercialHolder(event.target.value)} placeholder="Osoba lub firma z dokumentu zakupu" /></label>
+              <label><span>Numer faktury lub potwierdzenia</span><input value={commercialReference} maxLength="120" required autoComplete="off" onChange={(event) => setCommercialReference(event.target.value)} placeholder="Np. FV/2026/001" /></label>
+              <small>Dane pozostają wyłącznie na tym komputerze. Ten zapis nie zastępuje dokumentu zakupu.</small>
+              <div><button type="button" onClick={() => setCommercialFormOpen(false)}>Anuluj</button><button className="commercial" type="submit">Potwierdź licencję</button></div>
+            </form>
+          )}
           <div className="license-info-card license-info-commercial">
             <strong>Użytek komercyjny jest płatny</strong>
             <ul>

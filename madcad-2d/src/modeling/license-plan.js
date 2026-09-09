@@ -4,13 +4,22 @@ export const COMMERCIAL_TRIAL_DAYS = 40;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MODES = new Set(['personal', 'commercial-trial', 'commercial-licensed']);
 
+function cleanText(value, maxLength) {
+  return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+}
+
 export function normalizeLicensePlan(value, now = Date.now()) {
   const parsed = value && typeof value === 'object' ? value : {};
-  const mode = MODES.has(parsed.mode) ? parsed.mode : 'personal';
+  const commercialHolder = cleanText(parsed.commercialHolder, 120);
+  const commercialReference = cleanText(parsed.commercialReference, 120);
+  const requestedMode = MODES.has(parsed.mode) ? parsed.mode : 'personal';
+  const mode = requestedMode === 'commercial-licensed' && (!commercialHolder || !commercialReference) ? 'personal' : requestedMode;
   return {
     mode,
     trialStartedAt: Number.isFinite(parsed.trialStartedAt) ? parsed.trialStartedAt : null,
     commercialConfirmedAt: Number.isFinite(parsed.commercialConfirmedAt) ? parsed.commercialConfirmedAt : null,
+    commercialHolder,
+    commercialReference,
     updatedAt: Number.isFinite(parsed.updatedAt) ? parsed.updatedAt : now,
   };
 }
@@ -18,6 +27,7 @@ export function normalizeLicensePlan(value, now = Date.now()) {
 export function selectLicensePlan(current, mode, now = Date.now()) {
   const normalized = normalizeLicensePlan(current, now);
   if (!MODES.has(mode)) return normalized;
+  if (mode === 'commercial-licensed' && (!normalized.commercialHolder || !normalized.commercialReference)) return normalized;
   return {
     ...normalized,
     mode,
@@ -27,9 +37,24 @@ export function selectLicensePlan(current, mode, now = Date.now()) {
   };
 }
 
+export function confirmCommercialLicense(current, details, now = Date.now()) {
+  const normalized = normalizeLicensePlan(current, now);
+  const commercialHolder = cleanText(details?.holder, 120);
+  const commercialReference = cleanText(details?.reference, 120);
+  if (!commercialHolder || !commercialReference) return normalized;
+  return {
+    ...normalized,
+    mode: 'commercial-licensed',
+    commercialHolder,
+    commercialReference,
+    commercialConfirmedAt: now,
+    updatedAt: now,
+  };
+}
+
 export function describeLicensePlan(value, now = Date.now()) {
   const plan = normalizeLicensePlan(value, now);
-  if (plan.mode === 'commercial-licensed') return { ...plan, label: 'Komercyjna', detail: 'Potwierdzona dokumentem zakupu', expired: false, daysRemaining: null };
+  if (plan.mode === 'commercial-licensed') return { ...plan, label: 'Komercyjna', detail: `${plan.commercialHolder} · ${plan.commercialReference}`, expired: false, daysRemaining: null };
   if (plan.mode === 'commercial-trial') {
     const elapsed = Math.max(0, now - (plan.trialStartedAt || now));
     const daysRemaining = Math.max(0, COMMERCIAL_TRIAL_DAYS - Math.floor(elapsed / DAY_MS));

@@ -140,7 +140,7 @@ import { calculateSolidFea } from '../cad-core/solid-fea.js';
 import { calculateThermalScreening } from '../cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
 import { applyPrinterProfile, applyPrintMaterialProfile, PRINTER_PROFILES, PRINT_MATERIAL_PROFILES } from '../cad-core/printer-profiles.js';
-import { describeLicensePlan, loadLicensePlan, saveLicensePlan, selectLicensePlan } from './license-plan.js';
+import { confirmCommercialLicense, describeLicensePlan, loadLicensePlan, saveLicensePlan, selectLicensePlan } from './license-plan.js';
 import { calculatePrintLayout, orientationForBedFace, recommendPrintOrientation } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../cad-core/model-import.js';
@@ -472,9 +472,11 @@ export default function ModelingWorkspace() {
   const [fullLicenseOpen, setFullLicenseOpen] = useState(false);
   const [licensePlan, setLicensePlan] = useState(loadLicensePlan);
   const licensePlanStatus = describeLicensePlan(licensePlan);
-  const chooseLicensePlan = useCallback((mode) => {
+  const chooseLicensePlan = useCallback((mode, details) => {
     setLicensePlan((current) => {
-      const next = selectLicensePlan(current, mode);
+      const next = mode === 'commercial-licensed'
+        ? confirmCommercialLicense(current, details)
+        : selectLicensePlan(current, mode);
       saveLicensePlan(next);
       return next;
     });
