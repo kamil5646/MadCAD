@@ -5,6 +5,7 @@
 - Zastąpiono lokalną deklarację planu kontem MadCAD: aplikacja pobiera 40-dniową ocenę i uprawnienie komercyjne z API SEOHost MAD-MAG, bez klucza do przepisywania.
 - Hasło nie jest zapisywane w aplikacji, token sesji chroni systemowy `safeStorage`, a serwer przechowuje wyłącznie hasze haseł i losowych tokenów.
 - Dodano ograniczoną 30-dniową pracę offline, kontrolę cofnięcia zegara, limit stanowisk oraz administracyjne nadawanie, cofanie i zwalnianie urządzeń.
+- Dodano odzyskiwanie hasła jednorazowym kodem e-mail ważnym 60 minut; zmiana hasła unieważnia wcześniejsze sesje i nie ujawnia istnienia konta.
 - Tryb osobisty nadal uruchamia się natychmiast bez konta i pozostaje bezpłatny wyłącznie do użytku prywatnego, edukacyjnego i niezarobkowego.
 
 ## 6.4.7 (2026-09-03)

@@ -26,18 +26,35 @@ export function FirstPartTutorial({ onClose }) {
   );
 }
 
-export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { mode: 'personal' }, busy = false, error = '', onLogin = () => {}, onRegister = () => {}, onStartTrial = () => {}, onLogout = () => {}, onRefresh = () => {} }) {
+export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { mode: 'personal' }, busy = false, error = '', onLogin = () => {}, onRegister = () => {}, onStartTrial = () => {}, onLogout = () => {}, onRefresh = () => {}, onRequestPasswordReset = () => {}, onResetPassword = () => {} }) {
   const dialogRef = useDialogFocus();
   const planStatus = describeLicensePlan(licensePlan);
   const [accountMode, setAccountMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [accountNotice, setAccountNotice] = useState('');
   useEffect(() => {
     const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
+  const submitAccount = async (event) => {
+    event.preventDefault();
+    setAccountNotice('');
+    if (accountMode === 'reset-request') {
+      const result = await onRequestPasswordReset({ email });
+      if (result?.ok) { setAccountNotice(result.message || 'Sprawdź pocztę i wklej kod odzyskiwania.'); setAccountMode('reset-confirm'); }
+      return;
+    }
+    if (accountMode === 'reset-confirm') {
+      const result = await onResetPassword({ email, password, resetToken });
+      if (result?.ok) { setAccountNotice(result.message || 'Hasło zostało zmienione.'); setPassword(''); setResetToken(''); setAccountMode('login'); }
+      return;
+    }
+    (accountMode === 'register' ? onRegister : onLogin)({ email, password, displayName });
+  };
 
   return (
     <div className="license-info-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -68,13 +85,19 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { 
               </div>
             </section>
           ) : (
-            <form className="commercial-license-form license-account-form" onSubmit={(event) => { event.preventDefault(); const values = { email, password, displayName }; (accountMode === 'register' ? onRegister : onLogin)(values); }}>
-              <strong>{accountMode === 'register' ? 'Utwórz konto MadCAD' : 'Zaloguj się do MadCAD'}</strong>
+            <form className="commercial-license-form license-account-form" onSubmit={submitAccount}>
+              <strong>{accountMode === 'register' ? 'Utwórz konto MadCAD' : accountMode === 'reset-request' ? 'Odzyskaj konto MadCAD' : accountMode === 'reset-confirm' ? 'Ustaw nowe hasło' : 'Zaloguj się do MadCAD'}</strong>
               {accountMode === 'register' && <label><span>Imię i nazwisko lub firma</span><input value={displayName} maxLength="120" minLength="2" required autoComplete="name" onChange={(event) => setDisplayName(event.target.value)} /></label>}
               <label><span>E-mail</span><input type="email" value={email} maxLength="254" required autoComplete="email" onChange={(event) => setEmail(event.target.value)} /></label>
-              <label><span>Hasło</span><input type="password" value={password} minLength="10" maxLength="200" required autoComplete={accountMode === 'register' ? 'new-password' : 'current-password'} onChange={(event) => setPassword(event.target.value)} /></label>
-              <small>Hasło jest wysyłane szyfrowanym połączeniem wyłącznie podczas logowania i nie jest zapisywane w aplikacji.</small>
-              <div><button type="button" disabled={busy} onClick={() => setAccountMode((mode) => mode === 'login' ? 'register' : 'login')}>{accountMode === 'login' ? 'Utwórz konto' : 'Mam już konto'}</button><button className="commercial" type="submit" disabled={busy}>{busy ? 'Łączenie…' : accountMode === 'register' ? 'Zarejestruj' : 'Zaloguj'}</button></div>
+              {accountMode === 'reset-confirm' && <label><span>Kod z wiadomości</span><input value={resetToken} minLength="32" maxLength="160" required autoComplete="one-time-code" onChange={(event) => setResetToken(event.target.value)} /></label>}
+              {accountMode !== 'reset-request' && <label><span>{accountMode === 'reset-confirm' ? 'Nowe hasło' : 'Hasło'}</span><input type="password" value={password} minLength="10" maxLength="200" required autoComplete={accountMode === 'login' ? 'current-password' : 'new-password'} onChange={(event) => setPassword(event.target.value)} /></label>}
+              <small>{accountMode.startsWith('reset') ? 'Kod odzyskiwania wygasa po 60 minutach. Po zmianie hasła wszystkie wcześniejsze sesje zostaną wylogowane.' : 'Hasło jest wysyłane szyfrowanym połączeniem wyłącznie podczas logowania i nie jest zapisywane w aplikacji.'}</small>
+              {accountNotice && <p className="license-account-notice" role="status">{accountNotice}</p>}
+              <div>
+                {accountMode === 'login' && <><button type="button" disabled={busy} onClick={() => setAccountMode('register')}>Utwórz konto</button><button type="button" disabled={busy} onClick={() => setAccountMode('reset-request')}>Nie pamiętam hasła</button></>}
+                {accountMode !== 'login' && <button type="button" disabled={busy} onClick={() => setAccountMode('login')}>Wróć do logowania</button>}
+                <button className="commercial" type="submit" disabled={busy}>{busy ? 'Łączenie…' : accountMode === 'register' ? 'Zarejestruj' : accountMode === 'reset-request' ? 'Wyślij kod' : accountMode === 'reset-confirm' ? 'Zmień hasło' : 'Zaloguj'}</button>
+              </div>
             </form>
           )}
           {error && <p className="license-account-error" role="alert"><AlertTriangle size={15} />{error}</p>}

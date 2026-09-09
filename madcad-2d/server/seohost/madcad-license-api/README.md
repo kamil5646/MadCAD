@@ -6,6 +6,8 @@ Required hosting capabilities: HTTPS, PHP 7.4+ with JSON, mbstring and password 
 
 The desktop application uses only HTTPS and never stores a password. Its session token is encrypted using Electron `safeStorage`. Personal use remains available without an account. Commercial trial and commercial entitlements are authoritative on this service, limited by named user and active device count, and cached for 30 days of offline work.
 
+Password recovery sends a single-use, 60-minute token using the hosting PHP mail transport. Configure and test delivery for `noreply@madmagsystem.pl`; changing a password invalidates every existing session. The request endpoint always returns the same public message, whether or not the account exists.
+
 After deployment, POST `{}` to `/health`. Treat the deployment as ready only when it returns `{"ok":true,"service":"madcad-license"}` over HTTPS. A browser GET intentionally returns 405.
 
 ## Commercial-plan administration

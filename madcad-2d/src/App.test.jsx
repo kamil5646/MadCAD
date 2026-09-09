@@ -49,6 +49,18 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /Przejdź do programu/i })).toBeInTheDocument();
   });
 
+  it('offers password recovery without exposing an administrative license action', async () => {
+    const onRequestPasswordReset = vi.fn().mockResolvedValue({ ok: true, message: 'Wysłano kod.' });
+    const onResetPassword = vi.fn().mockResolvedValue({ ok: true, message: 'Hasło zmienione.' });
+    render(<LicenseInfoDialog licensePlan={{ mode: 'personal' }} onRequestPasswordReset={onRequestPasswordReset} onResetPassword={onResetPassword} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Nie pamiętam hasła/i }));
+    fireEvent.change(screen.getByRole('textbox', { name: /E-mail/i }), { target: { value: 'user@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: /Wyślij kod/i }));
+    await waitFor(() => expect(onRequestPasswordReset).toHaveBeenCalledWith({ email: 'user@example.com' }));
+    expect(await screen.findByRole('textbox', { name: /Kod z wiadomości/i })).toBeRequired();
+    expect(screen.queryByRole('button', { name: /Nadaj licencję/i })).not.toBeInTheDocument();
+  });
+
   it('focuses the full-license dialog and closes it with Escape', () => {
     const onClose = vi.fn();
     render(<FullLicenseDialog onClose={onClose} />);

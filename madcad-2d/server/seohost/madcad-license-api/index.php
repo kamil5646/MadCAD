@@ -110,6 +110,24 @@ function password_value($value): string {
   return $password;
 }
 
+function reset_token($value): string {
+  $token = text($value, 160);
+  if (strlen($token) < 32) respond(422, array('ok' => false, 'error' => 'Nieprawidłowy kod odzyskiwania.'));
+  return $token;
+}
+
+function find_user_id_by_email(array $store, string $mail): ?string {
+  foreach ($store['users'] as $candidateId => $candidate) if (hash_equals((string)$candidate['email'], $mail)) return (string)$candidateId;
+  return null;
+}
+
+function send_reset_email(array $user, string $token): bool {
+  $subject = 'MadCAD - reset hasla';
+  $message = "Otrzymalismy prosbe o zmiane hasla konta MadCAD.\n\nKod odzyskiwania:\n" . $token . "\n\nKod wygasa po 60 minutach. Jesli to nie Ty, zignoruj wiadomosc.";
+  $headers = "From: MadCAD <noreply@madmagsystem.pl>\r\nContent-Type: text/plain; charset=UTF-8\r\nX-Auto-Response-Suppress: All";
+  return mail((string)$user['email'], $subject, $message, $headers);
+}
+
 function client_ip(): string {
   return text($_SERVER['REMOTE_ADDR'] ?? 'unknown', 64);
 }
@@ -243,13 +261,36 @@ try {
       $mail = email($input['email'] ?? '');
       $password = password_value($input['password'] ?? '');
       $installationId = installation_id($input['installationId'] ?? '');
-      $id = null;
-      foreach ($store['users'] as $candidateId => $candidate) if (hash_equals((string)$candidate['email'], $mail)) { $id = $candidateId; break; }
+      $id = find_user_id_by_email($store, $mail);
       if ($id === null || !password_verify($password, (string)$store['users'][$id]['passwordHash'])) respond(401, array('ok' => false, 'error' => 'Nieprawidłowy e-mail lub hasło.'));
       $user =& $store['users'][$id];
       $entitlement = active_entitlement($user);
       bind_device($user, $installationId, $entitlement);
       return license_response($user, $entitlement, issue_session($store, $id));
+    }
+    if ($route === '/auth/request-reset') {
+      enforce_rate_limit($store, 'request-reset', 5, 3600);
+      $mail = email($input['email'] ?? '');
+      $id = find_user_id_by_email($store, $mail);
+      if ($id !== null) {
+        $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+        $store['users'][$id]['passwordReset'] = array('tokenHash' => hash('sha256', $token), 'expiresAt' => time() + 3600);
+        return array('ok' => true, 'message' => 'Jeśli konto istnieje, wysłaliśmy kod odzyskiwania.', '_resetMail' => array('user' => $store['users'][$id], 'token' => $token, 'userId' => $id));
+      }
+      return array('ok' => true, 'message' => 'Jeśli konto istnieje, wysłaliśmy kod odzyskiwania.');
+    }
+    if ($route === '/auth/reset-password') {
+      enforce_rate_limit($store, 'reset-password', 15, 900);
+      $mail = email($input['email'] ?? '');
+      $password = password_value($input['password'] ?? '');
+      $token = reset_token($input['resetToken'] ?? '');
+      $id = find_user_id_by_email($store, $mail);
+      $reset = $id !== null && is_array($store['users'][$id]['passwordReset'] ?? null) ? $store['users'][$id]['passwordReset'] : array();
+      if ($id === null || (int)($reset['expiresAt'] ?? 0) < time() || !hash_equals((string)($reset['tokenHash'] ?? ''), hash('sha256', $token))) respond(422, array('ok' => false, 'error' => 'Kod odzyskiwania jest nieprawidłowy lub wygasł.'));
+      $store['users'][$id]['passwordHash'] = password_hash($password, PASSWORD_DEFAULT);
+      unset($store['users'][$id]['passwordReset']);
+      foreach ($store['sessions'] as $sessionHash => $session) if (($session['userId'] ?? '') === $id) unset($store['sessions'][$sessionHash]);
+      return array('ok' => true, 'message' => 'Hasło zostało zmienione. Zaloguj się ponownie.');
     }
     if ($route === '/license/status' || $route === '/license/start-trial') {
       list($id) = require_session($store, $input);
@@ -301,6 +342,11 @@ try {
     }
     respond(404, array('ok' => false, 'error' => 'Nieznany endpoint licencji.'));
   });
+  if (isset($result['_resetMail']) && is_array($result['_resetMail'])) {
+    $mail = $result['_resetMail'];
+    unset($result['_resetMail']);
+    if (!send_reset_email($mail['user'], (string)$mail['token'])) error_log('MadCAD license API: reset email could not be sent for user ' . $mail['userId']);
+  }
   respond(200, $result);
 } catch (MadcadHttpResponse $response) {
   respond($response->status(), $response->payload());

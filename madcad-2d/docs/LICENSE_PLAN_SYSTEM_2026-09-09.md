@@ -15,6 +15,8 @@ MadCAD rozdziela trzy stany: bezpłatny użytek osobisty, jednorazową 40-dniow�
 
 Hasło trafia do API wyłącznie przez HTTPS podczas rejestracji lub logowania i nie jest zapisywane przez aplikację. Serwer zapisuje wyłącznie hash hasła. Losowy token sesji jest haszowany na serwerze, a jego lokalna kopia szyfrowana przez Electron `safeStorage`. Odpowiedzi nie są buforowane, żądania mają limit rozmiaru i czasu, a logowanie, rejestracja oraz operacje administracyjne mają limity prób.
 
+Odzyskiwanie konta wysyła jednorazowy kod ważny 60 minut. Publiczna odpowiedź nie ujawnia, czy adres jest zarejestrowany, a poprawna zmiana hasła unieważnia wszystkie wcześniejsze sesje.
+
 Magazyn kont, token administratora i blokady plików znajdują się poza `public_html`. Repozytorium zawiera gotowy szablon wdrożenia w `server/seohost/madcad-license-api`, lecz nie zawiera danych produkcyjnych ani sekretów.
 
 ## Stan weryfikacji

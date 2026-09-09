@@ -83,3 +83,21 @@ test('clears a rejected server session instead of extending its offline lease', 
   assert.equal(result.status.signedIn, false);
   await fs.rm(root, { recursive: true, force: true });
 });
+
+test('requests and confirms password recovery without changing local entitlement', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'madcad-license-password-reset-'));
+  const calls = [];
+  const client = createLicenseClient({
+    statePath: path.join(root, 'state.json'),
+    request: async (route, payload) => { calls.push({ route, payload }); return { ok: true, message: 'OK' }; },
+    protectToken: async (value) => value,
+    unprotectToken: async (value) => value,
+  });
+  assert.equal((await client.requestPasswordReset({ email: ' USER@example.com ' })).ok, true);
+  assert.equal((await client.resetPassword({ email: 'user@example.com', password: 'new-secure-password', resetToken: 'a'.repeat(43) })).ok, true);
+  assert.deepEqual(calls.map(({ route }) => route), ['/auth/request-reset', '/auth/reset-password']);
+  assert.equal(calls[0].payload.email, 'user@example.com');
+  assert.equal((await client._readState()).account, null);
+  assert.rejects(() => client.resetPassword({ email: 'user@example.com', password: 'new-secure-password', resetToken: 'short' }), /pełny kod/i);
+  await fs.rm(root, { recursive: true, force: true });
+});

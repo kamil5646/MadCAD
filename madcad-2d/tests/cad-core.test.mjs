@@ -5202,10 +5202,10 @@ test('okna Electron i preload utrzymują sandbox oraz jedną bramę IPC', async 
   ]);
   assert.doesNotMatch(mainSource, /sandbox:\s*false/);
   assert.equal((mainSource.match(/sandbox:\s*true/g) || []).length, 3);
-  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 25);
+  assert.equal((mainSource.match(/registerTrustedIpcHandler\('madcad:/g) || []).length, 27);
   assert.match(preloadSource, /openProjectFile/);
   assert.match(preloadSource, /packAndGoProject/);
-  assert.match(preloadSource, /licenseGetStatus[\s\S]*licenseLogin[\s\S]*licenseRegister[\s\S]*licenseStartTrial[\s\S]*licenseLogout/);
+  assert.match(preloadSource, /licenseGetStatus[\s\S]*licenseLogin[\s\S]*licenseRegister[\s\S]*licenseStartTrial[\s\S]*licenseLogout[\s\S]*licenseRequestPasswordReset[\s\S]*licenseResetPassword/);
   assert.match(mainSource, /registerTrustedIpcHandler\('madcad:license-status'[\s\S]*registerTrustedIpcHandler\('madcad:license-logout'/);
   assert.doesNotMatch(mainSource, /install-oda-addon|convert-cad-file|get-oda-status|choose-oda|open-oda/);
   assert.match(mainSource, /import-dwg-sketch/);

@@ -178,12 +178,32 @@ function createLicenseClient({ statePath, request, protectToken, unprotectToken,
     });
   }
 
+  async function requestPasswordReset(payload) {
+    return queue(async () => {
+      const email = normalizeEmail(payload?.email);
+      const response = await request('/auth/request-reset', { email, appVersion });
+      return { ok: response?.ok === true, message: cleanText(response?.message, 300) };
+    });
+  }
+
+  async function resetPassword(payload) {
+    return queue(async () => {
+      const credentials = normalizeCredentials(payload);
+      const resetToken = cleanText(payload?.resetToken, 160);
+      if (resetToken.length < 32) throw new Error('Wklej pełny kod odzyskiwania z wiadomości e-mail.');
+      const response = await request('/auth/reset-password', { ...credentials, resetToken, appVersion });
+      return { ok: response?.ok === true, message: cleanText(response?.message, 300) };
+    });
+  }
+
   return {
     getStatus: refresh,
     login: (payload) => authenticate('login', payload),
     register: (payload) => authenticate('register', payload),
     startTrial,
     logout,
+    requestPasswordReset,
+    resetPassword,
     _readState: readState,
   };
 }

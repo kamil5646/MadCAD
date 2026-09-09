@@ -179,6 +179,7 @@
 .license-account-actions button { min-height: 31px; padding: 0 11px; border: 1px solid #687786; border-radius: 4px; color: #e9f0f4; background: #42505e; cursor: pointer; }
 .license-account-actions button.commercial { border-color: #b89153; color: #fff0c8; background: #59472f; }
 .license-account-error { display: flex; align-items: center; gap: 7px; margin: 0; padding: 8px 10px; border: 1px solid #a35a50; border-radius: 4px; color: #ffc2b8; background: #4a302d; }
+.commercial-license-form .license-account-notice { grid-column: 1 / -1; margin: 0; color: #a8edc6; }
 .license-account-form button:disabled, .license-account-actions button:disabled { opacity: .55; cursor: wait; }
 .license-info-support-copy { margin: 0; color: #cbd4dc; font-size: 11px; line-height: 1.4; }
 .license-info-actions { display: grid; grid-template-columns: repeat(3, max-content); justify-content: start; gap: 7px; padding-top: 10px; border-top: 1px solid #4f5c69; }
