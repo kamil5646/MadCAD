@@ -5,7 +5,7 @@ MadCAD rozdziela trzy stany: bezpłatny użytek osobisty, jednorazową 40-dniow�
 ## Zasady
 
 - Tryb osobisty działa od razu, bez konta i bez połączenia z siecią, ale wyłącznie prywatnie, edukacyjnie i niezarobkowo.
-- Rejestracja i logowanie odbywają się przez `https://madmagsystem.pl/api/madcad/v1` na SEOHost MAD-MAG.
+- Rejestracja i logowanie odbywają się przez `https://madcad.madmagsystem.pl/api/madcad/v1` na SEOHost MAD-MAG.
 - Okres próbny może zostać rozpoczęty tylko raz dla konta. Datę przechowuje serwer, więc reinstalacja aplikacji go nie resetuje.
 - Przed rozpoczęciem okresu próbnego konto musi potwierdzić adres e-mail jednorazowym kodem ważnym 24 godziny.
 - Plan komercyjny nadaje i cofa administrator. Klient nie zawiera endpointu ani sekretu pozwalającego użytkownikowi zmienić własne uprawnienie.

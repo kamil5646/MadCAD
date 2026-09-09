@@ -1,6 +1,6 @@
 # MadCAD License API for SEOHost
 
-Deploy this directory as `public_html/api/madcad/v1`. The API creates its JSON store outside the public document root in `private_data/madcad-licensing`, locks every read/write transaction, hashes passwords with PHP `password_hash`, stores only SHA-256 hashes of random session tokens and rate-limits registration and login attempts.
+Deploy this directory as `madcad.madmagsystem.pl/public_html/api/madcad/v1`. The API creates its JSON store outside the public document root in `private_data/madcad-licensing`, locks every read/write transaction, hashes passwords with PHP `password_hash`, stores only SHA-256 hashes of random session tokens and rate-limits registration and login attempts.
 
 Required hosting capabilities: HTTPS, PHP 7.4+ with JSON, mbstring and password hashing, and write access to the domain-level `private_data` directory.
 

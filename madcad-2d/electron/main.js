@@ -44,7 +44,7 @@ const MAX_UPDATE_DOWNLOAD_BYTES = 512 * 1024 * 1024;
 const MAX_LINKED_PROJECT_BYTES = 64 * 1024 * 1024;
 const MAX_UPDATE_METADATA_BYTES = 4 * 1024 * 1024;
 const MAX_LICENSE_RESPONSE_BYTES = 128 * 1024;
-const MADCAD_LICENSE_API_URL = 'https://madmagsystem.pl/api/madcad/v1';
+const MADCAD_LICENSE_API_URL = 'https://madcad.madmagsystem.pl/api/madcad/v1';
 const DWG_CONVERTER_DOWNLOAD_URL = 'https://www.opendesign.com/guestFiles/oda_file_converter';
 const TRUSTED_MAC_TEAM_ID = /^[A-Z0-9]{10}$/.test(String(packageMetadata.madcadMacTeamId || ''))
   ? String(packageMetadata.madcadMacTeamId)
