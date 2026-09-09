@@ -123,3 +123,110 @@ export function calculatePrintLayout(bodies = [], print = {}) {
   ]));
   return { ...unionPoints(points), layout, pitch, instances };
 }
+
+function triangleData(bodies = []) {
+  const triangles = [];
+  bodies.forEach((body) => {
+    const vertices = body?.vertices;
+    const indices = body?.triangles;
+    if (!vertices?.length || !indices?.length) return;
+    for (let offset = 0; offset + 2 < indices.length; offset += 3) {
+      const points = [indices[offset], indices[offset + 1], indices[offset + 2]].map((index) => [
+        Number(vertices[index * 3]), Number(vertices[index * 3 + 1]), Number(vertices[index * 3 + 2]),
+      ]);
+      if (points.some((point) => point.some((value) => !Number.isFinite(value)))) continue;
+      const first = points[0];
+      const ab = points[1].map((value, axis) => value - first[axis]);
+      const ac = points[2].map((value, axis) => value - first[axis]);
+      const cross = [ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0]];
+      const doubledArea = Math.hypot(...cross);
+      if (doubledArea <= EPSILON) continue;
+      triangles.push({ points, normal: cross.map((value) => value / doubledArea), area: doubledArea / 2 });
+    }
+  });
+  return triangles;
+}
+
+function orientationCandidates(triangles, limit = 24) {
+  const grouped = new Map();
+  triangles.forEach(({ normal, area }) => {
+    const key = normal.map((value) => Math.round(value * 20)).join(':');
+    const current = grouped.get(key) || { normal: [0, 0, 0], area: 0 };
+    current.normal = current.normal.map((value, axis) => value + normal[axis] * area);
+    current.area += area;
+    grouped.set(key, current);
+  });
+  [[0, 0, -1], [0, 0, 1], [-1, 0, 0], [1, 0, 0], [0, -1, 0], [0, 1, 0]].forEach((normal) => {
+    const key = normal.map((value) => Math.round(value * 20)).join(':');
+    if (!grouped.has(key)) grouped.set(key, { normal, area: 0 });
+  });
+  return [...grouped.values()]
+    .sort((a, b) => b.area - a.area)
+    .slice(0, limit)
+    .map(({ normal }) => normalizeVector(normal));
+}
+
+function evaluatePrintOrientation(triangles, print, normal) {
+  const orientation = orientationForBedFace(normal);
+  const rawLayout = {
+    ...print,
+    positionX: 0,
+    positionY: 0,
+    positionZ: 0,
+    rotationX: 0,
+    rotationY: 0,
+    rotationZ: 0,
+    orientationAxis: orientation.axis,
+    orientationAngle: orientation.angle,
+  };
+  const transformed = triangles.map((triangle) => ({
+    ...triangle,
+    points: triangle.points.map((point) => transformPrintPoint(point, rawLayout)),
+  }));
+  const cloud = transformed.flatMap((triangle) => triangle.points);
+  const bounds = unionPoints(cloud);
+  const tolerance = Math.max(0.01, Math.max(...bounds.dimensions) * 1e-5);
+  const overhangLimit = -Math.sin(Math.max(0, Math.min(89, Number(print.overhangAngle) || 45)) * Math.PI / 180);
+  let baseArea = 0;
+  let overhangArea = 0;
+  transformed.forEach((triangle) => {
+    const normalAfter = rotateAroundAxis(triangle.normal, orientation.axis, orientation.angle);
+    const onBed = triangle.points.every((point) => Math.abs(point[2] - bounds.min[2]) <= tolerance);
+    if (onBed && normalAfter[2] < -0.95) baseArea += triangle.area;
+    else if (normalAfter[2] < overhangLimit) overhangArea += triangle.area;
+  });
+  const normalized = normalizePrintLayout(print);
+  const areaScale = normalized.scale ** 2;
+  baseArea *= areaScale;
+  overhangArea *= areaScale;
+  const pitch = bounds.dimensions[0] + normalized.copySpacing;
+  const totalWidth = bounds.dimensions[0] + Math.max(0, normalized.copies - 1) * pitch;
+  const totalDepth = bounds.dimensions[1];
+  const fitsBed = totalWidth <= Number(print.bedWidth) + tolerance
+    && totalDepth <= Number(print.bedDepth) + tolerance
+    && bounds.dimensions[2] <= Number(print.bedHeight) + tolerance;
+  const layout = {
+    ...rawLayout,
+    positionX: -(bounds.min[0] + bounds.max[0] + Math.max(0, normalized.copies - 1) * pitch) / 2,
+    positionY: -(bounds.min[1] + bounds.max[1]) / 2,
+    positionZ: -bounds.min[2],
+  };
+  return {
+    layout,
+    normal,
+    fitsBed,
+    baseArea,
+    overhangArea,
+    height: bounds.dimensions[2],
+    dimensions: [totalWidth, totalDepth, bounds.dimensions[2]],
+    score: (fitsBed ? 0 : 1e12) + overhangArea * 100 + bounds.dimensions[2] - baseArea * 2,
+  };
+}
+
+export function recommendPrintOrientation(bodies = [], print = {}) {
+  const triangles = triangleData(bodies);
+  if (!triangles.length) return null;
+  const candidates = orientationCandidates(triangles).map((normal) => evaluatePrintOrientation(triangles, print, normal));
+  candidates.sort((a, b) => a.score - b.score || b.baseArea - a.baseArea || a.height - b.height);
+  return { ...candidates[0], candidateCount: candidates.length };
+}

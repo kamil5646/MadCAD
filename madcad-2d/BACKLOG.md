@@ -30,7 +30,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Interference dla wskazanej pary wystąpień ukończono jako `P1.34a`.
 - [x] Named Views z dokładnym zapisem kamery ukończono jako `P1.34b`.
 - [x] Rozbudowany ViewCube z sześcioma kierunkami i izometrią ukończono jako `P1.34c`.
-- Zaawansowane profile materiałów/druku, heatmapy, automatyczne ułożenie i naprawa siatki.
+- [x] Automatyczne ułożenie do druku ocenia rzeczywiste trójkąty modelu, pole podparcia, nawisy, wysokość i dopasowanie do stołu; centruje wybrany wariant i zachowuje ręczne sterowanie.
+- Zaawansowane profile materiałów/druku i heatmapy technologiczne.
 
 ## Historia, projekty i zespoły
 

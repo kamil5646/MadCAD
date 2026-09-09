@@ -138,7 +138,7 @@ import { calculateCantileverBeamFea, createBeamFeaReportCsv } from '../cad-core/
 import { calculateThermalScreening } from '../cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profiles.js';
-import { calculatePrintLayout, orientationForBedFace } from '../cad-core/print-layout.js';
+import { calculatePrintLayout, orientationForBedFace, recommendPrintOrientation } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../cad-core/model-import.js';
 import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMeshFaces, reduceMesh, remeshUniform, repairMesh, smoothMesh } from '../cad-core/mesh-tools.js';
@@ -312,6 +312,7 @@ const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
 
 
 function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed, onSelectIssue, onExport, onSendToSlicer, onClose, onToggleCollapsed, readOnly = false }) {
+  const [automaticOrientation, setAutomaticOrientation] = useState(null);
   const layoutResult = useMemo(() => calculatePrintLayout(bodies, document.print), [bodies, document.print]);
   const printAnalysis = useMemo(() => analyzePrintability(bodies, document.print), [bodies, document.print]);
   const bounds = layoutResult.dimensions;
@@ -343,6 +344,12 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
     const result = calculatePrintLayout(bodies, candidate);
     next.print = { ...candidate, positionZ: -result.min[2] };
   });
+  const orientAutomatically = () => {
+    const recommendation = recommendPrintOrientation(bodies, document.print);
+    if (!recommendation) return;
+    commit((next) => { next.print = { ...next.print, ...recommendation.layout }; });
+    setAutomaticOrientation(recommendation);
+  };
   const resetLayout = () => commit((next) => {
     Object.assign(next.print, {
       positionX: 0, positionY: 0, positionZ: 0,
@@ -382,9 +389,11 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
           <Field type="number" label="Odstęp" value={document.print.copySpacing ?? 10} suffix="mm" onChange={(value) => updateLayout('copySpacing', value)} disabled={readOnly} />
         </div>
         <div className="print-layout-actions">
+          <button id="autoOrientPrintBtn" type="button" disabled={readOnly || !bodies.length} onClick={orientAutomatically}>Ułóż automatycznie</button>
           <button type="button" disabled={readOnly || !selectedFace} onClick={orientToSelectedFace}>Połóż ścianą na stole</button>
           <button type="button" disabled={readOnly} onClick={resetLayout}>Resetuj układ</button>
         </div>
+        {automaticOrientation && <small className="print-orientation-result check-ok">Automatyczny układ: podstawa {automaticOrientation.baseArea.toFixed(1)} mm² · nawisy {automaticOrientation.overhangArea.toFixed(1)} mm² · wysokość {automaticOrientation.height.toFixed(1)} mm.</small>}
         <small>{selectedFace ? 'Zaznaczona płaska ściana jest gotowa do orientacji.' : 'Zaznacz płaską ścianę modelu, aby oprzeć ją na stole.'}</small>
       </div>
       <div className="print-section print-summary">

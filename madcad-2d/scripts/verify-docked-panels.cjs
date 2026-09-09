@@ -3,6 +3,7 @@ const path = require('path');
 const { app, BrowserWindow } = require('electron');
 
 const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-docked-panels.png');
+const printScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-print-auto-orientation.png');
 
 async function waitFor(window, expression, label, timeoutMs = 20000) {
   const startedAt = Date.now();
@@ -97,19 +98,36 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.modeling-shell')`, 'ponowne uruchomienie interfejsu');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
     const storedRight = await window.webContents.executeJavaScript(`!Object.values(localStorage).some((value) => value.includes('"commandDock":"left"'))`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTopologyFixture?.('XY')`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length > 0`, 'bryła do automatycznej orientacji');
     await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
     await waitFor(window, `document.querySelector('.file-backstage')`, 'menu Plik');
     await window.webContents.executeJavaScript(`document.querySelector('#filePrint3dBtn')?.click()`);
     await waitFor(window, `document.querySelector('.print-panel')`, 'dokowany panel eksportu');
+    await waitFor(window, `!document.querySelector('#autoOrientPrintBtn')?.disabled`, 'gotowa automatyczna orientacja');
+    await window.webContents.executeJavaScript(`document.querySelector('#autoOrientPrintBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.print-orientation-result')?.textContent.includes('Automatyczny układ')`, 'wynik automatycznej orientacji');
     await new Promise((resolve) => setTimeout(resolve, 220));
     const printInitial = await printPanelSnapshot(window);
+    const automaticOrientation = await window.webContents.executeJavaScript(`(() => {
+      const result = document.querySelector('.print-orientation-result');
+      const raw = localStorage.getItem('madcad:modeling-document:v4');
+      const print = raw ? JSON.parse(raw)?.print : null;
+      return {
+        visible: Boolean(result && result.getBoundingClientRect().height > 0),
+        text: result?.textContent || '',
+        finite: Boolean(print && ['positionX', 'positionY', 'positionZ', 'orientationAngle'].every((key) => Number.isFinite(print[key]))),
+        onBed: Boolean(print && print.positionZ >= -0.001),
+      };
+    })()`);
+    await fs.writeFile(printScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`document.querySelector('.print-panel [data-panel-action="collapse"]')?.click()`);
     await waitFor(window, `document.querySelector('.print-panel.collapsed')`, 'zwinięty panel eksportu');
     await new Promise((resolve) => setTimeout(resolve, 220));
     const printCollapsed = await printPanelSnapshot(window);
 
-    const result = { screenshotPath, initial, collapsed, fixed, dockControlAbsent, storedRight, printInitial, printCollapsed };
-    if (initial.panelPosition === 'absolute' || initial.dock !== 'right' || !initial.besideCanvas || initial.panelWidth < 260 || collapsed.panelWidth > 40 || !collapsed.collapsed || !collapsed.besideCanvas || fixed.dock !== 'right' || !fixed.besideCanvas || fixed.horizontalOverflow || !dockControlAbsent || !storedRight || printInitial.panelWidth < 270 || !printInitial.besideCanvas || printCollapsed.panelWidth > 40 || !printCollapsed.collapsed || !printCollapsed.besideCanvas || printCollapsed.horizontalOverflow) {
+    const result = { screenshotPath, printScreenshotPath, initial, collapsed, fixed, dockControlAbsent, storedRight, printInitial, automaticOrientation, printCollapsed };
+    if (initial.panelPosition === 'absolute' || initial.dock !== 'right' || !initial.besideCanvas || initial.panelWidth < 260 || collapsed.panelWidth > 40 || !collapsed.collapsed || !collapsed.besideCanvas || fixed.dock !== 'right' || !fixed.besideCanvas || fixed.horizontalOverflow || !dockControlAbsent || !storedRight || printInitial.panelWidth < 270 || !printInitial.besideCanvas || !automaticOrientation.visible || !automaticOrientation.finite || !automaticOrientation.onBed || printCollapsed.panelWidth > 40 || !printCollapsed.collapsed || !printCollapsed.besideCanvas || printCollapsed.horizontalOverflow) {
       throw new Error(`Niepoprawny układ paneli: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

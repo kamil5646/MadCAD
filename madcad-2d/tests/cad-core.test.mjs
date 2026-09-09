@@ -108,7 +108,7 @@ import { calculateCantileverBeamFea, createBeamFeaReportCsv } from '../src/cad-c
 import { calculateThermalScreening, THERMAL_MATERIALS } from '../src/cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, boundsOverlap, summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
 import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-profiles.js';
-import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, transformPrintPoint } from '../src/cad-core/print-layout.js';
+import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, recommendPrintOrientation, transformPrintPoint } from '../src/cad-core/print-layout.js';
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../src/cad-core/model-import.js';
 import { inspectMesh } from '../src/cad-core/mesh-tools.js';
@@ -4954,6 +4954,30 @@ test('orientacja druku kieruje normalną zaznaczonej ściany do stołu', () => {
   assert.ok(Math.abs(transformed[2] + 1) < 1e-9);
   assert.deepEqual(orientationForBedFace([0, 0, -1]), { axis: [0, 0, 1], angle: 0 });
   assert.deepEqual(orientationForBedFace([0, 0, 1]), { axis: [1, 0, 0], angle: 180 });
+});
+
+test('automatyczna orientacja wybiera dużą podstawę, centruje model i ogranicza wysokość', () => {
+  const box = {
+    vertices: Float32Array.from([
+      0, 0, 0, 30, 0, 0, 30, 20, 0, 0, 20, 0,
+      0, 0, 10, 30, 0, 10, 30, 20, 10, 0, 20, 10,
+    ]),
+    triangles: Uint32Array.from([
+      0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7,
+      0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5,
+      2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7,
+    ]),
+  };
+  const result = recommendPrintOrientation([box], { bedWidth: 220, bedDepth: 220, bedHeight: 250, overhangAngle: 45, copies: 1, copySpacing: 10, scale: 0.5 });
+  assert.ok(result);
+  assert.ok(result.candidateCount >= 6);
+  assert.equal(result.fitsBed, true);
+  assert.ok(result.baseArea >= 149.9);
+  assert.ok(result.height <= 5.001);
+  assert.ok(Math.abs(result.layout.positionX + 7.5) < 1e-6);
+  assert.ok(Math.abs(result.layout.positionY + 5) < 1e-6);
+  assert.ok(Math.abs(result.layout.positionZ) < 1e-6);
+  assert.deepEqual(recommendPrintOrientation([], {}), null);
 });
 
 test('eksport 3MF zapisuje milimetry, obiekty i trójkąty w poprawnym archiwum', () => {

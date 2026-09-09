@@ -5726,6 +5726,13 @@
   font-size: 10px;
 }
 
+.print-layout-actions #autoOrientPrintBtn {
+  grid-column: 1 / -1;
+  border-color: #459fc2;
+  background: #24556a;
+  font-weight: 700;
+}
+
 .print-layout-actions button:disabled {
   opacity: 0.42;
 }
