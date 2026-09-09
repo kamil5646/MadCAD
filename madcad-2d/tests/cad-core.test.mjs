@@ -107,7 +107,7 @@ import { calculateCantileverScreening, ENGINEERING_MATERIALS } from '../src/cad-
 import { calculateCantileverBeamFea, createBeamFeaReportCsv } from '../src/cad-core/beam-fea.js';
 import { calculateThermalScreening, THERMAL_MATERIALS } from '../src/cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, boundsOverlap, summarizeGeometryInspection } from '../src/cad-core/geometry-inspection.js';
-import { applyPrinterProfile, PRINTER_PROFILES } from '../src/cad-core/printer-profiles.js';
+import { applyPrinterProfile, applyPrintMaterialProfile, PRINTER_PROFILES, PRINT_MATERIAL_PROFILES } from '../src/cad-core/printer-profiles.js';
 import { calculatePrintLayout, normalizePrintLayout, orientationForBedFace, recommendPrintOrientation, transformPrintPoint } from '../src/cad-core/print-layout.js';
 import { createThreeMfArchive, inspectThreeMfArchive } from '../src/cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../src/cad-core/model-import.js';
@@ -2522,6 +2522,15 @@ test('profile Bambu, Prusa i Creality ustawiają stół, a profil własny zachow
   assert.deepEqual(PRINTER_PROFILES.map((profile) => profile.id), ['bambu-x1-p1', 'prusa-mk4', 'creality-ender3']);
   assert.deepEqual(applyPrinterProfile({ material: 'PLA' }, 'prusa-mk4'), { material: 'PLA', profileId: 'prusa-mk4', bedWidth: 250, bedDepth: 210, bedHeight: 220 });
   assert.deepEqual(applyPrinterProfile({ material: 'PETG', bedWidth: 300, bedDepth: 300, bedHeight: 400 }, 'custom'), { material: 'PETG', profileId: 'custom', bedWidth: 300, bedDepth: 300, bedHeight: 400 });
+});
+
+test('profile materiałów ustawiają jawne progi analizy bez ingerencji w drukarkę', () => {
+  assert.deepEqual(PRINT_MATERIAL_PROFILES.map((profile) => profile.id), ['pla', 'petg', 'asa', 'tpu']);
+  const source = { profileId: 'prusa-mk4', bedWidth: 250, bedDepth: 210, bedHeight: 220, copies: 2 };
+  const petg = applyPrintMaterialProfile(source, 'petg');
+  assert.deepEqual({ material: petg.material, minimumWallThickness: petg.minimumWallThickness, minimumHoleDiameter: petg.minimumHoleDiameter, overhangAngle: petg.overhangAngle }, { material: 'PETG', minimumWallThickness: 0.8, minimumHoleDiameter: 2.2, overhangAngle: 42 });
+  assert.deepEqual({ profileId: petg.profileId, bedWidth: petg.bedWidth, copies: petg.copies }, { profileId: 'prusa-mk4', bedWidth: 250, copies: 2 });
+  assert.deepEqual(applyPrintMaterialProfile({ material: 'PA-CF', overhangAngle: 35 }, 'custom'), { material: 'PA-CF', overhangAngle: 35, materialProfileId: 'custom' });
 });
 
 test('Project tworzy zablokowany punkt, krawędź i zamkniętą pętlę z trwałymi linkami', () => {

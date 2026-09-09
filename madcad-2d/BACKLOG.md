@@ -31,7 +31,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Named Views z dokładnym zapisem kamery ukończono jako `P1.34b`.
 - [x] Rozbudowany ViewCube z sześcioma kierunkami i izometrią ukończono jako `P1.34c`.
 - [x] Automatyczne ułożenie do druku ocenia rzeczywiste trójkąty modelu, pole podparcia, nawisy, wysokość i dopasowanie do stołu; centruje wybrany wariant i zachowuje ręczne sterowanie.
-- Zaawansowane profile materiałów/druku i heatmapy technologiczne.
+- [x] Profile PLA, PETG, ASA/ABS i TPU ustawiają spójne progi analizy oraz pokazują zakres temperatur i krótkie zalecenie technologiczne bez udawania profilu slicera.
+- Zaawansowane, zależne od producenta profile materiałów oraz heatmapy technologiczne.
 
 ## Historia, projekty i zespoły
 

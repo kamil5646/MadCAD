@@ -422,7 +422,7 @@ export function createDocument(name = 'Nowy projekt') {
     activeLayerId: 'layer-0',
     manufacturing: { setups: [], activeSetupId: '' },
     print: {
-      profileId: 'creality-ender3', bedWidth: 220, bedDepth: 220, bedHeight: 250, material: 'PLA',
+      profileId: 'creality-ender3', bedWidth: 220, bedDepth: 220, bedHeight: 250, materialProfileId: 'pla', material: 'PLA',
       positionX: 0, positionY: 0, positionZ: 0,
       rotationX: 0, rotationY: 0, rotationZ: 0,
       scale: 1, copies: 1, copySpacing: 10,

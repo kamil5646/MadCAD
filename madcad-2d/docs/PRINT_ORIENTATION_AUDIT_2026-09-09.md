@@ -18,3 +18,7 @@ Wybrany wariant zeruje ręczne obroty, zachowuje skalę, liczbę kopii i odstęp
 - dowód wizualny: `artifacts/madcad-print-auto-orientation.png`.
 
 Jest to rekomendacja przygotowawcza, nie obietnica poprawnego wydruku. Użytkownik nadal powinien zweryfikować podpory i ustawienia materiału w slicerze.
+
+## Profile materiałów
+
+Ten sam panel udostępnia cztery jawne profile analityczne: PLA, PETG, ASA/ABS i TPU. Wybór ustawia materiał, dyszę, minimalną ściankę, minimalny otwór i próg nawisu, a obok pokazuje orientacyjne zakresy temperatur oraz najważniejsze zalecenie. Profil nie zmienia drukarki ani liczby kopii i nie jest przedstawiany jako gotowy profil slicera. `verify:panels` przełącza renderowany interfejs na PETG i potwierdza widoczność zakresu 225–255°C.

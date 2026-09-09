@@ -137,7 +137,7 @@ import { calculateCantileverScreening } from '../cad-core/static-screening.js';
 import { calculateCantileverBeamFea, createBeamFeaReportCsv } from '../cad-core/beam-fea.js';
 import { calculateThermalScreening } from '../cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
-import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profiles.js';
+import { applyPrinterProfile, applyPrintMaterialProfile, PRINTER_PROFILES, PRINT_MATERIAL_PROFILES } from '../cad-core/printer-profiles.js';
 import { calculatePrintLayout, orientationForBedFace, recommendPrintOrientation } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../cad-core/model-import.js';
@@ -332,6 +332,8 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
       : Math.max(0.05, Number.isFinite(parsed) ? parsed : 0.4);
   });
   const selectProfile = (profileId) => commit((next) => { next.print = applyPrinterProfile(next.print, profileId); });
+  const selectMaterialProfile = (profileId) => commit((next) => { next.print = applyPrintMaterialProfile(next.print, profileId); });
+  const materialProfile = PRINT_MATERIAL_PROFILES.find((profile) => profile.id === document.print.materialProfileId);
   const orientToSelectedFace = () => commit((next) => {
     const orientation = orientationForBedFace(selectedFace.normal);
     const candidate = {
@@ -403,6 +405,8 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
       </div>
       <div className="print-section print-analysis-section">
         <h3>Analiza drukowalności</h3>
+        <label className="command-field"><span>Profil materiału</span><select id="printMaterialProfile" value={document.print.materialProfileId || 'custom'} onChange={(event) => selectMaterialProfile(event.target.value)} disabled={readOnly}>{PRINT_MATERIAL_PROFILES.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}<option value="custom">Własne progi</option></select></label>
+        {materialProfile && <div className="print-material-guidance"><strong>{materialProfile.material} · dysza {materialProfile.nozzleTemperature} · stół {materialProfile.bedTemperature}</strong><span>{materialProfile.guidance}</span></div>}
         <div className="print-field-grid">
           <Field type="number" label="Dysza" value={document.print.nozzleDiameter ?? 0.4} suffix="mm" onChange={(value) => updateAnalysis('nozzleDiameter', value)} disabled={readOnly} />
           <Field type="number" label="Min. ścianka" value={document.print.minimumWallThickness ?? 0.8} suffix="mm" onChange={(value) => updateAnalysis('minimumWallThickness', value)} disabled={readOnly} />
