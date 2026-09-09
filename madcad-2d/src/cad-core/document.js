@@ -428,6 +428,7 @@ export function createDocument(name = 'Nowy projekt') {
       scale: 1, copies: 1, copySpacing: 10,
       orientationAxis: [0, 0, 1], orientationAngle: 0,
       nozzleDiameter: 0.4, minimumWallThickness: 0.8, minimumHoleDiameter: 2, overhangAngle: 45,
+      showRiskMap: false,
       slicer: 'bambu',
     },
     metadata: { createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }

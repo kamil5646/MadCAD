@@ -404,7 +404,7 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
         <p className={fits ? 'check-ok' : 'check-warning'}>{!bodies.length ? 'Najpierw utwórz bryłę.' : fits ? 'Model mieści się na stole drukarki.' : 'Model przekracza obszar drukarki.'}</p>
       </div>
       <div className="print-section print-analysis-section">
-        <h3>Analiza drukowalności</h3>
+        <div className="print-section-heading"><h3>Analiza drukowalności</h3><button id="printRiskMapBtn" type="button" className={document.print.showRiskMap ? 'active' : ''} aria-pressed={Boolean(document.print.showRiskMap)} disabled={readOnly || !bodies.length} onClick={() => commit((next) => { next.print.showRiskMap = !next.print.showRiskMap; })}>{document.print.showRiskMap ? 'Ukryj mapę' : 'Pokaż mapę'}</button></div>
         <label className="command-field"><span>Profil materiału</span><select id="printMaterialProfile" value={document.print.materialProfileId || 'custom'} onChange={(event) => selectMaterialProfile(event.target.value)} disabled={readOnly}>{PRINT_MATERIAL_PROFILES.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}<option value="custom">Własne progi</option></select></label>
         {materialProfile && <div className="print-material-guidance"><strong>{materialProfile.material} · dysza {materialProfile.nozzleTemperature} · stół {materialProfile.bedTemperature}</strong><span>{materialProfile.guidance}</span></div>}
         <div className="print-field-grid">
@@ -414,6 +414,7 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
           <Field type="number" label="Próg nawisu" value={document.print.overhangAngle ?? 45} suffix="°" onChange={(value) => updateAnalysis('overhangAngle', value)} disabled={readOnly} />
         </div>
         <div className="print-analysis-summary"><strong>{printAnalysis.errorCount} błędów · {printAnalysis.warningCount} ostrzeżeń</strong><span>Wynik opisuje ryzyko technologiczne, nie gwarantuje udanego wydruku.</span></div>
+        {document.print.showRiskMap && <div className="print-risk-legend" aria-label="Legenda mapy druku"><span><i className="safe" /> Bezpieczne</span><span><i className="overhang" /> Nawis</span><span><i className="invalid" /> Błąd siatki</span></div>}
         <div className="print-issues">
           {printAnalysis.issues.map((issue, index) => <button type="button" className={issue.severity} key={`${issue.code}-${issue.bodyId || 'layout'}-${index}`} onClick={() => onSelectIssue(issue.selection)}><AlertTriangle size={13} /><span><strong>{issue.message}</strong><small>{issue.risk}</small></span></button>)}
           {bodies.length > 0 && !printAnalysis.issues.length && <p className="check-ok">Nie wykryto problemów przy bieżących progach analizy.</p>}
@@ -1999,6 +2000,11 @@ export default function ModelingWorkspace() {
   const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => (['extrude', 'revolve', 'sweep', 'loft', 'coil', 'pipe'].includes(feature.type) && feature.operation === 'new') || feature.type === 'sheetBase' || feature.type === 'primitive' || feature.type === 'formBody' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')).map((feature) => `body-${feature.id}`)), [document.features]);
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
   const visibleViewportBodies = engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false);
+  const printRiskAnalysis = useMemo(() => {
+    if (!printPanelOpen || !document.print.showRiskMap) return null;
+    const visibleBodies = engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false);
+    return analyzePrintability(visibleBodies, document.print);
+  }, [document.features, document.print, engine.bodies, printPanelOpen]);
   useEffect(() => {
     if (!pendingModelImport) return;
     const rollbackFailedImport = (message) => {
@@ -7773,6 +7779,7 @@ export default function ModelingWorkspace() {
             surfaceAnalysis={surfaceAnalysis}
             beamFeaVisualization={command?.type === 'beamFea' ? beamFea?.result : null}
             manufacturingVisualization={manufacturingVisualization}
+            printRiskAnalysis={printRiskAnalysis}
             parameters={document.parameters}
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : (selection?.bodyId || null)}

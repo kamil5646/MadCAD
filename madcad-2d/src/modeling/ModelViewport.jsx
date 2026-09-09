@@ -606,6 +606,7 @@ export default function ModelViewport({
   surfaceAnalysis = null,
   beamFeaVisualization = null,
   manufacturingVisualization = null,
+  printRiskAnalysis = null,
   parameters = [],
   showGrid = true,
   selectedBodyId,
@@ -1097,6 +1098,7 @@ export default function ModelViewport({
     const vertexPickables = [];
     const faceHighlights = new Map();
     const draftFaceMap = new Map((draftAnalysis?.faces || []).map((face) => [`${face.bodyId}:${face.faceId}`, face]));
+    let printRiskOverlayCount = 0;
     const collisionInstanceSet = new Set(collisionInstanceIds);
     const exactCollisionInstanceSet = new Set(exactCollisionInstanceIds);
     const componentByBodyId = new Map(components.flatMap((component) => (component.bodyIds || []).map((bodyId) => [bodyId, component])));
@@ -1227,6 +1229,27 @@ export default function ModelViewport({
       modelGroup.add(mesh);
       pickables.push(mesh);
       facePickables.push(mesh);
+
+      const printRisk = printRiskAnalysis?.bodyResults?.find((result) => result.bodyId === body.id);
+      if (printRisk) {
+        const riskGeometry = geometry.toNonIndexed();
+        const overhangs = new Set(printRisk.overhangTriangles || []);
+        const invalid = new Set([...(printRisk.degenerateTriangles || []), ...(printRisk.flippedTriangles || [])]);
+        const colors = new Float32Array(riskGeometry.getAttribute('position').count * 3);
+        for (let triangleIndex = 0; triangleIndex < body.triangles.length / 3; triangleIndex += 1) {
+          const color = new THREE.Color(invalid.has(triangleIndex) ? 0xf04455 : overhangs.has(triangleIndex) ? 0xff9f32 : 0x43c98b);
+          color.toArray(colors, triangleIndex * 9);
+          color.toArray(colors, triangleIndex * 9 + 3);
+          color.toArray(colors, triangleIndex * 9 + 6);
+        }
+        riskGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const riskOverlay = new THREE.Mesh(riskGeometry, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.78, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 }));
+        riskOverlay.renderOrder = 6;
+        riskOverlay.userData = { bodyId: body.id, printRiskMap: true, overhangCount: overhangs.size, invalidCount: invalid.size };
+        placeObject(riskOverlay);
+        modelGroup.add(riskOverlay);
+        printRiskOverlayCount += 1;
+      }
 
       for (const decal of sceneSettings.decals.filter((item) => item.visible && item.bodyId === body.id)) {
         const faceGroup = (body.faceGroups || []).find((group) => group.topologyId === decal.faceId);
@@ -1573,6 +1596,7 @@ export default function ModelViewport({
       scene.add(jointGroup);
     }
     if (new URLSearchParams(window.location.search).has('verify')) window.__madcadJointVisualState = jointVisuals;
+    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadPrintRiskMapState = { overlays: printRiskOverlayCount, enabled: Boolean(printRiskAnalysis), overhangTriangles: (printRiskAnalysis?.bodyResults || []).reduce((total, result) => total + (result.overhangTriangles?.length || 0), 0) };
     if (showBed) {
       const printResult = calculatePrintLayout(bodies, printLayout);
       const degrees = Math.PI / 180;
@@ -3158,7 +3182,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, beamFeaVisualization, manufacturingVisualization, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, beamFeaVisualization, manufacturingVisualization, printRiskAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

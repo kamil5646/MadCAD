@@ -5700,6 +5700,33 @@
   font-size: 11px;
 }
 
+.print-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.print-section-heading h3 {
+  margin: 0;
+}
+
+.print-section-heading button {
+  min-height: 26px;
+  border: 1px solid #5b6876;
+  border-radius: 2px;
+  background: #303b46;
+  color: #d7e2e9;
+  font-size: 9px;
+}
+
+.print-section-heading button.active {
+  border-color: #f0a64a;
+  background: #68491f;
+  color: #fff2d4;
+}
+
 .print-field-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -5770,6 +5797,31 @@
 .print-material-guidance span {
   color: #aebbc5;
 }
+
+.print-risk-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  color: #c4d0d8;
+  font-size: 9px;
+}
+
+.print-risk-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.print-risk-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.print-risk-legend .safe { background: #43c98b; }
+.print-risk-legend .overhang { background: #ff9f32; }
+.print-risk-legend .invalid { background: #f04455; }
 
 .print-analysis-summary span {
   color: #aeb9c2;

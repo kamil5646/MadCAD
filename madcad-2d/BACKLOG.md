@@ -32,7 +32,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Rozbudowany ViewCube z sześcioma kierunkami i izometrią ukończono jako `P1.34c`.
 - [x] Automatyczne ułożenie do druku ocenia rzeczywiste trójkąty modelu, pole podparcia, nawisy, wysokość i dopasowanie do stołu; centruje wybrany wariant i zachowuje ręczne sterowanie.
 - [x] Profile PLA, PETG, ASA/ABS i TPU ustawiają spójne progi analizy oraz pokazują zakres temperatur i krótkie zalecenie technologiczne bez udawania profilu slicera.
-- Zaawansowane, zależne od producenta profile materiałów oraz heatmapy technologiczne.
+- [x] Mapa technologiczna druku nakłada na gotowy model klasy bezpieczne/nawis/błąd siatki, ma czytelną legendę i nie przejmuje zaznaczania geometrii.
+- Zaawansowane, zależne od producenta profile materiałów.
 
 ## Historia, projekty i zespoły
 

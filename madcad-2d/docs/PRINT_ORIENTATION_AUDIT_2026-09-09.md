@@ -22,3 +22,7 @@ Jest to rekomendacja przygotowawcza, nie obietnica poprawnego wydruku. Użytkown
 ## Profile materiałów
 
 Ten sam panel udostępnia cztery jawne profile analityczne: PLA, PETG, ASA/ABS i TPU. Wybór ustawia materiał, dyszę, minimalną ściankę, minimalny otwór i próg nawisu, a obok pokazuje orientacyjne zakresy temperatur oraz najważniejsze zalecenie. Profil nie zmienia drukarki ani liczby kopii i nie jest przedstawiany jako gotowy profil slicera. `verify:panels` przełącza renderowany interfejs na PETG i potwierdza widoczność zakresu 225–255°C.
+
+## Mapa technologiczna
+
+Przełącznik `Pokaż mapę` tworzy nieinteraktywną nakładkę na każdej bryle: zielony oznacza geometrię bez wykrytego ryzyka, pomarańczowy trójkąty przekraczające aktualny próg nawisu, a czerwony trójkąty zdegenerowane albo o odwróconej normalnej. Nakładka obraca się i skaluje razem z układem druku, lecz nie trafia do listy obiektów wybieralnych. Test desktopowy potwierdza jej obecność, liczbę nakładek i legendę; wynik wizualny zapisuje ten sam zrzut `artifacts/madcad-print-auto-orientation.png`.
