@@ -19,6 +19,7 @@ import { jointDrivenTransform } from '../cad-core/assembly-joints.js';
 import { configureCadMouseNavigation, shouldHandlePrimaryViewportPointer, VIEWPORT_NAVIGATION_MODES, viewportCursor } from './viewport-navigation.js';
 import { resolveReferenceSketchIds } from './sketch-visibility.js';
 import { createCurvatureColors, createCurvatureCombVertices } from './surface-analysis.js';
+import { mapSketchPoint, projectWorldPoint, resolveSketchFrame } from '../cad-core/sketch-frame.js';
 
 const VIEW_DIRECTIONS = {
   iso: [1.25, -1.45, 1.15],
@@ -100,14 +101,15 @@ function numericValue(value, parameters) {
   }
 }
 
-function mapPlanePoint(x, y, plane, z = 0.04, planeOffset = 0) {
+function mapPlanePoint(x, y, plane, z = 0.04, planeOffset = 0, frame = null) {
+  if (frame) return mapSketchPoint(frame, x, y, z);
   if (plane === 'XZ') return [x, -planeOffset - z, y];
   if (plane === 'YZ') return [planeOffset + z, x, y];
   return [x, y, planeOffset + z];
 }
 
-function profilePoints(profile, parameters, plane, planeOffset = 0) {
-  return profileLocalPoints(profile, parameters).map((point) => mapPlanePoint(point[0], point[1], plane, 0.04, planeOffset));
+function profilePoints(profile, parameters, plane, planeOffset = 0, frame = null) {
+  return profileLocalPoints(profile, parameters).map((point) => mapPlanePoint(point[0], point[1], plane, 0.04, planeOffset, frame));
 }
 
 function profileLocalPoints(profile, parameters) {
@@ -138,7 +140,7 @@ function profileLocalPoints(profile, parameters) {
   });
 }
 
-function addSketchProfiles(group, sketch, parameters, plane, { selectedProfileId = null, visible = true, planeOffset = 0 } = {}) {
+function addSketchProfiles(group, sketch, parameters, plane, { selectedProfileId = null, visible = true, planeOffset = 0, frame = null } = {}) {
   const pickables = [];
   if (!visible) return { pickables };
   for (const profile of sketch.profiles || []) {
@@ -158,7 +160,7 @@ function addSketchProfiles(group, sketch, parameters, plane, { selectedProfileId
     const geometry = new THREE.ShapeGeometry(shape);
     const position = geometry.getAttribute('position');
     for (let index = 0; index < position.count; index += 1) {
-      const mapped = mapPlanePoint(position.getX(index), position.getY(index), plane, 0.035, planeOffset);
+      const mapped = mapPlanePoint(position.getX(index), position.getY(index), plane, 0.035, planeOffset, frame);
       position.setXYZ(index, ...mapped);
     }
     position.needsUpdate = true;
@@ -265,13 +267,14 @@ function addSketchEntities(group, sketch, parameters, plane, {
   showConstruction = true,
   showProjected = true,
   planeOffset = 0,
+  frame = null,
   layers = [],
   underConstrainedPointIds = [],
   reference = false,
   pickable = true,
 } = {}) {
   const spatial = sketch.space === '3d';
-  const worldPoint = (point, elevation = 0) => spatial ? point : mapPlanePoint(point[0], point[1], plane, elevation, planeOffset);
+  const worldPoint = (point, elevation = 0) => spatial ? point : mapPlanePoint(point[0], point[1], plane, elevation, planeOffset, frame);
   const appearanceFor = (entity) => resolveEntityAppearance({ layers }, entity);
   const entityMap = new Map(sketch.entities.map((entity) => [entity.id, entity]));
   const selected = new Set(selectedIds);
@@ -548,8 +551,8 @@ function addSketchEntities(group, sketch, parameters, plane, {
   return { coordinates, entries, pickables, spatialHandles, update };
 }
 
-function addSketchLine(group, profile, parameters, plane, draft = false, planeOffset = 0) {
-  const points = profilePoints(profile, parameters, plane, planeOffset).flat();
+function addSketchLine(group, profile, parameters, plane, draft = false, planeOffset = 0, frame = null) {
+  const points = profilePoints(profile, parameters, plane, planeOffset, frame).flat();
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
   const material = new THREE.LineBasicMaterial({
@@ -560,7 +563,18 @@ function addSketchLine(group, profile, parameters, plane, draft = false, planeOf
   group.add(new THREE.Line(geometry, material));
 }
 
-function configureGrid(grid, plane, planeOffset = 0) {
+function configureGrid(grid, plane, planeOffset = 0, frame = null) {
+  if (frame) {
+    const resolved = resolveSketchFrame({ frame });
+    const basis = new THREE.Matrix4().makeBasis(
+      new THREE.Vector3(...resolved.u),
+      new THREE.Vector3(...resolved.normal),
+      new THREE.Vector3(...resolved.v).negate(),
+    );
+    grid.quaternion.setFromRotationMatrix(basis);
+    grid.position.set(...resolved.origin);
+    return;
+  }
   if (plane === 'XY') grid.rotation.x = Math.PI / 2;
   else if (plane === 'YZ') grid.rotation.z = Math.PI / 2;
   if (plane === 'XY') grid.position.z = planeOffset;
@@ -648,6 +662,7 @@ export default function ModelViewport({
   selectedProfile,
   selectedProfilePlane = 'XY',
   selectedProfilePlaneOffset = 0,
+  selectedProfileFrame = null,
   directExtrudeDistance = 0,
   onDirectExtrude,
   directManipulator = null,
@@ -747,6 +762,7 @@ export default function ModelViewport({
     : null;
   const activePlane = activeSketch?.plane || 'XY';
   const activePlaneOffset = numericValue(activeSketch?.planeOffset || 0, parameters);
+  const activeFrame = useMemo(() => activeSketch ? resolveSketchFrame({ ...activeSketch, planeOffset: activePlaneOffset }) : null, [activeSketch, activePlaneOffset]);
   useEffect(() => {
     if (!activeSketchId || !sketchTool || !snapEnabled) setSnapFeedback(null);
   }, [activeSketchId, sketchTool, snapEnabled]);
@@ -922,7 +938,7 @@ export default function ModelViewport({
 
     const gridSize = Math.max(800, bed?.bedWidth || 220, bed?.bedDepth || 220);
     const grid = new THREE.GridHelper(gridSize, Math.round(gridSize / 10), 0x737e8b, 0x4b5562);
-    configureGrid(grid, activeSketchId ? activePlane : 'XY', activeSketchId ? activePlaneOffset : 0);
+    configureGrid(grid, activeSketchId ? activePlane : 'XY', activeSketchId ? activePlaneOffset : 0, activeSketchId ? activeFrame : null);
     grid.visible = showGrid;
     scene.add(grid);
 
@@ -1069,7 +1085,9 @@ export default function ModelViewport({
 
     const modelGroup = new THREE.Group();
     const sketchSlicePlane = activeSketch && !activeSketchIs3D && sliceModel
-      ? activePlane === 'XZ'
+      ? activeSketch.frame
+        ? new THREE.Plane(new THREE.Vector3(...activeFrame.normal), -new THREE.Vector3(...activeFrame.normal).dot(new THREE.Vector3(...activeFrame.origin)))
+        : activePlane === 'XZ'
         ? new THREE.Plane(new THREE.Vector3(0, -1, 0), -activePlaneOffset)
         : activePlane === 'YZ'
           ? new THREE.Plane(new THREE.Vector3(1, 0, 0), -activePlaneOffset)
@@ -1649,18 +1667,20 @@ export default function ModelViewport({
     if (directEnabled) {
       const normal = directManipulator?.axis
         ? new THREE.Vector3(...directManipulator.axis).normalize()
-        : selectedProfilePlane === 'XZ'
-        ? new THREE.Vector3(0, -1, 0)
-        : selectedProfilePlane === 'YZ'
-          ? new THREE.Vector3(1, 0, 0)
-          : new THREE.Vector3(0, 0, 1);
+        : selectedProfileFrame
+          ? new THREE.Vector3(...resolveSketchFrame({ frame: selectedProfileFrame }).normal)
+          : selectedProfilePlane === 'XZ'
+            ? new THREE.Vector3(0, -1, 0)
+            : selectedProfilePlane === 'YZ'
+              ? new THREE.Vector3(1, 0, 0)
+              : new THREE.Vector3(0, 0, 1);
       const profileX = selectedProfile ? numericValue(selectedProfile.geometry.x, parameters) : 0;
       const profileY = selectedProfile ? numericValue(selectedProfile.geometry.y, parameters) : 0;
       const center = directManipulator?.origin
         ? new THREE.Vector3(...directManipulator.origin)
-        : new THREE.Vector3(...mapPlanePoint(profileX, profileY, selectedProfilePlane, 0.12, selectedProfilePlaneOffset));
+        : new THREE.Vector3(...mapPlanePoint(profileX, profileY, selectedProfilePlane, 0.12, selectedProfilePlaneOffset, selectedProfileFrame));
 
-      if (selectedProfile) addSketchLine(directGroup, selectedProfile, parameters, selectedProfilePlane, true, selectedProfilePlaneOffset);
+      if (selectedProfile) addSketchLine(directGroup, selectedProfile, parameters, selectedProfilePlane, true, selectedProfilePlaneOffset, selectedProfileFrame);
 
       const shaft = new THREE.Mesh(
         new THREE.CylinderGeometry(0.65, 0.65, 1, 18),
@@ -1786,14 +1806,14 @@ export default function ModelViewport({
       const axisLength = gridSize / 2;
       const xAxisGeometry = new THREE.BufferGeometry();
       xAxisGeometry.setAttribute('position', new THREE.Float32BufferAttribute([
-        ...mapPlanePoint(-axisLength, 0, activePlane, 0.06, activePlaneOffset),
-        ...mapPlanePoint(axisLength, 0, activePlane, 0.06, activePlaneOffset),
+        ...mapPlanePoint(-axisLength, 0, activePlane, 0.06, activePlaneOffset, activeFrame),
+        ...mapPlanePoint(axisLength, 0, activePlane, 0.06, activePlaneOffset, activeFrame),
       ], 3));
       sketchGroup.add(new THREE.Line(xAxisGeometry, new THREE.LineBasicMaterial({ color: 0xd85b61, transparent: true, opacity: 0.9 })));
       const yAxisGeometry = new THREE.BufferGeometry();
       yAxisGeometry.setAttribute('position', new THREE.Float32BufferAttribute([
-        ...mapPlanePoint(0, -axisLength, activePlane, 0.06, activePlaneOffset),
-        ...mapPlanePoint(0, axisLength, activePlane, 0.06, activePlaneOffset),
+        ...mapPlanePoint(0, -axisLength, activePlane, 0.06, activePlaneOffset, activeFrame),
+        ...mapPlanePoint(0, axisLength, activePlane, 0.06, activePlaneOffset, activeFrame),
       ], 3));
       sketchGroup.add(new THREE.Line(yAxisGeometry, new THREE.LineBasicMaterial({ color: 0x54c978, transparent: true, opacity: 0.9 })));
       if (activeSketchIs3D) {
@@ -1805,6 +1825,7 @@ export default function ModelViewport({
         selectedProfileId: selectedProfile?.id,
         visible: showSketchProfiles,
         planeOffset: activePlaneOffset,
+        frame: activeFrame,
       });
       sketchRender = addSketchEntities(sketchGroup, activeSketch, parameters, activePlane, {
         selectedIds: selectedSketchEntityIds,
@@ -1813,13 +1834,14 @@ export default function ModelViewport({
         showConstruction: showConstructionGeometry,
         showProjected: showProjectedGeometry,
         planeOffset: activePlaneOffset,
+        frame: activeFrame,
         layers,
         underConstrainedPointIds: activeSketchIs3D ? [] : freedomDiagnostics.affectedPointIds,
       });
-      if (draftProfile) addSketchLine(sketchGroup, draftProfile, parameters, activePlane, true, activePlaneOffset);
+      if (draftProfile) addSketchLine(sketchGroup, draftProfile, parameters, activePlane, true, activePlaneOffset, activeFrame);
       if (sketchTool && polylineDraft?.lastPoint) {
         const previewGeometry = new THREE.BufferGeometry();
-        const start = mapPlanePoint(polylineDraft.lastPoint[0], polylineDraft.lastPoint[1], activePlane, 0.09, activePlaneOffset);
+        const start = mapPlanePoint(polylineDraft.lastPoint[0], polylineDraft.lastPoint[1], activePlane, 0.09, activePlaneOffset, activeFrame);
         previewGeometry.setAttribute('position', new THREE.Float32BufferAttribute([...start, ...start], 3));
         sketchPreviewLine = new THREE.Line(
           previewGeometry,
@@ -1837,10 +1859,12 @@ export default function ModelViewport({
     if (visibleSketch) {
       const visiblePlane = visibleSketch.plane || 'XY';
       const visiblePlaneOffset = numericValue(visibleSketch.planeOffset || 0, parameters);
+      const visibleFrame = resolveSketchFrame({ ...visibleSketch, planeOffset: visiblePlaneOffset });
       completedSketchProfileRender = addSketchProfiles(completedSketchGroup, visibleSketch, parameters, visiblePlane, {
         selectedProfileId: selectedProfile?.id,
         visible: showSketchProfiles,
         planeOffset: visiblePlaneOffset,
+        frame: visibleFrame,
       });
       completedSketchRender = addSketchEntities(completedSketchGroup, visibleSketch, parameters, visiblePlane, {
         selectedIds: [],
@@ -1849,6 +1873,7 @@ export default function ModelViewport({
         showConstruction: showConstructionGeometry,
         showProjected: showProjectedGeometry,
         planeOffset: visiblePlaneOffset,
+        frame: visibleFrame,
         layers,
         underConstrainedPointIds: [],
       });
@@ -1860,6 +1885,7 @@ export default function ModelViewport({
     for (const referenceSketch of referenceSketches) {
       const referencePlane = referenceSketch.plane || 'XY';
       const referencePlaneOffset = numericValue(referenceSketch.planeOffset || 0, parameters);
+      const referenceFrame = resolveSketchFrame({ ...referenceSketch, planeOffset: referencePlaneOffset });
       referenceSketchRenders.push({
         sketchId: referenceSketch.id,
         render: addSketchEntities(referenceSketchGroup, referenceSketch, parameters, referencePlane, {
@@ -1869,6 +1895,7 @@ export default function ModelViewport({
           showConstruction: showConstructionGeometry,
           showProjected: showProjectedGeometry,
           planeOffset: referencePlaneOffset,
+          frame: referenceFrame,
           layers,
           underConstrainedPointIds: [],
           reference: true,
@@ -1902,7 +1929,7 @@ export default function ModelViewport({
     }
     const modelBox = hasFramedContent ? contentBox : null;
     const center = modelBox ? modelBox.getCenter(new THREE.Vector3()) : new THREE.Vector3(0, 0, 0);
-    if (activeSketch && !hasActiveSketchContent) center.set(...mapPlanePoint(0, 0, activePlane, 0, activePlaneOffset));
+    if (activeSketch && !hasActiveSketchContent) center.set(...mapPlanePoint(0, 0, activePlane, 0, activePlaneOffset, activeFrame));
     const size = modelBox ? modelBox.getSize(new THREE.Vector3()) : new THREE.Vector3(80, 60, 20);
     const radius = Math.max(size.x, size.y, size.z, 55);
     const planeSize = Math.max(60, radius * 1.15);
@@ -2013,6 +2040,10 @@ export default function ModelViewport({
     camera.up.set(0, 0, 1);
     if ((activeSketch ? sketchView : view) === 'top') camera.up.set(0, 1, 0);
     camera.position.set(center.x + direction[0] * radius * 1.7 * zoomScale, center.y + direction[1] * radius * 1.7 * zoomScale, center.z + direction[2] * radius * 1.7 * zoomScale);
+    if (activeSketch?.frame) {
+      camera.up.set(...activeFrame.v);
+      camera.position.copy(center).addScaledVector(new THREE.Vector3(...activeFrame.normal), radius * 3.4 * zoomScale);
+    }
     controls.target.copy(center);
     const savedCamera = activeSketch
       ? sketchCameraSnapshotsRef.current.get(activeSketchId)
@@ -2057,12 +2088,14 @@ export default function ModelViewport({
     let modelSelectionBox = null;
     let formControlDrag = null;
     let sketch3DHandleDrag = null;
-    const sketchPlane = activePlane === 'XZ'
+    const sketchPlane = activeSketch?.frame
+      ? new THREE.Plane(new THREE.Vector3(...activeFrame.normal), -new THREE.Vector3(...activeFrame.normal).dot(new THREE.Vector3(...activeFrame.origin)))
+      : activePlane === 'XZ'
       ? new THREE.Plane(new THREE.Vector3(0, 1, 0), activePlaneOffset)
       : activePlane === 'YZ'
         ? new THREE.Plane(new THREE.Vector3(1, 0, 0), -activePlaneOffset)
         : new THREE.Plane(new THREE.Vector3(0, 0, 1), -activePlaneOffset);
-    const localPoint = (point) => activePlane === 'XZ' ? [point.x, point.z] : activePlane === 'YZ' ? [point.y, point.z] : [point.x, point.y];
+    const localPoint = (point) => activeSketch?.frame ? projectWorldPoint(activeFrame, point.toArray()).slice(0, 2) : activePlane === 'XZ' ? [point.x, point.z] : activePlane === 'YZ' ? [point.y, point.z] : [point.x, point.y];
     const setRayFromEvent = (event) => {
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -2085,7 +2118,7 @@ export default function ModelViewport({
       })[0];
     };
     const screenPoint = (coordinate, rect) => {
-      const projected = new THREE.Vector3(...mapPlanePoint(coordinate[0], coordinate[1], activePlane, 0.2, activePlaneOffset)).project(camera);
+      const projected = new THREE.Vector3(...mapPlanePoint(coordinate[0], coordinate[1], activePlane, 0.2, activePlaneOffset, activeFrame)).project(camera);
       return [((projected.x + 1) * rect.width) / 2, ((1 - projected.y) * rect.height) / 2];
     };
     const pixelsPerSketchUnit = (coordinate, rect) => {
@@ -2794,7 +2827,7 @@ export default function ModelViewport({
             angle: Math.atan2(deltaY, deltaX) * 180 / Math.PI,
           });
           const position = sketchPreviewLine.geometry.getAttribute('position');
-          const mapped = mapPlanePoint(point[0], point[1], activePlane, 0.09, activePlaneOffset);
+          const mapped = mapPlanePoint(point[0], point[1], activePlane, 0.09, activePlaneOffset, activeFrame);
           position.setXYZ(1, ...mapped);
           position.needsUpdate = true;
           sketchPreviewLine.computeLineDistances();
@@ -2979,7 +3012,7 @@ export default function ModelViewport({
         }
         window.__madcadSketchEntityScreenPoints = screenPoints;
         window.__madcadSketchLocalToScreen = (x, y) => {
-          const point = new THREE.Vector3(...mapPlanePoint(Number(x), Number(y), activePlane, 0.2, activePlaneOffset)).project(camera);
+          const point = new THREE.Vector3(...mapPlanePoint(Number(x), Number(y), activePlane, 0.2, activePlaneOffset, activeFrame)).project(camera);
           return {
             x: Math.round(rect.left + ((point.x + 1) * rect.width) / 2),
             y: Math.round(rect.top + ((1 - point.y) * rect.height) / 2),
@@ -3182,7 +3215,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, beamFeaVisualization, manufacturingVisualization, printRiskAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeFrame, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, selectedProfileFrame, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, beamFeaVisualization, manufacturingVisualization, printRiskAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

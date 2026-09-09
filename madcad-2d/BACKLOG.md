@@ -9,7 +9,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Import SVG/DXF do szkicu — przeniesiony i ukończony jako `P1.1` w aktywnym planie.
 - [x] Rzeczywista macierz LibreDWG, FreeCAD STEP i Bambu Studio 3MF oraz obsługa zewnętrznych modeli 3MF Production — ukończone jako `P1.31`.
 - [x] Modalne okna zgodne z macOS Accessibility API: nazwa i rola dialogu, fokus początkowy, pułapka Tab oraz przywracanie fokusu.
-- [x] Płaszczyzny tangent/angle/path, oś normalna do płaszczyzny oraz punkty środkowy i na osi ukończono jako `P1.6`; rozbudowany UCS pozostaje osobnym późniejszym zakresem.
+- [x] Płaszczyzny tangent/angle/path, oś normalna do płaszczyzny oraz punkty środkowy i na osi ukończono jako `P1.6`; rozbudowany UCS ukończono przez szkice na dowolnej planarnej ścianie i obróconej płaszczyźnie konstrukcyjnej, ze wspólną ramą dla siatki, kamery, snapu i operacji B-Rep.
 - [x] Extrude To Object i offset start ukończono jako `P1.8` dla płaszczyzn konstrukcyjnych i planarnych ścian.
 - [x] Thin Extrude dla zamkniętych profili i otwartych łańcuchów ukończono jako `P1.9`.
 - [x] Draft wskazanych ścian względem płaszczyzny neutralnej ukończono jako `P1.10`.

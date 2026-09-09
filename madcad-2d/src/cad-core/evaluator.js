@@ -6,6 +6,7 @@ import { createTextProfile } from './text-profile.js';
 import { BASE_PLANE_FRAMES, resolveConstructionPlane } from './construction-planes.js';
 import { resolveConstructionAxis } from './construction-axes.js';
 import { FORM_CONTROL_EDGES, bridgeFormFaces, createBoxControlCage, fillFormHoles, formControlSymmetryPairs, insertFormEdgeLoop, symmetricFormFaceIndexes } from './subdivision-form.js';
+import { resolveSketchFrame } from './sketch-frame.js';
 
 export const FEATURE_STATUS = Object.freeze({
   OK: 'ok',
@@ -25,7 +26,7 @@ function extrudeToObjectDistance(document, profiles, startOffsetValue, targetRef
   const target = document.references.find((reference) => reference.id === targetReferenceId);
   if (!target) throw new Error('Nie znaleziono obiektu docelowego wyciągnięcia.');
   const source = profiles[0];
-  const sourceFrame = BASE_PLANE_FRAMES[source?.plane || 'XY'];
+  const sourceFrame = resolveSketchFrame(source || {});
   if (!sourceFrame) throw new Error('Nieobsługiwana płaszczyzna źródłowa wyciągnięcia.');
   const targetFrame = target.kind === 'construction-plane'
     ? resolveConstructionPlane(target, parameters)
@@ -37,7 +38,7 @@ function extrudeToObjectDistance(document, profiles, startOffsetValue, targetRef
   if (Math.abs(1 - parallel) > GEOMETRY_POLICY.angularTolerance) {
     throw new Error('Docelowa płaszczyzna wyciągnięcia musi być równoległa do płaszczyzny szkicu.');
   }
-  const sourceOrigin = sourceFrame.origin.map((value, index) => value + sourceFrame.normal[index] * (source.planeOffset + startOffsetValue));
+  const sourceOrigin = sourceFrame.origin.map((value, index) => value + sourceFrame.normal[index] * startOffsetValue);
   const distance = targetFrame.origin.reduce((sum, value, index) => sum + ((value - sourceOrigin[index]) * sourceFrame.normal[index]), 0);
   return positive(distance, 'Odległość do obiektu docelowego');
 }
@@ -172,9 +173,11 @@ function resolveClosedProfile(profile, parameters, sketch) {
 
 export function resolveProfile(profile, parameters, sketch = null) {
   const read = (value) => evaluateExpression(value, parameters);
+  const placement = sketch?.frame ? { frame: structuredClone(sketch.frame) } : {};
   if (profile.type === 'rectangle') {
     return {
       ...profile,
+      ...placement,
       geometry: {
         width: positive(read(profile.geometry.width), 'Szerokość'),
         height: positive(read(profile.geometry.height), 'Wysokość'),
@@ -186,6 +189,7 @@ export function resolveProfile(profile, parameters, sketch = null) {
   if (profile.type === 'circle') {
     return {
       ...profile,
+      ...placement,
       geometry: {
         diameter: positive(read(profile.geometry.diameter), 'Średnica'),
         x: read(profile.geometry.x),
@@ -193,7 +197,7 @@ export function resolveProfile(profile, parameters, sketch = null) {
       }
     };
   }
-  if (profile.type === 'closed') return resolveClosedProfile(profile, parameters, sketch);
+  if (profile.type === 'closed') return { ...resolveClosedProfile(profile, parameters, sketch), ...placement };
   throw new Error(`Nieobsługiwany profil: ${profile.type}`);
 }
 
@@ -313,7 +317,7 @@ export function resolveOpenChainProfile(sketch, entityIds, parameters, featureId
     return [segment.start, segment.end];
   };
   const sampledPoints = segments.flatMap((segment, index) => sampleSegment(segment).slice(index ? 1 : 0));
-  return { id: `open-${featureId}`, name: 'Otwarty łańcuch', type: 'open', space: sketch.space || '2d', geometry: { segments, points: sampledPoints, holes: [] } };
+  return { id: `open-${featureId}`, name: 'Otwarty łańcuch', type: 'open', space: sketch.space || '2d', ...(sketch.frame ? { frame: structuredClone(sketch.frame) } : {}), geometry: { segments, points: sampledPoints, holes: [] } };
 }
 
 function resolveRevolveAxis(document, feature, profile, parameters, operationName = 'Revolve') {
@@ -326,12 +330,27 @@ function resolveRevolveAxis(document, feature, profile, parameters, operationNam
   const axis = baseAxes[feature.axisId] || resolveConstructionAxis(axisReference, document.references, parameters);
   const angleValue = evaluateExpression(feature.angle, parameters);
   if (Math.abs(angleValue) <= GEOMETRY_POLICY.angularTolerance || Math.abs(angleValue) > 360) throw new Error(`Kąt ${operationName} musi należeć do zakresu -360°–360° i być różny od zera.`);
-  const frame = BASE_PLANE_FRAMES[profile.plane];
-  const planeOrigin = frame.origin.map((value, index) => value + frame.normal[index] * profile.planeOffset);
+  const frame = resolveSketchFrame(profile);
+  const planeOrigin = frame.origin;
   const directionNormal = Math.abs(frame.normal.reduce((sum, value, index) => sum + value * axis.direction[index], 0));
   const originDistance = Math.abs(frame.normal.reduce((sum, value, index) => sum + value * (axis.origin[index] - planeOrigin[index]), 0));
   if (directionNormal > GEOMETRY_POLICY.angularTolerance || originDistance > GEOMETRY_POLICY.linearTolerance) throw new Error(`Oś ${operationName} musi leżeć w płaszczyźnie szkicu.`);
   return { axis: { origin: axis.origin, direction: axis.direction }, angleValue };
+}
+
+function validateAndSortLoftProfiles(profiles, operationName) {
+  const frames = profiles.map(resolveSketchFrame);
+  const reference = frames[0];
+  const positioned = profiles.map((profile, index) => {
+    const alignment = Math.abs(reference.normal.reduce((sum, value, axis) => sum + value * frames[index].normal[axis], 0));
+    if (Math.abs(1 - alignment) > GEOMETRY_POLICY.angularTolerance) throw new Error(`Profile ${operationName} muszą leżeć na równoległych płaszczyznach szkicu.`);
+    const coordinate = frames[index].origin.reduce((sum, value, axis) => sum + (value - reference.origin[axis]) * reference.normal[axis], 0);
+    return { profile, coordinate };
+  });
+  if (positioned.some((entry, index) => positioned.some((other, otherIndex) => otherIndex > index && Math.abs(entry.coordinate - other.coordinate) <= GEOMETRY_POLICY.linearTolerance))) {
+    throw new Error(`Profile ${operationName} muszą leżeć na różnych płaszczyznach.`);
+  }
+  return positioned.sort((left, right) => left.coordinate - right.coordinate).map((entry) => entry.profile);
 }
 
 export function prepareDocument(document) {
@@ -400,11 +419,10 @@ export function prepareDocument(document) {
         if (!match) throw new Error(`Nie znaleziono profilu Surface Loft ${profileId}.`);
         return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
       });
-      if (new Set(profiles.map((profile) => profile.plane)).size !== 1) throw new Error('Profile Surface Loft muszą leżeć na równoległych płaszczyznach szkicu.');
-      if (Math.abs(Number(profiles[0].planeOffset || 0) - Number(profiles[1].planeOffset || 0)) <= GEOMETRY_POLICY.linearTolerance) throw new Error('Profile Surface Loft muszą leżeć na różnych płaszczyznach.');
+      const sortedProfiles = validateAndSortLoftProfiles(profiles, 'Surface Loft');
       const holeCounts = new Set(profiles.map((profile) => profile.geometry.holes?.length || 0));
       if (holeCounts.size !== 1) throw new Error('Profile Surface Loft muszą mieć tę samą liczbę otworów.');
-      return { ...feature, status: 'ready', diagnostics: [], profiles, loftMode: feature.loftMode || 'smooth' };
+      return { ...feature, status: 'ready', diagnostics: [], profiles: sortedProfiles, loftMode: feature.loftMode || 'smooth' };
     }
     if (feature.type === 'surfaceOffset') return { ...feature, status: 'ready', diagnostics: [], distanceValue: evaluateExpression(feature.distance, parameterResult.values) };
     if (feature.type === 'surfaceStitch') return { ...feature, status: 'ready', diagnostics: [], toleranceValue: positive(evaluateExpression(feature.tolerance, parameterResult.values), 'Tolerancja Stitch') };
@@ -578,13 +596,10 @@ export function prepareDocument(document) {
         if (!match) throw new Error(`Nie znaleziono profilu Loft ${profileId}.`);
         return { ...resolveProfile(match.profile, parameterResult.values, match.sketch), plane: match.sketch.plane || 'XY', planeOffset: evaluateExpression(match.sketch.planeOffset || 0, parameterResult.values) };
       });
-      if (new Set(profiles.map((profile) => profile.plane)).size !== 1) throw new Error('Profile Loft muszą leżeć na równoległych płaszczyznach szkicu.');
-      const offsets = profiles.map((profile) => Number(profile.planeOffset || 0));
-      if (offsets.some((offset, index) => offsets.some((other, otherIndex) => otherIndex > index && Math.abs(offset - other) <= GEOMETRY_POLICY.linearTolerance))) throw new Error('Profile Loft muszą leżeć na różnych płaszczyznach.');
-      profiles.sort((left, right) => Number(left.planeOffset || 0) - Number(right.planeOffset || 0));
+      const sortedProfiles = validateAndSortLoftProfiles(profiles, 'Loft');
       const holeCounts = new Set(profiles.map((profile) => profile.geometry.holes?.length || 0));
       if (holeCounts.size !== 1) throw new Error('Wszystkie profile Loft muszą mieć tę samą liczbę otworów.');
-      return { ...feature, status: 'ready', diagnostics: [], profiles, loftMode: feature.loftMode || 'smooth' };
+      return { ...feature, status: 'ready', diagnostics: [], profiles: sortedProfiles, loftMode: feature.loftMode || 'smooth' };
     }
     if (feature.type === 'rib') {
       const sourceSketch = document.sketches.find((sketch) => sketch.id === feature.sketchId);

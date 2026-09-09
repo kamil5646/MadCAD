@@ -127,6 +127,7 @@ import { resolveOpenChainProfile } from '../cad-core/evaluator.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../cad-core/topology-references.js';
 import { createAnglePlane, createMidplane, createOffsetPlane, createPathPlane, createTangentPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
+import { frameFromNormal, normalizeSketchFrame } from '../cad-core/sketch-frame.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createPlaneNormalAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../cad-core/construction-axes.js';
 import { createCenterPoint, createIntersectionPoint, createMidpointPoint, createPointOnAxis, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../cad-core/construction-points.js';
 import { createSurfaceProjectedSketchPath, projectTopologyToSketch, synchronizeProjectedGeometry, updateSurfaceProjectedSketchPath } from '../cad-core/sketch-projection.js';
@@ -2781,13 +2782,16 @@ export default function ModelingWorkspace() {
       }
       const normal = supportPlane.normal;
       const dominant = normal.map(Math.abs).indexOf(Math.max(...normal.map(Math.abs)));
-      if (normal.some((value, index) => index !== dominant && Math.abs(value) > 1e-6)) {
-        setNotice('Obrócone płaszczyzny konstrukcyjne wymagają ramy UCS; wybierz obecnie płaszczyznę równoległą do XY, XZ albo YZ.');
-        return;
-      }
+      const axisAligned = normal.every((value, index) => index === dominant || Math.abs(value) <= 1e-6);
       const plane = dominant === 0 ? 'YZ' : dominant === 1 ? 'XZ' : 'XY';
       const planeOffset = dominant === 1 ? -supportPlane.origin[1] : supportPlane.origin[dominant];
-      const sketch = createSketch({ name: `Szkic ${document.sketches.length + 1}`, plane, planeOffset, support: { kind: 'construction-plane', referenceId: supportPlane.id } });
+      const sketch = createSketch({
+        name: `Szkic ${document.sketches.length + 1}`,
+        plane,
+        planeOffset,
+        ...(axisAligned ? {} : { frame: normalizeSketchFrame(supportPlane) }),
+        support: { kind: 'construction-plane', referenceId: supportPlane.id },
+      });
       commit((next) => next.sketches.push(sketch));
       setActiveSketchId(sketch.id);
       setSelection({ kind: 'sketch', id: sketch.id });
@@ -2804,23 +2808,20 @@ export default function ModelingWorkspace() {
         setNotice('Szkic można założyć bezpośrednio tylko na płaskiej ścianie.');
         return;
       }
+      const center = face.descriptor.center || [0, 0, 0];
       const normal = face.descriptor.normal || [0, 0, 1];
       const dominant = normal.map(Math.abs).indexOf(Math.max(...normal.map(Math.abs)));
-      if (normal.some((value, index) => index !== dominant && Math.abs(value) > 1e-6)) {
-        setNotice('Obrócone ściany planarne będą obsługiwane przez ramę UCS; ta ściana nie jest równoległa do XY, XZ ani YZ.');
-        return;
-      }
+      const axisAligned = normal.every((value, index) => index === dominant || Math.abs(value) <= 1e-6);
       const plane = dominant === 0 ? 'YZ' : dominant === 1 ? 'XZ' : 'XY';
-      const center = face.descriptor.center || [0, 0, 0];
       const planeOffset = dominant === 1 ? -center[1] : center[dominant];
       const reference = createTopologyReference({ selection: selectedFace, descriptor: face.descriptor, label: `Podpora szkicu ${document.sketches.length + 1}` });
-      const sketch = createSketch({ name: `Szkic ${document.sketches.length + 1}`, plane, planeOffset, support: { kind: 'face', referenceId: reference.id } });
+      const sketch = createSketch({ name: `Szkic ${document.sketches.length + 1}`, plane, planeOffset, ...(axisAligned ? {} : { frame: frameFromNormal(center, normal) }), support: { kind: 'face', referenceId: reference.id } });
       commit((next) => { next.references.push(reference); next.sketches.push(sketch); });
       setActiveSketchId(sketch.id);
       setSelection({ kind: 'sketch', id: sketch.id });
       setCommand(null);
       setWorkspace('sketch');
-      setNotice(`Edytujesz ${sketch.name} bezpośrednio na ścianie modelu (${plane}, odsunięcie ${planeOffset.toFixed(3)} mm).`);
+      setNotice(`Edytujesz ${sketch.name} bezpośrednio na wybranej ścianie modelu.`);
       return;
     }
     setWorkspace('sketch');
@@ -4248,6 +4249,25 @@ export default function ModelingWorkspace() {
       setSelection({ kind: 'document', id: fixture.id });
       setCommand(null);
     };
+    window.__madcadVerifyLoadUcsFixture = () => {
+      const fixture = createDocument('Szkic na obróconej płaszczyźnie');
+      const angle = Math.PI / 4;
+      const frame = {
+        origin: [0, 0, 8],
+        normal: [0, -Math.sin(angle), Math.cos(angle)],
+        u: [1, 0, 0],
+        v: [0, Math.cos(angle), Math.sin(angle)],
+      };
+      const profile = createRectangleProfile({ name: 'Profil UCS', width: 20, height: 12, x: 0, y: 0 });
+      const sketch = createSketch({ name: 'Szkic UCS 45°', frame, profiles: [profile] });
+      fixture.sketches.push(sketch);
+      fixture.features.push(createFeature('extrude', { name: 'Wyciągnięcie UCS', sketchId: sketch.id, profileIds: [sketch.profiles[0].id], distance: '10', operation: 'new' }));
+      history.replace(fixture);
+      setActiveSketchId(null);
+      setWorkspace('solid');
+      setSelection({ kind: 'sketch', id: sketch.id });
+      setCommand(null);
+    };
     window.__madcadVerifyLoadSurfaceFixture = (mode = 'patch') => {
       const fixture = createDocument('Przepływ powierzchniowy');
       if (mode === 'trim-source') {
@@ -4343,6 +4363,7 @@ export default function ModelingWorkspace() {
         space: sketch.space || '2d',
         plane: sketch.plane,
         planeOffset: sketch.planeOffset,
+        frame: sketch.frame ? structuredClone(sketch.frame) : null,
         visible: sketch.visible !== false,
         support: sketch.support,
         entities: sketch.entities.length,
@@ -4451,6 +4472,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyReopenCurrentDocument;
       delete window.__madcadVerifyLoadPointHoleFixture;
       delete window.__madcadVerifyLoadTimelineFixture;
+      delete window.__madcadVerifyLoadUcsFixture;
       delete window.__madcadVerifyLoadSurfaceFixture;
       delete window.__madcadVerifyDocumentState;
     };
@@ -7245,7 +7267,7 @@ export default function ModelingWorkspace() {
     : activeSketchId
       ? activeSketchIs3D
         ? `Szkic 3D · ${activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)).length} krzyw.`
-        : `Krok 1/3 · Szkic 2D · ${activeSketch?.plane || 'XY'}`
+        : `Krok 1/3 · Szkic 2D · ${activeSketch?.frame ? 'UCS' : activeSketch?.plane || 'XY'}`
       : selectedProfile
         ? 'Krok 2/3 · Profil gotowy do wyciągnięcia'
         : engine.bodies.length > 0
@@ -7850,6 +7872,7 @@ export default function ModelingWorkspace() {
             selectedProfile={selectedProfile}
             selectedProfilePlane={selectedProfileMatch?.sketch.plane || 'XY'}
             selectedProfilePlaneOffset={Number(selectedProfileMatch?.sketch.planeOffset || 0)}
+            selectedProfileFrame={selectedProfileMatch?.sketch.frame || null}
             directExtrudeDistance={command?.type === 'extrude' ? command.distance : 0}
             onDirectExtrude={readOnly ? undefined : beginOrUpdateExtrude}
             directManipulator={readOnly ? null : directManipulator}

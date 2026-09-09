@@ -48,6 +48,7 @@ import { boundsOverlap } from './geometry-inspection.js';
 import { parseStlMesh } from './model-import.js';
 import { inspectMesh } from './mesh-tools.js';
 import { createRoundedBoxFormMesh } from './subdivision-form.js';
+import { resolveSketchFrame } from './sketch-frame.js';
 
 let kernelPromise;
 let manifoldPromise;
@@ -261,6 +262,22 @@ function drawingForProfile(profile) {
 
 const PROFILE_PLANE_NORMALS = { XY: [0, 0, 1], XZ: [0, -1, 0], YZ: [1, 0, 0] };
 
+function sketchDrawingOnProfile(drawing, profile, normalOffset = 0) {
+  if (!profile.frame) return drawing.sketchOnPlane(profile.plane || 'XY', Number(profile.planeOffset || 0) + normalOffset);
+  const frame = resolveSketchFrame(profile);
+  const origin = frame.origin.map((value, index) => value + frame.normal[index] * normalOffset);
+  const plane = new Plane(origin, frame.u, frame.normal);
+  try {
+    return drawing.sketchOnPlane(plane);
+  } finally {
+    plane.delete?.();
+  }
+}
+
+function profileNormal(profile) {
+  return profile.frame ? resolveSketchFrame(profile).normal : PROFILE_PLANE_NORMALS[profile.plane || 'XY'];
+}
+
 function vectorSubtract(left, right) {
   return left.map((value, index) => value - right[index]);
 }
@@ -423,12 +440,10 @@ function sheetFlatShape(sheetMetal) {
 }
 
 function planarPatchForProfile(profile) {
-  const plane = profile.plane || 'XY';
-  const planeOffset = Number(profile.planeOffset || 0);
-  const outerSketch = drawingForProfile(profile).sketchOnPlane(plane, planeOffset);
+  const outerSketch = sketchDrawingOnProfile(drawingForProfile(profile), profile);
   const face = outerSketch.face();
   const holeWires = (profile.geometry.holes || []).map((hole) => {
-    const sketch = drawingForSegments(hole.segments, profile.id).sketchOnPlane(plane, planeOffset);
+    const sketch = sketchDrawingOnProfile(drawingForSegments(hole.segments, profile.id), profile);
     const wire = sketch.wire.clone();
     sketch.delete();
     return wire;
@@ -440,10 +455,10 @@ function planarPatchForProfile(profile) {
   return patchedFace;
 }
 
-function prismWireSurface(drawing, plane, planeOffset, distance) {
-  const sketch = drawing.sketchOnPlane(plane, planeOffset);
+function prismWireSurface(drawing, profile, distance) {
+  const sketch = sketchDrawingOnProfile(drawing, profile);
   const wire = sketch.wire.clone();
-  const vector = new Vector(PROFILE_PLANE_NORMALS[plane].map((value) => value * distance));
+  const vector = new Vector(profileNormal(profile).map((value) => value * distance));
   const builder = new (getOC().BRepPrimAPI_MakePrism_1)(wire.wrapped, vector.wrapped, true, true);
   const shape = cast(builder.Shape());
   builder.delete();
@@ -454,16 +469,14 @@ function prismWireSurface(drawing, plane, planeOffset, distance) {
 }
 
 function extrudedSurfaceForProfile(profile, distance) {
-  const plane = profile.plane || 'XY';
-  const planeOffset = Number(profile.planeOffset || 0);
-  if (profile.type === 'open') return prismWireSurface(drawingForSegments(profile.geometry.segments, profile.id), plane, planeOffset, distance);
-  const surfaces = [prismWireSurface(drawingForProfile(profile), plane, planeOffset, distance)];
-  for (const hole of profile.geometry.holes || []) surfaces.push(prismWireSurface(drawingForSegments(hole.segments, profile.id), plane, planeOffset, distance));
+  if (profile.type === 'open') return prismWireSurface(drawingForSegments(profile.geometry.segments, profile.id), profile, distance);
+  const surfaces = [prismWireSurface(drawingForProfile(profile), profile, distance)];
+  for (const hole of profile.geometry.holes || []) surfaces.push(prismWireSurface(drawingForSegments(hole.segments, profile.id), profile, distance));
   return surfaces.length === 1 ? surfaces[0] : compoundShapes(surfaces);
 }
 
-function revolveWireSurface(drawing, plane, planeOffset, axis, angle) {
-  const sketch = drawing.sketchOnPlane(plane, planeOffset);
+function revolveWireSurface(drawing, profile, axis, angle) {
+  const sketch = sketchDrawingOnProfile(drawing, profile);
   const wire = sketch.wire.clone();
   const revolutionAxis = makeAx1(axis.origin, axis.direction);
   const builder = new (getOC().BRepPrimAPI_MakeRevol_1)(wire.wrapped, revolutionAxis, angle * Math.PI / 180, true);
@@ -476,11 +489,9 @@ function revolveWireSurface(drawing, plane, planeOffset, axis, angle) {
 }
 
 function revolvedSurfaceForProfile(profile, axis, angle) {
-  const plane = profile.plane || 'XY';
-  const planeOffset = Number(profile.planeOffset || 0);
-  if (profile.type === 'open') return revolveWireSurface(drawingForSegments(profile.geometry.segments, profile.id), plane, planeOffset, axis, angle);
-  const surfaces = [revolveWireSurface(drawingForProfile(profile), plane, planeOffset, axis, angle)];
-  for (const hole of profile.geometry.holes || []) surfaces.push(revolveWireSurface(drawingForSegments(hole.segments, profile.id), plane, planeOffset, axis, angle));
+  if (profile.type === 'open') return revolveWireSurface(drawingForSegments(profile.geometry.segments, profile.id), profile, axis, angle);
+  const surfaces = [revolveWireSurface(drawingForProfile(profile), profile, axis, angle)];
+  for (const hole of profile.geometry.holes || []) surfaces.push(revolveWireSurface(drawingForSegments(hole.segments, profile.id), profile, axis, angle));
   return surfaces.length === 1 ? surfaces[0] : compoundShapes(surfaces);
 }
 
@@ -522,7 +533,7 @@ function thickenGenericSurface(shape, feature) {
 
 function thickenSurfaceBody(target, feature) {
   if (target.surfaceSourceType === 'patch') {
-    const direction = PROFILE_PLANE_NORMALS[target.surfaceProfile.plane || 'XY'];
+    const direction = profileNormal(target.surfaceProfile);
     const distance = feature.thicknessValue * (feature.reverse ? -1 : 1);
     return prismShape(target.shape, direction, distance, feature.side === 'symmetric' ? -distance / 2 : 0);
   }
@@ -531,7 +542,7 @@ function thickenSurfaceBody(target, feature) {
     const drawing = target.surfaceProfile.type === 'open'
       ? openChainStrip(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, endCap: 'butt', surfaceOffset: target.surfaceOffsetDistance })
       : thinDrawingForProfile(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, surfaceOffset: target.surfaceOffsetDistance });
-    let shape = drawing.sketchOnPlane(target.surfaceProfile.plane || 'XY', Number(target.surfaceProfile.planeOffset || 0)).extrude(target.surfaceDistance);
+    let shape = sketchDrawingOnProfile(drawing, target.surfaceProfile).extrude(target.surfaceDistance);
     for (const transform of target.surfaceTransforms || []) {
       shape = transform.mode === 'move'
         ? shape.translate(...transform.translation)
@@ -544,7 +555,7 @@ function thickenSurfaceBody(target, feature) {
     const drawing = target.surfaceProfile.type === 'open'
       ? openChainStrip(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, endCap: 'butt', surfaceOffset: target.surfaceOffsetDistance })
       : thinDrawingForProfile(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, surfaceOffset: target.surfaceOffsetDistance });
-    let shape = drawing.sketchOnPlane(target.surfaceProfile.plane || 'XY', Number(target.surfaceProfile.planeOffset || 0)).revolve(target.surfaceAxis.direction, { origin: target.surfaceAxis.origin, angle: target.surfaceAngle });
+    let shape = sketchDrawingOnProfile(drawing, target.surfaceProfile).revolve(target.surfaceAxis.direction, { origin: target.surfaceAxis.origin, angle: target.surfaceAngle });
     for (const transform of target.surfaceTransforms || []) {
       shape = transform.mode === 'move'
         ? shape.translate(...transform.translation)
@@ -686,22 +697,18 @@ function thinDrawingForProfile(profile, feature) {
 }
 
 function extrudeProfile(profile, span, feature) {
-  const plane = profile.plane || 'XY';
-  const planeOffset = Number(profile.planeOffset || 0) + span.startDelta;
-  let shape = (feature.thin ? thinDrawingForProfile(profile, feature) : drawingForProfile(profile)).sketchOnPlane(plane, planeOffset).extrude(span.distance);
+  let shape = sketchDrawingOnProfile(feature.thin ? thinDrawingForProfile(profile, feature) : drawingForProfile(profile), profile, span.startDelta).extrude(span.distance);
   for (const hole of profile.geometry.holes || []) {
-    const cutter = drawingForSegments(hole.segments, profile.id).sketchOnPlane(plane, planeOffset).extrude(span.distance);
+    const cutter = sketchDrawingOnProfile(drawingForSegments(hole.segments, profile.id), profile, span.startDelta).extrude(span.distance);
     shape = shape.cut(cutter);
   }
   return shape;
 }
 
 function revolveProfile(profile, axis, angle) {
-  const plane = profile.plane || 'XY';
-  const planeOffset = Number(profile.planeOffset || 0);
-  let shape = drawingForProfile(profile).sketchOnPlane(plane, planeOffset).revolve(axis.direction, { origin: axis.origin, angle });
+  let shape = sketchDrawingOnProfile(drawingForProfile(profile), profile).revolve(axis.direction, { origin: axis.origin, angle });
   for (const hole of profile.geometry.holes || []) {
-    const cutter = drawingForSegments(hole.segments, profile.id).sketchOnPlane(plane, planeOffset).revolve(axis.direction, { origin: axis.origin, angle });
+    const cutter = sketchDrawingOnProfile(drawingForSegments(hole.segments, profile.id), profile).revolve(axis.direction, { origin: axis.origin, angle });
     shape = shape.cut(cutter);
   }
   return shape;
@@ -756,7 +763,7 @@ function pathSpine(path) {
   if (path.space !== '3d') {
     const spinePen = draw(first);
     rest.forEach((point) => spinePen.lineTo(point));
-    return spinePen.done().sketchOnPlane(path.plane || 'XY', Number(path.planeOffset || 0));
+    return sketchDrawingOnProfile(spinePen.done(), path);
   }
   const edges = [];
   try {
@@ -825,7 +832,7 @@ function sweepProfile(profile, path) {
 
 function loftProfiles(profiles, loftMode) {
   const loftDrawings = (drawings) => {
-    const sketches = drawings.map((drawing, index) => drawing.sketchOnPlane(profiles[index].plane || 'XY', Number(profiles[index].planeOffset || 0)));
+    const sketches = drawings.map((drawing, index) => sketchDrawingOnProfile(drawing, profiles[index]));
     return sketches[0].loftWith(sketches.slice(1), { ruled: loftMode === 'ruled' });
   };
   let shape = loftDrawings(profiles.map((profile) => drawingForProfile(profile)));
@@ -839,7 +846,7 @@ function loftProfiles(profiles, loftMode) {
 
 function surfaceLoftProfiles(profiles, loftMode) {
   const loftDrawings = (drawings) => {
-    const sketches = drawings.map((drawing, index) => drawing.sketchOnPlane(profiles[index].plane || 'XY', Number(profiles[index].planeOffset || 0)));
+    const sketches = drawings.map((drawing, index) => sketchDrawingOnProfile(drawing, profiles[index]));
     return sketches[0].loftWith(sketches.slice(1), { ruled: loftMode === 'ruled' }, true);
   };
   const surfaces = [loftDrawings(profiles.map((profile) => drawingForProfile(profile)))];
@@ -856,7 +863,7 @@ function thickenLoftProfiles(profiles, loftMode, thickness, wallSide, surfaceOff
       : [surfaceOffset + thickness / 2, surfaceOffset - thickness / 2];
   const loftBand = (drawings) => {
     const loftAtOffset = (distance) => {
-      const sketches = drawings.map((drawing, index) => (distance ? drawing.offset(distance, { lineJoinType: 'miter' }) : drawing).sketchOnPlane(profiles[index].plane || 'XY', Number(profiles[index].planeOffset || 0)));
+      const sketches = drawings.map((drawing, index) => sketchDrawingOnProfile(distance ? drawing.offset(distance, { lineJoinType: 'miter' }) : drawing, profiles[index]));
       return sketches[0].loftWith(sketches.slice(1), { ruled: loftMode === 'ruled' });
     };
     return loftAtOffset(outerDistance).cut(loftAtOffset(innerDistance));
@@ -1095,7 +1102,7 @@ function ribProfile(feature) {
   const inPlaneThickness = feature.ribMode === 'rib' ? feature.depthValue : feature.thicknessValue;
   const normalDistance = feature.ribMode === 'rib' ? feature.thicknessValue : feature.depthValue;
   const drawing = openChainStrip(feature.profile, { wallThicknessValue: inPlaneThickness, wallSide: feature.wallSide, endCap: 'butt' });
-  return drawing.sketchOnPlane(feature.profile.plane || 'XY', Number(feature.profile.planeOffset || 0)).extrude(feature.reverse ? -normalDistance : normalDistance);
+  return sketchDrawingOnProfile(drawing, feature.profile).extrude(feature.reverse ? -normalDistance : normalDistance);
 }
 
 function coilShape(feature) {
@@ -1940,15 +1947,9 @@ function runFeature(feature, bodyMap, bodyOrder) {
       }
     } else {
       const { x, y } = feature.profile.geometry;
-      const plane = feature.profile.plane || 'XY';
-      const planeOffset = Number(feature.profile.planeOffset || 0);
-      const outside = plane === 'XZ'
-        ? [x, 1 - planeOffset, y]
-        : plane === 'YZ'
-          ? [planeOffset - 1, x, y]
-          : [x, y, planeOffset - 1];
-      const direction = plane === 'XZ' ? [0, -1, 0] : plane === 'YZ' ? [1, 0, 0] : [0, 0, 1];
-      placement = { position: outside.map((value, axis) => value + direction[axis]), direction };
+      const frame = resolveSketchFrame(feature.profile);
+      const position = frame.origin.map((value, axis) => value + frame.u[axis] * x + frame.v[axis] * y);
+      placement = { position, direction: frame.normal };
     }
     const outside = placement.position.map((value, axis) => value - placement.direction[axis]);
     const usesConicalPreparation = feature.pipePreparation === 'conical' && feature.threadTaperValue > 0;
@@ -2163,7 +2164,6 @@ function runFeature(feature, bodyMap, bodyOrder) {
     const source = target.shape;
     const faces = source.faces;
     const boundingBox = source.boundingBox;
-    const sourceNormals = { XY: [0, 0, 1], XZ: [0, -1, 0], YZ: [1, 0, 0] };
     let tool;
     let result;
     let fuser;
@@ -2174,7 +2174,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
       const descriptors = faces.map((face) => faceDescriptor(face));
       const faceDescriptorValue = descriptors[matchingFaceIndex(feature.topologyReferences?.[0], descriptors)];
       if (faceDescriptorValue.geometry !== 'PLANE') throw new Error('Split Face obsługuje wyłącznie ściany planarne.');
-      const sourceNormal = sourceNormals[feature.profile.plane || 'XY'];
+      const sourceNormal = profileNormal(feature.profile);
       const alignment = faceDescriptorValue.normal.reduce((sum, value, axis) => sum + value * sourceNormal[axis], 0);
       if (Math.abs(Math.abs(alignment) - 1) > GEOMETRY_POLICY.angularTolerance) throw new Error('Profil Split Face musi leżeć na dzielonej ścianie.');
       const dimensions = boundingBox.bounds[1].map((value, axis) => value - boundingBox.bounds[0][axis]).filter((value) => value > GEOMETRY_POLICY.linearTolerance);

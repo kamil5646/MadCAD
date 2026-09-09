@@ -23,6 +23,7 @@
     "verify:plastic-grille": "npm run build:ui && electron scripts/verify-plastic-grille.cjs",
     "verify:form": "npm run build:ui && electron scripts/verify-form.cjs",
     "verify:extrude-after-sketch": "npm run build:ui && electron scripts/verify-extrude-after-sketch.cjs",
+    "verify:ucs-sketch": "npm run build:ui && electron scripts/verify-ucs-sketch.cjs",
     "verify:model-import": "npm run build:ui && electron scripts/verify-model-import.cjs",
     "verify:mesh-repair": "npm run build:ui && electron scripts/verify-mesh-repair.cjs",
     "verify:mesh-scan-repair": "npm run build:ui && electron scripts/verify-mesh-scan-repair.cjs",

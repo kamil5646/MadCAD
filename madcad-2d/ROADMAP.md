@@ -55,7 +55,7 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 - [x] Punkt na wierzchołku, centrum i przecięciu.
 - [x] Widoczność, nazwa i trwała referencja do konstrukcji.
 
-Pozostałe warianty UCS/płaszczyzn/osi są `P1`.
+Rozbudowany UCS jest ukończony: szkic może używać pełnej ortonormalnej ramy dowolnej obróconej płaszczyzny konstrukcyjnej albo planarnej ściany, a tę samą ramę zachowują widok, siatka, snap i operacje B-Rep.
 
 ## M5 — szkic na modelu i Project `P0`
 

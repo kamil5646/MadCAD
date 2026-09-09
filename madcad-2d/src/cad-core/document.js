@@ -26,6 +26,7 @@ import {
   boundaryPointIds,
   normalizeSketchModel,
 } from './sketch-model.js';
+import { normalizeSketchFrame } from './sketch-frame.js';
 
 export const DOCUMENT_SCHEMA_VERSION = 17;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
@@ -362,7 +363,7 @@ export function createCircleProfile({ name = 'Okrąg', diameter = 'srednicaOtwor
   };
 }
 
-export function createSketch({ name = 'Szkic', space = '2d', plane = 'XY', planeOffset = '0', support = null, entities = [], profiles = [], constraints = [], dimensions = [], blockInstances = [] } = {}) {
+export function createSketch({ name = 'Szkic', space = '2d', plane = 'XY', planeOffset = '0', frame = null, support = null, entities = [], profiles = [], constraints = [], dimensions = [], blockInstances = [] } = {}) {
   return normalizeSketchModel({
     id: createId('sketch'),
     name,
@@ -370,6 +371,7 @@ export function createSketch({ name = 'Szkic', space = '2d', plane = 'XY', plane
     space,
     plane,
     planeOffset: String(planeOffset),
+    ...(frame ? { frame: normalizeSketchFrame(frame) } : {}),
     ...(support ? { support: structuredClone(support) } : {}),
     visible: true,
     entities,
@@ -730,6 +732,9 @@ export function validateDocument(document) {
     if (!['2d', '3d'].includes(sketchSpace)) add(`${base}.space`, 'Przestrzeń szkicu musi mieć wartość „2d” albo „3d”.', 'VALUE');
     if (!SUPPORTED_PLANES.has(sketch.plane)) add(`${base}.plane`, `Nieobsługiwana płaszczyzna: ${sketch.plane ?? ''}.`, 'UNSUPPORTED');
     if (typeof sketch.planeOffset !== 'string' && typeof sketch.planeOffset !== 'number' && sketch.planeOffset !== undefined) add(`${base}.planeOffset`, 'Odsunięcie płaszczyzny szkicu musi być wyrażeniem albo liczbą.', 'TYPE');
+    if (sketch.frame !== undefined) {
+      try { normalizeSketchFrame(sketch.frame); } catch (error) { add(`${base}.frame`, error.message, 'VALUE'); }
+    }
     if (sketch.support !== undefined && (!isRecord(sketch.support) || !['face', 'construction-plane'].includes(sketch.support.kind) || typeof sketch.support.referenceId !== 'string' || !sketch.support.referenceId)) add(`${base}.support`, 'Podpora szkicu wymaga trwałej referencji do ściany albo płaszczyzny.', 'TYPE');
     const profiles = requireArray(sketch, 'profiles', `${base}.profiles`);
     const entities = requireArray(sketch, 'entities', `${base}.entities`);
