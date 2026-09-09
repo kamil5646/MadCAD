@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   calculateAdaptiveToolpath,
   calculateContourToolpath,
+  calculateCut2dToolpath,
   calculatePocketToolpath,
   analyzeManufacturingProgram,
   analyzeToolpathSafety,
   createContourOperation,
+  createCut2dOperation,
   createAdaptiveOperation,
   createGrblGcode,
   createMachineGcode,
@@ -81,6 +83,28 @@ describe('CAM contour operations', () => {
     expect(mach3.extension).toBe('tap');
     expect(mach3.text).toContain('G80');
     expect(mach3.text).toContain('\nM30\n');
+  });
+
+  it('creates compensated 2D cutting paths and laser/plasma programs', () => {
+    const laserSetup = createManufacturingSetup({ bodyId: box.id, machineId: 'laser-600' });
+    const laserOperation = createCut2dOperation({ kerfWidth: 0.2, leadIn: 3, passes: 2, powerPercent: 70 });
+    laserSetup.operations.push(laserOperation);
+    const toolpath = calculateCut2dToolpath(laserSetup, laserOperation, [box]);
+    expect(laserSetup.operationKind).toBe('cut-2d');
+    expect(toolpath.valid).toBe(true);
+    expect(toolpath.layerCount).toBe(2);
+    expect(toolpath.segments.filter((segment) => segment.kind === 'cut')).toHaveLength(10);
+    expect(validateManufacturing({ setups: [laserSetup], activeSetupId: laserSetup.id })).toEqual([]);
+    const laser = createMachineGcode(laserSetup, laserOperation, [box]);
+    expect(laser.postProcessor).toBe('grbl-laser');
+    expect(laser.text).toContain('M4 S700');
+    expect(laser.text).toContain('\nM5\n');
+    const plasmaSetup = createManufacturingSetup({ bodyId: box.id, machineId: 'plasma-1250' });
+    const plasmaOperation = createCut2dOperation({ postProcessorId: 'linuxcnc-plasma' });
+    const plasma = createMachineGcode(plasmaSetup, plasmaOperation, [box]);
+    expect(plasma.text).toMatch(/^%\n/);
+    expect(plasma.text).toContain('\nM3\nG4 P0.5\n');
+    expect(plasma.text).toContain('\nM2\n%');
   });
 
   it('rejects a cut deeper than the tool flute', () => {

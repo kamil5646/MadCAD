@@ -149,7 +149,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Pierwszy postprocesor GRBL: G-code metryczny względem WCS, limity obrotów, bezpieczny przejazd i ostrzeżenie przed uruchomieniem.
 - [x] Blokada eksportu G-code po wykryciu problemu przez walidację kolizji i bezpieczeństwa.
 - [x] Podgląd tekstowy G-code oraz postprocesory GRBL 1.1, LinuxCNC i Mach3/Mach4 z właściwymi rozszerzeniami, nagłówkami i zmianą narzędzia.
-- [ ] Toczenie i cięcie.
+- [x] Cięcie 2D laserem i plazmą: osobny typ Setupu, maszyny, kompensacja szczeliny, wejście, moc, wielokrotne przejścia, podgląd oraz G-code GRBL Laser/LinuxCNC Plasma.
+- [ ] Toczenie: Setup tokarki, profile narzędzi, planowanie czoła, toczenie zewnętrzne i postprocesor.
 
 ### Electronics, chmura i rozszerzalność
 

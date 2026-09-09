@@ -5,6 +5,8 @@ export const CAM_MACHINE_PRESETS = Object.freeze({
   'desktop-3018': Object.freeze({ id: 'desktop-3018', name: 'Frezarka biurkowa 3018', kind: 'mill-3axis', travel: [300, 180, 45], maxSpindleRpm: 10000 }),
   'mill-500': Object.freeze({ id: 'mill-500', name: 'Frezarka 3-osiowa 500', kind: 'mill-3axis', travel: [500, 400, 350], maxSpindleRpm: 12000 }),
   'mill-1000': Object.freeze({ id: 'mill-1000', name: 'Frezarka 3-osiowa 1000', kind: 'mill-3axis', travel: [1000, 600, 600], maxSpindleRpm: 18000 }),
+  'laser-600': Object.freeze({ id: 'laser-600', name: 'Laser CNC 600 × 400', kind: 'cut-2d', process: 'laser', travel: [600, 400, 50], maxFeedRate: 6000 }),
+  'plasma-1250': Object.freeze({ id: 'plasma-1250', name: 'Plazma CNC 1250 × 1250', kind: 'cut-2d', process: 'plasma', travel: [1250, 1250, 100], maxFeedRate: 12000 }),
 });
 
 export const CAM_WCS_ORIGINS = Object.freeze([
@@ -23,6 +25,8 @@ export const CAM_POST_PROCESSORS = Object.freeze({
   grbl: Object.freeze({ id: 'grbl', name: 'GRBL 1.1', extension: 'nc', commentStyle: 'semicolon', toolChange: false }),
   linuxcnc: Object.freeze({ id: 'linuxcnc', name: 'LinuxCNC', extension: 'ngc', commentStyle: 'parentheses', toolChange: true }),
   mach3: Object.freeze({ id: 'mach3', name: 'Mach3 / Mach4', extension: 'tap', commentStyle: 'parentheses', toolChange: true }),
+  'grbl-laser': Object.freeze({ id: 'grbl-laser', name: 'GRBL Laser', extension: 'nc', commentStyle: 'semicolon', toolChange: false }),
+  'linuxcnc-plasma': Object.freeze({ id: 'linuxcnc-plasma', name: 'LinuxCNC Plasma', extension: 'ngc', commentStyle: 'parentheses', toolChange: false }),
 });
 
 const normalizePostProcessorId = (value) => CAM_POST_PROCESSORS[value] ? value : 'grbl';
@@ -101,10 +105,29 @@ export function normalizeAdaptiveOperation(operation = {}, index = 0) {
   };
 }
 
+export function normalizeCut2dOperation(operation = {}, index = 0) {
+  return {
+    id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
+    name: String(operation.name || `Cięcie konturu ${index + 1}`).trim().slice(0, 80) || `Cięcie konturu ${index + 1}`,
+    type: 'cut2d',
+    kerfWidth: Math.max(0.01, Number(operation.kerfWidth) || 0.2),
+    leadIn: Math.max(0, Number(operation.leadIn) || 2),
+    feedRate: Math.max(1, Number(operation.feedRate) || 1200),
+    powerPercent: Math.min(100, Math.max(1, Number(operation.powerPercent) || 80)),
+    passes: Math.min(100, Math.max(1, Math.round(Number(operation.passes) || 1))),
+    compensation: ['inside', 'center', 'outside'].includes(operation.compensation) ? operation.compensation : 'outside',
+    boundaryFaceId: typeof operation.boundaryFaceId === 'string' ? operation.boundaryFaceId : '',
+    boundarySketchId: typeof operation.boundarySketchId === 'string' ? operation.boundarySketchId : '',
+    boundaryProfileId: typeof operation.boundaryProfileId === 'string' ? operation.boundaryProfileId : '',
+    postProcessorId: ['grbl-laser', 'linuxcnc-plasma'].includes(operation.postProcessorId) ? operation.postProcessorId : 'grbl-laser',
+  };
+}
+
 export function normalizeManufacturingOperation(operation = {}, index = 0) {
   if (operation?.type === 'contour') return normalizeContourOperation(operation, index);
   if (operation?.type === 'pocket') return normalizePocketOperation(operation, index);
   if (operation?.type === 'adaptive') return normalizeAdaptiveOperation(operation, index);
+  if (operation?.type === 'cut2d') return normalizeCut2dOperation(operation, index);
   return normalizeFacingOperation(operation, index);
 }
 
@@ -119,7 +142,7 @@ export function normalizeManufacturingSetup(setup = {}, index = 0) {
   return {
     id: typeof setup.id === 'string' && setup.id ? setup.id : createId('cam-setup'),
     name: String(setup.name || `Setup ${index + 1}`).trim().slice(0, 80) || `Setup ${index + 1}`,
-    operationKind: 'mill-3axis',
+    operationKind: CAM_MACHINE_PRESETS[machineId].kind,
     bodyId: typeof setup.bodyId === 'string' ? setup.bodyId : '',
     machineId,
     stock: {
@@ -203,6 +226,10 @@ export function createPocketOperation(options = {}) {
 
 export function createAdaptiveOperation(options = {}) {
   return normalizeAdaptiveOperation({ ...options, id: createId('cam-operation') });
+}
+
+export function createCut2dOperation(options = {}) {
+  return normalizeCut2dOperation({ ...options, id: createId('cam-operation') });
 }
 
 export function calculateFacingToolpath(setup, operation, bodies = []) {
@@ -636,10 +663,72 @@ export function calculateAdaptiveToolpath(setup, operation, bodies = [], documen
   };
 }
 
+export function calculateCut2dToolpath(setup, operation, bodies = [], document = null) {
+  const setupResult = calculateManufacturingSetup(setup, bodies);
+  const normalized = normalizeCut2dOperation(operation);
+  const tool = { id: 'cutting-beam', name: setupResult.machine?.process === 'plasma' ? 'Łuk plazmowy' : 'Wiązka lasera', type: 'cutting-beam', diameter: normalized.kerfWidth, stickout: Infinity, holderDiameter: 0 };
+  const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
+  if (!setupResult.body || !setupResult.stockBounds) return fail('Cięcie 2D wymaga poprawnego Setupu i bryły albo profilu szkicu.');
+  if (!setupResult.valid) return fail('Popraw Setup przed obliczeniem cięcia.');
+  if (setupResult.machine.kind !== 'cut-2d') return fail('Cięcie 2D wymaga maszyny laserowej albo plazmowej.');
+  if (setupResult.machine.process === 'laser' && normalized.postProcessorId !== 'grbl-laser') return fail('Laser wymaga postprocesora GRBL Laser.');
+  if (setupResult.machine.process === 'plasma' && normalized.postProcessorId !== 'linuxcnc-plasma') return fail('Plazma wymaga postprocesora LinuxCNC Plasma.');
+  if (normalized.feedRate > setupResult.machine.maxFeedRate) return fail(`Posuw przekracza limit maszyny ${setupResult.machine.maxFeedRate} mm/min.`);
+  let resolvedBoundary;
+  try { resolvedBoundary = resolveOperationBoundary(setupResult, normalized, document); } catch (error) { return fail(error.message); }
+  const offset = normalized.compensation === 'center' ? 0 : normalized.kerfWidth / 2 * (normalized.compensation === 'inside' ? -1 : 1);
+  const contour = offsetClosedContour(resolvedBoundary.loops[0], offset);
+  if (contour.length < 3 || contour.some((point) => !point.every(Number.isFinite))) return fail('Nie udało się skompensować szerokości szczeliny dla wybranego obrysu.');
+  const planeZ = resolvedBoundary.planeZ;
+  const first = contour[0];
+  const second = contour[1];
+  const direction = [second[0] - first[0], second[1] - first[1]];
+  const length = Math.hypot(...direction) || 1;
+  const leadStart = [first[0] - direction[0] / length * normalized.leadIn, first[1] - direction[1] / length * normalized.leadIn];
+  const segments = [];
+  let previous = [leadStart[0], leadStart[1], setupResult.clearancePlaneZ];
+  const push = (kind, to, feed = null) => {
+    if (Math.hypot(...to.map((value, axis) => value - previous[axis])) <= 1e-9) return;
+    segments.push({ kind, from: previous, to, ...(feed ? { feed } : {}) });
+    previous = to;
+  };
+  for (let pass = 0; pass < normalized.passes; pass += 1) {
+    push('rapid', [leadStart[0], leadStart[1], setupResult.clearancePlaneZ]);
+    push('rapid', [leadStart[0], leadStart[1], planeZ]);
+    push('cut', [first[0], first[1], planeZ], normalized.feedRate);
+    for (let index = 1; index <= contour.length; index += 1) {
+      const point = contour[index % contour.length];
+      push('cut', [point[0], point[1], planeZ], normalized.feedRate);
+    }
+    push('rapid', [previous[0], previous[1], setupResult.clearancePlaneZ]);
+  }
+  const bodyBounds = setupResult.body.bounds || setupResult.body.metrics?.bounds;
+  const materialThickness = Math.max(0, Number(bodyBounds[1][2]) - Number(bodyBounds[0][2]));
+  return {
+    valid: true,
+    setup: setupResult,
+    stockBounds: setupResult.stockBounds,
+    origin: setupResult.origin,
+    clearancePlaneZ: setupResult.clearancePlaneZ,
+    operation: normalized,
+    tool,
+    segments,
+    layerCount: normalized.passes,
+    contourPointCount: contour.length,
+    estimatedRemovedVolume: contour.reduce((sum, point, index) => {
+      const next = contour[(index + 1) % contour.length];
+      return sum + Math.hypot(next[0] - point[0], next[1] - point[1]);
+    }, 0) * normalized.kerfWidth * materialThickness * normalized.passes,
+    ...summarizeToolpath(segments),
+    warnings: [],
+  };
+}
+
 export function calculateOperationToolpath(setup, operation, bodies = [], document = null) {
   if (operation?.type === 'contour') return calculateContourToolpath(setup, operation, bodies, document);
   if (operation?.type === 'pocket') return calculatePocketToolpath(setup, operation, bodies, document);
   if (operation?.type === 'adaptive') return calculateAdaptiveToolpath(setup, operation, bodies, document);
+  if (operation?.type === 'cut2d') return calculateCut2dToolpath(setup, operation, bodies, document);
   return calculateFacingToolpath(setup, operation, bodies);
 }
 
@@ -772,6 +861,34 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   const postProcessor = CAM_POST_PROCESSORS[postProcessorId] || CAM_POST_PROCESSORS.grbl;
   const cleanComment = (value) => String(value).replace(/[\r\n;()]/g, ' ').trim();
   const comment = (value) => postProcessor.commentStyle === 'parentheses' ? `(${cleanComment(value)})` : `; ${cleanComment(value)}`;
+  if (toolpath.operation.type === 'cut2d') {
+    if (!['grbl-laser', 'linuxcnc-plasma'].includes(postProcessor.id)) throw new Error('Wybierz postprocesor przeznaczony do cięcia 2D.');
+    const isPlasma = postProcessor.id === 'linuxcnc-plasma';
+    const lines = [];
+    if (isPlasma) lines.push('%');
+    lines.push(comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź zero WCS, moc i przejazd bez materiału.'), 'G21', 'G90', 'G17', 'G94');
+    if (isPlasma) lines.push('G40', 'G64 P0.01');
+    let processOn = false;
+    for (const segment of toolpath.segments) {
+      const local = segment.to.map((value, axis) => value - origin[axis]);
+      if (segment.kind === 'rapid') {
+        if (processOn) { lines.push('M5'); processOn = false; }
+        lines.push(`G0 X${gcodeNumber(local[0])} Y${gcodeNumber(local[1])} Z${gcodeNumber(local[2])}`);
+      } else {
+        if (!processOn) {
+          lines.push(isPlasma ? 'M3' : `M4 S${Math.round(toolpath.operation.powerPercent * 10)}`);
+          if (isPlasma) lines.push('G4 P0.5');
+          processOn = true;
+        }
+        lines.push(`G1 X${gcodeNumber(local[0])} Y${gcodeNumber(local[1])} Z${gcodeNumber(local[2])} F${gcodeNumber(segment.feed || toolpath.operation.feedRate)}`);
+      }
+    }
+    if (processOn) lines.push('M5');
+    lines.push(isPlasma ? 'M2' : 'M30');
+    if (isPlasma) lines.push('%');
+    lines.push('');
+    return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
+  }
   const toolNumber = Object.keys(CAM_TOOL_PRESETS).indexOf(toolpath.tool.id) + 1;
   const lines = [];
   if (postProcessor.id === 'linuxcnc') lines.push('%');
@@ -823,7 +940,7 @@ export function validateManufacturing(manufacturing) {
     if (!name) issues.push({ path: `${base}.name`, message: 'Setup CAM wymaga nazwy.', code: 'REQUIRED' });
     else if (names.has(name.toLocaleLowerCase())) issues.push({ path: `${base}.name`, message: 'Nazwa setupu CAM jest powtórzona.', code: 'DUPLICATE' });
     else names.add(name.toLocaleLowerCase());
-    if (setup.operationKind !== 'mill-3axis') issues.push({ path: `${base}.operationKind`, message: 'Obsługiwane jest frezowanie 3-osiowe.', code: 'UNSUPPORTED' });
+    if (!['mill-3axis', 'cut-2d'].includes(setup.operationKind)) issues.push({ path: `${base}.operationKind`, message: 'Nieobsługiwany rodzaj obróbki.', code: 'UNSUPPORTED' });
     if (typeof setup.bodyId !== 'string') issues.push({ path: `${base}.bodyId`, message: 'Identyfikator bryły musi być tekstem.', code: 'TYPE' });
     if (!CAM_MACHINE_PRESETS[setup.machineId]) issues.push({ path: `${base}.machineId`, message: 'Nieznany profil obrabiarki.', code: 'UNSUPPORTED' });
     if (!CAM_WCS_ORIGINS.some((item) => item.id === setup.wcsOrigin)) issues.push({ path: `${base}.wcsOrigin`, message: 'Nieznany początek układu WCS.', code: 'UNSUPPORTED' });
@@ -834,11 +951,14 @@ export function validateManufacturing(manufacturing) {
       const operationBase = `${base}.operations[${operationIndex}]`;
       if (!operation || typeof operation !== 'object') issues.push({ path: operationBase, message: 'Operacja CAM musi być obiektem.', code: 'TYPE' });
       else {
-        if (!['face', 'contour', 'pocket', 'adaptive'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
-        if (!CAM_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
+        if (!['face', 'contour', 'pocket', 'adaptive', 'cut2d'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
+        if (operation.type !== 'cut2d' && !CAM_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
         if (!CAM_POST_PROCESSORS[operation.postProcessorId]) issues.push({ path: `${operationBase}.postProcessorId`, message: 'Nieznany postprocesor CAM.', code: 'UNSUPPORTED' });
-        for (const key of ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm']) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr operacji musi być dodatni.', code: 'VALUE' });
+        const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];
+        for (const key of positiveKeys) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr operacji musi być dodatni.', code: 'VALUE' });
         if (['contour', 'pocket', 'adaptive'].includes(operation.type) && (!Number.isFinite(Number(operation.targetDepth)) || Number(operation.targetDepth) <= 0)) issues.push({ path: `${operationBase}.targetDepth`, message: 'Głębokość obróbki musi być dodatnia.', code: 'VALUE' });
+        if (setup.operationKind === 'cut-2d' && operation.type !== 'cut2d') issues.push({ path: `${operationBase}.type`, message: 'Setup cięcia może zawierać tylko operacje cięcia 2D.', code: 'INCOMPATIBLE' });
+        if (setup.operationKind === 'mill-3axis' && operation.type === 'cut2d') issues.push({ path: `${operationBase}.type`, message: 'Operacja cięcia wymaga Setupu laserowego lub plazmowego.', code: 'INCOMPATIBLE' });
       }
     });
   });

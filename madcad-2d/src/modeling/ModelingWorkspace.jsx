@@ -145,7 +145,7 @@ import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMesh
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
-import { calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createFacingOperation, createMachineGcode, createManufacturingSetup, createPocketOperation, normalizeManufacturingOperation, normalizeManufacturingSetup, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
+import { calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createMachineGcode, createManufacturingSetup, createPocketOperation, normalizeManufacturingOperation, normalizeManufacturingSetup, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
@@ -977,11 +977,13 @@ export default function ModelingWorkspace() {
         ? createPocketOperation({ name: `Kieszeń 2D ${sameTypeCount}`, ...boundarySelection })
         : type === 'adaptive'
           ? createAdaptiveOperation({ name: `Adaptacyjne 2D ${sameTypeCount}`, ...boundarySelection })
+          : type === 'cut2d'
+            ? createCut2dOperation({ name: `Cięcie konturu ${sameTypeCount}`, postProcessorId: setup.machineId === 'plasma-1250' ? 'linuxcnc-plasma' : 'grbl-laser', ...boundarySelection })
         : createFacingOperation({ name: `Planowanie ${sameTypeCount}` });
     setup.operations.push(operation);
-    const operationLabel = type === 'pocket' ? 'Kieszeń 2D' : type === 'adaptive' ? 'Adaptacyjne 2D' : 'Kontur 2D';
+    const operationLabel = type === 'pocket' ? 'Kieszeń 2D' : type === 'adaptive' ? 'Adaptacyjne 2D' : type === 'cut2d' ? 'Cięcie konturu' : 'Kontur 2D';
     const boundaryLabel = selectedProfileMatch && !activeSketchId ? ' dla zaznaczonego profilu szkicu' : selectedBoundaryFaceId ? ' dla zaznaczonej ściany' : ' dla górnej powierzchni bryły';
-    setNotice(type === 'face' ? 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.' : `Utworzono ${operationLabel}${boundaryLabel}. Ustaw frez, głębokość, zejście i posuw.`);
+    setNotice(type === 'face' ? 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.' : type === 'cut2d' ? `Utworzono ${operationLabel}${boundaryLabel}. Ustaw szczelinę, wejście, moc, przejścia i posuw.` : `Utworzono ${operationLabel}${boundaryLabel}. Ustaw frez, głębokość, zejście i posuw.`);
   });
   const updateCamOperation = (setupId, operationId, patch) => commit((next) => {
     const setup = next.manufacturing.setups.find((item) => item.id === setupId);
