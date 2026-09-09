@@ -149,6 +149,19 @@
 .license-info-card ul { display: grid; gap: 4px; margin: 0; padding-left: 17px; color: #cbd4dc; line-height: 1.35; }
 .license-info-card.license-info-commercial { border-color: rgba(241, 189, 98, 0.55); background: rgba(104, 72, 26, 0.2); }
 .license-info-card.license-info-commercial strong { color: #ffd489; }
+.license-plan-status { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 10px; padding: 9px 11px; border: 1px solid #4b91aa; border-radius: 5px; background: #263d48; }
+.license-plan-status span { color: #a9bbc5; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
+.license-plan-status strong { color: #8ce5ff; font-size: 12px; }
+.license-plan-status small { grid-column: 2; color: #b8c7cf; font-size: 9px; }
+.license-plan-status.expired { border-color: #b46757; background: #4a302d; }
+.license-plan-status.expired strong { color: #ffb09f; }
+.license-plan-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.license-plan-grid button { display: grid; align-content: start; gap: 4px; min-height: 100px; padding: 10px; border: 1px solid #556372; border-radius: 5px; color: #dce5eb; background: #293440; text-align: left; cursor: pointer; }
+.license-plan-grid button:hover { border-color: #718497; background: #323f4d; }
+.license-plan-grid button.selected { border-color: #4fc6e9; box-shadow: inset 0 0 0 1px #4fc6e9; background: #254554; }
+.license-plan-grid button strong { color: #eef6fa; font-size: 11px; }
+.license-plan-grid button span { color: #7fdcf4; font-size: 10px; font-weight: 700; }
+.license-plan-grid button small { color: #aebbc5; font-size: 9px; line-height: 1.35; }
 .license-info-support-copy { margin: 0; color: #cbd4dc; font-size: 11px; line-height: 1.4; }
 .license-info-actions { display: grid; grid-template-columns: repeat(3, max-content); justify-content: start; gap: 7px; padding-top: 10px; border-top: 1px solid #4f5c69; }
 .license-info-actions a { display: inline-flex; min-height: 31px; align-items: center; justify-content: center; padding: 0 10px; border: 1px solid #627282; border-radius: 4px; color: #e7edf2; background: #354250; font-size: 11px; text-decoration: none; }
@@ -174,6 +187,7 @@
   .license-info-actions a,
   .license-info-actions button,
   .license-info-actions button.confirm { grid-column: 1; width: 100%; justify-self: stretch; }
+  .license-plan-grid { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

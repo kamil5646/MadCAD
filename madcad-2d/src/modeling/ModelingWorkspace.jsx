@@ -138,6 +138,7 @@ import { calculateCantileverBeamFea, createBeamFeaReportCsv } from '../cad-core/
 import { calculateThermalScreening } from '../cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
 import { applyPrinterProfile, applyPrintMaterialProfile, PRINTER_PROFILES, PRINT_MATERIAL_PROFILES } from '../cad-core/printer-profiles.js';
+import { describeLicensePlan, loadLicensePlan, saveLicensePlan, selectLicensePlan } from './license-plan.js';
 import { calculatePrintLayout, orientationForBedFace, recommendPrintOrientation } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../cad-core/model-import.js';
@@ -467,6 +468,15 @@ export default function ModelingWorkspace() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [licenseInfoOpen, setLicenseInfoOpen] = useState(true);
   const [fullLicenseOpen, setFullLicenseOpen] = useState(false);
+  const [licensePlan, setLicensePlan] = useState(loadLicensePlan);
+  const licensePlanStatus = describeLicensePlan(licensePlan);
+  const chooseLicensePlan = useCallback((mode) => {
+    setLicensePlan((current) => {
+      const next = selectLicensePlan(current, mode);
+      saveLicensePlan(next);
+      return next;
+    });
+  }, []);
   const [expandedSketchRibbon, setExpandedSketchRibbon] = useState(() => window.matchMedia('(min-width: 1260px)').matches);
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1260px)');
@@ -7419,7 +7429,7 @@ export default function ModelingWorkspace() {
             <div>
               <button type="button" title="Samouczek pierwszego projektu CAD" aria-label="Samouczek pierwszego projektu CAD" onClick={(event) => { setTutorialOpen(true); event.currentTarget.closest('details')?.removeAttribute('open'); }}><CircleHelp size={15} /><span>Samouczek</span></button>
               <button id="checkUpdatesBtn" type="button" title="Sprawdź aktualizacje" onClick={(event) => { void checkForUpdates(false); event.currentTarget.closest('details')?.removeAttribute('open'); }}><HardDriveDownload size={15} /><span>Aktualizacje</span></button>
-              <button id="licenseInfoBtn" type="button" title="Licencja i informacje" onClick={(event) => { setLicenseInfoOpen(true); event.currentTarget.closest('details')?.removeAttribute('open'); }}><CircleHelp size={15} /><span>Licencja i informacje</span></button>
+              <button id="licenseInfoBtn" type="button" title={`Licencja: ${licensePlanStatus.label}`} onClick={(event) => { setLicenseInfoOpen(true); event.currentTarget.closest('details')?.removeAttribute('open'); }}><CircleHelp size={15} /><span>Licencja · {licensePlanStatus.label}</span></button>
               <label className="language-select" title="Język interfejsu"><span>Język</span><select aria-label="Język interfejsu" value={language} onChange={(event) => { void changeAppLanguage(event.target.value); }}><option value="pl">Polski</option><option value="en">English</option></select></label>
             </div>
           </details>
@@ -7983,7 +7993,7 @@ export default function ModelingWorkspace() {
         </div>}
       </footer>
       {tutorialOpen && <FirstPartTutorial onClose={() => setTutorialOpen(false)} />}
-      {licenseInfoOpen && <LicenseInfoDialog onClose={() => setLicenseInfoOpen(false)} onShowFullLicense={() => { setLicenseInfoOpen(false); setFullLicenseOpen(true); }} />}
+      {licenseInfoOpen && <LicenseInfoDialog licensePlan={licensePlan} onSelectPlan={chooseLicensePlan} onClose={() => setLicenseInfoOpen(false)} onShowFullLicense={() => { setLicenseInfoOpen(false); setFullLicenseOpen(true); }} />}
       {fullLicenseOpen && <FullLicenseDialog onClose={() => setFullLicenseOpen(false)} />}
       {updateState.open && !updatePromptBlocked && <UpdateDialog state={updateState} onCheck={checkForUpdates} onInstall={installAvailableUpdate} onClose={() => setUpdateState((current) => ({ ...current, open: false, promptPending: false }))} />}
       {toolHelp && (

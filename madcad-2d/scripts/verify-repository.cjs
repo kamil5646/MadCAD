@@ -48,8 +48,12 @@ expectText(appUi, /autosaveSuspendedRef\.current[\s\S]*?setTimeout\(persistWhenR
 expectText(appUi, /promptPending: silent && Boolean\(result\?\.available\)/, 'odroczony automatyczny dialog aktualizacji');
 expectText(appUi, /if \(!persistenceReady\)[\s\S]*?zakończenie odzyskiwania autozapisu/, 'blokada destrukcyjnych akcji podczas odzyskiwania');
 const appDialogs = read('madcad-2d/src/modeling/AppDialogs.jsx');
-expectText(appDialogs, /oceniać pełną wersję przez 40 dni/, 'ocena w oknie aplikacji');
+expectText(appDialogs, /40 dni pełnej wersji/, 'ocena w oknie aplikacji');
 expectText(appDialogs, /bezterminowej licencji na każde stanowisko/, 'licencja stanowiskowa w aplikacji');
+expectText(appDialogs, /status jest zapisywany lokalnie/, 'lokalny stan planu bez klucza');
+const licensePlan = read('madcad-2d/src/modeling/license-plan.js');
+expectText(licensePlan, /COMMERCIAL_TRIAL_DAYS = 40/, 'jeden licznik oceny komercyjnej');
+expectText(licensePlan, /normalized\.trialStartedAt === null \? now : normalized\.trialStartedAt/, 'brak resetowania rozpoczętej oceny');
 expectText(appDialogs, /fullLicenseText/, 'lokalna pełna licencja w aplikacji');
 expectText(appDialogs, /Wydanie 6\.4\.7 nie ma podpisu producenta/, 'ostrzeżenie o podpisie w aplikacji');
 

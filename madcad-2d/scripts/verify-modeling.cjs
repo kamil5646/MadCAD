@@ -2832,13 +2832,17 @@ app.whenReady().then(async () => {
         purchaseProof: /dokument zakupu|purchase document/i.test(text),
         donationNotCommercial: /darowizna.+nie zastępuje licencji komercyjnej|donation.+does not replace a commercial license/i.test(text),
         hasTokenInput: Boolean(dialog?.querySelector('input, textarea')),
+        planButtons: dialog?.querySelectorAll('.license-plan-grid button').length || 0,
+        personalSelected: dialog?.querySelector('.license-plan-grid button[aria-pressed="true"]')?.textContent.includes('Osobista') || false,
         links: dialog?.querySelectorAll('a').length || 0,
         continueVisible: Boolean([...dialog?.querySelectorAll('button') || []].some((button) => /Przejdź do programu|Continue to MadCAD/i.test(button.textContent))),
       };
     })()`);
-    if (!licenseDialog.visible || !licenseDialog.shownAtStartup || !licenseDialog.explainsNoKey || !licenseDialog.privateUseOnly || !licenseDialog.commercialPaid || !licenseDialog.commercialTrial || !licenseDialog.perpetualPerSeat || !licenseDialog.purchaseProof || !licenseDialog.donationNotCommercial || licenseDialog.hasTokenInput || licenseDialog.links < 2 || !licenseDialog.continueVisible) {
+    if (!licenseDialog.visible || !licenseDialog.shownAtStartup || !licenseDialog.explainsNoKey || !licenseDialog.privateUseOnly || !licenseDialog.commercialPaid || !licenseDialog.commercialTrial || !licenseDialog.perpetualPerSeat || !licenseDialog.purchaseProof || !licenseDialog.donationNotCommercial || licenseDialog.hasTokenInput || licenseDialog.planButtons !== 3 || !licenseDialog.personalSelected || licenseDialog.links < 2 || !licenseDialog.continueVisible) {
       throw new Error(`Okno licencji nie wyjaśnia zasad prywatnych, 40-dniowej oceny, licencji stanowiskowej i darowizny: ${JSON.stringify(licenseDialog)}.`);
     }
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.license-plan-grid button')[1]?.click()`);
+    await waitForUi(window, `document.querySelector('.license-plan-status strong')?.textContent.includes('40') && JSON.parse(localStorage.getItem('madcad:license-plan:v1') || '{}').mode === 'commercial-trial'`, 'lokalny plan oceny komercyjnej');
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     await fs.writeFile(licenseOutputPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.license-info-dialog button')].find((button) => /Pełna treść licencji|Full license text/i.test(button.textContent))?.click()`);

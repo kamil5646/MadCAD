@@ -131,12 +131,17 @@ użyć `Control` + klik i wybrać **Otwórz**.
 
 ## Licencja
 
-Aplikacja nie zawiera systemu kluczy, identyfikatora urządzenia ani zdalnego
-rejestru licencji. Przy każdym uruchomieniu pokazuje informacyjne warunki:
+Aplikacja nie zawiera klucza, identyfikatora urządzenia ani zdalnego rejestru.
+Na wzór czytelnego wyboru planu w programach Autodesk zapisuje lokalnie aktywny
+tryb użycia i przy każdym uruchomieniu pokazuje jego status:
 
 - prywatnie bezpłatnie bez limitu czasu;
 - 40 dni oceny dla firmy lub organizacji;
 - później płatna, bezterminowa licencja na każde stanowisko komercyjne.
+
+Przełączenie na ocenę komercyjną uruchamia jeden 40-dniowy licznik, którego nie
+resetuje powrót do trybu osobistego. Wybranie planu komercyjnego jest deklaracją
+posiadania faktury lub pisemnego potwierdzenia — aplikacja nadal nie wymaga klucza.
 
 Pełne warunki: [`../LICENSE`](../LICENSE). Kontakt handlowy:
 [kkasprzak15@icloud.com](mailto:kkasprzak15@icloud.com?subject=MadCAD%20-%20licencja%20komercyjna).

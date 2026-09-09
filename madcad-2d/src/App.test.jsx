@@ -28,16 +28,21 @@ describe('App', () => {
   });
 
   it('shows the private-use, evaluation, and commercial-license terms without a key field', () => {
-    render(<LicenseInfoDialog onClose={() => {}} />);
+    const onSelectPlan = vi.fn();
+    render(<LicenseInfoDialog licensePlan={{ mode: 'personal' }} onSelectPlan={onSelectPlan} onClose={() => {}} />);
     const dialog = screen.getByRole('dialog', { name: /Licencja MadCAD/i });
     expect(dialog).toHaveTextContent(/bezpłatny bez limitu czasu do użytku prywatnego/i);
     expect(dialog).toHaveTextContent(/Wydanie 6.4.7 nie ma podpisu producenta/i);
-    expect(dialog).toHaveTextContent(/oceniać pełną wersję przez 40 dni/i);
+    expect(dialog).toHaveTextContent(/40 dni pełnej wersji/i);
     expect(dialog).toHaveTextContent(/Użytek komercyjny jest płatny/i);
     expect(dialog).toHaveTextContent(/bezterminowej licencji na każde stanowisko/i);
     expect(dialog).toHaveTextContent(/licencję potwierdza dokument zakupu/i);
     expect(dialog).toHaveTextContent(/darowizna wspiera rozwój, ale nie zastępuje licencji komercyjnej/i);
     expect(dialog.querySelector('input, textarea')).toBeNull();
+    expect(screen.getByRole('button', { name: /Ocena komercyjna40 dni/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /KomercyjnaLicencja stanowiskowa/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Ocena komercyjna40 dni/i }));
+    expect(onSelectPlan).toHaveBeenCalledWith('commercial-trial');
     expect(screen.getByRole('link', { name: /Kup licencję komercyjną/i })).toHaveAttribute('href', 'https://kamil5646.github.io/MadCAD/#licencja');
     expect(screen.getByRole('button', { name: /Pełna treść licencji/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Przejdź do programu/i })).toBeInTheDocument();

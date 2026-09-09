@@ -3,6 +3,7 @@ import { AlertTriangle, X } from 'lucide-react';
 import fullLicenseText from '../../LICENSE?raw';
 import { tutorialForLanguage } from './tutorial-content.js';
 import { useDialogFocus } from './use-dialog-focus.js';
+import { describeLicensePlan } from './license-plan.js';
 
 export function FirstPartTutorial({ onClose }) {
   const content = tutorialForLanguage(window.document.documentElement.lang);
@@ -25,8 +26,9 @@ export function FirstPartTutorial({ onClose }) {
   );
 }
 
-export function LicenseInfoDialog({ onClose, onShowFullLicense }) {
+export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { mode: 'personal' }, onSelectPlan = () => {} }) {
   const dialogRef = useDialogFocus();
+  const planStatus = describeLicensePlan(licensePlan);
   useEffect(() => {
     const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKeyDown);
@@ -46,12 +48,17 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense }) {
         <div className="license-info-body">
           <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.</p>
           <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.4.7 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
+          <div className={`license-plan-status ${planStatus.expired ? 'expired' : ''}`} role="status"><span>Aktywny plan</span><strong>{planStatus.label}</strong><small>{planStatus.detail}</small></div>
+          <div className="license-plan-grid" aria-label="Wybierz sposób korzystania z MadCAD">
+            <button type="button" className={licensePlan.mode === 'personal' ? 'selected' : ''} aria-pressed={licensePlan.mode === 'personal'} onClick={() => onSelectPlan('personal')}><strong>Osobista</strong><span>Bezpłatnie bez limitu czasu</span><small>Wyłącznie projekty prywatne, edukacyjne i niezarobkowe.</small></button>
+            <button type="button" className={licensePlan.mode === 'commercial-trial' ? 'selected' : ''} aria-pressed={licensePlan.mode === 'commercial-trial'} onClick={() => onSelectPlan('commercial-trial')}><strong>Ocena komercyjna</strong><span>40 dni pełnej wersji</span><small>Dla firmy lub organizacji przed zakupem.</small></button>
+            <button type="button" className={licensePlan.mode === 'commercial-licensed' ? 'selected' : ''} aria-pressed={licensePlan.mode === 'commercial-licensed'} onClick={() => onSelectPlan('commercial-licensed')}><strong>Komercyjna</strong><span>Licencja stanowiskowa</span><small>Wybierz, jeżeli masz fakturę lub pisemne potwierdzenie zakupu.</small></button>
+          </div>
           <div className="license-info-card license-info-commercial">
             <strong>Użytek komercyjny jest płatny</strong>
             <ul>
-              <li>Firma lub organizacja może bezpłatnie oceniać pełną wersję przez 40 dni.</li>
               <li>Po okresie oceny praca firmowa, zarobkowa lub dla klienta wymaga bezterminowej licencji na każde stanowisko.</li>
-              <li>Nie ma klucza ani aktywacji — licencję potwierdza dokument zakupu.</li>
+              <li>Nie ma klucza ani aktywacji — status jest zapisywany lokalnie, a licencję potwierdza dokument zakupu.</li>
               <li>Dobrowolna darowizna wspiera rozwój, ale nie zastępuje licencji komercyjnej.</li>
             </ul>
           </div>
