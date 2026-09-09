@@ -36,6 +36,7 @@ function normalizeState(value, now = Date.now()) {
     account: source.account && typeof source.account === 'object' ? {
       email: cleanText(source.account.email, 254).toLowerCase(),
       displayName: cleanText(source.account.displayName, 120),
+      emailVerified: Boolean(source.account.emailVerified),
     } : null,
     entitlement: source.entitlement && typeof source.entitlement === 'object' ? {
       plan: ['personal', 'commercial-trial', 'commercial'].includes(source.entitlement.plan) ? source.entitlement.plan : 'personal',
@@ -196,6 +197,29 @@ function createLicenseClient({ statePath, request, protectToken, unprotectToken,
     });
   }
 
+  async function resendVerification() {
+    return queue(async () => {
+      const state = await readState();
+      const token = await tokenFrom(state);
+      if (!token) throw new Error('Zaloguj się, aby potwierdzić adres e-mail.');
+      const response = await request('/auth/resend-verification', { sessionToken: token, appVersion });
+      return { ok: response?.ok === true, message: cleanText(response?.message, 300), status: publicStatus(state, now(), 'online') };
+    });
+  }
+
+  async function verifyEmail(payload) {
+    return queue(async () => {
+      const state = await readState();
+      const token = await tokenFrom(state);
+      if (!token) throw new Error('Zaloguj się, aby potwierdzić adres e-mail.');
+      const verificationToken = cleanText(payload?.verificationToken, 160);
+      if (verificationToken.length < 32) throw new Error('Wklej pełny kod potwierdzający z wiadomości e-mail.');
+      const response = await request('/auth/verify-email', { sessionToken: token, verificationToken, appVersion });
+      const next = await writeState({ ...state, account: response.account || { ...state.account, emailVerified: true } });
+      return { ok: true, message: cleanText(response?.message, 300), status: publicStatus(next, now(), 'online') };
+    });
+  }
+
   return {
     getStatus: refresh,
     login: (payload) => authenticate('login', payload),
@@ -204,6 +228,8 @@ function createLicenseClient({ statePath, request, protectToken, unprotectToken,
     logout,
     requestPasswordReset,
     resetPassword,
+    resendVerification,
+    verifyEmail,
     _readState: readState,
   };
 }

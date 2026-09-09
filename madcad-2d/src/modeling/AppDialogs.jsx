@@ -26,7 +26,7 @@ export function FirstPartTutorial({ onClose }) {
   );
 }
 
-export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { mode: 'personal' }, busy = false, error = '', onLogin = () => {}, onRegister = () => {}, onStartTrial = () => {}, onLogout = () => {}, onRefresh = () => {}, onRequestPasswordReset = () => {}, onResetPassword = () => {} }) {
+export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { mode: 'personal' }, busy = false, error = '', onLogin = () => {}, onRegister = () => {}, onStartTrial = () => {}, onLogout = () => {}, onRefresh = () => {}, onRequestPasswordReset = () => {}, onResetPassword = () => {}, onResendVerification = () => {}, onVerifyEmail = () => {} }) {
   const dialogRef = useDialogFocus();
   const planStatus = describeLicensePlan(licensePlan);
   const [accountMode, setAccountMode] = useState('login');
@@ -35,6 +35,7 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { 
   const [displayName, setDisplayName] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [accountNotice, setAccountNotice] = useState('');
+  const [verificationToken, setVerificationToken] = useState('');
   useEffect(() => {
     const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKeyDown);
@@ -78,8 +79,10 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { 
           {licensePlan.signedIn ? (
             <section className="license-account-panel" aria-label="Konto MadCAD">
               <div><strong>{licensePlan.account?.displayName || licensePlan.account?.email}</strong><small>{licensePlan.account?.email} · {licensePlan.connection === 'online' ? 'sprawdzono online' : 'tryb offline'}</small></div>
+              {!licensePlan.account?.emailVerified && <form className="license-verification-form" onSubmit={async (event) => { event.preventDefault(); const result = await onVerifyEmail({ verificationToken }); if (result?.ok) setAccountNotice(result.message || 'Adres e-mail został potwierdzony.'); }}><label><span>Kod potwierdzający e-mail</span><input value={verificationToken} minLength="32" maxLength="160" required autoComplete="one-time-code" onChange={(event) => setVerificationToken(event.target.value)} /></label><button type="submit" disabled={busy}>Potwierdź e-mail</button><button type="button" disabled={busy} onClick={async () => { const result = await onResendVerification(); if (result?.ok) setAccountNotice(result.message || 'Wysłaliśmy nowy kod.'); }}>Wyślij ponownie</button></form>}
+              {accountNotice && <p className="license-account-notice" role="status">{accountNotice}</p>}
               <div className="license-account-actions">
-                {licensePlan.mode === 'personal' && <button className="commercial" type="button" disabled={busy} onClick={onStartTrial}>Rozpocznij 40-dniową ocenę</button>}
+                {licensePlan.mode === 'personal' && licensePlan.account?.emailVerified && <button className="commercial" type="button" disabled={busy} onClick={onStartTrial}>Rozpocznij 40-dniową ocenę</button>}
                 <button type="button" disabled={busy} onClick={onRefresh}>Sprawdź licencję</button>
                 <button type="button" disabled={busy} onClick={onLogout}>Wyloguj</button>
               </div>

@@ -61,6 +61,13 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: /Nadaj licencję/i })).not.toBeInTheDocument();
   });
 
+  it('requires email verification before offering the commercial trial', () => {
+    const onVerifyEmail = vi.fn();
+    render(<LicenseInfoDialog licensePlan={{ mode: 'personal', signedIn: true, account: { email: 'user@example.com', displayName: 'User', emailVerified: false } }} onVerifyEmail={onVerifyEmail} onClose={() => {}} />);
+    expect(screen.getByRole('textbox', { name: /Kod potwierdzający e-mail/i })).toBeRequired();
+    expect(screen.queryByRole('button', { name: /Rozpocznij 40-dniową ocenę/i })).not.toBeInTheDocument();
+  });
+
   it('focuses the full-license dialog and closes it with Escape', () => {
     const onClose = vi.fn();
     render(<FullLicenseDialog onClose={onClose} />);

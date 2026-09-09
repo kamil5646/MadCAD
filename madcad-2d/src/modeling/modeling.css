@@ -171,11 +171,16 @@
 .commercial-license-form > div { display: flex; justify-content: flex-end; gap: 7px; }
 .commercial-license-form button { min-height: 31px; padding: 0 11px; border: 1px solid #687786; border-radius: 4px; color: #e9f0f4; background: #42505e; cursor: pointer; }
 .commercial-license-form button.commercial { border-color: #b89153; color: #fff0c8; background: #59472f; }
-.license-account-panel { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; border: 1px solid #557181; border-radius: 5px; background: #273944; }
+.license-account-panel { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; border: 1px solid #557181; border-radius: 5px; background: #273944; }
 .license-account-panel > div:first-child { display: grid; gap: 3px; min-width: 0; }
 .license-account-panel strong { overflow: hidden; color: #eef6fa; text-overflow: ellipsis; }
 .license-account-panel small { color: #aebbc5; }
 .license-account-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.license-verification-form { display: flex; align-items: end; flex: 1 1 100%; gap: 7px; padding-top: 8px; border-top: 1px solid #435966; }
+.license-verification-form label { display: grid; flex: 1; gap: 4px; color: #dce5eb; font-size: 10px; }
+.license-verification-form input { min-height: 31px; padding: 0 9px; border: 1px solid #657382; border-radius: 4px; color: #f3f6f8; background: #202934; }
+.license-verification-form button { min-height: 31px; }
+.license-account-panel > .license-account-notice { flex: 1 1 100%; margin: 0; color: #a8edc6; }
 .license-account-actions button { min-height: 31px; padding: 0 11px; border: 1px solid #687786; border-radius: 4px; color: #e9f0f4; background: #42505e; cursor: pointer; }
 .license-account-actions button.commercial { border-color: #b89153; color: #fff0c8; background: #59472f; }
 .license-account-error { display: flex; align-items: center; gap: 7px; margin: 0; padding: 8px 10px; border: 1px solid #a35a50; border-radius: 4px; color: #ffc2b8; background: #4a302d; }

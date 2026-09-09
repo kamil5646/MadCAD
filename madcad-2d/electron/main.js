@@ -1203,6 +1203,8 @@ registerTrustedIpcHandler('madcad:license-start-trial', licenseIpcResult(() => l
 registerTrustedIpcHandler('madcad:license-logout', licenseIpcResult(() => licenseClient.logout()));
 registerTrustedIpcHandler('madcad:license-request-password-reset', licenseIpcResult((_event, payload) => licenseClient.requestPasswordReset(payload)));
 registerTrustedIpcHandler('madcad:license-reset-password', licenseIpcResult((_event, payload) => licenseClient.resetPassword(payload)));
+registerTrustedIpcHandler('madcad:license-resend-verification', licenseIpcResult(() => licenseClient.resendVerification()));
+registerTrustedIpcHandler('madcad:license-verify-email', licenseIpcResult((_event, payload) => licenseClient.verifyEmail(payload)));
 
 registerTrustedIpcHandler('madcad:send-to-slicer', async (_event, payload) => {
   let filePaths = [];

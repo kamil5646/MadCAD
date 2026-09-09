@@ -101,3 +101,27 @@ test('requests and confirms password recovery without changing local entitlement
   assert.rejects(() => client.resetPassword({ email: 'user@example.com', password: 'new-secure-password', resetToken: 'short' }), /pełny kod/i);
   await fs.rm(root, { recursive: true, force: true });
 });
+
+test('verifies account email through the protected session before trial use', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'madcad-license-email-verification-'));
+  const calls = [];
+  const client = createLicenseClient({
+    statePath: path.join(root, 'state.json'),
+    request: async (route, payload) => {
+      calls.push({ route, payload });
+      if (route === '/auth/register') return { ok: true, sessionToken: 'token', account: { email: payload.email, displayName: payload.displayName, emailVerified: false }, entitlement: { plan: 'personal', startsAt: '', expiresAt: '', seats: 1, licenseId: '' } };
+      if (route === '/auth/verify-email') return { ok: true, message: 'Zweryfikowano', account: { email: 'user@example.com', displayName: 'User', emailVerified: true } };
+      return { ok: true, message: 'Wysłano' };
+    },
+    protectToken: async (value) => `safe:${value}`,
+    unprotectToken: async (value) => value.slice(5),
+  });
+  const registration = await client.register({ email: 'user@example.com', password: 'very-secure', displayName: 'User' });
+  assert.equal(registration.status.account.emailVerified, false);
+  assert.equal((await client.resendVerification()).ok, true);
+  const verified = await client.verifyEmail({ verificationToken: 'v'.repeat(43) });
+  assert.equal(verified.status.account.emailVerified, true);
+  assert.equal(calls.at(-1).payload.sessionToken, 'token');
+  assert.rejects(() => client.verifyEmail({ verificationToken: 'short' }), /pełny kod/i);
+  await fs.rm(root, { recursive: true, force: true });
+});

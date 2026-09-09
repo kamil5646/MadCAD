@@ -6,6 +6,7 @@
 - Hasło nie jest zapisywane w aplikacji, token sesji chroni systemowy `safeStorage`, a serwer przechowuje wyłącznie hasze haseł i losowych tokenów.
 - Dodano ograniczoną 30-dniową pracę offline, kontrolę cofnięcia zegara, limit stanowisk oraz administracyjne nadawanie, cofanie i zwalnianie urządzeń.
 - Dodano odzyskiwanie hasła jednorazowym kodem e-mail ważnym 60 minut; zmiana hasła unieważnia wcześniejsze sesje i nie ujawnia istnienia konta.
+- Rejestracja wymaga potwierdzenia adresu e-mail jednorazowym kodem przed uruchomieniem okresu próbnego; kod można bezpiecznie wysłać ponownie.
 - Tryb osobisty nadal uruchamia się natychmiast bez konta i pozostaje bezpłatny wyłącznie do użytku prywatnego, edukacyjnego i niezarobkowego.
 
 ## 6.4.7 (2026-09-03)

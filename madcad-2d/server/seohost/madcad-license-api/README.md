@@ -8,6 +8,8 @@ The desktop application uses only HTTPS and never stores a password. Its session
 
 Password recovery sends a single-use, 60-minute token using the hosting PHP mail transport. Configure and test delivery for `noreply@madmagsystem.pl`; changing a password invalidates every existing session. The request endpoint always returns the same public message, whether or not the account exists.
 
+Registration sends a separate single-use email-verification token valid for 24 hours. An unverified account can sign in and request another code, but cannot start the commercial evaluation. Test both verification and recovery delivery after deploying because PHP mail configuration belongs to the hosting environment.
+
 After deployment, POST `{}` to `/health`. Treat the deployment as ready only when it returns `{"ok":true,"service":"madcad-license"}` over HTTPS. A browser GET intentionally returns 405.
 
 ## Commercial-plan administration

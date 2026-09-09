@@ -45,5 +45,7 @@ contextBridge.exposeInMainWorld('desktopApp', {
   licenseStartTrial: () => ipcRenderer.invoke('madcad:license-start-trial'),
   licenseLogout: () => ipcRenderer.invoke('madcad:license-logout'),
   licenseRequestPasswordReset: (payload) => ipcRenderer.invoke('madcad:license-request-password-reset', payload),
-  licenseResetPassword: (payload) => ipcRenderer.invoke('madcad:license-reset-password', payload)
+  licenseResetPassword: (payload) => ipcRenderer.invoke('madcad:license-reset-password', payload),
+  licenseResendVerification: () => ipcRenderer.invoke('madcad:license-resend-verification'),
+  licenseVerifyEmail: (payload) => ipcRenderer.invoke('madcad:license-verify-email', payload)
 });

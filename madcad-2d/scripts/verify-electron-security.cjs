@@ -95,7 +95,7 @@ app.on('browser-window-created', (_event, mainWindow) => {
       const trustedApi = await evaluateWithDebugger(mainWindow.webContents, `({
         api: Boolean(window.desktopApp && window.desktopApp.isDesktop),
         legacyLicenseApi: Boolean(window.desktopApp && ('deviceId' in window.desktopApp || 'appendLicenseAudit' in window.desktopApp || 'clearLicenseStorage' in window.desktopApp)),
-        accountLicenseApi: Boolean(window.desktopApp && ['licenseGetStatus', 'licenseLogin', 'licenseRegister', 'licenseStartTrial', 'licenseLogout', 'licenseRequestPasswordReset', 'licenseResetPassword'].every((name) => typeof window.desktopApp[name] === 'function'))
+        accountLicenseApi: Boolean(window.desktopApp && ['licenseGetStatus', 'licenseLogin', 'licenseRegister', 'licenseStartTrial', 'licenseLogout', 'licenseRequestPasswordReset', 'licenseResetPassword', 'licenseResendVerification', 'licenseVerifyEmail'].every((name) => typeof window.desktopApp[name] === 'function'))
       })`);
       assert.equal(trustedApi.api, true);
       assert.equal(trustedApi.legacyLicenseApi, false);

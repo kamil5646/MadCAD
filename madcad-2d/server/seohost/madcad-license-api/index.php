@@ -128,6 +128,19 @@ function send_reset_email(array $user, string $token): bool {
   return mail((string)$user['email'], $subject, $message, $headers);
 }
 
+function send_verification_email(array $user, string $token): bool {
+  $subject = 'MadCAD - potwierdzenie adresu e-mail';
+  $message = "Potwierdz adres e-mail konta MadCAD.\n\nKod potwierdzajacy:\n" . $token . "\n\nKod wygasa po 24 godzinach. Jesli to nie Ty, zignoruj wiadomosc.";
+  $headers = "From: MadCAD <noreply@madmagsystem.pl>\r\nContent-Type: text/plain; charset=UTF-8\r\nX-Auto-Response-Suppress: All";
+  return mail((string)$user['email'], $subject, $message, $headers);
+}
+
+function new_verification(array &$user): string {
+  $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+  $user['emailVerification'] = array('tokenHash' => hash('sha256', $token), 'expiresAt' => time() + 86400);
+  return $token;
+}
+
 function client_ip(): string {
   return text($_SERVER['REMOTE_ADDR'] ?? 'unknown', 64);
 }
@@ -225,7 +238,7 @@ function license_response(array $user, array $entitlement, ?string $sessionToken
     'ok' => true,
     'serverTime' => gmdate('c'),
     'offlineDays' => MADCAD_OFFLINE_DAYS,
-    'account' => array('email' => $user['email'], 'displayName' => $user['displayName']),
+    'account' => array('email' => $user['email'], 'displayName' => $user['displayName'], 'emailVerified' => (int)($user['emailVerifiedAt'] ?? 0) > 0),
     'entitlement' => $entitlement,
   );
   if ($sessionToken !== null) $response['sessionToken'] = $sessionToken;
@@ -250,11 +263,14 @@ try {
       if (mb_strlen($displayName) < 2) respond(422, array('ok' => false, 'error' => 'Podaj nazwę użytkownika lub firmy.'));
       foreach ($store['users'] as $user) if (hash_equals((string)$user['email'], $mail)) respond(409, array('ok' => false, 'error' => 'Konto o tym adresie już istnieje.'));
       $id = bin2hex(random_bytes(16));
-      $user = array('id' => $id, 'email' => $mail, 'displayName' => $displayName, 'passwordHash' => password_hash($password, PASSWORD_DEFAULT), 'createdAt' => time(), 'trialStartedAt' => 0, 'commercial' => null, 'devices' => array());
+      $user = array('id' => $id, 'email' => $mail, 'displayName' => $displayName, 'passwordHash' => password_hash($password, PASSWORD_DEFAULT), 'createdAt' => time(), 'emailVerifiedAt' => 0, 'trialStartedAt' => 0, 'commercial' => null, 'devices' => array());
+      $verificationToken = new_verification($user);
       $entitlement = active_entitlement($user);
       bind_device($user, $installationId, $entitlement);
       $store['users'][$id] = $user;
-      return license_response($user, $entitlement, issue_session($store, $id));
+      $response = license_response($user, $entitlement, issue_session($store, $id));
+      $response['_verificationMail'] = array('user' => $user, 'token' => $verificationToken, 'userId' => $id);
+      return $response;
     }
     if ($route === '/auth/login') {
       enforce_rate_limit($store, 'login', 20, 900);
@@ -279,6 +295,22 @@ try {
       }
       return array('ok' => true, 'message' => 'Jeśli konto istnieje, wysłaliśmy kod odzyskiwania.');
     }
+    if ($route === '/auth/resend-verification' || $route === '/auth/verify-email') {
+      enforce_rate_limit($store, $route === '/auth/resend-verification' ? 'resend-verification' : 'verify-email', $route === '/auth/resend-verification' ? 5 : 15, $route === '/auth/resend-verification' ? 3600 : 900);
+      list($id) = require_session($store, $input);
+      $user =& $store['users'][$id];
+      if ((int)($user['emailVerifiedAt'] ?? 0) > 0) return array('ok' => true, 'message' => 'Adres e-mail jest już potwierdzony.', 'account' => array('email' => $user['email'], 'displayName' => $user['displayName'], 'emailVerified' => true));
+      if ($route === '/auth/resend-verification') {
+        $token = new_verification($user);
+        return array('ok' => true, 'message' => 'Wysłaliśmy nowy kod potwierdzający.', '_verificationMail' => array('user' => $user, 'token' => $token, 'userId' => $id));
+      }
+      $token = reset_token($input['verificationToken'] ?? '');
+      $verification = is_array($user['emailVerification'] ?? null) ? $user['emailVerification'] : array();
+      if ((int)($verification['expiresAt'] ?? 0) < time() || !hash_equals((string)($verification['tokenHash'] ?? ''), hash('sha256', $token))) respond(422, array('ok' => false, 'error' => 'Kod potwierdzający jest nieprawidłowy lub wygasł.'));
+      $user['emailVerifiedAt'] = time();
+      unset($user['emailVerification']);
+      return array('ok' => true, 'message' => 'Adres e-mail został potwierdzony.', 'account' => array('email' => $user['email'], 'displayName' => $user['displayName'], 'emailVerified' => true));
+    }
     if ($route === '/auth/reset-password') {
       enforce_rate_limit($store, 'reset-password', 15, 900);
       $mail = email($input['email'] ?? '');
@@ -296,6 +328,7 @@ try {
       list($id) = require_session($store, $input);
       $user =& $store['users'][$id];
       $installationId = installation_id($input['installationId'] ?? '');
+      if ($route === '/license/start-trial' && (int)($user['emailVerifiedAt'] ?? 0) === 0) respond(403, array('ok' => false, 'error' => 'Potwierdź adres e-mail przed rozpoczęciem oceny.'));
       if ($route === '/license/start-trial' && (int)($user['trialStartedAt'] ?? 0) === 0 && active_entitlement($user)['plan'] !== 'commercial') $user['trialStartedAt'] = time();
       $entitlement = active_entitlement($user);
       bind_device($user, $installationId, $entitlement);
@@ -346,6 +379,11 @@ try {
     $mail = $result['_resetMail'];
     unset($result['_resetMail']);
     if (!send_reset_email($mail['user'], (string)$mail['token'])) error_log('MadCAD license API: reset email could not be sent for user ' . $mail['userId']);
+  }
+  if (isset($result['_verificationMail']) && is_array($result['_verificationMail'])) {
+    $mail = $result['_verificationMail'];
+    unset($result['_verificationMail']);
+    if (!send_verification_email($mail['user'], (string)$mail['token'])) error_log('MadCAD license API: verification email could not be sent for user ' . $mail['userId']);
   }
   respond(200, $result);
 } catch (MadcadHttpResponse $response) {
