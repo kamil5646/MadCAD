@@ -31,6 +31,9 @@ describe('solid 3D finite elements', () => {
     expect(result.equilibriumErrorPercent).toBeLessThan(1e-4);
     expect(result.convergence.comparisonDensity).toBe(5);
     expect(result.convergence.displacementChangePercent).toBeGreaterThanOrEqual(0);
+    expect(result.verification.benchmarkVersion).toBe('2026-09-09');
+    expect(result.verification.checks.equilibrium).toBe(true);
+    expect(['verified', 'review']).toContain(result.verification.status);
   });
 
   it('matches the analytical axial response of a prismatic bar within the coarse-mesh tolerance', () => {
@@ -52,6 +55,7 @@ describe('solid 3D finite elements', () => {
 
   it('rejects an unsupported or under-resolved model instead of returning invented results', () => {
     expect(() => calculateSolidFea({ bodyKind: 'surface' })).toThrow(/powierzchni/);
-    expect(() => createSolidFeaMesh(boxBody(), 1)).toThrow(/od 2 do 8/);
+    expect(() => createSolidFeaMesh(boxBody(), 1)).toThrow(/od 2 do 16/);
+    expect(() => createSolidFeaMesh(boxBody(), 17)).toThrow(/od 2 do 16/);
   });
 });

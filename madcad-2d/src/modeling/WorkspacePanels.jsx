@@ -11,12 +11,12 @@ import { commandCustomizationRows, validateCommandCustomization } from './comman
 import { multipleSelectionLabel } from './platform-shortcuts.js';
 import { useDialogFocus } from './use-dialog-focus.js';
 
-export function Field({ label, value, onChange, suffix = '', type = 'text', disabled = false, autoFocus = false }) {
+export function Field({ label, ariaLabel, value, onChange, suffix = '', type = 'text', disabled = false, autoFocus = false }) {
   return (
     <label className="command-field">
       <span>{label}</span>
       <div className="command-input-wrap">
-        <input autoFocus={autoFocus} type={type} value={value ?? ''} onChange={(event) => onChange?.(event.target.value)} disabled={disabled} />
+        <input aria-label={ariaLabel} autoFocus={autoFocus} type={type} value={value ?? ''} onChange={(event) => onChange?.(event.target.value)} disabled={disabled} />
         {suffix && <em>{suffix}</em>}
       </div>
     </label>
@@ -624,7 +624,7 @@ export function SolidFeaPanel({ bodies = [], bodyId = '', materialId = 's235', s
         <label><span>Materiał</span><select aria-label="Materiał MES 3D" value={materialId} onChange={(event) => onChange({ materialId: event.target.value })}>{Object.values(ENGINEERING_MATERIALS).map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}</select></label>
         <section className="solid-fea-boundary"><strong>Utwierdzenie</strong>{supportFaceId ? <div className="solid-fea-face-reference"><Anchor size={13} /><span>{supportFaceLabel || 'Wskazana ściana modelu'}</span></div> : <div className="static-axis-grid"><label><span>Oś</span><select aria-label="Oś utwierdzenia MES 3D" value={supportAxis} onChange={(event) => onChange({ supportAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label><label><span>Strona</span><select aria-label="Strona utwierdzenia MES 3D" value={supportSide} onChange={(event) => onChange({ supportSide: event.target.value })}><option value="min">MIN</option><option value="max">MAX</option></select></label></div>}</section>
         <section className="solid-fea-boundary"><strong>Obciążenie powierzchni</strong>{loadFaceId && <div className="solid-fea-face-reference load"><Anchor size={13} /><span>{loadFaceLabel || 'Wskazana ściana modelu'}</span></div>}<div className="static-axis-grid"><label><span>Kierunek</span><select aria-label="Kierunek siły MES 3D" value={loadAxis} onChange={(event) => onChange({ loadAxis: event.target.value })}>{['x', 'y', 'z'].map((axis) => <option key={axis} value={axis}>{axis.toUpperCase()}</option>)}</select></label>{!loadFaceId && <label><span>Strona</span><select aria-label="Strona obciążenia MES 3D" value={loadSide} onChange={(event) => onChange({ loadSide: event.target.value })}><option value="max">MAX</option><option value="min">MIN</option></select></label>}</div></section>
-        <div className="beam-fea-inputs"><Field label="Siła całkowita" value={force} onChange={(value) => onChange({ force: value })} suffix="N" /><Field label="Gęstość siatki" value={meshDensity} onChange={(value) => onChange({ meshDensity: value })} /></div>
+        <div className="beam-fea-inputs"><Field label="Siła całkowita" value={force} onChange={(value) => onChange({ force: value })} suffix="N" /><Field label="Gęstość siatki" ariaLabel="Gęstość siatki" value={meshDensity} onChange={(value) => onChange({ meshDensity: value })} suffix="2–16" /></div>
         {error && <p className="measure-error">{error}</p>}
         {result && <>
           <div className={`static-result ${result.status}`}>
@@ -637,6 +637,7 @@ export function SolidFeaPanel({ bodies = [], bodyId = '', materialId = 's235', s
             <div className="measure-row"><span>Błąd równowagi sił</span><strong>{format(result.equilibriumErrorPercent, 4)}%</strong></div>
             <div className="measure-row"><span>Zbieżność siatki</span><strong>{result.convergence?.status === 'converged' ? '≤ 10%' : result.convergence?.status === 'refine' ? 'Zagęść siatkę' : 'Brak porównania'}</strong></div>
             {result.convergence?.displacementChangePercent != null && <div className="measure-row"><span>Zmiana u / σ</span><strong>{format(result.convergence.displacementChangePercent, 1)}% / {format(result.convergence.stressChangePercent, 1)}%</strong></div>}
+            <div className="measure-row"><span>Kontrola wyniku</span><strong>{result.verification?.status === 'verified' ? 'Zweryfikowany' : 'Wymaga przeglądu'}</strong></div>
             <div className="measure-row"><span>Solver</span><strong>{result.iterationCount} iteracji</strong></div>
           </div>
           <div className="beam-fea-legend" aria-label="Legenda MES bryły 3D"><span><i className="support" />Utwierdzenie</span><span><i className="load" />Obciążenie</span><span><i className="deformation" />Naprężenie</span></div>

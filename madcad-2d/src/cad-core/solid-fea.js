@@ -94,11 +94,12 @@ export function createSolidFeaMesh(body, targetCells = 6) {
   const triangles = Array.from(body?.triangles || []);
   if (!Array.isArray(bounds) || bounds.length !== 2 || vertices.length < 12 || triangles.length < 12) throw new Error('MES bryły 3D wymaga zamkniętej bryły z poprawną siatką powierzchniową.');
   const maximumCells = Number(targetCells);
-  if (!Number.isInteger(maximumCells) || maximumCells < 2 || maximumCells > 8) throw new Error('Gęstość siatki musi wynosić od 2 do 8 komórek na najdłuższej osi.');
+  if (!Number.isInteger(maximumCells) || maximumCells < 2 || maximumCells > 16) throw new Error('Gęstość siatki musi wynosić od 2 do 16 komórek na najdłuższej osi.');
   const dimensions = bounds[1].map((value, axis) => value - bounds[0][axis]);
   if (dimensions.some((value) => !Number.isFinite(value) || value <= 0)) throw new Error('Bryła musi mieć trzy dodatnie wymiary.');
   const longest = Math.max(...dimensions);
-  const counts = dimensions.map((dimension) => Math.max(2, Math.round(maximumCells * dimension / longest)));
+  const minimumCrossSectionCells = maximumCells >= 8 ? 6 : maximumCells >= 6 ? 4 : 2;
+  const counts = dimensions.map((dimension) => Math.max(minimumCrossSectionCells, Math.round(maximumCells * dimension / longest)));
   const steps = dimensions.map((dimension, axis) => dimension / counts[axis]);
   const gridIndex = (i, j, k) => i + (counts[0] + 1) * (j + (counts[1] + 1) * k);
   const gridNodes = [];
@@ -352,5 +353,16 @@ export function calculateSolidFea(body, options = {}) {
       result.convergence = { comparisonDensity, status: 'unavailable', error: error.message };
     }
   }
+  const verificationChecks = {
+    volume: result.volumeErrorPercent == null || result.volumeErrorPercent <= 5,
+    equilibrium: result.equilibriumErrorPercent <= 0.001,
+    solver: result.residualNorm / result.force <= 1e-8,
+    convergence: result.convergence?.status === 'converged',
+  };
+  result.verification = {
+    benchmarkVersion: '2026-09-09',
+    checks: verificationChecks,
+    status: Object.values(verificationChecks).every(Boolean) ? 'verified' : 'review',
+  };
   return result;
 }

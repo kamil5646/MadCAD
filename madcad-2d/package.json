@@ -59,6 +59,7 @@
     "verify:static-screening": "npm run build:ui && electron scripts/verify-static-screening.cjs",
     "verify:beam-fea": "npm run build:ui && electron scripts/verify-beam-fea.cjs",
     "verify:solid-fea": "npm run build:ui && electron scripts/verify-solid-fea.cjs",
+    "verify:solid-fea-benchmarks": "node scripts/verify-solid-fea-benchmarks.mjs",
     "verify:thermal-screening": "npm run build:ui && electron scripts/verify-thermal-screening.cjs",
     "verify:manufacturing": "npm run build:ui && electron scripts/verify-manufacturing.cjs",
     "verify:cutting": "npm run build:ui && electron scripts/verify-cutting.cjs",
