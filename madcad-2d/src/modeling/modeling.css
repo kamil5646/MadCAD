@@ -117,7 +117,7 @@
 }
 
 .license-info-dialog {
-  width: min(540px, 100%);
+  width: min(760px, 100%);
   max-height: calc(100dvh - 32px);
   display: flex;
   flex-direction: column;
@@ -153,6 +153,13 @@
 .license-info-card ul { display: grid; gap: 4px; margin: 0; padding-left: 17px; color: #cbd4dc; line-height: 1.35; }
 .license-info-card.license-info-commercial { border-color: rgba(241, 189, 98, 0.55); background: rgba(104, 72, 26, 0.2); }
 .license-info-card.license-info-commercial strong { color: #ffd489; }
+.license-commercial-details { padding: 0; }
+.license-commercial-details summary { position: relative; padding: 10px 34px 10px 12px; color: #ffd489; font-size: 11px; font-weight: 700; cursor: pointer; list-style: none; }
+.license-commercial-details summary::-webkit-details-marker { display: none; }
+.license-commercial-details summary::after { position: absolute; top: 50%; right: 12px; content: "+"; color: #ffd489; font-size: 15px; line-height: 1; transform: translateY(-50%); }
+.license-commercial-details[open] summary { border-bottom: 1px solid rgba(241, 189, 98, 0.35); }
+.license-commercial-details[open] summary::after { content: "−"; }
+.license-commercial-details ul { margin: 10px 12px 11px; }
 .license-plan-status { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 10px; padding: 9px 11px; border: 1px solid #4b91aa; border-radius: 5px; background: #263d48; }
 .license-plan-status span { color: #a9bbc5; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
 .license-plan-status strong { color: #8ce5ff; font-size: 12px; }
@@ -190,8 +197,7 @@
 .license-account-error { display: flex; align-items: center; gap: 7px; margin: 0; padding: 8px 10px; border: 1px solid #a35a50; border-radius: 4px; color: #ffc2b8; background: #4a302d; }
 .commercial-license-form .license-account-notice { grid-column: 1 / -1; margin: 0; color: #a8edc6; }
 .license-account-form button:disabled, .license-account-actions button:disabled { opacity: .55; cursor: wait; }
-.license-info-support-copy { margin: 0; color: #cbd4dc; font-size: 11px; line-height: 1.4; }
-.license-info-actions { display: grid; grid-template-columns: repeat(3, max-content); justify-content: start; gap: 7px; padding-top: 10px; border-top: 1px solid #4f5c69; }
+.license-info-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; padding-top: 10px; border-top: 1px solid #4f5c69; }
 .license-info-actions a { display: inline-flex; min-height: 31px; align-items: center; justify-content: center; padding: 0 10px; border: 1px solid #627282; border-radius: 4px; color: #e7edf2; background: #354250; font-size: 11px; text-decoration: none; }
 .license-info-actions a:hover { border-color: #7f93a6; background: #405061; }
 .license-info-actions a.commercial { border-color: #8d7042; color: #ffe2a7; background: #4a3b28; }

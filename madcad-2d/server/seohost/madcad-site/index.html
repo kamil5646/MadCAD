@@ -21,10 +21,11 @@
       </a>
       <nav aria-label="Główna nawigacja">
         <a href="#mozliwosci">Możliwości</a>
+        <a href="#pobierz">Pobierz</a>
         <a href="#licencja">Licencja</a>
-        <a href="#instalacja">Instalacja</a>
+        <a href="#instalacja">Pomoc</a>
       </nav>
-      <a class="header-download" href="https://github.com/kamil5646/MadCAD/releases/tag/v6.5.0">Pobierz 6.5.0</a>
+      <a class="header-download" href="#pobierz">Pobierz 6.5.0</a>
     </header>
 
     <main id="main">
@@ -37,15 +38,44 @@
             bryłami, powierzchniami i przygotowaniem produkcji.
           </p>
           <div class="hero-actions">
-            <a class="button primary" href="https://github.com/kamil5646/MadCAD/releases/tag/v6.5.0">Pobierz na macOS</a>
+            <a class="button primary" href="#pobierz">Wybierz swój system</a>
             <a class="button secondary" href="https://github.com/kamil5646/MadCAD/releases/tag/v6.5.0">Wszystkie pliki wydania</a>
           </div>
-          <p class="release-note">Wersja 6.5.0 · Apple Silicon · instalacja bez płatnego certyfikatu</p>
+          <p class="release-note">Wersja 6.5.0 · macOS, Windows i Linux · bezpłatnie do użytku prywatnego</p>
         </div>
         <figure class="product-shot">
           <img src="assets/madcad-workspace.png" alt="Interfejs MadCAD z gotową bryłą po wyciągnięciu szkicu" />
           <figcaption>Szkic, operacje 3D i historia modelu pracują w jednym dokumencie.</figcaption>
         </figure>
+      </section>
+
+      <section class="downloads" id="pobierz" aria-labelledby="downloads-title">
+        <div class="section-heading">
+          <p class="eyebrow">Pobierz MadCAD 6.5.0</p>
+          <h2 id="downloads-title">Właściwy instalator, bez szukania po plikach.</h2>
+          <p>Wybierz system. Wszystkie paczki pochodzą bezpośrednio z oficjalnego wydania w repozytorium MadCAD.</p>
+        </div>
+        <div class="download-grid">
+          <article>
+            <p class="platform">macOS</p>
+            <h3>Apple Silicon</h3>
+            <p>Mac z procesorem M1 lub nowszym. Aplikacja nie jest podpisana certyfikatem Apple.</p>
+            <a class="button primary" href="https://github.com/kamil5646/MadCAD/releases/download/v6.5.0/MadCAD-6.5.0-mac-arm64.dmg">Pobierz DMG</a>
+          </article>
+          <article>
+            <p class="platform">Windows</p>
+            <h3>Windows 10/11 64-bit</h3>
+            <p>Instalator EXE dla komputerów x64. Windows może poprosić o dodatkowe potwierdzenie.</p>
+            <a class="button primary" href="https://github.com/kamil5646/MadCAD/releases/download/v6.5.0/MadCAD-6.5.0-win-x64.exe">Pobierz EXE</a>
+          </article>
+          <article>
+            <p class="platform">Linux</p>
+            <h3>Linux x86_64</h3>
+            <p>Przenośny AppImage. Po pobraniu nadaj plikowi uprawnienie do uruchomienia.</p>
+            <a class="button primary" href="https://github.com/kamil5646/MadCAD/releases/download/v6.5.0/MadCAD-6.5.0-linux-x86_64.AppImage">Pobierz AppImage</a>
+          </article>
+        </div>
+        <p class="download-meta"><a href="https://github.com/kamil5646/MadCAD/releases/tag/v6.5.0">Informacje o wydaniu i sumy SHA-256 →</a></p>
       </section>
 
       <section class="workflow" aria-labelledby="workflow-title">
@@ -108,13 +138,35 @@
       <section class="install" id="instalacja" aria-labelledby="install-title">
         <div class="section-heading">
           <p class="eyebrow">Pierwsze uruchomienie</p>
-          <h2 id="install-title">Instalacja na macOS bez certyfikatu</h2>
+          <h2 id="install-title">Uruchomienie bez płatnego certyfikatu.</h2>
+          <p>Nie wyłączaj zabezpieczeń systemu. Wystarczy jednorazowo potwierdzić aplikację pobraną z oficjalnego wydania.</p>
         </div>
-        <ol>
-          <li><b>Pobierz plik DMG</b><span>Użyj oficjalnego wydania 6.5.0 i przeciągnij MadCAD do folderu Aplikacje.</span></li>
-          <li><b>Otwórz menu kontekstowe</b><span>W Finderze kliknij MadCAD z naciśniętym Control i wybierz „Otwórz”.</span></li>
-          <li><b>Potwierdź uruchomienie</b><span>System zapamięta wybór. Kolejne uruchomienia będą już zwyczajne.</span></li>
-        </ol>
+        <div class="install-guides">
+          <article>
+            <h3>macOS</h3>
+            <ol>
+              <li><b>Przenieś do Aplikacji</b><span>Otwórz DMG i przeciągnij MadCAD do folderu Aplikacje.</span></li>
+              <li><b>Otwórz z menu</b><span>W Finderze kliknij aplikację z naciśniętym Control i wybierz „Otwórz”.</span></li>
+              <li><b>Potwierdź raz</b><span>Kolejne uruchomienia będą już zwyczajne.</span></li>
+            </ol>
+          </article>
+          <article>
+            <h3>Windows</h3>
+            <ol>
+              <li><b>Uruchom EXE</b><span>Jeśli pojawi się SmartScreen, wybierz „Więcej informacji”.</span></li>
+              <li><b>Sprawdź wydawcę</b><span>Upewnij się, że plik pochodzi z oficjalnego GitHub Release.</span></li>
+              <li><b>Wybierz „Uruchom mimo to”</b><span>Dokończ instalację zgodnie z instrukcjami.</span></li>
+            </ol>
+          </article>
+          <article>
+            <h3>Linux</h3>
+            <ol>
+              <li><b>Pobierz AppImage</b><span>Zapisz plik w wybranym katalogu.</span></li>
+              <li><b>Nadaj uprawnienie</b><span>We właściwościach zaznacz możliwość uruchamiania jako program.</span></li>
+              <li><b>Uruchom</b><span>Nie jest wymagany klasyczny instalator.</span></li>
+            </ol>
+          </article>
+        </div>
         <p class="security-note">Paczki wydania zawierają sumy SHA-256, które pozwalają sprawdzić integralność pobranego pliku.</p>
       </section>
     </main>
