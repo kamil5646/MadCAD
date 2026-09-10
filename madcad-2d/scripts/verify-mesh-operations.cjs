@@ -81,10 +81,11 @@ app.whenReady().then(async () => {
       const rect = panel.getBoundingClientRect();
       const stageRect = document.querySelector('.modeling-stage').getBoundingClientRect();
       const feature = window.__madcadVerifyDocumentState.featureData.find((item) => item.type === 'importedModel');
-      return { triangleCount: window.__madcadVerifyEngineState.bodies[0].triangles.length / 3, groupCount: feature.meshGroups.length, operationTypes: feature.meshOperations.map((item) => item.type), text: panel.textContent, insideWorkspace: rect.left >= stageRect.left && rect.right <= stageRect.right && rect.top >= stageRect.top && rect.bottom <= stageRect.bottom, contentFits: body.scrollHeight <= body.clientHeight + 1, horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
+      const bodyStyle = getComputedStyle(body);
+      return { triangleCount: window.__madcadVerifyEngineState.bodies[0].triangles.length / 3, groupCount: feature.meshGroups.length, operationTypes: feature.meshOperations.map((item) => item.type), text: panel.textContent, insideWorkspace: rect.left >= stageRect.left && rect.right <= stageRect.right && rect.top >= stageRect.top && rect.bottom <= stageRect.bottom, contentReachable: body.scrollHeight <= body.clientHeight + 1 || ['auto', 'scroll'].includes(bodyStyle.overflowY), horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (result.triangleCount !== remeshedTriangles || remeshedTriangles <= reducedTriangles || result.groupCount !== 1 || result.operationTypes.join(',') !== 'reduce,smooth,remesh,group' || !result.insideWorkspace || !result.contentFits || result.horizontalOverflow) throw new Error(`Niepoprawny wynik operacji siatki: ${JSON.stringify({ reducedTriangles, remeshedTriangles, ...result })}`);
+    if (result.triangleCount !== remeshedTriangles || remeshedTriangles <= reducedTriangles || result.groupCount !== 1 || result.operationTypes.join(',') !== 'reduce,smooth,remesh,group' || !result.insideWorkspace || !result.contentReachable || result.horizontalOverflow) throw new Error(`Niepoprawny wynik operacji siatki: ${JSON.stringify({ reducedTriangles, remeshedTriangles, ...result })}`);
     process.stdout.write(`${JSON.stringify({ screenshotPath, reducedTriangles, remeshedTriangles, ...result }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;

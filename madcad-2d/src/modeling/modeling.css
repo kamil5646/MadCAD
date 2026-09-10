@@ -4038,7 +4038,10 @@
   z-index: 7;
   top: 14px;
   right: 14px;
+  display: flex;
   width: 270px;
+  max-height: calc(100% - 28px);
+  flex-direction: column;
   border: 1px solid #66717e;
   border-radius: 3px;
   background: rgba(52, 62, 75, 0.97);
@@ -4074,7 +4077,9 @@
 }
 
 .measure-panel-body {
+  min-height: 0;
   padding: 10px 12px 12px;
+  overflow-y: auto;
 }
 
 .measure-panel-body p {

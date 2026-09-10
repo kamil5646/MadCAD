@@ -1,6 +1,6 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, nativeImage } = require('electron');
 
 const artifactDirectory = path.join(__dirname, '..', 'artifacts');
 const screenshotPath = path.join(artifactDirectory, 'madcad-render-scene.png');
@@ -70,7 +70,16 @@ app.whenReady().then(async () => {
       try { if ((await fs.stat(renderPath)).size > 1000) break; } catch {}
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    const renderBytes = (await fs.stat(renderPath)).size;
+    const renderBuffer = await fs.readFile(renderPath);
+    const renderBytes = renderBuffer.length;
+    const renderImage = nativeImage.createFromBuffer(renderBuffer);
+    const renderSize = renderImage.getSize();
+    const renderBitmap = renderImage.toBitmap();
+    const sampledColors = new Set();
+    const sampleStride = Math.max(4, Math.floor(renderBitmap.length / 4096 / 4) * 4);
+    for (let offset = 0; offset + 3 < renderBitmap.length; offset += sampleStride) {
+      sampledColors.add(renderBitmap.readUInt32LE(offset));
+    }
     const result = await window.webContents.executeJavaScript(`(() => {
       const panel = document.querySelector('.render-scene-panel').getBoundingClientRect();
       return {
@@ -83,8 +92,9 @@ app.whenReady().then(async () => {
       };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    if (result.preset !== 'daylight' || result.appliedPreset !== 'daylight' || result.decals !== 1 || result.renderedDecals !== 1 || !result.insideViewport || result.horizontalOverflow || renderBytes <= 100000) throw new Error(`Niepoprawna lub pusta scena renderu: ${JSON.stringify({ ...result, renderBytes })}`);
-    process.stdout.write(`${JSON.stringify({ screenshotPath, renderPath, renderBytes, ...result }, null, 2)}\n`);
+    const renderValid = renderBytes > 5_000 && renderBuffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) && renderSize.width >= 1000 && renderSize.height >= 700 && sampledColors.size >= 16;
+    if (result.preset !== 'daylight' || result.appliedPreset !== 'daylight' || result.decals !== 1 || result.renderedDecals !== 1 || !result.insideViewport || result.horizontalOverflow || !renderValid) throw new Error(`Niepoprawna lub pusta scena renderu: ${JSON.stringify({ ...result, renderBytes, renderSize, sampledColors: sampledColors.size })}`);
+    process.stdout.write(`${JSON.stringify({ screenshotPath, renderPath, renderBytes, renderSize, sampledColors: sampledColors.size, ...result }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
     try {

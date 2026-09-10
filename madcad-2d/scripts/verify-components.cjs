@@ -199,8 +199,10 @@ app.whenReady().then(async () => {
     while (downloads.length < 1) await new Promise((resolve) => setTimeout(resolve, 50));
     await downloads[0];
     const instructionHtml = await fs.readFile(storyboardInstructionsPath, 'utf8');
-    const instructionImages = instructionHtml.match(/data:image\/png;base64,/g) || [];
-    if (!instructionHtml.includes('Odsuń ramę') || !instructionHtml.includes('55.0') || !instructionHtml.includes('Montaż testowy') || instructionImages.length !== 2 || instructionHtml.length < 100_000) throw new Error(`Instrukcja HTML nie zawiera danych i dwóch widoków storyboardu: ${instructionHtml.length} B, ${instructionImages.length} obrazów.`);
+    const instructionImages = [...instructionHtml.matchAll(/data:image\/png;base64,([^"']+)/g)]
+      .map((match) => Buffer.from(match[1], 'base64'));
+    const validInstructionImages = instructionImages.every((image) => image.length > 1_000 && image.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])));
+    if (!instructionHtml.includes('Odsuń ramę') || !instructionHtml.includes('55.0') || !instructionHtml.includes('Montaż testowy') || instructionImages.length !== 2 || !validInstructionImages) throw new Error(`Instrukcja HTML nie zawiera danych i dwóch poprawnych widoków PNG storyboardu: ${instructionHtml.length} B, ${instructionImages.length} obrazów.`);
     if (!(await clickByText(window, '.storyboard-export button', 'Film WebM'))) throw new Error('Nie znaleziono eksportu filmu WebM.');
     await waitFor(window, `document.querySelector('.storyboard-export button')?.textContent.includes('Nagrywanie')`, 'rozpoczęcie eksportu WebM');
     while (downloads.length < 2) await new Promise((resolve) => setTimeout(resolve, 100));

@@ -146,6 +146,7 @@ app.whenReady().then(async () => {
     })`);
     window.webContents.sendInputEvent({ type: 'mouseDown', x: cancelState.handle.x, y: cancelState.handle.y, button: 'left', clickCount: 1 });
     window.webContents.sendInputEvent({ type: 'mouseMove', x: cancelState.handle.x + 25, y: cancelState.handle.y - 15, button: 'left' });
+    await window.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(resolve))`);
     await window.webContents.executeJavaScript(`document.querySelector('.model-viewport canvas').dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, pointerType: 'mouse', clientX: ${cancelState.handle.x + 25}, clientY: ${cancelState.handle.y - 15}, bubbles: true }))`);
     window.webContents.sendInputEvent({ type: 'mouseUp', x: cancelState.handle.x + 25, y: cancelState.handle.y - 15, button: 'left', clickCount: 1 });
     await window.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
