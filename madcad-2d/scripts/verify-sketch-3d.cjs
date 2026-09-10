@@ -4,6 +4,7 @@ const { app, BrowserWindow } = require('electron');
 
 const artifactPath = path.join(__dirname, '..', 'artifacts', 'sketch-3d-pipe.png');
 const handleArtifactPath = path.join(__dirname, '..', 'artifacts', 'sketch-3d-handles.png');
+const projectionTimeoutMs = process.env.CI ? 90000 : 45000;
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
   const startedAt = Date.now();
@@ -238,6 +239,7 @@ app.whenReady().then(async () => {
       window.__madcadVerifyTopologySelection({ kind: 'edge', id: edge.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }, 'replace');
       return { edgeId: edge.id, bodyId: body.id, endpoints: edge.descriptor.endpoints };
     })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'projectSketch' && window.__madcadVerifyDocumentState?.selection?.id === ${JSON.stringify(associatedSource.edgeId)}`, 'zapisany wybór skojarzonej linii', projectionTimeoutMs);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sketch3d' && window.__madcadVerifyDocumentState?.sketches?.[1]?.entities === 3 && window.__madcadVerifyDocumentState?.sketches?.[1]?.entityData?.some((entity) => entity.type === 'line' && entity.role === 'projected')`, 'skojarzona linia ścieżki 3D');
     await clickTool(window, 'Pobierz krawędzie');
@@ -249,8 +251,9 @@ app.whenReady().then(async () => {
       window.__madcadVerifyTopologySelection({ kind: 'edge', id: edge.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }, 'replace');
       return { edgeId: edge.id, endpoints: edge.descriptor.endpoints, midpoint: edge.descriptor.midpoint };
     })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'projectSketch' && window.__madcadVerifyDocumentState?.selection?.id === ${JSON.stringify(associatedArcSource.edgeId)}`, 'zapisany wybór skojarzonego łuku', projectionTimeoutMs);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sketch3d' && window.__madcadVerifyDocumentState?.sketches?.[1]?.entityData?.some((entity) => entity.type === 'arc3d' && entity.role === 'projected')`, 'skojarzony łuk kołowy ścieżki 3D');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sketch3d' && window.__madcadVerifyDocumentState?.sketches?.[1]?.entityData?.some((entity) => entity.type === 'arc3d' && entity.role === 'projected')`, 'skojarzony łuk kołowy ścieżki 3D', projectionTimeoutMs);
     const associatedPath = await window.webContents.executeJavaScript(`(() => {
       const sketch = window.__madcadVerifyDocumentState.sketches[1];
       const line = sketch.entityData.find((entity) => entity.type === 'line' && entity.role === 'projected');
@@ -282,8 +285,9 @@ app.whenReady().then(async () => {
       const edge = body.topology.edges.filter((item) => item.descriptor?.bspline).sort((a, b) => b.descriptor.length - a.descriptor.length)[0];
       if (!edge) throw new Error('Brak B-spline do testu.');
       window.__madcadVerifyTopologySelection({ kind: 'edge', id: edge.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }, 'replace');
-      return { bspline: edge.descriptor.bspline, surfaceFaceIds: edge.descriptor.surfaceFaceIds };
+      return { edgeId: edge.id, bspline: edge.descriptor.bspline, surfaceFaceIds: edge.descriptor.surfaceFaceIds };
     })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'projectSketch' && window.__madcadVerifyDocumentState?.selection?.id === ${JSON.stringify(bsplineSource.edgeId)}`, 'zapisany wybór skojarzonej B-spline', projectionTimeoutMs);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[2]?.entityData?.some((entity) => entity.type === 'bspline3d')`, 'skojarzona B-spline', 90000);
     const projectedSpline = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[2].entityData.find((entity) => entity.type === 'bspline3d')`);
@@ -328,6 +332,7 @@ app.whenReady().then(async () => {
       window.__madcadVerifyTopologySelection({ kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }, 'replace');
       return face.id;
     })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'projectSurface' && window.__madcadVerifyDocumentState?.selection?.id === ${JSON.stringify(surfaceCommandFace)}`, 'zapisany wybór ściany Project to Surface', projectionTimeoutMs);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sketch3d' && window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.some((entity) => entity.type === 'bspline3d' && entity.surfaceProjection)`, 'wynik polecenia Project to Surface', 45000);
     const surfaceCommandResult = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[3].entityData.find((entity) => entity.type === 'bspline3d')`);
