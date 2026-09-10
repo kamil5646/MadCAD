@@ -2009,9 +2009,14 @@ async function runUiFlow(window) {
     await sendMouse('mouseMove', {
       x: dynamicLineStart.x + ((dynamicLineDirection.x - dynamicLineStart.x) * step / 5),
       y: dynamicLineStart.y + ((dynamicLineDirection.y - dynamicLineStart.y) * step / 5),
-    });
+    }, ['alt']);
   }
-  await waitForUi(window, `(() => { const value = Number.parseFloat(document.querySelector('.sketch-dynamic-input strong')?.textContent || ''); return value >= 45 && value <= 55; })()`, 'podgląd kierunku i długości linii');
+  await waitForUi(
+    window,
+    `(() => { const value = Number.parseFloat(document.querySelector('.sketch-dynamic-input strong')?.textContent || ''); return value >= 45 && value <= 55; })()`,
+    'podgląd kierunku i długości linii',
+    modelingTimeoutMs,
+  );
   const dynamicLinePreview = await window.webContents.executeJavaScript(`(() => ({
     distance: Number.parseFloat(document.querySelector('.sketch-dynamic-input strong')?.textContent || ''),
     angle: Number.parseFloat(document.querySelector('.sketch-dynamic-input small')?.textContent || ''),
