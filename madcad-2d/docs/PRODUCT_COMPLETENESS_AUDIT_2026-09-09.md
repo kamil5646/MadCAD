@@ -46,8 +46,8 @@ Przekrojowo sprawdzić, czy funkcje opisane jako gotowe mają wykonywalną bramk
 - bloki: definicja, dwa wystąpienia, atrybut, Undo/Redo i rozbicie;
 - komponenty: 2 definicje, 4 wystąpienia, jointy, Motion Link, Contact Set, konfiguracje, storyboard i kolizje dokładne;
 - sterowanie kamerą, odzyskiwanie po awarii, menu Plik, skróty, dostępność, snap i usuwanie przeszły rzeczywiste scenariusze Electron.
-- po aktualizacji bezpieczeństwa: 181/181 testów UI, 224/224 testów rdzenia, lint, build produkcyjny, kontrola repozytorium i manifest kompletności przeszły lokalnie.
+- po aktualizacji bezpieczeństwa: 184/184 testy UI, 224/224 testy rdzenia, lint, build produkcyjny, kontrola repozytorium i manifest kompletności przeszły lokalnie.
 
-## Pozostała część P1.37a
+## Zamknięcie P1.37a
 
-Lokalna część macOS jest ukończona. Do zamknięcia przekrojowego audytu pozostaje wynik pięciu części na Windows w GitHub Actions. Zmiany nie są publikowane automatycznie; CI zostanie uruchomione dopiero po świadomej decyzji o wysłaniu commitu do repozytorium.
+Pełny manifest 53 scenariuszy przeszedł na macOS i Windows w GitHub Actions. Oficjalny run wydania `34477547067` zakończył wszystkie bramki powodzeniem i opublikował zweryfikowane paczki Windows/macOS/Linux oraz odpowiadające im sumy SHA-256 w wydaniu <https://github.com/kamil5646/MadCAD/releases/tag/v6.5.0>. P1.37a jest zamknięte.
