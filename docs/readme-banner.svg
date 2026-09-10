@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="360" viewBox="0 0 1400 360">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111820"/>
+      <stop offset="1" stop-color="#080c11"/>
+    </linearGradient>
+    <linearGradient id="red" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f02b3a"/>
+      <stop offset="1" stop-color="#a70f1d"/>
+    </linearGradient>
+  </defs>
+  <rect width="1400" height="360" fill="url(#bg)"/>
+  <g fill="none" stroke="#38424d" stroke-width="1" opacity=".55">
+    <path d="M0 60H1400M0 120H1400M0 180H1400M0 240H1400M0 300H1400"/>
+    <path d="M80 0V360M160 0V360M240 0V360M320 0V360M400 0V360M480 0V360M560 0V360M640 0V360M720 0V360M800 0V360M880 0V360M960 0V360M1040 0V360M1120 0V360M1200 0V360M1280 0V360M1360 0V360"/>
+  </g>
+  <g fill="none" stroke="#d82332" stroke-width="2" opacity=".65">
+    <path d="M1030 286l118-92 170 50-118 92zM1148 194v-94l170 50v94M1200 336v-94"/>
+    <circle cx="1148" cy="194" r="5"/><circle cx="1318" cy="244" r="5"/><circle cx="1200" cy="336" r="5"/>
+  </g>
+  <image href="madcad-512.png" x="54" y="42" width="276" height="276"/>
+  <text x="380" y="145" fill="#f5f7fa" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="102" font-weight="750">MadCAD</text>
+  <rect x="384" y="172" width="385" height="6" rx="3" fill="url(#red)"/>
+  <text x="384" y="226" fill="#c9d0d8" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="31">Precyzyjny CAD 2D i 3D</text>
+  <text x="384" y="270" fill="#88939f" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="21" letter-spacing="2">SZKIC  •  MODEL  •  DOKUMENTACJA</text>
+</svg>

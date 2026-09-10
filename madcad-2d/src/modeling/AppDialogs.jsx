@@ -29,7 +29,8 @@ export function FirstPartTutorial({ onClose }) {
 export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { mode: 'personal' }, busy = false, error = '', allowVerificationBypass = false, onLogin = () => {}, onRegister = () => {}, onStartTrial = () => {}, onLogout = () => {}, onRefresh = () => {}, onRequestPasswordReset = () => {}, onResetPassword = () => {}, onResendVerification = () => {}, onVerifyEmail = () => {} }) {
   const dialogRef = useDialogFocus();
   const planStatus = describeLicensePlan(licensePlan);
-  const isPolish = window.document.documentElement.lang?.toLowerCase().startsWith('pl');
+  const documentLanguage = window.document.documentElement.lang?.toLowerCase();
+  const isPolish = !documentLanguage || documentLanguage.startsWith('pl');
   const [accountMode, setAccountMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -71,7 +72,7 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { 
         </header>
         <div className="license-info-body">
           <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.</p>
-          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.5.0 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
+          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.5.1 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
           <div className={`license-plan-status ${planStatus.expired ? 'expired' : ''}`} role="status"><span>Aktywny plan</span><strong>{planStatus.label}</strong><small>{planStatus.detail}</small></div>
           <div className="license-plan-grid" aria-label="Plany MadCAD">
             <article className={licensePlan.mode === 'personal' ? 'selected' : ''}><strong>Osobista</strong><span>Bezpłatnie bez limitu czasu</span><small>Wyłącznie projekty prywatne, edukacyjne i niezarobkowe. Wymaga bezpłatnego konta MadCAD.</small></article>
