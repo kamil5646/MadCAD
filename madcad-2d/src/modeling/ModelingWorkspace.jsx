@@ -4448,6 +4448,7 @@ export default function ModelingWorkspace() {
         segments: command.segmentIds?.length || 0,
         gesturePoints: command.gesturePoints?.length || 0,
         dynamicLength: command.dynamicLength || '',
+        distance: command.distance,
         selectedControlPoint: command.selectedControlPoint,
         selectedControlEdge: command.selectedControlEdge,
         selectedControlFace: command.selectedControlFace,

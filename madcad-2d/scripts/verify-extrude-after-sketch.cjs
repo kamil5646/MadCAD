@@ -62,11 +62,11 @@ app.whenReady().then(async () => {
       const field = [...document.querySelectorAll('.command-dialog .command-field')].find((item) => item.querySelector(':scope > span')?.textContent.trim() === 'Odległość');
       const input = field?.querySelector('input');
       if (!input) throw new Error('Brak pola odległości wyciągnięcia');
-      input.focus();
-      input.select();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '12');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
     })()`);
-    await window.webContents.insertText('12');
-    await waitFor(window, `[...document.querySelectorAll('.command-dialog .command-field')].find((item) => item.querySelector(':scope > span')?.textContent.trim() === 'Odległość')?.querySelector('input')?.value === '12'`, 'odleglosc wyciagniecia wpisana z klawiatury');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.distance === '12'`, 'odleglosc wyciagniecia zapisana w stanie polecenia');
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'utworzona bryla', 30000);
