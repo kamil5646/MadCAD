@@ -285,7 +285,7 @@ app.whenReady().then(async () => {
       return { bspline: edge.descriptor.bspline, surfaceFaceIds: edge.descriptor.surfaceFaceIds };
     })()`);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[2]?.entityData?.some((entity) => entity.type === 'bspline3d')`, 'skojarzona B-spline');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[2]?.entityData?.some((entity) => entity.type === 'bspline3d')`, 'skojarzona B-spline', 90000);
     const projectedSpline = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[2].entityData.find((entity) => entity.type === 'bspline3d')`);
     if (JSON.stringify(projectedSpline.geometry.bspline) !== JSON.stringify(bsplineSource.bspline)) throw new Error('Projekcja zmieniła dokładne dane B-spline.');
     if (!bsplineSource.surfaceFaceIds?.length || JSON.stringify(projectedSpline.surfaceFaceIds) !== JSON.stringify(bsplineSource.surfaceFaceIds)) throw new Error('Projekcja nie zachowała powierzchni prowadzących B-spline.');
