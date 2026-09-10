@@ -47,6 +47,10 @@ jobs:
         working-directory: madcad-2d
         run: npm run verify:repository
 
+      - name: Verify product completeness manifest
+        working-directory: madcad-2d
+        run: npm run verify:product-completeness
+
       - name: Lint source
         working-directory: madcad-2d
         run: npm run lint
@@ -55,13 +59,19 @@ jobs:
         working-directory: madcad-2d
         run: npm test
 
+      - name: Run license client tests
+        working-directory: madcad-2d
+        run: npm run test:license
+
       - name: Audit app dependencies
         working-directory: madcad-2d
         run: npm audit --audit-level=high
 
       - name: Run CAD core tests
         working-directory: madcad-2d
-        run: npm run test:core
+        run: |
+          npm run test:core
+          npm run verify:solid-fea-benchmarks
 
       - name: Build UI
         working-directory: madcad-2d
@@ -99,19 +109,10 @@ jobs:
         working-directory: madcad-2d
         run: npm run test:core
 
-      - name: Run release UI smoke verification
+      - name: Run complete release desktop verification
         if: runner.os != 'Linux'
         working-directory: madcad-2d
-        run: |
-          npm run verify:start-experience
-          npm run verify:snap-feedback
-          npm run verify:model-import
-          npm run verify:viewport-navigation
-
-      - name: Verify Electron sandbox and IPC boundary
-        if: runner.os != 'Linux'
-        working-directory: madcad-2d
-        run: npm run verify:electron-security
+        run: npm run verify:desktop-suite -- all
 
       - name: Build Electron package
         working-directory: madcad-2d

@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import fullLicenseText from '../../LICENSE?raw';
 import { tutorialForLanguage } from './tutorial-content.js';
 import { useDialogFocus } from './use-dialog-focus.js';
+import { describeLicensePlan } from './license-plan.js';
 
 export function FirstPartTutorial({ onClose }) {
   const content = tutorialForLanguage(window.document.documentElement.lang);
@@ -25,42 +26,100 @@ export function FirstPartTutorial({ onClose }) {
   );
 }
 
-export function LicenseInfoDialog({ onClose, onShowFullLicense }) {
+export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { mode: 'personal' }, busy = false, error = '', allowVerificationBypass = false, onLogin = () => {}, onRegister = () => {}, onStartTrial = () => {}, onLogout = () => {}, onRefresh = () => {}, onRequestPasswordReset = () => {}, onResetPassword = () => {}, onResendVerification = () => {}, onVerifyEmail = () => {} }) {
   const dialogRef = useDialogFocus();
+  const planStatus = describeLicensePlan(licensePlan);
+  const [accountMode, setAccountMode] = useState('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [accountNotice, setAccountNotice] = useState('');
+  const [verificationToken, setVerificationToken] = useState('');
+  const canEnterProgram = Boolean(licensePlan.accessAllowed || allowVerificationBypass);
   useEffect(() => {
-    const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
+    const onKeyDown = (event) => { if (event.key === 'Escape' && canEnterProgram) onClose(); };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  }, [canEnterProgram, onClose]);
+  const submitAccount = async (event) => {
+    event.preventDefault();
+    setAccountNotice('');
+    if (accountMode === 'reset-request') {
+      const result = await onRequestPasswordReset({ email });
+      if (result?.ok) { setAccountNotice(result.message || 'Sprawdź pocztę i wklej kod odzyskiwania.'); setAccountMode('reset-confirm'); }
+      return;
+    }
+    if (accountMode === 'reset-confirm') {
+      const result = await onResetPassword({ email, password, resetToken });
+      if (result?.ok) { setAccountNotice(result.message || 'Hasło zostało zmienione.'); setPassword(''); setResetToken(''); setAccountMode('login'); }
+      return;
+    }
+    (accountMode === 'register' ? onRegister : onLogin)({ email, password, displayName });
+  };
 
   return (
-    <div className="license-info-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="license-info-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && canEnterProgram) onClose(); }}>
       <section ref={dialogRef} className="license-info-dialog" role="dialog" aria-modal="true" aria-labelledby="licenseInfoTitle" tabIndex="-1">
         <header>
           <div>
             <strong id="licenseInfoTitle">Licencja MadCAD</strong>
             <span>Przed rozpoczęciem pracy sprawdź zasady korzystania z MadCAD.</span>
           </div>
-          <button type="button" title="Zamknij" aria-label="Zamknij" onClick={onClose}><X size={17} /></button>
+          {canEnterProgram && <button type="button" title="Zamknij" aria-label="Zamknij" onClick={onClose}><X size={17} /></button>}
         </header>
         <div className="license-info-body">
           <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.</p>
-          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.4.7 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
+          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.5.0 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
+          <div className={`license-plan-status ${planStatus.expired ? 'expired' : ''}`} role="status"><span>Aktywny plan</span><strong>{planStatus.label}</strong><small>{planStatus.detail}</small></div>
+          <div className="license-plan-grid" aria-label="Plany MadCAD">
+            <article className={licensePlan.mode === 'personal' ? 'selected' : ''}><strong>Osobista</strong><span>Bezpłatnie bez limitu czasu</span><small>Wyłącznie projekty prywatne, edukacyjne i niezarobkowe. Wymaga bezpłatnego konta MadCAD.</small></article>
+            <article className={licensePlan.mode === 'commercial-trial' ? 'selected' : ''}><strong>Ocena komercyjna</strong><span>40 dni pełnej wersji</span><small>Jednorazowy okres oceny przypisany do konta. Wymaga połączenia przy aktywacji.</small></article>
+            <article className={licensePlan.mode === 'commercial' ? 'selected' : ''}><strong>Komercyjna</strong><span>Licencja imienna</span><small>Plan i liczba stanowisk są sprawdzane na serwerze. Po sprawdzeniu działa także offline.</small></article>
+          </div>
+          {licensePlan.signedIn ? (
+            <section className="license-account-panel" aria-label="Konto MadCAD">
+              <div><strong>{licensePlan.account?.displayName || licensePlan.account?.email}</strong><small>{licensePlan.account?.email} · {licensePlan.connection === 'online' ? 'sprawdzono online' : 'tryb offline'}</small></div>
+              {!licensePlan.account?.emailVerified && <form className="license-verification-form" onSubmit={async (event) => { event.preventDefault(); const result = await onVerifyEmail({ verificationToken }); if (result?.ok) setAccountNotice(result.message || 'Adres e-mail został potwierdzony.'); }}><label><span>Kod potwierdzający e-mail</span><input value={verificationToken} minLength="32" maxLength="160" required autoComplete="one-time-code" onChange={(event) => setVerificationToken(event.target.value)} /></label><button type="submit" disabled={busy}>Potwierdź e-mail</button><button type="button" disabled={busy} onClick={async () => { const result = await onResendVerification(); if (result?.ok) setAccountNotice(result.message || 'Wysłaliśmy nowy kod.'); }}>Wyślij ponownie</button></form>}
+              {accountNotice && <p className="license-account-notice" role="status">{accountNotice}</p>}
+              <div className="license-account-actions">
+                {licensePlan.mode === 'personal' && licensePlan.account?.emailVerified && <button className="commercial" type="button" disabled={busy} onClick={onStartTrial}>Rozpocznij 40-dniową ocenę</button>}
+                <button type="button" disabled={busy} onClick={onRefresh}>Sprawdź licencję</button>
+                <button type="button" disabled={busy} onClick={onLogout}>Wyloguj</button>
+              </div>
+            </section>
+          ) : (
+            <form className="commercial-license-form license-account-form" onSubmit={submitAccount}>
+              <strong>{accountMode === 'register' ? 'Utwórz konto MadCAD' : accountMode === 'reset-request' ? 'Odzyskaj konto MadCAD' : accountMode === 'reset-confirm' ? 'Ustaw nowe hasło' : 'Zaloguj się do MadCAD'}</strong>
+              {accountMode === 'register' && <label><span>Imię i nazwisko lub firma</span><input value={displayName} maxLength="120" minLength="2" required autoComplete="name" onChange={(event) => setDisplayName(event.target.value)} /></label>}
+              <label><span>E-mail</span><input type="email" value={email} maxLength="254" required autoComplete="email" onChange={(event) => setEmail(event.target.value)} /></label>
+              {accountMode === 'reset-confirm' && <label><span>Kod z wiadomości</span><input value={resetToken} minLength="32" maxLength="160" required autoComplete="one-time-code" onChange={(event) => setResetToken(event.target.value)} /></label>}
+              {accountMode !== 'reset-request' && <label><span>{accountMode === 'reset-confirm' ? 'Nowe hasło' : 'Hasło'}</span><input type="password" value={password} minLength="10" maxLength="200" required autoComplete={accountMode === 'login' ? 'current-password' : 'new-password'} onChange={(event) => setPassword(event.target.value)} /></label>}
+              <small>{accountMode.startsWith('reset') ? 'Kod odzyskiwania wygasa po 60 minutach. Po zmianie hasła wszystkie wcześniejsze sesje zostaną wylogowane.' : 'Hasło jest wysyłane szyfrowanym połączeniem wyłącznie podczas logowania i nie jest zapisywane w aplikacji.'}</small>
+              {accountNotice && <p className="license-account-notice" role="status">{accountNotice}</p>}
+              <div>
+                {accountMode === 'login' && <><button type="button" disabled={busy} onClick={() => setAccountMode('register')}>Utwórz konto</button><button type="button" disabled={busy} onClick={() => setAccountMode('reset-request')}>Nie pamiętam hasła</button></>}
+                {accountMode !== 'login' && <button type="button" disabled={busy} onClick={() => setAccountMode('login')}>Wróć do logowania</button>}
+                <button className="commercial" type="submit" disabled={busy}>{busy ? 'Łączenie…' : accountMode === 'register' ? 'Zarejestruj' : accountMode === 'reset-request' ? 'Wyślij kod' : accountMode === 'reset-confirm' ? 'Zmień hasło' : 'Zaloguj'}</button>
+              </div>
+            </form>
+          )}
+          {error && <p className="license-account-error" role="alert"><AlertTriangle size={15} />{error}</p>}
           <div className="license-info-card license-info-commercial">
             <strong>Użytek komercyjny jest płatny</strong>
             <ul>
-              <li>Firma lub organizacja może bezpłatnie oceniać pełną wersję przez 40 dni.</li>
               <li>Po okresie oceny praca firmowa, zarobkowa lub dla klienta wymaga bezterminowej licencji na każde stanowisko.</li>
-              <li>Nie ma klucza ani aktywacji — licencję potwierdza dokument zakupu.</li>
+              <li>Nie ma klucza do przepisywania — konto automatycznie pobiera plan i liczbę stanowisk z serwera MadCAD.</li>
+              <li>Po sprawdzeniu plan komercyjny może działać offline przez ograniczony czas; cofnięcie lub wygaśnięcie planu wymaga ponownego sprawdzenia.</li>
               <li>Dobrowolna darowizna wspiera rozwój, ale nie zastępuje licencji komercyjnej.</li>
             </ul>
           </div>
           <p className="license-info-support-copy">Jeśli używasz MadCAD prywatnie i program jest dla Ciebie pomocny, możesz wesprzeć jego dalszy rozwój darowizną.</p>
           <div className="license-info-actions">
             <button className="secondary" type="button" onClick={onShowFullLicense}>Pełna treść licencji</button>
-            <a className="commercial" href="https://kamil5646.github.io/MadCAD/#licencja" target="_blank" rel="noopener noreferrer">Kup licencję komercyjną</a>
+            <a className="commercial" href="https://madcad.madmagsystem.pl/#licencja" target="_blank" rel="noopener noreferrer">Kup licencję komercyjną</a>
             <a className="support" href="https://paypal.me/refek1" target="_blank" rel="noopener noreferrer">Przekaż darowiznę</a>
-            <button className="confirm" type="button" onClick={onClose} autoFocus>Przejdź do programu</button>
+            <button className="confirm" type="button" disabled={!canEnterProgram} onClick={onClose} autoFocus>{canEnterProgram ? 'Przejdź do programu' : 'Zaloguj się, aby przejść dalej'}</button>
           </div>
         </div>
       </section>

@@ -49,7 +49,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSketchDrawingFixture()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.length === 1 && window.__madcadVerifyDocumentState?.bodyIds?.length === 0`, 'czysty szkic 2D');
     const tabs = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.workspace-tabs button')].map((item) => item.textContent.trim())`);
-    if (tabs.join('|') !== 'PROJEKTUJ|ARKUSZ 2D|ZARZĄDZAJ') throw new Error(`Niepoprawny podział obszarów: ${tabs.join('|')}`);
+    if (tabs.join('|') !== 'PROJEKTUJ|ARKUSZ 2D|WYTWARZANIE|ZARZĄDZAJ') throw new Error(`Niepoprawny podział obszarów: ${tabs.join('|')}`);
     if (!(await clickText(window, '.workspace-tabs button', 'ZARZĄDZAJ'))) throw new Error('Brak obszaru ZARZĄDZAJ.');
     await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'ZARZĄDZAJ' && document.querySelector('.workspace-guidebar')?.textContent.includes('ZARZĄDZAJ · projekt i jego historia')`, 'objaśnienie obszaru zarządzania');
     await waitForPaint();

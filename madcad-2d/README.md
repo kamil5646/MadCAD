@@ -1,6 +1,6 @@
 # MadCAD Desktop — dokumentacja techniczna
 
-Aktualna stabilna wersja: **6.4.7**.
+Aktualna stabilna wersja: **6.5.0**.
 
 MadCAD jest aplikacją Electron z interfejsem React, parametrycznym dokumentem
 CAD i kernelem OpenCascade uruchamianym w workerze. Główny przepływ zaczyna się
@@ -86,7 +86,7 @@ npm run dist:linux:trusted
 Paczki trafiają do `release/`. Oficjalny workflow tworzy pliki `.sha256`,
 sprawdza format paczki i wykonuje testy na Windows, macOS oraz Linux.
 
-> Instalatory `v6.4.7` nie mają podpisu producenta. Windows SmartScreen lub
+> Instalatory `v6.5.0` nie mają podpisu producenta. Windows SmartScreen lub
 > macOS Gatekeeper mogą pokazać ostrzeżenie. Pobieraj paczki wyłącznie z
 > oficjalnego GitHub Release i porównaj dołączoną sumę SHA-256. Aktualizacja tej
 > wersji pobiera paczkę z oficjalnego wydania, sprawdza
@@ -102,7 +102,7 @@ użyć `Control` + klik i wybrać **Otwórz**.
 
 ## Wersje i aktualizacje
 
-- tag `v6.4.7` odpowiada wersji `6.4.7` w `package.json`;
+- tag `v6.5.0` odpowiada wersji `6.5.0` w `package.json`;
 - wersje bez sufiksu są publikowane w kanale stabilnym;
 - `-beta.N` i `-alpha.N` pozostają obsługiwanymi kanałami testowymi;
 - aktualizator przyjmuje wyłącznie zaufane adresy oficjalnego repozytorium.
@@ -114,6 +114,7 @@ użyć `Control` + klik i wybrać **Otwórz**.
 ## Interakcja CAD
 
 - Nawigacja CAD: naciśnięte kółko myszy przesuwa widok, przeciągnięcie prawym przyciskiem lub `Shift` + kółko obraca model 3D, rolka przybliża pod kursorem, a lewy przycisk zaznacza i rysuje. Aktywny szkic 2D pozostaje zablokowany prostopadle do swojej płaszczyzny; dostępne są w nim pan, zoom i dopasowanie widoku.
+- Szkicowanie UCS: szkic można rozpocząć bezpośrednio na dowolnej planarnej ścianie albo obróconej płaszczyźnie konstrukcyjnej. Siatka, osie, snap, kamera, profile, wyciągnięcia, powierzchnie, Loft, Sweep, Rib/Web, otwory i Split Face używają tej samej zapisanej ramy 3D.
 - Import STEP/STL/3MF jest dostępny w menu **Plik**; poprawny model zostaje dopasowany do widoku, a błędny import jest opisany i bezpiecznie usunięty z historii.
 - Zaznaczenie importowanej siatki udostępnia **Narzędzia siatki** podzielone na `Naprawę` i `Obróbkę`: raport topologii, odwracalne czyszczenie, korektę kierunku ścian, limitowane wypełnianie małych otworów, redukcję, wygładzanie chroniące otwarte brzegi, jednorodny remesh i grupowanie ścian. Zamknięty, spójny STL do 2500 trójkątów można zamienić na prawdziwą fasetową bryłę B-Rep OpenCascade i przywrócić do siatki przez historię lub polecenie; program nie wypełnia dużych braków przekraczających jawną średnicę użytkownika.
 - Modelowanie powierzchniowe obejmuje `Patch`, `Surface Extrude`, `Surface Revolve`, `Surface Sweep`, `Surface Loft`, `Surface Offset`, `Stitch`, `Surface Trim`, `Surface Extend` i `Thicken`; powierzchnie mają osobny folder, wygląd i bezpieczny przepływ do bryły.
@@ -131,12 +132,19 @@ użyć `Control` + klik i wybrać **Otwórz**.
 
 ## Licencja
 
-Aplikacja nie zawiera systemu kluczy, identyfikatora urządzenia ani zdalnego
-rejestru licencji. Przy każdym uruchomieniu pokazuje informacyjne warunki:
+Aplikacja nie wymaga przepisywania klucza. Na wzór kont Autodesk rozpoznaje plan
+po zalogowaniu, a uprawnienie jest nadawane przez usługę MadCAD na serwerze
+SEOHost MAD-MAG. Przy każdym uruchomieniu pokazuje aktualny status:
 
 - prywatnie bezpłatnie bez limitu czasu;
 - 40 dni oceny dla firmy lub organizacji;
 - później płatna, bezterminowa licencja na każde stanowisko komercyjne.
+
+Każdy plan, również bezpłatny osobisty, wymaga konta MadCAD. Plan jest przypisany
+do użytkownika oraz limitu aktywnych urządzeń; po sprawdzeniu online może działać
+offline przez maksymalnie 30 dni. Hasło nie jest zapisywane w aplikacji, a token
+sesji chroni systemowy magazyn poświadczeń. Użytkownik nie może sam nadać sobie
+planu komercyjnego — robi to administrator po potwierdzeniu zakupu.
 
 Pełne warunki: [`../LICENSE`](../LICENSE). Kontakt handlowy:
 [kkasprzak15@icloud.com](mailto:kkasprzak15@icloud.com?subject=MadCAD%20-%20licencja%20komercyjna).

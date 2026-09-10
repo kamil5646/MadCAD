@@ -30,6 +30,7 @@ import {
   Search,
   Settings2,
   ShieldCheck,
+  Sun,
   Square,
   Trash2,
   X,
@@ -61,7 +62,7 @@ export function CrashRecoveryBanner({ info, onSave, onOpenSnapshots, onDismiss }
   );
 }
 
-export function ProjectDashboard({ document, bodyCount, health, snapshotCount, onOpenParameters, onOpenSnapshots, onOpenComparison, onOpenHealth, onOpenDependencies, onOpenComponents, onCreatePart, onCreateAssembly, onOpenNamedViews, readOnly = false, onBack }) {
+export function ProjectDashboard({ document, bodyCount, health, snapshotCount, onOpenParameters, onOpenSnapshots, onOpenComparison, onOpenHealth, onOpenDependencies, onOpenComponents, onCreatePart, onCreateAssembly, onOpenNamedViews, onOpenRenderScene, readOnly = false, onBack }) {
   const counts = health?.counts || {};
   const healthLabel = health?.status === 'critical' ? 'Wymaga działania' : health?.status === 'warning' ? 'Wymaga uwagi' : 'Projekt zdrowy';
   const issueCount = (counts.critical || 0) + (counts.warning || 0);
@@ -75,6 +76,7 @@ export function ProjectDashboard({ document, bodyCount, health, snapshotCount, o
       ['projectHealthBtn', ShieldCheck, 'Kondycja projektu', issueCount ? `${issueCount} elementów do sprawdzenia` : 'Brak wykrytych problemów', onOpenHealth],
       ['projectDependenciesBtn', Network, 'Gdzie używane', 'Referencje i zależności obiektów', onOpenDependencies],
       ['projectNamedViewsBtn', Eye, 'Zapisane widoki', 'Pozycje kamery zapisane w projekcie', onOpenNamedViews],
+      ['projectRenderSceneBtn', Sun, 'Scena i render', 'Światło, tło, cienie i zapis PNG', onOpenRenderScene],
     ]],
     ['STRUKTURA', [
       ['projectComponentsBtn', Boxes, 'Komponenty', `${document.components.length} komponentów`, onOpenComponents],
@@ -426,7 +428,7 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
             title={`Zaznacz ${sketch.name}; użyj Edytuj, aby wrócić do szkicu.`}
             onClick={() => onSelect({ kind: 'sketch', id: sketch.id })}
           >
-            <span /><PencilRuler size={13} /><span>{sketch.name}</span><small>{sketch.space === '3d' ? '3D' : sketch.plane}</small>
+            <span /><PencilRuler size={13} /><span>{sketch.name}</span><small>{sketch.space === '3d' ? '3D' : sketch.frame ? 'UCS' : sketch.plane}</small>
           </button>
           <button className="tree-reference-visibility" type="button" aria-pressed={sketch.visible !== false} title={sketch.visible !== false ? `Ukryj ${sketch.name}` : `Pokaż ${sketch.name}`} onClick={() => onToggleSketchVisibility(sketch.id)}>{sketch.visible !== false ? <Eye size={13} /> : <EyeOff size={13} />}</button>
           </div>

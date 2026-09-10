@@ -1,5 +1,6 @@
 import { createId } from './ids.js';
 import { evaluateExpression, resolveParameters } from './expressions.js';
+import { frameFromNormal } from './sketch-frame.js';
 
 export const BASE_PLANE_FRAMES = Object.freeze({
   XY: { origin: [0, 0, 0], normal: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0] },
@@ -94,14 +95,6 @@ function rotated(vector, axis, angle) {
 
 function evaluatedVector(vector, values) {
   return vector.map((value) => evaluateExpression(value, values));
-}
-
-function frameFromNormal(origin, normal, preferred = [0, 0, 1]) {
-  const normalizedNormal = normalized(normal, 'Normalna płaszczyzny');
-  const reference = Math.abs(dot(normalizedNormal, preferred)) > 0.95 ? [0, 1, 0] : preferred;
-  const u = normalized(cross(reference, normalizedNormal), 'Pierwszy kierunek płaszczyzny');
-  const v = normalized(cross(normalizedNormal, u), 'Drugi kierunek płaszczyzny');
-  return { origin, normal: normalizedNormal, u, v };
 }
 
 export function resolveConstructionPlane(plane, parameters = []) {

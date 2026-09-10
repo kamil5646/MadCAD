@@ -27,6 +27,21 @@ function panelProps(overrides = {}) {
     selectedBodyIds: ['body-2'],
     explodeAmount: 0,
     onExplodeAmountChange: vi.fn(),
+    onSelectStoryboard: vi.fn(),
+    onCreateStoryboard: vi.fn(),
+    onUpdateStoryboard: vi.fn(),
+    onDeleteStoryboard: vi.fn(),
+    onAddStoryboardKeyframe: vi.fn(),
+    onDeleteStoryboardKeyframe: vi.fn(),
+    onSeekStoryboard: vi.fn(),
+    onPlayStoryboard: vi.fn(),
+    onStopStoryboard: vi.fn(),
+    onExportStoryboardVideo: vi.fn(),
+    onExportStoryboardInstructions: vi.fn(),
+    onPreviewStoryboardOffset: vi.fn(),
+    onPreviewStoryboardRotation: vi.fn(),
+    onPreviewStoryboardJoint: vi.fn(),
+    onAnimationNoteChange: vi.fn(),
     onCreate: vi.fn(),
     onUpdate: vi.fn(),
     onAssignBodies: vi.fn(),
@@ -110,6 +125,30 @@ describe('ComponentPanel', () => {
     expect(screen.getByText(/jointy i historia modelu pozostają bez zmian/i)).toBeInTheDocument();
   });
 
+  it('creates and controls a persistent exploded-view storyboard', () => {
+    const storyboard = { id: 'storyboard-1', name: 'Montaż', duration: 4, keyframes: [{ id: 'frame-1', time: 0, explodeAmount: 0 }, { id: 'frame-2', time: 4, explodeAmount: 1 }] };
+    const props = panelProps({ document: { components, componentInstances, rigidGroups: [], joints: [], motionLinks: [], contactSets: [], assemblyConfigurations: [], animationStoryboards: [storyboard], activeAssemblyConfigurationId: '', sketches: [], references: [] }, selectedInstanceId: 'occurrence-part-2', activeStoryboardId: storyboard.id, animationTime: 2, explodeAmount: 0.5, animationInstanceOffsets: { 'occurrence-part-2': [12, 0, 0] }, animationInstanceRotations: { 'occurrence-part-2': [0, 0, 30] }, animationNote: 'Zdejmij ramę' });
+    render(<ComponentPanel {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: /Odtwórz animację/i }));
+    expect(props.onPlayStoryboard).toHaveBeenCalledWith(storyboard);
+    fireEvent.click(screen.getByRole('button', { name: /Klatka/i }));
+    expect(props.onAddStoryboardKeyframe).toHaveBeenCalledWith(storyboard.id, 2, 0.5, { 'occurrence-part-2': [12, 0, 0] }, { 'occurrence-part-2': [0, 0, 30] }, {}, 'Zdejmij ramę');
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Przesunięcie animacji X/i }), { target: { value: '25' } });
+    expect(props.onPreviewStoryboardOffset).toHaveBeenCalledWith('occurrence-part-2', [25, 0, 0]);
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Obrót animacji Z/i }), { target: { value: '45' } });
+    expect(props.onPreviewStoryboardRotation).toHaveBeenCalledWith('occurrence-part-2', [0, 0, 45]);
+    fireEvent.change(screen.getByRole('slider', { name: /Czas storyboardu/i }), { target: { value: '3' } });
+    expect(props.onSeekStoryboard).toHaveBeenCalledWith(storyboard, 3);
+    fireEvent.click(screen.getByRole('button', { name: /Usuń klatkę 4.0 s/i }));
+    expect(props.onDeleteStoryboardKeyframe).toHaveBeenCalledWith(storyboard.id, 'frame-2');
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Czas trwania storyboardu/i }), { target: { value: '8' } });
+    expect(props.onUpdateStoryboard).toHaveBeenCalledWith(storyboard.id, { duration: '8' });
+    fireEvent.click(screen.getByRole('button', { name: /Film WebM/i }));
+    expect(props.onExportStoryboardVideo).toHaveBeenCalledWith(storyboard);
+    fireEvent.click(screen.getByRole('button', { name: /Instrukcja HTML/i }));
+    expect(props.onExportStoryboardInstructions).toHaveBeenCalledWith(storyboard);
+  });
+
   it('creates a revolute joint between sibling occurrences', () => {
     const props = panelProps({ selectedInstanceId: 'occurrence-part-2' });
     render(<ComponentPanel {...props} />);
@@ -119,11 +158,14 @@ describe('ComponentPanel', () => {
   });
 
   it('edits joint limits and motion without obscuring it with occurrence placement', () => {
-    const props = panelProps({ document: { components, componentInstances, rigidGroups: [], joints, motionLinks: [], assemblyConfigurations: [], activeAssemblyConfigurationId: '', sketches: [], references: [] }, selectedInstanceId: 'occurrence-part-2', selectedJointId: 'joint-1' });
+    const storyboard = { id: 'storyboard-joint', name: 'Ruch jointa', duration: 4, keyframes: [{ id: 'frame-joint', time: 0, explodeAmount: 0 }] };
+    const props = panelProps({ document: { components, componentInstances, rigidGroups: [], joints, motionLinks: [], contactSets: [], assemblyConfigurations: [], animationStoryboards: [storyboard], activeAssemblyConfigurationId: '', sketches: [], references: [] }, selectedInstanceId: 'occurrence-part-2', selectedJointId: 'joint-1', activeStoryboardId: storyboard.id, animationJointValues: { 'joint-1': 25 } });
     render(<ComponentPanel {...props} />);
     expect(screen.queryByRole('spinbutton', { name: /Położenie X/i })).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole('spinbutton', { name: /Numeryczna wartość jointa/i }), { target: { value: '35' } });
     expect(props.onSetJointValue).toHaveBeenCalledWith('joint-1', 35);
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Wartość jointa w animacji/i }), { target: { value: '40' } });
+    expect(props.onPreviewStoryboardJoint).toHaveBeenCalledWith('joint-1', 40);
     fireEvent.change(screen.getByRole('spinbutton', { name: /Maksymalny limit jointa/i }), { target: { value: '90' } });
     expect(props.onUpdateJoint).toHaveBeenCalledWith('joint-1', { limits: { max: 90 } });
     fireEvent.click(screen.getByRole('button', { name: /Usuń joint/i }));

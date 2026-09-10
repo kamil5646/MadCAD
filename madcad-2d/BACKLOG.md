@@ -9,7 +9,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Import SVG/DXF do szkicu — przeniesiony i ukończony jako `P1.1` w aktywnym planie.
 - [x] Rzeczywista macierz LibreDWG, FreeCAD STEP i Bambu Studio 3MF oraz obsługa zewnętrznych modeli 3MF Production — ukończone jako `P1.31`.
 - [x] Modalne okna zgodne z macOS Accessibility API: nazwa i rola dialogu, fokus początkowy, pułapka Tab oraz przywracanie fokusu.
-- [x] Płaszczyzny tangent/angle/path, oś normalna do płaszczyzny oraz punkty środkowy i na osi ukończono jako `P1.6`; rozbudowany UCS pozostaje osobnym późniejszym zakresem.
+- [x] Płaszczyzny tangent/angle/path, oś normalna do płaszczyzny oraz punkty środkowy i na osi ukończono jako `P1.6`; rozbudowany UCS ukończono przez szkice na dowolnej planarnej ścianie i obróconej płaszczyźnie konstrukcyjnej, ze wspólną ramą dla siatki, kamery, snapu i operacji B-Rep.
 - [x] Extrude To Object i offset start ukończono jako `P1.8` dla płaszczyzn konstrukcyjnych i planarnych ścian.
 - [x] Thin Extrude dla zamkniętych profili i otwartych łańcuchów ukończono jako `P1.9`.
 - [x] Draft wskazanych ścian względem płaszczyzny neutralnej ukończono jako `P1.10`.
@@ -30,7 +30,10 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [x] Interference dla wskazanej pary wystąpień ukończono jako `P1.34a`.
 - [x] Named Views z dokładnym zapisem kamery ukończono jako `P1.34b`.
 - [x] Rozbudowany ViewCube z sześcioma kierunkami i izometrią ukończono jako `P1.34c`.
-- Zaawansowane profile materiałów/druku, heatmapy, automatyczne ułożenie i naprawa siatki.
+- [x] Automatyczne ułożenie do druku ocenia rzeczywiste trójkąty modelu, pole podparcia, nawisy, wysokość i dopasowanie do stołu; centruje wybrany wariant i zachowuje ręczne sterowanie.
+- [x] Profile PLA, PETG, ASA/ABS i TPU ustawiają spójne progi analizy oraz pokazują zakres temperatur i krótkie zalecenie technologiczne bez udawania profilu slicera.
+- [x] Mapa technologiczna druku nakłada na gotowy model klasy bezpieczne/nawis/błąd siatki, ma czytelną legendę i nie przejmuje zaznaczania geometrii.
+- [x] Profile producentów Bambu Lab, Prusament i Creality mają osobne grupy, jawne źródło, temperatury, chłodzenie, komorę, suszenie i prędkość; zmieniają progi analizy, ale nie nadpisują drukarki ani nie udają pełnego profilu slicera.
 
 ## Historia, projekty i zespoły
 
@@ -81,7 +84,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Parametryczny Boss osadzany na trwałej referencji planarnej ściany, łączony z istniejącą bryłą, z otworem, głębokością, pozycją i kierunkiem.
   - [x] Parametryczny snap-fit z trwałą ścianą bazową, stopą mocującą, prześwitem pod uginanym ramieniem i kontrolowanym zaczepem.
   - [x] Parametryczne grille wycinające równoległe szczeliny na trwałej planarnej ścianie, z kontrolą liczby i szerokości żeber, prześwitu, długości, głębokości, pozycji oraz kierunku.
-- [ ] SubD/T-Spline Form i konwersja do B-Rep.
+- [x] SubD/T-Spline Form i konwersja do B-Rep.
   - [x] Parametryczna klatka bazowa 8 punktów/6 ścian, wygładzanie Catmulla–Clarka 1–3 poziomy i kontrolowana konwersja zamkniętej powierzchni do fasetowej bryły B-Rep.
   - [x] Widoczna klatka w widoku 3D, bezpośredni wybór i przeciąganie każdego z 8 punktów oraz parametryczne przesunięcia XYZ przebudowujące powierzchnię.
   - [x] Manipulator osi X/Y/Z wybranego punktu klatki z krokiem 0,5 mm i precyzyjnym krokiem 0,1 mm.
@@ -92,8 +95,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Insert Edge jako parametryczna pętla przecinająca pełny pierścień ścian quad, z edycją nowych punktów i ochroną symetrii.
   - [x] Bridge dwóch rozłącznych ścian quad jako parametryczny, zamknięty tunel z regulowanym otworem, edycją 8 nowych punktów, podglądem oraz współpracą z Insert Edge i symetrią.
   - [x] Fill Hole przebudowujący wskazaną granicę jako płaty ze wspólnym, edytowalnym punktem; automatycznie domyka lustrzaną parę i współpracuje z Bridge oraz Insert Edge.
-  - [ ] Konwersja powierzchni Form do możliwie małej liczby gładkich płatów B-Rep zamiast jednej ściany na trójkąt.
-- [ ] Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.
+  - [x] Konwersja powierzchni Form do możliwie małej liczby gładkich płatów B-Rep zamiast jednej ściany na trójkąt: klatka, Insert Edge, Bridge i Fill Hole tworzą zszyte płaty B-spline.
+- [x] Szkic 3D, krzywe przestrzenne i ścieżki na powierzchni.
   - [x] Liniowy szkic 3D XYZ z ciągłą ścieżką, edycją kolejnych końców, Cofnij, Esc/Zakończ, widokiem izometrycznym i zapisem projektu.
   - [x] Użycie liniowej ścieżki 3D przez dokładny Pipe B-Rep oraz przygotowanie jej dla Sweep i Pattern po ścieżce.
   - [x] Łuk 3D przez trzy punkty i sześcienny spline Béziera z uchwytami XYZ, wspólnym punktem G0, dokładnymi krawędziami B-Rep oraz współpracą z Pipe, Sweep i Pattern.
@@ -102,20 +105,65 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
   - [x] Parametryczna edycja istniejącej linii, łuku i spline w panelu XYZ, ze wspólnymi punktami, przebudową zależnych warunków G1/G2 i powrotem do aktywnego polecenia szkicu 3D.
   - [x] Bezpośrednie uchwyty końców, punktu łuku i spline w widoku, z podglądem XYZ, dokładnym snapem oraz ochroną zależnych uchwytów G1/G2.
   - [x] Skojarzone otwarte łuki kołowe B-Rep pobierane bez aproksymacji do dokładnego `arc3d` i odświeżane razem z bryłą źródłową.
-  - [ ] Skojarzone B-spline i ścieżki leżące na powierzchni.
+  - [x] Skojarzone otwarte B-spline z dokładnymi biegunami, wagami i węzłami; tworzenie Pipe i odtworzenie po otwarciu projektu sprawdzone w Electron.
+  - [x] Pobrane ścieżki krawędziowe zachowują identyfikatory wszystkich powierzchni, na których leżą; powiązanie odświeża się z topologią i pozostaje po ponownym otwarciu projektu.
+  - [x] Project to Surface dla ciągłego łańcucha linii, łuków i spline szkicu 3D: wybór zakrzywionej ściany, dokładna krzywa UV/B-spline B-Rep, trwała referencja ściany i użycie wyniku przez Pipe.
+  - [x] Automatyczna ponowna projekcja Project to Surface po zmianie krzywej źródłowej albo przebudowie ściany; zależny Pipe przebudowuje swoją bryłę z nowej ścieżki.
 
 ### Render, Animation, Simulation i Generative
 
-- [x] Appearance: presety i parametry wyglądu komponentów ukończono jako `P1.35a`; światło, decals i render lokalny pozostają późniejszym zakresem.
-- [x] Roboczy Exploded View złożeń ukończono jako `P1.35b`; storyboard i animacja pozostają późniejszym zakresem.
-- Walidowane analizy statyczne/termiczne oraz późniejsza optymalizacja topologii.
+- [x] Appearance: presety i parametry wyglądu komponentów ukończono jako `P1.35a`.
+- [x] Scena, oświetlenie i render lokalny ukończono jako `P1.35c`: presety środowiska, światła, ekspozycja, cienie, podłoże oraz czysty eksport PNG są zapisane w projekcie i działają z Undo/Redo.
+- [x] Decals ukończono jako `P1.35d`: obraz PNG/JPEG/WebP jest skojarzony z trwałą ścianą, ma rozmiar, krycie, obrót i widoczność, sygnalizuje utratę ściany i pozwala na ponowne przypisanie.
+- [x] Exploded View złożeń ukończono jako `P1.35b`, a trwałe storyboardy z klatkami, osią czasu i odtwarzaniem jako `P1.35e`.
+- [x] Niezależne przesunięcia części, kamera i opisy kroków w klatkach storyboardu ukończono jako `P1.35f`.
+- [x] Niezależne obroty XYZ części w klatkach storyboardu ukończono jako `P1.35g`.
+- [x] Graficzne prowadnice przesunięcia i obrotu wybranej części ukończono jako `P1.35h`.
+- [x] Animowane wartości jointów w storyboardzie ukończono jako `P1.35i`.
+- [x] Eksport storyboardu do filmu WebM i drukowalnej instrukcji montażowej HTML ukończono jako `P1.35j`.
+- [x] Czyste widoki wszystkich klatek osadzone w instrukcji montażowej ukończono jako `P1.35k`.
+- [x] P1.36a Wstępny szacunek statyczny belki wspornikowej z materiałem, obciążeniem, naprężeniem, ugięciem i współczynnikiem bezpieczeństwa.
+- [x] P1.36b Wstępny model przewodzenia ciepła 1D z oporem, przepływem, strumieniem i swobodnym wydłużeniem.
+- [x] P1.36c Liniowy MES belki 1D z macierzą sztywności, podporą, reakcjami i walidacją analityczną.
+- [x] P1.36d Wykres ugięcia i przestrzenna wizualizacja zdeformowanej osi oraz węzłów MES.
+- [x] P1.36e Siła końcowa i równomierne obciążenie rozłożone ze zgodnymi siłami węzłowymi i walidacją analityczną.
+- [x] P1.36f Dowolne położenie siły skupionej ze zgodnym rozdzieleniem funkcjami kształtu elementu.
+- [x] P1.36g Symbole utwierdzenia i obciążenia na modelu oraz legenda warunków brzegowych.
+- [x] P1.36h Diagram momentu zginającego z sił końcowych wszystkich elementów.
+- [x] P1.36i Diagram siły tnącej oraz zwarty przełącznik pojedynczego wykresu wyników.
+- [x] P1.36j Diagram naprężenia zginającego wzdłuż belki w MPa.
+- [x] P1.36k Mapa wykorzystania granicy plastyczności i oznaczenie przekroczonych węzłów.
+- [x] P1.36l Konfigurowalny wymagany współczynnik bezpieczeństwa i margines względem celu.
+- [x] P1.36m Kombinacja siły skupionej i równomiernego obciążenia liniowego.
+- [x] P1.36n Obwiednia trzech nazwanych scenariuszy i automatyczny przypadek krytyczny.
+- Walidowany solver MES dla dowolnej geometrii 3D, sprzężona analiza termiczna oraz późniejsza optymalizacja topologii.
 
 ### Manufacture / CAM
 
-- Setup, stock, narzędzia, frezowanie, toczenie, cięcie, symulacja i postprocesory G-code.
+- [x] Setup frezowania 3-osiowego: wybór bryły i obrabiarki, półfabrykat z naddatkami, zero WCS, wysokość bezpieczna, kontrola przesuwu maszyny, zapis/migracja/Undo.
+- [x] Biblioteka podstawowych frezów i warstwowa ścieżka planowania z podglądem 3D, posuwem oraz oszacowaniem czasu.
+- [x] Kontur 2D rzeczywistej górnej krawędzi bryły: kompensacja promienia freza, warstwy głębokości, wspólny podgląd 3D i eksport GRBL.
+- [x] Pocket 2D górnego obrysu bryły: kompensowana granica, bezpieczne przejścia wewnętrzne, warstwy Z, podgląd i eksport GRBL.
+- [x] Trwałe wskazywanie konkretnej poziomej ściany jako granicy Konturu 2D i Pocket 2D, z walidacją utraconej lub niepoziomej referencji.
+- [x] Adaptive 2D: wejście rampą, kolejne odsunięte obrysy ze stałym obciążeniem freza, warstwy Z, podgląd oraz GRBL.
+- [x] Skojarzony profil szkicu XY jako granica obróbki CAM: parametryczne przeliczanie, kontrola półfabrykatu i jawna diagnostyka utraconej referencji.
+- [x] Kontrola ścieżek i raport Setupu: szybkie przejazdy w materiale, płaszczyzna bezpieczna, zakres maszyny, oprawka, czas, długość skrawania i szacowana objętość.
+- [x] Interaktywna symulacja usuwania materiału: odtwarzanie i suwak postępu, dyskretyzacja półfabrykatu, wizualizacja zdjętej objętości oraz bieżącego freza w 3D.
+- [x] Pierwszy postprocesor GRBL: G-code metryczny względem WCS, limity obrotów, bezpieczny przejazd i ostrzeżenie przed uruchomieniem.
+- [x] Blokada eksportu G-code po wykryciu problemu przez walidację kolizji i bezpieczeństwa.
+- [x] Podgląd tekstowy G-code oraz postprocesory GRBL 1.1, LinuxCNC i Mach3/Mach4 z właściwymi rozszerzeniami, nagłówkami i zmianą narzędzia.
+- [x] Cięcie 2D laserem i plazmą: osobny typ Setupu, maszyny, kompensacja szczeliny, wejście, moc, wielokrotne przejścia, podgląd oraz G-code GRBL Laser/LinuxCNC Plasma.
+- [x] Toczenie 2-osiowe: osobny Setup tokarki, noże z promieniem naroża, średnice półfabrykatu/docelową, planowanie czoła, warstwowe toczenie zewnętrzne, posuw na obrót, podgląd X/Z i postprocesor LinuxCNC Tokarka.
 
 ### Electronics, chmura i rozszerzalność
 
 - PCB/MCAD-ECAD wyłącznie po osobnej decyzji produktowej.
 - Wersjonowanie chmurowe, komentarze, uprawnienia i współpraca.
 - Publiczne API, sandbox wtyczek i marketplace po zamrożeniu kontraktów.
+- [x] P1.36o — edytowalne współczynniki przypadków obciążenia MES belki z walidacją i automatycznym wyborem krytycznego wariantu.
+- [x] P1.36p — własne nazwy oraz dodawanie i usuwanie do ośmiu scenariuszy obciążenia w obwiedni MES belki.
+- [x] P1.36q — eksport kompletnego raportu MES belki i scenariuszy do CSV.
+- [x] P1.36r — objętościowy MES bryły 3D beta z czworościanami, liniową sprężystością, naprężeniem von Mises, mapą deformacji oraz kontrolą objętości, równowagi i zbieżności.
+- [x] P1.36s — trwały wybór planarnych ścian B-Rep dla warunków brzegowych i automatyczna analiza zbieżności dwóch gęstości siatki.
+- [x] P1.36t — niezależna bramka 11 benchmarków 3D, większa rozdzielczość smukłych siatek i kontrola jakości każdego wyniku.
+- [x] P1.36u — zgodna adaptacja siatki przy krzywiźnie, otworach i karbach, benchmark koncentracji naprężeń oraz wyjście z etykiety beta do jawnego zakresu liniowego.

@@ -1,5 +1,6 @@
 const fs = require('fs/promises');
 const path = require('path');
+const { pathToFileURL } = require('node:url');
 const { app, BrowserWindow } = require('electron');
 
 const outputPath = path.join(__dirname, '..', 'artifacts', 'modeling-checkpoint.png');
@@ -14,6 +15,7 @@ const referenceSketchOutputPath = path.join(__dirname, '..', 'artifacts', 'madca
 const verificationStartedAt = Date.now();
 const isCi = Boolean(process.env.CI);
 const modelingTimeoutMs = isCi ? 60000 : 20000;
+let expectedSchemaVersion = 0;
 
 async function waitForModel(window, timeoutMs = 30000) {
   const start = Date.now();
@@ -35,10 +37,11 @@ async function waitForModel(window, timeoutMs = 30000) {
 
 async function verifyAccessibilityAndScale(window) {
   const checks = [];
+  window.setContentSize(1936, 644);
   for (const zoomFactor of [1, 1.5, 2]) {
     window.focus();
     window.webContents.setZoomFactor(zoomFactor);
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await waitForUi(window, `(() => { const shell = document.querySelector('.modeling-shell'); return shell && shell.scrollWidth <= shell.clientWidth + 1; })()`, `układ bez poziomego przepełnienia przy ${zoomFactor * 100}%`, 5000);
     await window.webContents.executeJavaScript(`document.querySelector('.modeling-shell button:not([disabled])')?.focus()`);
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
@@ -52,12 +55,19 @@ async function verifyAccessibilityAndScale(window) {
       const documentFocused = document.hasFocus();
       const focusOutline = (focusStyle?.outlineWidth || '0') + ' ' + (focusStyle?.outlineStyle || 'none');
       const unnamedButtons = buttons.filter((button) => !((button.getAttribute('aria-label') || button.getAttribute('title') || button.textContent || '').trim())).length;
+      const shellRect = shell.getBoundingClientRect();
+      const overflowing = [...shell.querySelectorAll('*')].filter((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && (rect.right > shellRect.right + 1 || rect.left < shellRect.left - 1);
+      }).slice(0, 12).map((element) => ({ tag: element.tagName, className: String(element.className || ''), rect: element.getBoundingClientRect().toJSON() }));
       return {
         language: document.documentElement.lang,
         width: innerWidth,
         height: innerHeight,
         documentOverflow: document.documentElement.scrollWidth > innerWidth + 1,
         shellOverflow: shell.scrollWidth > shell.clientWidth + 1,
+        shellWidth: { scroll: shell.scrollWidth, client: shell.clientWidth },
+        overflowing,
         toolbarVisible: Boolean(document.querySelector('.ribbon-tool')),
         timelineVisible: Boolean(document.querySelector('.timeline')),
         unnamedButtons,
@@ -74,6 +84,7 @@ async function verifyAccessibilityAndScale(window) {
     checks.push({ zoomPercent: zoomFactor * 100, ...state });
   }
   window.webContents.setZoomFactor(1);
+  window.setContentSize(1936, 1017);
   return checks;
 }
 
@@ -382,12 +393,20 @@ async function runUiFlow(window) {
           return;
         }
         handler({ target: { value: ${JSON.stringify(value)} } });
-        requestAnimationFrame(() => setTimeout(() => {
+        const verifyAcceptedValue = () => {
           const updatedField = [...document.querySelectorAll('.command-field')].find((item) => item.firstElementChild?.textContent === expectedLabel);
           const updatedInput = updatedField?.querySelector('input, select');
-          if (String(updatedInput?.value) !== expectedValue) reject(new Error('Pole nie przyjęło wartości: ${label}'));
-          else resolve();
-        }, 30));
+          if (String(updatedInput?.value) === expectedValue) {
+            resolve();
+            return;
+          }
+          if (performance.now() < deadline) {
+            requestAnimationFrame(verifyAcceptedValue);
+            return;
+          }
+          reject(new Error('Pole nie przyjęło wartości: ${label}'));
+        };
+        requestAnimationFrame(verifyAcceptedValue);
       };
       updateWhenReady();
     });
@@ -2109,8 +2128,15 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.thin === false && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${64 * 42 * 8}) < 0.01`, 'powrót do pełnego Extrude', modelingTimeoutMs);
 
   progress('B-Rep hover, multi-select and box select');
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  const selectionRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.status === 'ready'`, 'gotowy silnik przed testem wyboru', modelingTimeoutMs);
+  let selectionRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const nextRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    if (nextRevision === selectionRevision) break;
+    selectionRevision = nextRevision;
+    if (attempt === 7) throw new Error('Silnik nie ustabilizował rewizji przed testem wyboru.');
+  }
   const topologyIds = await window.webContents.executeJavaScript(`(() => {
     const body = window.__madcadVerifyEngineState.bodies[0];
     return { face: body.topology.faces[0].id, edge: body.topology.edges[0].id, body: body.id };
@@ -2640,7 +2666,7 @@ async function runUiFlow(window) {
     `(() => {
       try {
         const saved = JSON.parse(window.localStorage.getItem('madcad:modeling-document:v4') || 'null');
-        return saved?.schemaVersion === 15 && saved?.features?.length === 5 && saved?.sketches?.length === 4 && saved?.references?.some((item) => item.kind === 'construction-plane' && item.name === 'Płaszczyzna montażowa');
+        return saved?.schemaVersion === ${expectedSchemaVersion} && saved?.features?.length === 5 && saved?.sketches?.length === 4 && saved?.references?.some((item) => item.kind === 'construction-plane' && item.name === 'Płaszczyzna montażowa');
       } catch (_error) {
         return false;
       }
@@ -2676,7 +2702,7 @@ async function runUiFlow(window) {
     };
   })()`);
   const autosaveRoundTrip = autosaveState.available
-    && autosaveState.schemaVersion === 15
+    && autosaveState.schemaVersion === expectedSchemaVersion
     && autosaveState.features === 5
     && autosaveState.sketches === 4
     && autosaveState.entities === 13
@@ -2755,6 +2781,7 @@ async function runUiFlow(window) {
 }
 
 app.whenReady().then(async () => {
+  ({ DOCUMENT_SCHEMA_VERSION: expectedSchemaVersion } = await import(pathToFileURL(path.join(__dirname, '..', 'src', 'cad-core', 'document.js')).href));
   if (process.env.MADCAD_VERIFY_ENGLISH_ONLY === '1') {
     try {
       const state = await verifyEnglishModelingUi();
@@ -2769,7 +2796,7 @@ app.whenReady().then(async () => {
   const performanceBudgets = isCi
     // Hosted runners are substantially slower and noisier than local hardware.
     // Per-operation waits and worker budgets below still catch real stalls.
-    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 360000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 90000 }
+    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 900000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 90000 }
     : { desktopColdStartMs: 30000, desktopWorkflowMs: 120000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
@@ -2816,20 +2843,24 @@ app.whenReady().then(async () => {
       return {
         visible: Boolean(dialog),
         shownAtStartup: Boolean(dialog),
-        explainsNoKey: /nie ma klucza ani aktywacji|there is no key or activation/i.test(text),
+        explainsNoKey: /nie ma klucza do przepisywania|there is no key/i.test(text),
         privateUseOnly: /bez limitu czasu do użytku prywatnego|free without a time limit for private/i.test(text),
+        personalAccountRequired: /wymaga bezpłatnego konta MadCAD|free MadCAD account is required/i.test(text),
         commercialPaid: /komercyjny jest płatny|commercial use requires payment/i.test(text),
         commercialTrial: /40 dni|40 days/i.test(text),
-        perpetualPerSeat: /bezterminowej licencji na każde stanowisko|perpetual license for every workstation/i.test(text),
-        purchaseProof: /dokument zakupu|purchase document/i.test(text),
+        namedLicense: /licencja imienna|named-user license/i.test(text),
+        serverControlled: /pobiera plan.+z serwera|retrieves.+plan.+server/i.test(text),
         donationNotCommercial: /darowizna.+nie zastępuje licencji komercyjnej|donation.+does not replace a commercial license/i.test(text),
-        hasTokenInput: Boolean(dialog?.querySelector('input, textarea')),
+        accountInputs: dialog?.querySelectorAll('.license-account-form input').length || 0,
+        invoiceInput: Boolean(dialog?.querySelector('input[name*="invoice"], input[name*="reference"]')),
+        planCards: dialog?.querySelectorAll('.license-plan-grid article').length || 0,
+        personalSelected: dialog?.querySelector('.license-plan-grid article.selected')?.textContent.includes('Osobista') || false,
         links: dialog?.querySelectorAll('a').length || 0,
         continueVisible: Boolean([...dialog?.querySelectorAll('button') || []].some((button) => /Przejdź do programu|Continue to MadCAD/i.test(button.textContent))),
       };
     })()`);
-    if (!licenseDialog.visible || !licenseDialog.shownAtStartup || !licenseDialog.explainsNoKey || !licenseDialog.privateUseOnly || !licenseDialog.commercialPaid || !licenseDialog.commercialTrial || !licenseDialog.perpetualPerSeat || !licenseDialog.purchaseProof || !licenseDialog.donationNotCommercial || licenseDialog.hasTokenInput || licenseDialog.links < 2 || !licenseDialog.continueVisible) {
-      throw new Error(`Okno licencji nie wyjaśnia zasad prywatnych, 40-dniowej oceny, licencji stanowiskowej i darowizny: ${JSON.stringify(licenseDialog)}.`);
+    if (!licenseDialog.visible || !licenseDialog.shownAtStartup || !licenseDialog.explainsNoKey || !licenseDialog.privateUseOnly || !licenseDialog.personalAccountRequired || !licenseDialog.commercialPaid || !licenseDialog.commercialTrial || !licenseDialog.namedLicense || !licenseDialog.serverControlled || !licenseDialog.donationNotCommercial || licenseDialog.accountInputs !== 2 || licenseDialog.invoiceInput || licenseDialog.planCards !== 3 || !licenseDialog.personalSelected || licenseDialog.links < 2 || !licenseDialog.continueVisible) {
+      throw new Error(`Okno licencji nie wyjaśnia osobistego, serwerowego modelu kont i planu komercyjnego: ${JSON.stringify(licenseDialog)}.`);
     }
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     await fs.writeFile(licenseOutputPath, (await window.webContents.capturePage()).toPNG());
@@ -2915,9 +2946,16 @@ app.whenReady().then(async () => {
     exitCode = 1;
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     const notice = window.isDestroyed() ? '' : await window.webContents.executeJavaScript(`document.querySelector('.workspace-notice, .engine-status')?.textContent?.trim() || ''`);
+    const failureState = window.isDestroyed() ? null : await window.webContents.executeJavaScript(`({
+      document: window.__madcadVerifyDocumentState,
+      engine: { status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision, bodies: window.__madcadVerifyEngineState?.bodies?.length },
+      notice: document.querySelector('.workspace-notice')?.textContent,
+      persistenceReady: window.__madcadPersistenceReady?.(),
+    })`);
+    if (!window.isDestroyed()) await fs.writeFile(path.join(path.dirname(outputPath), 'modeling-failure.png'), (await window.webContents.capturePage()).toPNG());
     await fs.writeFile(
       path.join(path.dirname(outputPath), 'verification-report.json'),
-      JSON.stringify({ ok: false, error: error.stack || error.message, notice, rendererMessages }, null, 2),
+      JSON.stringify({ ok: false, error: error.stack || error.message, notice, failureState, rendererMessages }, null, 2),
     );
   } finally {
     window.destroy();

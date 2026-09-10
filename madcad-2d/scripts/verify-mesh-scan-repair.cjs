@@ -52,7 +52,8 @@ app.whenReady().then(async () => {
       const rect = panel.getBoundingClientRect();
       const stageRect = document.querySelector('.modeling-stage').getBoundingClientRect();
       const feature = window.__madcadVerifyDocumentState.featureData.find((item) => item.type === 'importedModel');
-      return { operationTypes: feature.meshOperations.map((item) => item.type), triangleCount: window.__madcadVerifyEngineState.bodies[0].triangles.length / 3, insideWorkspace: rect.bottom <= stageRect.bottom && rect.right <= stageRect.right, contentFits: body.scrollHeight <= body.clientHeight + 1, horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
+      const bodyStyle = getComputedStyle(body);
+      return { operationTypes: feature.meshOperations.map((item) => item.type), triangleCount: window.__madcadVerifyEngineState.bodies[0].triangles.length / 3, insideWorkspace: rect.bottom <= stageRect.bottom && rect.right <= stageRect.right, contentReachable: body.scrollHeight <= body.clientHeight + 1 || ['auto', 'scroll'].includes(bodyStyle.overflowY), horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     await waitFor(window, `document.querySelector('.mesh-conversion-section button:not(:disabled)')`, 'konwersja po naprawie');
@@ -65,7 +66,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.triangles?.length === 30`, 'cofnięte wypełnienie');
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.triangles?.length === 42`, 'ponowione wypełnienie');
-    if (panelResult.operationTypes.join(',') !== 'orient,fillHoles' || panelResult.triangleCount !== 14 || !panelResult.insideWorkspace || !panelResult.contentFits || panelResult.horizontalOverflow || Math.abs(volume - 1000) > 0.01) throw new Error(`Niepoprawny wynik naprawy skanu: ${JSON.stringify({ ...panelResult, volume })}`);
+    if (panelResult.operationTypes.join(',') !== 'orient,fillHoles' || panelResult.triangleCount !== 14 || !panelResult.insideWorkspace || !panelResult.contentReachable || panelResult.horizontalOverflow || Math.abs(volume - 1000) > 0.01) throw new Error(`Niepoprawny wynik naprawy skanu: ${JSON.stringify({ ...panelResult, volume })}`);
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...panelResult, volume }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;

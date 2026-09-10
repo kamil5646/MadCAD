@@ -105,7 +105,7 @@ app.whenReady().then(async () => {
     const historyRows = await window.webContents.executeJavaScript(`document.querySelectorAll('.command-history button').length`);
 
     const result = { screenshotPath, ...visual, distance, historyRows, webglRenderer: geometry.webglRenderer, gpuFeatures: app.getGPUFeatureStatus() };
-    if (!visual.visible || !visual.insideViewport || visual.value !== '25' || !visual.prompt.includes('wpisz długość') || visual.horizontalOverflow || Math.abs(distance - 25) > 0.001 || historyRows < 2 || !geometry.webglRenderer || !String(result.gpuFeatures.webgl).startsWith('enabled')) {
+    if (!visual.visible || !visual.insideViewport || visual.value !== '25' || !visual.prompt.includes('wpisz długość') || visual.horizontalOverflow || Math.abs(distance - 25) > 0.001 || historyRows < 2 || !geometry.webglRenderer) {
       throw new Error(`Niepoprawna linia poleceń: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

@@ -36,7 +36,7 @@ import {
   setOC,
   setManifold,
 } from 'replicad';
-import { FEATURE_STATUS, prepareDocument } from './evaluator.js';
+import { FEATURE_STATUS, prepareDocument, resolveOpenChainProfile } from './evaluator.js';
 import { evaluateFeatureHistory } from './feature-history.js';
 import { GEOMETRY_POLICY } from './geometry-policy.js';
 import { resolveFaceEdgeHolePlacement } from './face-edge-hole.js';
@@ -48,6 +48,7 @@ import { boundsOverlap } from './geometry-inspection.js';
 import { parseStlMesh } from './model-import.js';
 import { inspectMesh } from './mesh-tools.js';
 import { createRoundedBoxFormMesh } from './subdivision-form.js';
+import { resolveSketchFrame } from './sketch-frame.js';
 
 let kernelPromise;
 let manifoldPromise;
@@ -261,6 +262,22 @@ function drawingForProfile(profile) {
 
 const PROFILE_PLANE_NORMALS = { XY: [0, 0, 1], XZ: [0, -1, 0], YZ: [1, 0, 0] };
 
+function sketchDrawingOnProfile(drawing, profile, normalOffset = 0) {
+  if (!profile.frame) return drawing.sketchOnPlane(profile.plane || 'XY', Number(profile.planeOffset || 0) + normalOffset);
+  const frame = resolveSketchFrame(profile);
+  const origin = frame.origin.map((value, index) => value + frame.normal[index] * normalOffset);
+  const plane = new Plane(origin, frame.u, frame.normal);
+  try {
+    return drawing.sketchOnPlane(plane);
+  } finally {
+    plane.delete?.();
+  }
+}
+
+function profileNormal(profile) {
+  return profile.frame ? resolveSketchFrame(profile).normal : PROFILE_PLANE_NORMALS[profile.plane || 'XY'];
+}
+
 function vectorSubtract(left, right) {
   return left.map((value, index) => value - right[index]);
 }
@@ -423,12 +440,10 @@ function sheetFlatShape(sheetMetal) {
 }
 
 function planarPatchForProfile(profile) {
-  const plane = profile.plane || 'XY';
-  const planeOffset = Number(profile.planeOffset || 0);
-  const outerSketch = drawingForProfile(profile).sketchOnPlane(plane, planeOffset);
+  const outerSketch = sketchDrawingOnProfile(drawingForProfile(profile), profile);
   const face = outerSketch.face();
   const holeWires = (profile.geometry.holes || []).map((hole) => {
-    const sketch = drawingForSegments(hole.segments, profile.id).sketchOnPlane(plane, planeOffset);
+    const sketch = sketchDrawingOnProfile(drawingForSegments(hole.segments, profile.id), profile);
     const wire = sketch.wire.clone();
     sketch.delete();
     return wire;
@@ -440,10 +455,10 @@ function planarPatchForProfile(profile) {
   return patchedFace;
 }
 
-function prismWireSurface(drawing, plane, planeOffset, distance) {
-  const sketch = drawing.sketchOnPlane(plane, planeOffset);
+function prismWireSurface(drawing, profile, distance) {
+  const sketch = sketchDrawingOnProfile(drawing, profile);
   const wire = sketch.wire.clone();
-  const vector = new Vector(PROFILE_PLANE_NORMALS[plane].map((value) => value * distance));
+  const vector = new Vector(profileNormal(profile).map((value) => value * distance));
   const builder = new (getOC().BRepPrimAPI_MakePrism_1)(wire.wrapped, vector.wrapped, true, true);
   const shape = cast(builder.Shape());
   builder.delete();
@@ -454,16 +469,14 @@ function prismWireSurface(drawing, plane, planeOffset, distance) {
 }
 
 function extrudedSurfaceForProfile(profile, distance) {
-  const plane = profile.plane || 'XY';
-  const planeOffset = Number(profile.planeOffset || 0);
-  if (profile.type === 'open') return prismWireSurface(drawingForSegments(profile.geometry.segments, profile.id), plane, planeOffset, distance);
-  const surfaces = [prismWireSurface(drawingForProfile(profile), plane, planeOffset, distance)];
-  for (const hole of profile.geometry.holes || []) surfaces.push(prismWireSurface(drawingForSegments(hole.segments, profile.id), plane, planeOffset, distance));
+  if (profile.type === 'open') return prismWireSurface(drawingForSegments(profile.geometry.segments, profile.id), profile, distance);
+  const surfaces = [prismWireSurface(drawingForProfile(profile), profile, distance)];
+  for (const hole of profile.geometry.holes || []) surfaces.push(prismWireSurface(drawingForSegments(hole.segments, profile.id), profile, distance));
   return surfaces.length === 1 ? surfaces[0] : compoundShapes(surfaces);
 }
 
-function revolveWireSurface(drawing, plane, planeOffset, axis, angle) {
-  const sketch = drawing.sketchOnPlane(plane, planeOffset);
+function revolveWireSurface(drawing, profile, axis, angle) {
+  const sketch = sketchDrawingOnProfile(drawing, profile);
   const wire = sketch.wire.clone();
   const revolutionAxis = makeAx1(axis.origin, axis.direction);
   const builder = new (getOC().BRepPrimAPI_MakeRevol_1)(wire.wrapped, revolutionAxis, angle * Math.PI / 180, true);
@@ -476,11 +489,9 @@ function revolveWireSurface(drawing, plane, planeOffset, axis, angle) {
 }
 
 function revolvedSurfaceForProfile(profile, axis, angle) {
-  const plane = profile.plane || 'XY';
-  const planeOffset = Number(profile.planeOffset || 0);
-  if (profile.type === 'open') return revolveWireSurface(drawingForSegments(profile.geometry.segments, profile.id), plane, planeOffset, axis, angle);
-  const surfaces = [revolveWireSurface(drawingForProfile(profile), plane, planeOffset, axis, angle)];
-  for (const hole of profile.geometry.holes || []) surfaces.push(revolveWireSurface(drawingForSegments(hole.segments, profile.id), plane, planeOffset, axis, angle));
+  if (profile.type === 'open') return revolveWireSurface(drawingForSegments(profile.geometry.segments, profile.id), profile, axis, angle);
+  const surfaces = [revolveWireSurface(drawingForProfile(profile), profile, axis, angle)];
+  for (const hole of profile.geometry.holes || []) surfaces.push(revolveWireSurface(drawingForSegments(hole.segments, profile.id), profile, axis, angle));
   return surfaces.length === 1 ? surfaces[0] : compoundShapes(surfaces);
 }
 
@@ -522,7 +533,7 @@ function thickenGenericSurface(shape, feature) {
 
 function thickenSurfaceBody(target, feature) {
   if (target.surfaceSourceType === 'patch') {
-    const direction = PROFILE_PLANE_NORMALS[target.surfaceProfile.plane || 'XY'];
+    const direction = profileNormal(target.surfaceProfile);
     const distance = feature.thicknessValue * (feature.reverse ? -1 : 1);
     return prismShape(target.shape, direction, distance, feature.side === 'symmetric' ? -distance / 2 : 0);
   }
@@ -531,7 +542,7 @@ function thickenSurfaceBody(target, feature) {
     const drawing = target.surfaceProfile.type === 'open'
       ? openChainStrip(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, endCap: 'butt', surfaceOffset: target.surfaceOffsetDistance })
       : thinDrawingForProfile(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, surfaceOffset: target.surfaceOffsetDistance });
-    let shape = drawing.sketchOnPlane(target.surfaceProfile.plane || 'XY', Number(target.surfaceProfile.planeOffset || 0)).extrude(target.surfaceDistance);
+    let shape = sketchDrawingOnProfile(drawing, target.surfaceProfile).extrude(target.surfaceDistance);
     for (const transform of target.surfaceTransforms || []) {
       shape = transform.mode === 'move'
         ? shape.translate(...transform.translation)
@@ -544,7 +555,7 @@ function thickenSurfaceBody(target, feature) {
     const drawing = target.surfaceProfile.type === 'open'
       ? openChainStrip(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, endCap: 'butt', surfaceOffset: target.surfaceOffsetDistance })
       : thinDrawingForProfile(target.surfaceProfile, { wallThicknessValue: feature.thicknessValue, wallSide, surfaceOffset: target.surfaceOffsetDistance });
-    let shape = drawing.sketchOnPlane(target.surfaceProfile.plane || 'XY', Number(target.surfaceProfile.planeOffset || 0)).revolve(target.surfaceAxis.direction, { origin: target.surfaceAxis.origin, angle: target.surfaceAngle });
+    let shape = sketchDrawingOnProfile(drawing, target.surfaceProfile).revolve(target.surfaceAxis.direction, { origin: target.surfaceAxis.origin, angle: target.surfaceAngle });
     for (const transform of target.surfaceTransforms || []) {
       shape = transform.mode === 'move'
         ? shape.translate(...transform.translation)
@@ -686,25 +697,65 @@ function thinDrawingForProfile(profile, feature) {
 }
 
 function extrudeProfile(profile, span, feature) {
-  const plane = profile.plane || 'XY';
-  const planeOffset = Number(profile.planeOffset || 0) + span.startDelta;
-  let shape = (feature.thin ? thinDrawingForProfile(profile, feature) : drawingForProfile(profile)).sketchOnPlane(plane, planeOffset).extrude(span.distance);
+  let shape = sketchDrawingOnProfile(feature.thin ? thinDrawingForProfile(profile, feature) : drawingForProfile(profile), profile, span.startDelta).extrude(span.distance);
   for (const hole of profile.geometry.holes || []) {
-    const cutter = drawingForSegments(hole.segments, profile.id).sketchOnPlane(plane, planeOffset).extrude(span.distance);
+    const cutter = sketchDrawingOnProfile(drawingForSegments(hole.segments, profile.id), profile, span.startDelta).extrude(span.distance);
     shape = shape.cut(cutter);
   }
   return shape;
 }
 
 function revolveProfile(profile, axis, angle) {
-  const plane = profile.plane || 'XY';
-  const planeOffset = Number(profile.planeOffset || 0);
-  let shape = drawingForProfile(profile).sketchOnPlane(plane, planeOffset).revolve(axis.direction, { origin: axis.origin, angle });
+  let shape = sketchDrawingOnProfile(drawingForProfile(profile), profile).revolve(axis.direction, { origin: axis.origin, angle });
   for (const hole of profile.geometry.holes || []) {
-    const cutter = drawingForSegments(hole.segments, profile.id).sketchOnPlane(plane, planeOffset).revolve(axis.direction, { origin: axis.origin, angle });
+    const cutter = sketchDrawingOnProfile(drawingForSegments(hole.segments, profile.id), profile).revolve(axis.direction, { origin: axis.origin, angle });
     shape = shape.cut(cutter);
   }
   return shape;
+}
+
+function makeExactBSplineEdge(data, reversed = false) {
+  const oc = getOC();
+  const poles = new oc.TColgp_Array1OfPnt_2(1, data.poles.length);
+  const weights = new oc.TColStd_Array1OfReal_2(1, data.weights.length);
+  const knots = new oc.TColStd_Array1OfReal_2(1, data.knots.length);
+  const multiplicities = new oc.TColStd_Array1OfInteger_2(1, data.multiplicities.length);
+  const points = [];
+  let spline;
+  let handle;
+  let builder;
+  let edge;
+  try {
+    data.poles.forEach((coordinates, index) => {
+      const point = new oc.gp_Pnt_3(coordinates[0], coordinates[1], coordinates[2]);
+      points.push(point);
+      poles.SetValue(index + 1, point);
+      weights.SetValue(index + 1, data.weights[index]);
+    });
+    data.knots.forEach((value, index) => {
+      knots.SetValue(index + 1, value);
+      multiplicities.SetValue(index + 1, data.multiplicities[index]);
+    });
+    spline = new oc.Geom_BSplineCurve_2(poles, weights, knots, multiplicities, data.degree, Boolean(data.periodic), true);
+    handle = new oc.Handle_Geom_Curve_2(spline);
+    builder = new oc.BRepBuilderAPI_MakeEdge_25(handle, data.firstParameter, data.lastParameter);
+    if (!builder.IsDone()) throw new Error('OpenCascade nie utworzył krawędzi z zapisanej B-spline.');
+    edge = cast(builder.Edge());
+    if (reversed) {
+      const flipped = edge.flipOrientation();
+      edge.delete();
+      edge = flipped;
+    }
+    return edge;
+  } finally {
+    points.forEach((point) => point.delete());
+    builder?.delete();
+    handle?.delete();
+    multiplicities.delete();
+    knots.delete();
+    weights.delete();
+    poles.delete();
+  }
 }
 
 function pathSpine(path) {
@@ -712,7 +763,7 @@ function pathSpine(path) {
   if (path.space !== '3d') {
     const spinePen = draw(first);
     rest.forEach((point) => spinePen.lineTo(point));
-    return spinePen.done().sketchOnPlane(path.plane || 'XY', Number(path.planeOffset || 0));
+    return sketchDrawingOnProfile(spinePen.done(), path);
   }
   const edges = [];
   try {
@@ -720,6 +771,7 @@ function pathSpine(path) {
       try {
         if (segment.type === 'arc3d') edges.push(makeThreePointArc(segment.start, segment.through, segment.end));
         else if (segment.type === 'spline3d') edges.push(makeBezierCurve([segment.start, ...segment.controls, segment.end]));
+        else if (segment.type === 'bspline3d') edges.push(makeExactBSplineEdge(segment.bspline, segment.reversed));
         else edges.push(makeLine(segment.start, segment.end));
       } catch (error) {
         throw new Error(`Nie udało się utworzyć krzywej ${segment.type} (${segment.id}): ${error.message || error}`);
@@ -780,7 +832,7 @@ function sweepProfile(profile, path) {
 
 function loftProfiles(profiles, loftMode) {
   const loftDrawings = (drawings) => {
-    const sketches = drawings.map((drawing, index) => drawing.sketchOnPlane(profiles[index].plane || 'XY', Number(profiles[index].planeOffset || 0)));
+    const sketches = drawings.map((drawing, index) => sketchDrawingOnProfile(drawing, profiles[index]));
     return sketches[0].loftWith(sketches.slice(1), { ruled: loftMode === 'ruled' });
   };
   let shape = loftDrawings(profiles.map((profile) => drawingForProfile(profile)));
@@ -794,7 +846,7 @@ function loftProfiles(profiles, loftMode) {
 
 function surfaceLoftProfiles(profiles, loftMode) {
   const loftDrawings = (drawings) => {
-    const sketches = drawings.map((drawing, index) => drawing.sketchOnPlane(profiles[index].plane || 'XY', Number(profiles[index].planeOffset || 0)));
+    const sketches = drawings.map((drawing, index) => sketchDrawingOnProfile(drawing, profiles[index]));
     return sketches[0].loftWith(sketches.slice(1), { ruled: loftMode === 'ruled' }, true);
   };
   const surfaces = [loftDrawings(profiles.map((profile) => drawingForProfile(profile)))];
@@ -811,7 +863,7 @@ function thickenLoftProfiles(profiles, loftMode, thickness, wallSide, surfaceOff
       : [surfaceOffset + thickness / 2, surfaceOffset - thickness / 2];
   const loftBand = (drawings) => {
     const loftAtOffset = (distance) => {
-      const sketches = drawings.map((drawing, index) => (distance ? drawing.offset(distance, { lineJoinType: 'miter' }) : drawing).sketchOnPlane(profiles[index].plane || 'XY', Number(profiles[index].planeOffset || 0)));
+      const sketches = drawings.map((drawing, index) => sketchDrawingOnProfile(distance ? drawing.offset(distance, { lineJoinType: 'miter' }) : drawing, profiles[index]));
       return sketches[0].loftWith(sketches.slice(1), { ruled: loftMode === 'ruled' });
     };
     return loftAtOffset(outerDistance).cut(loftAtOffset(innerDistance));
@@ -833,7 +885,7 @@ function stitchSurfaceShapes(shapes, tolerance) {
     const stitched = cast(sewing.SewedShape());
     if (stitched.wrapped.ShapeType() !== oc.TopAbs_ShapeEnum.TopAbs_SHELL) {
       stitched.delete();
-      throw new Error('Wybrane powierzchnie nie tworzą jednego połączonego płaszcza.');
+      throw new Error(`Wybrane powierzchnie nie tworzą jednego połączonego płaszcza; wykryto ${freeEdges} wolnych krawędzi.`);
     }
     if (freeEdges > 0) return { shape: stitched, bodyKind: 'surface', freeEdges };
     const solid = makeSolid([stitched]);
@@ -862,6 +914,75 @@ function facetedBrepFromMesh(mesh, tolerance = GEOMETRY_POLICY.linearTolerance) 
     if (stitched.bodyKind !== 'solid') {
       stitched.shape.delete?.();
       throw new Error(`OpenCascade nie domknął płaszcza; pozostało ${stitched.freeEdges} wolnych krawędzi.`);
+    }
+    return stitched.shape;
+  } finally {
+    faces.forEach((face) => face.delete?.());
+  }
+}
+
+function smoothBrepFromPatches(patches, tolerance = GEOMETRY_POLICY.linearTolerance) {
+  const oc = getOC();
+  const faces = [];
+  const knotData = (poleCount) => {
+    const degree = Math.min(3, poleCount - 1);
+    const knotCount = poleCount - degree + 1;
+    return {
+      degree,
+      values: Array.from({ length: knotCount }, (_unused, index) => index / (knotCount - 1)),
+      multiplicities: Array.from({ length: knotCount }, (_unused, index) => (index === 0 || index === knotCount - 1 ? degree + 1 : 1)),
+    };
+  };
+  try {
+    for (const grid of patches) {
+      const rows = grid.length;
+      const columns = grid[0]?.length || 0;
+      if (rows < 3 || columns < 3 || grid.some((row) => row.length !== columns)) throw new Error('Gładki Form wymaga regularnej siatki punktów każdego płata.');
+      const points = new oc.TColgp_Array2OfPnt_2(1, rows, 1, columns);
+      const allocatedPoints = [];
+      const u = knotData(rows);
+      const v = knotData(columns);
+      const uKnots = new oc.TColStd_Array1OfReal_2(1, u.values.length);
+      const vKnots = new oc.TColStd_Array1OfReal_2(1, v.values.length);
+      const uMultiplicities = new oc.TColStd_Array1OfInteger_2(1, u.multiplicities.length);
+      const vMultiplicities = new oc.TColStd_Array1OfInteger_2(1, v.multiplicities.length);
+      let spline;
+      let surfaceHandle;
+      let maker;
+      try {
+        grid.forEach((row, rowIndex) => row.forEach((coordinates, columnIndex) => {
+          const point = new oc.gp_Pnt_3(...coordinates);
+          allocatedPoints.push(point);
+          points.SetValue(rowIndex + 1, columnIndex + 1, point);
+        }));
+        u.values.forEach((value, index) => {
+          uKnots.SetValue(index + 1, value);
+          uMultiplicities.SetValue(index + 1, u.multiplicities[index]);
+        });
+        v.values.forEach((value, index) => {
+          vKnots.SetValue(index + 1, value);
+          vMultiplicities.SetValue(index + 1, v.multiplicities[index]);
+        });
+        spline = new oc.Geom_BSplineSurface_1(points, uKnots, vKnots, uMultiplicities, vMultiplicities, u.degree, v.degree, false, false);
+        surfaceHandle = new oc.Handle_Geom_Surface_2(spline);
+        maker = new oc.BRepBuilderAPI_MakeFace_8(surfaceHandle, Math.max(tolerance, 1e-6));
+        if (!maker.IsDone()) throw new Error('OpenCascade nie utworzył ściany B-spline Form.');
+        faces.push(cast(maker.Face()));
+      } finally {
+        maker?.delete();
+        surfaceHandle?.delete();
+        vMultiplicities.delete();
+        uMultiplicities.delete();
+        vKnots.delete();
+        uKnots.delete();
+        allocatedPoints.forEach((point) => point.delete());
+        points.delete();
+      }
+    }
+    const stitched = stitchSurfaceShapes(faces, Math.max(tolerance, 1e-3));
+    if (stitched.bodyKind !== 'solid') {
+      stitched.shape.delete?.();
+      throw new Error(`Gładkie płaty Form nie utworzyły zamkniętej bryły; pozostało ${stitched.freeEdges} wolnych krawędzi.`);
     }
     return stitched.shape;
   } finally {
@@ -981,7 +1102,7 @@ function ribProfile(feature) {
   const inPlaneThickness = feature.ribMode === 'rib' ? feature.depthValue : feature.thicknessValue;
   const normalDistance = feature.ribMode === 'rib' ? feature.thicknessValue : feature.depthValue;
   const drawing = openChainStrip(feature.profile, { wallThicknessValue: inPlaneThickness, wallSide: feature.wallSide, endCap: 'butt' });
-  return drawing.sketchOnPlane(feature.profile.plane || 'XY', Number(feature.profile.planeOffset || 0)).extrude(feature.reverse ? -normalDistance : normalDistance);
+  return sketchDrawingOnProfile(drawing, feature.profile).extrude(feature.reverse ? -normalDistance : normalDistance);
 }
 
 function coilShape(feature) {
@@ -1292,7 +1413,18 @@ function runFeature(feature, bodyMap, bodyOrder) {
       vertices: mesh.vertices.map((value, index) => value + feature.position[index % 3]),
       triangles: mesh.triangles,
     };
-    const shape = facetedBrepFromMesh(translated);
+    const translatedPatches = mesh.smoothPatches.map((grid) => grid.map((row) => row.map((point) => point.map((value, axis) => value + feature.position[axis]))));
+    let shape;
+    let brepMode = 'faceted';
+    if (translatedPatches.length) {
+      try {
+        shape = smoothBrepFromPatches(translatedPatches);
+        brepMode = 'smooth-patches';
+      } catch (error) {
+        console.warn(`Gładka konwersja Form nie powiodła się, użyto zgodnej geometrii fasetowej: ${error.message}`);
+      }
+    }
+    if (!shape) shape = facetedBrepFromMesh(translated);
     const bodyId = `body-${feature.id}`;
     bodyMap.set(bodyId, {
       id: bodyId,
@@ -1305,6 +1437,8 @@ function runFeature(feature, bodyMap, bodyOrder) {
         controlFaceCount: mesh.controlFaceCount,
         surfaceVertexCount: mesh.surfaceVertexCount,
         surfaceFaceCount: mesh.surfaceFaceCount,
+        brepMode,
+        brepPatchCount: brepMode === 'smooth-patches' ? translatedPatches.length : mesh.triangles.length / 3,
         subdivisions: mesh.subdivisions,
         symmetry: feature.symmetry || 'none',
         controlVertices: mesh.controlVertices.map((value, index) => value + feature.position[index % 3]),
@@ -1813,15 +1947,9 @@ function runFeature(feature, bodyMap, bodyOrder) {
       }
     } else {
       const { x, y } = feature.profile.geometry;
-      const plane = feature.profile.plane || 'XY';
-      const planeOffset = Number(feature.profile.planeOffset || 0);
-      const outside = plane === 'XZ'
-        ? [x, 1 - planeOffset, y]
-        : plane === 'YZ'
-          ? [planeOffset - 1, x, y]
-          : [x, y, planeOffset - 1];
-      const direction = plane === 'XZ' ? [0, -1, 0] : plane === 'YZ' ? [1, 0, 0] : [0, 0, 1];
-      placement = { position: outside.map((value, axis) => value + direction[axis]), direction };
+      const frame = resolveSketchFrame(feature.profile);
+      const position = frame.origin.map((value, axis) => value + frame.u[axis] * x + frame.v[axis] * y);
+      placement = { position, direction: frame.normal };
     }
     const outside = placement.position.map((value, axis) => value - placement.direction[axis]);
     const usesConicalPreparation = feature.pipePreparation === 'conical' && feature.threadTaperValue > 0;
@@ -2036,7 +2164,6 @@ function runFeature(feature, bodyMap, bodyOrder) {
     const source = target.shape;
     const faces = source.faces;
     const boundingBox = source.boundingBox;
-    const sourceNormals = { XY: [0, 0, 1], XZ: [0, -1, 0], YZ: [1, 0, 0] };
     let tool;
     let result;
     let fuser;
@@ -2047,7 +2174,7 @@ function runFeature(feature, bodyMap, bodyOrder) {
       const descriptors = faces.map((face) => faceDescriptor(face));
       const faceDescriptorValue = descriptors[matchingFaceIndex(feature.topologyReferences?.[0], descriptors)];
       if (faceDescriptorValue.geometry !== 'PLANE') throw new Error('Split Face obsługuje wyłącznie ściany planarne.');
-      const sourceNormal = sourceNormals[feature.profile.plane || 'XY'];
+      const sourceNormal = profileNormal(feature.profile);
       const alignment = faceDescriptorValue.normal.reduce((sum, value, axis) => sum + value * sourceNormal[axis], 0);
       if (Math.abs(Math.abs(alignment) - 1) > GEOMETRY_POLICY.angularTolerance) throw new Error('Profil Split Face musi leżeć na dzielonej ścianie.');
       const dimensions = boundingBox.bounds[1].map((value, axis) => value - boundingBox.bounds[0][axis]).filter((value) => value > GEOMETRY_POLICY.linearTolerance);
@@ -2328,6 +2455,8 @@ function edgeDescriptor(edge) {
   let adaptor;
   let circle;
   let circleCenter;
+  let bsplineHandle;
+  let bspline;
   try {
     const start = edge.startPoint.toTuple();
     const end = edge.endPoint.toTuple();
@@ -2343,7 +2472,11 @@ function edgeDescriptor(edge) {
       length: edge.length,
       closed: edge.isClosed,
     };
-    if (descriptor.geometry !== 'LINE' && !descriptor.closed) descriptor.midpoint = edge.pointAt(0.5).toTuple();
+    const samplePoint = (parameter) => {
+      const point = edge.pointAt(parameter);
+      try { return point.toTuple(); } finally { point.delete(); }
+    };
+    if (descriptor.geometry !== 'LINE' && !descriptor.closed) descriptor.midpoint = samplePoint(0.5);
     if (descriptor.geometry === 'CIRCLE') {
       adaptor = edge._geomAdaptor();
       circle = adaptor.Circle();
@@ -2352,14 +2485,109 @@ function edgeDescriptor(edge) {
       descriptor.radius = circle.Radius();
       descriptor.diameter = descriptor.radius * 2;
     }
+    if (descriptor.geometry === 'BSPLINE_CURVE' && !descriptor.closed) {
+      adaptor = adaptor || edge._geomAdaptor();
+      bsplineHandle = adaptor.BSpline();
+      bspline = bsplineHandle.get();
+      descriptor.samples = Array.from({ length: 25 }, (_unused, index) => samplePoint(index / 24));
+      descriptor.bspline = {
+        degree: bspline.Degree(),
+        periodic: bspline.IsPeriodic(),
+        firstParameter: adaptor.FirstParameter(),
+        lastParameter: adaptor.LastParameter(),
+        startPoint: start,
+        poles: Array.from({ length: bspline.NbPoles() }, (_unused, index) => {
+          const point = bspline.Pole(index + 1);
+          try { return [point.X(), point.Y(), point.Z()]; } finally { point.delete(); }
+        }),
+        weights: Array.from({ length: bspline.NbPoles() }, (_unused, index) => bspline.Weight(index + 1)),
+        knots: Array.from({ length: bspline.NbKnots() }, (_unused, index) => bspline.Knot(index + 1)),
+        multiplicities: Array.from({ length: bspline.NbKnots() }, (_unused, index) => bspline.Multiplicity(index + 1)),
+      };
+    }
     return descriptor;
   } catch (_error) {
     return { geometry: 'UNKNOWN_EDGE' };
   } finally {
     circleCenter?.delete();
     circle?.delete();
+    bsplineHandle?.delete();
     adaptor?.delete();
   }
+}
+
+function projectPointsToSurface(evaluated, { bodyId, faceId, points } = {}) {
+  if (!Array.isArray(points) || points.length < 2 || points.some((point) => !Array.isArray(point) || point.length !== 3 || point.some((value) => !Number.isFinite(value)))) {
+    throw new Error('Project to Surface wymaga co najmniej dwóch poprawnych punktów 3D.');
+  }
+  const bodyIndex = evaluated.kernelBodies.findIndex((body) => body.id === bodyId);
+  const topology = evaluated.topologyByBody.get(bodyId);
+  const faceIndex = topology?.faces?.findIndex((face) => face.id === faceId) ?? -1;
+  if (bodyIndex < 0 || faceIndex < 0) throw new Error('Nie znaleziono powierzchni docelowej Project to Surface.');
+  const faces = evaluated.kernelBodies[bodyIndex].shape.faces;
+  const face = faces[faceIndex];
+  const oc = getOC();
+  const uvArray = new oc.TColgp_Array1OfPnt2d_2(1, points.length);
+  const uvPoints = [];
+  let approximation;
+  let bspline2dHandle;
+  let curve2dHandle;
+  let surfaceHandle;
+  let builder;
+  let projectedEdge;
+  try {
+    points.forEach((point, index) => {
+      const [u, v] = face.uvCoordinates(point);
+      if (![u, v].every(Number.isFinite)) throw new Error('Nie udało się wyznaczyć współrzędnych UV na powierzchni.');
+      const uvPoint = new oc.gp_Pnt2d_3(u, v);
+      uvPoints.push(uvPoint);
+      uvArray.SetValue(index + 1, uvPoint);
+    });
+    const degree = Math.min(3, points.length - 1);
+    approximation = new oc.Geom2dAPI_PointsToBSpline_2(uvArray, degree, degree, oc.GeomAbs_Shape.GeomAbs_C0, GEOMETRY_POLICY.linearTolerance);
+    if (!approximation.IsDone()) throw new Error('OpenCascade nie utworzył krzywej UV na powierzchni.');
+    bspline2dHandle = approximation.Curve();
+    curve2dHandle = new oc.Handle_Geom2d_Curve_2(bspline2dHandle.get());
+    surfaceHandle = oc.BRep_Tool.Surface_2(face.wrapped);
+    builder = new oc.BRepBuilderAPI_MakeEdge_30(curve2dHandle, surfaceHandle);
+    if (!builder.IsDone()) throw new Error('OpenCascade nie utworzył krawędzi związanej z powierzchnią.');
+    projectedEdge = cast(builder.Edge());
+    if (!oc.BRepLib.BuildCurve3d(projectedEdge.wrapped, GEOMETRY_POLICY.linearTolerance, oc.GeomAbs_Shape.GeomAbs_C2, 14, 64)) {
+      throw new Error('OpenCascade nie odtworzył krzywej 3D z przebiegu UV.');
+    }
+    const descriptor = edgeDescriptor(projectedEdge);
+    if (descriptor.geometry !== 'BSPLINE_CURVE' || !descriptor.bspline) throw new Error('Project to Surface nie zwrócił dokładnej B-spline 3D.');
+    return { ...descriptor, surfaceFaceIds: [faceId] };
+  } finally {
+    projectedEdge?.delete();
+    builder?.delete();
+    surfaceHandle?.delete();
+    curve2dHandle?.delete();
+    bspline2dHandle?.delete();
+    approximation?.delete();
+    uvPoints.forEach((point) => point.delete());
+    uvArray.delete();
+    faces.forEach((item) => item.delete());
+  }
+}
+
+function evaluateSurfaceProjections(document, evaluated, parameters) {
+  const updates = [];
+  for (const sketch of document.sketches || []) {
+    for (const curve of (sketch.entities || []).filter((entity) => entity.type === 'bspline3d' && entity.surfaceProjection)) {
+      const metadata = curve.surfaceProjection;
+      const reference = (document.references || []).find((item) => item.id === metadata.faceReferenceId);
+      if (!reference?.bodyId || !reference?.topologyId) continue;
+      try {
+        const path = resolveOpenChainProfile(sketch, metadata.sourceEntityIds, parameters, `surface-projection-${curve.id}`, 'Project to Surface');
+        const descriptor = projectPointsToSurface(evaluated, { bodyId: reference.bodyId, faceId: reference.topologyId, points: path.geometry.points });
+        updates.push({ entityId: curve.id, descriptor });
+      } catch (error) {
+        updates.push({ entityId: curve.id, error: error.message });
+      }
+    }
+  }
+  return updates;
 }
 
 function measureBodyShape(shape) {
@@ -2482,14 +2710,34 @@ function meshBody(body, index, quality = 'display') {
   });
   const shapeFaces = body.shape.faces;
   const shapeEdges = body.shape.edges;
+  const faceHashesByEdgeHash = new Map();
+  shapeFaces.forEach((face) => {
+    const faceEdges = face.edges;
+    try {
+      faceEdges.forEach((edge) => {
+        const hashes = faceHashesByEdgeHash.get(edge.hashCode) || new Set();
+        hashes.add(face.hashCode);
+        faceHashesByEdgeHash.set(edge.hashCode, hashes);
+      });
+    } finally {
+      faceEdges.forEach((edge) => edge.delete());
+    }
+  });
   const previousTopology = topologyHistory.get(body.id) || { faces: [], edges: [], vertices: [] };
   const faces = assignStableTopologyIds(body.id, 'face', shapeFaces.map(faceDescriptor), previousTopology.faces)
     .map((record, faceIndex) => ({ ...record, sourceHash: shapeFaces[faceIndex].hashCode }));
-  const stableEdges = assignStableTopologyIds(body.id, 'edge', shapeEdges.map(edgeDescriptor), previousTopology.edges)
+  const stableEdgeRecords = assignStableTopologyIds(body.id, 'edge', shapeEdges.map(edgeDescriptor), previousTopology.edges)
     .map((record, edgeIndex) => ({ ...record, sourceHash: shapeEdges[edgeIndex].hashCode }));
+  const faceIds = new Map(faces.map((face) => [face.sourceHash, face.id]));
+  const stableEdges = stableEdgeRecords.map((edge) => ({
+    ...edge,
+    descriptor: {
+      ...edge.descriptor,
+      surfaceFaceIds: [...(faceHashesByEdgeHash.get(edge.sourceHash) || [])].map((hash) => faceIds.get(hash)).filter(Boolean).sort(),
+    },
+  }));
   const vertexDescriptors = [...new Map(stableEdges.flatMap((edge) => (edge.descriptor.endpoints || []).map((point) => [JSON.stringify(point), { point }]))).values()];
   const stableVertices = assignStableTopologyIds(body.id, 'vertex', vertexDescriptors, previousTopology.vertices);
-  const faceIds = new Map(faces.map((face) => [face.sourceHash, face.id]));
   const edgeIds = new Map(stableEdges.map((edge) => [edge.sourceHash, edge.id]));
   const renderBody = {
     id: body.id,
@@ -2588,7 +2836,7 @@ async function evaluateRevision(document, quality) {
   const meshStartedAt = performance.now();
   const meshedBodies = kernelBodies.map((body, index) => meshBody(body, index, quality));
   const meshMs = performance.now() - meshStartedAt;
-  return {
+  const evaluated = {
     kernelBodies,
     renderBodies: meshedBodies.map((entry) => entry.renderBody),
     topologyByBody: new Map(meshedBodies.map((entry, index) => [kernelBodies[index].id, entry.topologyState])),
@@ -2608,6 +2856,8 @@ async function evaluateRevision(document, quality) {
       bodies: meshedBodies.map((entry) => entry.performance),
     },
   };
+  evaluated.surfaceProjectionUpdates = evaluateSurfaceProjections(document, evaluated, prepared.parameters);
+  return evaluated;
 }
 
 function analyzeBodyCollisions(kernelBodies, renderBodies) {
@@ -2802,6 +3052,7 @@ async function handleMessage(data) {
       cache: revisionCache.stats,
       analysis: evaluated.analysis,
       performance: evaluated.performance,
+      surfaceProjectionUpdates: evaluated.surfaceProjectionUpdates,
     };
     self.postMessage({ id, ok: true, type, result }, transferableBuffers(bodies));
     return;
@@ -2814,6 +3065,12 @@ async function handleMessage(data) {
       evaluated.performance = { ...evaluated.performance, collisionMs: collisionResult.collisionMs };
     }
     self.postMessage({ id, ok: true, type, result: { revision, analysis: evaluated.analysis, performance: evaluated.performance } });
+    return;
+  }
+  if (type === 'project-to-surface') {
+    const evaluated = await resolveRevision(document, revision, 'display');
+    const descriptor = projectPointsToSurface(evaluated, data.projection);
+    self.postMessage({ id, ok: true, type, result: { revision, descriptor } });
     return;
   }
   if (type === 'export') {

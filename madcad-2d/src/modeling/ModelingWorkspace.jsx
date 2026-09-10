@@ -46,9 +46,11 @@ import {
   Scissors,
   Shapes,
   SkipBack,
+  Spline,
   Square,
   StepBack,
   StepForward,
+  Sun,
   Triangle,
   Trash2,
   Type,
@@ -115,36 +117,47 @@ import {
   slotThreePoints,
 } from '../cad-core/sketch-primitives.js';
 import { refreshDetectedSketchProfiles } from '../cad-core/sketch-topology.js';
-import { addAutomaticConstraintsForLine, inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-suggestions.js';
+import { addAutomaticConstraintsForLine, allowsDirectionalConstraintSuggestion, inferLineConstraintSuggestion } from '../cad-core/sketch-constraint-suggestions.js';
 import { breakSketchEntity, chamferSketchLines, extendSketchEntity, filletSketchLines, offsetSketchEntities, offsetSketchProfile, trimSketchEntity } from '../cad-core/sketch-modifiers.js';
 import { copySketchSelection, mirrorSketchSelection, rotateSketchSelection, scaleSketchSelection } from '../cad-core/sketch-transforms.js';
 import { circularSketchPattern, pathSketchPattern, rectangularSketchPattern } from '../cad-core/sketch-patterns.js';
 import { applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_STATUS } from '../cad-core/sketch-solver.js';
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
+import { resolveOpenChainProfile } from '../cad-core/evaluator.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../cad-core/topology-references.js';
 import { createAnglePlane, createMidplane, createOffsetPlane, createPathPlane, createTangentPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
+import { frameFromNormal, normalizeSketchFrame } from '../cad-core/sketch-frame.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createPlaneNormalAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../cad-core/construction-axes.js';
 import { createCenterPoint, createIntersectionPoint, createMidpointPoint, createPointOnAxis, createVertexPoint, resolveConstructionPoint, resolveConstructionPoints } from '../cad-core/construction-points.js';
-import { projectTopologyToSketch, synchronizeProjectedGeometry } from '../cad-core/sketch-projection.js';
+import { createSurfaceProjectedSketchPath, projectTopologyToSketch, synchronizeProjectedGeometry, updateSurfaceProjectedSketchPath } from '../cad-core/sketch-projection.js';
 import { resolveFaceEdgeHolePlacement } from '../cad-core/face-edge-hole.js';
 import { measureSelection } from '../cad-core/measure-selection.js';
 import { calculateMassProperties } from '../cad-core/mass-properties.js';
+import { calculateCantileverScreening } from '../cad-core/static-screening.js';
+import { calculateCantileverBeamFea, createBeamFeaReportCsv } from '../cad-core/beam-fea.js';
+import { calculateSolidFea } from '../cad-core/solid-fea.js';
+import { calculateThermalScreening } from '../cad-core/thermal-screening.js';
 import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, summarizeGeometryInspection } from '../cad-core/geometry-inspection.js';
-import { applyPrinterProfile, PRINTER_PROFILES } from '../cad-core/printer-profiles.js';
-import { calculatePrintLayout, orientationForBedFace } from '../cad-core/print-layout.js';
+import { applyPrinterProfile, applyPrintMaterialProfile, PRINTER_PROFILES, PRINT_MATERIAL_PROFILES } from '../cad-core/printer-profiles.js';
+import { DEFAULT_LICENSE_STATUS, describeLicensePlan, normalizeLicenseStatus } from './license-plan.js';
+import { calculatePrintLayout, orientationForBedFace, recommendPrintOrientation } from '../cad-core/print-layout.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../cad-core/model-import.js';
 import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMeshFaces, reduceMesh, remeshUniform, repairMesh, smoothMesh } from '../cad-core/mesh-tools.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
+import { calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createMachineGcode, createManufacturingSetup, createPocketOperation, createTurningOperation, normalizeManufacturingOperation, normalizeManufacturingSetup, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
 import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../cad-core/assembly-joints.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../cad-core/assembly-motion.js';
+import { addStoryboardKeyframe, createAssemblyStoryboard, deleteAssemblyStoryboard, deleteStoryboardKeyframe, sampleAssemblyStoryboardState, updateAssemblyStoryboard } from '../cad-core/assembly-animation.js';
+import { assemblyInstructionHtml } from '../cad-core/assembly-instructions.js';
 import { createNamedView, deleteNamedView } from '../cad-core/named-views.js';
+import { MAX_RENDER_DECAL_BYTES, createRenderDecal, deleteRenderDecal, updateRenderDecal } from '../cad-core/render-scene.js';
 import {
   addBlockAttributeDefinition,
   createBlockDefinition,
@@ -184,6 +197,7 @@ import { analyzeSurfaceContinuity, summarizeMeshCurvature } from './surface-anal
 import { multipleSelectionLabel, primaryModifierPressed } from './platform-shortcuts.js';
 import { downloadBlob, prepareProjectSave, readProjectFile, safeName, useDocumentHistory } from './workspace-document.js';
 import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext, ToolMenuButton } from './WorkspaceRibbon.jsx';
+import { ManufacturingPanel } from './ManufacturingPanel.jsx';
 import {
   AnglePlaneCadIcon,
   AxisCadIcon,
@@ -225,7 +239,7 @@ import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import { AdaptiveToolShelf } from './WorkspaceSketchUi.jsx';
 import DrawingWorkspace from './DrawingWorkspace.jsx';
 import { CrashRecoveryBanner, ProjectBrowser, ProjectComparisonPanel, ProjectDashboard, ProjectDependenciesPanel, ProjectHealthPanel, ProjectSearchPalette, ProjectSnapshotsPanel, StartPage, TopologyReferenceRepairPanel } from './WorkspaceOverlays.jsx';
-import { BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, MeshToolsPanel, NamedViewsPanel, SectionPanel, SurfaceAnalysisPanel } from './WorkspacePanels.jsx';
+import { BeamFeaPanel, BlocksPanel, CommandCustomizationPanel, ComponentPanel, Field, GeometryInspectionPanel, LayersPanel, MassPropertiesPanel, MeasurePanel, MeshToolsPanel, NamedViewsPanel, RenderScenePanel, SectionPanel, SolidFeaPanel, StaticScreeningPanel, SurfaceAnalysisPanel, ThermalScreeningPanel } from './WorkspacePanels.jsx';
 import {
   AUTOSAVE_KEY,
   clearLocalAutosave,
@@ -280,6 +294,7 @@ const DESKTOP_PLATFORM = ['darwin', 'win32', 'linux'].includes(window.desktopApp
 const MAIN_TABS = [
   { id: 'solid', label: 'PROJEKTUJ' },
   { id: 'drawing', label: 'ARKUSZ 2D' },
+  { id: 'manufacture', label: 'WYTWARZANIE' },
   { id: 'tools', label: 'ZARZĄDZAJ' },
 ];
 const LANGUAGE_KEY = 'madcad:interface-language';
@@ -300,6 +315,7 @@ const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
 
 
 function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed, onSelectIssue, onExport, onSendToSlicer, onClose, onToggleCollapsed, readOnly = false }) {
+  const [automaticOrientation, setAutomaticOrientation] = useState(null);
   const layoutResult = useMemo(() => calculatePrintLayout(bodies, document.print), [bodies, document.print]);
   const printAnalysis = useMemo(() => analyzePrintability(bodies, document.print), [bodies, document.print]);
   const bounds = layoutResult.dimensions;
@@ -319,6 +335,12 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
       : Math.max(0.05, Number.isFinite(parsed) ? parsed : 0.4);
   });
   const selectProfile = (profileId) => commit((next) => { next.print = applyPrinterProfile(next.print, profileId); });
+  const selectMaterialProfile = (profileId) => commit((next) => { next.print = applyPrintMaterialProfile(next.print, profileId); });
+  const materialProfile = PRINT_MATERIAL_PROFILES.find((profile) => profile.id === document.print.materialProfileId);
+  const generalMaterialProfiles = PRINT_MATERIAL_PROFILES.filter((profile) => profile.group === 'general');
+  const manufacturerMaterialProfiles = Object.groupBy
+    ? Object.groupBy(PRINT_MATERIAL_PROFILES.filter((profile) => profile.group === 'manufacturer'), (profile) => profile.manufacturer)
+    : PRINT_MATERIAL_PROFILES.filter((profile) => profile.group === 'manufacturer').reduce((groups, profile) => ({ ...groups, [profile.manufacturer]: [...(groups[profile.manufacturer] || []), profile] }), {});
   const orientToSelectedFace = () => commit((next) => {
     const orientation = orientationForBedFace(selectedFace.normal);
     const candidate = {
@@ -331,6 +353,12 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
     const result = calculatePrintLayout(bodies, candidate);
     next.print = { ...candidate, positionZ: -result.min[2] };
   });
+  const orientAutomatically = () => {
+    const recommendation = recommendPrintOrientation(bodies, document.print);
+    if (!recommendation) return;
+    commit((next) => { next.print = { ...next.print, ...recommendation.layout }; });
+    setAutomaticOrientation(recommendation);
+  };
   const resetLayout = () => commit((next) => {
     Object.assign(next.print, {
       positionX: 0, positionY: 0, positionZ: 0,
@@ -370,9 +398,11 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
           <Field type="number" label="Odstęp" value={document.print.copySpacing ?? 10} suffix="mm" onChange={(value) => updateLayout('copySpacing', value)} disabled={readOnly} />
         </div>
         <div className="print-layout-actions">
+          <button id="autoOrientPrintBtn" type="button" disabled={readOnly || !bodies.length} onClick={orientAutomatically}>Ułóż automatycznie</button>
           <button type="button" disabled={readOnly || !selectedFace} onClick={orientToSelectedFace}>Połóż ścianą na stole</button>
           <button type="button" disabled={readOnly} onClick={resetLayout}>Resetuj układ</button>
         </div>
+        {automaticOrientation && <small className="print-orientation-result check-ok">Automatyczny układ: podstawa {automaticOrientation.baseArea.toFixed(1)} mm² · nawisy {automaticOrientation.overhangArea.toFixed(1)} mm² · wysokość {automaticOrientation.height.toFixed(1)} mm.</small>}
         <small>{selectedFace ? 'Zaznaczona płaska ściana jest gotowa do orientacji.' : 'Zaznacz płaską ścianę modelu, aby oprzeć ją na stole.'}</small>
       </div>
       <div className="print-section print-summary">
@@ -381,7 +411,9 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
         <p className={fits ? 'check-ok' : 'check-warning'}>{!bodies.length ? 'Najpierw utwórz bryłę.' : fits ? 'Model mieści się na stole drukarki.' : 'Model przekracza obszar drukarki.'}</p>
       </div>
       <div className="print-section print-analysis-section">
-        <h3>Analiza drukowalności</h3>
+        <div className="print-section-heading"><h3>Analiza drukowalności</h3><button id="printRiskMapBtn" type="button" className={document.print.showRiskMap ? 'active' : ''} aria-pressed={Boolean(document.print.showRiskMap)} disabled={readOnly || !bodies.length} onClick={() => commit((next) => { next.print.showRiskMap = !next.print.showRiskMap; })}>{document.print.showRiskMap ? 'Ukryj mapę' : 'Pokaż mapę'}</button></div>
+        <label className="command-field"><span>Profil analizy materiału</span><select id="printMaterialProfile" value={document.print.materialProfileId || 'custom'} onChange={(event) => selectMaterialProfile(event.target.value)} disabled={readOnly}><optgroup label="Ogólne">{generalMaterialProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</optgroup>{Object.entries(manufacturerMaterialProfiles).map(([manufacturer, profiles]) => <optgroup key={manufacturer} label={manufacturer}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</optgroup>)}<option value="custom">Własne progi</option></select></label>
+        {materialProfile && <div className="print-material-guidance"><strong>{materialProfile.manufacturer ? `${materialProfile.manufacturer} · ` : ''}{materialProfile.material}</strong><span>Dysza {materialProfile.nozzleTemperature} · stół {materialProfile.bedTemperature} · chłodzenie {materialProfile.cooling}{materialProfile.maxSpeed ? ` · ${materialProfile.maxSpeed}` : ''}</span><span>Komora: {materialProfile.enclosure}{materialProfile.drying ? ` · suszenie: ${materialProfile.drying}` : ''}</span><span>{materialProfile.guidance}</span>{materialProfile.sourceName && <small>Źródło parametrów: {materialProfile.sourceName} · zweryfikowano 09.09.2026</small>}</div>}
         <div className="print-field-grid">
           <Field type="number" label="Dysza" value={document.print.nozzleDiameter ?? 0.4} suffix="mm" onChange={(value) => updateAnalysis('nozzleDiameter', value)} disabled={readOnly} />
           <Field type="number" label="Min. ścianka" value={document.print.minimumWallThickness ?? 0.8} suffix="mm" onChange={(value) => updateAnalysis('minimumWallThickness', value)} disabled={readOnly} />
@@ -389,6 +421,7 @@ function PrintPanel({ document, bodies, engine, selectedFace, commit, collapsed,
           <Field type="number" label="Próg nawisu" value={document.print.overhangAngle ?? 45} suffix="°" onChange={(value) => updateAnalysis('overhangAngle', value)} disabled={readOnly} />
         </div>
         <div className="print-analysis-summary"><strong>{printAnalysis.errorCount} błędów · {printAnalysis.warningCount} ostrzeżeń</strong><span>Wynik opisuje ryzyko technologiczne, nie gwarantuje udanego wydruku.</span></div>
+        {document.print.showRiskMap && <div className="print-risk-legend" aria-label="Legenda mapy druku"><span><i className="safe" /> Bezpieczne</span><span><i className="overhang" /> Nawis</span><span><i className="invalid" /> Błąd siatki</span></div>}
         <div className="print-issues">
           {printAnalysis.issues.map((issue, index) => <button type="button" className={issue.severity} key={`${issue.code}-${issue.bodyId || 'layout'}-${index}`} onClick={() => onSelectIssue(issue.selection)}><AlertTriangle size={13} /><span><strong>{issue.message}</strong><small>{issue.risk}</small></span></button>)}
           {bodies.length > 0 && !printAnalysis.issues.length && <p className="check-ok">Nie wykryto problemów przy bieżących progach analizy.</p>}
@@ -437,6 +470,35 @@ export default function ModelingWorkspace() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [licenseInfoOpen, setLicenseInfoOpen] = useState(true);
   const [fullLicenseOpen, setFullLicenseOpen] = useState(false);
+  const [licensePlan, setLicensePlan] = useState(DEFAULT_LICENSE_STATUS);
+  const [licenseBusy, setLicenseBusy] = useState(false);
+  const [licenseError, setLicenseError] = useState('');
+  const licensePlanStatus = describeLicensePlan(licensePlan);
+  const licenseVerificationMode = new URLSearchParams(window.location.search).has('verify');
+  const runLicenseAction = useCallback(async (action, payload) => {
+    const method = window.desktopApp?.[action];
+    if (typeof method !== 'function') {
+      setLicenseError('Zarządzanie kontem jest dostępne w zainstalowanej aplikacji desktopowej.');
+      return null;
+    }
+    setLicenseBusy(true);
+    setLicenseError('');
+    try {
+      const result = await method(payload);
+      if (result?.status) setLicensePlan(normalizeLicenseStatus(result.status));
+      if (!result?.ok) setLicenseError(result?.error || 'Nie udało się sprawdzić licencji.');
+      return result;
+    } catch (error) {
+      setLicenseError(error?.message || 'Nie udało się połączyć z serwerem licencji.');
+      return null;
+    } finally {
+      setLicenseBusy(false);
+    }
+  }, []);
+  useEffect(() => { runLicenseAction('licenseGetStatus'); }, [runLicenseAction]);
+  useEffect(() => {
+    if (!licensePlan.accessAllowed && !licenseVerificationMode) setLicenseInfoOpen(true);
+  }, [licensePlan.accessAllowed, licenseVerificationMode]);
   const [expandedSketchRibbon, setExpandedSketchRibbon] = useState(() => window.matchMedia('(min-width: 1260px)').matches);
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1260px)');
@@ -526,7 +588,18 @@ export default function ModelingWorkspace() {
   const [blocksOpen, setBlocksOpen] = useState(false);
   const [componentsOpen, setComponentsOpen] = useState(false);
   const [explodeAmount, setExplodeAmount] = useState(0);
+  const [activeStoryboardId, setActiveStoryboardId] = useState('');
+  const [animationPlaying, setAnimationPlaying] = useState(false);
+  const [storyboardExporting, setStoryboardExporting] = useState('');
+  const [animationTime, setAnimationTime] = useState(0);
+  const [animationInstanceOffsets, setAnimationInstanceOffsets] = useState({});
+  const [animationInstanceRotations, setAnimationInstanceRotations] = useState({});
+  const [animationJointValues, setAnimationJointValues] = useState({});
+  const [animationNote, setAnimationNote] = useState('');
+  const animationTimeRef = useRef(0);
+  animationTimeRef.current = animationTime;
   const [namedViewsOpen, setNamedViewsOpen] = useState(false);
+  const [renderSceneOpen, setRenderSceneOpen] = useState(false);
   const [cameraRequest, setCameraRequest] = useState(null);
   const [linkedProjectStatuses, setLinkedProjectStatuses] = useState({});
   const [commandCustomizationOpen, setCommandCustomizationOpen] = useState(false);
@@ -547,6 +620,7 @@ export default function ModelingWorkspace() {
   const [projectDependenciesOpen, setProjectDependenciesOpen] = useState(false);
   const [projectSearchOpen, setProjectSearchOpen] = useState(false);
   const [projectDependencyNodeId, setProjectDependencyNodeId] = useState(() => initialOpen.document.id);
+  const [camSimulationProgress, setCamSimulationProgress] = useState(1);
   const panelScreenKeyRef = useRef(panelScreenKey(window.screen));
   const [panelLayout, setPanelLayout] = useState(() => readPanelLayout(window.localStorage, window.screen));
   const [recoveryInfo, setRecoveryInfo] = useState(() => initialOpen.recovered ? {
@@ -562,6 +636,7 @@ export default function ModelingWorkspace() {
   const sketchPointerRef = useRef(null);
   const sketchDynamicLengthRef = useRef('');
   const currentCameraRef = useRef(null);
+  const renderCaptureRef = useRef(null);
   const helpMenuRef = useRef(null);
   const shortcutRegistryRef = useRef(new Map());
   const autosaveQueueRef = useRef(Promise.resolve());
@@ -572,7 +647,25 @@ export default function ModelingWorkspace() {
   const [fitViewRequest, setFitViewRequest] = useState(null);
   const [sketchImportDraft, setSketchImportDraft] = useState(null);
   const [importRepairReport, setImportRepairReport] = useState(null);
-  useEffect(() => setExplodeAmount(0), [document.id]);
+  useEffect(() => { setExplodeAmount(0); setActiveStoryboardId(''); setAnimationPlaying(false); setAnimationTime(0); setAnimationInstanceOffsets({}); setAnimationInstanceRotations({}); setAnimationJointValues({}); setAnimationNote(''); setCamSimulationProgress(1); }, [document.id]);
+  useEffect(() => {
+    if (!animationPlaying) return undefined;
+    const storyboard = document.animationStoryboards?.find((item) => item.id === activeStoryboardId);
+    if (!storyboard) { setAnimationPlaying(false); return undefined; }
+    const startedAt = performance.now() - animationTimeRef.current * 1000;
+    let frameId = 0;
+    const tick = (now) => {
+      const nextTime = Math.min(storyboard.duration, (now - startedAt) / 1000);
+      setAnimationTime(nextTime);
+      const sampled = sampleAssemblyStoryboardState(storyboard, nextTime);
+      setExplodeAmount(sampled.explodeAmount); setAnimationInstanceOffsets(sampled.instanceOffsets); setAnimationInstanceRotations(sampled.instanceRotations); setAnimationJointValues(sampled.jointValues); setAnimationNote(sampled.note);
+      if (sampled.camera) setCameraRequest({ requestId: `storyboard:${storyboard.id}:${nextTime}`, camera: sampled.camera });
+      if (nextTime >= storyboard.duration) setAnimationPlaying(false);
+      else frameId = requestAnimationFrame(tick);
+    };
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, [animationPlaying, activeStoryboardId, document.animationStoryboards]);
   useEffect(() => {
     if (command) setImportRepairReport(null);
   }, [command]);
@@ -896,6 +989,84 @@ export default function ModelingWorkspace() {
     });
   };
 
+  const createCamSetup = () => {
+    const solidBodies = engine.bodies.filter((body) => body.bodyKind !== 'surface');
+    if (!solidBodies.length) { setNotice('Setup CAM wymaga co najmniej jednej bryły 3D.'); return; }
+    const preferredBody = solidBodies.find((body) => body.id === selection?.id) || solidBodies[0];
+    let created;
+    commit((next) => {
+      created = createManufacturingSetup({ name: `Setup ${next.manufacturing.setups.length + 1}`, bodyId: preferredBody.id });
+      next.manufacturing.setups.push(created);
+      next.manufacturing.activeSetupId = created.id;
+    });
+    if (created) setNotice(`Utworzono ${created.name}: wybierz maszynę, naddatki i zero WCS.`);
+  };
+
+  const activateCamSetup = (setupId) => commit((next) => { next.manufacturing.activeSetupId = setupId; });
+  const updateCamSetup = (setupId, patch) => commit((next) => {
+    const index = next.manufacturing.setups.findIndex((setup) => setup.id === setupId);
+    if (index < 0) return;
+    next.manufacturing.setups[index] = normalizeManufacturingSetup({ ...next.manufacturing.setups[index], ...patch }, index);
+  });
+  const deleteCamSetup = (setupId) => commit((next) => {
+    next.manufacturing.setups = next.manufacturing.setups.filter((setup) => setup.id !== setupId);
+    next.manufacturing.activeSetupId = next.manufacturing.setups[0]?.id || '';
+    setNotice('Usunięto Setup CAM. Cofnij, aby go przywrócić.');
+  });
+  const createCamOperation = (setupId, type = 'face') => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    if (!setup) return;
+    const sameTypeCount = setup.operations.filter((item) => item.type === type).length + 1;
+    const selectedBoundaryFaceId = selection?.kind === 'face' && selection.bodyId === setup.bodyId ? selection.id : '';
+    const boundarySelection = selectedProfileMatch && !activeSketchId
+      ? { boundarySketchId: selectedProfileMatch.sketch.id, boundaryProfileId: selectedProfileMatch.profile.id }
+      : { boundaryFaceId: selectedBoundaryFaceId };
+    const setupBody = engine.bodies.find((body) => body.id === setup.bodyId);
+    const setupBounds = setupBody?.bounds || setupBody?.metrics?.bounds;
+    const turningDefaults = setupBounds ? {
+      stockDiameter: Math.max(setupBounds[1][1] - setupBounds[0][1], setupBounds[1][2] - setupBounds[0][2]) + setup.stock.sideOffset * 2,
+      targetDiameter: Math.max(setupBounds[1][1] - setupBounds[0][1], setupBounds[1][2] - setupBounds[0][2]),
+      axialLength: setupBounds[1][0] - setupBounds[0][0],
+    } : {};
+    const operation = type === 'contour'
+      ? createContourOperation({ name: `Kontur 2D ${sameTypeCount}`, ...boundarySelection })
+      : type === 'pocket'
+        ? createPocketOperation({ name: `Kieszeń 2D ${sameTypeCount}`, ...boundarySelection })
+        : type === 'adaptive'
+          ? createAdaptiveOperation({ name: `Adaptacyjne 2D ${sameTypeCount}`, ...boundarySelection })
+          : type === 'cut2d'
+            ? createCut2dOperation({ name: `Cięcie konturu ${sameTypeCount}`, postProcessorId: setup.machineId === 'plasma-1250' ? 'linuxcnc-plasma' : 'grbl-laser', ...boundarySelection })
+            : type === 'turn-face' || type === 'turn-profile'
+              ? createTurningOperation(type, { name: type === 'turn-face' ? `Planowanie czoła ${sameTypeCount}` : `Toczenie zewnętrzne ${sameTypeCount}`, ...turningDefaults })
+        : createFacingOperation({ name: `Planowanie ${sameTypeCount}` });
+    setup.operations.push(operation);
+    const operationLabel = type === 'pocket' ? 'Kieszeń 2D' : type === 'adaptive' ? 'Adaptacyjne 2D' : type === 'cut2d' ? 'Cięcie konturu' : type === 'turn-face' ? 'Planowanie czoła' : type === 'turn-profile' ? 'Toczenie zewnętrzne' : 'Kontur 2D';
+    const boundaryLabel = selectedProfileMatch && !activeSketchId ? ' dla zaznaczonego profilu szkicu' : selectedBoundaryFaceId ? ' dla zaznaczonej ściany' : ' dla górnej powierzchni bryły';
+    setNotice(type === 'face' ? 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.' : type === 'cut2d' ? `Utworzono ${operationLabel}${boundaryLabel}. Ustaw szczelinę, wejście, moc, przejścia i posuw.` : type === 'turn-face' || type === 'turn-profile' ? `Utworzono ${operationLabel}. Sprawdź średnice, długość, głębokość przejścia, posuw i obroty.` : `Utworzono ${operationLabel}${boundaryLabel}. Ustaw frez, głębokość, zejście i posuw.`);
+  });
+  const updateCamOperation = (setupId, operationId, patch) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    const index = setup?.operations.findIndex((item) => item.id === operationId) ?? -1;
+    if (index >= 0) setup.operations[index] = normalizeManufacturingOperation({ ...setup.operations[index], ...patch }, index);
+  });
+  const deleteCamOperation = (setupId, operationId) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    if (setup) setup.operations = setup.operations.filter((item) => item.id !== operationId);
+    setNotice('Usunięto operację CAM. Cofnij, aby ją przywrócić.');
+  });
+  const exportCamOperation = (setupId, operationId) => {
+    try {
+      const setup = document.manufacturing.setups.find((item) => item.id === setupId);
+      const operation = setup?.operations.find((item) => item.id === operationId);
+      if (!setup || !operation) throw new Error('Nie znaleziono operacji CAM.');
+      const output = createMachineGcode(setup, operation, engine.bodies, { projectName: document.name, document });
+      downloadBlob(new Blob([output.text], { type: 'text/plain;charset=utf-8' }), `${safeName(document.name)}-${safeName(operation.name)}.${output.extension}`);
+      setNotice(`Zapisano G-code ${output.postProcessor}: ${output.lineCount} linii. Przed obróbką sprawdź WCS i wykonaj przejazd bez materiału.`);
+    } catch (error) {
+      setNotice(`Eksport G-code nie powiódł się: ${error.message}`);
+    }
+  };
+
   const saveNamedView = (name) => {
     try {
       if (!currentCameraRef.current) throw new Error('Kamera modelu nie jest jeszcze gotowa.');
@@ -904,6 +1075,167 @@ export default function ModelingWorkspace() {
       setNotice(`Zapisano widok „${created.name}”.`);
     } catch (error) {
       setNotice(error.message);
+    }
+  };
+
+  const updateRenderScene = (renderScene) => {
+    commit((next) => { next.renderScene = renderScene; });
+  };
+
+  const createStoryboard = (name) => {
+    try {
+      const storyboardId = createId('storyboard');
+      const storyboardName = String(name || `Storyboard ${(document.animationStoryboards?.length || 0) + 1}`).trim();
+      commit((next) => { createAssemblyStoryboard(next, { id: storyboardId, name: storyboardName, duration: 5, keyframes: [{ time: 0, explodeAmount: 0, jointValues: Object.fromEntries(next.joints.map((joint) => [joint.id, joint.value])) }] }); });
+      setActiveStoryboardId(storyboardId); setAnimationTime(0); setNotice(`Utworzono storyboard „${storyboardName}”.`);
+    } catch (error) { setNotice(error.message); }
+  };
+  const addStoryboardFrame = (storyboardId, time, amount, instanceOffsets, instanceRotations, jointValues, note) => {
+    try { commit((next) => { addStoryboardKeyframe(next, storyboardId, { time, explodeAmount: amount, instanceOffsets, instanceRotations, jointValues, camera: currentCameraRef.current, note }); }); }
+    catch (error) { setNotice(error.message); }
+  };
+  const deleteStoryboardFrame = (storyboardId, frameId) => {
+    try { commit((next) => { deleteStoryboardKeyframe(next, storyboardId, frameId); }); }
+    catch (error) { setNotice(error.message); }
+  };
+  const changeStoryboard = (storyboardId, patch) => {
+    try { commit((next) => { updateAssemblyStoryboard(next, storyboardId, patch); }); }
+    catch (error) { setNotice(error.message); }
+  };
+  const removeStoryboard = (storyboardId) => {
+    try { commit((next) => { deleteAssemblyStoryboard(next, storyboardId); }); setAnimationPlaying(false); setActiveStoryboardId(''); setAnimationTime(0); setExplodeAmount(0); setAnimationInstanceOffsets({}); setAnimationInstanceRotations({}); setAnimationJointValues({}); setAnimationNote(''); }
+    catch (error) { setNotice(error.message); }
+  };
+  const seekStoryboard = (storyboard, time) => {
+    const sampled = sampleAssemblyStoryboardState(storyboard, time);
+    setAnimationPlaying(false); setActiveStoryboardId(storyboard.id); setAnimationTime(time); setExplodeAmount(sampled.explodeAmount); setAnimationInstanceOffsets(sampled.instanceOffsets); setAnimationInstanceRotations(sampled.instanceRotations); setAnimationJointValues(sampled.jointValues); setAnimationNote(sampled.note);
+    if (sampled.camera) setCameraRequest({ requestId: `storyboard-seek:${storyboard.id}:${time}:${Date.now()}`, camera: sampled.camera });
+  };
+
+  const exportStoryboardInstructions = async (storyboard) => {
+    if (storyboardExporting) return;
+    const previous = { time: animationTime, explodeAmount, instanceOffsets: animationInstanceOffsets, instanceRotations: animationInstanceRotations, jointValues: animationJointValues, note: animationNote, camera: currentCameraRef.current };
+    try {
+      setAnimationPlaying(false);
+      setStoryboardExporting('instructions');
+      const frameImages = [];
+      for (const frame of [...storyboard.keyframes].sort((first, second) => first.time - second.time)) {
+        const sampled = sampleAssemblyStoryboardState(storyboard, frame.time);
+        setAnimationTime(frame.time); setExplodeAmount(sampled.explodeAmount); setAnimationInstanceOffsets(sampled.instanceOffsets); setAnimationInstanceRotations(sampled.instanceRotations); setAnimationJointValues(sampled.jointValues); setAnimationNote(sampled.note);
+        if (sampled.camera) setCameraRequest({ requestId: `storyboard-instruction:${storyboard.id}:${frame.id}:${Date.now()}`, camera: sampled.camera });
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const image = renderCaptureRef.current?.();
+        if (!image) throw new Error(`Nie udało się wyrenderować klatki ${frame.time.toFixed(1)} s.`);
+        frameImages.push(image);
+      }
+      const html = assemblyInstructionHtml(document, storyboard, { frameImages });
+      downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), `${safeName(document.name)}-${safeName(storyboard.name)}-instrukcja.html`);
+      setNotice(`Zapisano instrukcję HTML z ${frameImages.length} widokami klatek.`);
+    } catch (error) {
+      setNotice(`Nie zapisano instrukcji: ${error.message}`);
+    } finally {
+      setAnimationTime(previous.time); setExplodeAmount(previous.explodeAmount); setAnimationInstanceOffsets(previous.instanceOffsets); setAnimationInstanceRotations(previous.instanceRotations); setAnimationJointValues(previous.jointValues); setAnimationNote(previous.note);
+      if (previous.camera) setCameraRequest({ requestId: `storyboard-instruction-restore:${storyboard.id}:${Date.now()}`, camera: previous.camera });
+      setStoryboardExporting('');
+    }
+  };
+
+  const exportStoryboardVideo = async (storyboard) => {
+    if (storyboardExporting) return;
+    let stream;
+    let recorder;
+    try {
+      if (!window.MediaRecorder) throw new Error('Ten system nie obsługuje eksportu WebM.');
+      const sourceCanvas = window.document.querySelector('.model-viewport canvas');
+      if (!sourceCanvas?.captureStream) throw new Error('Widok 3D nie jest jeszcze gotowy.');
+      setAnimationPlaying(false);
+      setStoryboardExporting('video');
+      const scale = Math.min(1, 1920 / sourceCanvas.width, 1080 / sourceCanvas.height);
+      const exportCanvas = window.document.createElement('canvas');
+      exportCanvas.width = Math.max(2, Math.round(sourceCanvas.width * scale));
+      exportCanvas.height = Math.max(2, Math.round(sourceCanvas.height * scale));
+      const context = exportCanvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('Nie udało się przygotować klatki filmu.');
+      stream = exportCanvas.captureStream(24);
+      const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((type) => window.MediaRecorder.isTypeSupported(type));
+      if (!mimeType) throw new Error('Brak dostępnego kodera WebM.');
+      const chunks = [];
+      recorder = new window.MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+      const stopped = new Promise((resolve, reject) => {
+        recorder.onstop = resolve;
+        recorder.onerror = () => reject(recorder.error || new Error('Koder przerwał nagrywanie.'));
+      });
+      const first = sampleAssemblyStoryboardState(storyboard, 0);
+      animationTimeRef.current = 0;
+      setActiveStoryboardId(storyboard.id); setAnimationTime(0); setExplodeAmount(first.explodeAmount); setAnimationInstanceOffsets(first.instanceOffsets); setAnimationInstanceRotations(first.instanceRotations); setAnimationJointValues(first.jointValues); setAnimationNote(first.note);
+      if (first.camera) setCameraRequest({ requestId: `storyboard-export:${storyboard.id}:0:${Date.now()}`, camera: first.camera });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      recorder.start(250);
+      setAnimationPlaying(true);
+      const startedAt = performance.now();
+      do {
+        const currentCanvas = window.document.querySelector('.model-viewport canvas');
+        if (currentCanvas) context.drawImage(currentCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      } while (performance.now() - startedAt < storyboard.duration * 1000 + 250);
+      recorder.stop();
+      await stopped;
+      const blob = new Blob(chunks, { type: mimeType });
+      if (blob.size < 1024) throw new Error('Koder nie zwrócił poprawnego filmu.');
+      downloadBlob(blob, `${safeName(document.name)}-${safeName(storyboard.name)}.webm`);
+      setNotice(`Zapisano film WebM ${exportCanvas.width}×${exportCanvas.height}.`);
+    } catch (error) {
+      if (recorder?.state === 'recording') recorder.stop();
+      setNotice(`Nie zapisano filmu: ${error.message}`);
+    } finally {
+      setAnimationPlaying(false);
+      stream?.getTracks().forEach((track) => track.stop());
+      setStoryboardExporting('');
+    }
+  };
+
+  const addRenderDecal = async (file, face) => {
+    try {
+      if (!face?.bodyId || !face?.id) throw new Error('Wybierz jedną ścianę modelu.');
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error('Wybierz obraz PNG, JPEG albo WebP.');
+      if (file.size > MAX_RENDER_DECAL_BYTES) throw new Error('Obraz naklejki może mieć maksymalnie 2 MB.');
+      const imageData = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error('Nie udało się odczytać obrazu.'));
+        reader.readAsDataURL(file);
+      });
+      let decal;
+      commit((next) => { decal = createRenderDecal(next, { name: file.name.replace(/\.[^.]+$/, ''), bodyId: face.bodyId, faceId: face.id, imageData }); });
+      setNotice(`Dodano naklejkę „${decal.name}” do wybranej ściany.`);
+    } catch (error) {
+      setNotice(`Nie dodano naklejki: ${error.message}`);
+    }
+  };
+
+  const changeRenderDecal = (decalId, patch) => {
+    try { commit((next) => { updateRenderDecal(next, decalId, patch); }); }
+    catch (error) { setNotice(`Nie zmieniono naklejki: ${error.message}`); }
+  };
+
+  const removeRenderDecal = (decalId) => {
+    try { commit((next) => { deleteRenderDecal(next, decalId); }); setNotice('Usunięto naklejkę. Cofnij przywraca ją na ścianę.'); }
+    catch (error) { setNotice(`Nie usunięto naklejki: ${error.message}`); }
+  };
+
+  const saveLocalRender = async () => {
+    try {
+      const dataUrl = renderCaptureRef.current?.();
+      if (!dataUrl) throw new Error('Widok 3D nie jest jeszcze gotowy.');
+      const encoded = dataUrl.split(',')[1];
+      if (!encoded) throw new Error('Widok 3D zwrócił nieprawidłowy obraz.');
+      const binary = window.atob(encoded);
+      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      downloadBlob(new Blob([bytes], { type: 'image/png' }), `${safeName(document.name)}-render.png`);
+      setNotice('Zapisano bieżący widok jako PNG.');
+    } catch (error) {
+      setNotice(`Nie udało się zapisać renderu: ${error.message}`);
     }
   };
   const activateNamedView = (view) => {
@@ -968,7 +1300,8 @@ export default function ModelingWorkspace() {
     return document.sketches.find((item) => item.id === activeSketchId)?.blockInstances?.find((instance) => instance.id === instanceIds[0]) || null;
   })();
   const canExtrudeOpenChain = Boolean(activeSketchId && selectedSketchEntities.length && selectedSketchEntities.every((entity) => entity.type === 'line'));
-  const canUseSpatialPath = Boolean(activeSketchIs3D && selectedSketchEntities.length && selectedSketchEntities.every((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)));
+  const canUseSpatialPath = Boolean(activeSketchIs3D && selectedSketchEntities.length && selectedSketchEntities.every((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)));
+  const canProjectToSurface = Boolean(activeSketchIs3D && selectedSketchEntities.length && selectedSketchEntities.every((entity) => entity.role !== 'projected' && ['line', 'arc3d', 'spline3d'].includes(entity.type)));
   const canAddCollinear = selectedSketchEntities.length === 2 && selectedSketchEntities.every((entity) => entity.type === 'line');
   const canAddSymmetry = selectedSketchEntities.filter((entity) => entity.type === 'point').length === 2
     && selectedSketchEntities.filter((entity) => entity.type === 'line').length === 1
@@ -1637,6 +1970,54 @@ export default function ModelingWorkspace() {
       return { result: null, error: error.message };
     }
   }, [command?.type, command?.density, massBodies]);
+  const staticScreening = useMemo(() => {
+    if (command?.type !== 'staticScreening') return null;
+    try {
+      const body = engine.bodies.find((item) => item.id === command.bodyId);
+      return { result: calculateCantileverScreening(body, command), error: '' };
+    } catch (error) {
+      return { result: null, error: error.message };
+    }
+  }, [command, engine.bodies]);
+  const beamFea = useMemo(() => {
+    if (command?.type !== 'beamFea') return null;
+    try {
+      const body = engine.bodies.find((item) => item.id === command.bodyId);
+      return { result: calculateCantileverBeamFea(body, command), error: '' };
+    } catch (error) {
+      return { result: null, error: error.message };
+    }
+  }, [command, engine.bodies]);
+  const solidFea = useMemo(() => {
+    if (command?.type !== 'solidFea') return null;
+    try {
+      const body = engine.bodies.find((item) => item.id === command.bodyId);
+      return { result: calculateSolidFea(body, command), error: '' };
+    } catch (error) {
+      return { result: null, error: error.message };
+    }
+  }, [command, engine.bodies]);
+  const exportBeamFeaReport = async () => {
+    if (!beamFea?.result) return;
+    const text = `\uFEFF${createBeamFeaReportCsv(beamFea.result, document.name)}`;
+    const defaultName = `${safeName(document.name)}-mes-belki.csv`;
+    if (window.desktopApp?.saveTextFile) {
+      const saved = await window.desktopApp.saveTextFile({ defaultName, text, filters: [{ name: 'Raport CSV', extensions: ['csv'] }], atomic: true, createBackup: false });
+      setNotice(saved?.ok ? `Zapisano raport MES: ${saved.filePath}` : saved?.canceled ? 'Anulowano zapis raportu MES.' : `Nie udało się zapisać raportu MES: ${saved?.error || 'nieznany błąd'}`);
+      return;
+    }
+    downloadBlob(new Blob([text], { type: 'text/csv;charset=utf-8' }), defaultName);
+    setNotice('Pobrano raport MES CSV.');
+  };
+  const thermalScreening = useMemo(() => {
+    if (command?.type !== 'thermalScreening') return null;
+    try {
+      const body = engine.bodies.find((item) => item.id === command.bodyId);
+      return { result: calculateThermalScreening(body, command), error: '' };
+    } catch (error) {
+      return { result: null, error: error.message };
+    }
+  }, [command, engine.bodies]);
   const draftAnalysis = useMemo(() => command?.type === 'geometryInspection'
     ? analyzeDraftAngles(engine.bodies, {
       direction: DRAFT_DIRECTIONS[command.draftDirection] || DRAFT_DIRECTIONS['z-positive'],
@@ -1664,6 +2045,11 @@ export default function ModelingWorkspace() {
   const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => (['extrude', 'revolve', 'sweep', 'loft', 'coil', 'pipe'].includes(feature.type) && feature.operation === 'new') || feature.type === 'sheetBase' || feature.type === 'primitive' || feature.type === 'formBody' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')).map((feature) => `body-${feature.id}`)), [document.features]);
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
   const visibleViewportBodies = engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false);
+  const printRiskAnalysis = useMemo(() => {
+    if (!printPanelOpen || !document.print.showRiskMap) return null;
+    const visibleBodies = engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false);
+    return analyzePrintability(visibleBodies, document.print);
+  }, [document.features, document.print, engine.bodies, printPanelOpen]);
   useEffect(() => {
     if (!pendingModelImport) return;
     const rollbackFailedImport = (message) => {
@@ -1859,6 +2245,17 @@ export default function ModelingWorkspace() {
   }, [document, actualBodies, command?.previewFeature, engine.status, engine.evaluatedDocument, history, readOnly]);
 
   useEffect(() => {
+    if (readOnly || engine.status !== 'ready' || engine.evaluatedDocument !== document) return;
+    const updates = (engine.surfaceProjectionUpdates || []).filter((update) => update.descriptor);
+    if (!updates.length) return;
+    const probe = cloneDocument(document);
+    const changed = updates.filter((update) => updateSurfaceProjectedSketchPath(probe, update.entityId, update.descriptor));
+    if (!changed.length) return;
+    history.synchronize((next) => changed.forEach((update) => updateSurfaceProjectedSketchPath(next, update.entityId, update.descriptor)));
+    setNotice(`Project to Surface przebudowany automatycznie · ${changed.length} ${changed.length === 1 ? 'krzywa' : 'krzywe'}.`);
+  }, [document, engine.evaluatedDocument, engine.status, engine.surfaceProjectionUpdates, history, readOnly]);
+
+  useEffect(() => {
     if (!persistenceReady || readOnly || !dirty) return undefined;
     let canceled = false;
     let timeout;
@@ -1925,8 +2322,9 @@ export default function ModelingWorkspace() {
         threadDirection: feature.threadDirection,
       })) || [],
     };
-    return () => { delete window.__madcadVerifyEngineState; };
-  }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline, engine.diagnostics, engine.performance, engine.evaluatedDocument]);
+    window.__madcadVerifyProjectPointsToSurface = engine.projectPointsToSurface;
+    return () => { delete window.__madcadVerifyEngineState; delete window.__madcadVerifyProjectPointsToSurface; };
+  }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline, engine.diagnostics, engine.performance, engine.evaluatedDocument, engine.projectPointsToSurface]);
 
   const updateCommand = (patch) => {
     if (Object.hasOwn(patch, 'dynamicLength')) sketchDynamicLengthRef.current = patch.dynamicLength;
@@ -2414,13 +2812,16 @@ export default function ModelingWorkspace() {
       }
       const normal = supportPlane.normal;
       const dominant = normal.map(Math.abs).indexOf(Math.max(...normal.map(Math.abs)));
-      if (normal.some((value, index) => index !== dominant && Math.abs(value) > 1e-6)) {
-        setNotice('Obrócone płaszczyzny konstrukcyjne wymagają ramy UCS; wybierz obecnie płaszczyznę równoległą do XY, XZ albo YZ.');
-        return;
-      }
+      const axisAligned = normal.every((value, index) => index === dominant || Math.abs(value) <= 1e-6);
       const plane = dominant === 0 ? 'YZ' : dominant === 1 ? 'XZ' : 'XY';
       const planeOffset = dominant === 1 ? -supportPlane.origin[1] : supportPlane.origin[dominant];
-      const sketch = createSketch({ name: `Szkic ${document.sketches.length + 1}`, plane, planeOffset, support: { kind: 'construction-plane', referenceId: supportPlane.id } });
+      const sketch = createSketch({
+        name: `Szkic ${document.sketches.length + 1}`,
+        plane,
+        planeOffset,
+        ...(axisAligned ? {} : { frame: normalizeSketchFrame(supportPlane) }),
+        support: { kind: 'construction-plane', referenceId: supportPlane.id },
+      });
       commit((next) => next.sketches.push(sketch));
       setActiveSketchId(sketch.id);
       setSelection({ kind: 'sketch', id: sketch.id });
@@ -2437,23 +2838,20 @@ export default function ModelingWorkspace() {
         setNotice('Szkic można założyć bezpośrednio tylko na płaskiej ścianie.');
         return;
       }
+      const center = face.descriptor.center || [0, 0, 0];
       const normal = face.descriptor.normal || [0, 0, 1];
       const dominant = normal.map(Math.abs).indexOf(Math.max(...normal.map(Math.abs)));
-      if (normal.some((value, index) => index !== dominant && Math.abs(value) > 1e-6)) {
-        setNotice('Obrócone ściany planarne będą obsługiwane przez ramę UCS; ta ściana nie jest równoległa do XY, XZ ani YZ.');
-        return;
-      }
+      const axisAligned = normal.every((value, index) => index === dominant || Math.abs(value) <= 1e-6);
       const plane = dominant === 0 ? 'YZ' : dominant === 1 ? 'XZ' : 'XY';
-      const center = face.descriptor.center || [0, 0, 0];
       const planeOffset = dominant === 1 ? -center[1] : center[dominant];
       const reference = createTopologyReference({ selection: selectedFace, descriptor: face.descriptor, label: `Podpora szkicu ${document.sketches.length + 1}` });
-      const sketch = createSketch({ name: `Szkic ${document.sketches.length + 1}`, plane, planeOffset, support: { kind: 'face', referenceId: reference.id } });
+      const sketch = createSketch({ name: `Szkic ${document.sketches.length + 1}`, plane, planeOffset, ...(axisAligned ? {} : { frame: frameFromNormal(center, normal) }), support: { kind: 'face', referenceId: reference.id } });
       commit((next) => { next.references.push(reference); next.sketches.push(sketch); });
       setActiveSketchId(sketch.id);
       setSelection({ kind: 'sketch', id: sketch.id });
       setCommand(null);
       setWorkspace('sketch');
-      setNotice(`Edytujesz ${sketch.name} bezpośrednio na ścianie modelu (${plane}, odsunięcie ${planeOffset.toFixed(3)} mm).`);
+      setNotice(`Edytujesz ${sketch.name} bezpośrednio na wybranej ścianie modelu.`);
       return;
     }
     setWorkspace('sketch');
@@ -2618,7 +3016,7 @@ export default function ModelingWorkspace() {
   const finishSketch3D = () => {
     if (!activeSketchIs3D) return;
     const sketchId = activeSketchId;
-    const segmentCount = activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)).length;
+    const segmentCount = activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)).length;
     setActiveSketchId(null);
     setWorkspace('solid');
     setCommand(null);
@@ -2668,7 +3066,7 @@ export default function ModelingWorkspace() {
     setWorkspace('sketch');
     if (sketch.space === '3d') {
       const pointIds = sketch.entities.filter((entity) => entity.type === 'point').map((entity) => entity.id);
-      const segmentIds = sketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)).map((entity) => entity.id);
+      const segmentIds = sketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)).map((entity) => entity.id);
       const lastPoint = sketch.entities.find((entity) => entity.id === pointIds.at(-1));
       const x = lastPoint?.geometry.x || '0';
       const y = lastPoint?.geometry.y || '0';
@@ -2931,7 +3329,7 @@ export default function ModelingWorkspace() {
       return;
     }
 
-    const suggestion = !closes && !snapResult?.snapped && command.segmentMode === 'line' && sketchOptions.autoConstraints
+    const suggestion = !closes && allowsDirectionalConstraintSuggestion(snapResult) && command.segmentMode === 'line' && sketchOptions.autoConstraints
       ? inferLineConstraintSuggestion(start, point)
       : null;
     const end = closes ? command.firstPoint : (suggestion?.adjustedEnd || point);
@@ -3465,9 +3863,54 @@ export default function ModelingWorkspace() {
       commit((next) => Object.assign(next, checked));
       setSelection({ kind: 'sketchEntities', sketchId: activeSketchId, ids: result.createdEntityIds });
       setCommand(command.resumeSketch3D || null);
-      setNotice(`${activeSketchIs3D ? 'Pobrano do ścieżki 3D' : 'Project utworzył'} ${result.createdEntityIds.length} elementów z ${result.createdReferenceIds.length} trwałych referencji.`);
+      const surfaceLabel = result.surfaceFaceIds?.length ? ` Ścieżka pozostaje związana z ${result.surfaceFaceIds.length} ${result.surfaceFaceIds.length === 1 ? 'powierzchnią' : 'powierzchniami'} modelu.` : '';
+      setNotice(`${activeSketchIs3D ? 'Pobrano do ścieżki 3D' : 'Project utworzył'} ${result.createdEntityIds.length} elementów z ${result.createdReferenceIds.length} nowych trwałych referencji.${surfaceLabel}`);
     } catch (error) {
       setNotice(`Project nie został wykonany: ${error.message}`);
+    }
+  };
+
+  const openProjectToSurface = () => {
+    if (readOnly) return readOnlyNotice();
+    if (!canProjectToSurface) {
+      setNotice('Project to Surface: zaznacz jeden ciągły łańcuch zwykłych krzywych szkicu 3D.');
+      return;
+    }
+    const resumeSketch3D = command?.type === 'sketch3d' ? command : null;
+    setCommand({ type: 'projectSurface', sourceSketchId: activeSketchId, sourceEntityIds: [...selectedSketchEntityIds], resumeSketch3D });
+    setSelection({ kind: 'sketch', id: activeSketchId });
+    setNotice('Project to Surface: kliknij zakrzywioną ścianę modelu, a następnie zatwierdź Rzutuj.');
+  };
+
+  const confirmProjectToSurface = async () => {
+    if (readOnly) return readOnlyNotice();
+    if (command?.type !== 'projectSurface') return;
+    const faceSelection = (selection?.items || (selection?.kind === 'face' ? [selection] : [])).find((item) => item.kind === 'face');
+    if (!faceSelection) {
+      setNotice('Project to Surface: wybierz ścianę modelu, na którą ma trafić krzywa.');
+      return;
+    }
+    try {
+      const body = engine.bodies.find((candidate) => candidate.id === faceSelection.bodyId);
+      const face = body?.topology?.faces?.find((candidate) => candidate.id === faceSelection.id);
+      if (!face) throw new Error('Nie znaleziono wybranej ściany w aktualnym modelu.');
+      const sketch = document.sketches.find((candidate) => candidate.id === command.sourceSketchId);
+      const parameters = resolveParameters(document.parameters);
+      if (!parameters.valid) throw new Error(parameters.errors[0] || 'Parametry projektu są niepoprawne.');
+      const path = resolveOpenChainProfile(sketch, command.sourceEntityIds, parameters.values, 'project-surface', 'Project to Surface');
+      const descriptor = await engine.projectPointsToSurface({ bodyId: faceSelection.bodyId, faceId: faceSelection.id, points: path.geometry.points });
+      const checked = cloneDocument(document);
+      const result = createSurfaceProjectedSketchPath(checked, command.sourceSketchId, {
+        selection: { ...faceSelection, sourceFeatureId: faceSelection.sourceFeatureId || body.sourceFeatureId },
+        descriptor,
+        sourceEntityIds: command.sourceEntityIds,
+      });
+      commit((next) => Object.assign(next, checked));
+      setSelection({ kind: 'sketchEntities', sketchId: command.sourceSketchId, ids: [result.createdEntityId] });
+      setCommand(command.resumeSketch3D || null);
+      setNotice('Krzywa została dokładnie rzutowana na powierzchnię i zachowuje powiązanie ze ścianą oraz krzywą źródłową.');
+    } catch (error) {
+      setNotice(`Project to Surface nie został wykonany: ${error.message}`);
     }
   };
 
@@ -3549,6 +3992,7 @@ export default function ModelingWorkspace() {
     window.__madcadVerifyFinishCanvasSketchTool = finishCanvasSketchTool;
     window.__madcadVerifySketchSelection = handleSketchSelection;
     window.__madcadVerifyTopologySelection = handleTopologySelection;
+    window.__madcadVerifyProfileSelection = (sketchId, profileId) => setSelection({ kind: 'profile', id: profileId, sketchId });
     window.__madcadVerifyCreateLostTopologyReference = () => {
       const body = engine.bodies[0];
       const edge = body?.topology?.edges?.[0];
@@ -3576,6 +4020,7 @@ export default function ModelingWorkspace() {
     };
     window.__madcadVerifyMoveSketch = moveSketchEntities;
     window.__madcadVerifyDeleteSketch = deleteSelectedSketchEntities;
+    window.__madcadVerifyEditSketch = editSketch;
     window.__madcadVerifyOpenFirstSketch = () => {
       const sketch = document.sketches[0];
       if (!sketch) throw new Error('Brak szkicu do otwarcia.');
@@ -3834,6 +4279,25 @@ export default function ModelingWorkspace() {
       setSelection({ kind: 'document', id: fixture.id });
       setCommand(null);
     };
+    window.__madcadVerifyLoadUcsFixture = () => {
+      const fixture = createDocument('Szkic na obróconej płaszczyźnie');
+      const angle = Math.PI / 4;
+      const frame = {
+        origin: [0, 0, 8],
+        normal: [0, -Math.sin(angle), Math.cos(angle)],
+        u: [1, 0, 0],
+        v: [0, Math.cos(angle), Math.sin(angle)],
+      };
+      const profile = createRectangleProfile({ name: 'Profil UCS', width: 20, height: 12, x: 0, y: 0 });
+      const sketch = createSketch({ name: 'Szkic UCS 45°', frame, profiles: [profile] });
+      fixture.sketches.push(sketch);
+      fixture.features.push(createFeature('extrude', { name: 'Wyciągnięcie UCS', sketchId: sketch.id, profileIds: [sketch.profiles[0].id], distance: '10', operation: 'new' }));
+      history.replace(fixture);
+      setActiveSketchId(null);
+      setWorkspace('solid');
+      setSelection({ kind: 'sketch', id: sketch.id });
+      setCommand(null);
+    };
     window.__madcadVerifyLoadSurfaceFixture = (mode = 'patch') => {
       const fixture = createDocument('Przepływ powierzchniowy');
       if (mode === 'trim-source') {
@@ -3929,10 +4393,11 @@ export default function ModelingWorkspace() {
         space: sketch.space || '2d',
         plane: sketch.plane,
         planeOffset: sketch.planeOffset,
+        frame: sketch.frame ? structuredClone(sketch.frame) : null,
         visible: sketch.visible !== false,
         support: sketch.support,
         entities: sketch.entities.length,
-        entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, role: entity.role, fixed: entity.fixed, layerId: entity.layerId, color: entity.color, lineType: entity.lineType, lineWeight: entity.lineWeight, projectionReferenceId: entity.projectionReferenceId, pointIds: entity.pointIds, geometry: entity.geometry })),
+        entityData: sketch.entities.map((entity) => ({ id: entity.id, type: entity.type, role: entity.role, fixed: entity.fixed, layerId: entity.layerId, color: entity.color, lineType: entity.lineType, lineWeight: entity.lineWeight, projectionReferenceId: entity.projectionReferenceId, surfaceFaceIds: entity.surfaceFaceIds, surfaceProjection: entity.surfaceProjection, pointIds: entity.pointIds, geometry: entity.geometry })),
         profiles: sketch.profiles.length,
         profileIds: sketch.profiles.map((profile) => profile.id),
         constraints: sketch.constraints.map((constraint) => ({ id: constraint.id, type: constraint.type, entityIds: constraint.entityIds, value: constraint.value, automatic: constraint.automatic })),
@@ -3943,6 +4408,8 @@ export default function ModelingWorkspace() {
       projectSnapshots: projectSnapshots.map((snapshot) => ({ ...snapshot })),
       linkedProjects: document.linkedProjects.map((link) => ({ ...link, proxyFeatureIds: [...link.proxyFeatureIds] })),
       namedViews: (document.namedViews || []).map((view) => ({ ...view, camera: structuredClone(view.camera) })),
+      renderScene: structuredClone(document.renderScene),
+      animationStoryboards: structuredClone(document.animationStoryboards || []),
       linkedProjectStatuses: structuredClone(linkedProjectStatuses),
       projectHealth: structuredClone(projectHealthReport),
       projectDependencies: structuredClone(projectDependencyInspection),
@@ -3981,6 +4448,7 @@ export default function ModelingWorkspace() {
         segments: command.segmentIds?.length || 0,
         gesturePoints: command.gesturePoints?.length || 0,
         dynamicLength: command.dynamicLength || '',
+        distance: command.distance,
         selectedControlPoint: command.selectedControlPoint,
         selectedControlEdge: command.selectedControlEdge,
         selectedControlFace: command.selectedControlFace,
@@ -4002,6 +4470,10 @@ export default function ModelingWorkspace() {
         measurement: command.type === 'measure' ? measurement : null,
         sectionAnalysis: command.type === 'sectionAnalysis' ? sectionAnalysis : null,
         massProperties: command.type === 'massProperties' ? massProperties : null,
+        staticScreening: command.type === 'staticScreening' ? staticScreening : null,
+        beamFea: command.type === 'beamFea' ? beamFea : null,
+        solidFea: command.type === 'solidFea' ? solidFea : null,
+        thermalScreening: command.type === 'thermalScreening' ? thermalScreening : null,
         inspectionMode: command.type === 'geometryInspection' ? command.inspectionMode : null,
         geometryInspection: command.type === 'geometryInspection' ? geometryInspection : null,
         surfaceAnalysis: command.type === 'surfaceAnalysis' ? { ...surfaceAnalysis, continuity: surfaceContinuity, curvature: surfaceCurvature } : null,
@@ -4013,10 +4485,12 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyFinishCanvasSketchTool;
       delete window.__madcadVerifySketchSelection;
       delete window.__madcadVerifyTopologySelection;
+      delete window.__madcadVerifyProfileSelection;
       delete window.__madcadVerifyCreateLostTopologyReference;
       delete window.__madcadVerifyBreakProjectedReference;
       delete window.__madcadVerifyMoveSketch;
       delete window.__madcadVerifyDeleteSketch;
+      delete window.__madcadVerifyEditSketch;
       delete window.__madcadVerifyOpenFirstSketch;
       delete window.__madcadVerifyLoadTopologyFixture;
       delete window.__madcadVerifyLoadSketchDrawingFixture;
@@ -4030,12 +4504,13 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyReopenCurrentDocument;
       delete window.__madcadVerifyLoadPointHoleFixture;
       delete window.__madcadVerifyLoadTimelineFixture;
+      delete window.__madcadVerifyLoadUcsFixture;
       delete window.__madcadVerifyLoadSurfaceFixture;
       delete window.__madcadVerifyDocumentState;
     };
   // Verification hooks refresh only when the state exposed to the desktop harness changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, surfaceAnalysis, surfaceContinuity, surfaceCurvature, massProperties, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses, projectHealthReport, projectDependencyInspection, projectSearchIndex, sketchOptions]);
+  }, [document, command, selection, activeSketchId, engine.bodies, measurement, sectionAnalysis, surfaceAnalysis, surfaceContinuity, surfaceCurvature, massProperties, staticScreening, beamFea, solidFea, thermalScreening, geometryInspection, assemblyCollisionResult, projectSnapshots, linkedProjectStatuses, projectHealthReport, projectDependencyInspection, projectSearchIndex, sketchOptions]);
 
   const confirmProfile = (sourceCommand = command) => {
     if (readOnly) return readOnlyNotice();
@@ -4629,7 +5104,7 @@ export default function ModelingWorkspace() {
 
   const sweepPathOptions = (profileSketchId = selectedProfileMatch?.sketch.id) => document.sketches
     .filter((sketch) => sketch.id !== profileSketchId)
-    .map((sketch) => ({ id: sketch.id, name: sketch.name, entityIds: sketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type) && entity.role !== 'construction').map((entity) => entity.id) }))
+    .map((sketch) => ({ id: sketch.id, name: sketch.name, entityIds: sketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type) && entity.role !== 'construction').map((entity) => entity.id) }))
     .filter((path) => path.entityIds.length);
 
   const openSurfaceSweep = () => {
@@ -5049,6 +5524,65 @@ export default function ModelingWorkspace() {
   const openMassProperties = () => {
     setCommand({ type: 'massProperties', density: '1.24' });
     setNotice('Właściwości masowe liczą zaznaczone bryły albo cały model, gdy nic nie jest wskazane.');
+  };
+
+  const openStaticScreening = () => {
+    const body = selectedBodies.find((item) => item.bodyKind !== 'surface') || engine.bodies.find((item) => item.bodyKind !== 'surface');
+    if (!body) return setNotice('Szybka analiza statyczna wymaga co najmniej jednej bryły.');
+    const bounds = body.metrics?.bounds;
+    if (!Array.isArray(bounds) || bounds.length !== 2 || bounds.some((point) => !Array.isArray(point) || point.length < 3)) {
+      return setNotice('Wybrana bryła nie ma poprawnych granic do analizy.');
+    }
+    const dimensions = bounds[1].map((value, axis) => value - bounds[0][axis]);
+    const spanIndex = dimensions.indexOf(Math.max(...dimensions));
+    const loadIndex = [0, 1, 2].filter((axis) => axis !== spanIndex).sort((first, second) => dimensions[second] - dimensions[first])[0];
+    setCommand({ type: 'staticScreening', bodyId: body.id, materialId: 's235', spanAxis: ['x', 'y', 'z'][spanIndex], loadAxis: ['x', 'y', 'z'][loadIndex], fixedEnd: 'min', force: '1000' });
+    setNotice('Uruchomiono wstępny szacunek belki wspornikowej. Wynik nie zastępuje walidowanego MES ani obliczeń konstruktora.');
+  };
+
+  const openThermalScreening = () => {
+    const body = selectedBodies.find((item) => item.bodyKind !== 'surface') || engine.bodies.find((item) => item.bodyKind !== 'surface');
+    if (!body) return setNotice('Szybka analiza cieplna wymaga co najmniej jednej bryły.');
+    const bounds = body.metrics?.bounds;
+    if (!Array.isArray(bounds) || bounds.length !== 2 || bounds.some((point) => !Array.isArray(point) || point.length < 3)) return setNotice('Wybrana bryła nie ma poprawnych granic do analizy.');
+    const dimensions = bounds[1].map((value, index) => value - bounds[0][index]);
+    const axisIndex = dimensions.indexOf(Math.min(...dimensions));
+    setCommand({ type: 'thermalScreening', bodyId: body.id, materialId: 's235', axis: ['x', 'y', 'z'][axisIndex], hotTemperature: '100', coldTemperature: '20' });
+    setNotice('Uruchomiono wstępny model przewodzenia ciepła. Wynik nie zastępuje walidowanej analizy termicznej MES.');
+  };
+
+  const openBeamFea = () => {
+    const body = selectedBodies.find((item) => item.bodyKind !== 'surface') || engine.bodies.find((item) => item.bodyKind !== 'surface');
+    if (!body) return setNotice('MES belki wymaga co najmniej jednej bryły.');
+    const bounds = body.metrics?.bounds;
+    if (!Array.isArray(bounds) || bounds.length !== 2 || bounds.some((point) => !Array.isArray(point) || point.length < 3)) return setNotice('Wybrana bryła nie ma poprawnych granic do analizy.');
+    const dimensions = bounds[1].map((value, index) => value - bounds[0][index]);
+    const spanIndex = dimensions.indexOf(Math.max(...dimensions));
+    const loadIndex = [0, 1, 2].filter((index) => index !== spanIndex).sort((first, second) => dimensions[second] - dimensions[first])[0];
+    setCommand({ type: 'beamFea', bodyId: body.id, materialId: 's235', spanAxis: ['x', 'y', 'z'][spanIndex], loadAxis: ['x', 'y', 'z'][loadIndex], loadType: 'tip', loadPositionPercent: '100', force: '1000', distributedForce: '10', elementCount: '8', requiredSafetyFactor: '2', loadCases: [{ id: 'base', name: 'Bazowy', factor: '1' }, { id: 'working', name: 'Roboczy', factor: '1.25' }, { id: 'overload', name: 'Przeciążenie', factor: '1.5' }] });
+    setNotice('MES belki składa macierz sztywności i waliduje ugięcie rozwiązaniem analitycznym. Zakres nie obejmuje dowolnej bryły 3D.');
+  };
+
+  const openSolidFea = () => {
+    const firstSelectedFace = selectedFaceItems[0];
+    const body = (firstSelectedFace ? engine.bodies.find((item) => item.id === firstSelectedFace.bodyId) : selectedBodies.find((item) => item.bodyKind !== 'surface')) || engine.bodies.find((item) => item.bodyKind !== 'surface');
+    if (!body) return setNotice('MES bryły 3D wymaga co najmniej jednej zamkniętej bryły.');
+    const bounds = body.metrics?.bounds;
+    if (!Array.isArray(bounds) || bounds.length !== 2) return setNotice('Wybrana bryła nie ma poprawnych granic do analizy.');
+    const dimensions = bounds[1].map((value, index) => value - bounds[0][index]);
+    const planarFaces = selectedFaceItems.filter((item) => item.bodyId === body.id).map((item) => ({ selection: item, face: body.topology?.faces?.find((face) => face.id === item.id) })).filter((item) => item.face?.descriptor?.geometry === 'PLANE');
+    const supportFace = planarFaces[0] || null;
+    const loadFace = planarFaces[1] || null;
+    const supportNormal = supportFace?.face.descriptor.normal || null;
+    const supportIndex = supportNormal ? supportNormal.map(Math.abs).indexOf(Math.max(...supportNormal.map(Math.abs))) : dimensions.indexOf(Math.max(...dimensions));
+    const supportCenter = supportFace?.face.descriptor.center?.[supportIndex];
+    const supportSide = Number.isFinite(supportCenter) && supportCenter > (bounds[0][supportIndex] + bounds[1][supportIndex]) / 2 ? 'max' : 'min';
+    const loadNormal = loadFace?.face.descriptor.normal || null;
+    const loadIndex = loadNormal ? loadNormal.map(Math.abs).indexOf(Math.max(...loadNormal.map(Math.abs))) : [0, 1, 2].find((index) => index !== supportIndex);
+    const loadCenter = loadFace?.face.descriptor.center?.[supportIndex];
+    const loadSide = Number.isFinite(loadCenter) && loadCenter < (bounds[0][supportIndex] + bounds[1][supportIndex]) / 2 ? 'min' : 'max';
+    setCommand({ type: 'solidFea', bodyId: body.id, materialId: 's235', supportAxis: ['x', 'y', 'z'][supportIndex], supportSide, supportFaceId: supportFace?.selection.id || null, supportFaceLabel: supportFace ? 'Wskazana ściana 1' : '', loadAxis: ['x', 'y', 'z'][loadIndex], loadSide, loadFaceId: loadFace?.selection.id || null, loadFaceLabel: loadFace ? 'Wskazana ściana 2' : '', force: '1000', meshDensity: '6' });
+    setNotice(planarFaces.length >= 2 ? 'MES 3D używa pierwszej zaznaczonej ściany jako utwierdzenia, a drugiej jako powierzchni obciążenia.' : planarFaces.length === 1 ? 'MES 3D używa zaznaczonej ściany jako utwierdzenia; siła działa na przeciwnej stronie bryły.' : 'MES bryły 3D tworzy siatkę czworościenną. Zaznacz wcześniej jedną lub dwie płaskie ściany, aby wskazać warunki brzegowe bezpośrednio.');
   };
 
   const openGeometryInspection = async () => {
@@ -6274,6 +6808,8 @@ export default function ModelingWorkspace() {
         ? 'Arkusz 2D: przygotuj rysunek techniczny do PDF albo DXF.'
       : id === 'tools'
         ? 'Zarządzaj: parametry, wersje, struktura i kondycja projektu.'
+      : id === 'manufacture'
+        ? 'Wytwarzanie: przygotuj obrabiarkę, półfabrykat i układ współrzędnych CAM.'
         : 'Projektuj: szkicuj, twórz, modyfikuj i sprawdzaj geometrię.');
   };
 
@@ -6504,9 +7040,9 @@ export default function ModelingWorkspace() {
     }
     else if (command.type === 'line' || command.type === 'polyline') finishSketchPath();
     else {
-      if (command.type === 'projectSketch' && command.resumeSketch3D) {
+      if ((command.type === 'projectSketch' || command.type === 'projectSurface') && command.resumeSketch3D) {
         setCommand(command.resumeSketch3D);
-        setNotice('Anulowano pobieranie krawędzi. Szkic 3D pozostaje aktywny.');
+        setNotice(command.type === 'projectSurface' ? 'Anulowano rzutowanie na powierzchnię. Szkic 3D pozostaje aktywny.' : 'Anulowano pobieranie krawędzi. Szkic 3D pozostaje aktywny.');
         return true;
       }
       if (command.openChain && command.sourceSketchId) {
@@ -6527,6 +7063,10 @@ export default function ModelingWorkspace() {
     }
     if (command.type === 'editSketch3d') {
       confirmSketch3DEntityEditor();
+      return true;
+    }
+    if (command.type === 'projectSurface') {
+      confirmProjectToSurface();
       return true;
     }
     if (command.type === 'line' || command.type === 'polyline') {
@@ -6780,8 +7320,8 @@ export default function ModelingWorkspace() {
     ? `Podgląd operacji · ${bodyCountLabel}`
     : activeSketchId
       ? activeSketchIs3D
-        ? `Szkic 3D · ${activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d'].includes(entity.type)).length} krzyw.`
-        : `Krok 1/3 · Szkic 2D · ${activeSketch?.plane || 'XY'}`
+        ? `Szkic 3D · ${activeSketch.entities.filter((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)).length} krzyw.`
+        : `Krok 1/3 · Szkic 2D · ${activeSketch?.frame ? 'UCS' : activeSketch?.plane || 'XY'}`
       : selectedProfile
         ? 'Krok 2/3 · Profil gotowy do wyciągnięcia'
         : engine.bodies.length > 0
@@ -6796,11 +7336,27 @@ export default function ModelingWorkspace() {
     }
     : workspace === 'tools'
       ? { title: 'ZARZĄDZAJ · projekt i jego historia', text: 'Parametry, wersje, zależności i struktura projektu są zebrane w jednym miejscu.', action: 'Wróć do projektowania', onAction: () => switchWorkspace('solid') }
+      : workspace === 'manufacture'
+        ? { title: 'WYTWARZANIE · przygotowanie CAM', text: 'Wybierz bryłę, maszynę, półfabrykat i zero WCS przed utworzeniem ścieżki.' }
       : workspace === 'solid' && lastSketch && !engine.bodies.length
             ? hasSketchProfile
               ? { title: 'KROK 2 · utwórz bryłę z zamkniętego szkicu', text: selectedProfile ? 'Profil jest zaznaczony. Kliknij Wyciągnij i podaj wysokość.' : 'Kliknij wnętrze zamkniętego profilu, a następnie wybierz Wyciągnij.', action: selectedProfile ? 'Wyciągnij profil' : `Edytuj: ${lastSketch.name}`, onAction: selectedProfile ? openExtrude : () => editSketch(lastSketch.id) }
               : { title: 'KROK 1 · dokończ szkic 2D', text: 'Szkic nie ma jeszcze zamkniętego obrysu. Domknij linie, zakończ szkic, potem zaznacz jego wnętrze.', action: `Edytuj: ${lastSketch.name}`, onAction: () => editSketch(lastSketch.id) }
             : { title: 'PROJEKTUJ · szkic 2D i model 3D', text: readyEngineLabel };
+  const activeCamSetup = document.manufacturing.setups.find((setup) => setup.id === document.manufacturing.activeSetupId) || null;
+  const manufacturingToolpaths = workspace === 'manufacture' && activeCamSetup
+    ? activeCamSetup.operations.map((operation) => calculateOperationToolpath(activeCamSetup, operation, engine.bodies, document)).filter((toolpath) => toolpath.valid)
+    : [];
+  const camSimulation = workspace === 'manufacture' && activeCamSetup
+    ? simulateMaterialRemoval(activeCamSetup, engine.bodies, document, camSimulationProgress)
+    : null;
+  const manufacturingSegments = manufacturingToolpaths.flatMap((toolpath) => toolpath.segments);
+  const manufacturingVisualization = manufacturingToolpaths.length ? {
+    stockBounds: manufacturingToolpaths[0].stockBounds,
+    segments: manufacturingSegments.slice(0, Math.ceil(manufacturingSegments.length * camSimulationProgress)),
+    removalColumns: camSimulation?.columns || [],
+    cutter: camSimulation?.cutter || null,
+  } : null;
   const startPageVisible = workspace === 'solid' && !document.sketches.length && !engine.bodies.length && !command && !readOnly;
   const showProjectBrowser = browserOpen && workspace !== 'drawing' && !startPageVisible;
   let adaptiveContext = null;
@@ -6924,7 +7480,7 @@ export default function ModelingWorkspace() {
 
   return (
     <ToolHelpContext.Provider value={toolHelpContext}>
-    <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${workspace === 'drawing' ? 'drawing-mode' : workspace === 'tools' ? 'tools-mode' : activeSketchId ? 'sketch-mode' : document.features.length ? '' : 'timeline-empty'} ${startPageVisible ? 'start-page-mode' : ''}`} aria-label="Modelowanie parametryczne MadCAD">
+    <section className={`modeling-shell platform-${DESKTOP_PLATFORM} ${workspace === 'drawing' ? 'drawing-mode' : workspace === 'tools' ? 'tools-mode' : workspace === 'manufacture' ? 'manufacture-mode' : activeSketchId ? 'sketch-mode' : document.features.length ? '' : 'timeline-empty'} ${startPageVisible ? 'start-page-mode' : ''}`} aria-label="Modelowanie parametryczne MadCAD">
       <header className="modeling-titlebar">
         <div className="app-menu" role="toolbar" aria-label="Plik i przeglądarka projektu">
           <button id="fileMenuBtn" className={fileMenuOpen ? 'active' : ''} type="button" aria-label="Menu Plik" aria-expanded={fileMenuOpen} aria-controls="file-backstage" title="Projekt, import, eksport i druk" onClick={() => setFileMenuOpen((open) => !open)}><FileText size={15} /><span>Plik</span></button>
@@ -6949,7 +7505,7 @@ export default function ModelingWorkspace() {
             <div>
               <button type="button" title="Samouczek pierwszego projektu CAD" aria-label="Samouczek pierwszego projektu CAD" onClick={(event) => { setTutorialOpen(true); event.currentTarget.closest('details')?.removeAttribute('open'); }}><CircleHelp size={15} /><span>Samouczek</span></button>
               <button id="checkUpdatesBtn" type="button" title="Sprawdź aktualizacje" onClick={(event) => { void checkForUpdates(false); event.currentTarget.closest('details')?.removeAttribute('open'); }}><HardDriveDownload size={15} /><span>Aktualizacje</span></button>
-              <button id="licenseInfoBtn" type="button" title="Licencja i informacje" onClick={(event) => { setLicenseInfoOpen(true); event.currentTarget.closest('details')?.removeAttribute('open'); }}><CircleHelp size={15} /><span>Licencja i informacje</span></button>
+              <button id="licenseInfoBtn" type="button" title={`Licencja: ${licensePlanStatus.label}`} onClick={(event) => { setLicenseInfoOpen(true); event.currentTarget.closest('details')?.removeAttribute('open'); }}><CircleHelp size={15} /><span>Licencja · {licensePlanStatus.label}</span></button>
               <label className="language-select" title="Język interfejsu"><span>Język</span><select aria-label="Język interfejsu" value={language} onChange={(event) => { void changeAppLanguage(event.target.value); }}><option value="pl">Polski</option><option value="en">English</option></select></label>
             </div>
           </details>
@@ -6992,7 +7548,7 @@ export default function ModelingWorkspace() {
       <section className="command-area">
         <div className="command-ribbon">
           <nav className="workspace-tabs" aria-label="Obszary robocze" role="tablist">
-            {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title={activeSketchIs3D ? 'Aktywny obszar edycji szkicu przestrzennego.' : 'Aktywny obszar edycji szkicu 2D.'}>{activeSketchIs3D ? 'SZKIC 3D' : 'SZKICUJ'}</button> : MAIN_TABS.map((item, index) => <button key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Szkicuj, twórz, modyfikuj i sprawdzaj geometrię.' : item.id === 'drawing' ? 'Przygotuj arkusz techniczny 2D.' : 'Parametry, wersje, struktura i kontrola projektu.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
+            {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title={activeSketchIs3D ? 'Aktywny obszar edycji szkicu przestrzennego.' : 'Aktywny obszar edycji szkicu 2D.'}>{activeSketchIs3D ? 'SZKIC 3D' : 'SZKICUJ'}</button> : MAIN_TABS.map((item, index) => <button key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Szkicuj, twórz, modyfikuj i sprawdzaj geometrię.' : item.id === 'drawing' ? 'Przygotuj arkusz techniczny 2D.' : item.id === 'manufacture' ? 'Przygotuj obróbkę CAM dla gotowej bryły.' : 'Parametry, wersje, struktura i kontrola projektu.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
           </nav>
           <ResponsiveRibbon key={licenseInfoOpen ? 'license-open' : 'license-closed'} language={language}>
             {activeSketchId ? (
@@ -7003,6 +7559,7 @@ export default function ModelingWorkspace() {
                       <ToolButton icon={Move3d} label="Dodaj krzywą" onClick={confirmSketch3DSegment} primary disabled={readOnly || command?.type !== 'sketch3d'} description="Dodaj linię, łuk albo spline od bieżącego punktu według współrzędnych XYZ z panelu." />
                       <ToolButton icon={Undo2} label="Cofnij krzywą" onClick={undoSketch3DSegment} disabled={readOnly || command?.type !== 'sketch3d' || !command?.segmentIds?.length} description="Usuń ostatnią krzywą bez kończenia szkicu 3D." />
                       <ToolButton icon={ScanSearch} label="Pobierz krawędzie" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly || command?.type === 'editSketch3d'} description="Utwórz skojarzoną ścieżkę 3D z wybranych krawędzi modelu." />
+                      <ToolButton icon={Spline} label="Project to Surface" displayLabel="Na powierzchnię" onClick={openProjectToSurface} primary={command?.type === 'projectSurface'} disabled={readOnly || command?.type === 'editSketch3d' || !canProjectToSurface} disabledReason="Zaznacz zwykłą krzywą lub ciągły łańcuch szkicu 3D." description="Rzutuj wybraną ścieżkę szkicu 3D na wskazaną zakrzywioną ścianę." />
                     </RibbonGroup>
                     <RibbonGroup label="EDYTUJ">
                       <ToolButton icon={Pencil} label="Edytuj krzywą" onClick={openSketch3DEntityEditor} disabled={readOnly || command?.type === 'editSketch3d' || selectedSketchEntities.length !== 1 || selectedSketchEntities[0]?.role === 'projected' || !['line', 'arc3d', 'spline3d'].includes(selectedSketchEntities[0]?.type)} disabledReason="Zaznacz jedną zwykłą linię, łuk albo spline szkicu 3D." description="Zmień istniejącą krzywą i jej końce XYZ bez usuwania ścieżki." />
@@ -7104,6 +7661,12 @@ export default function ModelingWorkspace() {
                 ]} /></RibbonGroup>
                 <RibbonGroup label="ZESTAWIENIA"><ToolButton icon={Grid2X2} label="BOM" onClick={() => addDrawingTable('bom')} disabled={readOnly || !activeDrawingSheet || !engine.bodies.length} description="Dodaj automatyczne zestawienie części z modelu 3D." /><ToolButton icon={Grid2X2} label="Tabela otworów" onClick={() => addDrawingTable('hole-table')} disabled={readOnly || !selectedDrawingView || selectedDrawingIsSketch || !engine.bodies.length} description="Dodaj tabelę średnic z zaznaczonego widoku modelu 3D." /><ToolButton icon={Grid2X2} label="Tabela gięć" onClick={() => addDrawingTable('bend-table')} disabled={readOnly || !activeDrawingSheet || !sheetBodies.some((body) => body.sheetMetal.flatSegments?.length)} description="Dodaj skojarzoną tabelę kątów, promieni, długości i naddatków gięcia blachy." /></RibbonGroup>
               </>
+            ) : workspace === 'manufacture' ? (
+              <>
+                <RibbonGroup label="SETUP"><ToolButton icon={Box} label="Nowy Setup" onClick={createCamSetup} disabled={readOnly || !engine.bodies.some((body) => body.bodyKind !== 'surface')} primary description="Powiąż bryłę z obrabiarką, półfabrykatem i układem WCS." /></RibbonGroup>
+                <RibbonGroup label="WIDOK"><ToolButton icon={Crosshair} label="Dopasuj model" onClick={() => setFitViewRequest({ requestId: `cam-fit:${Date.now()}` })} disabled={!engine.bodies.length} /></RibbonGroup>
+                <RibbonGroup label="PRZYGOTOWANIE"><ToolButton icon={Ruler} label="Sprawdź Setup" onClick={() => setNotice('Panel Setup pokazuje bieżące wymiary półfabrykatu, zero WCS i zgodność z przesuwem maszyny.')} disabled={!document.manufacturing.setups.length} /></RibbonGroup>
+              </>
             ) : workspace === 'tools' ? null : (
               <>
                 <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Move3d} label="Szkic 3D" onClick={startSketch3D} disabled={readOnly} description="Utwórz ciągłą przestrzenną ścieżkę XYZ dla Sweep, Pipe i Pattern." /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolMenuButton icon={Layers3} label="Blacha" description="Utwórz bazę blachową, a następnie dodawaj kołnierze na jej krawędziach." items={[
@@ -7184,6 +7747,10 @@ export default function ModelingWorkspace() {
                   { icon: SectionCadIcon, label: 'Przekrój', onClick: openSectionAnalysis, disabled: !engine.bodies.length },
                   { icon: ScanSearch, label: 'Analiza powierzchni', onClick: openSurfaceAnalysis, disabled: !engine.bodies.length },
                   { icon: MassCadIcon, label: 'Właściwości masy', onClick: openMassProperties, disabled: !engine.bodies.length },
+                  { icon: ScanSearch, label: 'Szybka analiza statyczna', onClick: openStaticScreening, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
+                  { icon: ScanSearch, label: 'MES bryły 3D', onClick: openSolidFea, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
+                  { icon: ScanSearch, label: 'MES belki 1D', onClick: openBeamFea, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
+                  { icon: Sun, label: 'Szybka analiza cieplna', onClick: openThermalScreening, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
                   { icon: GeometryCheckCadIcon, label: 'Sprawdź geometrię', onClick: openGeometryInspection, disabled: !engine.bodies.length },
                 ]} /></RibbonGroup>
               </>
@@ -7207,7 +7774,7 @@ export default function ModelingWorkspace() {
           collapsed={panelLayout.commandCollapsed}
           dock="right"
           onChange={updateCommand}
-          onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : command?.type === 'sketch3d' ? confirmSketch3DSegment : command?.type === 'editSketch3d' ? confirmSketch3DEntityEditor : command?.type === 'projectSketch' ? projectSelectedTopology : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
+          onConfirm={command?.type === 'rectangle' || command?.type === 'circle' ? confirmProfile : command?.type === 'point' ? confirmSketchPoint : command?.type === 'sketch3d' ? confirmSketch3DSegment : command?.type === 'editSketch3d' ? confirmSketch3DEntityEditor : command?.type === 'projectSketch' ? projectSelectedTopology : command?.type === 'projectSurface' ? confirmProjectToSurface : ['arc', 'polygon', 'ellipse', 'slot', 'spline', 'conic'].includes(command?.type) ? confirmMechanicalShape : command?.type === 'line' || command?.type === 'polyline' ? confirmExactSketchSegment : command?.type === 'moveSketch' ? confirmSketchMove : command?.type === 'offsetSketch' ? confirmSketchOffset : command?.type === 'cornerSketch' ? confirmSketchCorner : command?.type === 'transformSketch' ? confirmSketchTransform : command?.type === 'patternSketch' ? confirmSketchPattern : ['offsetPlane', 'midplanePlane', 'threePointPlane', 'anglePlane', 'tangentPlane', 'pathPlane'].includes(command?.type) ? confirmConstructionPlane : command?.type === 'constructionAxis' ? confirmConstructionAxis : command?.type === 'constructionPoint' ? confirmConstructionPoint : confirmFeature}
           onConfirmDynamic={confirmDynamicSketchSegment}
           onCancel={cancelActiveCommand}
           onUndoSegment={command?.type === 'sketch3d' ? undoSketch3DSegment : undoSketchSegment}
@@ -7259,6 +7826,7 @@ export default function ModelingWorkspace() {
             onCreatePart={() => createDocumentComponent('part')}
             onCreateAssembly={() => createDocumentComponent('assembly')}
             onOpenNamedViews={() => { setComponentsOpen(false); setNamedViewsOpen((open) => !open); switchWorkspace('solid'); }}
+            onOpenRenderScene={() => { setComponentsOpen(false); setNamedViewsOpen(false); setRenderSceneOpen(true); switchWorkspace('solid'); }}
             readOnly={readOnly}
             onBack={() => switchWorkspace('solid')}
           /> : <React.Suspense fallback={<div className="viewport-loading" role="status">Uruchamianie widoku 3D…</div>}>
@@ -7285,7 +7853,7 @@ export default function ModelingWorkspace() {
             onSketchConstraintSelection={(constraintId) => setSelection({ kind: 'sketchConstraint', id: constraintId, sketchId: activeSketchId })}
             onSketchConstraintValueChange={updateSketchConstraintValue}
             onDeleteSketchSelection={readOnly ? undefined : deleteSelectedSketchEntities}
-            sketchModifierMode={command?.type === 'trimSketch' ? 'trim' : command?.type === 'extendSketch' ? 'extend' : command?.type === 'breakSketch' ? 'break' : command?.type === 'projectSketch' ? 'project' : null}
+            sketchModifierMode={command?.type === 'trimSketch' ? 'trim' : command?.type === 'extendSketch' ? 'extend' : command?.type === 'breakSketch' ? 'break' : command?.type === 'projectSketch' ? 'project' : command?.type === 'projectSurface' ? 'projectSurface' : null}
             onSketchModify={modifySketchAtPoint}
             onSketchProfileSelection={(profileId, sketchId) => setSelection({ kind: 'profile', id: profileId, sketchId: sketchId || activeSketchId })}
             onSketchMove={readOnly ? undefined : moveSketchEntities}
@@ -7300,6 +7868,10 @@ export default function ModelingWorkspace() {
             sectionAnalysis={sectionAnalysis}
             draftAnalysis={activeGeometryFaceAnalysis}
             surfaceAnalysis={surfaceAnalysis}
+            beamFeaVisualization={command?.type === 'beamFea' ? beamFea?.result : null}
+            solidFeaVisualization={command?.type === 'solidFea' ? solidFea?.result : null}
+            manufacturingVisualization={manufacturingVisualization}
+            printRiskAnalysis={printRiskAnalysis}
             parameters={document.parameters}
             showGrid={!activeSketchId || sketchOptions.grid}
             selectedBodyId={selection?.kind === 'body' ? selection.id : (selection?.bodyId || null)}
@@ -7310,6 +7882,9 @@ export default function ModelingWorkspace() {
             collisionInstanceIds={collisionInstanceIds}
             exactCollisionInstanceIds={exactCollisionInstanceIds}
             explodeAmount={explodeAmount}
+            animationInstanceOffsets={animationInstanceOffsets}
+            animationInstanceRotations={animationInstanceRotations}
+            animationJointValues={animationJointValues}
             cameraRequest={cameraRequest}
             fitRequest={fitViewRequest}
             activeCommand={command}
@@ -7353,6 +7928,7 @@ export default function ModelingWorkspace() {
             selectedProfile={selectedProfile}
             selectedProfilePlane={selectedProfileMatch?.sketch.plane || 'XY'}
             selectedProfilePlaneOffset={Number(selectedProfileMatch?.sketch.planeOffset || 0)}
+            selectedProfileFrame={selectedProfileMatch?.sketch.frame || (selectedProfileMatch?.sketch.support?.kind === 'construction-plane' ? constructionPlanes.find((plane) => plane.id === selectedProfileMatch.sketch.support.referenceId && plane.status === 'ok') || null : null)}
             directExtrudeDistance={command?.type === 'extrude' ? command.distance : 0}
             onDirectExtrude={readOnly ? undefined : beginOrUpdateExtrude}
             directManipulator={readOnly ? null : directManipulator}
@@ -7361,12 +7937,15 @@ export default function ModelingWorkspace() {
             bed={document.print}
             showBed={printPanelOpen}
             printLayout={document.print}
+            renderScene={document.renderScene}
+            renderCaptureRef={renderCaptureRef}
           />
           </React.Suspense>}
+          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} projectDocument={document} simulationProgress={camSimulationProgress} onSimulationProgress={setCamSimulationProgress} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onExportOperation={exportCamOperation} />}
           {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
           {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
-          {workspace !== 'drawing' && workspace !== 'tools' && adaptiveContext && !meshToolsOpen && <AdaptiveToolShelf {...adaptiveContext} />}
+          {workspace !== 'drawing' && workspace !== 'tools' && adaptiveContext && !meshToolsOpen && !renderSceneOpen && <AdaptiveToolShelf {...adaptiveContext} />}
           {notice && <div className={`workspace-notice ${command ? 'command-active' : ''}`} role="status" aria-live="polite" aria-atomic="true">{notice}</div>}
           <CrashRecoveryBanner
             info={recoveryInfo}
@@ -7385,12 +7964,19 @@ export default function ModelingWorkspace() {
           {command?.type === 'surfaceAnalysis' && surfaceAnalysis && <SurfaceAnalysisPanel analysis={surfaceAnalysis} continuity={surfaceContinuity} curvature={surfaceCurvature} onChange={(patch) => setSurfaceAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSurfaceAnalysis} />}
           {meshToolsOpen && selectedMeshBody && <MeshToolsPanel body={selectedMeshBody} report={selectedMeshReport} groups={selectedMeshFeature?.meshGroups || []} brepBlocker={meshBrepBlocker} readOnly={readOnly} onRepair={safelyRepairSelectedMesh} onOrient={orientSelectedMeshFaces} onFillHoles={fillSelectedMeshHoles} onReduce={reduceSelectedMesh} onSmooth={smoothSelectedMesh} onRemesh={remeshSelectedMesh} onGroup={groupSelectedMeshFaces} onConvertToBrep={convertSelectedMeshToBrep} onClose={() => setMeshToolsOpen(false)} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
+          {command?.type === 'staticScreening' && <StaticScreeningPanel bodies={engine.bodies.filter((body) => body.bodyKind !== 'surface')} bodyId={command.bodyId} materialId={command.materialId} spanAxis={command.spanAxis} loadAxis={command.loadAxis} fixedEnd={command.fixedEnd} force={command.force} result={staticScreening?.result} error={staticScreening?.error} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
+          {command?.type === 'beamFea' && <BeamFeaPanel bodies={engine.bodies.filter((body) => body.bodyKind !== 'surface')} bodyId={command.bodyId} materialId={command.materialId} spanAxis={command.spanAxis} loadAxis={command.loadAxis} loadType={command.loadType} loadPositionPercent={command.loadPositionPercent} force={command.force} distributedForce={command.distributedForce} elementCount={command.elementCount} requiredSafetyFactor={command.requiredSafetyFactor} loadCases={command.loadCases} result={beamFea?.result} error={beamFea?.error} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onExport={exportBeamFeaReport} onClose={() => setCommand(null)} />}
+          {command?.type === 'solidFea' && <SolidFeaPanel bodies={engine.bodies.filter((body) => body.bodyKind !== 'surface')} bodyId={command.bodyId} materialId={command.materialId} supportAxis={command.supportAxis} supportSide={command.supportSide} supportFaceId={command.supportFaceId} supportFaceLabel={command.supportFaceLabel} loadAxis={command.loadAxis} loadSide={command.loadSide} loadFaceId={command.loadFaceId} loadFaceLabel={command.loadFaceLabel} force={command.force} meshDensity={command.meshDensity} result={solidFea?.result} error={solidFea?.error} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
+          {command?.type === 'thermalScreening' && <ThermalScreeningPanel bodies={engine.bodies.filter((body) => body.bodyKind !== 'surface')} bodyId={command.bodyId} materialId={command.materialId} axis={command.axis} hotTemperature={command.hotTemperature} coldTemperature={command.coldTemperature} result={thermalScreening?.result} error={thermalScreening?.error} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} inspectionMode={command.inspectionMode} draftDirection={command.draftDirection} draftTolerance={command.draftTolerance} thicknessTarget={command.thicknessTarget} thicknessTolerance={command.thicknessTolerance} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {namedViewsOpen && <NamedViewsPanel views={document.namedViews || []} currentCamera={currentCameraRef.current} readOnly={readOnly} onCreate={saveNamedView} onActivate={activateNamedView} onDelete={removeNamedView} onClose={() => setNamedViewsOpen(false)} />}
+          {renderSceneOpen && <RenderScenePanel scene={document.renderScene} bodies={engine.bodies} selectedFace={selectedFaceItems.length === 1 ? selectedFaceItems[0] : null} readOnly={readOnly} onChange={updateRenderScene} onAddDecal={(file, face) => { void addRenderDecal(file, face); }} onUpdateDecal={changeRenderDecal} onDeleteDecal={removeRenderDecal} onSaveRender={() => { void saveLocalRender(); }} onClose={() => setRenderSceneOpen(false)} />}
           {componentsOpen && <ComponentPanel
             document={document} bodies={engine.bodies} collisionResult={assemblyCollisionResult}
             selectedComponentId={selectedComponent?.id || ''} selectedInstanceId={selectedInstance?.id || ''} selectedJointId={selectedJoint?.id || ''} selectedMotionLinkId={selectedMotionLink?.id || ''} selectedConfigurationId={selectedAssemblyConfiguration?.id || ''} selectedContactSetId={selectedContactSet?.id || ''} selectedBodyIds={selectedBodyIds}
-            linkedProjectStatuses={linkedProjectStatuses} readOnly={readOnly} explodeAmount={explodeAmount} onExplodeAmountChange={setExplodeAmount}
+            linkedProjectStatuses={linkedProjectStatuses} readOnly={readOnly} explodeAmount={explodeAmount} onExplodeAmountChange={(amount) => { setAnimationPlaying(false); setExplodeAmount(amount); }} activeStoryboardId={activeStoryboardId} animationPlaying={animationPlaying} storyboardExporting={storyboardExporting} animationTime={animationTime} animationInstanceOffsets={animationInstanceOffsets} animationInstanceRotations={animationInstanceRotations} animationJointValues={animationJointValues} animationNote={animationNote}
+            onPreviewStoryboardOffset={(instanceId, offset) => setAnimationInstanceOffsets((current) => ({ ...current, [instanceId]: offset }))} onPreviewStoryboardRotation={(instanceId, rotation) => setAnimationInstanceRotations((current) => ({ ...current, [instanceId]: rotation }))} onPreviewStoryboardJoint={(jointId, value) => setAnimationJointValues((current) => ({ ...current, [jointId]: value }))} onAnimationNoteChange={setAnimationNote}
+            onSelectStoryboard={(id) => { setAnimationPlaying(false); setActiveStoryboardId(id); setAnimationTime(0); setAnimationInstanceOffsets({}); setAnimationInstanceRotations({}); setAnimationJointValues({}); setAnimationNote(''); }} onCreateStoryboard={createStoryboard} onUpdateStoryboard={changeStoryboard} onDeleteStoryboard={removeStoryboard} onAddStoryboardKeyframe={addStoryboardFrame} onDeleteStoryboardKeyframe={deleteStoryboardFrame} onSeekStoryboard={seekStoryboard} onPlayStoryboard={(storyboard) => { setActiveStoryboardId(storyboard.id); if (animationTime >= storyboard.duration) { const first = sampleAssemblyStoryboardState(storyboard, 0); setAnimationTime(0); setExplodeAmount(first.explodeAmount); setAnimationInstanceOffsets(first.instanceOffsets); setAnimationInstanceRotations(first.instanceRotations); setAnimationJointValues(first.jointValues); setAnimationNote(first.note); } setAnimationPlaying(true); }} onStopStoryboard={() => setAnimationPlaying(false)} onExportStoryboardVideo={(storyboard) => { void exportStoryboardVideo(storyboard); }} onExportStoryboardInstructions={(storyboard) => { void exportStoryboardInstructions(storyboard); }}
             onCreate={createDocumentComponent} onLinkProject={() => { void linkExternalProject(); }} onPackAndGo={() => { void packAndGoProject(); }} onRefreshLinkedProject={(linkId) => { void refreshLinkedProject(linkId); }} onRepairLinkedProject={(linkId) => { void refreshLinkedProject(linkId, true); }}
             onUpdate={updateDocumentComponent} onAssignBodies={assignDocumentComponentBodies} onMove={moveDocumentComponent} onDelete={removeDocumentComponent} onSelect={(componentId) => setSelection({ kind: 'component', id: componentId })} onSelectInstance={(instanceId) => { const instance = document.componentInstances.find((item) => item.id === instanceId); setSelection({ kind: 'componentInstance', id: instanceId, componentId: instance?.componentId }); }} onCreateInstance={createDocumentComponentInstance} onUpdateInstance={updateDocumentComponentInstance} onDuplicateInstance={duplicateDocumentComponentInstance} onDeleteInstance={removeDocumentComponentInstance}
             onCreateRigidGroup={createDocumentRigidGroup} onDeleteRigidGroup={removeDocumentRigidGroup} onSelectJoint={(jointId) => setSelection(jointId ? { kind: 'joint', id: jointId } : { kind: 'document', id: document.id })} onCreateJoint={createDocumentJoint} onUpdateJoint={updateDocumentJoint} onSetJointValue={setDocumentJointValue} onDeleteJoint={removeDocumentJoint}
@@ -7487,8 +8073,8 @@ export default function ModelingWorkspace() {
         </div>}
       </footer>
       {tutorialOpen && <FirstPartTutorial onClose={() => setTutorialOpen(false)} />}
-      {licenseInfoOpen && <LicenseInfoDialog onClose={() => setLicenseInfoOpen(false)} onShowFullLicense={() => { setLicenseInfoOpen(false); setFullLicenseOpen(true); }} />}
-      {fullLicenseOpen && <FullLicenseDialog onClose={() => setFullLicenseOpen(false)} />}
+      {licenseInfoOpen && <LicenseInfoDialog licensePlan={licensePlan} busy={licenseBusy} error={licenseError} allowVerificationBypass={licenseVerificationMode} onLogin={(data) => runLicenseAction('licenseLogin', data)} onRegister={(data) => runLicenseAction('licenseRegister', data)} onStartTrial={() => runLicenseAction('licenseStartTrial')} onLogout={() => runLicenseAction('licenseLogout')} onRefresh={() => runLicenseAction('licenseGetStatus')} onRequestPasswordReset={(data) => runLicenseAction('licenseRequestPasswordReset', data)} onResetPassword={(data) => runLicenseAction('licenseResetPassword', data)} onResendVerification={() => runLicenseAction('licenseResendVerification')} onVerifyEmail={(data) => runLicenseAction('licenseVerifyEmail', data)} onClose={() => { if (licensePlan.accessAllowed || licenseVerificationMode) setLicenseInfoOpen(false); }} onShowFullLicense={() => { setLicenseInfoOpen(false); setFullLicenseOpen(true); }} />}
+      {fullLicenseOpen && <FullLicenseDialog onClose={() => { setFullLicenseOpen(false); if (!licensePlan.accessAllowed && !licenseVerificationMode) setLicenseInfoOpen(true); }} />}
       {updateState.open && !updatePromptBlocked && <UpdateDialog state={updateState} onCheck={checkForUpdates} onInstall={installAvailableUpdate} onClose={() => setUpdateState((current) => ({ ...current, open: false, promptPending: false }))} />}
       {toolHelp && (
         <div className="tool-help-tooltip" role="tooltip" style={{ left: toolHelp.x, top: toolHelp.y }}>

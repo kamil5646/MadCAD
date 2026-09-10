@@ -317,11 +317,23 @@ export function subdivideCatmullClark(cage) {
   });
   const faceIndexes = facePoints.map((point) => vertices.push(point) - 1);
   const faces = [];
+  const patches = [];
   cage.faces.forEach((face, faceIndex) => {
     face.forEach((vertexIndex, index) => {
       const previous = face[(index + face.length - 1) % face.length];
       const next = face[(index + 1) % face.length];
       faces.push([vertexIndex, edgeIndexes.get(edgeKey(vertexIndex, next)), faceIndexes[faceIndex], edgeIndexes.get(edgeKey(previous, vertexIndex))]);
+      const parentPatch = cage.patches?.[faceIndex];
+      if (!parentPatch || face.length !== 4) patches.push(null);
+      else {
+        const currentUv = parentPatch.uv[index];
+        const nextUv = parentPatch.uv[(index + 1) % 4];
+        const previousUv = parentPatch.uv[(index + 3) % 4];
+        patches.push({
+          sourceFaceIndex: parentPatch.sourceFaceIndex,
+          uv: [currentUv, average([currentUv, nextUv]), average(parentPatch.uv), average([previousUv, currentUv])],
+        });
+      }
     });
   });
   const creaseEdges = [];
@@ -331,7 +343,7 @@ export function subdivideCatmullClark(cage) {
     if (!edge || !Number.isInteger(edgeIndex)) return;
     creaseEdges.push([edge.first, edgeIndex], [edgeIndex, edge.second]);
   });
-  return { vertices, faces, creaseEdges };
+  return { vertices, faces, creaseEdges, patches };
 }
 
 function createBoundsFitter(vertices, width, depth, height) {
@@ -362,11 +374,21 @@ export function createRoundedBoxFormMesh({ width, depth, height, subdivisions = 
       controlCage.vertices[vertexIndex] = controlCage.vertices[vertexIndex].map((value, axis) => value + (Number(bridgeOffsets[index]?.[axis]) || 0));
     });
   }
+  const smoothControlCage = controlCage;
   if (fillHole?.enabled) controlCage = fillFormHoles(controlCage, fillHole.faceIndexes, fillHoleOffsets);
   let cage = controlCage;
   for (let iteration = 0; iteration < subdivisions; iteration += 1) cage = subdivideCatmullClark(cage);
+  let patchCage = {
+    ...smoothControlCage,
+    patches: smoothControlCage.faces.map((face, sourceFaceIndex) => face.length === 4
+      ? { sourceFaceIndex, uv: [[0, 0], [1, 0], [1, 1], [0, 1]] }
+      : null),
+  };
+  for (let iteration = 0; iteration < subdivisions; iteration += 1) patchCage = subdivideCatmullClark(patchCage);
   const fitPoint = createBoundsFitter(cage.vertices, width, depth, height);
   const fittedVertices = cage.vertices.map(fitPoint);
+  const patchFitPoint = createBoundsFitter(patchCage.vertices, width, depth, height);
+  const fittedPatchVertices = patchCage.vertices.map(patchFitPoint);
   const fittedControlVertices = controlCage.vertices.map(fitPoint);
   const vertices = fittedVertices.flat();
   const triangles = cage.faces.flatMap((face) => {
@@ -374,9 +396,38 @@ export function createRoundedBoxFormMesh({ width, depth, height, subdivisions = 
     for (let index = 1; index < face.length - 1; index += 1) result.push(face[0], face[index], face[index + 1]);
     return result;
   });
+  const smoothPatches = [];
+  if (smoothControlCage.faces.every((face) => face.length === 4) && patchCage.patches.every(Boolean)) {
+    const span = 2 ** subdivisions;
+    for (let sourceFaceIndex = 0; sourceFaceIndex < smoothControlCage.faces.length; sourceFaceIndex += 1) {
+      const grid = Array.from({ length: span + 1 }, () => Array(span + 1));
+      patchCage.faces.forEach((face, faceIndex) => {
+        const patch = patchCage.patches[faceIndex];
+        if (patch.sourceFaceIndex !== sourceFaceIndex) return;
+        face.forEach((vertexIndex, cornerIndex) => {
+          const [u, v] = patch.uv[cornerIndex];
+          grid[Math.round(u * span)][Math.round(v * span)] = [...fittedPatchVertices[vertexIndex]];
+        });
+      });
+      if (grid.every((row) => row.every((point) => Array.isArray(point)))) {
+        const fillIndex = fillHole?.enabled ? fillHole.faceIndexes.indexOf(sourceFaceIndex) : -1;
+        if (fillIndex >= 0) {
+          const offset = fillHoleOffsets[fillIndex]?.map(Number) || [0, 0, 0];
+          grid.forEach((row, uIndex) => row.forEach((point, vIndex) => {
+            const u = uIndex / span;
+            const v = vIndex / span;
+            const influence = 16 * u * (1 - u) * v * (1 - v);
+            row[vIndex] = point.map((value, axis) => value + ((Number.isFinite(offset[axis]) ? offset[axis] : 0) * influence));
+          }));
+        }
+        smoothPatches.push(grid);
+      }
+    }
+  }
   return {
     vertices,
     triangles,
+    smoothPatches,
     controlVertexCount: controlCage.vertices.length,
     controlFaceCount: controlCage.faces.length,
     controlVertices: fittedControlVertices.flat(),

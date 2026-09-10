@@ -38,5 +38,14 @@ contextBridge.exposeInMainWorld('desktopApp', {
   downloadAndInstallUpdate: (payload) => ipcRenderer.invoke('madcad:download-and-install-update', payload),
   openPrintPreviewWindow: (payload) => ipcRenderer.invoke('madcad:open-print-preview', payload),
   saveDrawingPdf: (payload) => ipcRenderer.invoke('madcad:save-drawing-pdf', payload),
-  setAppLanguage: (payload) => ipcRenderer.invoke('madcad:set-language', payload)
+  setAppLanguage: (payload) => ipcRenderer.invoke('madcad:set-language', payload),
+  licenseGetStatus: () => ipcRenderer.invoke('madcad:license-status'),
+  licenseLogin: (payload) => ipcRenderer.invoke('madcad:license-login', payload),
+  licenseRegister: (payload) => ipcRenderer.invoke('madcad:license-register', payload),
+  licenseStartTrial: () => ipcRenderer.invoke('madcad:license-start-trial'),
+  licenseLogout: () => ipcRenderer.invoke('madcad:license-logout'),
+  licenseRequestPasswordReset: (payload) => ipcRenderer.invoke('madcad:license-request-password-reset', payload),
+  licenseResetPassword: (payload) => ipcRenderer.invoke('madcad:license-reset-password', payload),
+  licenseResendVerification: () => ipcRenderer.invoke('madcad:license-resend-verification'),
+  licenseVerifyEmail: (payload) => ipcRenderer.invoke('madcad:license-verify-email', payload)
 });

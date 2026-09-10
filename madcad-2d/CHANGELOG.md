@@ -1,5 +1,14 @@
 # Changelog
 
+## 6.5.0 (2026-09-10)
+
+- Zastąpiono lokalną deklarację planu kontem MadCAD: aplikacja pobiera 40-dniową ocenę i uprawnienie komercyjne z API SEOHost MAD-MAG, bez klucza do przepisywania.
+- Hasło nie jest zapisywane w aplikacji, token sesji chroni systemowy `safeStorage`, a serwer przechowuje wyłącznie hasze haseł i losowych tokenów.
+- Dodano ograniczoną 30-dniową pracę offline, kontrolę cofnięcia zegara, limit stanowisk oraz administracyjne nadawanie, cofanie i zwalnianie urządzeń.
+- Dodano odzyskiwanie hasła jednorazowym kodem e-mail ważnym 60 minut; zmiana hasła unieważnia wcześniejsze sesje i nie ujawnia istnienia konta.
+- Rejestracja wymaga potwierdzenia adresu e-mail jednorazowym kodem przed uruchomieniem okresu próbnego; kod można bezpiecznie wysłać ponownie.
+- Każdy plan, również bezpłatny osobisty, wymaga konta MadCAD i okresowego sprawdzenia online; po sprawdzeniu działa offline do 30 dni.
+
 ## 6.4.7 (2026-09-03)
 
 - Przebudowano układ pracy na spójny przepływ inspirowany Autodesk Fusion: kontekstowa wstążka prowadzi od szkicu przez modelowanie do dokumentacji, a import, eksport i druk są uporządkowane w menu pliku.

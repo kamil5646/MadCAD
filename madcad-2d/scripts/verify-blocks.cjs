@@ -50,7 +50,9 @@ app.whenReady().then(async () => {
       window.__madcadVerifySketchSelection(lines, 'replace');
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.selection?.ids?.length === 4`, 'wybór obrysu');
-    if (!(await clickByText(window, '.ribbon-tool, .ribbon-overflow-menu button', 'Bloki'))) throw new Error('Nie znaleziono przycisku Bloki.');
+    if (!(await clickByText(window, '[data-tool-label="Warstwy i bloki"]', 'Warstwy i bloki'))) throw new Error('Nie znaleziono menu Warstwy i bloki.');
+    await waitFor(window, `document.querySelector('.ribbon-tool-submenu[aria-label="Warstwy i bloki"]')`, 'menu warstw i bloków');
+    if (!(await clickByText(window, '.ribbon-tool-submenu[aria-label="Warstwy i bloki"] [role="menuitem"]', 'Bloki'))) throw new Error('Nie znaleziono przycisku Bloki.');
     await waitFor(window, `document.querySelector('.blocks-panel')`, 'panel bloków');
     await setInput(window, 'input[aria-label="Nazwa nowego bloku"]', 'Obrys 40x30');
     if (!(await clickByText(window, '.block-create-section button', 'Utwórz blok'))) throw new Error('Nie znaleziono tworzenia bloku.');

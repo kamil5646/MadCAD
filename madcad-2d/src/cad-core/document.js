@@ -12,9 +12,12 @@ import { ensureDocumentBlocks } from './blocks.js';
 import { COMPONENT_TYPES, DEFAULT_INSTANCE_TRANSFORM, ensureDocumentComponents } from './components.js';
 import { JOINT_AXES, JOINT_TYPES, ensureDocumentJoints } from './assembly-joints.js';
 import { ensureDocumentAssemblyMotion } from './assembly-motion.js';
+import { ensureDocumentAssemblyAnimations, isAssemblyStoryboardsValid } from './assembly-animation.js';
 import { ensureDocumentLinkedProjects } from './linked-projects.js';
 import { MAX_NAMED_VIEWS, ensureDocumentNamedViews, normalizeNamedViewCamera } from './named-views.js';
+import { ensureDocumentRenderScene, isRenderSceneValid, normalizeRenderScene } from './render-scene.js';
 import { validateHoleStandard } from './hole-standards.js';
+import { ensureDocumentManufacturing, validateManufacturing } from './manufacturing.js';
 import { DRAWING_ANNOTATION_TYPES, DRAWING_PAGE_SIZES, DRAWING_TABLE_TYPES, DRAWING_VIEW_ALIGNMENTS, DRAWING_VIEW_ORIENTATIONS, DRAWING_VIEW_TYPES, ensureDocumentDrawings } from './drawing-sheets.js';
 import {
   SKETCH_ENTITY_ROLES,
@@ -23,8 +26,9 @@ import {
   boundaryPointIds,
   normalizeSketchModel,
 } from './sketch-model.js';
+import { normalizeSketchFrame } from './sketch-frame.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 15;
+export const DOCUMENT_SCHEMA_VERSION = 17;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -285,6 +289,38 @@ function migrateV14ToV15(source, now) {
   return migrated;
 }
 
+function migrateV15ToV16(source, now) {
+  const migrated = ensureDocumentManufacturing(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureV3Collections(cloneDocument(source))))))));
+  migrated.schemaVersion = 16;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 15,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 15, to: 16, at: now },
+    ],
+  };
+  return migrated;
+}
+
+function migrateV16ToV17(source, now) {
+  const migrated = ensureDocumentManufacturing(cloneDocument(source));
+  migrated.schemaVersion = 17;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 16,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 16, to: 17, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
@@ -299,6 +335,8 @@ const MIGRATIONS = new Map([
   [12, migrateV12ToV13],
   [13, migrateV13ToV14],
   [14, migrateV14ToV15],
+  [15, migrateV15ToV16],
+  [16, migrateV16ToV17],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -325,7 +363,7 @@ export function createCircleProfile({ name = 'Okrąg', diameter = 'srednicaOtwor
   };
 }
 
-export function createSketch({ name = 'Szkic', space = '2d', plane = 'XY', planeOffset = '0', support = null, entities = [], profiles = [], constraints = [], dimensions = [], blockInstances = [] } = {}) {
+export function createSketch({ name = 'Szkic', space = '2d', plane = 'XY', planeOffset = '0', frame = null, support = null, entities = [], profiles = [], constraints = [], dimensions = [], blockInstances = [] } = {}) {
   return normalizeSketchModel({
     id: createId('sketch'),
     name,
@@ -333,6 +371,7 @@ export function createSketch({ name = 'Szkic', space = '2d', plane = 'XY', plane
     space,
     plane,
     planeOffset: String(planeOffset),
+    ...(frame ? { frame: normalizeSketchFrame(frame) } : {}),
     ...(support ? { support: structuredClone(support) } : {}),
     visible: true,
     entities,
@@ -376,18 +415,22 @@ export function createDocument(name = 'Nowy projekt') {
     contactSets: [],
     assemblyConfigurations: [],
     activeAssemblyConfigurationId: '',
+    animationStoryboards: [],
+    renderScene: normalizeRenderScene(),
     references: [],
     blocks: [],
     drawings: [],
     layers: [createDefaultLayer()],
     activeLayerId: 'layer-0',
+    manufacturing: { setups: [], activeSetupId: '' },
     print: {
-      profileId: 'creality-ender3', bedWidth: 220, bedDepth: 220, bedHeight: 250, material: 'PLA',
+      profileId: 'creality-ender3', bedWidth: 220, bedDepth: 220, bedHeight: 250, materialProfileId: 'pla', material: 'PLA',
       positionX: 0, positionY: 0, positionZ: 0,
       rotationX: 0, rotationY: 0, rotationZ: 0,
       scale: 1, copies: 1, copySpacing: 10,
       orientationAxis: [0, 0, 1], orientationAngle: 0,
       nozzleDiameter: 0.4, minimumWallThickness: 0.8, minimumHoleDiameter: 2, overhangAngle: 45,
+      showRiskMap: false,
       slicer: 'bambu',
     },
     metadata: { createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }
@@ -461,11 +504,11 @@ export function migrateDocument(source, { now = new Date().toISOString() } = {})
     document = migration(document, now);
     version = readSchemaVersion(document);
   }
-  return ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document))))))));
+  return ensureDocumentManufacturing(ensureDocumentAssemblyAnimations(ensureDocumentRenderScene(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(document)))))))))));
 }
 
 function projectFutureDocument(source) {
-  const projected = ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source))))))))));
+  const projected = ensureDocumentManufacturing(ensureDocumentAssemblyAnimations(ensureDocumentRenderScene(ensureDocumentNamedViews(ensureDocumentLinkedProjects(ensureDocumentTimeline(ensureDocumentAssemblyMotion(ensureDocumentJoints(ensureDocumentDrawings(ensureDocumentBlocks(ensureDocumentLayers(ensureV3Collections(cloneDocument(source)))))))))))));
   projected.schemaVersion = DOCUMENT_SCHEMA_VERSION;
   projected.metadata = {
     ...(isRecord(projected.metadata) ? projected.metadata : {}),
@@ -531,6 +574,9 @@ export function validateDocument(document) {
   if (typeof document.id !== 'string' || !document.id.trim()) add('id', 'Dokument musi mieć niepuste ID.', 'REQUIRED');
   if (typeof document.name !== 'string' || !document.name.trim()) add('name', 'Projekt musi mieć nazwę.', 'REQUIRED');
   if (document.units !== 'mm') add('units', 'Bieżąca wersja obsługuje jednostkę dokumentu „mm”.', 'UNSUPPORTED');
+  if (!isRecord(document.renderScene)) add('renderScene', 'Wymagane są ustawienia sceny renderu.', 'TYPE');
+  else if (!isRenderSceneValid(document.renderScene)) add('renderScene', 'Ustawienia sceny renderu są nieprawidłowe.', 'INVALID');
+  if (!isAssemblyStoryboardsValid(document.animationStoryboards)) add('animationStoryboards', 'Storyboardy animacji złożenia są nieprawidłowe.', 'INVALID');
 
   const parameters = requireArray(document, 'parameters');
   const sketches = requireArray(document, 'sketches');
@@ -551,6 +597,7 @@ export function validateDocument(document) {
   const blocks = requireArray(document, 'blocks');
   const drawings = requireArray(document, 'drawings');
   if (!isRecord(document.print)) add('print', 'Wymagane są ustawienia druku.', 'TYPE');
+  validateManufacturing(document.manufacturing).forEach((issue) => add(issue.path, issue.message, issue.code));
   if (!isRecord(document.metadata)) add('metadata', 'Wymagane są metadane dokumentu.', 'TYPE');
 
   const allIds = new Map();
@@ -685,6 +732,9 @@ export function validateDocument(document) {
     if (!['2d', '3d'].includes(sketchSpace)) add(`${base}.space`, 'Przestrzeń szkicu musi mieć wartość „2d” albo „3d”.', 'VALUE');
     if (!SUPPORTED_PLANES.has(sketch.plane)) add(`${base}.plane`, `Nieobsługiwana płaszczyzna: ${sketch.plane ?? ''}.`, 'UNSUPPORTED');
     if (typeof sketch.planeOffset !== 'string' && typeof sketch.planeOffset !== 'number' && sketch.planeOffset !== undefined) add(`${base}.planeOffset`, 'Odsunięcie płaszczyzny szkicu musi być wyrażeniem albo liczbą.', 'TYPE');
+    if (sketch.frame !== undefined) {
+      try { normalizeSketchFrame(sketch.frame); } catch (error) { add(`${base}.frame`, error.message, 'VALUE'); }
+    }
     if (sketch.support !== undefined && (!isRecord(sketch.support) || !['face', 'construction-plane'].includes(sketch.support.kind) || typeof sketch.support.referenceId !== 'string' || !sketch.support.referenceId)) add(`${base}.support`, 'Podpora szkicu wymaga trwałej referencji do ściany albo płaszczyzny.', 'TYPE');
     const profiles = requireArray(sketch, 'profiles', `${base}.profiles`);
     const entities = requireArray(sketch, 'entities', `${base}.entities`);
@@ -739,6 +789,9 @@ export function validateDocument(document) {
       if (entity.role === 'projected' && (typeof entity.sourceReferenceId !== 'string' || !entity.sourceReferenceId.trim())) {
         add(`${entityBase}.sourceReferenceId`, 'Geometria projected wymaga referencji źródłowej.', 'BROKEN_REFERENCE');
       }
+      if (entity.surfaceFaceIds !== undefined && (!Array.isArray(entity.surfaceFaceIds) || entity.surfaceFaceIds.some((faceId) => typeof faceId !== 'string' || !faceId.trim()) || new Set(entity.surfaceFaceIds).size !== entity.surfaceFaceIds.length)) {
+        add(`${entityBase}.surfaceFaceIds`, 'Skojarzenie ścieżki z powierzchnią wymaga unikalnych identyfikatorów ścian.', 'VALUE');
+      }
       const pointCount = Array.isArray(entity.pointIds) ? entity.pointIds.length : 0;
       if (entity.type === 'point') {
         if (pointCount !== 0) add(`${entityBase}.pointIds`, 'Punkt nie może odwoływać się do innych punktów.', 'VALUE');
@@ -748,12 +801,25 @@ export function validateDocument(document) {
           }
         }
       }
-      if (sketchSpace === '3d' && !['point', 'line', 'arc3d', 'spline3d'].includes(entity.type)) add(`${entityBase}.type`, 'Szkic 3D obsługuje linie, łuki i spline przestrzenne.', 'UNSUPPORTED');
-      if (sketchSpace !== '3d' && ['arc3d', 'spline3d'].includes(entity.type)) add(`${entityBase}.type`, 'Przestrzenna krzywa wymaga szkicu 3D.', 'UNSUPPORTED');
+      if (sketchSpace === '3d' && !['point', 'line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)) add(`${entityBase}.type`, 'Szkic 3D obsługuje linie, łuki i spline przestrzenne.', 'UNSUPPORTED');
+      if (sketchSpace !== '3d' && ['arc3d', 'spline3d', 'bspline3d'].includes(entity.type)) add(`${entityBase}.type`, 'Przestrzenna krzywa wymaga szkicu 3D.', 'UNSUPPORTED');
       if (entity.type === 'line' && pointCount !== 2) add(`${entityBase}.pointIds`, 'Linia wymaga dwóch końców.', 'VALUE');
       if (entity.type === 'arc3d' && pointCount !== 2) add(`${entityBase}.pointIds`, 'Łuk 3D wymaga dwóch końców.', 'VALUE');
       if (entity.type === 'spline3d' && pointCount !== 2) add(`${entityBase}.pointIds`, 'Spline 3D wymaga dwóch końców.', 'VALUE');
       if (entity.type === 'spline3d' && !['g0', 'g1', 'g2'].includes(entity.geometry?.continuity || 'g0')) add(`${entityBase}.geometry.continuity`, 'Ciągłość spline 3D musi mieć wartość G0, G1 albo G2.', 'VALUE');
+      if (entity.type === 'bspline3d') {
+        const data = entity.geometry?.bspline;
+        const finitePoint = (point) => Array.isArray(point) && point.length === 3 && point.every(Number.isFinite);
+        const validArrays = Array.isArray(data?.poles) && data.poles.every(finitePoint)
+          && Array.isArray(data?.weights) && data.weights.every((weight) => Number.isFinite(weight) && weight > 0)
+          && Array.isArray(data?.knots) && data.knots.length >= 2 && data.knots.every((knot, index) => Number.isFinite(knot) && (index === 0 || knot > data.knots[index - 1]))
+          && Array.isArray(data?.multiplicities) && data.multiplicities.every((value) => Number.isInteger(value) && value > 0 && value <= data.degree + 1);
+        if (!validArrays || !Number.isFinite(data?.firstParameter) || !Number.isFinite(data?.lastParameter) || data.firstParameter >= data.lastParameter || !finitePoint(data?.startPoint)) add(`${entityBase}.geometry.bspline`, 'B-spline wymaga poprawnych współrzędnych, dodatnich wag i uporządkowanych parametrów.', 'VALUE');
+        if (!Array.isArray(entity.geometry?.samples) || entity.geometry.samples.length < 2 || !entity.geometry.samples.every(finitePoint)) add(`${entityBase}.geometry.samples`, 'B-spline wymaga punktów podglądu przestrzennego.', 'VALUE');
+        if (pointCount !== 2) add(`${entityBase}.pointIds`, 'Skojarzona B-spline 3D wymaga dwóch końców.', 'VALUE');
+        if (entity.role !== 'projected') add(`${entityBase}.role`, 'Dokładna B-spline B-Rep jest geometrią skojarzoną tylko do odczytu.', 'UNSUPPORTED');
+        if (!Number.isInteger(data?.degree) || data.degree < 1 || !Array.isArray(data?.poles) || data.poles.length < data.degree + 1 || !Array.isArray(data?.knots) || !Array.isArray(data?.multiplicities) || data.knots.length !== data.multiplicities.length || !Array.isArray(data?.weights) || data.weights.length !== data.poles.length) add(`${entityBase}.geometry.bspline`, 'Skojarzona B-spline wymaga pełnych danych stopnia, biegunów, węzłów, krotności i wag.', 'VALUE');
+      }
       if (entity.type === 'arc' && pointCount !== 3) add(`${entityBase}.pointIds`, 'Łuk wymaga centrum, początku i końca.', 'VALUE');
       if (entity.type === 'arc' && !['cw', 'ccw'].includes(entity.geometry?.direction)) add(`${entityBase}.geometry.direction`, 'Kierunek łuku musi mieć wartość cw albo ccw.', 'VALUE');
       if (entity.type === 'circle') {
@@ -1088,7 +1154,7 @@ export function validateDocument(document) {
       if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Surface Sweep wymaga ciągłej ścieżki z krzywych.', 'REQUIRED');
       else feature.pathEntityIds.forEach((entityId, entityIndex) => {
         const owner = entityOwners.get(entityId);
-        if (!owner || owner.sketchId !== feature.pathSketchId || !['line', 'arc3d', 'spline3d'].includes(owner.type)) add(`${base}.pathEntityIds[${entityIndex}]`, 'Ścieżka Surface Sweep musi składać się z obsługiwanych krzywych wskazanego szkicu.', 'UNSUPPORTED');
+        if (!owner || owner.sketchId !== feature.pathSketchId || !['line', 'arc3d', 'spline3d', 'bspline3d'].includes(owner.type)) add(`${base}.pathEntityIds[${entityIndex}]`, 'Ścieżka Surface Sweep musi składać się z obsługiwanych krzywych wskazanego szkicu.', 'UNSUPPORTED');
       });
       const bodyId = `body-${feature.id}`;
       bodyIds.add(bodyId);
@@ -1303,7 +1369,7 @@ export function validateDocument(document) {
       if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Sweep wymaga ciągłej ścieżki z krzywych szkicu.', 'REQUIRED');
       else feature.pathEntityIds.forEach((entityId, index) => {
         const owner = entityOwners.get(entityId);
-        if (!owner || owner.sketchId !== feature.pathSketchId || !['line', 'arc3d', 'spline3d'].includes(owner.type)) add(`${base}.pathEntityIds[${index}]`, 'Ścieżka Sweep musi składać się z obsługiwanych krzywych wskazanego szkicu.', 'UNSUPPORTED');
+        if (!owner || owner.sketchId !== feature.pathSketchId || !['line', 'arc3d', 'spline3d', 'bspline3d'].includes(owner.type)) add(`${base}.pathEntityIds[${index}]`, 'Ścieżka Sweep musi składać się z obsługiwanych krzywych wskazanego szkicu.', 'UNSUPPORTED');
       });
       if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, `Nieobsługiwana operacja Sweep: ${feature.operation ?? ''}.`, 'UNSUPPORTED');
       if (feature.operation === 'new') bodyIds.add(`body-${feature.id}`);
@@ -1356,7 +1422,7 @@ export function validateDocument(document) {
       if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Pipe wymaga otwartego łańcucha krzywych.', 'REQUIRED');
       else feature.pathEntityIds.forEach((entityId, index) => {
         const owner = entityOwners.get(entityId);
-        if (!owner || owner.sketchId !== feature.pathSketchId || !['line', 'arc3d', 'spline3d'].includes(owner.type)) add(`${base}.pathEntityIds[${index}]`, 'Pipe obsługuje połączone krzywe wskazanego szkicu.', 'UNSUPPORTED');
+        if (!owner || owner.sketchId !== feature.pathSketchId || !['line', 'arc3d', 'spline3d', 'bspline3d'].includes(owner.type)) add(`${base}.pathEntityIds[${index}]`, 'Pipe obsługuje połączone krzywe wskazanego szkicu.', 'UNSUPPORTED');
       });
       for (const [key, label] of [['outsideDiameter', 'średnicy zewnętrznej'], ['wallThickness', 'grubości ścianki']]) if (typeof feature[key] !== 'string' && typeof feature[key] !== 'number') add(`${base}.${key}`, `Pipe wymaga parametrycznej ${label}.`, 'TYPE');
       if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, 'Nieobsługiwana operacja Pipe.', 'UNSUPPORTED');
@@ -1378,7 +1444,7 @@ export function validateDocument(document) {
         if (!Array.isArray(feature.pathEntityIds) || !feature.pathEntityIds.length) add(`${base}.pathEntityIds`, 'Pattern po ścieżce wymaga łańcucha krzywych.', 'REQUIRED');
         else feature.pathEntityIds.forEach((entityId, index) => {
           const owner = entityOwners.get(entityId);
-          if (!owner || owner.sketchId !== feature.pathSketchId || !['line', 'arc3d', 'spline3d'].includes(owner.type)) add(`${base}.pathEntityIds[${index}]`, 'Pattern po ścieżce wymaga obsługiwanych krzywych wskazanego szkicu.', 'UNSUPPORTED');
+          if (!owner || owner.sketchId !== feature.pathSketchId || !['line', 'arc3d', 'spline3d', 'bspline3d'].includes(owner.type)) add(`${base}.pathEntityIds[${index}]`, 'Pattern po ścieżce wymaga obsługiwanych krzywych wskazanego szkicu.', 'UNSUPPORTED');
         });
         if (typeof feature.occurrences !== 'string' && typeof feature.occurrences !== 'number') add(`${base}.occurrences`, 'Pattern po ścieżce wymaga liczby wystąpień.', 'TYPE');
       }

@@ -27,20 +27,57 @@ describe('App', () => {
     consoleError.mockRestore();
   });
 
-  it('shows the private-use, evaluation, and commercial-license terms without a key field', () => {
-    render(<LicenseInfoDialog onClose={() => {}} />);
+  it('requires a server-backed account even for the free personal plan', () => {
+    const onLogin = vi.fn();
+    const onClose = vi.fn();
+    render(<LicenseInfoDialog licensePlan={{ mode: 'personal', signedIn: false, accessAllowed: false }} onLogin={onLogin} onClose={onClose} />);
     const dialog = screen.getByRole('dialog', { name: /Licencja MadCAD/i });
     expect(dialog).toHaveTextContent(/bezpłatny bez limitu czasu do użytku prywatnego/i);
-    expect(dialog).toHaveTextContent(/Wydanie 6.4.7 nie ma podpisu producenta/i);
-    expect(dialog).toHaveTextContent(/oceniać pełną wersję przez 40 dni/i);
+    expect(dialog).toHaveTextContent(/Wydanie 6.5.0 nie ma podpisu producenta/i);
+    expect(dialog).toHaveTextContent(/40 dni pełnej wersji/i);
     expect(dialog).toHaveTextContent(/Użytek komercyjny jest płatny/i);
-    expect(dialog).toHaveTextContent(/bezterminowej licencji na każde stanowisko/i);
-    expect(dialog).toHaveTextContent(/licencję potwierdza dokument zakupu/i);
+    expect(dialog).toHaveTextContent(/licencja imienna/i);
+    expect(dialog).toHaveTextContent(/konto automatycznie pobiera plan/i);
     expect(dialog).toHaveTextContent(/darowizna wspiera rozwój, ale nie zastępuje licencji komercyjnej/i);
-    expect(dialog.querySelector('input, textarea')).toBeNull();
-    expect(screen.getByRole('link', { name: /Kup licencję komercyjną/i })).toHaveAttribute('href', 'https://kamil5646.github.io/MadCAD/#licencja');
+    expect(screen.getByRole('textbox', { name: /E-mail/i })).toBeRequired();
+    expect(screen.getByLabelText(/Hasło/i)).toHaveAttribute('type', 'password');
+    fireEvent.change(screen.getByRole('textbox', { name: /E-mail/i }), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText(/Hasło/i), { target: { value: 'bezpieczne-haslo' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Zaloguj$/i }));
+    expect(onLogin).toHaveBeenCalledWith({ email: 'user@example.com', password: 'bezpieczne-haslo', displayName: '' });
+    expect(screen.getByRole('link', { name: /Kup licencję komercyjną/i })).toHaveAttribute('href', 'https://madcad.madmagsystem.pl/#licencja');
     expect(screen.getByRole('button', { name: /Pełna treść licencji/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Przejdź do programu/i })).toBeInTheDocument();
+    expect(dialog).toHaveTextContent(/Wymaga bezpłatnego konta MadCAD/i);
+    const continueButton = screen.getByRole('button', { name: /Zaloguj się, aby przejść dalej/i });
+    expect(continueButton).toBeDisabled();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('allows entry after the account lease has been verified', () => {
+    const onClose = vi.fn();
+    render(<LicenseInfoDialog licensePlan={{ mode: 'personal', signedIn: true, accessAllowed: true, account: { email: 'user@example.com', displayName: 'User', emailVerified: true } }} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: /Przejdź do programu/i }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('offers password recovery without exposing an administrative license action', async () => {
+    const onRequestPasswordReset = vi.fn().mockResolvedValue({ ok: true, message: 'Wysłano kod.' });
+    const onResetPassword = vi.fn().mockResolvedValue({ ok: true, message: 'Hasło zmienione.' });
+    render(<LicenseInfoDialog licensePlan={{ mode: 'personal' }} onRequestPasswordReset={onRequestPasswordReset} onResetPassword={onResetPassword} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Nie pamiętam hasła/i }));
+    fireEvent.change(screen.getByRole('textbox', { name: /E-mail/i }), { target: { value: 'user@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: /Wyślij kod/i }));
+    await waitFor(() => expect(onRequestPasswordReset).toHaveBeenCalledWith({ email: 'user@example.com' }));
+    expect(await screen.findByRole('textbox', { name: /Kod z wiadomości/i })).toBeRequired();
+    expect(screen.queryByRole('button', { name: /Nadaj licencję/i })).not.toBeInTheDocument();
+  });
+
+  it('requires email verification before offering the commercial trial', () => {
+    const onVerifyEmail = vi.fn();
+    render(<LicenseInfoDialog licensePlan={{ mode: 'personal', signedIn: true, account: { email: 'user@example.com', displayName: 'User', emailVerified: false } }} onVerifyEmail={onVerifyEmail} onClose={() => {}} />);
+    expect(screen.getByRole('textbox', { name: /Kod potwierdzający e-mail/i })).toBeRequired();
+    expect(screen.queryByRole('button', { name: /Rozpocznij 40-dniową ocenę/i })).not.toBeInTheDocument();
   });
 
   it('focuses the full-license dialog and closes it with Escape', () => {

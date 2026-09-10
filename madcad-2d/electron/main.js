@@ -6,7 +6,7 @@ const fs = require('fs/promises');
 const https = require('https');
 const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
-const { app, BrowserWindow, Menu, shell, nativeImage, dialog, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, Menu, shell, nativeImage, dialog, ipcMain, screen, safeStorage } = require('electron');
 const { atomicWriteTextFile } = require('./atomic-file.cjs');
 const { normalizeSlicerPayload, windowsCandidates } = require('./slicer-launch.cjs');
 const { isTrustedAppNavigation, isTrustedIpcUrl, normalizeExternalUrl } = require('./security-policy.cjs');
@@ -27,6 +27,7 @@ const { readRecoverableTextFile, validateJsonText } = require('./recovery-file.c
 const { normalizeWindowBounds } = require('./window-bounds.cjs');
 const updatePolicy = require('./update-policy.cjs');
 const dwgConverter = require('./dwg-converter.cjs');
+const { createLicenseClient } = require('./license-client.cjs');
 const packageMetadata = require('../package.json');
 
 const execFileAsync = promisify(execFile);
@@ -42,6 +43,8 @@ const MADCAD_UPDATE_USER_AGENT = 'MadCAD-Updater/1.0';
 const MAX_UPDATE_DOWNLOAD_BYTES = 512 * 1024 * 1024;
 const MAX_LINKED_PROJECT_BYTES = 64 * 1024 * 1024;
 const MAX_UPDATE_METADATA_BYTES = 4 * 1024 * 1024;
+const MAX_LICENSE_RESPONSE_BYTES = 128 * 1024;
+const MADCAD_LICENSE_API_URL = 'https://madcad.madmagsystem.pl/api/madcad/v1';
 const DWG_CONVERTER_DOWNLOAD_URL = 'https://www.opendesign.com/guestFiles/oda_file_converter';
 const TRUSTED_MAC_TEAM_ID = /^[A-Z0-9]{10}$/.test(String(packageMetadata.madcadMacTeamId || ''))
   ? String(packageMetadata.madcadMacTeamId)
@@ -143,6 +146,69 @@ function getAutoSavePath() {
 function getProjectSnapshotsPath() {
   return path.join(app.getPath('userData'), 'project-snapshots');
 }
+
+function getLicenseStatePath() {
+  return path.join(app.getPath('userData'), 'private', 'license-state-v2.json');
+}
+
+function licenseApiRequest(route, payload) {
+  return new Promise((resolve, reject) => {
+    const endpoint = new URL(`${MADCAD_LICENSE_API_URL}${route}`);
+    const body = Buffer.from(JSON.stringify(payload || {}), 'utf8');
+    const request = https.request(endpoint, {
+      method: 'POST',
+      timeout: 15000,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Content-Length': body.length,
+        'User-Agent': `MadCAD-License/${packageMetadata.version}`,
+      },
+    }, (response) => {
+      const chunks = [];
+      let size = 0;
+      response.on('data', (chunk) => {
+        size += chunk.length;
+        if (size > MAX_LICENSE_RESPONSE_BYTES) {
+          request.destroy(new Error('Odpowiedź serwera licencji jest zbyt duża.'));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on('end', () => {
+        try {
+          const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          if (response.statusCode < 200 || response.statusCode >= 300 || parsed?.ok !== true) {
+            const error = new Error(String(parsed?.error || `Serwer licencji zwrócił HTTP ${response.statusCode}.`).slice(0, 300));
+            error.statusCode = response.statusCode;
+            reject(error);
+            return;
+          }
+          resolve(parsed);
+        } catch (_error) {
+          reject(new Error('Serwer licencji zwrócił nieprawidłową odpowiedź.'));
+        }
+      });
+    });
+    request.on('timeout', () => request.destroy(new Error('Serwer licencji nie odpowiedział w wymaganym czasie.')));
+    request.on('error', reject);
+    request.end(body);
+  });
+}
+
+const licenseClient = createLicenseClient({
+  statePath: getLicenseStatePath(),
+  request: licenseApiRequest,
+  appVersion: packageMetadata.version,
+  protectToken: async (token) => {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('Systemowe szyfrowanie danych logowania jest niedostępne.');
+    return safeStorage.encryptString(token).toString('base64');
+  },
+  unprotectToken: async (protectedToken) => {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('Systemowe szyfrowanie danych logowania jest niedostępne.');
+    return safeStorage.decryptString(Buffer.from(protectedToken, 'base64'));
+  },
+});
 
 function queueAutosaveOperation(operation) {
   const result = autosaveOperationQueue.then(operation, operation);
@@ -1119,6 +1185,26 @@ function registerTrustedIpcHandler(channel, handler) {
     return handler(event, ...args);
   });
 }
+
+function licenseIpcResult(action) {
+  return async (...args) => {
+    try {
+      return await action(...args);
+    } catch (error) {
+      return { ok: false, error: String(error?.message || error).slice(0, 300) };
+    }
+  };
+}
+
+registerTrustedIpcHandler('madcad:license-status', licenseIpcResult(() => licenseClient.getStatus()));
+registerTrustedIpcHandler('madcad:license-login', licenseIpcResult((_event, payload) => licenseClient.login(payload)));
+registerTrustedIpcHandler('madcad:license-register', licenseIpcResult((_event, payload) => licenseClient.register(payload)));
+registerTrustedIpcHandler('madcad:license-start-trial', licenseIpcResult(() => licenseClient.startTrial()));
+registerTrustedIpcHandler('madcad:license-logout', licenseIpcResult(() => licenseClient.logout()));
+registerTrustedIpcHandler('madcad:license-request-password-reset', licenseIpcResult((_event, payload) => licenseClient.requestPasswordReset(payload)));
+registerTrustedIpcHandler('madcad:license-reset-password', licenseIpcResult((_event, payload) => licenseClient.resetPassword(payload)));
+registerTrustedIpcHandler('madcad:license-resend-verification', licenseIpcResult(() => licenseClient.resendVerification()));
+registerTrustedIpcHandler('madcad:license-verify-email', licenseIpcResult((_event, payload) => licenseClient.verifyEmail(payload)));
 
 registerTrustedIpcHandler('madcad:send-to-slicer', async (_event, payload) => {
   let filePaths = [];

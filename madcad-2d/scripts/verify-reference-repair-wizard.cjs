@@ -13,6 +13,21 @@ async function waitFor(window, expression, label, timeoutMs = 30000) {
   throw new Error(`Przekroczono czas oczekiwania: ${label}`);
 }
 
+async function clickWhenEnabled(window, selector, label, timeoutMs = 30000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const clicked = await window.webContents.executeJavaScript(`(() => {
+      const button = document.querySelector(${JSON.stringify(selector)});
+      if (!button || button.disabled) return false;
+      button.click();
+      return true;
+    })()`);
+    if (clicked) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`Przekroczono czas oczekiwania: ${label}`);
+}
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({
     width: 1440,
@@ -32,8 +47,9 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length >= 1`, 'przeliczony model');
     const referenceId = await window.webContents.executeJavaScript(`window.__madcadVerifyCreateLostTopologyReference()`);
     await waitFor(window, `document.querySelector('.reference-repair-panel.collapsed')`, 'kompaktowy kreator naprawy');
-    await window.webContents.executeJavaScript(`document.querySelector('.reference-repair-toggle').click()`);
+    await clickWhenEnabled(window, '.reference-repair-toggle', 'rozwinięcie kreatora naprawy');
     await waitFor(window, `document.querySelector('.reference-repair-panel:not(.collapsed) .reference-candidate')`, 'rozwinięty kreator z kandydatem');
+    await waitFor(window, `document.querySelector('[data-reference-action="repair-certain"]:not(:disabled)')`, 'gotowa automatyczna naprawa');
 
     const before = await window.webContents.executeJavaScript(`(() => {
       const panel = document.querySelector('.reference-repair-panel');
@@ -51,13 +67,7 @@ app.whenReady().then(async () => {
       };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    const autoRepairTriggered = await window.webContents.executeJavaScript(`(() => {
-      const button = document.querySelector('[data-reference-action="repair-certain"]');
-      if (!button || button.disabled) return false;
-      button.click();
-      return true;
-    })()`);
-    if (!autoRepairTriggered) throw new Error('Przycisk automatycznej naprawy nie jest dostępny.');
+    await clickWhenEnabled(window, '[data-reference-action="repair-certain"]', 'uruchomienie automatycznej naprawy');
     await waitFor(window, `!document.querySelector('.reference-repair-panel') && window.__madcadVerifyDocumentState.references.find((reference) => reference.id === ${JSON.stringify(referenceId)})?.repairedAt`, 'automatyczna naprawa pewnego dopasowania');
 
     const result = { screenshotPath, ...before, repaired: true };

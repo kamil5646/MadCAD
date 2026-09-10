@@ -1,6 +1,6 @@
 {
   "name": "madcad-desktop",
-  "version": "6.4.7",
+  "version": "6.5.0",
   "description": "Desktopowy CAD 2D/3D: klasyczne szkicowanie, parametryczna historia i modelowanie bryłowe.",
   "desktopName": "MadCAD",
   "repository": {
@@ -23,6 +23,7 @@
     "verify:plastic-grille": "npm run build:ui && electron scripts/verify-plastic-grille.cjs",
     "verify:form": "npm run build:ui && electron scripts/verify-form.cjs",
     "verify:extrude-after-sketch": "npm run build:ui && electron scripts/verify-extrude-after-sketch.cjs",
+    "verify:ucs-sketch": "npm run build:ui && electron scripts/verify-ucs-sketch.cjs",
     "verify:model-import": "npm run build:ui && electron scripts/verify-model-import.cjs",
     "verify:mesh-repair": "npm run build:ui && electron scripts/verify-mesh-repair.cjs",
     "verify:mesh-scan-repair": "npm run build:ui && electron scripts/verify-mesh-scan-repair.cjs",
@@ -54,6 +55,15 @@
     "verify:draft-analysis": "npm run build:ui && electron scripts/verify-draft-analysis.cjs",
     "verify:surface-analysis": "npm run build:ui && electron scripts/verify-surface-analysis.cjs",
     "verify:named-views": "npm run build:ui && electron scripts/verify-named-views.cjs",
+    "verify:render-scene": "npm run build:ui && electron scripts/verify-render-scene.cjs",
+    "verify:static-screening": "npm run build:ui && electron scripts/verify-static-screening.cjs",
+    "verify:beam-fea": "npm run build:ui && electron scripts/verify-beam-fea.cjs",
+    "verify:solid-fea": "npm run build:ui && electron scripts/verify-solid-fea.cjs",
+    "verify:solid-fea-benchmarks": "node scripts/verify-solid-fea-benchmarks.mjs",
+    "verify:thermal-screening": "npm run build:ui && electron scripts/verify-thermal-screening.cjs",
+    "verify:manufacturing": "npm run build:ui && electron scripts/verify-manufacturing.cjs",
+    "verify:cutting": "npm run build:ui && electron scripts/verify-cutting.cjs",
+    "verify:turning": "npm run build:ui && electron scripts/verify-turning.cjs",
     "verify:import-report": "npm run build:ui && electron scripts/verify-import-report.cjs",
     "verify:drawing-workspace": "npm run build:ui && electron scripts/verify-drawing-workspace.cjs",
     "verify:sketch-drawing": "npm run build:ui && electron scripts/verify-sketch-drawing.cjs",
@@ -61,11 +71,15 @@
     "verify:assistive-tech": "npm run build:ui && electron scripts/verify-assistive-tech.cjs",
     "verify:snap-feedback": "npm run build:ui && electron scripts/verify-snap-feedback.cjs",
     "verify:electron-security": "electron scripts/verify-electron-security.cjs",
+    "verify:desktop-suite": "npm run build:ui && node scripts/run-desktop-verification-suite.cjs",
+    "verify:desktop-suite:prepared": "node scripts/run-desktop-verification-suite.cjs",
+    "verify:product-completeness": "node scripts/verify-product-completeness.cjs",
     "verify:package": "node scripts/verify-package.cjs",
     "verify:release-version": "node scripts/verify-release-version.cjs",
     "verify:repository": "node scripts/verify-repository.cjs",
     "checksums:package": "node scripts/create-package-checksums.cjs",
     "test:core": "node --test tests/cad-core.test.mjs",
+    "test:license": "node --test electron/license-client.test.cjs",
     "test:core:coverage": "node --experimental-test-coverage --test-coverage-include='src/cad-core/*.js' --test-coverage-lines=90 --test-coverage-branches=65 --test-coverage-functions=90 --test tests/cad-core.test.mjs",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
@@ -87,7 +101,7 @@
     "@electron/notarize": "^3.1.1",
     "@eslint/js": "^9.39.5",
     "@testing-library/jest-dom": "^7.0.1",
-    "@testing-library/react": "^16.3.2",
+    "@testing-library/react": "^16.3.3",
     "@vitejs/plugin-react": "6.0.5",
     "axe-core": "^4.10.3",
     "electron": "43.4.0",
@@ -97,8 +111,8 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "17.11.0",
     "jsdom": "^30.0.1",
-    "vite": "^8.2.1",
-    "vitest": "^4.1.10"
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   },
   "build": {
     "appId": "pl.kamilkasprzak.madcad2d",
@@ -115,7 +129,8 @@
       "electron/**/*",
       "README.md",
       "FIRST_PART.md",
-      "package.json"
+      "package.json",
+      "!node_modules/**/*.map"
     ],
     "directories": {
       "output": "release"
@@ -170,7 +185,7 @@
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
-    "manifold-3d": "^3.5.1",
+    "manifold-3d": "3.5.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "replicad": "^0.23.1",

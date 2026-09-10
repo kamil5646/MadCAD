@@ -1,7 +1,7 @@
 # MadCAD — aktywny plan rozwoju
 
-Aktualizacja: 2026-09-03
-Wersja bazowa: `6.4.7 stable`
+Aktualizacja: 2026-09-10
+Wersja bazowa: `6.5.0 stable`
 Gałąź wydania: `main`
 
 Ten plik opisuje aktywną ścieżkę do CAD 2D/3D: bezpośrednie szkicowanie i polecenia znane z klasycznego CAD są podstawą, a parametryczna historia i modelowanie bryłowe rozwijają rysunek w model 3D. Przygotowanie do druku 3D pozostaje opcjonalnym dodatkiem eksportowym. Historia ukończonych prac znajduje się w [DONE.md](./DONE.md), a dalszy zakres produktu w [BACKLOG.md](./BACKLOG.md).
@@ -55,7 +55,7 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 - [x] Punkt na wierzchołku, centrum i przecięciu.
 - [x] Widoczność, nazwa i trwała referencja do konstrukcji.
 
-Pozostałe warianty UCS/płaszczyzn/osi są `P1`.
+Rozbudowany UCS jest ukończony: szkic może używać pełnej ortonormalnej ramy dowolnej obróconej płaszczyzny konstrukcyjnej albo planarnej ściany, a tę samą ramę zachowują widok, siatka, snap i operacje B-Rep.
 
 ## M5 — szkic na modelu i Project `P0`
 
@@ -107,7 +107,7 @@ Tapered threads, wiele norm i klasy pasowania są `P1`.
 - [x] Lista problemów wskazuje geometrię; wynik opisuje ryzyko, nie gwarancję wydruku.
 - [x] Przekazanie pliku do Bambu Studio, PrusaSlicer lub Cura.
 
-Zaawansowane heatmapy, automatyczne rozmieszczanie wielu części i rozbudowany remesh są `P1`.
+Mapa ryzyka druku, automatyczna orientacja, profile analizy materiałów i kontrolowany remesh są ukończone. Pełne profile procesu pozostają odpowiedzialnością wybranego slicera.
 
 ## M10 — ciągły tor jakości i wydanie `P0`
 
@@ -184,6 +184,37 @@ Te prace nie czekają na koniec modelowania:
 - [x] P1.34c ViewCube udostępnia komplet widoków Góra/Dół/Przód/Tył/Lewo/Prawo oraz izometrię w zwartej, przestrzennej kontrolce. Każdy kierunek ma nazwę dostępności, stan aktywny i test rzeczywistego wektora kamery; forma pozostaje płaska bez gradientów i nie zasłania narzędzi nawigacji.
 - [x] P1.35a Appearance zapisuje na definicji komponentu preset, kolor, metaliczność i chropowatość, stosuje je do wszystkich wystąpień w widoku 3D oraz zachowuje zgodność ze starszymi dokumentami bez pola wyglądu. Testy potwierdzają zapis/otwarcie, Undo/Redo, rzeczywisty materiał renderera i układ panelu bez przepełnienia.
 - [x] P1.35b Exploded View rozsuwa widoczne wystąpienia części od środka złożenia deterministycznym suwakiem 0–100%, nie zmieniając położeń projektowych, jointów, kolizji ani historii. Kolory kolizji zostają wyłączone wyłącznie w rozstrzelonym podglądzie, a test desktopowy potwierdza rozsunięcie, powrót do położeń projektowych i układ panelu bez przepełnienia.
+- [x] P1.35c Scena i render zapisuje w projekcie preset Studio/Warsztat/Światło dzienne/Noc, kolor tła, trzy poziomy oświetlenia, kierunek i wysokość światła, ekspozycję, cienie oraz podłoże. Three.js stosuje tonemapping ACES i miękkie cienie na żywo, a eksport PNG używa aktualnej kamery i wyglądu komponentów, ale usuwa siatkę roboczą. Migracja zgodnego schematu v15, walidacja, Undo/Redo, zapis prawdziwego PNG oraz układ panelu bez overflow są sprawdzane automatycznie i wizualnie.
+- [x] P1.35d Decals nakłada PNG/JPEG/WebP przez projekcję na konkretną ścianę B-Rep zamiast zmieniać materiał całego komponentu. Trwałe ID bryły i ściany, obraz do 2 MB, rozmiar, krycie, obrót i widoczność pozostają w `.madcad`; brakująca ściana jest jawnie oznaczona i może zostać przypisana ponownie. Naklejka przechodzi Undo/Redo, zapis/otwarcie, rzeczywisty renderer i czysty eksport PNG bez podświetleń wyboru.
+- [x] P1.35e Storyboard złożenia zapisuje do 12 nazwanych animacji i 120 klatek rozłożenia na storyboard. Oś 0,1–300 s ma płynne przejścia, ręczne przewijanie, odtwarzanie i zatrzymanie; zmienia wyłącznie podgląd Exploded View, bez mutowania transformacji, jointów ani historii geometrii. Tworzenie, nazwa, czas trwania, klatki i usuwanie współpracują z Undo/Redo oraz zapisem `.madcad`, a desktop E2E sprawdza rzeczywisty ruch renderera i układ bez overflow.
+- [x] P1.35f Klatka storyboardu zapisuje również niezależne przesunięcie XYZ każdego wystąpienia, bieżącą kamerę i opis kroku montażowego. Renderer interpoluje ruch części oraz pozycję i cel kamery bez zapisywania ich do transformacji projektowych; panel pokazuje ruch aktualnie wybranego wystąpienia, a desktop E2E potwierdza wartość 30 mm, kamerę, opis, odtwarzanie i Undo/Redo.
+- [x] P1.35g Klatka storyboardu zapisuje niezależny obrót XYZ każdego wystąpienia. Obrót jest płynnie interpolowany razem z przesunięciem i nakładany wyłącznie w rendererze, bez mutowania transformacji projektowej, jointów i historii modelu; panel rozdziela pola przesunięcia w milimetrach od obrotu w stopniach.
+- [x] P1.35h Wybrane wystąpienie animacji ma bezpośrednio w scenie turkusową strzałkę przesunięcia oraz bursztynowy łuk dominującego obrotu. Prowadnice są tylko informacją wizualną, nie trafiają do modelu ani eksportu i znikają przy zerowym ruchu.
+- [x] P1.35i Storyboard zapisuje i interpoluje wartości jointów, a renderer wyznacza z nich chwilową transformację względem osi, położenia spoczynkowego i limitów jointa bez zmiany dokumentu. Pierwsza klatka nowego storyboardu przejmuje aktualne wartości jointów.
+- [x] P1.35j Gotowy storyboard można wydać jako film WebM 24 fps do 1920×1080 oraz samodzielną, drukowalną instrukcję HTML. Film przechwytuje bieżącą scenę mimo przebudowy renderera między klatkami, a instrukcja porządkuje kroki, czas, opisy, rozłożenie, przesunięcia, obroty i wartości jointów oraz koduje treść projektu bezpiecznie dla HTML.
+- [x] P1.35k Instrukcja montażowa automatycznie renderuje czysty widok każdej klatki storyboardu, osadza obrazy PNG bezpośrednio w jednym przenośnym pliku HTML i po eksporcie przywraca czas, stan złożenia oraz kamerę użytkownika. Osadzane obrazy przechodzą ścisłą walidację schematu data URL.
+- [x] P1.36a Szybka analiza statyczna daje jawnie ograniczony szacunek belki wspornikowej dla wybranej bryły: materiał, kierunek długości i siły, utwierdzony koniec oraz obciążenie prowadzą do naprężenia zginającego, ugięcia, masy i współczynnika bezpieczeństwa. Panel wyraźnie odróżnia obliczenie przesiewowe od MES oraz ostrzega o otworach, karbach, kontaktach, wyboczeniu i anizotropii druku 3D, których model nie uwzględnia.
+- [x] P1.36b Szybka analiza cieplna daje jawnie ograniczony model ustalonego przewodzenia 1D przez obwiednię wybranej bryły. Materiał, kierunek i dwie temperatury prowadzą do oporu cieplnego, przepływu i strumienia ciepła oraz swobodnego wydłużenia; panel ostrzega o przekroczeniu temperatury użytkowej i wyraźnie odróżnia wynik od termicznego MES.
+- [x] P1.36c MES belki 1D składa globalną macierz sztywności elementów Eulera-Bernoulliego, nakłada utwierdzenie i siłę końcową, rozwiązuje przemieszczenia oraz raportuje reakcję, moment, naprężenie i współczynnik bezpieczeństwa. Wynik jest automatycznie porównywany z rozwiązaniem analitycznym tego samego przypadku, a panel jawnie odróżnia model belkowy od MES dowolnej bryły 3D.
+- [x] P1.36d Wynik MES belki ma wykres ugięcia w panelu oraz nałożoną na model linię zdeformowaną z automatyczną skalą, węzłami i mapą koloru od utwierdzenia do maksymalnego przemieszczenia. Wizualizacja jest wyłącznie podglądem i znika razem z poleceniem analizy.
+- [x] P1.36e MES belki obsługuje zarówno siłę skupioną na końcu, jak i równomiernie rozłożone obciążenie liniowe. Dla obciążenia rozłożonego solver składa zgodne siły węzłowe każdego elementu, a reakcje, moment, naprężenie i ugięcie są niezależnie sprawdzane rozwiązaniem analitycznym.
+- [x] P1.36f Siłę skupioną można umieścić w dowolnym położeniu 0–100% długości belki. Solver używa funkcji kształtu Hermite'a do zgodnego rozdzielenia siły i momentów między węzły elementu, zamiast zaokrąglać położenie do siatki.
+- [x] P1.36g Warunki brzegowe analizy są widoczne bezpośrednio na modelu: czerwone utwierdzenie oraz pomarańczowa strzałka siły skupionej albo sześć strzałek obciążenia rozłożonego. Panel ma spójną legendę kolorów deformacji, podpory i obciążenia.
+- [x] P1.36h Solver zachowuje momenty zginające na końcach wszystkich elementów, a panel pokazuje diagram momentu wzdłuż całej belki obok wykresu ugięcia. Maksimum diagramu jest sprawdzane względem raportowanego naprężenia i reakcji utwierdzenia.
+- [x] P1.36i Solver zachowuje siły tnące na obu końcach każdego elementu. Panel wyników nie układa już wielu wykresów jeden pod drugim: wspólny przełącznik Ugięcie/Moment/Tnąca pokazuje jeden czytelny diagram naraz i ogranicza zajęte miejsce robocze.
+- [x] P1.36j Rozkład naprężenia zginającego jest wyznaczany w każdym węźle z momentu i właściwości przekroju. Czwarty widok Naprężenie pokazuje MPa wzdłuż belki, a jego maksimum jest sprawdzane względem wyniku bezpieczeństwa.
+- [x] P1.36k Wynik naprężenia pokazuje procent wykorzystania granicy plastyczności oraz liczbę przekroczonych węzłów. Punkty wykresu są klasyfikowane zielony/bursztynowy/czerwony, dzięki czemu strefa krytyczna jest widoczna bez ręcznego porównywania liczb.
+- [x] P1.36l Użytkownik ustawia wymagany współczynnik bezpieczeństwa 1–10. Wynik jawnie podaje spełnienie celu i procentowy margines, rozróżniając niespełniony cel projektowy od faktycznego przekroczenia plastyczności.
+- [x] P1.36m Jeden przypadek MES może łączyć siłę skupioną w dowolnym położeniu z równomiernym obciążeniem liniowym. Macierz obciążeń, reakcje, moment, ugięcie analityczne, naprężenia i siedem symboli w scenie wynikają z superpozycji obu składników.
+- [x] P1.36n Panel tworzy obwiednię nazwanych scenariuszy Bazowy ×1, Roboczy ×1,25 i Przeciążenie ×1,5. Dla każdego pokazuje FoS i spełnienie celu, a przypadek o najmniejszym zapasie jest automatycznie oznaczony jako krytyczny.
+- [x] P1.36o Współczynniki trzech scenariuszy obciążenia są edytowalne w panelu w zakresie 0,1–10. Solver przelicza obwiednię na żywo, zachowuje nazwy i niezależnie wybiera krytyczny wariant po każdej zmianie.
+- [x] P1.36p Użytkownik może nazwać, dodać i usunąć od 1 do 8 własnych scenariuszy obciążenia. Nazwy i identyfikatory są walidowane jako unikalne, a dowolna liczba przypadków uczestniczy w tej samej automatycznej obwiedni.
+- [x] P1.36q Wyniki MES belki można zapisać jako raport CSV zgodny z arkuszami kalkulacyjnymi. Plik obejmuje dane projektu, materiał, geometrię, obciążenia, główne wyniki oraz wszystkie scenariusze z ich współczynnikami i FoS.
+- [x] P1.36r Pierwszy rzeczywisty MES bryły 3D tworzy objętościową siatkę czworościenną z zamkniętej siatki powierzchniowej, składa macierz liniowej sprężystości z trzema przemieszczeniami na węzeł, nakłada utwierdzenie i siłę powierzchniową oraz pokazuje deformację i naprężenie von Mises. Panel jawnie raportuje błąd aproksymacji objętości, równowagę sił, zbieżność solvera i zakres beta; test rdzenia oraz Electron sprawdzają rzeczywistą bryłę OpenCascade i mapę w widoku.
+- [x] P1.36s MES bryły 3D przyjmuje dwie bezpośrednio wskazane planarne ściany B-Rep jako utwierdzenie i powierzchnię obciążenia, rozkłada siłę zgodnie z polami trójkątów granicznych i automatycznie porównuje przemieszczenie oraz naprężenie na dwóch kolejnych gęstościach siatki. Trwałe ID ścian, reakcja i wynik badania zbieżności przechodzą test rdzenia oraz pełny scenariusz Electron.
+- [x] P1.36t Niezależna bramka 11 benchmarków sprawdza analityczne rozciąganie i zginanie, liniowość obciążenia, skalowanie modułu Younga, bilans reakcji i zerowe przemieszczenia podpory. Wykryta nadmierna sztywność smukłych siatek doprowadziła do rozdzielczości do 16 oraz minimum 4–6 komórek przez przekrój. Każdy wynik ma osobną kontrolę objętości, równowagi, reszty solvera i zbieżności; zmierzone błędy zapisano w `docs/SOLID_FEA_BENCHMARKS_2026-09-09.md`.
+- [x] P1.36u Zgodna adaptacja wykrywa ostre i zakrzywione cechy powierzchni, dodaje pełne płaszczyzny w ich sąsiedztwie bez wiszących węzłów i pokazuje liczbę zagęszczeń w panelu. Benchmark płyty z otworem zmniejsza błąd objętości z 4,15% do 0,17%, rozpoznaje koncentrację 239,69 MPa względem odniesienia 300 MPa i przechodzi limit 25%. Po przejściu wszystkich 14 bramek panel zmieniono z `BETA` na jawny zakres `LINIOWY`.
+- [>] P1.37a Przeprowadzić przekrojowy audyt kompletności produktu po zamknięciu aktywnego pakietu MES: wyszukać atrapy, martwe polecenia, niespójności roadmapy i brakujące bramki wydania, a następnie usunąć wykryte luki przed kandydatem końcowym. Obowiązkowy manifest obejmuje 53 scenariusze Electron w pięciu częściach, pełną bramkę macOS/Windows dla CI i wydania oraz kontrolę niedopuszczającą nowego lub osieroconego testu poza zestawem. Lokalne 53/53 na macOS ujawniło i naprawiło ścieżki Warstw/Bloków, Komponentów, twardo wpisany schemat oraz konflikt snapa z podpowiedzią więzu. Audyt zależności usunął 2 wysokie i 2 umiarkowane podatności; `npm audit` raportuje 0, a po aktualizacji przeszło 181/181 testów UI, 224/224 rdzenia, lint i build. Do zamknięcia pozostaje przebieg Windows w CI po świadomej publikacji zmian; pełny wynik zapisano w `docs/PRODUCT_COMPLETENESS_AUDIT_2026-09-09.md`.
 
 ## P2 — dokumentacja techniczna 2D
 
