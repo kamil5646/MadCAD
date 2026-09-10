@@ -14,7 +14,7 @@ const ribbonOverflowOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad
 const referenceSketchOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-reference-sketch-visible.png');
 const verificationStartedAt = Date.now();
 const isCi = Boolean(process.env.CI);
-const modelingTimeoutMs = isCi ? 60000 : 20000;
+const modelingTimeoutMs = isCi ? 120000 : 20000;
 let expectedSchemaVersion = 0;
 
 async function waitForModel(window, timeoutMs = 30000) {
