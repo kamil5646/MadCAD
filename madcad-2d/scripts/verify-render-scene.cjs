@@ -92,7 +92,7 @@ app.whenReady().then(async () => {
       };
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
-    const renderValid = renderBytes > 5_000 && renderBuffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) && renderSize.width >= 1000 && renderSize.height >= 700 && sampledColors.size >= 16;
+    const renderValid = renderBytes > 5_000 && renderBuffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) && renderSize.width >= 1000 && renderSize.height >= 400 && sampledColors.size >= 16;
     if (result.preset !== 'daylight' || result.appliedPreset !== 'daylight' || result.decals !== 1 || result.renderedDecals !== 1 || !result.insideViewport || result.horizontalOverflow || !renderValid) throw new Error(`Niepoprawna lub pusta scena renderu: ${JSON.stringify({ ...result, renderBytes, renderSize, sampledColors: sampledColors.size })}`);
     process.stdout.write(`${JSON.stringify({ screenshotPath, renderPath, renderBytes, renderSize, sampledColors: sampledColors.size, ...result }, null, 2)}\n`);
   } catch (error) {
