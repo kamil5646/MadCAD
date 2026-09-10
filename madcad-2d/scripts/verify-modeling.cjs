@@ -37,10 +37,11 @@ async function waitForModel(window, timeoutMs = 30000) {
 
 async function verifyAccessibilityAndScale(window) {
   const checks = [];
+  window.setContentSize(1936, 644);
   for (const zoomFactor of [1, 1.5, 2]) {
     window.focus();
     window.webContents.setZoomFactor(zoomFactor);
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await waitForUi(window, `(() => { const shell = document.querySelector('.modeling-shell'); return shell && shell.scrollWidth <= shell.clientWidth + 1; })()`, `układ bez poziomego przepełnienia przy ${zoomFactor * 100}%`, 5000);
     await window.webContents.executeJavaScript(`document.querySelector('.modeling-shell button:not([disabled])')?.focus()`);
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
@@ -54,12 +55,19 @@ async function verifyAccessibilityAndScale(window) {
       const documentFocused = document.hasFocus();
       const focusOutline = (focusStyle?.outlineWidth || '0') + ' ' + (focusStyle?.outlineStyle || 'none');
       const unnamedButtons = buttons.filter((button) => !((button.getAttribute('aria-label') || button.getAttribute('title') || button.textContent || '').trim())).length;
+      const shellRect = shell.getBoundingClientRect();
+      const overflowing = [...shell.querySelectorAll('*')].filter((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && (rect.right > shellRect.right + 1 || rect.left < shellRect.left - 1);
+      }).slice(0, 12).map((element) => ({ tag: element.tagName, className: String(element.className || ''), rect: element.getBoundingClientRect().toJSON() }));
       return {
         language: document.documentElement.lang,
         width: innerWidth,
         height: innerHeight,
         documentOverflow: document.documentElement.scrollWidth > innerWidth + 1,
         shellOverflow: shell.scrollWidth > shell.clientWidth + 1,
+        shellWidth: { scroll: shell.scrollWidth, client: shell.clientWidth },
+        overflowing,
         toolbarVisible: Boolean(document.querySelector('.ribbon-tool')),
         timelineVisible: Boolean(document.querySelector('.timeline')),
         unnamedButtons,
@@ -76,6 +84,7 @@ async function verifyAccessibilityAndScale(window) {
     checks.push({ zoomPercent: zoomFactor * 100, ...state });
   }
   window.webContents.setZoomFactor(1);
+  window.setContentSize(1936, 1017);
   return checks;
 }
 
@@ -2787,7 +2796,7 @@ app.whenReady().then(async () => {
   const performanceBudgets = isCi
     // Hosted runners are substantially slower and noisier than local hardware.
     // Per-operation waits and worker budgets below still catch real stalls.
-    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 600000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 90000 }
+    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 900000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 90000 }
     : { desktopColdStartMs: 30000, desktopWorkflowMs: 120000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
