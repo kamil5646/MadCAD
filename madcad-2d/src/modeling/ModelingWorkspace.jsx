@@ -474,6 +474,7 @@ export default function ModelingWorkspace() {
   const [licenseBusy, setLicenseBusy] = useState(false);
   const [licenseError, setLicenseError] = useState('');
   const licensePlanStatus = describeLicensePlan(licensePlan);
+  const licenseVerificationMode = new URLSearchParams(window.location.search).has('verify');
   const runLicenseAction = useCallback(async (action, payload) => {
     const method = window.desktopApp?.[action];
     if (typeof method !== 'function') {
@@ -495,6 +496,9 @@ export default function ModelingWorkspace() {
     }
   }, []);
   useEffect(() => { runLicenseAction('licenseGetStatus'); }, [runLicenseAction]);
+  useEffect(() => {
+    if (!licensePlan.accessAllowed && !licenseVerificationMode) setLicenseInfoOpen(true);
+  }, [licensePlan.accessAllowed, licenseVerificationMode]);
   const [expandedSketchRibbon, setExpandedSketchRibbon] = useState(() => window.matchMedia('(min-width: 1260px)').matches);
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1260px)');
@@ -8068,8 +8072,8 @@ export default function ModelingWorkspace() {
         </div>}
       </footer>
       {tutorialOpen && <FirstPartTutorial onClose={() => setTutorialOpen(false)} />}
-      {licenseInfoOpen && <LicenseInfoDialog licensePlan={licensePlan} busy={licenseBusy} error={licenseError} onLogin={(data) => runLicenseAction('licenseLogin', data)} onRegister={(data) => runLicenseAction('licenseRegister', data)} onStartTrial={() => runLicenseAction('licenseStartTrial')} onLogout={() => runLicenseAction('licenseLogout')} onRefresh={() => runLicenseAction('licenseGetStatus')} onRequestPasswordReset={(data) => runLicenseAction('licenseRequestPasswordReset', data)} onResetPassword={(data) => runLicenseAction('licenseResetPassword', data)} onResendVerification={() => runLicenseAction('licenseResendVerification')} onVerifyEmail={(data) => runLicenseAction('licenseVerifyEmail', data)} onClose={() => setLicenseInfoOpen(false)} onShowFullLicense={() => { setLicenseInfoOpen(false); setFullLicenseOpen(true); }} />}
-      {fullLicenseOpen && <FullLicenseDialog onClose={() => setFullLicenseOpen(false)} />}
+      {licenseInfoOpen && <LicenseInfoDialog licensePlan={licensePlan} busy={licenseBusy} error={licenseError} allowVerificationBypass={licenseVerificationMode} onLogin={(data) => runLicenseAction('licenseLogin', data)} onRegister={(data) => runLicenseAction('licenseRegister', data)} onStartTrial={() => runLicenseAction('licenseStartTrial')} onLogout={() => runLicenseAction('licenseLogout')} onRefresh={() => runLicenseAction('licenseGetStatus')} onRequestPasswordReset={(data) => runLicenseAction('licenseRequestPasswordReset', data)} onResetPassword={(data) => runLicenseAction('licenseResetPassword', data)} onResendVerification={() => runLicenseAction('licenseResendVerification')} onVerifyEmail={(data) => runLicenseAction('licenseVerifyEmail', data)} onClose={() => { if (licensePlan.accessAllowed || licenseVerificationMode) setLicenseInfoOpen(false); }} onShowFullLicense={() => { setLicenseInfoOpen(false); setFullLicenseOpen(true); }} />}
+      {fullLicenseOpen && <FullLicenseDialog onClose={() => { setFullLicenseOpen(false); if (!licensePlan.accessAllowed && !licenseVerificationMode) setLicenseInfoOpen(true); }} />}
       {updateState.open && !updatePromptBlocked && <UpdateDialog state={updateState} onCheck={checkForUpdates} onInstall={installAvailableUpdate} onClose={() => setUpdateState((current) => ({ ...current, open: false, promptPending: false }))} />}
       {toolHelp && (
         <div className="tool-help-tooltip" role="tooltip" style={{ left: toolHelp.x, top: toolHelp.y }}>

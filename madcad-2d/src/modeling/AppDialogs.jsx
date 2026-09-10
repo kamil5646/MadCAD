@@ -26,7 +26,7 @@ export function FirstPartTutorial({ onClose }) {
   );
 }
 
-export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { mode: 'personal' }, busy = false, error = '', onLogin = () => {}, onRegister = () => {}, onStartTrial = () => {}, onLogout = () => {}, onRefresh = () => {}, onRequestPasswordReset = () => {}, onResetPassword = () => {}, onResendVerification = () => {}, onVerifyEmail = () => {} }) {
+export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { mode: 'personal' }, busy = false, error = '', allowVerificationBypass = false, onLogin = () => {}, onRegister = () => {}, onStartTrial = () => {}, onLogout = () => {}, onRefresh = () => {}, onRequestPasswordReset = () => {}, onResetPassword = () => {}, onResendVerification = () => {}, onVerifyEmail = () => {} }) {
   const dialogRef = useDialogFocus();
   const planStatus = describeLicensePlan(licensePlan);
   const [accountMode, setAccountMode] = useState('login');
@@ -36,11 +36,12 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { 
   const [resetToken, setResetToken] = useState('');
   const [accountNotice, setAccountNotice] = useState('');
   const [verificationToken, setVerificationToken] = useState('');
+  const canEnterProgram = Boolean(licensePlan.accessAllowed || allowVerificationBypass);
   useEffect(() => {
-    const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
+    const onKeyDown = (event) => { if (event.key === 'Escape' && canEnterProgram) onClose(); };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  }, [canEnterProgram, onClose]);
   const submitAccount = async (event) => {
     event.preventDefault();
     setAccountNotice('');
@@ -58,21 +59,21 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { 
   };
 
   return (
-    <div className="license-info-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="license-info-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && canEnterProgram) onClose(); }}>
       <section ref={dialogRef} className="license-info-dialog" role="dialog" aria-modal="true" aria-labelledby="licenseInfoTitle" tabIndex="-1">
         <header>
           <div>
             <strong id="licenseInfoTitle">Licencja MadCAD</strong>
             <span>Przed rozpoczęciem pracy sprawdź zasady korzystania z MadCAD.</span>
           </div>
-          <button type="button" title="Zamknij" aria-label="Zamknij" onClick={onClose}><X size={17} /></button>
+          {canEnterProgram && <button type="button" title="Zamknij" aria-label="Zamknij" onClick={onClose}><X size={17} /></button>}
         </header>
         <div className="license-info-body">
           <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.</p>
-          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.4.7 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
+          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.5.0 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
           <div className={`license-plan-status ${planStatus.expired ? 'expired' : ''}`} role="status"><span>Aktywny plan</span><strong>{planStatus.label}</strong><small>{planStatus.detail}</small></div>
           <div className="license-plan-grid" aria-label="Plany MadCAD">
-            <article className={licensePlan.mode === 'personal' ? 'selected' : ''}><strong>Osobista</strong><span>Bezpłatnie bez limitu czasu</span><small>Wyłącznie projekty prywatne, edukacyjne i niezarobkowe. Konto nie jest wymagane.</small></article>
+            <article className={licensePlan.mode === 'personal' ? 'selected' : ''}><strong>Osobista</strong><span>Bezpłatnie bez limitu czasu</span><small>Wyłącznie projekty prywatne, edukacyjne i niezarobkowe. Wymaga bezpłatnego konta MadCAD.</small></article>
             <article className={licensePlan.mode === 'commercial-trial' ? 'selected' : ''}><strong>Ocena komercyjna</strong><span>40 dni pełnej wersji</span><small>Jednorazowy okres oceny przypisany do konta. Wymaga połączenia przy aktywacji.</small></article>
             <article className={licensePlan.mode === 'commercial' ? 'selected' : ''}><strong>Komercyjna</strong><span>Licencja imienna</span><small>Plan i liczba stanowisk są sprawdzane na serwerze. Po sprawdzeniu działa także offline.</small></article>
           </div>
@@ -116,9 +117,9 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { 
           <p className="license-info-support-copy">Jeśli używasz MadCAD prywatnie i program jest dla Ciebie pomocny, możesz wesprzeć jego dalszy rozwój darowizną.</p>
           <div className="license-info-actions">
             <button className="secondary" type="button" onClick={onShowFullLicense}>Pełna treść licencji</button>
-            <a className="commercial" href="https://kamil5646.github.io/MadCAD/#licencja" target="_blank" rel="noopener noreferrer">Kup licencję komercyjną</a>
+            <a className="commercial" href="https://madcad.madmagsystem.pl/#licencja" target="_blank" rel="noopener noreferrer">Kup licencję komercyjną</a>
             <a className="support" href="https://paypal.me/refek1" target="_blank" rel="noopener noreferrer">Przekaż darowiznę</a>
-            <button className="confirm" type="button" onClick={onClose} autoFocus>Przejdź do programu</button>
+            <button className="confirm" type="button" disabled={!canEnterProgram} onClick={onClose} autoFocus>{canEnterProgram ? 'Przejdź do programu' : 'Zaloguj się, aby przejść dalej'}</button>
           </div>
         </div>
       </section>

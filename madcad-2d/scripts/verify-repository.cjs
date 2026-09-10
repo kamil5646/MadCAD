@@ -12,23 +12,24 @@ const rejectText = (source, pattern, label) => {
 };
 
 const packageJson = JSON.parse(read('madcad-2d/package.json'));
-if (packageJson.version !== '6.4.7') throw new Error(`Wersja stabilna musi wynosić 6.4.7, jest ${packageJson.version}.`);
+if (packageJson.version !== '6.5.0') throw new Error(`Wersja stabilna musi wynosić 6.5.0, jest ${packageJson.version}.`);
 
 const license = read('LICENSE');
 const packagedLicense = read('madcad-2d/LICENSE');
 if (packagedLicense !== license) throw new Error('Licencja w paczce nie jest identyczna z głównym plikiem LICENSE.');
-expectText(license, /MadCAD Personal and Commercial License 3\.0/, 'nazwa licencji 3.0');
+expectText(license, /MadCAD Personal and Commercial License 3\.1/, 'nazwa licencji 3.1');
+expectText(license, /wymaga utworzenia konta\s+MadCAD/, 'konto wymagane także dla licencji prywatnej');
 expectText(license, /40 kolejnych dni/, '40-dniowa ocena organizacji');
 expectText(license, /bezterminowa dla zakupionej głównej wersji/, 'bezterminowa licencja komercyjna');
 expectText(license, /jednym stanowisku\s+roboczym lub urządzeniu/, 'licencja na stanowisko');
 expectText(license, /kkasprzak15@icloud\.com/, 'kontakt handlowy');
 
 const site = read('docs/index.html');
-expectText(site, /Oficjalne wydanie 6\.4/, 'stabilne wydanie na stronie');
+expectText(site, /Oficjalne wydanie 6\.5/, 'stabilne wydanie na stronie');
 expectText(site, /40 dni bezpłatnej oceny/, 'ocena komercyjna na stronie');
 expectText(site, /licencja bezterminowa na stanowisko/, 'licencja stanowiskowa na stronie');
 expectText(site, /mailto:kkasprzak15@icloud\.com/, 'zakup licencji na stronie');
-expectText(site, /paczki 6\.4\.7 są publikowane bez podpisu producenta/, 'ostrzeżenie o niepodpisanym wydaniu 6.4.7');
+expectText(site, /paczki 6\.5\.0 są publikowane bez podpisu producenta/, 'ostrzeżenie o niepodpisanym wydaniu 6.5.0');
 expectText(site, /Linux · x64/, 'oficjalna paczka Linux na stronie');
 expectText(site, /data-release-asset="windows-installer"/, 'bezpośredni instalator Windows na stronie');
 expectText(site, /data-release-asset="windows-portable"/, 'przenośna paczka Windows na stronie');
@@ -36,7 +37,7 @@ expectText(site, /data-release-asset="mac-dmg"/, 'bezpośredni obraz DMG na stro
 rejectText(site, /license-registry|issue-private|token-admin|generatePrivateToken/i, 'stary system tokenów na stronie');
 
 const rootReadme = read('README.md');
-expectText(rootReadme, /Uwaga o wydaniu 6\.4\.7/, 'ostrzeżenie wydania w README');
+expectText(rootReadme, /Uwaga o wydaniu 6\.5\.0/, 'ostrzeżenie wydania w README');
 expectText(rootReadme, /Importuj DWG/, 'lokalny import DWG w README');
 const firstPart = read('madcad-2d/FIRST_PART.md');
 expectText(firstPart, /DWG jest konwertowany lokalnie/, 'lokalny przepływ DWG w samouczku');
@@ -51,20 +52,22 @@ const appDialogs = read('madcad-2d/src/modeling/AppDialogs.jsx');
 expectText(appDialogs, /40 dni pełnej wersji/, 'ocena w oknie aplikacji');
 expectText(appDialogs, /Licencja imienna/, 'licencja imienna w aplikacji');
 expectText(appDialogs, /konto automatycznie pobiera plan/, 'serwerowy stan planu bez klucza');
+expectText(appDialogs, /Wymaga bezpłatnego konta MadCAD/, 'konto wymagane dla planu osobistego');
 rejectText(appDialogs, /Numer faktury lub potwierdzenia|Potwierdź licencję/, 'samodzielne lokalne nadawanie licencji');
 const licensePlan = read('madcad-2d/src/modeling/license-plan.js');
 expectText(licensePlan, /MODES = new Set\(\['personal', 'commercial-trial', 'commercial'\]\)/, 'plany sterowane przez serwer');
 rejectText(licensePlan, /localStorage|commercialHolder|commercialReference/, 'lokalne nadawanie planu komercyjnego');
 expectText(appDialogs, /fullLicenseText/, 'lokalna pełna licencja w aplikacji');
-expectText(appDialogs, /Wydanie 6\.4\.7 nie ma podpisu producenta/, 'ostrzeżenie o podpisie w aplikacji');
+expectText(appDialogs, /Wydanie 6\.5\.0 nie ma podpisu producenta/, 'ostrzeżenie o podpisie w aplikacji');
 
 const preload = read('madcad-2d/electron/preload.js');
 const main = read('madcad-2d/electron/main.js');
 const licenseClient = read('madcad-2d/electron/license-client.cjs');
 const licenseApi = read('madcad-2d/server/seohost/madcad-license-api/index.php');
 const licenseAdmin = read('madcad-2d/server/seohost/madcad-license-api/admin.js');
+expectText(licenseClient, /accessAllowed:\s*signedIn && serverLeaseActive/, 'blokada aplikacji bez ważnej dzierżawy konta');
 expectText(preload, /licenseGetStatus[\s\S]*licenseLogin[\s\S]*licenseRegister[\s\S]*licenseStartTrial[\s\S]*licenseLogout[\s\S]*licenseRequestPasswordReset[\s\S]*licenseResetPassword[\s\S]*licenseResendVerification[\s\S]*licenseVerifyEmail/, 'minimalne API konta licencji w preload');
-expectText(main, /https:\/\/madmagsystem\.pl\/api\/madcad\/v1/, 'stały adres HTTPS API licencji');
+expectText(main, /https:\/\/madcad\.madmagsystem\.pl\/api\/madcad\/v1/, 'stały adres HTTPS API licencji');
 expectText(main, /safeStorage\.encryptString/, 'systemowe szyfrowanie tokenu sesji');
 expectText(licenseClient, /offlineUntil[\s\S]*MAX_CLOCK_ROLLBACK_MS/, 'ograniczona dzierżawa offline i ochrona zegara');
 expectText(licenseApi, /password_hash/, 'haszowanie haseł na SEOHost');

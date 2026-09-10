@@ -65,11 +65,13 @@ function publicStatus(state, now = Date.now(), connection = 'offline') {
   const serverLeaseActive = !clockRollback && Number.isFinite(state.offlineUntil) && now <= state.offlineUntil;
   const active = serverLeaseActive && entitlementActive(entitlement, now);
   const mode = active ? entitlement.plan : 'personal';
+  const signedIn = Boolean(state.account && state.protectedToken);
   const expiresAt = mode === 'personal' ? null : entitlement.expiresAt || null;
   const millisecondsRemaining = expiresAt ? Math.max(0, Date.parse(expiresAt) - now) : null;
   return {
     mode,
-    signedIn: Boolean(state.account && state.protectedToken),
+    signedIn,
+    accessAllowed: signedIn && serverLeaseActive,
     account: state.account,
     installationId: state.installationId,
     licenseId: active ? entitlement.licenseId : '',
@@ -79,7 +81,7 @@ function publicStatus(state, now = Date.now(), connection = 'offline') {
     lastServerCheckAt: state.lastServerCheckAt,
     offlineUntil: state.offlineUntil,
     connection,
-    needsOnlineCheck: Boolean(state.account && !serverLeaseActive),
+    needsOnlineCheck: signedIn && !serverLeaseActive,
     clockRollback,
   };
 }

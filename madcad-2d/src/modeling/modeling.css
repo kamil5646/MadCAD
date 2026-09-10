@@ -118,6 +118,9 @@
 
 .license-info-dialog {
   width: min(540px, 100%);
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border: 1px solid #647382;
   border-radius: 7px;
@@ -126,6 +129,7 @@
 }
 
 .license-info-dialog > header {
+  flex: 0 0 auto;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -139,7 +143,7 @@
 .license-info-dialog > header strong { font-size: 15px; }
 .license-info-dialog > header span { color: var(--mc-muted); line-height: 1.45; }
 .license-info-dialog > header button { width: 30px; height: 30px; border: 0; color: white; background: transparent; cursor: pointer; }
-.license-info-body { display: grid; gap: 10px; padding: 13px 14px 14px; }
+.license-info-body { min-height: 0; display: grid; gap: 10px; padding: 13px 14px 14px; overflow-y: auto; }
 .license-info-lead { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: #ffe0a6; font-size: 12px; font-weight: 600; line-height: 1.4; }
 .license-info-lead svg { flex: 0 0 auto; margin-top: 1px; color: var(--mc-warn); }
 .license-info-release-warning { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 8px 10px; border: 1px solid rgba(241, 189, 98, 0.5); border-radius: 4px; color: #ffe0a6; background: rgba(104, 72, 26, 0.18); font-size: 11px; line-height: 1.4; }
@@ -200,13 +204,14 @@
 .license-info-actions button.confirm:hover { background: #1596c2; }
 .full-license-dialog { width: min(720px, 100%); }
 .full-license-dialog pre { max-height: min(62vh, 680px); margin: 0; padding: 18px; overflow: auto; color: #d9e2e9; background: #202934; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; }
-.full-license-dialog > footer { display: flex; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid #566473; }
+.full-license-dialog > footer { flex: 0 0 auto; display: flex; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid #566473; }
 .full-license-dialog > footer button { min-height: 34px; padding: 0 16px; border: 1px solid #4abde1; border-radius: 4px; color: white; background: #158bb5; cursor: pointer; }
 
 @media (max-width: 760px), (max-height: 620px) {
   .tutorial-backdrop { padding: 10px; }
   .tutorial-body ol { grid-template-columns: 1fr; }
   .license-info-backdrop { padding: 10px; }
+  .license-info-dialog { max-height: calc(100dvh - 20px); }
   .license-info-actions { grid-template-columns: 1fr; }
   .license-info-actions a,
   .license-info-actions button,

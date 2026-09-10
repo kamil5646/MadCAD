@@ -1,4 +1,4 @@
-# MadCAD 6.4
+# MadCAD 6.5
 
 ![MadCAD](./docs/readme-banner.png)
 
@@ -13,11 +13,11 @@ szkicowanie w stylu klasycznego CAD połączone z parametryczną historią oraz
 modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodatkiem.
 
 **[Pobierz najnowsze stabilne wydanie](https://github.com/kamil5646/MadCAD/releases/latest)** ·
-**[Strona projektu](https://kamil5646.github.io/MadCAD/)** ·
+**[Strona projektu](https://madcad.madmagsystem.pl/)** ·
 **[Licencja](./LICENSE)** ·
 **[Zmiany](./madcad-2d/CHANGELOG.md)**
 
-> **Uwaga o wydaniu 6.4.7:** paczki są publikowane bez podpisu producenta,
+> **Uwaga o wydaniu 6.5.0:** paczki są publikowane bez podpisu producenta,
 > dlatego Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie.
 > Pobieraj je wyłącznie z oficjalnego GitHub Release i sprawdź sumę SHA-256.
 > Wbudowany aktualizator pobiera paczkę z oficjalnego wydania, sprawdza SHA-256

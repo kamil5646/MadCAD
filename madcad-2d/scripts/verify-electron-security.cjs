@@ -105,6 +105,7 @@ app.on('browser-window-created', (_event, mainWindow) => {
       assert.equal(trustedLicense.ok, true);
       assert.equal(trustedLicense.status.mode, 'personal');
       assert.equal(trustedLicense.status.signedIn, false);
+      assert.equal(trustedLicense.status.accessAllowed, false);
       const trustedUpdate = await Promise.race([
         evaluateWithDebugger(mainWindow.webContents, 'window.desktopApp.checkForUpdates()', true),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Trusted IPC timed out.')), 5_000)),

@@ -11,7 +11,7 @@ test('validates named-user credentials before sending them', () => {
   assert.throws(() => normalizeCredentials({ email: 'u@example.com', password: 'short' }), /10/);
 });
 
-test('keeps personal use available and accepts server-controlled trial and commercial plans', async () => {
+test('requires an account lease for personal use and accepts server-controlled trial and commercial plans', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'madcad-license-client-'));
   let timestamp = Date.UTC(2026, 8, 9);
   let plan = 'personal';
@@ -25,11 +25,13 @@ test('keeps personal use available and accepts server-controlled trial and comme
     }
     return { ok: true, account: { email: 'u@example.com', displayName: 'Kamil' }, entitlement: { plan, startsAt: '', expiresAt: '', seats: 1, licenseId: '' }, offlineDays: 30 };
   };
-  const client = createLicenseClient({ statePath: path.join(root, 'state.json'), request, protectToken: async (value) => `protected:${value}`, unprotectToken: async (value) => value.slice(10), now: () => timestamp, appVersion: '6.4.7' });
+  const client = createLicenseClient({ statePath: path.join(root, 'state.json'), request, protectToken: async (value) => `protected:${value}`, unprotectToken: async (value) => value.slice(10), now: () => timestamp, appVersion: '6.5.0' });
   const anonymous = await client.getStatus();
   assert.equal(anonymous.status.mode, 'personal');
+  assert.equal(anonymous.status.accessAllowed, false);
   const login = await client.login({ email: 'u@example.com', password: 'very-secure' });
   assert.equal(login.status.signedIn, true);
+  assert.equal(login.status.accessAllowed, true);
   assert.equal((await client._readState()).protectedToken, 'protected:server-token');
   const trial = await client.startTrial();
   assert.equal(trial.status.mode, 'commercial-trial');
@@ -37,6 +39,7 @@ test('keeps personal use available and accepts server-controlled trial and comme
   timestamp += 31 * 86400000;
   const offline = publicStatus(await client._readState(), timestamp, 'offline');
   assert.equal(offline.mode, 'personal');
+  assert.equal(offline.accessAllowed, false);
   assert.equal(offline.needsOnlineCheck, true);
   assert.equal(calls.some(({ payload }) => payload.password === 'very-secure'), true);
   await fs.rm(root, { recursive: true, force: true });

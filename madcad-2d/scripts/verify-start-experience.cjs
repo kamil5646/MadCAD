@@ -19,6 +19,8 @@ async function waitFor(window, expression, label, timeoutMs = 20000) {
 }
 
 async function capture(window, outputPath) {
+  await window.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+  await new Promise((resolve) => setTimeout(resolve, 100));
   await fs.writeFile(outputPath, (await window.webContents.capturePage()).toPNG());
 }
 
@@ -37,17 +39,22 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.modeling-shell')`, 'interfejs aplikacji');
     await waitFor(window, `document.querySelector('.license-info-dialog')`, 'informacja licencyjna');
     const licenseLayout = await window.webContents.executeJavaScript(`(() => {
+      const dialog = document.querySelector('.license-info-dialog');
+      const body = document.querySelector('.license-info-body');
       const actions = document.querySelector('.license-info-actions');
       const confirm = actions?.querySelector('.confirm');
+      const dialogRect = dialog?.getBoundingClientRect();
       const actionRect = actions?.getBoundingClientRect();
       const confirmRect = confirm?.getBoundingClientRect();
       return {
+        dialogInsideViewport: Boolean(dialogRect && dialogRect.top >= 0 && dialogRect.bottom <= innerHeight + 1),
+        contentCanScroll: Boolean(body && body.scrollHeight >= body.clientHeight),
         actionsInsideDialog: Boolean(actionRect && [...actions.children].every((item) => { const rect = item.getBoundingClientRect(); return rect.left >= actionRect.left && rect.right <= actionRect.right + 1; })),
         primaryOnOwnRow: Boolean(confirmRect && [...actions.children].filter((item) => item !== confirm).every((item) => item.getBoundingClientRect().bottom <= confirmRect.top)),
         primaryAlignedRight: Boolean(confirmRect && actionRect && (confirmRect.left + confirmRect.right) / 2 > (actionRect.left + actionRect.right) / 2),
       };
     })()`);
-    if (!licenseLayout.actionsInsideDialog || !licenseLayout.primaryOnOwnRow || !licenseLayout.primaryAlignedRight) throw new Error(`Akcje komunikatu licencyjnego mają przypadkowy układ: ${JSON.stringify(licenseLayout)}`);
+    if (!licenseLayout.dialogInsideViewport || !licenseLayout.contentCanScroll || !licenseLayout.actionsInsideDialog || !licenseLayout.primaryOnOwnRow || !licenseLayout.primaryAlignedRight) throw new Error(`Komunikat licencyjny nie mieści się lub ma przypadkowy układ: ${JSON.stringify(licenseLayout)}`);
     await capture(window, licenseScreenshotPath);
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
     await waitFor(window, `!document.querySelector('.license-info-dialog')`, 'zamknięcie informacji licencyjnej');

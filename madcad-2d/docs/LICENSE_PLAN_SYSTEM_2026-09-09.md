@@ -4,13 +4,13 @@ MadCAD rozdziela trzy stany: bezpłatny użytek osobisty, jednorazową 40-dniow�
 
 ## Zasady
 
-- Tryb osobisty działa od razu, bez konta i bez połączenia z siecią, ale wyłącznie prywatnie, edukacyjnie i niezarobkowo.
+- Każdy plan, także bezpłatny osobisty, wymaga konta MadCAD i pierwszego sprawdzenia przez Internet.
 - Rejestracja i logowanie odbywają się przez `https://madcad.madmagsystem.pl/api/madcad/v1` na SEOHost MAD-MAG.
 - Okres próbny może zostać rozpoczęty tylko raz dla konta. Datę przechowuje serwer, więc reinstalacja aplikacji go nie resetuje.
 - Przed rozpoczęciem okresu próbnego konto musi potwierdzić adres e-mail jednorazowym kodem ważnym 24 godziny.
 - Plan komercyjny nadaje i cofa administrator. Klient nie zawiera endpointu ani sekretu pozwalającego użytkownikowi zmienić własne uprawnienie.
 - Plan obejmuje określoną liczbę aktywnych urządzeń. Administrator może zwolnić stanowisko.
-- Po poprawnym sprawdzeniu online ocena lub plan komercyjny działa offline maksymalnie 30 dni. Cofnięcie zegara unieważnia lokalną dzierżawę do kolejnej kontroli online.
+- Po poprawnym sprawdzeniu online każdy plan działa offline maksymalnie 30 dni. Cofnięcie zegara unieważnia lokalną dzierżawę do kolejnej kontroli online.
 
 ## Ochrona danych
 
@@ -23,9 +23,9 @@ Magazyn kont, token administratora i blokady plików znajdują się poza `public
 ## Stan weryfikacji
 
 - testy jednostkowe klienta obejmują walidację danych, plany z serwera, szyfrowany token, wygaśnięcie offline, cofnięcie zegara i wylogowanie;
-- desktopowy test bezpieczeństwa potwierdza izolację kontekstu, minimalne API preload i osobisty stan bez konta;
+- desktopowy test bezpieczeństwa potwierdza izolację kontekstu, minimalne API preload i zablokowany stan bez konta;
 - pełny test interfejsu sprawdza startowe okno, formularz konta, brak lokalnego pola faktury/klucza oraz dalszy przepływ CAD;
-- API produkcyjne nie jest uznane za wdrożone, dopóki endpoint nie przejdzie testów HTTPS na hostingu.
+- API produkcyjne działa pod HTTPS na `madcad.madmagsystem.pl`; bramka wydania sprawdza jego endpoint zdrowia.
 
 Źródła koncepcji sprawdzone 09.09.2026:
 

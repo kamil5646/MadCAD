@@ -2829,6 +2829,7 @@ app.whenReady().then(async () => {
         shownAtStartup: Boolean(dialog),
         explainsNoKey: /nie ma klucza do przepisywania|there is no key/i.test(text),
         privateUseOnly: /bez limitu czasu do użytku prywatnego|free without a time limit for private/i.test(text),
+        personalAccountRequired: /wymaga bezpłatnego konta MadCAD|free MadCAD account is required/i.test(text),
         commercialPaid: /komercyjny jest płatny|commercial use requires payment/i.test(text),
         commercialTrial: /40 dni|40 days/i.test(text),
         namedLicense: /licencja imienna|named-user license/i.test(text),
@@ -2842,7 +2843,7 @@ app.whenReady().then(async () => {
         continueVisible: Boolean([...dialog?.querySelectorAll('button') || []].some((button) => /Przejdź do programu|Continue to MadCAD/i.test(button.textContent))),
       };
     })()`);
-    if (!licenseDialog.visible || !licenseDialog.shownAtStartup || !licenseDialog.explainsNoKey || !licenseDialog.privateUseOnly || !licenseDialog.commercialPaid || !licenseDialog.commercialTrial || !licenseDialog.namedLicense || !licenseDialog.serverControlled || !licenseDialog.donationNotCommercial || licenseDialog.accountInputs !== 2 || licenseDialog.invoiceInput || licenseDialog.planCards !== 3 || !licenseDialog.personalSelected || licenseDialog.links < 2 || !licenseDialog.continueVisible) {
+    if (!licenseDialog.visible || !licenseDialog.shownAtStartup || !licenseDialog.explainsNoKey || !licenseDialog.privateUseOnly || !licenseDialog.personalAccountRequired || !licenseDialog.commercialPaid || !licenseDialog.commercialTrial || !licenseDialog.namedLicense || !licenseDialog.serverControlled || !licenseDialog.donationNotCommercial || licenseDialog.accountInputs !== 2 || licenseDialog.invoiceInput || licenseDialog.planCards !== 3 || !licenseDialog.personalSelected || licenseDialog.links < 2 || !licenseDialog.continueVisible) {
       throw new Error(`Okno licencji nie wyjaśnia osobistego, serwerowego modelu kont i planu komercyjnego: ${JSON.stringify(licenseDialog)}.`);
     }
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
