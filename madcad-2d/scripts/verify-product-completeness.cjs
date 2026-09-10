@@ -57,11 +57,11 @@ if (!release.includes('npm run verify:solid-fea-benchmarks')) throw new Error('W
 if (!release.includes('npm run test:license')) throw new Error('Wydanie nie uruchamia testów klienta licencji.');
 
 const activeItems = roadmap.match(/^- \[>\].+$/gm) || [];
-if (activeItems.length !== 1) throw new Error(`Roadmapa musi mieć dokładnie jeden aktywny element, ma ${activeItems.length}.`);
+if (activeItems.length > 1) throw new Error(`Roadmapa może mieć najwyżej jeden aktywny element, ma ${activeItems.length}.`);
 
 process.stdout.write(`${JSON.stringify({
   ok: true,
   desktopChecks: manifestScripts.length,
   shards: Object.fromEntries(Object.entries(manifest).map(([name, scripts]) => [name, scripts.length])),
-  activeRoadmapItem: activeItems[0],
+  activeRoadmapItem: activeItems[0] || null,
 }, null, 2)}\n`);

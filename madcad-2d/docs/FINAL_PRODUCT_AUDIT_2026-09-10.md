@@ -5,7 +5,7 @@ Zakres: start i konto, wybór szkicu, modelowanie 2D/3D, odzyskiwanie, arkusz 2D
 
 ## Wynik
 
-Kandydat 6.5.0 przeszedł lokalnie pełny manifest 53 scenariuszy Electron na macOS arm64, 184 testy interfejsu, 224 testy rdzenia oraz audyty repozytorium, bezpieczeństwa Electron, dostępności i zależności. Publikacja pozostaje uzależniona od zielonego przebiegu CI na Windows i macOS.
+MadCAD 6.5.0 przeszedł lokalnie pełny manifest 53 scenariuszy Electron na macOS arm64, 184 testy interfejsu, 224 testy rdzenia oraz audyty repozytorium, bezpieczeństwa Electron, dostępności i zależności. Ten sam pełny manifest przeszedł następnie na macOS i Windows w GitHub Actions. Run wydania `34477547067` zakończył się powodzeniem, opublikował instalatory Windows/macOS i AppImage Linux wraz z sumami SHA-256: <https://github.com/kamil5646/MadCAD/releases/tag/v6.5.0>.
 
 ## Przebieg i stan
 
@@ -38,5 +38,5 @@ Kandydat 6.5.0 przeszedł lokalnie pełny manifest 53 scenariuszy Electron na ma
 - [x] bezpieczeństwo Electron
 - [x] `npm audit`: 0 podatności
 - [x] dostępność strony startowej: 0 naruszeń
-- [ ] pełny desktop Windows w GitHub Actions
-- [ ] pakiety i sumy SHA-256 opublikowane dla tagu `v6.5.0`
+- [x] pełny desktop Windows w GitHub Actions: 53/53
+- [x] pakiety i sumy SHA-256 opublikowane dla tagu `v6.5.0`
