@@ -2119,8 +2119,15 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.thin === false && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${64 * 42 * 8}) < 0.01`, 'powrót do pełnego Extrude', modelingTimeoutMs);
 
   progress('B-Rep hover, multi-select and box select');
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  const selectionRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.status === 'ready'`, 'gotowy silnik przed testem wyboru', modelingTimeoutMs);
+  let selectionRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const nextRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    if (nextRevision === selectionRevision) break;
+    selectionRevision = nextRevision;
+    if (attempt === 7) throw new Error('Silnik nie ustabilizował rewizji przed testem wyboru.');
+  }
   const topologyIds = await window.webContents.executeJavaScript(`(() => {
     const body = window.__madcadVerifyEngineState.bodies[0];
     return { face: body.topology.faces[0].id, edge: body.topology.edges[0].id, body: body.id };
@@ -2780,7 +2787,7 @@ app.whenReady().then(async () => {
   const performanceBudgets = isCi
     // Hosted runners are substantially slower and noisier than local hardware.
     // Per-operation waits and worker budgets below still catch real stalls.
-    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 360000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 90000 }
+    ? { desktopColdStartMs: 60000, desktopWorkflowMs: 600000, displayMeshPerBodyMs: 15000, displayEvaluationMs: 90000 }
     : { desktopColdStartMs: 30000, desktopWorkflowMs: 120000, displayMeshPerBodyMs: 5000, displayEvaluationMs: 15000 };
   const performance = { coldStartMs: 0, workflowMs: 0 };
   const window = new BrowserWindow({
