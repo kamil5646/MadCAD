@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.5.2 (2026-09-11)
+
+- Wprowadzono zaakceptowaną, profesjonalną identyfikację MadCAD: czerwony znak konstrukcyjny z wyraźnym wordmarkiem na czarnym tle.
+- Ujednolicono logo aplikacji, Docka, paczek macOS/Windows/Linux, favicon, strony, panelu licencji i banera repozytorium.
+- Naprawiono dobór grup responsywnej wstążki, aby przy dużym skalowaniu systemowym narzędzia trafiały do menu **Więcej** zamiast wychodzić poza okno.
+
 ## 6.5.1 (2026-09-10)
 
 - Wprowadzono nowe logo MadCAD w kolorystyce MAD-MAG we wszystkich punktach produktu: aplikacji, pasku programu, paczkach macOS/Windows/Linux, stronie, panelu administracyjnym i faviconach.

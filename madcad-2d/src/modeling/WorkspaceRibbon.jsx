@@ -499,12 +499,28 @@ export function ResponsiveRibbon({ children, language = 'pl' }) {
     const update = () => {
       groupRefs.current.forEach((node, index) => {
         if (!node) return;
-        const width = Math.ceil(node.getBoundingClientRect().width);
+        const rectWidth = node.getBoundingClientRect().width;
+        if (rectWidth <= 0) return;
+        const style = getComputedStyle(node);
+        const width = Math.ceil(
+          rectWidth
+          + (Number.parseFloat(style.marginLeft) || 0)
+          + (Number.parseFloat(style.marginRight) || 0),
+        );
         if (width > 0) measuredWidths.current[index] = width;
       });
       if (measuredWidths.current.length < groupCount || measuredWidths.current.some((width) => !width)) return;
       const stickyIndices = stickyKey ? stickyKey.split(',').map(Number) : [];
-      const next = calculateVisibleRibbonGroups(measuredWidths.current, container.clientWidth, stickyIndices);
+      const containerStyle = getComputedStyle(container);
+      const horizontalPadding = (Number.parseFloat(containerStyle.paddingLeft) || 0)
+        + (Number.parseFloat(containerStyle.paddingRight) || 0);
+      const stickyWrapper = container.querySelector('.ribbon-sticky-groups');
+      const stickyStyle = stickyWrapper ? getComputedStyle(stickyWrapper) : null;
+      const stickyPadding = stickyStyle
+        ? (Number.parseFloat(stickyStyle.paddingLeft) || 0) + (Number.parseFloat(stickyStyle.paddingRight) || 0)
+        : 0;
+      const availableWidth = Math.max(0, container.clientWidth - horizontalPadding - stickyPadding);
+      const next = calculateVisibleRibbonGroups(measuredWidths.current, availableWidth, stickyIndices);
       setLayout((current) => (
         current.visible.join(',') === next.visible.join(',') && current.hidden.join(',') === next.hidden.join(',')
           ? current
