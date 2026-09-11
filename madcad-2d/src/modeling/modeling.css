@@ -227,6 +227,22 @@
   .commercial-license-form > strong, .commercial-license-form > small, .commercial-license-form > div { grid-column: 1; }
 }
 
+@media (max-height: 950px) and (min-width: 761px) {
+  .license-info-backdrop { padding: 10px; }
+  .license-info-dialog { max-height: calc(100dvh - 20px); }
+  .license-info-dialog > header { padding: 9px 12px; }
+  .license-info-body { gap: 7px; padding: 9px 12px 10px; }
+  .license-info-release-warning { padding: 6px 8px; }
+  .license-plan-status { padding: 6px 9px; }
+  .license-plan-grid article { min-height: 76px; padding: 7px 8px; }
+  .commercial-license-form { gap: 6px 8px; padding: 8px 10px; }
+  .license-commercial-details summary { padding-block: 7px; }
+  .license-info-actions { gap: 5px; padding-top: 7px; }
+  .license-info-actions a,
+  .license-info-actions button { min-height: 28px; }
+  .license-info-actions button.confirm { min-height: 31px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .modeling-shell *,
   .modeling-shell *::before,
