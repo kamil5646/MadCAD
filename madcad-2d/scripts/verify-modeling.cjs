@@ -1979,6 +1979,7 @@ async function runUiFlow(window) {
   await pickPlane('XY');
   await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view') && window.__madcadSketchLocalToScreen`, 'szkic linii dynamicznej');
   await waitForUi(window, `document.querySelector('.sketch-palette')?.classList.contains('collapsed')`, 'kompaktowa paleta szkicu na starcie');
+  await waitForCameraToSettle(5000);
   const platformUi = await window.webContents.executeJavaScript(`(() => {
     const shell = document.querySelector('.modeling-shell');
     const hint = document.querySelector('.model-selection-hint, .sketch-pointer-hint')?.textContent || '';
