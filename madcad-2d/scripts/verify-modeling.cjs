@@ -2004,11 +2004,15 @@ async function runUiFlow(window) {
   await sendMouse('mouseUp', dynamicLineStart);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 1 && window.__madcadVerifyDocumentState?.command?.points === 1`, 'punkt początkowy linii dynamicznej');
   await waitForUi(window, `window.__madcadSketchLocalToScreen`, 'odświeżone płótno linii dynamicznej');
+  // The viewport may finish a platform-specific camera/layout update after the
+  // first point is committed. Reproject both endpoints from the same frame so
+  // the synthetic pointer path still represents an exact 30 x 40 mm vector.
+  const dynamicLineMoveStart = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(0, 0)`);
   const dynamicLineDirection = await window.webContents.executeJavaScript(`window.__madcadSketchLocalToScreen(30, 40)`);
   for (let step = 1; step <= 5; step += 1) {
     await sendMouse('mouseMove', {
-      x: dynamicLineStart.x + ((dynamicLineDirection.x - dynamicLineStart.x) * step / 5),
-      y: dynamicLineStart.y + ((dynamicLineDirection.y - dynamicLineStart.y) * step / 5),
+      x: dynamicLineMoveStart.x + ((dynamicLineDirection.x - dynamicLineMoveStart.x) * step / 5),
+      y: dynamicLineMoveStart.y + ((dynamicLineDirection.y - dynamicLineMoveStart.y) * step / 5),
     }, ['alt']);
   }
   await waitForUi(
