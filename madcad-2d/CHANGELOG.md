@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.5.1 (2026-09-10)
+
+- Wprowadzono nowe logo MadCAD w kolorystyce MAD-MAG we wszystkich punktach produktu: aplikacji, pasku programu, paczkach macOS/Windows/Linux, stronie, panelu administracyjnym i faviconach.
+- Ujednolicono banner repozytorium z nowym znakiem oraz zaktualizowano informacje i bezpośrednie odnośniki wydania.
+
 ## 6.5.0 (2026-09-10)
 
 - Zastąpiono lokalną deklarację planu kontem MadCAD: aplikacja pobiera 40-dniową ocenę i uprawnienie komercyjne z API SEOHost MAD-MAG, bez klucza do przepisywania.

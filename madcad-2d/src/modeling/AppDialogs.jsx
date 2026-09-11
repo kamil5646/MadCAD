@@ -29,6 +29,8 @@ export function FirstPartTutorial({ onClose }) {
 export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { mode: 'personal' }, busy = false, error = '', allowVerificationBypass = false, onLogin = () => {}, onRegister = () => {}, onStartTrial = () => {}, onLogout = () => {}, onRefresh = () => {}, onRequestPasswordReset = () => {}, onResetPassword = () => {}, onResendVerification = () => {}, onVerifyEmail = () => {} }) {
   const dialogRef = useDialogFocus();
   const planStatus = describeLicensePlan(licensePlan);
+  const documentLanguage = window.document.documentElement.lang?.toLowerCase();
+  const isPolish = !documentLanguage || documentLanguage.startsWith('pl');
   const [accountMode, setAccountMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -70,7 +72,7 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { 
         </header>
         <div className="license-info-body">
           <p className="license-info-lead"><AlertTriangle size={17} /> MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.</p>
-          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.5.0 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
+          <p className="license-info-release-warning"><AlertTriangle size={17} /> Wydanie 6.5.1 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.</p>
           <div className={`license-plan-status ${planStatus.expired ? 'expired' : ''}`} role="status"><span>Aktywny plan</span><strong>{planStatus.label}</strong><small>{planStatus.detail}</small></div>
           <div className="license-plan-grid" aria-label="Plany MadCAD">
             <article className={licensePlan.mode === 'personal' ? 'selected' : ''}><strong>Osobista</strong><span>Bezpłatnie bez limitu czasu</span><small>Wyłącznie projekty prywatne, edukacyjne i niezarobkowe. Wymaga bezpłatnego konta MadCAD.</small></article>
@@ -105,16 +107,15 @@ export function LicenseInfoDialog({ onClose, onShowFullLicense, licensePlan = { 
             </form>
           )}
           {error && <p className="license-account-error" role="alert"><AlertTriangle size={15} />{error}</p>}
-          <div className="license-info-card license-info-commercial">
-            <strong>Użytek komercyjny jest płatny</strong>
+          <details className="license-info-card license-info-commercial license-commercial-details">
+            <summary>{isPolish ? 'Użytek komercyjny jest płatny — co to oznacza?' : 'Commercial use requires a paid license — what does this mean?'}</summary>
             <ul>
               <li>Po okresie oceny praca firmowa, zarobkowa lub dla klienta wymaga bezterminowej licencji na każde stanowisko.</li>
               <li>Nie ma klucza do przepisywania — konto automatycznie pobiera plan i liczbę stanowisk z serwera MadCAD.</li>
               <li>Po sprawdzeniu plan komercyjny może działać offline przez ograniczony czas; cofnięcie lub wygaśnięcie planu wymaga ponownego sprawdzenia.</li>
               <li>Dobrowolna darowizna wspiera rozwój, ale nie zastępuje licencji komercyjnej.</li>
             </ul>
-          </div>
-          <p className="license-info-support-copy">Jeśli używasz MadCAD prywatnie i program jest dla Ciebie pomocny, możesz wesprzeć jego dalszy rozwój darowizną.</p>
+          </details>
           <div className="license-info-actions">
             <button className="secondary" type="button" onClick={onShowFullLicense}>Pełna treść licencji</button>
             <a className="commercial" href="https://madcad.madmagsystem.pl/#licencja" target="_blank" rel="noopener noreferrer">Kup licencję komercyjną</a>

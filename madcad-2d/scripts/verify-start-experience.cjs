@@ -52,9 +52,11 @@ app.whenReady().then(async () => {
         actionsInsideDialog: Boolean(actionRect && [...actions.children].every((item) => { const rect = item.getBoundingClientRect(); return rect.left >= actionRect.left && rect.right <= actionRect.right + 1; })),
         primaryOnOwnRow: Boolean(confirmRect && [...actions.children].filter((item) => item !== confirm).every((item) => item.getBoundingClientRect().bottom <= confirmRect.top)),
         primaryAlignedRight: Boolean(confirmRect && actionRect && (confirmRect.left + confirmRect.right) / 2 > (actionRect.left + actionRect.right) / 2),
+        primaryVisibleInViewport: Boolean(confirmRect && confirmRect.top >= 0 && confirmRect.bottom <= innerHeight + 1),
+        commercialDetailsCollapsed: !document.querySelector('.license-commercial-details')?.open,
       };
     })()`);
-    if (!licenseLayout.dialogInsideViewport || !licenseLayout.contentCanScroll || !licenseLayout.actionsInsideDialog || !licenseLayout.primaryOnOwnRow || !licenseLayout.primaryAlignedRight) throw new Error(`Komunikat licencyjny nie mieści się lub ma przypadkowy układ: ${JSON.stringify(licenseLayout)}`);
+    if (!licenseLayout.dialogInsideViewport || !licenseLayout.contentCanScroll || !licenseLayout.actionsInsideDialog || !licenseLayout.primaryOnOwnRow || !licenseLayout.primaryAlignedRight || !licenseLayout.primaryVisibleInViewport || !licenseLayout.commercialDetailsCollapsed) throw new Error(`Komunikat licencyjny nie mieści się lub ma przypadkowy układ: ${JSON.stringify(licenseLayout)}`);
     await capture(window, licenseScreenshotPath);
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
     await waitFor(window, `!document.querySelector('.license-info-dialog')`, 'zamknięcie informacji licencyjnej');
