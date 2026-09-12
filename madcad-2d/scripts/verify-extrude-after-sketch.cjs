@@ -69,16 +69,17 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.distance === '12'`, 'odleglosc wyciagniecia zapisana w stanie polecenia');
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'utworzona bryla', 30000);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 1 && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1 && window.__madcadVerifyEngineState.bodies[0].metrics.dimensions.some((value) => Math.abs(value - 12) < 0.01)`, 'utworzona bryla po zatwierdzeniu odległości', 30000);
     const result = await window.webContents.executeJavaScript(`({
       sketches: window.__madcadVerifyDocumentState.sketches.length,
       profiles: window.__madcadVerifyDocumentState.sketches[0].profiles,
       features: window.__madcadVerifyDocumentState.features,
       bodies: window.__madcadVerifyEngineState.bodies.length,
       volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume,
+      dimensions: window.__madcadVerifyEngineState.bodies[0].metrics.dimensions,
       planePickerVisible: Boolean(document.querySelector('.plane-options')),
     })`);
-    if (result.sketches !== 1 || result.profiles !== 1 || result.features !== 1 || result.bodies !== 1 || result.planePickerVisible || Math.abs(result.volume - 11520) > 0.01) {
+    if (result.sketches !== 1 || result.profiles !== 1 || result.features !== 1 || result.bodies !== 1 || result.planePickerVisible || Math.abs(result.volume - 11520) > 0.01 || !result.dimensions.some((value) => Math.abs(value - 12) < 0.01)) {
       throw new Error(`Bledny wynik przeplywu szkic -> Wyciagnij: ${JSON.stringify(result)}`);
     }
 
