@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.5.4 (2026-09-12)
+
+- naprawiono obsługę myszy w pierwszym rzędzie górnego paska na macOS: przyciski Plik, Nowy, Otwórz, Zapisz, Panel, Szukaj, Skróty i Pomoc nie są już przechwytywane przez obszar przeciągania okna;
+- dodano test rzeczywistego kliknięcia myszy w kontrolki górnego paska na systemach desktopowych;
+- wymuszono optyczne wycentrowanie obrazu logo w kaflu strony startowej.
+
 ## 6.5.3 (2026-09-12)
 
 - Uporządkowano znak MadCAD: zachowano czerwone „M”, zmniejszono wordmark i wygenerowano spójne ikony aplikacji, instalatorów, strony, panelu licencji oraz repozytorium.

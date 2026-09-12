@@ -267,7 +267,9 @@
 .modeling-titlebar button,
 .modeling-titlebar input,
 .modeling-titlebar select,
-.modeling-titlebar label,
+.modeling-titlebar label {
+  -webkit-app-region: no-drag;
+}
 
 .app-menu,
 .title-actions {
@@ -3351,11 +3353,14 @@
 }
 
 .start-page-brand img {
+  display: block;
   width: 52px;
   height: 52px;
   border: 1px solid rgba(102, 143, 179, 0.56);
   border-radius: 12px;
   box-shadow: 0 10px 26px rgba(4, 8, 14, 0.32);
+  object-fit: contain;
+  object-position: 50% 50%;
 }
 
 .start-page h1 {

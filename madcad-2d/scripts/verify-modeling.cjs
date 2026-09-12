@@ -572,8 +572,26 @@ async function runUiFlow(window) {
     );
   };
 
+  progress('native titlebar pointer controls');
+  const fileMenuPoint = await window.webContents.executeJavaScript(`(() => {
+    const rect = document.querySelector('#fileMenuBtn')?.getBoundingClientRect();
+    return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
+  })()`);
+  if (!fileMenuPoint) throw new Error('Brak przycisku Plik w górnym pasku.');
+  await sendMouse('mouseDown', fileMenuPoint);
+  await sendMouse('mouseUp', fileMenuPoint);
+  await waitForUi(window, `Boolean(document.querySelector('#file-backstage'))`, 'menu Plik otwarte rzeczywistym kliknięciem myszy');
+  await sendKey('Escape');
+  await waitForUi(window, `!document.querySelector('#file-backstage')`, 'zamknięcie menu Plik po teście myszy');
+
   progress('first CAD project tutorial');
-  await window.webContents.executeJavaScript(`document.querySelector('.app-help-trigger')?.click()`);
+  const helpPoint = await window.webContents.executeJavaScript(`(() => {
+    const rect = document.querySelector('.app-help-trigger')?.getBoundingClientRect();
+    return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
+  })()`);
+  if (!helpPoint) throw new Error('Brak przycisku Pomoc w górnym pasku.');
+  await sendMouse('mouseDown', helpPoint);
+  await sendMouse('mouseUp', helpPoint);
   await waitForUi(window, `document.querySelector('.app-help-menu [role="menu"]')`, 'otwarte menu pomocy');
   await clickByTitle('Samouczek pierwszego projektu CAD');
   await waitForUi(window, `document.querySelectorAll('.tutorial-body ol li').length === 8 && document.querySelectorAll('.tutorial-body aside li').length >= 5`, 'samouczek i znane ograniczenia');
