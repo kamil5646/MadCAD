@@ -2024,7 +2024,7 @@ async function runUiFlow(window) {
     await sendMouse('mouseMove', {
       x: dynamicLineMoveStart.x + ((dynamicLineDirection.x - dynamicLineMoveStart.x) * step / 5),
       y: dynamicLineMoveStart.y + ((dynamicLineDirection.y - dynamicLineMoveStart.y) * step / 5),
-    }, ['alt']);
+    });
   }
   await waitForUi(
     window,
