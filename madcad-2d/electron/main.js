@@ -28,6 +28,7 @@ const { normalizeWindowBounds } = require('./window-bounds.cjs');
 const updatePolicy = require('./update-policy.cjs');
 const dwgConverter = require('./dwg-converter.cjs');
 const { createLicenseClient } = require('./license-client.cjs');
+const { selectImportFile } = require('./import-file.cjs');
 const packageMetadata = require('../package.json');
 
 const execFileAsync = promisify(execFile);
@@ -1633,6 +1634,29 @@ registerTrustedIpcHandler('madcad:open-project-file', async (event) => {
     return { ok: false, canceled: false, error: storageErrorMessage(error, 'Nie udało się otworzyć projektu.', 'Failed to open the project.') };
   }
 });
+
+for (const [channel, kind] of [
+  ['madcad:select-model-import-file', 'model'],
+  ['madcad:select-sketch-import-file', 'sketch'],
+]) {
+  registerTrustedIpcHandler(channel, async (event) => {
+    try {
+      return await selectImportFile({
+        kind,
+        dialog,
+        fileSystem: fs,
+        ownerWindow: BrowserWindow.fromWebContents(event.sender) || null,
+        translate: t,
+      });
+    } catch (error) {
+      return {
+        ok: false,
+        canceled: false,
+        error: storageErrorMessage(error, 'Nie udało się odczytać pliku importu.', 'Failed to read the import file.'),
+      };
+    }
+  });
+}
 
 async function readLinkedProjectFile(resolvedPath) {
   const stats = await fs.stat(resolvedPath);

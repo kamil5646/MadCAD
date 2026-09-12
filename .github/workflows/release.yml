@@ -63,6 +63,10 @@ jobs:
         working-directory: madcad-2d
         run: npm run test:license
 
+      - name: Run native import file tests
+        working-directory: madcad-2d
+        run: npm run test:import-file
+
       - name: Audit app dependencies
         working-directory: madcad-2d
         run: npm audit --audit-level=high

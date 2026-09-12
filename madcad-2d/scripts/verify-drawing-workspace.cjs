@@ -90,10 +90,10 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.views?.[3]?.type === 'detail' && document.querySelector('.drawing-detail-border')`, 'powiększony detal');
     await waitFor(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.drawings?.[0]?.views?.length === 4`, 'autozapis widoków pochodnych');
 
-    await window.webContents.executeJavaScript(`document.querySelector('.app-help-menu summary')?.click()`);
-    await waitFor(window, `document.querySelector('.app-help-menu')?.open`, 'otwarte menu Pomoc');
+    await window.webContents.executeJavaScript(`document.querySelector('.app-help-trigger')?.click()`);
+    await waitFor(window, `document.querySelector('.app-help-trigger')?.getAttribute('aria-expanded') === 'true'`, 'otwarte menu Pomoc');
     await window.webContents.executeJavaScript(`document.querySelector('.drawing-paper')?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`);
-    await waitFor(window, `!document.querySelector('.app-help-menu')?.open`, 'menu Pomoc zamknięte po kliknięciu poza nim');
+    await waitFor(window, `document.querySelector('.app-help-trigger')?.getAttribute('aria-expanded') === 'false' && !document.querySelector('.app-help-menu [role="menu"]')`, 'menu Pomoc zamknięte po kliknięciu poza nim');
 
     await window.webContents.executeJavaScript(`document.querySelectorAll('.drawing-view')[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
 

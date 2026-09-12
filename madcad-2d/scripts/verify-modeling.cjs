@@ -170,6 +170,7 @@ async function verifyEnglishModelingUi() {
     await new Promise((resolve) => setTimeout(resolve, 300));
     await englishWindow.webContents.executeJavaScript(`(() => {
       document.querySelector('button[aria-label="Workspace layouts"]')?.click();
+      document.querySelector('.app-help-trigger')?.click();
       window.__madcadVerifyShowImportRepairReport?.();
     })()`);
     await new Promise((resolve) => setTimeout(resolve, 150));
@@ -572,11 +573,20 @@ async function runUiFlow(window) {
   };
 
   progress('first CAD project tutorial');
+  await window.webContents.executeJavaScript(`document.querySelector('.app-help-trigger')?.click()`);
+  await waitForUi(window, `document.querySelector('.app-help-menu [role="menu"]')`, 'otwarte menu pomocy');
   await clickByTitle('Samouczek pierwszego projektu CAD');
   await waitForUi(window, `document.querySelectorAll('.tutorial-body ol li').length === 8 && document.querySelectorAll('.tutorial-body aside li').length >= 5`, 'samouczek i znane ograniczenia');
   const tutorial = await window.webContents.executeJavaScript(`({ steps: document.querySelectorAll('.tutorial-body ol li').length, limitations: document.querySelectorAll('.tutorial-body aside li').length })`);
   await sendKey('Escape');
   await waitForUi(window, `!document.querySelector('.tutorial-dialog')`, 'zamknięty samouczek');
+  await waitForUi(window, `document.activeElement === document.querySelector('.app-help-trigger')`, 'powrót fokusu na Pomoc');
+  await window.webContents.executeJavaScript(`document.querySelector('.app-help-trigger')?.click()`);
+  await waitForUi(window, `document.querySelector('.app-help-menu [role="menu"]')`, 'ponownie otwarte menu pomocy');
+  await clickByTitle('Sprawdź aktualizacje');
+  await waitForUi(window, `document.querySelector('#updateDialogTitle')`, 'rzeczywiste otwarcie aktualizacji');
+  await sendKey('Escape');
+  await waitForUi(window, `!document.querySelector('#updateDialogTitle')`, 'zamknięcie aktualizacji');
 
   progress('unsaved changes guard');
   await window.webContents.executeJavaScript(`(() => {
@@ -2835,15 +2845,13 @@ app.whenReady().then(async () => {
     }
     process.stdout.write('[verify] engine ready\n');
     const licenseUi = await window.webContents.executeJavaScript(`(() => {
-      const entry = document.querySelector('#licenseInfoBtn');
       return {
         legacyInterface: Boolean(document.querySelector('.app, #open3dPrintBtn')),
         legacyOverlay: Boolean(document.querySelector('#licenseOverlay')),
         legacyTokenControls: Boolean(document.querySelector('#licenseTokenInput, #licenseActivateTokenBtn, #licenseDeviceIdInput')),
-        entryVisible: Boolean(entry && !entry.hidden),
       };
     })()`);
-    if (licenseUi.legacyInterface || licenseUi.legacyOverlay || licenseUi.legacyTokenControls || !licenseUi.entryVisible) {
+    if (licenseUi.legacyInterface || licenseUi.legacyOverlay || licenseUi.legacyTokenControls) {
       throw new Error(`Interfejs nadal zawiera stary widok lub aktywację kluczem: ${JSON.stringify(licenseUi)}.`);
     }
     await waitForUi(window, `Boolean(document.querySelector('.license-info-dialog'))`, 'startowe przypomnienie o licencji');
@@ -2879,6 +2887,8 @@ app.whenReady().then(async () => {
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     await waitForUi(window, `!document.querySelector('.license-info-dialog')`, 'zamknięcie okna informacji o licencji');
+    await window.webContents.executeJavaScript(`document.querySelector('.app-help-trigger')?.click()`);
+    await waitForUi(window, `document.querySelector('.app-help-menu [role="menu"]')`, 'menu pomocy przed licencją');
     await window.webContents.executeJavaScript(`document.querySelector('#licenseInfoBtn')?.click()`);
     await waitForUi(window, `Boolean(document.querySelector('.license-info-dialog'))`, 'ponowne otwarcie informacji o licencji');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button[aria-label="Zamknij"], .license-info-dialog button[aria-label="Close"]')?.click()`);

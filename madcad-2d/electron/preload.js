@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('desktopApp', {
   })(),
   saveTextFile: (payload) => ipcRenderer.invoke('madcad:save-text-file', payload),
   openProjectFile: () => ipcRenderer.invoke('madcad:open-project-file'),
+  selectModelImportFile: () => ipcRenderer.invoke('madcad:select-model-import-file'),
+  selectSketchImportFile: () => ipcRenderer.invoke('madcad:select-sketch-import-file'),
   confirmUnsavedChanges: (payload) => ipcRenderer.invoke('madcad:confirm-unsaved-changes', payload),
   sendToSlicer: (payload) => ipcRenderer.invoke('madcad:send-to-slicer', payload),
   importDwgSketch: () => ipcRenderer.invoke('madcad:import-dwg-sketch'),

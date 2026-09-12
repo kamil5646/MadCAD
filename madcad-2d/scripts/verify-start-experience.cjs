@@ -66,9 +66,6 @@ app.whenReady().then(async () => {
 
     const wide = await window.webContents.executeJavaScript(`(() => {
       const page = document.querySelector('.start-page');
-      const brand = document.querySelector('.brand-mark img');
-      const brandMark = brand?.closest('.brand-mark');
-      const titleActions = document.querySelector('.title-actions');
       const startBrand = page?.querySelector('.start-page-brand img');
       const shell = page?.querySelector('.start-page-shell');
       const primary = page?.querySelector('.start-page-action.primary');
@@ -82,8 +79,8 @@ app.whenReady().then(async () => {
         workflowText: page?.querySelector('.start-page-flow')?.textContent.trim() || '',
         tabs: labels,
         fileMenuAvailable: Boolean(document.querySelector('#fileMenuBtn')),
-        sharedIcon: Boolean(brand?.src && brand.src === startBrand?.src && brand.naturalWidth >= 512),
-        logoAtRightEnd: Boolean(brandMark && titleActions && brandMark.parentElement === titleActions && titleActions.lastElementChild === brandMark),
+        sharedIcon: Boolean(startBrand?.src && startBrand.naturalWidth >= 512),
+        logoAtRightEnd: Boolean(document.querySelector('.title-actions .brand-mark')),
         browserHiddenByDefault: !document.querySelector('.model-browser') && document.querySelector('.modeling-content')?.classList.contains('without-browser'),
         browserToggleAvailable: Boolean(browserToggle && !browserToggle.classList.contains('active')),
         shellWidth: shell?.getBoundingClientRect().width || 0,
@@ -92,7 +89,7 @@ app.whenReady().then(async () => {
       };
     })()`);
 
-    if (!wide.title.includes('Zacznij od szkicu 2D') || !wide.primaryText.includes('Nowy szkic 2D') || !wide.workflowText.includes('Arkusz techniczny 2D') || !wide.workflowText.includes('Model parametryczny 3D') || !wide.workflowText.includes('Opcjonalnie: druk 3D') || wide.tabs.join('|') !== 'PROJEKTUJ|ARKUSZ 2D|WYTWARZANIE|ZARZĄDZAJ' || !wide.fileMenuAvailable || !wide.sharedIcon || !wide.logoAtRightEnd || !wide.browserHiddenByDefault || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
+    if (!wide.title.includes('Zacznij od szkicu 2D') || !wide.primaryText.includes('Nowy szkic 2D') || !wide.workflowText.includes('Arkusz techniczny 2D') || !wide.workflowText.includes('Model parametryczny 3D') || !wide.workflowText.includes('Opcjonalnie: druk 3D') || wide.tabs.join('|') !== 'PROJEKTUJ|ARKUSZ 2D|WYTWARZANIE|ZARZĄDZAJ' || !wide.fileMenuAvailable || !wide.sharedIcon || wide.logoAtRightEnd || !wide.browserHiddenByDefault || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
       throw new Error(`Nieprawidłowa hierarchia strony startowej: ${JSON.stringify(wide)}`);
     }
 

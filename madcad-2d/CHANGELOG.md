@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.5.3 (2026-09-12)
+
+- Uporządkowano znak MadCAD: zachowano czerwone „M”, zmniejszono wordmark i wygenerowano spójne ikony aplikacji, instalatorów, strony, panelu licencji oraz repozytorium.
+- Usunięto zbędny znak marki z prawego końca górnego paska, odzyskując miejsce na polecenia.
+- Zastąpiono menu Pomoc kontrolowanym komponentem React z obsługą myszy, klawiatury, Escape, kliknięcia poza menu i przywracaniem fokusu.
+- Dodano bezpieczny, natywny wybór plików STEP, STL, 3MF, SVG i DXF przez Electron IPC z limitem 512 MiB, walidacją i cichym anulowaniem.
+- Zachowano bezpośredni wybór pliku w wersji przeglądarkowej oraz wspólny przepływ importu, raportowania i dopasowania widoku.
+
 ## 6.5.2 (2026-09-11)
 
 - Wprowadzono zaakceptowaną, profesjonalną identyfikację MadCAD: czerwony znak konstrukcyjny z wyraźnym wordmarkiem na czarnym tle.

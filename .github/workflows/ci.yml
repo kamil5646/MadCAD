@@ -37,6 +37,8 @@ jobs:
         run: npm test
       - name: Run license client tests
         run: npm run test:license
+      - name: Run native import file tests
+        run: npm run test:import-file
       - name: Run solid FEA benchmark gate
         run: npm run verify:solid-fea-benchmarks
       - name: Verify repository, website and licensing metadata

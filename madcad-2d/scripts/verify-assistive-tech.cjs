@@ -27,8 +27,8 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.modeling-shell')`, 'interfejs aplikacji');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
     await waitFor(window, `!document.querySelector('.license-info-dialog') && document.querySelector('.engine-status.ready')`, 'gotowy interfejs CAD', 45000);
-    await window.webContents.executeJavaScript(`document.querySelector('.app-help-menu summary')?.click()`);
-    await waitFor(window, `document.querySelector('.app-help-menu')?.open`, 'otwarte menu pomocy');
+    await window.webContents.executeJavaScript(`document.querySelector('.app-help-trigger')?.click()`);
+    await waitFor(window, `document.querySelector('.app-help-trigger')?.getAttribute('aria-expanded') === 'true' && document.querySelector('.app-help-menu [role="menu"]')`, 'otwarte menu pomocy');
 
     window.webContents.debugger.attach('1.3');
     await window.webContents.debugger.sendCommand('Accessibility.enable');
@@ -37,8 +37,9 @@ app.whenReady().then(async () => {
     const interactive = nodes.filter((node) => interactiveRoles.has(axValue(node, 'role')) && !node.ignored);
     const unnamed = interactive.filter((node) => !axValue(node, 'name')).map((node) => ({ role: axValue(node, 'role'), nodeId: node.nodeId }));
     const names = interactive.map((node) => axValue(node, 'name')).filter(Boolean);
-    const requiredNames = ['Pokaż lub ukryj przeglądarkę', 'Nowy projekt', 'Otwórz projekt', 'Język interfejsu', 'Samouczek pierwszego projektu CAD'];
+    const requiredNames = ['Pokaż lub ukryj przeglądarkę', 'Nowy projekt', 'Otwórz projekt', 'Język interfejsu'];
     const missingRequiredNames = requiredNames.filter((name) => !names.includes(name));
+    const tutorialMenuAvailable = await window.webContents.executeJavaScript(`document.querySelector('[role="menuitem"][aria-label="Samouczek pierwszego projektu CAD"]') instanceof HTMLButtonElement`);
 
     await window.webContents.executeJavaScript(`document.body.focus()`);
     const focusSequence = [];
@@ -97,6 +98,7 @@ app.whenReady().then(async () => {
     };
     if (unnamed.length
       || missingRequiredNames.length
+      || !tutorialMenuAvailable
       || (roles.toolbar || 0) < 2
       || (roles.tab || 0) < 1
       || distinctFocusNames.length < 8

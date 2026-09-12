@@ -59,7 +59,6 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import madcadIconUrl from '../../assets/icons/madcad-512.png';
 import {
   DOCUMENT_SCHEMA_VERSION,
   cloneDocument,
@@ -466,6 +465,12 @@ function featureIcon(type, size = 16) {
   return <Box size={size} />;
 }
 
+function normalizeSelectedFileBytes(bytes) {
+  if (bytes instanceof ArrayBuffer) return bytes;
+  if (ArrayBuffer.isView(bytes)) return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  return null;
+}
+
 export default function ModelingWorkspace() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [licenseInfoOpen, setLicenseInfoOpen] = useState(true);
@@ -579,6 +584,7 @@ export default function ModelingWorkspace() {
   const [command, setCommand] = useState(null);
   const [commandHistory, setCommandHistory] = useState([]);
   const [toolHelp, setToolHelp] = useState(null);
+  const [helpMenuOpen, setHelpMenuOpen] = useState(false);
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
   const [surfaceAnalysis, setSurfaceAnalysis] = useState(null);
   const [meshToolsOpen, setMeshToolsOpen] = useState(false);
@@ -638,6 +644,7 @@ export default function ModelingWorkspace() {
   const currentCameraRef = useRef(null);
   const renderCaptureRef = useRef(null);
   const helpMenuRef = useRef(null);
+  const helpButtonRef = useRef(null);
   const shortcutRegistryRef = useRef(new Map());
   const autosaveQueueRef = useRef(Promise.resolve());
   const autosaveSuspendedRef = useRef(false);
@@ -680,15 +687,23 @@ export default function ModelingWorkspace() {
   }, [fileMenuOpen]);
   useEffect(() => {
     setToolHelp(null);
-    helpMenuRef.current?.removeAttribute('open');
+    setHelpMenuOpen(false);
     if (workspace === 'drawing') setBrowserOpen(false);
   }, [workspace, activeSketchId, command?.type]);
   useEffect(() => {
     const dismissTransientChrome = (event) => {
       setToolHelp(null);
-      if (event.type === 'keydown' && event.key !== 'Escape') return;
+      if (event.type === 'keydown') {
+        if (event.key !== 'Escape') return;
+        if (helpMenuOpen) {
+          event.preventDefault();
+          setHelpMenuOpen(false);
+          window.requestAnimationFrame(() => helpButtonRef.current?.focus());
+        }
+        return;
+      }
       if (event.type === 'pointerdown' && helpMenuRef.current?.contains(event.target)) return;
-      helpMenuRef.current?.removeAttribute('open');
+      setHelpMenuOpen(false);
     };
     window.addEventListener('pointerdown', dismissTransientChrome, true);
     window.addEventListener('keydown', dismissTransientChrome, true);
@@ -696,7 +711,7 @@ export default function ModelingWorkspace() {
       window.removeEventListener('pointerdown', dismissTransientChrome, true);
       window.removeEventListener('keydown', dismissTransientChrome, true);
     };
-  }, []);
+  }, [helpMenuOpen]);
   useEffect(() => {
     const restoreLayoutForCurrentMonitor = () => {
       const nextKey = panelScreenKey(window.screen);
@@ -6291,59 +6306,82 @@ export default function ModelingWorkspace() {
     }
   };
 
-  const chooseModelImport = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    const originalFormat = file.name.split('.').pop()?.toLowerCase();
+  const prepareModelImport = async ({ fileName, originalFormat, sourceBuffer }) => {
     if (!['step', 'stp', 'stl', '3mf'].includes(originalFormat)) {
       setNotice('Import obsługuje pliki STEP, STL i 3MF.');
       return;
     }
+    const normalizedFormat = originalFormat === 'stp' ? 'step' : originalFormat;
+    const inspection = inspectModelImportBuffer(sourceBuffer, normalizedFormat);
+    let importFormat = originalFormat === 'step' || originalFormat === 'stp' ? 'step' : 'stl';
+    let buffer = sourceBuffer;
+    let detectedUnit = 'millimeter';
+    let objectCount = null;
+    let triangleCount = inspection.triangleCount;
+    if (originalFormat === '3mf') {
+      const [{ ThreeMFLoader }, { STLExporter }] = await Promise.all([
+        import('three/examples/jsm/loaders/3MFLoader.js'),
+        import('three/examples/jsm/exporters/STLExporter.js'),
+      ]);
+      const archiveInfo = inspectThreeMfArchive(sourceBuffer);
+      detectedUnit = normalizeModelUnit(archiveInfo.unit);
+      objectCount = archiveInfo.objectCount;
+      triangleCount = archiveInfo.triangleCount;
+      const group = new ThreeMFLoader().parse(sourceBuffer);
+      group.updateMatrixWorld(true);
+      const exported = new STLExporter().parse(group, { binary: true });
+      buffer = exported.buffer.slice(exported.byteOffset, exported.byteOffset + exported.byteLength);
+      inspectModelImportBuffer(buffer, 'stl');
+    }
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+    setImportDraft({
+      fileName,
+      name: fileName.replace(/\.(step|stp|stl|3mf)$/i, ''),
+      originalFormat: normalizedFormat,
+      importFormat,
+      dataBase64: btoa(binary),
+      sourceUnit: originalFormat === '3mf' ? detectedUnit : 'auto',
+      detectedUnit,
+      sourceBytes: inspection.bytes,
+      storedBytes: buffer.byteLength,
+      objectCount,
+      triangleCount,
+      importMode: inspection.importMode,
+    });
+    setNotice(`Wczytano ${fileName} · ${formatModelFileSize(inspection.bytes)}${Number.isFinite(triangleCount) ? ` · ${triangleCount.toLocaleString('pl-PL')} trójkątów` : ''}. Potwierdź jednostkę źródłową.`);
+  };
+
+  const chooseModelImport = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
     setModelImportBusy(true);
     setNotice(`Sprawdzanie i przygotowywanie pliku ${file.name}…`);
     try {
-      const sourceBuffer = await file.arrayBuffer();
-      const normalizedFormat = originalFormat === 'stp' ? 'step' : originalFormat;
-      const inspection = inspectModelImportBuffer(sourceBuffer, normalizedFormat);
-      let importFormat = originalFormat === 'step' || originalFormat === 'stp' ? 'step' : 'stl';
-      let buffer = sourceBuffer;
-      let detectedUnit = 'millimeter';
-      let objectCount = null;
-      let triangleCount = inspection.triangleCount;
-      if (originalFormat === '3mf') {
-        const [{ ThreeMFLoader }, { STLExporter }] = await Promise.all([
-          import('three/examples/jsm/loaders/3MFLoader.js'),
-          import('three/examples/jsm/exporters/STLExporter.js'),
-        ]);
-        const archiveInfo = inspectThreeMfArchive(sourceBuffer);
-        detectedUnit = normalizeModelUnit(archiveInfo.unit);
-        objectCount = archiveInfo.objectCount;
-        triangleCount = archiveInfo.triangleCount;
-        const group = new ThreeMFLoader().parse(sourceBuffer);
-        group.updateMatrixWorld(true);
-        const exported = new STLExporter().parse(group, { binary: true });
-        buffer = exported.buffer.slice(exported.byteOffset, exported.byteOffset + exported.byteLength);
-        inspectModelImportBuffer(buffer, 'stl');
-      }
-      const bytes = new Uint8Array(buffer);
-      let binary = '';
-      for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-      setImportDraft({
-        fileName: file.name,
-        name: file.name.replace(/\.(step|stp|stl|3mf)$/i, ''),
-        originalFormat: originalFormat === 'stp' ? 'step' : originalFormat,
-        importFormat,
-        dataBase64: btoa(binary),
-        sourceUnit: originalFormat === '3mf' ? detectedUnit : 'auto',
-        detectedUnit,
-        sourceBytes: inspection.bytes,
-        storedBytes: buffer.byteLength,
-        objectCount,
-        triangleCount,
-        importMode: inspection.importMode,
-      });
-      setNotice(`Wczytano ${file.name} · ${formatModelFileSize(inspection.bytes)}${Number.isFinite(triangleCount) ? ` · ${triangleCount.toLocaleString('pl-PL')} trójkątów` : ''}. Potwierdź jednostkę źródłową.`);
+      await prepareModelImport({ fileName: file.name, originalFormat: file.name.split('.').pop()?.toLowerCase(), sourceBuffer: await file.arrayBuffer() });
+    } catch (error) {
+      setNotice(`Nie udało się odczytać modelu: ${error.message}`);
+    } finally {
+      setModelImportBusy(false);
+    }
+  };
+
+  const requestModelImport = async () => {
+    if (!window.desktopApp?.selectModelImportFile) {
+      importInputRef.current?.click();
+      return;
+    }
+    setModelImportBusy(true);
+    setNotice('Wybierz plik STEP, STL albo 3MF…');
+    try {
+      const result = await window.desktopApp.selectModelImportFile();
+      if (result?.canceled) return;
+      const sourceBuffer = normalizeSelectedFileBytes(result?.bytes);
+      if (!result?.ok || !sourceBuffer) throw new Error(result?.error || 'Nie otrzymano danych wybranego pliku.');
+      setNotice(`Sprawdzanie i przygotowywanie pliku ${result.fileName}…`);
+      await prepareModelImport({ fileName: result.fileName, originalFormat: result.format, sourceBuffer });
     } catch (error) {
       setNotice(`Nie udało się odczytać modelu: ${error.message}`);
     } finally {
@@ -6387,20 +6425,40 @@ export default function ModelingWorkspace() {
     setNotice(`Importowanie ${importDraft.fileName} w silniku CAD… Po zakończeniu pokażę wynik albo dokładny powód odrzucenia pliku.`);
   };
 
-  const chooseSketchImport = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file || !activeSketchId || readOnly) return;
-    const format = file.name.split('.').pop()?.toLowerCase();
+  const prepareSketchImport = ({ fileName, format, text }) => {
     if (!['svg', 'dxf'].includes(format)) {
       setNotice('Import szkicu obsługuje pliki SVG i DXF.');
       return;
     }
+    const inspected = inspectSketchImport(text, format);
+    setSketchImportDraft({ fileName, format, text, detectedUnit: inspected.detectedUnit, sourceUnit: 'auto' });
+    setNotice(`Wczytano ${fileName}. Potwierdź jednostkę przed dodaniem geometrii.`);
+  };
+
+  const chooseSketchImport = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !activeSketchId || readOnly) return;
     try {
-      const text = await file.text();
-      const inspected = inspectSketchImport(text, format);
-      setSketchImportDraft({ fileName: file.name, format, text, detectedUnit: inspected.detectedUnit, sourceUnit: 'auto' });
-      setNotice(`Wczytano ${file.name}. Potwierdź jednostkę przed dodaniem geometrii.`);
+      prepareSketchImport({ fileName: file.name, format: file.name.split('.').pop()?.toLowerCase(), text: await file.text() });
+    } catch (error) {
+      setNotice(`Nie udało się odczytać szkicu: ${error.message}`);
+    }
+  };
+
+  const requestSketchImport = async () => {
+    if (!activeSketchId || readOnly) return;
+    if (!window.desktopApp?.selectSketchImportFile) {
+      sketchImportInputRef.current?.click();
+      return;
+    }
+    setNotice('Wybierz plik SVG albo DXF…');
+    try {
+      const result = await window.desktopApp.selectSketchImportFile();
+      if (result?.canceled) return;
+      const sourceBuffer = normalizeSelectedFileBytes(result?.bytes);
+      if (!result?.ok || !sourceBuffer) throw new Error(result?.error || 'Nie otrzymano danych wybranego pliku.');
+      prepareSketchImport({ fileName: result.fileName, format: result.format, text: new TextDecoder('utf-8', { fatal: false }).decode(sourceBuffer) });
     } catch (error) {
       setNotice(`Nie udało się odczytać szkicu: ${error.message}`);
     }
@@ -7500,16 +7558,15 @@ export default function ModelingWorkspace() {
           <button id="undoProjectBtn" type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button>
           <button id="redoProjectBtn" type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button>
           <button id="commandShortcutsBtn" className={commandCustomizationOpen ? 'active' : ''} type="button" aria-pressed={commandCustomizationOpen} title="Skróty klawiszowe i polecenia · F1" onClick={() => { setLayersOpen(false); setBlocksOpen(false); setComponentsOpen(false); setCommandCustomizationOpen((open) => !open); }}><Keyboard size={15} /><span>Skróty</span></button>
-          <details className="app-help-menu" ref={helpMenuRef}>
-            <summary title="Pomoc i ustawienia"><CircleHelp size={15} /><span>Pomoc</span><ChevronDown size={12} /></summary>
-            <div>
-              <button type="button" title="Samouczek pierwszego projektu CAD" aria-label="Samouczek pierwszego projektu CAD" onClick={(event) => { setTutorialOpen(true); event.currentTarget.closest('details')?.removeAttribute('open'); }}><CircleHelp size={15} /><span>Samouczek</span></button>
-              <button id="checkUpdatesBtn" type="button" title="Sprawdź aktualizacje" onClick={(event) => { void checkForUpdates(false); event.currentTarget.closest('details')?.removeAttribute('open'); }}><HardDriveDownload size={15} /><span>Aktualizacje</span></button>
-              <button id="licenseInfoBtn" type="button" title={`Licencja: ${licensePlanStatus.label}`} onClick={(event) => { setLicenseInfoOpen(true); event.currentTarget.closest('details')?.removeAttribute('open'); }}><CircleHelp size={15} /><span>Licencja · {licensePlanStatus.label}</span></button>
+          <div className={`app-help-menu ${helpMenuOpen ? 'open' : ''}`} ref={helpMenuRef}>
+            <button ref={helpButtonRef} className="app-help-trigger" type="button" title="Pomoc i ustawienia" aria-label="Pomoc i ustawienia" aria-haspopup="menu" aria-expanded={helpMenuOpen} onClick={() => setHelpMenuOpen((open) => !open)}><CircleHelp size={15} /><span>Pomoc</span><ChevronDown size={12} /></button>
+            {helpMenuOpen && <div role="menu" aria-label="Pomoc i ustawienia">
+              <button role="menuitem" type="button" title="Samouczek pierwszego projektu CAD" aria-label="Samouczek pierwszego projektu CAD" onClick={() => { setHelpMenuOpen(false); setTutorialOpen(true); }}><CircleHelp size={15} /><span>Samouczek</span></button>
+              <button role="menuitem" id="checkUpdatesBtn" type="button" title="Sprawdź aktualizacje" onClick={() => { setHelpMenuOpen(false); void checkForUpdates(false); }}><HardDriveDownload size={15} /><span>Aktualizacje</span></button>
+              <button role="menuitem" id="licenseInfoBtn" type="button" title={`Licencja: ${licensePlanStatus.label}`} onClick={() => { setHelpMenuOpen(false); setLicenseInfoOpen(true); }}><CircleHelp size={15} /><span>Licencja · {licensePlanStatus.label}</span></button>
               <label className="language-select" title="Język interfejsu"><span>Język</span><select aria-label="Język interfejsu" value={language} onChange={(event) => { void changeAppLanguage(event.target.value); }}><option value="pl">Polski</option><option value="en">English</option></select></label>
-            </div>
-          </details>
-          <div className="brand-mark" title="MadCAD"><img src={madcadIconUrl} alt="MadCAD" /></div>
+            </div>}
+          </div>
         </div>
       </header>
 
@@ -7524,8 +7581,8 @@ export default function ModelingWorkspace() {
               <button type="button" disabled={readOnly} onClick={() => { setFileMenuOpen(false); void saveProject(); }}><Save /><span><strong>Zapisz projekt</strong><small>{dirty ? 'Zapisz bieżące zmiany.' : 'Projekt jest już zapisany.'}</small></span></button>
             </section>
             <section><h2>IMPORT</h2>
-              <button id="fileImportModelBtn" type="button" disabled={readOnly || modelImportBusy} onClick={() => { setFileMenuOpen(false); window.requestAnimationFrame(() => importInputRef.current?.click()); }}><Upload /><span><strong>Model 3D</strong><small>STEP, STL albo 3MF.</small></span></button>
-              <button id="fileImportSketchBtn" type="button" disabled={readOnly || !activeSketchId} onClick={() => { setFileMenuOpen(false); window.requestAnimationFrame(() => sketchImportInputRef.current?.click()); }}><Upload /><span><strong>Szkic 2D</strong><small>SVG albo DXF · dostępne podczas edycji szkicu.</small></span></button>
+              <button id="fileImportModelBtn" type="button" disabled={readOnly || modelImportBusy} onClick={() => { void requestModelImport(); setFileMenuOpen(false); }}><Upload /><span><strong>Model 3D</strong><small>STEP, STL albo 3MF.</small></span></button>
+              <button id="fileImportSketchBtn" type="button" disabled={readOnly || !activeSketchId} onClick={() => { void requestSketchImport(); setFileMenuOpen(false); }}><Upload /><span><strong>Szkic 2D</strong><small>SVG albo DXF · dostępne podczas edycji szkicu.</small></span></button>
               <button id="fileImportDwgBtn" type="button" disabled={readOnly || !activeSketchId} onClick={() => { setFileMenuOpen(false); void chooseDwgSketchImport(); }}><Upload /><span><strong>Szkic DWG</strong><small>Lokalna konwersja podczas edycji szkicu.</small></span></button>
             </section>
             <section><h2>EKSPORT MODELU</h2>
@@ -8072,7 +8129,7 @@ export default function ModelingWorkspace() {
           <span className="timeline-end" /></> : <span className="timeline-empty-label">Historia operacji pojawi się po utworzeniu pierwszej bryły.</span>}
         </div>}
       </footer>
-      {tutorialOpen && <FirstPartTutorial onClose={() => setTutorialOpen(false)} />}
+      {tutorialOpen && <FirstPartTutorial onClose={() => { setTutorialOpen(false); requestAnimationFrame(() => helpButtonRef.current?.focus()); }} />}
       {licenseInfoOpen && <LicenseInfoDialog licensePlan={licensePlan} busy={licenseBusy} error={licenseError} allowVerificationBypass={licenseVerificationMode} onLogin={(data) => runLicenseAction('licenseLogin', data)} onRegister={(data) => runLicenseAction('licenseRegister', data)} onStartTrial={() => runLicenseAction('licenseStartTrial')} onLogout={() => runLicenseAction('licenseLogout')} onRefresh={() => runLicenseAction('licenseGetStatus')} onRequestPasswordReset={(data) => runLicenseAction('licenseRequestPasswordReset', data)} onResetPassword={(data) => runLicenseAction('licenseResetPassword', data)} onResendVerification={() => runLicenseAction('licenseResendVerification')} onVerifyEmail={(data) => runLicenseAction('licenseVerifyEmail', data)} onClose={() => { if (licensePlan.accessAllowed || licenseVerificationMode) setLicenseInfoOpen(false); }} onShowFullLicense={() => { setLicenseInfoOpen(false); setFullLicenseOpen(true); }} />}
       {fullLicenseOpen && <FullLicenseDialog onClose={() => { setFullLicenseOpen(false); if (!licensePlan.accessAllowed && !licenseVerificationMode) setLicenseInfoOpen(true); }} />}
       {updateState.open && !updatePromptBlocked && <UpdateDialog state={updateState} onCheck={checkForUpdates} onInstall={installAvailableUpdate} onClose={() => setUpdateState((current) => ({ ...current, open: false, promptPending: false }))} />}
