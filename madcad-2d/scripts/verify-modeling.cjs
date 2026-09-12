@@ -2159,8 +2159,10 @@ async function runUiFlow(window) {
   }
   const topologyIds = await window.webContents.executeJavaScript(`(() => {
     const body = window.__madcadVerifyEngineState.bodies[0];
+    if (!body?.topology?.faces?.[0] || !body?.topology?.edges?.[0]) return null;
     return { face: body.topology.faces[0].id, edge: body.topology.edges[0].id, body: body.id };
   })()`);
+  if (!topologyIds) throw new Error('Gotowa bryła nie udostępniła topologii do testu wyboru.');
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'face', id: ${JSON.stringify(topologyIds.face)}, bodyId: ${JSON.stringify(topologyIds.body)} }, 'replace')`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'edge', id: ${JSON.stringify(topologyIds.edge)}, bodyId: ${JSON.stringify(topologyIds.body)} }, 'add')`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.items?.length === 2`, 'wielokrotny wybór topologii');
@@ -2168,10 +2170,13 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.items?.length === 1 && window.__madcadVerifyDocumentState.selection.items[0].kind === 'edge'`, 'przełączenie topologii Ctrl');
   await waitForUi(window, `window.__madcadModelScreenState?.topologyPoints?.[${JSON.stringify(topologyIds.face)}]`, 'punkt ekranowy ściany');
   const facePoint = await window.webContents.executeJavaScript(`window.__madcadModelScreenState.topologyPoints[${JSON.stringify(topologyIds.face)}]`);
+  if (!Number.isFinite(facePoint?.x) || !Number.isFinite(facePoint?.y)) throw new Error(`Nieprawidłowy punkt ekranowy ściany: ${JSON.stringify(facePoint)}`);
   await sendMouse('mouseMove', facePoint);
   await waitForUi(window, `window.__madcadModelHover?.kind === 'face'`, 'hover ściany');
+  await waitForUi(window, `[...document.querySelectorAll('.selection-filter-bar button')].some((item) => item.textContent === 'Ściany')`, 'filtr wyboru ścian');
   await window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.selection-filter-bar button')].find((item) => item.textContent === 'Ściany');
+    if (!button) throw new Error('Brak filtra wyboru ścian.');
     button.click();
   })()`);
   await sendMouse('mouseMove', facePoint);
@@ -2183,13 +2188,16 @@ async function runUiFlow(window) {
   await sendMouse('mouseDown', facePoint, ['alt']);
   await sendMouse('mouseUp', facePoint, ['alt']);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id !== ${JSON.stringify(firstCycledFace)}`, 'cykliczny wybór nakładającej się ściany');
+  await waitForUi(window, `[...document.querySelectorAll('.selection-filter-bar button')].some((item) => item.textContent === 'Bryły')`, 'filtr wyboru brył');
   await window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.selection-filter-bar button')].find((item) => item.textContent === 'Bryły');
+    if (!button) throw new Error('Brak filtra wyboru brył.');
     button.click();
   })()`);
   await waitForUi(window, `document.querySelector('.selection-filter-bar button.active')?.textContent === 'Bryły'`, 'filtr bryły');
   const bodyBounds = await window.webContents.executeJavaScript(`window.__madcadModelScreenState.bodyBounds[${JSON.stringify(topologyIds.body)}]`);
   const canvasBounds = await window.webContents.executeJavaScript(`(() => { const rect = document.querySelector('.model-viewport canvas').getBoundingClientRect(); return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }; })()`);
+  if (![bodyBounds?.left, bodyBounds?.right, bodyBounds?.top, bodyBounds?.bottom].every(Number.isFinite)) throw new Error(`Nieprawidłowy obszar ekranowy bryły: ${JSON.stringify(bodyBounds)}`);
   const boxStart = { x: Math.max(canvasBounds.left + 2, bodyBounds.left - 12), y: Math.max(canvasBounds.top + 2, bodyBounds.top - 12) };
   const boxEnd = { x: Math.min(canvasBounds.right - 2, bodyBounds.right + 12), y: Math.min(canvasBounds.bottom - 2, bodyBounds.bottom + 12) };
   await sendMouse('mouseDown', boxStart, ['shift']);
@@ -2827,9 +2835,14 @@ app.whenReady().then(async () => {
   });
   window.setContentSize(1936, 1017);
   const rendererMessages = [];
+  let rendererExit = null;
   window.webContents.on('console-message', (details) => {
     const level = { debug: 0, info: 1, warning: 2, error: 3 }[details.level] ?? 1;
     rendererMessages.push({ level, message: details.message, line: details.lineNumber, sourceId: details.sourceId });
+  });
+  window.webContents.on('render-process-gone', (_event, details) => {
+    rendererExit = details;
+    process.stderr.write(`[verify] renderer process ended: ${JSON.stringify(details)}\n`);
   });
   let exitCode = 0;
   try {
@@ -2965,17 +2978,25 @@ app.whenReady().then(async () => {
     process.stderr.write(`${error.stack || error.message}\n`);
     exitCode = 1;
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
-    const notice = window.isDestroyed() ? '' : await window.webContents.executeJavaScript(`document.querySelector('.workspace-notice, .engine-status')?.textContent?.trim() || ''`);
-    const failureState = window.isDestroyed() ? null : await window.webContents.executeJavaScript(`({
-      document: window.__madcadVerifyDocumentState,
-      engine: { status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision, bodies: window.__madcadVerifyEngineState?.bodies?.length },
-      notice: document.querySelector('.workspace-notice')?.textContent,
-      persistenceReady: window.__madcadPersistenceReady?.(),
-    })`);
-    if (!window.isDestroyed()) await fs.writeFile(path.join(path.dirname(outputPath), 'modeling-failure.png'), (await window.webContents.capturePage()).toPNG());
+    let notice = '';
+    let failureState = null;
+    if (!window.isDestroyed() && !rendererExit) {
+      try {
+        notice = await window.webContents.executeJavaScript(`document.querySelector('.workspace-notice, .engine-status')?.textContent?.trim() || ''`);
+        failureState = await window.webContents.executeJavaScript(`({
+          document: window.__madcadVerifyDocumentState,
+          engine: { status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision, bodies: window.__madcadVerifyEngineState?.bodies?.length },
+          notice: document.querySelector('.workspace-notice')?.textContent,
+          persistenceReady: window.__madcadPersistenceReady?.(),
+        })`);
+        await fs.writeFile(path.join(path.dirname(outputPath), 'modeling-failure.png'), (await window.webContents.capturePage()).toPNG());
+      } catch (diagnosticError) {
+        process.stderr.write(`[verify] failure diagnostics unavailable: ${diagnosticError.message}\n`);
+      }
+    }
     await fs.writeFile(
       path.join(path.dirname(outputPath), 'verification-report.json'),
-      JSON.stringify({ ok: false, error: error.stack || error.message, notice, failureState, rendererMessages }, null, 2),
+      JSON.stringify({ ok: false, error: error.stack || error.message, notice, failureState, rendererExit, rendererMessages }, null, 2),
     );
   } finally {
     window.destroy();
