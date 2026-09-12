@@ -920,7 +920,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Połącz się z internetem, aby ponownie sprawdzić konto': 'Connect to the internet to verify your account again',
   'Przed rozpoczęciem pracy sprawdź zasady korzystania z MadCAD.': 'Before you begin, review the MadCAD terms of use.',
   'MadCAD jest bezpłatny bez limitu czasu do użytku prywatnego, edukacyjnego i niezarobkowego.': 'MadCAD is free without a time limit for private, educational, non-profit use.',
-  'Wydanie 6.5.4 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.': 'Release 6.5.4 is not vendor-signed. The built-in updater downloads it from the official GitHub Release and verifies its SHA-256 checksum before opening it.',
+  'Wydanie 6.5.5 nie ma podpisu producenta. Wbudowany aktualizator pobiera je z oficjalnego GitHub Release i sprawdza sumę SHA-256 przed otwarciem.': 'Release 6.5.5 is not vendor-signed. The built-in updater downloads it from the official GitHub Release and verifies its SHA-256 checksum before opening it.',
   'Użytek komercyjny jest płatny': 'Commercial use requires payment',
   'Aktywny plan': 'Active plan',
   'Wybierz sposób korzystania z MadCAD': 'Choose how you use MadCAD',

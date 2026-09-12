@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.5.5 (2026-09-12)
+
+- wycentrowano optycznie znak i napis wewnątrz ikony aplikacji bez zmiany zaakceptowanego stylu;
+- ponownie wygenerowano spójne zasoby macOS, Windows, strony programu i panelu licencji z poprawionego wzorca.
+
 ## 6.5.4 (2026-09-12)
 
 - naprawiono obsługę myszy w pierwszym rzędzie górnego paska na macOS: przyciski Plik, Nowy, Otwórz, Zapisz, Panel, Szukaj, Skróty i Pomoc nie są już przechwytywane przez obszar przeciągania okna;
