@@ -489,6 +489,21 @@ async function runUiFlow(window) {
     await waitForUi(window, `Boolean(document.querySelector('.reference-repair-panel:not(.collapsed)'))`, 'rozwinięty panel naprawy referencji');
   };
   const editTimelineFeature = async (index, title = 'Wyciągnięcie') => {
+    const localizedTitle = {
+      Revolve: 'Bryła obrotowa',
+      Sweep: 'Przeciągnięcie po ścieżce',
+      Loft: 'Bryła przejściowa',
+      'Rib/Web': 'Żebro',
+      Coil: 'Spirala',
+      Pipe: 'Rura',
+      Pattern: 'Szyk',
+      Boolean: 'Połącz / odejmij',
+      'Split Body': 'Podziel bryłę',
+      'Split Face': 'Podziel ścianę',
+      'Delete Face + Heal': 'Usuń i napraw ścianę',
+      'Replace Face': 'Zastąp ścianę',
+      Draft: 'Pochylenie ścian',
+    }[title] || title;
     await window.webContents.executeJavaScript(`(() => {
       const button = document.querySelectorAll('.timeline-item')[${index}];
       if (!button) throw new Error('Brak operacji osi czasu: ${index}');
@@ -496,7 +511,7 @@ async function runUiFlow(window) {
     })()`);
     await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'feature'`, `wybór operacji ${index + 1}`);
     await clickTool('Edytuj');
-    await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes(${JSON.stringify(title)})`, `edycja ${title} ${index + 1}`);
+    await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes(${JSON.stringify(localizedTitle)})`, `edycja ${localizedTitle} ${index + 1}`);
   };
   const dragDirectExtrude = async () => {
     await window.webContents.executeJavaScript(`(async () => {
@@ -994,7 +1009,7 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.(${JSON.stringify(editTargets.originCornerLineIds)}, 'replace')`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length === 2`, 'dwie linie narożnika Fillet');
   await clickTool('Fillet szkicu');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Fillet szkicu')`, 'okno Fillet szkicu');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Zaokrąglij szkic')`, 'okno zaokrąglenia szkicu');
   await setCommandField('Promień', '2');
   await confirmDialog();
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 15`, 'utworzenie Fillet szkicu');
@@ -1002,7 +1017,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 12`, 'Undo Fillet szkicu');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.(${JSON.stringify(editTargets.originCornerLineIds)}, 'replace')`);
   await clickTool('Faza szkicu');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Chamfer szkicu')`, 'okno Chamfer szkicu');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Fazuj szkic')`, 'okno fazowania szkicu');
   await setCommandField('Odległość', '3');
   await clickDialogButton('Anuluj');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 12`, 'anulowanie Chamfer szkicu');
@@ -1017,7 +1032,7 @@ async function runUiFlow(window) {
   await clickSketchEntity(editTargets.lineId);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.ids?.includes(${JSON.stringify(editTargets.lineId)})`, 'zaznaczenie linii Offset');
   await clickTool('Offset');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Offset szkicu')`, 'okno Offset');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Odsuń szkic')`, 'okno odsunięcia szkicu');
   await setCommandField('Odległość', '-2');
   await clickDialogButton('Anuluj');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 12`, 'anulowanie Offset bez zmiany');
@@ -1527,7 +1542,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 1 && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'anulowanie Rib Web');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(ribLineId)}], 'replace')`);
   await clickTool('Rib/Web');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Rib/Web')`, 'ponownie otwarty Rib Web');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Żebro')`, 'ponownie otwarte żebro');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.previewReady === true && !document.querySelector('.command-dialog .confirm')?.disabled`, 'gotowy podgląd przed zapisaniem Web', modelingTimeoutMs);
   await confirmDialog();
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'rib' && window.__madcadVerifyDocumentState.featureData[1].ribMode === 'web' && window.__madcadVerifyDocumentState.featureData[1].openEntityIds?.[0] === ${JSON.stringify(ribLineId)} && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2160) < 0.05`, 'zapisany Web', modelingTimeoutMs);
@@ -1897,7 +1912,7 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(offsetSelection)}, 'replace')`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(offsetSelection.id)}`, 'ściana wskazana do Press Pull');
   await clickTool('Wyciągnij');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Offset Face') && document.querySelector('.direct-handle-hit')`, 'wyciąganie zaznaczonej ściany wspólnym manipulatorem');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Odsuń ścianę') && document.querySelector('.direct-handle-hit')`, 'wyciąganie zaznaczonej ściany wspólnym manipulatorem');
   await setCommandField('Odległość', '2');
   await waitForUi(window, `Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(primitiveBoxId)}).metrics.volume - ${10 * 12 * 16}) < 0.05 && window.__madcadVerifyEngineState.timeline.at(-1)?.status === 'ok'`, 'podgląd odsuniętej ściany', modelingTimeoutMs);
   await confirmDialog();
@@ -2615,7 +2630,7 @@ async function runUiFlow(window) {
   })()`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.items?.length === 2`, 'dwie bryły zaznaczone do Boolean');
   await clickTool('Boolean');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Boolean')`, 'polecenie Boolean Union');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Połącz / odejmij')`, 'polecenie łączenia brył');
   const unionRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   await confirmDialog();
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[2]?.type === 'boolean' && window.__madcadVerifyDocumentState.featureData[2].operation === 'union' && window.__madcadVerifyEngineState?.revision > ${unionRevision} && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'Boolean Union', modelingTimeoutMs);
@@ -2673,7 +2688,7 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(shellInput.selection)}, 'replace')`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face'`, 'ściana wskazana do Shell');
   await clickTool('Shell');
-  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Shell')`, 'polecenie Shell');
+  await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Powłoka')`, 'polecenie powłoki');
   await setCommandField('Grubość', '1');
   const shellRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   await confirmDialog();

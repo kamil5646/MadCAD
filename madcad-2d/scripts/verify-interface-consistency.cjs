@@ -11,6 +11,7 @@ const designScreenshotPath = path.join(artifactsDir, '05-design-unified.png');
 const constructionScreenshotPath = path.join(artifactsDir, '06-construction-menu.png');
 const fileMenuScreenshotPath = path.join(artifactsDir, '07-file-menu-fixed.png');
 const sketchRibbonScreenshotPath = path.join(artifactsDir, '08-sketch-ribbon-expanded.png');
+const commandPanelScreenshotPath = path.join(artifactsDir, '09-command-panel-fusion.png');
 const fusionAuditDir = path.join(__dirname, '..', 'artifacts', 'fusion-flow-audit-2026-08-31');
 const bodyContextScreenshotPath = path.join(fusionAuditDir, '03-body-context.png');
 const faceContextScreenshotPath = path.join(fusionAuditDir, '04-face-context.png');
@@ -280,6 +281,27 @@ app.whenReady().then(async () => {
     const faceActions = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-actions > button')].map((button) => button.textContent.trim())`);
     if (!faceActions.includes('Szkic na ścianie') || !faceActions.includes('Naciśnij / wyciągnij') || !faceActions.includes('Odsuń ścianę')) throw new Error(`Brak bezpośrednich działań dla ściany: ${JSON.stringify(faceActions)}`);
     await fs.writeFile(faceContextScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-actions > button')].find((button) => button.textContent.trim() === 'Naciśnij / wyciągnij')?.click()`);
+    await waitFor(window, `document.querySelector('.command-dialog.docked')`, 'panel parametrów operacji');
+    const commandPanel = await window.webContents.executeJavaScript(`(() => {
+      const panel = document.querySelector('.command-dialog.docked');
+      const panelRect = panel?.getBoundingClientRect();
+      const stageRect = document.querySelector('.modeling-stage')?.getBoundingClientRect();
+      const footerRect = panel?.querySelector(':scope > footer')?.getBoundingClientRect();
+      return {
+        title: panel?.querySelector(':scope > header strong')?.textContent.trim() || '',
+        floatingRight: Boolean(panelRect && stageRect && panelRect.left >= stageRect.left && Math.abs(panelRect.right - stageRect.right) <= 12),
+        width: panelRect?.width || 0,
+        footerPinned: Boolean(panelRect && footerRect && Math.abs(panelRect.bottom - footerRect.bottom) <= 1),
+        fields: panel?.querySelectorAll('.command-field').length || 0,
+        actions: [...(panel?.querySelectorAll(':scope > footer button') || [])].map((button) => button.textContent.trim()),
+        horizontalOverflow: Boolean(panel && panel.scrollWidth > panel.clientWidth + 1),
+      };
+    })()`);
+    if (commandPanel.title !== 'Odsuń ścianę' || !commandPanel.floatingRight || commandPanel.width < 270 || commandPanel.width > 310 || !commandPanel.footerPinned || !commandPanel.fields || !commandPanel.actions.includes('Anuluj') || !commandPanel.actions.some((label) => ['OK', 'Obliczanie…'].includes(label)) || commandPanel.horizontalOverflow) throw new Error(`Panel operacji nie zachowuje układu Fusion: ${JSON.stringify(commandPanel)}`);
+    await fs.writeFile(commandPanelScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog.docked [aria-label="Zamknij polecenie"]')?.click()`);
+    await waitFor(window, `!document.querySelector('.command-dialog.docked')`, 'zamknięcie panelu operacji');
     await window.webContents.executeJavaScript(`document.querySelector('.adaptive-tool-clear')?.click()`);
     await waitFor(window, `!document.querySelector('.adaptive-tool-shelf')`, 'wyczyszczenie kontekstu ściany');
 
@@ -377,7 +399,7 @@ app.whenReady().then(async () => {
     }
     await fs.writeFile(overflowScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
-    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, ribbonPaint, fileMenu, designStructure, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, ribbonPaint, fileMenu, designStructure, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, commandPanel, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

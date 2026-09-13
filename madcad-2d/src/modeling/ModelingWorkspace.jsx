@@ -187,7 +187,7 @@ import {
   loadCommandCustomization,
   saveCommandCustomization,
 } from './command-customization.js';
-import { isDockableCommand, panelScreenKey, readPanelLayout, writePanelLayout } from './panel-layout.js';
+import { panelScreenKey, readPanelLayout, writePanelLayout } from './panel-layout.js';
 import { mergeResumableSketches, resolveResumableSketch, resolveResumableSketches, resolveVisibleSketchId } from './sketch-visibility.js';
 import { resolveExtrudeSource } from './extrude-source.js';
 import { analyzeSurfaceContinuity, summarizeMeshCurvature } from './surface-analysis.js';
@@ -7913,7 +7913,7 @@ export default function ModelingWorkspace() {
         className={`modeling-content command-dock-right ${showProjectBrowser ? '' : 'without-browser'} ${printPanelOpen ? 'with-print-panel' : ''}`}
         style={{
           '--browser-column': showProjectBrowser ? '252px' : '0px',
-          '--command-column': isDockableCommand(command) ? (panelLayout.commandCollapsed ? '38px' : '280px') : '0px',
+          '--command-column': '0px',
           '--print-column': printPanelOpen ? (panelLayout.printCollapsed ? '38px' : '286px') : '0px',
         }}
       >
