@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, MoreHorizontal, X } from 'lucide-react';
 import { createParameter } from '../cad-core/document.js';
 import { useDialogFocus } from './use-dialog-focus.js';
@@ -62,6 +62,31 @@ export function PlanePicker({ existingSketchesByPlane = {}, onPick, onCancel, va
 }
 
 export function AdaptiveToolShelf({ title, subtitle, actions = [], moreActions = [], onClear }) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef(null);
+  const moreTriggerRef = useRef(null);
+  useEffect(() => {
+    setMoreOpen(false);
+  }, [title]);
+  useEffect(() => {
+    if (!moreOpen) return undefined;
+    const closeOutside = (event) => {
+      if (!moreRef.current?.contains(event.target)) setMoreOpen(false);
+    };
+    const closeWithEscape = (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setMoreOpen(false);
+      moreTriggerRef.current?.focus();
+    };
+    window.addEventListener('pointerdown', closeOutside);
+    window.addEventListener('keydown', closeWithEscape, true);
+    return () => {
+      window.removeEventListener('pointerdown', closeOutside);
+      window.removeEventListener('keydown', closeWithEscape, true);
+    };
+  }, [moreOpen]);
   if (!actions.length && !moreActions.length) return null;
   return (
     <aside className="adaptive-tool-shelf" role="toolbar" aria-label={`Narzędzia dla zaznaczenia: ${title}`}>
@@ -75,16 +100,16 @@ export function AdaptiveToolShelf({ title, subtitle, actions = [], moreActions =
             <Icon size={18} strokeWidth={1.9} /><span>{label}</span>
           </button>
         ))}
-        {moreActions.length > 0 && <details className="adaptive-tool-more">
-          <summary title="Więcej pasujących narzędzi"><MoreHorizontal size={18} /><span>Więcej</span></summary>
-          <div role="menu" aria-label="Więcej pasujących narzędzi">
+        {moreActions.length > 0 && <div className={`adaptive-tool-more ${moreOpen ? 'open' : ''}`} ref={moreRef}>
+          <button ref={moreTriggerRef} className="adaptive-tool-more-trigger" type="button" title="Więcej pasujących narzędzi" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((current) => !current)}><MoreHorizontal size={18} /><span>Więcej</span></button>
+          {moreOpen && <div role="menu" aria-label="Więcej pasujących narzędzi">
             {moreActions.map(({ icon: Icon, label, onClick, disabled = false, danger = false }) => (
-              <button key={label} className={danger ? 'danger' : ''} type="button" role="menuitem" disabled={disabled} onClick={(event) => { onClick?.(event); event.currentTarget.closest('details')?.removeAttribute('open'); }}>
+              <button key={label} className={danger ? 'danger' : ''} type="button" role="menuitem" disabled={disabled} onClick={(event) => { onClick?.(event); setMoreOpen(false); }}>
                 <Icon size={17} strokeWidth={1.9} /><span>{label}</span>
               </button>
             ))}
-          </div>
-        </details>}
+          </div>}
+        </div>}
       </div>
     </aside>
   );

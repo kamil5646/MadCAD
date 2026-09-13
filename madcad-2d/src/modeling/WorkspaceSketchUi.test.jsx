@@ -87,4 +87,22 @@ describe('AdaptiveToolShelf', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Zmierz' }));
     expect(measure).toHaveBeenCalledTimes(1);
   });
+
+  it('zamyka menu Więcej klawiszem Escape bez czyszczenia zaznaczenia', async () => {
+    const onClear = vi.fn();
+    render(<AdaptiveToolShelf
+      title="Bryła"
+      actions={[{ icon: Box, label: 'Przesuń', onClick: vi.fn(), primary: true }]}
+      moreActions={[{ icon: Ruler, label: 'Właściwości masy', onClick: vi.fn() }]}
+      onClear={onClear}
+    />);
+
+    const more = screen.getByRole('button', { name: 'Więcej' });
+    fireEvent.click(more);
+    expect(screen.getByRole('menu', { name: 'Więcej pasujących narzędzi' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('menu', { name: 'Więcej pasujących narzędzi' })).not.toBeInTheDocument());
+    expect(more).toHaveFocus();
+    expect(onClear).not.toHaveBeenCalled();
+  });
 });

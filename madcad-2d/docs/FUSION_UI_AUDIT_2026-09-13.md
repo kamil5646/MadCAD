@@ -38,6 +38,8 @@ Dowód: `artifacts/full-interface-audit-2026-08-30/10-browser-timeline-fusion.pn
 - Początek, konstrukcja i złożenie są domyślnie zwinięte, a puste złożenie nie dodaje zbędnego wiersza.
 - Przełącznik widoczności znajduje się w stałej pierwszej kolumnie przed ikoną typu obiektu.
 - Operacje historii mają większe piktogramy, bez mikroskopijnych numerów; zaznaczenie jest neutralne z cienkim akcentem marki.
+- Działania dla zaznaczonej bryły, ściany i krawędzi tworzą zwartą poziomą belkę zamiast wysokiego kafla zasłaniającego płótno.
+- Menu „Więcej” jest kontrolowane przez React, zamyka się klawiszem Esc i nie kasuje przy tym zaznaczenia modelu.
 
 ## Dostępność i ograniczenia dowodów
 

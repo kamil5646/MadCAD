@@ -280,16 +280,22 @@ app.whenReady().then(async () => {
       title: document.querySelector('.adaptive-tool-shelf header strong')?.textContent.trim() || '',
       actions: [...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-actions > button')].map((button) => button.textContent.trim()),
       hasMore: Boolean(document.querySelector('.adaptive-tool-shelf .adaptive-tool-more')),
-      moreActions: [...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-more [role="menuitem"]')].map((button) => button.textContent.trim()),
       withinViewport: (() => { const shelf = document.querySelector('.adaptive-tool-shelf')?.getBoundingClientRect(); const stage = document.querySelector('.modeling-stage')?.getBoundingClientRect(); return Boolean(shelf && stage && shelf.left >= stage.left && shelf.right <= stage.right && shelf.top >= stage.top && shelf.bottom <= stage.bottom); })(),
     }))()`);
-    if (adaptiveSelection.title !== 'Bryła' || !adaptiveSelection.actions.includes('Przesuń') || !adaptiveSelection.actions.includes('Obróć') || !adaptiveSelection.actions.includes('Szyk') || !adaptiveSelection.hasMore || !adaptiveSelection.moreActions.includes('Właściwości masy') || !adaptiveSelection.moreActions.includes('Podziel bryłę') || !adaptiveSelection.moreActions.includes('Usuń bryłę') || !adaptiveSelection.withinViewport) throw new Error(`Kontekst wyboru nie prowadzi do właściwych narzędzi: ${JSON.stringify(adaptiveSelection)}`);
+    if (adaptiveSelection.title !== 'Bryła' || !adaptiveSelection.actions.includes('Przesuń') || !adaptiveSelection.actions.includes('Obróć') || !adaptiveSelection.actions.includes('Szyk') || !adaptiveSelection.hasMore || !adaptiveSelection.withinViewport) throw new Error(`Kontekst wyboru nie prowadzi do właściwych narzędzi: ${JSON.stringify(adaptiveSelection)}`);
+    await window.webContents.executeJavaScript(`document.querySelector('.adaptive-tool-more-trigger')?.click()`);
+    await waitFor(window, `document.querySelector('.adaptive-tool-more [role="menu"]')`, 'menu dodatkowych działań bryły');
+    const adaptiveMoreActions = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-more [role="menuitem"]')].map((button) => button.textContent.trim())`);
+    if (!adaptiveMoreActions.includes('Właściwości masy') || !adaptiveMoreActions.includes('Podziel bryłę') || !adaptiveMoreActions.includes('Usuń bryłę')) throw new Error(`Menu kontekstowe bryły jest niepełne: ${JSON.stringify(adaptiveMoreActions)}`);
+    await window.webContents.executeJavaScript(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+    await waitFor(window, `!document.querySelector('.adaptive-tool-more [role="menu"]')`, 'zamknięcie menu dodatkowych działań klawiszem Esc');
     await fs.writeFile(bodyContextScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`(() => {
-      const details = document.querySelector('.adaptive-tool-more');
-      details.open = true;
-      [...details.querySelectorAll('[role="menuitem"]')].find((button) => button.textContent.trim() === 'Usuń bryłę')?.click();
+      const more = document.querySelector('.adaptive-tool-more');
+      more.querySelector('.adaptive-tool-more-trigger')?.click();
     })()`);
+    await waitFor(window, `document.querySelector('.adaptive-tool-more [role="menu"]')`, 'menu dodatkowych działań bryły');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-more [role="menuitem"]')].find((button) => button.textContent.trim() === 'Usuń bryłę')?.click()`);
     await waitFor(window, `document.querySelector('.timeline-delete-confirm')?.textContent.includes('Usunąć')`, 'bezpieczne potwierdzenie usunięcia bryły');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.timeline-delete-confirm button')].find((button) => button.textContent.trim() === 'Anuluj')?.click()`);
     await waitFor(window, `!document.querySelector('.timeline-delete-confirm')`, 'anulowanie usunięcia bryły bez zmiany modelu');
