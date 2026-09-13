@@ -242,6 +242,20 @@ app.whenReady().then(async () => {
     if (loadedModelGroups.join('|') !== emptyModelGroups.join('|')) throw new Error(`Grupy modelowania zmieniły położenie po wczytaniu bryły: ${loadedModelGroups.join('|')}`);
     const viewCube = await window.webContents.executeJavaScript(`(() => ({ heading: document.querySelector('.view-cube-heading')?.textContent.trim() || '', labels: [...document.querySelectorAll('.view-cube button')].map((button) => button.textContent.trim() || button.getAttribute('aria-label')) }))()`);
     if (!viewCube.heading.includes('WIDOK') || !viewCube.heading.includes('Izometryczny') || !['GÓRA', 'PRZÓD', 'PRAWO', 'LEWO', 'TYŁ', 'DÓŁ'].every((label) => viewCube.labels.includes(label))) throw new Error(`Kostka widoku nie opisuje jednoznacznie orientacji: ${JSON.stringify(viewCube)}`);
+    const selectionFilterLayout = await window.webContents.executeJavaScript(`(() => {
+      const filter = document.querySelector('.selection-filter-bar');
+      const navigation = document.querySelector('.navigation-bar');
+      const filterRect = filter?.getBoundingClientRect();
+      const navigationRect = navigation?.getBoundingClientRect();
+      const active = filter?.querySelector('button.active');
+      return {
+        collapsed: filter?.classList.contains('collapsed') || false,
+        bottomAligned: Boolean(filterRect && navigationRect && Math.abs(filterRect.bottom - navigationRect.bottom) <= 2),
+        separateFromNavigation: Boolean(filterRect && navigationRect && filterRect.left >= navigationRect.right + 8),
+        activeBackground: active ? getComputedStyle(active).backgroundColor : '',
+      };
+    })()`);
+    if (!selectionFilterLayout.collapsed || !selectionFilterLayout.bottomAligned || !selectionFilterLayout.separateFromNavigation || selectionFilterLayout.activeBackground === 'rgb(169, 33, 45)') throw new Error(`Filtr wyboru nadal konkuruje z płótnem zamiast wspierać nawigację: ${JSON.stringify(selectionFilterLayout)}`);
     await window.webContents.executeJavaScript(`document.querySelector('.timeline-item')?.click()`);
     await waitFor(window, `document.querySelector('.timeline-item.selected')`, 'zaznaczenie operacji na osi czasu');
     const browserTimeline = await window.webContents.executeJavaScript(`(() => {
@@ -429,7 +443,7 @@ app.whenReady().then(async () => {
     }
     await fs.writeFile(overflowScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
-    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, ribbonPaint, fileMenu, designStructure, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, browserTimeline, commandPanel, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, browserTimelineScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, ribbonPaint, fileMenu, designStructure, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, selectionFilterLayout, browserTimeline, commandPanel, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, browserTimelineScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

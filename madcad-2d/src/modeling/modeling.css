@@ -8253,6 +8253,59 @@
   .adaptive-tool-more > .adaptive-tool-more-trigger { width: 100%; }
 }
 
+/* Fusion keeps selection controls with viewport navigation, not as a bright
+   floating island over the model. */
+.selection-filter-bar {
+  top: auto;
+  bottom: 9px;
+  left: calc(50% + 202px);
+  min-height: 31px;
+  border-color: #4f5964;
+  border-radius: 3px;
+  background: rgb(35 41 48 / 96%);
+  box-shadow: 0 5px 14px rgb(0 0 0 / 24%);
+  transform: none;
+}
+
+.selection-filter-bar.expanded {
+  bottom: 45px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.selection-filter-bar.collapsed button.active {
+  min-width: 82px;
+  padding-inline: 9px 21px;
+}
+
+.selection-filter-bar button:hover:not(:disabled) { background: #3d4751; }
+
+.selection-filter-bar button.active {
+  background: #46515c;
+  color: #f2f4f5;
+  box-shadow: inset 2px 0 #d84a57;
+}
+
+.model-selection-hint {
+  top: auto;
+  bottom: 82px;
+}
+
+.view-cube button[aria-pressed='true'] {
+  border-color: #707b86;
+  background: #4a5560;
+  color: #f4f6f7;
+  box-shadow: inset 0 -2px #d84a57;
+}
+
+@media (max-width: 820px) {
+  .selection-filter-bar {
+    bottom: 45px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
 .sketch-palette {
   top: 138px;
   right: 6px;

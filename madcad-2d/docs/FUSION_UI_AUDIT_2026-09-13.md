@@ -41,6 +41,15 @@ Dowód: `artifacts/full-interface-audit-2026-08-30/10-browser-timeline-fusion.pn
 - Działania dla zaznaczonej bryły, ściany i krawędzi tworzą zwartą poziomą belkę zamiast wysokiego kafla zasłaniającego płótno.
 - Menu „Więcej” jest kontrolowane przez React, zamyka się klawiszem Esc i nie kasuje przy tym zaznaczenia modelu.
 
+## 5. Nawigacja i filtr wyboru — stan dobry po poprawce
+
+Dowód: `artifacts/fusion-flow-audit-2026-08-31/07-visibility-viewcube.png`.
+
+- Filtr wyboru jest zwartą kontrolką przy dolnym pasku nawigacji, a nie jaskrawą wyspą zasłaniającą model.
+- Aktywny filtr i aktywna ściana kostki używają neutralnego tła z cienkim akcentem marki.
+- Rozwinięty filtr pozostaje nad nawigacją, a na wąskim ekranie automatycznie ustawia się centralnie.
+- Automatyczny test mierzy położenie obu kontrolek i wykrywa ich nakładanie.
+
 ## Dostępność i ograniczenia dowodów
 
 Pełny przebieg sprawdził powiększenie 100%, 150% i 200% bez przepełnienia dokumentu, dostępny fokus klawiatury oraz brak zgłoszonych naruszeń axe. Automatyczny audyt kontrastu pozostawia elementy niejednoznaczne przy nakładaniu warstw płótna; wymaga to dalszej kontroli wizualnej przy kolejnych panelach.
