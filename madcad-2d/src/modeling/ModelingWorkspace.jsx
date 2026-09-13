@@ -631,6 +631,7 @@ export default function ModelingWorkspace() {
   const [surfaceAnalysis, setSurfaceAnalysis] = useState(null);
   const [meshToolsOpen, setMeshToolsOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(true);
+  const [compactViewport, setCompactViewport] = useState(() => window.matchMedia?.('(max-width: 900px)').matches || window.innerWidth <= 900);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
   const [blocksOpen, setBlocksOpen] = useState(false);
@@ -721,6 +722,17 @@ export default function ModelingWorkspace() {
   useEffect(() => {
     writePanelLayout(panelLayout, window.localStorage, window.screen);
   }, [panelLayout]);
+  useEffect(() => {
+    const media = window.matchMedia?.('(max-width: 900px)');
+    if (!media) return undefined;
+    const updateCompactViewport = (event) => setCompactViewport(event.matches);
+    setCompactViewport(media.matches);
+    media.addEventListener?.('change', updateCompactViewport);
+    return () => media.removeEventListener?.('change', updateCompactViewport);
+  }, []);
+  useEffect(() => {
+    if (compactViewport && (command || printPanelOpen)) setBrowserOpen(false);
+  }, [command, compactViewport, printPanelOpen]);
   useEffect(() => {
     if (!fileMenuOpen) return undefined;
     const closeFileMenu = (event) => { if (event.key === 'Escape') setFileMenuOpen(false); };
@@ -6919,6 +6931,7 @@ export default function ModelingWorkspace() {
     setActiveSketchId(null);
     setWorkspace('solid');
     setFileMenuOpen(false);
+    if (compactViewport) setBrowserOpen(false);
     setPrintPanelOpen(true);
     setNotice('Druk 3D: ułóż gotowy model na stole, sprawdź go i przekaż do slicera.');
   };

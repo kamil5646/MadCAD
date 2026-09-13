@@ -8507,3 +8507,53 @@
     display: none;
   }
 }
+
+/* Keep the canvas useful on compact windows. The project browser becomes a
+   temporary drawer, while the active inspector keeps its own column. */
+@media (max-width: 900px) {
+  .modeling-content {
+    grid-template-areas: "stage print";
+    grid-template-columns: minmax(0, 1fr) var(--print-column, 0);
+  }
+
+  .model-browser {
+    position: absolute;
+    z-index: 24;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(252px, calc(100% - 48px));
+    border-right-color: #4a515b;
+    box-shadow: 12px 0 28px rgb(0 0 0 / 34%);
+  }
+
+  .workspace-notice {
+    bottom: 82px;
+    max-width: min(440px, calc(100% - 24px));
+  }
+
+  .modeling-content.with-print-panel .view-cube {
+    display: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .modeling-content {
+    grid-template-areas: "stage";
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .print-panel {
+    position: absolute;
+    z-index: 23;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(286px, calc(100% - 12px));
+    box-shadow: -12px 0 28px rgb(0 0 0 / 34%);
+  }
+
+  .print-panel.collapsed {
+    width: 38px;
+  }
+}

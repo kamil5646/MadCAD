@@ -25,6 +25,7 @@ const manageAfterScreenshotPath = path.join(workspaceAuditDir, '07-manage-after.
 const fileMenuAfterScreenshotPath = path.join(workspaceAuditDir, '08-file-menu-after.png');
 const tooltipAfterScreenshotPath = path.join(workspaceAuditDir, '09-disabled-tooltip-after.png');
 const startPageAfterScreenshotPath = path.join(workspaceAuditDir, '12-start-page-visible.png');
+const compactLayoutScreenshotPath = path.join(workspaceAuditDir, '13-compact-layout.png');
 
 async function waitFor(window, expression, label, timeoutMs = 45000) {
   const startedAt = Date.now();
@@ -415,6 +416,38 @@ app.whenReady().then(async () => {
     await fs.writeFile(constructionScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await clickText(window, '.ribbon-tool-menu-trigger', 'Płaszczyzny');
 
+    window.setContentSize(760, 697);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.file-backstage')`, 'menu Plik w kompaktowym oknie');
+    await window.webContents.executeJavaScript(`document.querySelector('#filePrint3dBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.print-panel')`, 'panel druku w kompaktowym oknie');
+    const compactLayout = await window.webContents.executeJavaScript(`(() => {
+      const content = document.querySelector('.modeling-content');
+      const stage = document.querySelector('.modeling-stage');
+      const print = document.querySelector('.print-panel');
+      const stageRect = stage?.getBoundingClientRect();
+      const printRect = print?.getBoundingClientRect();
+      const noticeRect = document.querySelector('.workspace-notice')?.getBoundingClientRect();
+      const navigationRect = document.querySelector('.navigation-bar')?.getBoundingClientRect();
+      const selectionRect = document.querySelector('.selection-filter-bar')?.getBoundingClientRect();
+      const overlaps = (first, second) => Boolean(first && second && first.left < second.right && first.right > second.left && first.top < second.bottom && first.bottom > second.top);
+      return {
+        browserClosedForInspector: !document.querySelector('.model-browser'),
+        stageWidth: stageRect?.width || 0,
+        printInsideViewport: Boolean(printRect && printRect.left >= 0 && printRect.right <= innerWidth && printRect.top >= content.getBoundingClientRect().top && printRect.bottom <= content.getBoundingClientRect().bottom + 1),
+        viewCubeHidden: !document.querySelector('.view-cube')?.checkVisibility(),
+        noticeClearOfNavigation: !overlaps(noticeRect, navigationRect) && !overlaps(noticeRect, selectionRect),
+        horizontalOverflow: content.scrollWidth > content.clientWidth + 1 || document.documentElement.scrollWidth > innerWidth + 1,
+      };
+    })()`);
+    if (!compactLayout.browserClosedForInspector || compactLayout.stageWidth < 440 || !compactLayout.printInsideViewport || !compactLayout.viewCubeHidden || !compactLayout.noticeClearOfNavigation || compactLayout.horizontalOverflow) throw new Error(`Kompaktowy układ nadal ściska lub nakłada panele: ${JSON.stringify(compactLayout)}`);
+    await fs.writeFile(compactLayoutScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`document.querySelector('.print-panel [aria-label="Zamknij panel druku 3D"]')?.click()`);
+    await waitFor(window, `!document.querySelector('.print-panel')`, 'zamknięcie panelu druku');
+    window.setContentSize(2200, 877);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
     if (!(await selectWorkspace(window, 'tools'))) throw new Error('Brak przestrzeni ZARZĄDZANIE.');
     await waitFor(window, `document.querySelector('.workspace-switcher select')?.value === 'tools'`, 'przestrzeń zarządzania');
     const project = await window.webContents.executeJavaScript(`(() => ({
@@ -473,7 +506,7 @@ app.whenReady().then(async () => {
     }
     await fs.writeFile(overflowScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
-    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, ribbonPaint, fileMenu, designStructure, compactDesign, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, selectionFilterLayout, browserTimeline, commandPanel, faceMoreActions, edgeMoreActions, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, browserTimelineScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, ribbonPaint, fileMenu, designStructure, compactDesign, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, selectionFilterLayout, browserTimeline, commandPanel, faceMoreActions, edgeMoreActions, constructionMenu, compactLayout, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, browserTimelineScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath, compactLayoutScreenshotPath }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);
