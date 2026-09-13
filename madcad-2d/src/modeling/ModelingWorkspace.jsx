@@ -539,9 +539,16 @@ export default function ModelingWorkspace() {
     if (!licensePlan.accessAllowed && !licenseVerificationMode) setLicenseInfoOpen(true);
   }, [licensePlan.accessAllowed, licenseVerificationMode]);
   const [expandedSketchRibbon, setExpandedSketchRibbon] = useState(() => window.matchMedia('(min-width: 1260px)').matches);
+  const [expandedDesignRibbon, setExpandedDesignRibbon] = useState(() => window.matchMedia('(min-width: 1900px)').matches);
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1260px)');
     const update = () => setExpandedSketchRibbon(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1900px)');
+    const update = () => setExpandedDesignRibbon(media.matches);
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
   }, []);
@@ -7840,27 +7847,36 @@ export default function ModelingWorkspace() {
               </>
             ) : (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Move3d} label="Szkic 3D" onClick={startSketch3D} disabled={readOnly} description="Utwórz ciągłą przestrzenną ścieżkę XYZ dla Sweep, Pipe i Pattern." /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolMenuButton icon={PrimitiveCadIcon} label="Więcej brył" description="Prymitywy, bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
-                  { icon: PrimitiveCadIcon, label: 'Prymityw', onClick: openPrimitive, disabled: readOnly },
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Move3d} label="Szkic 3D" onClick={startSketch3D} disabled={readOnly} description="Utwórz ciągłą przestrzenną ścieżkę XYZ dla Sweep, Pipe i Pattern." /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} />
+                  {expandedDesignRibbon && <ToolButton icon={PrimitiveCadIcon} label="Prymityw" onClick={openPrimitive} disabled={readOnly} />}
+                  {expandedDesignRibbon && <ToolButton icon={RevolveCadIcon} label="Revolve" displayLabel="Bryła obrotowa" onClick={openRevolve} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} disabledReason="Zaznacz zamknięty profil i zakończ szkic." />}
+                  {expandedDesignRibbon && <ToolButton icon={SweepCadIcon} label="Sweep" displayLabel="Po ścieżce" onClick={openSweep} disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} disabledReason="Zaznacz profil i osobną ścieżkę." />}
+                  <ToolMenuButton icon={PrimitiveCadIcon} label="Więcej brył" description="Prymitywy, bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
+                  ...(!expandedDesignRibbon ? [{ icon: PrimitiveCadIcon, label: 'Prymityw', onClick: openPrimitive, disabled: readOnly }] : []),
                   { icon: Shapes, label: 'Form', onClick: openFormBody, disabled: readOnly || Boolean(activeSketchId), disabledReason: 'Zakończ aktywny szkic.' },
-                  { icon: RevolveCadIcon, label: 'Revolve', displayLabel: 'Bryła obrotowa', onClick: openRevolve, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
-                  { icon: SweepCadIcon, label: 'Sweep', displayLabel: 'Przeciągnięcie po ścieżce', onClick: openSweep, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz profil i osobną ścieżkę.' },
+                  ...(!expandedDesignRibbon ? [{ icon: RevolveCadIcon, label: 'Revolve', displayLabel: 'Bryła obrotowa', onClick: openRevolve, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' }] : []),
+                  ...(!expandedDesignRibbon ? [{ icon: SweepCadIcon, label: 'Sweep', displayLabel: 'Przeciągnięcie po ścieżce', onClick: openSweep, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz profil i osobną ścieżkę.' }] : []),
                   { icon: LoftCadIcon, label: 'Loft', displayLabel: 'Bryła przejściowa', onClick: openLoft, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Przygotuj co najmniej dwa profile.' },
                   { icon: CoilCadIcon, label: 'Coil', displayLabel: 'Spirala', onClick: openCoil, disabled: readOnly || Boolean(activeSketchId), disabledReason: 'Zakończ aktywny szkic.' },
                   { icon: Type, label: 'Tekst 3D', onClick: openTextSolid, disabled: readOnly },
                   { icon: HoleCadIcon, label: 'Otwór', onClick: openHole, disabled: readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length, disabledReason: 'Zaznacz punkt szkicu albo płaską ścianę i dwie krawędzie odniesienia.' },
                 ]} /></RibbonGroup>
-                <RibbonGroup label="ZMIEŃ"><ToolButton icon={PressPullCadIcon} label="Press Pull" displayLabel="Naciśnij / wyciągnij" onClick={openPressPull} disabled={readOnly || !canPressPull} disabledReason="Zaznacz zamknięty profil albo płaską ścianę." /><ToolButton icon={FilletCadIcon} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} disabledReason="Zaznacz co najmniej jedną krawędź bryły." /><ToolMenuButton icon={ChamferCadIcon} label="Więcej zmian" description="Fazowanie, powłoka, pochylenie, ściany i położenie bryły." items={[
-                  { icon: ChamferCadIcon, label: 'Fazuj', onClick: () => openEdgeCommand('chamfer'), disabled: readOnly || !selectedEdgeItems.length, disabledReason: 'Zaznacz co najmniej jedną krawędź.' },
-                  { icon: ShellCadIcon, label: 'Shell', displayLabel: 'Powłoka', onClick: openShell, disabled: readOnly || !selectedFaceItems.length, disabledReason: 'Zaznacz ścianę do usunięcia.' },
+                <RibbonGroup label="ZMIEŃ"><ToolButton icon={PressPullCadIcon} label="Press Pull" displayLabel="Naciśnij / wyciągnij" onClick={openPressPull} disabled={readOnly || !canPressPull} disabledReason="Zaznacz zamknięty profil albo płaską ścianę." /><ToolButton icon={FilletCadIcon} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} disabledReason="Zaznacz co najmniej jedną krawędź bryły." />
+                  {expandedDesignRibbon && <ToolButton icon={ChamferCadIcon} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} disabledReason="Zaznacz co najmniej jedną krawędź." />}
+                  {expandedDesignRibbon && <ToolButton icon={ShellCadIcon} label="Shell" displayLabel="Powłoka" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} disabledReason="Zaznacz ścianę do usunięcia." />}
+                  {expandedDesignRibbon && <ToolButton icon={PatternCadIcon} label="Pattern" displayLabel="Szyk" onClick={openPattern} disabled={readOnly || !targetBodyId || !targetBodySupportsSolidOperations || Boolean(activeSketchId)} disabledReason="Zaznacz obsługiwaną bryłę i zakończ szkic." />}
+                  {expandedDesignRibbon && <ToolButton icon={BooleanCadIcon} label="Boolean" displayLabel="Połącz / odejmij" onClick={openBoolean} disabled={readOnly || !canBooleanSelectedBodies} disabledReason="Zaznacz co najmniej dwie bryły." />}
+                  <ToolMenuButton icon={ChamferCadIcon} label="Więcej zmian" description="Fazowanie, powłoka, pochylenie, ściany i położenie bryły." items={[
+                  ...(!expandedDesignRibbon ? [{ icon: ChamferCadIcon, label: 'Fazuj', onClick: () => openEdgeCommand('chamfer'), disabled: readOnly || !selectedEdgeItems.length, disabledReason: 'Zaznacz co najmniej jedną krawędź.' }] : []),
+                  ...(!expandedDesignRibbon ? [{ icon: ShellCadIcon, label: 'Shell', displayLabel: 'Powłoka', onClick: openShell, disabled: readOnly || !selectedFaceItems.length, disabledReason: 'Zaznacz ścianę do usunięcia.' }] : []),
                   { icon: DraftCadIcon, label: 'Draft', displayLabel: 'Pochylenie ścian', onClick: openDraft, disabled: readOnly || !selectedFaceItems.length, disabledReason: 'Zaznacz ściany do pochylenia.' },
                   { icon: OffsetFaceCadIcon, label: 'Offset Face', displayLabel: 'Odsuń ścianę', onClick: openOffsetFace, disabled: readOnly || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz dokładnie jedną płaską ścianę.' },
                   { icon: DeleteFaceCadIcon, label: 'Delete Face + Heal', displayLabel: 'Usuń i napraw ścianę', onClick: openDeleteFace, disabled: readOnly || !selectedFaceItems.length, disabledReason: 'Zaznacz ściany do usunięcia.' },
                   { icon: MoveBodyCadIcon, label: 'Przesuń bryłę', onClick: () => openTransform('move'), disabled: readOnly || selection?.kind !== 'body' },
                   { icon: RotateBodyCadIcon, label: 'Obróć bryłę', onClick: () => openTransform('rotate'), disabled: readOnly || selection?.kind !== 'body' },
                   { icon: EditFeatureCadIcon, label: 'Edytuj', onClick: editSelection, disabled: readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind) },
-                  { icon: PatternCadIcon, label: 'Pattern', displayLabel: 'Szyk', onClick: openPattern, disabled: readOnly || !targetBodyId || !targetBodySupportsSolidOperations || Boolean(activeSketchId), disabledReason: 'Zaznacz obsługiwaną bryłę i zakończ szkic.' },
-                  { icon: BooleanCadIcon, label: 'Boolean', displayLabel: 'Połącz / odejmij', onClick: openBoolean, disabled: readOnly || !canBooleanSelectedBodies, disabledReason: 'Zaznacz co najmniej dwie bryły.' },
+                  ...(!expandedDesignRibbon ? [{ icon: PatternCadIcon, label: 'Pattern', displayLabel: 'Szyk', onClick: openPattern, disabled: readOnly || !targetBodyId || !targetBodySupportsSolidOperations || Boolean(activeSketchId), disabledReason: 'Zaznacz obsługiwaną bryłę i zakończ szkic.' }] : []),
+                  ...(!expandedDesignRibbon ? [{ icon: BooleanCadIcon, label: 'Boolean', displayLabel: 'Połącz / odejmij', onClick: openBoolean, disabled: readOnly || !canBooleanSelectedBodies, disabledReason: 'Zaznacz co najmniej dwie bryły.' }] : []),
                   { icon: SplitBodyCadIcon, label: 'Split Body', displayLabel: 'Podziel bryłę', onClick: openSplitBody, disabled: readOnly || selection?.kind !== 'body', disabledReason: 'Zaznacz bryłę.' },
                   { icon: SplitFaceCadIcon, label: 'Split Face', displayLabel: 'Podziel ścianę', onClick: openSplitFace, disabled: readOnly || !canSplitFace, disabledReason: 'Zaznacz profil szkicu i płaską ścianę.' },
                   { icon: ReplaceFaceCadIcon, label: 'Replace Face', displayLabel: 'Zastąp ścianę', onClick: openReplaceFace, disabled: readOnly || selectedFaceItems.length !== 2, disabledReason: 'Zaznacz dwie równoległe ściany.' },

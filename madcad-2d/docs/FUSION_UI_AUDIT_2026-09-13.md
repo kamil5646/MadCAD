@@ -50,6 +50,14 @@ Dowód: `artifacts/fusion-flow-audit-2026-08-31/07-visibility-viewcube.png`.
 - Rozwinięty filtr pozostaje nad nawigacją, a na wąskim ekranie automatycznie ustawia się centralnie.
 - Automatyczny test mierzy położenie obu kontrolek i wykrywa ich nakładanie.
 
+## 6. Adaptacyjna wstążka bryły — stan dobry po poprawce
+
+Dowód: `artifacts/full-interface-audit-2026-08-30/01-model-fixed.png`.
+
+- Na szerokim ekranie wolne miejsce pokazuje bezpośrednio Prymityw, bryłę obrotową, operację po ścieżce, fazowanie, powłokę, szyk i operację logiczną.
+- Przy zwykłej szerokości te same polecenia wracają do „Więcej brył” i „Więcej zmian”, dzięki czemu grupy nie wypychają się poza okno.
+- Test zmienia szerokość z 2200 na 1351 px i sprawdza zarówno dostępność poleceń, jak i brak poziomego przepełnienia.
+
 ## Dostępność i ograniczenia dowodów
 
 Pełny przebieg sprawdził powiększenie 100%, 150% i 200% bez przepełnienia dokumentu, dostępny fokus klawiatury oraz brak zgłoszonych naruszeń axe. Automatyczny audyt kontrastu pozostawia elementy niejednoznaczne przy nakładaniu warstw płótna; wymaga to dalszej kontroli wizualnej przy kolejnych panelach.

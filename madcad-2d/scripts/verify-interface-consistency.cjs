@@ -142,13 +142,27 @@ app.whenReady().then(async () => {
         featuredIconSize: document.querySelector('.ribbon-tool.featured .ribbon-icon')?.getBoundingClientRect().width || 0,
         appIconSize: document.querySelector('.app-menu button svg')?.getBoundingClientRect().width || 0,
         ribbonHeight: document.querySelector('.command-area')?.getBoundingClientRect().height || 0,
+        directTools: [...document.querySelectorAll('.ribbon-visible-groups > .ribbon-group .ribbon-tool:not(.ribbon-tool-menu-trigger)')].map((item) => item.dataset.toolLabel).filter(Boolean),
+        horizontalOverflow: document.querySelector('.modeling-ribbon')?.scrollWidth > document.querySelector('.modeling-ribbon')?.clientWidth,
         duplicatedFlowTools: [...document.querySelectorAll('.modeling-ribbon [data-tool-label]')].map((item) => item.dataset.toolLabel).filter((label) => ['Import 3D', 'Wybierz'].includes(label)),
         enabledWithoutAction: [...document.querySelectorAll('.modeling-ribbon button[data-operational="false"]:not(:disabled)')].map((item) => item.dataset.toolLabel),
         noticeCompact: !noticeRect || (noticeRect.width <= 520 && noticeRect.height <= 28 && noticeRect.left <= 20),
       };
     })()`);
     const expectedDesignMenus = ['Więcej brył', 'Więcej zmian', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
-    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || designStructure.duplicatedFlowTools.length || designStructure.enabledWithoutAction.length || !designStructure.noticeCompact || !designStructure.customCadIcons || designStructure.iconLayers !== 1 || designStructure.distinctIconAccents < 2 || designStructure.iconSize < 27 || designStructure.featuredIconSize < 29 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+    const expectedWideTools = ['Prymityw', 'Revolve', 'Sweep', 'Fazuj', 'Shell', 'Pattern', 'Boolean'];
+    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !expectedWideTools.every((label) => designStructure.directTools.includes(label)) || designStructure.horizontalOverflow || designStructure.duplicatedFlowTools.length || designStructure.enabledWithoutAction.length || !designStructure.noticeCompact || !designStructure.customCadIcons || designStructure.iconLayers !== 1 || designStructure.distinctIconAccents < 2 || designStructure.iconSize < 27 || designStructure.featuredIconSize < 29 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+
+    window.setContentSize(1351, 877);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const compactDesign = await window.webContents.executeJavaScript(`(() => ({
+      directTools: [...document.querySelectorAll('.ribbon-visible-groups > .ribbon-group .ribbon-tool:not(.ribbon-tool-menu-trigger)')].map((item) => item.dataset.toolLabel).filter(Boolean),
+      menus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
+      horizontalOverflow: document.querySelector('.modeling-ribbon')?.scrollWidth > document.querySelector('.modeling-ribbon')?.clientWidth,
+    }))()`);
+    if (expectedWideTools.some((label) => compactDesign.directTools.includes(label)) || !['Więcej brył', 'Więcej zmian'].every((label) => compactDesign.menus.includes(label)) || compactDesign.horizontalOverflow) throw new Error(`Wstążka nie zwija się poprawnie przy zwykłej szerokości: ${JSON.stringify(compactDesign)}`);
+    window.setContentSize(2200, 877);
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
     const expectedDomainGroups = {
       POWIERZCHNIA: ['UTWÓRZ', 'ZMIEŃ', 'SPRAWDŹ'],
@@ -443,7 +457,7 @@ app.whenReady().then(async () => {
     }
     await fs.writeFile(overflowScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
-    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, ribbonPaint, fileMenu, designStructure, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, selectionFilterLayout, browserTimeline, commandPanel, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, browserTimelineScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, ribbonPaint, fileMenu, designStructure, compactDesign, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, selectionFilterLayout, browserTimeline, commandPanel, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, browserTimelineScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);
