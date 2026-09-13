@@ -1,7 +1,7 @@
 :root {
   color-scheme: dark;
   font-family: "Segoe UI", Inter, system-ui, sans-serif;
-  background: #2c333e;
+  background: #191c21;
 }
 
 * {
@@ -20,7 +20,7 @@ body,
 
 body {
   min-width: 320px;
-  background: #2c333e;
+  background: #191c21;
 }
 
 button,
@@ -40,7 +40,7 @@ textarea {
   height: 100%;
   place-items: center;
   color: #dce5ed;
-  background: #2c333e;
+  background: #191c21;
   font-size: 14px;
 }
 
@@ -51,21 +51,21 @@ textarea {
   padding: 24px;
   place-items: center;
   color: #e7edf3;
-  background: #252c35;
+  background: #191c21;
 }
 
 .app-error-card {
   width: min(620px, 100%);
   padding: 28px;
-  border: 1px solid #596775;
-  border-radius: 6px;
-  background: #303945;
-  box-shadow: 0 16px 44px #11182166;
+  border: 1px solid #454b54;
+  border-radius: 8px;
+  background: #242930;
+  box-shadow: 0 18px 48px #00000066;
 }
 
 .app-error-kicker {
   margin: 0 0 8px;
-  color: #67c8f0;
+  color: #ef5663;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: .08em;
@@ -85,10 +85,10 @@ textarea {
 .app-error-card button {
   margin: 8px 0 16px;
   padding: 9px 16px;
-  border: 1px solid #72d2f5;
+  border: 1px solid #ed4150;
   border-radius: 4px;
-  color: #10222c;
-  background: #72d2f5;
+  color: #fff;
+  background: #b91f2d;
   font-weight: 700;
   cursor: pointer;
 }

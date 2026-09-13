@@ -6641,3 +6641,516 @@
 .manufacturing-report-operations div.invalid span svg { color: #efab69; }
 .manufacturing-report-operations small { color: #9dabb6; font-size: 9px; }
 .manufacturing-program-report > p { margin: 0; color: #95a5b1; font-size: 9px; line-height: 1.5; }
+
+/* MadCAD brand theme -------------------------------------------------------
+   The app icon is the visual source of truth: near-black graphite surfaces,
+   precise red highlights and neutral tool groups. Semantic viewport colours
+   (axes, snaps, warnings and success states) intentionally stay distinct. */
+:root {
+  --mc-bg: #191c21;
+  --mc-chrome: #20242a;
+  --mc-chrome-dark: #14171b;
+  --mc-panel: #242930;
+  --mc-panel-deep: #1b1f24;
+  --mc-line: #3b414a;
+  --mc-line-soft: #2e343c;
+  --mc-text: #f3f3f4;
+  --mc-muted: #bcc0c6;
+  --mc-dim: #7f858e;
+  --mc-accent: #e32636;
+  --mc-accent-strong: #ff4050;
+  --mc-accent-soft: rgb(227 38 54 / 18%);
+}
+
+.modeling-shell {
+  background: var(--mc-bg);
+  color: var(--mc-text);
+}
+
+.modeling-titlebar {
+  border-bottom-color: #090b0e;
+  background: #13161a;
+  box-shadow: inset 0 -1px rgb(255 255 255 / 3%);
+}
+
+.app-menu-separator { background: rgb(255 255 255 / 10%); }
+
+.app-menu button,
+.title-actions button,
+.document-tab button,
+.browser-heading button { color: #b8bdc4; }
+
+.app-menu button:hover:not(:disabled),
+.title-actions button:hover:not(:disabled),
+.document-tab button:hover,
+.browser-heading button:hover {
+  background: #2b3037;
+  color: #fff;
+}
+
+.app-menu button.active {
+  background: rgb(227 38 54 / 16%);
+  color: #ff8a94;
+  box-shadow: inset 0 -2px #e32636;
+}
+
+.document-tab {
+  border: 1px solid #343941;
+  border-top: 0;
+  background: #252a31;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 24%);
+}
+
+.document-tab > svg { color: #ef4050; }
+
+.command-area,
+.command-ribbon {
+  border-color: #111419;
+  background: #22272d;
+}
+
+.workspace-tabs {
+  border-bottom-color: #111419;
+  background: #1a1e23;
+}
+
+.workspace-tabs button {
+  border-radius: 5px 5px 0 0;
+  background: transparent;
+  color: #aeb3ba;
+}
+
+.workspace-tabs button:hover:not(:disabled) {
+  border-color: #3d434c;
+  background: #292e35;
+}
+
+.workspace-tabs button.active {
+  border-color: #454b55;
+  background: #30353d;
+  box-shadow: none;
+}
+
+.workspace-tabs button.active::after {
+  height: 2px;
+  background: #ed2f40;
+  box-shadow: 0 0 8px rgb(237 47 64 / 28%);
+}
+
+.modeling-ribbon { background: #20242a; }
+
+.ribbon-group {
+  border-top-color: color-mix(in srgb, var(--group-accent) 76%, transparent);
+  border-right-color: #353a42;
+  background: color-mix(in srgb, var(--group-accent) 3%, transparent);
+}
+
+.ribbon-group-sketch { --group-accent: #ef5663; }
+.ribbon-group-solid { --group-accent: #dc3d4b; }
+.ribbon-group-edit { --group-accent: #c9cdd2; }
+.ribbon-group-reference { --group-accent: #9ea5ad; }
+.ribbon-group-inspect { --group-accent: #d9828a; }
+.ribbon-group-output { --group-accent: #b7bdc5; }
+.ribbon-group-finish { --group-accent: #f04453; }
+
+.ribbon-group-heading {
+  color: color-mix(in srgb, var(--group-accent) 46%, #f2f2f3);
+  letter-spacing: .055em;
+}
+
+.ribbon-tool:hover:not(:disabled),
+.ribbon-overflow-trigger:hover,
+.ribbon-overflow-trigger.active,
+.ribbon-tool-submenu > button:hover:not(:disabled) {
+  border-color: #555c66;
+  background: #343941;
+}
+
+.ribbon-tool:active:not(:disabled) {
+  border-color: #e34a57;
+  background: #3b272c;
+  box-shadow: inset 0 0 0 1px rgb(227 74 87 / 12%);
+}
+
+.ribbon-tool.primary {
+  border-color: color-mix(in srgb, var(--tool-accent) 36%, #3e444c);
+  background: color-mix(in srgb, var(--tool-accent) 8%, #292e35);
+  box-shadow: inset 2px 0 color-mix(in srgb, var(--tool-accent) 82%, transparent);
+}
+
+.ribbon-tool.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--tool-accent) 14%, #343941);
+}
+
+.ribbon-overflow-menu,
+.ribbon-tool-submenu,
+.app-help-menu > div {
+  border-color: #4c535d;
+  background: #20242a;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 52%);
+}
+
+.app-help-menu .app-help-trigger:hover,
+.app-help-menu.open .app-help-trigger {
+  border-color: #4b515a;
+  background: #2b3037;
+}
+
+.app-help-menu > div > button:hover {
+  border-color: #565d67;
+  background: #30353c;
+}
+
+.file-backstage {
+  border-right-color: #4a5059;
+  background: #1c2025;
+  box-shadow: 18px 0 48px rgb(0 0 0 / 55%);
+}
+
+.file-backstage > header {
+  border-bottom-color: #393f47;
+  background: #262b31;
+  box-shadow: inset 3px 0 #e32636;
+}
+
+.file-backstage-content section > button:hover:not(:disabled) {
+  border-color: #565d66;
+  background: #292e34;
+}
+
+.file-backstage-content section > button > svg { color: #ee5a67; }
+
+.file-backstage-content .file-backstage-print > button {
+  border-color: #78414a;
+  background: #30252a;
+}
+
+.start-page.empty-canvas { background: #191d22; }
+
+.start-page-brand { color: #b9bdc3; }
+
+.start-page-brand img {
+  border-color: rgb(238 64 79 / 42%);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 38%);
+}
+
+.start-page h1 { color: #f6f6f7; }
+.start-page-intro > p { color: #b9bdc3; }
+
+.start-page .start-page-action {
+  border-color: #434951;
+  border-radius: 8px;
+  background: #24292f;
+}
+
+.start-page .start-page-action:hover {
+  border-color: #606771;
+  background: #2d3239;
+  transform: translateY(-1px);
+}
+
+.start-page .start-page-action.primary {
+  border-color: #ed4150;
+  background: #b91f2d;
+  box-shadow: 0 12px 28px rgb(142 15 28 / 25%);
+}
+
+.start-page .start-page-action.primary:hover { background: #cf2635; }
+.start-page-action > svg:first-child { color: #ee6470; }
+.start-page-action.primary > svg { color: #fff; }
+.start-page-action.primary small { color: #ffe3e6; }
+
+.start-page-shortcuts kbd {
+  border-color: #565c65;
+  border-bottom-color: #777e87;
+  background: #22272d;
+  color: #f0f1f2;
+}
+
+.start-page-flow {
+  border-color: #3f454e;
+  background: #20252b;
+  box-shadow: 0 18px 46px rgb(0 0 0 / 25%);
+}
+
+.start-page-flow li:not(:last-child)::after { background: #454b54; }
+.start-page-flow li > span { border-color: #5a6069; color: #ff8993; background: #272c32; }
+.start-page-flow li svg { color: #e95663; }
+
+.command-line {
+  border-bottom-color: #0f1216;
+  background: #1b1f24;
+}
+
+.command-line-icon,
+.command-history code { color: #ed5260; }
+
+.command-line input {
+  border-color: #414751;
+  background: #111419;
+}
+
+.command-line input:focus { border-color: #e14150; }
+
+.command-line kbd {
+  border-color: #484e56;
+  border-bottom-color: #686f78;
+  background: #292e34;
+}
+
+.timeline-item:hover,
+.timeline-item.selected {
+  border-color: #ec4856;
+  background: #452a30;
+}
+
+.timeline-end { background: #e63141; }
+
+.navigation-bar,
+.selection-filter-bar,
+.view-cube {
+  border-color: #4a5059;
+  background: rgb(29 33 39 / 94%);
+  box-shadow: 0 7px 20px rgb(0 0 0 / 28%);
+}
+
+.navigation-bar button:hover { background: #343940; }
+.navigation-bar button.active,
+.selection-filter-bar button.active {
+  background: #a9212d;
+  color: #fff;
+}
+
+.tutorial-dialog,
+.license-info-dialog,
+.command-dialog {
+  border-color: #505660;
+  background: #22272d;
+  box-shadow: 0 26px 80px rgb(0 0 0 / 58%);
+}
+
+.tutorial-dialog > header,
+.license-info-dialog > header,
+.command-dialog > header {
+  border-bottom-color: #414750;
+  background: #292e35;
+}
+
+.confirm,
+.empty-canvas button,
+.print-actions > button:first-child,
+.license-info-actions button.confirm,
+.full-license-dialog > footer button,
+.manufacturing-panel > header button,
+.manufacturing-empty button {
+  border-color: #ec4654;
+  background: #b7202e;
+  color: #fff;
+}
+
+.confirm:hover,
+.empty-canvas button:hover,
+.print-actions > button:first-child:hover:not(:disabled),
+.license-info-actions button.confirm:hover,
+.full-license-dialog > footer button:hover,
+.manufacturing-panel > header button:hover:not(:disabled),
+.manufacturing-empty button:hover:not(:disabled) { background: #ce2736; }
+
+.manufacturing-panel button:hover:not(:disabled),
+.manufacturing-panel > nav button.active,
+.manufacturing-page-tabs button.active {
+  border-color: #d74a57;
+  background: #3f292e;
+}
+
+.manufacturing-page-tabs span,
+.manufacturing-simulation-controls output { color: #f06a75; }
+
+.modeling-shell input:focus,
+.modeling-shell select:focus,
+.modeling-shell button:focus-visible,
+.modeling-shell input:focus-visible,
+.modeling-shell select:focus-visible,
+.modeling-shell [role="button"]:focus-visible,
+.modeling-shell [tabindex]:focus-visible {
+  outline-color: #ff4050 !important;
+}
+
+/* Brand consistency for secondary workspaces and utility panels. */
+.drawing-empty > svg,
+.project-dashboard-summary article > svg,
+.project-dashboard-actions > button > svg:first-child,
+.project-search-input > svg,
+.project-search-empty > svg,
+.project-dependencies-empty > svg {
+  color: #ed5966;
+}
+
+.drawing-empty-features span,
+.drawing-sheet-list,
+.drawing-properties,
+.drawing-sheet-details,
+.drawing-selection-hint {
+  border-color: #454b54;
+  background: #24292f;
+}
+
+.drawing-sheet-list > header,
+.drawing-properties > header,
+.drawing-canvas-toolbar {
+  border-color: #4b515a;
+  background: #2b3037;
+}
+
+.drawing-empty button,
+.drawing-actions button,
+.drawing-table-actions button,
+.drawing-export-pdf,
+.drawing-export-dxf,
+.workspace-guidebar button {
+  border-color: #ec4654;
+  background: #b7202e;
+  color: #fff;
+}
+
+.drawing-empty button:hover:not(:disabled),
+.drawing-actions button:hover:not(:disabled),
+.drawing-table-actions button:hover:not(:disabled),
+.drawing-export-pdf:hover:not(:disabled),
+.drawing-export-dxf:hover:not(:disabled),
+.workspace-guidebar button:hover {
+  background: #ce2736;
+}
+
+.drawing-sheet-list > button:hover,
+.drawing-canvas-toolbar button:hover {
+  border-color: #555c66;
+  background: #343940;
+}
+
+.drawing-sheet-list > button.active,
+.drawing-canvas-toolbar button.active {
+  border-color: #e24755;
+  background: #452a30;
+  color: #fff;
+}
+
+.drawing-table-control > strong,
+.drawing-view-properties > strong { color: #ef6571; }
+
+.drawing-properties input:focus,
+.drawing-properties select:focus {
+  border-color: #e14150;
+  box-shadow: 0 0 0 2px rgb(225 65 80 / 16%);
+  outline: none;
+}
+
+.project-dashboard-guide,
+.project-dashboard-summary article,
+.project-dashboard-actions > button {
+  border-color: #464c55;
+  border-left-color: #b92a37;
+  background: #24292f;
+}
+
+.project-dashboard-summary article { border-top-color: #9c343e; }
+.project-dashboard-summary article > button { border-color: #505761; background: #2d3239; }
+.project-dashboard-summary article > button:hover,
+.project-dashboard-actions > button:hover { border-color: #c44a55; background: #30353c; }
+
+.project-snapshots-panel,
+.project-comparison-panel,
+.project-health-panel,
+.project-dependencies-panel,
+.project-search-palette {
+  border-color: #4c535d;
+  background: #20242a;
+  box-shadow: 0 18px 48px rgb(0 0 0 / 50%);
+}
+
+.project-snapshots-panel > header,
+.project-comparison-panel > header,
+.project-health-panel > header,
+.project-dependencies-panel > header,
+.project-search-palette > header {
+  border-bottom-color: #3f454e;
+  background: #292e35;
+}
+
+.project-snapshots-panel form,
+.project-dependencies-source,
+.project-search-input {
+  border-bottom-color: #3f454e;
+  background: #24292f;
+}
+
+.project-snapshots-panel button:hover,
+.project-dependencies-panel button:hover,
+.project-dependencies-panel button.active,
+.project-search-results > button:hover,
+.project-search-results > button.active {
+  border-color: #d74a57;
+  background: #3f292e;
+}
+
+.project-snapshots-panel input:focus,
+.project-snapshots-panel textarea:focus,
+.project-dependencies-source input:focus,
+.project-dependencies-source select:focus {
+  border-color: #e14150;
+  box-shadow: 0 0 0 2px rgb(225 65 80 / 16%);
+}
+
+.project-snapshots-panel form .confirm { border-color: #ec4654; background: #b7202e; }
+.project-dependencies-selected > span,
+.project-dependencies-list .dependency-kind,
+.project-search-results > button > span { color: #ef6571; }
+.project-dependencies-list > button { border-left-color: #b92a37; }
+
+.view-cube button[aria-pressed='true'] {
+  border-color: #e24755;
+  background: #5a2931;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgb(226 71 85 / 18%);
+}
+
+.model-browser {
+  border-right-color: #343a42;
+  background: #1b1f24;
+}
+
+.browser-heading {
+  border-bottom-color: #424851;
+  background: #292e35;
+}
+
+.tree-row:hover { background: #2d3239; }
+.tree-row.selected { background: #652a33; color: #fff; }
+.tree-row.editing { box-shadow: inset 3px 0 #ed4050; }
+.tree-reference-visibility:hover { background: #343940; }
+
+.drawing-workspace,
+.project-dashboard { background: #20252b; }
+.drawing-paper-wrap { background: #191d22; }
+
+.license-plan-status,
+.license-account-panel {
+  border-color: #74434b;
+  background: #2d252a;
+}
+
+.license-plan-grid article,
+.license-info-card {
+  border-color: #4b515a;
+  background: #272c32;
+}
+
+.license-plan-grid article.selected {
+  border-color: #e24755;
+  background: #422a2f;
+  box-shadow: inset 0 0 0 1px #e24755;
+}
+
+.license-plan-grid article span { color: #ef6571; }
+.license-info-actions a.support { color: #ffdce0; background: #392a2f; }
+.license-info-actions a.support:hover { background: #4a2d34; }
