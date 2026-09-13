@@ -89,7 +89,7 @@ app.whenReady().then(async () => {
       };
     })()`);
 
-    if (!wide.title.includes('Zacznij od szkicu 2D') || !wide.primaryText.includes('Nowy szkic 2D') || !wide.workflowText.includes('Arkusz techniczny 2D') || !wide.workflowText.includes('Model parametryczny 3D') || !wide.workflowText.includes('Opcjonalnie: druk 3D') || wide.tabs.join('|') !== 'PROJEKTUJ|ARKUSZ 2D|WYTWARZANIE|ZARZĄDZAJ' || !wide.fileMenuAvailable || !wide.sharedIcon || wide.logoAtRightEnd || !wide.browserHiddenByDefault || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
+    if (!wide.title.includes('Zacznij od szkicu 2D') || !wide.primaryText.includes('Nowy szkic 2D') || !wide.workflowText.includes('Arkusz techniczny 2D') || !wide.workflowText.includes('Model parametryczny 3D') || !wide.workflowText.includes('Opcjonalnie: druk 3D') || wide.tabs.join('|') !== 'BRYŁA|POWIERZCHNIA|SIATKA|KONSTRUKCJA BLACHOWA|TWORZYWO SZTUCZNE|NARZĘDZIA' || !wide.fileMenuAvailable || !wide.sharedIcon || wide.logoAtRightEnd || !wide.browserHiddenByDefault || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
       throw new Error(`Nieprawidłowa hierarchia strony startowej: ${JSON.stringify(wide)}`);
     }
 
@@ -100,7 +100,7 @@ app.whenReady().then(async () => {
         runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa'] },
       });
       return {
-        violations: audit.violations.map((item) => ({ id: item.id, impact: item.impact, help: item.help })),
+        violations: audit.violations.map((item) => ({ id: item.id, impact: item.impact, help: item.help, nodes: item.nodes.slice(0, 8).map((node) => ({ target: node.target, html: node.html, summary: node.failureSummary })) })),
         incomplete: audit.incomplete.map((item) => ({ id: item.id, impact: item.impact })),
       };
     })()`);

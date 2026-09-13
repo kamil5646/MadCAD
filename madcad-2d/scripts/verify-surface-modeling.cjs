@@ -13,6 +13,23 @@ async function waitFor(window, expression, label, timeoutMs = 45000) {
   throw new Error(`Przekroczono czas oczekiwania: ${label}`);
 }
 
+async function selectSurfaceDomain(window) {
+  await window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === 'POWIERZCHNIA');
+    if (!button) throw new Error('Brak dziedziny POWIERZCHNIA.');
+    button.click();
+  })()`);
+  await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'POWIERZCHNIA'`, 'dziedzina powierzchni');
+}
+
+async function clickTool(window, label) {
+  await window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.dataset.toolLabel === ${JSON.stringify(label)});
+    if (!button || button.disabled) throw new Error('Niedostępne narzędzie: ${label}');
+    button.click();
+  })()`);
+}
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({ width: 1440, height: 900, show: true, webPreferences: { partition: `madcad-surface-${Date.now()}` } });
   window.setContentSize(1440, 837);
@@ -29,13 +46,8 @@ app.whenReady().then(async () => {
       window.__madcadVerifyTopologySelection({ kind: 'body', id: bodyId, bodyId });
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'zaznaczona powierzchnia');
-    await window.webContents.executeJavaScript(`(() => {
-      const trigger = [...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie');
-      if (!trigger) throw new Error('Brak menu Powierzchnie.');
-      trigger.click();
-    })()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled)`, 'aktywne polecenie Pogrub');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled).click()`);
+    await selectSurfaceDomain(window);
+    await clickTool(window, 'Thicken');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'thickenSurface' && document.querySelector('.command-dialog')`, 'panel Pogrub');
     await window.webContents.executeJavaScript(`(() => { const select = [...document.querySelectorAll('.command-field')].find((label) => label.querySelector('span')?.textContent.trim() === 'Strona')?.querySelector('select'); if (!select) throw new Error('Brak wyboru strony pogrubienia.'); select.value = 'symmetric'; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'solid'`, 'symetryczny podgląd bryły po pogrubieniu');
@@ -47,9 +59,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'surfaceExtrude' && window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'transform' && window.__madcadVerifyDocumentState?.bodyKinds?.[0] === 'surface'`, 'przesunięta powierzchnia wyciągnięta');
     await window.webContents.executeJavaScript(`(() => { const bodyId = window.__madcadVerifyDocumentState.bodyIds[0]; window.__madcadVerifyTopologySelection({ kind: 'body', id: bodyId, bodyId }); })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'zaznaczona powierzchnia wyciągnięta');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled)`, 'Pogrub dla powierzchni wyciągniętej');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled).click()`);
+    await clickTool(window, 'Thicken');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'solid'`, 'podgląd pogrubionej powierzchni wyciągniętej');
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 3 && window.__madcadVerifyDocumentState.featureData[2].type === 'thickenSurface' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'solid'`, 'zapisane pogrubienie przesuniętej powierzchni wyciągniętej');
@@ -76,9 +86,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 1 && window.__madcadVerifyDocumentState.featureData[0].type === 'surfaceRevolve' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'surface'`, 'zapisany Surface Revolve');
     await window.webContents.executeJavaScript(`(() => { const bodyId = window.__madcadVerifyDocumentState.bodyIds[0]; window.__madcadVerifyTopologySelection({ kind: 'body', id: bodyId, bodyId }); })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'zaznaczona powierzchnia obrotowa');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled)`, 'Pogrub dla Surface Revolve');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled).click()`);
+    await clickTool(window, 'Thicken');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'solid'`, 'podgląd pogrubionej powierzchni obrotowej');
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 2 && window.__madcadVerifyDocumentState.featureData[1].type === 'thickenSurface' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'solid'`, 'zapisane pogrubienie Surface Revolve');
@@ -101,36 +109,28 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 1 && window.__madcadVerifyDocumentState.featureData[0].type === 'surfaceSweep' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'surface'`, 'zapisany Surface Sweep');
     await window.webContents.executeJavaScript(`(() => { const bodyId = window.__madcadVerifyDocumentState.bodyIds[0]; window.__madcadVerifyTopologySelection({ kind: 'body', id: bodyId, bodyId }); })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'zaznaczona powierzchnia Sweep');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled)`, 'Pogrub dla Surface Sweep');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled).click()`);
+    await clickTool(window, 'Thicken');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'solid'`, 'podgląd pogrubionej powierzchni Sweep');
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 2 && window.__madcadVerifyDocumentState.featureData[1].type === 'thickenSurface' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'solid'`, 'zapisane pogrubienie Surface Sweep');
 
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSurfaceFixture('loft-source')`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'profile' && window.__madcadVerifyDocumentState?.sketches?.length === 2 && window.__madcadVerifyDocumentState?.featureData?.length === 0`, 'wybrany profil Surface Loft');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Powierzchnia przejściowa' && !button.disabled)`, 'aktywne polecenie Surface Loft');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Powierzchnia przejściowa' && !button.disabled).click()`);
+    await clickTool(window, 'Surface Loft');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'surfaceLoft' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'surface'`, 'podgląd Surface Loft');
     const loftSurfaceMetrics = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics`);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 1 && window.__madcadVerifyDocumentState.featureData[0].type === 'surfaceLoft' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'surface'`, 'zapisany Surface Loft');
     await window.webContents.executeJavaScript(`(() => { const bodyId = window.__madcadVerifyDocumentState.bodyIds[0]; window.__madcadVerifyTopologySelection({ kind: 'body', id: bodyId, bodyId }); })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'zaznaczona powierzchnia Loft');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Odsuń powierzchnię' && !button.disabled)`, 'Surface Offset dla Surface Loft');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Odsuń powierzchnię' && !button.disabled).click()`);
+    await clickTool(window, 'Surface Offset');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'surfaceOffset' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'surface'`, 'podgląd Surface Offset');
     const offsetSurfaceMetrics = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics`);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 2 && window.__madcadVerifyDocumentState.featureData[1].type === 'surfaceOffset' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'surface'`, 'zapisany Surface Offset');
     await window.webContents.executeJavaScript(`(() => { const bodyId = window.__madcadVerifyDocumentState.bodyIds[0]; window.__madcadVerifyTopologySelection({ kind: 'body', id: bodyId, bodyId }); })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'zaznaczona odsunięta powierzchnia Loft');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled)`, 'Pogrub dla Surface Loft');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled).click()`);
+    await clickTool(window, 'Thicken');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'solid'`, 'podgląd pogrubionej powierzchni Loft');
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.length === 3 && window.__madcadVerifyDocumentState.featureData[2].type === 'thickenSurface' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'solid'`, 'zapisane pogrubienie Surface Loft');
@@ -168,18 +168,14 @@ app.whenReady().then(async () => {
       window.__madcadVerifyTopologySelection({ kind: 'body', id: ${JSON.stringify(trimSource.solidId)}, bodyId: ${JSON.stringify(trimSource.solidId)} }, 'add');
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.items?.length === 2`, 'wspólny wybór powierzchni i bryły tnącej');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Przytnij powierzchnię' && !button.disabled)`, 'aktywne polecenie Surface Trim');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Przytnij powierzchnię' && !button.disabled).click()`);
+    await clickTool(window, 'Surface Trim');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'surfaceTrim' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2 && window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(trimSource.surfaceId)})?.metrics?.area < ${trimSource.sourceArea - 0.01}`, 'podgląd Surface Trim');
     const trimmedMetrics = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(trimSource.surfaceId)}).metrics`);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'surfaceTrim' && window.__madcadVerifyDocumentState.featureData.at(-1).keepTool === true && window.__madcadVerifyDocumentState.bodyKinds.includes('surface')`, 'zapisany Surface Trim z zachowaną bryłą');
     await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'body', id: ${JSON.stringify(trimSource.surfaceId)}, bodyId: ${JSON.stringify(trimSource.surfaceId)} }, 'replace')`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'zaznaczona przycięta powierzchnia');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled)`, 'Pogrub dla przyciętej powierzchni');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled).click()`);
+    await clickTool(window, 'Thicken');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'thickenSurface' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.find((body) => body.id === ${JSON.stringify(trimSource.surfaceId)})?.bodyKind === 'solid'`, 'pogrubiona przycięta powierzchnia');
     result.trimSourceArea = trimSource.sourceArea;
     result.trimmedArea = trimmedMetrics.area;
@@ -195,18 +191,14 @@ app.whenReady().then(async () => {
     })()`);
     await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'edge', id: ${JSON.stringify(extendSource.edgeId)}, bodyId: ${JSON.stringify(extendSource.bodyId)} }, 'replace')`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'edge'`, 'zaznaczona krawędź Surface Extend');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Przedłuż powierzchnię' && !button.disabled)`, 'aktywne polecenie Surface Extend');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Przedłuż powierzchnię' && !button.disabled).click()`);
+    await clickTool(window, 'Surface Extend');
     const expectedExtendedArea = extendSource.sourceArea + extendSource.edgeLength * 10;
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'surfaceExtend' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.area - ${expectedExtendedArea}) < 0.01`, 'podgląd Surface Extend');
     result.extendedArea = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.area`);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'surfaceExtend' && window.__madcadVerifyDocumentState.bodyKinds[0] === 'surface'`, 'zapisany Surface Extend');
     await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'body', id: ${JSON.stringify(extendSource.bodyId)}, bodyId: ${JSON.stringify(extendSource.bodyId)} }, 'replace')`);
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled)`, 'Pogrub dla przedłużonej powierzchni');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled).click()`);
+    await clickTool(window, 'Thicken');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'thickenSurface' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState.bodies[0].bodyKind === 'solid'`, 'pogrubiona przedłużona powierzchnia');
     result.extendedThickenVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`);
 
@@ -214,9 +206,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1 && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.type === 'surfaceStitch' && window.__madcadVerifyDocumentState?.bodyKinds?.[0] === 'surface'`, 'otwarty płaszcz Stitch pozostaje powierzchnią');
     result.openStitchArea = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.area`);
     await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies[0]; window.__madcadVerifyTopologySelection({ kind: 'body', id: body.id, bodyId: body.id }); })()`);
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled)`, 'Pogrub dla otwartego Stitch');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Pogrub powierzchnię' && !button.disabled).click()`);
+    await clickTool(window, 'Thicken');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'thickenSurface' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.bodyKind === 'solid'`, 'pogrubiony otwarty płaszcz Stitch');
     result.openStitchThickenVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`);
 
@@ -227,9 +217,7 @@ app.whenReady().then(async () => {
       bodies.forEach((body, index) => window.__madcadVerifyTopologySelection({ kind: 'body', id: body.id, bodyId: body.id }, index ? 'add' : 'replace'));
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.items?.length === 6`, 'wielokrotny wybór powierzchni Stitch');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Powierzchnie').click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Zszyj powierzchnie' && !button.disabled)`, 'aktywne polecenie Stitch');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Zszyj powierzchnie' && !button.disabled).click()`);
+    await clickTool(window, 'Stitch');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'surfaceStitch' && window.__madcadVerifyDocumentState.command.previewReady && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1 && window.__madcadVerifyEngineState.bodies[0].bodyKind === 'solid'`, 'podgląd zamkniętej bryły Stitch');
     const stitchMetrics = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics`);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm').click()`);

@@ -464,42 +464,67 @@ export function StartPage({ onStartSketch, onOpenProject, commandCustomization =
   return (
     <section className="empty-canvas start-page" aria-labelledby="start-page-title">
       <div className="start-page-shell">
-        <div className="start-page-intro">
+        <aside className="start-home-nav" aria-label="Nawigacja strony startowej">
           <div className="start-page-brand">
             <img src={madcadIconUrl} alt="MadCAD" />
-            <span>MadCAD · CAD 2D/3D</span>
+            <span>MadCAD</span>
           </div>
-          <h1 id="start-page-title">Zacznij od szkicu 2D. Potem wybierz dalszy cel.</h1>
-          <p>Szkic jest wspólnym początkiem. Możesz przygotować z niego arkusz techniczny 2D albo zbudować model 3D. Druk 3D jest osobnym, opcjonalnym etapem.</p>
-          <div className="start-page-actions">
-            <button className="start-page-action primary" type="button" onClick={onStartSketch}>
-              <PencilRuler size={22} />
-              <span><strong>Nowy szkic 2D</strong><small>Wybierz płaszczyznę, rysuj myszą i wpisuj dokładne wymiary.</small></span>
-              <ArrowRight size={18} />
-            </button>
-            <button className="start-page-action" type="button" onClick={onOpenProject}>
-              <FolderOpen size={22} />
-              <span><strong>Otwórz istniejący projekt</strong><small>Wczytaj plik .madcad i kontynuuj historię modelu.</small></span>
-              <ArrowRight size={18} />
-            </button>
+          <nav>
+            <button className="active" type="button"><Box size={16} />Moje projekty</button>
+            <button type="button" onClick={onOpenProject}><FolderOpen size={16} />Ostatnie pliki</button>
+            <button type="button"><FileBox size={16} />Przykłady</button>
+          </nav>
+          <div className="start-home-nav-actions">
+            <button className="primary" type="button" onClick={onStartSketch}><PencilRuler size={16} />Nowy projekt</button>
+            <button type="button" onClick={onOpenProject}><FolderOpen size={16} />Otwórz…</button>
           </div>
+        </aside>
+
+        <div className="start-home-content">
+          <div className="start-page-intro">
+            <span className="start-home-eyebrow">Witaj w MadCAD</span>
+            <h1 id="start-page-title">Zacznij od szkicu 2D. Potem wybierz dalszy cel.</h1>
+            <p>Szkic jest wspólnym początkiem. Z niego przygotujesz arkusz techniczny albo parametryczny model 3D.</p>
+          </div>
+
+          <section className="start-home-summary" aria-label="Informacje startowe">
+            <article><strong>Projekt osobisty</strong><span>Pełne narzędzia CAD do użytku prywatnego.</span><small>Aktywna przestrzeń: Projekt</small></article>
+            <article><strong>Przepływ pracy</strong><span>Szkic → model lub arkusz → eksport.</span><small>Druk 3D pozostaje osobnym dodatkiem.</small></article>
+          </section>
+
+          <section className="start-home-work" aria-labelledby="start-work-title">
+            <h2 id="start-work-title">Rozpocznij pracę</h2>
+            <div className="start-page-actions">
+              <button className="start-page-action primary" type="button" onClick={onStartSketch}>
+                <PencilRuler size={22} />
+                <span><strong>Nowy szkic 2D</strong><small>Wybierz płaszczyznę i rysuj z dokładnymi wymiarami.</small></span>
+                <ArrowRight size={16} />
+              </button>
+              <button className="start-page-action" type="button" onClick={onOpenProject}>
+                <FolderOpen size={22} />
+                <span><strong>Otwórz istniejący projekt</strong><small>Wczytaj .madcad i kontynuuj historię modelu.</small></span>
+                <ArrowRight size={16} />
+              </button>
+            </div>
+          </section>
+
           <div className="start-page-shortcuts" role="group" aria-label="Szybki start">
             <strong>Szybki start</strong>
             <span><kbd>{shortcut('Linia', 'L')}</kbd> Linia</span>
             <span><kbd>{shortcut('Prostokąt', 'R')}</kbd> Prostokąt</span>
             <span><kbd>{shortcut('Okrąg', 'C')}</kbd> Okrąg</span>
           </div>
-        </div>
 
-        <aside className="start-page-flow" aria-label="Przepływ pracy">
-          <strong>Co możesz zrobić dalej</strong>
-          <ol>
-            <li><span>1</span><div><PencilRuler size={18} /><strong>Szkic 2D</strong><small>Linie, łuki, snap, trim, offset, więzy i wymiary.</small></div></li>
-            <li><span>2A</span><div><FileBox size={18} /><strong>Arkusz techniczny 2D</strong><small>Widoki, wymiary oraz zapis do PDF lub DXF.</small></div></li>
-            <li><span>2B</span><div><Layers3 size={18} /><strong>Model parametryczny 3D</strong><small>Wyciągnięcia, operacje bryłowe i edytowalna historia.</small></div></li>
-            <li><span>3</span><div><Box size={18} /><strong>Opcjonalnie: druk 3D</strong><small>Osobne przygotowanie modelu i przekazanie do slicera.</small></div></li>
-          </ol>
-        </aside>
+          <aside className="start-page-flow" aria-label="Przepływ pracy">
+            <strong>Co możesz zrobić dalej</strong>
+            <ol>
+              <li><span>1</span><div><PencilRuler size={18} /><strong>Szkic 2D</strong><small>Linie, łuki, snap, trim, offset, więzy i wymiary.</small></div></li>
+              <li><span>2A</span><div><FileBox size={18} /><strong>Arkusz techniczny 2D</strong><small>Widoki, wymiary oraz zapis do PDF lub DXF.</small></div></li>
+              <li><span>2B</span><div><Layers3 size={18} /><strong>Model parametryczny 3D</strong><small>Wyciągnięcia, operacje bryłowe i edytowalna historia.</small></div></li>
+              <li><span>3</span><div><Box size={18} /><strong>Opcjonalnie: druk 3D</strong><small>Osobne przygotowanie modelu i przekazanie do slicera.</small></div></li>
+            </ol>
+          </aside>
+        </div>
       </div>
     </section>
   );

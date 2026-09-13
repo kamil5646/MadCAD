@@ -8,7 +8,6 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  Circle,
   CircleDotDashed,
   Copy,
   Crosshair,
@@ -47,7 +46,6 @@ import {
   Shapes,
   SkipBack,
   Spline,
-  Square,
   StepBack,
   StepForward,
   Sun,
@@ -199,6 +197,7 @@ import { ResponsiveRibbon, RibbonGroup, ToolButton, ToolHelpContext, ToolMenuBut
 import { ManufacturingPanel } from './ManufacturingPanel.jsx';
 import {
   AnglePlaneCadIcon,
+  AssemblyCadIcon,
   AxisCadIcon,
   BooleanCadIcon,
   ChamferCadIcon,
@@ -206,13 +205,17 @@ import {
   CylinderAxisCadIcon,
   DeleteFaceCadIcon,
   DraftCadIcon,
+  DrawingSheetCadIcon,
   EditFeatureCadIcon,
   ExtrudeCadIcon,
   FilletCadIcon,
   GeometryCheckCadIcon,
   HoleCadIcon,
+  ImportMeshCadIcon,
   LoftCadIcon,
   MassCadIcon,
+  ManufacturingSetupCadIcon,
+  MeshBodyCadIcon,
   MidplaneCadIcon,
   MoveBodyCadIcon,
   OffsetFaceCadIcon,
@@ -226,13 +229,27 @@ import {
   RevolveCadIcon,
   RotateBodyCadIcon,
   SectionCadIcon,
+  SheetMetalCadIcon,
+  SketchArcCadIcon,
   ShellCadIcon,
   SketchCadIcon,
+  SketchCircleCadIcon,
+  SketchConstraintCadIcon,
+  SketchDimensionCadIcon,
+  SketchLineCadIcon,
+  SketchPolylineCadIcon,
+  SketchRectangleCadIcon,
+  SketchShapesCadIcon,
+  SketchTrimCadIcon,
   SplitBodyCadIcon,
   SplitFaceCadIcon,
   SweepCadIcon,
+  SurfacePatchCadIcon,
   TangentPlaneCadIcon,
   ThreePointPlaneCadIcon,
+  PlasticFeatureCadIcon,
+  ProjectGeometryCadIcon,
+  FinishSketchCadIcon,
 } from './CadToolIcons.jsx';
 import { WorkspaceDialogStack } from './WorkspaceDialogStack.jsx';
 import { AdaptiveToolShelf } from './WorkspaceSketchUi.jsx';
@@ -290,11 +307,28 @@ const DESKTOP_PLATFORM = ['darwin', 'win32', 'linux'].includes(window.desktopApp
   ? window.desktopApp.platform
   : 'web';
 
-const MAIN_TABS = [
-  { id: 'solid', label: 'PROJEKTUJ' },
-  { id: 'drawing', label: 'ARKUSZ 2D' },
+const WORKSPACE_OPTIONS = [
+  { id: 'solid', label: 'PROJEKT' },
+  { id: 'drawing', label: 'RYSUNEK' },
   { id: 'manufacture', label: 'WYTWARZANIE' },
-  { id: 'tools', label: 'ZARZĄDZAJ' },
+  { id: 'tools', label: 'ZARZĄDZANIE' },
+];
+
+const DESIGN_TABS = [
+  { id: 'solid', label: 'BRYŁA' },
+  { id: 'surface', label: 'POWIERZCHNIA' },
+  { id: 'mesh', label: 'SIATKA' },
+  { id: 'sheet', label: 'KONSTRUKCJA BLACHOWA' },
+  { id: 'plastic', label: 'TWORZYWO SZTUCZNE' },
+  { id: 'utilities', label: 'NARZĘDZIA' },
+];
+
+const DRAWING_TABS = [
+  { id: 'drawing', label: 'RYSUNEK' },
+];
+
+const MANUFACTURE_TABS = [
+  { id: 'manufacture', label: 'WYTWARZANIE' },
 ];
 const LANGUAGE_KEY = 'madcad:interface-language';
 
@@ -575,6 +609,7 @@ export default function ModelingWorkspace() {
   currentPathRef.current = currentPath;
   const [persistenceReady, setPersistenceReady] = useState(() => !window.desktopApp?.autosaveRead);
   const [workspace, setWorkspace] = useState('solid');
+  const [designTab, setDesignTab] = useState('solid');
   const [activeDrawingSheetId, setActiveDrawingSheetId] = useState(() => document.drawings[0]?.id || null);
   const [selectedDrawingViewId, setSelectedDrawingViewId] = useState(null);
   const [selectedDrawingAnnotationId, setSelectedDrawingAnnotationId] = useState(null);
@@ -6861,6 +6896,7 @@ export default function ModelingWorkspace() {
     setToolHelp(null);
     setBrowserOpen(id !== 'drawing');
     setWorkspace(id);
+    if (id === 'solid') setDesignTab('solid');
     setPrintPanelOpen(false);
     setNotice(id === 'drawing'
         ? 'Arkusz 2D: przygotuj rysunek techniczny do PDF albo DXF.'
@@ -6880,15 +6916,15 @@ export default function ModelingWorkspace() {
     setNotice('Druk 3D: ułóż gotowy model na stole, sprawdź go i przekaż do slicera.');
   };
 
-  const handleWorkspaceTabKeyDown = (event, index) => {
+  const handleWorkspaceTabKeyDown = (event, index, tabs, onChange) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
     const nextIndex = event.key === 'Home'
       ? 0
       : event.key === 'End'
-        ? MAIN_TABS.length - 1
-        : (index + (event.key === 'ArrowRight' ? 1 : -1) + MAIN_TABS.length) % MAIN_TABS.length;
-    switchWorkspace(MAIN_TABS[nextIndex].id);
+        ? tabs.length - 1
+        : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    onChange(tabs[nextIndex].id);
     window.requestAnimationFrame(() => document.querySelectorAll('.workspace-tabs [role="tab"]')[nextIndex]?.focus());
   };
 
@@ -7604,8 +7640,18 @@ export default function ModelingWorkspace() {
 
       <section className="command-area">
         <div className="command-ribbon">
+          <label className="workspace-switcher">
+            <span>PRZESTRZEŃ ROBOCZA</span>
+            <select aria-label="Przestrzeń robocza" value={workspace === 'sketch' ? 'solid' : workspace} onChange={(event) => switchWorkspace(event.target.value)}>
+              {WORKSPACE_OPTIONS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+            </select>
+          </label>
           <nav className="workspace-tabs" aria-label="Obszary robocze" role="tablist">
-            {activeSketchId ? <button className="active" type="button" role="tab" aria-selected="true" title={activeSketchIs3D ? 'Aktywny obszar edycji szkicu przestrzennego.' : 'Aktywny obszar edycji szkicu 2D.'}>{activeSketchIs3D ? 'SZKIC 3D' : 'SZKICUJ'}</button> : MAIN_TABS.map((item, index) => <button key={item.id} className={workspace === item.id ? 'active' : ''} type="button" role="tab" aria-selected={workspace === item.id} tabIndex={workspace === item.id ? 0 : -1} title={item.id === 'solid' ? 'Szkicuj, twórz, modyfikuj i sprawdzaj geometrię.' : item.id === 'drawing' ? 'Przygotuj arkusz techniczny 2D.' : item.id === 'manufacture' ? 'Przygotuj obróbkę CAM dla gotowej bryły.' : 'Parametry, wersje, struktura i kontrola projektu.'} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>)}
+            {(workspace === 'solid' || workspace === 'sketch') && DESIGN_TABS.map((item, index) => <button key={item.id} className={!activeSketchId && designTab === item.id ? 'active' : ''} type="button" role="tab" aria-selected={!activeSketchId && designTab === item.id} tabIndex={!activeSketchId && designTab === item.id ? 0 : -1} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index, DESIGN_TABS, setDesignTab)} onClick={() => { if (activeSketchId) finishSketch(); else setWorkspace('solid'); setDesignTab(item.id); }}>{item.label}</button>)}
+            {workspace === 'drawing' && DRAWING_TABS.map((item, index) => <button key={item.id} className={index === 0 ? 'active' : ''} type="button" role="tab" aria-selected={index === 0} tabIndex={index === 0 ? 0 : -1}>{item.label}</button>)}
+            {workspace === 'manufacture' && MANUFACTURE_TABS.map((item, index) => <button key={item.id} className={index === 0 ? 'active' : ''} type="button" role="tab" aria-selected={index === 0} tabIndex={index === 0 ? 0 : -1}>{item.label}</button>)}
+            {workspace === 'tools' && <button className="active" type="button" role="tab" aria-selected="true">PRZEGLĄD PROJEKTU</button>}
+            {activeSketchId && <button className="active contextual" type="button" role="tab" aria-selected="true" title={activeSketchIs3D ? 'Aktywny obszar edycji szkicu przestrzennego.' : 'Aktywny obszar edycji szkicu 2D.'}>{activeSketchIs3D ? 'SZKIC 3D' : 'SZKIC'}</button>}
           </nav>
           <ResponsiveRibbon key={licenseInfoOpen ? 'license-open' : 'license-closed'} language={language}>
             {activeSketchId ? (
@@ -7624,17 +7670,17 @@ export default function ModelingWorkspace() {
                     <RibbonGroup label="UŻYJ ŚCIEŻKI">
                       <ToolButton icon={Cylinder} label="Pipe" displayLabel="Rura" onClick={openPipe} disabled={readOnly || command?.type === 'editSketch3d' || !canUseSpatialPath} disabledReason="Dodaj co najmniej jedną krzywą ścieżki 3D." />
                     </RibbonGroup>
-                    <RibbonGroup label="ZAKOŃCZ SZKIC"><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch3D} primary disabled={command?.type === 'editSketch3d'} /></RibbonGroup>
+                    <RibbonGroup label="ZAKOŃCZ SZKIC"><ToolButton icon={FinishSketchCadIcon} label="Zakończ szkic" onClick={finishSketch3D} primary disabled={command?.type === 'editSketch3d'} /></RibbonGroup>
                   </>
                 ) : (
                   <>
                 <RibbonGroup label="UTWÓRZ">
-                  <ToolButton icon={Minus} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} />
-                  <ToolButton icon={Move} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} />
-                  <ToolButton icon={Square} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} />
-                  <ToolButton icon={Circle} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} />
-                  {expandedSketchRibbon && <ToolButton icon={Rotate3d} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} />}
-                  <ToolMenuButton icon={Shapes} label="Więcej kształtów" description="Łuki, wielokąty, elipsy i pozostałe kształty szkicu." items={[
+                  <ToolButton icon={SketchLineCadIcon} label="Linia" onClick={() => openSketchPath('line')} primary disabled={readOnly} />
+                  <ToolButton icon={SketchPolylineCadIcon} label="Polilinia" onClick={() => openSketchPath('polyline')} disabled={readOnly} />
+                  <ToolButton icon={SketchRectangleCadIcon} label="Prostokąt" onClick={() => openProfileCommand('rectangle')} disabled={readOnly} />
+                  <ToolButton icon={SketchCircleCadIcon} label="Okrąg" onClick={() => openProfileCommand('circle')} disabled={readOnly} />
+                  {expandedSketchRibbon && <ToolButton icon={SketchArcCadIcon} label="Łuk" onClick={() => openMechanicalShape('arc')} disabled={readOnly} />}
+                  <ToolMenuButton icon={SketchShapesCadIcon} label="Więcej kształtów" description="Łuki, wielokąty, elipsy i pozostałe kształty szkicu." items={[
                     ...(!expandedSketchRibbon ? [{ icon: Rotate3d, label: 'Łuk', onClick: () => openMechanicalShape('arc'), disabled: readOnly }] : []),
                     { icon: RotateCw, label: 'Łuk styczny', onClick: () => setCommand((current) => current?.type === 'polyline' ? { ...current, segmentMode: 'tangentArc' } : current), disabled: readOnly || command?.type !== 'polyline' || !command.segmentIds.length, disabledReason: 'Najpierw rozpocznij polilinię i dodaj pierwszy odcinek.' },
                     { icon: Hexagon, label: 'Wielokąt', onClick: () => openMechanicalShape('polygon'), disabled: readOnly },
@@ -7654,7 +7700,7 @@ export default function ModelingWorkspace() {
                   ]} />}
                 </RibbonGroup>
                 <RibbonGroup label="ZMIEŃ">
-                  <ToolButton icon={Scissors} label="Trim" displayLabel="Przytnij" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} />
+                  <ToolButton icon={SketchTrimCadIcon} label="Trim" displayLabel="Przytnij" onClick={() => setCommand((current) => current?.type === 'trimSketch' ? null : { type: 'trimSketch' })} primary={command?.type === 'trimSketch'} disabled={readOnly} />
                   <ToolMenuButton icon={Copy} label="Modyfikuj" description="Przedłużanie, dzielenie, odsuwanie i dokładne przekształcenia." items={[
                     { icon: Maximize2, label: 'Extend', displayLabel: 'Przedłuż', onClick: () => setCommand((current) => current?.type === 'extendSketch' ? null : { type: 'extendSketch' }), disabled: readOnly },
                     { icon: Minus, label: 'Break', displayLabel: 'Podziel', onClick: () => setCommand((current) => current?.type === 'breakSketch' ? null : { type: 'breakSketch' }), disabled: readOnly },
@@ -7668,13 +7714,13 @@ export default function ModelingWorkspace() {
                   <ToolButton icon={X} label="Usuń" onClick={deleteSelectedSketchEntities} disabled={readOnly || (!selectedSketchEntityIds.length && !selectedSketchConstraintId)} disabledReason="Zaznacz geometrię albo więz." />
                 </RibbonGroup>
                 <RibbonGroup label="WIĄZANIA">
-                  <ToolButton icon={ScanSearch} label="Project" displayLabel="Rzutuj" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} />
-                  <ToolMenuButton icon={Frame} label="Więzy" description="Zaawansowane więzy geometryczne zaznaczonej geometrii." items={[
+                  <ToolButton icon={ProjectGeometryCadIcon} label="Project" displayLabel="Rzutuj" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} />
+                  <ToolMenuButton icon={SketchConstraintCadIcon} label="Więzy" description="Zaawansowane więzy geometryczne zaznaczonej geometrii." items={[
                     { icon: Minus, label: 'Współliniowe', onClick: () => addSelectedSketchConstraint('collinear'), disabled: readOnly || !canAddCollinear, disabledReason: 'Zaznacz dwie linie.' },
                     { icon: Frame, label: 'Symetria', onClick: () => addSelectedSketchConstraint('symmetry'), disabled: readOnly || !canAddSymmetry, disabledReason: 'Zaznacz geometrię i oś symetrii.' },
                     { icon: CircleDotDashed, label: 'Krzywizna G2', onClick: () => addSelectedSketchConstraint('curvature'), disabled: readOnly || !canAddCurvature, disabledReason: 'Zaznacz dwie zgodne krzywe.' },
                   ]} />
-                  <ToolMenuButton icon={Ruler} label="Wymiary" description="Wymiary współrzędnych i długości łuku." items={[
+                  <ToolMenuButton icon={SketchDimensionCadIcon} label="Wymiary" description="Wymiary współrzędnych i długości łuku." items={[
                     { icon: Ruler, label: 'Ordinate X', displayLabel: 'Współrzędna X', onClick: () => openSketchDimension('ordinateX'), disabled: readOnly || !canAddOrdinate, disabledReason: 'Zaznacz punkt szkicu.' },
                     { icon: Ruler, label: 'Ordinate Y', displayLabel: 'Współrzędna Y', onClick: () => openSketchDimension('ordinateY'), disabled: readOnly || !canAddOrdinate, disabledReason: 'Zaznacz punkt szkicu.' },
                     { icon: RotateCw, label: 'Długość łuku', onClick: () => openSketchDimension('arcLength'), disabled: readOnly || !canAddArcLength, disabledReason: 'Zaznacz łuk.' },
@@ -7686,13 +7732,13 @@ export default function ModelingWorkspace() {
                     { icon: Blocks, label: 'Bloki', onClick: () => { setLayersOpen(false); setComponentsOpen(false); setBlocksOpen(true); } },
                   ]} />
                 </RibbonGroup>
-                <RibbonGroup label="ZAKOŃCZ SZKIC"><ToolButton icon={Check} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
+                <RibbonGroup label="ZAKOŃCZ SZKIC"><ToolButton icon={FinishSketchCadIcon} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
                   </>
                 )}
               </>
             ) : workspace === 'drawing' ? (
               <>
-                <RibbonGroup label="ARKUSZ"><ToolButton icon={FilePlus2} label="Nowy arkusz" onClick={createDrawingSheetInDocument} disabled={readOnly} primary /><ToolMenuButton icon={FileText} label="Ustawienia" description="Format, tabliczka rysunkowa, rewizje i usuwanie arkusza." items={[
+                <RibbonGroup label="ARKUSZ"><ToolButton icon={DrawingSheetCadIcon} label="Nowy arkusz" onClick={createDrawingSheetInDocument} disabled={readOnly} primary /><ToolMenuButton icon={FileText} label="Ustawienia" description="Format, tabliczka rysunkowa, rewizje i usuwanie arkusza." items={[
                   { icon: FileText, label: 'Tabliczka rysunkowa', onClick: () => setDrawingPropertyFocus({ section: 'title-block', token: Date.now() }), disabled: !activeDrawingSheet },
                   { icon: History, label: 'Rewizje arkusza', onClick: () => setDrawingPropertyFocus({ section: 'revisions', token: Date.now() }), disabled: !activeDrawingSheet },
                   { icon: Trash2, label: 'Usuń arkusz', onClick: deleteActiveDrawingSheet, disabled: readOnly || !activeDrawingSheet },
@@ -7720,35 +7766,81 @@ export default function ModelingWorkspace() {
               </>
             ) : workspace === 'manufacture' ? (
               <>
-                <RibbonGroup label="SETUP"><ToolButton icon={Box} label="Nowy Setup" onClick={createCamSetup} disabled={readOnly || !engine.bodies.some((body) => body.bodyKind !== 'surface')} primary description="Powiąż bryłę z obrabiarką, półfabrykatem i układem WCS." /></RibbonGroup>
+                <RibbonGroup label="SETUP"><ToolButton icon={ManufacturingSetupCadIcon} label="Nowy Setup" onClick={createCamSetup} disabled={readOnly || !engine.bodies.some((body) => body.bodyKind !== 'surface')} primary description="Powiąż bryłę z obrabiarką, półfabrykatem i układem WCS." /></RibbonGroup>
                 <RibbonGroup label="WIDOK"><ToolButton icon={Crosshair} label="Dopasuj model" onClick={() => setFitViewRequest({ requestId: `cam-fit:${Date.now()}` })} disabled={!engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="PRZYGOTOWANIE"><ToolButton icon={Ruler} label="Sprawdź Setup" onClick={() => setNotice('Panel Setup pokazuje bieżące wymiary półfabrykatu, zero WCS i zgodność z przesuwem maszyny.')} disabled={!document.manufacturing.setups.length} /></RibbonGroup>
               </>
-            ) : workspace === 'tools' ? null : (
+            ) : workspace === 'tools' ? null : designTab === 'surface' ? (
               <>
-                <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Move3d} label="Szkic 3D" onClick={startSketch3D} disabled={readOnly} description="Utwórz ciągłą przestrzenną ścieżkę XYZ dla Sweep, Pipe i Pattern." /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolMenuButton icon={Layers3} label="Blacha" description="Utwórz bazę blachową, a następnie dodawaj kołnierze na jej krawędziach." items={[
-                  { icon: Layers3, label: 'Baza blachowa', onClick: openSheetBase, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
-                  { icon: Layers3, label: 'Kołnierz blachy', onClick: openSheetFlange, disabled: readOnly || !canCreateSheetFlange || Boolean(activeSketchId), disabledReason: 'Zaznacz jedną prostą krawędź istniejącej blachy.' },
-                  { icon: Layers3, label: 'Zawinięcie blachy', onClick: openSheetHem, disabled: readOnly || !canCreateSheetFlange || Boolean(activeSketchId), disabledReason: 'Zaznacz jedną prostą krawędź istniejącej blachy.' },
-                  { icon: Scissors, label: 'Szczelina blachy', onClick: openSheetRip, disabled: readOnly || !canCreateSheetFlange || Boolean(activeSketchId), disabledReason: 'Zaznacz jedną prostą krawędź istniejącej blachy.' },
-                  { icon: Ungroup, label: 'Rozwiń blachę', onClick: () => addSheetStateFeature('sheetUnfold'), disabled: readOnly || !canUnfoldSheet || Boolean(activeSketchId), disabledReason: activeSheetBody?.sheetMetal.unfolded ? 'Blacha jest już rozwinięta.' : 'Zaznacz blachę z co najmniej jednym gięciem.' },
-                  { icon: Layers3, label: 'Zagnij ponownie', onClick: () => addSheetStateFeature('sheetRefold'), disabled: readOnly || !canRefoldSheet || Boolean(activeSketchId), disabledReason: 'Najpierw rozwiń blachę.' },
-                ]} /><ToolMenuButton icon={PlaneCadIcon} label="Powierzchnie" description="Twórz, odsuwaj, zszywaj i pogrubiaj dokładne powierzchnie B-Rep." items={[
-                  { icon: PlaneCadIcon, label: 'Patch', displayLabel: 'Wypełnij profil', onClick: openSurfacePatch, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
-                  { icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude, disabled: readOnly || (!selectedProfile && !canExtrudeOpenChain), disabledReason: 'Zaznacz zamknięty profil albo ciągły otwarty łańcuch.' },
-                  { icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Obróć powierzchnię', onClick: openSurfaceRevolve, disabled: readOnly || (!selectedProfile && !canExtrudeOpenChain), disabledReason: 'Zaznacz zamknięty profil albo ciągły otwarty łańcuch.' },
-                  { icon: SweepCadIcon, label: 'Surface Sweep', displayLabel: 'Powierzchnia po ścieżce', onClick: openSurfaceSweep, disabled: readOnly || !selectedProfile || Boolean(activeSketchId) || !sweepPathOptions().length, disabledReason: 'Zaznacz profil i przygotuj osobny szkic ścieżki.' },
-                  { icon: LoftCadIcon, label: 'Surface Loft', displayLabel: 'Powierzchnia przejściowa', onClick: openSurfaceLoft, disabled: readOnly || !selectedProfile || Boolean(activeSketchId) || !loftProfileOptions().length, disabledReason: 'Przygotuj dwa profile w osobnych szkicach.' },
-                  { icon: Layers3, label: 'Surface Offset', displayLabel: 'Odsuń powierzchnię', onClick: openSurfaceOffset, disabled: readOnly || !selectedSurfaceBody, disabledReason: 'Zaznacz jedną powierzchnię.' },
-                  { icon: Layers3, label: 'Stitch', displayLabel: 'Zszyj powierzchnie', onClick: openSurfaceStitch, disabled: readOnly || !canStitchSelectedSurfaces, disabledReason: 'Zaznacz co najmniej dwie powierzchnie.' },
-                  { icon: Scissors, label: 'Surface Trim', displayLabel: 'Przytnij powierzchnię', onClick: openSurfaceTrim, disabled: readOnly || !canTrimSelectedSurface, disabledReason: 'Zaznacz jedną powierzchnię i jedną bryłę tnącą.' },
-                  { icon: Scissors, label: 'Surface Extend', displayLabel: 'Przedłuż powierzchnię', onClick: openSurfaceExtend, disabled: readOnly || !canExtendSelectedSurface, disabledReason: 'Zaznacz jedną prostą krawędź planarnej powierzchni.' },
-                  { icon: ShellCadIcon, label: 'Thicken', displayLabel: 'Pogrub powierzchnię', onClick: openThickenSurface, disabled: readOnly || !selectedSurfaceBody, disabledReason: 'Zaznacz jedną powierzchnię.' },
-                ]} /><ToolMenuButton icon={CircleDotDashed} label="Plastic" description="Funkcje konstrukcyjne elementów z tworzyw sztucznych." items={[
-                  { icon: CircleDotDashed, label: 'Boss', onClick: openPlasticBoss, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły B-Rep.' },
-                  { icon: Blocks, label: 'Snap-fit', onClick: openPlasticSnapFit, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły B-Rep.' },
-                  { icon: Grid2X2, label: 'Grille', onClick: openPlasticGrille, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły B-Rep.' },
-                ]} /><ToolMenuButton icon={PrimitiveCadIcon} label="Więcej brył" description="Prymitywy, bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
+                <RibbonGroup label="UTWÓRZ">
+                  <ToolButton icon={SurfacePatchCadIcon} label="Patch" displayLabel="Wypełnij" onClick={openSurfacePatch} primary disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} disabledReason="Zaznacz zamknięty profil i zakończ szkic." />
+                  <ToolButton icon={ExtrudeCadIcon} label="Surface Extrude" displayLabel="Wyciągnij" onClick={openSurfaceExtrude} disabled={readOnly || (!selectedProfile && !canExtrudeOpenChain)} disabledReason="Zaznacz profil albo otwarty łańcuch." />
+                  <ToolButton icon={RevolveCadIcon} label="Surface Revolve" displayLabel="Obróć" onClick={openSurfaceRevolve} disabled={readOnly || (!selectedProfile && !canExtrudeOpenChain)} disabledReason="Zaznacz profil albo otwarty łańcuch." />
+                  <ToolButton icon={SweepCadIcon} label="Surface Sweep" displayLabel="Po ścieżce" onClick={openSurfaceSweep} disabled={readOnly || !selectedProfile || !sweepPathOptions().length} disabledReason="Przygotuj profil i osobny szkic ścieżki." />
+                  <ToolButton icon={LoftCadIcon} label="Surface Loft" displayLabel="Przejście" onClick={openSurfaceLoft} disabled={readOnly || !selectedProfile || !loftProfileOptions().length} disabledReason="Przygotuj co najmniej dwa profile." />
+                </RibbonGroup>
+                <RibbonGroup label="ZMIEŃ">
+                  <ToolButton icon={Layers3} label="Surface Offset" displayLabel="Odsuń" onClick={openSurfaceOffset} disabled={readOnly || !selectedSurfaceBody} disabledReason="Zaznacz jedną powierzchnię." />
+                  <ToolButton icon={Layers3} label="Stitch" displayLabel="Zszyj" onClick={openSurfaceStitch} disabled={readOnly || !canStitchSelectedSurfaces} disabledReason="Zaznacz co najmniej dwie powierzchnie." />
+                  <ToolButton icon={Scissors} label="Surface Trim" displayLabel="Przytnij" onClick={openSurfaceTrim} disabled={readOnly || !canTrimSelectedSurface} disabledReason="Zaznacz powierzchnię i bryłę tnącą." />
+                  <ToolButton icon={Scissors} label="Surface Extend" displayLabel="Przedłuż" onClick={openSurfaceExtend} disabled={readOnly || !canExtendSelectedSurface} disabledReason="Zaznacz prostą krawędź powierzchni." />
+                  <ToolButton icon={ShellCadIcon} label="Thicken" displayLabel="Pogrub" onClick={openThickenSurface} disabled={readOnly || !selectedSurfaceBody} disabledReason="Zaznacz jedną powierzchnię." />
+                </RibbonGroup>
+                <RibbonGroup label="SPRAWDŹ"><ToolButton icon={ScanSearch} label="Analiza powierzchni" onClick={openSurfaceAnalysis} disabled={!engine.bodies.length} /></RibbonGroup>
+              </>
+            ) : designTab === 'mesh' ? (
+              <>
+                <RibbonGroup label="WSTAW"><ToolButton icon={ImportMeshCadIcon} label="Importuj model" displayLabel="Importuj siatkę" onClick={() => { void requestModelImport(); }} primary disabled={readOnly || modelImportBusy} description="Wczytaj STL albo 3MF przez bezpieczne okno systemowe." /></RibbonGroup>
+                <RibbonGroup label="PRZYGOTUJ">
+                  <ToolButton icon={MeshBodyCadIcon} label="Narzędzia siatki" onClick={openMeshTools} disabled={readOnly || !selectedMeshFeature} disabledReason="Zaznacz zaimportowaną siatkę STL albo 3MF." />
+                  <ToolButton icon={RotateCw} label="Przywróć siatkę" onClick={restoreSelectedBrepToMesh} disabled={readOnly || !selectedFacetedBrepFeature} disabledReason="Zaznacz model przekonwertowany do fasetowego B-Rep." />
+                </RibbonGroup>
+                <RibbonGroup label="WYJŚCIE">
+                  <ToolButton icon={HardDriveDownload} label="STL" onClick={() => { void exportModel('stl'); }} disabled={!engine.bodies.length || engine.status !== 'ready'} />
+                  <ToolButton icon={FileDown} label="3MF" onClick={() => { void exportModel('3mf'); }} disabled={!engine.bodies.length || engine.status !== 'ready'} />
+                </RibbonGroup>
+              </>
+            ) : designTab === 'sheet' ? (
+              <>
+                <RibbonGroup label="UTWÓRZ">
+                  <ToolButton icon={SheetMetalCadIcon} label="Baza blachowa" onClick={openSheetBase} primary disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} disabledReason="Zaznacz zamknięty profil i zakończ szkic." />
+                  <ToolButton icon={Layers3} label="Kołnierz blachy" onClick={openSheetFlange} disabled={readOnly || !canCreateSheetFlange || Boolean(activeSketchId)} disabledReason="Zaznacz prostą krawędź istniejącej blachy." />
+                  <ToolButton icon={Layers3} label="Zawinięcie blachy" onClick={openSheetHem} disabled={readOnly || !canCreateSheetFlange || Boolean(activeSketchId)} disabledReason="Zaznacz prostą krawędź istniejącej blachy." />
+                  <ToolButton icon={Scissors} label="Szczelina blachy" onClick={openSheetRip} disabled={readOnly || !canCreateSheetFlange || Boolean(activeSketchId)} disabledReason="Zaznacz prostą krawędź istniejącej blachy." />
+                </RibbonGroup>
+                <RibbonGroup label="ROZWINIĘCIE">
+                  <ToolButton icon={Ungroup} label="Rozwiń blachę" onClick={() => addSheetStateFeature('sheetUnfold')} disabled={readOnly || !canUnfoldSheet || Boolean(activeSketchId)} disabledReason="Zaznacz blachę z gięciem." />
+                  <ToolButton icon={Layers3} label="Zagnij ponownie" onClick={() => addSheetStateFeature('sheetRefold')} disabled={readOnly || !canRefoldSheet || Boolean(activeSketchId)} disabledReason="Najpierw rozwiń blachę." />
+                </RibbonGroup>
+              </>
+            ) : designTab === 'plastic' ? (
+              <>
+                <RibbonGroup label="KONSTRUKCJA">
+                  <ToolButton icon={PlasticFeatureCadIcon} label="Boss" onClick={openPlasticBoss} primary disabled={readOnly || activeSketchId || selectedFaceItems.length !== 1} disabledReason="Zaznacz jedną planarną ścianę bryły." />
+                  <ToolButton icon={Blocks} label="Snap-fit" onClick={openPlasticSnapFit} disabled={readOnly || activeSketchId || selectedFaceItems.length !== 1} disabledReason="Zaznacz jedną planarną ścianę bryły." />
+                  <ToolButton icon={Grid2X2} label="Grille" displayLabel="Kratka" onClick={openPlasticGrille} disabled={readOnly || activeSketchId || selectedFaceItems.length !== 1} disabledReason="Zaznacz jedną planarną ścianę bryły." />
+                </RibbonGroup>
+                <RibbonGroup label="SPRAWDŹ"><ToolButton icon={GeometryCheckCadIcon} label="Sprawdź geometrię" onClick={openGeometryInspection} disabled={!engine.bodies.length} /></RibbonGroup>
+              </>
+            ) : designTab === 'utilities' ? (
+              <>
+                <RibbonGroup label="SPRAWDŹ">
+                  <ToolButton icon={Ruler} label="Zmierz" onClick={openMeasure} primary />
+                  <ToolButton icon={SectionCadIcon} label="Przekrój" onClick={openSectionAnalysis} disabled={!engine.bodies.length} />
+                  <ToolButton icon={ScanSearch} label="Analiza powierzchni" onClick={openSurfaceAnalysis} disabled={!engine.bodies.length} />
+                  <ToolButton icon={MassCadIcon} label="Właściwości masy" onClick={openMassProperties} disabled={!engine.bodies.length} />
+                  <ToolButton icon={GeometryCheckCadIcon} label="Sprawdź geometrię" onClick={openGeometryInspection} disabled={!engine.bodies.length} />
+                </RibbonGroup>
+                <RibbonGroup label="SYMULUJ"><ToolMenuButton icon={ScanSearch} label="Analizy" description="Obliczenia wstępne modelu." items={[
+                  { icon: ScanSearch, label: 'Szybka analiza statyczna', onClick: openStaticScreening, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
+                  { icon: ScanSearch, label: 'MES bryły 3D', onClick: openSolidFea, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
+                  { icon: ScanSearch, label: 'MES belki 1D', onClick: openBeamFea, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
+                  { icon: Sun, label: 'Szybka analiza cieplna', onClick: openThermalScreening, disabled: !engine.bodies.some((body) => body.bodyKind !== 'surface') },
+                ]} /></RibbonGroup>
+              </>
+            ) : (
+              <>
+                <RibbonGroup label="UTWÓRZ"><ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} /><ToolButton icon={Move3d} label="Szkic 3D" onClick={startSketch3D} disabled={readOnly} description="Utwórz ciągłą przestrzenną ścieżkę XYZ dla Sweep, Pipe i Pattern." /><ToolButton icon={ExtrudeCadIcon} label="Wyciągnij" onClick={openExtrude} disabled={readOnly} description={pressPullFace?.descriptor?.geometry === 'PLANE' && !activeSketchId ? 'Wyciągnij albo wciśnij zaznaczoną płaską ścianę.' : !selectedProfile && !canExtrudeOpenChain ? 'Rozpocznij od szkicu; po zamknięciu profilu uruchom wyciągnięcie.' : 'Wyciągnij zaznaczony profil w dokładną bryłę B-Rep.'} /><ToolMenuButton icon={PrimitiveCadIcon} label="Więcej brył" description="Prymitywy, bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
                   { icon: PrimitiveCadIcon, label: 'Prymityw', onClick: openPrimitive, disabled: readOnly },
                   { icon: Shapes, label: 'Form', onClick: openFormBody, disabled: readOnly || Boolean(activeSketchId), disabledReason: 'Zakończ aktywny szkic.' },
                   { icon: RevolveCadIcon, label: 'Revolve', displayLabel: 'Bryła obrotowa', onClick: openRevolve, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
@@ -7764,8 +7856,6 @@ export default function ModelingWorkspace() {
                   { icon: DraftCadIcon, label: 'Draft', displayLabel: 'Pochylenie ścian', onClick: openDraft, disabled: readOnly || !selectedFaceItems.length, disabledReason: 'Zaznacz ściany do pochylenia.' },
                   { icon: OffsetFaceCadIcon, label: 'Offset Face', displayLabel: 'Odsuń ścianę', onClick: openOffsetFace, disabled: readOnly || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz dokładnie jedną płaską ścianę.' },
                   { icon: DeleteFaceCadIcon, label: 'Delete Face + Heal', displayLabel: 'Usuń i napraw ścianę', onClick: openDeleteFace, disabled: readOnly || !selectedFaceItems.length, disabledReason: 'Zaznacz ściany do usunięcia.' },
-                  { icon: ScanSearch, label: 'Narzędzia siatki', onClick: openMeshTools, disabled: readOnly || !selectedMeshFeature, disabledReason: 'Zaznacz jedną zaimportowaną siatkę STL albo 3MF.' },
-                  { icon: ScanSearch, label: 'Przywróć siatkę', onClick: restoreSelectedBrepToMesh, disabled: readOnly || !selectedFacetedBrepFeature, disabledReason: 'Zaznacz model STL przekonwertowany do fasetowego B-Rep.' },
                   { icon: MoveBodyCadIcon, label: 'Przesuń bryłę', onClick: () => openTransform('move'), disabled: readOnly || selection?.kind !== 'body' },
                   { icon: RotateBodyCadIcon, label: 'Obróć bryłę', onClick: () => openTransform('rotate'), disabled: readOnly || selection?.kind !== 'body' },
                   { icon: EditFeatureCadIcon, label: 'Edytuj', onClick: editSelection, disabled: readOnly || !['sketch', 'profile', 'feature', 'constructionPlane', 'constructionAxis', 'constructionPoint'].includes(selection?.kind) },
@@ -7775,6 +7865,9 @@ export default function ModelingWorkspace() {
                   { icon: SplitFaceCadIcon, label: 'Split Face', displayLabel: 'Podziel ścianę', onClick: openSplitFace, disabled: readOnly || !canSplitFace, disabledReason: 'Zaznacz profil szkicu i płaską ścianę.' },
                   { icon: ReplaceFaceCadIcon, label: 'Replace Face', displayLabel: 'Zastąp ścianę', onClick: openReplaceFace, disabled: readOnly || selectedFaceItems.length !== 2, disabledReason: 'Zaznacz dwie równoległe ściany.' },
                 ]} /></RibbonGroup>
+                <RibbonGroup label="ZŁOŻENIE">
+                  <ToolButton icon={AssemblyCadIcon} label="Komponenty" onClick={openComponentManager} primary description="Twórz części, wystąpienia, połączenia i konfiguracje zespołu w jednym panelu." />
+                </RibbonGroup>
                 <RibbonGroup label="KONSTRUKCJA">
                   <ToolMenuButton icon={PlaneCadIcon} label="Płaszczyzny" description="Utwórz pomocniczą płaszczyznę konstrukcyjną." items={[
                     { icon: PlaneCadIcon, label: 'Płaszczyzna odsunięta', onClick: () => openConstructionPlane('offset'), disabled: readOnly },

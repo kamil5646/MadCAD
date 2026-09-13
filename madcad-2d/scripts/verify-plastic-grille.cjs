@@ -26,6 +26,23 @@ async function setField(window, label, value) {
   })()`);
 }
 
+async function selectPlasticDomain(window) {
+  await window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === 'TWORZYWO SZTUCZNE');
+    if (!button) throw new Error('Brak dziedziny TWORZYWO SZTUCZNE.');
+    button.click();
+  })()`);
+  await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'TWORZYWO SZTUCZNE'`, 'dziedzina tworzywa sztucznego');
+}
+
+async function clickTool(window, label) {
+  await window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.dataset.toolLabel === ${JSON.stringify(label)});
+    if (!button || button.disabled) throw new Error('Niedostępne narzędzie: ${label}');
+    button.click();
+  })()`);
+}
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({ width: 1440, height: 900, show: true, webPreferences: { partition: `madcad-plastic-grille-${Date.now()}` } });
   window.setContentSize(1440, 837);
@@ -51,13 +68,8 @@ app.whenReady().then(async () => {
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face'`, 'wybrana ściana');
 
-    await window.webContents.executeJavaScript(`(() => {
-      const trigger = [...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Plastic');
-      if (!trigger) throw new Error('Brak menu Plastic.');
-      trigger.click();
-    })()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Grille' && !button.disabled)`, 'aktywne narzędzie Grille');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Grille' && !button.disabled).click()`);
+    await selectPlasticDomain(window);
+    await clickTool(window, 'Grille');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'plasticGrille' && document.querySelector('.command-dialog')?.textContent.includes('Liczba żeber')`, 'panel Grille');
 
     await setField(window, 'Liczba żeber', '4');

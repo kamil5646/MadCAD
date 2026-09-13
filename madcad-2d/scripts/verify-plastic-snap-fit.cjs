@@ -26,6 +26,23 @@ async function setField(window, label, value) {
   })()`);
 }
 
+async function selectPlasticDomain(window) {
+  await window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === 'TWORZYWO SZTUCZNE');
+    if (!button) throw new Error('Brak dziedziny TWORZYWO SZTUCZNE.');
+    button.click();
+  })()`);
+  await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'TWORZYWO SZTUCZNE'`, 'dziedzina tworzywa sztucznego');
+}
+
+async function clickTool(window, label) {
+  await window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.dataset.toolLabel === ${JSON.stringify(label)});
+    if (!button || button.disabled) throw new Error('Niedostępne narzędzie: ${label}');
+    button.click();
+  })()`);
+}
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({ width: 1440, height: 900, show: true, webPreferences: { partition: `madcad-plastic-snap-fit-${Date.now()}` } });
   window.setContentSize(1440, 837);
@@ -47,9 +64,8 @@ app.whenReady().then(async () => {
       return { bodyId: body.id, volume: body.metrics.volume, bounds: body.metrics.bounds };
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face'`, 'wybrana ściana');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-menu-trigger')].find((button) => button.textContent.trim() === 'Plastic').click()`);
-    await waitFor(window, `[...document.querySelectorAll('.ribbon-tool-submenu button')].some((button) => button.querySelector('strong')?.textContent.trim() === 'Snap-fit' && !button.disabled)`, 'aktywne narzędzie Snap-fit');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.ribbon-tool-submenu button')].find((button) => button.querySelector('strong')?.textContent.trim() === 'Snap-fit' && !button.disabled).click()`);
+    await selectPlasticDomain(window);
+    await clickTool(window, 'Snap-fit');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'plasticSnapFit' && document.querySelector('.command-dialog')?.textContent.includes('Wysokość zaczepu')`, 'panel Snap-fit');
 
     await setField(window, 'Długość ramienia', '18');

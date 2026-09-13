@@ -23,6 +23,15 @@ async function clickText(window, selector, label) {
   })()`);
 }
 
+async function selectWorkspace(window, value) {
+  await window.webContents.executeJavaScript(`(() => {
+    const select = document.querySelector('.workspace-switcher select');
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+    setter.call(select, ${JSON.stringify(value)});
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+}
+
 const drawingCommandMenus = Object.freeze({
   Rzut: 'Widoki zależne',
   Przekrój: 'Widoki zależne',
@@ -62,7 +71,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTimelineFixture()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'fixture modelu', 45000);
 
-    if (!(await clickText(window, '.workspace-tabs button', 'ARKUSZ 2D'))) throw new Error('Brak obszaru ARKUSZ 2D.');
+    await selectWorkspace(window, 'drawing');
     await waitFor(window, `document.querySelector('.drawing-empty')`, 'pusty obszar dokumentacji');
     await waitFor(window, `document.querySelector('.modeling-shell')?.classList.contains('drawing-mode') && !document.querySelector('.model-browser') && !document.querySelector('.timeline') && ![...document.querySelectorAll('.app-menu button')].some((button) => button.textContent.trim() === 'Panel')`, 'odseparowany obszar arkusza bez przeglądarki modelu i osi historii');
     if (!(await clickText(window, '.ribbon-tool', 'Nowy arkusz'))) throw new Error('Brak polecenia Nowy arkusz.');

@@ -143,17 +143,28 @@ const TOOL_SHORTCUTS = Object.freeze({
 });
 
 const TOOL_COLOR_GROUPS = Object.freeze({
-  sketch: new Set(['Utwórz szkic', 'Linia', 'Polilinia', 'Łuk styczny', 'Łuk', 'Prostokąt', 'Okrąg', 'Wielokąt', 'Elipsa', 'Slot', 'Spline', 'Conic', 'Punkt', 'Zakończ szkic']),
-  solid: new Set(['Wyciągnij', 'Blacha', 'Baza blachowa', 'Kołnierz blachy', 'Zawinięcie blachy', 'Rozwiń blachę', 'Zagnij ponownie', 'Plastic', 'Boss', 'Snap-fit', 'Grille', 'Form', 'Patch', 'Surface Extrude', 'Surface Revolve', 'Surface Sweep', 'Surface Loft', 'Surface Offset', 'Surface Trim', 'Surface Extend', 'Stitch', 'Thicken', 'Thin Extrude', 'Rib/Web', 'Pipe', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Pattern', 'Press Pull', 'Prymityw', 'Tekst 3D', 'Boolean', 'Otwór']),
+  sketch: new Set(['Utwórz szkic', 'Linia', 'Polilinia', 'Łuk styczny', 'Łuk', 'Prostokąt', 'Okrąg', 'Wielokąt', 'Elipsa', 'Slot', 'Spline', 'Conic', 'Punkt', 'Więcej kształtów', 'Zakończ szkic']),
+  solid: new Set(['Wyciągnij', 'Więcej brył', 'Form', 'Thin Extrude', 'Rib/Web', 'Pipe', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Pattern', 'Press Pull', 'Prymityw', 'Tekst 3D', 'Boolean', 'Otwór']),
+  surface: new Set(['Powierzchnie', 'Patch', 'Surface Extrude', 'Surface Revolve', 'Surface Sweep', 'Surface Loft', 'Surface Offset', 'Surface Trim', 'Surface Extend', 'Stitch', 'Thicken']),
+  sheet: new Set(['Blacha', 'Baza blachowa', 'Kołnierz blachy', 'Zawinięcie blachy', 'Rozwiń blachę', 'Zagnij ponownie', 'Szczelina blachy', 'Tabela gięć']),
+  plastic: new Set(['Plastic', 'Boss', 'Snap-fit', 'Grille']),
+  assembly: new Set(['Komponenty']),
+  manufacturing: new Set(['Nowy Setup', 'Obróbki', 'Symuluj', 'G-code']),
+  drawing: new Set(['Nowy arkusz', 'Widoki zależne', 'Opisy techniczne']),
+  mesh: new Set(['Importuj model', 'Napraw siatkę', 'Redukuj siatkę', 'Krzywizna siatki', 'Siatka do B-Rep']),
   destructive: new Set(['Usuń', 'Delete Face + Heal', 'Szczelina blachy']),
   edit: new Set(['Trim', 'Extend', 'Break', 'Offset', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu', 'Przesuń', 'Zaokrąglij', 'Fazuj', 'Shell', 'Draft', 'Split Body', 'Split Face', 'Replace Face', 'Offset Face', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj']),
-  reference: new Set(['Project', 'Współliniowe', 'Symetria', 'Krzywizna G2', 'Ordinate X', 'Ordinate Y', 'Długość łuku', 'Płaszczyzna odsunięta', 'Płaszczyzna środkowa', 'Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce', 'Oś z krawędzi', 'Oś walca', 'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum', 'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi']),
+  reference: new Set(['Project', 'Więzy', 'Wymiary', 'Współliniowe', 'Symetria', 'Krzywizna G2', 'Ordinate X', 'Ordinate Y', 'Długość łuku', 'Płaszczyzna odsunięta', 'Płaszczyzna środkowa', 'Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce', 'Oś z krawędzi', 'Oś walca', 'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum', 'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi']),
   inspect: new Set(['Parametry', 'Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię', 'Punkty zapisu', 'Porównaj wersje', 'Kondycja projektu', 'Gdzie używane', 'Wybierz']),
   output: new Set(['Import SVG/DXF', 'Import DWG', 'STEP / STL / 3MF', 'STEP', 'STL', '3MF', 'Kontrola druku', 'Tabela gięć']),
 });
 
-const TOOL_GROUP_HUES = Object.freeze({ sketch: 190, solid: 218, edit: 38, reference: 166, inspect: 274, output: 138, destructive: 356, neutral: 208 });
-const FEATURED_TOOL_LABELS = new Set(['Utwórz szkic', 'Linia', 'Zakończ szkic', 'Parametry']);
+const TOOL_GROUP_HUES = Object.freeze({ sketch: 194, solid: 194, surface: 194, sheet: 194, plastic: 194, assembly: 194, manufacturing: 194, drawing: 194, mesh: 194, edit: 38, reference: 194, inspect: 194, output: 194, destructive: 356, neutral: 194 });
+const FEATURED_TOOL_LABELS = new Set([
+  'Utwórz szkic', 'Linia', 'Zakończ szkic', 'Parametry',
+  'Wyciągnij', 'Blacha', 'Powierzchnie', 'Więcej zmian', 'Płaszczyzny', 'Analiza',
+  'Patch', 'Importuj model', 'Baza blachowa', 'Boss', 'Zmierz', 'Nowy arkusz', 'Nowy Setup',
+]);
 
 function ribbonGroupTone(label = '') {
   if (/RYSUJ|ARKUSZ/.test(label)) return 'sketch';
@@ -171,6 +182,7 @@ function toolColorStyle(label) {
   const hue = TOOL_GROUP_HUES[group];
   return {
     '--tool-accent': `hsl(${hue} 84% 68%)`,
+    '--tool-accent-secondary': `hsl(${hue} 48% 48%)`,
   };
 }
 
@@ -204,11 +216,11 @@ function resolveToolHelp({ label, description, title, disabled = false, disabled
 
 
 function ToolGlyph({ icon: Icon, compact = false, featured = false }) {
-  const size = compact ? 18 : featured ? 26 : 21;
+  const size = compact ? 18 : featured ? 36 : 25;
   return (
     <span className="ribbon-glyph">
-      <Icon className="ribbon-glyph-depth" size={size} strokeWidth={2.35} fill="currentColor" fillOpacity={0.12} aria-hidden="true" />
-      <Icon className="ribbon-glyph-face" size={size} strokeWidth={1.85} fill="currentColor" fillOpacity={0.08} aria-hidden="true" />
+      <Icon className="ribbon-glyph-depth" size={size} strokeWidth={2.45} fill="none" aria-hidden="true" />
+      <Icon className="ribbon-glyph-face" size={size} strokeWidth={1.8} fill="none" aria-hidden="true" />
     </span>
   );
 }
@@ -245,6 +257,7 @@ export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClic
       <button
         id={id}
         className={`ribbon-tool ${featured ? 'featured' : ''} ${primary ? 'primary' : ''} ${compact ? 'compact' : ''}`}
+        style={toolColorStyle(label)}
         type="button"
         onClick={onClick}
         disabled={effectiveDisabled}
@@ -262,6 +275,7 @@ export function ToolButton({ id, icon: Icon, label, displayLabel = label, onClic
 
 export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items, disabled = false, description, disabledReason }) {
   const [open, setOpen] = useState(false);
+  const featured = FEATURED_TOOL_LABELS.has(label);
   const menuRef = useRef(null);
   const itemsRef = useRef(items);
   const toolHelp = React.useContext(ToolHelpContext);
@@ -315,9 +329,10 @@ export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items,
     });
   };
   return (
-    <span className={`ribbon-tool-wrap ribbon-tool-menu-wrap ${disabled ? 'disabled' : ''}`} ref={menuRef} onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
+    <span className={`ribbon-tool-wrap ribbon-tool-menu-wrap ${featured ? 'featured' : ''} ${disabled ? 'disabled' : ''}`} ref={menuRef} onMouseEnter={showHelp} onMouseLeave={() => toolHelp?.setToolHelp(null)} onFocus={showHelp} onBlur={() => toolHelp?.setToolHelp(null)}>
       <button
-        className={`ribbon-tool ribbon-tool-menu-trigger ${open ? 'primary' : ''}`}
+        className={`ribbon-tool ribbon-tool-menu-trigger ${featured ? 'featured' : ''} ${open ? 'primary' : ''}`}
+        style={toolColorStyle(label)}
         type="button"
         disabled={disabled}
         data-tool-label={label}
@@ -328,7 +343,7 @@ export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items,
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        <span className="ribbon-icon" aria-hidden="true"><ToolGlyph icon={Icon} /></span>
+        <span className="ribbon-icon" aria-hidden="true"><ToolGlyph icon={Icon} featured={featured} /></span>
         <span className="ribbon-label">{displayLabel}<ChevronDown size={10} /></span>
       </button>
       {open && <div className="ribbon-tool-submenu" role="menu" aria-label={displayLabel}>
