@@ -318,7 +318,7 @@ export function ProjectSearchPalette({ index = [], language = 'pl', onNavigate, 
 }
 
 export function ProjectBrowser({ document, bodies, selection, activeSketchId, onSelect, onToggleReference, onToggleSketchVisibility = () => {}, onToggleBodyVisibility = () => {}, onClose }) {
-  const [expanded, setExpanded] = useState({ origin: true, construction: true, components: true, joints: true, motionLinks: true, contactSets: true, configurations: true, sketches: true, surfaces: true, bodies: true });
+  const [expanded, setExpanded] = useState({ origin: false, construction: false, components: false, joints: false, motionLinks: false, contactSets: false, configurations: false, sketches: true, surfaces: true, bodies: true });
   const toggle = (key) => setExpanded((current) => ({ ...current, [key]: !current[key] }));
   const constructionReferences = document.references.filter((reference) => ['construction-plane', 'construction-axis', 'construction-point'].includes(reference.kind));
   const componentRoots = componentInstanceTree(document);
@@ -392,9 +392,7 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
       <button className="tree-row tree-child tree-folder" type="button" title={`${expanded.components ? 'Zwiń' : 'Rozwiń'} strukturę części i złożeń.`} onClick={() => toggle('components')}>
         {expanded.components ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Boxes size={14} /><span>Złożenie</span><small>{document.componentInstances?.length || 0}</small>
       </button>
-      {expanded.components && (componentRoots.length
-        ? componentRoots.map((component) => renderComponent(component))
-        : <div className="tree-empty">Brak komponentów</div>)}
+      {expanded.components && componentRoots.map((component) => renderComponent(component))}
 
       {!!document.joints?.length && <><button className="tree-row tree-child tree-folder" type="button" title="Pokaż lub ukryj jointy złożenia." onClick={() => toggle('joints')}>
         {expanded.joints ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<Link2 size={14} /><span>Jointy</span><small>{document.joints?.length || 0}</small>

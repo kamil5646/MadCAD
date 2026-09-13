@@ -29,10 +29,20 @@ Dowód: `artifacts/full-interface-audit-2026-08-30/09-command-panel-fusion.png`.
 - Stopka z Anuluj i OK pozostaje widoczna, a długa zawartość przewija się wewnątrz panelu.
 - Nazwy operacji są spójne po polsku, bez mieszania z angielskimi nazwami interfejsu.
 
+## 4. Ikony, przeglądarka i oś czasu — stan dobry po poprawce
+
+Dowód: `artifacts/full-interface-audit-2026-08-30/10-browser-timeline-fusion.png`.
+
+- Ikony korzystają z czterech spokojnych rodzin funkcjonalnych zamiast osobnego koloru dla każdego polecenia; elementy wewnętrzne piktogramu nie wprowadzają dodatkowych barw.
+- Aktywne polecenie ma neutralne tło i wąski akcent z boku zamiast czerwonej obwódki przecinającej etykietę.
+- Początek, konstrukcja i złożenie są domyślnie zwinięte, a puste złożenie nie dodaje zbędnego wiersza.
+- Przełącznik widoczności znajduje się w stałej pierwszej kolumnie przed ikoną typu obiektu.
+- Operacje historii mają większe piktogramy, bez mikroskopijnych numerów; zaznaczenie jest neutralne z cienkim akcentem marki.
+
 ## Dostępność i ograniczenia dowodów
 
 Pełny przebieg sprawdził powiększenie 100%, 150% i 200% bez przepełnienia dokumentu, dostępny fokus klawiatury oraz brak zgłoszonych naruszeń axe. Automatyczny audyt kontrastu pozostawia elementy niejednoznaczne przy nakładaniu warstw płótna; wymaga to dalszej kontroli wizualnej przy kolejnych panelach.
 
 ## Następna część
 
-Do dalszego zbliżenia do Fusion pozostają panele przeglądarki projektu, właściwości obiektów i oś czasu — przede wszystkim proporcje wierszy, stany zaznaczenia oraz menu kontekstowe.
+Do dalszego zbliżenia do Fusion pozostają właściwości obiektów i rozbudowane menu kontekstowe brył; podstawowa hierarchia przeglądarki oraz osi czasu jest już uporządkowana.

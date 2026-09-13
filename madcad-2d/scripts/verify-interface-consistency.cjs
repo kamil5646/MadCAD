@@ -12,6 +12,7 @@ const constructionScreenshotPath = path.join(artifactsDir, '06-construction-menu
 const fileMenuScreenshotPath = path.join(artifactsDir, '07-file-menu-fixed.png');
 const sketchRibbonScreenshotPath = path.join(artifactsDir, '08-sketch-ribbon-expanded.png');
 const commandPanelScreenshotPath = path.join(artifactsDir, '09-command-panel-fusion.png');
+const browserTimelineScreenshotPath = path.join(artifactsDir, '10-browser-timeline-fusion.png');
 const fusionAuditDir = path.join(__dirname, '..', 'artifacts', 'fusion-flow-audit-2026-08-31');
 const bodyContextScreenshotPath = path.join(fusionAuditDir, '03-body-context.png');
 const faceContextScreenshotPath = path.join(fusionAuditDir, '04-face-context.png');
@@ -241,6 +242,29 @@ app.whenReady().then(async () => {
     if (loadedModelGroups.join('|') !== emptyModelGroups.join('|')) throw new Error(`Grupy modelowania zmieniły położenie po wczytaniu bryły: ${loadedModelGroups.join('|')}`);
     const viewCube = await window.webContents.executeJavaScript(`(() => ({ heading: document.querySelector('.view-cube-heading')?.textContent.trim() || '', labels: [...document.querySelectorAll('.view-cube button')].map((button) => button.textContent.trim() || button.getAttribute('aria-label')) }))()`);
     if (!viewCube.heading.includes('WIDOK') || !viewCube.heading.includes('Izometryczny') || !['GÓRA', 'PRZÓD', 'PRAWO', 'LEWO', 'TYŁ', 'DÓŁ'].every((label) => viewCube.labels.includes(label))) throw new Error(`Kostka widoku nie opisuje jednoznacznie orientacji: ${JSON.stringify(viewCube)}`);
+    await window.webContents.executeJavaScript(`document.querySelector('.timeline-item')?.click()`);
+    await waitFor(window, `document.querySelector('.timeline-item.selected')`, 'zaznaczenie operacji na osi czasu');
+    const browserTimeline = await window.webContents.executeJavaScript(`(() => {
+      const reference = document.querySelector('.tree-reference-row');
+      const visibility = reference?.querySelector('.tree-reference-visibility')?.getBoundingClientRect();
+      const typeIcon = reference?.querySelector('.tree-row > svg')?.getBoundingClientRect();
+      const timelineItem = document.querySelector('.timeline-item');
+      const timelineIcon = timelineItem?.querySelector('svg');
+      const selected = document.querySelector('.timeline-item.selected');
+      return {
+        collapsedCoreFolders: ['Początek', 'Konstrukcja', 'Złożenie'].every((label) => [...document.querySelectorAll('.tree-folder')].find((item) => item.textContent.includes(label))?.title.startsWith('Rozwiń')),
+        emptyComponentMessageHidden: ![...document.querySelectorAll('.tree-empty')].some((item) => item.textContent.includes('Brak komponentów')),
+        visibilityBeforeType: Boolean(visibility && typeIcon && visibility.right <= typeIcon.left),
+        visibilitySize: visibility?.width || 0,
+        timelineItemSize: timelineItem ? { width: timelineItem.getBoundingClientRect().width, height: timelineItem.getBoundingClientRect().height } : null,
+        timelineIconSize: timelineIcon?.getBoundingClientRect().width || 0,
+        timelineIndexHidden: getComputedStyle(timelineItem?.querySelector('span')).display === 'none',
+        selectedBackground: selected ? getComputedStyle(selected).backgroundColor : '',
+      };
+    })()`);
+    if (!browserTimeline.collapsedCoreFolders || !browserTimeline.emptyComponentMessageHidden || !browserTimeline.visibilityBeforeType || browserTimeline.visibilitySize < 16 || !browserTimeline.timelineItemSize || browserTimeline.timelineItemSize.width < 32 || browserTimeline.timelineItemSize.height < 30 || browserTimeline.timelineIconSize < 18 || !browserTimeline.timelineIndexHidden || browserTimeline.selectedBackground === 'rgb(69, 42, 48)') throw new Error(`Przeglądarka lub oś czasu nadal nie zachowuje hierarchii Fusion: ${JSON.stringify(browserTimeline)}`);
+    await fs.writeFile(browserTimelineScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`document.querySelector('.tree-root')?.click()`);
     const visibilityTarget = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies[0]; return { id: body.id, name: body.name, featureId: body.sourceFeatureId }; })()`);
     const hideResult = await window.webContents.executeJavaScript(`(() => { const button = [...document.querySelectorAll('.tree-reference-visibility')].find((item) => item.title === ${JSON.stringify(`Ukryj ${visibilityTarget.name}`)}); if (!button) return { clicked: false }; try { button.click(); return { clicked: true }; } catch (error) { return { clicked: false, error: error.stack || error.message }; } })()`);
     if (!hideResult.clicked) throw new Error(`Nie udało się ukryć bryły z przeglądarki: ${JSON.stringify(hideResult)}`);
@@ -399,7 +423,7 @@ app.whenReady().then(async () => {
     }
     await fs.writeFile(overflowScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
-    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, ribbonPaint, fileMenu, designStructure, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, commandPanel, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, ribbonPaint, fileMenu, designStructure, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, browserTimeline, commandPanel, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, browserTimelineScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

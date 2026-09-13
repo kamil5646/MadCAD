@@ -159,7 +159,23 @@ const TOOL_COLOR_GROUPS = Object.freeze({
   output: new Set(['Import SVG/DXF', 'Import DWG', 'STEP / STL / 3MF', 'STEP', 'STL', '3MF', 'Kontrola druku', 'Tabela gięć']),
 });
 
-const TOOL_GROUP_HUES = Object.freeze({ sketch: 194, solid: 194, surface: 194, sheet: 194, plastic: 194, assembly: 194, manufacturing: 194, drawing: 194, mesh: 194, edit: 38, reference: 194, inspect: 194, output: 194, destructive: 356, neutral: 194 });
+const TOOL_GROUP_COLORS = Object.freeze({
+  sketch: ['#74b8cf', '#4f8799'],
+  solid: ['#74b8cf', '#4f8799'],
+  surface: ['#74b8cf', '#4f8799'],
+  sheet: ['#74b8cf', '#4f8799'],
+  plastic: ['#74b8cf', '#4f8799'],
+  assembly: ['#8da9b5', '#607985'],
+  manufacturing: ['#8da9b5', '#607985'],
+  drawing: ['#8da9b5', '#607985'],
+  mesh: ['#8da9b5', '#607985'],
+  edit: ['#c9a45f', '#8c7040'],
+  reference: ['#9aaeb8', '#697d87'],
+  inspect: ['#9aaeb8', '#697d87'],
+  output: ['#9aaeb8', '#697d87'],
+  destructive: ['#d06a73', '#934750'],
+  neutral: ['#9aaeb8', '#697d87'],
+});
 const FEATURED_TOOL_LABELS = new Set([
   'Utwórz szkic', 'Linia', 'Zakończ szkic', 'Parametry',
   'Wyciągnij', 'Blacha', 'Powierzchnie', 'Więcej zmian', 'Płaszczyzny', 'Analiza',
@@ -179,10 +195,10 @@ function ribbonGroupTone(label = '') {
 
 function toolColorStyle(label) {
   const group = Object.entries(TOOL_COLOR_GROUPS).find(([, labels]) => labels.has(label))?.[0] || 'neutral';
-  const hue = TOOL_GROUP_HUES[group];
+  const [accent, secondary] = TOOL_GROUP_COLORS[group];
   return {
-    '--tool-accent': `hsl(${hue} 84% 68%)`,
-    '--tool-accent-secondary': `hsl(${hue} 48% 48%)`,
+    '--tool-accent': accent,
+    '--tool-accent-secondary': secondary,
   };
 }
 

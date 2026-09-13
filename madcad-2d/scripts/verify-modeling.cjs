@@ -2278,7 +2278,12 @@ async function runUiFlow(window) {
   const constructionPlaneId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.references.find((item) => item.kind === 'construction-plane').id`);
   await waitForUi(window, `(() => { const plane = window.__madcadConstructionPlaneState?.find((item) => item.id === ${JSON.stringify(constructionPlaneId)}); return plane?.status === 'ok' && plane.visible && plane.origin[0] === 15 && plane.origin[1] === 0 && plane.origin[2] === 0; })()`, 'dokładne położenie płaszczyzny YZ');
   await window.webContents.executeJavaScript(`(() => {
-    const button = document.querySelector('.tree-reference-row .tree-reference-visibility');
+    const folder = [...document.querySelectorAll('.tree-folder')].find((item) => item.textContent.includes('Konstrukcja'));
+    if (folder?.title.startsWith('Rozwiń')) folder.click();
+  })()`);
+  await waitForUi(window, `[...document.querySelectorAll('.tree-reference-visibility')].some((item) => item.title === 'Ukryj Płaszczyzna montażowa')`, 'widoczna płaszczyzna w rozwiniętej przeglądarce');
+  await window.webContents.executeJavaScript(`(() => {
+    const button = [...document.querySelectorAll('.tree-reference-visibility')].find((item) => item.title === 'Ukryj Płaszczyzna montażowa');
     if (!button) throw new Error('Brak przełącznika widoczności płaszczyzny.');
     button.click();
   })()`);

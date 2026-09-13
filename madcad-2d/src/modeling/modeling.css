@@ -8079,6 +8079,90 @@
   stroke: currentColor;
 }
 
+/* Quiet Fusion-like icon system: color communicates a command family, while
+   every pictogram stays a single readable object instead of a multicolor badge. */
+.ribbon-glyph-face .cad-surface-primary,
+.ribbon-glyph-face .cad-surface-secondary {
+  fill: color-mix(in srgb, var(--tool-accent) 13%, transparent);
+  stroke: var(--tool-accent);
+}
+
+.ribbon-glyph-face .cad-action,
+.ribbon-glyph-face .cad-node,
+.ribbon-glyph-face .cad-node-secondary,
+.ribbon-glyph-face .cad-danger,
+.ribbon-glyph-face .cad-success,
+.ribbon-glyph-face .cad-finish-disc,
+.ribbon-glyph-face .cad-finish-check {
+  color: var(--tool-accent);
+  stroke: currentColor;
+}
+
+.ribbon-glyph-face .cad-finish-disc {
+  fill: color-mix(in srgb, var(--tool-accent) 16%, transparent);
+}
+
+.ribbon-glyph-face .cad-cut {
+  color: var(--tool-accent);
+  fill: transparent;
+  stroke: currentColor;
+}
+
+/* Project browser mirrors Fusion's scan order: visibility, type, name. */
+.tree-reference-row .tree-row { padding-right: 11px; }
+
+.tree-reference-visibility {
+  top: 4px;
+  right: auto;
+  left: 10px;
+  width: 18px;
+  height: 20px;
+  color: #a8b0b8;
+}
+
+.tree-row.selected {
+  width: calc(100% - 5px);
+  background: #35404b;
+  color: #f5f7f8;
+  box-shadow: inset 2px 0 #d84a57;
+}
+
+.tree-row.selected:hover { background: #3b4753; }
+.tree-folder { color: #c8cdd2; }
+.tree-row small { color: #818a94; }
+
+/* History remains compact, but the operations read as icons rather than tiny
+   numbered chips. */
+.timeline-item {
+  width: 34px;
+  height: 31px;
+  border-color: #56616d;
+  background: #343d47;
+  color: #dce2e7;
+}
+
+.timeline-item > span { display: none; }
+
+.timeline-item:hover {
+  border-color: #778591;
+  background: #414c57;
+}
+
+.timeline-item.selected {
+  border-color: #7d8995;
+  background: #46515d;
+  box-shadow: inset 0 -2px #d84a57;
+}
+
+.ribbon-tool.featured.primary {
+  position: relative;
+  border-color: transparent;
+  background: #313840;
+  box-shadow: inset 2px 0 #d84a57;
+}
+
+.ribbon-tool.featured.primary::after { display: none; }
+
 .sketch-palette {
   top: 138px;
   right: 6px;
