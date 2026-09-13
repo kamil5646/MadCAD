@@ -5218,7 +5218,7 @@
 .command-customization-intro > div,
 .command-customization-row {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) 104px 82px;
+  grid-template-columns: minmax(160px, 1fr) 82px;
   gap: 6px;
   align-items: center;
 }
@@ -6060,188 +6060,6 @@
   padding: 0;
 }
 
-.command-line {
-  position: relative;
-  z-index: 7;
-  display: grid;
-  min-width: 0;
-  grid-template-columns: 35px 20px auto minmax(190px, 1fr) minmax(220px, 0.7fr) auto;
-  align-items: center;
-  gap: 7px;
-  padding: 3px 8px 3px 3px;
-  border-bottom: 1px solid #1f2832;
-  background: #26303b;
-  color: #d9e1e8;
-}
-
-.command-history-toggle {
-  display: flex;
-  height: 27px;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  border: 0;
-  border-right: 1px solid #46515d;
-  background: transparent;
-  color: #aebbc7;
-  cursor: pointer;
-}
-
-.command-history-toggle:hover {
-  background: #3b4653;
-  color: #fff;
-}
-
-.command-line-icon {
-  color: #55c5e9;
-}
-
-.command-line label {
-  color: #dce6ed;
-  font-weight: 600;
-}
-
-.command-line input {
-  width: 100%;
-  height: 25px;
-  min-width: 0;
-  padding: 3px 8px;
-  border: 1px solid #596674;
-  border-radius: 2px;
-  background: #17212b;
-  color: #fff;
-}
-
-.command-line input::placeholder {
-  color: #8e9aa6;
-}
-
-.command-line-prompt {
-  min-width: 0;
-  overflow: hidden;
-  color: #aebbc5;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.command-line-keys {
-  display: flex;
-  gap: 4px;
-}
-
-.command-line kbd {
-  min-width: 30px;
-  padding: 2px 5px;
-  border: 1px solid #566370;
-  border-bottom-color: #778491;
-  border-radius: 3px;
-  background: #36414d;
-  color: #e3eaf0;
-  font: 10px/1.2 "Segoe UI", sans-serif;
-  text-align: center;
-}
-
-.command-suggestions,
-.command-history {
-  position: absolute;
-  z-index: 40;
-  bottom: calc(100% + 3px);
-  overflow: hidden;
-  border: 1px solid #64717e;
-  border-radius: 3px;
-  background: #2d3743;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
-}
-
-.command-suggestions {
-  left: 132px;
-  width: min(430px, calc(100vw - 150px));
-  padding: 4px;
-}
-
-.command-suggestions button {
-  display: grid;
-  width: 100%;
-  grid-template-columns: minmax(100px, 1fr) 1fr auto;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 8px;
-  border: 0;
-  background: transparent;
-  color: #e8eef3;
-  text-align: left;
-  cursor: pointer;
-}
-
-.command-suggestions button:hover,
-.command-history button:hover {
-  background: #40505f;
-}
-
-.command-suggestions span {
-  color: #aebbc6;
-}
-
-.command-history {
-  left: 3px;
-  width: min(610px, calc(100vw - 12px));
-  max-height: 270px;
-}
-
-.command-history > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  border-bottom: 1px solid #4d5966;
-  background: #384451;
-}
-
-.command-history > header span,
-.command-history p {
-  color: #aeb8c2;
-}
-
-.command-history > div {
-  max-height: 230px;
-  overflow: auto;
-  padding: 4px;
-}
-
-.command-history button {
-  display: grid;
-  width: 100%;
-  grid-template-columns: 110px 1fr;
-  gap: 10px;
-  padding: 6px 8px;
-  border: 0;
-  background: transparent;
-  color: #dbe3e9;
-  text-align: left;
-  cursor: pointer;
-}
-
-.command-history code {
-  color: #67cff0;
-  font: 600 11px/1.3 ui-monospace, SFMono-Regular, Consolas, monospace;
-}
-
-.command-history p {
-  margin: 0;
-  padding: 12px;
-}
-
-@media (max-width: 780px) {
-  .command-line {
-    grid-template-columns: 35px 18px auto minmax(120px, 1fr);
-  }
-
-  .command-line-prompt,
-  .command-line-keys {
-    display: none;
-  }
-}
-
 .timeline-empty-label {
   position: absolute;
   width: 1px;
@@ -6875,27 +6693,6 @@
 .start-page-flow li:not(:last-child)::after { background: #454b54; }
 .start-page-flow li > span { border-color: #5a6069; color: #ff8993; background: #272c32; }
 .start-page-flow li svg { color: #e95663; }
-
-.command-line {
-  border-bottom-color: #0f1216;
-  background: #1b1f24;
-}
-
-.command-line-icon,
-.command-history code { color: #ed5260; }
-
-.command-line input {
-  border-color: #414751;
-  background: #111419;
-}
-
-.command-line input:focus { border-color: #e14150; }
-
-.command-line kbd {
-  border-color: #484e56;
-  border-bottom-color: #686f78;
-  background: #292e34;
-}
 
 .timeline-item:hover,
 .timeline-item.selected {
@@ -8556,4 +8353,105 @@
   .print-panel.collapsed {
     width: 38px;
   }
+}
+
+/* Collision-proof application chrome. The document title participates in the
+   title-bar grid instead of floating above the file and help controls. */
+.modeling-titlebar {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  column-gap: 8px;
+}
+
+.app-menu {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.document-tab {
+  position: relative;
+  top: auto;
+  left: auto;
+  grid-column: 2;
+  width: min(320px, 100%);
+  min-width: 0;
+  max-width: 320px;
+  justify-self: center;
+  transform: none;
+}
+
+.document-tab input {
+  width: min(230px, 100%);
+  min-width: 0;
+}
+
+.title-actions {
+  grid-column: 3;
+  margin-left: 0;
+}
+
+/* The previous 29 px glyphs exceeded the 25 px compact command rows and could
+   visually collide. Keep every icon inside its own hit target. */
+.ribbon-tool:not(.featured) .ribbon-icon,
+.ribbon-tool:not(.featured) .ribbon-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.ribbon-tool.featured .ribbon-icon,
+.ribbon-tool.featured .ribbon-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.ribbon-group-heading {
+  height: 12px;
+  line-height: 12px;
+}
+
+.ribbon-label {
+  overflow: hidden;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+}
+
+.ribbon-tool.featured .ribbon-label {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ribbon-tool-menu-trigger.featured .ribbon-label {
+  display: flex;
+}
+
+/* With the separate command line removed, the timeline is the only footer.
+   Empty projects, sketches, drawings and project management use the full
+   canvas height. */
+.modeling-shell {
+  grid-template-rows: 34px 100px minmax(0, 1fr) 35px;
+}
+
+.modeling-footer {
+  grid-template-rows: 35px;
+}
+
+.modeling-shell.drawing-mode,
+.modeling-shell.tools-mode,
+.modeling-shell.sketch-mode,
+.modeling-shell.timeline-empty {
+  grid-template-rows: 34px 100px minmax(0, 1fr) 0;
+}
+
+.modeling-shell.tools-mode {
+  grid-template-rows: 34px 30px minmax(0, 1fr) 0;
+}
+
+@media (max-width: 900px) {
+  .modeling-titlebar { column-gap: 4px; }
+  .document-tab { max-width: 240px; }
+  .document-tab > svg { display: none; }
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.5.7 (2026-09-14)
+
+- usunięto dolne pole poleceń oraz jego historię, odzyskując miejsce na obszar roboczy;
+- uporządkowano nazwy obszarów modelowania i ograniczono liczbę narzędzi pokazywanych jednocześnie;
+- usunięto drugie, konkurencyjne zakończenie szkicu z palety po prawej stronie;
+- poprawiono geometrię górnego paska, rozmiary ikon i zachowanie etykiet, aby elementy nie nachodziły na siebie w pełnym ani kompaktowym oknie;
+- dodano automatyczne testy kolizji paska tytułu, grup wstążki, ikon, etykiet i nagłówków grup.
+
 ## 6.5.6 (2026-09-13)
 
 - przebudowano zachowanie interfejsu w wąskich oknach: przeglądarka projektu działa jako wysuwany panel zamiast zabierać szerokość płótna;

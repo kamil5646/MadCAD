@@ -141,7 +141,7 @@ export function ParametersDialog({ document, commit, onClose }) {
   );
 }
 
-export function SketchPalette({ options, onChange, onFinish }) {
+export function SketchPalette({ options, onChange }) {
   const [expanded, setExpanded] = useState(() => window.innerWidth >= 980);
   const basicItems = [
     ['grid', 'Siatka szkicu'],
@@ -189,7 +189,6 @@ export function SketchPalette({ options, onChange, onFinish }) {
           </div>
         </details>
       </div>}
-      {expanded && <footer><button type="button" onClick={onFinish}>Zakończ szkic</button></footer>}
     </aside>
   );
 }

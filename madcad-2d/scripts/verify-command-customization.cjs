@@ -65,11 +65,10 @@ app.whenReady().then(async () => {
     await setSelect(window, '.command-customization-filters select', 'WSZYSTKIE');
     await waitFor(window, `document.querySelectorAll('.command-customization-row').length === ${initialRows}`, 'przywracanie wszystkich kategorii');
 
-    await setInput(window, 'input[aria-label="Alias polecenia Linia"]', 'XL');
-    await setInput(window, 'input[aria-label="Klawisz polecenia Linia"]', 'G');
-    await setInput(window, 'input[aria-label="Klawisz polecenia Okrąg"]', 'G');
+    await setInput(window, 'input[aria-label="Klawisz narzędzia Linia"]', 'G');
+    await setInput(window, 'input[aria-label="Klawisz narzędzia Okrąg"]', 'G');
     await waitFor(window, `document.querySelector('.command-customization-errors') && document.querySelector('.command-customization-panel footer button.confirm').disabled`, 'wykrycie konfliktu skrótu');
-    await setInput(window, 'input[aria-label="Klawisz polecenia Okrąg"]', 'C');
+    await setInput(window, 'input[aria-label="Klawisz narzędzia Okrąg"]', 'C');
     await waitFor(window, `!document.querySelector('.command-customization-errors') && !document.querySelector('.command-customization-panel footer button.confirm').disabled`, 'poprawne ustawienia');
     const layout = await window.webContents.executeJavaScript(`(() => {
       const rect = document.querySelector('.command-customization-panel').getBoundingClientRect();
@@ -77,7 +76,7 @@ app.whenReady().then(async () => {
     })()`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     if (!(await clickByText(window, '.command-customization-panel footer button', 'Zapisz'))) throw new Error('Nie znaleziono zapisu ustawień.');
-    await waitFor(window, `JSON.parse(localStorage.getItem('madcad:command-customization:v1')).commands.Linia.alias === 'XL'`, 'zapis ustawień');
+    await waitFor(window, `JSON.parse(localStorage.getItem('madcad:command-customization:v1')).commands.Linia.shortcut === 'G'`, 'zapis ustawień');
     await window.webContents.executeJavaScript(`document.querySelector('.command-customization-panel header button').click()`);
     await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))`);
     await waitFor(window, `document.querySelector('.command-customization-panel')`, 'otwieranie panelu przez F1');
@@ -96,12 +95,10 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState.command?.type === 'line'`, 'bezpośredni klawisz G');
     await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
     await waitFor(window, `!window.__madcadVerifyDocumentState.command`, 'anulowanie polecenia');
-    await setInput(window, '#madcad-command-line', 'XL');
-    await window.webContents.executeJavaScript(`document.querySelector('#madcad-command-line').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
-    await waitFor(window, `window.__madcadVerifyDocumentState.command?.type === 'line'`, 'niestandardowy alias XL');
+    const commandLineRemoved = await window.webContents.executeJavaScript(`!document.querySelector('#madcad-command-line')`);
 
-    const result = { screenshotPath, ...layout, searchFilter, categoryFilter, conflictRejected: true, persisted: true, directKey: true, alias: true, tooltip: true, helpKey: true, snapKey: true };
-    if (layout.rows < 45 || layout.categories < 5 || layout.essentials < 6 || !layout.insideViewport || layout.horizontalOverflow || !searchFilter || !categoryFilter) throw new Error(`Niepoprawny panel skrótów: ${JSON.stringify(result)}`);
+    const result = { screenshotPath, ...layout, searchFilter, categoryFilter, conflictRejected: true, persisted: true, directKey: true, commandLineRemoved, tooltip: true, helpKey: true, snapKey: true };
+    if (layout.rows < 45 || layout.categories < 5 || layout.essentials < 6 || !layout.insideViewport || layout.horizontalOverflow || !searchFilter || !categoryFilter || !commandLineRemoved) throw new Error(`Niepoprawny panel skrótów: ${JSON.stringify(result)}`);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     app.exit(0);
   } catch (error) {

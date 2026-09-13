@@ -58,6 +58,45 @@ async function ribbonGroups(window) {
   return window.webContents.executeJavaScript(`[...document.querySelectorAll('.modeling-ribbon > .ribbon-visible-groups > .ribbon-group, .modeling-ribbon > .ribbon-sticky-groups > .ribbon-group')].map((item) => item.getAttribute('aria-label'))`);
 }
 
+async function chromeCollisionSnapshot(window) {
+  return window.webContents.executeJavaScript(`(() => {
+    const visible = (element) => Boolean(element?.checkVisibility?.());
+    const rect = (element) => element?.getBoundingClientRect();
+    const overlaps = (a, b) => Boolean(a && b && a.left < b.right - 0.5 && a.right > b.left + 0.5 && a.top < b.bottom - 0.5 && a.bottom > b.top + 0.5);
+    const contained = (inner, outer) => Boolean(inner && outer && inner.left >= outer.left - 0.5 && inner.top >= outer.top - 0.5 && inner.right <= outer.right + 0.5 && inner.bottom <= outer.bottom + 0.5);
+    const pairwise = (elements) => {
+      const collisions = [];
+      for (let left = 0; left < elements.length; left += 1) {
+        for (let right = left + 1; right < elements.length; right += 1) {
+          if (overlaps(rect(elements[left]), rect(elements[right]))) collisions.push([elements[left].className, elements[right].className]);
+        }
+      }
+      return collisions;
+    };
+    const titleRegions = ['.app-menu', '.document-tab', '.title-actions'].map((selector) => document.querySelector(selector)).filter(visible);
+    const groups = [...document.querySelectorAll('.modeling-ribbon .ribbon-group:not([hidden]), .ribbon-overflow')].filter(visible);
+    const tools = [...document.querySelectorAll('.modeling-ribbon .ribbon-tool')].filter(visible);
+    return {
+      width: innerWidth,
+      titleCollisions: pairwise(titleRegions),
+      ribbonGroupCollisions: pairwise(groups),
+      iconsOutsideButtons: tools.filter((tool) => !contained(rect(tool.querySelector('.ribbon-icon')), rect(tool))).map((tool) => tool.dataset.toolLabel),
+      labelsOutsideButtons: tools.filter((tool) => {
+        const label = tool.querySelector('.ribbon-label');
+        return label && getComputedStyle(label).overflowX === 'visible' && !contained(rect(label), rect(tool));
+      }).map((tool) => tool.dataset.toolLabel),
+      headingsOverTools: [...document.querySelectorAll('.ribbon-group:not([hidden])')].filter(visible).filter((group) => overlaps(rect(group.querySelector('.ribbon-group-heading')), rect(group.querySelector('.ribbon-tools')))).map((group) => group.getAttribute('aria-label')),
+      horizontalOverflow: document.documentElement.scrollWidth > innerWidth + 1,
+    };
+  })()`);
+}
+
+function assertCollisionFree(snapshot, label) {
+  if (snapshot.titleCollisions.length || snapshot.ribbonGroupCollisions.length || snapshot.iconsOutsideButtons.length || snapshot.labelsOutsideButtons.length || snapshot.headingsOverTools.length || snapshot.horizontalOverflow) {
+    throw new Error(`${label} nakłada elementy interfejsu: ${JSON.stringify(snapshot)}`);
+  }
+}
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({ width: 1351, height: 940, show: true, webPreferences: { partition: `madcad-consistency-${Date.now()}` } });
   window.setContentSize(1351, 877);
@@ -70,6 +109,8 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
     await waitFor(window, `!document.querySelector('.license-info-dialog')`, 'zamknięcie informacji licencyjnej');
     const emptyModelGroups = await ribbonGroups(window);
+    const startChromeLayout = await chromeCollisionSnapshot(window);
+    assertCollisionFree(startChromeLayout, 'Początkowy pasek');
     const startPageRibbon = await window.webContents.executeJavaScript(`(() => {
       const ribbon = document.querySelector('.modeling-ribbon');
       const rect = ribbon?.getBoundingClientRect();
@@ -99,7 +140,7 @@ app.whenReady().then(async () => {
     window.setContentSize(2200, 877);
     await new Promise((resolve) => setTimeout(resolve, 300));
     const tabs = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.workspace-tabs button')].map((item) => item.textContent.trim())`);
-    const expectedTabs = ['BRYŁA', 'POWIERZCHNIA', 'SIATKA', 'KONSTRUKCJA BLACHOWA', 'TWORZYWO SZTUCZNE', 'NARZĘDZIA'];
+    const expectedTabs = ['BRYŁA', 'POWIERZCHNIA', 'SIATKA', 'BLACHA', 'TWORZYWA', 'SPRAWDŹ'];
     if (tabs.join('|') !== expectedTabs.join('|')) throw new Error(`Nielogiczny podział obszarów: ${tabs.join('|')}`);
 
     await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
@@ -148,11 +189,12 @@ app.whenReady().then(async () => {
         duplicatedFlowTools: [...document.querySelectorAll('.modeling-ribbon [data-tool-label]')].map((item) => item.dataset.toolLabel).filter((label) => ['Import 3D', 'Wybierz'].includes(label)),
         enabledWithoutAction: [...document.querySelectorAll('.modeling-ribbon button[data-operational="false"]:not(:disabled)')].map((item) => item.dataset.toolLabel),
         noticeCompact: !noticeRect || (noticeRect.width <= 520 && noticeRect.height <= 28 && noticeRect.left <= 20),
+        commandLineRemoved: !document.querySelector('.command-line'),
       };
     })()`);
     const expectedDesignMenus = ['Więcej brył', 'Więcej zmian', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
     const expectedWideTools = ['Prymityw', 'Revolve', 'Sweep', 'Fazuj', 'Shell', 'Pattern', 'Boolean'];
-    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !expectedWideTools.every((label) => designStructure.directTools.includes(label)) || designStructure.horizontalOverflow || designStructure.duplicatedFlowTools.length || designStructure.enabledWithoutAction.length || !designStructure.noticeCompact || !designStructure.customCadIcons || designStructure.iconLayers !== 1 || designStructure.distinctIconAccents < 2 || designStructure.iconSize < 27 || designStructure.featuredIconSize < 29 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !expectedWideTools.every((label) => designStructure.directTools.includes(label)) || designStructure.horizontalOverflow || designStructure.duplicatedFlowTools.length || designStructure.enabledWithoutAction.length || !designStructure.noticeCompact || !designStructure.commandLineRemoved || !designStructure.customCadIcons || designStructure.iconLayers !== 1 || designStructure.distinctIconAccents < 2 || designStructure.iconSize < 21 || designStructure.iconSize > 23 || designStructure.featuredIconSize < 27 || designStructure.featuredIconSize > 29 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
 
     window.setContentSize(1351, 877);
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -168,9 +210,9 @@ app.whenReady().then(async () => {
     const expectedDomainGroups = {
       POWIERZCHNIA: ['UTWÓRZ', 'ZMIEŃ', 'SPRAWDŹ'],
       SIATKA: ['WSTAW', 'PRZYGOTUJ', 'WYJŚCIE'],
-      'KONSTRUKCJA BLACHOWA': ['UTWÓRZ', 'ROZWINIĘCIE'],
-      'TWORZYWO SZTUCZNE': ['KONSTRUKCJA', 'SPRAWDŹ'],
-      NARZĘDZIA: ['SPRAWDŹ', 'SYMULUJ'],
+      BLACHA: ['UTWÓRZ', 'ROZWINIĘCIE'],
+      TWORZYWA: ['KONSTRUKCJA', 'SPRAWDŹ'],
+      SPRAWDŹ: ['SPRAWDŹ', 'SYMULUJ'],
     };
     const domainGroups = {};
     for (const [tab, expectedGroups] of Object.entries(expectedDomainGroups)) {
@@ -194,13 +236,15 @@ app.whenReady().then(async () => {
       const groupLabels = [...document.querySelectorAll('.modeling-ribbon > .ribbon-visible-groups > .ribbon-group, .modeling-ribbon > .ribbon-sticky-groups > .ribbon-group')].map((item) => item.getAttribute('aria-label'));
       return {
         directLabels,
-        requiredDirect: ['Łuk', 'Zakończ szkic'].every((label) => directLabels.includes(label)),
+        requiredDirect: ['Linia', 'Prostokąt', 'Okrąg', 'Project', 'Zakończ szkic'].every((label) => directLabels.includes(label)),
         contextualToolsGrouped: ['Offset', 'Przesuń', 'Warstwy', 'Bloki'].every((label) => !directLabels.includes(label)),
         balancedDirectCount: directLabels.length <= 15,
         menus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
         groupLabels,
         fusionOrder: groupLabels.join('|') === ['UTWÓRZ', 'ZMIEŃ', 'WIĄZANIA', 'ORGANIZUJ', 'ZAKOŃCZ SZKIC'].join('|'),
         redundantSelectRemoved: !directLabels.includes('Wybierz'),
+        finishActionCount: document.querySelectorAll('[data-tool-label="Zakończ szkic"]').length,
+        duplicatePaletteFinishRemoved: !document.querySelector('.sketch-palette footer button'),
         enabledWithoutAction: [...document.querySelectorAll('.modeling-ribbon button[data-operational="false"]:not(:disabled)')].map((item) => item.dataset.toolLabel),
         hiddenGroups: document.querySelectorAll('.ribbon-visible-groups > .ribbon-group[hidden]').length,
         hiddenGroupLabels: [...document.querySelectorAll('.ribbon-visible-groups > .ribbon-group[hidden]')].map((item) => item.getAttribute('aria-label')),
@@ -208,7 +252,7 @@ app.whenReady().then(async () => {
         basicShortcutTitles: Object.fromEntries(['Linia', 'Prostokąt', 'Okrąg', 'Wymiary'].map((label) => [label, document.querySelector('[data-tool-label="' + label + '"]')?.title || ''])),
       };
     })()`);
-    if (!expandedSketch.requiredDirect || !expandedSketch.contextualToolsGrouped || !expandedSketch.balancedDirectCount || !expandedSketch.fusionOrder || !expandedSketch.redundantSelectRemoved || expandedSketch.enabledWithoutAction.length || expandedSketch.hiddenGroups || expandedSketch.horizontalOverflow || !expandedSketch.basicShortcutTitles.Linia.includes('Skrót: L.') || !expandedSketch.basicShortcutTitles.Prostokąt.includes('Skrót: R.') || !expandedSketch.basicShortcutTitles.Okrąg.includes('Skrót: C.') || !expandedSketch.basicShortcutTitles.Wymiary.includes('Skrót: D.')) throw new Error(`Wstążka szkicu nadal nie zachowuje hierarchii podstawowych i kontekstowych narzędzi: ${JSON.stringify(expandedSketch)}`);
+    if (!expandedSketch.requiredDirect || !expandedSketch.contextualToolsGrouped || !expandedSketch.balancedDirectCount || !expandedSketch.fusionOrder || !expandedSketch.redundantSelectRemoved || expandedSketch.finishActionCount !== 1 || !expandedSketch.duplicatePaletteFinishRemoved || expandedSketch.enabledWithoutAction.length || expandedSketch.hiddenGroups || expandedSketch.horizontalOverflow || !expandedSketch.basicShortcutTitles.Linia.includes('Skrót: L.') || !expandedSketch.basicShortcutTitles.Prostokąt.includes('Skrót: R.') || !expandedSketch.basicShortcutTitles.Okrąg.includes('Skrót: C.') || !expandedSketch.basicShortcutTitles.Wymiary.includes('Skrót: D.')) throw new Error(`Wstążka szkicu nadal nie zachowuje hierarchii podstawowych i kontekstowych narzędzi: ${JSON.stringify(expandedSketch)}`);
     if (!(await clickText(window, '.ribbon-tool', 'Linia'))) throw new Error('Brak polecenia Linia do kontroli komunikatu stanu.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'line'`, 'aktywne polecenie Linia');
     const noticeHiddenDuringCommand = await window.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.workspace-notice')).display === 'none'`);
@@ -418,6 +462,8 @@ app.whenReady().then(async () => {
 
     window.setContentSize(760, 697);
     await new Promise((resolve) => setTimeout(resolve, 300));
+    const compactChromeLayout = await chromeCollisionSnapshot(window);
+    assertCollisionFree(compactChromeLayout, 'Kompaktowy pasek');
     await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
     await waitFor(window, `document.querySelector('.file-backstage')`, 'menu Plik w kompaktowym oknie');
     await window.webContents.executeJavaScript(`document.querySelector('#filePrint3dBtn')?.click()`);
@@ -506,7 +552,7 @@ app.whenReady().then(async () => {
     }
     await fs.writeFile(overflowScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
-    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, ribbonPaint, fileMenu, designStructure, compactDesign, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, selectionFilterLayout, browserTimeline, commandPanel, faceMoreActions, edgeMoreActions, constructionMenu, compactLayout, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, browserTimelineScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath, compactLayoutScreenshotPath }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, startChromeLayout, compactChromeLayout, ribbonPaint, fileMenu, designStructure, compactDesign, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, selectionFilterLayout, browserTimeline, commandPanel, faceMoreActions, edgeMoreActions, constructionMenu, compactLayout, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, browserTimelineScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath, compactLayoutScreenshotPath }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

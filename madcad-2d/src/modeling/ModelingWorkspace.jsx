@@ -178,9 +178,7 @@ import {
 } from '../cad-core/timeline-operations.js';
 import { findUntranslatedModelingText, observeModelingLocalization, resolveModelingLanguage } from './i18n.js';
 import { FirstPartTutorial, FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './AppDialogs.jsx';
-import { CommandLine } from './CommandLine.jsx';
 import { CommandDialog } from './CommandDialog.jsx';
-import { planCommandLineSubmission } from './command-controller.js';
 import {
   createDefaultCommandCustomization,
   customizationForTool,
@@ -318,9 +316,9 @@ const DESIGN_TABS = [
   { id: 'solid', label: 'BRYŁA' },
   { id: 'surface', label: 'POWIERZCHNIA' },
   { id: 'mesh', label: 'SIATKA' },
-  { id: 'sheet', label: 'KONSTRUKCJA BLACHOWA' },
-  { id: 'plastic', label: 'TWORZYWO SZTUCZNE' },
-  { id: 'utilities', label: 'NARZĘDZIA' },
+  { id: 'sheet', label: 'BLACHA' },
+  { id: 'plastic', label: 'TWORZYWA' },
+  { id: 'utilities', label: 'SPRAWDŹ' },
 ];
 
 const DRAWING_TABS = [
@@ -538,10 +536,10 @@ export default function ModelingWorkspace() {
   useEffect(() => {
     if (!licensePlan.accessAllowed && !licenseVerificationMode) setLicenseInfoOpen(true);
   }, [licensePlan.accessAllowed, licenseVerificationMode]);
-  const [expandedSketchRibbon, setExpandedSketchRibbon] = useState(() => window.matchMedia('(min-width: 1260px)').matches);
+  const [expandedSketchRibbon, setExpandedSketchRibbon] = useState(() => window.matchMedia('(min-width: 1600px)').matches);
   const [expandedDesignRibbon, setExpandedDesignRibbon] = useState(() => window.matchMedia('(min-width: 1900px)').matches);
   useEffect(() => {
-    const media = window.matchMedia('(min-width: 1260px)');
+    const media = window.matchMedia('(min-width: 1600px)');
     const update = () => setExpandedSketchRibbon(media.matches);
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
@@ -624,7 +622,6 @@ export default function ModelingWorkspace() {
   const [selection, setSelection] = useState({ kind: 'document', id: document.id });
   const [activeSketchId, setActiveSketchId] = useState(null);
   const [command, setCommand] = useState(null);
-  const [commandHistory, setCommandHistory] = useState([]);
   const [toolHelp, setToolHelp] = useState(null);
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
@@ -782,13 +779,6 @@ export default function ModelingWorkspace() {
     return () => {
       if (shortcutRegistryRef.current.get(normalizedShortcut) === entry) shortcutRegistryRef.current.delete(normalizedShortcut);
     };
-  }, []);
-  const appendCommandHistory = useCallback((input, message) => {
-    setCommandHistory((current) => [{
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      input: String(input || '').trim(),
-      message,
-    }, ...current].slice(0, 30));
   }, []);
   const resolveToolCustomization = useCallback((label) => customizationForTool(commandCustomization, label), [commandCustomization]);
   const toolHelpContext = useMemo(() => ({ setToolHelp, registerShortcut, customizationForTool: resolveToolCustomization }), [registerShortcut, resolveToolCustomization]);
@@ -1415,7 +1405,7 @@ export default function ModelingWorkspace() {
     try {
       const saved = saveCommandCustomization(nextCustomization, window.localStorage);
       setCommandCustomization(saved);
-      setNotice('Zapisano skróty i aliasy poleceń. Nowe ustawienia działają od razu.');
+      setNotice('Zapisano skróty klawiszowe. Nowe ustawienia działają od razu.');
     } catch (error) {
       setNotice(`Nie zapisano skrótów: ${error.message}`);
     }
@@ -7200,68 +7190,6 @@ export default function ModelingWorkspace() {
     return true;
   };
 
-  const handleCommandLineCancel = () => {
-    if (cancelActiveCommand()) {
-      appendCommandHistory('ESC', 'Anulowano aktywne polecenie.');
-      return;
-    }
-    if (activeSketchId) {
-      handleSketchSelection([], 'replace');
-      setNotice('Wyczyszczono zaznaczenie szkicu.');
-    } else {
-      setSelection({ kind: 'document', id: document.id });
-      setNotice('Wyczyszczono zaznaczenie.');
-    }
-  };
-
-  const handleCommandLineSubmit = (rawInput) => {
-    const plan = planCommandLineSubmission(rawInput, { command, customization: commandCustomization });
-    const { parsed } = plan;
-    if (plan.action === 'cancel') {
-      handleCommandLineCancel();
-      return true;
-    }
-    if (plan.action === 'confirm-active') {
-      const handled = executeCommandEnter();
-      appendCommandHistory('', handled ? 'Zatwierdzono aktywne polecenie.' : 'Brak aktywnego polecenia.');
-      if (!handled) setNotice('Wpisz polecenie albo uruchom narzędzie z wstążki.');
-      return true;
-    }
-    if (plan.action === 'invalid-length') {
-      setNotice('Długość linii musi być dodatnia.');
-      appendCommandHistory(parsed.raw, 'Odrzucono: długość musi być dodatnia.');
-      return true;
-    }
-    if (plan.action === 'confirm-segment-length') {
-      sketchDynamicLengthRef.current = String(plan.length);
-      setCommand((current) => ({ ...current, dynamicLength: String(plan.length) }));
-      appendCommandHistory(parsed.raw, `Długość segmentu: ${plan.length} mm.`);
-      confirmDynamicSketchSegment();
-      return true;
-    }
-    if (plan.action === 'number-unavailable') {
-      setNotice('Wartość liczbowa działa po wskazaniu pierwszego punktu linii lub polilinii.');
-      appendCommandHistory(parsed.raw, 'Brak polecenia oczekującego na długość.');
-      return true;
-    }
-    if (plan.action === 'execute-command') {
-      const result = executeBasicShortcut(plan.shortcut);
-      if (!result) {
-        const message = `Polecenie „${parsed.command.label}” nie jest dostępne w bieżącym obszarze.`;
-        setNotice(message);
-        appendCommandHistory(parsed.raw, message);
-        return true;
-      }
-      appendCommandHistory(parsed.raw, result.disabled
-        ? `Narzędzie „${result.label}” jest teraz niedostępne.`
-        : `Uruchomiono: ${result.label}.`);
-      return true;
-    }
-    setNotice(`Nieznane polecenie „${parsed.raw}”. Wpisz np. LINE, PLINE, CIRCLE, OFFSET albo TRIM.`);
-    appendCommandHistory(parsed.raw, 'Nieznane polecenie.');
-    return true;
-  };
-
   useEffect(() => {
     const onKeyDown = (event) => {
       const textEntry = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName) || event.target?.isContentEditable;
@@ -7615,7 +7543,7 @@ export default function ModelingWorkspace() {
         <div className="title-actions">
           <button id="undoProjectBtn" type="button" disabled={readOnly || !history.canUndo} onClick={history.undo} title="Cofnij"><Undo2 size={15} /></button>
           <button id="redoProjectBtn" type="button" disabled={readOnly || !history.canRedo} onClick={history.redo} title="Ponów"><Redo2 size={15} /></button>
-          <button id="commandShortcutsBtn" className={commandCustomizationOpen ? 'active' : ''} type="button" aria-pressed={commandCustomizationOpen} title="Skróty klawiszowe i polecenia · F1" onClick={() => { setLayersOpen(false); setBlocksOpen(false); setComponentsOpen(false); setCommandCustomizationOpen((open) => !open); }}><Keyboard size={15} /><span>Skróty</span></button>
+          <button id="commandShortcutsBtn" className={commandCustomizationOpen ? 'active' : ''} type="button" aria-pressed={commandCustomizationOpen} title="Skróty klawiszowe · F1" onClick={() => { setLayersOpen(false); setBlocksOpen(false); setComponentsOpen(false); setCommandCustomizationOpen((open) => !open); }}><Keyboard size={15} /><span>Skróty</span></button>
           <div className={`app-help-menu ${helpMenuOpen ? 'open' : ''}`} ref={helpMenuRef}>
             <button ref={helpButtonRef} className="app-help-trigger" type="button" title="Pomoc i ustawienia" aria-label="Pomoc i ustawienia" aria-haspopup="menu" aria-expanded={helpMenuOpen} onClick={() => setHelpMenuOpen((open) => !open)}><CircleHelp size={15} /><span>Pomoc</span><ChevronDown size={12} /></button>
             {helpMenuOpen && <div role="menu" aria-label="Pomoc i ustawienia">
@@ -8184,7 +8112,6 @@ export default function ModelingWorkspace() {
               confirmModelImport,
               confirmSketchDimension,
               confirmSketchImport,
-              finishSketch,
               pickPlane,
               saveImportReport: () => { void saveImportRepairReport(); },
               updateCommand,
@@ -8194,15 +8121,7 @@ export default function ModelingWorkspace() {
         {printPanelOpen && <PrintPanel document={document} bodies={engine.bodies} engine={engine} selectedFace={selectedPrintFace} commit={commit} collapsed={panelLayout.printCollapsed} onSelectIssue={(item) => setSelection(item?.kind === 'document' ? { kind: 'document', id: document.id } : item)} onExport={exportModel} onSendToSlicer={sendToSlicer} onClose={() => setPrintPanelOpen(false)} onToggleCollapsed={() => setPanelLayout((current) => ({ ...current, printCollapsed: !current.printCollapsed }))} readOnly={readOnly} />}
       </div>
 
-      <footer className="modeling-footer">
-        <CommandLine
-          command={command}
-          history={commandHistory}
-          notice={notice}
-          customization={commandCustomization}
-          onCancel={handleCommandLineCancel}
-          onSubmit={handleCommandLineSubmit}
-        />
+      {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && document.features.length > 0 && <footer className="modeling-footer">
         {workspace !== 'drawing' && !activeSketchId && <div className="timeline" role="region" aria-label="Parametryczna oś czasu">
           {document.features.length ? <><div className="timeline-controls" role="toolbar" aria-label="Nawigacja osi czasu"><button type="button" aria-label="Pierwszy krok historii" title="Zaznacz pierwszy krok parametrycznej historii." onClick={() => selectTimelineStep('start')}><SkipBack size={14} /></button><button type="button" aria-label="Poprzednia operacja" title="Zaznacz poprzednią operację w historii." onClick={() => selectTimelineStep('previous')}><StepBack size={14} /></button><button type="button" aria-label="Następna operacja" title="Zaznacz następną operację w historii." onClick={() => selectTimelineStep('next')}><StepForward size={14} /></button></div>
           {selectedTimelineGroup && <div className="timeline-selection-tools timeline-group-tools" role="toolbar" aria-label={`Zarządzaj grupą ${selectedTimelineGroup.name}`}>
@@ -8252,7 +8171,7 @@ export default function ModelingWorkspace() {
           })}
           <span className="timeline-end" /></> : <span className="timeline-empty-label">Historia operacji pojawi się po utworzeniu pierwszej bryły.</span>}
         </div>}
-      </footer>
+      </footer>}
       {tutorialOpen && <FirstPartTutorial onClose={() => { setTutorialOpen(false); requestAnimationFrame(() => helpButtonRef.current?.focus()); }} />}
       {licenseInfoOpen && <LicenseInfoDialog licensePlan={licensePlan} busy={licenseBusy} error={licenseError} allowVerificationBypass={licenseVerificationMode} onLogin={(data) => runLicenseAction('licenseLogin', data)} onRegister={(data) => runLicenseAction('licenseRegister', data)} onStartTrial={() => runLicenseAction('licenseStartTrial')} onLogout={() => runLicenseAction('licenseLogout')} onRefresh={() => runLicenseAction('licenseGetStatus')} onRequestPasswordReset={(data) => runLicenseAction('licenseRequestPasswordReset', data)} onResetPassword={(data) => runLicenseAction('licenseResetPassword', data)} onResendVerification={() => runLicenseAction('licenseResendVerification')} onVerifyEmail={(data) => runLicenseAction('licenseVerifyEmail', data)} onClose={() => { if (licensePlan.accessAllowed || licenseVerificationMode) setLicenseInfoOpen(false); }} onShowFullLicense={() => { setLicenseInfoOpen(false); setFullLicenseOpen(true); }} />}
       {fullLicenseOpen && <FullLicenseDialog onClose={() => { setFullLicenseOpen(false); if (!licensePlan.accessAllowed && !licenseVerificationMode) setLicenseInfoOpen(true); }} />}

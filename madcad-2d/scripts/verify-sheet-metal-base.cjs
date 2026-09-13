@@ -74,7 +74,7 @@ app.whenReady().then(async () => {
     await clickTool(window, 'Zakończ szkic');
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'profile' && !window.__madcadVerifyDocumentState?.activeSketchId`, 'profil gotowy do modelowania');
 
-    await selectDomain(window, 'KONSTRUKCJA BLACHOWA');
+    await selectDomain(window, 'BLACHA');
     await clickTool(window, 'Baza blachowa');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sheetBase' && document.querySelector('.command-dialog')?.textContent.includes('Współczynnik K')`, 'panel reguły blachy');
 

@@ -31,7 +31,6 @@ module.exports = Object.freeze({
     'scripts/verify-start-experience.cjs',
     'scripts/verify-ribbon-overflow.cjs',
     'scripts/verify-interface-consistency.cjs',
-    'scripts/verify-command-line.cjs',
     'scripts/verify-docked-panels.cjs',
     'scripts/verify-timeline-management.cjs',
     'scripts/verify-layers.cjs',

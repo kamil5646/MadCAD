@@ -28,11 +28,11 @@ async function setField(window, label, value) {
 
 async function selectPlasticDomain(window) {
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === 'TWORZYWO SZTUCZNE');
-    if (!button) throw new Error('Brak dziedziny TWORZYWO SZTUCZNE.');
+    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === 'TWORZYWA');
+    if (!button) throw new Error('Brak dziedziny TWORZYWA.');
     button.click();
   })()`);
-  await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'TWORZYWO SZTUCZNE'`, 'dziedzina tworzywa sztucznego');
+  await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === 'TWORZYWA'`, 'dziedzina tworzywa sztucznego');
 }
 
 async function clickTool(window, label) {

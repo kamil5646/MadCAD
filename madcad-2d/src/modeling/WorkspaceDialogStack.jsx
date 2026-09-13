@@ -21,7 +21,7 @@ export function WorkspaceDialogStack({ state, actions }) {
       <ImportRepairReportDialog report={importRepairReport} onSave={actions.saveImportReport} onClose={actions.closeImportReport} />
       <SketchDimensionDialog command={command} onChange={actions.updateCommand} onConfirm={actions.confirmSketchDimension} onCancel={actions.cancelCommand} />
       {command?.type === 'parameters' && <ParametersDialog document={document} commit={actions.commit} onClose={actions.cancelCommand} />}
-      {activeSketchId && <SketchPalette options={sketchOptions} onChange={actions.changeSketchOption} onFinish={actions.finishSketch} />}
+      {activeSketchId && <SketchPalette options={sketchOptions} onChange={actions.changeSketchOption} />}
     </>
   );
 }

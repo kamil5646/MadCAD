@@ -393,7 +393,7 @@ export function CommandCustomizationPanel({ customization, onSave, onReset, onCl
   const normalizedQuery = query.trim().toLocaleLowerCase('pl');
   const visibleRows = rows.filter((row) => (
     (category === 'WSZYSTKIE' || row.category === category)
-    && (!normalizedQuery || [row.label, row.alias, row.shortcut, ...row.builtInAliases].some((value) => String(value || '').toLocaleLowerCase('pl').includes(normalizedQuery)))
+    && (!normalizedQuery || [row.label, row.shortcut].some((value) => String(value || '').toLocaleLowerCase('pl').includes(normalizedQuery)))
   ));
   const groups = visibleRows.reduce((result, row) => {
     const group = result.find((item) => item.category === row.category);
@@ -407,8 +407,8 @@ export function CommandCustomizationPanel({ customization, onSave, onReset, onCl
     commands: { ...current.commands, [label]: { ...current.commands[label], [key]: value.toUpperCase().replace(/\s+/g, '') } },
   }));
   return (
-    <aside className="measure-panel command-customization-panel" aria-label="Skróty i polecenia">
-      <header><div><Keyboard size={16} /><strong>Skróty i polecenia</strong></div><button type="button" title="Zamknij ustawienia skrótów" aria-label="Zamknij ustawienia skrótów" onClick={onClose}><X size={15} /></button></header>
+    <aside className="measure-panel command-customization-panel" aria-label="Skróty klawiszowe">
+      <header><div><Keyboard size={16} /><strong>Skróty klawiszowe</strong></div><button type="button" title="Zamknij ustawienia skrótów" aria-label="Zamknij ustawienia skrótów" onClick={onClose}><X size={15} /></button></header>
       <div className="command-shortcut-essentials" aria-label="Podstawowe skróty">
         <span><kbd>Esc</kbd>Anuluj</span>
         <span><kbd>Enter</kbd>Zatwierdź</span>
@@ -418,16 +418,16 @@ export function CommandCustomizationPanel({ customization, onSave, onReset, onCl
         <span><kbd>Delete</kbd>Usuń</span>
       </div>
       <div className="command-customization-filters">
-        <label><Search size={14} aria-hidden="true" /><span className="sr-only">Szukaj polecenia</span><input type="search" value={query} placeholder="Szukaj polecenia lub aliasu" onChange={(event) => setQuery(event.target.value)} /></label>
-        <label><span className="sr-only">Kategoria poleceń</span><select value={category} onChange={(event) => setCategory(event.target.value)}><option value="WSZYSTKIE">Wszystkie kategorie</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><Search size={14} aria-hidden="true" /><span className="sr-only">Szukaj narzędzia</span><input type="search" value={query} placeholder="Szukaj narzędzia" onChange={(event) => setQuery(event.target.value)} /></label>
+        <label><span className="sr-only">Kategoria narzędzi</span><select value={category} onChange={(event) => setCategory(event.target.value)}><option value="WSZYSTKIE">Wszystkie kategorie</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
       </div>
-      <div className="command-customization-intro"><p>Wpisz alias w linii poleceń i naciśnij Enter. Pojedynczy klawisz uruchamia narzędzie od razu.</p><div><span>Polecenie</span><span>Alias</span><span>Klawisz</span></div></div>
+      <div className="command-customization-intro"><p>Przypisz pojedynczy klawisz, aby uruchamiać najczęściej używane narzędzia bez szukania ich na wstążce.</p><div><span>Narzędzie</span><span>Klawisz</span></div></div>
       <div className="command-customization-list">
         {groups.map((group) => <section className="command-customization-category" key={group.category} aria-label={group.category}>
           <h3>{group.category}</h3>
-          {group.rows.map((row) => <div className="command-customization-row" key={row.label}><strong>{row.label}</strong><input aria-label={`Alias polecenia ${row.label}`} value={row.alias} maxLength={16} onChange={(event) => update(row.label, 'alias', event.target.value)} /><input aria-label={`Klawisz polecenia ${row.label}`} value={row.shortcut} maxLength={3} placeholder="—" onChange={(event) => update(row.label, 'shortcut', event.target.value)} /></div>)}
+          {group.rows.map((row) => <div className="command-customization-row" key={row.label}><strong>{row.label}</strong><input aria-label={`Klawisz narzędzia ${row.label}`} value={row.shortcut} maxLength={3} placeholder="—" onChange={(event) => update(row.label, 'shortcut', event.target.value)} /></div>)}
         </section>)}
-        {!groups.length && <p className="command-customization-empty">Brak poleceń pasujących do wyszukiwania.</p>}
+        {!groups.length && <p className="command-customization-empty">Brak narzędzi pasujących do wyszukiwania.</p>}
       </div>
       {!!validation.errors.length && <div className="command-customization-errors" role="alert">{validation.errors.slice(0, 4).map((error) => <span key={error}>{error}</span>)}</div>}
       <footer><button type="button" onClick={() => { const reset = onReset(); setDraft(structuredClone(reset)); }}><RotateCcw size={14} /> Przywróć skróty Autodesk</button><button className="confirm" type="button" disabled={!validation.valid} onClick={() => onSave(validation.customization)}><Check size={14} /> Zapisz</button></footer>

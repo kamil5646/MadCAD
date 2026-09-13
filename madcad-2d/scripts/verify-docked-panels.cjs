@@ -25,14 +25,17 @@ function panelSnapshot(window) {
   return window.webContents.executeJavaScript(`(() => {
     const panel = document.querySelector('.command-dialog.docked');
     const stage = document.querySelector('.modeling-stage');
+    const content = document.querySelector('.modeling-content');
     const panelRect = panel?.getBoundingClientRect();
     const stageRect = stage?.getBoundingClientRect();
+    const contentRect = content?.getBoundingClientRect();
     return {
       panelWidth: panelRect?.width || 0,
       panelPosition: panel ? getComputedStyle(panel).position : '',
       collapsed: panel?.classList.contains('collapsed') || false,
       dock: panel?.classList.contains('dock-left') ? 'left' : 'right',
       besideCanvas: Boolean(panelRect && stageRect && (panelRect.right <= stageRect.left + 0.5 || panelRect.left >= stageRect.right - 0.5)),
+      insideWorkspace: Boolean(panelRect && contentRect && panelRect.left >= contentRect.left && panelRect.right <= contentRect.right && panelRect.top >= contentRect.top && panelRect.bottom <= contentRect.bottom),
       stageWidth: stageRect?.width || 0,
       horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
     };
@@ -72,13 +75,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.plane-options button')].find((item) => item.textContent.includes('XY'))?.click()`);
     await waitFor(window, `document.querySelector('.model-viewport.sketch-view')`, 'aktywny szkic');
-    await window.webContents.executeJavaScript(`(() => {
-      const input = document.querySelector('#madcad-command-line');
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-      setter.call(input, 'L');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-    })()`);
+    await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'l', bubbles: true, cancelable: true }))`);
     await waitFor(window, `document.querySelector('.command-dialog.docked')`, 'dokowany panel polecenia');
     await new Promise((resolve) => setTimeout(resolve, 220));
 
@@ -141,7 +138,7 @@ app.whenReady().then(async () => {
     const printCollapsed = await printPanelSnapshot(window);
 
     const result = { screenshotPath, printScreenshotPath, initial, collapsed, fixed, dockControlAbsent, storedRight, printInitial, automaticOrientation, printCollapsed };
-    if (initial.panelPosition === 'absolute' || initial.dock !== 'right' || !initial.besideCanvas || initial.panelWidth < 260 || collapsed.panelWidth > 40 || !collapsed.collapsed || !collapsed.besideCanvas || fixed.dock !== 'right' || !fixed.besideCanvas || fixed.horizontalOverflow || !dockControlAbsent || !storedRight || printInitial.panelWidth < 270 || !printInitial.besideCanvas || !automaticOrientation.visible || !automaticOrientation.finite || !automaticOrientation.onBed || automaticOrientation.materialProfile !== 'bambu-petg-hf' || !automaticOrientation.materialProfileGroups?.includes('Ogólne') || !automaticOrientation.materialProfileGroups?.includes('Bambu Lab') || !automaticOrientation.materialGuidanceVisible || !automaticOrientation.riskMap?.enabled || automaticOrientation.riskMap?.overlays < 1 || !automaticOrientation.riskLegendVisible || printCollapsed.panelWidth > 40 || !printCollapsed.collapsed || !printCollapsed.besideCanvas || printCollapsed.horizontalOverflow) {
+    if (initial.panelPosition !== 'absolute' || initial.dock !== 'right' || !initial.insideWorkspace || initial.panelWidth < 210 || collapsed.panelWidth > 40 || !collapsed.collapsed || !collapsed.insideWorkspace || fixed.dock !== 'right' || !fixed.insideWorkspace || fixed.panelWidth < 210 || fixed.horizontalOverflow || !dockControlAbsent || !storedRight || printInitial.panelWidth < 270 || !printInitial.besideCanvas || !automaticOrientation.visible || !automaticOrientation.finite || !automaticOrientation.onBed || automaticOrientation.materialProfile !== 'bambu-petg-hf' || !automaticOrientation.materialProfileGroups?.includes('Ogólne') || !automaticOrientation.materialProfileGroups?.includes('Bambu Lab') || !automaticOrientation.materialGuidanceVisible || !automaticOrientation.riskMap?.enabled || automaticOrientation.riskMap?.overlays < 1 || !automaticOrientation.riskLegendVisible || printCollapsed.panelWidth > 40 || !printCollapsed.collapsed || !printCollapsed.besideCanvas || printCollapsed.horizontalOverflow) {
       throw new Error(`Niepoprawny układ paneli: ${JSON.stringify(result)}`);
     }
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
