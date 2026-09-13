@@ -216,11 +216,10 @@ function resolveToolHelp({ label, description, title, disabled = false, disabled
 
 
 function ToolGlyph({ icon: Icon, compact = false, featured = false }) {
-  const size = compact ? 18 : featured ? 36 : 25;
+  const size = compact ? 18 : featured ? 31 : 29;
   return (
     <span className="ribbon-glyph">
-      <Icon className="ribbon-glyph-depth" size={size} strokeWidth={2.45} fill="none" aria-hidden="true" />
-      <Icon className="ribbon-glyph-face" size={size} strokeWidth={1.8} fill="none" aria-hidden="true" />
+      <Icon className="ribbon-glyph-face" size={size} strokeWidth={1.75} fill="none" aria-hidden="true" />
     </span>
   );
 }

@@ -8034,3 +8034,127 @@
   .start-page-actions { display: grid; }
   .start-page .start-page-action { min-width: 0; width: 100%; }
 }
+
+/* Fusion-style final pass: one crisp pictogram per command and a docked sketch palette. */
+.ribbon-glyph svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.ribbon-glyph-face {
+  color: var(--tool-accent);
+  filter: none;
+}
+
+.ribbon-tool:not(.featured) .ribbon-icon,
+.ribbon-tool:not(.featured) .ribbon-icon svg {
+  width: 29px;
+  height: 29px;
+}
+
+.ribbon-tool.featured .ribbon-icon,
+.ribbon-tool.featured .ribbon-icon svg {
+  width: 31px;
+  height: 31px;
+}
+
+.ribbon-glyph-face .cad-surface-primary {
+  fill: color-mix(in srgb, var(--tool-accent) 22%, transparent);
+  fill-opacity: 1;
+  stroke: var(--tool-accent);
+}
+
+.ribbon-glyph-face .cad-surface-secondary {
+  fill: color-mix(in srgb, var(--tool-accent-secondary) 12%, transparent);
+  fill-opacity: 1;
+  stroke: var(--tool-accent-secondary);
+}
+
+.ribbon-glyph-face .cad-action,
+.ribbon-glyph-face .cad-node,
+.ribbon-glyph-face .cad-node-secondary {
+  color: var(--tool-accent);
+  stroke: currentColor;
+}
+
+.sketch-palette {
+  top: 138px;
+  right: 6px;
+  bottom: auto;
+  width: 224px;
+  overflow: hidden;
+  border-color: #46505c;
+  border-radius: 2px;
+  background: #303844;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 24%);
+}
+
+.sketch-palette.collapsed {
+  top: auto;
+  right: 10px;
+  bottom: 48px;
+  width: 118px;
+}
+
+.sketch-palette > header {
+  height: 32px;
+  border-bottom-color: #48525e;
+  background: #394350;
+}
+
+.sketch-palette-body {
+  padding: 8px 10px 7px;
+}
+
+.sketch-palette-body h3 {
+  margin: 2px 0 6px;
+  color: #f0f2f4;
+  font-size: 10px;
+  font-weight: 720;
+}
+
+.sketch-palette-body label {
+  min-height: 25px;
+  color: #d5dae0;
+  font-size: 10.5px;
+}
+
+.sketch-advanced-options {
+  margin-top: 7px;
+  border-top: 1px solid #48525e;
+  border-bottom: 0;
+}
+
+.sketch-advanced-options summary {
+  min-height: 27px;
+  padding: 7px 0 4px;
+  color: #c0c7cf;
+}
+
+.sketch-state-legend {
+  margin: 4px 0 2px;
+  padding: 7px 0 3px;
+}
+
+.sketch-palette > footer {
+  padding: 6px 8px;
+  border-top-color: #48525e;
+}
+
+.sketch-palette > footer button {
+  width: 100%;
+  min-height: 29px;
+  border-color: #65717e;
+  border-radius: 2px;
+  background: #46515e;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+@media (max-width: 979px) {
+  .sketch-palette:not(.collapsed) {
+    width: 204px;
+  }
+}

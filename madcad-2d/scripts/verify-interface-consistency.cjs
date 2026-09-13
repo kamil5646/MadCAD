@@ -146,7 +146,7 @@ app.whenReady().then(async () => {
       };
     })()`);
     const expectedDesignMenus = ['Więcej brył', 'Więcej zmian', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
-    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || designStructure.duplicatedFlowTools.length || designStructure.enabledWithoutAction.length || !designStructure.noticeCompact || !designStructure.customCadIcons || designStructure.iconLayers !== 2 || designStructure.distinctIconAccents < 2 || designStructure.iconSize < 23 || designStructure.featuredIconSize < 33 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || designStructure.duplicatedFlowTools.length || designStructure.enabledWithoutAction.length || !designStructure.noticeCompact || !designStructure.customCadIcons || designStructure.iconLayers !== 1 || designStructure.distinctIconAccents < 2 || designStructure.iconSize < 27 || designStructure.featuredIconSize < 29 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
 
     const expectedDomainGroups = {
       POWIERZCHNIA: ['UTWÓRZ', 'ZMIEŃ', 'SPRAWDŹ'],

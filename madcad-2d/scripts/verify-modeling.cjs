@@ -295,14 +295,27 @@ async function runUiFlow(window) {
     ...['Thin Extrude', 'Rib/Web', 'Pipe'].map((label) => [label, 'Utwórz 3D']),
   ]);
   const ribbonHasTool = (label) => window.webContents.executeJavaScript(`Boolean(document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]'))`);
-  const clickWorkspace = (workspaceLabel) => window.webContents.executeJavaScript(`(() => {
+  const selectWorkspaceMode = async (value) => {
+    await window.webContents.executeJavaScript(`(() => {
+      const select = document.querySelector('.workspace-switcher select');
+      if (!select) throw new Error('Brak wyboru przestrzeni roboczej');
+      if (select.value === ${JSON.stringify(value)}) return;
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, ${JSON.stringify(value)});
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await waitForUi(window, `document.querySelector('.workspace-switcher select')?.value === ${JSON.stringify(value)}`, `przestrzeń robocza ${value}`);
+  };
+  const clickWorkspace = async (workspaceLabel) => {
+    await selectWorkspaceMode('solid');
+    return window.webContents.executeJavaScript(`(() => {
     const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === ${JSON.stringify(workspaceLabel)});
     if (!button) throw new Error('Brak obszaru roboczego: ${workspaceLabel}');
     button.click();
   })()`);
+  };
   const clickTool = async (label) => {
     if (toolsWorkspaceLabels.has(label)) {
-      await clickWorkspace('ZARZĄDZAJ');
+      await selectWorkspaceMode('tools');
       await waitForUi(window, `[...document.querySelectorAll('.project-dashboard button')].some((item) => item.textContent.trim().startsWith(${JSON.stringify(label)}))`, `narzędzie ${label} w pulpicie ZARZĄDZAJ`);
       return window.webContents.executeJavaScript(`(() => {
         const button = [...document.querySelectorAll('.project-dashboard button')].find((item) => item.textContent.trim().startsWith(${JSON.stringify(label)}));
@@ -321,7 +334,7 @@ async function runUiFlow(window) {
     const directRibbonTool = await ribbonHasTool(label);
     const menuLabel = directRibbonTool ? null : (sketchMenuLabel || constructionMenuLabel || solidToolMenus.get(label));
     if (menuLabel) {
-      if (!sketchMenuLabel) await clickWorkspace('PROJEKTUJ');
+      if (!sketchMenuLabel) await clickWorkspace('BRYŁA');
       await window.webContents.executeJavaScript(`(() => {
         const button = document.querySelector('.ribbon-tool-menu-trigger[data-tool-label=${JSON.stringify(menuLabel)}]');
         if (!button) throw new Error('Brak menu narzędzi: ${menuLabel}');
@@ -335,8 +348,8 @@ async function runUiFlow(window) {
       })()`);
     }
     if (!await ribbonHasTool(label)) {
-      await clickWorkspace('PROJEKTUJ');
-      await waitForUi(window, `document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]')`, `narzędzie ${label} w obszarze PROJEKTUJ`);
+      await clickWorkspace('BRYŁA');
+      await waitForUi(window, `document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]')`, `narzędzie ${label} w obszarze BRYŁA`);
     }
     return window.webContents.executeJavaScript(`(() => {
     const button = document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]');
@@ -2006,7 +2019,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny dla linii dynamicznej');
   await pickPlane('XY');
   await waitForUi(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view') && window.__madcadSketchLocalToScreen`, 'szkic linii dynamicznej');
-  await waitForUi(window, `document.querySelector('.sketch-palette')?.classList.contains('collapsed')`, 'kompaktowa paleta szkicu na starcie');
+  await waitForUi(window, `Boolean(document.querySelector('.sketch-palette:not(.collapsed) .sketch-palette-body'))`, 'widoczna paleta szkicu na szerokim ekranie');
   await waitForCameraToSettle(5000);
   const platformUi = await window.webContents.executeJavaScript(`(() => {
     const shell = document.querySelector('.modeling-shell');
@@ -2701,11 +2714,7 @@ async function runUiFlow(window) {
   await window.webContents.executeJavaScript(`document.querySelector('#filePrint3dBtn')?.click()`);
   await waitForUi(window, `document.querySelector('.print-inspector')`, 'obszar przygotowania druku');
 
-  await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === 'PROJEKTUJ');
-    const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
-    button[key].onClick();
-  })()`);
+  await selectWorkspaceMode('solid');
 
   await waitForUi(
     window,

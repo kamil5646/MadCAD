@@ -363,6 +363,8 @@ const ENGLISH_TEXT = Object.freeze({
   'ANALIZA': 'INSPECT',
   'Menedżer': 'Manager',
   'Komponenty': 'Components',
+  'Przestrzeń robocza': 'Workspace',
+  'Twórz części, wystąpienia, połączenia i konfiguracje zespołu w jednym panelu.': 'Create parts, occurrences, joints, and assembly configurations in one panel.',
   'Komponenty i złożenia': 'Components and assemblies',
   'Nowa część': 'New part',
   'Nowe złożenie': 'New assembly',

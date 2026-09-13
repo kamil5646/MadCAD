@@ -117,7 +117,7 @@ export function ParametersDialog({ document, commit, onClose }) {
 }
 
 export function SketchPalette({ options, onChange, onFinish }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(() => window.innerWidth >= 980);
   const basicItems = [
     ['grid', 'Siatka szkicu'],
     ['snap', 'Przyciąganie'],
@@ -153,16 +153,16 @@ export function SketchPalette({ options, onChange, onFinish }) {
           {advancedItems.map(([key, label]) => (
             <label key={key} data-sketch-option={key}><span>{label}</span><input type="checkbox" checked={Boolean(options[key])} onChange={(event) => onChange(key, event.target.checked)} /></label>
           ))}
+          <div className="sketch-state-legend" aria-label="Legenda stanów geometrii szkicu">
+            <h3>Stany geometrii</h3>
+            <span><i className="under" /> Niedowiązana</span>
+            <span><i className="fixed" /> W pełni związana</span>
+            <span><i className="construction" /> Konstrukcyjna</span>
+            <span><i className="projected" /> Rzutowana</span>
+            <span><i className="selected" /> Zaznaczona</span>
+            <span><i className="error" /> Błąd geometrii</span>
+          </div>
         </details>
-        <div className="sketch-state-legend" aria-label="Legenda stanów geometrii szkicu">
-          <h3>Stany geometrii</h3>
-          <span><i className="under" /> Niedowiązana</span>
-          <span><i className="fixed" /> W pełni związana</span>
-          <span><i className="construction" /> Konstrukcyjna</span>
-          <span><i className="projected" /> Rzutowana</span>
-          <span><i className="selected" /> Zaznaczona</span>
-          <span><i className="error" /> Błąd geometrii</span>
-        </div>
       </div>}
       {expanded && <footer><button type="button" onClick={onFinish}>Zakończ szkic</button></footer>}
     </aside>
