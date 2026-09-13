@@ -338,6 +338,14 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.adaptive-tool-shelf header strong')?.textContent.trim() === 'Ściana'`, 'kontekstowe narzędzia ściany');
     const faceActions = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-actions > button')].map((button) => button.textContent.trim())`);
     if (!faceActions.includes('Szkic na ścianie') || !faceActions.includes('Naciśnij / wyciągnij') || !faceActions.includes('Odsuń ścianę')) throw new Error(`Brak bezpośrednich działań dla ściany: ${JSON.stringify(faceActions)}`);
+    await window.webContents.executeJavaScript(`document.querySelector('.adaptive-tool-more-trigger')?.click()`);
+    await waitFor(window, `document.querySelector('.adaptive-tool-more [role="menu"]')`, 'właściwości zaznaczonej ściany');
+    const faceMoreActions = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-more [role="menuitem"]')].map((button) => button.textContent.trim())`);
+    if (!faceMoreActions.includes('Właściwości')) throw new Error(`Brak właściwości ściany w menu kontekstowym: ${JSON.stringify(faceMoreActions)}`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-more [role="menuitem"]')].find((button) => button.textContent.trim() === 'Właściwości')?.click()`);
+    await waitFor(window, `document.querySelector('.measure-panel')?.textContent.includes('Właściwości zaznaczenia') && document.querySelector('.measure-panel')?.textContent.includes('Pole')`, 'panel właściwości ściany');
+    await window.webContents.executeJavaScript(`document.querySelector('.measure-panel [title="Zamknij pomiar"]')?.click()`);
+    await waitFor(window, `!document.querySelector('.measure-panel') && document.querySelector('.adaptive-tool-shelf')`, 'zamknięcie właściwości ściany');
     await fs.writeFile(faceContextScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-actions > button')].find((button) => button.textContent.trim() === 'Naciśnij / wyciągnij')?.click()`);
     await waitFor(window, `document.querySelector('.command-dialog.docked')`, 'panel parametrów operacji');
@@ -371,6 +379,14 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.adaptive-tool-shelf header strong')?.textContent.trim() === 'Krawędź'`, 'kontekstowe narzędzia krawędzi');
     const edgeActions = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-shelf .adaptive-tool-actions > button')].map((button) => button.textContent.trim())`);
     if (!edgeActions.includes('Zaokrąglij') || !edgeActions.includes('Fazuj')) throw new Error(`Brak bezpośrednich działań dla krawędzi: ${JSON.stringify(edgeActions)}`);
+    await window.webContents.executeJavaScript(`document.querySelector('.adaptive-tool-more-trigger')?.click()`);
+    await waitFor(window, `document.querySelector('.adaptive-tool-more [role="menu"]')`, 'właściwości zaznaczonej krawędzi');
+    const edgeMoreActions = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-more [role="menuitem"]')].map((button) => button.textContent.trim())`);
+    if (!edgeMoreActions.includes('Właściwości')) throw new Error(`Brak właściwości krawędzi w menu kontekstowym: ${JSON.stringify(edgeMoreActions)}`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-more [role="menuitem"]')].find((button) => button.textContent.trim() === 'Właściwości')?.click()`);
+    await waitFor(window, `document.querySelector('.measure-panel')?.textContent.includes('Właściwości zaznaczenia') && document.querySelector('.measure-panel')?.textContent.includes('Długość')`, 'panel właściwości krawędzi');
+    await window.webContents.executeJavaScript(`document.querySelector('.measure-panel [title="Zamknij pomiar"]')?.click()`);
+    await waitFor(window, `!document.querySelector('.measure-panel') && document.querySelector('.adaptive-tool-shelf')`, 'zamknięcie właściwości krawędzi');
     await fs.writeFile(edgeContextScreenshotPath, (await window.webContents.capturePage()).toPNG());
     await window.webContents.executeJavaScript(`document.querySelector('.adaptive-tool-clear')?.click()`);
     await waitFor(window, `!document.querySelector('.adaptive-tool-shelf')`, 'wyczyszczenie kontekstu krawędzi');
@@ -457,7 +473,7 @@ app.whenReady().then(async () => {
     }
     await fs.writeFile(overflowScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
-    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, ribbonPaint, fileMenu, designStructure, compactDesign, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, selectionFilterLayout, browserTimeline, commandPanel, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, browserTimelineScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, ribbonPaint, fileMenu, designStructure, compactDesign, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, selectionFilterLayout, browserTimeline, commandPanel, faceMoreActions, edgeMoreActions, constructionMenu, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, browserTimelineScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

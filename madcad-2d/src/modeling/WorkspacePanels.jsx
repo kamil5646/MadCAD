@@ -459,7 +459,7 @@ export function MeasurePanel({ measurement, onClose }) {
   if (measurement?.dimensions) rows.push(['Gabaryt X; Y; Z', measureVector(measurement.dimensions)]);
   return (
     <aside className="measure-panel" aria-label="Wynik pomiaru">
-      <header><div><Ruler size={16} /><strong>Measure</strong></div><button type="button" title="Zamknij pomiar" onClick={onClose}><X size={15} /></button></header>
+      <header><div><Ruler size={16} /><strong>Właściwości zaznaczenia</strong></div><button type="button" title="Zamknij pomiar" onClick={onClose}><X size={15} /></button></header>
       <div className="measure-panel-body">
         {!measurement?.selectionCount && <p>Zaznacz bryłę, ścianę, krawędź lub wierzchołek. {multipleSelectionLabel(window.desktopApp?.platform)} wybiera drugi element.</p>}
         {rows.map(([label, value]) => <div className="measure-row" key={label}><span>{label}</span><strong>{value}</strong></div>)}

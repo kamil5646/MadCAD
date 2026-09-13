@@ -58,10 +58,19 @@ Dowód: `artifacts/full-interface-audit-2026-08-30/01-model-fixed.png`.
 - Przy zwykłej szerokości te same polecenia wracają do „Więcej brył” i „Więcej zmian”, dzięki czemu grupy nie wypychają się poza okno.
 - Test zmienia szerokość z 2200 na 1351 px i sprawdza zarówno dostępność poleceń, jak i brak poziomego przepełnienia.
 
+## 7. Właściwości zaznaczenia — stan dobry po poprawce
+
+Dowody: `artifacts/fusion-flow-audit-2026-08-31/04-face-context.png` i `artifacts/fusion-flow-audit-2026-08-31/05-edge-context.png`.
+
+- Profil, ściana i krawędź udostępniają „Właściwości” w tym samym menu kontekstowym co pasujące operacje.
+- Polecenie korzysta ze wspólnego panelu pomiarów, więc pokazuje dane wynikające z rzeczywistego zaznaczenia zamiast osobnego, niespójnego okna.
+- Bryła zachowuje dokładniejsze „Właściwości masy”, a działania usuwania pozostają oddzielone i wymagają potwierdzenia.
+- Menu działa myszą i klawiaturą, zamyka się klawiszem Esc oraz nie usuwa zaznaczenia.
+
 ## Dostępność i ograniczenia dowodów
 
 Pełny przebieg sprawdził powiększenie 100%, 150% i 200% bez przepełnienia dokumentu, dostępny fokus klawiatury oraz brak zgłoszonych naruszeń axe. Automatyczny audyt kontrastu pozostawia elementy niejednoznaczne przy nakładaniu warstw płótna; wymaga to dalszej kontroli wizualnej przy kolejnych panelach.
 
-## Następna część
+## Wynik końcowy
 
-Do dalszego zbliżenia do Fusion pozostają właściwości obiektów i rozbudowane menu kontekstowe brył; podstawowa hierarchia przeglądarki oraz osi czasu jest już uporządkowana.
+Podstawowy przepływ interfejsu jest spójny z modelem pracy Fusion: przestrzeń robocza i dziedzina wybierają zestaw poleceń, przeglądarka utrzymuje strukturę projektu, płótno udostępnia wyłącznie działania pasujące do zaznaczenia, a szczegółowe parametry otwierają się w prawej palecie. Import, eksport, druk 2D i druk 3D pozostają oddzielone w menu Plik.

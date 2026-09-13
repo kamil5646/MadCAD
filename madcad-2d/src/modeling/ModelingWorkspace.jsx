@@ -7497,6 +7497,7 @@ export default function ModelingWorkspace() {
           { icon: RevolveCadIcon, label: 'Bryła obrotowa', onClick: openRevolve },
         ],
         moreActions: [
+          { icon: Ruler, label: 'Właściwości', onClick: openMeasure },
           { icon: ExtrudeCadIcon, label: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude },
           { icon: RevolveCadIcon, label: 'Obróć powierzchnię', onClick: openSurfaceRevolve },
           { icon: SweepCadIcon, label: 'Powierzchnia po ścieżce', onClick: openSurfaceSweep },
@@ -7516,6 +7517,7 @@ export default function ModelingWorkspace() {
           ...(selectedFaceItems.length === 1 ? [{ icon: OffsetFaceCadIcon, label: 'Odsuń ścianę', onClick: openOffsetFace }] : []),
         ],
         moreActions: [
+          { icon: Ruler, label: 'Właściwości', onClick: openMeasure },
           ...(selectedFaceItems.length === 1 ? [{ icon: CircleDotDashed, label: 'Boss', onClick: openPlasticBoss }, { icon: Blocks, label: 'Snap-fit', onClick: openPlasticSnapFit }, { icon: Grid2X2, label: 'Grille', onClick: openPlasticGrille }] : []),
           { icon: ShellCadIcon, label: 'Powłoka', onClick: openShell },
           { icon: DraftCadIcon, label: 'Pochylenie', onClick: openDraft },
@@ -7534,7 +7536,7 @@ export default function ModelingWorkspace() {
             { icon: FilletCadIcon, label: 'Zaokrąglij', onClick: () => openEdgeCommand('fillet'), primary: true },
             { icon: ChamferCadIcon, label: 'Fazuj', onClick: () => openEdgeCommand('chamfer') },
           ],
-        moreActions: [],
+        moreActions: [{ icon: Ruler, label: 'Właściwości', onClick: openMeasure }],
         onClear: clearModelSelection,
       };
     } else if (selectedBodyIds.length) {
