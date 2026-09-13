@@ -1,5 +1,12 @@
 # Changelog
 
+## 6.5.6 (2026-09-13)
+
+- przebudowano zachowanie interfejsu w wąskich oknach: przeglądarka projektu działa jako wysuwany panel zamiast zabierać szerokość płótna;
+- aktywne polecenie lub panel druku 3D automatycznie zwija przeglądarkę projektu w kompaktowym widoku;
+- komunikaty, nawigacja, filtr wyboru, kostka widoku i prawy panel nie nachodzą już na siebie przy szerokości 760 px;
+- dodano automatyczny test geometrii kompaktowego układu i minimalnej szerokości obszaru roboczego.
+
 ## 6.5.5 (2026-09-12)
 
 - wycentrowano optycznie znak i napis wewnątrz ikony aplikacji bez zmiany zaakceptowanego stylu;
