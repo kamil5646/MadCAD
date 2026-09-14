@@ -17,6 +17,39 @@ async function waitFor(window, expression, label, timeoutMs = 30000) {
 }
 
 async function dragMouse(window, from, to, { release = true, steps = 6 } = {}) {
+  if (process.env.CI) {
+    await window.webContents.executeJavaScript(`(async () => {
+      const canvas = document.querySelector('.model-viewport canvas');
+      if (!canvas) throw new Error('Brak płótna widoku dla przeciągnięcia spline 3D.');
+      const dispatch = (type, x, y, buttons) => canvas.dispatchEvent(new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        buttons,
+        clientX: Math.round(x),
+        clientY: Math.round(y),
+        pointerId: 61,
+        pointerType: 'mouse',
+        isPrimary: true,
+      }));
+      dispatch('pointermove', ${Number(from.x)}, ${Number(from.y)}, 0);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      dispatch('pointerdown', ${Number(from.x)}, ${Number(from.y)}, 1);
+      for (let index = 1; index <= ${Number(steps)}; index += 1) {
+        const progress = index / ${Number(steps)};
+        dispatch(
+          'pointermove',
+          ${Number(from.x)} + (${Number(to.x)} - ${Number(from.x)}) * progress,
+          ${Number(from.y)} + (${Number(to.y)} - ${Number(from.y)}) * progress,
+          1,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 35));
+      }
+      if (${Boolean(release)}) dispatch('pointerup', ${Number(to.x)}, ${Number(to.y)}, 0);
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    })()`);
+    return;
+  }
   window.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(from.x), y: Math.round(from.y) });
   await new Promise((resolve) => setTimeout(resolve, 100));
   window.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(from.x), y: Math.round(from.y), button: 'left', clickCount: 1 });

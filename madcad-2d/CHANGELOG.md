@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.5.14 (2026-09-14)
+
+- test przeciągania uchwytu spline 3D używa w CI zdarzeń wskaźnika w układzie współrzędnych renderera, eliminując błędne mapowanie pikseli na runnerach HiDPI macOS;
+- nadal sprawdzany jest pełny kod obsługi przeciągania, zapis zmiany i anulowanie gestu; natywne wejście pozostaje używane lokalnie.
+
 ## 6.5.13 (2026-09-14)
 
 - test natywnego przeciągania uchwytu spline 3D aktywuje okno Electron przed wysłaniem zdarzeń myszy, co zapobiega ich odrzucaniu przez macOS w ukrytym oknie CI.
