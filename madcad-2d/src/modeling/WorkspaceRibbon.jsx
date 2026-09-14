@@ -550,7 +550,13 @@ export function ResponsiveRibbon({ children, language = 'pl' }) {
         ? (Number.parseFloat(stickyStyle.paddingLeft) || 0) + (Number.parseFloat(stickyStyle.paddingRight) || 0)
         : 0;
       const availableWidth = Math.max(0, container.clientWidth - horizontalPadding - stickyPadding);
-      const next = calculateVisibleRibbonGroups(measuredWidths.current, availableWidth, stickyIndices);
+      // The overflow control itself grows with Electron page zoom. Reserving its
+      // nominal 78 px width made the last group temporarily fit at 200%, then
+      // pushed both that group and the sticky controls outside the shell. Once
+      // the control exists, use its real rendered width for the final layout.
+      const overflowNode = container.querySelector('.ribbon-overflow');
+      const overflowWidth = overflowNode?.getBoundingClientRect().width || 78;
+      const next = calculateVisibleRibbonGroups(measuredWidths.current, availableWidth, stickyIndices, overflowWidth);
       setLayout((current) => (
         current.visible.join(',') === next.visible.join(',') && current.hidden.join(',') === next.hidden.join(',')
           ? current
@@ -560,6 +566,10 @@ export function ResponsiveRibbon({ children, language = 'pl' }) {
     update();
     const observer = new ResizeObserver(update);
     observer.observe(container);
+    const visibleWrapper = container.querySelector('.ribbon-visible-groups');
+    const stickyObserverTarget = container.querySelector('.ribbon-sticky-groups');
+    if (visibleWrapper) observer.observe(visibleWrapper);
+    if (stickyObserverTarget) observer.observe(stickyObserverTarget);
     groupRefs.current.forEach((node) => { if (node) observer.observe(node); });
     return () => observer.disconnect();
   }, [groupCount, groupSignature, stickyKey]);

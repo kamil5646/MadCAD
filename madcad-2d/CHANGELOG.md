@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.5.10 (2026-09-14)
+
+- poprawiono obliczanie miejsca na wstążce przy skalowaniu 150–200%, mierząc rzeczywistą szerokość przycisku przepełnienia i ponownie układając grupy po zmianie rozmiaru;
+- usunięto poziome wychodzenie ostatniej grupy narzędzi poza okno na macOS przy powiększonym interfejsie.
+
 ## 6.5.9 (2026-09-14)
 
 - usunięto wyścig czasowy w wieloplatformowym teście naprawy referencji B-Rep, oczekując na aktualną topologię renderera przed utworzeniem kontrolowanej utraconej referencji.
