@@ -153,12 +153,24 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadSketch3DHandleState?.length === 4 && window.__madcadSketch3DHandleState.some((handle) => handle.kind === 'control2' && handle.locked)`, 'uchwyty bezpośrednie spline G2 w widoku');
     await fs.mkdir(path.dirname(handleArtifactPath), { recursive: true });
     await fs.writeFile(handleArtifactPath, (await window.webContents.capturePage()).toPNG());
-    const endHandle = await window.webContents.executeJavaScript(`window.__madcadSketch3DHandleState.find((handle) => handle.kind === 'end')`);
-    await dragMouse(window, endHandle, { x: endHandle.x + 30, y: endHandle.y - 20 });
-    await waitFor(window, `(() => {
+    const endPointChanged = `(() => {
       const point = window.__madcadVerifyDocumentState?.sketches?.[0]?.entityData?.find((entity) => entity.id === ${JSON.stringify(spline.pointIds[1])});
       return point && ['x', 'y', 'z'].some((axis, index) => Math.abs(Number(point.geometry[axis]) - [75, 25, 10][index]) > 0.01);
-    })()`, 'przeciągnięcie końca spline myszą');
+    })()`;
+    let draggedEnd = false;
+    for (let attempt = 0; attempt < 3 && !draggedEnd; attempt += 1) {
+      await window.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+      const endHandle = await window.webContents.executeJavaScript(`window.__madcadSketch3DHandleState.find((handle) => handle.kind === 'end')`);
+      if (!endHandle) throw new Error('Brak ekranowego uchwytu końca spline 3D.');
+      const start = { x: endHandle.x + (attempt === 1 ? 1 : attempt === 2 ? -1 : 0), y: endHandle.y };
+      await dragMouse(window, start, { x: start.x + 30, y: start.y - 20 }, { steps: 8 });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      draggedEnd = await window.webContents.executeJavaScript(`Boolean(${endPointChanged})`);
+    }
+    if (!draggedEnd) {
+      const handleState = await window.webContents.executeJavaScript(`JSON.stringify(window.__madcadSketch3DHandleState)`);
+      throw new Error(`Nie przeciągnięto końca spline myszą po odświeżeniu uchwytu: ${handleState}`);
+    }
     await window.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
     const cancelState = await window.webContents.executeJavaScript(`({
       handle: window.__madcadSketch3DHandleState.find((handle) => handle.kind === 'end'),

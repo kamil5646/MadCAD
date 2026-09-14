@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.5.12 (2026-09-14)
+
+- ustabilizowano wieloplatformowy test przeciągania końca spline 3D: pozycja uchwytu jest odświeżana, a pojedyncze nietrafienie natywnego zdarzenia myszy jest bezpiecznie ponawiane;
+- zachowano weryfikację rzeczywistego gestu myszy, anulowania przeciągania oraz dalszych operacji Pipe i Project to Surface.
+
 ## 6.5.11 (2026-09-14)
 
 - ustabilizowano ponowne układanie wstążki po zmianie powiększenia, wykonując dodatkowy pomiar po zakończeniu aktualizacji viewportu;
