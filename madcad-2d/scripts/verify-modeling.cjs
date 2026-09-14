@@ -595,6 +595,19 @@ async function runUiFlow(window) {
       endY: ${Number(end.y)},
     }, 'replace');
   })()`);
+  const selectTopology = async (topology, mode = 'replace') => {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const invoked = await window.webContents.executeJavaScript(`(() => {
+        const handler = window.__madcadVerifyTopologySelection;
+        if (typeof handler !== 'function') return false;
+        handler(${JSON.stringify(topology)}, ${JSON.stringify(mode)});
+        return true;
+      })()`);
+      if (invoked) return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('Interfejs wyboru topologii nie ustabilizował się.');
+  };
 
   const addSketchPoint = async (point, expectedEntities) => {
     await window.webContents.executeJavaScript(`(() => {
@@ -2217,10 +2230,10 @@ async function runUiFlow(window) {
     return { face: body.topology.faces[0].id, edge: body.topology.edges[0].id, body: body.id };
   })()`);
   if (!topologyIds) throw new Error('Gotowa bryła nie udostępniła topologii do testu wyboru.');
-  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'face', id: ${JSON.stringify(topologyIds.face)}, bodyId: ${JSON.stringify(topologyIds.body)} }, 'replace')`);
-  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'edge', id: ${JSON.stringify(topologyIds.edge)}, bodyId: ${JSON.stringify(topologyIds.body)} }, 'add')`);
+  await selectTopology({ kind: 'face', id: topologyIds.face, bodyId: topologyIds.body }, 'replace');
+  await selectTopology({ kind: 'edge', id: topologyIds.edge, bodyId: topologyIds.body }, 'add');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.items?.length === 2`, 'wielokrotny wybór topologii');
-  await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection({ kind: 'face', id: ${JSON.stringify(topologyIds.face)}, bodyId: ${JSON.stringify(topologyIds.body)} }, 'toggle')`);
+  await selectTopology({ kind: 'face', id: topologyIds.face, bodyId: topologyIds.body }, 'toggle');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.items?.length === 1 && window.__madcadVerifyDocumentState.selection.items[0].kind === 'edge'`, 'przełączenie topologii Ctrl');
   await waitForUi(window, `window.__madcadModelScreenState?.topologyPoints?.[${JSON.stringify(topologyIds.face)}]`, 'punkt ekranowy ściany');
   const facePoint = await window.webContents.executeJavaScript(`window.__madcadModelScreenState.topologyPoints[${JSON.stringify(topologyIds.face)}]`);

@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.5.16 (2026-09-14)
+
+- ustabilizowano wielokrotny wybór ścian i krawędzi w pełnym teście pulpitu na Windows;
+- zachowano uproszczony układ czterech głównych zakładek oraz jednego kontekstowego selektora narzędzi modelowania z 6.5.15.
+
 ## 6.5.15 (2026-09-14)
 
 - usunięto sześć równorzędnych zakładek narzędzi z górnego paska; po rozpoczęciu projektu ich miejsce zajmuje jeden opisany wybór grupy narzędzi;
