@@ -457,54 +457,19 @@ export function ProjectBrowser({ document, bodies, selection, activeSketchId, on
   );
 }
 
-export function StartPage({ onStartSketch, onOpenProject, commandCustomization = null }) {
+export function StartPage({ commandCustomization = null }) {
   const shortcut = (label, fallback) => commandCustomization?.commands?.[label]?.shortcut || commandCustomization?.commands?.[label]?.alias || fallback;
   return (
     <section className="empty-canvas start-page" aria-labelledby="start-page-title">
       <div className="start-page-shell">
-        <aside className="start-home-nav" aria-label="Nawigacja strony startowej">
-          <div className="start-page-brand">
-            <img src={madcadIconUrl} alt="MadCAD" />
-            <span>MadCAD</span>
-          </div>
-          <nav>
-            <button className="active" type="button"><Box size={16} />Moje projekty</button>
-            <button type="button" onClick={onOpenProject}><FolderOpen size={16} />Ostatnie pliki</button>
-            <button type="button"><FileBox size={16} />Przykłady</button>
-          </nav>
-          <div className="start-home-nav-actions">
-            <button className="primary" type="button" onClick={onStartSketch}><PencilRuler size={16} />Nowy projekt</button>
-            <button type="button" onClick={onOpenProject}><FolderOpen size={16} />Otwórz…</button>
-          </div>
-        </aside>
-
         <div className="start-home-content">
           <div className="start-page-intro">
+            <div className="start-page-brand"><img src={madcadIconUrl} alt="MadCAD" /><span>MadCAD</span></div>
             <span className="start-home-eyebrow">Witaj w MadCAD</span>
             <h1 id="start-page-title">Zacznij od szkicu 2D. Potem wybierz dalszy cel.</h1>
             <p>Szkic jest wspólnym początkiem. Z niego przygotujesz arkusz techniczny albo parametryczny model 3D.</p>
+            <p className="start-page-next-step"><ArrowRight size={16} />Wybierz podświetlone <strong>Utwórz szkic</strong> na górnym pasku.</p>
           </div>
-
-          <section className="start-home-summary" aria-label="Informacje startowe">
-            <article><strong>Projekt osobisty</strong><span>Pełne narzędzia CAD do użytku prywatnego.</span><small>Aktywna przestrzeń: Projekt</small></article>
-            <article><strong>Przepływ pracy</strong><span>Szkic → model lub arkusz → eksport.</span><small>Druk 3D pozostaje osobnym dodatkiem.</small></article>
-          </section>
-
-          <section className="start-home-work" aria-labelledby="start-work-title">
-            <h2 id="start-work-title">Rozpocznij pracę</h2>
-            <div className="start-page-actions">
-              <button className="start-page-action primary" type="button" onClick={onStartSketch}>
-                <PencilRuler size={22} />
-                <span><strong>Nowy szkic 2D</strong><small>Wybierz płaszczyznę i rysuj z dokładnymi wymiarami.</small></span>
-                <ArrowRight size={16} />
-              </button>
-              <button className="start-page-action" type="button" onClick={onOpenProject}>
-                <FolderOpen size={22} />
-                <span><strong>Otwórz istniejący projekt</strong><small>Wczytaj .madcad i kontynuuj historię modelu.</small></span>
-                <ArrowRight size={16} />
-              </button>
-            </div>
-          </section>
 
           <div className="start-page-shortcuts" role="group" aria-label="Szybki start">
             <strong>Szybki start</strong>

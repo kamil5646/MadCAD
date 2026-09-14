@@ -24,12 +24,15 @@ async function openProjectWorkspace(window, controlSelector = '#projectSnapshots
 }
 
 async function setField(window, selector, value) {
-  await window.webContents.executeJavaScript(`(() => {
+  const updated = await window.webContents.executeJavaScript(`(() => {
     const input = document.querySelector(${JSON.stringify(selector)});
+    if (!input) return false;
     const prototype = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     Object.getOwnPropertyDescriptor(prototype, 'value').set.call(input, ${JSON.stringify(value)});
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
   })()`);
+  if (!updated) throw new Error(`Brak pola: ${selector}`);
 }
 
 app.whenReady().then(async () => {
@@ -56,11 +59,13 @@ app.whenReady().then(async () => {
 
     await openProjectWorkspace(window);
     await click(window, '#projectSnapshotsBtn');
-    await waitFor(window, `document.querySelector('.project-snapshots-panel') && !document.querySelector('.project-snapshots-empty')?.textContent.includes('Wczytywanie')`, 'panel punktów zapisu');
+    await waitFor(window, `document.querySelector('.project-snapshots-panel input') && document.querySelector('.project-snapshots-panel textarea')`, 'gotowy panel punktów zapisu');
     await setField(window, '.project-snapshots-panel input', 'Przed zmianą korpusu');
     await setField(window, '.project-snapshots-panel textarea', 'Sprawdzona baza i otwór');
     await click(window, '[data-snapshot-action="create"]');
     await waitFor(window, `window.__madcadVerifyDocumentState?.projectSnapshots?.length === 1 && document.querySelector('.project-snapshot-item')?.textContent.includes('Przed zmianą korpusu')`, 'utworzony punkt zapisu');
+    await window.webContents.executeJavaScript(`([...document.querySelectorAll('.workspace-tabs button')].find((button) => button.textContent.trim() === 'PROJEKTUJ'))?.click()`);
+    await waitFor(window, `document.querySelectorAll('.timeline-item').length === 3`, 'oś czasu w obszarze projektowania');
 
     await window.webContents.executeJavaScript(`document.querySelectorAll('.timeline-item')[0].click()`);
     await click(window, '[data-timeline-action="delete"]');
@@ -68,6 +73,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.features === 1`, 'zmieniony projekt po punkcie zapisu');
 
     await click(window, '.project-snapshots-panel > header button');
+    await openProjectWorkspace(window, '#projectComparisonBtn');
     await click(window, '#projectComparisonBtn');
     await waitFor(window, `document.querySelector('.project-comparison-panel select')?.value`, 'wybrany punkt do porównania');
     await click(window, '[data-project-compare="snapshot"]');

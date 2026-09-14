@@ -38,8 +38,10 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.import-model-dialog .confirm').click()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.[0]?.representation === 'mesh-import'`, 'zamknięta siatka');
     await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies[0]; window.__madcadVerifyTopologySelection({ kind: 'body', id: body.id, bodyId: body.id }); })()`);
-    await waitFor(window, `[...document.querySelectorAll('.adaptive-tool-shelf button')].some((button) => button.textContent.includes('Narzędzia siatki'))`, 'kontekst narzędzi siatki');
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-shelf button')].find((button) => button.textContent.includes('Narzędzia siatki')).click()`);
+    await waitFor(window, `document.querySelector('.adaptive-tool-shelf .adaptive-tool-more-trigger')`, 'kontekst zaznaczonej siatki');
+    await window.webContents.executeJavaScript(`document.querySelector('.adaptive-tool-shelf .adaptive-tool-more-trigger').click()`);
+    await waitFor(window, `[...document.querySelectorAll('.adaptive-tool-more [role="menuitem"]')].some((button) => button.textContent.includes('Narzędzia siatki'))`, 'narzędzia siatki w menu kontekstowym');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-more [role="menuitem"]')].find((button) => button.textContent.includes('Narzędzia siatki')).click()`);
     await waitFor(window, `document.querySelector('.mesh-conversion-section button:not(:disabled)')`, 'dostępna konwersja B-Rep');
     await window.webContents.executeJavaScript(`document.querySelector('.mesh-conversion-section button').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.featureData.find((feature) => feature.type === 'importedModel')?.representationMode === 'brep-faceted'`, 'zapis konwersji');

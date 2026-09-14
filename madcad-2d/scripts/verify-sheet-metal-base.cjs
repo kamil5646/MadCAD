@@ -25,19 +25,19 @@ async function clickTool(window, label) {
 
 async function selectDomain(window, label) {
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === ${JSON.stringify(label)});
+    const button = [...document.querySelectorAll('.design-tabs button')].find((item) => item.textContent.trim() === ${JSON.stringify(label)});
     if (!button) throw new Error('Brak dziedziny: ${label}');
     button.click();
   })()`);
-  await waitFor(window, `document.querySelector('.workspace-tabs button.active')?.textContent.trim() === ${JSON.stringify(label)}`, `dziedzina ${label}`);
+  await waitFor(window, `document.querySelector('.design-tabs button.active')?.textContent.trim() === ${JSON.stringify(label)}`, `dziedzina ${label}`);
 }
 
 async function selectWorkspace(window, value) {
   await window.webContents.executeJavaScript(`(() => {
-    const select = document.querySelector('.workspace-switcher select');
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
-    setter.call(select, ${JSON.stringify(value)});
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    const labels = { solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', manufacture: 'WYTWARZANIE', tools: 'ZARZĄDZAJ' };
+    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === labels[${JSON.stringify(value)}]);
+    if (!button) throw new Error('Brak głównego obszaru programu.');
+    button.click();
   })()`);
 }
 

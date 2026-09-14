@@ -37,8 +37,24 @@ app.whenReady().then(async () => {
       ribbonWidth: document.querySelector('.modeling-ribbon')?.clientWidth || 0,
       groups: [...document.querySelectorAll('.ribbon-group')].map((item) => ({ label: item.getAttribute('aria-label'), width: item.getBoundingClientRect().width, hidden: item.hidden })),
       trigger: Boolean(document.querySelector('.ribbon-overflow-trigger')),
+      horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
     })`);
     process.stdout.write(`[ribbon] ${JSON.stringify(layoutSnapshot)}\n`);
+    if (layoutSnapshot.groups.some((group) => group.hidden) || layoutSnapshot.trigger || layoutSnapshot.horizontalOverflow) {
+      throw new Error(`Pusty projekt nie powinien wymagać menu przepełnienia: ${JSON.stringify(layoutSnapshot)}`);
+    }
+    await window.webContents.executeJavaScript(`(async () => {
+      const stl = new ArrayBuffer(134);
+      const view = new DataView(stl);
+      view.setUint32(80, 1, true);
+      [[0, 0, 0], [20, 0, 0], [0, 20, 0]].forEach((vertex, vertexIndex) => vertex.forEach((value, axis) => view.setFloat32(96 + vertexIndex * 12 + axis * 4, value, true)));
+      const input = [...document.querySelectorAll('input[type="file"]')].find((item) => item.accept.includes('.stl'));
+      const key = input && Object.keys(input).find((item) => item.startsWith('__reactProps'));
+      await input[key].onChange({ target: { files: [new File([stl], 'ribbon-fixture.stl', { type: 'model/stl' })], value: '' } });
+    })()`);
+    await waitFor(window, `document.querySelector('.import-model-dialog .confirm')`, 'potwierdzenie importu');
+    await window.webContents.executeJavaScript(`document.querySelector('.import-model-dialog .confirm').click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'pełny kontekst modelowania');
     await waitFor(window, `document.querySelectorAll('.ribbon-group[hidden]').length > 0 && document.querySelector('.ribbon-overflow-trigger')`, 'responsywna wstążka');
     await window.webContents.executeJavaScript(`document.querySelector('.ribbon-overflow-trigger').click()`);
     await waitFor(window, `document.querySelector('.ribbon-overflow-menu')`, 'menu przepełnienia');

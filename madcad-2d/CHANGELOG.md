@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.5.8 (2026-09-14)
+
+- zastąpiono niejasny wybór „przestrzeni roboczej” jednym rzędem bezpośrednich kart: Projektuj, Arkusz 2D, Wytwarzanie i Zarządzaj;
+- uproszczono pusty projekt do dwóch grup „Zacznij” i „Konstrukcja”, a pełne narzędzia modelowania pojawiają się dopiero po utworzeniu geometrii;
+- usunięto ze strony startowej boczny panel i powtórzone akcje Nowy/Otwórz, pozostawiając każde polecenie tylko w jednym, stałym miejscu;
+- podczas szkicowania pokazuje się wyłącznie kontekstowa karta „Szkic”, dzięki czemu zmiana dziedziny nie kończy ani nie ukrywa szkicu;
+- usunięto powtórzony podpis grupy „Zakończ szkic”, który przy skalowaniu macOS nachodził na etykietę przycisku;
+- zwiększono wewnętrzne miejsce przycisku zakończenia szkicu i dodano celowany test geometrii jego etykiety;
+- ustabilizowano test przeciągania uchwytów spline 3D oraz dostosowano test Project to Surface do polskiego interfejsu.
+
 ## 6.5.7 (2026-09-14)
 
 - usunięto dolne pole poleceń oraz jego historię, odzyskując miejsce na obszar roboczy;

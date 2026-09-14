@@ -306,10 +306,10 @@ const DESKTOP_PLATFORM = ['darwin', 'win32', 'linux'].includes(window.desktopApp
   : 'web';
 
 const WORKSPACE_OPTIONS = [
-  { id: 'solid', label: 'PROJEKT' },
-  { id: 'drawing', label: 'RYSUNEK' },
+  { id: 'solid', label: 'PROJEKTUJ' },
+  { id: 'drawing', label: 'ARKUSZ 2D' },
   { id: 'manufacture', label: 'WYTWARZANIE' },
-  { id: 'tools', label: 'ZARZĄDZANIE' },
+  { id: 'tools', label: 'ZARZĄDZAJ' },
 ];
 
 const DESIGN_TABS = [
@@ -321,13 +321,6 @@ const DESIGN_TABS = [
   { id: 'utilities', label: 'SPRAWDŹ' },
 ];
 
-const DRAWING_TABS = [
-  { id: 'drawing', label: 'RYSUNEK' },
-];
-
-const MANUFACTURE_TABS = [
-  { id: 'manufacture', label: 'WYTWARZANIE' },
-];
 const LANGUAGE_KEY = 'madcad:interface-language';
 
 function readStoredLanguage() {
@@ -4051,6 +4044,7 @@ export default function ModelingWorkspace() {
     window.__madcadVerifyFinishCanvasSketchTool = finishCanvasSketchTool;
     window.__madcadVerifySketchSelection = handleSketchSelection;
     window.__madcadVerifyTopologySelection = handleTopologySelection;
+    window.__madcadVerifyOpenProjectToSurface = openProjectToSurface;
     window.__madcadVerifyProfileSelection = (sketchId, profileId) => setSelection({ kind: 'profile', id: profileId, sketchId });
     window.__madcadVerifyCreateLostTopologyReference = () => {
       const body = engine.bodies[0];
@@ -4544,6 +4538,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyFinishCanvasSketchTool;
       delete window.__madcadVerifySketchSelection;
       delete window.__madcadVerifyTopologySelection;
+      delete window.__madcadVerifyOpenProjectToSurface;
       delete window.__madcadVerifyProfileSelection;
       delete window.__madcadVerifyCreateLostTopologyReference;
       delete window.__madcadVerifyBreakProjectedReference;
@@ -7590,17 +7585,14 @@ export default function ModelingWorkspace() {
 
       <section className="command-area">
         <div className="command-ribbon">
-          <label className="workspace-switcher">
-            <span>PRZESTRZEŃ ROBOCZA</span>
-            <select aria-label="Przestrzeń robocza" value={workspace === 'sketch' ? 'solid' : workspace} onChange={(event) => switchWorkspace(event.target.value)}>
-              {WORKSPACE_OPTIONS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-            </select>
-          </label>
-          <nav className="workspace-tabs" aria-label="Obszary robocze" role="tablist">
-            {(workspace === 'solid' || workspace === 'sketch') && DESIGN_TABS.map((item, index) => <button key={item.id} className={!activeSketchId && designTab === item.id ? 'active' : ''} type="button" role="tab" aria-selected={!activeSketchId && designTab === item.id} tabIndex={!activeSketchId && designTab === item.id ? 0 : -1} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index, DESIGN_TABS, setDesignTab)} onClick={() => { if (activeSketchId) finishSketch(); else setWorkspace('solid'); setDesignTab(item.id); }}>{item.label}</button>)}
-            {workspace === 'drawing' && DRAWING_TABS.map((item, index) => <button key={item.id} className={index === 0 ? 'active' : ''} type="button" role="tab" aria-selected={index === 0} tabIndex={index === 0 ? 0 : -1}>{item.label}</button>)}
-            {workspace === 'manufacture' && MANUFACTURE_TABS.map((item, index) => <button key={item.id} className={index === 0 ? 'active' : ''} type="button" role="tab" aria-selected={index === 0} tabIndex={index === 0 ? 0 : -1}>{item.label}</button>)}
-            {workspace === 'tools' && <button className="active" type="button" role="tab" aria-selected="true">PRZEGLĄD PROJEKTU</button>}
+          <nav className="workspace-tabs" aria-label={language === 'en' ? 'Main program areas' : 'Główne obszary programu'} role="tablist">
+            {WORKSPACE_OPTIONS.map((item, index) => {
+              const selected = (workspace === 'sketch' ? 'solid' : workspace) === item.id;
+              return <button key={item.id} className={selected ? 'active' : ''} type="button" role="tab" aria-selected={selected} tabIndex={selected ? 0 : -1} disabled={Boolean(activeSketchId && item.id !== 'solid')} title={activeSketchId && item.id !== 'solid' ? 'Najpierw zakończ aktywny szkic.' : item.label} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index, WORKSPACE_OPTIONS, switchWorkspace)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>;
+            })}
+          </nav>
+          <nav className="design-tabs" aria-label={language === 'en' ? 'Design tools' : 'Narzędzia projektowania'} role="tablist">
+            {!activeSketchId && workspace === 'solid' && DESIGN_TABS.map((item, index) => <button key={item.id} className={designTab === item.id ? 'active' : ''} type="button" role="tab" aria-selected={designTab === item.id} tabIndex={designTab === item.id ? 0 : -1} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index, DESIGN_TABS, setDesignTab)} onClick={() => setDesignTab(item.id)}>{item.label}</button>)}
             {activeSketchId && <button className="active contextual" type="button" role="tab" aria-selected="true" title={activeSketchIs3D ? 'Aktywny obszar edycji szkicu przestrzennego.' : 'Aktywny obszar edycji szkicu 2D.'}>{activeSketchIs3D ? 'SZKIC 3D' : 'SZKIC'}</button>}
           </nav>
           <ResponsiveRibbon key={licenseInfoOpen ? 'license-open' : 'license-closed'} language={language}>
@@ -7720,7 +7712,44 @@ export default function ModelingWorkspace() {
                 <RibbonGroup label="WIDOK"><ToolButton icon={Crosshair} label="Dopasuj model" onClick={() => setFitViewRequest({ requestId: `cam-fit:${Date.now()}` })} disabled={!engine.bodies.length} /></RibbonGroup>
                 <RibbonGroup label="PRZYGOTOWANIE"><ToolButton icon={Ruler} label="Sprawdź Setup" onClick={() => setNotice('Panel Setup pokazuje bieżące wymiary półfabrykatu, zero WCS i zgodność z przesuwem maszyny.')} disabled={!document.manufacturing.setups.length} /></RibbonGroup>
               </>
-            ) : workspace === 'tools' ? null : designTab === 'surface' ? (
+            ) : workspace === 'tools' ? null : startPageVisible ? (
+              <>
+                <RibbonGroup label="ZACZNIJ">
+                  <ToolButton icon={SketchCadIcon} label="Utwórz szkic" onClick={startSketch} primary disabled={readOnly} />
+                  <ToolButton icon={Move3d} label="Szkic 3D" onClick={startSketch3D} disabled={readOnly} description="Utwórz ciągłą przestrzenną ścieżkę XYZ dla Sweep, Pipe i Pattern." />
+                  <ToolButton icon={PrimitiveCadIcon} label="Prymityw" onClick={openPrimitive} disabled={readOnly} />
+                  <ToolMenuButton icon={Shapes} label="Więcej brył" description="Prymitywy, bryły obrotowe, prowadzone, przejściowe oraz dodatki 3D." items={[
+                    { icon: Shapes, label: 'Form', onClick: openFormBody, disabled: readOnly },
+                    { icon: CoilCadIcon, label: 'Coil', displayLabel: 'Spirala', onClick: openCoil, disabled: readOnly },
+                    { icon: Type, label: 'Tekst 3D', onClick: openTextSolid, disabled: readOnly },
+                  ]} />
+                </RibbonGroup>
+                <RibbonGroup label="KONSTRUKCJA">
+                  <ToolMenuButton icon={PlaneCadIcon} label="Płaszczyzny" description="Utwórz pomocniczą płaszczyznę konstrukcyjną." items={[
+                    { icon: PlaneCadIcon, label: 'Płaszczyzna odsunięta', onClick: () => openConstructionPlane('offset'), disabled: readOnly },
+                    { icon: MidplaneCadIcon, label: 'Płaszczyzna środkowa', onClick: () => openConstructionPlane('midplane'), disabled: readOnly },
+                    { icon: ThreePointPlaneCadIcon, label: 'Przez 3 punkty', onClick: () => openConstructionPlane('three-points'), disabled: readOnly },
+                    { icon: AnglePlaneCadIcon, label: 'Pod kątem', onClick: () => openConstructionPlane('angle'), disabled: readOnly },
+                    { icon: TangentPlaneCadIcon, label: 'Styczna', onClick: () => openConstructionPlane('tangent'), disabled: readOnly },
+                    { icon: PathPlaneCadIcon, label: 'Na ścieżce', onClick: () => openConstructionPlane('path'), disabled: readOnly },
+                  ]} />
+                  <ToolMenuButton icon={AxisCadIcon} label="Osie" description="Utwórz pomocniczą oś konstrukcyjną." items={[
+                    { icon: AxisCadIcon, label: 'Oś z krawędzi', onClick: () => openConstructionAxis('edge'), disabled: readOnly },
+                    { icon: CylinderAxisCadIcon, label: 'Oś walca', onClick: () => openConstructionAxis('cylinder'), disabled: readOnly },
+                    { icon: AxisCadIcon, label: 'Oś 2 punkty', onClick: () => openConstructionAxis('two-points'), disabled: readOnly },
+                    { icon: AxisCadIcon, label: 'Oś przecięcia', onClick: () => openConstructionAxis('plane-intersection'), disabled: readOnly || document.references.filter((reference) => reference.kind === 'construction-plane').length < 2 },
+                    { icon: AxisCadIcon, label: 'Oś normalna', onClick: () => openConstructionAxis('plane-normal'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-plane') },
+                  ]} />
+                  <ToolMenuButton icon={PointCadIcon} label="Punkty" description="Utwórz pomocniczy punkt konstrukcyjny." items={[
+                    { icon: PointCadIcon, label: 'Punkt wierzchołka', onClick: () => openConstructionPoint('vertex'), disabled: readOnly },
+                    { icon: PointCadIcon, label: 'Punkt centrum', onClick: () => openConstructionPoint('center'), disabled: readOnly },
+                    { icon: PointCadIcon, label: 'Punkt przecięcia', onClick: () => openConstructionPoint('intersection'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') || !document.references.some((reference) => reference.kind === 'construction-plane') },
+                    { icon: PointCadIcon, label: 'Punkt środkowy', onClick: () => openConstructionPoint('midpoint'), disabled: readOnly },
+                    { icon: PointCadIcon, label: 'Punkt na osi', onClick: () => openConstructionPoint('on-axis'), disabled: readOnly || !document.references.some((reference) => reference.kind === 'construction-axis') },
+                  ]} />
+                </RibbonGroup>
+              </>
+            ) : designTab === 'surface' ? (
               <>
                 <RibbonGroup label="UTWÓRZ">
                   <ToolButton icon={SurfacePatchCadIcon} label="Patch" displayLabel="Wypełnij" onClick={openSurfacePatch} primary disabled={readOnly || !selectedProfile || Boolean(activeSketchId)} disabledReason="Zaznacz zamknięty profil i zakończ szkic." />
@@ -8096,7 +8125,7 @@ export default function ModelingWorkspace() {
           {layersOpen && <LayersPanel document={document} selectedEntities={selectedSketchEntities} readOnly={readOnly} onAdd={addDocumentLayer} onUpdate={updateDocumentLayer} onDelete={removeDocumentLayer} onActivate={activateDocumentLayer} onAssign={assignSelectionToLayer} onStyleSelected={styleSelectedEntities} onClose={() => setLayersOpen(false)} />}
           {blocksOpen && activeSketchId && <BlocksPanel document={document} selectedEntities={selectedSketchEntities} selectedInstance={selectedBlockInstance} readOnly={readOnly} onCreate={createBlockFromSelection} onInsert={insertDocumentBlock} onDeleteDefinition={removeBlockDefinition} onAddAttribute={addDocumentBlockAttribute} onUpdateInstanceAttribute={updateDocumentBlockAttribute} onExplode={explodeDocumentBlock} onDeleteInstance={removeDocumentBlockInstance} onClose={() => setBlocksOpen(false)} />}
           {commandCustomizationOpen && <CommandCustomizationPanel customization={commandCustomization} onSave={saveCommandSettings} onReset={createDefaultCommandCustomization} onClose={() => setCommandCustomizationOpen(false)} />}
-          {startPageVisible && <StartPage onStartSketch={startSketch} onOpenProject={requestOpenProject} commandCustomization={commandCustomization} />}
+          {startPageVisible && <StartPage commandCustomization={commandCustomization} />}
           <WorkspaceDialogStack
             state={{ activeSketchId, command, document, importDraft, importRepairReport, resumableSketchesByPlane, sketchImportDraft, sketchOptions }}
             actions={{

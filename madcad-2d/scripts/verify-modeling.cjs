@@ -297,18 +297,18 @@ async function runUiFlow(window) {
   const ribbonHasTool = (label) => window.webContents.executeJavaScript(`Boolean(document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]'))`);
   const selectWorkspaceMode = async (value) => {
     await window.webContents.executeJavaScript(`(() => {
-      const select = document.querySelector('.workspace-switcher select');
-      if (!select) throw new Error('Brak wyboru przestrzeni roboczej');
-      if (select.value === ${JSON.stringify(value)}) return;
-      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, ${JSON.stringify(value)});
-      select.dispatchEvent(new Event('change', { bubbles: true }));
+      const labels = { solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', manufacture: 'WYTWARZANIE', tools: 'ZARZĄDZAJ' };
+      const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === labels[${JSON.stringify(value)}]);
+      if (!button) throw new Error('Brak głównego obszaru programu');
+      if (button.getAttribute('aria-selected') === 'true') return;
+      button.click();
     })()`);
-    await waitForUi(window, `document.querySelector('.workspace-switcher select')?.value === ${JSON.stringify(value)}`, `przestrzeń robocza ${value}`);
+    await waitForUi(window, `[...document.querySelectorAll('.workspace-tabs button')].some((item) => item.getAttribute('aria-selected') === 'true' && item.textContent.trim() === ({ solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', manufacture: 'WYTWARZANIE', tools: 'ZARZĄDZAJ' })[${JSON.stringify(value)}])`, `główny obszar ${value}`);
   };
   const clickWorkspace = async (workspaceLabel) => {
     await selectWorkspaceMode('solid');
     return window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent === ${JSON.stringify(workspaceLabel)});
+    const button = [...document.querySelectorAll('.design-tabs button')].find((item) => item.textContent === ${JSON.stringify(workspaceLabel)});
     if (!button) throw new Error('Brak obszaru roboczego: ${workspaceLabel}');
     button.click();
   })()`);

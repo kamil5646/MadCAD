@@ -30,10 +30,11 @@ app.whenReady().then(async () => {
   try {
     await fs.mkdir(path.dirname(screenshotPath), { recursive: true });
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
-    await waitFor(window, `window.__madcadVerifyLoadTimelineFixture && document.querySelector('[data-tool-label="Analiza"]')`, 'gotowy interfejs');
+    await waitFor(window, `window.__madcadVerifyLoadTimelineFixture`, 'gotowy interfejs');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTimelineFixture()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.bodyIds?.length >= 2`, 'bryły fixture');
+    await waitFor(window, `document.querySelector('[data-tool-label="Analiza"]')`, 'narzędzia analizy gotowego modelu');
     await window.webContents.executeJavaScript(`document.querySelector('[data-tool-label="Analiza"]').click()`);
     await waitFor(window, `document.querySelector('[data-tool-label="Szybka analiza statyczna"]')`, 'polecenie analizy statycznej');
     await window.webContents.executeJavaScript(`document.querySelector('[data-tool-label="Szybka analiza statyczna"]').click()`);

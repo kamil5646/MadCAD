@@ -7285,74 +7285,36 @@
    row of four unrelated modes with the same mental model used by mature CAD
    systems, while retaining MadCAD names and visual identity. */
 .command-ribbon {
-  grid-template-columns: 118px minmax(0, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   grid-template-rows: 31px 72px;
 }
 
-.workspace-switcher {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  padding: 7px 9px 8px;
-  grid-column: 1;
-  grid-row: 1 / 3;
-  flex-direction: column;
-  justify-content: center;
-  gap: 5px;
-  border-right: 1px solid #393f47;
-  border-bottom: 1px solid #111419;
-  background: #252a30;
-}
-
-.workspace-switcher::before {
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 0;
-  width: 2px;
-  background: #e32636;
-  content: "";
-}
-
-.workspace-switcher > span {
-  color: #8e949c;
-  font-size: 8px;
-  font-weight: 760;
-  letter-spacing: .09em;
-  line-height: 1;
-}
-
-.workspace-switcher select {
-  width: 100%;
-  height: 40px;
-  padding: 0 24px 0 9px;
-  border: 1px solid #4b525c;
-  border-radius: 4px;
-  outline: none;
-  background: #30363e;
-  color: #f2f3f4;
-  font-size: 10.5px;
-  font-weight: 760;
-  letter-spacing: .035em;
-  cursor: pointer;
-}
-
-.workspace-switcher select:hover,
-.workspace-switcher select:focus-visible {
-  border-color: #747d88;
-  background: #383f48;
-  box-shadow: 0 0 0 2px rgb(227 38 54 / 13%);
-}
-
 .workspace-tabs {
-  padding: 0 9px;
-  grid-column: 2;
+  padding: 0 4px 0 9px;
+  grid-column: 1;
   grid-row: 1;
   gap: 1px;
   background: #1d2126;
 }
 
-.workspace-tabs button {
+.design-tabs {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0 9px 0 4px;
+  grid-column: 2;
+  grid-row: 1;
+  align-items: center;
+  gap: 1px;
+  border-bottom: 1px solid rgba(17, 23, 31, 0.65);
+  background: #1d2126;
+  scrollbar-width: none;
+}
+
+.design-tabs::-webkit-scrollbar { display: none; }
+
+.workspace-tabs button,
+.design-tabs button {
   height: 30px;
   padding-inline: 13px;
   border: 0;
@@ -7364,18 +7326,21 @@
   letter-spacing: .035em;
 }
 
-.workspace-tabs button:hover:not(:disabled) {
+.workspace-tabs button:hover:not(:disabled),
+.design-tabs button:hover:not(:disabled) {
   border-color: transparent;
   background: #292e34;
 }
 
-.workspace-tabs button.active {
+.workspace-tabs button.active,
+.design-tabs button.active {
   border-color: transparent;
   background: transparent;
   color: #fff;
 }
 
-.workspace-tabs button.active::after {
+.workspace-tabs button.active::after,
+.design-tabs button.active::after {
   right: 8px;
   bottom: 0;
   left: 8px;
@@ -7383,16 +7348,16 @@
   border-radius: 0;
 }
 
-.workspace-tabs button.contextual {
+.design-tabs button.contextual {
   margin-left: auto;
   color: #ffb0b7;
 }
 
-.workspace-tabs button.contextual::after { background: #ff5261; }
+.design-tabs button.contextual::after { background: #ff5261; }
 
 .modeling-ribbon {
   padding-inline: 5px 8px;
-  grid-column: 2;
+  grid-column: 1 / -1;
   grid-row: 2;
 }
 
@@ -7565,16 +7530,13 @@
 .ribbon-tool:disabled .ribbon-glyph-highlight { opacity: .18; }
 
 @media (max-width: 1180px) {
-  .command-ribbon { grid-template-columns: 106px minmax(0, 1fr); }
-  .workspace-tabs button { padding-inline: 9px; font-size: 9px; }
-  .workspace-switcher { padding-inline: 7px; }
+  .workspace-tabs button,
+  .design-tabs button { padding-inline: 9px; font-size: 9px; }
 }
 
 @media (max-width: 900px) {
-  .command-ribbon { grid-template-columns: 94px minmax(0, 1fr); }
-  .workspace-switcher > span { display: none; }
-  .workspace-switcher select { height: 48px; padding-left: 6px; font-size: 9px; }
-  .workspace-tabs button { padding-inline: 7px; }
+  .workspace-tabs button,
+  .design-tabs button { padding-inline: 7px; font-size: 8.5px; }
 }
 
 /* Start hub: compact product home instead of a marketing billboard. */
@@ -7589,10 +7551,7 @@
 .start-page-shell {
   width: 100%;
   min-height: 100%;
-  display: grid;
-  grid-template-columns: 188px minmax(0, 1fr);
-  gap: 0;
-  align-items: stretch;
+  display: block;
 }
 
 .start-home-nav {
@@ -7674,10 +7633,26 @@
 .start-home-nav-actions button.primary:hover { background: #d42b3a; }
 
 .start-home-content {
+  width: min(1120px, 100%);
   min-width: 0;
+  margin: 0 auto;
   padding: clamp(24px, 3.5vw, 48px);
   overflow: auto;
 }
+
+.start-home-content > .start-page-intro .start-page-brand {
+  margin-bottom: 24px;
+}
+
+.start-page-next-step {
+  display: flex;
+  margin-top: 18px !important;
+  align-items: center;
+  gap: 8px;
+  color: #e5e8eb !important;
+}
+
+.start-page-next-step svg { color: #ef4a58; }
 
 .start-page-intro {
   max-width: 940px;
@@ -7818,14 +7793,11 @@
 .start-page-flow li small { font-size: 8.75px; }
 
 @media (max-width: 1000px) {
-  .start-page-shell { grid-template-columns: 160px minmax(0, 1fr); }
   .start-home-content { padding: 24px; }
   .start-page-flow ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 760px) {
-  .start-page-shell { grid-template-columns: 1fr; }
-  .start-home-nav { display: none; }
   .start-home-summary { grid-template-columns: 1fr; }
   .start-page-actions { display: grid; }
   .start-page .start-page-action { min-width: 0; width: 100%; }
@@ -8422,6 +8394,41 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Large sketch commands must stay inside the 50 px tool area above the group
+   caption. A 52 px tile could push its label below the background at macOS
+   Retina scaling. */
+.ribbon-tool-wrap.featured,
+.ribbon-tool.featured {
+  height: 48px;
+}
+
+.ribbon-tool.featured {
+  padding: 2px 7px 3px;
+  grid-template-rows: 29px 14px;
+  row-gap: 0;
+}
+
+/* The finish group has a single self-explanatory action. Repeating the same
+   text as a group caption crowded the button at macOS display scaling. */
+.ribbon-group-finish {
+  padding-bottom: 5px;
+}
+
+.ribbon-group-finish .ribbon-group-heading {
+  display: none;
+}
+
+.ribbon-group-finish .ribbon-tool-wrap.featured,
+.ribbon-group-finish .ribbon-tool.featured {
+  height: 60px;
+}
+
+.ribbon-group-finish .ribbon-tool.featured {
+  padding-bottom: 5px;
+  grid-template-rows: 34px 16px;
+  row-gap: 2px;
 }
 
 .ribbon-tool-menu-trigger.featured .ribbon-label {

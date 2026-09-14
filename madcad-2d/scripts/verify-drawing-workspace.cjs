@@ -25,10 +25,10 @@ async function clickText(window, selector, label) {
 
 async function selectWorkspace(window, value) {
   await window.webContents.executeJavaScript(`(() => {
-    const select = document.querySelector('.workspace-switcher select');
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
-    setter.call(select, ${JSON.stringify(value)});
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    const labels = { solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', manufacture: 'WYTWARZANIE', tools: 'ZARZĄDZAJ' };
+    const button = [...document.querySelectorAll('.workspace-tabs button')].find((item) => item.textContent.trim() === labels[${JSON.stringify(value)}]);
+    if (!button) throw new Error('Brak głównego obszaru programu.');
+    button.click();
   })()`);
 }
 

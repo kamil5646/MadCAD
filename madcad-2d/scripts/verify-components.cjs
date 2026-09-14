@@ -269,6 +269,16 @@ app.whenReady().then(async () => {
       const target = document.querySelector('.component-contact-sets').getBoundingClientRect();
       return target.top >= panel.top && target.top < panel.bottom;
     })()`, 'widoczna sekcja Contact Sets');
+    await window.webContents.executeJavaScript(`(() => {
+      const toggle = document.querySelector('button[aria-label="Pokaż lub ukryj przeglądarkę"]');
+      if (toggle?.getAttribute('aria-pressed') !== 'true') toggle.click();
+    })()`);
+    await waitFor(window, `document.querySelector('.model-browser')`, 'jawnie otwarty panel projektu');
+    await window.webContents.executeJavaScript(`(() => {
+      const labels = ['Złożenie', 'Jointy', 'Motion Links', 'Contact Sets', 'Konfiguracje'];
+      [...document.querySelectorAll('.model-browser .tree-folder')].filter((button) => labels.some((label) => button.textContent.includes(label))).forEach((button) => button.click());
+    })()`);
+    await waitFor(window, `document.querySelectorAll('.tree-component').length === 4 && document.querySelectorAll('.tree-joint').length === 2`, 'jawnie otwarty panel projektu');
 
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     const result = await window.webContents.executeJavaScript(`(() => {

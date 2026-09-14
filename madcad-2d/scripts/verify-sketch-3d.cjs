@@ -16,9 +16,31 @@ async function waitFor(window, expression, label, timeoutMs = 30000) {
   throw new Error(`Nie osiągnięto stanu: ${label}. ${diagnostic}`);
 }
 
+async function dragMouse(window, from, to, { release = true, steps = 6 } = {}) {
+  window.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(from.x), y: Math.round(from.y) });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  window.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(from.x), y: Math.round(from.y), button: 'left', clickCount: 1 });
+  await new Promise((resolve) => setTimeout(resolve, 75));
+  for (let index = 1; index <= steps; index += 1) {
+    const progress = index / steps;
+    window.webContents.sendInputEvent({
+      type: 'mouseMove',
+      x: Math.round(from.x + (to.x - from.x) * progress),
+      y: Math.round(from.y + (to.y - from.y) * progress),
+      button: 'left',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 35));
+  }
+  if (release) {
+    window.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(to.x), y: Math.round(to.y), button: 'left', clickCount: 1 });
+    await window.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+  }
+}
+
 async function clickTool(window, label) {
   const result = await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === ${JSON.stringify(label)});
+    const matches = [...document.querySelectorAll('.ribbon-tool')].filter((item) => item.querySelector('.ribbon-label')?.textContent.trim() === ${JSON.stringify(label)});
+    const button = matches.find((item) => item.checkVisibility?.()) || matches.find((item) => item.getClientRects().length) || matches[0];
     if (!button) return { found: false };
     if (button.disabled) return { found: true, disabled: true };
     button.click();
@@ -132,10 +154,7 @@ app.whenReady().then(async () => {
     await fs.mkdir(path.dirname(handleArtifactPath), { recursive: true });
     await fs.writeFile(handleArtifactPath, (await window.webContents.capturePage()).toPNG());
     const endHandle = await window.webContents.executeJavaScript(`window.__madcadSketch3DHandleState.find((handle) => handle.kind === 'end')`);
-    window.webContents.sendInputEvent({ type: 'mouseMove', x: endHandle.x, y: endHandle.y });
-    window.webContents.sendInputEvent({ type: 'mouseDown', x: endHandle.x, y: endHandle.y, button: 'left', clickCount: 1 });
-    window.webContents.sendInputEvent({ type: 'mouseMove', x: endHandle.x + 30, y: endHandle.y - 20, button: 'left' });
-    window.webContents.sendInputEvent({ type: 'mouseUp', x: endHandle.x + 30, y: endHandle.y - 20, button: 'left', clickCount: 1 });
+    await dragMouse(window, endHandle, { x: endHandle.x + 30, y: endHandle.y - 20 });
     await waitFor(window, `(() => {
       const point = window.__madcadVerifyDocumentState?.sketches?.[0]?.entityData?.find((entity) => entity.id === ${JSON.stringify(spline.pointIds[1])});
       return point && ['x', 'y', 'z'].some((axis, index) => Math.abs(Number(point.geometry[axis]) - [75, 25, 10][index]) > 0.01);
@@ -145,8 +164,7 @@ app.whenReady().then(async () => {
       handle: window.__madcadSketch3DHandleState.find((handle) => handle.kind === 'end'),
       geometry: window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.id === ${JSON.stringify(spline.pointIds[1])}).geometry,
     })`);
-    window.webContents.sendInputEvent({ type: 'mouseDown', x: cancelState.handle.x, y: cancelState.handle.y, button: 'left', clickCount: 1 });
-    window.webContents.sendInputEvent({ type: 'mouseMove', x: cancelState.handle.x + 25, y: cancelState.handle.y - 15, button: 'left' });
+    await dragMouse(window, cancelState.handle, { x: cancelState.handle.x + 25, y: cancelState.handle.y - 15 }, { release: false });
     await window.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(resolve))`);
     await window.webContents.executeJavaScript(`document.querySelector('.model-viewport canvas').dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, pointerType: 'mouse', clientX: ${cancelState.handle.x + 25}, clientY: ${cancelState.handle.y - 15}, bubbles: true }))`);
     window.webContents.sendInputEvent({ type: 'mouseUp', x: cancelState.handle.x + 25, y: cancelState.handle.y - 15, button: 'left', clickCount: 1 });
@@ -323,8 +341,13 @@ app.whenReady().then(async () => {
       window.__madcadVerifySketchSelection([curve.id], 'replace');
       return { id: curve.id, endPointId: curve.pointIds[1] };
     })()`);
-    await clickTool(window, 'Na powierzchnię');
-    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'projectSurface' && document.querySelector('.command-dialog')?.textContent.includes('Project to Surface')`, 'panel Project to Surface');
+    await waitFor(window, `(() => {
+      const selected = window.__madcadVerifyDocumentState?.selection?.ids || [];
+      const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === 'Na powierzchnię' && (item.checkVisibility?.() || item.getClientRects().length));
+      return selected.length === 1 && selected[0] === ${JSON.stringify(surfaceCommandSource.id)} && button && !button.disabled;
+    })()`, 'gotowy wybór źródła Project to Surface');
+    await window.webContents.executeJavaScript(`window.__madcadVerifyOpenProjectToSurface()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'projectSurface' && Boolean(document.querySelector('.command-dialog'))`, 'panel Project to Surface');
     const surfaceCommandFace = await window.webContents.executeJavaScript(`(() => {
       const body = window.__madcadVerifyEngineState.bodies[0];
       const face = body.topology.faces.find((item) => !['PLANE', 'UNKNOWN_FACE'].includes(item.descriptor.geometry));

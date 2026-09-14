@@ -68,9 +68,9 @@ app.whenReady().then(async () => {
       const page = document.querySelector('.start-page');
       const startBrand = page?.querySelector('.start-page-brand img');
       const shell = page?.querySelector('.start-page-shell');
-      const primary = page?.querySelector('.start-page-action.primary');
+      const primary = document.querySelector('.ribbon-tool[data-tool-label="Utwórz szkic"]');
       const browserToggle = document.querySelector('.app-menu button[aria-label="Pokaż lub ukryj przeglądarkę"]');
-      const labels = [...document.querySelectorAll('.workspace-tabs button')].map((item) => item.textContent.trim());
+      const labels = [...document.querySelectorAll('.design-tabs button')].map((item) => item.textContent.trim());
       const rect = page?.getBoundingClientRect();
       const stageRect = document.querySelector('.modeling-stage')?.getBoundingClientRect();
       return {
@@ -83,13 +83,14 @@ app.whenReady().then(async () => {
         logoAtRightEnd: Boolean(document.querySelector('.title-actions .brand-mark')),
         browserHiddenByDefault: !document.querySelector('.model-browser') && document.querySelector('.modeling-content')?.classList.contains('without-browser'),
         browserToggleAvailable: Boolean(browserToggle && !browserToggle.classList.contains('active')),
+        duplicateStartActionsRemoved: !page?.querySelector('button') && !page?.querySelector('.start-home-nav'),
         shellWidth: shell?.getBoundingClientRect().width || 0,
         pageInsideStage: Boolean(rect && stageRect && rect.left >= stageRect.left && rect.top >= stageRect.top && rect.right <= stageRect.right + 1 && rect.bottom <= stageRect.bottom + 1),
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth || page.scrollWidth > page.clientWidth + 1,
       };
     })()`);
 
-    if (!wide.title.includes('Zacznij od szkicu 2D') || !wide.primaryText.includes('Nowy szkic 2D') || !wide.workflowText.includes('Arkusz techniczny 2D') || !wide.workflowText.includes('Model parametryczny 3D') || !wide.workflowText.includes('Opcjonalnie: druk 3D') || wide.tabs.join('|') !== 'BRYŁA|POWIERZCHNIA|SIATKA|BLACHA|TWORZYWA|SPRAWDŹ' || !wide.fileMenuAvailable || !wide.sharedIcon || wide.logoAtRightEnd || !wide.browserHiddenByDefault || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
+    if (!wide.title.includes('Zacznij od szkicu 2D') || !wide.primaryText.includes('Utwórz szkic') || !wide.workflowText.includes('Arkusz techniczny 2D') || !wide.workflowText.includes('Model parametryczny 3D') || !wide.workflowText.includes('Opcjonalnie: druk 3D') || wide.tabs.join('|') !== 'BRYŁA|POWIERZCHNIA|SIATKA|BLACHA|TWORZYWA|SPRAWDŹ' || !wide.fileMenuAvailable || !wide.sharedIcon || wide.logoAtRightEnd || !wide.browserHiddenByDefault || !wide.duplicateStartActionsRemoved || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
       throw new Error(`Nieprawidłowa hierarchia strony startowej: ${JSON.stringify(wide)}`);
     }
 
@@ -115,15 +116,12 @@ app.whenReady().then(async () => {
     await new Promise((resolve) => setTimeout(resolve, 250));
     const narrow = await window.webContents.executeJavaScript(`(() => {
       const page = document.querySelector('.start-page');
-      const primary = page?.querySelector('.start-page-action.primary');
-      const pageRect = page?.getBoundingClientRect();
-      const buttonRect = primary?.getBoundingClientRect();
       const appMenuRect = document.querySelector('.app-menu')?.getBoundingClientRect();
       const documentRect = document.querySelector('.document-tab')?.getBoundingClientRect();
       const titleActionsRect = document.querySelector('.title-actions')?.getBoundingClientRect();
       return {
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth || page.scrollWidth > page.clientWidth + 1,
-        primaryVisible: Boolean(buttonRect && pageRect && buttonRect.left >= pageRect.left && buttonRect.right <= pageRect.right + 1),
+        primaryVisible: Boolean(document.querySelector('.ribbon-tool[data-tool-label="Utwórz szkic"]')?.checkVisibility()),
         flowHidden: getComputedStyle(page.querySelector('.start-page-flow')).display === 'none',
         titlebarClear: Boolean(appMenuRect && documentRect && titleActionsRect && appMenuRect.right + 8 <= documentRect.left && documentRect.right + 8 <= titleActionsRect.left),
       };
@@ -132,7 +130,7 @@ app.whenReady().then(async () => {
     await capture(window, narrowScreenshotPath);
 
     window.setContentSize(1600, 917);
-    await window.webContents.executeJavaScript(`document.querySelector('.start-page-action.primary')?.click()`);
+    await window.webContents.executeJavaScript(`document.querySelector('.ribbon-tool[data-tool-label="Utwórz szkic"]')?.click()`);
     await waitFor(window, `document.querySelector('.plane-picker')`, 'przejście ze strony startowej do wyboru płaszczyzny');
     await waitFor(window, `window.__madcadOriginPlaneState?.length === 3`, 'klikalne płaszczyzny początku na płótnie');
     const planeSelection = await window.webContents.executeJavaScript(`(() => {
