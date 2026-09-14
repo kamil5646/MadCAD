@@ -149,6 +149,12 @@ app.whenReady().then(async () => {
     if (splineContinuity.continuity !== 'g2' || splineContinuity.handleLength !== 5 || !near(splineContinuity.control1, [60, 15, 0]) || !near(splineContinuity.control2, [56.25, 20, 0])) throw new Error(`Błędna ciągłość G2 spline: ${JSON.stringify(splineContinuity)}`);
 
     console.log('Etap: edycja istniejącego spline 3D');
+    // Electron may drop native mouse input directed at a hidden BrowserWindow
+    // on macOS runners. Bring the verification window forward for the real
+    // pointer gesture, then read the resulting document state as before.
+    window.show();
+    window.focus();
+    await new Promise((resolve) => setTimeout(resolve, 250));
     await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection([${JSON.stringify(spline.id)}], 'replace')`);
     await waitFor(window, `window.__madcadSketch3DHandleState?.length === 4 && window.__madcadSketch3DHandleState.some((handle) => handle.kind === 'control2' && handle.locked)`, 'uchwyty bezpośrednie spline G2 w widoku');
     await fs.mkdir(path.dirname(handleArtifactPath), { recursive: true });

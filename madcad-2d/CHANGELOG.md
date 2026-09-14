@@ -1,5 +1,9 @@
 # Changelog
 
+## 6.5.13 (2026-09-14)
+
+- test natywnego przeciągania uchwytu spline 3D aktywuje okno Electron przed wysłaniem zdarzeń myszy, co zapobiega ich odrzucaniu przez macOS w ukrytym oknie CI.
+
 ## 6.5.12 (2026-09-14)
 
 - ustabilizowano wieloplatformowy test przeciągania końca spline 3D: pozycja uchwytu jest odświeżana, a pojedyncze nietrafienie natywnego zdarzenia myszy jest bezpiecznie ponawiane;
