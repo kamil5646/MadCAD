@@ -7300,21 +7300,16 @@
 .design-tabs {
   display: flex;
   min-width: 0;
-  overflow-x: auto;
-  padding: 0 9px 0 4px;
+  padding: 0 9px 0 7px;
   grid-column: 2;
   grid-row: 1;
   align-items: center;
-  gap: 1px;
+  gap: 7px;
   border-bottom: 1px solid rgba(17, 23, 31, 0.65);
   background: #1d2126;
-  scrollbar-width: none;
 }
 
-.design-tabs::-webkit-scrollbar { display: none; }
-
-.workspace-tabs button,
-.design-tabs button {
+.workspace-tabs button {
   height: 30px;
   padding-inline: 13px;
   border: 0;
@@ -7326,21 +7321,18 @@
   letter-spacing: .035em;
 }
 
-.workspace-tabs button:hover:not(:disabled),
-.design-tabs button:hover:not(:disabled) {
+.workspace-tabs button:hover:not(:disabled) {
   border-color: transparent;
   background: #292e34;
 }
 
-.workspace-tabs button.active,
-.design-tabs button.active {
+.workspace-tabs button.active {
   border-color: transparent;
   background: transparent;
   color: #fff;
 }
 
-.workspace-tabs button.active::after,
-.design-tabs button.active::after {
+.workspace-tabs button.active::after {
   right: 8px;
   bottom: 0;
   left: 8px;
@@ -7348,12 +7340,54 @@
   border-radius: 0;
 }
 
-.design-tabs button.contextual {
-  margin-left: auto;
-  color: #ffb0b7;
+.design-domain-picker {
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-left: 9px;
+  border-left: 1px solid #373d45;
+  color: #858c95;
 }
 
-.design-tabs button.contextual::after { background: #ff5261; }
+.design-domain-picker > span {
+  font-size: 8px;
+  font-weight: 760;
+  letter-spacing: .1em;
+}
+
+.design-domain-picker select {
+  width: 154px;
+  height: 24px;
+  padding: 0 27px 0 9px;
+  border: 1px solid #404751;
+  border-radius: 5px;
+  background: #272c33;
+  color: #eef1f4;
+  font-size: 9px;
+  font-weight: 730;
+  letter-spacing: .035em;
+}
+
+.design-domain-picker select:hover,
+.design-domain-picker select:focus-visible {
+  border-color: #72808e;
+  background: #2d333b;
+}
+
+.design-context-label {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  padding: 0 10px;
+  border-left: 2px solid #ff5261;
+  border-radius: 3px;
+  background: #2b3037;
+  color: #ffb0b7;
+  font-size: 9px;
+  font-weight: 760;
+  letter-spacing: .08em;
+}
 
 .modeling-ribbon {
   padding-inline: 5px 8px;
@@ -7530,13 +7564,15 @@
 .ribbon-tool:disabled .ribbon-glyph-highlight { opacity: .18; }
 
 @media (max-width: 1180px) {
-  .workspace-tabs button,
-  .design-tabs button { padding-inline: 9px; font-size: 9px; }
+  .workspace-tabs button { padding-inline: 9px; font-size: 9px; }
+  .design-domain-picker select { width: 136px; }
 }
 
 @media (max-width: 900px) {
-  .workspace-tabs button,
-  .design-tabs button { padding-inline: 7px; font-size: 8.5px; }
+  .workspace-tabs button { padding-inline: 7px; font-size: 8.5px; }
+  .design-domain-picker > span { display: none; }
+  .design-domain-picker { padding-left: 5px; border-left: 0; }
+  .design-domain-picker select { width: 116px; }
 }
 
 /* Start hub: compact product home instead of a marketing billboard. */

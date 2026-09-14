@@ -78,6 +78,7 @@ app.whenReady().then(async () => {
         primaryText: primary?.textContent.trim() || '',
         workflowText: page?.querySelector('.start-page-flow')?.textContent.trim() || '',
         tabs: labels,
+        domainPickerHiddenAtStart: !document.querySelector('#designDomainSelect'),
         fileMenuAvailable: Boolean(document.querySelector('#fileMenuBtn')),
         sharedIcon: Boolean(startBrand?.src && startBrand.naturalWidth >= 512),
         logoAtRightEnd: Boolean(document.querySelector('.title-actions .brand-mark')),
@@ -90,7 +91,7 @@ app.whenReady().then(async () => {
       };
     })()`);
 
-    if (!wide.title.includes('Zacznij od szkicu 2D') || !wide.primaryText.includes('Utwórz szkic') || !wide.workflowText.includes('Arkusz techniczny 2D') || !wide.workflowText.includes('Model parametryczny 3D') || !wide.workflowText.includes('Opcjonalnie: druk 3D') || wide.tabs.join('|') !== 'BRYŁA|POWIERZCHNIA|SIATKA|BLACHA|TWORZYWA|SPRAWDŹ' || !wide.fileMenuAvailable || !wide.sharedIcon || wide.logoAtRightEnd || !wide.browserHiddenByDefault || !wide.duplicateStartActionsRemoved || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
+    if (!wide.title.includes('Zacznij od szkicu 2D') || !wide.primaryText.includes('Utwórz szkic') || !wide.workflowText.includes('Arkusz techniczny 2D') || !wide.workflowText.includes('Model parametryczny 3D') || !wide.workflowText.includes('Opcjonalnie: druk 3D') || wide.tabs.length || !wide.domainPickerHiddenAtStart || !wide.fileMenuAvailable || !wide.sharedIcon || wide.logoAtRightEnd || !wide.browserHiddenByDefault || !wide.duplicateStartActionsRemoved || wide.shellWidth < 1120 || !wide.pageInsideStage || wide.horizontalOverflow) {
       throw new Error(`Nieprawidłowa hierarchia strony startowej: ${JSON.stringify(wide)}`);
     }
 

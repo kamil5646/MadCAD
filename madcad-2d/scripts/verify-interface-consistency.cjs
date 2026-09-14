@@ -142,9 +142,12 @@ app.whenReady().then(async () => {
     await fs.writeFile(startPageAfterScreenshotPath, startPageCapture.toPNG());
     window.setContentSize(2200, 877);
     await new Promise((resolve) => setTimeout(resolve, 300));
-    const tabs = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.design-tabs button')].map((item) => item.textContent.trim())`);
-    const expectedTabs = ['BRYŁA', 'POWIERZCHNIA', 'SIATKA', 'BLACHA', 'TWORZYWA', 'SPRAWDŹ'];
-    if (tabs.join('|') !== expectedTabs.join('|')) throw new Error(`Nielogiczny podział obszarów: ${tabs.join('|')}`);
+    const startNavigation = await window.webContents.executeJavaScript(`({
+      workspaceTabs: [...document.querySelectorAll('.workspace-tabs button')].map((item) => item.textContent.trim()),
+      domainPickerVisible: Boolean(document.querySelector('#designDomainSelect')),
+      legacyDomainTabs: document.querySelectorAll('.design-tabs button').length,
+    })`);
+    if (startNavigation.workspaceTabs.join('|') !== 'PROJEKTUJ|ARKUSZ 2D|WYTWARZANIE|ZARZĄDZAJ' || startNavigation.domainPickerVisible || startNavigation.legacyDomainTabs) throw new Error(`Strona startowa ma nadmiarową nawigację: ${JSON.stringify(startNavigation)}`);
 
     await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
     await waitFor(window, `document.querySelector('.file-backstage')`, 'lewe menu Plik');
@@ -185,8 +188,11 @@ app.whenReady().then(async () => {
     if (modelGroups.join('|') !== expectedModelGroups.join('|')) throw new Error(`Pełny model nie pokazuje kompletnej wstążki: ${modelGroups.join('|')}`);
     const designStructure = await window.webContents.executeJavaScript(`(() => {
       const noticeRect = document.querySelector('.workspace-notice')?.getBoundingClientRect();
+      const domainSelect = document.querySelector('#designDomainSelect');
       return {
         legacyTabsRemoved: ![...document.querySelectorAll('.design-tabs button')].some((item) => ['MODELUJ', 'EDYCJA 3D', 'KONSTRUKCJA', 'PROJEKT'].includes(item.textContent.trim())),
+        persistentDomainTabsRemoved: document.querySelectorAll('.design-tabs button').length === 0,
+        domainOptions: [...(domainSelect?.options || [])].map((item) => item.textContent.trim()),
         selectionModeGroupRemoved: ![...document.querySelectorAll('.ribbon-group')].some((item) => item.getAttribute('aria-label') === 'TRYB'),
         menus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
         customCadIcons: document.querySelectorAll('.ribbon-tool svg path').length > 25,
@@ -206,7 +212,7 @@ app.whenReady().then(async () => {
     })()`);
     const expectedDesignMenus = ['Więcej brył', 'Więcej zmian', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
     const expectedWideTools = ['Prymityw', 'Revolve', 'Sweep', 'Fazuj', 'Shell', 'Pattern', 'Boolean'];
-    if (!designStructure.legacyTabsRemoved || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !expectedWideTools.every((label) => designStructure.directTools.includes(label)) || designStructure.horizontalOverflow || designStructure.duplicatedFlowTools.length || designStructure.enabledWithoutAction.length || !designStructure.commandLineRemoved || !designStructure.customCadIcons || designStructure.iconLayers !== 1 || designStructure.distinctIconAccents < 2 || designStructure.iconSize < 21 || designStructure.iconSize > 23 || designStructure.featuredIconSize < 27 || designStructure.featuredIconSize > 29 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+    if (!designStructure.legacyTabsRemoved || !designStructure.persistentDomainTabsRemoved || designStructure.domainOptions.join('|') !== 'BRYŁA|POWIERZCHNIA|SIATKA|BLACHA|TWORZYWA|SPRAWDŹ' || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !expectedWideTools.every((label) => designStructure.directTools.includes(label)) || designStructure.horizontalOverflow || designStructure.duplicatedFlowTools.length || designStructure.enabledWithoutAction.length || !designStructure.commandLineRemoved || !designStructure.customCadIcons || designStructure.iconLayers !== 1 || designStructure.distinctIconAccents < 2 || designStructure.iconSize < 21 || designStructure.iconSize > 23 || designStructure.featuredIconSize < 27 || designStructure.featuredIconSize > 29 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
 
     window.setContentSize(1351, 877);
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -228,13 +234,27 @@ app.whenReady().then(async () => {
     };
     const domainGroups = {};
     for (const [tab, expectedGroups] of Object.entries(expectedDomainGroups)) {
-      if (!(await clickText(window, '.design-tabs button', tab))) throw new Error(`Nie działa zakładka dziedziny ${tab}.`);
-      await waitFor(window, `document.querySelector('.design-tabs button.active')?.textContent.trim() === ${JSON.stringify(tab)}`, `zakładka ${tab}`);
+      const selected = await window.webContents.executeJavaScript(`(() => {
+        const select = document.querySelector('#designDomainSelect');
+        const option = [...(select?.options || [])].find((item) => item.textContent.trim() === ${JSON.stringify(tab)});
+        if (!select || !option) return false;
+        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+        setter.call(select, option.value);
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      })()`);
+      if (!selected) throw new Error(`Nie działa wybór grupy ${tab}.`);
+      await waitFor(window, `document.querySelector('#designDomainSelect')?.selectedOptions?.[0]?.textContent.trim() === ${JSON.stringify(tab)}`, `grupa ${tab}`);
       domainGroups[tab] = await ribbonGroups(window);
-      if (domainGroups[tab].join('|') !== expectedGroups.join('|')) throw new Error(`Zakładka ${tab} ma niewłaściwe grupy: ${domainGroups[tab].join('|')}`);
+      if (domainGroups[tab].join('|') !== expectedGroups.join('|')) throw new Error(`Grupa ${tab} ma niewłaściwe sekcje: ${domainGroups[tab].join('|')}`);
     }
-    if (!(await clickText(window, '.design-tabs button', 'BRYŁA'))) throw new Error('Nie można wrócić do zakładki BRYŁA.');
-    await waitFor(window, `document.querySelector('.design-tabs button.active')?.textContent.trim() === 'BRYŁA'`, 'powrót do bryły');
+    await window.webContents.executeJavaScript(`(() => {
+      const select = document.querySelector('#designDomainSelect');
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+      setter.call(select, 'solid');
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await waitFor(window, `document.querySelector('#designDomainSelect')?.value === 'solid'`, 'powrót do bryły');
 
     if (!(await clickText(window, '.ribbon-tool', 'Utwórz szkic'))) throw new Error('Brak polecenia Utwórz szkic.');
     await waitFor(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny szkicu');
@@ -574,7 +594,7 @@ app.whenReady().then(async () => {
     }
     await fs.writeFile(overflowScreenshotPath, (await window.webContents.capturePage()).toPNG());
 
-    process.stdout.write(`${JSON.stringify({ ok: true, tabs, startPageRibbon, startChromeLayout, compactChromeLayout, ribbonPaint, fileMenu, designStructure, compactDesign, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, selectionFilterLayout, browserTimeline, commandPanel, faceMoreActions, edgeMoreActions, constructionMenu, compactLayout, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, browserTimelineScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath, compactLayoutScreenshotPath }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, startNavigation, startPageRibbon, startChromeLayout, compactChromeLayout, ribbonPaint, fileMenu, designStructure, compactDesign, disabledTooltip, expandedSketch, emptyModelGroups, loadedModelGroups, viewCube, selectionFilterLayout, browserTimeline, commandPanel, faceMoreActions, edgeMoreActions, constructionMenu, compactLayout, emptyDrawingGroups, populatedDrawingGroups, project, overflow, modelScreenshotPath, designScreenshotPath, constructionScreenshotPath, projectScreenshotPath, drawingScreenshotPath, overflowScreenshotPath, fileMenuScreenshotPath, sketchRibbonScreenshotPath, commandPanelScreenshotPath, browserTimelineScreenshotPath, bodyContextScreenshotPath, faceContextScreenshotPath, edgeContextScreenshotPath, visibilityScreenshotPath, designAfterScreenshotPath, drawingAfterScreenshotPath, manageAfterScreenshotPath, fileMenuAfterScreenshotPath, tooltipAfterScreenshotPath, startPageAfterScreenshotPath, compactLayoutScreenshotPath }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

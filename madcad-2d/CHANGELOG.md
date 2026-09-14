@@ -1,5 +1,12 @@
 # Changelog
 
+## 6.5.15 (2026-09-14)
+
+- usunięto sześć równorzędnych zakładek narzędzi z górnego paska; po rozpoczęciu projektu ich miejsce zajmuje jeden opisany wybór grupy narzędzi;
+- ekran startowy pokazuje wyłącznie cztery główne cele, a aktywny szkic ma jeden jednoznaczny znacznik kontekstowy;
+- usunięto sprzeczny stan, w którym zaznaczone „SPRAWDŹ” wyświetlało polecenia startowe „ZACZNIJ”;
+- budowanie paczek w CI automatycznie ponawia przejściowe błędy pobierania zależności.
+
 ## 6.5.14 (2026-09-14)
 
 - test przeciągania uchwytu spline 3D używa w CI zdarzeń wskaźnika w układzie współrzędnych renderera, eliminując błędne mapowanie pikseli na runnerach HiDPI macOS;

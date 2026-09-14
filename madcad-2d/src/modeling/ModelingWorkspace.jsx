@@ -7591,10 +7591,15 @@ export default function ModelingWorkspace() {
               return <button key={item.id} className={selected ? 'active' : ''} type="button" role="tab" aria-selected={selected} tabIndex={selected ? 0 : -1} disabled={Boolean(activeSketchId && item.id !== 'solid')} title={activeSketchId && item.id !== 'solid' ? 'Najpierw zakończ aktywny szkic.' : item.label} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index, WORKSPACE_OPTIONS, switchWorkspace)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>;
             })}
           </nav>
-          <nav className="design-tabs" aria-label={language === 'en' ? 'Design tools' : 'Narzędzia projektowania'} role="tablist">
-            {!activeSketchId && workspace === 'solid' && DESIGN_TABS.map((item, index) => <button key={item.id} className={designTab === item.id ? 'active' : ''} type="button" role="tab" aria-selected={designTab === item.id} tabIndex={designTab === item.id ? 0 : -1} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index, DESIGN_TABS, setDesignTab)} onClick={() => setDesignTab(item.id)}>{item.label}</button>)}
-            {activeSketchId && <button className="active contextual" type="button" role="tab" aria-selected="true" title={activeSketchIs3D ? 'Aktywny obszar edycji szkicu przestrzennego.' : 'Aktywny obszar edycji szkicu 2D.'}>{activeSketchIs3D ? 'SZKIC 3D' : 'SZKIC'}</button>}
-          </nav>
+          <div className="design-tabs" aria-label={language === 'en' ? 'Design tools' : 'Narzędzia projektowania'}>
+            {!activeSketchId && workspace === 'solid' && !startPageVisible && <label className="design-domain-picker" htmlFor="designDomainSelect">
+              <span>{language === 'en' ? 'TOOLS' : 'NARZĘDZIA'}</span>
+              <select id="designDomainSelect" aria-label={language === 'en' ? 'Design tool group' : 'Grupa narzędzi projektowania'} value={designTab} onChange={(event) => setDesignTab(event.target.value)}>
+                {DESIGN_TABS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+              </select>
+            </label>}
+            {activeSketchId && <span className="design-context-label" title={activeSketchIs3D ? 'Aktywny obszar edycji szkicu przestrzennego.' : 'Aktywny obszar edycji szkicu 2D.'}>{activeSketchIs3D ? 'SZKIC 3D' : 'SZKIC'}</span>}
+          </div>
           <ResponsiveRibbon key={licenseInfoOpen ? 'license-open' : 'license-closed'} language={language}>
             {activeSketchId ? (
               <>

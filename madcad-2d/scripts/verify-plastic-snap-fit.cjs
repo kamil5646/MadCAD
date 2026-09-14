@@ -28,11 +28,14 @@ async function setField(window, label, value) {
 
 async function selectPlasticDomain(window) {
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.design-tabs button')].find((item) => item.textContent.trim() === 'TWORZYWA');
-    if (!button) throw new Error('Brak dziedziny TWORZYWA.');
-    button.click();
+    const select = document.querySelector('#designDomainSelect');
+    const option = [...(select?.options || [])].find((item) => item.textContent.trim() === 'TWORZYWA');
+    if (!select || !option) throw new Error('Brak grupy TWORZYWA.');
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+    setter.call(select, option.value);
+    select.dispatchEvent(new Event('change', { bubbles: true }));
   })()`);
-  await waitFor(window, `document.querySelector('.design-tabs button.active')?.textContent.trim() === 'TWORZYWA'`, 'dziedzina tworzywa sztucznego');
+  await waitFor(window, `document.querySelector('#designDomainSelect')?.selectedOptions?.[0]?.textContent.trim() === 'TWORZYWA'`, 'grupa tworzyw');
 }
 
 async function clickTool(window, label) {

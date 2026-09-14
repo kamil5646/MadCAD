@@ -25,11 +25,14 @@ async function clickTool(window, label) {
 
 async function selectDomain(window, label) {
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.design-tabs button')].find((item) => item.textContent.trim() === ${JSON.stringify(label)});
-    if (!button) throw new Error('Brak dziedziny: ${label}');
-    button.click();
+    const select = document.querySelector('#designDomainSelect');
+    const option = [...(select?.options || [])].find((item) => item.textContent.trim() === ${JSON.stringify(label)});
+    if (!select || !option) throw new Error('Brak grupy: ${label}');
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+    setter.call(select, option.value);
+    select.dispatchEvent(new Event('change', { bubbles: true }));
   })()`);
-  await waitFor(window, `document.querySelector('.design-tabs button.active')?.textContent.trim() === ${JSON.stringify(label)}`, `dziedzina ${label}`);
+  await waitFor(window, `document.querySelector('#designDomainSelect')?.selectedOptions?.[0]?.textContent.trim() === ${JSON.stringify(label)}`, `grupa ${label}`);
 }
 
 async function selectWorkspace(window, value) {

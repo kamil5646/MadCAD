@@ -125,13 +125,25 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
           echo "Building unsigned packages by repository-owner decision; SHA-256 and platform tests remain mandatory."
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            npx electron-builder --mac dmg zip --arm64 --publish never
-          elif [ "$RUNNER_OS" = "Windows" ]; then
-            npx electron-builder --win nsis zip --x64 --publish never
-          else
-            npx electron-builder --linux AppImage --x64 --publish never
-          fi
+          build_package() {
+            if [ "$RUNNER_OS" = "macOS" ]; then
+              npx electron-builder --mac dmg zip --arm64 --publish never
+            elif [ "$RUNNER_OS" = "Windows" ]; then
+              npx electron-builder --win nsis zip --x64 --publish never
+            else
+              npx electron-builder --linux AppImage --x64 --publish never
+            fi
+          }
+          for attempt in 1 2 3; do
+            if build_package; then
+              exit 0
+            fi
+            if [ "$attempt" = "3" ]; then
+              exit 1
+            fi
+            echo "Package download/build failed on attempt $attempt; retrying."
+            sleep $((attempt * 10))
+          done
 
       - name: Create SHA-256 sidecars
         working-directory: madcad-2d

@@ -15,11 +15,14 @@ async function waitFor(window, expression, label, timeoutMs = 45000) {
 
 async function selectSurfaceDomain(window) {
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.design-tabs button')].find((item) => item.textContent.trim() === 'POWIERZCHNIA');
-    if (!button) throw new Error('Brak dziedziny POWIERZCHNIA.');
-    button.click();
+    const select = document.querySelector('#designDomainSelect');
+    const option = [...(select?.options || [])].find((item) => item.textContent.trim() === 'POWIERZCHNIA');
+    if (!select || !option) throw new Error('Brak grupy POWIERZCHNIA.');
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+    setter.call(select, option.value);
+    select.dispatchEvent(new Event('change', { bubbles: true }));
   })()`);
-  await waitFor(window, `document.querySelector('.design-tabs button.active')?.textContent.trim() === 'POWIERZCHNIA'`, 'dziedzina powierzchni');
+  await waitFor(window, `document.querySelector('#designDomainSelect')?.selectedOptions?.[0]?.textContent.trim() === 'POWIERZCHNIA'`, 'grupa powierzchni');
 }
 
 async function clickTool(window, label) {
