@@ -2252,7 +2252,16 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.items?.some((item) => item.kind === 'body')`, 'wybór bryły obszarem');
   const revisionAfterSelection = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   if (revisionAfterSelection !== selectionRevision) throw new Error('Picking uruchomił ponowne przeliczenie bryły.');
-  const lostReferenceId = await window.webContents.executeJavaScript(`window.__madcadVerifyCreateLostTopologyReference()`);
+  await waitForUi(window, `(() => {
+    if (window.__madcadVerifyLostReferenceId) return true;
+    try {
+      window.__madcadVerifyLostReferenceId = window.__madcadVerifyCreateLostTopologyReference();
+      return Boolean(window.__madcadVerifyLostReferenceId);
+    } catch {
+      return false;
+    }
+  })()`, 'utworzenie kontrolowanej utraconej referencji po ustabilizowaniu topologii', modelingTimeoutMs);
+  const lostReferenceId = await window.webContents.executeJavaScript(`window.__madcadVerifyLostReferenceId`);
   await expandReferenceRepair();
   await waitForUi(window, `document.querySelector('.reference-repair-panel')?.textContent.includes('Źródło: Wyciągnięcie 1')`, 'komunikat utraconej referencji ze źródłowym feature', modelingTimeoutMs);
   await waitForUi(window, `[...document.querySelectorAll('.reference-repair-panel button')].some((item) => item.textContent === 'Kandydat 1')`, 'kandydat naprawy referencji', modelingTimeoutMs);

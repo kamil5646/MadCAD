@@ -1,5 +1,9 @@
 # Changelog
 
+## 6.5.9 (2026-09-14)
+
+- usunięto wyścig czasowy w wieloplatformowym teście naprawy referencji B-Rep, oczekując na aktualną topologię renderera przed utworzeniem kontrolowanej utraconej referencji.
+
 ## 6.5.8 (2026-09-14)
 
 - zastąpiono niejasny wybór „przestrzeni roboczej” jednym rzędem bezpośrednich kart: Projektuj, Arkusz 2D, Wytwarzanie i Zarządzaj;
