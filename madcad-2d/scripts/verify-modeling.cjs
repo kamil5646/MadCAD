@@ -42,6 +42,10 @@ async function verifyAccessibilityAndScale(window) {
     window.focus();
     window.webContents.setZoomFactor(zoomFactor);
     await waitForUi(window, `(() => { const shell = document.querySelector('.modeling-shell'); return shell && shell.scrollWidth <= shell.clientWidth + 1; })()`, `układ bez poziomego przepełnienia przy ${zoomFactor * 100}%`, 5000);
+    // Page zoom can emit more than one viewport/layout update. Require the
+    // ribbon to remain fitted after the delayed responsive pass as well.
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    await waitForUi(window, `(() => { const shell = document.querySelector('.modeling-shell'); return shell && shell.scrollWidth <= shell.clientWidth + 1; })()`, `stabilny układ bez poziomego przepełnienia przy ${zoomFactor * 100}%`, 5000);
     await window.webContents.executeJavaScript(`document.querySelector('.modeling-shell button:not([disabled])')?.focus()`);
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });

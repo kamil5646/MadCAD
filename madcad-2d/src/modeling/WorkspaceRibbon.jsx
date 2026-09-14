@@ -563,15 +563,25 @@ export function ResponsiveRibbon({ children, language = 'pl' }) {
           : next
       ));
     };
+    let scheduledFrame = 0;
+    const scheduleUpdate = () => {
+      cancelAnimationFrame(scheduledFrame);
+      scheduledFrame = requestAnimationFrame(() => {
+        scheduledFrame = requestAnimationFrame(update);
+      });
+    };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(container);
-    const visibleWrapper = container.querySelector('.ribbon-visible-groups');
-    const stickyObserverTarget = container.querySelector('.ribbon-sticky-groups');
-    if (visibleWrapper) observer.observe(visibleWrapper);
-    if (stickyObserverTarget) observer.observe(stickyObserverTarget);
     groupRefs.current.forEach((node) => { if (node) observer.observe(node); });
-    return () => observer.disconnect();
+    window.addEventListener('resize', scheduleUpdate);
+    window.visualViewport?.addEventListener('resize', scheduleUpdate);
+    return () => {
+      cancelAnimationFrame(scheduledFrame);
+      observer.disconnect();
+      window.removeEventListener('resize', scheduleUpdate);
+      window.visualViewport?.removeEventListener('resize', scheduleUpdate);
+    };
   }, [groupCount, groupSignature, stickyKey]);
 
   const stickyIndices = new Set(stickyKey ? stickyKey.split(',').map(Number) : []);

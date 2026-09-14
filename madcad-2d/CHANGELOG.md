@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.5.11 (2026-09-14)
+
+- ustabilizowano ponowne układanie wstążki po zmianie powiększenia, wykonując dodatkowy pomiar po zakończeniu aktualizacji viewportu;
+- test skalowania wymaga teraz trwałego braku przepełnienia po opóźnionym przebiegu układu.
+
 ## 6.5.10 (2026-09-14)
 
 - poprawiono obliczanie miejsca na wstążce przy skalowaniu 150–200%, mierząc rzeczywistą szerokość przycisku przepełnienia i ponownie układając grupy po zmianie rozmiaru;
