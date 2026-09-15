@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.5.19 (2026-09-15)
+
+- panel druku 3D ma teraz jednoznaczne wymiary kontenera i nie może wystawać poza pole robocze w kompaktowym oknie ani przy skalowaniu HiDPI;
+- test układu zapisuje dokładne granice panelu i uwzględnia wyłącznie bezpieczną tolerancję rasteryzacji.
+
 ## 6.5.18 (2026-09-15)
 
 - ustabilizowano wieloplatformowy test właściwości krawędzi po zamknięciu podglądu operacji; test ponownie wiąże pomiar z aktualną topologią po zakończeniu przebudowy modelu.

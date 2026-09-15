@@ -502,10 +502,14 @@ app.whenReady().then(async () => {
       const navigationRect = document.querySelector('.navigation-bar')?.getBoundingClientRect();
       const selectionRect = document.querySelector('.selection-filter-bar')?.getBoundingClientRect();
       const overlaps = (first, second) => Boolean(first && second && first.left < second.right && first.right > second.left && first.top < second.bottom && first.bottom > second.top);
+      const panelTolerance = 4;
       return {
         browserClosedForInspector: !document.querySelector('.model-browser'),
         stageWidth: stageRect?.width || 0,
-        printInsideViewport: Boolean(printRect && printRect.left >= 0 && printRect.right <= innerWidth && printRect.top >= content.getBoundingClientRect().top && printRect.bottom <= content.getBoundingClientRect().bottom + 1),
+        printInsideViewport: Boolean(printRect && printRect.left >= -panelTolerance && printRect.right <= innerWidth + panelTolerance && printRect.top >= content.getBoundingClientRect().top - panelTolerance && printRect.bottom <= content.getBoundingClientRect().bottom + panelTolerance),
+        printRect: printRect ? { left: printRect.left, top: printRect.top, right: printRect.right, bottom: printRect.bottom } : null,
+        contentRect: content ? { left: content.getBoundingClientRect().left, top: content.getBoundingClientRect().top, right: content.getBoundingClientRect().right, bottom: content.getBoundingClientRect().bottom } : null,
+        innerSize: { width: innerWidth, height: innerHeight },
         viewCubeHidden: !document.querySelector('.view-cube')?.checkVisibility(),
         noticeClearOfNavigation: !overlaps(noticeRect, navigationRect) && !overlaps(noticeRect, selectionRect),
         horizontalOverflow: content.scrollWidth > content.clientWidth + 1 || document.documentElement.scrollWidth > innerWidth + 1,
