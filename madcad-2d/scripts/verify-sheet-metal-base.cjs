@@ -16,23 +16,16 @@ async function waitFor(window, expression, label, timeoutMs = 30000) {
 }
 
 async function clickTool(window, label) {
+  const direct = await window.webContents.executeJavaScript(`Boolean(document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]'))`);
+  if (!direct) {
+    await window.webContents.executeJavaScript(`document.querySelector('[data-tool-label="Narzędzia zaawansowane"]')?.click()`);
+    await waitFor(window, `document.querySelector('.ribbon-tool-submenu button[data-tool-label=${JSON.stringify(label)}]')`, `narzędzie zaawansowane ${label}`);
+  }
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent.trim() === ${JSON.stringify(label)});
+    const button = document.querySelector('.ribbon-tool-submenu button[data-tool-label=${JSON.stringify(label)}], .ribbon-tool[data-tool-label=${JSON.stringify(label)}]');
     if (!button || button.disabled) throw new Error('Niedostępne narzędzie: ${label}');
     button.click();
   })()`);
-}
-
-async function selectDomain(window, label) {
-  await window.webContents.executeJavaScript(`(() => {
-    const select = document.querySelector('#designDomainSelect');
-    const option = [...(select?.options || [])].find((item) => item.textContent.trim() === ${JSON.stringify(label)});
-    if (!select || !option) throw new Error('Brak grupy: ${label}');
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
-    setter.call(select, option.value);
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-  })()`);
-  await waitFor(window, `document.querySelector('#designDomainSelect')?.selectedOptions?.[0]?.textContent.trim() === ${JSON.stringify(label)}`, `grupa ${label}`);
 }
 
 async function selectWorkspace(window, value) {
@@ -77,7 +70,6 @@ app.whenReady().then(async () => {
     await clickTool(window, 'Zakończ szkic');
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'profile' && !window.__madcadVerifyDocumentState?.activeSketchId`, 'profil gotowy do modelowania');
 
-    await selectDomain(window, 'BLACHA');
     await clickTool(window, 'Baza blachowa');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sheetBase' && document.querySelector('.command-dialog')?.textContent.includes('Współczynnik K')`, 'panel reguły blachy');
 

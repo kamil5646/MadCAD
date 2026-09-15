@@ -26,21 +26,14 @@ async function setField(window, label, value) {
   })()`);
 }
 
-async function selectPlasticDomain(window) {
-  await window.webContents.executeJavaScript(`(() => {
-    const select = document.querySelector('#designDomainSelect');
-    const option = [...(select?.options || [])].find((item) => item.textContent.trim() === 'TWORZYWA');
-    if (!select || !option) throw new Error('Brak grupy TWORZYWA.');
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
-    setter.call(select, option.value);
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-  })()`);
-  await waitFor(window, `document.querySelector('#designDomainSelect')?.selectedOptions?.[0]?.textContent.trim() === 'TWORZYWA'`, 'grupa tworzyw');
-}
-
 async function clickTool(window, label) {
+  const direct = await window.webContents.executeJavaScript(`Boolean(document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]'))`);
+  if (!direct) {
+    await window.webContents.executeJavaScript(`document.querySelector('[data-tool-label="Narzędzia zaawansowane"]')?.click()`);
+    await waitFor(window, `document.querySelector('.ribbon-tool-submenu button[data-tool-label=${JSON.stringify(label)}]')`, `narzędzie zaawansowane ${label}`);
+  }
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.dataset.toolLabel === ${JSON.stringify(label)});
+    const button = document.querySelector('.ribbon-tool-submenu button[data-tool-label=${JSON.stringify(label)}], .ribbon-tool[data-tool-label=${JSON.stringify(label)}]');
     if (!button || button.disabled) throw new Error('Niedostępne narzędzie: ${label}');
     button.click();
   })()`);
@@ -71,7 +64,6 @@ app.whenReady().then(async () => {
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face'`, 'wybrana ściana');
 
-    await selectPlasticDomain(window);
     await clickTool(window, 'Grille');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'plasticGrille' && document.querySelector('.command-dialog')?.textContent.includes('Liczba żeber')`, 'panel Grille');
 

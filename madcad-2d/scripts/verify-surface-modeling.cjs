@@ -13,21 +13,14 @@ async function waitFor(window, expression, label, timeoutMs = 45000) {
   throw new Error(`Przekroczono czas oczekiwania: ${label}`);
 }
 
-async function selectSurfaceDomain(window) {
-  await window.webContents.executeJavaScript(`(() => {
-    const select = document.querySelector('#designDomainSelect');
-    const option = [...(select?.options || [])].find((item) => item.textContent.trim() === 'POWIERZCHNIA');
-    if (!select || !option) throw new Error('Brak grupy POWIERZCHNIA.');
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
-    setter.call(select, option.value);
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-  })()`);
-  await waitFor(window, `document.querySelector('#designDomainSelect')?.selectedOptions?.[0]?.textContent.trim() === 'POWIERZCHNIA'`, 'grupa powierzchni');
-}
-
 async function clickTool(window, label) {
+  const direct = await window.webContents.executeJavaScript(`Boolean(document.querySelector('.ribbon-tool[data-tool-label=${JSON.stringify(label)}]'))`);
+  if (!direct) {
+    await window.webContents.executeJavaScript(`document.querySelector('[data-tool-label="Narzędzia zaawansowane"]')?.click()`);
+    await waitFor(window, `document.querySelector('.ribbon-tool-submenu button[data-tool-label=${JSON.stringify(label)}]')`, `narzędzie zaawansowane ${label}`);
+  }
   await window.webContents.executeJavaScript(`(() => {
-    const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.dataset.toolLabel === ${JSON.stringify(label)});
+    const button = document.querySelector('.ribbon-tool-submenu button[data-tool-label=${JSON.stringify(label)}], .ribbon-tool[data-tool-label=${JSON.stringify(label)}]');
     if (!button || button.disabled) throw new Error('Niedostępne narzędzie: ${label}');
     button.click();
   })()`);
@@ -49,7 +42,6 @@ app.whenReady().then(async () => {
       window.__madcadVerifyTopologySelection({ kind: 'body', id: bodyId, bodyId });
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'body'`, 'zaznaczona powierzchnia');
-    await selectSurfaceDomain(window);
     await clickTool(window, 'Thicken');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'thickenSurface' && document.querySelector('.command-dialog')`, 'panel Pogrub');
     await window.webContents.executeJavaScript(`(() => { const select = [...document.querySelectorAll('.command-field')].find((label) => label.querySelector('span')?.textContent.trim() === 'Strona')?.querySelector('select'); if (!select) throw new Error('Brak wyboru strony pogrubienia.'); select.value = 'symmetric'; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);

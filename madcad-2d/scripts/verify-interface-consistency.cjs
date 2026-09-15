@@ -186,13 +186,16 @@ app.whenReady().then(async () => {
     const expectedModelGroups = ['UTWÓRZ', 'ZMIEŃ', 'ZŁOŻENIE', 'KONSTRUKCJA', 'SPRAWDŹ'];
     const modelGroups = await ribbonGroups(window);
     if (modelGroups.join('|') !== expectedModelGroups.join('|')) throw new Error(`Pełny model nie pokazuje kompletnej wstążki: ${modelGroups.join('|')}`);
+    await window.webContents.executeJavaScript(`document.querySelector('[data-tool-label="Narzędzia zaawansowane"]')?.click()`);
+    await waitFor(window, `document.querySelector('[aria-label="Zaawansowane"].ribbon-tool-submenu')`, 'menu zaawansowanych narzędzi');
     const designStructure = await window.webContents.executeJavaScript(`(() => {
       const noticeRect = document.querySelector('.workspace-notice')?.getBoundingClientRect();
-      const domainSelect = document.querySelector('#designDomainSelect');
       return {
         legacyTabsRemoved: ![...document.querySelectorAll('.design-tabs button')].some((item) => ['MODELUJ', 'EDYCJA 3D', 'KONSTRUKCJA', 'PROJEKT'].includes(item.textContent.trim())),
         persistentDomainTabsRemoved: document.querySelectorAll('.design-tabs button').length === 0,
-        domainOptions: [...(domainSelect?.options || [])].map((item) => item.textContent.trim()),
+        domainPickerRemoved: !document.querySelector('#designDomainSelect, .design-domain-picker'),
+        advancedSections: [...document.querySelectorAll('[aria-label="Zaawansowane"] .ribbon-tool-section')].map((item) => item.textContent.trim()),
+        advancedTools: [...document.querySelectorAll('[aria-label="Zaawansowane"] [data-tool-label]')].map((item) => item.dataset.toolLabel),
         selectionModeGroupRemoved: ![...document.querySelectorAll('.ribbon-group')].some((item) => item.getAttribute('aria-label') === 'TRYB'),
         menus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
         customCadIcons: document.querySelectorAll('.ribbon-tool svg path').length > 25,
@@ -210,9 +213,12 @@ app.whenReady().then(async () => {
         commandLineRemoved: !document.querySelector('.command-line'),
       };
     })()`);
-    const expectedDesignMenus = ['Więcej brył', 'Więcej zmian', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
+    const expectedDesignMenus = ['Więcej brył', 'Zaawansowane', 'Więcej zmian', 'Płaszczyzny', 'Osie', 'Punkty', 'Analiza'];
     const expectedWideTools = ['Prymityw', 'Revolve', 'Sweep', 'Fazuj', 'Shell', 'Pattern', 'Boolean'];
-    if (!designStructure.legacyTabsRemoved || !designStructure.persistentDomainTabsRemoved || designStructure.domainOptions.join('|') !== 'BRYŁA|POWIERZCHNIA|SIATKA|BLACHA|TWORZYWA|SPRAWDŹ' || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !expectedWideTools.every((label) => designStructure.directTools.includes(label)) || designStructure.horizontalOverflow || designStructure.duplicatedFlowTools.length || designStructure.enabledWithoutAction.length || !designStructure.commandLineRemoved || !designStructure.customCadIcons || designStructure.iconLayers !== 1 || designStructure.distinctIconAccents < 2 || designStructure.iconSize < 21 || designStructure.iconSize > 23 || designStructure.featuredIconSize < 27 || designStructure.featuredIconSize > 29 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+    const requiredAdvancedTools = ['Patch', 'Surface Extrude', 'Surface Offset', 'Baza blachowa', 'Rozwiń blachę', 'Importuj model', 'Narzędzia siatki', 'Boss', 'Snap-fit', 'Grille'];
+    if (!designStructure.legacyTabsRemoved || !designStructure.persistentDomainTabsRemoved || !designStructure.domainPickerRemoved || designStructure.advancedSections.join('|') !== 'Powierzchnie|Blacha|Siatka|Tworzywa' || !requiredAdvancedTools.every((label) => designStructure.advancedTools.includes(label)) || !designStructure.selectionModeGroupRemoved || designStructure.menus.join('|') !== expectedDesignMenus.join('|') || !expectedWideTools.every((label) => designStructure.directTools.includes(label)) || designStructure.horizontalOverflow || designStructure.duplicatedFlowTools.length || designStructure.enabledWithoutAction.length || !designStructure.commandLineRemoved || !designStructure.customCadIcons || designStructure.iconLayers !== 1 || designStructure.distinctIconAccents < 2 || designStructure.iconSize < 21 || designStructure.iconSize > 23 || designStructure.featuredIconSize < 27 || designStructure.featuredIconSize > 29 || designStructure.appIconSize < 17 || designStructure.ribbonHeight > 102) throw new Error(`Projektowanie nadal jest podzielone lub ma nieczytelne narzędzia: ${JSON.stringify(designStructure)}`);
+    await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+    await waitFor(window, `!document.querySelector('[aria-label="Zaawansowane"].ribbon-tool-submenu')`, 'zamknięcie menu zaawansowanego');
 
     window.setContentSize(1351, 877);
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -221,40 +227,9 @@ app.whenReady().then(async () => {
       menus: [...document.querySelectorAll('.ribbon-tool-menu-trigger .ribbon-label')].map((item) => item.textContent.trim()),
       horizontalOverflow: document.querySelector('.modeling-ribbon')?.scrollWidth > document.querySelector('.modeling-ribbon')?.clientWidth,
     }))()`);
-    if (expectedWideTools.some((label) => compactDesign.directTools.includes(label)) || !['Więcej brył', 'Więcej zmian'].every((label) => compactDesign.menus.includes(label)) || compactDesign.horizontalOverflow) throw new Error(`Wstążka nie zwija się poprawnie przy zwykłej szerokości: ${JSON.stringify(compactDesign)}`);
+    if (expectedWideTools.some((label) => compactDesign.directTools.includes(label)) || !['Więcej brył', 'Zaawansowane', 'Więcej zmian'].every((label) => compactDesign.menus.includes(label)) || compactDesign.horizontalOverflow) throw new Error(`Wstążka nie zwija się poprawnie przy zwykłej szerokości: ${JSON.stringify(compactDesign)}`);
     window.setContentSize(2200, 877);
     await new Promise((resolve) => setTimeout(resolve, 300));
-
-    const expectedDomainGroups = {
-      POWIERZCHNIA: ['UTWÓRZ', 'ZMIEŃ', 'SPRAWDŹ'],
-      SIATKA: ['WSTAW', 'PRZYGOTUJ', 'WYJŚCIE'],
-      BLACHA: ['UTWÓRZ', 'ROZWINIĘCIE'],
-      TWORZYWA: ['KONSTRUKCJA', 'SPRAWDŹ'],
-      SPRAWDŹ: ['SPRAWDŹ', 'SYMULUJ'],
-    };
-    const domainGroups = {};
-    for (const [tab, expectedGroups] of Object.entries(expectedDomainGroups)) {
-      const selected = await window.webContents.executeJavaScript(`(() => {
-        const select = document.querySelector('#designDomainSelect');
-        const option = [...(select?.options || [])].find((item) => item.textContent.trim() === ${JSON.stringify(tab)});
-        if (!select || !option) return false;
-        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
-        setter.call(select, option.value);
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-      })()`);
-      if (!selected) throw new Error(`Nie działa wybór grupy ${tab}.`);
-      await waitFor(window, `document.querySelector('#designDomainSelect')?.selectedOptions?.[0]?.textContent.trim() === ${JSON.stringify(tab)}`, `grupa ${tab}`);
-      domainGroups[tab] = await ribbonGroups(window);
-      if (domainGroups[tab].join('|') !== expectedGroups.join('|')) throw new Error(`Grupa ${tab} ma niewłaściwe sekcje: ${domainGroups[tab].join('|')}`);
-    }
-    await window.webContents.executeJavaScript(`(() => {
-      const select = document.querySelector('#designDomainSelect');
-      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
-      setter.call(select, 'solid');
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    })()`);
-    await waitFor(window, `document.querySelector('#designDomainSelect')?.value === 'solid'`, 'powrót do bryły');
 
     if (!(await clickText(window, '.ribbon-tool', 'Utwórz szkic'))) throw new Error('Brak polecenia Utwórz szkic.');
     await waitFor(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny szkicu');

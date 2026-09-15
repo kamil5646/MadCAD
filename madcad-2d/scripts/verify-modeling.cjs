@@ -285,7 +285,7 @@ async function runUiFlow(window) {
     'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi',
   ]);
   const solidToolMenus = new Map([
-    ...['Baza blachowa', 'Kołnierz blachy', 'Zawinięcie blachy', 'Szczelina blachy', 'Rozwiń blachę', 'Zagnij ponownie'].map((label) => [label, 'Blacha']),
+    ...['Patch', 'Surface Extrude', 'Surface Revolve', 'Surface Sweep', 'Surface Loft', 'Surface Offset', 'Stitch', 'Surface Trim', 'Surface Extend', 'Thicken', 'Baza blachowa', 'Kołnierz blachy', 'Zawinięcie blachy', 'Szczelina blachy', 'Rozwiń blachę', 'Zagnij ponownie', 'Importuj model', 'Narzędzia siatki', 'Przywróć siatkę', 'Boss', 'Snap-fit', 'Grille'].map((label) => [label, 'Narzędzia zaawansowane']),
     ...['Prymityw', 'Revolve', 'Sweep', 'Loft', 'Coil', 'Tekst 3D', 'Otwór'].map((label) => [label, 'Więcej brył']),
     ...['Fazuj', 'Shell', 'Draft', 'Offset Face', 'Delete Face + Heal', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj', 'Pattern', 'Boolean', 'Split Body', 'Split Face', 'Replace Face'].map((label) => [label, 'Więcej zmian']),
     ...['Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię'].map((label) => [label, 'Analiza']),
@@ -309,17 +309,9 @@ async function runUiFlow(window) {
     })()`);
     await waitForUi(window, `[...document.querySelectorAll('.workspace-tabs button')].some((item) => item.getAttribute('aria-selected') === 'true' && item.textContent.trim() === ({ solid: 'PROJEKTUJ', drawing: 'ARKUSZ 2D', manufacture: 'WYTWARZANIE', tools: 'ZARZĄDZAJ' })[${JSON.stringify(value)}])`, `główny obszar ${value}`);
   };
-  const clickWorkspace = async (workspaceLabel) => {
+  const clickWorkspace = async (_workspaceLabel) => {
     await selectWorkspaceMode('solid');
-    return window.webContents.executeJavaScript(`(() => {
-    const select = document.querySelector('#designDomainSelect');
-    if (!select && ${JSON.stringify(workspaceLabel)} === 'BRYŁA' && document.querySelector('.start-page')) return true;
-    const option = [...(select?.options || [])].find((item) => item.textContent.trim() === ${JSON.stringify(workspaceLabel)});
-    if (!select || !option) throw new Error('Brak grupy narzędzi: ${workspaceLabel}');
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
-    setter.call(select, option.value);
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-  })()`);
+    return window.webContents.executeJavaScript(`Boolean(document.querySelector('.workspace-tabs [aria-selected="true"]')?.textContent.trim() === 'PROJEKTUJ' && !document.querySelector('#designDomainSelect'))`);
   };
   const clickTool = async (label) => {
     if (toolsWorkspaceLabels.has(label)) {

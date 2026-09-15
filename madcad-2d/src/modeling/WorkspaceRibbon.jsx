@@ -362,7 +362,7 @@ export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items,
         <span className="ribbon-label">{displayLabel}<ChevronDown size={10} /></span>
       </button>
       {open && <div className="ribbon-tool-submenu" role="menu" aria-label={displayLabel}>
-        {items.map((item) => {
+        {items.map((item, index) => {
           const ItemIcon = item.icon;
           const customCommand = toolHelp?.customizationForTool?.(item.label) || null;
           const shortcut = preferredToolShortcut(item.label, customCommand);
@@ -370,10 +370,13 @@ export function ToolMenuButton({ icon: Icon, label, displayLabel = label, items,
           const operational = typeof item.onClick === 'function';
           const itemDisabled = item.disabled || !operational;
           const itemHelp = resolveToolHelp({ label: item.label, description: item.description, disabled: itemDisabled, disabledReason: operational ? item.disabledReason : 'Polecenie nie ma przypisanej operacji.', shortcut });
-          return <button key={item.label} data-tool-label={item.label} data-operational={operational ? 'true' : 'false'} type="button" role="menuitem" disabled={itemDisabled} title={itemHelp.text} aria-label={`${itemDisplayLabel}. ${itemHelp.text}`} onClick={(event) => { if (operational) item.onClick(event); setOpen(false); }}>
-            <span style={toolColorStyle(item.label)} aria-hidden="true"><ToolGlyph icon={ItemIcon} compact /></span>
-            <span><strong>{itemDisplayLabel}</strong><small>{itemDisabled ? itemHelp.state : itemHelp.help}</small></span>
-          </button>;
+          return <React.Fragment key={item.label}>
+            {item.section && item.section !== items[index - 1]?.section && <div className="ribbon-tool-section" role="presentation">{item.section}</div>}
+            <button data-tool-label={item.label} data-operational={operational ? 'true' : 'false'} type="button" role="menuitem" disabled={itemDisabled} title={itemHelp.text} aria-label={`${itemDisplayLabel}. ${itemHelp.text}`} onClick={(event) => { if (operational) item.onClick(event); setOpen(false); }}>
+              <span style={toolColorStyle(item.label)} aria-hidden="true"><ToolGlyph icon={ItemIcon} compact /></span>
+              <span><strong>{itemDisplayLabel}</strong><small>{itemDisabled ? itemHelp.state : itemHelp.help}</small></span>
+            </button>
+          </React.Fragment>;
         })}
       </div>}
     </span>

@@ -967,6 +967,15 @@
   cursor: pointer;
 }
 
+.ribbon-tool-section {
+  padding: 8px 8px 3px;
+  color: #aab5c0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
 .ribbon-tool-submenu > button:hover:not(:disabled) {
   border-color: #617489;
   background: #435363;

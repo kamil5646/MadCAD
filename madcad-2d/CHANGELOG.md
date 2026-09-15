@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.5.17 (2026-09-15)
+
+- usunięto wybór przestrzeni BRYŁA/POWIERZCHNIA/SIATKA/BLACHA/TWORZYWA/SPRAWDŹ, który dublował główne obszary i wyglądał obco na macOS;
+- projektowanie ma teraz jeden spójny pasek podstawowych poleceń, a powierzchnie, blacha, siatka i tworzywa są pogrupowane w menu „Zaawansowane”;
+- dodano testy chroniące przed powrotem selektora, nakładaniem elementów i utratą dostępu do wyspecjalizowanych narzędzi.
+
 ## 6.5.16 (2026-09-14)
 
 - ustabilizowano wielokrotny wybór ścian i krawędzi w pełnym teście pulpitu na Windows;

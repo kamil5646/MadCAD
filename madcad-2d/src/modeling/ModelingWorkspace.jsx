@@ -312,15 +312,6 @@ const WORKSPACE_OPTIONS = [
   { id: 'tools', label: 'ZARZĄDZAJ' },
 ];
 
-const DESIGN_TABS = [
-  { id: 'solid', label: 'BRYŁA' },
-  { id: 'surface', label: 'POWIERZCHNIA' },
-  { id: 'mesh', label: 'SIATKA' },
-  { id: 'sheet', label: 'BLACHA' },
-  { id: 'plastic', label: 'TWORZYWA' },
-  { id: 'utilities', label: 'SPRAWDŹ' },
-];
-
 const LANGUAGE_KEY = 'madcad:interface-language';
 
 function readStoredLanguage() {
@@ -607,7 +598,7 @@ export default function ModelingWorkspace() {
   currentPathRef.current = currentPath;
   const [persistenceReady, setPersistenceReady] = useState(() => !window.desktopApp?.autosaveRead);
   const [workspace, setWorkspace] = useState('solid');
-  const [designTab, setDesignTab] = useState('solid');
+  const designTab = 'solid';
   const [activeDrawingSheetId, setActiveDrawingSheetId] = useState(() => document.drawings[0]?.id || null);
   const [selectedDrawingViewId, setSelectedDrawingViewId] = useState(null);
   const [selectedDrawingAnnotationId, setSelectedDrawingAnnotationId] = useState(null);
@@ -6900,7 +6891,6 @@ export default function ModelingWorkspace() {
     setToolHelp(null);
     setBrowserOpen(id !== 'drawing');
     setWorkspace(id);
-    if (id === 'solid') setDesignTab('solid');
     setPrintPanelOpen(false);
     setNotice(id === 'drawing'
         ? 'Arkusz 2D: przygotuj rysunek techniczny do PDF albo DXF.'
@@ -7591,15 +7581,6 @@ export default function ModelingWorkspace() {
               return <button key={item.id} className={selected ? 'active' : ''} type="button" role="tab" aria-selected={selected} tabIndex={selected ? 0 : -1} disabled={Boolean(activeSketchId && item.id !== 'solid')} title={activeSketchId && item.id !== 'solid' ? 'Najpierw zakończ aktywny szkic.' : item.label} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index, WORKSPACE_OPTIONS, switchWorkspace)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>;
             })}
           </nav>
-          <div className="design-tabs" aria-label={language === 'en' ? 'Design tools' : 'Narzędzia projektowania'}>
-            {!activeSketchId && workspace === 'solid' && !startPageVisible && <label className="design-domain-picker" htmlFor="designDomainSelect">
-              <span>{language === 'en' ? 'TOOLS' : 'NARZĘDZIA'}</span>
-              <select id="designDomainSelect" aria-label={language === 'en' ? 'Design tool group' : 'Grupa narzędzi projektowania'} value={designTab} onChange={(event) => setDesignTab(event.target.value)}>
-                {DESIGN_TABS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-              </select>
-            </label>}
-            {activeSketchId && <span className="design-context-label" title={activeSketchIs3D ? 'Aktywny obszar edycji szkicu przestrzennego.' : 'Aktywny obszar edycji szkicu 2D.'}>{activeSketchIs3D ? 'SZKIC 3D' : 'SZKIC'}</span>}
-          </div>
           <ResponsiveRibbon key={licenseInfoOpen ? 'license-open' : 'license-closed'} language={language}>
             {activeSketchId ? (
               <>
@@ -7837,7 +7818,32 @@ export default function ModelingWorkspace() {
                   { icon: CoilCadIcon, label: 'Coil', displayLabel: 'Spirala', onClick: openCoil, disabled: readOnly || Boolean(activeSketchId), disabledReason: 'Zakończ aktywny szkic.' },
                   { icon: Type, label: 'Tekst 3D', onClick: openTextSolid, disabled: readOnly },
                   { icon: HoleCadIcon, label: 'Otwór', onClick: openHole, disabled: readOnly || (!hasHoleReference && !hasFaceEdgeHoleReference) || !engine.bodies.length, disabledReason: 'Zaznacz punkt szkicu albo płaską ścianę i dwie krawędzie odniesienia.' },
-                ]} /></RibbonGroup>
+                ]} />
+                  <ToolMenuButton icon={Shapes} label="Narzędzia zaawansowane" displayLabel="Zaawansowane" description="Powierzchnie, blachy, siatki i elementy z tworzyw — bez przełączania przestrzeni roboczej." items={[
+                    { section: 'Powierzchnie', icon: SurfacePatchCadIcon, label: 'Patch', displayLabel: 'Wypełnij profil', onClick: openSurfacePatch, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
+                    { section: 'Powierzchnie', icon: ExtrudeCadIcon, label: 'Surface Extrude', displayLabel: 'Wyciągnij powierzchnię', onClick: openSurfaceExtrude, disabled: readOnly || (!selectedProfile && !canExtrudeOpenChain), disabledReason: 'Zaznacz profil albo otwarty łańcuch.' },
+                    { section: 'Powierzchnie', icon: RevolveCadIcon, label: 'Surface Revolve', displayLabel: 'Obróć powierzchnię', onClick: openSurfaceRevolve, disabled: readOnly || (!selectedProfile && !canExtrudeOpenChain), disabledReason: 'Zaznacz profil albo otwarty łańcuch.' },
+                    { section: 'Powierzchnie', icon: SweepCadIcon, label: 'Surface Sweep', displayLabel: 'Powierzchnia po ścieżce', onClick: openSurfaceSweep, disabled: readOnly || !selectedProfile || !sweepPathOptions().length, disabledReason: 'Przygotuj profil i osobny szkic ścieżki.' },
+                    { section: 'Powierzchnie', icon: LoftCadIcon, label: 'Surface Loft', displayLabel: 'Powierzchnia przejściowa', onClick: openSurfaceLoft, disabled: readOnly || !selectedProfile || !loftProfileOptions().length, disabledReason: 'Przygotuj co najmniej dwa profile.' },
+                    { section: 'Powierzchnie', icon: Layers3, label: 'Surface Offset', displayLabel: 'Odsuń powierzchnię', onClick: openSurfaceOffset, disabled: readOnly || !selectedSurfaceBody, disabledReason: 'Zaznacz jedną powierzchnię.' },
+                    { section: 'Powierzchnie', icon: Layers3, label: 'Stitch', displayLabel: 'Zszyj powierzchnie', onClick: openSurfaceStitch, disabled: readOnly || !canStitchSelectedSurfaces, disabledReason: 'Zaznacz co najmniej dwie powierzchnie.' },
+                    { section: 'Powierzchnie', icon: Scissors, label: 'Surface Trim', displayLabel: 'Przytnij powierzchnię', onClick: openSurfaceTrim, disabled: readOnly || !canTrimSelectedSurface, disabledReason: 'Zaznacz powierzchnię i bryłę tnącą.' },
+                    { section: 'Powierzchnie', icon: Scissors, label: 'Surface Extend', displayLabel: 'Przedłuż powierzchnię', onClick: openSurfaceExtend, disabled: readOnly || !canExtendSelectedSurface, disabledReason: 'Zaznacz prostą krawędź powierzchni.' },
+                    { section: 'Powierzchnie', icon: ShellCadIcon, label: 'Thicken', displayLabel: 'Pogrub powierzchnię', onClick: openThickenSurface, disabled: readOnly || !selectedSurfaceBody, disabledReason: 'Zaznacz jedną powierzchnię.' },
+                    { section: 'Blacha', icon: SheetMetalCadIcon, label: 'Baza blachowa', onClick: openSheetBase, disabled: readOnly || !selectedProfile || Boolean(activeSketchId), disabledReason: 'Zaznacz zamknięty profil i zakończ szkic.' },
+                    { section: 'Blacha', icon: Layers3, label: 'Kołnierz blachy', onClick: openSheetFlange, disabled: readOnly || !canCreateSheetFlange || Boolean(activeSketchId), disabledReason: 'Zaznacz prostą krawędź istniejącej blachy.' },
+                    { section: 'Blacha', icon: Layers3, label: 'Zawinięcie blachy', onClick: openSheetHem, disabled: readOnly || !canCreateSheetFlange || Boolean(activeSketchId), disabledReason: 'Zaznacz prostą krawędź istniejącej blachy.' },
+                    { section: 'Blacha', icon: Scissors, label: 'Szczelina blachy', onClick: openSheetRip, disabled: readOnly || !canCreateSheetFlange || Boolean(activeSketchId), disabledReason: 'Zaznacz prostą krawędź istniejącej blachy.' },
+                    { section: 'Blacha', icon: Ungroup, label: 'Rozwiń blachę', onClick: () => addSheetStateFeature('sheetUnfold'), disabled: readOnly || !canUnfoldSheet || Boolean(activeSketchId), disabledReason: 'Zaznacz blachę z gięciem.' },
+                    { section: 'Blacha', icon: Layers3, label: 'Zagnij ponownie', onClick: () => addSheetStateFeature('sheetRefold'), disabled: readOnly || !canRefoldSheet || Boolean(activeSketchId), disabledReason: 'Najpierw rozwiń blachę.' },
+                    { section: 'Siatka', icon: ImportMeshCadIcon, label: 'Importuj model', displayLabel: 'Importuj STEP / STL / 3MF', onClick: () => { void requestModelImport(); }, disabled: readOnly || modelImportBusy },
+                    { section: 'Siatka', icon: MeshBodyCadIcon, label: 'Narzędzia siatki', onClick: openMeshTools, disabled: readOnly || !selectedMeshFeature, disabledReason: 'Zaznacz zaimportowaną siatkę STL albo 3MF.' },
+                    { section: 'Siatka', icon: RotateCw, label: 'Przywróć siatkę', onClick: restoreSelectedBrepToMesh, disabled: readOnly || !selectedFacetedBrepFeature, disabledReason: 'Zaznacz model przekonwertowany do fasetowego B-Rep.' },
+                    { section: 'Tworzywa', icon: PlasticFeatureCadIcon, label: 'Boss', onClick: openPlasticBoss, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły.' },
+                    { section: 'Tworzywa', icon: Blocks, label: 'Snap-fit', onClick: openPlasticSnapFit, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły.' },
+                    { section: 'Tworzywa', icon: Grid2X2, label: 'Grille', displayLabel: 'Kratka', onClick: openPlasticGrille, disabled: readOnly || activeSketchId || selectedFaceItems.length !== 1, disabledReason: 'Zaznacz jedną planarną ścianę bryły.' },
+                  ]} />
+                </RibbonGroup>
                 <RibbonGroup label="ZMIEŃ"><ToolButton icon={PressPullCadIcon} label="Press Pull" displayLabel="Naciśnij / wyciągnij" onClick={openPressPull} disabled={readOnly || !canPressPull} disabledReason="Zaznacz zamknięty profil albo płaską ścianę." /><ToolButton icon={FilletCadIcon} label="Zaokrąglij" onClick={() => openEdgeCommand('fillet')} disabled={readOnly || !selectedEdgeItems.length} disabledReason="Zaznacz co najmniej jedną krawędź bryły." />
                   {expandedDesignRibbon && <ToolButton icon={ChamferCadIcon} label="Fazuj" onClick={() => openEdgeCommand('chamfer')} disabled={readOnly || !selectedEdgeItems.length} disabledReason="Zaznacz co najmniej jedną krawędź." />}
                   {expandedDesignRibbon && <ToolButton icon={ShellCadIcon} label="Shell" displayLabel="Powłoka" onClick={openShell} disabled={readOnly || !selectedFaceItems.length} disabledReason="Zaznacz ścianę do usunięcia." />}
