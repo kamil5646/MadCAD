@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.5.21 (2026-09-15)
+
+- test wydania czeka do pięciu minut na dokładny, podwójny sweep i operację boolowską rury po złożonej B-spline na wolniejszym runnerze Windows;
+- geometria Pipe, kontrola drugiej bryły, objętości po ponownym otwarciu i skojarzeń powierzchni pozostają bez zmian i nie są pomijane.
+
 ## 6.5.20 (2026-09-15)
 
 - pełny test dokładnej rury prowadzonej po B-spline uwzględnia wolniejsze obliczenia OpenCascade na runnerze Windows, nadal wymagając gotowej drugiej bryły bez pomijania weryfikacji geometrii;

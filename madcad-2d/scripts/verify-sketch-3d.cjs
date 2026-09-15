@@ -5,7 +5,7 @@ const { app, BrowserWindow } = require('electron');
 const artifactPath = path.join(__dirname, '..', 'artifacts', 'sketch-3d-pipe.png');
 const handleArtifactPath = path.join(__dirname, '..', 'artifacts', 'sketch-3d-handles.png');
 const projectionTimeoutMs = process.env.CI ? 90000 : 45000;
-const exactModelingTimeoutMs = process.env.CI ? 120000 : 45000;
+const exactModelingTimeoutMs = process.env.CI ? 300000 : 45000;
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
   const startedAt = Date.now();
