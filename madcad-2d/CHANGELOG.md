@@ -1,5 +1,9 @@
 # Changelog
 
+## 6.5.18 (2026-09-15)
+
+- ustabilizowano wieloplatformowy test właściwości krawędzi po zamknięciu podglądu operacji; test ponownie wiąże pomiar z aktualną topologią po zakończeniu przebudowy modelu.
+
 ## 6.5.17 (2026-09-15)
 
 - usunięto wybór przestrzeni BRYŁA/POWIERZCHNIA/SIATKA/BLACHA/TWORZYWA/SPRAWDŹ, który dublował główne obszary i wyglądał obco na macOS;

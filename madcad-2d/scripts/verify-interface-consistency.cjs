@@ -446,7 +446,14 @@ app.whenReady().then(async () => {
     const edgeMoreActions = await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-more [role="menuitem"]')].map((button) => button.textContent.trim())`);
     if (!edgeMoreActions.includes('Właściwości')) throw new Error(`Brak właściwości krawędzi w menu kontekstowym: ${JSON.stringify(edgeMoreActions)}`);
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.adaptive-tool-more [role="menuitem"]')].find((button) => button.textContent.trim() === 'Właściwości')?.click()`);
-    await waitFor(window, `document.querySelector('.measure-panel')?.textContent.includes('Właściwości zaznaczenia') && document.querySelector('.measure-panel')?.textContent.includes('Długość')`, 'panel właściwości krawędzi');
+    await waitFor(window, `document.querySelector('.measure-panel')?.textContent.includes('Właściwości zaznaczenia')`, 'otwarcie właściwości krawędzi');
+    await window.webContents.executeJavaScript(`(() => {
+      if (Number.isFinite(window.__madcadVerifyDocumentState?.command?.measurement?.length)) return;
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const edge = body.topology.edges[0];
+      window.__madcadVerifyTopologySelection({ kind: 'edge', id: edge.id, bodyId: body.id }, 'replace');
+    })()`);
+    await waitFor(window, `Number.isFinite(window.__madcadVerifyDocumentState?.command?.measurement?.length) && document.querySelector('.measure-panel')?.textContent.includes('Długość')`, 'wartość długości krawędzi');
     await window.webContents.executeJavaScript(`document.querySelector('.measure-panel [title="Zamknij pomiar"]')?.click()`);
     await waitFor(window, `!document.querySelector('.measure-panel') && document.querySelector('.adaptive-tool-shelf')`, 'zamknięcie właściwości krawędzi');
     await fs.writeFile(edgeContextScreenshotPath, (await window.webContents.capturePage()).toPNG());
