@@ -5,6 +5,7 @@ const { app, BrowserWindow } = require('electron');
 const artifactPath = path.join(__dirname, '..', 'artifacts', 'sketch-3d-pipe.png');
 const handleArtifactPath = path.join(__dirname, '..', 'artifacts', 'sketch-3d-handles.png');
 const projectionTimeoutMs = process.env.CI ? 90000 : 45000;
+const exactModelingTimeoutMs = process.env.CI ? 120000 : 45000;
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
   const startedAt = Date.now();
@@ -367,12 +368,12 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'pipe'`, 'Pipe po B-spline');
     await setField(window, 'Średnica zewnętrzna', '1');
     await setField(window, 'Grubość ścianki', '0.2');
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'dokładny Pipe po B-spline', 45000);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'dokładny Pipe po B-spline', exactModelingTimeoutMs);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
     await waitFor(window, `!window.__madcadVerifyDocumentState?.command && window.__madcadVerifyDocumentState?.featureData?.length === 2 && window.__madcadVerifyEngineState?.status === 'ready'`, 'zapis Pipe po B-spline');
     const splinePipeVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[1].metrics.volume`);
     await window.webContents.executeJavaScript(`window.__madcadVerifyReopenCurrentDocument()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'ponowne otwarcie B-spline Pipe', 45000);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'ponowne otwarcie B-spline Pipe', exactModelingTimeoutMs);
     const reopenedSplineVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[1].metrics.volume`);
     if (!(splinePipeVolume > 0) || Math.abs(reopenedSplineVolume - splinePipeVolume) > 0.001) throw new Error('Pipe po B-spline zmienił się po otwarciu.');
     const reopenedSurfaceFaceIds = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[2].entityData.find((entity) => entity.type === 'bspline3d').surfaceFaceIds`);

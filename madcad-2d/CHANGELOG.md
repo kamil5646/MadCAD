@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.5.20 (2026-09-15)
+
+- pełny test dokładnej rury prowadzonej po B-spline uwzględnia wolniejsze obliczenia OpenCascade na runnerze Windows, nadal wymagając gotowej drugiej bryły bez pomijania weryfikacji geometrii;
+- ponowne otwarcie projektu z taką rurą korzysta z tego samego wieloplatformowego limitu i wciąż sprawdza objętość oraz zachowanie skojarzeń powierzchni.
+
 ## 6.5.19 (2026-09-15)
 
 - panel druku 3D ma teraz jednoznaczne wymiary kontenera i nie może wystawać poza pole robocze w kompaktowym oknie ani przy skalowaniu HiDPI;
