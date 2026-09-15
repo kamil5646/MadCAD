@@ -4,7 +4,7 @@ const { app, BrowserWindow } = require('electron');
 
 const artifactPath = path.join(__dirname, '..', 'artifacts', 'sketch-3d-pipe.png');
 const handleArtifactPath = path.join(__dirname, '..', 'artifacts', 'sketch-3d-handles.png');
-const projectionTimeoutMs = process.env.CI ? 90000 : 45000;
+const projectionTimeoutMs = process.env.CI ? 300000 : 45000;
 const exactModelingTimeoutMs = process.env.CI ? 300000 : 45000;
 
 async function waitFor(window, expression, label, timeoutMs = 30000) {
@@ -249,14 +249,14 @@ app.whenReady().then(async () => {
 
     console.log('Etap: Pipe');
     await clickTool(window, 'Rura');
-    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'pipe' && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'podgląd Pipe po ścieżce 3D', 45000);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'pipe' && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'podgląd Pipe po ścieżce 3D', exactModelingTimeoutMs);
     await setField(window, 'Średnica zewnętrzna', '6');
     await setField(window, 'Grubość ścianki', '1');
     const parameterRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${parameterRevision} && window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume > 0`, 'przeliczony Pipe 3D', 45000);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${parameterRevision} && window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume > 0`, 'przeliczony Pipe 3D', exactModelingTimeoutMs);
     const previewRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'pipe' && !window.__madcadVerifyDocumentState?.command && !document.querySelector('.command-dialog') && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${previewRevision}`, 'zapisany Pipe 3D', 45000);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'pipe' && !window.__madcadVerifyDocumentState?.command && !document.querySelector('.command-dialog') && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${previewRevision}`, 'zapisany Pipe 3D', exactModelingTimeoutMs);
 
     await fs.mkdir(path.dirname(artifactPath), { recursive: true });
     await fs.writeFile(artifactPath, (await window.webContents.capturePage()).toPNG());
@@ -293,7 +293,7 @@ app.whenReady().then(async () => {
     if (beforeReopen.representation !== 'brep' || beforeReopen.pathSpace !== '3d' || beforeReopen.pathEntityIds.length !== 4 || beforeReopen.volume <= 0) throw new Error(`Błędny Pipe 3D: ${JSON.stringify(beforeReopen)}`);
 
     await window.webContents.executeJavaScript(`window.__madcadVerifyReopenCurrentDocument()`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.space === '3d' && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'pipe' && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'Pipe 3D po ponownym otwarciu', 45000);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.space === '3d' && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'pipe' && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'Pipe 3D po ponownym otwarciu', exactModelingTimeoutMs);
     const afterReopen = await window.webContents.executeJavaScript(`({ volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume, dimensions: window.__madcadVerifyEngineState.bodies[0].metrics.dimensions })`);
     if (Math.abs(afterReopen.volume - beforeReopen.volume) > 0.001 || JSON.stringify(afterReopen.dimensions) !== JSON.stringify(beforeReopen.dimensions)) throw new Error(`Pipe 3D zmienił się po otwarciu: ${JSON.stringify({ beforeReopen, afterReopen })}`);
 
@@ -359,7 +359,7 @@ app.whenReady().then(async () => {
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'projectSketch' && window.__madcadVerifyDocumentState?.selection?.id === ${JSON.stringify(bsplineSource.edgeId)}`, 'zapisany wybór skojarzonej B-spline', projectionTimeoutMs);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[2]?.entityData?.some((entity) => entity.type === 'bspline3d')`, 'skojarzona B-spline', 90000);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[2]?.entityData?.some((entity) => entity.type === 'bspline3d')`, 'skojarzona B-spline', projectionTimeoutMs);
     const projectedSpline = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[2].entityData.find((entity) => entity.type === 'bspline3d')`);
     if (JSON.stringify(projectedSpline.geometry.bspline) !== JSON.stringify(bsplineSource.bspline)) throw new Error('Projekcja zmieniła dokładne dane B-spline.');
     if (!bsplineSource.surfaceFaceIds?.length || JSON.stringify(projectedSpline.surfaceFaceIds) !== JSON.stringify(bsplineSource.surfaceFaceIds)) throw new Error('Projekcja nie zachowała powierzchni prowadzących B-spline.');
@@ -409,13 +409,13 @@ app.whenReady().then(async () => {
     })()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'projectSurface' && window.__madcadVerifyDocumentState?.selection?.id === ${JSON.stringify(surfaceCommandFace)}`, 'zapisany wybór ściany Project to Surface', projectionTimeoutMs);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sketch3d' && window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.some((entity) => entity.type === 'bspline3d' && entity.surfaceProjection)`, 'wynik polecenia Project to Surface', 45000);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'sketch3d' && window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.some((entity) => entity.type === 'bspline3d' && entity.surfaceProjection)`, 'wynik polecenia Project to Surface', projectionTimeoutMs);
     const surfaceCommandResult = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[3].entityData.find((entity) => entity.type === 'bspline3d')`);
     if (JSON.stringify(surfaceCommandResult.surfaceFaceIds) !== JSON.stringify([surfaceCommandFace]) || JSON.stringify(surfaceCommandResult.surfaceProjection.sourceEntityIds) !== JSON.stringify([surfaceCommandSource.id])) throw new Error('Polecenie Project to Surface nie zachowało pełnego skojarzenia.');
     const initialSurfaceSamples = JSON.stringify(surfaceCommandResult.geometry.samples);
     const projectionRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
     await window.webContents.executeJavaScript(`window.__madcadVerifyMoveSketch3DHandle({ curveId: ${JSON.stringify(surfaceCommandSource.id)}, kind: 'end', pointId: ${JSON.stringify(surfaceCommandSource.endPointId)}, coordinates: [16, 11, 8], handleLength: null })`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${projectionRevision} && JSON.stringify(window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.find((entity) => entity.id === ${JSON.stringify(surfaceCommandResult.id)})?.geometry?.samples) !== ${JSON.stringify(initialSurfaceSamples)}`, 'automatyczna przebudowa Project to Surface', 45000);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${projectionRevision} && JSON.stringify(window.__madcadVerifyDocumentState?.sketches?.[3]?.entityData?.find((entity) => entity.id === ${JSON.stringify(surfaceCommandResult.id)})?.geometry?.samples) !== ${JSON.stringify(initialSurfaceSamples)}`, 'automatyczna przebudowa Project to Surface', projectionTimeoutMs);
     const rebuiltSurfaceCommand = await window.webContents.executeJavaScript(`(() => {
       const sketch = window.__madcadVerifyDocumentState.sketches[3];
       const source = sketch.entityData.find((entity) => entity.id === ${JSON.stringify(surfaceCommandSource.id)});
@@ -431,14 +431,14 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'pipe'`, 'Pipe po Project to Surface');
     await setField(window, 'Średnica zewnętrzna', '0.8');
     await setField(window, 'Grubość ścianki', '0.15');
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 3`, 'podgląd Pipe po Project to Surface', 45000);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 3`, 'podgląd Pipe po Project to Surface', exactModelingTimeoutMs);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog button.confirm')?.click()`);
-    await waitFor(window, `!window.__madcadVerifyDocumentState?.command && window.__madcadVerifyDocumentState?.featureData?.length === 3 && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 3`, 'zapis Pipe po Project to Surface', 45000);
+    await waitFor(window, `!window.__madcadVerifyDocumentState?.command && window.__madcadVerifyDocumentState?.featureData?.length === 3 && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 3`, 'zapis Pipe po Project to Surface', exactModelingTimeoutMs);
     const surfacePipeBefore = await window.webContents.executeJavaScript(`({ revision: window.__madcadVerifyEngineState.revision, volume: window.__madcadVerifyEngineState.bodies[2].metrics.volume, samples: JSON.stringify(window.__madcadVerifyDocumentState.sketches[3].entityData.find((entity) => entity.id === ${JSON.stringify(surfaceCommandResult.id)}).geometry.samples) })`);
     await window.webContents.executeJavaScript(`window.__madcadVerifyEditSketch(${JSON.stringify(surfaceCommandResult.surfaceProjection.sourceSketchId)})`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.activeSketchId === ${JSON.stringify(surfaceCommandResult.surfaceProjection.sourceSketchId)} && window.__madcadVerifyDocumentState?.command?.type === 'sketch3d'`, 'ponowna edycja źródłowego szkicu 3D');
     await window.webContents.executeJavaScript(`window.__madcadVerifyMoveSketch3DHandle({ curveId: ${JSON.stringify(surfaceCommandSource.id)}, kind: 'end', pointId: ${JSON.stringify(surfaceCommandSource.endPointId)}, coordinates: [18, 13, 9], handleLength: null })`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${surfacePipeBefore.revision} && window.__madcadVerifyEngineState?.bodies?.length === 3 && JSON.stringify(window.__madcadVerifyDocumentState.sketches[3].entityData.find((entity) => entity.id === ${JSON.stringify(surfaceCommandResult.id)}).geometry.samples) !== ${JSON.stringify(surfacePipeBefore.samples)} && Math.abs(window.__madcadVerifyEngineState.bodies[2].metrics.volume - ${surfacePipeBefore.volume}) > 0.0001`, 'automatyczna przebudowa zależnego Pipe', 45000);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${surfacePipeBefore.revision} && window.__madcadVerifyEngineState?.bodies?.length === 3 && JSON.stringify(window.__madcadVerifyDocumentState.sketches[3].entityData.find((entity) => entity.id === ${JSON.stringify(surfaceCommandResult.id)}).geometry.samples) !== ${JSON.stringify(surfacePipeBefore.samples)} && Math.abs(window.__madcadVerifyEngineState.bodies[2].metrics.volume - ${surfacePipeBefore.volume}) > 0.0001`, 'automatyczna przebudowa zależnego Pipe', exactModelingTimeoutMs);
     const dependentSurfacePipe = await window.webContents.executeJavaScript(`({ volumeBefore: ${surfacePipeBefore.volume}, volumeAfter: window.__madcadVerifyEngineState.bodies[2].metrics.volume, timelineStatus: window.__madcadVerifyEngineState.timeline.at(-1).status })`);
     if (dependentSurfacePipe.timelineStatus !== 'ok' || !(dependentSurfacePipe.volumeAfter > 0)) throw new Error(`Zależny Pipe po Project to Surface nie został poprawnie przebudowany: ${JSON.stringify(dependentSurfacePipe)}`);
     console.log(JSON.stringify({ ok: true, splinePipeVolume, sketchSegments: 4, curveTypes, splineContinuity, editedSpline, curvedTopologyAudit, associatedPath, surfaceCommand: { sourceEntityId: surfaceCommandSource.id, faceId: surfaceCommandFace, resultEntityId: surfaceCommandResult.id, rebuilt: rebuiltSurfaceCommand, dependentPipe: dependentSurfacePipe }, undoVerified: true, escapeVerified: true, points, pipe: afterReopen, screenshots: { handles: handleArtifactPath, pipe: artifactPath } }, null, 2));

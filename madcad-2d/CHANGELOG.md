@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.5.22 (2026-09-15)
+
+- ujednolicono wieloplatformowy limit pełnego scenariusza przestrzennego: Pipe, ponowne otwarcie, Project to Surface i zależna przebudowa czekają na rzeczywisty wynik kernela na Windows;
+- każda faza nadal sprawdza gotowy model, liczbę brył, zmianę geometrii, objętość i zachowanie skojarzeń, zamiast zaliczać samo rozpoczęcie polecenia.
+
 ## 6.5.21 (2026-09-15)
 
 - test wydania czeka do pięciu minut na dokładny, podwójny sweep i operację boolowską rury po złożonej B-spline na wolniejszym runnerze Windows;
