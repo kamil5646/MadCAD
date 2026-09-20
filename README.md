@@ -17,6 +17,9 @@ modelowaniem bryłowym. Przygotowanie plików do druku 3D jest opcjonalnym dodat
 **[Licencja](./LICENSE)** ·
 **[Zmiany](./madcad-2d/CHANGELOG.md)**
 
+Aktualny audyt techniczny i plan stabilizacji: [AUDIT-2026-09-20.md](./AUDIT-2026-09-20.md).
+Skrócony playbook dla dalszych prac: [AGENTS.md](./AGENTS.md).
+
 > **Uwaga o wydaniu 6.5.22:** paczki są publikowane bez podpisu producenta,
 > dlatego Windows SmartScreen lub macOS Gatekeeper mogą wyświetlić ostrzeżenie.
 > Pobieraj je wyłącznie z oficjalnego GitHub Release i sprawdź sumę SHA-256.
