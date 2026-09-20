@@ -28,6 +28,24 @@ async function clickWhenEnabled(window, selector, label, timeoutMs = 30000) {
   throw new Error(`Przekroczono czas oczekiwania: ${label}`);
 }
 
+async function invokeVerificationHook(window, hookName, label, timeoutMs = 30000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const result = await window.webContents.executeJavaScript(`(() => {
+        const hook = window[${JSON.stringify(hookName)}];
+        if (typeof hook !== 'function') return { available: false };
+        return { available: true, value: hook() };
+      })()`);
+      if (result?.available) return result.value;
+    } catch (error) {
+      throw new Error(`${label}: ${error.message || error}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`Przekroczono czas oczekiwania: ${label}`);
+}
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({
     width: 1440,
@@ -42,10 +60,9 @@ app.whenReady().then(async () => {
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
     await waitFor(window, `document.querySelector('.modeling-shell')`, 'interfejs aplikacji');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
-    await waitFor(window, `typeof window.__madcadVerifyLoadTimelineFixture === 'function'`, 'fixture modelu');
-    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTimelineFixture()`);
+    await invokeVerificationHook(window, '__madcadVerifyLoadTimelineFixture', 'uruchomienie fixture modelu');
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length >= 1`, 'przeliczony model');
-    const referenceId = await window.webContents.executeJavaScript(`window.__madcadVerifyCreateLostTopologyReference()`);
+    const referenceId = await invokeVerificationHook(window, '__madcadVerifyCreateLostTopologyReference', 'utworzenie kontrolowanej utraconej referencji');
     await waitFor(window, `document.querySelector('.reference-repair-panel.collapsed')`, 'kompaktowy kreator naprawy');
     await clickWhenEnabled(window, '.reference-repair-toggle', 'rozwinięcie kreatora naprawy');
     await waitFor(window, `document.querySelector('.reference-repair-panel:not(.collapsed) .reference-candidate')`, 'rozwinięty kreator z kandydatem');
