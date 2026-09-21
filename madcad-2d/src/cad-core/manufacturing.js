@@ -1248,6 +1248,70 @@ export function analyzeToolpathSafety(toolpath) {
 const HOLE_STAGE_LABELS = Object.freeze({ spot: 'nawiertanie', drill: 'wiercenie', counterbore: 'pogłębianie walcowe', tap: 'gwintowanie' });
 const HOLE_STAGE_ORDER = Object.freeze({ spot: 10, drill: 20, counterbore: 30, tap: 40 });
 
+const countToolChanges = (operations) => operations.reduce((result, operation) => {
+  if (!operation.toolId) return result;
+  return { lastToolId: operation.toolId, count: result.lastToolId && result.lastToolId !== operation.toolId ? result.count + 1 : result.count };
+}, { lastToolId: '', count: 0 }).count;
+
+export function optimizeManufacturingOperationOrder(setup, body = null) {
+  const normalized = normalizeManufacturingSetup(setup);
+  const operations = normalized.operations;
+  if (operations.length < 2) return { operations, changed: false, toolChangesBefore: 0, toolChangesAfter: 0, warnings: [] };
+  const edges = operations.map(() => new Set());
+  const indegree = operations.map(() => 0);
+  const addEdge = (from, to) => {
+    if (from === to || edges[from].has(to)) return;
+    edges[from].add(to);
+    indegree[to] += 1;
+  };
+  const knownFeatureIds = new Set((body?.manufacturingHoles || []).map((hole) => hole.featureId).filter(Boolean));
+  const selectedIds = (operation) => new Set((operation.holeFeatureIds || []).filter((id) => !knownFeatureIds.size || knownFeatureIds.has(id)));
+  const overlaps = (first, second) => {
+    const firstIds = selectedIds(first);
+    const secondIds = selectedIds(second);
+    return !firstIds.size || !secondIds.size || [...firstIds].some((id) => secondIds.has(id));
+  };
+  for (let first = 0; first < operations.length; first += 1) {
+    for (let second = first + 1; second < operations.length; second += 1) {
+      const firstOperation = operations[first];
+      const secondOperation = operations[second];
+      if (firstOperation.type === 'face' && secondOperation.type !== 'face') addEdge(first, second);
+      else if (secondOperation.type === 'face' && firstOperation.type !== 'face') addEdge(second, first);
+      if (firstOperation.type === 'contour' && secondOperation.type !== 'contour') addEdge(second, first);
+      else if (secondOperation.type === 'contour' && firstOperation.type !== 'contour') addEdge(first, second);
+      const firstStage = HOLE_STAGE_ORDER[firstOperation.type];
+      const secondStage = HOLE_STAGE_ORDER[secondOperation.type];
+      if (firstStage && secondStage && firstStage !== secondStage && overlaps(firstOperation, secondOperation)) addEdge(firstStage < secondStage ? first : second, firstStage < secondStage ? second : first);
+    }
+  }
+  const typePriority = { face: 0, adaptive: 10, pocket: 10, spot: 20, drill: 30, counterbore: 40, tap: 50, contour: 100 };
+  const remaining = new Set(operations.map((_operation, index) => index));
+  const orderedIndices = [];
+  let lastToolId = '';
+  while (remaining.size) {
+    const ready = [...remaining].filter((index) => indegree[index] === 0);
+    if (!ready.length) return { operations, changed: false, toolChangesBefore: countToolChanges(operations), toolChangesAfter: countToolChanges(operations), warnings: ['Nie można uporządkować operacji z powodu cyklu zależności.'] };
+    ready.sort((first, second) => {
+      const firstSameTool = lastToolId && operations[first].toolId === lastToolId ? 0 : 1;
+      const secondSameTool = lastToolId && operations[second].toolId === lastToolId ? 0 : 1;
+      return firstSameTool - secondSameTool || (typePriority[operations[first].type] ?? 60) - (typePriority[operations[second].type] ?? 60) || first - second;
+    });
+    const selected = ready[0];
+    remaining.delete(selected);
+    orderedIndices.push(selected);
+    lastToolId = operations[selected].toolId || lastToolId;
+    for (const target of edges[selected]) indegree[target] -= 1;
+  }
+  const ordered = orderedIndices.map((index) => operations[index]);
+  return {
+    operations: ordered,
+    changed: ordered.some((operation, index) => operation.id !== operations[index].id),
+    toolChangesBefore: countToolChanges(operations),
+    toolChangesAfter: countToolChanges(ordered),
+    warnings: [],
+  };
+}
+
 export function analyzeHoleMachiningCompleteness(setup, body, operationReports = []) {
   const holes = body?.manufacturingHoles || [];
   const validOperationIds = new Set(operationReports.filter((operation) => operation.valid).map((operation) => operation.id));

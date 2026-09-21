@@ -141,6 +141,8 @@ app.whenReady().then(async () => {
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 5 && document.querySelectorAll('.manufacturing-toolpath-summary.valid').length === 5`, 'Pocket 2D z profilu szkicu');
     const profileState = await window.webContents.executeJavaScript(`(() => { const operation = JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.at(-1); return { type: operation.type, sketchId: operation.boundarySketchId, profileId: operation.boundaryProfileId, label: [...document.querySelectorAll('.manufacturing-boundary small')].at(-1)?.textContent }; })()`);
     if (profileState.type !== 'pocket' || profileState.sketchId !== selectedProfile.sketchId || profileState.profileId !== selectedProfile.profileId || !profileState.label?.includes('profil szkicu')) throw new Error(`Profil szkicu nie został powiązany z CAM: ${JSON.stringify(profileState)}`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('button')].find((button) => button.textContent.includes('Uporządkuj operacje')).click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.map((operation) => operation.type).join(',') === 'face,pocket,adaptive,pocket,drill'`, 'automatyczna kolejność operacji CAM i ograniczenie zmian narzędzia');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-page-tabs button')].find((button) => button.textContent.includes('Kontrola')).click()`);
     await waitFor(window, `document.querySelector('.manufacturing-program-report > header.valid') && [...document.querySelectorAll('.manufacturing-report-operations')].at(-1)?.querySelectorAll(':scope > div.valid').length === 5`, 'raport bezpieczeństwa, kompletności i czasu CAM');
     const reportState = await window.webContents.executeJavaScript(`(() => ({ text: document.querySelector('.manufacturing-program-report').textContent, overflow: document.documentElement.scrollWidth > innerWidth }))()`);
@@ -158,6 +160,8 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-page-tabs button')].find((button) => button.textContent.includes('Operacje')).click()`);
     await window.webContents.executeJavaScript(`document.querySelector('.manufacturing-panel').scrollTop = document.querySelector('.manufacturing-panel').scrollHeight`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 5 && JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations[3].type === 'drill'`, 'Cofnij optymalizację kolejności CAM');
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 4`, 'Cofnij operację profilu CAM');
     process.stdout.write(`${JSON.stringify({ screenshotPath, reportScreenshotPath, gcodeScreenshotPath, gcodePath, gcodeBytes: Buffer.byteLength(gcode), profileBoundary: profileState, simulation: simulationState, reportVerified: true, ...state }, null, 2)}\n`);
