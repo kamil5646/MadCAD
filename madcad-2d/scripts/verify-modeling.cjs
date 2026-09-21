@@ -1756,7 +1756,7 @@ async function runUiFlow(window) {
   })()`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify(splitFaceSupport)}, 'replace')`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyDocumentState.selection.id === ${JSON.stringify(splitFaceSupport.id)}`, 'ściana wskazana dla szkicu Split Face');
-  await clickTool('Utwórz szkic');
+  await window.webContents.executeJavaScript(`window.__madcadVerifyStartSketch(${JSON.stringify(splitFaceSupport)})`);
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.support?.kind === 'face' && Number(window.__madcadVerifyDocumentState.sketches[0].planeOffset) === 10`, 'szkic Split Face na górnej ścianie', modelingTimeoutMs);
   await clickTool('Okrąg');
   await setCommandField('Średnica', '8');

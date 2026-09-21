@@ -2854,10 +2854,11 @@ export default function ModelingWorkspace() {
     });
   };
 
-  const startSketch = () => {
+  const startSketch = (requestedSelection = selection) => {
     if (readOnly) return readOnlyNotice();
-    if (selection?.kind === 'constructionPlane') {
-      const supportPlane = constructionPlanes.find((plane) => plane.id === selection.id);
+    const sketchSelection = requestedSelection?.kind ? requestedSelection : selection;
+    if (sketchSelection?.kind === 'constructionPlane') {
+      const supportPlane = constructionPlanes.find((plane) => plane.id === sketchSelection.id);
       if (!supportPlane || supportPlane.status !== 'ok') {
         setNotice('Wybrana płaszczyzna konstrukcyjna ma błąd i nie może być podporą szkicu.');
         return;
@@ -2882,7 +2883,7 @@ export default function ModelingWorkspace() {
       setNotice(`Edytujesz ${sketch.name} na płaszczyźnie ${supportPlane.name}.`);
       return;
     }
-    const selectedFace = (selection?.items || (selection?.kind === 'face' ? [selection] : [])).find((item) => item.kind === 'face');
+    const selectedFace = (sketchSelection?.items || (sketchSelection?.kind === 'face' ? [sketchSelection] : [])).find((item) => item.kind === 'face');
     if (selectedFace) {
       const body = engine.bodies.find((candidate) => candidate.id === selectedFace.bodyId);
       const face = body?.topology?.faces?.find((candidate) => candidate.id === selectedFace.id);
@@ -4044,6 +4045,7 @@ export default function ModelingWorkspace() {
     window.__madcadVerifyFinishCanvasSketchTool = finishCanvasSketchTool;
     window.__madcadVerifySketchSelection = handleSketchSelection;
     window.__madcadVerifyTopologySelection = handleTopologySelection;
+    window.__madcadVerifyStartSketch = startSketch;
     window.__madcadVerifyOpenProjectToSurface = openProjectToSurface;
     window.__madcadVerifyProfileSelection = (sketchId, profileId) => setSelection({ kind: 'profile', id: profileId, sketchId });
     window.__madcadVerifyCreateLostTopologyReference = () => {
@@ -4566,6 +4568,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyFinishCanvasSketchTool;
       delete window.__madcadVerifySketchSelection;
       delete window.__madcadVerifyTopologySelection;
+      delete window.__madcadVerifyStartSketch;
       delete window.__madcadVerifyOpenProjectToSurface;
       delete window.__madcadVerifyProfileSelection;
       delete window.__madcadVerifyCreateLostTopologyReference;
