@@ -270,7 +270,7 @@ Te prace nie czekają na koniec modelowania:
 
 - [x] P5.1 Wiercenie 3-osiowe rozpoznanych otworów modelu: pozycje i osie z kernela, obsługa szyków, wiertła kręte, grupy cech, pełne wycofanie między skokami, przebicie otworów przelotowych, kontrola długości rowków i średnicy, symulacja oraz przenośny G-code. Odrzucenie osi innych niż Z, Undo/Redo, zapis/otwarcie i desktop E2E są zweryfikowane; kontrakt opisuje `docs/CAM_DRILLING.md`.
 - [x] P5.2 Projektowa biblioteka własnych narzędzi i cykli otworowych: zapisywane w projekcie edytowalne wiertła, nawiertaki i gwintowniki, bezpieczne referencje i dobór po średnicy, wiercenie zwykłe/peck/dwell, jawny fallback GRBL oraz G81/G82/G83 dla LinuxCNC i Mach3. Dedykowane gwintowanie sprawdza otwór pilotowy, wylicza posuw jako obroty × skok, generuje synchronizowane G84/G80 i blokuje sterowniki bez obsługi sztywnego gwintowania.
-- [>] P5.3 Rozszerzone strategie otworowe: nawiertanie/pogłębianie stożkowe wylicza głębokość z geometrii ostrza, a pogłębianie walcowe tworzy bezpieczne warstwy i koncentryczne przejścia płaskim frezem mieszczącym się w otworze pilotowym. Obie operacje korzystają ze wspólnych grup otworów, jawnego G-code, kontroli narzędzia i symulacji. Pozostają automatyczna kolejność wielu narzędzi i raport kompletności obróbki otworów.
+- [>] P5.3 Rozszerzone strategie otworowe: nawiertanie/pogłębianie stożkowe wylicza głębokość z geometrii ostrza, a pogłębianie walcowe tworzy bezpieczne warstwy i koncentryczne przejścia płaskim frezem mieszczącym się w otworze pilotowym. Raport kompletności wyprowadza wymagane etapy z semantyki modelu, liczy wystąpienia oraz blokuje braki i nieprawidłową kolejność wielu narzędzi. Pozostaje opcjonalne automatyczne porządkowanie operacji.
 
 ## Definition of Done
 

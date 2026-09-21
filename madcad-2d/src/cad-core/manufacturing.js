@@ -1245,6 +1245,54 @@ export function analyzeToolpathSafety(toolpath) {
   return issues;
 }
 
+const HOLE_STAGE_LABELS = Object.freeze({ spot: 'nawiertanie', drill: 'wiercenie', counterbore: 'pogłębianie walcowe', tap: 'gwintowanie' });
+const HOLE_STAGE_ORDER = Object.freeze({ spot: 10, drill: 20, counterbore: 30, tap: 40 });
+
+export function analyzeHoleMachiningCompleteness(setup, body, operationReports = []) {
+  const holes = body?.manufacturingHoles || [];
+  const validOperationIds = new Set(operationReports.filter((operation) => operation.valid).map((operation) => operation.id));
+  const operations = normalizeManufacturingSetup(setup).operations;
+  const entries = holes.map((hole, holeIndex) => {
+    const featureId = hole.featureId || `hole-${holeIndex + 1}`;
+    const requiredStages = ['drill'];
+    if (hole.holeType === 'countersink') requiredStages.unshift('spot');
+    if (hole.holeType === 'counterbore') requiredStages.push('counterbore');
+    if (hole.threadDesignation || ['tapped', 'npt-tapped', 'bspt-tapped'].includes(hole.holeApplication)) requiredStages.push('tap');
+    const relevantOperations = operations
+      .map((operation, index) => ({ operation, index }))
+      .filter(({ operation }) => HOLE_STAGE_ORDER[operation.type] && (!operation.holeFeatureIds.length || operation.holeFeatureIds.includes(featureId)) && validOperationIds.has(operation.id));
+    const plannedStages = [...new Set(relevantOperations.map(({ operation }) => operation.type))];
+    const missingStages = requiredStages.filter((stage) => !plannedStages.includes(stage));
+    const requiredOperations = relevantOperations.filter(({ operation }) => requiredStages.includes(operation.type));
+    const orderingIssues = [];
+    for (let index = 1; index < requiredOperations.length; index += 1) {
+      const previous = requiredOperations[index - 1];
+      const current = requiredOperations[index];
+      if (HOLE_STAGE_ORDER[current.operation.type] < HOLE_STAGE_ORDER[previous.operation.type]) orderingIssues.push(`${HOLE_STAGE_LABELS[current.operation.type]} powinno poprzedzać ${HOLE_STAGE_LABELS[previous.operation.type]}`);
+    }
+    return {
+      featureId,
+      diameter: Number(hole.diameter) || 0,
+      quantity: Number(hole.quantity) || hole.instances?.length || 1,
+      requiredStages,
+      plannedStages,
+      missingStages,
+      orderingIssues,
+      complete: missingStages.length === 0 && orderingIssues.length === 0,
+    };
+  });
+  const totalHoleCount = entries.reduce((sum, entry) => sum + entry.quantity, 0);
+  const completeHoleCount = entries.filter((entry) => entry.complete).reduce((sum, entry) => sum + entry.quantity, 0);
+  return {
+    complete: entries.every((entry) => entry.complete),
+    groupCount: entries.length,
+    completeGroupCount: entries.filter((entry) => entry.complete).length,
+    totalHoleCount,
+    completeHoleCount,
+    entries,
+  };
+}
+
 export function analyzeManufacturingProgram(setup, bodies = [], document = null) {
   const normalized = normalizeManufacturingSetup(setup);
   const operations = normalized.operations.map((operation) => {
@@ -1263,10 +1311,11 @@ export function analyzeManufacturingProgram(setup, bodies = [], document = null)
     };
   });
   const setupResult = calculateManufacturingSetup(normalized, bodies);
+  const holeCompleteness = analyzeHoleMachiningCompleteness(normalized, setupResult.body, operations);
   const stockVolume = setupResult.dimensions?.reduce((volume, dimension) => volume * dimension, 1) || 0;
   const estimatedRemovedVolume = operations.reduce((sum, operation) => sum + operation.estimatedRemovedVolume, 0);
   return {
-    valid: setupResult.valid && operations.length > 0 && operations.every((operation) => operation.valid),
+    valid: setupResult.valid && operations.length > 0 && operations.every((operation) => operation.valid) && holeCompleteness.complete,
     setupIssues: setupResult.warnings,
     operations,
     segmentCount: operations.reduce((sum, operation) => sum + operation.segmentCount, 0),
@@ -1275,6 +1324,7 @@ export function analyzeManufacturingProgram(setup, bodies = [], document = null)
     stockVolume,
     estimatedRemovedVolume,
     estimatedRemovalPercent: stockVolume ? Math.min(100, estimatedRemovedVolume / stockVolume * 100) : 0,
+    holeCompleteness,
   };
 }
 

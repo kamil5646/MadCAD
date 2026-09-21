@@ -1828,6 +1828,8 @@ const ENGLISH_TEXT = Object.freeze({
   'Zapisz plik': 'Save file',
   'Program gotowy do symulacji': 'Program ready for simulation',
   'Program wymaga poprawy': 'Program needs attention',
+  'Kompletność obróbki otworów': 'Hole machining completeness',
+  'Nie wykryto kolizji, niebezpiecznych przejazdów ani braków obróbki otworów.': 'No collisions, unsafe moves, or missing hole machining stages detected.',
   'Szacowany czas': 'Estimated time',
   'Długość skrawania': 'Cutting distance',
   'Usuwany materiał': 'Removed material',
