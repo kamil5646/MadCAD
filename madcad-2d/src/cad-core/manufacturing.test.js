@@ -10,6 +10,7 @@ import {
   calculatePocketToolpath,
   calculateTurningToolpath,
   analyzeManufacturingProgram,
+  analyzeHoleMachiningCompleteness,
   analyzeToolpathSafety,
   createContourOperation,
   createCounterboreOperation,
@@ -195,6 +196,26 @@ describe('CAM contour operations', () => {
     expect(validateManufacturing({ setups: [setup], activeSetupId: setup.id, tools: [] })).toEqual([]);
     expect(calculateCounterboreToolpath(setup, { ...operation, toolId: 'flat-3', targetDiameter: 3 }, [counterboreBody]).warnings.join(' ')).toContain('większa niż frez');
     expect(calculateCounterboreToolpath(setup, { ...operation, targetDepth: 11 }, [counterboreBody]).warnings.join(' ')).toContain('przekracza głębokość otworu');
+  });
+
+  it('reports missing and incorrectly ordered hole machining stages', () => {
+    const counterboreBody = { ...drilledBox, manufacturingHoles: drilledBox.manufacturingHoles.map((hole) => ({ ...hole, diameter: 8, holeType: 'counterbore' })) };
+    const setup = createManufacturingSetup({ bodyId: counterboreBody.id });
+    const drill = createDrillingOperation({ toolId: 'drill-8' });
+    const counterbore = createCounterboreOperation({ toolId: 'flat-6', targetDiameter: 14, targetDepth: 2 });
+    setup.operations.push(counterbore, drill);
+    const wrongOrder = analyzeManufacturingProgram(setup, [counterboreBody]);
+    expect(wrongOrder.valid).toBe(false);
+    expect(wrongOrder.holeCompleteness.entries[0].missingStages).toEqual([]);
+    expect(wrongOrder.holeCompleteness.entries[0].orderingIssues.join(' ')).toContain('wiercenie powinno poprzedzać pogłębianie');
+    setup.operations = [drill];
+    const missing = analyzeManufacturingProgram(setup, [counterboreBody]);
+    expect(missing.holeCompleteness.entries[0].missingStages).toEqual(['counterbore']);
+    setup.operations = [drill, counterbore];
+    const complete = analyzeManufacturingProgram(setup, [counterboreBody]);
+    expect(complete.valid).toBe(true);
+    expect(complete.holeCompleteness).toMatchObject({ complete: true, groupCount: 1, completeGroupCount: 1, totalHoleCount: 2, completeHoleCount: 2 });
+    expect(analyzeHoleMachiningCompleteness(setup, counterboreBody, complete.operations).entries[0].plannedStages).toEqual(['drill', 'counterbore']);
   });
 
   it('rejects oversized drills and non-Z hole axes instead of exporting unsafe paths', () => {

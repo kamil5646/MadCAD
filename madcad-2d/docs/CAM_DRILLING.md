@@ -36,6 +36,12 @@ Operacja `counterbore` obrabia płaskie gniazdo współosiowe z rozpoznanym otwo
 
 Operacja sprawdza średnicę gniazda względem otworu i freza, dostępną głębokość otworu, oś Z, długość ostrza, wysięg, limit wrzeciona oraz wysokość wycofania. Eksport pozostaje jawną, przenośną ścieżką liniową; przybliżenie okręgów ma krok nie większy niż około 1,5 mm łuku i jest widoczne w symulacji oraz raporcie usuwanego materiału.
 
+## Raport kompletności otworów
+
+Kontrola programu buduje wymagany proces dla każdej stabilnej grupy otworów na podstawie semantyki modelu: każde gniazdo wymaga wiercenia, `countersink` wymaga wcześniejszego nawiertania, `counterbore` wymaga pogłębiania walcowego, a oznaczenie gwintu wymaga gwintowania. Liczone są wyłącznie operacje z prawidłową ścieżką, które obejmują daną grupę albo wszystkie rozpoznane otwory.
+
+Raport pokazuje liczbę kompletnych wystąpień, brakujące etapy i błędną kolejność. Bezpieczna kolejność etapów otworowych to nawiertanie → wiercenie → pogłębianie walcowe → gwintowanie. Brak albo odwrócona kolejność blokuje status „Program gotowy do symulacji”, ale nie zmienia modelu ani operacji użytkownika.
+
 ## Gwintowanie synchronizowane
 
 Operacja `tap` używa wyłącznie gwintownika z biblioteki projektu. Dla każdego rozpoznanego otworu sprawdza oś Z, długość roboczą narzędzia i średnicę otworu pilotowego względem przybliżenia `średnica nominalna - skok`. Posuw nie jest polem swobodnym: zawsze wynosi `spindleRpm × pitch`, dzięki czemu zapis projektu nie może rozjechać synchronizacji.
@@ -61,8 +67,9 @@ LinuxCNC i Mach3 otrzymują `G98`, osobny `G84` dla każdego położenia i zamkn
 - testy błędów: za duże wiertło, nieprawidłowa średnica nawiertania oraz oś spoza Z;
 - testy szyków: translacja prostokątna/po ścieżce i obrót kołowy pozycji oraz osi;
 - Electron: rzeczywista bryła OpenCascade Ø8, automatyczny dobór wiertła, Undo/Redo, ponowne otwarcie, podgląd G-code, raport bezpieczeństwa i symulacja;
+- raport kompletności: wymagane etapy z semantyki otworu, brak operacji i nieprawidłowa kolejność wielu narzędzi;
 - pełny shard modelowania pozostaje zielony.
 
 ## Jawne ograniczenia i następny etap
 
-P5.1–P5.3 nie wykonują wiercenia indeksowanego ani 5-osiowego. Dostępne są projektowa biblioteka wierteł, nawiertaków i gwintowników, dobór po średnicy, wiercenie zwykłe/skokowe/z postojem, geometryczne nawiertanie i pogłębianie walcowe, G81–G83 z jawnym fallbackiem oraz synchronizowane G84. Kolejny przyrost P5.3 doda raport kompletności i automatyczne porządkowanie wielu narzędzi; pogłębianie stożkowe jest realizowane przez geometryczne nawiertanie do zadanej średnicy.
+P5.1–P5.3 nie wykonują wiercenia indeksowanego ani 5-osiowego. Dostępne są projektowa biblioteka wierteł, nawiertaków i gwintowników, dobór po średnicy, wiercenie zwykłe/skokowe/z postojem, geometryczne nawiertanie i pogłębianie walcowe, G81–G83 z jawnym fallbackiem, synchronizowane G84 oraz raport kompletności i kolejności. Kolejny przyrost P5.3 może dodać automatyczne porządkowanie operacji; pogłębianie stożkowe jest realizowane przez geometryczne nawiertanie do zadanej średnicy.
