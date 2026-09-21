@@ -101,6 +101,8 @@ jobs:
           cache-dependency-path: madcad-2d/package-lock.json
       - name: Install exact dependencies
         run: npm ci
+      - name: Ensure Electron runtime with retry
+        run: node scripts/install-electron-with-retry.cjs
       - name: Run complete Electron verification shard
         run: npm run verify:desktop-suite -- ${{ matrix.shard }}
       - name: Upload verification artifacts
