@@ -1,6 +1,6 @@
 # MadCAD — aktywny plan rozwoju
 
-Aktualizacja: 2026-09-10
+Aktualizacja: 2026-09-21
 Wersja bazowa: `6.5.22 stable`
 Gałąź wydania: `main`
 
@@ -31,6 +31,30 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 6. Operacje kernela są deterministyczne, transakcyjne i zachowują ostatni poprawny model po błędzie.
 7. Każdy pionowy etap kończy się scenariuszem od pustego dokumentu oraz ponownym otwarciem zapisu.
 8. Nowe narzędzie działa na obsługiwanych płaszczyznach i ścianach albo jawnie pokazuje ograniczenie.
+
+## Aktywny cel R6.6 — niezawodność dużych projektów
+
+Jeden aktywny pion prowadzi teraz od szybkiej edycji długiej historii do
+potwierdzonego wyniku bez blokowania użytkownika:
+
+- [x] worker CAD kooperacyjnie przerywa nieaktualną przebudowę między grupami
+  operacji i brył, zwalniając tymczasowe kształty kernela zamiast kończyć całą
+  starą rewizję;
+- [x] deterministyczny korpus trzech dokumentów po 220 operacji przechodzi
+  walidację, round-trip i budżet przygotowania, a desktopowy scenariusz z
+  prawdziwym OpenCascade przebudowuje 220 operacji i zachowuje najnowszą
+  rewizję po anulowaniu starszej;
+- [>] rozszerzyć raport dużych projektów o Undo/Redo, autozapis oraz szczytowe
+  zużycie pamięci na Windows i macOS;
+- [ ] edycja podczas przebudowy zachowuje wyłącznie najnowszą rewizję, daje się
+  anulować z interfejsu i nie pozostawia częściowego modelu ani cache;
+- [ ] wielokrotne zapisanie, autozapis, awaria i ponowne otwarcie każdego
+  dokumentu korpusu zachowują identyczny wynik geometrii i trwałe referencje;
+- [ ] raport CI publikuje czasy, pamięć i najwolniejszą operację, a przekroczenie
+  ustalonego budżetu blokuje merge.
+
+Po tym pionie następne w kolejności są: walidacja importu na większym korpusie
+STEP/DWG/DXF/STL/3MF, rozbudowa CAM oraz walidowany MES dowolnej geometrii 3D.
 
 ## Ścieżka krytyczna P0
 

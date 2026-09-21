@@ -37,7 +37,7 @@ import {
   setManifold,
 } from 'replicad';
 import { FEATURE_STATUS, prepareDocument, resolveOpenChainProfile } from './evaluator.js';
-import { evaluateFeatureHistory } from './feature-history.js';
+import { evaluateFeatureHistoryCooperatively } from './feature-history.js';
 import { GEOMETRY_POLICY } from './geometry-policy.js';
 import { resolveFaceEdgeHolePlacement } from './face-edge-hole.js';
 import { assignStableTopologyIds } from './topology-naming.js';
@@ -2787,7 +2787,25 @@ function meshBody(body, index, quality = 'display') {
   };
 }
 
-async function evaluateRevision(document, quality) {
+function disposeKernelBodies(bodies) {
+  const disposedShapes = new Set();
+  for (const body of bodies || []) {
+    for (const shape of [body?.shape, body?.foldedShape]) {
+      if (!shape || disposedShapes.has(shape)) continue;
+      disposedShapes.add(shape);
+      shape.delete?.();
+    }
+  }
+}
+
+async function revisionCheckpoint(revision) {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (Number.isInteger(revision) && isStaleRevision(revision, latestRequestedRevision)) {
+    throw createRevisionError(revision);
+  }
+}
+
+async function evaluateRevision(document, quality, revision = null) {
   const totalStartedAt = performance.now();
   const kernelStartedAt = performance.now();
   await ensureKernel();
@@ -2828,13 +2846,31 @@ async function evaluateRevision(document, quality) {
   }
   const importMs = performance.now() - importStartedAt;
   const historyStartedAt = performance.now();
-  const history = evaluateFeatureHistory(features, runFeature);
+  const history = await evaluateFeatureHistoryCooperatively(features, runFeature, {}, {
+    checkpoint: async ({ state }) => {
+      try {
+        await revisionCheckpoint(revision);
+      } catch (error) {
+        disposeKernelBodies(state.bodyMap.values());
+        throw error;
+      }
+    },
+  });
   const historyMs = performance.now() - historyStartedAt;
   const { bodyMap, bodyOrder, timeline } = history;
 
   const kernelBodies = bodyOrder.filter((id) => bodyMap.has(id)).map((id) => bodyMap.get(id));
   const meshStartedAt = performance.now();
-  const meshedBodies = kernelBodies.map((body, index) => meshBody(body, index, quality));
+  const meshedBodies = [];
+  try {
+    for (let index = 0; index < kernelBodies.length; index += 1) {
+      meshedBodies.push(meshBody(kernelBodies[index], index, quality));
+      if ((index + 1) % 2 === 0 || index === kernelBodies.length - 1) await revisionCheckpoint(revision);
+    }
+  } catch (error) {
+    disposeKernelBodies(kernelBodies);
+    throw error;
+  }
   const meshMs = performance.now() - meshStartedAt;
   const evaluated = {
     kernelBodies,
@@ -2938,8 +2974,11 @@ async function resolveRevision(document, revision, quality = 'display') {
   const cached = revisionCache.get(revision);
   if (cached) return cached;
 
-  const evaluated = await evaluateRevision(document, quality);
-  if (isStaleRevision(revision, latestRequestedRevision)) throw createRevisionError(revision);
+  const evaluated = await evaluateRevision(document, quality, revision);
+  if (isStaleRevision(revision, latestRequestedRevision)) {
+    disposeKernelBodies(evaluated.kernelBodies);
+    throw createRevisionError(revision);
+  }
   commitTopology(evaluated.topologyByBody);
   revisionCache.set(revision, evaluated, estimateMeshBytes(evaluated.renderBodies));
   return evaluated;
