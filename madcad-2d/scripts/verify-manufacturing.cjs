@@ -95,6 +95,14 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 4 && document.querySelectorAll('.manufacturing-toolpath-summary.valid').length === 4`, 'Cofnij operację nawiertania');
     await window.webContents.executeJavaScript(`document.querySelectorAll('.manufacturing-add-actions button')[5].click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations[4]?.type === 'counterbore' && JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations[4]?.toolId === 'flat-6' && JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations[4]?.targetDiameter === 14 && document.querySelectorAll('.manufacturing-toolpath-summary.valid').length === 5`, 'warstwowe pogłębianie walcowe');
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.manufacturing-toolpath-summary')[4].querySelectorAll('button')[0].click()`);
+    await waitFor(window, `document.querySelector('.manufacturing-gcode-preview pre')?.textContent.includes('Pogłębianie walcowe 1') && (document.querySelector('.manufacturing-gcode-preview pre')?.textContent.match(/\\nG1 /g)?.length || 0) > 40`, 'G-code pogłębiania walcowego');
+    await window.webContents.executeJavaScript(`document.querySelector('[aria-label="Zamknij podgląd G-code"]').click()`);
+    await waitFor(window, `document.querySelector('.manufacturing-operation-list') && !document.querySelector('.manufacturing-gcode-preview')`, 'zamknięcie G-code pogłębiania');
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 4 && document.querySelectorAll('.manufacturing-toolpath-summary.valid').length === 4`, 'Cofnij operację pogłębiania');
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.manufacturing-add-actions button')[6].click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations[4]?.type === 'tap' && JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations[4]?.toolId === ${JSON.stringify(customTapId)} && document.querySelectorAll('.manufacturing-toolpath-summary.valid').length === 5`, 'gwintowanie własnym gwintownikiem');
     await window.webContents.executeJavaScript(`document.querySelectorAll('.manufacturing-toolpath-summary')[4].querySelectorAll('button')[0].click()`);
     await waitFor(window, `document.querySelector('.manufacturing-gcode-preview pre')?.textContent.includes('G84 ') && document.querySelector('.manufacturing-gcode-preview pre')?.textContent.includes(' F500') && document.querySelector('.manufacturing-gcode-preview pre')?.textContent.includes('G80')`, 'synchronizowany G84');
@@ -103,7 +111,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 4 && document.querySelectorAll('.manufacturing-toolpath-summary.valid').length === 4`, 'Cofnij operację gwintowania');
     await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify({ kind: 'face', id: selectedBoundary.faceId, bodyId: selectedBoundary.bodyId })}, 'replace')`);
-    await window.webContents.executeJavaScript(`document.querySelectorAll('.manufacturing-add-actions button')[6].click()`);
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.manufacturing-add-actions button')[7].click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 5`, 'zapis operacji Kontur 2D');
     await waitFor(window, `document.querySelectorAll('.manufacturing-operation').length === 5 && [...document.querySelectorAll('.manufacturing-operation')].at(-1).querySelectorAll('select').length >= 2`, 'kontrolki operacji Kontur 2D');
     await window.webContents.executeJavaScript(`(() => { const control = [...document.querySelectorAll('.manufacturing-operation')].at(-1).querySelectorAll('select')[1]; Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(control, 'linuxcnc'); control.dispatchEvent(new Event('change', { bubbles: true })); })()`);

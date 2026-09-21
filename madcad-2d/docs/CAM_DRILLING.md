@@ -30,6 +30,12 @@ Operacja `spot` działa na tych samych stabilnych grupach i wystąpieniach otwor
 
 Obliczenie odrzuca średnicę docelową nie większą od otworu lub większą od narzędzia, brakujące dane głębokości, oś inną niż Z oraz przekroczenie długości rowków albo wysięgu. Ścieżka zachowuje jawne przejazdy i wejścia `G0`/`G1`, dlatego działa we wszystkich frezarskich postprocesorach i we wspólnej symulacji bez udawania cyklu sterownika.
 
+## Pogłębianie walcowe
+
+Operacja `counterbore` obrabia płaskie gniazdo współosiowe z rozpoznanym otworem. Płaski frez musi mieścić się w otworze pilotowym, dzięki czemu każde wejście osiowe odbywa się w istniejącej pustej przestrzeni. Głębokość jest dzielona przez `maxStepdown`, a każda warstwa otrzymuje koncentryczne przejścia z zakładką 50% średnicy freza aż do średnicy docelowej. Pozwala to obrabiać także gniazda szersze niż dwa promienie narzędzia bez pozostawiania pierścienia materiału.
+
+Operacja sprawdza średnicę gniazda względem otworu i freza, dostępną głębokość otworu, oś Z, długość ostrza, wysięg, limit wrzeciona oraz wysokość wycofania. Eksport pozostaje jawną, przenośną ścieżką liniową; przybliżenie okręgów ma krok nie większy niż około 1,5 mm łuku i jest widoczne w symulacji oraz raporcie usuwanego materiału.
+
 ## Gwintowanie synchronizowane
 
 Operacja `tap` używa wyłącznie gwintownika z biblioteki projektu. Dla każdego rozpoznanego otworu sprawdza oś Z, długość roboczą narzędzia i średnicę otworu pilotowego względem przybliżenia `średnica nominalna - skok`. Posuw nie jest polem swobodnym: zawsze wynosi `spindleRpm × pitch`, dzięki czemu zapis projektu nie może rozjechać synchronizacji.
@@ -59,4 +65,4 @@ LinuxCNC i Mach3 otrzymują `G98`, osobny `G84` dla każdego położenia i zamkn
 
 ## Jawne ograniczenia i następny etap
 
-P5.1–P5.3 nie wykonują wiercenia indeksowanego ani 5-osiowego. Dostępne są projektowa biblioteka wierteł, nawiertaków i gwintowników, dobór po średnicy, wiercenie zwykłe/skokowe/z postojem, geometryczne nawiertanie, G81–G83 z jawnym fallbackiem oraz synchronizowane G84. Kolejny przyrost P5.3 doda pogłębianie walcowe/stożkowe i raport kompletności bez kopiowania kontraktu pozycji otworów.
+P5.1–P5.3 nie wykonują wiercenia indeksowanego ani 5-osiowego. Dostępne są projektowa biblioteka wierteł, nawiertaków i gwintowników, dobór po średnicy, wiercenie zwykłe/skokowe/z postojem, geometryczne nawiertanie i pogłębianie walcowe, G81–G83 z jawnym fallbackiem oraz synchronizowane G84. Kolejny przyrost P5.3 doda raport kompletności i automatyczne porządkowanie wielu narzędzi; pogłębianie stożkowe jest realizowane przez geometryczne nawiertanie do zadanej średnicy.
