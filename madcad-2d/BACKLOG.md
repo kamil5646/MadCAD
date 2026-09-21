@@ -141,7 +141,8 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 ### Manufacture / CAM
 
 - [x] P5.1 Wiercenie 3-osiowe na podstawie rozpoznanych cech otworów, z rzeczywistymi pozycjami wystąpień szyku, grupowaniem cech, peck drilling, przebiciem, kontrolą narzędzia, symulacją i G-code.
-- [>] P5.2 Projektowa biblioteka własnych narzędzi oraz wiercenie zwykłe, peck, dwell i gwintowanie z bezpiecznym mapowaniem na możliwości postprocesora.
+- [x] P5.2 Projektowa biblioteka własnych narzędzi oraz wiercenie zwykłe, peck, dwell i gwintowanie z bezpiecznym mapowaniem na możliwości postprocesora.
+- [>] P5.3 Nawiertanie geometryczne gotowe; pozostały pogłębianie walcowe/stożkowe, kolejność wielu narzędzi i raport kompletności obróbki otworów.
 - [x] Setup frezowania 3-osiowego: wybór bryły i obrabiarki, półfabrykat z naddatkami, zero WCS, wysokość bezpieczna, kontrola przesuwu maszyny, zapis/migracja/Undo.
 - [x] Biblioteka podstawowych frezów i warstwowa ścieżka planowania z podglądem 3D, posuwem oraz oszacowaniem czasu.
 - [x] Kontur 2D rzeczywistej górnej krawędzi bryły: kompensacja promienia freza, warstwy głębokości, wspólny podgląd 3D i eksport GRBL.

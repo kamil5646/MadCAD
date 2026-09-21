@@ -20,9 +20,15 @@ Normalizacja pozostaje zgodna wstecznie: starszy projekt bez operacji `drill` ni
 
 ## Biblioteka narzędzi projektu
 
-`manufacturing.tools[]` przechowuje do 100 własnych wierteł, nawiertaków i gwintowników. Każde narzędzie ma stabilne ID, nazwę, typ, średnicę, długość rowków, wysięg, średnicę oprawki i liczbę ostrzy; gwintownik przechowuje również skok. Biblioteka jest częścią dokumentu `.madcad`, więc zapis, ponowne otwarcie, autozapis i Cofnij/Ponów korzystają z istniejącej transakcji projektu.
+`manufacturing.tools[]` przechowuje do 100 własnych wierteł, nawiertaków i gwintowników. Każde narzędzie ma stabilne ID, nazwę, typ, średnicę, długość rowków, wysięg, średnicę oprawki i liczbę ostrzy; nawiertak przechowuje kąt ostrza, a gwintownik skok. Biblioteka jest częścią dokumentu `.madcad`, więc zapis, ponowne otwarcie, autozapis i Cofnij/Ponów korzystają z istniejącej transakcji projektu.
 
-Operacja rozwiązuje preset albo narzędzie projektu po `toolId`. Nowe wiercenie uwzględnia własne wiertła przy doborze średnicy. Usunięcie narzędzia używanego przez operację jest blokowane, a utracone ID zatrzymuje obliczenie ścieżki i eksport. Nawiertak i gwintownik są świadomie odrzucane przez zwykłą operację wiercenia do czasu użycia dedykowanych operacji nawiertania i G84.
+Operacja rozwiązuje preset albo narzędzie projektu po `toolId`. Wiercenie uwzględnia własne wiertła przy doborze średnicy. Usunięcie narzędzia używanego przez operację jest blokowane, a utracone ID zatrzymuje obliczenie ścieżki i eksport. Nawiertak i gwintownik są odrzucane przez zwykłe wiercenie i mają dedykowane operacje.
+
+## Nawiertanie geometryczne
+
+Operacja `spot` działa na tych samych stabilnych grupach i wystąpieniach otworów co wiercenie oraz gwintowanie. Użytkownik podaje średnicę docelową fazy, natomiast głębokość stożka nie jest swobodnym parametrem. Dla średnicy otworu `d`, średnicy docelowej `D` i kąta ostrza `α` wynosi `(D - d) / (2 × tan(α / 2))`. Dzięki temu zmiana średnicy otworu, narzędzia albo kąta automatycznie przebudowuje bezpieczną głębokość.
+
+Obliczenie odrzuca średnicę docelową nie większą od otworu lub większą od narzędzia, brakujące dane głębokości, oś inną niż Z oraz przekroczenie długości rowków albo wysięgu. Ścieżka zachowuje jawne przejazdy i wejścia `G0`/`G1`, dlatego działa we wszystkich frezarskich postprocesorach i we wspólnej symulacji bez udawania cyklu sterownika.
 
 ## Gwintowanie synchronizowane
 
@@ -46,11 +52,11 @@ LinuxCNC i Mach3 otrzymują `G98`, osobny `G84` dla każdego położenia i zamkn
 ## Dowody odbioru
 
 - test jednostkowy: dwa otwory, liczba skoków, przebicie, G-code i symulacja;
-- testy błędów: za duże wiertło oraz oś spoza Z;
+- testy błędów: za duże wiertło, nieprawidłowa średnica nawiertania oraz oś spoza Z;
 - testy szyków: translacja prostokątna/po ścieżce i obrót kołowy pozycji oraz osi;
 - Electron: rzeczywista bryła OpenCascade Ø8, automatyczny dobór wiertła, Undo/Redo, ponowne otwarcie, podgląd G-code, raport bezpieczeństwa i symulacja;
 - pełny shard modelowania pozostaje zielony.
 
 ## Jawne ograniczenia i następny etap
 
-P5.1–P5.2 nie wykonują wiercenia indeksowanego ani 5-osiowego. Dostępne są projektowa biblioteka wierteł, nawiertaków i gwintowników, dobór po średnicy, wiercenie zwykłe/skokowe/z postojem, G81–G83 z jawnym fallbackiem oraz synchronizowane G84. Następny etap rozszerza strategie otworowe o nawiertanie i pogłębianie bez kopiowania kontraktu pozycji otworów.
+P5.1–P5.3 nie wykonują wiercenia indeksowanego ani 5-osiowego. Dostępne są projektowa biblioteka wierteł, nawiertaków i gwintowników, dobór po średnicy, wiercenie zwykłe/skokowe/z postojem, geometryczne nawiertanie, G81–G83 z jawnym fallbackiem oraz synchronizowane G84. Kolejny przyrost P5.3 doda pogłębianie walcowe/stożkowe i raport kompletności bez kopiowania kontraktu pozycji otworów.
