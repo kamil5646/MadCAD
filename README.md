@@ -38,7 +38,8 @@ Skrócony playbook dla dalszych prac: [AGENTS.md](./AGENTS.md).
 - Trwałe referencje B-Rep, historia operacji, geometria konstrukcyjna i pomiary.
 - Import i eksport `STEP`, `STL`, `3MF`; poprawny import jest dopasowywany do widoku, a odrzucony nie blokuje historii. Import szkicu obejmuje `DWG`, `DXF`, `SVG`; własny parametryczny format to `.madcad`.
 - Kontrola drukowalności, gabarytów i dopasowania modelu do stołu drukarki.
-- Interfejs polski i angielski, lokalne pliki, brak konta, telemetrii i aktywacji.
+- Interfejs polski i angielski, lokalne pliki projektów, bezpłatne konto MadCAD,
+  brak telemetrii projektów i brak klucza aktywacyjnego.
 - Przeglądarka projektu jest domyślnie zwinięta, aby maksymalizować obszar rysowania.
 
 ## Szybki start
@@ -106,6 +107,8 @@ Dokładna instrukcja uruchomienia niepodpisanych paczek: [INSTALL.md](./INSTALL.
 
 - [`madcad-2d/`](./madcad-2d/) — aplikacja Electron, interfejs i silnik CAD.
 - [`docs/`](./docs/) — strona projektu publikowana przez GitHub Pages.
+- [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) — procedura publikacji strony na
+  osobnym hostingu i weryfikacji produkcji.
 - [`.github/workflows/`](./.github/workflows/) — testy macOS/Windows/Linux i zweryfikowane wydania.
 - [`LICENSE`](./LICENSE), [`EULA.md`](./EULA.md), [`PRIVACY.md`](./PRIVACY.md) — dokumenty prawne.
 
@@ -119,6 +122,7 @@ add-ons, not the center of the product.
 Private, educational, non-profit use by an individual is free without a time
 limit. Businesses may evaluate the complete application for 40 days. Continued
 professional or commercial use requires a perpetual license for each
-workstation. No product key or technical activation is required. See the
-binding Polish [license](./LICENSE) or request a quote at
+workstation. A free MadCAD account and periodic online entitlement checks are
+required, but there is no product key to enter. See the binding Polish
+[license](./LICENSE) or request a quote at
 [kkasprzak15@icloud.com](mailto:kkasprzak15@icloud.com?subject=MadCAD%20commercial%20license).

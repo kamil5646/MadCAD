@@ -16,6 +16,7 @@ priorytety znajdują się w `AUDIT-2026-09-20.md`.
   scenariuszy Electron na shardy.
 - `.github/workflows/ci.yml` i `release.yml` — obowiązujące bramki CI/release.
 - `docs/` — strona GitHub Pages; domena produkcyjna ma osobny deployment.
+- `docs/DEPLOYMENT.md` — bezpieczna procedura publikacji i kontroli produkcji.
 
 ## Komendy bazowe
 
@@ -60,15 +61,16 @@ npm run verify:desktop-suite -- analysis
 
 ## Znane pułapki
 
-- `main` na commitcie `1127f4e` ma czerwony Windowsowy scenariusz naprawy
-  referencji. Poprawka polega na atomowym wywołaniu hooków przez helper
-  `invokeVerificationHook()` z dokładnym opisem etapu.
+- Windowsowy scenariusz naprawy referencji został ustabilizowany w PR #69 przez
+  atomowe wywołanie hooków helperem `invokeVerificationHook()`. Zachowaj ten
+  wzorzec i dokładny opis etapu błędu.
 - `ModelingWorkspace.jsx`, `ModelViewport.jsx` i `cad-worker.js` są monolitami;
   nie dodawaj do nich kolejnej domeny bez rozważenia wydzielenia modułu.
 - PR podnoszący `replicad-opencascadejs` do 1.x jest migracją kernela, nie
   zwykłym bumpem zależności.
-- Główny README deklaruje brak konta, ale aplikacja obecnie wymaga konta. Nie
-  kopiuj żadnej z tych obietnic bez decyzji produktowej i ujednolicenia źródeł.
+- Konto MadCAD i okresowe sprawdzenie uprawnienia są wymagane; nie opisuj tego
+  jako klucza produktu ani wysyłania projektów. Licencja, README, prywatność,
+  strona i interfejs muszą pozostać zgodne.
 - `https://madcad.madmagsystem.pl/` może być starsze niż `docs/` w repo;
   weryfikuj domenę po każdym wdrożeniu.
 - Komunikat `.zshenv` o brakującym `.cargo/env` jest szumem środowiska, nie

@@ -4,13 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#111a25" />
-  <meta name="description" content="MadCAD 6.3 — desktopowy CAD 2D/3D dla Windows, macOS i Linux. Precyzyjne szkice w stylu klasycznego CAD, lokalny import DWG i parametryczne modelowanie bryłowe." />
-  <meta property="og:title" content="MadCAD 6.3 — CAD 2D/3D" />
+  <meta name="description" content="MadCAD 6.5.22 — desktopowy CAD 2D/3D dla Windows, macOS i Linux. Precyzyjne szkice w stylu klasycznego CAD, lokalny import DWG i parametryczne modelowanie bryłowe." />
+  <meta property="og:title" content="MadCAD 6.5.22 — CAD 2D/3D" />
   <meta property="og:description" content="Rysuj bezpośrednio, wpisuj dokładne wymiary i buduj modele parametryczne. Prywatnie bezpłatnie." />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="https://kamil5646.github.io/MadCAD/readme-banner.png" />
   <link rel="icon" type="image/png" href="./madcad-512.png" />
-  <title>MadCAD 6.3 — CAD 2D/3D dla Windows, macOS i Linux</title>
+  <title>MadCAD 6.5.22 — CAD 2D/3D dla Windows, macOS i Linux</title>
   <style>
     :root {
       color-scheme: dark;
@@ -218,7 +218,7 @@
     </section>
   </main>
 
-  <footer><div class="container"><span>© 2026 Kamil Kasprzak · MadCAD 6.3</span><span><a href="https://github.com/kamil5646/MadCAD/blob/main/LICENSE" data-pl="Licencja" data-en="License">Licencja</a><a href="https://github.com/kamil5646/MadCAD/blob/main/PRIVACY.md" data-pl="Prywatność" data-en="Privacy">Prywatność</a><a href="https://github.com/kamil5646/MadCAD/releases/latest" data-pl="Wydania" data-en="Releases">Wydania</a><a href="mailto:kkasprzak15@icloud.com" data-pl="Kontakt" data-en="Contact">Kontakt</a></span></div></footer>
+  <footer><div class="container"><span>© 2026 Kamil Kasprzak · MadCAD 6.5.22</span><span><a href="https://github.com/kamil5646/MadCAD/blob/main/LICENSE" data-pl="Licencja" data-en="License">Licencja</a><a href="https://github.com/kamil5646/MadCAD/blob/main/PRIVACY.md" data-pl="Prywatność" data-en="Privacy">Prywatność</a><a href="https://github.com/kamil5646/MadCAD/releases/latest" data-pl="Wydania" data-en="Releases">Wydania</a><a href="mailto:kkasprzak15@icloud.com" data-pl="Kontakt" data-en="Contact">Kontakt</a></span></div></footer>
 
   <script>
     (() => {
@@ -227,7 +227,7 @@
       const applyLanguage = (language) => {
         const lang = language === 'en' ? 'en' : 'pl';
         document.documentElement.lang = lang;
-        document.title = lang === 'pl' ? 'MadCAD 6.3 — CAD 2D/3D dla Windows, macOS i Linux' : 'MadCAD 6.3 — 2D/3D CAD for Windows, macOS, and Linux';
+        document.title = lang === 'pl' ? 'MadCAD 6.5.22 — CAD 2D/3D dla Windows, macOS i Linux' : 'MadCAD 6.5.22 — 2D/3D CAD for Windows, macOS, and Linux';
         translatable.forEach((element) => { element.childNodes[0].textContent = element.dataset[lang]; });
         buttons.forEach((button) => button.classList.toggle('active', button.dataset.lang === lang));
         localStorage.setItem('madcad-site-language', lang);
