@@ -24,6 +24,12 @@ Normalizacja pozostaje zgodna wstecznie: starszy projekt bez operacji `drill` ni
 
 Operacja rozwiązuje preset albo narzędzie projektu po `toolId`. Nowe wiercenie uwzględnia własne wiertła przy doborze średnicy. Usunięcie narzędzia używanego przez operację jest blokowane, a utracone ID zatrzymuje obliczenie ścieżki i eksport. Nawiertak i gwintownik są świadomie odrzucane przez zwykłą operację wiercenia do czasu użycia dedykowanych operacji nawiertania i G84.
 
+## Gwintowanie synchronizowane
+
+Operacja `tap` używa wyłącznie gwintownika z biblioteki projektu. Dla każdego rozpoznanego otworu sprawdza oś Z, długość roboczą narzędzia i średnicę otworu pilotowego względem przybliżenia `średnica nominalna - skok`. Posuw nie jest polem swobodnym: zawsze wynosi `spindleRpm × pitch`, dzięki czemu zapis projektu nie może rozjechać synchronizacji.
+
+LinuxCNC i Mach3 otrzymują `G98`, osobny `G84` dla każdego położenia i zamknięcie `G80`. Postprocesory bez deklarowanej synchronizacji wrzeciona, w tym GRBL, są blokowane zamiast otrzymywać niebezpieczny jawny fallback. Symulacja i kontrola kolizji nadal korzystają z jawnych segmentów wejścia oraz zsynchronizowanego wycofania.
+
 ## Obliczanie i bezpieczeństwo
 
 `calculateDrillingToolpath()`:
@@ -47,4 +53,4 @@ Operacja rozwiązuje preset albo narzędzie projektu po `toolId`. Nowe wiercenie
 
 ## Jawne ograniczenia i następny etap
 
-P5.1 nie wykonuje wiercenia indeksowanego ani 5-osiowego. P5.2 dodało projektową bibliotekę wierteł, nawiertaków i gwintowników, dobór po średnicy, wybór wiercenia zwykłego/skokowego/z postojem oraz sterownikowe G81–G83 z jawnym fallbackiem. Pozostaje dedykowana operacja gwintowania z posuwem wynikającym ze skoku i G84.
+P5.1–P5.2 nie wykonują wiercenia indeksowanego ani 5-osiowego. Dostępne są projektowa biblioteka wierteł, nawiertaków i gwintowników, dobór po średnicy, wiercenie zwykłe/skokowe/z postojem, G81–G83 z jawnym fallbackiem oraz synchronizowane G84. Następny etap rozszerza strategie otworowe o nawiertanie i pogłębianie bez kopiowania kontraktu pozycji otworów.

@@ -166,6 +166,20 @@ export function normalizeDrillingOperation(operation = {}, index = 0) {
   };
 }
 
+export function normalizeTappingOperation(operation = {}, index = 0) {
+  return {
+    id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
+    name: String(operation.name || `Gwintowanie ${index + 1}`).trim().slice(0, 80) || `Gwintowanie ${index + 1}`,
+    type: 'tap',
+    toolId: typeof operation.toolId === 'string' ? operation.toolId : '',
+    holeFeatureIds: Array.isArray(operation.holeFeatureIds) ? [...new Set(operation.holeFeatureIds.filter((id) => typeof id === 'string' && id))] : [],
+    retractHeight: Number.isFinite(Number(operation.retractHeight)) ? Math.max(0, Number(operation.retractHeight)) : 1,
+    bottomClearance: Number.isFinite(Number(operation.bottomClearance)) ? Math.max(0, Number(operation.bottomClearance)) : 1,
+    spindleRpm: Math.min(3000, Math.max(1, Math.round(Number(operation.spindleRpm) || 500))),
+    postProcessorId: ['linuxcnc', 'mach3'].includes(operation.postProcessorId) ? operation.postProcessorId : 'linuxcnc',
+  };
+}
+
 export function normalizeCut2dOperation(operation = {}, index = 0) {
   return {
     id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
@@ -206,6 +220,7 @@ export function normalizeManufacturingOperation(operation = {}, index = 0) {
   if (operation?.type === 'pocket') return normalizePocketOperation(operation, index);
   if (operation?.type === 'adaptive') return normalizeAdaptiveOperation(operation, index);
   if (operation?.type === 'drill') return normalizeDrillingOperation(operation, index);
+  if (operation?.type === 'tap') return normalizeTappingOperation(operation, index);
   if (operation?.type === 'cut2d') return normalizeCut2dOperation(operation, index);
   if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') return normalizeTurningOperation(operation, index);
   return normalizeFacingOperation(operation, index);
@@ -313,6 +328,10 @@ export function createAdaptiveOperation(options = {}) {
 
 export function createDrillingOperation(options = {}) {
   return normalizeDrillingOperation({ ...options, id: createId('cam-operation') });
+}
+
+export function createTappingOperation(options = {}) {
+  return normalizeTappingOperation({ ...options, id: createId('cam-operation') });
 }
 
 export function createCut2dOperation(options = {}) {
@@ -627,6 +646,57 @@ export function calculateDrillingToolpath(setup, operation, bodies = [], documen
     durationMinutes: summary.durationMinutes + (normalized.cycleType === 'dwell' ? resolvedHoles.length * normalized.dwellSeconds / 60 : 0),
     warnings: [],
   };
+}
+
+export function calculateTappingToolpath(setup, operation, bodies = [], document = null) {
+  const setupResult = calculateManufacturingSetup(setup, bodies);
+  const normalized = normalizeTappingOperation(operation);
+  const tool = resolveCamTool(normalized.toolId, document);
+  const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
+  if (!setupResult.body || !setupResult.stockBounds || !setupResult.valid) return fail('Gwintowanie wymaga poprawnego Setupu i bryły.');
+  if (!tool) return fail('Wybierz gwintownik z biblioteki projektu.');
+  if (tool.type !== 'tap' || !Number.isFinite(tool.pitch) || tool.pitch <= 0) return fail('Gwintowanie wymaga gwintownika z prawidłowym skokiem.');
+  if (!['linuxcnc', 'mach3'].includes(normalized.postProcessorId)) return fail('Gwintowanie wymaga sterownika obsługującego synchronizowany cykl G84.');
+  if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`);
+  if (normalized.retractHeight > setupResult.clearancePlaneZ - setupResult.stockBounds[1][2] + 1e-7) return fail('Wysokość wycofania nie może przekraczać wysokości bezpiecznej Setupu.');
+  const selectedIds = new Set(normalized.holeFeatureIds);
+  const holes = (setupResult.body.manufacturingHoles || []).filter((hole) => !selectedIds.size || selectedIds.has(hole.featureId));
+  if (!holes.length) return fail(selectedIds.size ? 'Wybrane cechy otworów już nie istnieją.' : 'Bryła nie zawiera rozpoznanych otworów do gwintowania.');
+  const recommendedPilot = tool.diameter - tool.pitch;
+  const pilotTolerance = Math.max(0.15, tool.pitch * 0.25);
+  const resolvedHoles = [];
+  for (const hole of holes) {
+    if (Math.abs(Number(hole.diameter) - recommendedPilot) > pilotTolerance) return fail(`Otwór Ø${Number(hole.diameter).toFixed(2)} nie pasuje do gwintownika Ø${tool.diameter} × ${tool.pitch}; oczekiwane wiertło około Ø${recommendedPilot.toFixed(2)}.`);
+    const instances = Array.isArray(hole.instances) && hole.instances.length ? hole.instances : hole.position && hole.direction ? [{ position: hole.position, direction: hole.direction, depth: hole.depth }] : [];
+    if (!instances.length) return fail('Otwór nie zawiera danych położenia. Przebuduj model.');
+    for (const instance of instances) {
+      if (![instance.position, instance.direction].every((vector) => Array.isArray(vector) && vector.length === 3 && vector.every(Number.isFinite)) || !Number.isFinite(Number(instance.depth)) || Number(instance.depth) <= 0) return fail('Dane położenia otworu są nieprawidłowe. Przebuduj model.');
+      const length = Math.hypot(...instance.direction);
+      const direction = length > 1e-9 ? instance.direction.map((value) => value / length) : [0, 0, 0];
+      if (Math.abs(direction[2]) < 0.999 || Math.hypot(direction[0], direction[1]) > 0.045) return fail('Gwintowanie 3-osiowe obsługuje obecnie otwory równoległe do osi Z.');
+      const otherEnd = instance.position.map((value, axis) => value + direction[axis] * Number(instance.depth));
+      const entry = instance.position[2] >= otherEnd[2] ? instance.position : otherEnd;
+      const bottom = instance.position[2] >= otherEnd[2] ? otherEnd : instance.position;
+      const targetZ = Math.min(entry[2] - 0.1, bottom[2] + normalized.bottomClearance);
+      const tappingDepth = setupResult.stockBounds[1][2] - targetZ;
+      if (tappingDepth > tool.fluteLength + 1e-7 || tappingDepth > tool.stickout + 1e-7) return fail(`Głębokość gwintowania ${tappingDepth.toFixed(2)} mm przekracza roboczą długość gwintownika.`);
+      resolvedHoles.push({ featureId: hole.featureId, x: entry[0], y: entry[1], entryZ: entry[2], targetZ, tappingDepth });
+    }
+  }
+  const stockTop = setupResult.stockBounds[1][2];
+  const retractZ = stockTop + normalized.retractHeight;
+  const feedRate = normalized.spindleRpm * tool.pitch;
+  const segments = [];
+  let previous = [resolvedHoles[0].x, resolvedHoles[0].y, setupResult.clearancePlaneZ];
+  const push = (kind, to, feed = null) => { if (Math.hypot(...to.map((value, axis) => value - previous[axis])) <= 1e-9) return; segments.push({ kind, from: previous, to, ...(feed ? { feed } : {}) }); previous = to; };
+  for (const hole of resolvedHoles) {
+    push('rapid', [hole.x, hole.y, setupResult.clearancePlaneZ]);
+    push('rapid', [hole.x, hole.y, retractZ]);
+    push('tap-down', [hole.x, hole.y, hole.targetZ], feedRate);
+    push('tap-up', [hole.x, hole.y, retractZ], feedRate);
+    push('rapid', [hole.x, hole.y, setupResult.clearancePlaneZ]);
+  }
+  return { valid: true, tapping: true, setup: setupResult, stockBounds: setupResult.stockBounds, origin: setupResult.origin, clearancePlaneZ: setupResult.clearancePlaneZ, operation: { ...normalized, feedRate }, tool, segments, holes: resolvedHoles, holeCount: resolvedHoles.length, tapCount: resolvedHoles.length, layerCount: resolvedHoles.length, estimatedRemovedVolume: 0, ...summarizeToolpath(segments), warnings: [] };
 }
 
 export function calculateContourToolpath(setup, operation, bodies = [], document = null) {
@@ -980,6 +1050,7 @@ export function calculateOperationToolpath(setup, operation, bodies = [], docume
   if (operation?.type === 'pocket') return calculatePocketToolpath(setup, operation, bodies, document);
   if (operation?.type === 'adaptive') return calculateAdaptiveToolpath(setup, operation, bodies, document);
   if (operation?.type === 'drill') return calculateDrillingToolpath(setup, operation, bodies, document);
+  if (operation?.type === 'tap') return calculateTappingToolpath(setup, operation, bodies, document);
   if (operation?.type === 'cut2d') return calculateCut2dToolpath(setup, operation, bodies, document);
   if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') return calculateTurningToolpath(setup, operation, bodies);
   return calculateFacingToolpath(setup, operation, bodies);
@@ -1113,6 +1184,7 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   const origin = toolpath.origin;
   const safeLocalZ = toolpath.clearancePlaneZ - origin[2];
   const postProcessor = CAM_POST_PROCESSORS[postProcessorId] || CAM_POST_PROCESSORS.grbl;
+  if (toolpath.operation.type === 'tap' && !['linuxcnc', 'mach3'].includes(postProcessor.id)) throw new Error('Gwintowanie wymaga postprocesora z synchronizowanym cyklem G84.');
   const cleanComment = (value) => String(value).replace(/[\r\n;()]/g, ' ').trim();
   const comment = (value) => postProcessor.commentStyle === 'parentheses' ? `(${cleanComment(value)})` : `; ${cleanComment(value)}`;
   if (toolpath.turning) {
@@ -1161,7 +1233,9 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
     lines.push('');
     return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
   }
-  const toolNumber = Object.keys(CAM_TOOL_PRESETS).indexOf(toolpath.tool.id) + 1;
+  const presetToolIndex = Object.keys(CAM_TOOL_PRESETS).indexOf(toolpath.tool.id);
+  const customToolIndex = document?.manufacturing?.tools?.findIndex((tool) => tool.id === toolpath.tool.id) ?? -1;
+  const toolNumber = presetToolIndex >= 0 ? presetToolIndex + 1 : 100 + Math.max(0, customToolIndex);
   const lines = [];
   if (postProcessor.id === 'linuxcnc') lines.push('%');
   lines.push(
@@ -1175,6 +1249,15 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   if (postProcessor.toolChange) lines.push(`T${toolNumber} M6`);
   else lines.push(comment(`Narzędzie T${toolNumber}: ${toolpath.tool.name} — zmień ręcznie przed startem`));
   lines.push(`S${toolpath.operation.spindleRpm} M3`, `G0 Z${gcodeNumber(safeLocalZ)}`);
+  if (toolpath.operation.type === 'tap') {
+    const retractLocalZ = toolpath.stockBounds[1][2] + toolpath.operation.retractHeight - origin[2];
+    lines.push('G98');
+    for (const hole of toolpath.holes) lines.push(`G84 X${gcodeNumber(hole.x - origin[0])} Y${gcodeNumber(hole.y - origin[1])} Z${gcodeNumber(hole.targetZ - origin[2])} R${gcodeNumber(retractLocalZ)} F${gcodeNumber(toolpath.operation.feedRate)}`);
+    lines.push('G80', `G0 Z${gcodeNumber(safeLocalZ)}`, 'M5', postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
+    if (postProcessor.id === 'linuxcnc') lines.push('%');
+    lines.push('');
+    return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
+  }
   const supportsCannedDrilling = toolpath.operation.type === 'drill' && ['linuxcnc', 'mach3'].includes(postProcessor.id);
   if (supportsCannedDrilling) {
     const cycleCode = toolpath.operation.cycleType === 'peck' ? 'G83' : toolpath.operation.cycleType === 'dwell' ? 'G82' : 'G81';
@@ -1259,17 +1342,19 @@ export function validateManufacturing(manufacturing) {
       const operationBase = `${base}.operations[${operationIndex}]`;
       if (!operation || typeof operation !== 'object') issues.push({ path: operationBase, message: 'Operacja CAM musi być obiektem.', code: 'TYPE' });
       else {
-        if (!['face', 'contour', 'pocket', 'adaptive', 'drill', 'cut2d', 'turn-face', 'turn-profile'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
+        if (!['face', 'contour', 'pocket', 'adaptive', 'drill', 'tap', 'cut2d', 'turn-face', 'turn-profile'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
         const isTurning = operation.type === 'turn-face' || operation.type === 'turn-profile';
         if (operation.type !== 'cut2d' && !isTurning && !CAM_TOOL_PRESETS[operation.toolId] && !customToolIds.has(operation.toolId)) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
         if (isTurning && !CAM_TURNING_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznany nóż tokarski.', code: 'UNSUPPORTED' });
         if (!CAM_POST_PROCESSORS[operation.postProcessorId]) issues.push({ path: `${operationBase}.postProcessorId`, message: 'Nieznany postprocesor CAM.', code: 'UNSUPPORTED' });
-        const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : operation.type === 'drill' ? ['peckDepth', 'feedRate', 'spindleRpm'] : isTurning ? ['stockDiameter', 'targetDiameter', 'axialLength', 'maxDepthOfCut', 'feedRate', 'spindleRpm'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];
+        const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : operation.type === 'drill' ? ['peckDepth', 'feedRate', 'spindleRpm'] : operation.type === 'tap' ? ['spindleRpm'] : isTurning ? ['stockDiameter', 'targetDiameter', 'axialLength', 'maxDepthOfCut', 'feedRate', 'spindleRpm'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];
         for (const key of positiveKeys) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr operacji musi być dodatni.', code: 'VALUE' });
         if (operation.type === 'drill') for (const key of ['retractHeight', 'breakthroughDepth']) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) < 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr wiercenia musi być nieujemny.', code: 'VALUE' });
         if (operation.type === 'drill' && !['normal', 'peck', 'dwell'].includes(operation.cycleType)) issues.push({ path: `${operationBase}.cycleType`, message: 'Nieobsługiwany cykl wiercenia.', code: 'UNSUPPORTED' });
         if (operation.type === 'drill' && (!Number.isFinite(Number(operation.dwellSeconds)) || Number(operation.dwellSeconds) < 0 || Number(operation.dwellSeconds) > 60)) issues.push({ path: `${operationBase}.dwellSeconds`, message: 'Postój wiercenia musi mieścić się w zakresie 0–60 s.', code: 'VALUE' });
         if (operation.type === 'drill' && (!Array.isArray(operation.holeFeatureIds) || operation.holeFeatureIds.some((id) => typeof id !== 'string' || !id))) issues.push({ path: `${operationBase}.holeFeatureIds`, message: 'Grupy otworów muszą być zapisane jako identyfikatory.', code: 'TYPE' });
+        if (operation.type === 'tap' && (!Array.isArray(operation.holeFeatureIds) || operation.holeFeatureIds.some((id) => typeof id !== 'string' || !id))) issues.push({ path: `${operationBase}.holeFeatureIds`, message: 'Grupy otworów muszą być zapisane jako identyfikatory.', code: 'TYPE' });
+        if (operation.type === 'tap') for (const key of ['retractHeight', 'bottomClearance']) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) < 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr gwintowania musi być nieujemny.', code: 'VALUE' });
         if (['contour', 'pocket', 'adaptive'].includes(operation.type) && (!Number.isFinite(Number(operation.targetDepth)) || Number(operation.targetDepth) <= 0)) issues.push({ path: `${operationBase}.targetDepth`, message: 'Głębokość obróbki musi być dodatnia.', code: 'VALUE' });
         if (setup.operationKind === 'cut-2d' && operation.type !== 'cut2d') issues.push({ path: `${operationBase}.type`, message: 'Setup cięcia może zawierać tylko operacje cięcia 2D.', code: 'INCOMPATIBLE' });
         if (setup.operationKind === 'mill-3axis' && operation.type === 'cut2d') issues.push({ path: `${operationBase}.type`, message: 'Operacja cięcia wymaga Setupu laserowego lub plazmowego.', code: 'INCOMPATIBLE' });
