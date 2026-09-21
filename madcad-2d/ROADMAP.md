@@ -270,7 +270,7 @@ Te prace nie czekają na koniec modelowania:
 
 - [x] P5.1 Wiercenie 3-osiowe rozpoznanych otworów modelu: pozycje i osie z kernela, obsługa szyków, wiertła kręte, grupy cech, pełne wycofanie między skokami, przebicie otworów przelotowych, kontrola długości rowków i średnicy, symulacja oraz przenośny G-code. Odrzucenie osi innych niż Z, Undo/Redo, zapis/otwarcie i desktop E2E są zweryfikowane; kontrakt opisuje `docs/CAM_DRILLING.md`.
 - [x] P5.2 Projektowa biblioteka własnych narzędzi i cykli otworowych: zapisywane w projekcie edytowalne wiertła, nawiertaki i gwintowniki, bezpieczne referencje i dobór po średnicy, wiercenie zwykłe/peck/dwell, jawny fallback GRBL oraz G81/G82/G83 dla LinuxCNC i Mach3. Dedykowane gwintowanie sprawdza otwór pilotowy, wylicza posuw jako obroty × skok, generuje synchronizowane G84/G80 i blokuje sterowniki bez obsługi sztywnego gwintowania.
-- [>] P5.3 Rozszerzone strategie otworowe: dedykowane nawiertanie i pogłębianie walcowe/stożkowe na wspólnych grupach otworów, kolejność wielu narzędzi, bezpieczne głębokości wynikające z geometrii ostrza oraz raport kompletności obróbki otworów.
+- [>] P5.3 Rozszerzone strategie otworowe: dedykowane nawiertanie jest gotowe na wspólnych grupach otworów, z kątem ostrza w bibliotece, głębokością wyliczaną z geometrii, kontrolą narzędzia, jawnym G-code i symulacją. Pozostają pogłębianie walcowe/stożkowe, kolejność wielu narzędzi i raport kompletności obróbki otworów.
 
 ## Definition of Done
 

@@ -4,6 +4,7 @@ import {
   calculateContourToolpath,
   calculateCut2dToolpath,
   calculateDrillingToolpath,
+  calculateSpotDrillingToolpath,
   calculateTappingToolpath,
   calculatePocketToolpath,
   calculateTurningToolpath,
@@ -18,6 +19,7 @@ import {
   createMachineGcode,
   createManufacturingSetup,
   createPocketOperation,
+  createSpotDrillingOperation,
   createTurningOperation,
   createTappingOperation,
   ensureDocumentManufacturing,
@@ -151,6 +153,27 @@ describe('CAM contour operations', () => {
     expect(wrongPilot.valid).toBe(false);
     expect(wrongPilot.warnings.join(' ')).toContain('oczekiwane wiertło');
     expect(validateManufacturing(document.manufacturing)).toEqual([]);
+  });
+
+  it('spot drills recognized holes to a geometry-derived cone depth', () => {
+    const spotDrill = createCustomCamTool({ name: 'Nawiertak 90° Ø12', type: 'spot-drill', diameter: 12, pointAngle: 90, fluteLength: 20, stickout: 30, holderDiameter: 12, flutes: 2 });
+    const document = ensureDocumentManufacturing({ manufacturing: { setups: [], activeSetupId: '', tools: [spotDrill] } });
+    const setup = createManufacturingSetup({ bodyId: drilledBox.id, stock: { sideOffset: 2, topOffset: 0, bottomOffset: 0 }, safeHeight: 5 });
+    const operation = createSpotDrillingOperation({ toolId: spotDrill.id, targetDiameter: 7, retractHeight: 1, feedRate: 90, postProcessorId: 'linuxcnc' });
+    setup.operations.push(operation);
+    document.manufacturing.setups.push(setup);
+    document.manufacturing.activeSetupId = setup.id;
+    const toolpath = calculateSpotDrillingToolpath(setup, operation, [drilledBox], document);
+    expect(toolpath.valid).toBe(true);
+    expect(toolpath.holeCount).toBe(2);
+    expect(toolpath.holes[0].coneDepth).toBeCloseTo(1, 8);
+    expect(toolpath.holes[0].targetZ).toBeCloseTo(9, 8);
+    expect(toolpath.segments.filter((segment) => segment.kind === 'plunge')).toHaveLength(2);
+    expect(analyzeToolpathSafety(toolpath)).toEqual([]);
+    expect(createMachineGcode(setup, operation, [drilledBox], { document }).text).toContain('Nawiertak 90° Ø12');
+    expect(validateManufacturing(document.manufacturing)).toEqual([]);
+    expect(calculateSpotDrillingToolpath(setup, { ...operation, targetDiameter: 13 }, [drilledBox], document).warnings.join(' ')).toContain('przekracza średnicę nawiertaka');
+    expect(calculateSpotDrillingToolpath(setup, { ...operation, targetDiameter: 5 }, [drilledBox], document).warnings.join(' ')).toContain('musi być większa niż otwór');
   });
 
   it('rejects oversized drills and non-Z hole axes instead of exporting unsafe paths', () => {
