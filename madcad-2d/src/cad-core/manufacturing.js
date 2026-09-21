@@ -27,6 +27,36 @@ export const CAM_TOOL_PRESETS = Object.freeze({
   'drill-8': Object.freeze({ id: 'drill-8', name: 'Wiertło kręte Ø8', type: 'twist-drill', diameter: 8, fluteLength: 50, stickout: 60, holderDiameter: 13, flutes: 2 }),
 });
 
+export const CAM_HOLE_TOOL_TYPES = Object.freeze([
+  Object.freeze({ id: 'twist-drill', name: 'Wiertło kręte' }),
+  Object.freeze({ id: 'spot-drill', name: 'Nawiertak' }),
+  Object.freeze({ id: 'tap', name: 'Gwintownik' }),
+]);
+
+export function normalizeCustomCamTool(tool = {}, index = 0) {
+  const type = CAM_HOLE_TOOL_TYPES.some((item) => item.id === tool.type) ? tool.type : 'twist-drill';
+  const diameter = Math.min(100, Math.max(0.1, Number(tool.diameter) || 5));
+  return {
+    id: typeof tool.id === 'string' && tool.id && !CAM_TOOL_PRESETS[tool.id] ? tool.id : createId('cam-tool'),
+    name: String(tool.name || `Narzędzie własne ${index + 1}`).trim().slice(0, 80) || `Narzędzie własne ${index + 1}`,
+    type,
+    diameter,
+    fluteLength: Math.min(500, Math.max(0.1, Number(tool.fluteLength) || Math.max(10, diameter * 5))),
+    stickout: Math.min(500, Math.max(0.1, Number(tool.stickout) || Math.max(15, diameter * 7))),
+    holderDiameter: Math.min(200, Math.max(diameter, Number(tool.holderDiameter) || 13)),
+    flutes: Math.min(12, Math.max(1, Math.round(Number(tool.flutes) || (type === 'tap' ? 3 : 2)))),
+    pitch: type === 'tap' ? Math.min(10, Math.max(0.1, Number(tool.pitch) || 1)) : null,
+  };
+}
+
+export function createCustomCamTool(options = {}) {
+  return normalizeCustomCamTool({ ...options, id: createId('cam-tool') });
+}
+
+export function resolveCamTool(toolId, document = null) {
+  return CAM_TOOL_PRESETS[toolId] || document?.manufacturing?.tools?.find((tool) => tool.id === toolId) || null;
+}
+
 export const CAM_TURNING_TOOL_PRESETS = Object.freeze({
   'turn-rough-r08': Object.freeze({ id: 'turn-rough-r08', name: 'Nóż zewnętrzny R0,8', type: 'turning-rough', noseRadius: 0.8, stickout: 25 }),
   'turn-finish-r04': Object.freeze({ id: 'turn-finish-r04', name: 'Nóż wykańczający R0,4', type: 'turning-finish', noseRadius: 0.4, stickout: 20 }),
@@ -118,13 +148,12 @@ export function normalizeAdaptiveOperation(operation = {}, index = 0) {
 }
 
 export function normalizeDrillingOperation(operation = {}, index = 0) {
-  const selectedTool = CAM_TOOL_PRESETS[operation.toolId];
   const cycleType = ['normal', 'peck', 'dwell'].includes(operation.cycleType) ? operation.cycleType : 'peck';
   return {
     id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
     name: String(operation.name || `Wiercenie ${index + 1}`).trim().slice(0, 80) || `Wiercenie ${index + 1}`,
     type: 'drill',
-    toolId: selectedTool?.type === 'twist-drill' ? operation.toolId : 'drill-5',
+    toolId: typeof operation.toolId === 'string' && operation.toolId ? operation.toolId : 'drill-5',
     holeFeatureIds: Array.isArray(operation.holeFeatureIds) ? [...new Set(operation.holeFeatureIds.filter((id) => typeof id === 'string' && id))] : [],
     cycleType,
     peckDepth: Math.max(0.05, Number(operation.peckDepth) || 3),
@@ -209,9 +238,11 @@ export function normalizeManufacturingSetup(setup = {}, index = 0) {
 
 export function ensureDocumentManufacturing(document) {
   if (!document.manufacturing || typeof document.manufacturing !== 'object' || Array.isArray(document.manufacturing)) {
-    document.manufacturing = { setups: [], activeSetupId: '' };
+    document.manufacturing = { setups: [], activeSetupId: '', tools: [] };
   }
   if (!Array.isArray(document.manufacturing.setups)) document.manufacturing.setups = [];
+  if (!Array.isArray(document.manufacturing.tools)) document.manufacturing.tools = [];
+  document.manufacturing.tools = document.manufacturing.tools.slice(0, 100).map(normalizeCustomCamTool);
   document.manufacturing.setups = document.manufacturing.setups.map(normalizeManufacturingSetup);
   if (typeof document.manufacturing.activeSetupId !== 'string') document.manufacturing.activeSetupId = '';
   if (!document.manufacturing.setups.some((setup) => setup.id === document.manufacturing.activeSetupId)) {
@@ -507,13 +538,16 @@ function summarizeToolpath(segments) {
   };
 }
 
-export function calculateDrillingToolpath(setup, operation, bodies = []) {
+export function calculateDrillingToolpath(setup, operation, bodies = [], document = null) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
   const normalized = normalizeDrillingOperation(operation);
-  const tool = CAM_TOOL_PRESETS[normalized.toolId];
+  const tool = resolveCamTool(normalized.toolId, document);
   const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
   if (!setupResult.body || !setupResult.stockBounds) return fail('Wiercenie wymaga poprawnego Setupu i bryły.');
   if (!setupResult.valid) return fail('Popraw Setup przed obliczeniem wiercenia.');
+  if (!tool) return fail('Wybrane narzędzie nie istnieje w bibliotece projektu.');
+  if (tool.type === 'tap') return fail('Gwintownik wymaga cyklu gwintowania.');
+  if (tool.type !== 'twist-drill') return fail('Nawiertak wymaga dedykowanej operacji nawiertania.');
   if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`);
   if (normalized.retractHeight > setupResult.clearancePlaneZ - setupResult.stockBounds[1][2] + 1e-7) return fail('Wysokość wycofania nie może przekraczać wysokości bezpiecznej Setupu.');
   const selectedIds = new Set(normalized.holeFeatureIds);
@@ -945,7 +979,7 @@ export function calculateOperationToolpath(setup, operation, bodies = [], docume
   if (operation?.type === 'contour') return calculateContourToolpath(setup, operation, bodies, document);
   if (operation?.type === 'pocket') return calculatePocketToolpath(setup, operation, bodies, document);
   if (operation?.type === 'adaptive') return calculateAdaptiveToolpath(setup, operation, bodies, document);
-  if (operation?.type === 'drill') return calculateDrillingToolpath(setup, operation, bodies);
+  if (operation?.type === 'drill') return calculateDrillingToolpath(setup, operation, bodies, document);
   if (operation?.type === 'cut2d') return calculateCut2dToolpath(setup, operation, bodies, document);
   if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') return calculateTurningToolpath(setup, operation, bodies);
   return calculateFacingToolpath(setup, operation, bodies);
@@ -1185,6 +1219,23 @@ export function validateManufacturing(manufacturing) {
   const issues = [];
   if (!manufacturing || typeof manufacturing !== 'object' || Array.isArray(manufacturing)) return [{ path: 'manufacturing', message: 'Wymagane są dane wytwarzania.', code: 'TYPE' }];
   if (!Array.isArray(manufacturing.setups)) return [{ path: 'manufacturing.setups', message: 'Setupy CAM muszą być tablicą.', code: 'TYPE' }];
+  const customToolIds = new Set();
+  const customToolNames = new Set();
+  if (manufacturing.tools !== undefined && !Array.isArray(manufacturing.tools)) issues.push({ path: 'manufacturing.tools', message: 'Biblioteka narzędzi CAM musi być tablicą.', code: 'TYPE' });
+  else (manufacturing.tools || []).forEach((tool, index) => {
+    const base = `manufacturing.tools[${index}]`;
+    if (!tool || typeof tool !== 'object' || Array.isArray(tool)) { issues.push({ path: base, message: 'Narzędzie CAM musi być obiektem.', code: 'TYPE' }); return; }
+    if (typeof tool.id !== 'string' || !tool.id) issues.push({ path: `${base}.id`, message: 'Narzędzie CAM wymaga ID.', code: 'REQUIRED' });
+    else if (CAM_TOOL_PRESETS[tool.id] || customToolIds.has(tool.id)) issues.push({ path: `${base}.id`, message: 'ID narzędzia CAM jest zarezerwowane lub powtórzone.', code: 'DUPLICATE_ID' });
+    else customToolIds.add(tool.id);
+    const name = typeof tool.name === 'string' ? tool.name.trim() : '';
+    if (!name) issues.push({ path: `${base}.name`, message: 'Narzędzie CAM wymaga nazwy.', code: 'REQUIRED' });
+    else if (customToolNames.has(name.toLocaleLowerCase())) issues.push({ path: `${base}.name`, message: 'Nazwa narzędzia CAM jest powtórzona.', code: 'DUPLICATE' });
+    else customToolNames.add(name.toLocaleLowerCase());
+    if (!CAM_HOLE_TOOL_TYPES.some((item) => item.id === tool.type)) issues.push({ path: `${base}.type`, message: 'Nieobsługiwany typ narzędzia otworowego.', code: 'UNSUPPORTED' });
+    for (const key of ['diameter', 'fluteLength', 'stickout', 'holderDiameter', 'flutes']) if (!Number.isFinite(Number(tool[key])) || Number(tool[key]) <= 0) issues.push({ path: `${base}.${key}`, message: 'Wymiar narzędzia musi być dodatni.', code: 'VALUE' });
+    if (tool.type === 'tap' && (!Number.isFinite(Number(tool.pitch)) || Number(tool.pitch) <= 0)) issues.push({ path: `${base}.pitch`, message: 'Gwintownik wymaga dodatniego skoku.', code: 'VALUE' });
+  });
   const ids = new Set();
   const names = new Set();
   manufacturing.setups.forEach((setup, index) => {
@@ -1210,7 +1261,7 @@ export function validateManufacturing(manufacturing) {
       else {
         if (!['face', 'contour', 'pocket', 'adaptive', 'drill', 'cut2d', 'turn-face', 'turn-profile'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
         const isTurning = operation.type === 'turn-face' || operation.type === 'turn-profile';
-        if (operation.type !== 'cut2d' && !isTurning && !CAM_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
+        if (operation.type !== 'cut2d' && !isTurning && !CAM_TOOL_PRESETS[operation.toolId] && !customToolIds.has(operation.toolId)) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
         if (isTurning && !CAM_TURNING_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznany nóż tokarski.', code: 'UNSUPPORTED' });
         if (!CAM_POST_PROCESSORS[operation.postProcessorId]) issues.push({ path: `${operationBase}.postProcessorId`, message: 'Nieznany postprocesor CAM.', code: 'UNSUPPORTED' });
         const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : operation.type === 'drill' ? ['peckDepth', 'feedRate', 'spindleRpm'] : isTurning ? ['stockDiameter', 'targetDiameter', 'axialLength', 'maxDepthOfCut', 'feedRate', 'spindleRpm'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];

@@ -269,7 +269,7 @@ Te prace nie czekają na koniec modelowania:
 ## P5 — Manufacture / CAM klasy produkcyjnej
 
 - [x] P5.1 Wiercenie 3-osiowe rozpoznanych otworów modelu: pozycje i osie z kernela, obsługa szyków, wiertła kręte, grupy cech, pełne wycofanie między skokami, przebicie otworów przelotowych, kontrola długości rowków i średnicy, symulacja oraz przenośny G-code. Odrzucenie osi innych niż Z, Undo/Redo, zapis/otwarcie i desktop E2E są zweryfikowane; kontrakt opisuje `docs/CAM_DRILLING.md`.
-- [>] P5.2 Projektowa biblioteka własnych narzędzi i cykli otworowych: gotowy jest wybór wiercenia zwykłego/peck/dwell, jawny fallback GRBL oraz G81/G82/G83 dla LinuxCNC i Mach3. Pozostały edytowalne wiertła, nawiertaki i gwintowniki, dobór po średnicy oraz gwintowanie G84 z posuwem wynikającym ze skoku.
+- [>] P5.2 Projektowa biblioteka własnych narzędzi i cykli otworowych: gotowe są zapisywane w projekcie edytowalne wiertła, nawiertaki i gwintowniki, bezpieczne referencje i dobór po średnicy, wiercenie zwykłe/peck/dwell, jawny fallback GRBL oraz G81/G82/G83 dla LinuxCNC i Mach3. Pozostała dedykowana operacja gwintowania G84 z posuwem wynikającym ze skoku.
 
 ## Definition of Done
 

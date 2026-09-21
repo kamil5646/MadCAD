@@ -10,6 +10,7 @@ import {
   analyzeToolpathSafety,
   createContourOperation,
   createCut2dOperation,
+  createCustomCamTool,
   createDrillingOperation,
   createAdaptiveOperation,
   createGrblGcode,
@@ -17,6 +18,7 @@ import {
   createManufacturingSetup,
   createPocketOperation,
   createTurningOperation,
+  ensureDocumentManufacturing,
   extractTopBoundaryLoops,
   offsetClosedContour,
   simulateMaterialRemoval,
@@ -101,6 +103,26 @@ describe('CAM contour operations', () => {
 
     const peck = createDrillingOperation({ toolId: 'drill-5', cycleType: 'peck', peckDepth: 3, postProcessorId: 'linuxcnc' });
     expect(createMachineGcode(setup, peck, [drilledBox]).text).toContain('G83 X-10 Y-5 Z-12.2 R1 Q3 F120');
+  });
+
+  it('stores project tools, uses a custom drill, and protects tapping from a drilling cycle', () => {
+    const drill = createCustomCamTool({ name: 'Wiertło produkcyjne Ø4,8', type: 'twist-drill', diameter: 4.8, fluteLength: 30, stickout: 40, holderDiameter: 12, flutes: 2 });
+    const tap = createCustomCamTool({ name: 'Gwintownik M5', type: 'tap', diameter: 5, pitch: 0.8, fluteLength: 20, stickout: 35, holderDiameter: 12, flutes: 3 });
+    const document = ensureDocumentManufacturing({ manufacturing: { setups: [], activeSetupId: '', tools: [drill, tap] } });
+    const setup = createManufacturingSetup({ bodyId: drilledBox.id });
+    const operation = createDrillingOperation({ toolId: drill.id, cycleType: 'normal' });
+    setup.operations.push(operation);
+    document.manufacturing.setups.push(setup);
+    document.manufacturing.activeSetupId = setup.id;
+    const toolpath = calculateDrillingToolpath(setup, operation, [drilledBox], document);
+    expect(toolpath.valid).toBe(true);
+    expect(toolpath.tool.name).toBe('Wiertło produkcyjne Ø4,8');
+    expect(createMachineGcode(setup, operation, [drilledBox], { document })).toHaveProperty('toolpath.tool.id', drill.id);
+    expect(validateManufacturing(document.manufacturing)).toEqual([]);
+
+    const tappingInDrill = calculateDrillingToolpath(setup, { ...operation, toolId: tap.id }, [drilledBox], document);
+    expect(tappingInDrill.valid).toBe(false);
+    expect(tappingInDrill.warnings.join(' ')).toContain('Gwintownik wymaga cyklu gwintowania');
   });
 
   it('rejects oversized drills and non-Z hole axes instead of exporting unsafe paths', () => {
