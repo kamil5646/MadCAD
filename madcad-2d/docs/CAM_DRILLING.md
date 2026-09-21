@@ -14,7 +14,7 @@ Pattern prostokątny i po ścieżce przesuwa pozycje. Pattern kołowy obraca poz
 
 ## Operacja projektu
 
-Operacja `drill` przechowuje stabilne `holeFeatureIds`, `toolId`, `peckDepth`, `retractHeight`, `breakthroughDepth`, `feedRate`, `spindleRpm` i `postProcessorId`. Pusta lista grup oznacza wszystkie rozpoznane otwory; interfejs domyślnie wybiera pierwszą grupę i najbliższe nieza-duże wiertło.
+Operacja `drill` przechowuje stabilne `holeFeatureIds`, `toolId`, `cycleType`, `peckDepth`, `dwellSeconds`, `retractHeight`, `breakthroughDepth`, `feedRate`, `spindleRpm` i `postProcessorId`. `cycleType` wybiera wiercenie zwykłe, skokowe albo wiercenie z postojem. Pusta lista grup oznacza wszystkie rozpoznane otwory; interfejs domyślnie wybiera pierwszą grupę i najbliższe nieza-duże wiertło. Starsze operacje bez `cycleType` zachowują dotychczasowe zachowanie skokowe.
 
 Normalizacja pozostaje zgodna wstecznie: starszy projekt bez operacji `drill` nie wymaga migracji schematu. Zapis operacji korzysta z istniejącego mechanizmu dokumentu, Undo/Redo i autozapisu.
 
@@ -29,7 +29,7 @@ Normalizacja pozostaje zgodna wstecznie: starszy projekt bez operacji `drill` ni
 5. kontroluje długość rowków, limit obrotów i wysokość wycofania;
 6. wykonuje pełne wycofanie nad półfabrykatem po każdym skoku i przejazd na wysokości bezpiecznej między otworami.
 
-Ścieżka używa jawnych segmentów `G0`/`G1`. Dzięki temu ten sam bezpieczny program działa w GRBL, LinuxCNC i Mach3, nawet gdy sterownik nie obsługuje cykli stałych. Symulacja materiału i wspólny analizator kolizji korzystają z tych samych segmentów.
+Ścieżka zawsze zachowuje jawne segmenty `G0`/`G1`, z których korzystają symulacja i wspólny analizator kolizji. GRBL eksportuje te segmenty bezpośrednio; postój jest zapisywany jako `G4`. LinuxCNC i Mach3 używają odpowiednio `G81`, `G82` lub `G83`, trybu powrotu `G98` i kończą cykl przez `G80`; jawna ścieżka pozostaje bezpiecznym fallbackiem i źródłem kontroli programu.
 
 ## Dowody odbioru
 
@@ -41,4 +41,4 @@ Normalizacja pozostaje zgodna wstecznie: starszy projekt bez operacji `drill` ni
 
 ## Jawne ograniczenia i następny etap
 
-P5.1 nie wykonuje wiercenia indeksowanego ani 5-osiowego. Nie ma jeszcze własnych narzędzi użytkownika, nawiertania, dwell, gwintowania i sterownikowych G81–G84. Te elementy należą do aktywnego P5.2; implementacja ma zachować jawne segmenty jako bezpieczny fallback postprocesora.
+P5.1 nie wykonuje wiercenia indeksowanego ani 5-osiowego. P5.2 dodało wybór wiercenia zwykłego/skokowego/z postojem oraz sterownikowe G81–G83 z jawnym fallbackiem. Nadal brakuje własnych narzędzi użytkownika, nawiertania i gwintowania G84; pozostają one aktywną częścią P5.2.

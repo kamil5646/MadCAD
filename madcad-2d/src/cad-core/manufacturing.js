@@ -119,13 +119,16 @@ export function normalizeAdaptiveOperation(operation = {}, index = 0) {
 
 export function normalizeDrillingOperation(operation = {}, index = 0) {
   const selectedTool = CAM_TOOL_PRESETS[operation.toolId];
+  const cycleType = ['normal', 'peck', 'dwell'].includes(operation.cycleType) ? operation.cycleType : 'peck';
   return {
     id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
     name: String(operation.name || `Wiercenie ${index + 1}`).trim().slice(0, 80) || `Wiercenie ${index + 1}`,
     type: 'drill',
     toolId: selectedTool?.type === 'twist-drill' ? operation.toolId : 'drill-5',
     holeFeatureIds: Array.isArray(operation.holeFeatureIds) ? [...new Set(operation.holeFeatureIds.filter((id) => typeof id === 'string' && id))] : [],
+    cycleType,
     peckDepth: Math.max(0.05, Number(operation.peckDepth) || 3),
+    dwellSeconds: Number.isFinite(Number(operation.dwellSeconds)) ? Math.min(60, Math.max(0, Number(operation.dwellSeconds))) : 0.5,
     retractHeight: Number.isFinite(Number(operation.retractHeight)) ? Math.max(0, Number(operation.retractHeight)) : 1,
     breakthroughDepth: Number.isFinite(Number(operation.breakthroughDepth)) ? Math.max(0, Number(operation.breakthroughDepth)) : 0.2,
     feedRate: Math.max(1, Number(operation.feedRate) || 120),
@@ -555,15 +558,23 @@ export function calculateDrillingToolpath(setup, operation, bodies = []) {
   for (const hole of resolvedHoles) {
     push('rapid', [hole.x, hole.y, setupResult.clearancePlaneZ]);
     push('rapid', [hole.x, hole.y, retractZ]);
-    let currentDepth = 0;
-    while (currentDepth < hole.drillingDepth - 1e-9) {
-      currentDepth = Math.min(hole.drillingDepth, currentDepth + normalized.peckDepth);
-      push('plunge', [hole.x, hole.y, stockTop - currentDepth], normalized.feedRate);
+    if (normalized.cycleType === 'peck') {
+      let currentDepth = 0;
+      while (currentDepth < hole.drillingDepth - 1e-9) {
+        currentDepth = Math.min(hole.drillingDepth, currentDepth + normalized.peckDepth);
+        push('plunge', [hole.x, hole.y, stockTop - currentDepth], normalized.feedRate);
+        peckCount += 1;
+        push('rapid', [hole.x, hole.y, retractZ]);
+      }
+    } else {
+      push('plunge', [hole.x, hole.y, hole.targetZ], normalized.feedRate);
+      if (normalized.cycleType === 'dwell' && segments.length) segments.at(-1).dwellSeconds = normalized.dwellSeconds;
       peckCount += 1;
       push('rapid', [hole.x, hole.y, retractZ]);
     }
     push('rapid', [hole.x, hole.y, setupResult.clearancePlaneZ]);
   }
+  const summary = summarizeToolpath(segments);
   return {
     valid: true,
     setup: setupResult,
@@ -578,7 +589,8 @@ export function calculateDrillingToolpath(setup, operation, bodies = []) {
     peckCount,
     layerCount: peckCount,
     estimatedRemovedVolume: resolvedHoles.reduce((sum, hole) => sum + Math.PI * (tool.diameter / 2) ** 2 * hole.drillingDepth, 0),
-    ...summarizeToolpath(segments),
+    ...summary,
+    durationMinutes: summary.durationMinutes + (normalized.cycleType === 'dwell' ? resolvedHoles.length * normalized.dwellSeconds / 60 : 0),
     warnings: [],
   };
 }
@@ -1129,6 +1141,23 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   if (postProcessor.toolChange) lines.push(`T${toolNumber} M6`);
   else lines.push(comment(`Narzędzie T${toolNumber}: ${toolpath.tool.name} — zmień ręcznie przed startem`));
   lines.push(`S${toolpath.operation.spindleRpm} M3`, `G0 Z${gcodeNumber(safeLocalZ)}`);
+  const supportsCannedDrilling = toolpath.operation.type === 'drill' && ['linuxcnc', 'mach3'].includes(postProcessor.id);
+  if (supportsCannedDrilling) {
+    const cycleCode = toolpath.operation.cycleType === 'peck' ? 'G83' : toolpath.operation.cycleType === 'dwell' ? 'G82' : 'G81';
+    const retractLocalZ = toolpath.stockBounds[1][2] + toolpath.operation.retractHeight - origin[2];
+    lines.push('G98');
+    for (const hole of toolpath.holes) {
+      const words = [cycleCode, `X${gcodeNumber(hole.x - origin[0])}`, `Y${gcodeNumber(hole.y - origin[1])}`, `Z${gcodeNumber(hole.targetZ - origin[2])}`, `R${gcodeNumber(retractLocalZ)}`];
+      if (cycleCode === 'G83') words.push(`Q${gcodeNumber(toolpath.operation.peckDepth)}`);
+      if (cycleCode === 'G82') words.push(`P${gcodeNumber(toolpath.operation.dwellSeconds)}`);
+      words.push(`F${gcodeNumber(toolpath.operation.feedRate)}`);
+      lines.push(words.join(' '));
+    }
+    lines.push('G80', `G0 Z${gcodeNumber(safeLocalZ)}`, 'M5', postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
+    if (postProcessor.id === 'linuxcnc') lines.push('%');
+    lines.push('');
+    return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
+  }
   let lastFeed = null;
   for (const segment of toolpath.segments) {
     const local = segment.to.map((value, axis) => value - origin[axis]);
@@ -1137,6 +1166,7 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
       const feed = segment.feed;
       const feedWord = feed !== lastFeed ? ` F${gcodeNumber(feed)}` : '';
       lines.push(`G1 X${gcodeNumber(local[0])} Y${gcodeNumber(local[1])} Z${gcodeNumber(local[2])}${feedWord}`);
+      if (segment.dwellSeconds > 0) lines.push(`G4 P${gcodeNumber(segment.dwellSeconds)}`);
       lastFeed = feed;
     }
   }
@@ -1186,6 +1216,8 @@ export function validateManufacturing(manufacturing) {
         const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : operation.type === 'drill' ? ['peckDepth', 'feedRate', 'spindleRpm'] : isTurning ? ['stockDiameter', 'targetDiameter', 'axialLength', 'maxDepthOfCut', 'feedRate', 'spindleRpm'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];
         for (const key of positiveKeys) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr operacji musi być dodatni.', code: 'VALUE' });
         if (operation.type === 'drill') for (const key of ['retractHeight', 'breakthroughDepth']) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) < 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr wiercenia musi być nieujemny.', code: 'VALUE' });
+        if (operation.type === 'drill' && !['normal', 'peck', 'dwell'].includes(operation.cycleType)) issues.push({ path: `${operationBase}.cycleType`, message: 'Nieobsługiwany cykl wiercenia.', code: 'UNSUPPORTED' });
+        if (operation.type === 'drill' && (!Number.isFinite(Number(operation.dwellSeconds)) || Number(operation.dwellSeconds) < 0 || Number(operation.dwellSeconds) > 60)) issues.push({ path: `${operationBase}.dwellSeconds`, message: 'Postój wiercenia musi mieścić się w zakresie 0–60 s.', code: 'VALUE' });
         if (operation.type === 'drill' && (!Array.isArray(operation.holeFeatureIds) || operation.holeFeatureIds.some((id) => typeof id !== 'string' || !id))) issues.push({ path: `${operationBase}.holeFeatureIds`, message: 'Grupy otworów muszą być zapisane jako identyfikatory.', code: 'TYPE' });
         if (['contour', 'pocket', 'adaptive'].includes(operation.type) && (!Number.isFinite(Number(operation.targetDepth)) || Number(operation.targetDepth) <= 0)) issues.push({ path: `${operationBase}.targetDepth`, message: 'Głębokość obróbki musi być dodatnia.', code: 'VALUE' });
         if (setup.operationKind === 'cut-2d' && operation.type !== 'cut2d') issues.push({ path: `${operationBase}.type`, message: 'Setup cięcia może zawierać tylko operacje cięcia 2D.', code: 'INCOMPATIBLE' });

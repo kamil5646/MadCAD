@@ -83,6 +83,26 @@ describe('CAM contour operations', () => {
     expect(simulation.columns.length).toBeGreaterThan(0);
   });
 
+  it('uses G81/G82/G83 on capable controllers and explicit safe fallback on GRBL', () => {
+    const setup = createManufacturingSetup({ bodyId: drilledBox.id, stock: { sideOffset: 2, topOffset: 2, bottomOffset: 0 }, safeHeight: 5 });
+    const normal = createDrillingOperation({ toolId: 'drill-5', cycleType: 'normal', feedRate: 120, postProcessorId: 'linuxcnc' });
+    const normalPath = calculateDrillingToolpath(setup, normal, [drilledBox]);
+    expect(normalPath.peckCount).toBe(2);
+    expect(normalPath.segments.filter((segment) => segment.kind === 'plunge')).toHaveLength(2);
+    const linuxCnc = createMachineGcode(setup, normal, [drilledBox]);
+    expect(linuxCnc.text).toContain('G81 X-10 Y-5 Z-12.2 R1 F120');
+    expect(linuxCnc.text).toContain('G80');
+
+    const dwell = createDrillingOperation({ toolId: 'drill-5', cycleType: 'dwell', dwellSeconds: 1.25, feedRate: 120, postProcessorId: 'mach3' });
+    expect(createMachineGcode(setup, dwell, [drilledBox]).text).toContain('G82 X-10 Y-5 Z-12.2 R1 P1.25 F120');
+    const grblFallback = createGrblGcode(setup, dwell, [drilledBox]);
+    expect(grblFallback.text).not.toContain('G82');
+    expect(grblFallback.text.match(/G4 P1.25/g)).toHaveLength(2);
+
+    const peck = createDrillingOperation({ toolId: 'drill-5', cycleType: 'peck', peckDepth: 3, postProcessorId: 'linuxcnc' });
+    expect(createMachineGcode(setup, peck, [drilledBox]).text).toContain('G83 X-10 Y-5 Z-12.2 R1 Q3 F120');
+  });
+
   it('rejects oversized drills and non-Z hole axes instead of exporting unsafe paths', () => {
     const setup = createManufacturingSetup({ bodyId: drilledBox.id });
     const oversized = createDrillingOperation({ toolId: 'drill-6' });
