@@ -49,6 +49,7 @@ import { parseStlMesh } from './model-import.js';
 import { inspectMesh } from './mesh-tools.js';
 import { createRoundedBoxFormMesh } from './subdivision-form.js';
 import { resolveSketchFrame } from './sketch-frame.js';
+import { expandPatternedHoleInstances } from './manufacturing-hole-instances.js';
 
 let kernelPromise;
 let manifoldPromise;
@@ -1626,13 +1627,10 @@ function runFeature(feature, bodyMap, bodyOrder) {
       for (const translation of patternTranslations(feature)) target.shape = target.shape.fuse(seed.clone().translate(translation));
     }
     if (target.manufacturingHoles?.length) {
-      const occurrenceCount = feature.patternType === 'rectangular'
-        ? feature.countXValue * feature.countYValue
-        : feature.occurrencesValue;
-      target.manufacturingHoles = target.manufacturingHoles.map((hole) => ({
-        ...hole,
-        quantity: hole.quantity * occurrenceCount,
-      }));
+      target.manufacturingHoles = target.manufacturingHoles.map((hole) => {
+        const instances = expandPatternedHoleInstances(hole, feature, feature.patternType === 'circular' ? [] : patternTranslations(feature));
+        return { ...hole, instances, quantity: instances.length || hole.quantity };
+      });
     }
     return;
   }
@@ -1993,6 +1991,10 @@ function runFeature(feature, bodyMap, bodyOrder) {
       featureId: feature.id,
       diameter: feature.effectiveDiameterValue,
       quantity: 1,
+      position: [...placement.position],
+      direction: [...placement.direction],
+      depth: feature.depthValue,
+      instances: [{ position: [...placement.position], direction: [...placement.direction], depth: feature.depthValue }],
       holeType: feature.holeType,
       through: feature.extent === 'through-all',
       holeStandard: feature.holeStandard || 'custom',

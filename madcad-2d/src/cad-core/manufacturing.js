@@ -20,6 +20,11 @@ export const CAM_TOOL_PRESETS = Object.freeze({
   'flat-3': Object.freeze({ id: 'flat-3', name: 'Frez palcowy płaski Ø3', type: 'flat-end-mill', diameter: 3, fluteLength: 12, stickout: 20, holderDiameter: 16, flutes: 2 }),
   'flat-6': Object.freeze({ id: 'flat-6', name: 'Frez palcowy płaski Ø6', type: 'flat-end-mill', diameter: 6, fluteLength: 20, stickout: 30, holderDiameter: 20, flutes: 2 }),
   'face-16': Object.freeze({ id: 'face-16', name: 'Frez do planowania Ø16', type: 'face-mill', diameter: 16, fluteLength: 8, stickout: 25, holderDiameter: 32, flutes: 3 }),
+  'drill-3': Object.freeze({ id: 'drill-3', name: 'Wiertło kręte Ø3', type: 'twist-drill', diameter: 3, fluteLength: 25, stickout: 35, holderDiameter: 13, flutes: 2 }),
+  'drill-5': Object.freeze({ id: 'drill-5', name: 'Wiertło kręte Ø5', type: 'twist-drill', diameter: 5, fluteLength: 35, stickout: 45, holderDiameter: 13, flutes: 2 }),
+  'drill-6': Object.freeze({ id: 'drill-6', name: 'Wiertło kręte Ø6', type: 'twist-drill', diameter: 6, fluteLength: 40, stickout: 50, holderDiameter: 13, flutes: 2 }),
+  'drill-6.8': Object.freeze({ id: 'drill-6.8', name: 'Wiertło kręte Ø6,8 (M8)', type: 'twist-drill', diameter: 6.8, fluteLength: 45, stickout: 55, holderDiameter: 13, flutes: 2 }),
+  'drill-8': Object.freeze({ id: 'drill-8', name: 'Wiertło kręte Ø8', type: 'twist-drill', diameter: 8, fluteLength: 50, stickout: 60, holderDiameter: 13, flutes: 2 }),
 });
 
 export const CAM_TURNING_TOOL_PRESETS = Object.freeze({
@@ -112,6 +117,23 @@ export function normalizeAdaptiveOperation(operation = {}, index = 0) {
   };
 }
 
+export function normalizeDrillingOperation(operation = {}, index = 0) {
+  const selectedTool = CAM_TOOL_PRESETS[operation.toolId];
+  return {
+    id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
+    name: String(operation.name || `Wiercenie ${index + 1}`).trim().slice(0, 80) || `Wiercenie ${index + 1}`,
+    type: 'drill',
+    toolId: selectedTool?.type === 'twist-drill' ? operation.toolId : 'drill-5',
+    holeFeatureIds: Array.isArray(operation.holeFeatureIds) ? [...new Set(operation.holeFeatureIds.filter((id) => typeof id === 'string' && id))] : [],
+    peckDepth: Math.max(0.05, Number(operation.peckDepth) || 3),
+    retractHeight: Number.isFinite(Number(operation.retractHeight)) ? Math.max(0, Number(operation.retractHeight)) : 1,
+    breakthroughDepth: Number.isFinite(Number(operation.breakthroughDepth)) ? Math.max(0, Number(operation.breakthroughDepth)) : 0.2,
+    feedRate: Math.max(1, Number(operation.feedRate) || 120),
+    spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 3000)),
+    postProcessorId: normalizePostProcessorId(operation.postProcessorId),
+  };
+}
+
 export function normalizeCut2dOperation(operation = {}, index = 0) {
   return {
     id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
@@ -151,6 +173,7 @@ export function normalizeManufacturingOperation(operation = {}, index = 0) {
   if (operation?.type === 'contour') return normalizeContourOperation(operation, index);
   if (operation?.type === 'pocket') return normalizePocketOperation(operation, index);
   if (operation?.type === 'adaptive') return normalizeAdaptiveOperation(operation, index);
+  if (operation?.type === 'drill') return normalizeDrillingOperation(operation, index);
   if (operation?.type === 'cut2d') return normalizeCut2dOperation(operation, index);
   if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') return normalizeTurningOperation(operation, index);
   return normalizeFacingOperation(operation, index);
@@ -252,6 +275,10 @@ export function createPocketOperation(options = {}) {
 
 export function createAdaptiveOperation(options = {}) {
   return normalizeAdaptiveOperation({ ...options, id: createId('cam-operation') });
+}
+
+export function createDrillingOperation(options = {}) {
+  return normalizeDrillingOperation({ ...options, id: createId('cam-operation') });
 }
 
 export function createCut2dOperation(options = {}) {
@@ -474,6 +501,85 @@ function summarizeToolpath(segments) {
     distance: segments.reduce((sum, segment) => sum + segmentLength(segment), 0),
     cuttingDistance: segments.filter((segment) => segment.kind !== 'rapid').reduce((sum, segment) => sum + segmentLength(segment), 0),
     durationMinutes: segments.reduce((sum, segment) => sum + segmentLength(segment) / (segment.kind === 'rapid' ? 3000 : segment.feed), 0),
+  };
+}
+
+export function calculateDrillingToolpath(setup, operation, bodies = []) {
+  const setupResult = calculateManufacturingSetup(setup, bodies);
+  const normalized = normalizeDrillingOperation(operation);
+  const tool = CAM_TOOL_PRESETS[normalized.toolId];
+  const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
+  if (!setupResult.body || !setupResult.stockBounds) return fail('Wiercenie wymaga poprawnego Setupu i bryły.');
+  if (!setupResult.valid) return fail('Popraw Setup przed obliczeniem wiercenia.');
+  if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`);
+  if (normalized.retractHeight > setupResult.clearancePlaneZ - setupResult.stockBounds[1][2] + 1e-7) return fail('Wysokość wycofania nie może przekraczać wysokości bezpiecznej Setupu.');
+  const selectedIds = new Set(normalized.holeFeatureIds);
+  const holes = (setupResult.body.manufacturingHoles || []).filter((hole) => !selectedIds.size || selectedIds.has(hole.featureId));
+  if (!holes.length) return fail(selectedIds.size ? 'Wybrane cechy otworów już nie istnieją.' : 'Bryła nie zawiera rozpoznanych otworów do wiercenia.');
+  const resolvedHoles = [];
+  for (const hole of holes) {
+    if (tool.diameter > Number(hole.diameter) + 0.05) return fail(`Wiertło Ø${tool.diameter} jest większe niż otwór Ø${hole.diameter}.`);
+    const instances = Array.isArray(hole.instances) && hole.instances.length
+      ? hole.instances
+      : hole.position && hole.direction
+        ? [{ position: hole.position, direction: hole.direction, depth: hole.depth }]
+        : [];
+    if (!instances.length) return fail(`Otwór ${hole.featureId || ''} nie zawiera danych położenia. Przebuduj model.`.trim());
+    for (const instance of instances) {
+      if (![instance.position, instance.direction].every((vector) => Array.isArray(vector) && vector.length === 3 && vector.every(Number.isFinite)) || !Number.isFinite(Number(instance.depth)) || Number(instance.depth) <= 0) return fail('Dane położenia otworu są nieprawidłowe. Przebuduj model.');
+      const directionLength = Math.hypot(...instance.direction);
+      if (directionLength <= 1e-9) return fail('Oś otworu ma zerowy kierunek. Przebuduj model.');
+      const direction = instance.direction.map((value) => value / directionLength);
+      if (Math.abs(direction[2]) < 0.999 || Math.hypot(direction[0], direction[1]) > 0.045) return fail('Wiercenie 3-osiowe obsługuje obecnie otwory równoległe do osi Z.');
+      const otherEnd = instance.position.map((value, axis) => value + direction[axis] * Number(instance.depth));
+      const entry = instance.position[2] >= otherEnd[2] ? instance.position : otherEnd;
+      const bottom = instance.position[2] >= otherEnd[2] ? otherEnd : instance.position;
+      const breakthrough = hole.through ? normalized.breakthroughDepth : 0;
+      const targetZ = bottom[2] - breakthrough;
+      const drillingDepth = setupResult.stockBounds[1][2] - targetZ;
+      if (drillingDepth > tool.fluteLength + 1e-7) return fail(`Głębokość wiercenia ${drillingDepth.toFixed(2)} mm przekracza długość rowków wiertła (${tool.fluteLength} mm).`);
+      resolvedHoles.push({ featureId: hole.featureId, diameter: Number(hole.diameter), through: Boolean(hole.through), x: entry[0], y: entry[1], entryZ: entry[2], targetZ, drillingDepth });
+    }
+  }
+  if (!resolvedHoles.length) return fail('Nie znaleziono położeń otworów do wiercenia.');
+  const stockTop = setupResult.stockBounds[1][2];
+  const retractZ = stockTop + normalized.retractHeight;
+  const segments = [];
+  let previous = [resolvedHoles[0].x, resolvedHoles[0].y, setupResult.clearancePlaneZ];
+  const push = (kind, to, feed = null) => {
+    if (Math.hypot(...to.map((value, axis) => value - previous[axis])) <= 1e-9) return;
+    segments.push({ kind, from: previous, to, ...(feed ? { feed } : {}) });
+    previous = to;
+  };
+  let peckCount = 0;
+  for (const hole of resolvedHoles) {
+    push('rapid', [hole.x, hole.y, setupResult.clearancePlaneZ]);
+    push('rapid', [hole.x, hole.y, retractZ]);
+    let currentDepth = 0;
+    while (currentDepth < hole.drillingDepth - 1e-9) {
+      currentDepth = Math.min(hole.drillingDepth, currentDepth + normalized.peckDepth);
+      push('plunge', [hole.x, hole.y, stockTop - currentDepth], normalized.feedRate);
+      peckCount += 1;
+      push('rapid', [hole.x, hole.y, retractZ]);
+    }
+    push('rapid', [hole.x, hole.y, setupResult.clearancePlaneZ]);
+  }
+  return {
+    valid: true,
+    setup: setupResult,
+    stockBounds: setupResult.stockBounds,
+    origin: setupResult.origin,
+    clearancePlaneZ: setupResult.clearancePlaneZ,
+    operation: normalized,
+    tool,
+    segments,
+    holes: resolvedHoles,
+    holeCount: resolvedHoles.length,
+    peckCount,
+    layerCount: peckCount,
+    estimatedRemovedVolume: resolvedHoles.reduce((sum, hole) => sum + Math.PI * (tool.diameter / 2) ** 2 * hole.drillingDepth, 0),
+    ...summarizeToolpath(segments),
+    warnings: [],
   };
 }
 
@@ -827,6 +933,7 @@ export function calculateOperationToolpath(setup, operation, bodies = [], docume
   if (operation?.type === 'contour') return calculateContourToolpath(setup, operation, bodies, document);
   if (operation?.type === 'pocket') return calculatePocketToolpath(setup, operation, bodies, document);
   if (operation?.type === 'adaptive') return calculateAdaptiveToolpath(setup, operation, bodies, document);
+  if (operation?.type === 'drill') return calculateDrillingToolpath(setup, operation, bodies);
   if (operation?.type === 'cut2d') return calculateCut2dToolpath(setup, operation, bodies, document);
   if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') return calculateTurningToolpath(setup, operation, bodies);
   return calculateFacingToolpath(setup, operation, bodies);
@@ -1071,13 +1178,15 @@ export function validateManufacturing(manufacturing) {
       const operationBase = `${base}.operations[${operationIndex}]`;
       if (!operation || typeof operation !== 'object') issues.push({ path: operationBase, message: 'Operacja CAM musi być obiektem.', code: 'TYPE' });
       else {
-        if (!['face', 'contour', 'pocket', 'adaptive', 'cut2d', 'turn-face', 'turn-profile'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
+        if (!['face', 'contour', 'pocket', 'adaptive', 'drill', 'cut2d', 'turn-face', 'turn-profile'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
         const isTurning = operation.type === 'turn-face' || operation.type === 'turn-profile';
         if (operation.type !== 'cut2d' && !isTurning && !CAM_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
         if (isTurning && !CAM_TURNING_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznany nóż tokarski.', code: 'UNSUPPORTED' });
         if (!CAM_POST_PROCESSORS[operation.postProcessorId]) issues.push({ path: `${operationBase}.postProcessorId`, message: 'Nieznany postprocesor CAM.', code: 'UNSUPPORTED' });
-        const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : isTurning ? ['stockDiameter', 'targetDiameter', 'axialLength', 'maxDepthOfCut', 'feedRate', 'spindleRpm'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];
+        const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : operation.type === 'drill' ? ['peckDepth', 'feedRate', 'spindleRpm'] : isTurning ? ['stockDiameter', 'targetDiameter', 'axialLength', 'maxDepthOfCut', 'feedRate', 'spindleRpm'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];
         for (const key of positiveKeys) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr operacji musi być dodatni.', code: 'VALUE' });
+        if (operation.type === 'drill') for (const key of ['retractHeight', 'breakthroughDepth']) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) < 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr wiercenia musi być nieujemny.', code: 'VALUE' });
+        if (operation.type === 'drill' && (!Array.isArray(operation.holeFeatureIds) || operation.holeFeatureIds.some((id) => typeof id !== 'string' || !id))) issues.push({ path: `${operationBase}.holeFeatureIds`, message: 'Grupy otworów muszą być zapisane jako identyfikatory.', code: 'TYPE' });
         if (['contour', 'pocket', 'adaptive'].includes(operation.type) && (!Number.isFinite(Number(operation.targetDepth)) || Number(operation.targetDepth) <= 0)) issues.push({ path: `${operationBase}.targetDepth`, message: 'Głębokość obróbki musi być dodatnia.', code: 'VALUE' });
         if (setup.operationKind === 'cut-2d' && operation.type !== 'cut2d') issues.push({ path: `${operationBase}.type`, message: 'Setup cięcia może zawierać tylko operacje cięcia 2D.', code: 'INCOMPATIBLE' });
         if (setup.operationKind === 'mill-3axis' && operation.type === 'cut2d') issues.push({ path: `${operationBase}.type`, message: 'Operacja cięcia wymaga Setupu laserowego lub plazmowego.', code: 'INCOMPATIBLE' });

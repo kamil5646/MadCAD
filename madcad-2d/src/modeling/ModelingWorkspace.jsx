@@ -145,7 +145,7 @@ import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMesh
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
-import { calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createMachineGcode, createManufacturingSetup, createPocketOperation, createTurningOperation, normalizeManufacturingOperation, normalizeManufacturingSetup, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
+import { CAM_TOOL_PRESETS, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingSetup, createPocketOperation, createTurningOperation, normalizeManufacturingOperation, normalizeManufacturingSetup, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
@@ -1066,6 +1066,11 @@ export default function ModelingWorkspace() {
       : { boundaryFaceId: selectedBoundaryFaceId };
     const setupBody = engine.bodies.find((body) => body.id === setup.bodyId);
     const setupBounds = setupBody?.bounds || setupBody?.metrics?.bounds;
+    const firstHoleDiameter = Number(setupBody?.manufacturingHoles?.[0]?.diameter);
+    const firstHoleFeatureId = setupBody?.manufacturingHoles?.[0]?.featureId;
+    const drillingToolId = Object.values(CAM_TOOL_PRESETS)
+      .filter((tool) => tool.type === 'twist-drill' && (!Number.isFinite(firstHoleDiameter) || tool.diameter <= firstHoleDiameter + 0.05))
+      .sort((first, second) => Number.isFinite(firstHoleDiameter) ? Math.abs(first.diameter - firstHoleDiameter) - Math.abs(second.diameter - firstHoleDiameter) : first.diameter - second.diameter)[0]?.id;
     const turningDefaults = setupBounds ? {
       stockDiameter: Math.max(setupBounds[1][1] - setupBounds[0][1], setupBounds[1][2] - setupBounds[0][2]) + setup.stock.sideOffset * 2,
       targetDiameter: Math.max(setupBounds[1][1] - setupBounds[0][1], setupBounds[1][2] - setupBounds[0][2]),
@@ -1077,15 +1082,17 @@ export default function ModelingWorkspace() {
         ? createPocketOperation({ name: `Kieszeń 2D ${sameTypeCount}`, ...boundarySelection })
         : type === 'adaptive'
           ? createAdaptiveOperation({ name: `Adaptacyjne 2D ${sameTypeCount}`, ...boundarySelection })
+          : type === 'drill'
+            ? createDrillingOperation({ name: `Wiercenie ${sameTypeCount}`, toolId: drillingToolId, holeFeatureIds: firstHoleFeatureId ? [firstHoleFeatureId] : [] })
           : type === 'cut2d'
             ? createCut2dOperation({ name: `Cięcie konturu ${sameTypeCount}`, postProcessorId: setup.machineId === 'plasma-1250' ? 'linuxcnc-plasma' : 'grbl-laser', ...boundarySelection })
             : type === 'turn-face' || type === 'turn-profile'
               ? createTurningOperation(type, { name: type === 'turn-face' ? `Planowanie czoła ${sameTypeCount}` : `Toczenie zewnętrzne ${sameTypeCount}`, ...turningDefaults })
         : createFacingOperation({ name: `Planowanie ${sameTypeCount}` });
     setup.operations.push(operation);
-    const operationLabel = type === 'pocket' ? 'Kieszeń 2D' : type === 'adaptive' ? 'Adaptacyjne 2D' : type === 'cut2d' ? 'Cięcie konturu' : type === 'turn-face' ? 'Planowanie czoła' : type === 'turn-profile' ? 'Toczenie zewnętrzne' : 'Kontur 2D';
+    const operationLabel = type === 'pocket' ? 'Kieszeń 2D' : type === 'adaptive' ? 'Adaptacyjne 2D' : type === 'drill' ? 'Wiercenie' : type === 'cut2d' ? 'Cięcie konturu' : type === 'turn-face' ? 'Planowanie czoła' : type === 'turn-profile' ? 'Toczenie zewnętrzne' : 'Kontur 2D';
     const boundaryLabel = selectedProfileMatch && !activeSketchId ? ' dla zaznaczonego profilu szkicu' : selectedBoundaryFaceId ? ' dla zaznaczonej ściany' : ' dla górnej powierzchni bryły';
-    setNotice(type === 'face' ? 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.' : type === 'cut2d' ? `Utworzono ${operationLabel}${boundaryLabel}. Ustaw szczelinę, wejście, moc, przejścia i posuw.` : type === 'turn-face' || type === 'turn-profile' ? `Utworzono ${operationLabel}. Sprawdź średnice, długość, głębokość przejścia, posuw i obroty.` : `Utworzono ${operationLabel}${boundaryLabel}. Ustaw frez, głębokość, zejście i posuw.`);
+    setNotice(type === 'face' ? 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.' : type === 'drill' ? 'Utworzono wiercenie rozpoznanych otworów. Ustaw wiertło, głębokość skoku i wycofanie.' : type === 'cut2d' ? `Utworzono ${operationLabel}${boundaryLabel}. Ustaw szczelinę, wejście, moc, przejścia i posuw.` : type === 'turn-face' || type === 'turn-profile' ? `Utworzono ${operationLabel}. Sprawdź średnice, długość, głębokość przejścia, posuw i obroty.` : `Utworzono ${operationLabel}${boundaryLabel}. Ustaw frez, głębokość, zejście i posuw.`);
   });
   const updateCamOperation = (setupId, operationId, patch) => commit((next) => {
     const setup = next.manufacturing.setups.find((item) => item.id === setupId);
