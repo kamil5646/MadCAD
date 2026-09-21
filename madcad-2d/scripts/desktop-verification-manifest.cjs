@@ -1,6 +1,7 @@
 module.exports = Object.freeze({
   modeling: Object.freeze([
     'scripts/verify-modeling.cjs',
+    'scripts/verify-large-projects.cjs',
     'scripts/verify-surface-modeling.cjs',
     'scripts/verify-sheet-metal-base.cjs',
     'scripts/verify-plastic-boss.cjs',

@@ -16,6 +16,7 @@
     "build": "npm run build:ui",
     "build:ui": "vite build",
     "verify:modeling": "npm run build:ui && electron scripts/verify-modeling.cjs",
+    "verify:large-projects": "npm run build:ui && electron scripts/verify-large-projects.cjs",
     "verify:surface-modeling": "npm run build:ui && electron scripts/verify-surface-modeling.cjs",
     "verify:sheet-metal-base": "npm run build:ui && electron scripts/verify-sheet-metal-base.cjs",
     "verify:plastic-boss": "npm run build:ui && electron scripts/verify-plastic-boss.cjs",

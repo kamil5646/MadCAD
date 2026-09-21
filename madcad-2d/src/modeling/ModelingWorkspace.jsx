@@ -2358,6 +2358,7 @@ export default function ModelingWorkspace() {
       timeline: engine.timeline,
       diagnostics: engine.diagnostics,
       performance: engine.performance,
+      canceledRevisions: engine.canceledRevisions,
       evaluatedFeatureData: engine.evaluatedDocument?.features?.map((feature) => ({
         id: feature.id,
         type: feature.type,
@@ -2375,7 +2376,7 @@ export default function ModelingWorkspace() {
     };
     window.__madcadVerifyProjectPointsToSurface = engine.projectPointsToSurface;
     return () => { delete window.__madcadVerifyEngineState; delete window.__madcadVerifyProjectPointsToSurface; };
-  }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline, engine.diagnostics, engine.performance, engine.evaluatedDocument, engine.projectPointsToSurface]);
+  }, [engine.status, engine.revision, engine.cache, engine.bodies, engine.timeline, engine.diagnostics, engine.performance, engine.canceledRevisions, engine.evaluatedDocument, engine.projectPointsToSurface]);
 
   const updateCommand = (patch) => {
     if (Object.hasOwn(patch, 'dynamicLength')) sketchDynamicLengthRef.current = patch.dynamicLength;
@@ -2853,10 +2854,11 @@ export default function ModelingWorkspace() {
     });
   };
 
-  const startSketch = () => {
+  const startSketch = (requestedSelection = selection) => {
     if (readOnly) return readOnlyNotice();
-    if (selection?.kind === 'constructionPlane') {
-      const supportPlane = constructionPlanes.find((plane) => plane.id === selection.id);
+    const sketchSelection = requestedSelection?.kind ? requestedSelection : selection;
+    if (sketchSelection?.kind === 'constructionPlane') {
+      const supportPlane = constructionPlanes.find((plane) => plane.id === sketchSelection.id);
       if (!supportPlane || supportPlane.status !== 'ok') {
         setNotice('Wybrana płaszczyzna konstrukcyjna ma błąd i nie może być podporą szkicu.');
         return;
@@ -2881,7 +2883,7 @@ export default function ModelingWorkspace() {
       setNotice(`Edytujesz ${sketch.name} na płaszczyźnie ${supportPlane.name}.`);
       return;
     }
-    const selectedFace = (selection?.items || (selection?.kind === 'face' ? [selection] : [])).find((item) => item.kind === 'face');
+    const selectedFace = (sketchSelection?.items || (sketchSelection?.kind === 'face' ? [sketchSelection] : [])).find((item) => item.kind === 'face');
     if (selectedFace) {
       const body = engine.bodies.find((candidate) => candidate.id === selectedFace.bodyId);
       const face = body?.topology?.faces?.find((candidate) => candidate.id === selectedFace.id);
@@ -4043,6 +4045,7 @@ export default function ModelingWorkspace() {
     window.__madcadVerifyFinishCanvasSketchTool = finishCanvasSketchTool;
     window.__madcadVerifySketchSelection = handleSketchSelection;
     window.__madcadVerifyTopologySelection = handleTopologySelection;
+    window.__madcadVerifyStartSketch = startSketch;
     window.__madcadVerifyOpenProjectToSurface = openProjectToSurface;
     window.__madcadVerifyProfileSelection = (sketchId, profileId) => setSelection({ kind: 'profile', id: profileId, sketchId });
     window.__madcadVerifyCreateLostTopologyReference = () => {
@@ -4331,6 +4334,34 @@ export default function ModelingWorkspace() {
       setSelection({ kind: 'document', id: fixture.id });
       setCommand(null);
     };
+    window.__madcadVerifyLoadLargeHistoryFixture = (featureCount = 220) => {
+      const count = Math.max(200, Math.min(500, Math.trunc(Number(featureCount) || 220)));
+      const fixture = createStarterDocument();
+      fixture.name = 'Korpus R6.6 — długa historia';
+      const targetBodyId = `body-${fixture.features[0].id}`;
+      for (let index = fixture.features.length; index < count; index += 1) {
+        fixture.features.push(createFeature('transform', {
+          name: `Przesunięcie ${index}`,
+          targetBodyId,
+          mode: 'move',
+          x: index % 2 ? '0.25' : '-0.25',
+          y: index % 3 ? '0' : '0.1',
+          z: '0', angle: '0', originX: '0', originY: '0', originZ: '0',
+        }));
+      }
+      history.replace(fixture);
+      setActiveSketchId(null);
+      setWorkspace('solid');
+      setSelection({ kind: 'document', id: fixture.id });
+      setCommand(null);
+    };
+    window.__madcadVerifyUpdateLargeHistory = (featureIndex, x) => {
+      commit((next) => {
+        const feature = next.features[Math.max(1, Math.trunc(Number(featureIndex) || 1))];
+        if (!feature || feature.type !== 'transform') throw new Error('Brak transformacji korpusu R6.6.');
+        feature.x = String(x);
+      });
+    };
     window.__madcadVerifyLoadUcsFixture = () => {
       const fixture = createDocument('Szkic na obróconej płaszczyźnie');
       const angle = Math.PI / 4;
@@ -4537,6 +4568,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyFinishCanvasSketchTool;
       delete window.__madcadVerifySketchSelection;
       delete window.__madcadVerifyTopologySelection;
+      delete window.__madcadVerifyStartSketch;
       delete window.__madcadVerifyOpenProjectToSurface;
       delete window.__madcadVerifyProfileSelection;
       delete window.__madcadVerifyCreateLostTopologyReference;
@@ -4557,6 +4589,8 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyReopenCurrentDocument;
       delete window.__madcadVerifyLoadPointHoleFixture;
       delete window.__madcadVerifyLoadTimelineFixture;
+      delete window.__madcadVerifyLoadLargeHistoryFixture;
+      delete window.__madcadVerifyUpdateLargeHistory;
       delete window.__madcadVerifyLoadUcsFixture;
       delete window.__madcadVerifyLoadSurfaceFixture;
       delete window.__madcadVerifyDocumentState;

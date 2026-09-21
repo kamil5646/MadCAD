@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { strToU8, zipSync } from 'three/examples/jsm/libs/fflate.module.js';
+import { createLargeProjectCorpus, LARGE_FEATURE_COUNT } from './large-project-fixtures.mjs';
 import atomicFile from '../electron/atomic-file.cjs';
 import slicerLaunch from '../electron/slicer-launch.cjs';
 import securityPolicy from '../electron/security-policy.cjs';
@@ -59,7 +60,7 @@ import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRe
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
 import { FEATURE_STATUS, prepareDocument } from '../src/cad-core/evaluator.js';
-import { evaluateFeatureHistory } from '../src/cad-core/feature-history.js';
+import { evaluateFeatureHistory, evaluateFeatureHistoryCooperatively } from '../src/cad-core/feature-history.js';
 import { executeFeatureTransaction } from '../src/cad-core/feature-transaction.js';
 import { GEOMETRY_POLICY, isPositiveLength, nearlyEqual } from '../src/cad-core/geometry-policy.js';
 import { assignStableTopologyIds } from '../src/cad-core/topology-naming.js';
@@ -792,6 +793,32 @@ test('historia nie wykonuje operacji wyłączonych ani cofniętych', () => {
     FEATURE_STATUS.SUPPRESSED,
     FEATURE_STATUS.ROLLED_BACK,
   ]);
+});
+
+test('kooperacyjna historia przerywa nieaktualną przebudowę przed wykonaniem reszty operacji', async () => {
+  const features = Array.from({ length: 12 }, (_, index) => ({
+    id: `feature-${index + 1}`,
+    name: `Operacja ${index + 1}`,
+    status: 'ready',
+  }));
+  const executed = [];
+  const cancellation = new Error('Nowsza rewizja dokumentu oczekuje na przebudowę.');
+  cancellation.code = 'STALE_REVISION';
+
+  await assert.rejects(
+    evaluateFeatureHistoryCooperatively(features, (feature) => {
+      executed.push(feature.id);
+      return { diagnostics: [] };
+    }, {}, {
+      checkpointInterval: 3,
+      checkpoint: async ({ processedFeatures }) => {
+        await Promise.resolve();
+        if (processedFeatures >= 6) throw cancellation;
+      },
+    }),
+    (error) => error === cancellation && error.code === 'STALE_REVISION',
+  );
+  assert.deepEqual(executed, features.slice(0, 6).map((feature) => feature.id));
 });
 
 test('trwałe nazwy topologii przeżywają zmianę kolejności i szum tolerancji', () => {
@@ -3210,6 +3237,28 @@ test('duży dokument mieści się w budżecie przygotowania historii', () => {
   assert.ok(
     durationMs < GEOMETRY_POLICY.performanceBudgets.prepareLargeMs,
     `Przygotowanie dużego dokumentu trwało ${durationMs.toFixed(1)} ms.`,
+  );
+});
+
+test('korpus R6.6 zachowuje trzy duże projekty po round-trip i przebudowie przygotowania', () => {
+  const corpus = createLargeProjectCorpus();
+  assert.equal(corpus.length, 3);
+  const measurements = [];
+  for (const source of corpus) {
+    assert.ok(source.features.length >= LARGE_FEATURE_COUNT, `${source.name} ma zbyt krótką historię.`);
+    const serialized = JSON.stringify(source);
+    const opened = openDocument(JSON.parse(serialized));
+    assert.equal(opened.readOnly, false);
+    assert.equal(validateDocument(opened.document).valid, true, `${source.name} nie przechodzi walidacji.`);
+    const startedAt = performance.now();
+    const prepared = prepareDocument(opened.document);
+    const durationMs = performance.now() - startedAt;
+    assert.equal(prepared.features.length, source.features.length);
+    measurements.push({ name: source.name, durationMs, bytes: Buffer.byteLength(serialized) });
+  }
+  assert.ok(
+    measurements.every(({ durationMs }) => durationMs < GEOMETRY_POLICY.performanceBudgets.prepareLargeMs),
+    `Korpus przekroczył budżet przygotowania: ${JSON.stringify(measurements)}`,
   );
 });
 

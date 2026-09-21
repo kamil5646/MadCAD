@@ -66,11 +66,15 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState.renderScene.decals.length === 1 && window.__madcadRenderSceneState?.loadedDecals === 1`, 'Undo przywraca naklejkę');
     await window.webContents.executeJavaScript(`document.querySelector('#saveLocalRenderBtn').click()`);
     const startedAt = Date.now();
+    let renderBuffer = null;
     while (Date.now() - startedAt < 10000) {
-      try { if ((await fs.stat(renderPath)).size > 1000) break; } catch {}
+      try {
+        const candidate = await fs.readFile(renderPath);
+        if (candidate.length > 1000) { renderBuffer = candidate; break; }
+      } catch {}
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    const renderBuffer = await fs.readFile(renderPath);
+    if (!renderBuffer) throw new Error('Eksport PNG nie został odblokowany do odczytu w wymaganym czasie.');
     const renderBytes = renderBuffer.length;
     const renderImage = nativeImage.createFromBuffer(renderBuffer);
     const renderSize = renderImage.getSize();

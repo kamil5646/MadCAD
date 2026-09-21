@@ -14,6 +14,7 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
   const requestsRef = useRef(new Map());
   const requestIdRef = useRef(0);
   const revisionRef = useRef(0);
+  const canceledRevisionsRef = useRef(0);
   const recoveryPolicyRef = useRef(new WorkerRecoveryPolicy({ maxAttempts: MAX_WORKER_RESTARTS }));
   const [workerGeneration, setWorkerGeneration] = useState(0);
   const [state, setState] = useState({
@@ -134,6 +135,7 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
           setState((current) => ({ ...current, status: 'ready', error: '', ...result, evaluatedDocument: document }));
         }
       } catch (error) {
+        if (error.code === 'STALE_REVISION') canceledRevisionsRef.current += 1;
         if (!active || error.code === 'STALE_REVISION' || error.code === 'WORKER_STOPPED' || error.code === 'WORKER_CRASH') return;
         setState((current) => ({
           ...current,
@@ -194,5 +196,5 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     setWorkerGeneration((generation) => generation + 1);
   }, [rejectPending]);
 
-  return { ...state, analyzeCollisions, exportExternalDocument, exportModel, projectPointsToSurface, restartWorkerForTest };
+  return { ...state, canceledRevisions: canceledRevisionsRef.current, analyzeCollisions, exportExternalDocument, exportModel, projectPointsToSurface, restartWorkerForTest };
 }
