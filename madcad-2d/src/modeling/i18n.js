@@ -1772,6 +1772,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Kieszeń': 'Pocket',
   'Adaptacyjne': 'Adaptive',
   'Wiercenie': 'Drilling',
+  'Gwintowanie': 'Tapping',
   'Biblioteka narzędzi projektu': 'Project tool library',
   'Własne narzędzia są zapisywane w pliku .madcad i działają z Cofnij/Ponów.': 'Custom tools are saved in the .madcad file and support Undo/Redo.',
   'Dodaj narzędzie': 'Add tool',
@@ -1797,6 +1798,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Wiercenie skokowe (G83)': 'Peck drilling (G83)',
   'Wiercenie z postojem (G82)': 'Dwell drilling (G82)',
   'Rozpoznane otwory z pełnym wycofaniem między skokami': 'Recognized holes with full retract between pecks',
+  'Synchronizowane gwintowanie rozpoznanych otworów': 'Synchronized tapping of recognized holes',
   'Sterownik / postprocesor': 'Controller / postprocessor',
   'Średnica półfabrykatu': 'Stock diameter',
   'Średnica docelowa': 'Target diameter',
@@ -1812,6 +1814,8 @@ const ENGLISH_TEXT = Object.freeze({
   'Postój na dnie': 'Bottom dwell',
   'Wycofanie': 'Retract height',
   'Przebicie': 'Breakthrough',
+  'Odstęp od dna': 'Bottom clearance',
+  'Posuw synchroniczny': 'Synchronized feed',
   'Zejście': 'Stepdown',
   'Posuw': 'Feed',
   'Podgląd G-code': 'G-code preview',
@@ -1831,6 +1835,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Usuń Setup': 'Delete Setup',
   'Setup i ścieżka są zapisane w projekcie oraz działają z Cofnij/Ponów.': 'The setup and toolpath are saved in the project and support Undo/Redo.',
   'Utworzono wiercenie rozpoznanych otworów. Ustaw wiertło, głębokość skoku i wycofanie.': 'Created drilling for recognized holes. Set the drill bit, peck depth, and retract height.',
+  'Utworzono gwintowanie. Posuw jest wyliczany ze skoku gwintownika i obrotów.': 'Created tapping. Feed is calculated from tap pitch and spindle speed.',
 });
 
 const ENGLISH_PHRASES = Object.freeze([

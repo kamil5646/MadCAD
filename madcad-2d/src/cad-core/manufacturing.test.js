@@ -4,6 +4,7 @@ import {
   calculateContourToolpath,
   calculateCut2dToolpath,
   calculateDrillingToolpath,
+  calculateTappingToolpath,
   calculatePocketToolpath,
   calculateTurningToolpath,
   analyzeManufacturingProgram,
@@ -18,6 +19,7 @@ import {
   createManufacturingSetup,
   createPocketOperation,
   createTurningOperation,
+  createTappingOperation,
   ensureDocumentManufacturing,
   extractTopBoundaryLoops,
   offsetClosedContour,
@@ -123,6 +125,32 @@ describe('CAM contour operations', () => {
     const tappingInDrill = calculateDrillingToolpath(setup, { ...operation, toolId: tap.id }, [drilledBox], document);
     expect(tappingInDrill.valid).toBe(false);
     expect(tappingInDrill.warnings.join(' ')).toContain('Gwintownik wymaga cyklu gwintowania');
+  });
+
+  it('taps a matching pilot hole with pitch-derived feed and synchronized G84', () => {
+    const tap = createCustomCamTool({ name: 'Gwintownik M8 × 1,25', type: 'tap', diameter: 8, pitch: 1.25, fluteLength: 30, stickout: 40, holderDiameter: 12, flutes: 3 });
+    const pilotBody = { ...drilledBox, manufacturingHoles: drilledBox.manufacturingHoles.map((hole) => ({ ...hole, diameter: 6.8 })) };
+    const document = ensureDocumentManufacturing({ manufacturing: { setups: [], activeSetupId: '', tools: [tap] } });
+    const setup = createManufacturingSetup({ bodyId: pilotBody.id, stock: { sideOffset: 2, topOffset: 2, bottomOffset: 0 }, safeHeight: 5 });
+    const operation = createTappingOperation({ toolId: tap.id, spindleRpm: 500, bottomClearance: 1, postProcessorId: 'linuxcnc' });
+    setup.operations.push(operation);
+    document.manufacturing.setups.push(setup);
+    document.manufacturing.activeSetupId = setup.id;
+    const toolpath = calculateTappingToolpath(setup, operation, [pilotBody], document);
+    expect(toolpath.valid).toBe(true);
+    expect(toolpath.operation.feedRate).toBe(625);
+    expect(toolpath.segments.filter((segment) => segment.kind === 'tap-down')).toHaveLength(2);
+    expect(toolpath.segments.filter((segment) => segment.kind === 'tap-up')).toHaveLength(2);
+    expect(analyzeToolpathSafety(toolpath)).toEqual([]);
+    const output = createMachineGcode(setup, operation, [pilotBody], { document });
+    expect(output.text).toContain('T100 M6');
+    expect(output.text).toContain('G84 X-10 Y-5 Z-11 R1 F625');
+    expect(output.text).toContain('G80');
+    expect(() => createMachineGcode(setup, operation, [pilotBody], { document, postProcessorId: 'grbl' })).toThrow(/G84/);
+    const wrongPilot = calculateTappingToolpath(setup, operation, [drilledBox], document);
+    expect(wrongPilot.valid).toBe(false);
+    expect(wrongPilot.warnings.join(' ')).toContain('oczekiwane wiertło');
+    expect(validateManufacturing(document.manufacturing)).toEqual([]);
   });
 
   it('rejects oversized drills and non-Z hole axes instead of exporting unsafe paths', () => {
