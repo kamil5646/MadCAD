@@ -485,7 +485,15 @@ async function runUiFlow(window) {
   };
   const expandReferenceRepair = async () => {
     await waitForUi(window, `Boolean(document.querySelector('.reference-repair-panel'))`, 'widoczny panel naprawy referencji');
-    await window.webContents.executeJavaScript(`document.querySelector('.reference-repair-panel.collapsed .reference-repair-toggle')?.click()`);
+    await window.webContents.executeJavaScript(`(() => {
+      const panel = document.querySelector('.reference-repair-panel');
+      if (!panel?.classList.contains('collapsed')) return;
+      const button = panel.querySelector('.reference-repair-toggle');
+      if (!button) throw new Error('Brak przycisku panelu naprawy referencji');
+      const key = Object.keys(button).find((item) => item.startsWith('__reactProps'));
+      if (key && typeof button[key]?.onClick === 'function') button[key].onClick();
+      else button.click();
+    })()`);
     await waitForUi(window, `Boolean(document.querySelector('.reference-repair-panel:not(.collapsed)'))`, 'rozwinięty panel naprawy referencji');
   };
   const editTimelineFeature = async (index, title = 'Wyciągnięcie') => {
