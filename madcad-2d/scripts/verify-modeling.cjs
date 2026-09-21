@@ -1249,7 +1249,18 @@ async function runUiFlow(window) {
   const sinkDepth = (5 - 2.5) / Math.tan(Math.PI / 4);
   const countersinkExtra = (Math.PI * sinkDepth / 3) * ((5 ** 2) + (5 * 2.5) - (2 * (2.5 ** 2)));
   const countersinkVolume = 12000 - (Math.PI * 2.5 ** 2 * 10) - countersinkExtra;
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${countersinkRevision} && (window.__madcadVerifyEngineState?.status === 'ready' || window.__madcadVerifyEngineState?.status === 'error')`, 'wynik Countersink', modelingTimeoutMs);
+  await waitForUi(window, `(() => {
+    const state = window.__madcadVerifyEngineState;
+    const feature = state?.evaluatedFeatureData?.[1];
+    return state?.revision > ${countersinkRevision}
+      && (state.status === 'ready' || state.status === 'error')
+      && feature?.holeType === 'countersink'
+      && feature?.extent === 'distance'
+      && Math.abs(Number(feature?.diameter) - 5) < 0.001
+      && Math.abs(Number(feature?.depth) - 10) < 0.001
+      && Math.abs(Number(feature?.countersinkDiameter) - 10) < 0.001
+      && Math.abs(Number(feature?.countersinkAngle) - 90) < 0.001;
+  })()`, 'wynik Countersink', modelingTimeoutMs);
   const countersinkPreview = await window.webContents.executeJavaScript(`({ status: window.__madcadVerifyEngineState?.status, error: document.querySelector('.engine-status')?.textContent, volume: window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume, timeline: window.__madcadVerifyEngineState?.timeline })`);
   if (countersinkPreview.status !== 'ready') throw new Error(`Countersink kernel error: ${JSON.stringify(countersinkPreview)}`);
   if (Math.abs(countersinkPreview.volume - countersinkVolume) > 0.05) throw new Error(`Countersink preview mismatch: ${JSON.stringify({ expected: countersinkVolume, ...countersinkPreview })}`);
