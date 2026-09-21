@@ -18,6 +18,12 @@ Operacja `drill` przechowuje stabilne `holeFeatureIds`, `toolId`, `cycleType`, `
 
 Normalizacja pozostaje zgodna wstecznie: starszy projekt bez operacji `drill` nie wymaga migracji schematu. Zapis operacji korzysta z istniejącego mechanizmu dokumentu, Undo/Redo i autozapisu.
 
+## Biblioteka narzędzi projektu
+
+`manufacturing.tools[]` przechowuje do 100 własnych wierteł, nawiertaków i gwintowników. Każde narzędzie ma stabilne ID, nazwę, typ, średnicę, długość rowków, wysięg, średnicę oprawki i liczbę ostrzy; gwintownik przechowuje również skok. Biblioteka jest częścią dokumentu `.madcad`, więc zapis, ponowne otwarcie, autozapis i Cofnij/Ponów korzystają z istniejącej transakcji projektu.
+
+Operacja rozwiązuje preset albo narzędzie projektu po `toolId`. Nowe wiercenie uwzględnia własne wiertła przy doborze średnicy. Usunięcie narzędzia używanego przez operację jest blokowane, a utracone ID zatrzymuje obliczenie ścieżki i eksport. Nawiertak i gwintownik są świadomie odrzucane przez zwykłą operację wiercenia do czasu użycia dedykowanych operacji nawiertania i G84.
+
 ## Obliczanie i bezpieczeństwo
 
 `calculateDrillingToolpath()`:
@@ -41,4 +47,4 @@ Normalizacja pozostaje zgodna wstecznie: starszy projekt bez operacji `drill` ni
 
 ## Jawne ograniczenia i następny etap
 
-P5.1 nie wykonuje wiercenia indeksowanego ani 5-osiowego. P5.2 dodało wybór wiercenia zwykłego/skokowego/z postojem oraz sterownikowe G81–G83 z jawnym fallbackiem. Nadal brakuje własnych narzędzi użytkownika, nawiertania i gwintowania G84; pozostają one aktywną częścią P5.2.
+P5.1 nie wykonuje wiercenia indeksowanego ani 5-osiowego. P5.2 dodało projektową bibliotekę wierteł, nawiertaków i gwintowników, dobór po średnicy, wybór wiercenia zwykłego/skokowego/z postojem oraz sterownikowe G81–G83 z jawnym fallbackiem. Pozostaje dedykowana operacja gwintowania z posuwem wynikającym ze skoku i G84.

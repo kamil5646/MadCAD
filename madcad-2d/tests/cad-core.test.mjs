@@ -5626,7 +5626,7 @@ test('dokument v15 migruje dane wytwarzania do bieżącego schematu i przechodzi
   delete legacy.manufacturing;
   const opened = openDocument(legacy, { now: '2026-09-08T12:00:00.000Z' });
   assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
-  assert.deepEqual(opened.document.manufacturing, { setups: [], activeSetupId: '' });
+  assert.deepEqual(opened.document.manufacturing, { setups: [], activeSetupId: '', tools: [] });
   assert.equal(validateDocument(opened.document).valid, true);
   assert.equal(opened.document.metadata.migrationHistory.some((entry) => entry.from === 15 && entry.to === 16), true);
 });
