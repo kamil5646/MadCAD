@@ -44,7 +44,7 @@ potwierdzonego wyniku bez blokowania użytkownika:
   walidację, round-trip i budżet przygotowania, a desktopowy scenariusz z
   prawdziwym OpenCascade przebudowuje 220 operacji i zachowuje najnowszą
   rewizję po anulowaniu starszej;
-- [>] rozszerzyć raport dużych projektów o Undo/Redo, autozapis oraz szczytowe
+- [x] rozszerzyć raport dużych projektów o Undo/Redo, autozapis oraz szczytowe
   zużycie pamięci na Windows i macOS;
 - [ ] edycja podczas przebudowy zachowuje wyłącznie najnowszą rewizję, daje się
   anulować z interfejsu i nie pozostawia częściowego modelu ani cache;
@@ -265,6 +265,11 @@ Te prace nie czekają na koniec modelowania:
 - [x] P4.6 Kondycja projektu tworzy deterministyczny raport tylko do odczytu łączący walidację dokumentu, stany historii, utracone referencje B-Rep, aktualność linków zewnętrznych, diagnostykę silnika i rozmiar danych. Problemy mają stabilny kod, kategorię, priorytet krytyczny/ostrzeżenie/informacja oraz cel nawigacji do operacji, szkicu, komponentu, parametrów albo dokumentu. Zwarty panel PL/EN pokazuje wynik 0–100, sześć kontroli, metryki i filtry; kliknięcie przechodzi do problemu, a eksport JSON dodaje czas wygenerowania bez modyfikowania modelu. Testy core obejmują stan zdrowy i złożone błędy, desktop E2E sprawdza nawigację, prawdziwy pobrany JSON, układ bez overflow i oba języki, a moduł raportu ma 94,89% pokrycia linii.
 - [x] P4.7 „Gdzie używane” indeksuje jeden istniejący graf zależności zamiast dublować logikę modelu. Parametry, szkice, profile, geometria szkicu, konstrukcja, operacje, bryły, komponenty i linkowane projekty mają deterministyczne wejścia, bezpośrednich użytkowników, pełne zależności nadrzędne oraz transytywny wpływ zmiany z poziomem odległości. Link projektu wskazuje komponent i stabilne proxy. Zwarty panel PL/EN otwiera się dla bieżącego zaznaczenia, pozwala wyszukać dowolny węzeł, przełącza `Używany przez`/`Używa`/`Wpływ zmiany` i nawiguje do obiektu bez modyfikowania dokumentu. Testy core, desktop E2E, dostępność, DPI/overflow, regresja raportu kondycji i kontrola wizualna przechodzą; moduł inspektora ma 95,70% pokrycia linii.
 - [x] P4.8 Globalne „Idź do” buduje deterministyczny indeks parametrów, szkiców, operacji, brył, komponentów, wystąpień, arkuszy, projektów linkowanych i geometrii konstrukcyjnej. Paleta otwierana przyciskiem albo `Ctrl/⌘ K` wyszukuje po nazwie, typie i numerze części bez rozróżniania polskich znaków, porządkuje trafienia według jakości oraz obsługuje strzałki, Enter, Escape, mysz i pusty wynik. Wybrany element otwiera właściwy obszar, panel lub zaznaczenie bez zmiany dokumentu. Interfejs PL/EN, fokus, dostępność, DPI/overflow i układ wizualny sprawdza desktop E2E; test komponentu obejmuje klawiaturę, a 178 testów core potwierdza komplet celów i brak mutacji. Moduł indeksu ma 100% pokrycia linii.
+
+## P5 — Manufacture / CAM klasy produkcyjnej
+
+- [x] P5.1 Wiercenie 3-osiowe rozpoznanych otworów modelu: pozycje i osie z kernela, obsługa szyków, wiertła kręte, grupy cech, pełne wycofanie między skokami, przebicie otworów przelotowych, kontrola długości rowków i średnicy, symulacja oraz przenośny G-code. Odrzucenie osi innych niż Z, Undo/Redo, zapis/otwarcie i desktop E2E są zweryfikowane; kontrakt opisuje `docs/CAM_DRILLING.md`.
+- [>] P5.2 Projektowa biblioteka własnych narzędzi i cykli otworowych: edytowalne wiertła, nawiertaki i gwintowniki, dobór po średnicy, wiercenie zwykłe/peck/dwell, gwintowanie z posuwem wynikającym ze skoku oraz postprocesory wykorzystujące bezpieczny cykl jawny albo G81/G82/G83/G84 zależnie od sterownika.
 
 ## Definition of Done
 

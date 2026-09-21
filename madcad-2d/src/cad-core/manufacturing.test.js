@@ -3,12 +3,14 @@ import {
   calculateAdaptiveToolpath,
   calculateContourToolpath,
   calculateCut2dToolpath,
+  calculateDrillingToolpath,
   calculatePocketToolpath,
   calculateTurningToolpath,
   analyzeManufacturingProgram,
   analyzeToolpathSafety,
   createContourOperation,
   createCut2dOperation,
+  createDrillingOperation,
   createAdaptiveOperation,
   createGrblGcode,
   createMachineGcode,
@@ -41,7 +43,59 @@ const box = {
   ],
 };
 
+const drilledBox = {
+  ...box,
+  manufacturingHoles: [{
+    featureId: 'hole-main',
+    diameter: 5,
+    quantity: 2,
+    through: true,
+    position: [10, 5, 10],
+    direction: [0, 0, -1],
+    depth: 10,
+    instances: [
+      { position: [10, 5, 10], direction: [0, 0, -1], depth: 10 },
+      { position: [30, 15, 10], direction: [0, 0, -1], depth: 10 },
+    ],
+  }],
+};
+
 describe('CAM contour operations', () => {
+  it('drills recognized model holes with safe pecks, simulation data, and portable G-code', () => {
+    const setup = createManufacturingSetup({ bodyId: drilledBox.id, stock: { sideOffset: 2, topOffset: 2, bottomOffset: 0 }, safeHeight: 5 });
+    const operation = createDrillingOperation({ toolId: 'drill-5', peckDepth: 3, retractHeight: 1, breakthroughDepth: 0.2, feedRate: 120 });
+    setup.operations.push(operation);
+    const toolpath = calculateDrillingToolpath(setup, operation, [drilledBox]);
+    expect(toolpath.valid).toBe(true);
+    expect(toolpath.holeCount).toBe(2);
+    expect(toolpath.peckCount).toBe(10);
+    expect(toolpath.segments.filter((segment) => segment.kind === 'plunge')).toHaveLength(10);
+    expect(toolpath.segments.filter((segment) => segment.kind === 'plunge').at(-1).to[2]).toBeCloseTo(-0.2);
+    expect(analyzeToolpathSafety(toolpath)).toEqual([]);
+    expect(validateManufacturing({ setups: [setup], activeSetupId: setup.id })).toEqual([]);
+    const output = createGrblGcode(setup, operation, [drilledBox], { projectName: 'Wiercenie test' });
+    expect(output.text).toContain('; Wiercenie test');
+    expect(output.text).toContain('Wiertło kręte Ø5');
+    expect(output.text).toContain('G1 X-10 Y-5 Z-3 F120');
+    expect(output.text).toContain('G1 X10 Y5 Z-12.2');
+    const simulation = simulateMaterialRemoval(setup, [drilledBox], null, 1, 20);
+    expect(simulation.valid).toBe(true);
+    expect(simulation.columns.length).toBeGreaterThan(0);
+  });
+
+  it('rejects oversized drills and non-Z hole axes instead of exporting unsafe paths', () => {
+    const setup = createManufacturingSetup({ bodyId: drilledBox.id });
+    const oversized = createDrillingOperation({ toolId: 'drill-6' });
+    expect(calculateDrillingToolpath(setup, oversized, [drilledBox]).warnings.join(' ')).toContain('większe niż otwór');
+    const angledBody = {
+      ...drilledBox,
+      manufacturingHoles: [{ ...drilledBox.manufacturingHoles[0], quantity: 1, instances: [{ position: [10, 5, 10], direction: [1, 0, -1], depth: 10 }] }],
+    };
+    const angled = calculateDrillingToolpath(setup, createDrillingOperation(), [angledBody]);
+    expect(angled.valid).toBe(false);
+    expect(angled.warnings.join(' ')).toContain('równoległe do osi Z');
+  });
+
   it('extracts the true closed top boundary and offsets it outside', () => {
     const loops = extractTopBoundaryLoops(box);
     expect(loops).toHaveLength(1);
