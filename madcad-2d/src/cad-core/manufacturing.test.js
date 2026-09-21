@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   calculateAdaptiveToolpath,
   calculateContourToolpath,
+  calculateCounterboreToolpath,
   calculateCut2dToolpath,
   calculateDrillingToolpath,
   calculateSpotDrillingToolpath,
@@ -11,6 +12,7 @@ import {
   analyzeManufacturingProgram,
   analyzeToolpathSafety,
   createContourOperation,
+  createCounterboreOperation,
   createCut2dOperation,
   createCustomCamTool,
   createDrillingOperation,
@@ -174,6 +176,25 @@ describe('CAM contour operations', () => {
     expect(validateManufacturing(document.manufacturing)).toEqual([]);
     expect(calculateSpotDrillingToolpath(setup, { ...operation, targetDiameter: 13 }, [drilledBox], document).warnings.join(' ')).toContain('przekracza średnicę nawiertaka');
     expect(calculateSpotDrillingToolpath(setup, { ...operation, targetDiameter: 5 }, [drilledBox], document).warnings.join(' ')).toContain('musi być większa niż otwór');
+  });
+
+  it('counterbores recognized holes in safe axial layers', () => {
+    const counterboreBody = { ...drilledBox, manufacturingHoles: drilledBox.manufacturingHoles.map((hole) => ({ ...hole, diameter: 8 })) };
+    const setup = createManufacturingSetup({ bodyId: counterboreBody.id, stock: { sideOffset: 2, topOffset: 0, bottomOffset: 0 }, safeHeight: 5 });
+    const operation = createCounterboreOperation({ toolId: 'flat-6', targetDiameter: 14, targetDepth: 3, maxStepdown: 1, feedRate: 300, plungeRate: 100 });
+    setup.operations.push(operation);
+    const toolpath = calculateCounterboreToolpath(setup, operation, [counterboreBody]);
+    expect(toolpath.valid).toBe(true);
+    expect(toolpath.holeCount).toBe(2);
+    expect(toolpath.layerCount).toBe(3);
+    expect(toolpath.segments.filter((segment) => segment.kind === 'plunge')).toHaveLength(6);
+    expect(toolpath.segments.filter((segment) => segment.kind === 'cut').length).toBeGreaterThan(100);
+    expect(toolpath.estimatedRemovedVolume).toBeCloseTo(Math.PI / 4 * (14 ** 2 - 8 ** 2) * 3 * 2, 8);
+    expect(analyzeToolpathSafety(toolpath)).toEqual([]);
+    expect(createMachineGcode(setup, operation, [counterboreBody]).text).toContain('Pogłębianie walcowe');
+    expect(validateManufacturing({ setups: [setup], activeSetupId: setup.id, tools: [] })).toEqual([]);
+    expect(calculateCounterboreToolpath(setup, { ...operation, toolId: 'flat-3', targetDiameter: 3 }, [counterboreBody]).warnings.join(' ')).toContain('większa niż frez');
+    expect(calculateCounterboreToolpath(setup, { ...operation, targetDepth: 11 }, [counterboreBody]).warnings.join(' ')).toContain('przekracza głębokość otworu');
   });
 
   it('rejects oversized drills and non-Z hole axes instead of exporting unsafe paths', () => {
