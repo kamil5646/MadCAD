@@ -5730,7 +5730,11 @@ test('CAM porządkuje Setup i eksportuje wszystkie operacje jako jeden program',
     createFacingOperation({ name: 'Planowanie', toolId: 'flat-6' }),
   );
   const optimized = optimizeManufacturingOperationOrder(setup, camBox);
+  assert.equal(optimized.changed, true);
   assert.deepEqual(optimized.operations.map((operation) => operation.type), ['face', 'pocket', 'contour']);
+  assert.equal(optimized.toolChangesBefore, 0);
+  assert.equal(optimized.toolChangesAfter, 0);
+  assert.deepEqual(optimized.warnings, []);
   const program = createManufacturingProgramGcode({ ...setup, operations: optimized.operations }, [camBox], { projectName: 'Korpus produkcyjny', postProcessorId: 'linuxcnc' });
   assert.equal(program.operationCount, 3);
   assert.equal(program.postProcessor, 'linuxcnc');
