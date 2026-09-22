@@ -144,6 +144,14 @@ app.whenReady().then(async () => {
     if (profileState.type !== 'pocket' || profileState.sketchId !== selectedProfile.sketchId || profileState.profileId !== selectedProfile.profileId || !profileState.label?.includes('profil szkicu')) throw new Error(`Profil szkicu nie został powiązany z CAM: ${JSON.stringify(profileState)}`);
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('button')].find((button) => button.textContent.includes('Uporządkuj operacje')).click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.map((operation) => operation.type).join(',') === 'face,pocket,adaptive,pocket,drill'`, 'automatyczna kolejność operacji CAM i ograniczenie zmian narzędzia');
+    await window.webContents.executeJavaScript(`document.querySelector('[aria-label="Duplikuj operację Kieszeń 2D 1"]').click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations[2]?.name === 'Kieszeń 2D 1 — kopia'`, 'duplikowanie operacji CAM z parametrami źródła');
+    await window.webContents.executeJavaScript(`document.querySelector('[aria-label="Przesuń w dół Kieszeń 2D 1 — kopia"]').click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations[3]?.name === 'Kieszeń 2D 1 — kopia'`, 'ręczne przesuwanie operacji CAM');
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations[2]?.name === 'Kieszeń 2D 1 — kopia'`, 'Cofnij przesunięcie operacji CAM');
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 5 && !JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.some((operation) => operation.name.includes('— kopia'))`, 'Cofnij duplikowanie operacji CAM');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-page-tabs button')].find((button) => button.textContent.includes('Kontrola')).click()`);
     await waitFor(window, `document.querySelector('.manufacturing-program-report > header.valid') && [...document.querySelectorAll('.manufacturing-report-operations')].at(-1)?.querySelectorAll(':scope > div.valid').length === 5`, 'raport bezpieczeństwa, kompletności i czasu CAM');
     const reportState = await window.webContents.executeJavaScript(`(() => ({ text: document.querySelector('.manufacturing-program-report').textContent, overflow: document.documentElement.scrollWidth > innerWidth }))()`);

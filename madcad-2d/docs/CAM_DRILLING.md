@@ -46,6 +46,8 @@ Przycisk „Uporządkuj operacje” buduje graf zależności zamiast wykonywać 
 
 Na stronie kontroli przycisk „Eksportuj cały program” zapisuje jeden plik dla wszystkich operacji aktywnego Setupu. Program ma jeden nagłówek modalny i jedno zakończenie, zachowuje kolejność operacji, pomija zbędną ponowną zmianę tego samego narzędzia i nadal uruchamia pełną kontrolę ścieżek, kolizji oraz kompletności obróbki otworów przed zapisem. Postprocesor jest wybierany dla całego programu; synchronizowane gwintowanie automatycznie wymusza sterownik operacji G84.
 
+Każdą operację można zduplikować oraz przesunąć o jedną pozycję w górę lub w dół. Kopia dostaje nowe trwałe ID i unikalną nazwę, zachowując narzędzie, skojarzoną geometrię i parametry. Ręczny ruch jest zatwierdzany tylko wtedy, gdy nadal zachowuje planowanie przed dalszą obróbką, kontur na końcu oraz kolejność etapów otworowych. Wszystkie te zmiany działają z Cofnij/Ponów.
+
 ## Gwintowanie synchronizowane
 
 Operacja `tap` używa wyłącznie gwintownika z biblioteki projektu. Dla każdego rozpoznanego otworu sprawdza oś Z, długość roboczą narzędzia i średnicę otworu pilotowego względem przybliżenia `średnica nominalna - skok`. Posuw nie jest polem swobodnym: zawsze wynosi `spindleRpm × pitch`, dzięki czemu zapis projektu nie może rozjechać synchronizacji.

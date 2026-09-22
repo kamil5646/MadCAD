@@ -6412,6 +6412,9 @@
 .manufacturing-operation > header strong { font-size: 11px; }
 .manufacturing-operation > header small { color: #92a2ae; font-size: 9px; }
 .manufacturing-operation > header button { min-height: 25px; width: 27px; color: #efaaa4; }
+.manufacturing-operation > header .manufacturing-operation-actions { display: flex; gap: 3px; }
+.manufacturing-operation > header .manufacturing-operation-actions button { color: #b9c8d2; }
+.manufacturing-operation > header .manufacturing-operation-actions button:last-child { color: #efaaa4; }
 .manufacturing-operation .operation-form { padding: 9px; }
 .manufacturing-boundary { display: flex; align-items: center; gap: 7px; padding: 7px 8px; border: 1px solid #4d6170; border-radius: 3px; background: #25313c; color: #72cee7; }
 .manufacturing-boundary span { display: grid; gap: 1px; }
