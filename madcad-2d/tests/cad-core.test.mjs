@@ -5729,7 +5729,9 @@ test('CAM zarządza produkcyjną kolejnością i eksportuje kompletny program', 
   const facing = createFacingOperation({ name: 'Planowanie bazowe', toolId: 'flat-6' });
   setup.operations.push(contour, pocket, facing);
   const optimized = optimizeManufacturingOperationOrder(setup, camBox);
+  assert.equal(optimized.changed, true);
   assert.deepEqual(optimized.operations.map((operation) => operation.type), ['face', 'pocket', 'contour']);
+  assert.equal(optimized.toolChangesAfter, 0);
   assert.equal(validateManufacturingOperationOrder({ ...setup, operations: optimized.operations }, camBox).valid, true);
   const duplicate = duplicateManufacturingOperation({ ...setup, operations: optimized.operations }, pocket.id);
   assert.equal(duplicate.operation.name, 'Kieszeń główna — kopia');
@@ -5741,7 +5743,11 @@ test('CAM zarządza produkcyjną kolejnością i eksportuje kompletny program', 
   assert.match(blocked.warnings[0], /zależność technologiczną/);
   const program = createManufacturingProgramGcode({ ...setup, operations: optimized.operations }, [camBox], { projectName: 'Korpus produkcyjny', postProcessorId: 'linuxcnc' });
   assert.equal(program.operationCount, 3);
+  assert.equal(program.postProcessor, 'linuxcnc');
   assert.equal((program.text.match(/T2 M6/g) || []).length, 1);
+  assert.match(program.text, /Planowanie/);
+  assert.match(program.text, /Kieszeń/);
+  assert.match(program.text, /Kontur końcowy/);
   assert.match(program.text, /\nM5\nM2\n%\n$/);
 });
 
