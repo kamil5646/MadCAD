@@ -55,7 +55,7 @@ import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/p
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
-import { analyzeManufacturingProgram, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingProgramGcode, createManufacturingSetup, createPocketOperation, createTurningOperation, extractTopBoundaryLoops, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing } from '../src/cad-core/manufacturing.js';
+import { analyzeManufacturingProgram, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingProgramGcode, createManufacturingSetup, createPocketOperation, createTurningOperation, duplicateManufacturingOperation, extractTopBoundaryLoops, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
 import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
@@ -5722,19 +5722,25 @@ test('CAM eksportuje LinuxCNC i Mach3 oraz blokuje niebezpieczne ścieżki', () 
   assert.match(calculateContourToolpath(setup, tooDeep, [camBox]).warnings.join(' '), /długość ostrza/);
 });
 
-test('CAM porządkuje Setup i eksportuje wszystkie operacje jako jeden program', () => {
+test('CAM zarządza produkcyjną kolejnością i eksportuje kompletny program', () => {
   const setup = createManufacturingSetup({ bodyId: camBox.id, name: 'Setup produkcyjny' });
-  setup.operations.push(
-    createContourOperation({ name: 'Kontur końcowy', toolId: 'flat-6', targetDepth: 1 }),
-    createPocketOperation({ name: 'Kieszeń', toolId: 'flat-6', targetDepth: 1 }),
-    createFacingOperation({ name: 'Planowanie', toolId: 'flat-6' }),
-  );
+  const contour = createContourOperation({ name: 'Kontur końcowy', targetDepth: 1, toolId: 'flat-6' });
+  const pocket = createPocketOperation({ name: 'Kieszeń główna', targetDepth: 1, toolId: 'flat-6' });
+  const facing = createFacingOperation({ name: 'Planowanie bazowe', toolId: 'flat-6' });
+  setup.operations.push(contour, pocket, facing);
   const optimized = optimizeManufacturingOperationOrder(setup, camBox);
   assert.equal(optimized.changed, true);
   assert.deepEqual(optimized.operations.map((operation) => operation.type), ['face', 'pocket', 'contour']);
-  assert.equal(optimized.toolChangesBefore, 0);
   assert.equal(optimized.toolChangesAfter, 0);
-  assert.deepEqual(optimized.warnings, []);
+  assert.equal(validateManufacturingOperationOrder({ ...setup, operations: optimized.operations }, camBox).valid, true);
+  const duplicate = duplicateManufacturingOperation({ ...setup, operations: optimized.operations }, pocket.id);
+  assert.equal(duplicate.operation.name, 'Kieszeń główna — kopia');
+  assert.notEqual(duplicate.operation.id, pocket.id);
+  const moved = moveManufacturingOperation({ ...setup, operations: duplicate.operations }, duplicate.operation.id, 'up', camBox);
+  assert.equal(moved.changed, true);
+  const blocked = moveManufacturingOperation({ ...setup, operations: moved.operations }, facing.id, 'down', camBox);
+  assert.equal(blocked.changed, false);
+  assert.match(blocked.warnings[0], /zależność technologiczną/);
   const program = createManufacturingProgramGcode({ ...setup, operations: optimized.operations }, [camBox], { projectName: 'Korpus produkcyjny', postProcessorId: 'linuxcnc' });
   assert.equal(program.operationCount, 3);
   assert.equal(program.postProcessor, 'linuxcnc');

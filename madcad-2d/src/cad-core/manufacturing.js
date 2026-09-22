@@ -1253,16 +1253,10 @@ const countToolChanges = (operations) => operations.reduce((result, operation) =
   return { lastToolId: operation.toolId, count: result.lastToolId && result.lastToolId !== operation.toolId ? result.count + 1 : result.count };
 }, { lastToolId: '', count: 0 }).count;
 
-export function optimizeManufacturingOperationOrder(setup, body = null) {
-  const normalized = normalizeManufacturingSetup(setup);
-  const operations = normalized.operations;
-  if (operations.length < 2) return { operations, changed: false, toolChangesBefore: 0, toolChangesAfter: 0, warnings: [] };
+function buildManufacturingOperationDependencies(operations, body = null) {
   const edges = operations.map(() => new Set());
-  const indegree = operations.map(() => 0);
   const addEdge = (from, to) => {
-    if (from === to || edges[from].has(to)) return;
-    edges[from].add(to);
-    indegree[to] += 1;
+    if (from !== to) edges[from].add(to);
   };
   const knownFeatureIds = new Set((body?.manufacturingHoles || []).map((hole) => hole.featureId).filter(Boolean));
   const selectedIds = (operation) => new Set((operation.holeFeatureIds || []).filter((id) => !knownFeatureIds.size || knownFeatureIds.has(id)));
@@ -1284,6 +1278,54 @@ export function optimizeManufacturingOperationOrder(setup, body = null) {
       if (firstStage && secondStage && firstStage !== secondStage && overlaps(firstOperation, secondOperation)) addEdge(firstStage < secondStage ? first : second, firstStage < secondStage ? second : first);
     }
   }
+  return edges;
+}
+
+export function validateManufacturingOperationOrder(setup, body = null) {
+  const operations = normalizeManufacturingSetup(setup).operations;
+  const edges = buildManufacturingOperationDependencies(operations, body);
+  const warnings = [];
+  edges.forEach((targets, source) => targets.forEach((target) => {
+    if (source > target) warnings.push(`„${operations[source].name}” musi być przed „${operations[target].name}”.`);
+  }));
+  return { valid: warnings.length === 0, warnings };
+}
+
+export function moveManufacturingOperation(setup, operationId, direction, body = null) {
+  const normalized = normalizeManufacturingSetup(setup);
+  const operations = normalized.operations;
+  const sourceIndex = operations.findIndex((operation) => operation.id === operationId);
+  const targetIndex = sourceIndex + (direction === 'up' ? -1 : direction === 'down' ? 1 : 0);
+  if (sourceIndex < 0) return { operations, changed: false, warnings: ['Nie znaleziono operacji CAM.'] };
+  if (targetIndex < 0 || targetIndex >= operations.length || targetIndex === sourceIndex) return { operations, changed: false, warnings: [] };
+  const candidate = [...operations];
+  [candidate[sourceIndex], candidate[targetIndex]] = [candidate[targetIndex], candidate[sourceIndex]];
+  const validation = validateManufacturingOperationOrder({ ...normalized, operations: candidate }, body);
+  if (!validation.valid) return { operations, changed: false, warnings: [`Ruch zablokowany przez zależność technologiczną: ${validation.warnings[0]}`] };
+  return { operations: candidate, changed: true, warnings: [] };
+}
+
+export function duplicateManufacturingOperation(setup, operationId) {
+  const normalized = normalizeManufacturingSetup(setup);
+  const sourceIndex = normalized.operations.findIndex((operation) => operation.id === operationId);
+  if (sourceIndex < 0) return { operations: normalized.operations, operation: null };
+  const source = normalized.operations[sourceIndex];
+  const usedNames = new Set(normalized.operations.map((operation) => operation.name.toLocaleLowerCase()));
+  let name = `${source.name} — kopia`;
+  for (let copyIndex = 2; usedNames.has(name.toLocaleLowerCase()); copyIndex += 1) name = `${source.name} — kopia ${copyIndex}`;
+  const operation = normalizeManufacturingOperation({ ...source, id: createId('cam-operation'), name }, sourceIndex + 1);
+  const operations = [...normalized.operations];
+  operations.splice(sourceIndex + 1, 0, operation);
+  return { operations, operation };
+}
+
+export function optimizeManufacturingOperationOrder(setup, body = null) {
+  const normalized = normalizeManufacturingSetup(setup);
+  const operations = normalized.operations;
+  if (operations.length < 2) return { operations, changed: false, toolChangesBefore: 0, toolChangesAfter: 0, warnings: [] };
+  const edges = buildManufacturingOperationDependencies(operations, body);
+  const indegree = operations.map(() => 0);
+  edges.forEach((targets) => targets.forEach((target) => { indegree[target] += 1; }));
   const typePriority = { face: 0, adaptive: 10, pocket: 10, spot: 20, drill: 30, counterbore: 40, tap: 50, contour: 100 };
   const remaining = new Set(operations.map((_operation, index) => index));
   const orderedIndices = [];

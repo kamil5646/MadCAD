@@ -17,6 +17,8 @@ import {
   createCut2dOperation,
   createCustomCamTool,
   createDrillingOperation,
+  createFacingOperation,
+  duplicateManufacturingOperation,
   createAdaptiveOperation,
   createGrblGcode,
   createMachineGcode,
@@ -30,8 +32,10 @@ import {
   extractTopBoundaryLoops,
   offsetClosedContour,
   optimizeManufacturingOperationOrder,
+  moveManufacturingOperation,
   simulateMaterialRemoval,
   validateManufacturing,
+  validateManufacturingOperationOrder,
 } from './manufacturing.js';
 
 const box = {
@@ -310,6 +314,27 @@ describe('CAM contour operations', () => {
     expect(output.text).toContain('(Kontur końcowy | Frez palcowy płaski Ø6)');
     expect(output.text.match(/\nM2\n/g)).toHaveLength(1);
     expect(output.text).toMatch(/\nM5\nM2\n%\n$/);
+  });
+
+  it('duplicates operations and permits only manual moves that preserve technological dependencies', () => {
+    const setup = createManufacturingSetup({ bodyId: drilledBox.id });
+    const face = createFacingOperation({ name: 'Planowanie bazowe' });
+    const drill = createDrillingOperation({ name: 'Wiercenie produkcyjne', holeFeatureIds: ['hole-main'] });
+    const contour = createContourOperation({ name: 'Kontur końcowy' });
+    setup.operations.push(face, drill, contour);
+    const duplicate = duplicateManufacturingOperation(setup, drill.id);
+    expect(duplicate.operation.id).not.toBe(drill.id);
+    expect(duplicate.operation.name).toBe('Wiercenie produkcyjne — kopia');
+    expect(duplicate.operations[2].holeFeatureIds).toEqual(['hole-main']);
+    const movedUp = moveManufacturingOperation({ ...setup, operations: duplicate.operations }, duplicate.operation.id, 'up', drilledBox);
+    expect(movedUp.changed).toBe(true);
+    expect(movedUp.operations[1].id).toBe(duplicate.operation.id);
+    const blockedFace = moveManufacturingOperation({ ...setup, operations: movedUp.operations }, face.id, 'down', drilledBox);
+    expect(blockedFace.changed).toBe(false);
+    expect(blockedFace.warnings.join(' ')).toContain('zależność technologiczną');
+    const blockedContour = moveManufacturingOperation({ ...setup, operations: movedUp.operations }, contour.id, 'up', drilledBox);
+    expect(blockedContour.changed).toBe(false);
+    expect(validateManufacturingOperationOrder({ ...setup, operations: movedUp.operations }, drilledBox).valid).toBe(true);
   });
 
   it('creates compensated 2D cutting paths and laser/plasma programs', () => {
