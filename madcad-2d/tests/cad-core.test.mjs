@@ -55,7 +55,7 @@ import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/p
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
-import { analyzeManufacturingProgram, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingProgramGcode, createManufacturingSetup, createPocketOperation, createTurningOperation, duplicateManufacturingOperation, extractTopBoundaryLoops, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
+import { analyzeManufacturingProgram, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingProgramGcode, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createTurningOperation, duplicateManufacturingOperation, extractTopBoundaryLoops, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
 import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
@@ -5722,7 +5722,7 @@ test('CAM eksportuje LinuxCNC i Mach3 oraz blokuje niebezpieczne ścieżki', () 
   assert.match(calculateContourToolpath(setup, tooDeep, [camBox]).warnings.join(' '), /długość ostrza/);
 });
 
-test('CAM zarządza produkcyjną kolejnością i eksportuje kompletny program', () => {
+test('CAM zarządza kolejnością, eksportuje kompletny program i tworzy arkusz ustawczy', () => {
   const setup = createManufacturingSetup({ bodyId: camBox.id, name: 'Setup produkcyjny' });
   const contour = createContourOperation({ name: 'Kontur końcowy', targetDepth: 1, toolId: 'flat-6' });
   const pocket = createPocketOperation({ name: 'Kieszeń główna', targetDepth: 1, toolId: 'flat-6' });
@@ -5741,7 +5741,8 @@ test('CAM zarządza produkcyjną kolejnością i eksportuje kompletny program', 
   const blocked = moveManufacturingOperation({ ...setup, operations: moved.operations }, facing.id, 'down', camBox);
   assert.equal(blocked.changed, false);
   assert.match(blocked.warnings[0], /zależność technologiczną/);
-  const program = createManufacturingProgramGcode({ ...setup, operations: optimized.operations }, [camBox], { projectName: 'Korpus produkcyjny', postProcessorId: 'linuxcnc' });
+  const orderedSetup = { ...setup, operations: optimized.operations };
+  const program = createManufacturingProgramGcode(orderedSetup, [camBox], { projectName: 'Korpus produkcyjny', postProcessorId: 'linuxcnc' });
   assert.equal(program.operationCount, 3);
   assert.equal(program.postProcessor, 'linuxcnc');
   assert.equal((program.text.match(/T2 M6/g) || []).length, 1);
@@ -5749,6 +5750,13 @@ test('CAM zarządza produkcyjną kolejnością i eksportuje kompletny program', 
   assert.match(program.text, /Kieszeń/);
   assert.match(program.text, /Kontur końcowy/);
   assert.match(program.text, /\nM5\nM2\n%\n$/);
+  const sheet = createManufacturingSetupSheet(orderedSetup, [camBox], { projectName: 'Korpus & produkcja' });
+  assert.equal(sheet.report.valid, true);
+  assert.equal(sheet.operationCount, 3);
+  assert.equal(sheet.toolCount, 1);
+  assert.match(sheet.html, /Arkusz ustawczy CAM/);
+  assert.match(sheet.html, /Korpus &amp; produkcja/);
+  assert.match(sheet.html, /GOTOWY/);
 });
 
 test('CAM generuje skompensowane cięcie laserowe i plazmowe z kontrolą zgodności maszyny', () => {
