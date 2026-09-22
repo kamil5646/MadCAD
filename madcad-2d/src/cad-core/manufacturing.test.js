@@ -23,6 +23,7 @@ import {
   createGrblGcode,
   createMachineGcode,
   createManufacturingProgramGcode,
+  createManufacturingSetupSheet,
   createManufacturingSetup,
   createPocketOperation,
   createSpotDrillingOperation,
@@ -335,6 +336,24 @@ describe('CAM contour operations', () => {
     const blockedContour = moveManufacturingOperation({ ...setup, operations: movedUp.operations }, contour.id, 'up', drilledBox);
     expect(blockedContour.changed).toBe(false);
     expect(validateManufacturingOperationOrder({ ...setup, operations: movedUp.operations }, drilledBox).valid).toBe(true);
+  });
+
+  it('creates a printable and escaped setup sheet from the verified CAM program', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id, name: 'Setup produkcyjny' });
+    setup.operations.push(
+      createPocketOperation({ name: 'Kieszeń <A>', targetDepth: 1, toolId: 'flat-6' }),
+      createContourOperation({ name: 'Kontur końcowy', targetDepth: 1, toolId: 'flat-6' }),
+    );
+    const sheet = createManufacturingSetupSheet(setup, [box], { projectName: 'Korpus & uchwyt' });
+    expect(sheet.report.valid).toBe(true);
+    expect(sheet.operationCount).toBe(2);
+    expect(sheet.toolCount).toBe(1);
+    expect(sheet.html).toContain('<h1>Arkusz ustawczy CAM</h1>');
+    expect(sheet.html).toContain('Korpus &amp; uchwyt');
+    expect(sheet.html).toContain('Kieszeń &lt;A&gt;');
+    expect(sheet.html).toContain('Półfabrykat X × Y × Z');
+    expect(sheet.html).toContain('Kontrola przed uruchomieniem');
+    expect(sheet.html).not.toContain('Korpus & uchwyt');
   });
 
   it('creates compensated 2D cutting paths and laser/plasma programs', () => {

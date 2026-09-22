@@ -274,6 +274,7 @@ Te prace nie czekają na koniec modelowania:
 - [>] P5.4 Produkcyjne zarządzanie programem CAM: foldery i grupy operacji, duplikowanie i szablony, ręczne przesuwanie z walidacją zależności, arkusz ustawczy oraz eksport całego programu jednym plikiem.
   - [x] Eksport wszystkich operacji Setupu do jednego bezpiecznego programu z jednym nagłówkiem, zmianami narzędzi i zakończeniem.
   - [x] Duplikowanie operacji oraz ręczne przesuwanie góra/dół z walidacją zależności technologicznych.
+  - [x] Drukowalny arkusz ustawczy A4 z WCS, półfabrykatem, narzędziami, operacjami, czasem i wynikiem kontroli.
 
 ## Definition of Done
 

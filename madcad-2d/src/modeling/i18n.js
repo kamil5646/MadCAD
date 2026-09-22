@@ -1827,6 +1827,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Posuw': 'Feed',
   'Podgląd G-code': 'G-code preview',
   'Eksportuj cały program': 'Export complete program',
+  'Arkusz ustawczy': 'Setup sheet',
   'Przesuń w górę': 'Move up',
   'Przesuń w dół': 'Move down',
   'Duplikuj': 'Duplicate',

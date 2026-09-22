@@ -48,6 +48,8 @@ Na stronie kontroli przycisk „Eksportuj cały program” zapisuje jeden plik d
 
 Każdą operację można zduplikować oraz przesunąć o jedną pozycję w górę lub w dół. Kopia dostaje nowe trwałe ID i unikalną nazwę, zachowując narzędzie, skojarzoną geometrię i parametry. Ręczny ruch jest zatwierdzany tylko wtedy, gdy nadal zachowuje planowanie przed dalszą obróbką, kontur na końcu oraz kolejność etapów otworowych. Wszystkie te zmiany działają z Cofnij/Ponów.
 
+„Arkusz ustawczy” eksportuje samodzielny, drukowalny plik HTML w układzie A4 poziomo. Dokument zawiera nazwę projektu i Setupu, obrabiarkę, bryłę, gabaryty półfabrykatu, współrzędne zera WCS, płaszczyznę bezpieczną, szacowany czas, tabelę narzędzi z przypisanymi operacjami, pełną kolejność programu oraz wynik kontroli przed uruchomieniem. Dane użytkownika są kodowane przed umieszczeniem w HTML.
+
 ## Gwintowanie synchronizowane
 
 Operacja `tap` używa wyłącznie gwintownika z biblioteki projektu. Dla każdego rozpoznanego otworu sprawdza oś Z, długość roboczą narzędzia i średnicę otworu pilotowego względem przybliżenia `średnica nominalna - skok`. Posuw nie jest polem swobodnym: zawsze wynosi `spindleRpm × pitch`, dzięki czemu zapis projektu nie może rozjechać synchronizacji.

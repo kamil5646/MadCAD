@@ -146,6 +146,7 @@ Ten dokument nie ustala bieżącej kolejności. Aktywna ścieżka znajduje się 
 - [>] P5.4 Foldery, szablony i ręczne zarządzanie kolejnością operacji, arkusz ustawczy oraz eksport kompletnego programu CAM.
   - [x] Eksport całego Setupu do jednego programu G-code z kontrolą bezpieczeństwa i bez nadmiarowych zmian tego samego narzędzia.
   - [x] Duplikowanie i ręczne przesuwanie operacji z blokadą nieprawidłowej kolejności procesu.
+  - [x] Eksport arkusza ustawczego HTML z danymi produkcyjnymi i kontrolą programu.
 - [x] Setup frezowania 3-osiowego: wybór bryły i obrabiarki, półfabrykat z naddatkami, zero WCS, wysokość bezpieczna, kontrola przesuwu maszyny, zapis/migracja/Undo.
 - [x] Biblioteka podstawowych frezów i warstwowa ścieżka planowania z podglądem 3D, posuwem oraz oszacowaniem czasu.
 - [x] Kontur 2D rzeczywistej górnej krawędzi bryły: kompensacja promienia freza, warstwy głębokości, wspólny podgląd 3D i eksport GRBL.
