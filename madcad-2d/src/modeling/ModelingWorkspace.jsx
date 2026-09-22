@@ -145,7 +145,7 @@ import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMesh
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
-import { CAM_TOOL_PRESETS, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingSetup, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
+import { CAM_TOOL_PRESETS, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingProgramGcode, createManufacturingSetup, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
@@ -1152,6 +1152,17 @@ export default function ModelingWorkspace() {
       setNotice(`Zapisano G-code ${output.postProcessor}: ${output.lineCount} linii. Przed obróbką sprawdź WCS i wykonaj przejazd bez materiału.`);
     } catch (error) {
       setNotice(`Eksport G-code nie powiódł się: ${error.message}`);
+    }
+  };
+  const exportCamProgram = (setupId) => {
+    try {
+      const setup = document.manufacturing.setups.find((item) => item.id === setupId);
+      if (!setup) throw new Error('Nie znaleziono Setupu CAM.');
+      const output = createManufacturingProgramGcode(setup, engine.bodies, { projectName: document.name, document });
+      downloadBlob(new Blob([output.text], { type: 'text/plain;charset=utf-8' }), `${safeName(document.name)}-${safeName(setup.name)}-program.${output.extension}`);
+      setNotice(`Zapisano cały program ${output.postProcessor}: ${output.operationCount} operacji, ${output.lineCount} linii. Przed obróbką sprawdź WCS i wykonaj przejazd bez materiału.`);
+    } catch (error) {
+      setNotice(`Eksport programu CAM nie powiódł się: ${error.message}`);
     }
   };
 
@@ -8177,7 +8188,7 @@ export default function ModelingWorkspace() {
             renderCaptureRef={renderCaptureRef}
           />
           </React.Suspense>}
-          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} projectDocument={document} simulationProgress={camSimulationProgress} onSimulationProgress={setCamSimulationProgress} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onOptimizeOperations={optimizeCamOperationOrder} onExportOperation={exportCamOperation} onCreateTool={createCamTool} onUpdateTool={updateCamTool} onDeleteTool={deleteCamTool} />}
+          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} projectDocument={document} simulationProgress={camSimulationProgress} onSimulationProgress={setCamSimulationProgress} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onOptimizeOperations={optimizeCamOperationOrder} onExportOperation={exportCamOperation} onExportProgram={exportCamProgram} onCreateTool={createCamTool} onUpdateTool={updateCamTool} onDeleteTool={deleteCamTool} />}
           {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
           {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}

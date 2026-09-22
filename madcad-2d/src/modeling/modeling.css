@@ -6470,6 +6470,8 @@
 .manufacturing-report-operations div.invalid span svg { color: #efab69; }
 .manufacturing-report-operations small { color: #9dabb6; font-size: 9px; }
 .manufacturing-program-report > p { margin: 0; color: #95a5b1; font-size: 9px; line-height: 1.5; }
+.manufacturing-report-actions { display: flex; justify-content: flex-end; }
+.manufacturing-report-actions button { min-height: 30px; padding: 0 11px; border-color: #3e8d73; color: #75dcb1; }
 
 /* MadCAD brand theme -------------------------------------------------------
    The app icon is the visual source of truth: near-black graphite surfaces,

@@ -7,6 +7,7 @@ const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-manufactu
 const reportScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-manufacturing-report.png');
 const gcodeScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-gcode-preview.png');
 const gcodePath = path.join(__dirname, '..', 'artifacts', 'madcad-contour-linuxcnc.ngc');
+const programGcodePath = path.join(__dirname, '..', 'artifacts', 'madcad-complete-program.nc');
 async function waitFor(window, expression, label, timeoutMs = 45000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -147,6 +148,11 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.manufacturing-program-report > header.valid') && [...document.querySelectorAll('.manufacturing-report-operations')].at(-1)?.querySelectorAll(':scope > div.valid').length === 5`, 'raport bezpieczeństwa, kompletności i czasu CAM');
     const reportState = await window.webContents.executeJavaScript(`(() => ({ text: document.querySelector('.manufacturing-program-report').textContent, overflow: document.documentElement.scrollWidth > innerWidth }))()`);
     if (reportState.overflow || !reportState.text.includes('Szacowany czas') || !reportState.text.includes('Usuwany materiał') || !reportState.text.includes('Kompletność obróbki otworów') || !reportState.text.includes('ma kompletny i prawidłowo uporządkowany proces') || !reportState.text.includes('Nie wykryto kolizji')) throw new Error(`Niepełny raport CAM: ${JSON.stringify(reportState)}`);
+    const programDownload = new Promise((resolve, reject) => window.webContents.session.once('will-download', (_event, item) => { item.setSavePath(programGcodePath); item.once('done', (_downloadEvent, status) => status === 'completed' ? resolve() : reject(new Error(`Eksport całego programu: ${status}`))); }));
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('button')].find((button) => button.textContent.includes('Eksportuj cały program')).click()`);
+    await programDownload;
+    const programGcode = await fs.readFile(programGcodePath, 'utf8');
+    if ((programGcode.match(/\nG21\n/g) || []).length !== 1 || (programGcode.match(/\nM30\n/g) || []).length !== 1 || !programGcode.includes('Planowanie 1') || !programGcode.includes('Kieszeń 2D 1') || !programGcode.includes('Adaptacyjne 2D 1') || !programGcode.includes('Wiercenie 1')) throw new Error('Kompletny program CAM nie zawiera pojedynczej otoczki albo wszystkich operacji.');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-simulation-controls button')].find((button) => button.textContent.includes('Od początku')).click()`);
     await waitFor(window, `document.querySelector('.manufacturing-simulation-controls output').textContent === '0%' && window.__madcadManufacturingVisualState?.segmentCount === 0 && window.__madcadManufacturingVisualState?.removedColumnCount === 0`, 'wyzerowanie symulacji CAM');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-simulation-controls button')].find((button) => button.textContent.includes('Odtwórz')).click()`);
@@ -164,7 +170,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 5 && JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations[3].type === 'drill'`, 'Cofnij optymalizację kolejności CAM');
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 4`, 'Cofnij operację profilu CAM');
-    process.stdout.write(`${JSON.stringify({ screenshotPath, reportScreenshotPath, gcodeScreenshotPath, gcodePath, gcodeBytes: Buffer.byteLength(gcode), profileBoundary: profileState, simulation: simulationState, reportVerified: true, ...state }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ screenshotPath, reportScreenshotPath, gcodeScreenshotPath, gcodePath, gcodeBytes: Buffer.byteLength(gcode), programGcodePath, programGcodeBytes: Buffer.byteLength(programGcode), profileBoundary: profileState, simulation: simulationState, reportVerified: true, ...state }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
     process.stderr.write(`${error.stack || error.message}\n`);
