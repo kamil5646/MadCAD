@@ -55,7 +55,7 @@ import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/p
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
-import { analyzeManufacturingProgram, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingSetup, createPocketOperation, createTurningOperation, extractTopBoundaryLoops, offsetClosedContour, simulateMaterialRemoval, validateManufacturing } from '../src/cad-core/manufacturing.js';
+import { analyzeManufacturingProgram, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingSetup, createPocketOperation, createTurningOperation, extractTopBoundaryLoops, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing } from '../src/cad-core/manufacturing.js';
 import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
@@ -5720,6 +5720,21 @@ test('CAM eksportuje LinuxCNC i Mach3 oraz blokuje niebezpieczne ścieżki', () 
   assert.equal(analyzeToolpathSafety(unsafe).some((issue) => issue.code === 'RAPID_IN_STOCK'), true);
   const tooDeep = createContourOperation({ targetDepth: 30, toolId: 'flat-6' });
   assert.match(calculateContourToolpath(setup, tooDeep, [camBox]).warnings.join(' '), /długość ostrza/);
+});
+
+test('CAM porządkuje operacje według zależności i ogranicza zmiany narzędzia', () => {
+  const setup = createManufacturingSetup({ bodyId: camBox.id });
+  setup.operations.push(
+    createContourOperation({ name: 'Kontur końcowy', toolId: 'flat-6', targetDepth: 1 }),
+    createPocketOperation({ name: 'Kieszeń', toolId: 'flat-6', targetDepth: 1 }),
+    createFacingOperation({ name: 'Planowanie', toolId: 'flat-6' }),
+  );
+  const result = optimizeManufacturingOperationOrder(setup, camBox);
+  assert.equal(result.changed, true);
+  assert.deepEqual(result.operations.map((operation) => operation.type), ['face', 'pocket', 'contour']);
+  assert.equal(result.toolChangesBefore, 0);
+  assert.equal(result.toolChangesAfter, 0);
+  assert.deepEqual(result.warnings, []);
 });
 
 test('CAM generuje skompensowane cięcie laserowe i plazmowe z kontrolą zgodności maszyny', () => {
