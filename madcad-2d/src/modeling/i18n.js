@@ -1826,6 +1826,8 @@ const ENGLISH_TEXT = Object.freeze({
   'Zejście': 'Stepdown',
   'Posuw': 'Feed',
   'Podgląd G-code': 'G-code preview',
+  'Eksportuj cały program': 'Export complete program',
+  'Raport jest obliczany z pełnych ścieżek. Eksport G-code jest blokowany po wykryciu szybkiego przejazdu w materiale, przekroczenia zakresu, kolizji oprawki albo niekompletnej obróbki otworów.': 'The report is calculated from complete toolpaths. G-code export is blocked when rapid motion through stock, travel overrun, holder collision, or incomplete hole machining is detected.',
   'Zapisz plik': 'Save file',
   'Program gotowy do symulacji': 'Program ready for simulation',
   'Program wymaga poprawy': 'Program needs attention',

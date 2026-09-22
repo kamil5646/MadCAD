@@ -20,6 +20,7 @@ import {
   createAdaptiveOperation,
   createGrblGcode,
   createMachineGcode,
+  createManufacturingProgramGcode,
   createManufacturingSetup,
   createPocketOperation,
   createSpotDrillingOperation,
@@ -291,6 +292,24 @@ describe('CAM contour operations', () => {
     expect(mach3.extension).toBe('tap');
     expect(mach3.text).toContain('G80');
     expect(mach3.text).toContain('\nM30\n');
+  });
+
+  it('exports one safe program for the complete setup without duplicate headers or tool changes', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id, name: 'Korpus produkcyjny' });
+    setup.operations.push(
+      createPocketOperation({ name: 'Kieszeń główna', targetDepth: 1, toolId: 'flat-6', postProcessorId: 'linuxcnc' }),
+      createContourOperation({ name: 'Kontur końcowy', targetDepth: 1, toolId: 'flat-6', postProcessorId: 'linuxcnc' }),
+    );
+    const output = createManufacturingProgramGcode(setup, [box], { projectName: 'Program testowy', postProcessorId: 'linuxcnc' });
+    expect(output.operationCount).toBe(2);
+    expect(output.postProcessor).toBe('linuxcnc');
+    expect(output.text).toMatch(/^%\n/);
+    expect(output.text.match(/\nG21\n/g)).toHaveLength(1);
+    expect(output.text.match(/T2 M6/g)).toHaveLength(1);
+    expect(output.text).toContain('(Kieszeń główna | Frez palcowy płaski Ø6)');
+    expect(output.text).toContain('(Kontur końcowy | Frez palcowy płaski Ø6)');
+    expect(output.text.match(/\nM2\n/g)).toHaveLength(1);
+    expect(output.text).toMatch(/\nM5\nM2\n%\n$/);
   });
 
   it('creates compensated 2D cutting paths and laser/plasma programs', () => {

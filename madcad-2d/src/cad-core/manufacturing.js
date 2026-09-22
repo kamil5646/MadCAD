@@ -1454,7 +1454,7 @@ function gcodeNumber(value) {
   return Number(Number(value).toFixed(4)).toString();
 }
 
-export function createMachineGcode(setup, operation, bodies = [], { projectName = 'MadCAD', document = null, postProcessorId = operation?.postProcessorId } = {}) {
+export function createMachineGcode(setup, operation, bodies = [], { projectName = 'MadCAD', document = null, postProcessorId = operation?.postProcessorId, programFragment = false, includeToolChange = true } = {}) {
   const toolpath = calculateOperationToolpath(setup, operation, bodies, document);
   if (!toolpath.valid || !toolpath.segments.length) throw new Error(toolpath.warnings.join(' ') || 'Ścieżka CAM nie jest gotowa do eksportu.');
   const safetyIssues = analyzeToolpathSafety(toolpath);
@@ -1468,7 +1468,9 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   if (toolpath.turning) {
     if (postProcessor.id !== 'linuxcnc-turn') throw new Error('Toczenie wymaga postprocesora LinuxCNC Tokarka.');
     const toolNumber = Object.keys(CAM_TURNING_TOOL_PRESETS).indexOf(toolpath.operation.toolId) + 1;
-    const lines = ['%', comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź mocowanie, zero osi Z i średnicę X przed uruchomieniem.'), 'G21', 'G90', 'G18', 'G95', 'G40', `T${toolNumber} M6`, `S${toolpath.operation.spindleRpm} M3`];
+    const lines = programFragment
+      ? [comment(`${operation.name} | ${toolpath.tool.name}`), ...(includeToolChange ? [`T${toolNumber} M6`] : []), `S${toolpath.operation.spindleRpm} M3`]
+      : ['%', comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź mocowanie, zero osi Z i średnicę X przed uruchomieniem.'), 'G21', 'G90', 'G18', 'G95', 'G40', `T${toolNumber} M6`, `S${toolpath.operation.spindleRpm} M3`];
     let lastFeed = null;
     for (const segment of toolpath.segments) {
       const diameter = Math.abs(segment.to[1] - origin[1]) * 2;
@@ -1480,16 +1482,18 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
         lastFeed = feed;
       }
     }
-    lines.push('M5', 'M2', '%', '');
+    lines.push('M5');
+    if (!programFragment) lines.push('M2', '%');
+    lines.push('');
     return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
   }
   if (toolpath.operation.type === 'cut2d') {
     if (!['grbl-laser', 'linuxcnc-plasma'].includes(postProcessor.id)) throw new Error('Wybierz postprocesor przeznaczony do cięcia 2D.');
     const isPlasma = postProcessor.id === 'linuxcnc-plasma';
-    const lines = [];
-    if (isPlasma) lines.push('%');
-    lines.push(comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź zero WCS, moc i przejazd bez materiału.'), 'G21', 'G90', 'G17', 'G94');
-    if (isPlasma) lines.push('G40', 'G64 P0.01');
+    const lines = programFragment ? [comment(`${operation.name} | ${toolpath.tool.name}`)] : [];
+    if (!programFragment && isPlasma) lines.push('%');
+    if (!programFragment) lines.push(comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź zero WCS, moc i przejazd bez materiału.'), 'G21', 'G90', 'G17', 'G94');
+    if (!programFragment && isPlasma) lines.push('G40', 'G64 P0.01');
     let processOn = false;
     for (const segment of toolpath.segments) {
       const local = segment.to.map((value, axis) => value - origin[axis]);
@@ -1506,8 +1510,8 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
       }
     }
     if (processOn) lines.push('M5');
-    lines.push(isPlasma ? 'M2' : 'M30');
-    if (isPlasma) lines.push('%');
+    if (!programFragment) lines.push(isPlasma ? 'M2' : 'M30');
+    if (!programFragment && isPlasma) lines.push('%');
     lines.push('');
     return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
   }
@@ -1515,24 +1519,26 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   const customToolIndex = document?.manufacturing?.tools?.findIndex((tool) => tool.id === toolpath.tool.id) ?? -1;
   const toolNumber = presetToolIndex >= 0 ? presetToolIndex + 1 : 100 + Math.max(0, customToolIndex);
   const lines = [];
-  if (postProcessor.id === 'linuxcnc') lines.push('%');
-  lines.push(
+  if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('%');
+  if (programFragment) lines.push(comment(`${operation.name} | ${toolpath.tool.name}`));
+  else lines.push(
     comment(cleanComment(projectName) || 'MadCAD'),
     comment(`${operation.name} | ${toolpath.tool.name}`),
     comment('Sprawdź punkt zerowy WCS i wykonaj symulację bez materiału przed obróbką.'),
     'G21', 'G90', 'G17', 'G94',
   );
-  if (postProcessor.id === 'linuxcnc') lines.push('G40', 'G49', 'G64 P0.01');
-  if (postProcessor.id === 'mach3') lines.push('G40', 'G49', 'G80');
-  if (postProcessor.toolChange) lines.push(`T${toolNumber} M6`);
-  else lines.push(comment(`Narzędzie T${toolNumber}: ${toolpath.tool.name} — zmień ręcznie przed startem`));
+  if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('G40', 'G49', 'G64 P0.01');
+  if (!programFragment && postProcessor.id === 'mach3') lines.push('G40', 'G49', 'G80');
+  if (includeToolChange && postProcessor.toolChange) lines.push(`T${toolNumber} M6`);
+  else if (includeToolChange) lines.push(comment(`Narzędzie T${toolNumber}: ${toolpath.tool.name} — zmień ręcznie przed startem`));
   lines.push(`S${toolpath.operation.spindleRpm} M3`, `G0 Z${gcodeNumber(safeLocalZ)}`);
   if (toolpath.operation.type === 'tap') {
     const retractLocalZ = toolpath.stockBounds[1][2] + toolpath.operation.retractHeight - origin[2];
     lines.push('G98');
     for (const hole of toolpath.holes) lines.push(`G84 X${gcodeNumber(hole.x - origin[0])} Y${gcodeNumber(hole.y - origin[1])} Z${gcodeNumber(hole.targetZ - origin[2])} R${gcodeNumber(retractLocalZ)} F${gcodeNumber(toolpath.operation.feedRate)}`);
-    lines.push('G80', `G0 Z${gcodeNumber(safeLocalZ)}`, 'M5', postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
-    if (postProcessor.id === 'linuxcnc') lines.push('%');
+    lines.push('G80', `G0 Z${gcodeNumber(safeLocalZ)}`, 'M5');
+    if (!programFragment) lines.push(postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
+    if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('%');
     lines.push('');
     return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
   }
@@ -1548,8 +1554,9 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
       words.push(`F${gcodeNumber(toolpath.operation.feedRate)}`);
       lines.push(words.join(' '));
     }
-    lines.push('G80', `G0 Z${gcodeNumber(safeLocalZ)}`, 'M5', postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
-    if (postProcessor.id === 'linuxcnc') lines.push('%');
+    lines.push('G80', `G0 Z${gcodeNumber(safeLocalZ)}`, 'M5');
+    if (!programFragment) lines.push(postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
+    if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('%');
     lines.push('');
     return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
   }
@@ -1565,10 +1572,58 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
       lastFeed = feed;
     }
   }
-  lines.push(`G0 Z${gcodeNumber(safeLocalZ)}`, 'M5', postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
-  if (postProcessor.id === 'linuxcnc') lines.push('%');
+  lines.push(`G0 Z${gcodeNumber(safeLocalZ)}`, 'M5');
+  if (!programFragment) lines.push(postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
+  if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('%');
   lines.push('');
   return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
+}
+
+export function createManufacturingProgramGcode(setup, bodies = [], { projectName = 'MadCAD', document = null, postProcessorId = null } = {}) {
+  const normalized = normalizeManufacturingSetup(setup);
+  if (!normalized.operations.length) throw new Error('Program CAM wymaga co najmniej jednej operacji.');
+  const report = analyzeManufacturingProgram(normalized, bodies, document);
+  if (!report.valid) throw new Error('Eksport programu zablokowany: popraw Setup, ścieżki, bezpieczeństwo i kompletność obróbki otworów.');
+  const tappingOperation = normalized.operations.find((operation) => operation.type === 'tap');
+  const selectedPostId = postProcessorId || tappingOperation?.postProcessorId || normalized.operations[0].postProcessorId;
+  const postProcessor = CAM_POST_PROCESSORS[selectedPostId] || CAM_POST_PROCESSORS.grbl;
+  const cleanComment = (value) => String(value).replace(/[\r\n;()]/g, ' ').trim();
+  const comment = (value) => postProcessor.commentStyle === 'parentheses' ? `(${cleanComment(value)})` : `; ${cleanComment(value)}`;
+  const isTurning = normalized.operationKind === 'turning-2axis';
+  const isCutting = normalized.operationKind === 'cut-2d';
+  if (isTurning && postProcessor.id !== 'linuxcnc-turn') throw new Error('Program tokarski wymaga postprocesora LinuxCNC Tokarka.');
+  if (isCutting && !['grbl-laser', 'linuxcnc-plasma'].includes(postProcessor.id)) throw new Error('Program cięcia wymaga postprocesora laserowego albo plazmowego.');
+  const linuxCncEnvelope = ['linuxcnc', 'linuxcnc-turn', 'linuxcnc-plasma'].includes(postProcessor.id);
+  const lines = [];
+  if (linuxCncEnvelope) lines.push('%');
+  lines.push(
+    comment(cleanComment(projectName) || 'MadCAD'),
+    comment(`${normalized.name} | kompletny program CAM | ${normalized.operations.length} operacji`),
+    comment('Sprawdź mocowanie, punkt zerowy WCS i wykonaj przejazd bez materiału przed obróbką.'),
+    'G21', 'G90', isTurning ? 'G18' : 'G17', isTurning ? 'G95' : 'G94', 'G40',
+  );
+  if (!isCutting) lines.push('G49');
+  if (postProcessor.id === 'linuxcnc' || postProcessor.id === 'linuxcnc-plasma') lines.push('G64 P0.01');
+  if (postProcessor.id === 'mach3') lines.push('G80');
+  let previousToolId = null;
+  const outputs = normalized.operations.map((operation) => {
+    const output = createMachineGcode(normalized, operation, bodies, { projectName, document, postProcessorId: postProcessor.id, programFragment: true, includeToolChange: operation.toolId !== previousToolId });
+    previousToolId = operation.toolId;
+    return output;
+  });
+  for (const output of outputs) lines.push('', ...output.text.trim().split('\n'));
+  lines.push('', 'M5', linuxCncEnvelope ? 'M2' : 'M30');
+  if (linuxCncEnvelope) lines.push('%');
+  lines.push('');
+  return {
+    text: lines.join('\n'),
+    lineCount: lines.length - 1,
+    operationCount: outputs.length,
+    toolpaths: outputs.map((output) => output.toolpath),
+    postProcessor: postProcessor.id,
+    extension: postProcessor.extension,
+    report,
+  };
 }
 
 export function createGrblGcode(setup, operation, bodies = [], options = {}) {

@@ -272,6 +272,7 @@ Te prace nie czekają na koniec modelowania:
 - [x] P5.2 Projektowa biblioteka własnych narzędzi i cykli otworowych: zapisywane w projekcie edytowalne wiertła, nawiertaki i gwintowniki, bezpieczne referencje i dobór po średnicy, wiercenie zwykłe/peck/dwell, jawny fallback GRBL oraz G81/G82/G83 dla LinuxCNC i Mach3. Dedykowane gwintowanie sprawdza otwór pilotowy, wylicza posuw jako obroty × skok, generuje synchronizowane G84/G80 i blokuje sterowniki bez obsługi sztywnego gwintowania.
 - [x] P5.3 Rozszerzone strategie otworowe: nawiertanie/pogłębianie stożkowe wylicza głębokość z geometrii ostrza, pogłębianie walcowe tworzy bezpieczne warstwy i koncentryczne przejścia, raport kompletności wyprowadza wymagane etapy z modelu, a graf zależności automatycznie porządkuje operacje i ogranicza zmiany narzędzia.
 - [>] P5.4 Produkcyjne zarządzanie programem CAM: foldery i grupy operacji, duplikowanie i szablony, ręczne przesuwanie z walidacją zależności, arkusz ustawczy oraz eksport całego programu jednym plikiem.
+  - [x] Eksport wszystkich operacji Setupu do jednego bezpiecznego programu z jednym nagłówkiem, zmianami narzędzi i zakończeniem.
 
 ## Definition of Done
 

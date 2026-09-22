@@ -44,6 +44,8 @@ Raport pokazuje liczbę kompletnych wystąpień, brakujące etapy i błędną ko
 
 Przycisk „Uporządkuj operacje” buduje graf zależności zamiast wykonywać zwykłe sortowanie listy. Planowanie powierzchni pozostaje przed dalszą obróbką, kontur zewnętrzny jest wykonywany na końcu, a nakładające się grupy otworów zachowują kolejność technologiczną. Spośród operacji aktualnie gotowych algorytm wybiera najpierw tę samą oprawkę, dzięki czemu ogranicza zmiany narzędzia bez łamania zależności. Wynik jest pojedynczą transakcją projektu i można go cofnąć.
 
+Na stronie kontroli przycisk „Eksportuj cały program” zapisuje jeden plik dla wszystkich operacji aktywnego Setupu. Program ma jeden nagłówek modalny i jedno zakończenie, zachowuje kolejność operacji, pomija zbędną ponowną zmianę tego samego narzędzia i nadal uruchamia pełną kontrolę ścieżek, kolizji oraz kompletności obróbki otworów przed zapisem. Postprocesor jest wybierany dla całego programu; synchronizowane gwintowanie automatycznie wymusza sterownik operacji G84.
+
 ## Gwintowanie synchronizowane
 
 Operacja `tap` używa wyłącznie gwintownika z biblioteki projektu. Dla każdego rozpoznanego otworu sprawdza oś Z, długość roboczą narzędzia i średnicę otworu pilotowego względem przybliżenia `średnica nominalna - skok`. Posuw nie jest polem swobodnym: zawsze wynosi `spindleRpm × pitch`, dzięki czemu zapis projektu nie może rozjechać synchronizacji.
