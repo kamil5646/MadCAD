@@ -6405,6 +6405,21 @@
 .manufacturing-operation-list > header small { color: #9eabb6; font-size: 9px; }
 .manufacturing-add-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; }
 .manufacturing-add-actions button { padding: 0 7px; border-color: #4b8294; font-size: 10px; }
+.manufacturing-organization { display: grid; gap: 7px; margin: 0 12px 10px; }
+.manufacturing-organization > section { display: grid; gap: 5px; padding: 8px; border: 1px solid #4b5d6b; border-radius: 4px; background: #25303a; }
+.manufacturing-organization header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.manufacturing-organization header span { display: grid; gap: 2px; }
+.manufacturing-organization header strong { font-size: 10px; }
+.manufacturing-organization header small,
+.manufacturing-organization p { margin: 0; color: #93a3af; font-size: 9px; }
+.manufacturing-organization section > div { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px; }
+.manufacturing-organization input { min-width: 0; height: 27px; padding: 0 7px; border: 1px solid #536675; border-radius: 3px; background: #202a33; color: #e7edf1; font-size: 10px; }
+.manufacturing-organization button { min-height: 27px; padding: 0 7px; font-size: 9px; }
+.manufacturing-operation-group { margin: 0 12px 6px; border: 1px solid #557083; border-radius: 4px; background: #31404c; }
+.manufacturing-operation-group.collapsed { margin-bottom: 10px; }
+.manufacturing-operation-group button { display: flex; width: 100%; align-items: center; justify-content: space-between; min-height: 31px; padding: 0 9px; border: 0; background: transparent; color: #d7e3e9; }
+.manufacturing-operation-group span { font-size: 10px; font-weight: 800; }
+.manufacturing-operation-group small { color: #83cfe2; font-size: 9px; }
 .manufacturing-operation { margin: 0 12px 11px; border: 1px solid #596978; border-radius: 4px; background: #293440; }
 .manufacturing-operation > header { display: flex; align-items: center; justify-content: space-between; padding: 8px 9px; border-bottom: 1px solid #4f5d6a; }
 .manufacturing-operation > header > div { display: flex; align-items: center; gap: 7px; }

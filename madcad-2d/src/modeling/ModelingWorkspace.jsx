@@ -145,7 +145,7 @@ import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMesh
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
-import { CAM_TOOL_PRESETS, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingProgramGcode, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, duplicateManufacturingOperation, moveManufacturingOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
+import { CAM_TOOL_PRESETS, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, instantiateManufacturingOperationTemplate, moveManufacturingOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingOperationTemplate, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
@@ -1067,7 +1067,9 @@ export default function ModelingWorkspace() {
   });
   const deleteCamTool = (toolId) => commit((next) => {
     const usedBy = next.manufacturing.setups.flatMap((setup) => setup.operations).find((operation) => operation.toolId === toolId);
+    const templateUsingTool = next.manufacturing.operationTemplates.find((template) => template.operation?.toolId === toolId);
     if (usedBy) { setNotice(`Nie można usunąć narzędzia używanego przez operację „${usedBy.name}”.`); return; }
+    if (templateUsingTool) { setNotice(`Nie można usunąć narzędzia używanego przez szablon „${templateUsingTool.name}”.`); return; }
     next.manufacturing.tools = next.manufacturing.tools.filter((tool) => tool.id !== toolId);
     setNotice('Usunięto narzędzie z biblioteki projektu. Cofnij, aby je przywrócić.');
   });
@@ -1158,6 +1160,61 @@ export default function ModelingWorkspace() {
     if (!result.changed) { setNotice(result.warnings[0] || 'Operacja jest już na skraju listy.'); return; }
     setup.operations = result.operations;
     setNotice('Zmieniono kolejność operacji CAM. Zależności technologiczne pozostały zachowane.');
+  });
+  const createCamOperationGroup = (setupId) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    if (!setup) return;
+    const group = createManufacturingOperationGroup({ name: `Folder ${setup.operationGroups.length + 1}` });
+    setup.operationGroups.push(group);
+    setNotice(`Utworzono „${group.name}”. Przypisz operacje z pola Folder.`);
+  });
+  const updateCamOperationGroup = (setupId, groupId, patch) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    const index = setup?.operationGroups.findIndex((group) => group.id === groupId) ?? -1;
+    if (index < 0) return;
+    setup.operationGroups[index] = {
+      ...setup.operationGroups[index],
+      ...patch,
+      name: String(patch.name ?? setup.operationGroups[index].name).trim().slice(0, 80) || setup.operationGroups[index].name,
+    };
+  });
+  const deleteCamOperationGroup = (setupId, groupId) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    if (!setup) return;
+    const result = deleteManufacturingOperationGroup(setup, groupId);
+    if (!result.changed) return;
+    setup.operationGroups = result.operationGroups;
+    setup.operations = result.operations;
+    setNotice('Usunięto folder. Operacje zachowano na liście głównej.');
+  });
+  const saveCamOperationTemplate = (setupId, operationId) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    const operation = setup?.operations.find((item) => item.id === operationId);
+    if (!operation) return;
+    const template = createManufacturingOperationTemplate(operation);
+    next.manufacturing.operationTemplates.push(template);
+    setNotice(`Zapisano „${template.name}”. Geometria modelu nie jest częścią szablonu.`);
+  });
+  const updateCamOperationTemplate = (templateId, patch) => commit((next) => {
+    const index = next.manufacturing.operationTemplates.findIndex((template) => template.id === templateId);
+    if (index < 0) return;
+    next.manufacturing.operationTemplates[index] = normalizeManufacturingOperationTemplate({ ...next.manufacturing.operationTemplates[index], ...patch }, index);
+  });
+  const deleteCamOperationTemplate = (templateId) => commit((next) => {
+    next.manufacturing.operationTemplates = next.manufacturing.operationTemplates.filter((template) => template.id !== templateId);
+    setNotice('Usunięto szablon operacji CAM.');
+  });
+  const applyCamOperationTemplate = (setupId, templateId) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    const template = next.manufacturing.operationTemplates.find((item) => item.id === templateId);
+    if (!setup || !template) return;
+    try {
+      const operation = instantiateManufacturingOperationTemplate(template, setup);
+      setup.operations.push(operation);
+      setNotice(`Dodano „${operation.name}” z szablonu. Wskaż geometrię operacji, jeśli jest wymagana.`);
+    } catch (error) {
+      setNotice(error.message);
+    }
   });
   const exportCamOperation = (setupId, operationId) => {
     try {
@@ -8216,7 +8273,7 @@ export default function ModelingWorkspace() {
             renderCaptureRef={renderCaptureRef}
           />
           </React.Suspense>}
-          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} projectDocument={document} simulationProgress={camSimulationProgress} onSimulationProgress={setCamSimulationProgress} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onDuplicateOperation={duplicateCamOperation} onMoveOperation={moveCamOperation} onOptimizeOperations={optimizeCamOperationOrder} onExportOperation={exportCamOperation} onExportProgram={exportCamProgram} onExportSetupSheet={exportCamSetupSheet} onCreateTool={createCamTool} onUpdateTool={updateCamTool} onDeleteTool={deleteCamTool} />}
+          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} projectDocument={document} simulationProgress={camSimulationProgress} onSimulationProgress={setCamSimulationProgress} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onDuplicateOperation={duplicateCamOperation} onMoveOperation={moveCamOperation} onOptimizeOperations={optimizeCamOperationOrder} onCreateOperationGroup={createCamOperationGroup} onUpdateOperationGroup={updateCamOperationGroup} onDeleteOperationGroup={deleteCamOperationGroup} onSaveOperationTemplate={saveCamOperationTemplate} onUpdateOperationTemplate={updateCamOperationTemplate} onDeleteOperationTemplate={deleteCamOperationTemplate} onApplyOperationTemplate={applyCamOperationTemplate} onExportOperation={exportCamOperation} onExportProgram={exportCamProgram} onExportSetupSheet={exportCamSetupSheet} onCreateTool={createCamTool} onUpdateTool={updateCamTool} onDeleteTool={deleteCamTool} />}
           {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
           {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
