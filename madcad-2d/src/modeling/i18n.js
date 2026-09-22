@@ -1763,6 +1763,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Najpierw czoło, następnie średnice zewnętrzne': 'Face first, then outside diameters',
   'Kontury wykonywane kolejno od góry': 'Contours are processed in top-to-bottom order',
   'Kolejność wykonania od góry': 'Execution order from top to bottom',
+  'Uporządkuj operacje': 'Optimize operation order',
   'Dodaj pierwszą operację': 'Add the first operation',
   'Bez zaznaczenia używana jest góra bryły. Aby ograniczyć kieszeń lub kontur, zaznacz wcześniej poziomą ścianę modelu.': 'Without a selection, the top of the body is used. To bound a pocket or contour, select a horizontal model face first.',
   'Czoło': 'Face',

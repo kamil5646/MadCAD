@@ -42,6 +42,8 @@ Kontrola programu buduje wymagany proces dla każdej stabilnej grupy otworów na
 
 Raport pokazuje liczbę kompletnych wystąpień, brakujące etapy i błędną kolejność. Bezpieczna kolejność etapów otworowych to nawiertanie → wiercenie → pogłębianie walcowe → gwintowanie. Brak albo odwrócona kolejność blokuje status „Program gotowy do symulacji”, ale nie zmienia modelu ani operacji użytkownika.
 
+Przycisk „Uporządkuj operacje” buduje graf zależności zamiast wykonywać zwykłe sortowanie listy. Planowanie powierzchni pozostaje przed dalszą obróbką, kontur zewnętrzny jest wykonywany na końcu, a nakładające się grupy otworów zachowują kolejność technologiczną. Spośród operacji aktualnie gotowych algorytm wybiera najpierw tę samą oprawkę, dzięki czemu ogranicza zmiany narzędzia bez łamania zależności. Wynik jest pojedynczą transakcją projektu i można go cofnąć.
+
 ## Gwintowanie synchronizowane
 
 Operacja `tap` używa wyłącznie gwintownika z biblioteki projektu. Dla każdego rozpoznanego otworu sprawdza oś Z, długość roboczą narzędzia i średnicę otworu pilotowego względem przybliżenia `średnica nominalna - skok`. Posuw nie jest polem swobodnym: zawsze wynosi `spindleRpm × pitch`, dzięki czemu zapis projektu nie może rozjechać synchronizacji.
@@ -72,4 +74,4 @@ LinuxCNC i Mach3 otrzymują `G98`, osobny `G84` dla każdego położenia i zamkn
 
 ## Jawne ograniczenia i następny etap
 
-P5.1–P5.3 nie wykonują wiercenia indeksowanego ani 5-osiowego. Dostępne są projektowa biblioteka wierteł, nawiertaków i gwintowników, dobór po średnicy, wiercenie zwykłe/skokowe/z postojem, geometryczne nawiertanie i pogłębianie walcowe, G81–G83 z jawnym fallbackiem, synchronizowane G84 oraz raport kompletności i kolejności. Kolejny przyrost P5.3 może dodać automatyczne porządkowanie operacji; pogłębianie stożkowe jest realizowane przez geometryczne nawiertanie do zadanej średnicy.
+P5.1–P5.3 nie wykonują wiercenia indeksowanego ani 5-osiowego. Dostępne są projektowa biblioteka wierteł, nawiertaków i gwintowników, dobór po średnicy, wiercenie zwykłe/skokowe/z postojem, geometryczne nawiertanie i pogłębianie walcowe, G81–G83 z jawnym fallbackiem, synchronizowane G84, raport kompletności oraz automatyczne porządkowanie operacji. Pogłębianie stożkowe jest realizowane przez geometryczne nawiertanie do zadanej średnicy.

@@ -28,6 +28,7 @@ import {
   ensureDocumentManufacturing,
   extractTopBoundaryLoops,
   offsetClosedContour,
+  optimizeManufacturingOperationOrder,
   simulateMaterialRemoval,
   validateManufacturing,
 } from './manufacturing.js';
@@ -216,6 +217,22 @@ describe('CAM contour operations', () => {
     expect(complete.valid).toBe(true);
     expect(complete.holeCompleteness).toMatchObject({ complete: true, groupCount: 1, completeGroupCount: 1, totalHoleCount: 2, completeHoleCount: 2 });
     expect(analyzeHoleMachiningCompleteness(setup, counterboreBody, complete.operations).entries[0].plannedStages).toEqual(['drill', 'counterbore']);
+  });
+
+  it('orders operations by manufacturing dependencies and then minimizes tool changes', () => {
+    const drill = createDrillingOperation({ name: 'Wiercenie', toolId: 'drill-8', holeFeatureIds: ['hole-main'] });
+    const spot = createSpotDrillingOperation({ name: 'Nawiertanie', toolId: 'spot-tool', holeFeatureIds: ['hole-main'] });
+    const counterbore = createCounterboreOperation({ name: 'Pogłębienie', toolId: 'flat-6', holeFeatureIds: ['hole-main'] });
+    const contour = createContourOperation({ name: 'Kontur', toolId: 'flat-6' });
+    const setup = createManufacturingSetup({ bodyId: drilledBox.id });
+    setup.operations = [contour, counterbore, drill, spot];
+    const result = optimizeManufacturingOperationOrder(setup, drilledBox);
+    expect(result.operations.map((operation) => operation.type)).toEqual(['spot', 'drill', 'counterbore', 'contour']);
+    expect(result.changed).toBe(true);
+    expect(result.warnings).toEqual([]);
+    expect(result.toolChangesAfter).toBeLessThanOrEqual(result.toolChangesBefore);
+    const stable = optimizeManufacturingOperationOrder({ ...setup, operations: result.operations }, drilledBox);
+    expect(stable.changed).toBe(false);
   });
 
   it('rejects oversized drills and non-Z hole axes instead of exporting unsafe paths', () => {

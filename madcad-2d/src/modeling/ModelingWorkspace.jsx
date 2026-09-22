@@ -145,7 +145,7 @@ import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMesh
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
-import { CAM_TOOL_PRESETS, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingSetup, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingSetup, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
+import { CAM_TOOL_PRESETS, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingSetup, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
@@ -1128,6 +1128,14 @@ export default function ModelingWorkspace() {
     const setup = next.manufacturing.setups.find((item) => item.id === setupId);
     const index = setup?.operations.findIndex((item) => item.id === operationId) ?? -1;
     if (index >= 0) setup.operations[index] = normalizeManufacturingOperation({ ...setup.operations[index], ...patch }, index);
+  });
+  const optimizeCamOperationOrder = (setupId) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    if (!setup) return;
+    const body = engine.bodies.find((item) => item.id === setup.bodyId);
+    const result = optimizeManufacturingOperationOrder(setup, body);
+    setup.operations = result.operations;
+    setNotice(result.warnings[0] || (result.changed ? `Uporządkowano operacje. Zmiany narzędzia: ${result.toolChangesBefore} → ${result.toolChangesAfter}.` : `Kolejność jest już optymalna. Zmiany narzędzia: ${result.toolChangesAfter}.`));
   });
   const deleteCamOperation = (setupId, operationId) => commit((next) => {
     const setup = next.manufacturing.setups.find((item) => item.id === setupId);
@@ -8169,7 +8177,7 @@ export default function ModelingWorkspace() {
             renderCaptureRef={renderCaptureRef}
           />
           </React.Suspense>}
-          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} projectDocument={document} simulationProgress={camSimulationProgress} onSimulationProgress={setCamSimulationProgress} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onExportOperation={exportCamOperation} onCreateTool={createCamTool} onUpdateTool={updateCamTool} onDeleteTool={deleteCamTool} />}
+          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} projectDocument={document} simulationProgress={camSimulationProgress} onSimulationProgress={setCamSimulationProgress} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onOptimizeOperations={optimizeCamOperationOrder} onExportOperation={exportCamOperation} onCreateTool={createCamTool} onUpdateTool={updateCamTool} onDeleteTool={deleteCamTool} />}
           {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
           {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
