@@ -273,6 +273,24 @@ async function waitForUi(window, expression, label, timeoutMs = 12000) {
   throw new Error(`Interfejs nie osiągnął stanu: ${label}.`);
 }
 
+async function waitForStableEngine(window, timeoutMs = modelingTimeoutMs) {
+  const startedAt = Date.now();
+  let stableSince = 0;
+  let stableRevision = null;
+  let lastState = null;
+  while (Date.now() - startedAt < timeoutMs) {
+    lastState = await window.webContents.executeJavaScript(`({ status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision, bodies: window.__madcadVerifyEngineState?.bodies?.length })`);
+    if (lastState.status === 'ready' && lastState.bodies > 0 && stableSince > 0 && lastState.revision === stableRevision) {
+      if (Date.now() - stableSince >= 1000) return lastState;
+    } else {
+      stableRevision = lastState.revision;
+      stableSince = lastState.status === 'ready' ? Date.now() : 0;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`Silnik nie ustabilizował się przed wyborem topologii: ${JSON.stringify(lastState)}`);
+}
+
 async function runUiFlow(window) {
   const progress = (message) => process.stdout.write(`[verify] ${message}\n`);
   const toolsWorkspaceLabels = new Set([
@@ -589,12 +607,18 @@ async function runUiFlow(window) {
   })()`);
   const selectTopology = async (topology, mode = 'replace') => {
     for (let attempt = 0; attempt < 20; attempt += 1) {
-      const invoked = await window.webContents.executeJavaScript(`(() => {
-        const handler = window.__madcadVerifyTopologySelection;
-        if (typeof handler !== 'function') return false;
-        handler(${JSON.stringify(topology)}, ${JSON.stringify(mode)});
-        return true;
-      })()`);
+      let invoked;
+      try {
+        invoked = await window.webContents.executeJavaScript(`(() => {
+          const handler = window.__madcadVerifyTopologySelection;
+          if (typeof handler !== 'function') return false;
+          handler(${JSON.stringify(topology)}, ${JSON.stringify(mode)});
+          return true;
+        })()`);
+      } catch (error) {
+        const state = await window.webContents.executeJavaScript(`({ status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision, selection: window.__madcadVerifyDocumentState?.selection })`).catch(() => null);
+        throw new Error(`Nie udało się wybrać ${topology.kind} ${topology.id}: ${error.message}; stan ${JSON.stringify(state)}`);
+      }
       if (invoked) return;
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
@@ -2218,15 +2242,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `window.__madcadVerifyDocumentState?.featureData?.[0]?.thin === false && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${64 * 42 * 8}) < 0.01`, 'powrót do pełnego Extrude', modelingTimeoutMs);
 
   progress('B-Rep hover, multi-select and box select');
-  await waitForUi(window, `window.__madcadVerifyEngineState?.status === 'ready'`, 'gotowy silnik przed testem wyboru', modelingTimeoutMs);
-  let selectionRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    const nextRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
-    if (nextRevision === selectionRevision) break;
-    selectionRevision = nextRevision;
-    if (attempt === 7) throw new Error('Silnik nie ustabilizował rewizji przed testem wyboru.');
-  }
+  const selectionRevision = (await waitForStableEngine(window)).revision;
   const topologyIds = await window.webContents.executeJavaScript(`(() => {
     const body = window.__madcadVerifyEngineState.bodies[0];
     if (!body?.topology?.faces?.[0] || !body?.topology?.edges?.[0]) return null;
@@ -2234,6 +2250,7 @@ async function runUiFlow(window) {
   })()`);
   if (!topologyIds) throw new Error('Gotowa bryła nie udostępniła topologii do testu wyboru.');
   await selectTopology({ kind: 'face', id: topologyIds.face, bodyId: topologyIds.body }, 'replace');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face' && window.__madcadVerifyEngineState?.status === 'ready'`, 'pierwszy wybór ściany', modelingTimeoutMs);
   await selectTopology({ kind: 'edge', id: topologyIds.edge, bodyId: topologyIds.body }, 'add');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.selection?.items?.length === 2`, 'wielokrotny wybór topologii');
   await selectTopology({ kind: 'face', id: topologyIds.face, bodyId: topologyIds.body }, 'toggle');
@@ -2288,12 +2305,13 @@ async function runUiFlow(window) {
   const lostReferenceId = await window.webContents.executeJavaScript(`window.__madcadVerifyLostReferenceId`);
   await expandReferenceRepair();
   await waitForUi(window, `document.querySelector('.reference-repair-panel')?.textContent.includes('Źródło: Wyciągnięcie 1')`, 'komunikat utraconej referencji ze źródłowym feature', modelingTimeoutMs);
-  await waitForUi(window, `[...document.querySelectorAll('.reference-repair-panel button')].some((item) => item.textContent === 'Kandydat 1')`, 'kandydat naprawy referencji', modelingTimeoutMs);
-  await window.webContents.executeJavaScript(`(() => {
+  await waitForUi(window, `(() => {
+    if (window.__madcadVerifyEngineState?.status !== 'ready') return false;
     const button = [...document.querySelectorAll('.reference-repair-panel button')].find((item) => item.textContent === 'Kandydat 1');
-    if (!button) throw new Error('Brak kandydata naprawy referencji.');
+    if (!button || button.disabled) return false;
     button.click();
-  })()`);
+    return true;
+  })()`, 'wybór kandydata naprawy referencji po przeliczeniu modelu', modelingTimeoutMs);
   await waitForUi(window, `!document.querySelector('.reference-repair-panel') && window.__madcadVerifyDocumentState?.references?.find((item) => item.id === ${JSON.stringify(lostReferenceId)})?.topologyId !== window.__madcadVerifyEngineState.bodies[0].topology.edges[0].id + '-lost'`, 'ponowne przypisanie referencji', modelingTimeoutMs);
 
   progress('parametric offset construction plane');

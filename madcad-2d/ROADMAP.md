@@ -83,6 +83,16 @@ Lokalny macOS przeszedł bramkę. Ochrona `main` wymaga obu zadań
 blokuje merge; punkt pozostaje częściowy do czasu uruchomienia nowej bramki
 na Windows CI. Bez publikacji bieżącej gałęzi nie ma jeszcze tego wyniku.
 
+Kontrola istniejącego CI z 2026-09-23 (run `35800781854`, starszy commit)
+wykazała dwa błędy scenariuszy desktopowych: na macOS test otwartego szkicu
+zakładał samoczynne zakończenie polecenia linii, a na Windows test naprawy
+referencji szukał przycisku kandydata osobno od kliknięcia, gdy silnik nadal
+przeliczał historię. Testy lokalne synchronizują teraz oba kroki ze stanem
+aplikacji; pełny scenariusz modelowania przechodzi na macOS. To nie potwierdza
+jeszcze działania poprawki na Windows ani całkowitej gotowości produktu.
+Nowego wydania, taga ani publikacji strony nie wykonujemy przed zamknięciem
+całego celu i przejściem pełnej bramki na docelowych systemach.
+
 Po tym pionie następne w kolejności są: walidacja importu na większym korpusie
 STEP/DWG/DXF/STL/3MF, rozbudowa CAM oraz walidowany MES dowolnej geometrii 3D.
 
