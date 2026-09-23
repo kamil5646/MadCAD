@@ -5,6 +5,7 @@ const { app, BrowserWindow } = require('electron');
 
 const screenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-manufacturing-setup.png');
 const reportScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-manufacturing-report.png');
+const fixtureScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-manufacturing-fixture.png');
 const gcodeScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-gcode-preview.png');
 const gcodePath = path.join(__dirname, '..', 'artifacts', 'madcad-contour-linuxcnc.ngc');
 const programGcodePath = path.join(__dirname, '..', 'artifacts', 'madcad-complete-program.nc');
@@ -201,7 +202,17 @@ app.whenReady().then(async () => {
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 5 && JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations[3].type === 'drill'`, 'Cofnij optymalizację kolejności CAM');
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 4`, 'Cofnij operację profilu CAM');
-    process.stdout.write(`${JSON.stringify({ screenshotPath, reportScreenshotPath, gcodeScreenshotPath, gcodePath, gcodeBytes: Buffer.byteLength(gcode), programGcodePath, programGcodeBytes: Buffer.byteLength(programGcode), setupSheetPath, setupSheetBytes: Buffer.byteLength(setupSheet), profileBoundary: profileState, simulation: simulationState, reportVerified: true, ...state }, null, 2)}\n`);
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-page-tabs button')].find((button) => button.textContent.includes('Ustawienia')).click()`);
+    await window.webContents.executeJavaScript(`document.querySelector('.manufacturing-form fieldset:last-child input[type="checkbox"]').click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixture.enabled && window.__madcadManufacturingVisualState?.fixtureVisible`, 'zapis i wizualizacja strefy uchwytu CAM');
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
+    await waitFor(window, `!JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixture.enabled && !window.__madcadManufacturingVisualState?.fixtureVisible`, 'Cofnij strefę uchwytu CAM');
+    await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixture.enabled && window.__madcadManufacturingVisualState?.fixtureVisible`, 'Ponów strefę uchwytu CAM');
+    await window.webContents.executeJavaScript(`document.querySelector('.manufacturing-form fieldset:last-child').scrollIntoView({ block: 'center' })`);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await fs.writeFile(fixtureScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    process.stdout.write(`${JSON.stringify({ screenshotPath, reportScreenshotPath, fixtureScreenshotPath, gcodeScreenshotPath, gcodePath, gcodeBytes: Buffer.byteLength(gcode), programGcodePath, programGcodeBytes: Buffer.byteLength(programGcode), setupSheetPath, setupSheetBytes: Buffer.byteLength(setupSheet), profileBoundary: profileState, simulation: simulationState, reportVerified: true, ...state }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
     process.stderr.write(`${error.stack || error.message}\n`);

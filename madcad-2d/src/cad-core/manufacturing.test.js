@@ -81,6 +81,26 @@ const drilledBox = {
 };
 
 describe('CAM contour operations', () => {
+  it('detects a swept tool crossing the fixture zone and blocks NC export', () => {
+    const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [operation] });
+    const baseline = calculateContourToolpath(setup, operation, [box]);
+    const segment = baseline.segments.find((item) => item.kind === 'cut' && Math.hypot(...item.to.map((value, axis) => value - item.from[axis])) > 1);
+    expect(segment).toBeDefined();
+    const middle = segment.from.map((value, axis) => (value + segment.to[axis]) / 2);
+    setup.fixture = { enabled: true, bounds: [middle.map((value) => value - 0.1), middle.map((value) => value + 0.1)], clearance: 0.5 };
+    const collision = calculateContourToolpath(setup, operation, [box]);
+    expect(analyzeToolpathSafety(collision)).toContainEqual(expect.objectContaining({ code: 'FIXTURE_COLLISION' }));
+    expect(analyzeManufacturingProgram(setup, [box]).valid).toBe(false);
+    expect(() => createMachineGcode(setup, operation, [box])).toThrow(/uchwytu/);
+    expect(() => createManufacturingProgramGcode(setup, [box])).toThrow(/zablokowany/);
+    setup.fixture.bounds = [[100, 100, 100], [110, 110, 110]];
+    expect(analyzeToolpathSafety(calculateContourToolpath(setup, operation, [box]))).toEqual([]);
+    expect(createManufacturingSetupSheet(setup, [box]).html).toContain('Strefa uchwytu XYZ: 100.00 / 100.00 / 100.00 — 110.00 / 110.00 / 110.00 mm; odstęp 0.50 mm.');
+    expect(validateManufacturing({ setups: [setup], activeSetupId: setup.id })).toEqual([]);
+    setup.fixture.bounds[1][0] = 90;
+    expect(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixture.bounds'))).toBe(true);
+  });
   it('drills recognized model holes with safe pecks, simulation data, and portable G-code', () => {
     const setup = createManufacturingSetup({ bodyId: drilledBox.id, stock: { sideOffset: 2, topOffset: 2, bottomOffset: 0 }, safeHeight: 5 });
     const operation = createDrillingOperation({ toolId: 'drill-5', peckDepth: 3, retractHeight: 1, breakthroughDepth: 0.2, feedRate: 120 });

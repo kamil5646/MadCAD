@@ -145,7 +145,7 @@ import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMesh
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
-import { CAM_TOOL_PRESETS, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, instantiateManufacturingOperationTemplate, moveManufacturingOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingOperationTemplate, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
+import { CAM_TOOL_PRESETS, calculateManufacturingSetup, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, instantiateManufacturingOperationTemplate, moveManufacturingOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingOperationTemplate, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
@@ -7554,6 +7554,7 @@ export default function ModelingWorkspace() {
               : { title: 'KROK 1 · dokończ szkic 2D', text: 'Szkic nie ma jeszcze zamkniętego obrysu. Domknij linie, zakończ szkic, potem zaznacz jego wnętrze.', action: `Edytuj: ${lastSketch.name}`, onAction: () => editSketch(lastSketch.id) }
             : { title: 'PROJEKTUJ · szkic 2D i model 3D', text: readyEngineLabel };
   const activeCamSetup = document.manufacturing.setups.find((setup) => setup.id === document.manufacturing.activeSetupId) || null;
+  const activeCamSetupResult = workspace === 'manufacture' && activeCamSetup ? calculateManufacturingSetup(activeCamSetup, engine.bodies) : null;
   const manufacturingToolpaths = workspace === 'manufacture' && activeCamSetup
     ? activeCamSetup.operations.map((operation) => calculateOperationToolpath(activeCamSetup, operation, engine.bodies, document)).filter((toolpath) => toolpath.valid)
     : [];
@@ -7561,8 +7562,9 @@ export default function ModelingWorkspace() {
     ? simulateMaterialRemoval(activeCamSetup, engine.bodies, document, camSimulationProgress)
     : null;
   const manufacturingSegments = manufacturingToolpaths.flatMap((toolpath) => toolpath.segments);
-  const manufacturingVisualization = manufacturingToolpaths.length ? {
-    stockBounds: manufacturingToolpaths[0].stockBounds,
+  const manufacturingVisualization = activeCamSetupResult?.stockBounds ? {
+    stockBounds: activeCamSetupResult.stockBounds,
+    fixture: activeCamSetup.fixture,
     segments: manufacturingSegments.slice(0, Math.ceil(manufacturingSegments.length * camSimulationProgress)),
     removalColumns: camSimulation?.columns || [],
     cutter: camSimulation?.cutter || null,

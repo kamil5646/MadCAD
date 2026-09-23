@@ -5,7 +5,8 @@ Każdy Setup CAM przechowuje własny `workOffset` w projekcie. Nowe i starsze pr
 ## Zakres i ograniczenia
 
 - Wybór kodu **nie ustawia fizycznie zera na obrabiarce** i nie zapisuje wartości do sterownika. Operator musi zmierzyć i potwierdzić odpowiadający mu układ współrzędnych przed uruchomieniem.
-- Nie ma jeszcze modelu mocowania, stref kolizji, operacji sondowania ani automatycznego raportu kolejnych zamocowań. To pozostałe części [P5.5](../ROADMAP.md).
+- Dostępna jest pojedyncza prostopadłościenna strefa uchwytu XYZ z zadanym odstępem. Jej przecięcie przez ścieżkę blokuje eksport. Nie zastępuje pełnej symulacji uchwytu, oprawki i kinematyki maszyny; brak też operacji sondowania i raportu kolejnych zamocowań. To dalsze części [P5.5](../ROADMAP.md).
+- Zakres i obsługa strefy są opisane osobno w [CAM_FIXTURE_ZONE.md](./CAM_FIXTURE_ZONE.md).
 - Eksport obejmuje jeden Setup i używa jednego układu roboczego na jego cały program. Zmiana układu między Setupami wymaga odrębnego eksportu i kontroli na maszynie.
 - Przed rzeczywistą obróbką trzeba sprawdzić mocowanie, korekcje narzędzi, zero osi, przejazdy oraz zgodność postprocesora ze sterownikiem.
 

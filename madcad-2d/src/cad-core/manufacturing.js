@@ -300,6 +300,15 @@ export function normalizeManufacturingSetup(setup = {}, index = 0) {
     },
     wcsOrigin,
     workOffset: CAM_WORK_OFFSETS.includes(setup.workOffset) ? setup.workOffset : 'G54',
+    fixture: {
+      enabled: Boolean(setup.fixture?.enabled),
+      bounds: [0, 1].map((side) => [0, 1, 2].map((axis) => {
+        const fallback = side === 0 ? -10 : 10;
+        const value = Number(setup.fixture?.bounds?.[side]?.[axis]);
+        return Number.isFinite(value) ? value : fallback;
+      })),
+      clearance: finiteNonNegative(setup.fixture?.clearance, 1),
+    },
     safeHeight: finiteNonNegative(setup.safeHeight, 5),
     operationGroups,
     operations,
@@ -423,6 +432,9 @@ export function calculateManufacturingSetup(setup, bodies = []) {
   else if (normalized.wcsOrigin === 'stock-top-front-left') origin = [stockBounds[0][0], stockBounds[0][1], stockBounds[1][2]];
   else origin = [(stockBounds[0][0] + stockBounds[1][0]) / 2, (stockBounds[0][1] + stockBounds[1][1]) / 2, stockBounds[1][2]];
   const warnings = [];
+  const fixture = normalized.fixture;
+  if (fixture.enabled && machine.kind === 'turning-2axis') warnings.push('Strefa uchwytu nie obsługuje jeszcze tokarki.');
+  if (fixture.enabled && fixture.bounds.some((side, index) => index === 0 && side.some((value, axis) => value >= fixture.bounds[1][axis]))) warnings.push('Strefa uchwytu wymaga dodatnich wymiarów X, Y i Z.');
   const exceededAxes = dimensions.map((value, axis) => value > machine.travel[axis] ? ['X', 'Y', 'Z'][axis] : null).filter(Boolean);
   if (exceededAxes.length) warnings.push(`Półfabrykat przekracza przesuw maszyny w osi ${exceededAxes.join(', ')}.`);
   if (dimensions.some((value) => value <= 0)) warnings.push('Półfabrykat musi mieć dodatnie wymiary.');
@@ -436,6 +448,7 @@ export function calculateManufacturingSetup(setup, bodies = []) {
     dimensions,
     origin,
     workOffset: normalized.workOffset,
+    fixture,
     clearancePlaneZ,
     warnings,
   };
@@ -1315,17 +1328,46 @@ export function calculateOperationToolpath(setup, operation, bodies = [], docume
   return calculateFacingToolpath(setup, operation, bodies);
 }
 
+function segmentIntersectsBounds(segment, minimum, maximum) {
+  let enter = 0;
+  let exit = 1;
+  for (let axis = 0; axis < 3; axis += 1) {
+    const direction = segment.to[axis] - segment.from[axis];
+    if (Math.abs(direction) < 1e-9) {
+      if (segment.from[axis] < minimum[axis] || segment.from[axis] > maximum[axis]) return false;
+      continue;
+    }
+    const first = (minimum[axis] - segment.from[axis]) / direction;
+    const last = (maximum[axis] - segment.from[axis]) / direction;
+    enter = Math.max(enter, Math.min(first, last));
+    exit = Math.min(exit, Math.max(first, last));
+    if (enter > exit) return false;
+  }
+  return true;
+}
+
 export function analyzeToolpathSafety(toolpath) {
   const issues = [];
   if (!toolpath?.valid) return (toolpath?.warnings || ['Ścieżka nie jest prawidłowa.']).map((message) => ({ code: 'INVALID_TOOLPATH', message }));
   const points = toolpath.segments.flatMap((segment) => [segment.from, segment.to]);
   if (points.some((point) => point.length !== 3 || point.some((value) => !Number.isFinite(value)))) issues.push({ code: 'NON_FINITE', message: 'Ścieżka zawiera nieprawidłową współrzędną.' });
+  if (issues.length) return issues;
   const machine = toolpath.setup.machine;
   for (let axis = 0; axis < 3; axis += 1) {
     const values = points.map((point) => point[axis]);
     if (Math.max(...values) - Math.min(...values) > machine.travel[axis] + 1e-7) issues.push({ code: 'MACHINE_TRAVEL', message: `Ścieżka przekracza przesuw maszyny w osi ${['X', 'Y', 'Z'][axis]}.` });
   }
   if (toolpath.turning) return issues;
+  const fixture = toolpath.setup.fixture;
+  if (fixture?.enabled) {
+    const radius = Math.max(0, Number(toolpath.tool?.diameter) || 0) / 2;
+    const margin = fixture.clearance + radius;
+    const minimum = fixture.bounds[0].map((value, axis) => value - (axis === 2 ? fixture.clearance : margin));
+    const maximum = fixture.bounds[1].map((value, axis) => value + (axis === 2 ? fixture.clearance : margin));
+    if (toolpath.segments.some((segment) => segmentIntersectsBounds(segment, minimum, maximum))) {
+      issues.push({ code: 'FIXTURE_COLLISION', message: 'Trajektoria narzędzia przecina strefę uchwytu lub jej wymagany odstęp.' });
+    }
+  }
   const stockTop = toolpath.stockBounds[1][2];
   for (const segment of toolpath.segments) {
     const horizontalDistance = Math.hypot(segment.to[0] - segment.from[0], segment.to[1] - segment.from[1]);
@@ -1551,7 +1593,10 @@ export function createManufacturingSetupSheet(setup, bodies = [], { projectName 
   }).join('');
   const toolRows = [...toolUsage.values()].map(({ tool, operationNumbers }, index) => `<tr><td>T${index + 1}</td><td><strong>${escapeManufacturingHtml(tool.name)}</strong><small>${escapeManufacturingHtml(tool.type || '')}</small></td><td>${tool.diameter ? `Ø${formatSetupSheetNumber(tool.diameter)}` : '—'}</td><td>${tool.stickout ? `${formatSetupSheetNumber(tool.stickout)} mm` : '—'}</td><td>${operationNumbers.join(', ')}</td></tr>`).join('');
   const issues = [...(report.setupIssues || []), ...report.operations.flatMap((operation) => operation.issues.map((issue) => `${operation.name}: ${issue.message}`)), ...(report.holeCompleteness?.entries || []).flatMap((entry) => [...entry.missingStages.map((stage) => `Ø${formatSetupSheetNumber(entry.diameter)}: brak etapu ${HOLE_STAGE_LABELS[stage] || stage}.`), ...entry.orderingIssues])];
-  const issueMarkup = issues.length ? `<ul>${issues.map((issue) => `<li>${escapeManufacturingHtml(issue)}</li>`).join('')}</ul>` : '<p>Kontrola Setupu, ścieżek, kolizji i kompletności obróbki zakończona bez błędów.</p>';
+  const fixtureMarkup = normalized.fixture.enabled
+    ? `<p>Strefa uchwytu XYZ: ${normalized.fixture.bounds.map((point) => point.map((value) => formatSetupSheetNumber(value)).join(' / ')).join(' — ')} mm; odstęp ${formatSetupSheetNumber(normalized.fixture.clearance)} mm.</p>`
+    : '<p>Strefa uchwytu: nieaktywna — sprawdź rzeczywiste mocowanie na obrabiarce.</p>';
+  const issueMarkup = `${fixtureMarkup}${issues.length ? `<ul>${issues.map((issue) => `<li>${escapeManufacturingHtml(issue)}</li>`).join('')}</ul>` : '<p>Kontrola Setupu, ścieżek, kolizji i kompletności obróbki zakończona bez błędów.</p>'}`;
   const dimensions = setupResult.dimensions.map((value) => formatSetupSheetNumber(value)).join(' × ');
   const origin = setupResult.origin.map((value) => formatSetupSheetNumber(value)).join(' / ');
   const html = `<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeManufacturingHtml(projectName)} — ${escapeManufacturingHtml(normalized.name)} — arkusz ustawczy</title><style>@page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{margin:0;color:#18212a;font:12px/1.4 Arial,sans-serif}header{display:flex;justify-content:space-between;gap:20px;border-bottom:3px solid #bd252d;padding-bottom:8px}h1,h2,p{margin:0}h1{font-size:23px}header p{color:#52606d}.status{align-self:start;padding:7px 12px;border:2px solid #27815f;color:#176348;font-weight:800}.status.bad{border-color:#bd252d;color:#9c1820}.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:10px 0}.fact{border:1px solid #abb5be;padding:7px}.fact span,td small{display:block;color:#66737e;font-size:10px}.fact strong{font-size:13px}section{margin-top:11px}h2{margin-bottom:5px;font-size:14px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #aeb8c0;padding:5px 6px;text-align:left;vertical-align:top}th{background:#e9edf0;font-size:10px;text-transform:uppercase}.ok{color:#176348;font-weight:800}.bad{color:#9c1820;font-weight:800}.checks{border:1px solid #aeb8c0;padding:8px}.checks ul{margin:0;padding-left:18px}.checks p{color:#176348;font-weight:700}footer{margin-top:10px;border-top:1px solid #aeb8c0;padding-top:6px;color:#66737e;font-size:10px}@media print{body{print-color-adjust:exact}}</style></head><body><header><div><h1>Arkusz ustawczy CAM</h1><p>${escapeManufacturingHtml(projectName)} · ${escapeManufacturingHtml(normalized.name)}</p></div><div class="status${report.valid ? '' : ' bad'}">${report.valid ? 'GOTOWY' : 'WYMAGA POPRAWY'}</div></header><div class="facts"><div class="fact"><span>Obrabiarka</span><strong>${escapeManufacturingHtml(setupResult.machine.name)}</strong></div><div class="fact"><span>Bryła</span><strong>${escapeManufacturingHtml(setupResult.body.name || setupResult.body.id)}</strong></div><div class="fact"><span>Półfabrykat X × Y × Z</span><strong>${dimensions} mm</strong></div><div class="fact"><span>Układ roboczy</span><strong>${normalized.workOffset}</strong></div><div class="fact"><span>Zero WCS X / Y / Z</span><strong>${origin} mm</strong></div><div class="fact"><span>Płaszczyzna bezpieczna</span><strong>${formatSetupSheetNumber(setupResult.clearancePlaneZ)} mm</strong></div><div class="fact"><span>Operacje</span><strong>${normalized.operations.length}</strong></div><div class="fact"><span>Szacowany czas</span><strong>${Math.max(1, Math.ceil(report.durationMinutes))} min</strong></div><div class="fact"><span>Długość skrawania</span><strong>${formatSetupSheetNumber(report.cuttingDistance, 0)} mm</strong></div></div><section><h2>Narzędzia</h2><table><thead><tr><th>Poz.</th><th>Narzędzie</th><th>Średnica</th><th>Wysięg</th><th>Operacje</th></tr></thead><tbody>${toolRows || '<tr><td colspan="5">Brak narzędzi</td></tr>'}</tbody></table></section><section><h2>Program operacji</h2><table><thead><tr><th>#</th><th>Operacja</th><th>Narzędzie</th><th>Obroty</th><th>Posuw</th><th>Czas</th><th>Kontrola</th></tr></thead><tbody>${operationRows || '<tr><td colspan="7">Brak operacji</td></tr>'}</tbody></table></section><section><h2>Kontrola przed uruchomieniem</h2><div class="checks">${issueMarkup}</div></section><footer>Wygenerowano w MadCAD. Operator odpowiada za sprawdzenie mocowania, korekcji narzędzi, punktu zerowego i przejazdu bez materiału na obrabiarce.</footer></body></html>`;
@@ -1862,6 +1907,15 @@ export function validateManufacturing(manufacturing) {
     if (!CAM_MACHINE_PRESETS[setup.machineId]) issues.push({ path: `${base}.machineId`, message: 'Nieznany profil obrabiarki.', code: 'UNSUPPORTED' });
     if (!CAM_WCS_ORIGINS.some((item) => item.id === setup.wcsOrigin)) issues.push({ path: `${base}.wcsOrigin`, message: 'Nieznany początek układu WCS.', code: 'UNSUPPORTED' });
     if (!CAM_WORK_OFFSETS.includes(setup.workOffset)) issues.push({ path: `${base}.workOffset`, message: 'Układ roboczy musi mieścić się w zakresie G54–G59.', code: 'UNSUPPORTED' });
+    if (!setup.fixture || typeof setup.fixture !== 'object' || Array.isArray(setup.fixture)) issues.push({ path: `${base}.fixture`, message: 'Strefa uchwytu musi być obiektem.', code: 'TYPE' });
+    else {
+      const fixture = setup.fixture;
+      if (typeof fixture.enabled !== 'boolean') issues.push({ path: `${base}.fixture.enabled`, message: 'Aktywność strefy uchwytu musi być wartością logiczną.', code: 'TYPE' });
+      if (!Array.isArray(fixture.bounds) || fixture.bounds.length !== 2 || fixture.bounds.some((side) => !Array.isArray(side) || side.length !== 3 || side.some((value) => !Number.isFinite(Number(value))))) issues.push({ path: `${base}.fixture.bounds`, message: 'Strefa uchwytu wymaga sześciu skończonych współrzędnych.', code: 'VALUE' });
+      else if (fixture.bounds[0].some((value, axis) => Number(value) >= Number(fixture.bounds[1][axis]))) issues.push({ path: `${base}.fixture.bounds`, message: 'Strefa uchwytu wymaga dodatnich wymiarów X, Y i Z.', code: 'VALUE' });
+      if (!Number.isFinite(Number(fixture.clearance)) || Number(fixture.clearance) < 0) issues.push({ path: `${base}.fixture.clearance`, message: 'Odstęp od uchwytu musi być nieujemny.', code: 'VALUE' });
+      if (fixture.enabled && setup.operationKind === 'turning-2axis') issues.push({ path: `${base}.fixture`, message: 'Strefa uchwytu nie obsługuje jeszcze tokarki.', code: 'UNSUPPORTED' });
+    }
     for (const key of ['sideOffset', 'topOffset', 'bottomOffset']) if (!Number.isFinite(Number(setup.stock?.[key])) || Number(setup.stock[key]) < 0) issues.push({ path: `${base}.stock.${key}`, message: 'Naddatek musi być liczbą nieujemną.', code: 'VALUE' });
     if (!Number.isFinite(Number(setup.safeHeight)) || Number(setup.safeHeight) < 0) issues.push({ path: `${base}.safeHeight`, message: 'Wysokość bezpieczna musi być liczbą nieujemną.', code: 'VALUE' });
     const groupIds = new Set();
