@@ -56,7 +56,7 @@ import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/p
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
-import { analyzeManufacturingProgram, analyzeManufacturingSetupSequence, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, ensureDocumentManufacturing, extractTopBoundaryLoops, instantiateManufacturingOperationTemplate, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
+import { analyzeManufacturingProgram, analyzeManufacturingSetupSequence, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createDrillingOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, ensureDocumentManufacturing, extractTopBoundaryLoops, instantiateManufacturingOperationTemplate, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
 import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
@@ -5713,6 +5713,7 @@ test('postprocesor GRBL zapisuje metryczny G-code względem WCS i bezpiecznie ko
   assert.match(output.text, /^G21$/m);
   assert.match(output.text, /^G90$/m);
   assert.match(output.text, /^S7000 M3$/m);
+  assert.match(output.text, /G0 Z[^\n]+\nG0 X[^\n]+ Y[^\n]+\nS7000 M3/);
   assert.match(output.text, /^G1 X.* F120$/m);
   assert.match(output.text, /^G1 X.* F500$/m);
   assert.match(output.text, /M5\nM30\n$/);
@@ -5806,6 +5807,26 @@ test('CAM blokuje kolizję szerszej oprawki z uchwytem także na szybkim przeje�
   assert.equal(analyzeToolpathSafety(guardedPath).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
   assert.equal(analyzeManufacturingProgram(guardedSetup, [camBox]).operations[0].issues.some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION'), true);
   assert.throws(() => createMachineGcode(guardedSetup, contour, [camBox]), /Eksport.*zablokowany/);
+});
+
+test('CAM kontroluje przejazd między operacjami i blokuje eksport mimo bezpiecznych osobnych ścieżek', () => {
+  const body = { id: 'body-two-holes', bounds: [[0, 0, 0], [40, 20, 10]], manufacturingHoles: [
+    { featureId: 'left-hole', diameter: 5, quantity: 1, instances: [{ position: [5, 10, 10], direction: [0, 0, -1], depth: 6 }] },
+    { featureId: 'right-hole', diameter: 5, quantity: 1, instances: [{ position: [35, 10, 10], direction: [0, 0, -1], depth: 6 }] },
+  ] };
+  const left = createDrillingOperation({ holeFeatureIds: ['left-hole'], toolId: 'drill-5', cycleType: 'normal' });
+  const right = createDrillingOperation({ holeFeatureIds: ['right-hole'], toolId: 'drill-5', cycleType: 'normal' });
+  const setup = createManufacturingSetup({ bodyId: body.id, operations: [left, right] });
+  const clear = analyzeManufacturingProgram(setup, [body]);
+  assert.equal(clear.valid, true);
+  const safeZ = calculateManufacturingSetup(setup, [body]).clearancePlaneZ;
+  setup.fixtures = [{ id: 'middle-jaw', name: 'Środkowy uchwyt', enabled: true, bounds: [[18, 8, safeZ - 1], [22, 12, safeZ + 1]], clearance: 0 }];
+  assert.equal(analyzeManufacturingProgram({ ...setup, operations: [left] }, [body]).operations[0].valid, true);
+  assert.equal(analyzeManufacturingProgram({ ...setup, operations: [right] }, [body]).operations[0].valid, true);
+  const combined = analyzeManufacturingProgram(setup, [body]);
+  assert.equal(combined.valid, false);
+  assert.equal(combined.operations[1].issues.some((issue) => issue.code === 'INTER_OPERATION_FIXTURE_COLLISION'), true);
+  assert.throws(() => createManufacturingProgramGcode(setup, [body]), /Eksport programu zablokowany/);
 });
 
 test('CAM zarządza kolejnością, eksportuje kompletny program i tworzy arkusz ustawczy', () => {
@@ -5943,6 +5964,7 @@ test('CAM generuje skompensowane cięcie laserowe i plazmowe z kontrolą zgodno�
   assert.equal(laserPath.segments.filter((segment) => segment.kind === 'cut').length, 10);
   const laser = createMachineGcode(laserSetup, laserOperation, [camBox]);
   assert.equal(laser.postProcessor, 'grbl-laser');
+  assert.match(laser.text, /G0 Z[^\n]+\nG0 X[^\n]+ Y[^\n]+\nG0 X/);
   assert.match(laser.text, /M4 S700/);
   assert.match(laser.text, /\nM5\n/);
   const mismatched = createCut2dOperation({ postProcessorId: 'linuxcnc-plasma' });

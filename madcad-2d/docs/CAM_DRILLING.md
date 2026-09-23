@@ -69,6 +69,8 @@ LinuxCNC i Mach3 otrzymują `G98`, osobny `G84` dla każdego położenia i zamkn
 
 Ścieżka zawsze zachowuje jawne segmenty `G0`/`G1`, z których korzystają symulacja i wspólny analizator kolizji. GRBL eksportuje te segmenty bezpośrednio; postój jest zapisywany jako `G4`. LinuxCNC i Mach3 używają odpowiednio `G81`, `G82` lub `G83`, trybu powrotu `G98` i kończą cykl przez `G80`; jawna ścieżka pozostaje bezpiecznym fallbackiem i źródłem kontroli programu.
 
+Przed pierwszym ruchem XY każdej operacji eksport podnosi Z do płaszczyzny bezpiecznej, potem ustawia XY i dopiero uruchamia wrzeciono lub źródło cięcia. W programie wielooperacyjnym analizator sprawdza także znany przejazd od końca poprzedniej operacji do początku następnej, łącznie z kolizją stref uchwytów i oprawki; wykryty problem blokuje eksport całego programu. Położenie maszyny przed startem pierwszej operacji nie jest znane aplikacji, więc operator nadal musi zweryfikować bezpieczny dojazd i przejazd próbny. Raport kolejnych Setupów nie generuje ruchu między zamocowaniami ani sondowania.
+
 ## Dowody odbioru
 
 - test jednostkowy: dwa otwory, liczba skoków, przebicie, G-code i symulacja;

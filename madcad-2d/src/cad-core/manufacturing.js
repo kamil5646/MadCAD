@@ -1567,9 +1567,22 @@ export function analyzeHoleMachiningCompleteness(setup, body, operationReports =
 
 export function analyzeManufacturingProgram(setup, bodies = [], document = null) {
   const normalized = normalizeManufacturingSetup(setup);
+  let previousToolpath = null;
   const operations = normalized.operations.map((operation) => {
     const toolpath = calculateOperationToolpath(normalized, operation, bodies, document);
     const issues = analyzeToolpathSafety(toolpath);
+    if (!toolpath.turning && toolpath.valid && previousToolpath?.valid && previousToolpath.segments.length && toolpath.segments.length) {
+      const previousEnd = previousToolpath.segments.at(-1).to;
+      const currentStart = toolpath.segments[0].from;
+      const safeZ = toolpath.clearancePlaneZ;
+      const bridge = [
+        { kind: 'rapid', from: previousEnd, to: [previousEnd[0], previousEnd[1], safeZ] },
+        { kind: 'rapid', from: [previousEnd[0], previousEnd[1], safeZ], to: [currentStart[0], currentStart[1], safeZ] },
+      ];
+      const transitionIssues = analyzeToolpathSafety({ ...toolpath, segments: bridge });
+      issues.push(...transitionIssues.map((issue) => ({ ...issue, code: `INTER_OPERATION_${issue.code}`, message: `Przejazd między operacjami: ${issue.message}` })));
+    }
+    previousToolpath = toolpath;
     return {
       id: operation.id,
       name: operation.name,
@@ -1807,6 +1820,8 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
     if (!programFragment && isPlasma) lines.push('%');
     if (!programFragment) lines.push(comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź zero WCS, moc i przejazd bez materiału.'), 'G21', 'G90', 'G17', 'G94', toolpath.setup.workOffset);
     if (!programFragment && isPlasma) lines.push('G40', 'G64 P0.01');
+    const start = toolpath.segments[0].from;
+    lines.push(`G0 Z${gcodeNumber(safeLocalZ)}`, `G0 X${gcodeNumber(start[0] - origin[0])} Y${gcodeNumber(start[1] - origin[1])}`);
     let processOn = false;
     for (const segment of toolpath.segments) {
       const local = segment.to.map((value, axis) => value - origin[axis]);
@@ -1844,7 +1859,8 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   if (!programFragment && postProcessor.id === 'mach3') lines.push('G40', 'G49', 'G80');
   if (includeToolChange && postProcessor.toolChange) lines.push(`T${toolNumber} M6`);
   else if (includeToolChange) lines.push(comment(`Narzędzie T${toolNumber}: ${toolpath.tool.name} — zmień ręcznie przed startem`));
-  lines.push(`S${toolpath.operation.spindleRpm} M3`, `G0 Z${gcodeNumber(safeLocalZ)}`);
+  const start = toolpath.segments[0].from;
+  lines.push(`G0 Z${gcodeNumber(safeLocalZ)}`, `G0 X${gcodeNumber(start[0] - origin[0])} Y${gcodeNumber(start[1] - origin[1])}`, `S${toolpath.operation.spindleRpm} M3`);
   if (toolpath.operation.type === 'tap') {
     const retractLocalZ = toolpath.stockBounds[1][2] + toolpath.operation.retractHeight - origin[2];
     lines.push('G98');
