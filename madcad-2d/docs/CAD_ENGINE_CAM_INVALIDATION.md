@@ -32,3 +32,10 @@ obiektu. To koszt w wątku interfejsu; przy bardzo dużych projektach warto
 zmierzyć go osobno przed zastąpieniem strukturalnym licznikiem rewizji. Nie
 wolno wyłączyć przeliczania dla pola, które zacznie wpływać na `prepareDocument`
 lub worker CAD — wtedy należy zaktualizować podpis i testy.
+
+CI `35853142356` na macOS zgłosiło w teście modelowanego gwintu status
+`ready` i nową rewizję, ale odczyt objętości w tej chwili odpowiadał jeszcze
+otworowi bez rowków. Lokalny pełny scenariusz przechodził. Test czeka teraz
+również na właściwą objętość bryły i przy przekroczeniu czasu zapisuje stan
+silnika, osi czasu oraz diagnostykę. Dopóki ponowny przebieg CI nie potwierdzi
+obu systemów, nie traktujemy tego jako zamkniętej regresji.

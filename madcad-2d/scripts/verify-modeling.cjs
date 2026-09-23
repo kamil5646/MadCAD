@@ -1307,7 +1307,12 @@ async function runUiFlow(window) {
   const modeledThreadRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await setCommandField('Gwint', 'modeled');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.command?.previewThreadMode === 'modeled'`, 'parametry modelowanego gwintu');
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${modeledThreadRevision} && ['ready', 'error'].includes(window.__madcadVerifyEngineState?.status) && ['ok', 'error'].includes(window.__madcadVerifyEngineState?.timeline?.[1]?.status) && window.__madcadVerifyEngineState?.evaluatedFeatureData?.[1]?.threadMode === 'modeled'`, 'modelowany gwint prawy', modelingTimeoutMs);
+  try {
+    await waitForUi(window, `(() => { const state = window.__madcadVerifyEngineState; return state?.revision > ${modeledThreadRevision} && ['ready', 'error'].includes(state.status) && ['ok', 'error'].includes(state.timeline?.[1]?.status) && state.evaluatedFeatureData?.[1]?.threadMode === 'modeled' && (state.status === 'error' || state.bodies?.[0]?.metrics?.volume < ${faceEdgeHoleVolume - 0.1}); })()`, 'modelowany gwint prawy z przebudowaną bryłą', modelingTimeoutMs);
+  } catch (error) {
+    const snapshot = await window.webContents.executeJavaScript(`({ status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision, threadMode: window.__madcadVerifyEngineState?.evaluatedFeatureData?.[1]?.threadMode, volume: window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume, timeline: window.__madcadVerifyEngineState?.timeline?.[1], diagnostics: window.__madcadVerifyEngineState?.diagnostics })`);
+    throw new Error(`Modelowany gwint nie osiągnął sprawdzonego wyniku: ${JSON.stringify(snapshot)}`, { cause: error });
+  }
   const modeledThreadState = await window.webContents.executeJavaScript(`({ volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume, timeline: window.__madcadVerifyEngineState.timeline })`);
   if (modeledThreadState.timeline?.[1]?.status !== 'ok') throw new Error(`Modeled thread kernel error: ${JSON.stringify(modeledThreadState)}`);
   const rightThreadVolume = modeledThreadState.volume;
