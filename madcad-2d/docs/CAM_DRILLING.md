@@ -40,7 +40,7 @@ Operacja sprawdza średnicę gniazda względem otworu i freza, dostępną głęb
 
 Kontrola programu buduje wymagany proces dla każdej stabilnej grupy otworów na podstawie semantyki modelu: każde gniazdo wymaga wiercenia, `countersink` wymaga wcześniejszego nawiertania, `counterbore` wymaga pogłębiania walcowego, a oznaczenie gwintu wymaga gwintowania. Liczone są wyłącznie operacje z prawidłową ścieżką, które obejmują daną grupę albo wszystkie rozpoznane otwory.
 
-Raport pokazuje liczbę kompletnych wystąpień, brakujące etapy i błędną kolejność. Bezpieczna kolejność etapów otworowych to nawiertanie → wiercenie → pogłębianie walcowe → gwintowanie. Brak albo odwrócona kolejność blokuje status „Program gotowy do symulacji”, ale nie zmienia modelu ani operacji użytkownika.
+Raport pokazuje liczbę kompletnych wystąpień, brakujące etapy i błędną kolejność. Bezpieczna kolejność etapów otworowych to nawiertanie → wiercenie → pogłębianie walcowe → gwintowanie. Brak albo odwrócona kolejność blokuje status „Ścieżki sprawdzone w modelu”, ale nie zmienia modelu ani operacji użytkownika. Ten status nie potwierdza realnego mocowania, zera ani dojazdu z aktualnej pozycji maszyny.
 
 Przycisk „Uporządkuj operacje” buduje graf zależności zamiast wykonywać zwykłe sortowanie listy. Planowanie powierzchni pozostaje przed dalszą obróbką, kontur zewnętrzny jest wykonywany na końcu, a nakładające się grupy otworów zachowują kolejność technologiczną. Spośród operacji aktualnie gotowych algorytm wybiera najpierw tę samą oprawkę, dzięki czemu ogranicza zmiany narzędzia bez łamania zależności. Wynik jest pojedynczą transakcją projektu i można go cofnąć.
 

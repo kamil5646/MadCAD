@@ -3389,6 +3389,8 @@ test('interfejs modelowania rozpoznaje PL/EN i tłumaczy także dynamiczny stan 
   assert.equal(resolveModelingLanguage('', 'en'), 'en');
   assert.equal(translateModelingText('  Utwórz szkic  ', 'en'), '  Create sketch  ');
   assert.equal(translateModelingText('Model gotowy · 1 bryła', 'en'), 'Model ready · 1 body');
+  assert.equal(translateModelingText('Setup poprawny w modelu', 'en'), 'Setup valid in the model');
+  assert.equal(translateModelingText('Ścieżki sprawdzone w modelu', 'en'), 'Toolpaths checked in the model');
   assert.equal(translateModelingText('Korpus · 1 szk. · 3 oper. · 5 KB', 'en'), 'Korpus · 1 sk. · 3 feat. · 5 KB');
   assert.equal(translateModelingText('Otwarty łańcuch (3)', 'en'), 'Open chain (3)');
   assert.equal(translateModelingText('Przeliczanie historii…', 'en'), 'Recomputing history…');
@@ -5964,7 +5966,7 @@ test('CAM zarządza kolejnością, eksportuje kompletny program i tworzy arkusz 
   assert.match(sheet.html, /Arkusz ustawczy CAM/);
   assert.match(sheet.html, /Korpus &amp; produkcja/);
   assert.match(sheet.html, /Układ roboczy<\/span><strong>G55/);
-  assert.match(sheet.html, /GOTOWY/);
+  assert.match(sheet.html, /ŚCIEŻKI SPRAWDZONE W MODELU/);
 });
 
 test('CAM zapisuje foldery i szablony oraz migruje starsze schematy', () => {
