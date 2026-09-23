@@ -22,6 +22,9 @@ export const GEOMETRY_POLICY = Object.freeze({
     displayEvaluationMs: 15000,
     desktopColdStartMs: 30000,
     desktopWorkflowMs: 45000,
+    largeProjectEvaluationMs: 45000,
+    largeProjectSlowestFeatureMs: 15000,
+    largeProjectPeakWorkingSetKb: 2 * 1024 * 1024,
   }),
 });
 

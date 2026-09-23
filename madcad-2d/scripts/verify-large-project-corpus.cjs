@@ -2,10 +2,27 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { app, BrowserWindow } = require('electron');
+const { budgetFailures, githubSummary } = require('./large-project-budget.cjs');
 
 const reportPath = path.join(__dirname, '..', 'artifacts', 'madcad-large-project-corpus.json');
 const timeoutMs = process.env.CI ? 300000 : 180000;
 const autosaveKey = 'madcad:modeling-document:v4';
+
+function rendererMemory(window) {
+  const processId = window.webContents.getOSProcessId();
+  return app.getAppMetrics().find((metric) => metric.pid === processId)?.memory || null;
+}
+
+function summarizeRun(performance, memory) {
+  return {
+    totalMs: performance?.totalMs,
+    historyMs: performance?.historyMs,
+    meshMs: performance?.meshMs,
+    slowestFeature: performance?.slowestFeature,
+    slowestMeshBody: [...(performance?.bodies || [])].sort((left, right) => right.durationMs - left.durationMs)[0] || null,
+    peakWorkingSetKb: memory?.peakWorkingSetSize,
+  };
+}
 
 async function waitFor(window, expression, label) {
   const startedAt = Date.now();
@@ -67,6 +84,8 @@ app.whenReady().then(async () => {
   window.setContentSize(1440, 837);
   try {
     const { createLargeProjectCorpus } = await import('../tests/large-project-fixtures.mjs');
+    const { GEOMETRY_POLICY } = await import('../src/cad-core/geometry-policy.js');
+    const budgets = GEOMETRY_POLICY.performanceBudgets;
     const corpus = createLargeProjectCorpus();
     const results = [];
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
@@ -81,6 +100,7 @@ app.whenReady().then(async () => {
       const before = await geometrySignature(window);
       assert.equal(before.timelineErrors, 0, `${source.name}: błędy historii przed awarią`);
       assert.ok(before.bodies.length > 0, `${source.name}: brak brył przed awarią`);
+      const initialMemory = rendererMemory(window);
       await waitFor(window, `JSON.parse(localStorage.getItem(${JSON.stringify(autosaveKey)}) || 'null')?.id === ${JSON.stringify(source.id)}`, `${source.name}: autozapis`);
 
       const crash = await crashAndReload(window);
@@ -91,6 +111,7 @@ app.whenReady().then(async () => {
         throw new Error(`${source.name}: geometria lub referencje zmieniły się po awarii; bryły ${before.bodies.length} → ${after.bodies.length}, pierwsza różnica ${firstMismatch}, przed ${JSON.stringify(before.bodies[firstMismatch]?.id)}, po ${JSON.stringify(after.bodies[firstMismatch]?.id)}.`);
       }
       assert.ok(await window.webContents.executeJavaScript(`Boolean(document.querySelector('.crash-recovery-banner'))`), `${source.name}: brak komunikatu odzyskiwania`);
+      const recoveredMemory = rendererMemory(window);
       results.push({
         name: source.name,
         features: source.features.length,
@@ -98,15 +119,24 @@ app.whenReady().then(async () => {
         bodies: after.bodies.length,
         faces: after.bodies.reduce((total, body) => total + body.faces.length, 0),
         edges: after.bodies.reduce((total, body) => total + body.edges.length, 0),
-        initialMs: before.performance?.totalMs,
-        recoveredMs: after.performance?.totalMs,
+        initial: summarizeRun(before.performance, initialMemory),
+        recovered: summarizeRun(after.performance, recoveredMemory),
         crashReason: crash.reason,
       });
       process.stdout.write(`${source.name}: ${after.bodies.length} brył, geometria i referencje zgodne po awarii.\n`);
     }
     await fs.mkdir(path.dirname(reportPath), { recursive: true });
-    await fs.writeFile(reportPath, `${JSON.stringify({ results }, null, 2)}\n`);
-    process.stdout.write(`${JSON.stringify({ reportPath, results }, null, 2)}\n`);
+    const failures = budgetFailures(results, budgets);
+    const report = { platform: process.platform, budgets: {
+      largeProjectEvaluationMs: budgets.largeProjectEvaluationMs,
+      largeProjectSlowestFeatureMs: budgets.largeProjectSlowestFeatureMs,
+      displayMeshPerBodyMs: budgets.displayMeshPerBodyMs,
+      largeProjectPeakWorkingSetKb: budgets.largeProjectPeakWorkingSetKb,
+    }, results, failures };
+    await fs.writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+    if (process.env.GITHUB_STEP_SUMMARY) await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, githubSummary(results, budgets, failures));
+    process.stdout.write(`${JSON.stringify({ reportPath, ...report }, null, 2)}\n`);
+    if (failures.length) throw new Error(`Przekroczono budżet dużych projektów: ${failures.join('; ')}`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

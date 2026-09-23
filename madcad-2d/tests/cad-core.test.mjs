@@ -6,6 +6,7 @@ import { dirname, join, normalize, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { strToU8, zipSync } from 'three/examples/jsm/libs/fflate.module.js';
 import { createLargeProjectCorpus, LARGE_FEATURE_COUNT } from './large-project-fixtures.mjs';
+import largeProjectBudget from '../scripts/large-project-budget.cjs';
 import atomicFile from '../electron/atomic-file.cjs';
 import slicerLaunch from '../electron/slicer-launch.cjs';
 import securityPolicy from '../electron/security-policy.cjs';
@@ -802,6 +803,7 @@ test('kooperacyjna historia przerywa nieaktualną przebudowę przed wykonaniem r
     status: 'ready',
   }));
   const executed = [];
+  const timings = [];
   const cancellation = new Error('Nowsza rewizja dokumentu oczekuje na przebudowę.');
   cancellation.code = 'STALE_REVISION';
 
@@ -811,6 +813,7 @@ test('kooperacyjna historia przerywa nieaktualną przebudowę przed wykonaniem r
       return { diagnostics: [] };
     }, {}, {
       checkpointInterval: 3,
+      onFeatureEvaluated: ({ feature, durationMs }) => timings.push({ id: feature.id, durationMs }),
       checkpoint: async ({ processedFeatures }) => {
         await Promise.resolve();
         if (processedFeatures >= 6) throw cancellation;
@@ -819,6 +822,8 @@ test('kooperacyjna historia przerywa nieaktualną przebudowę przed wykonaniem r
     (error) => error === cancellation && error.code === 'STALE_REVISION',
   );
   assert.deepEqual(executed, features.slice(0, 6).map((feature) => feature.id));
+  assert.deepEqual(timings.map(({ id }) => id), executed);
+  assert.ok(timings.every(({ durationMs }) => Number.isFinite(durationMs) && durationMs >= 0));
 });
 
 test('trwałe nazwy topologii przeżywają zmianę kolejności i szum tolerancji', () => {
@@ -3298,6 +3303,23 @@ test('korpus R6.6 zachowuje referencje po wielokrotnym zapisie, autozapisie i od
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('bramka dużych projektów odrzuca przekroczenie czasu, pamięci i brak pomiaru operacji', () => {
+  const budgets = GEOMETRY_POLICY.performanceBudgets;
+  const validRun = { totalMs: 1200, peakWorkingSetKb: 400000, slowestFeature: { name: 'Wyciągnięcie', durationMs: 90 }, slowestMeshBody: { bodyId: 'body-1', durationMs: 75 } };
+  const results = [{ name: 'Korpus testowy', initial: validRun, recovered: { ...validRun } }];
+  assert.deepEqual(largeProjectBudget.budgetFailures(results, budgets), []);
+  assert.match(largeProjectBudget.githubSummary(results, budgets, [], 'darwin'), /Wyciągnięcie \(90 ms\)/);
+
+  results[0].recovered = { totalMs: budgets.largeProjectEvaluationMs + 1, peakWorkingSetKb: budgets.largeProjectPeakWorkingSetKb + 1, slowestFeature: null };
+  const failures = largeProjectBudget.budgetFailures(results, budgets);
+  assert.equal(failures.length, 4);
+  assert.ok(failures.some((failure) => failure.includes('przeliczenie')));
+  assert.ok(failures.some((failure) => failure.includes('operacja')));
+  assert.ok(failures.some((failure) => failure.includes('siatkowanie')));
+  assert.ok(failures.some((failure) => failure.includes('pamięć')));
+  assert.match(largeProjectBudget.githubSummary(results, budgets, failures, 'win32'), /Przekroczenia:/);
 });
 
 test('mały i średni dokument mieszczą się w osobnych budżetach wydajności', () => {

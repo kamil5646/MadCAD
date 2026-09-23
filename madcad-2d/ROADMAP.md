@@ -50,7 +50,7 @@ potwierdzonego wyniku bez blokowania użytkownika:
   anulować z interfejsu i nie pozostawia częściowego modelu ani cache;
 - [x] wielokrotne zapisanie, autozapis, awaria i ponowne otwarcie każdego
   dokumentu korpusu zachowują identyczny wynik geometrii i trwałe referencje;
-- [ ] raport CI publikuje czasy, pamięć i najwolniejszą operację, a przekroczenie
+- [~] raport CI publikuje czasy, pamięć i najwolniejszą operację, a przekroczenie
   ustalonego budżetu blokuje merge.
 
 Anulowanie przeliczenia zachowuje w widoku ostatni poprawnie obliczony model,
@@ -69,6 +69,15 @@ porównuje objętość, pole, granice, siatkę oraz stabilne identyfikatory ści
 krawędzi i wierzchołków wszystkich brył z wynikiem OpenCascade przed awarią.
 Raport `artifacts/madcad-large-project-corpus.json` zapisuje czasy i rozmiar
 każdego scenariusza; test należy do pełnej bramki desktopowej na macOS i Windows.
+Worker podaje też najwolniejszą operację historii. Raport korpusu zawiera czasy,
+szczyt pamięci procesu oraz budżety: 45 s na przebudowę, 15 s na pojedynczą
+operację, 5 s na siatkowanie bryły i 2 GiB szczytu pamięci procesu.
+Przekroczenie kończy test błędem; w GitHub Actions te same dane trafią do
+podsumowania zadania i artefaktu.
+Lokalny macOS przeszedł bramkę. Ochrona `main` wymaga obu zadań
+`Desktop E2E modeling` (macOS i Windows), więc błąd budżetu w tym scenariuszu
+blokuje merge; punkt pozostaje częściowy do czasu uruchomienia nowej bramki
+na Windows CI. Bez publikacji bieżącej gałęzi nie ma jeszcze tego wyniku.
 
 Po tym pionie następne w kolejności są: walidacja importu na większym korpusie
 STEP/DWG/DXF/STL/3MF, rozbudowa CAM oraz walidowany MES dowolnej geometrii 3D.

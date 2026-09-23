@@ -2848,7 +2848,13 @@ async function evaluateRevision(document, quality, revision = null) {
   }
   const importMs = performance.now() - importStartedAt;
   const historyStartedAt = performance.now();
+  let slowestFeature = null;
   const history = await evaluateFeatureHistoryCooperatively(features, runFeature, {}, {
+    onFeatureEvaluated: ({ feature, durationMs }) => {
+      if (!slowestFeature || durationMs > slowestFeature.durationMs) {
+        slowestFeature = { featureId: feature.id, name: feature.name, type: feature.type, durationMs };
+      }
+    },
     checkpoint: async ({ state }) => {
       try {
         await revisionCheckpoint(revision);
@@ -2889,6 +2895,7 @@ async function evaluateRevision(document, quality, revision = null) {
       prepareMs,
       importMs,
       historyMs,
+      slowestFeature,
       meshMs,
       collisionMs: 0,
       bodies: meshedBodies.map((entry) => entry.performance),
