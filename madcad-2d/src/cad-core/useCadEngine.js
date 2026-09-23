@@ -14,6 +14,7 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
   const requestsRef = useRef(new Map());
   const requestIdRef = useRef(0);
   const revisionRef = useRef(0);
+  const canceledRevisionRef = useRef(0);
   const canceledRevisionsRef = useRef(0);
   const recoveryPolicyRef = useRef(new WorkerRecoveryPolicy({ maxAttempts: MAX_WORKER_RESTARTS }));
   const [workerGeneration, setWorkerGeneration] = useState(0);
@@ -128,14 +129,18 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     revisionRef.current += 1;
     const revision = revisionRef.current;
     const timeout = window.setTimeout(async () => {
+      if (canceledRevisionRef.current === revision) return;
       setState((current) => ({ ...current, status: 'computing', revision, error: '' }));
       try {
         const result = await send({ type: 'evaluate', document, revision, quality });
-        if (active && result.revision === revision) {
+        if (active && canceledRevisionRef.current !== revision && result.revision === revision) {
           setState((current) => ({ ...current, status: 'ready', error: '', ...result, evaluatedDocument: document }));
         }
       } catch (error) {
-        if (error.code === 'STALE_REVISION') canceledRevisionsRef.current += 1;
+        if (error.code === 'STALE_REVISION') {
+          canceledRevisionsRef.current += 1;
+          if (active && canceledRevisionRef.current === revision) setState((current) => ({ ...current }));
+        }
         if (!active || error.code === 'STALE_REVISION' || error.code === 'WORKER_STOPPED' || error.code === 'WORKER_CRASH') return;
         setState((current) => ({
           ...current,
@@ -150,6 +155,15 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
       window.clearTimeout(timeout);
     };
   }, [document, quality, send, workerGeneration]);
+
+  const cancelRebuild = useCallback(() => {
+    const revision = revisionRef.current;
+    if (state.status !== 'computing' || state.revision !== revision || !workerRef.current) return false;
+    canceledRevisionRef.current = revision;
+    workerRef.current.postMessage({ type: 'cancel-evaluate', revision });
+    setState((current) => ({ ...current, status: 'canceled', error: 'Przeliczanie przerwano. Ostatni poprawny model pozostał bez zmian.' }));
+    return true;
+  }, [state.revision, state.status]);
 
   const exportModel = useCallback(async (format, { validateRoundTrip = false } = {}) => {
     const revision = revisionRef.current;
@@ -196,5 +210,5 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     setWorkerGeneration((generation) => generation + 1);
   }, [rejectPending]);
 
-  return { ...state, canceledRevisions: canceledRevisionsRef.current, analyzeCollisions, exportExternalDocument, exportModel, projectPointsToSurface, restartWorkerForTest };
+  return { ...state, canceledRevisions: canceledRevisionsRef.current, analyzeCollisions, cancelRebuild, exportExternalDocument, exportModel, projectPointsToSurface, restartWorkerForTest };
 }

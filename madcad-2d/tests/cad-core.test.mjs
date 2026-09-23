@@ -2746,6 +2746,10 @@ test('kolejka workera zachowuje kolejność, a cache rewizji ma limit i LRU', as
   assert.equal(cache.get(2), null);
   assert.deepEqual(evicted, [2]);
   assert.deepEqual(cache.stats, { entries: 2, bytes: 8 });
+  assert.equal(cache.delete(1), true);
+  assert.equal(cache.delete(1), false);
+  assert.deepEqual(cache.stats, { entries: 1, bytes: 4 });
+  assert.deepEqual(evicted, [2, 1]);
   assert.equal(isStaleRevision(4, 5), true);
   assert.equal(isStaleRevision(5, 5), false);
 });

@@ -3142,6 +3142,11 @@ async function handleMessage(data) {
 
 self.addEventListener('message', (event) => {
   const data = event.data || {};
+  if (data.type === 'cancel-evaluate' && Number.isInteger(data.revision)) {
+    latestRequestedRevision = Math.max(latestRequestedRevision, data.revision + 1);
+    revisionCache.delete(data.revision);
+    return;
+  }
   if (data.type === 'evaluate' && Number.isInteger(data.revision)) {
     latestRequestedRevision = Math.max(latestRequestedRevision, data.revision);
   }

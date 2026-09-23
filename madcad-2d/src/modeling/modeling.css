@@ -1919,6 +1919,8 @@
 }
 
 .workspace-guidebar button:hover { background: #1b819f; }
+.engine-status:not(.workspace-guidebar) > button { flex: 0 0 auto; margin-left: auto; padding: 3px 7px; border: 1px solid #4faecc; border-radius: 3px; background: #176f8d; color: #effbff; font: inherit; cursor: pointer; }
+.engine-status.computing { max-width: min(540px, 70%); }
 
 @media (max-width: 900px) {
   .workspace-guidebar { max-width: calc(100% - 24px); }

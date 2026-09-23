@@ -1,6 +1,6 @@
 # MadCAD — aktywny plan rozwoju
 
-Aktualizacja: 2026-09-21
+Aktualizacja: 2026-09-23
 Wersja bazowa: `6.5.22 stable`
 Gałąź wydania: `main`
 
@@ -46,12 +46,20 @@ potwierdzonego wyniku bez blokowania użytkownika:
   rewizję po anulowaniu starszej;
 - [x] rozszerzyć raport dużych projektów o Undo/Redo, autozapis oraz szczytowe
   zużycie pamięci na Windows i macOS;
-- [ ] edycja podczas przebudowy zachowuje wyłącznie najnowszą rewizję, daje się
+- [x] edycja podczas przebudowy zachowuje wyłącznie najnowszą rewizję, daje się
   anulować z interfejsu i nie pozostawia częściowego modelu ani cache;
 - [ ] wielokrotne zapisanie, autozapis, awaria i ponowne otwarcie każdego
   dokumentu korpusu zachowują identyczny wynik geometrii i trwałe referencje;
 - [ ] raport CI publikuje czasy, pamięć i najwolniejszą operację, a przekroczenie
   ustalonego budżetu blokuje merge.
+
+Anulowanie przeliczenia zachowuje w widoku ostatni poprawnie obliczony model,
+ale dokument nadal zawiera niezakończoną zmianę. Eksport geometrii jest wtedy
+niedostępny. Następna edycja uruchamia nową przebudowę; cofnięcie zmiany lub
+ponowne otwarcie zapisu też przywraca spójny wynik. Worker odrzuca wyniki
+anulowanej rewizji i usuwa jej wpis z cache nawet wtedy, gdy zdążyła się
+zakończyć tuż przed kliknięciem. Test desktopowy obejmuje anulowanie oraz
+ponowną edycję historii 220 operacji.
 
 Po tym pionie następne w kolejności są: walidacja importu na większym korpusie
 STEP/DWG/DXF/STL/3MF, rozbudowa CAM oraz walidowany MES dowolnej geometrii 3D.
