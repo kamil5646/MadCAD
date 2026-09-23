@@ -760,7 +760,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.at(-1)?.entities?.length === 16; })()`, 'autozapis importu DWG');
   const dwgImportedRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${dwgImportedRevision} && window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 16`, 'ponownie otwarty import DWG', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${dwgImportedRevision} && window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 16`, 'ponownie otwarty import DWG', modelingTimeoutMs);
   const sketchImport = { format: 'svg/dwg', entities: 16, profiles: 2, undoRedo: true, reopened: true };
 
   progress('collinear and symmetry constraints');
@@ -946,7 +946,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[0]?.endCap === 'square'`, 'autozapis otwartego Thin Extrude');
   const openThinRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${openThinRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.endCap === 'square' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 120) < 0.01`, 'ponownie otwarty Thin Extrude otwartego łańcucha', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${openThinRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.endCap === 'square' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 120) < 0.01`, 'ponownie otwarty Thin Extrude otwartego łańcucha', modelingTimeoutMs);
 
   progress('polyline L profile');
   await clickByTitle('Nowy projekt');
@@ -1158,7 +1158,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.[0]?.constraints?.some((item) => item.id === window.__madcadParametricBracketIds.heightConstraintId && item.value === '25'); })()`, 'autozapis zmienionych wymiarów');
   previousRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `(window.__madcadVerifyEngineState?.revision || 0) > ${previousRevision} && Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 7500) < 0.05`, 'ponownie otwarta bryła wspornika', modelingTimeoutMs);
+  await waitForUi(window, `(window.__madcadVerifyEngineState?.revision || 0) >= ${previousRevision} && Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 7500) < 0.05`, 'ponownie otwarta bryła wspornika', modelingTimeoutMs);
   const reopenedBracketIds = await window.webContents.executeJavaScript(`(() => ({
     entityIds: window.__madcadVerifyDocumentState.sketches[0].entityData.map((entity) => entity.id),
     profileId: window.__madcadVerifyDocumentState.sketches[0].profileIds[0],
@@ -1375,7 +1375,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.features?.[0]?.type === 'revolve' && saved.features[0].axisId === ${JSON.stringify(revolveAxisId)}; })()`, 'autozapis Revolve');
   const revolveReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${revolveReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'revolve' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${300 * Math.PI}) < 0.05`, 'ponownie otwarty Revolve', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${revolveReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'revolve' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${300 * Math.PI}) < 0.05`, 'ponownie otwarty Revolve', modelingTimeoutMs);
 
   progress('legacy same-plane sketch merge, continuation and extrusion');
   await clickByTitle('Nowy projekt');
@@ -1424,7 +1424,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.length === 1 && saved.sketches[0].entities.length === 9 && saved?.features?.[0]?.sketchId === ${JSON.stringify(legacySplitSketchId)}; })()`, 'autozapis scalonego szkicu i wyciągnięcia');
   const resumedReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${resumedReopenRevision} && window.__madcadVerifyDocumentState?.sketches?.length === 1 && window.__madcadVerifyDocumentState.sketches[0].entities === 9 && window.__madcadVerifyDocumentState?.featureData?.[0]?.sketchId === ${JSON.stringify(legacySplitSketchId)} && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'ponownie otwarty scalony szkic i jego bryła', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${resumedReopenRevision} && window.__madcadVerifyDocumentState?.sketches?.length === 1 && window.__madcadVerifyDocumentState.sketches[0].entities === 9 && window.__madcadVerifyDocumentState?.featureData?.[0]?.sketchId === ${JSON.stringify(legacySplitSketchId)} && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'ponownie otwarty scalony szkic i jego bryła', modelingTimeoutMs);
   await clickTool('Utwórz szkic');
   await waitForUi(window, `document.querySelector('.plane-picker') && [...document.querySelectorAll('.plane-options button')].find((button) => button.textContent.includes('XY'))?.textContent.includes('Nowy szkic') && !document.querySelector('.plane-new-sketch-option')`, 'zużyty szkic nie jest automatycznie kontynuowany po utworzeniu bryły');
 
@@ -1497,7 +1497,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const feature = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[0]; return feature?.type === 'sweep' && feature.pathSketchId === ${JSON.stringify(sweepPathSketchId)} && feature.pathEntityIds?.[0] === ${JSON.stringify(sweepPathEntityId)}; })()`, 'autozapis Sweep');
   const sweepReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${sweepReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'sweep' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${80 * Math.PI}) < 0.05`, 'ponownie otwarty Sweep', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${sweepReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'sweep' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${80 * Math.PI}) < 0.05`, 'ponownie otwarty Sweep', modelingTimeoutMs);
 
   progress('loft between profiles on parallel sketch planes');
   await clickByTitle('Nowy projekt');
@@ -1555,7 +1555,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[0]?.loftMode === 'ruled'`, 'autozapis Loft');
   const loftReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${loftReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'loft' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${loftVolume}) < 0.05`, 'ponownie otwarty Loft', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${loftReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'loft' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${loftVolume}) < 0.05`, 'ponownie otwarty Loft', modelingTimeoutMs);
 
   progress('rib and web from an open sketch profile');
   await clickByTitle('Nowy projekt');
@@ -1610,7 +1610,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const feature = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[1]; return feature?.type === 'rib' && feature.thickness === '3' && feature.ribMode === 'web'; })()`, 'autozapis Rib Web');
   const ribReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${ribReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'rib' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2240) < 0.05`, 'ponownie otwarty Rib Web', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${ribReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'rib' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 2240) < 0.05`, 'ponownie otwarty Rib Web', modelingTimeoutMs);
 
   progress('parametric solid coil around a selected axis');
   await clickByTitle('Nowy projekt');
@@ -1639,7 +1639,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[0]?.turns === '4'`, 'autozapis Coil');
   const coilReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${coilReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'coil' && window.__madcadVerifyEngineState?.timeline?.[0]?.status === 'ok'`, 'ponownie otwarty Coil', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${coilReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'coil' && window.__madcadVerifyEngineState?.timeline?.[0]?.status === 'ok'`, 'ponownie otwarty Coil', modelingTimeoutMs);
 
   progress('hollow pipe along an open sketch path');
   await clickByTitle('Nowy projekt');
@@ -1670,7 +1670,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[0]?.outsideDiameter === '6'`, 'autozapis Pipe');
   const pipeReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${pipeReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'pipe' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${100 * Math.PI}) < 0.05`, 'ponownie otwarty Pipe', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${pipeReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.type === 'pipe' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${100 * Math.PI}) < 0.05`, 'ponownie otwarty Pipe', modelingTimeoutMs);
 
   progress('rectangular circular and path body patterns');
   await clickByTitle('Nowy projekt');
@@ -1760,7 +1760,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.features?.[1]?.type === 'splitBody' && saved.features[1].planeId === 'XZ'; })()`, 'autozapis Split Body');
   const splitReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${splitReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[1]?.planeId === 'XZ' && window.__madcadVerifyEngineState?.bodies?.length === 2 && window.__madcadVerifyEngineState.bodies.some((body) => body.id === ${JSON.stringify(splitResultBodyId)})`, 'ponownie otwarty Split Body', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${splitReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[1]?.planeId === 'XZ' && window.__madcadVerifyEngineState?.bodies?.length === 2 && window.__madcadVerifyEngineState.bodies.some((body) => body.id === ${JSON.stringify(splitResultBodyId)})`, 'ponownie otwarty Split Body', modelingTimeoutMs);
 
   progress('split planar face by supported sketch profile');
   await clickByTitle('Nowy projekt');
@@ -1807,7 +1807,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.features?.[1]?.type === 'splitFace' && saved.features[1].profileId === ${JSON.stringify(splitFaceProfileId)} && saved.features[1].referenceIds?.[0] === ${JSON.stringify(splitFaceReferenceId)}; })()`, 'autozapis Split Face');
   const splitFaceReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${splitFaceReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'splitFace' && window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.faceCount === ${splitFaceCount} && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - 4000) < 0.05`, 'ponownie otwarty Split Face', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${splitFaceReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[1]?.type === 'splitFace' && window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.faceCount === ${splitFaceCount} && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - 4000) < 0.05`, 'ponownie otwarty Split Face', modelingTimeoutMs);
 
   progress('delete split face region and heal surrounding surface');
   const deleteFaceSelection = await window.webContents.executeJavaScript(`(() => {
@@ -1835,7 +1835,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.features?.[2]?.type === 'deleteFace' && saved.features[2].referenceIds?.[0] === ${JSON.stringify(deleteFaceReferenceId)}; })()`, 'autozapis Delete Face + Heal');
   const deleteFaceReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${deleteFaceReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[2]?.type === 'deleteFace' && window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.faceCount === 6 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - 4000) < 0.05`, 'ponownie otwarty Delete Face + Heal', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${deleteFaceReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[2]?.type === 'deleteFace' && window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.faceCount === 6 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - 4000) < 0.05`, 'ponownie otwarty Delete Face + Heal', modelingTimeoutMs);
 
   progress('replace planar face with target surface');
   await clickByTitle('Nowy projekt');
@@ -1894,7 +1894,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.features?.[2]?.type === 'replaceFace' && saved.features[2].referenceIds?.[0] === ${JSON.stringify(replaceFaceReferenceIds[0])} && saved.features[2].referenceIds?.[1] === ${JSON.stringify(replaceFaceReferenceIds[1])}; })()`, 'autozapis Replace Face');
   const replaceFaceReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${replaceFaceReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[2]?.type === 'replaceFace' && Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(replaceFaceFixture.sourceBodyId)}).metrics.volume - 1500) < 0.05 && Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(replaceFaceFixture.destinationBodyId)}).metrics.volume - 200) < 0.05`, 'ponownie otwarty Replace Face', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${replaceFaceReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[2]?.type === 'replaceFace' && Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(replaceFaceFixture.sourceBodyId)}).metrics.volume - 1500) < 0.05 && Math.abs(window.__madcadVerifyEngineState.bodies.find((body) => body.id === ${JSON.stringify(replaceFaceFixture.destinationBodyId)}).metrics.volume - 200) < 0.05`, 'ponownie otwarty Replace Face', modelingTimeoutMs);
 
   progress('box cylinder sphere torus primitives');
   await clickByTitle('Nowy projekt');
@@ -2017,7 +2017,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const feature = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.at(-1); return feature?.type === 'draft' && feature.angle === '-5'; })()`, 'autozapis Draft');
   const draftReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${draftReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.angle === '-5'`, 'ponownie otwarty Draft', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${draftReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.at(-1)?.angle === '-5'`, 'ponownie otwarty Draft', modelingTimeoutMs);
 
   progress('text profile extrude emboss deboss');
   await clickByTitle('Nowy projekt');
@@ -2069,7 +2069,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.features?.[1]?.type === 'textSolid' && saved.features[1].operation === 'deboss'; })()`, 'autozapis tekstu 3D');
   const reopenTextRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${reopenTextRevision} && Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 3936) < 0.05`, 'ponownie otwarty Deboss', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${reopenTextRevision} && Math.abs((window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume || 0) - 3936) < 0.05`, 'ponownie otwarty Deboss', modelingTimeoutMs);
 
   progress('new document');
   await clickByTitle('Nowy projekt');
@@ -2235,7 +2235,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const feature = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[0]; return feature?.thin === true && feature.wallThickness === '2' && feature.wallSide === 'symmetric'; })()`, 'autozapis Thin Extrude');
   const thinReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${thinReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.thin === true && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 3392) < 0.01`, 'ponownie otwarty Thin Extrude', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${thinReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.thin === true && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 3392) < 0.01`, 'ponownie otwarty Thin Extrude', modelingTimeoutMs);
   await editTimelineFeature(0);
   await setCommandCheckbox('Cienka ścianka', false);
   await confirmDialog();
@@ -2376,7 +2376,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.features?.[0]?.extent === 'to-object' && saved.features[0].targetReferenceId === ${JSON.stringify(extrudeTargetPlaneId)}; })()`, 'autozapis Extrude To Object');
   const toObjectRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${toObjectRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.extent === 'to-object' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.bounds?.[1]?.[2] - 12) < 1e-5`, 'ponownie otwarty Extrude To Object', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${toObjectRevision} && window.__madcadVerifyDocumentState?.featureData?.[0]?.extent === 'to-object' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.bounds?.[1]?.[2] - 12) < 1e-5`, 'ponownie otwarty Extrude To Object', modelingTimeoutMs);
   await editTimelineFeature(0);
   await setCommandField('Kierunek', 'one-side');
   await setCommandField('Odległość', '8');
@@ -2512,7 +2512,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.references?.some((item) => item.axisType === 'plane-normal') && ['midpoint', 'on-axis'].every((type) => saved.references.some((item) => item.pointType === type)); })()`, 'autozapis nowych osi i punktów');
   const constructionReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${constructionReopenRevision} && window.__madcadVerifyEngineState?.status === 'ready' && ['angle', 'tangent', 'path'].every((type) => window.__madcadVerifyDocumentState?.references?.some((item) => item.planeType === type)) && window.__madcadConstructionAxisState?.some((item) => item.axisType === 'plane-normal' && item.status === 'ok') && ['midpoint', 'on-axis'].every((type) => window.__madcadConstructionPointState?.some((item) => item.pointType === type && item.status === 'ok'))`, 'ponowne otwarcie rozszerzonej geometrii konstrukcyjnej', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${constructionReopenRevision} && window.__madcadVerifyEngineState?.status === 'ready' && ['angle', 'tangent', 'path'].every((type) => window.__madcadVerifyDocumentState?.references?.some((item) => item.planeType === type)) && window.__madcadConstructionAxisState?.some((item) => item.axisType === 'plane-normal' && item.status === 'ok') && ['midpoint', 'on-axis'].every((type) => window.__madcadConstructionPointState?.some((item) => item.pointType === type && item.status === 'ok'))`, 'ponowne otwarcie rozszerzonej geometrii konstrukcyjnej', modelingTimeoutMs);
 
   progress('sketch on planar model face');
   const supportFace = await window.webContents.executeJavaScript(`(() => {
@@ -2623,7 +2623,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.features?.[1]?.extent === 'to-object' && saved.references?.some((item) => item.id === saved.features[1].targetReferenceId && item.topologyKind === 'face'); })()`, 'autozapis To Object do ściany');
   const faceTargetReopenRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
-  await waitForUi(window, `window.__madcadVerifyEngineState?.revision > ${faceTargetReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[1]?.extent === 'to-object' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'ponownie otwarty To Object do ściany', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${faceTargetReopenRevision} && window.__madcadVerifyDocumentState?.featureData?.[1]?.extent === 'to-object' && window.__madcadVerifyEngineState?.bodies?.length === 2`, 'ponownie otwarty To Object do ściany', modelingTimeoutMs);
   await editTimelineFeature(0);
   await setCommandField('Odległość', '10');
   await confirmDialog();

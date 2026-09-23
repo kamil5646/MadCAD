@@ -66,6 +66,7 @@ import { executeFeatureTransaction } from '../src/cad-core/feature-transaction.j
 import { GEOMETRY_POLICY, isPositiveLength, nearlyEqual } from '../src/cad-core/geometry-policy.js';
 import { assignStableTopologyIds } from '../src/cad-core/topology-naming.js';
 import { RevisionCache, SerialTaskQueue, WorkerRecoveryPolicy, isStaleRevision } from '../src/cad-core/worker-runtime.js';
+import { cadGeometrySignature } from '../src/cad-core/useCadEngine.js';
 import {
   addDrivingSketchDimension,
   createDetectedProfile,
@@ -2766,6 +2767,17 @@ test('polityka odtwarzania workera ma limit prób i reset po sukcesie', () => {
   assert.deepEqual(policy.recordCrash(), { attempt: 3, shouldRestart: false, delayMs: 15 });
   policy.recordSuccess();
   assert.deepEqual(policy.recordCrash(), { attempt: 1, shouldRestart: true, delayMs: 10 });
+});
+
+test('zmiany CAM i metadanych nie zmieniają podpisu geometrii workera', () => {
+  const document = createStarterDocument();
+  const original = cadGeometrySignature(document);
+  const updatedCam = structuredClone(document);
+  updatedCam.manufacturing.setups.push(createManufacturingSetup({ bodyId: 'body-test' }));
+  updatedCam.metadata.modifiedAt = '2026-09-23T11:00:00.000Z';
+  assert.equal(cadGeometrySignature(updatedCam), original);
+  updatedCam.features[0].name = 'Zmieniona bryła';
+  assert.notEqual(cadGeometrySignature(updatedCam), original);
 });
 
 test('migruje rzeczywisty fixture dokumentu v2 do bieżącego schematu bez utraty geometrii', async () => {
@@ -5840,6 +5852,19 @@ test('CAM obraca szczękę wokół środka także w kontroli kolizji trzonu', ()
   assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION' && issue.fixtureId === fixture.id), true);
   assert.equal(analyzeToolpathSafety({ ...path, setup: { ...path.setup, fixtures: [{ ...fixture, rotationDegrees: 0 }] } }).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
   assert.equal(analyzeToolpathSafety({ ...path, segments: [{ kind: 'rapid', from: [13, 5, 100], to: [20, 5, 100] }] }).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
+});
+
+test('obrócona szczęka blokuje eksport rzeczywistego programu CAM, a odsunięta nie', () => {
+  const operation = createFacingOperation({ toolId: 'flat-6' });
+  const fixture = { id: 'rotated-program-jaw', name: 'Szczęka programu', enabled: true, bounds: [[-50, 59, 10], [90, 61, 12]], rotationDegrees: 90, clearance: 0 };
+  const setup = createManufacturingSetup({ bodyId: camBox.id, fixtures: [fixture], operations: [operation] });
+  const blocked = analyzeManufacturingProgram(setup, [camBox]);
+  assert.equal(blocked.valid, false);
+  assert.equal(blocked.operations[0].issues.some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
+  assert.throws(() => createMachineGcode(setup, operation, [camBox]), /Eksport.*zablokowany/);
+  setup.fixtures[0].rotationDegrees = 0;
+  assert.equal(analyzeManufacturingProgram(setup, [camBox]).valid, true);
+  assert.match(createMachineGcode(setup, operation, [camBox]).text, /G1/);
 });
 
 test('kontrola CAM analizuje 150 tys. segmentów bez przepełnienia stosu i zachowuje błędy bezpieczeństwa', () => {

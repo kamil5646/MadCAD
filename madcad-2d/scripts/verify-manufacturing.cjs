@@ -33,6 +33,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyLoadTimelineFixture && document.querySelector('.workspace-tabs')`, 'gotowy interfejs');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click(); window.__madcadVerifyLoadTimelineFixture()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.bodyIds?.length >= 2`, 'bryły fixture');
+    const geometryRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
     const selectedBoundary = await window.webContents.executeJavaScript(`(() => { const body = window.__madcadVerifyEngineState.bodies[0]; const face = body.topology.faces.filter((item) => item.descriptor.geometry === 'PLANE' && Math.abs(item.descriptor.normal?.[2] || 0) > 0.99).sort((a, b) => b.descriptor.center[2] - a.descriptor.center[2])[0]; if (!face) throw new Error('Brak poziomej ściany testowej'); window.__madcadVerifyTopologySelection({ kind: 'face', id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId }, 'replace'); return { bodyId: body.id, faceId: face.id }; })()`);
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.workspace-tabs button')].find((button) => button.textContent.trim() === 'WYTWARZANIE').click()`);
     await waitFor(window, `document.querySelector('.manufacturing-panel') && document.querySelector('[data-tool-label="Nowy Setup"]')`, 'obszar wytwarzania');
@@ -227,6 +228,9 @@ app.whenReady().then(async () => {
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures.length === 1 && window.__madcadManufacturingVisualState?.fixtureCount === 1`, 'usunięcie drugiego uchwytu CAM');
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures.length === 2 && window.__madcadManufacturingVisualState?.fixtureCount === 2`, 'Cofnij usunięcie uchwytu CAM');
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const engineAfterCamEdits = await window.webContents.executeJavaScript(`({ revision: window.__madcadVerifyEngineState.revision, status: window.__madcadVerifyEngineState.status })`);
+    if (engineAfterCamEdits.revision !== geometryRevision || engineAfterCamEdits.status !== 'ready') throw new Error(`Edycja CAM nie powinna przebudowywać bryły: ${JSON.stringify({ geometryRevision, engineAfterCamEdits })}`);
     process.stdout.write(`${JSON.stringify({ screenshotPath, reportScreenshotPath, fixtureScreenshotPath, gcodeScreenshotPath, gcodePath, gcodeBytes: Buffer.byteLength(gcode), programGcodePath, programGcodeBytes: Buffer.byteLength(programGcode), setupSheetPath, setupSheetBytes: Buffer.byteLength(setupSheet), profileBoundary: profileState, simulation: simulationState, reportVerified: true, ...state }, null, 2)}\n`);
   } catch (error) {
     exitCode = 1;
