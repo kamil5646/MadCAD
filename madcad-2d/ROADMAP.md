@@ -61,6 +61,12 @@ anulowanej rewizji i usuwa jej wpis z cache nawet wtedy, gdy zdążyła się
 zakończyć tuż przed kliknięciem. Test desktopowy obejmuje anulowanie oraz
 ponowną edycję historii 220 operacji.
 
+Test korpusu sprawdza już trzy kolejne zapisy atomowe, autozapis, odzyskanie
+uszkodzonego autozapisu z kopii oraz trwałość identyfikatorów i przygotowanych
+operacji we wszystkich trzech dokumentach. Punkt o odporności zapisu pozostaje
+otwarty: brakuje jeszcze przebudowy rzeczywistej geometrii OpenCascade każdego
+dokumentu po awarii i porównania trwałych referencji topologicznych.
+
 Po tym pionie następne w kolejności są: walidacja importu na większym korpusie
 STEP/DWG/DXF/STL/3MF, rozbudowa CAM oraz walidowany MES dowolnej geometrii 3D.
 

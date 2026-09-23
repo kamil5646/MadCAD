@@ -3266,6 +3266,40 @@ test('korpus R6.6 zachowuje trzy duże projekty po round-trip i przebudowie przy
   );
 });
 
+test('korpus R6.6 zachowuje referencje po wielokrotnym zapisie, autozapisie i odzyskaniu kopii', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'madcad-large-recovery-'));
+  try {
+    for (const [index, source] of createLargeProjectCorpus().entries()) {
+      const projectPath = join(directory, `project-${index}.madcad`);
+      const autosavePath = join(directory, `autosave-${index}.json`);
+      const serialized = JSON.stringify(source);
+      const expectedFeatures = JSON.stringify(prepareDocument(source).features);
+      for (let save = 0; save < 3; save += 1) {
+        await atomicWriteTextFile(projectPath, serialized, { backup: true });
+        await atomicWriteTextFile(autosavePath, serialized, { backup: true });
+        const opened = openDocument(JSON.parse(await readFile(projectPath, 'utf8')));
+        assert.equal(opened.readOnly, false, `${source.name}: zapis ${save + 1}`);
+        assert.equal(validateDocument(opened.document).valid, true);
+        assert.equal(JSON.stringify(prepareDocument(opened.document).features), expectedFeatures);
+      }
+      await writeFile(autosavePath, '{niedokończony-auto-zapis', 'utf8');
+      const recovered = await recoveryFile.readRecoverableTextFile(autosavePath, {
+        validate: (text) => {
+          const opened = openDocument(JSON.parse(text));
+          if (opened.readOnly || !validateDocument(opened.document).valid) throw new Error('Niepoprawny dokument CAD.');
+        },
+      });
+      assert.equal(recovered.recovered, true, source.name);
+      const reopened = openDocument(JSON.parse(recovered.text));
+      assert.equal(JSON.stringify(prepareDocument(reopened.document).features), expectedFeatures);
+      assert.deepEqual(reopened.document.features.map(({ id }) => id), source.features.map(({ id }) => id));
+      assert.deepEqual(reopened.document.sketches.map(({ id }) => id), source.sketches.map(({ id }) => id));
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('mały i średni dokument mieszczą się w osobnych budżetach wydajności', () => {
   const scenarios = [
     { name: 'mały', featureCount: 10, budget: GEOMETRY_POLICY.performanceBudgets.prepareSmallMs },
