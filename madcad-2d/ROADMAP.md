@@ -50,6 +50,8 @@ potwierdzonego wyniku bez blokowania użytkownika:
   anulować z interfejsu i nie pozostawia częściowego modelu ani cache;
 - [x] wielokrotne zapisanie, autozapis, awaria i ponowne otwarcie każdego
   dokumentu korpusu zachowują identyczny wynik geometrii i trwałe referencje;
+- [x] kontrola bezpieczeństwa CAM przetwarza 150 tys. segmentów bez kopiowania
+  wszystkich punktów i bez przekazywania dużej tablicy do stosu wywołań;
 - [~] raport CI publikuje czasy, pamięć i najwolniejszą operację, a przekroczenie
   ustalonego budżetu blokuje merge.
 

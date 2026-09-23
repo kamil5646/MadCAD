@@ -5809,6 +5809,17 @@ test('CAM blokuje kolizję szerszej oprawki z uchwytem także na szybkim przeje�
   assert.throws(() => createMachineGcode(guardedSetup, contour, [camBox]), /Eksport.*zablokowany/);
 });
 
+test('kontrola CAM analizuje 150 tys. segmentów bez przepełnienia stosu i zachowuje błędy bezpieczeństwa', () => {
+  const setup = createManufacturingSetup({ bodyId: camBox.id });
+  const contour = createContourOperation({ targetDepth: 1 });
+  const base = calculateContourToolpath(setup, contour, [camBox]);
+  const safeSegment = { kind: 'rapid', from: [0, 0, 100], to: [1, 0, 100] };
+  const segments = Array(150000).fill(safeSegment);
+  assert.deepEqual(analyzeToolpathSafety({ ...base, segments }), []);
+  assert.equal(analyzeToolpathSafety({ ...base, segments: [...segments, { kind: 'rapid', from: [1, 0, 100], to: [600, 0, 100] }] }).some((issue) => issue.code === 'MACHINE_TRAVEL'), true);
+  assert.equal(analyzeToolpathSafety({ ...base, segments: [...segments, { kind: 'cut', from: [1, 0, 100], to: [1, 0, NaN] }] })[0].code, 'NON_FINITE');
+});
+
 test('CAM kontroluje przejazd między operacjami i blokuje eksport mimo bezpiecznych osobnych ścieżek', () => {
   const body = { id: 'body-two-holes', bounds: [[0, 0, 0], [40, 20, 10]], manufacturingHoles: [
     { featureId: 'left-hole', diameter: 5, quantity: 1, instances: [{ position: [5, 10, 10], direction: [0, 0, -1], depth: 6 }] },

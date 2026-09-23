@@ -1372,13 +1372,25 @@ function segmentIntersectsBounds(segment, minimum, maximum) {
 export function analyzeToolpathSafety(toolpath) {
   const issues = [];
   if (!toolpath?.valid) return (toolpath?.warnings || ['Ścieżka nie jest prawidłowa.']).map((message) => ({ code: 'INVALID_TOOLPATH', message }));
-  const points = toolpath.segments.flatMap((segment) => [segment.from, segment.to]);
-  if (points.some((point) => point.length !== 3 || point.some((value) => !Number.isFinite(value)))) issues.push({ code: 'NON_FINITE', message: 'Ścieżka zawiera nieprawidłową współrzędną.' });
-  if (issues.length) return issues;
+  const minimum = [Infinity, Infinity, Infinity];
+  const maximum = [-Infinity, -Infinity, -Infinity];
+  let minimumCutZ = Infinity;
+  for (const segment of toolpath.segments) {
+    for (let endpoint = 0; endpoint < 2; endpoint += 1) {
+      const point = endpoint === 0 ? segment.from : segment.to;
+      if (!point || point.length !== 3 || !Number.isFinite(point[0]) || !Number.isFinite(point[1]) || !Number.isFinite(point[2])) {
+        return [{ code: 'NON_FINITE', message: 'Ścieżka zawiera nieprawidłową współrzędną.' }];
+      }
+      for (let axis = 0; axis < 3; axis += 1) {
+        minimum[axis] = Math.min(minimum[axis], point[axis]);
+        maximum[axis] = Math.max(maximum[axis], point[axis]);
+      }
+      if (segment.kind !== 'rapid') minimumCutZ = Math.min(minimumCutZ, point[2]);
+    }
+  }
   const machine = toolpath.setup.machine;
   for (let axis = 0; axis < 3; axis += 1) {
-    const values = points.map((point) => point[axis]);
-    if (Math.max(...values) - Math.min(...values) > machine.travel[axis] + 1e-7) issues.push({ code: 'MACHINE_TRAVEL', message: `Ścieżka przekracza przesuw maszyny w osi ${['X', 'Y', 'Z'][axis]}.` });
+    if (maximum[axis] - minimum[axis] > machine.travel[axis] + 1e-7) issues.push({ code: 'MACHINE_TRAVEL', message: `Ścieżka przekracza przesuw maszyny w osi ${['X', 'Y', 'Z'][axis]}.` });
   }
   if (toolpath.turning) return issues;
   for (const fixture of toolpath.setup.fixtures.filter((item) => item.enabled)) {
@@ -1407,9 +1419,7 @@ export function analyzeToolpathSafety(toolpath) {
       break;
     }
   }
-  const cuttingPoints = toolpath.segments.filter((segment) => segment.kind !== 'rapid').flatMap((segment) => [segment.from, segment.to]);
-  const minimumCutZ = cuttingPoints.length ? Math.min(...cuttingPoints.map((point) => point[2])) : stockTop;
-  if (stockTop - minimumCutZ > toolpath.tool.stickout + 1e-7) issues.push({ code: 'HOLDER_COLLISION', message: 'Głębokość ścieżki powoduje ryzyko kolizji oprawki z półfabrykatem.' });
+  if (stockTop - (Number.isFinite(minimumCutZ) ? minimumCutZ : stockTop) > toolpath.tool.stickout + 1e-7) issues.push({ code: 'HOLDER_COLLISION', message: 'Głębokość ścieżki powoduje ryzyko kolizji oprawki z półfabrykatem.' });
   return issues;
 }
 

@@ -71,6 +71,8 @@ LinuxCNC i Mach3 otrzymują `G98`, osobny `G84` dla każdego położenia i zamkn
 
 Przed pierwszym ruchem XY każdej operacji eksport podnosi Z do płaszczyzny bezpiecznej, potem ustawia XY i dopiero uruchamia wrzeciono lub źródło cięcia. W programie wielooperacyjnym analizator sprawdza także znany przejazd od końca poprzedniej operacji do początku następnej, łącznie z kolizją stref uchwytów i oprawki; wykryty problem blokuje eksport całego programu. Położenie maszyny przed startem pierwszej operacji nie jest znane aplikacji, więc operator nadal musi zweryfikować bezpieczny dojazd i przejazd próbny. Raport kolejnych Setupów nie generuje ruchu między zamocowaniami ani sondowania.
 
+Analizator bezpieczeństwa ścieżki wyznacza zakres osi i najniższy punkt skrawania w jednym przebiegu bez kopiowania listy punktów. Regresja z 150 tys. segmentów sprawdza brak przepełnienia stosu oraz zachowanie diagnostyki przekroczenia zakresu i nieprawidłowych współrzędnych.
+
 ## Dowody odbioru
 
 - test jednostkowy: dwa otwory, liczba skoków, przebicie, G-code i symulacja;
