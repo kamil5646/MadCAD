@@ -278,6 +278,7 @@ Te prace nie czekają na koniec modelowania:
   - [x] Trwałe foldery operacji organizują program bez zmiany kolejności wykonania; usunięcie folderu zachowuje operacje.
   - [x] Szablony operacji zapisują parametry i narzędzie w projekcie bez nietrwałych referencji do geometrii, a zgodność z rodzajem Setupu jest sprawdzana przed użyciem.
 - [>] P5.5 Mocowanie, wiele układów roboczych i sondowanie: model uchwytu oraz strefy kolizji, G54–G59, operacje ustawiania bazy i bezpieczny raport kolejnych zamocowań.
+  - [x] Każdy Setup zapisuje własny układ G54–G59, przekazuje go do programów frezarskich, tokarskich i cięcia oraz umieszcza na arkuszu ustawczym.
 
 ## Definition of Done
 

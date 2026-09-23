@@ -16,6 +16,8 @@ export const CAM_WCS_ORIGINS = Object.freeze([
   Object.freeze({ id: 'model-origin', name: 'Początek układu modelu' }),
 ]);
 
+export const CAM_WORK_OFFSETS = Object.freeze(['G54', 'G55', 'G56', 'G57', 'G58', 'G59']);
+
 export const CAM_TOOL_PRESETS = Object.freeze({
   'flat-3': Object.freeze({ id: 'flat-3', name: 'Frez palcowy płaski Ø3', type: 'flat-end-mill', diameter: 3, fluteLength: 12, stickout: 20, holderDiameter: 16, flutes: 2 }),
   'flat-6': Object.freeze({ id: 'flat-6', name: 'Frez palcowy płaski Ø6', type: 'flat-end-mill', diameter: 6, fluteLength: 20, stickout: 30, holderDiameter: 20, flutes: 2 }),
@@ -297,6 +299,7 @@ export function normalizeManufacturingSetup(setup = {}, index = 0) {
       bottomOffset: finiteNonNegative(setup.stock?.bottomOffset, 0),
     },
     wcsOrigin,
+    workOffset: CAM_WORK_OFFSETS.includes(setup.workOffset) ? setup.workOffset : 'G54',
     safeHeight: finiteNonNegative(setup.safeHeight, 5),
     operationGroups,
     operations,
@@ -432,6 +435,7 @@ export function calculateManufacturingSetup(setup, bodies = []) {
     stockBounds,
     dimensions,
     origin,
+    workOffset: normalized.workOffset,
     clearancePlaneZ,
     warnings,
   };
@@ -1550,7 +1554,7 @@ export function createManufacturingSetupSheet(setup, bodies = [], { projectName 
   const issueMarkup = issues.length ? `<ul>${issues.map((issue) => `<li>${escapeManufacturingHtml(issue)}</li>`).join('')}</ul>` : '<p>Kontrola Setupu, ścieżek, kolizji i kompletności obróbki zakończona bez błędów.</p>';
   const dimensions = setupResult.dimensions.map((value) => formatSetupSheetNumber(value)).join(' × ');
   const origin = setupResult.origin.map((value) => formatSetupSheetNumber(value)).join(' / ');
-  const html = `<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeManufacturingHtml(projectName)} — ${escapeManufacturingHtml(normalized.name)} — arkusz ustawczy</title><style>@page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{margin:0;color:#18212a;font:12px/1.4 Arial,sans-serif}header{display:flex;justify-content:space-between;gap:20px;border-bottom:3px solid #bd252d;padding-bottom:8px}h1,h2,p{margin:0}h1{font-size:23px}header p{color:#52606d}.status{align-self:start;padding:7px 12px;border:2px solid #27815f;color:#176348;font-weight:800}.status.bad{border-color:#bd252d;color:#9c1820}.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:10px 0}.fact{border:1px solid #abb5be;padding:7px}.fact span,td small{display:block;color:#66737e;font-size:10px}.fact strong{font-size:13px}section{margin-top:11px}h2{margin-bottom:5px;font-size:14px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #aeb8c0;padding:5px 6px;text-align:left;vertical-align:top}th{background:#e9edf0;font-size:10px;text-transform:uppercase}.ok{color:#176348;font-weight:800}.bad{color:#9c1820;font-weight:800}.checks{border:1px solid #aeb8c0;padding:8px}.checks ul{margin:0;padding-left:18px}.checks p{color:#176348;font-weight:700}footer{margin-top:10px;border-top:1px solid #aeb8c0;padding-top:6px;color:#66737e;font-size:10px}@media print{body{print-color-adjust:exact}}</style></head><body><header><div><h1>Arkusz ustawczy CAM</h1><p>${escapeManufacturingHtml(projectName)} · ${escapeManufacturingHtml(normalized.name)}</p></div><div class="status${report.valid ? '' : ' bad'}">${report.valid ? 'GOTOWY' : 'WYMAGA POPRAWY'}</div></header><div class="facts"><div class="fact"><span>Obrabiarka</span><strong>${escapeManufacturingHtml(setupResult.machine.name)}</strong></div><div class="fact"><span>Bryła</span><strong>${escapeManufacturingHtml(setupResult.body.name || setupResult.body.id)}</strong></div><div class="fact"><span>Półfabrykat X × Y × Z</span><strong>${dimensions} mm</strong></div><div class="fact"><span>Zero WCS X / Y / Z</span><strong>${origin} mm</strong></div><div class="fact"><span>Płaszczyzna bezpieczna</span><strong>${formatSetupSheetNumber(setupResult.clearancePlaneZ)} mm</strong></div><div class="fact"><span>Operacje</span><strong>${normalized.operations.length}</strong></div><div class="fact"><span>Szacowany czas</span><strong>${Math.max(1, Math.ceil(report.durationMinutes))} min</strong></div><div class="fact"><span>Długość skrawania</span><strong>${formatSetupSheetNumber(report.cuttingDistance, 0)} mm</strong></div></div><section><h2>Narzędzia</h2><table><thead><tr><th>Poz.</th><th>Narzędzie</th><th>Średnica</th><th>Wysięg</th><th>Operacje</th></tr></thead><tbody>${toolRows || '<tr><td colspan="5">Brak narzędzi</td></tr>'}</tbody></table></section><section><h2>Program operacji</h2><table><thead><tr><th>#</th><th>Operacja</th><th>Narzędzie</th><th>Obroty</th><th>Posuw</th><th>Czas</th><th>Kontrola</th></tr></thead><tbody>${operationRows || '<tr><td colspan="7">Brak operacji</td></tr>'}</tbody></table></section><section><h2>Kontrola przed uruchomieniem</h2><div class="checks">${issueMarkup}</div></section><footer>Wygenerowano w MadCAD. Operator odpowiada za sprawdzenie mocowania, korekcji narzędzi, punktu zerowego i przejazdu bez materiału na obrabiarce.</footer></body></html>`;
+  const html = `<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeManufacturingHtml(projectName)} — ${escapeManufacturingHtml(normalized.name)} — arkusz ustawczy</title><style>@page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{margin:0;color:#18212a;font:12px/1.4 Arial,sans-serif}header{display:flex;justify-content:space-between;gap:20px;border-bottom:3px solid #bd252d;padding-bottom:8px}h1,h2,p{margin:0}h1{font-size:23px}header p{color:#52606d}.status{align-self:start;padding:7px 12px;border:2px solid #27815f;color:#176348;font-weight:800}.status.bad{border-color:#bd252d;color:#9c1820}.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:10px 0}.fact{border:1px solid #abb5be;padding:7px}.fact span,td small{display:block;color:#66737e;font-size:10px}.fact strong{font-size:13px}section{margin-top:11px}h2{margin-bottom:5px;font-size:14px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #aeb8c0;padding:5px 6px;text-align:left;vertical-align:top}th{background:#e9edf0;font-size:10px;text-transform:uppercase}.ok{color:#176348;font-weight:800}.bad{color:#9c1820;font-weight:800}.checks{border:1px solid #aeb8c0;padding:8px}.checks ul{margin:0;padding-left:18px}.checks p{color:#176348;font-weight:700}footer{margin-top:10px;border-top:1px solid #aeb8c0;padding-top:6px;color:#66737e;font-size:10px}@media print{body{print-color-adjust:exact}}</style></head><body><header><div><h1>Arkusz ustawczy CAM</h1><p>${escapeManufacturingHtml(projectName)} · ${escapeManufacturingHtml(normalized.name)}</p></div><div class="status${report.valid ? '' : ' bad'}">${report.valid ? 'GOTOWY' : 'WYMAGA POPRAWY'}</div></header><div class="facts"><div class="fact"><span>Obrabiarka</span><strong>${escapeManufacturingHtml(setupResult.machine.name)}</strong></div><div class="fact"><span>Bryła</span><strong>${escapeManufacturingHtml(setupResult.body.name || setupResult.body.id)}</strong></div><div class="fact"><span>Półfabrykat X × Y × Z</span><strong>${dimensions} mm</strong></div><div class="fact"><span>Układ roboczy</span><strong>${normalized.workOffset}</strong></div><div class="fact"><span>Zero WCS X / Y / Z</span><strong>${origin} mm</strong></div><div class="fact"><span>Płaszczyzna bezpieczna</span><strong>${formatSetupSheetNumber(setupResult.clearancePlaneZ)} mm</strong></div><div class="fact"><span>Operacje</span><strong>${normalized.operations.length}</strong></div><div class="fact"><span>Szacowany czas</span><strong>${Math.max(1, Math.ceil(report.durationMinutes))} min</strong></div><div class="fact"><span>Długość skrawania</span><strong>${formatSetupSheetNumber(report.cuttingDistance, 0)} mm</strong></div></div><section><h2>Narzędzia</h2><table><thead><tr><th>Poz.</th><th>Narzędzie</th><th>Średnica</th><th>Wysięg</th><th>Operacje</th></tr></thead><tbody>${toolRows || '<tr><td colspan="5">Brak narzędzi</td></tr>'}</tbody></table></section><section><h2>Program operacji</h2><table><thead><tr><th>#</th><th>Operacja</th><th>Narzędzie</th><th>Obroty</th><th>Posuw</th><th>Czas</th><th>Kontrola</th></tr></thead><tbody>${operationRows || '<tr><td colspan="7">Brak operacji</td></tr>'}</tbody></table></section><section><h2>Kontrola przed uruchomieniem</h2><div class="checks">${issueMarkup}</div></section><footer>Wygenerowano w MadCAD. Operator odpowiada za sprawdzenie mocowania, korekcji narzędzi, punktu zerowego i przejazdu bez materiału na obrabiarce.</footer></body></html>`;
   return { html, report, operationCount: normalized.operations.length, toolCount: toolUsage.size };
 }
 
@@ -1632,7 +1636,7 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
     const toolNumber = Object.keys(CAM_TURNING_TOOL_PRESETS).indexOf(toolpath.operation.toolId) + 1;
     const lines = programFragment
       ? [comment(`${operation.name} | ${toolpath.tool.name}`), ...(includeToolChange ? [`T${toolNumber} M6`] : []), `S${toolpath.operation.spindleRpm} M3`]
-      : ['%', comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź mocowanie, zero osi Z i średnicę X przed uruchomieniem.'), 'G21', 'G90', 'G18', 'G95', 'G40', `T${toolNumber} M6`, `S${toolpath.operation.spindleRpm} M3`];
+      : ['%', comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź mocowanie, zero osi Z i średnicę X przed uruchomieniem.'), 'G21', 'G90', 'G18', 'G95', toolpath.setup.workOffset, 'G40', `T${toolNumber} M6`, `S${toolpath.operation.spindleRpm} M3`];
     let lastFeed = null;
     for (const segment of toolpath.segments) {
       const diameter = Math.abs(segment.to[1] - origin[1]) * 2;
@@ -1654,7 +1658,7 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
     const isPlasma = postProcessor.id === 'linuxcnc-plasma';
     const lines = programFragment ? [comment(`${operation.name} | ${toolpath.tool.name}`)] : [];
     if (!programFragment && isPlasma) lines.push('%');
-    if (!programFragment) lines.push(comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź zero WCS, moc i przejazd bez materiału.'), 'G21', 'G90', 'G17', 'G94');
+    if (!programFragment) lines.push(comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź zero WCS, moc i przejazd bez materiału.'), 'G21', 'G90', 'G17', 'G94', toolpath.setup.workOffset);
     if (!programFragment && isPlasma) lines.push('G40', 'G64 P0.01');
     let processOn = false;
     for (const segment of toolpath.segments) {
@@ -1687,7 +1691,7 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
     comment(cleanComment(projectName) || 'MadCAD'),
     comment(`${operation.name} | ${toolpath.tool.name}`),
     comment('Sprawdź punkt zerowy WCS i wykonaj symulację bez materiału przed obróbką.'),
-    'G21', 'G90', 'G17', 'G94',
+    'G21', 'G90', 'G17', 'G94', toolpath.setup.workOffset,
   );
   if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('G40', 'G49', 'G64 P0.01');
   if (!programFragment && postProcessor.id === 'mach3') lines.push('G40', 'G49', 'G80');
@@ -1762,7 +1766,7 @@ export function createManufacturingProgramGcode(setup, bodies = [], { projectNam
     comment(cleanComment(projectName) || 'MadCAD'),
     comment(`${normalized.name} | kompletny program CAM | ${normalized.operations.length} operacji`),
     comment('Sprawdź mocowanie, punkt zerowy WCS i wykonaj przejazd bez materiału przed obróbką.'),
-    'G21', 'G90', isTurning ? 'G18' : 'G17', isTurning ? 'G95' : 'G94', 'G40',
+    'G21', 'G90', isTurning ? 'G18' : 'G17', isTurning ? 'G95' : 'G94', normalized.workOffset, 'G40',
   );
   if (!isCutting) lines.push('G49');
   if (postProcessor.id === 'linuxcnc' || postProcessor.id === 'linuxcnc-plasma') lines.push('G64 P0.01');
@@ -1857,6 +1861,7 @@ export function validateManufacturing(manufacturing) {
     if (typeof setup.bodyId !== 'string') issues.push({ path: `${base}.bodyId`, message: 'Identyfikator bryły musi być tekstem.', code: 'TYPE' });
     if (!CAM_MACHINE_PRESETS[setup.machineId]) issues.push({ path: `${base}.machineId`, message: 'Nieznany profil obrabiarki.', code: 'UNSUPPORTED' });
     if (!CAM_WCS_ORIGINS.some((item) => item.id === setup.wcsOrigin)) issues.push({ path: `${base}.wcsOrigin`, message: 'Nieznany początek układu WCS.', code: 'UNSUPPORTED' });
+    if (!CAM_WORK_OFFSETS.includes(setup.workOffset)) issues.push({ path: `${base}.workOffset`, message: 'Układ roboczy musi mieścić się w zakresie G54–G59.', code: 'UNSUPPORTED' });
     for (const key of ['sideOffset', 'topOffset', 'bottomOffset']) if (!Number.isFinite(Number(setup.stock?.[key])) || Number(setup.stock[key]) < 0) issues.push({ path: `${base}.stock.${key}`, message: 'Naddatek musi być liczbą nieujemną.', code: 'VALUE' });
     if (!Number.isFinite(Number(setup.safeHeight)) || Number(setup.safeHeight) < 0) issues.push({ path: `${base}.safeHeight`, message: 'Wysokość bezpieczna musi być liczbą nieujemną.', code: 'VALUE' });
     const groupIds = new Set();

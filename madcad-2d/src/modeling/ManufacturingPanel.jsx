@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, ArrowDown, ArrowUp, Box, CheckCircle2, CircleDot, Clock3, Code2, Copy, Crosshair, FileDown, FileText, Flame, FolderPlus, Gauge, Layers3, Pause, Play, Plus, RotateCcw, Route, ScanLine, ShieldCheck, Trash2, X } from 'lucide-react';
-import { CAM_HOLE_TOOL_TYPES, CAM_MACHINE_PRESETS, CAM_POST_PROCESSORS, CAM_TOOL_PRESETS, CAM_TURNING_TOOL_PRESETS, CAM_WCS_ORIGINS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath, createMachineGcode } from '../cad-core/manufacturing.js';
+import { CAM_HOLE_TOOL_TYPES, CAM_MACHINE_PRESETS, CAM_POST_PROCESSORS, CAM_TOOL_PRESETS, CAM_TURNING_TOOL_PRESETS, CAM_WCS_ORIGINS, CAM_WORK_OFFSETS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath, createMachineGcode } from '../cad-core/manufacturing.js';
 
 const millimeter = (value) => Number.isFinite(value) ? `${value.toFixed(2)} mm` : '—';
 const holeStageLabel = (stage) => ({ spot: 'nawiertanie', drill: 'wiercenie', counterbore: 'pogłębianie walcowe', tap: 'gwintowanie' })[stage] || stage;
@@ -56,9 +56,10 @@ export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument
             <label><span>Dół</span><input type="number" min="0" step="0.5" value={setup.stock.bottomOffset} disabled={readOnly} onChange={(event) => update({ stock: { ...setup.stock, bottomOffset: event.target.value } })} /><em>mm</em></label>
           </div></fieldset>}
           {!isTurningSetup ? <fieldset><legend><Crosshair size={13} /> Układ współrzędnych</legend>
+            <label><span>Układ roboczy</span><select value={setup.workOffset} disabled={readOnly} onChange={(event) => update({ workOffset: event.target.value })}>{CAM_WORK_OFFSETS.map((offset) => <option value={offset} key={offset}>{offset}</option>)}</select></label>
             <label><span>Punkt zerowy WCS</span><select value={setup.wcsOrigin} disabled={readOnly} onChange={(event) => update({ wcsOrigin: event.target.value })}>{CAM_WCS_ORIGINS.map((origin) => <option value={origin.id} key={origin.id}>{origin.name}</option>)}</select></label>
             <label><span>Wysokość bezpieczna</span><input type="number" min="0" step="0.5" value={setup.safeHeight} disabled={readOnly} onChange={(event) => update({ safeHeight: event.target.value })} /><em>mm</em></label>
-          </fieldset> : <fieldset><legend><CircleDot size={13} /> Oś tokarki</legend><div className="manufacturing-boundary"><CircleDot size={13} /><span><strong>Oś Z wzdłuż modelu X</strong><small>Zero Z na prawym czole, X0 na osi obrotu; program pracuje w średnicy X.</small></span></div><label><span>Odstęp bezpieczny</span><input type="number" min="0" step="0.5" value={setup.safeHeight} disabled={readOnly} onChange={(event) => update({ safeHeight: event.target.value })} /><em>mm</em></label></fieldset>}
+          </fieldset> : <fieldset><legend><CircleDot size={13} /> Oś tokarki</legend><div className="manufacturing-boundary"><CircleDot size={13} /><span><strong>Oś Z wzdłuż modelu X</strong><small>Zero Z na prawym czole, X0 na osi obrotu; program pracuje w średnicy X.</small></span></div><label><span>Układ roboczy</span><select value={setup.workOffset} disabled={readOnly} onChange={(event) => update({ workOffset: event.target.value })}>{CAM_WORK_OFFSETS.map((offset) => <option value={offset} key={offset}>{offset}</option>)}</select></label><label><span>Odstęp bezpieczny</span><input type="number" min="0" step="0.5" value={setup.safeHeight} disabled={readOnly} onChange={(event) => update({ safeHeight: event.target.value })} /><em>mm</em></label></fieldset>}
         </div>
         <section className={`manufacturing-summary ${result?.valid ? 'valid' : 'invalid'}`}>
           <h3>{result?.valid ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}{result?.valid ? 'Setup gotowy' : 'Setup wymaga poprawy'}</h3>

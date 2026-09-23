@@ -1747,6 +1747,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Boki': 'Sides',
   'Dół': 'Bottom',
   'Układ współrzędnych': 'Coordinate system',
+  'Układ roboczy': 'Work offset',
   'Punkt zerowy WCS': 'WCS origin',
   'Wysokość bezpieczna': 'Clearance height',
   'Oś tokarki': 'Lathe axis',
