@@ -145,7 +145,7 @@ import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMesh
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
-import { CAM_TOOL_PRESETS, calculateManufacturingSetup, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, instantiateManufacturingOperationTemplate, moveManufacturingOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingOperationTemplate, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
+import { CAM_TOOL_PRESETS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, instantiateManufacturingOperationTemplate, moveManufacturingOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingOperationTemplate, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
@@ -7574,21 +7574,28 @@ export default function ModelingWorkspace() {
               : { title: 'KROK 1 · dokończ szkic 2D', text: 'Szkic nie ma jeszcze zamkniętego obrysu. Domknij linie, zakończ szkic, potem zaznacz jego wnętrze.', action: `Edytuj: ${lastSketch.name}`, onAction: () => editSketch(lastSketch.id) }
             : { title: 'PROJEKTUJ · szkic 2D i model 3D', text: readyEngineLabel };
   const activeCamSetup = document.manufacturing.setups.find((setup) => setup.id === document.manufacturing.activeSetupId) || null;
-  const activeCamSetupResult = workspace === 'manufacture' && activeCamSetup ? calculateManufacturingSetup(activeCamSetup, engine.bodies) : null;
-  const manufacturingToolpaths = workspace === 'manufacture' && activeCamSetup
-    ? activeCamSetup.operations.map((operation) => calculateOperationToolpath(activeCamSetup, operation, engine.bodies, document)).filter((toolpath) => toolpath.valid)
-    : [];
-  const camSimulation = workspace === 'manufacture' && activeCamSetup
-    ? simulateMaterialRemoval(activeCamSetup, engine.bodies, document, camSimulationProgress)
-    : null;
-  const manufacturingSegments = manufacturingToolpaths.flatMap((toolpath) => toolpath.segments);
-  const manufacturingVisualization = activeCamSetupResult?.stockBounds ? {
+  const activeCamSetupResult = useMemo(() => workspace === 'manufacture' && activeCamSetup
+    ? calculateManufacturingSetup(activeCamSetup, engine.bodies)
+    : null, [workspace, activeCamSetup, engine.bodies]);
+  const allManufacturingToolpaths = useMemo(() => workspace === 'manufacture' && activeCamSetup
+    ? activeCamSetup.operations.map((operation) => calculateOperationToolpath(activeCamSetup, operation, engine.bodies, document))
+    : [], [workspace, activeCamSetup, engine.bodies, document]);
+  const activeCamProgramReport = useMemo(() => workspace === 'manufacture' && activeCamSetup
+    ? analyzeManufacturingProgram(activeCamSetup, engine.bodies, document, allManufacturingToolpaths)
+    : null, [workspace, activeCamSetup, engine.bodies, document, allManufacturingToolpaths]);
+  const manufacturingToolpaths = useMemo(() => allManufacturingToolpaths.filter((toolpath) => toolpath.valid), [allManufacturingToolpaths]);
+  const camSimulation = useMemo(() => workspace === 'manufacture' && activeCamSetup
+    ? simulateMaterialRemoval(activeCamSetup, engine.bodies, document, camSimulationProgress, 36, { setupResult: activeCamSetupResult, toolpaths: allManufacturingToolpaths, report: activeCamProgramReport })
+    : null, [workspace, activeCamSetup, engine.bodies, document, camSimulationProgress, activeCamSetupResult, allManufacturingToolpaths, activeCamProgramReport]);
+  const manufacturingSegments = useMemo(() => manufacturingToolpaths.flatMap((toolpath) => toolpath.segments), [manufacturingToolpaths]);
+  const manufacturingVisualization = useMemo(() => activeCamSetupResult?.stockBounds ? {
     stockBounds: activeCamSetupResult.stockBounds,
     fixtures: activeCamSetup.fixtures,
-    segments: manufacturingSegments.slice(0, Math.ceil(manufacturingSegments.length * camSimulationProgress)),
+    segments: manufacturingSegments,
+    segmentCount: Math.ceil(manufacturingSegments.length * camSimulationProgress),
     removalColumns: camSimulation?.columns || [],
     cutter: camSimulation?.cutter || null,
-  } : null;
+  } : null, [activeCamSetupResult, activeCamSetup, manufacturingSegments, camSimulationProgress, camSimulation]);
   const startPageVisible = workspace === 'solid' && !document.sketches.length && !engine.bodies.length && !command && !readOnly;
   const showProjectBrowser = browserOpen && workspace !== 'drawing' && !startPageVisible;
   let adaptiveContext = null;
@@ -8295,7 +8302,7 @@ export default function ModelingWorkspace() {
             renderCaptureRef={renderCaptureRef}
           />
           </React.Suspense>}
-          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} projectDocument={document} simulationProgress={camSimulationProgress} onSimulationProgress={setCamSimulationProgress} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onDuplicateOperation={duplicateCamOperation} onMoveOperation={moveCamOperation} onOptimizeOperations={optimizeCamOperationOrder} onCreateOperationGroup={createCamOperationGroup} onUpdateOperationGroup={updateCamOperationGroup} onDeleteOperationGroup={deleteCamOperationGroup} onSaveOperationTemplate={saveCamOperationTemplate} onUpdateOperationTemplate={updateCamOperationTemplate} onDeleteOperationTemplate={deleteCamOperationTemplate} onApplyOperationTemplate={applyCamOperationTemplate} onExportOperation={exportCamOperation} onExportProgram={exportCamProgram} onExportSetupSheet={exportCamSetupSheet} onExportSequenceSheet={exportCamSequenceSheet} onCreateTool={createCamTool} onUpdateTool={updateCamTool} onDeleteTool={deleteCamTool} />}
+          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} projectDocument={document} cachedSetupResult={activeCamSetupResult} cachedProgramReport={activeCamProgramReport} cachedToolpaths={allManufacturingToolpaths} simulationProgress={camSimulationProgress} onSimulationProgress={setCamSimulationProgress} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onDuplicateOperation={duplicateCamOperation} onMoveOperation={moveCamOperation} onOptimizeOperations={optimizeCamOperationOrder} onCreateOperationGroup={createCamOperationGroup} onUpdateOperationGroup={updateCamOperationGroup} onDeleteOperationGroup={deleteCamOperationGroup} onSaveOperationTemplate={saveCamOperationTemplate} onUpdateOperationTemplate={updateCamOperationTemplate} onDeleteOperationTemplate={deleteCamOperationTemplate} onApplyOperationTemplate={applyCamOperationTemplate} onExportOperation={exportCamOperation} onExportProgram={exportCamProgram} onExportSetupSheet={exportCamSetupSheet} onExportSequenceSheet={exportCamSequenceSheet} onCreateTool={createCamTool} onUpdateTool={updateCamTool} onDeleteTool={deleteCamTool} />}
           {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
           {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}</div>}
           {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}</div>}

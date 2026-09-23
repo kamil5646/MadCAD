@@ -5,6 +5,8 @@ import {
   calculateCounterboreToolpath,
   calculateCut2dToolpath,
   calculateDrillingToolpath,
+  calculateManufacturingSetup,
+  calculateOperationToolpath,
   calculateSpotDrillingToolpath,
   calculateTappingToolpath,
   calculatePocketToolpath,
@@ -567,6 +569,39 @@ describe('CAM contour operations', () => {
     expect(finished.columns.length).toBeGreaterThan(0);
     expect(finished.cutter.position).toHaveLength(3);
     expect(finished.processedSegments).toBe(finished.totalSegments);
+  });
+
+  it('reuses calculated toolpaths without changing the multi-operation simulation', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id, stock: { topOffset: 2 } });
+    setup.operations.push(createPocketOperation({ targetDepth: 2, maxStepdown: 1 }));
+    setup.operations.push(createFacingOperation({ maxStepdown: 1 }));
+    const toolpaths = setup.operations.map((operation) => calculateOperationToolpath(setup, operation, [box]));
+    const report = analyzeManufacturingProgram(setup, [box], null, toolpaths);
+    expect(report).toEqual(analyzeManufacturingProgram(setup, [box]));
+    expect(analyzeManufacturingProgram(setup, [box], null, [...toolpaths].reverse())).toEqual(report);
+    const precomputed = { setupResult: calculateManufacturingSetup(setup, [box]), toolpaths, report };
+    for (const progress of [0, 0.25, 0.5, 1]) {
+      expect(simulateMaterialRemoval(setup, [box], null, progress, 20, precomputed))
+        .toEqual(simulateMaterialRemoval(setup, [box], null, progress, 20));
+    }
+  });
+
+  it('advances through 150k CAM segments without building a flattened entry list', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id, stock: { topOffset: 2 } });
+    const operation = createFacingOperation();
+    setup.operations.push(operation);
+    const segment = { kind: 'rapid', from: [0, 0, 12], to: [1, 0, 12] };
+    const toolpath = { valid: true, operation, tool: { diameter: 6 }, segments: Array(150000).fill(segment) };
+    const precomputed = {
+      setupResult: calculateManufacturingSetup(setup, [box]),
+      toolpaths: [toolpath],
+      report: { valid: true, operations: [{ id: operation.id }], setupIssues: [] },
+    };
+    const result = simulateMaterialRemoval(setup, [box], null, 0.5, 12, precomputed);
+    expect(result.totalSegments).toBe(150000);
+    expect(result.processedSegments).toBe(75000);
+    expect(result.cutter).toEqual({ position: [1, 0, 12], diameter: 6, operationId: operation.id });
+    expect(result.removedVolume).toBe(0);
   });
 
   it('uses a persistent selected horizontal face and rejects a vertical face', () => {

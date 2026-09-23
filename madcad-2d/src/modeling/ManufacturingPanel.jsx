@@ -5,14 +5,14 @@ import { CAM_HOLE_TOOL_TYPES, CAM_MACHINE_PRESETS, CAM_POST_PROCESSORS, CAM_TOOL
 const millimeter = (value) => Number.isFinite(value) ? `${value.toFixed(2)} mm` : '—';
 const holeStageLabel = (stage) => ({ spot: 'nawiertanie', drill: 'wiercenie', counterbore: 'pogłębianie walcowe', tap: 'gwintowanie' })[stage] || stage;
 
-export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument = null, simulationProgress = 1, onSimulationProgress = () => {}, readOnly = false, onCreate, onActivate, onUpdate, onDelete, onCreateOperation, onUpdateOperation, onDeleteOperation, onDuplicateOperation, onMoveOperation, onOptimizeOperations, onCreateOperationGroup, onUpdateOperationGroup, onDeleteOperationGroup, onSaveOperationTemplate, onUpdateOperationTemplate, onDeleteOperationTemplate, onApplyOperationTemplate, onExportOperation, onExportProgram, onExportSetupSheet, onExportSequenceSheet, onCreateTool, onUpdateTool, onDeleteTool }) {
+export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument = null, cachedSetupResult = null, cachedProgramReport = null, cachedToolpaths = null, simulationProgress = 1, onSimulationProgress = () => {}, readOnly = false, onCreate, onActivate, onUpdate, onDelete, onCreateOperation, onUpdateOperation, onDeleteOperation, onDuplicateOperation, onMoveOperation, onOptimizeOperations, onCreateOperationGroup, onUpdateOperationGroup, onDeleteOperationGroup, onSaveOperationTemplate, onUpdateOperationTemplate, onDeleteOperationTemplate, onApplyOperationTemplate, onExportOperation, onExportProgram, onExportSetupSheet, onExportSequenceSheet, onCreateTool, onUpdateTool, onDeleteTool }) {
   const setups = manufacturing?.setups || [];
   const customTools = manufacturing?.tools || [];
   const operationTemplates = manufacturing?.operationTemplates || [];
   const activeId = manufacturing?.activeSetupId || setups[0]?.id || '';
   const setup = setups.find((item) => item.id === activeId) || null;
-  const result = setup ? calculateManufacturingSetup(setup, bodies) : null;
-  const programReport = setup ? analyzeManufacturingProgram(setup, bodies, projectDocument) : null;
+  const result = setup ? cachedSetupResult || calculateManufacturingSetup(setup, bodies) : null;
+  const programReport = setup ? cachedProgramReport || analyzeManufacturingProgram(setup, bodies, projectDocument, cachedToolpaths) : null;
   const sequenceReport = useMemo(() => setups.length > 1 ? analyzeManufacturingSetupSequence(manufacturing, bodies, projectDocument) : null, [manufacturing, bodies, projectDocument, setups.length]);
   const solidBodies = bodies.filter((body) => body.bodyKind !== 'surface');
   const isCuttingSetup = setup?.operationKind === 'cut-2d';
@@ -31,12 +31,11 @@ export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument
     return () => window.clearTimeout(timer);
   }, [simulationPlaying, simulationProgress, onSimulationProgress]);
   const previewOperation = setup?.operations.find((operation) => operation.id === previewOperationId) || null;
-  let gcodePreview = null;
-  let gcodePreviewError = '';
-  if (setup && previewOperation) {
-    try { gcodePreview = createMachineGcode(setup, previewOperation, bodies, { projectName: projectDocument?.name || 'MadCAD', document: projectDocument }); }
-    catch (error) { gcodePreviewError = error.message; }
-  }
+  const { gcodePreview, gcodePreviewError } = useMemo(() => {
+    if (!setup || !previewOperation) return { gcodePreview: null, gcodePreviewError: '' };
+    try { return { gcodePreview: createMachineGcode(setup, previewOperation, bodies, { projectName: projectDocument?.name || 'MadCAD', document: projectDocument }), gcodePreviewError: '' }; }
+    catch (error) { return { gcodePreview: null, gcodePreviewError: error.message }; }
+  }, [setup, previewOperation, bodies, projectDocument]);
 
   return (
     <aside className="manufacturing-panel" aria-label="Setup wytwarzania CAM">
@@ -85,7 +84,9 @@ export function ManufacturingPanel({ manufacturing, bodies = [], projectDocument
           {!isTurningSetup && !isCuttingSetup && <div className="manufacturing-add-actions"><button type="button" disabled={readOnly || setup.operations.length < 2} onClick={() => onOptimizeOperations(setup.id)}><Route size={14} /> Uporządkuj operacje</button></div>}
           {!setup.operations.length && <div className="manufacturing-operation-empty"><div><strong>Dodaj pierwszą operację</strong><small>Bez zaznaczenia używana jest góra bryły. Aby ograniczyć kieszeń lub kontur, zaznacz wcześniej poziomą ścianę modelu.</small></div></div>}
           {setup.operations.map((operation, operationIndex) => {
-            const toolpath = calculateOperationToolpath(setup, operation, bodies, projectDocument);
+            const toolpath = cachedToolpaths?.[operationIndex]?.operation?.id === operation.id
+              ? cachedToolpaths[operationIndex]
+              : calculateOperationToolpath(setup, operation, bodies, projectDocument);
             const isContour = operation.type === 'contour';
             const isPocket = operation.type === 'pocket';
             const isAdaptive = operation.type === 'adaptive';

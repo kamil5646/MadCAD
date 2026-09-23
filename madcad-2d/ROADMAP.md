@@ -54,6 +54,9 @@ potwierdzonego wyniku bez blokowania użytkownika:
   wszystkich punktów i bez przekazywania dużej tablicy do stosu wywołań;
 - [x] granice obrysów kieszeni 2D i obróbki adaptacyjnej są mierzone iteracyjnie;
   regresja obejmuje 150 tys. punktów i nieprawidłowe współrzędne;
+- [x] animacja CAM ponownie wykorzystuje ścieżki i raport zamiast przeliczać je
+  przy każdym kroku, a symulacja i widok nie kopiują listy wszystkich segmentów;
+  zakres i pozostały koszt opisuje [CAM_SIMULATION_PERFORMANCE.md](./docs/CAM_SIMULATION_PERFORMANCE.md);
 - [x] raport CI publikuje czasy, pamięć i najwolniejszą operację, a przekroczenie
   ustalonego budżetu blokuje merge.
 
@@ -328,7 +331,7 @@ Te prace nie czekają na koniec modelowania:
   - [x] Eksport najpierw podnosi Z i ustawia XY na płaszczyźnie bezpiecznej; pełny program sprawdza dodatkowo przejazdy między operacjami tego samego Setupu.
   - [x] Toczenie rozdziela dojazd na odsunięcie promieniowe X, przejazd osiowy Z i powrót do promienia startowego; blokuje nieosiągalną średnicę bezpieczną.
   - [ ] Rozszerzyć mocowanie o rzeczywistą geometrię szczęk i oprawek oraz kontrolę wszystkich przejazdów maszyny.
-  - [ ] Dodać bezpieczne operacje sondowania/ustawiania bazy oraz ich weryfikację na konkretnych sterowaniach.
+  - [ ] Dodać bezpieczne operacje sondowania/ustawiania bazy oraz ich weryfikację na konkretnych sterowaniach; [ograniczenia i źródła](./docs/CAM_PROBING_NOTES.md).
 
 ## Definition of Done
 

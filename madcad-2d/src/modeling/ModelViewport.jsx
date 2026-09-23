@@ -1120,17 +1120,34 @@ export default function ModelViewport({
       removedMaterial.renderOrder = 22;
       manufacturingGroup.add(removedMaterial);
     }
-    if (manufacturingVisualization?.segments?.length) {
-      const positions = [];
-      const colors = [];
-      manufacturingVisualization.segments.forEach((segment) => {
-        positions.push(...segment.from, ...segment.to);
-        const color = new THREE.Color(segment.kind === 'rapid' ? 0xf0ae55 : segment.kind === 'plunge' ? 0xef6c72 : 0x61e6a6);
-        colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
-      });
+    const allManufacturingSegments = manufacturingVisualization?.segments || [];
+    const visibleManufacturingSegments = Number.isFinite(manufacturingVisualization?.segmentCount)
+      ? Math.min(allManufacturingSegments.length, Math.max(0, Math.trunc(manufacturingVisualization.segmentCount)))
+      : allManufacturingSegments.length;
+    if (visibleManufacturingSegments) {
+      const positions = new Float32Array(visibleManufacturingSegments * 6);
+      const colors = new Float32Array(visibleManufacturingSegments * 6);
+      const pathColors = {
+        rapid: new THREE.Color(0xf0ae55),
+        plunge: new THREE.Color(0xef6c72),
+        cutting: new THREE.Color(0x61e6a6),
+      };
+      for (let index = 0; index < visibleManufacturingSegments; index += 1) {
+        const segment = allManufacturingSegments[index];
+        const offset = index * 6;
+        positions.set(segment.from, offset);
+        positions.set(segment.to, offset + 3);
+        const color = segment.kind === 'rapid' ? pathColors.rapid : segment.kind === 'plunge' ? pathColors.plunge : pathColors.cutting;
+        colors[offset] = color.r;
+        colors[offset + 1] = color.g;
+        colors[offset + 2] = color.b;
+        colors[offset + 3] = color.r;
+        colors[offset + 4] = color.g;
+        colors[offset + 5] = color.b;
+      }
       const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
       const path = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, transparent: true, opacity: 0.95 }));
       path.renderOrder = 21;
       manufacturingGroup.add(path);
@@ -1145,7 +1162,7 @@ export default function ModelViewport({
       manufacturingGroup.add(cutter);
     }
     scene.add(manufacturingGroup);
-    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadManufacturingVisualState = { segmentCount: manufacturingVisualization?.segments?.length || 0, stockVisible: Boolean(manufacturingVisualization?.stockBounds), fixtureCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).length || 0, removedColumnCount: manufacturingVisualization?.removalColumns?.length || 0, cutterVisible: Boolean(manufacturingVisualization?.cutter?.position) };
+    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadManufacturingVisualState = { segmentCount: visibleManufacturingSegments, stockVisible: Boolean(manufacturingVisualization?.stockBounds), fixtureCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).length || 0, removedColumnCount: manufacturingVisualization?.removalColumns?.length || 0, cutterVisible: Boolean(manufacturingVisualization?.cutter?.position) };
     if (showBed) {
       const plateGeometry = new THREE.PlaneGeometry(bed.bedWidth, bed.bedDepth);
       const plateMaterial = new THREE.MeshStandardMaterial({ color: 0x384b55, roughness: 0.9, metalness: 0.04, transparent: true, opacity: 0.72, side: THREE.DoubleSide });

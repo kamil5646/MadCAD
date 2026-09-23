@@ -1598,14 +1598,17 @@ function turningClearanceDiameter(setup, operation = null) {
   return Math.max(0, ...diameters) + 2 * Math.max(2, normalized.safeHeight);
 }
 
-export function analyzeManufacturingProgram(setup, bodies = [], document = null) {
+export function analyzeManufacturingProgram(setup, bodies = [], document = null, precomputedToolpaths = null) {
   const normalized = normalizeManufacturingSetup(setup);
   const safeTurningDiameter = normalized.operationKind === 'turning-2axis'
     ? turningClearanceDiameter(normalized)
     : 0;
   let previousToolpath = null;
-  const operations = normalized.operations.map((operation) => {
-    const toolpath = calculateOperationToolpath(normalized, operation, bodies, document);
+  const operations = normalized.operations.map((operation, index) => {
+    const cachedToolpath = precomputedToolpaths?.[index];
+    const toolpath = cachedToolpath?.operation?.id === operation.id
+      ? cachedToolpath
+      : calculateOperationToolpath(normalized, operation, bodies, document);
     const issues = analyzeToolpathSafety(toolpath);
     if (toolpath.turning && safeTurningDiameter > toolpath.setup.machine.travel[1] + 1e-7) {
       issues.push({ code: 'TURNING_CLEARANCE_EXCEEDED', message: `Bezpieczna średnica przejazdu X${safeTurningDiameter.toFixed(2)} przekracza zakres tokarki Ø${toolpath.setup.machine.travel[1]} mm.` });
@@ -1757,16 +1760,16 @@ export function createManufacturingSequenceSheet(manufacturing, bodies = [], { p
   return { html, report, setupCount: report.setups.length };
 }
 
-export function simulateMaterialRemoval(setup, bodies = [], document = null, progress = 1, resolution = 36) {
-  const setupResult = calculateManufacturingSetup(setup, bodies);
-  const report = analyzeManufacturingProgram(setup, bodies, document);
+export function simulateMaterialRemoval(setup, bodies = [], document = null, progress = 1, resolution = 36, precomputed = {}) {
+  const setupResult = precomputed.setupResult || calculateManufacturingSetup(setup, bodies);
+  const allToolpaths = precomputed.toolpaths || normalizeManufacturingSetup(setup).operations
+    .map((operation) => calculateOperationToolpath(setup, operation, bodies, document));
+  const report = precomputed.report || analyzeManufacturingProgram(setup, bodies, document, allToolpaths);
   if (!setupResult.valid || !report.operations.length) return { valid: false, progress: 0, columns: [], cutter: null, removedVolume: 0, warnings: setupResult.warnings };
-  const toolpaths = normalizeManufacturingSetup(setup).operations
-    .map((operation) => calculateOperationToolpath(setup, operation, bodies, document))
-    .filter((toolpath) => toolpath.valid);
-  const entries = toolpaths.flatMap((toolpath) => toolpath.segments.map((segment) => ({ segment, tool: toolpath.tool, operationId: toolpath.operation.id })));
+  const toolpaths = allToolpaths.filter((toolpath) => toolpath.valid);
+  const totalSegments = toolpaths.reduce((count, toolpath) => count + toolpath.segments.length, 0);
   const normalizedProgress = Math.min(1, Math.max(0, Number(progress) || 0));
-  const processedCount = Math.min(entries.length, Math.ceil(entries.length * normalizedProgress));
+  const processedCount = Math.min(totalSegments, Math.ceil(totalSegments * normalizedProgress));
   const [minimum, maximum] = setupResult.stockBounds;
   const width = maximum[0] - minimum[0];
   const depth = maximum[1] - minimum[1];
@@ -1777,27 +1780,34 @@ export function simulateMaterialRemoval(setup, bodies = [], document = null, pro
   const cellDepth = depth / yCount;
   const stockTop = maximum[2];
   const heights = new Float32Array(xCount * yCount).fill(stockTop);
-  let cutter = entries[0] ? { position: [...entries[0].segment.from], diameter: entries[0].tool.diameter, operationId: entries[0].operationId } : null;
-  for (const entry of entries.slice(0, processedCount)) {
-    cutter = { position: [...entry.segment.to], diameter: entry.tool.diameter, operationId: entry.operationId };
-    if (entry.segment.kind === 'rapid') continue;
-    const length = Math.hypot(...entry.segment.to.map((value, axis) => value - entry.segment.from[axis]));
-    const sampleStep = Math.max(0.1, Math.min(cellWidth, cellDepth, entry.tool.diameter / 2) / 2);
-    const samples = Math.max(1, Math.ceil(length / sampleStep));
-    const radius = entry.tool.diameter / 2;
-    for (let sample = 0; sample <= samples; sample += 1) {
-      const ratio = sample / samples;
-      const point = entry.segment.from.map((value, axis) => value + (entry.segment.to[axis] - value) * ratio);
-      const minX = Math.max(0, Math.floor((point[0] - radius - minimum[0]) / cellWidth));
-      const maxX = Math.min(xCount - 1, Math.floor((point[0] + radius - minimum[0]) / cellWidth));
-      const minY = Math.max(0, Math.floor((point[1] - radius - minimum[1]) / cellDepth));
-      const maxY = Math.min(yCount - 1, Math.floor((point[1] + radius - minimum[1]) / cellDepth));
-      for (let y = minY; y <= maxY; y += 1) for (let x = minX; x <= maxX; x += 1) {
-        const centerX = minimum[0] + (x + 0.5) * cellWidth;
-        const centerY = minimum[1] + (y + 0.5) * cellDepth;
-        if (Math.hypot(centerX - point[0], centerY - point[1]) <= radius + Math.hypot(cellWidth, cellDepth) / 2) {
-          const index = y * xCount + x;
-          heights[index] = Math.max(minimum[2], Math.min(heights[index], point[2]));
+  const firstToolpath = toolpaths.find((toolpath) => toolpath.segments.length);
+  let cutter = firstToolpath ? { position: [...firstToolpath.segments[0].from], diameter: firstToolpath.tool.diameter, operationId: firstToolpath.operation.id } : null;
+  let remaining = processedCount;
+  for (const toolpath of toolpaths) {
+    if (!remaining) break;
+    const { tool } = toolpath;
+    for (let index = 0; index < toolpath.segments.length && remaining; index += 1, remaining -= 1) {
+      const segment = toolpath.segments[index];
+      cutter = { position: [...segment.to], diameter: tool.diameter, operationId: toolpath.operation.id };
+      if (segment.kind === 'rapid') continue;
+      const length = Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis]));
+      const sampleStep = Math.max(0.1, Math.min(cellWidth, cellDepth, tool.diameter / 2) / 2);
+      const samples = Math.max(1, Math.ceil(length / sampleStep));
+      const radius = tool.diameter / 2;
+      for (let sample = 0; sample <= samples; sample += 1) {
+        const ratio = sample / samples;
+        const point = segment.from.map((value, axis) => value + (segment.to[axis] - value) * ratio);
+        const minX = Math.max(0, Math.floor((point[0] - radius - minimum[0]) / cellWidth));
+        const maxX = Math.min(xCount - 1, Math.floor((point[0] + radius - minimum[0]) / cellWidth));
+        const minY = Math.max(0, Math.floor((point[1] - radius - minimum[1]) / cellDepth));
+        const maxY = Math.min(yCount - 1, Math.floor((point[1] + radius - minimum[1]) / cellDepth));
+        for (let y = minY; y <= maxY; y += 1) for (let x = minX; x <= maxX; x += 1) {
+          const centerX = minimum[0] + (x + 0.5) * cellWidth;
+          const centerY = minimum[1] + (y + 0.5) * cellDepth;
+          if (Math.hypot(centerX - point[0], centerY - point[1]) <= radius + Math.hypot(cellWidth, cellDepth) / 2) {
+            const index = y * xCount + x;
+            heights[index] = Math.max(minimum[2], Math.min(heights[index], point[2]));
+          }
         }
       }
     }
@@ -1811,7 +1821,7 @@ export function simulateMaterialRemoval(setup, bodies = [], document = null, pro
     removedVolume += volume;
     columns.push({ x: minimum[0] + (x + 0.5) * cellWidth, y: minimum[1] + (y + 0.5) * cellDepth, bottom: top, top: stockTop, width: cellWidth, depth: cellDepth });
   }
-  return { valid: report.valid, progress: normalizedProgress, columns, cutter, removedVolume, processedSegments: processedCount, totalSegments: entries.length, warnings: report.setupIssues };
+  return { valid: report.valid, progress: normalizedProgress, columns, cutter, removedVolume, processedSegments: processedCount, totalSegments, warnings: report.setupIssues };
 }
 
 function gcodeNumber(value) {
