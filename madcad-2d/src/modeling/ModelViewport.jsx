@@ -1100,9 +1100,11 @@ export default function ModelViewport({
       const fixtureGeometry = new THREE.BoxGeometry(...size);
       const fixtureMesh = new THREE.Mesh(fixtureGeometry, new THREE.MeshBasicMaterial({ color: 0xe65b5b, transparent: true, opacity: 0.24, depthWrite: false }));
       fixtureMesh.position.fromArray(center);
+      fixtureMesh.rotation.z = Number(fixture.rotationDegrees || 0) * Math.PI / 180;
       manufacturingGroup.add(fixtureMesh);
       const fixtureEdges = new THREE.LineSegments(new THREE.EdgesGeometry(fixtureGeometry), new THREE.LineBasicMaterial({ color: 0xff6868, depthTest: false }));
       fixtureEdges.position.fromArray(center);
+      fixtureEdges.rotation.z = fixtureMesh.rotation.z;
       fixtureEdges.renderOrder = 22;
       manufacturingGroup.add(fixtureEdges);
     }
@@ -1162,7 +1164,7 @@ export default function ModelViewport({
       manufacturingGroup.add(cutter);
     }
     scene.add(manufacturingGroup);
-    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadManufacturingVisualState = { segmentCount: visibleManufacturingSegments, stockVisible: Boolean(manufacturingVisualization?.stockBounds), fixtureCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).length || 0, removedColumnCount: manufacturingVisualization?.removalColumns?.length || 0, cutterVisible: Boolean(manufacturingVisualization?.cutter?.position) };
+    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadManufacturingVisualState = { segmentCount: visibleManufacturingSegments, stockVisible: Boolean(manufacturingVisualization?.stockBounds), fixtureCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).length || 0, fixtureRotations: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).map((item) => item.rotationDegrees) || [], removedColumnCount: manufacturingVisualization?.removalColumns?.length || 0, cutterVisible: Boolean(manufacturingVisualization?.cutter?.position) };
     if (showBed) {
       const plateGeometry = new THREE.PlaneGeometry(bed.bedWidth, bed.bedDepth);
       const plateMaterial = new THREE.MeshStandardMaterial({ color: 0x384b55, roughness: 0.9, metalness: 0.04, transparent: true, opacity: 0.72, side: THREE.DoubleSide });

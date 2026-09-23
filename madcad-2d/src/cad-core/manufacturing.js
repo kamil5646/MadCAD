@@ -273,6 +273,7 @@ const finiteNonNegative = (value, fallback) => {
 
 export function normalizeManufacturingFixture(fixture = {}, index = 0) {
   const source = fixture && typeof fixture === 'object' && !Array.isArray(fixture) ? fixture : {};
+  const rotationDegrees = Number(source.rotationDegrees ?? 0);
   return {
     id: typeof source.id === 'string' && source.id ? source.id : createId('cam-fixture'),
     name: String(source.name || `Uchwyt ${index + 1}`).trim().slice(0, 80) || `Uchwyt ${index + 1}`,
@@ -282,6 +283,7 @@ export function normalizeManufacturingFixture(fixture = {}, index = 0) {
       const value = Number(source.bounds?.[side]?.[axis]);
       return Number.isFinite(value) ? value : fallback;
     })),
+    rotationDegrees: Number.isFinite(rotationDegrees) ? rotationDegrees % 360 || 0 : 0,
     clearance: finiteNonNegative(source.clearance, 1),
   };
 }
@@ -1383,6 +1385,21 @@ function segmentIntersectsBounds(segment, minimum, maximum) {
   return true;
 }
 
+function createFixtureSegmentTransform(fixture) {
+  const angle = (Number(fixture.rotationDegrees || 0) % 360) * Math.PI / 180;
+  if (!angle) return (segment) => segment;
+  const cosine = Math.cos(angle);
+  const sine = Math.sin(angle);
+  const centerX = (fixture.bounds[0][0] + fixture.bounds[1][0]) / 2;
+  const centerY = (fixture.bounds[0][1] + fixture.bounds[1][1]) / 2;
+  const rotatePoint = (point) => {
+    const x = point[0] - centerX;
+    const y = point[1] - centerY;
+    return [centerX + x * cosine + y * sine, centerY - x * sine + y * cosine, point[2]];
+  };
+  return (segment) => ({ from: rotatePoint(segment.from), to: rotatePoint(segment.to) });
+}
+
 export function analyzeToolpathSafety(toolpath) {
   const issues = [];
   if (!toolpath?.valid) return (toolpath?.warnings || ['Ścieżka nie jest prawidłowa.']).map((message) => ({ code: 'INVALID_TOOLPATH', message }));
@@ -1408,6 +1425,7 @@ export function analyzeToolpathSafety(toolpath) {
   }
   if (toolpath.turning) return issues;
   for (const fixture of toolpath.setup.fixtures.filter((item) => item.enabled)) {
+    const toFixtureCoordinates = createFixtureSegmentTransform(fixture);
     const radius = Math.max(0, Number(toolpath.tool?.diameter) || 0) / 2;
     const stickout = Number(toolpath.tool?.stickout);
     const exposedLength = Number.isFinite(stickout) && stickout > 0 ? stickout : 0;
@@ -1415,17 +1433,20 @@ export function analyzeToolpathSafety(toolpath) {
     // The path follows the tip, but the exposed cutter and shank reach above it.
     const minimum = fixture.bounds[0].map((value, axis) => value - (axis === 2 ? fixture.clearance + exposedLength : margin));
     const maximum = fixture.bounds[1].map((value, axis) => value + (axis === 2 ? fixture.clearance : margin));
-    if (toolpath.segments.some((segment) => segmentIntersectsBounds(segment, minimum, maximum))) {
-      issues.push({ code: 'FIXTURE_COLLISION', fixtureId: fixture.id, message: `Narzędzie lub jego wysunięty trzon przecina strefę ${fixture.name} albo wymagany odstęp.` });
-    }
     const holderRadius = Math.max(0, Number(toolpath.tool?.holderDiameter) || 0) / 2;
-    if (holderRadius > 0 && Number.isFinite(stickout) && stickout > 0) {
-      const holderMinimum = [fixture.bounds[0][0] - holderRadius - fixture.clearance, fixture.bounds[0][1] - holderRadius - fixture.clearance, -Infinity];
-      const holderMaximum = [fixture.bounds[1][0] + holderRadius + fixture.clearance, fixture.bounds[1][1] + holderRadius + fixture.clearance, fixture.bounds[1][2] + fixture.clearance - stickout];
-      if (toolpath.segments.some((segment) => segmentIntersectsBounds(segment, holderMinimum, holderMaximum))) {
-        issues.push({ code: 'HOLDER_FIXTURE_COLLISION', fixtureId: fixture.id, message: `Oprawka narzędzia może przeciąć strefę ${fixture.name} lub jej wymagany odstęp.` });
-      }
+    const checkHolder = holderRadius > 0 && Number.isFinite(stickout) && stickout > 0;
+    const holderMinimum = checkHolder ? [fixture.bounds[0][0] - holderRadius - fixture.clearance, fixture.bounds[0][1] - holderRadius - fixture.clearance, -Infinity] : null;
+    const holderMaximum = checkHolder ? [fixture.bounds[1][0] + holderRadius + fixture.clearance, fixture.bounds[1][1] + holderRadius + fixture.clearance, fixture.bounds[1][2] + fixture.clearance - stickout] : null;
+    let toolCollision = false;
+    let holderCollision = false;
+    for (const segment of toolpath.segments) {
+      const localSegment = toFixtureCoordinates(segment);
+      if (!toolCollision) toolCollision = segmentIntersectsBounds(localSegment, minimum, maximum);
+      if (checkHolder && !holderCollision) holderCollision = segmentIntersectsBounds(localSegment, holderMinimum, holderMaximum);
+      if (toolCollision && (holderCollision || !checkHolder)) break;
     }
+    if (toolCollision) issues.push({ code: 'FIXTURE_COLLISION', fixtureId: fixture.id, message: `Narzędzie lub jego wysunięty trzon przecina strefę ${fixture.name} albo wymagany odstęp.` });
+    if (holderCollision) issues.push({ code: 'HOLDER_FIXTURE_COLLISION', fixtureId: fixture.id, message: `Oprawka narzędzia może przeciąć strefę ${fixture.name} lub jej wymagany odstęp.` });
   }
   const stockTop = toolpath.stockBounds[1][2];
   for (const segment of toolpath.segments) {
@@ -1681,7 +1702,7 @@ export function createManufacturingSetupSheet(setup, bodies = [], { projectName 
   const issues = [...(report.setupIssues || []), ...report.operations.flatMap((operation) => operation.issues.map((issue) => `${operation.name}: ${issue.message}`)), ...(report.holeCompleteness?.entries || []).flatMap((entry) => [...entry.missingStages.map((stage) => `Ø${formatSetupSheetNumber(entry.diameter)}: brak etapu ${HOLE_STAGE_LABELS[stage] || stage}.`), ...entry.orderingIssues])];
   const activeFixtures = normalized.fixtures.filter((fixture) => fixture.enabled);
   const fixtureMarkup = activeFixtures.length
-    ? activeFixtures.map((fixture) => `<p>${escapeManufacturingHtml(fixture.name)} XYZ: ${fixture.bounds.map((point) => point.map((value) => formatSetupSheetNumber(value)).join(' / ')).join(' — ')} mm; odstęp ${formatSetupSheetNumber(fixture.clearance)} mm.</p>`).join('')
+    ? activeFixtures.map((fixture) => `<p>${escapeManufacturingHtml(fixture.name)} XYZ: ${fixture.bounds.map((point) => point.map((value) => formatSetupSheetNumber(value)).join(' / ')).join(' — ')} mm; odstęp ${formatSetupSheetNumber(fixture.clearance)} mm${fixture.rotationDegrees ? `; obrót Z ${formatSetupSheetNumber(fixture.rotationDegrees)}°` : ''}.</p>`).join('')
     : '<p>Strefy uchwytów: nieaktywne — sprawdź rzeczywiste mocowanie na obrabiarce.</p>';
   const issueMarkup = `${fixtureMarkup}${issues.length ? `<ul>${issues.map((issue) => `<li>${escapeManufacturingHtml(issue)}</li>`).join('')}</ul>` : '<p>Kontrola Setupu, ścieżek, kolizji i kompletności obróbki zakończona bez błędów.</p>'}`;
   const dimensions = setupResult.dimensions.map((value) => formatSetupSheetNumber(value)).join(' × ');
@@ -1712,8 +1733,8 @@ export function analyzeManufacturingSetupSequence(manufacturing, bodies = [], do
     }
     const activeFixtures = setup.fixtures.filter((fixture) => fixture.enabled);
     const previousFixtures = previous?.fixtures.filter((fixture) => fixture.enabled) || [];
-    const fixtureChanged = JSON.stringify(activeFixtures.map(({ bounds, clearance }) => ({ bounds, clearance })))
-      !== JSON.stringify(previousFixtures.map(({ bounds, clearance }) => ({ bounds, clearance })));
+    const fixtureChanged = JSON.stringify(activeFixtures.map(({ bounds, clearance, rotationDegrees }) => ({ bounds, clearance, rotationDegrees })))
+      !== JSON.stringify(previousFixtures.map(({ bounds, clearance, rotationDegrees }) => ({ bounds, clearance, rotationDegrees })));
     const requiresReclamp = !previous || previous.bodyId !== setup.bodyId || previous.machineId !== setup.machineId || fixtureChanged;
     const origin = setupResult.origin || null;
     const priorOffsetSetup = setups.slice(0, index).reverse().find((candidate) => candidate.machineId === setup.machineId && candidate.workOffset === setup.workOffset);
@@ -2097,6 +2118,7 @@ export function validateManufacturing(manufacturing) {
         if (!Array.isArray(fixture.bounds) || fixture.bounds.length !== 2 || fixture.bounds.some((side) => !Array.isArray(side) || side.length !== 3 || side.some((value) => !Number.isFinite(Number(value))))) issues.push({ path: `${fixtureBase}.bounds`, message: 'Strefa uchwytu wymaga sześciu skończonych współrzędnych.', code: 'VALUE' });
         else if (fixture.bounds[0].some((value, axis) => Number(value) >= Number(fixture.bounds[1][axis]))) issues.push({ path: `${fixtureBase}.bounds`, message: 'Strefa uchwytu wymaga dodatnich wymiarów X, Y i Z.', code: 'VALUE' });
         if (!Number.isFinite(Number(fixture.clearance)) || Number(fixture.clearance) < 0) issues.push({ path: `${fixtureBase}.clearance`, message: 'Odstęp od uchwytu musi być nieujemny.', code: 'VALUE' });
+        if (fixture.rotationDegrees !== undefined && !Number.isFinite(Number(fixture.rotationDegrees))) issues.push({ path: `${fixtureBase}.rotationDegrees`, message: 'Obrót uchwytu musi być skończonym kątem.', code: 'VALUE' });
         if (fixture.enabled && setup.operationKind === 'turning-2axis') issues.push({ path: fixtureBase, message: 'Strefa uchwytu nie obsługuje jeszcze tokarki.', code: 'UNSUPPORTED' });
       });
     }

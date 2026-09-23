@@ -5826,6 +5826,22 @@ test('CAM wykrywa kolizję trzonu narzędzia ponad końcówką i nie zgłasza uc
   assert.equal(analyzeToolpathSafety({ ...path, setup: { ...path.setup, fixtures: [{ ...fixture, bounds: [[4, -1, 111], [6, 1, 115]] }] } }).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
 });
 
+test('CAM obraca szczękę wokół środka także w kontroli kolizji trzonu', () => {
+  const setup = createManufacturingSetup({ bodyId: camBox.id });
+  const contour = createContourOperation({ targetDepth: 1, toolId: 'flat-6' });
+  const basePath = calculateContourToolpath(setup, contour, [camBox]);
+  const fixture = { id: 'angled-jaw', name: 'Ukośna szczęka', enabled: true, bounds: [[4, -1, 105], [16, 1, 108]], rotationDegrees: 90, clearance: 0 };
+  const path = {
+    ...basePath,
+    setup: { ...basePath.setup, fixtures: [fixture] },
+    tool: { ...basePath.tool, diameter: 2, stickout: 10, holderDiameter: 0 },
+    segments: [{ kind: 'rapid', from: [0, 5, 100], to: [20, 5, 100] }],
+  };
+  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION' && issue.fixtureId === fixture.id), true);
+  assert.equal(analyzeToolpathSafety({ ...path, setup: { ...path.setup, fixtures: [{ ...fixture, rotationDegrees: 0 }] } }).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
+  assert.equal(analyzeToolpathSafety({ ...path, segments: [{ kind: 'rapid', from: [13, 5, 100], to: [20, 5, 100] }] }).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
+});
+
 test('kontrola CAM analizuje 150 tys. segmentów bez przepełnienia stosu i zachowuje błędy bezpieczeństwa', () => {
   const setup = createManufacturingSetup({ bodyId: camBox.id });
   const contour = createContourOperation({ targetDepth: 1 });
@@ -5939,7 +5955,7 @@ test('CAM zapisuje foldery i szablony oraz migruje starsze schematy', () => {
 
 test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedynczy uchwyt v19', () => {
   const setup = createManufacturingSetup({ bodyId: camBox.id, fixtures: [
-    { name: 'Lewa szczęka', enabled: true, bounds: [[-5, -5, 0], [-2, 5, 15]], clearance: 2 },
+    { name: 'Lewa szczęka', enabled: true, bounds: [[-5, -5, 0], [-2, 5, 15]], rotationDegrees: 30, clearance: 2 },
     { name: 'Prawa szczęka', enabled: false, bounds: [[50, -5, 0], [55, 5, 15]], clearance: 1 },
   ] });
   const document = createDocument('Mocowanie CAM');
@@ -5949,6 +5965,12 @@ test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedync
   assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(opened.document.manufacturing.setups[0].fixtures, setup.fixtures);
   assert.deepEqual(validateManufacturing(opened.document.manufacturing), []);
+  assert.match(createManufacturingSetupSheet(setup, [camBox]).html, /obrót Z 30\.00°/);
+  const sameFixture = createManufacturingSetup({ bodyId: camBox.id, fixtures: setup.fixtures });
+  const sequence = { setups: [setup, sameFixture], activeSetupId: setup.id };
+  assert.equal(analyzeManufacturingSetupSequence(sequence, [camBox]).setups[1].requiresReclamp, false);
+  sameFixture.fixtures[0].rotationDegrees = 31;
+  assert.equal(analyzeManufacturingSetupSequence(sequence, [camBox]).setups[1].requiresReclamp, true);
   const legacy = createDocument('Mocowanie v19');
   legacy.schemaVersion = 19;
   legacy.manufacturing.setups = [{ ...setup, fixtures: undefined, fixture: { enabled: true, bounds: [[-5, -5, 0], [-2, 5, 15]], clearance: 2 } }];
@@ -5957,7 +5979,18 @@ test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedync
   assert.equal(migrated.document.manufacturing.setups[0].fixtures.length, 1);
   assert.equal(migrated.document.manufacturing.setups[0].fixtures[0].enabled, true);
   assert.deepEqual(migrated.document.manufacturing.setups[0].fixtures[0].bounds, [[-5, -5, 0], [-2, 5, 15]]);
+  assert.equal(migrated.document.manufacturing.setups[0].fixtures[0].rotationDegrees, 0);
   assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 19 && entry.to === 20), true);
+  assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 20 && entry.to === 21), true);
+  const v20 = createDocument('Mocowanie v20');
+  v20.schemaVersion = 20;
+  v20.manufacturing.setups = [{ ...setup, fixtures: [{ ...setup.fixtures[0], rotationDegrees: undefined }] }];
+  v20.manufacturing.activeSetupId = setup.id;
+  const upgraded = openDocument(v20);
+  assert.equal(upgraded.document.manufacturing.setups[0].fixtures[0].rotationDegrees, 0);
+  assert.equal(upgraded.document.metadata.migrationHistory.some((entry) => entry.from === 20 && entry.to === 21), true);
+  assert.equal(createManufacturingSetup({ fixtures: [{ rotationDegrees: 390 }] }).fixtures[0].rotationDegrees, 30);
+  assert.equal(createManufacturingSetup({ fixtures: [{ rotationDegrees: 1e308 }] }).fixtures[0].rotationDegrees < 360, true);
   setup.fixtures[0].bounds = [[5, -5, 0], [-2, 5, 15]];
   assert.equal(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixtures[0].bounds')), true);
 });
