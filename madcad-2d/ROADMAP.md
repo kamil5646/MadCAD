@@ -54,7 +54,7 @@ potwierdzonego wyniku bez blokowania użytkownika:
   wszystkich punktów i bez przekazywania dużej tablicy do stosu wywołań;
 - [x] granice obrysów kieszeni 2D i obróbki adaptacyjnej są mierzone iteracyjnie;
   regresja obejmuje 150 tys. punktów i nieprawidłowe współrzędne;
-- [~] raport CI publikuje czasy, pamięć i najwolniejszą operację, a przekroczenie
+- [x] raport CI publikuje czasy, pamięć i najwolniejszą operację, a przekroczenie
   ustalonego budżetu blokuje merge.
 
 Anulowanie przeliczenia zachowuje w widoku ostatni poprawnie obliczony model,
@@ -76,20 +76,23 @@ każdego scenariusza; test należy do pełnej bramki desktopowej na macOS i Wind
 Worker podaje też najwolniejszą operację historii. Raport korpusu zawiera czasy,
 szczyt pamięci procesu oraz budżety: 45 s na przebudowę, 15 s na pojedynczą
 operację, 5 s na siatkowanie bryły i 2 GiB szczytu pamięci procesu.
-Przekroczenie kończy test błędem; w GitHub Actions te same dane trafią do
-podsumowania zadania i artefaktu.
-Lokalny macOS przeszedł bramkę. Ochrona `main` wymaga obu zadań
-`Desktop E2E modeling` (macOS i Windows), więc błąd budżetu w tym scenariuszu
-blokuje merge; punkt pozostaje częściowy do czasu uruchomienia nowej bramki
-na Windows CI. Bez publikacji bieżącej gałęzi nie ma jeszcze tego wyniku.
+Przekroczenie kończy test błędem; w GitHub Actions te same dane trafiają do
+podsumowania zadania i artefaktu. CI `35823985456` na roboczym PR #87
+potwierdziło oba zadania `Desktop E2E modeling` oraz łącznie 19/19 zadań CI
+i osobny CodeQL. Raporty korpusu z obu systemów mają `failures: []`:
+najdłuższe przeliczenie to 39,2 s na Windows i 6,3 s na macOS, a największy
+odnotowany szczyt pamięci wyniósł odpowiednio 429 636 KiB i 544 656 KiB.
+Budżety pozostają częścią wymaganej kontroli `main`, więc przekroczenie
+blokuje merge. Wynik dotyczy tej gałęzi i tego uruchomienia, nie dowodzi
+jeszcze gotowości całego produktu do wydania.
 
 Kontrola istniejącego CI z 2026-09-23 (run `35800781854`, starszy commit)
 wykazała dwa błędy scenariuszy desktopowych: na macOS test otwartego szkicu
 zakładał samoczynne zakończenie polecenia linii, a na Windows test naprawy
 referencji szukał przycisku kandydata osobno od kliknięcia, gdy silnik nadal
-przeliczał historię. Testy lokalne synchronizują teraz oba kroki ze stanem
-aplikacji; pełny scenariusz modelowania przechodzi na macOS. To nie potwierdza
-jeszcze działania poprawki na Windows ani całkowitej gotowości produktu.
+przeliczał historię. Testy synchronizują teraz oba kroki ze stanem aplikacji;
+powtórne pełne scenariusze modelowania przeszły na macOS i Windows w CI
+`35823985456`. To nie potwierdza jeszcze całkowitej gotowości produktu.
 Nowego wydania, taga ani publikacji strony nie wykonujemy przed zamknięciem
 całego celu i przejściem pełnej bramki na docelowych systemach.
 
