@@ -42,4 +42,7 @@ silnika, osi czasu oraz diagnostykę. W CI `35854165469` pełny scenariusz
 `verify-large-projects` na obu systemach nadal oczekiwał zwiększenia rewizji
 po otwarciu identycznego autozapisu. Oczekiwanie zmieniono na zachowanie tej
 samej rewizji i objętości przy 220 operacjach; lokalny scenariusz przeszedł.
-Ponowny pełny przebieg CI musi jeszcze potwierdzić całą część modelowania.
+Pełny CI `35905193839` dla commitu `8dacfd3` potwierdził zmianę na macOS i
+Windows: oba pełne shardy modelowania oraz wszystkie instalatory przeszły,
+łącznie 19/19 zadań. CodeQL `35905193939` również przeszedł. Kolejny commit
+zmienia podział shardów, więc jego macierz wymaga osobnego potwierdzenia.

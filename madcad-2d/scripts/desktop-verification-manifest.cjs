@@ -1,6 +1,8 @@
 module.exports = Object.freeze({
   modeling: Object.freeze([
     'scripts/verify-modeling.cjs',
+  ]),
+  'modeling-features': Object.freeze([
     'scripts/verify-large-projects.cjs',
     'scripts/verify-large-project-corpus.cjs',
     'scripts/verify-surface-modeling.cjs',
@@ -11,10 +13,12 @@ module.exports = Object.freeze({
     'scripts/verify-form.cjs',
     'scripts/verify-extrude-after-sketch.cjs',
     'scripts/verify-ucs-sketch.cjs',
-    'scripts/verify-sketch-3d.cjs',
     'scripts/verify-constraint-suggestions.cjs',
     'scripts/verify-under-constraint.cjs',
     'scripts/verify-hole-standards.cjs',
+  ]),
+  'modeling-3d': Object.freeze([
+    'scripts/verify-sketch-3d.cjs',
   ]),
   interoperability: Object.freeze([
     'scripts/verify-model-import.cjs',
