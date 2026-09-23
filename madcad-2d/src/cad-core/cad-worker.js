@@ -2406,8 +2406,8 @@ function selectedFaceHashes(shape, references) {
 function faceDescriptor(face) {
   let properties;
   try {
-    const center = face.center.toTuple();
     properties = measureShapeSurfaceProperties(face);
+    const center = [...properties.centerOfMass];
     const descriptor = {
       geometry: face.geomType,
       center,
@@ -2592,11 +2592,17 @@ function evaluateSurfaceProjections(document, evaluated, parameters) {
   return updates;
 }
 
-function measureBodyShape(shape) {
+function measureBodyShape(shape, topologyCounts = null) {
   const surface = measureShapeSurfaceProperties(shape);
   const volume = measureShapeVolumeProperties(shape);
   const boundingBox = shape.boundingBox;
+  let faces;
+  let edges;
   try {
+    if (!topologyCounts) {
+      faces = shape.faces;
+      edges = shape.edges;
+    }
     const bounds = boundingBox.bounds.map((point) => [...point]);
     return {
       volume: volume.volume,
@@ -2608,10 +2614,12 @@ function measureBodyShape(shape) {
         bounds[1][1] - bounds[0][1],
         bounds[1][2] - bounds[0][2],
       ],
-      faceCount: shape.faces.length,
-      edgeCount: shape.edges.length,
+      faceCount: topologyCounts?.faceCount ?? faces.length,
+      edgeCount: topologyCounts?.edgeCount ?? edges.length,
     };
   } finally {
+    faces?.forEach((face) => face.delete());
+    edges?.forEach((edge) => edge.delete());
     surface.delete();
     volume.delete();
     boundingBox.delete();
@@ -2710,83 +2718,90 @@ function meshBody(body, index, quality = 'display') {
     tolerance: meshPolicy.linearTolerance,
     angularTolerance: meshPolicy.angularTolerance,
   });
-  const shapeFaces = body.shape.faces;
-  const shapeEdges = body.shape.edges;
-  const faceHashesByEdgeHash = new Map();
-  shapeFaces.forEach((face) => {
-    const faceEdges = face.edges;
-    try {
-      faceEdges.forEach((edge) => {
-        const hashes = faceHashesByEdgeHash.get(edge.hashCode) || new Set();
-        hashes.add(face.hashCode);
-        faceHashesByEdgeHash.set(edge.hashCode, hashes);
-      });
-    } finally {
-      faceEdges.forEach((edge) => edge.delete());
-    }
-  });
-  const previousTopology = topologyHistory.get(body.id) || { faces: [], edges: [], vertices: [] };
-  const faces = assignStableTopologyIds(body.id, 'face', shapeFaces.map(faceDescriptor), previousTopology.faces)
-    .map((record, faceIndex) => ({ ...record, sourceHash: shapeFaces[faceIndex].hashCode }));
-  const stableEdgeRecords = assignStableTopologyIds(body.id, 'edge', shapeEdges.map(edgeDescriptor), previousTopology.edges)
-    .map((record, edgeIndex) => ({ ...record, sourceHash: shapeEdges[edgeIndex].hashCode }));
-  const faceIds = new Map(faces.map((face) => [face.sourceHash, face.id]));
-  const stableEdges = stableEdgeRecords.map((edge) => ({
-    ...edge,
-    descriptor: {
-      ...edge.descriptor,
-      surfaceFaceIds: [...(faceHashesByEdgeHash.get(edge.sourceHash) || [])].map((hash) => faceIds.get(hash)).filter(Boolean).sort(),
-    },
-  }));
-  const vertexDescriptors = [...new Map(stableEdges.flatMap((edge) => (edge.descriptor.endpoints || []).map((point) => [JSON.stringify(point), { point }]))).values()];
-  const stableVertices = assignStableTopologyIds(body.id, 'vertex', vertexDescriptors, previousTopology.vertices);
-  const edgeIds = new Map(stableEdges.map((edge) => [edge.sourceHash, edge.id]));
-  const renderBody = {
-    id: body.id,
-    name: body.name,
-    sourceFeatureId: body.sourceFeatureId,
-    bodyKind: body.bodyKind || 'solid',
-    representation: body.representation || 'brep',
-    manufacturingHoles: body.manufacturingHoles || [],
-    sheetMetal: body.sheetMetal || null,
-    plasticFeatures: body.plasticFeatures || [],
-    form: body.form || null,
-    color: ['#55b7db', '#81c784', '#ffb95c', '#c49cff'][index % 4],
-    vertices: Float32Array.from(mesh.vertices),
-    normals: Float32Array.from(mesh.normals),
-    triangles: Uint32Array.from(mesh.triangles),
-    lines: Float32Array.from(edges.lines),
-    faceGroups: mesh.faceGroups.map((group) => ({
-      start: group.start,
-      count: group.count,
-      sourceHash: group.faceId,
-      topologyId: faceIds.get(group.faceId) || null,
-    })),
-    edgeGroups: edges.edgeGroups.map((group) => ({
-      start: group.start,
-      count: group.count,
-      sourceHash: group.edgeId,
-      topologyId: edgeIds.get(group.edgeId) || null,
-    })),
-    topology: {
-      faces: faces.map(({ sourceHash, ...face }) => ({ ...face, sourceHash })),
-      edges: stableEdges.map(({ sourceHash, ...edge }) => ({ ...edge, sourceHash })),
-      vertices: stableVertices,
-    },
-    metrics: measureBodyShape(body.shape),
-  };
-  const topologyRadii = [...faces, ...stableEdges].map((record) => record.descriptor?.radius).filter((radius) => Number.isFinite(radius) && radius > 0);
-  renderBody.metrics.minimumRadius = topologyRadii.length ? Math.min(...topologyRadii) : null;
-  renderBody.bounds = renderBody.metrics.bounds;
-  return {
-    renderBody,
-    topologyState: { faces, edges: stableEdges, vertices: stableVertices },
-    performance: {
-      bodyId: body.id,
-      durationMs: performance.now() - startedAt,
-      triangleCount: renderBody.triangles.length / 3,
-    },
-  };
+  let shapeFaces;
+  let shapeEdges;
+  try {
+    shapeFaces = body.shape.faces;
+    shapeEdges = body.shape.edges;
+    const faceHashesByEdgeHash = new Map();
+    shapeFaces.forEach((face) => {
+      const faceEdges = face.edges;
+      try {
+        faceEdges.forEach((edge) => {
+          const hashes = faceHashesByEdgeHash.get(edge.hashCode) || new Set();
+          hashes.add(face.hashCode);
+          faceHashesByEdgeHash.set(edge.hashCode, hashes);
+        });
+      } finally {
+        faceEdges.forEach((edge) => edge.delete());
+      }
+    });
+    const previousTopology = topologyHistory.get(body.id) || { faces: [], edges: [], vertices: [] };
+    const faces = assignStableTopologyIds(body.id, 'face', shapeFaces.map(faceDescriptor), previousTopology.faces)
+      .map((record, faceIndex) => ({ ...record, sourceHash: shapeFaces[faceIndex].hashCode }));
+    const stableEdgeRecords = assignStableTopologyIds(body.id, 'edge', shapeEdges.map(edgeDescriptor), previousTopology.edges)
+      .map((record, edgeIndex) => ({ ...record, sourceHash: shapeEdges[edgeIndex].hashCode }));
+    const faceIds = new Map(faces.map((face) => [face.sourceHash, face.id]));
+    const stableEdges = stableEdgeRecords.map((edge) => ({
+      ...edge,
+      descriptor: {
+        ...edge.descriptor,
+        surfaceFaceIds: [...(faceHashesByEdgeHash.get(edge.sourceHash) || [])].map((hash) => faceIds.get(hash)).filter(Boolean).sort(),
+      },
+    }));
+    const vertexDescriptors = [...new Map(stableEdges.flatMap((edge) => (edge.descriptor.endpoints || []).map((point) => [JSON.stringify(point), { point }]))).values()];
+    const stableVertices = assignStableTopologyIds(body.id, 'vertex', vertexDescriptors, previousTopology.vertices);
+    const edgeIds = new Map(stableEdges.map((edge) => [edge.sourceHash, edge.id]));
+    const renderBody = {
+      id: body.id,
+      name: body.name,
+      sourceFeatureId: body.sourceFeatureId,
+      bodyKind: body.bodyKind || 'solid',
+      representation: body.representation || 'brep',
+      manufacturingHoles: body.manufacturingHoles || [],
+      sheetMetal: body.sheetMetal || null,
+      plasticFeatures: body.plasticFeatures || [],
+      form: body.form || null,
+      color: ['#55b7db', '#81c784', '#ffb95c', '#c49cff'][index % 4],
+      vertices: Float32Array.from(mesh.vertices),
+      normals: Float32Array.from(mesh.normals),
+      triangles: Uint32Array.from(mesh.triangles),
+      lines: Float32Array.from(edges.lines),
+      faceGroups: mesh.faceGroups.map((group) => ({
+        start: group.start,
+        count: group.count,
+        sourceHash: group.faceId,
+        topologyId: faceIds.get(group.faceId) || null,
+      })),
+      edgeGroups: edges.edgeGroups.map((group) => ({
+        start: group.start,
+        count: group.count,
+        sourceHash: group.edgeId,
+        topologyId: edgeIds.get(group.edgeId) || null,
+      })),
+      topology: {
+        faces: faces.map(({ sourceHash, ...face }) => ({ ...face, sourceHash })),
+        edges: stableEdges.map(({ sourceHash, ...edge }) => ({ ...edge, sourceHash })),
+        vertices: stableVertices,
+      },
+      metrics: measureBodyShape(body.shape, { faceCount: shapeFaces.length, edgeCount: shapeEdges.length }),
+    };
+    const topologyRadii = [...faces, ...stableEdges].map((record) => record.descriptor?.radius).filter((radius) => Number.isFinite(radius) && radius > 0);
+    renderBody.metrics.minimumRadius = topologyRadii.length ? Math.min(...topologyRadii) : null;
+    renderBody.bounds = renderBody.metrics.bounds;
+    return {
+      renderBody,
+      topologyState: { faces, edges: stableEdges, vertices: stableVertices },
+      performance: {
+        bodyId: body.id,
+        durationMs: performance.now() - startedAt,
+        triangleCount: renderBody.triangles.length / 3,
+      },
+    };
+  } finally {
+    shapeFaces?.forEach((face) => face.delete());
+    shapeEdges?.forEach((edge) => edge.delete());
+  }
 }
 
 function disposeKernelBodies(bodies) {

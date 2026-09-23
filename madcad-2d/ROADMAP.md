@@ -88,6 +88,11 @@ odnotowany szczyt pamięci wyniósł odpowiednio 429 636 KiB i 544 656 KiB.
 Budżety pozostają częścią wymaganej kontroli `main`, więc przekroczenie
 blokuje merge. Wynik dotyczy tej gałęzi i tego uruchomienia, nie dowodzi
 jeszcze gotowości całego produktu do wydania.
+Nowszy przebieg `35827561178` wykazał na Windows pojedyncze przekroczenie
+o `363 ms` w siatkowaniu korpusu szkiców. Diagnoza, usunięty nadmiar pracy
+i sposób sprawdzenia kolejnego CI są w
+[CAD_MESH_PERFORMANCE.md](./docs/CAD_MESH_PERFORMANCE.md); budżet nie został
+podniesiony.
 
 Kontrola istniejącego CI z 2026-09-23 (run `35800781854`, starszy commit)
 wykazała dwa błędy scenariuszy desktopowych: na macOS test otwartego szkicu
