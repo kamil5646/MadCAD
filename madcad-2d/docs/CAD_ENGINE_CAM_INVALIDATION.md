@@ -44,5 +44,7 @@ po otwarciu identycznego autozapisu. Oczekiwanie zmieniono na zachowanie tej
 samej rewizji i objętości przy 220 operacjach; lokalny scenariusz przeszedł.
 Pełny CI `35905193839` dla commitu `8dacfd3` potwierdził zmianę na macOS i
 Windows: oba pełne shardy modelowania oraz wszystkie instalatory przeszły,
-łącznie 19/19 zadań. CodeQL `35905193939` również przeszedł. Kolejny commit
-zmienia podział shardów, więc jego macierz wymaga osobnego potwierdzenia.
+łącznie 19/19 zadań. CodeQL `35905193939` również przeszedł. CI
+`35908613650` dla commitu `63d4a5e` potwierdził następnie podział modelowania
+na trzy równoległe części: 23/23 zadań zakończyło się powodzeniem. CodeQL
+`35908613712` także przeszedł.
