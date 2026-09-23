@@ -52,6 +52,8 @@ potwierdzonego wyniku bez blokowania użytkownika:
   dokumentu korpusu zachowują identyczny wynik geometrii i trwałe referencje;
 - [x] kontrola bezpieczeństwa CAM przetwarza 150 tys. segmentów bez kopiowania
   wszystkich punktów i bez przekazywania dużej tablicy do stosu wywołań;
+- [x] granice obrysów kieszeni 2D i obróbki adaptacyjnej są mierzone iteracyjnie;
+  regresja obejmuje 150 tys. punktów i nieprawidłowe współrzędne;
 - [~] raport CI publikuje czasy, pamięć i najwolniejszą operację, a przekroczenie
   ustalonego budżetu blokuje merge.
 

@@ -56,7 +56,7 @@ import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/p
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
-import { analyzeManufacturingProgram, analyzeManufacturingSetupSequence, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createDrillingOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, ensureDocumentManufacturing, extractTopBoundaryLoops, instantiateManufacturingOperationTemplate, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
+import { analyzeManufacturingProgram, analyzeManufacturingSetupSequence, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createDrillingOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, ensureDocumentManufacturing, extractTopBoundaryLoops, instantiateManufacturingOperationTemplate, measureCamPolygonBounds, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
 import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
@@ -5818,6 +5818,16 @@ test('kontrola CAM analizuje 150 tys. segmentów bez przepełnienia stosu i zach
   assert.deepEqual(analyzeToolpathSafety({ ...base, segments }), []);
   assert.equal(analyzeToolpathSafety({ ...base, segments: [...segments, { kind: 'rapid', from: [1, 0, 100], to: [600, 0, 100] }] }).some((issue) => issue.code === 'MACHINE_TRAVEL'), true);
   assert.equal(analyzeToolpathSafety({ ...base, segments: [...segments, { kind: 'cut', from: [1, 0, 100], to: [1, 0, NaN] }] })[0].code, 'NON_FINITE');
+});
+
+test('obrysy kieszeni i obróbki adaptacyjnej mierzą 150 tys. punktów bez limitu argumentów', () => {
+  const points = Array.from({ length: 150000 }, (_unused, index) => {
+    const angle = index / 150000 * Math.PI * 2;
+    return [20 * Math.cos(angle), 10 * Math.sin(angle)];
+  });
+  assert.deepEqual(measureCamPolygonBounds(points), [[-20, -10], [20, 10]]);
+  assert.equal(measureCamPolygonBounds([...points, [NaN, 0]]), null);
+  assert.equal(measureCamPolygonBounds([]), null);
 });
 
 test('CAM kontroluje przejazd między operacjami i blokuje eksport mimo bezpiecznych osobnych ścieżek', () => {

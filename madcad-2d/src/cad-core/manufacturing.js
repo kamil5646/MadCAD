@@ -1061,6 +1061,22 @@ function scanlineIntervals(polygon, y) {
   return intervals;
 }
 
+export function measureCamPolygonBounds(points) {
+  if (!Array.isArray(points) || !points.length) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const point of points) {
+    if (!point || !Number.isFinite(point[0]) || !Number.isFinite(point[1])) return null;
+    minX = Math.min(minX, point[0]);
+    minY = Math.min(minY, point[1]);
+    maxX = Math.max(maxX, point[0]);
+    maxY = Math.max(maxY, point[1]);
+  }
+  return [[minX, minY], [maxX, maxY]];
+}
+
 export function calculatePocketToolpath(setup, operation, bodies = [], document = null) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
   const normalized = normalizePocketOperation(operation);
@@ -1077,11 +1093,10 @@ export function calculatePocketToolpath(setup, operation, bodies = [], document 
   try { resolvedBoundary = resolveOperationBoundary(setupResult, normalized, document); } catch (error) { return fail(error.message); }
   const { loops } = resolvedBoundary;
   const boundary = offsetClosedContour(loops[0], -tool.diameter / 2);
-  const xs = boundary.map((point) => point[0]);
-  const ys = boundary.map((point) => point[1]);
-  const minimumY = Math.min(...ys);
-  const maximumY = Math.max(...ys);
-  if (!(Math.max(...xs) - Math.min(...xs) > 1e-7) || !(maximumY - minimumY > 1e-7)) return fail('Obrys jest za mały dla wybranego narzędzia.');
+  const bounds = measureCamPolygonBounds(boundary);
+  if (!bounds || !(bounds[1][0] - bounds[0][0] > 1e-7) || !(bounds[1][1] - bounds[0][1] > 1e-7)) return fail('Obrys jest za mały dla wybranego narzędzia.');
+  const minimumY = bounds[0][1];
+  const maximumY = bounds[1][1];
   const rowStep = tool.diameter * normalized.stepover;
   const rowCount = Math.max(2, Math.ceil((maximumY - minimumY) / rowStep) + 1);
   const rows = [];
@@ -1153,9 +1168,8 @@ export function calculateAdaptiveToolpath(setup, operation, bodies = [], documen
     rings.push(ring);
     const next = offsetClosedContour(ring, -radialStep);
     const nextArea = Math.abs(signedPolygonArea(next));
-    const xs = next.map((point) => point[0]);
-    const ys = next.map((point) => point[1]);
-    if (nextArea >= previousArea - 1e-7 || Math.max(...xs) - Math.min(...xs) < radialStep || Math.max(...ys) - Math.min(...ys) < radialStep) break;
+    const nextBounds = measureCamPolygonBounds(next);
+    if (!nextBounds || nextArea >= previousArea - 1e-7 || nextBounds[1][0] - nextBounds[0][0] < radialStep || nextBounds[1][1] - nextBounds[0][1] < radialStep) break;
     ring = next;
     previousArea = nextArea;
   }
