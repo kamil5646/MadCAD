@@ -1385,6 +1385,61 @@ function segmentIntersectsBounds(segment, minimum, maximum) {
   return true;
 }
 
+function squaredDistanceToSegment2d(point, start, end) {
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  const lengthSquared = dx * dx + dy * dy;
+  const fraction = lengthSquared > 0
+    ? Math.max(0, Math.min(1, ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / lengthSquared))
+    : 0;
+  const offsetX = point[0] - start[0] - fraction * dx;
+  const offsetY = point[1] - start[1] - fraction * dy;
+  return offsetX * offsetX + offsetY * offsetY;
+}
+
+function segmentIntersectsFixtureFootprint(segment, minimum, maximum, radius, clearance, lowerZ, upperZ) {
+  const rectangleMinimum = [minimum[0] - clearance, minimum[1] - clearance];
+  const rectangleMaximum = [maximum[0] + clearance, maximum[1] + clearance];
+  const broadMinimum = [rectangleMinimum[0] - radius, rectangleMinimum[1] - radius, lowerZ];
+  const broadMaximum = [rectangleMaximum[0] + radius, rectangleMaximum[1] + radius, upperZ];
+  if (!segmentIntersectsBounds(segment, broadMinimum, broadMaximum)) return false;
+
+  const deltaZ = segment.to[2] - segment.from[2];
+  let first = 0;
+  let last = 1;
+  if (Math.abs(deltaZ) > 1e-9) {
+    const entry = (lowerZ - segment.from[2]) / deltaZ;
+    const exit = (upperZ - segment.from[2]) / deltaZ;
+    first = Math.max(0, Math.min(entry, exit));
+    last = Math.min(1, Math.max(entry, exit));
+  }
+  if (first > last) return false;
+  const deltaX = segment.to[0] - segment.from[0];
+  const deltaY = segment.to[1] - segment.from[1];
+  const start = [segment.from[0] + first * deltaX, segment.from[1] + first * deltaY];
+  const end = [segment.from[0] + last * deltaX, segment.from[1] + last * deltaY];
+  if (segmentIntersectsBounds(
+    { from: [start[0], start[1], 0], to: [end[0], end[1], 0] },
+    [...rectangleMinimum, -Infinity], [...rectangleMaximum, Infinity],
+  )) return true;
+
+  const corners = [
+    rectangleMinimum,
+    [rectangleMaximum[0], rectangleMinimum[1]],
+    rectangleMaximum,
+    [rectangleMinimum[0], rectangleMaximum[1]],
+  ];
+  const radiusSquared = radius * radius + 1e-9;
+  for (let index = 0; index < corners.length; index += 1) {
+    const corner = corners[index];
+    const next = corners[(index + 1) % corners.length];
+    if (squaredDistanceToSegment2d(start, corner, next) <= radiusSquared
+      || squaredDistanceToSegment2d(end, corner, next) <= radiusSquared
+      || squaredDistanceToSegment2d(corner, start, end) <= radiusSquared) return true;
+  }
+  return false;
+}
+
 function createFixtureSegmentTransform(fixture) {
   const angle = (Number(fixture.rotationDegrees || 0) % 360) * Math.PI / 180;
   if (!angle) return (segment) => segment;
@@ -1429,20 +1484,15 @@ export function analyzeToolpathSafety(toolpath) {
     const radius = Math.max(0, Number(toolpath.tool?.diameter) || 0) / 2;
     const stickout = Number(toolpath.tool?.stickout);
     const exposedLength = Number.isFinite(stickout) && stickout > 0 ? stickout : 0;
-    const margin = fixture.clearance + radius;
     // The path follows the tip, but the exposed cutter and shank reach above it.
-    const minimum = fixture.bounds[0].map((value, axis) => value - (axis === 2 ? fixture.clearance + exposedLength : margin));
-    const maximum = fixture.bounds[1].map((value, axis) => value + (axis === 2 ? fixture.clearance : margin));
     const holderRadius = Math.max(0, Number(toolpath.tool?.holderDiameter) || 0) / 2;
     const checkHolder = holderRadius > 0 && Number.isFinite(stickout) && stickout > 0;
-    const holderMinimum = checkHolder ? [fixture.bounds[0][0] - holderRadius - fixture.clearance, fixture.bounds[0][1] - holderRadius - fixture.clearance, -Infinity] : null;
-    const holderMaximum = checkHolder ? [fixture.bounds[1][0] + holderRadius + fixture.clearance, fixture.bounds[1][1] + holderRadius + fixture.clearance, fixture.bounds[1][2] + fixture.clearance - stickout] : null;
     let toolCollision = false;
     let holderCollision = false;
     for (const segment of toolpath.segments) {
       const localSegment = toFixtureCoordinates(segment);
-      if (!toolCollision) toolCollision = segmentIntersectsBounds(localSegment, minimum, maximum);
-      if (checkHolder && !holderCollision) holderCollision = segmentIntersectsBounds(localSegment, holderMinimum, holderMaximum);
+      if (!toolCollision) toolCollision = segmentIntersectsFixtureFootprint(localSegment, fixture.bounds[0], fixture.bounds[1], radius, fixture.clearance, fixture.bounds[0][2] - fixture.clearance - exposedLength, fixture.bounds[1][2] + fixture.clearance);
+      if (checkHolder && !holderCollision) holderCollision = segmentIntersectsFixtureFootprint(localSegment, fixture.bounds[0], fixture.bounds[1], holderRadius, fixture.clearance, -Infinity, fixture.bounds[1][2] + fixture.clearance - stickout);
       if (toolCollision && (holderCollision || !checkHolder)) break;
     }
     if (toolCollision) issues.push({ code: 'FIXTURE_COLLISION', fixtureId: fixture.id, message: `Narzędzie lub jego wysunięty trzon przecina strefę ${fixture.name} albo wymagany odstęp.` });

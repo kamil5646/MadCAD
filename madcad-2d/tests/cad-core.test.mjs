@@ -5854,6 +5854,26 @@ test('CAM obraca szczękę wokół środka także w kontroli kolizji trzonu', ()
   assert.equal(analyzeToolpathSafety({ ...path, segments: [{ kind: 'rapid', from: [13, 5, 100], to: [20, 5, 100] }] }).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
 });
 
+test('okrągły frez i oprawka nie zgłaszają fałszywej kolizji przy narożniku szczęki', () => {
+  const setup = createManufacturingSetup({ bodyId: camBox.id });
+  const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-6' });
+  const basePath = calculateContourToolpath(setup, operation, [camBox]);
+  const fixture = { id: 'jaw-corner', name: 'Narożnik szczęki', enabled: true, bounds: [[0, 0, 106], [10, 10, 110]], clearance: 0 };
+  const segmentAt = (x, y) => [{ kind: 'rapid', from: [x, y, 100], to: [x, y, 100] }];
+  const path = {
+    ...basePath,
+    setup: { ...basePath.setup, fixtures: [fixture] },
+    tool: { ...basePath.tool, diameter: 2, holderDiameter: 4, stickout: 5 },
+    segments: segmentAt(-1.5, -1.5),
+  };
+  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION' || issue.code === 'HOLDER_FIXTURE_COLLISION'), false);
+  assert.equal(analyzeToolpathSafety({ ...path, segments: [{ kind: 'rapid', from: [-1.5, -1.5, 100], to: [-2, -1.5, 100] }] }).some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION'), false);
+  assert.equal(analyzeToolpathSafety({ ...path, segments: segmentAt(-1.4, -1.4) }).some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION'), true);
+  const cutterPath = { ...path, tool: { ...path.tool, stickout: 10, holderDiameter: 0 }, segments: segmentAt(-0.9, -0.9) };
+  assert.equal(analyzeToolpathSafety(cutterPath).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
+  assert.equal(analyzeToolpathSafety({ ...cutterPath, segments: segmentAt(-0.7, -0.7) }).some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
+});
+
 test('obrócona szczęka blokuje eksport rzeczywistego programu CAM, a odsunięta nie', () => {
   const operation = createFacingOperation({ toolId: 'flat-6' });
   const fixture = { id: 'rotated-program-jaw', name: 'Szczęka programu', enabled: true, bounds: [[-50, 59, 10], [90, 61, 12]], rotationDegrees: 90, clearance: 0 };

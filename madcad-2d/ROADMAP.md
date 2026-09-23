@@ -335,6 +335,7 @@ Te prace nie czekają na koniec modelowania:
   - [x] Kontrola ścieżki obejmuje również szerokość oprawki i jej minimalny wysięg nad końcówką narzędzia przy strefach uchwytów; wykryta kolizja blokuje eksport G-code.
   - [x] Kontrola obejmuje też wysunięty trzon narzędzia ponad końcówką na każdym odcinku, również szybkim; scenariusz szczęki ponad końcówką ma test regresyjny.
   - [x] Strefę szczęki można obrócić wokół własnego środka w osi Z; ten sam kąt obowiązuje w widoku, raporcie, kontroli narzędzia i oprawki oraz migracji dokumentu v20→v21.
+  - [x] Okrągły przekrój freza i oprawki jest sprawdzany względem narożnika szczęki po obrocie, bez fałszywego przecięcia wynikającego wyłącznie z kwadratowej obwiedni; regresja obejmuje bezpieczny i kolizyjny przejazd.
   - [x] Eksport najpierw podnosi Z i ustawia XY na płaszczyźnie bezpiecznej; pełny program sprawdza dodatkowo przejazdy między operacjami tego samego Setupu.
   - [x] Toczenie rozdziela dojazd na odsunięcie promieniowe X, przejazd osiowy Z i powrót do promienia startowego; blokuje nieosiągalną średnicę bezpieczną.
   - [ ] Rozszerzyć mocowanie o rzeczywistą geometrię szczęk i oprawek oraz kontrolę wszystkich przejazdów maszyny.
