@@ -55,7 +55,7 @@ import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/p
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
-import { analyzeManufacturingProgram, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingProgramGcode, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createTurningOperation, duplicateManufacturingOperation, extractTopBoundaryLoops, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
+import { analyzeManufacturingProgram, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, ensureDocumentManufacturing, extractTopBoundaryLoops, instantiateManufacturingOperationTemplate, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
 import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
@@ -5626,7 +5626,7 @@ test('dokument v15 migruje dane wytwarzania do bieżącego schematu i przechodzi
   delete legacy.manufacturing;
   const opened = openDocument(legacy, { now: '2026-09-08T12:00:00.000Z' });
   assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
-  assert.deepEqual(opened.document.manufacturing, { setups: [], activeSetupId: '', tools: [] });
+  assert.deepEqual(opened.document.manufacturing, { setups: [], activeSetupId: '', tools: [], operationTemplates: [] });
   assert.equal(validateDocument(opened.document).valid, true);
   assert.equal(opened.document.metadata.migrationHistory.some((entry) => entry.from === 15 && entry.to === 16), true);
 });
@@ -5757,6 +5757,34 @@ test('CAM zarządza kolejnością, eksportuje kompletny program i tworzy arkusz 
   assert.match(sheet.html, /Arkusz ustawczy CAM/);
   assert.match(sheet.html, /Korpus &amp; produkcja/);
   assert.match(sheet.html, /GOTOWY/);
+});
+
+test('CAM zapisuje foldery i bezpieczne szablony operacji w schemacie v18', () => {
+  const group = createManufacturingOperationGroup({ name: 'Obróbka zgrubna' });
+  const source = createPocketOperation({ name: 'Kieszeń Al', targetDepth: 4, boundaryFaceId: 'face-top' });
+  const setup = createManufacturingSetup({ bodyId: camBox.id, operationGroups: [group], operations: [{ ...source, groupId: group.id }] });
+  const template = createManufacturingOperationTemplate(source, { name: 'Kieszeń aluminium' });
+  const document = ensureDocumentManufacturing({ manufacturing: { setups: [setup], activeSetupId: setup.id, tools: [], operationTemplates: [template] } });
+  assert.equal(document.manufacturing.setups[0].operations[0].groupId, group.id);
+  assert.equal(document.manufacturing.operationTemplates[0].operation.boundaryFaceId, '');
+  assert.deepEqual(validateManufacturing(document.manufacturing), []);
+  const instance = instantiateManufacturingOperationTemplate(template, setup, { groupId: group.id });
+  assert.equal(instance.type, 'pocket');
+  assert.equal(instance.targetDepth, 4);
+  assert.equal(instance.groupId, group.id);
+  assert.notEqual(instance.id, source.id);
+  const removed = deleteManufacturingOperationGroup({ ...setup, operations: [...setup.operations, instance] }, group.id);
+  assert.equal(removed.changed, true);
+  assert.equal(removed.operationGroups.length, 0);
+  assert.deepEqual(removed.operations.map((operation) => operation.groupId), ['', '']);
+  assert.equal(deleteManufacturingOperationGroup(removed, 'missing').changed, false);
+  const legacy = createDocument('CAM v17');
+  legacy.schemaVersion = 17;
+  delete legacy.manufacturing.operationTemplates;
+  const migrated = openDocument(legacy, { now: '2026-09-22T12:00:00.000Z' });
+  assert.equal(migrated.document.schemaVersion, 18);
+  assert.deepEqual(migrated.document.manufacturing.operationTemplates, []);
+  assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 17 && entry.to === 18), true);
 });
 
 test('CAM generuje skompensowane cięcie laserowe i plazmowe z kontrolą zgodności maszyny', () => {

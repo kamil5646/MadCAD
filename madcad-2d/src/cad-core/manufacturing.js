@@ -250,16 +250,18 @@ export function normalizeTurningOperation(operation = {}, index = 0) {
 }
 
 export function normalizeManufacturingOperation(operation = {}, index = 0) {
-  if (operation?.type === 'contour') return normalizeContourOperation(operation, index);
-  if (operation?.type === 'pocket') return normalizePocketOperation(operation, index);
-  if (operation?.type === 'adaptive') return normalizeAdaptiveOperation(operation, index);
-  if (operation?.type === 'drill') return normalizeDrillingOperation(operation, index);
-  if (operation?.type === 'tap') return normalizeTappingOperation(operation, index);
-  if (operation?.type === 'spot') return normalizeSpotDrillingOperation(operation, index);
-  if (operation?.type === 'counterbore') return normalizeCounterboreOperation(operation, index);
-  if (operation?.type === 'cut2d') return normalizeCut2dOperation(operation, index);
-  if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') return normalizeTurningOperation(operation, index);
-  return normalizeFacingOperation(operation, index);
+  let normalized;
+  if (operation?.type === 'contour') normalized = normalizeContourOperation(operation, index);
+  else if (operation?.type === 'pocket') normalized = normalizePocketOperation(operation, index);
+  else if (operation?.type === 'adaptive') normalized = normalizeAdaptiveOperation(operation, index);
+  else if (operation?.type === 'drill') normalized = normalizeDrillingOperation(operation, index);
+  else if (operation?.type === 'tap') normalized = normalizeTappingOperation(operation, index);
+  else if (operation?.type === 'spot') normalized = normalizeSpotDrillingOperation(operation, index);
+  else if (operation?.type === 'counterbore') normalized = normalizeCounterboreOperation(operation, index);
+  else if (operation?.type === 'cut2d') normalized = normalizeCut2dOperation(operation, index);
+  else if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') normalized = normalizeTurningOperation(operation, index);
+  else normalized = normalizeFacingOperation(operation, index);
+  return { ...normalized, groupId: typeof operation.groupId === 'string' ? operation.groupId : '' };
 }
 
 const finiteNonNegative = (value, fallback) => {
@@ -270,6 +272,19 @@ const finiteNonNegative = (value, fallback) => {
 export function normalizeManufacturingSetup(setup = {}, index = 0) {
   const machineId = CAM_MACHINE_PRESETS[setup.machineId] ? setup.machineId : 'mill-500';
   const wcsOrigin = CAM_WCS_ORIGINS.some((item) => item.id === setup.wcsOrigin) ? setup.wcsOrigin : 'stock-top-center';
+  const groupIds = new Set();
+  const operationGroups = (Array.isArray(setup.operationGroups) ? setup.operationGroups : []).slice(0, 50).map((group, groupIndex) => {
+    const requestedId = typeof group?.id === 'string' && group.id ? group.id : createId('cam-group');
+    const id = groupIds.has(requestedId) ? createId('cam-group') : requestedId;
+    groupIds.add(id);
+    return {
+      id,
+      name: String(group?.name || `Folder ${groupIndex + 1}`).trim().slice(0, 80) || `Folder ${groupIndex + 1}`,
+      collapsed: Boolean(group?.collapsed),
+    };
+  });
+  const operations = (Array.isArray(setup.operations) ? setup.operations : []).map(normalizeManufacturingOperation)
+    .map((operation) => ({ ...operation, groupId: groupIds.has(operation.groupId) ? operation.groupId : '' }));
   return {
     id: typeof setup.id === 'string' && setup.id ? setup.id : createId('cam-setup'),
     name: String(setup.name || `Setup ${index + 1}`).trim().slice(0, 80) || `Setup ${index + 1}`,
@@ -283,17 +298,39 @@ export function normalizeManufacturingSetup(setup = {}, index = 0) {
     },
     wcsOrigin,
     safeHeight: finiteNonNegative(setup.safeHeight, 5),
-    operations: Array.isArray(setup.operations) ? setup.operations.map(normalizeManufacturingOperation) : [],
+    operationGroups,
+    operations,
+  };
+}
+
+export function normalizeManufacturingOperationTemplate(template = {}, index = 0) {
+  const source = template?.operation && typeof template.operation === 'object' ? template.operation : template;
+  const operation = normalizeManufacturingOperation(source, index);
+  return {
+    id: typeof template.id === 'string' && template.id ? template.id : createId('cam-template'),
+    name: String(template.name || operation.name || `Szablon ${index + 1}`).trim().slice(0, 80) || `Szablon ${index + 1}`,
+    operation: {
+      ...operation,
+      id: '',
+      name: String(operation.name || template.name || `Operacja ${index + 1}`).trim().slice(0, 80),
+      groupId: '',
+      ...(Object.hasOwn(operation, 'boundaryFaceId') ? { boundaryFaceId: '' } : {}),
+      ...(Object.hasOwn(operation, 'boundarySketchId') ? { boundarySketchId: '' } : {}),
+      ...(Object.hasOwn(operation, 'boundaryProfileId') ? { boundaryProfileId: '' } : {}),
+      ...(Object.hasOwn(operation, 'holeFeatureIds') ? { holeFeatureIds: [] } : {}),
+    },
   };
 }
 
 export function ensureDocumentManufacturing(document) {
   if (!document.manufacturing || typeof document.manufacturing !== 'object' || Array.isArray(document.manufacturing)) {
-    document.manufacturing = { setups: [], activeSetupId: '', tools: [] };
+    document.manufacturing = { setups: [], activeSetupId: '', tools: [], operationTemplates: [] };
   }
   if (!Array.isArray(document.manufacturing.setups)) document.manufacturing.setups = [];
   if (!Array.isArray(document.manufacturing.tools)) document.manufacturing.tools = [];
+  if (!Array.isArray(document.manufacturing.operationTemplates)) document.manufacturing.operationTemplates = [];
   document.manufacturing.tools = document.manufacturing.tools.slice(0, 100).map(normalizeCustomCamTool);
+  document.manufacturing.operationTemplates = document.manufacturing.operationTemplates.slice(0, 100).map(normalizeManufacturingOperationTemplate);
   document.manufacturing.setups = document.manufacturing.setups.map(normalizeManufacturingSetup);
   if (typeof document.manufacturing.activeSetupId !== 'string') document.manufacturing.activeSetupId = '';
   if (!document.manufacturing.setups.some((setup) => setup.id === document.manufacturing.activeSetupId)) {
@@ -304,6 +341,60 @@ export function ensureDocumentManufacturing(document) {
 
 export function createManufacturingSetup(options = {}) {
   return normalizeManufacturingSetup({ ...options, id: createId('cam-setup') });
+}
+
+export function createManufacturingOperationGroup(options = {}) {
+  return {
+    id: createId('cam-group'),
+    name: String(options.name || 'Nowy folder').trim().slice(0, 80) || 'Nowy folder',
+    collapsed: Boolean(options.collapsed),
+  };
+}
+
+export function deleteManufacturingOperationGroup(setup, groupId) {
+  const normalized = normalizeManufacturingSetup(setup);
+  if (!normalized.operationGroups.some((group) => group.id === groupId)) return { ...normalized, changed: false };
+  return {
+    ...normalized,
+    changed: true,
+    operationGroups: normalized.operationGroups.filter((group) => group.id !== groupId),
+    operations: normalized.operations.map((operation) => operation.groupId === groupId ? { ...operation, groupId: '' } : operation),
+  };
+}
+
+export function createManufacturingOperationTemplate(operation, options = {}) {
+  if (!operation || typeof operation !== 'object') throw new Error('Szablon wymaga istniejącej operacji CAM.');
+  return normalizeManufacturingOperationTemplate({
+    id: createId('cam-template'),
+    name: options.name || `${operation.name || 'Operacja'} — szablon`,
+    operation,
+  });
+}
+
+const operationMatchesSetupKind = (operation, operationKind) => {
+  const turning = operation.type === 'turn-face' || operation.type === 'turn-profile';
+  if (operationKind === 'turning-2axis') return turning;
+  if (operationKind === 'cut-2d') return operation.type === 'cut2d';
+  return !turning && operation.type !== 'cut2d';
+};
+
+export function instantiateManufacturingOperationTemplate(template, setup, options = {}) {
+  const normalizedTemplate = normalizeManufacturingOperationTemplate(template);
+  const normalizedSetup = normalizeManufacturingSetup(setup);
+  if (!operationMatchesSetupKind(normalizedTemplate.operation, normalizedSetup.operationKind)) {
+    throw new Error('Typ operacji w szablonie nie pasuje do rodzaju aktywnego Setupu.');
+  }
+  const baseName = String(options.name || normalizedTemplate.operation.name || normalizedTemplate.name).trim().slice(0, 80) || 'Operacja z szablonu';
+  const names = new Set(normalizedSetup.operations.map((operation) => operation.name.toLocaleLowerCase()));
+  let name = baseName;
+  let copyNumber = 2;
+  while (names.has(name.toLocaleLowerCase())) name = `${baseName} ${copyNumber++}`.slice(0, 80);
+  return normalizeManufacturingOperation({
+    ...normalizedTemplate.operation,
+    id: createId('cam-operation'),
+    name,
+    groupId: typeof options.groupId === 'string' ? options.groupId : '',
+  }, normalizedSetup.operations.length);
 }
 
 export function calculateManufacturingSetup(setup, bodies = []) {
@@ -1724,6 +1815,32 @@ export function validateManufacturing(manufacturing) {
     if (tool.type === 'tap' && (!Number.isFinite(Number(tool.pitch)) || Number(tool.pitch) <= 0)) issues.push({ path: `${base}.pitch`, message: 'Gwintownik wymaga dodatniego skoku.', code: 'VALUE' });
     if (tool.type === 'spot-drill' && (!Number.isFinite(Number(tool.pointAngle)) || Number(tool.pointAngle) < 30 || Number(tool.pointAngle) > 170)) issues.push({ path: `${base}.pointAngle`, message: 'Kąt nawiertaka musi mieścić się w zakresie 30–170°.', code: 'VALUE' });
   });
+  const templateIds = new Set();
+  const templateNames = new Set();
+  if (manufacturing.operationTemplates !== undefined && !Array.isArray(manufacturing.operationTemplates)) issues.push({ path: 'manufacturing.operationTemplates', message: 'Szablony operacji CAM muszą być tablicą.', code: 'TYPE' });
+  else (manufacturing.operationTemplates || []).forEach((template, index) => {
+    const base = `manufacturing.operationTemplates[${index}]`;
+    if (!template || typeof template !== 'object' || Array.isArray(template)) { issues.push({ path: base, message: 'Szablon operacji CAM musi być obiektem.', code: 'TYPE' }); return; }
+    if (typeof template.id !== 'string' || !template.id) issues.push({ path: `${base}.id`, message: 'Szablon operacji CAM wymaga ID.', code: 'REQUIRED' });
+    else if (templateIds.has(template.id)) issues.push({ path: `${base}.id`, message: 'ID szablonu operacji CAM jest powtórzone.', code: 'DUPLICATE_ID' });
+    else templateIds.add(template.id);
+    const name = typeof template.name === 'string' ? template.name.trim() : '';
+    if (!name) issues.push({ path: `${base}.name`, message: 'Szablon operacji CAM wymaga nazwy.', code: 'REQUIRED' });
+    else if (templateNames.has(name.toLocaleLowerCase())) issues.push({ path: `${base}.name`, message: 'Nazwa szablonu operacji CAM jest powtórzona.', code: 'DUPLICATE' });
+    else templateNames.add(name.toLocaleLowerCase());
+    if (!template.operation || typeof template.operation !== 'object' || Array.isArray(template.operation)) issues.push({ path: `${base}.operation`, message: 'Szablon wymaga parametrów operacji CAM.', code: 'TYPE' });
+    else {
+      const operation = template.operation;
+      const supported = ['face', 'contour', 'pocket', 'adaptive', 'drill', 'tap', 'spot', 'counterbore', 'cut2d', 'turn-face', 'turn-profile'].includes(operation.type);
+      const isTurning = operation.type === 'turn-face' || operation.type === 'turn-profile';
+      if (!supported) issues.push({ path: `${base}.operation.type`, message: 'Szablon zawiera nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
+      if (supported && operation.type !== 'cut2d' && !isTurning && !CAM_TOOL_PRESETS[operation.toolId] && !customToolIds.has(operation.toolId)) issues.push({ path: `${base}.operation.toolId`, message: 'Szablon wskazuje nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
+      if (supported && isTurning && !CAM_TURNING_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${base}.operation.toolId`, message: 'Szablon wskazuje nieznany nóż tokarski.', code: 'UNSUPPORTED' });
+      if (supported && !CAM_POST_PROCESSORS[operation.postProcessorId]) issues.push({ path: `${base}.operation.postProcessorId`, message: 'Szablon wskazuje nieznany postprocesor CAM.', code: 'UNSUPPORTED' });
+      const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : operation.type === 'drill' ? ['peckDepth', 'feedRate', 'spindleRpm'] : operation.type === 'tap' ? ['spindleRpm'] : operation.type === 'spot' ? ['targetDiameter', 'feedRate', 'spindleRpm'] : operation.type === 'counterbore' ? ['targetDiameter', 'targetDepth', 'maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'] : isTurning ? ['stockDiameter', 'targetDiameter', 'axialLength', 'maxDepthOfCut', 'feedRate', 'spindleRpm'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];
+      if (supported) for (const key of positiveKeys) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${base}.operation.${key}`, message: 'Parametr szablonu operacji musi być dodatni.', code: 'VALUE' });
+    }
+  });
   const ids = new Set();
   const names = new Set();
   manufacturing.setups.forEach((setup, index) => {
@@ -1742,6 +1859,21 @@ export function validateManufacturing(manufacturing) {
     if (!CAM_WCS_ORIGINS.some((item) => item.id === setup.wcsOrigin)) issues.push({ path: `${base}.wcsOrigin`, message: 'Nieznany początek układu WCS.', code: 'UNSUPPORTED' });
     for (const key of ['sideOffset', 'topOffset', 'bottomOffset']) if (!Number.isFinite(Number(setup.stock?.[key])) || Number(setup.stock[key]) < 0) issues.push({ path: `${base}.stock.${key}`, message: 'Naddatek musi być liczbą nieujemną.', code: 'VALUE' });
     if (!Number.isFinite(Number(setup.safeHeight)) || Number(setup.safeHeight) < 0) issues.push({ path: `${base}.safeHeight`, message: 'Wysokość bezpieczna musi być liczbą nieujemną.', code: 'VALUE' });
+    const groupIds = new Set();
+    const groupNames = new Set();
+    if (!Array.isArray(setup.operationGroups)) issues.push({ path: `${base}.operationGroups`, message: 'Foldery operacji CAM muszą być tablicą.', code: 'TYPE' });
+    else setup.operationGroups.forEach((group, groupIndex) => {
+      const groupBase = `${base}.operationGroups[${groupIndex}]`;
+      if (!group || typeof group !== 'object' || Array.isArray(group)) { issues.push({ path: groupBase, message: 'Folder operacji CAM musi być obiektem.', code: 'TYPE' }); return; }
+      if (typeof group.id !== 'string' || !group.id) issues.push({ path: `${groupBase}.id`, message: 'Folder operacji CAM wymaga ID.', code: 'REQUIRED' });
+      else if (groupIds.has(group.id)) issues.push({ path: `${groupBase}.id`, message: 'ID folderu operacji CAM jest powtórzone.', code: 'DUPLICATE_ID' });
+      else groupIds.add(group.id);
+      const groupName = typeof group.name === 'string' ? group.name.trim() : '';
+      if (!groupName) issues.push({ path: `${groupBase}.name`, message: 'Folder operacji CAM wymaga nazwy.', code: 'REQUIRED' });
+      else if (groupNames.has(groupName.toLocaleLowerCase())) issues.push({ path: `${groupBase}.name`, message: 'Nazwa folderu operacji CAM jest powtórzona.', code: 'DUPLICATE' });
+      else groupNames.add(groupName.toLocaleLowerCase());
+      if (typeof group.collapsed !== 'boolean') issues.push({ path: `${groupBase}.collapsed`, message: 'Stan folderu operacji CAM musi być logiczny.', code: 'TYPE' });
+    });
     if (!Array.isArray(setup.operations)) issues.push({ path: `${base}.operations`, message: 'Operacje CAM muszą być tablicą.', code: 'TYPE' });
     else setup.operations.forEach((operation, operationIndex) => {
       const operationBase = `${base}.operations[${operationIndex}]`;
@@ -1752,6 +1884,8 @@ export function validateManufacturing(manufacturing) {
         if (operation.type !== 'cut2d' && !isTurning && !CAM_TOOL_PRESETS[operation.toolId] && !customToolIds.has(operation.toolId)) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
         if (isTurning && !CAM_TURNING_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznany nóż tokarski.', code: 'UNSUPPORTED' });
         if (!CAM_POST_PROCESSORS[operation.postProcessorId]) issues.push({ path: `${operationBase}.postProcessorId`, message: 'Nieznany postprocesor CAM.', code: 'UNSUPPORTED' });
+        if (operation.groupId !== undefined && typeof operation.groupId !== 'string') issues.push({ path: `${operationBase}.groupId`, message: 'Folder operacji CAM musi być identyfikatorem tekstowym.', code: 'TYPE' });
+        else if (operation.groupId && !groupIds.has(operation.groupId)) issues.push({ path: `${operationBase}.groupId`, message: 'Folder przypisany do operacji CAM nie istnieje.', code: 'BROKEN_REFERENCE' });
         const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : operation.type === 'drill' ? ['peckDepth', 'feedRate', 'spindleRpm'] : operation.type === 'tap' ? ['spindleRpm'] : operation.type === 'spot' ? ['targetDiameter', 'feedRate', 'spindleRpm'] : operation.type === 'counterbore' ? ['targetDiameter', 'targetDepth', 'maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'] : isTurning ? ['stockDiameter', 'targetDiameter', 'axialLength', 'maxDepthOfCut', 'feedRate', 'spindleRpm'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];
         for (const key of positiveKeys) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr operacji musi być dodatni.', code: 'VALUE' });
         if (operation.type === 'drill') for (const key of ['retractHeight', 'breakthroughDepth']) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) < 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr wiercenia musi być nieujemny.', code: 'VALUE' });

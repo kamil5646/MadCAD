@@ -23,6 +23,8 @@ import {
   createGrblGcode,
   createMachineGcode,
   createManufacturingProgramGcode,
+  createManufacturingOperationGroup,
+  createManufacturingOperationTemplate,
   createManufacturingSetupSheet,
   createManufacturingSetup,
   createPocketOperation,
@@ -31,9 +33,11 @@ import {
   createTappingOperation,
   ensureDocumentManufacturing,
   extractTopBoundaryLoops,
+  instantiateManufacturingOperationTemplate,
   offsetClosedContour,
   optimizeManufacturingOperationOrder,
   moveManufacturingOperation,
+  deleteManufacturingOperationGroup,
   simulateMaterialRemoval,
   validateManufacturing,
   validateManufacturingOperationOrder,
@@ -336,6 +340,46 @@ describe('CAM contour operations', () => {
     const blockedContour = moveManufacturingOperation({ ...setup, operations: movedUp.operations }, contour.id, 'up', drilledBox);
     expect(blockedContour.changed).toBe(false);
     expect(validateManufacturingOperationOrder({ ...setup, operations: movedUp.operations }, drilledBox).valid).toBe(true);
+  });
+
+  it('organizes operations in persistent folders without changing execution order', () => {
+    const roughing = createManufacturingOperationGroup({ name: 'Zgrubne' });
+    const finishing = createManufacturingOperationGroup({ name: 'Wykańczające', collapsed: true });
+    const setup = createManufacturingSetup({
+      bodyId: box.id,
+      operationGroups: [roughing, finishing],
+      operations: [
+        { ...createPocketOperation({ name: 'Kieszeń' }), groupId: roughing.id },
+        { ...createContourOperation({ name: 'Kontur' }), groupId: finishing.id },
+      ],
+    });
+    expect(setup.operationGroups).toEqual([roughing, finishing]);
+    expect(setup.operations.map((operation) => operation.groupId)).toEqual([roughing.id, finishing.id]);
+    const removed = deleteManufacturingOperationGroup(setup, roughing.id);
+    expect(removed.changed).toBe(true);
+    expect(removed.operationGroups.map((group) => group.id)).toEqual([finishing.id]);
+    expect(removed.operations.map((operation) => operation.groupId)).toEqual(['', finishing.id]);
+    expect(removed.operations.map((operation) => operation.name)).toEqual(['Kieszeń', 'Kontur']);
+    expect(validateManufacturing({ setups: [removed], activeSetupId: removed.id, tools: [], operationTemplates: [] })).toEqual([]);
+  });
+
+  it('stores reusable operation templates without model geometry and applies them to compatible setups', () => {
+    const source = createPocketOperation({ name: 'Kieszeń aluminium', toolId: 'flat-6', targetDepth: 4, boundaryFaceId: 'face-top' });
+    const template = createManufacturingOperationTemplate(source, { name: 'Kieszeń Al Ø6' });
+    expect(template.name).toBe('Kieszeń Al Ø6');
+    expect(template.operation.id).toBe('');
+    expect(template.operation.boundaryFaceId).toBe('');
+    expect(template.operation.targetDepth).toBe(4);
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [source] });
+    const instance = instantiateManufacturingOperationTemplate(template, setup);
+    expect(instance.id).not.toBe(source.id);
+    expect(instance.name).toBe('Kieszeń aluminium 2');
+    expect(instance.targetDepth).toBe(4);
+    expect(instance.boundaryFaceId).toBe('');
+    expect(() => instantiateManufacturingOperationTemplate(template, createManufacturingSetup({ bodyId: box.id, machineId: 'lathe-300' }))).toThrow(/nie pasuje/);
+    const document = ensureDocumentManufacturing({ manufacturing: { setups: [setup], activeSetupId: setup.id, tools: [], operationTemplates: [template] } });
+    expect(document.manufacturing.operationTemplates).toHaveLength(1);
+    expect(validateManufacturing(document.manufacturing)).toEqual([]);
   });
 
   it('creates a printable and escaped setup sheet from the verified CAM program', () => {

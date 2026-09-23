@@ -271,10 +271,13 @@ Te prace nie czekają na koniec modelowania:
 - [x] P5.1 Wiercenie 3-osiowe rozpoznanych otworów modelu: pozycje i osie z kernela, obsługa szyków, wiertła kręte, grupy cech, pełne wycofanie między skokami, przebicie otworów przelotowych, kontrola długości rowków i średnicy, symulacja oraz przenośny G-code. Odrzucenie osi innych niż Z, Undo/Redo, zapis/otwarcie i desktop E2E są zweryfikowane; kontrakt opisuje `docs/CAM_DRILLING.md`.
 - [x] P5.2 Projektowa biblioteka własnych narzędzi i cykli otworowych: zapisywane w projekcie edytowalne wiertła, nawiertaki i gwintowniki, bezpieczne referencje i dobór po średnicy, wiercenie zwykłe/peck/dwell, jawny fallback GRBL oraz G81/G82/G83 dla LinuxCNC i Mach3. Dedykowane gwintowanie sprawdza otwór pilotowy, wylicza posuw jako obroty × skok, generuje synchronizowane G84/G80 i blokuje sterowniki bez obsługi sztywnego gwintowania.
 - [x] P5.3 Rozszerzone strategie otworowe: nawiertanie/pogłębianie stożkowe wylicza głębokość z geometrii ostrza, pogłębianie walcowe tworzy bezpieczne warstwy i koncentryczne przejścia, raport kompletności wyprowadza wymagane etapy z modelu, a graf zależności automatycznie porządkuje operacje i ogranicza zmiany narzędzia.
-- [>] P5.4 Produkcyjne zarządzanie programem CAM: foldery i grupy operacji, duplikowanie i szablony, ręczne przesuwanie z walidacją zależności, arkusz ustawczy oraz eksport całego programu jednym plikiem.
+- [x] P5.4 Produkcyjne zarządzanie programem CAM: foldery i grupy operacji, duplikowanie i szablony, ręczne przesuwanie z walidacją zależności, arkusz ustawczy oraz eksport całego programu jednym plikiem.
   - [x] Eksport wszystkich operacji Setupu do jednego bezpiecznego programu z jednym nagłówkiem, zmianami narzędzi i zakończeniem.
   - [x] Duplikowanie operacji oraz ręczne przesuwanie góra/dół z walidacją zależności technologicznych.
   - [x] Drukowalny arkusz ustawczy A4 z WCS, półfabrykatem, narzędziami, operacjami, czasem i wynikiem kontroli.
+  - [x] Trwałe foldery operacji organizują program bez zmiany kolejności wykonania; usunięcie folderu zachowuje operacje.
+  - [x] Szablony operacji zapisują parametry i narzędzie w projekcie bez nietrwałych referencji do geometrii, a zgodność z rodzajem Setupu jest sprawdzana przed użyciem.
+- [>] P5.5 Mocowanie, wiele układów roboczych i sondowanie: model uchwytu oraz strefy kolizji, G54–G59, operacje ustawiania bazy i bezpieczny raport kolejnych zamocowań.
 
 ## Definition of Done
 
