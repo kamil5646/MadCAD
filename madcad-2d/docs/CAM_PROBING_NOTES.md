@@ -15,6 +15,18 @@ zadanego odcinka. Wymaga skonfigurowanego sygnału `motion.probe-input`.
 `G10 L20 Pn` zmienia układ współrzędnych tak, aby aktualna pozycja otrzymała
 zadane współrzędne; `G54`–`G59` odpowiadają układom `P1`–`P6`.
 
+Ważna pułapka kolejności: po udanym `G38.2` LinuxCNC zapisuje pozycję styku w
+parametrach `#5061`–`#5069` bieżącego układu roboczego, a `#5070` sygnalizuje
+powodzenie. `G10 L20` odnosi podane współrzędne do **aktualnej pozycji w chwili
+wykonania**, nie automatycznie do zapamiętanego punktu styku. Po odsunięciu
+sondy bezpośrednie `G10 L20` ustawiłoby więc bazę względem pozycji odsuniętej.
+Implementacja musi obliczyć przesunięcie z zapisanego punktu kontaktu i
+pozycji bieżącej albo ustawić bazę w kontrolowanym momencie przed odsunięciem;
+oba warianty wymagają testu na konkretnym sterowaniu. Wynik sondowania jest w
+aktualnym WCS, nie wprost w współrzędnych maszynowych. Fusion pozwala także
+wybrać osobny WCS do prowadzenia sondy, co trzeba rozróżnić od WCS, który
+operacja ma ustawić.
+
 Przed dodaniem eksportu sondowania trzeba jawnie rozwiązać: kalibrację długości
 sondy i promienia kulki, bezpieczny punkt startowy bez zakładania poprawnego
 jeszcze WCS, ograniczony zasięg i prędkość pomiaru, odsunięcie po styku,
@@ -26,5 +38,5 @@ ogólny postprocesor CAM ani uznawać testu na makiecie za walidację obrabiarki
 
 - [Autodesk Fusion — Generate a Probe WCS operation](https://help.autodesk.com/cloudhelp/ENU/Fusion-CAM/files/MFG-PROBE-WCS.htm)
 - [Autodesk Fusion — Probe WCS strategy](https://help.autodesk.com/cloudhelp/ENU/Fusion-CAM/files/MFG-PROBE-WCS-OVERVIEW.htm)
-- [LinuxCNC — G-codes, G38.n i G10 L20](https://www.linuxcnc.org/docs/scratch/html/gcode/g-code.html)
+- [LinuxCNC — G-codes, G38.n i G10 L20](https://linuxcnc.org/docs/html/gcode/g-code.html)
 - [LinuxCNC — Coordinate Systems](https://linuxcnc.org/docs/html/gcode/coordinates.html)
