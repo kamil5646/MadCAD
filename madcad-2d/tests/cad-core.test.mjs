@@ -5787,7 +5787,7 @@ test('CAM blokuje kolizję szerszej oprawki z uchwytem także na szybkim przeje�
   const setup = createManufacturingSetup({ bodyId: camBox.id });
   const contour = createContourOperation({ targetDepth: 1, toolId: 'flat-6' });
   const basePath = calculateContourToolpath(setup, contour, [camBox]);
-  const fixture = { id: 'jaw-right', name: 'Prawa szczęka', enabled: true, bounds: [[4, 8, 105], [6, 10, 115]], clearance: 0 };
+  const fixture = { id: 'jaw-right', name: 'Prawa szczęka', enabled: true, bounds: [[4, 8, 106], [6, 10, 115]], clearance: 0 };
   const path = {
     ...basePath,
     setup: { ...basePath.setup, fixtures: [fixture] },
@@ -5807,6 +5807,23 @@ test('CAM blokuje kolizję szerszej oprawki z uchwytem także na szybkim przeje�
   assert.equal(analyzeToolpathSafety(guardedPath).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
   assert.equal(analyzeManufacturingProgram(guardedSetup, [camBox]).operations[0].issues.some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION'), true);
   assert.throws(() => createMachineGcode(guardedSetup, contour, [camBox]), /Eksport.*zablokowany/);
+});
+
+test('CAM wykrywa kolizję trzonu narzędzia ponad końcówką i nie zgłasza uchwytu poza wysięgiem', () => {
+  const setup = createManufacturingSetup({ bodyId: camBox.id });
+  const contour = createContourOperation({ targetDepth: 1, toolId: 'flat-6' });
+  const basePath = calculateContourToolpath(setup, contour, [camBox]);
+  const fixture = { id: 'jaw-above-tip', name: 'Szczęka ponad końcówką', enabled: true, bounds: [[4, -1, 105], [6, 1, 108]], clearance: 0 };
+  const path = {
+    ...basePath,
+    setup: { ...basePath.setup, fixtures: [fixture] },
+    tool: { ...basePath.tool, diameter: 2, stickout: 10, holderDiameter: 0 },
+    segments: [{ kind: 'rapid', from: [0, 0, 100], to: [10, 0, 100] }],
+  };
+  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION' && issue.fixtureId === fixture.id), true);
+  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION'), false);
+  assert.equal(analyzeToolpathSafety({ ...path, segments: [{ kind: 'rapid', from: [0, 0, 94], to: [10, 0, 94] }] }).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
+  assert.equal(analyzeToolpathSafety({ ...path, setup: { ...path.setup, fixtures: [{ ...fixture, bounds: [[4, -1, 111], [6, 1, 115]] }] } }).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
 });
 
 test('kontrola CAM analizuje 150 tys. segmentów bez przepełnienia stosu i zachowuje błędy bezpieczeństwa', () => {

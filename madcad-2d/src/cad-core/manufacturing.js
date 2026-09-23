@@ -1409,14 +1409,16 @@ export function analyzeToolpathSafety(toolpath) {
   if (toolpath.turning) return issues;
   for (const fixture of toolpath.setup.fixtures.filter((item) => item.enabled)) {
     const radius = Math.max(0, Number(toolpath.tool?.diameter) || 0) / 2;
+    const stickout = Number(toolpath.tool?.stickout);
+    const exposedLength = Number.isFinite(stickout) && stickout > 0 ? stickout : 0;
     const margin = fixture.clearance + radius;
-    const minimum = fixture.bounds[0].map((value, axis) => value - (axis === 2 ? fixture.clearance : margin));
+    // The path follows the tip, but the exposed cutter and shank reach above it.
+    const minimum = fixture.bounds[0].map((value, axis) => value - (axis === 2 ? fixture.clearance + exposedLength : margin));
     const maximum = fixture.bounds[1].map((value, axis) => value + (axis === 2 ? fixture.clearance : margin));
     if (toolpath.segments.some((segment) => segmentIntersectsBounds(segment, minimum, maximum))) {
-      issues.push({ code: 'FIXTURE_COLLISION', fixtureId: fixture.id, message: `Trajektoria narzędzia przecina strefę ${fixture.name} lub jej wymagany odstęp.` });
+      issues.push({ code: 'FIXTURE_COLLISION', fixtureId: fixture.id, message: `Narzędzie lub jego wysunięty trzon przecina strefę ${fixture.name} albo wymagany odstęp.` });
     }
     const holderRadius = Math.max(0, Number(toolpath.tool?.holderDiameter) || 0) / 2;
-    const stickout = Number(toolpath.tool?.stickout);
     if (holderRadius > 0 && Number.isFinite(stickout) && stickout > 0) {
       const holderMinimum = [fixture.bounds[0][0] - holderRadius - fixture.clearance, fixture.bounds[0][1] - holderRadius - fixture.clearance, -Infinity];
       const holderMaximum = [fixture.bounds[1][0] + holderRadius + fixture.clearance, fixture.bounds[1][1] + holderRadius + fixture.clearance, fixture.bounds[1][2] + fixture.clearance - stickout];

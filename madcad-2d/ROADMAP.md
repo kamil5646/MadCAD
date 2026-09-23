@@ -333,6 +333,7 @@ Te prace nie czekają na koniec modelowania:
   - [x] Wiele stref uchwytów jako prostopadłościany XYZ jest zapisywanych w Setupie, wizualizowanych i blokuje eksport przy przecięciu trajektorii narzędzia z zadanym odstępem.
   - [x] Raport kolejnych Setupów zestawia WCS, operacje, ostrzeżenia i ręczne czynności operatora; wykrywa ponowne użycie offsetu z innym zerem, ale nie generuje sondowania ani przejazdów między Setupami.
   - [x] Kontrola ścieżki obejmuje również szerokość oprawki i jej minimalny wysięg nad końcówką narzędzia przy strefach uchwytów; wykryta kolizja blokuje eksport G-code.
+  - [x] Kontrola obejmuje też wysunięty trzon narzędzia ponad końcówką na każdym odcinku, również szybkim; scenariusz szczęki ponad końcówką ma test regresyjny.
   - [x] Eksport najpierw podnosi Z i ustawia XY na płaszczyźnie bezpiecznej; pełny program sprawdza dodatkowo przejazdy między operacjami tego samego Setupu.
   - [x] Toczenie rozdziela dojazd na odsunięcie promieniowe X, przejazd osiowy Z i powrót do promienia startowego; blokuje nieosiągalną średnicę bezpieczną.
   - [ ] Rozszerzyć mocowanie o rzeczywistą geometrię szczęk i oprawek oraz kontrolę wszystkich przejazdów maszyny.
