@@ -92,8 +92,9 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.plane-options button')].find((button) => button.textContent.includes('XY'))?.click()`);
     await waitFor(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'aktywny otwarty szkic XY');
     await clickTool(window, 'Linia');
+    await window.webContents.executeJavaScript(`window.__madcadPreviousCanvasPointHandler = window.__madcadVerifyCanvasSketchPoint; true`);
     await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([0, 0])`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.points === 1`, 'poczatek linii');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.points === 1 && window.__madcadVerifyCanvasSketchPoint !== window.__madcadPreviousCanvasPointHandler`, 'poczatek linii');
     await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([20, 0])`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 3 && !window.__madcadVerifyDocumentState?.command`, 'gotowa linia');
     await clickTool(window, 'Zakończ szkic');
