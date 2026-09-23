@@ -1111,6 +1111,7 @@ export default function ModelViewport({
       if (clearance > 0) {
         const clearanceGeometry = new THREE.BoxGeometry(...size.map((value) => value + 2 * clearance));
         const clearanceEdges = new THREE.LineSegments(new THREE.EdgesGeometry(clearanceGeometry), new THREE.LineBasicMaterial({ color: 0xffbf69, transparent: true, opacity: 0.78, depthTest: false }));
+        clearanceGeometry.dispose();
         clearanceEdges.position.fromArray(center);
         clearanceEdges.rotation.z = fixtureMesh.rotation.z;
         clearanceEdges.renderOrder = 21;
