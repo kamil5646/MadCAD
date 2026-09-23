@@ -29,9 +29,16 @@ wymusza obliczenie niezależnie od podpisu.
 
 Podpis jest obecnie tworzony przez serializację dokumentu przy zmianie jego
 obiektu. To koszt w wątku interfejsu; przy bardzo dużych projektach warto
-zmierzyć go osobno przed zastąpieniem strukturalnym licznikiem rewizji. Nie
+zmierzyć go ponownie w samym UI przed zastąpieniem strukturalnym licznikiem rewizji. Nie
 wolno wyłączyć przeliczania dla pola, które zacznie wpływać na `prepareDocument`
 lub worker CAD — wtedy należy zaktualizować podpis i testy.
+
+Punktowy pomiar na macOS (100 powtórzeń, Node.js, bez renderowania UI,
+2026-09-23) dla korpusu 220 szkiców o rozmiarze JSON około 599 KB dał średnio
+1,44 ms na `cadGeometrySignature` i 3,46 ms na `structuredClone`. Dwa
+pozostałe korpusy po 220 cech mieściły się odpowiednio w 0,10–0,12 ms oraz
+0,24–0,27 ms. To nie jest pomiar płynności interfejsu ani dowód braku zacięć;
+przed zmianą strategii rewizji należy zebrać profil z rzeczywistych edycji CAM.
 
 CI `35853142356` na macOS zgłosiło w teście modelowanego gwintu status
 `ready` i nową rewizję, ale odczyt objętości w tej chwili odpowiadał jeszcze
