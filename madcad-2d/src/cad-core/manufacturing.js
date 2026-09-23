@@ -1498,11 +1498,21 @@ export function analyzeToolpathSafety(toolpath) {
     if (toolCollision) issues.push({ code: 'FIXTURE_COLLISION', fixtureId: fixture.id, message: `Narzędzie lub jego wysunięty trzon przecina strefę ${fixture.name} albo wymagany odstęp.` });
     if (holderCollision) issues.push({ code: 'HOLDER_FIXTURE_COLLISION', fixtureId: fixture.id, message: `Oprawka narzędzia może przeciąć strefę ${fixture.name} lub jej wymagany odstęp.` });
   }
-  const stockTop = toolpath.stockBounds[1][2];
+  const stockMinimum = toolpath.stockBounds[0];
+  const stockMaximum = toolpath.stockBounds[1];
+  const stockTop = stockMaximum[2];
+  const cutterRadius = Math.max(0, Number(toolpath.tool?.diameter) || 0) / 2;
+  const stickout = Number(toolpath.tool?.stickout);
+  const exposedLength = Number.isFinite(stickout) && stickout > 0 ? stickout : 0;
+  const holderRadius = Math.max(0, Number(toolpath.tool?.holderDiameter) || 0) / 2;
   for (const segment of toolpath.segments) {
     const horizontalDistance = Math.hypot(segment.to[0] - segment.from[0], segment.to[1] - segment.from[1]);
-    if (segment.kind === 'rapid' && horizontalDistance > 1e-7 && Math.min(segment.from[2], segment.to[2]) < stockTop - 1e-7) {
-      issues.push({ code: 'RAPID_IN_STOCK', message: 'Wykryto szybki przejazd poziomy poniżej góry półfabrykatu.' });
+    if (segment.kind !== 'rapid' || horizontalDistance <= 1e-7) continue;
+    const cutterIntersectsStock = segmentIntersectsFixtureFootprint(segment, stockMinimum, stockMaximum, cutterRadius, 0, stockMinimum[2] - exposedLength, stockTop - 1e-7);
+    const holderIntersectsStock = holderRadius > 0 && exposedLength > 0
+      && segmentIntersectsFixtureFootprint(segment, stockMinimum, stockMaximum, holderRadius, 0, -Infinity, stockTop - exposedLength - 1e-7);
+    if (cutterIntersectsStock || holderIntersectsStock) {
+      issues.push({ code: 'RAPID_IN_STOCK', message: 'Wykryto szybki przejazd poziomy narzędzia lub oprawki przez półfabrykat.' });
       break;
     }
   }

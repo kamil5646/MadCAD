@@ -5793,6 +5793,16 @@ test('CAM eksportuje LinuxCNC i Mach3 oraz blokuje niebezpieczne ścieżki', () 
   const unsafe = calculateContourToolpath(setup, contour, [camBox]);
   unsafe.segments.splice(1, 0, { kind: 'rapid', from: [0, 0, 5], to: [10, 0, 5] });
   assert.equal(analyzeToolpathSafety(unsafe).some((issue) => issue.code === 'RAPID_IN_STOCK'), true);
+  const outsideY = unsafe.stockBounds[0][1] - unsafe.tool.diameter / 2 - 1;
+  const outsideSegment = { kind: 'rapid', from: [-10, outsideY, 5], to: [50, outsideY, 5] };
+  const outside = { ...unsafe, segments: [...unsafe.segments.slice(0, 1), outsideSegment, ...unsafe.segments.slice(2)] };
+  assert.equal(analyzeToolpathSafety(outside).some((issue) => issue.code === 'RAPID_IN_STOCK'), false);
+  const nearEdgeY = unsafe.stockBounds[0][1] - unsafe.tool.diameter / 2 + 0.25;
+  const nearEdge = { ...outside, segments: [{ ...outsideSegment, from: [-10, nearEdgeY, 5], to: [50, nearEdgeY, 5] }] };
+  assert.equal(analyzeToolpathSafety(nearEdge).some((issue) => issue.code === 'RAPID_IN_STOCK'), true);
+  const lowHolderZ = unsafe.stockBounds[1][2] - unsafe.tool.stickout - 1;
+  const lowHolder = { ...outside, segments: [{ ...outsideSegment, from: [-10, outsideY, lowHolderZ], to: [50, outsideY, lowHolderZ] }] };
+  assert.equal(analyzeToolpathSafety(lowHolder).some((issue) => issue.code === 'RAPID_IN_STOCK'), true);
   const tooDeep = createContourOperation({ targetDepth: 30, toolId: 'flat-6' });
   assert.match(calculateContourToolpath(setup, tooDeep, [camBox]).warnings.join(' '), /długość ostrza/);
 });
