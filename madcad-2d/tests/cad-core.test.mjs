@@ -5723,7 +5723,7 @@ test('CAM eksportuje LinuxCNC i Mach3 oraz blokuje niebezpieczne ścieżki', () 
 });
 
 test('CAM zarządza kolejnością, eksportuje kompletny program i tworzy arkusz ustawczy', () => {
-  const setup = createManufacturingSetup({ bodyId: camBox.id, name: 'Setup produkcyjny' });
+  const setup = createManufacturingSetup({ bodyId: camBox.id, name: 'Setup produkcyjny', workOffset: 'G55' });
   const contour = createContourOperation({ name: 'Kontur końcowy', targetDepth: 1, toolId: 'flat-6' });
   const pocket = createPocketOperation({ name: 'Kieszeń główna', targetDepth: 1, toolId: 'flat-6' });
   const facing = createFacingOperation({ name: 'Planowanie bazowe', toolId: 'flat-6' });
@@ -5746,6 +5746,7 @@ test('CAM zarządza kolejnością, eksportuje kompletny program i tworzy arkusz 
   assert.equal(program.operationCount, 3);
   assert.equal(program.postProcessor, 'linuxcnc');
   assert.equal((program.text.match(/T2 M6/g) || []).length, 1);
+  assert.equal((program.text.match(/\nG55\n/g) || []).length, 1);
   assert.match(program.text, /Planowanie/);
   assert.match(program.text, /Kieszeń/);
   assert.match(program.text, /Kontur końcowy/);
@@ -5756,6 +5757,7 @@ test('CAM zarządza kolejnością, eksportuje kompletny program i tworzy arkusz 
   assert.equal(sheet.toolCount, 1);
   assert.match(sheet.html, /Arkusz ustawczy CAM/);
   assert.match(sheet.html, /Korpus &amp; produkcja/);
+  assert.match(sheet.html, /Układ roboczy<\/span><strong>G55/);
   assert.match(sheet.html, /GOTOWY/);
 });
 

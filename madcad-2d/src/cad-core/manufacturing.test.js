@@ -304,7 +304,7 @@ describe('CAM contour operations', () => {
   });
 
   it('exports one safe program for the complete setup without duplicate headers or tool changes', () => {
-    const setup = createManufacturingSetup({ bodyId: box.id, name: 'Korpus produkcyjny' });
+    const setup = createManufacturingSetup({ bodyId: box.id, name: 'Korpus produkcyjny', workOffset: 'G55' });
     setup.operations.push(
       createPocketOperation({ name: 'Kieszeń główna', targetDepth: 1, toolId: 'flat-6', postProcessorId: 'linuxcnc' }),
       createContourOperation({ name: 'Kontur końcowy', targetDepth: 1, toolId: 'flat-6', postProcessorId: 'linuxcnc' }),
@@ -315,6 +315,7 @@ describe('CAM contour operations', () => {
     expect(output.text).toMatch(/^%\n/);
     expect(output.text.match(/\nG21\n/g)).toHaveLength(1);
     expect(output.text.match(/T2 M6/g)).toHaveLength(1);
+    expect(output.text.match(/\nG55\n/g)).toHaveLength(1);
     expect(output.text).toContain('(Kieszeń główna | Frez palcowy płaski Ø6)');
     expect(output.text).toContain('(Kontur końcowy | Frez palcowy płaski Ø6)');
     expect(output.text.match(/\nM2\n/g)).toHaveLength(1);
@@ -383,7 +384,7 @@ describe('CAM contour operations', () => {
   });
 
   it('creates a printable and escaped setup sheet from the verified CAM program', () => {
-    const setup = createManufacturingSetup({ bodyId: box.id, name: 'Setup produkcyjny' });
+    const setup = createManufacturingSetup({ bodyId: box.id, name: 'Setup produkcyjny', workOffset: 'G56' });
     setup.operations.push(
       createPocketOperation({ name: 'Kieszeń <A>', targetDepth: 1, toolId: 'flat-6' }),
       createContourOperation({ name: 'Kontur końcowy', targetDepth: 1, toolId: 'flat-6' }),
@@ -396,6 +397,7 @@ describe('CAM contour operations', () => {
     expect(sheet.html).toContain('Korpus &amp; uchwyt');
     expect(sheet.html).toContain('Kieszeń &lt;A&gt;');
     expect(sheet.html).toContain('Półfabrykat X × Y × Z');
+    expect(sheet.html).toContain('<span>Układ roboczy</span><strong>G56</strong>');
     expect(sheet.html).toContain('Kontrola przed uruchomieniem');
     expect(sheet.html).not.toContain('Korpus & uchwyt');
   });
