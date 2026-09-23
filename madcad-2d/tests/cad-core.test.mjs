@@ -5992,6 +5992,15 @@ test('CAM tokarki planuje czoło i średnicę zewnętrzną w układzie X/Z', () 
   const output = createMachineGcode(setup, profile, [camBox]);
   assert.equal(output.postProcessor, 'linuxcnc-turn');
   assert.match(output.text, /\nG18\nG95\n/);
+  assert.match(output.text, /G0 X34\nG0 Z2\nG0 X34\nS1200 M3/);
   assert.match(output.text, /G1 X20 Z-30/);
   assert.match(output.text, /\nM5\nM2\n%/);
+  const fullProgram = createManufacturingProgramGcode(setup, [camBox]);
+  assert.equal(fullProgram.operationCount, 2);
+  assert.equal((fullProgram.text.match(/G0 X34\nG0 Z2\nG0 X34\nS1200 M3/g) || []).length, 2);
+  const smallerProfile = createTurningOperation('turn-profile', { stockDiameter: 20, targetDiameter: 18, axialLength: 30 });
+  assert.match(createMachineGcode({ ...setup, operations: [facing, smallerProfile] }, smallerProfile, [camBox]).text, /G0 X34\nG0 Z2\nG0 X30\nS1200 M3/);
+  const oversized = createTurningOperation('turn-profile', { stockDiameter: 298, targetDiameter: 280, axialLength: 30 });
+  assert.match(calculateTurningToolpath(setup, oversized, [camBox]).warnings.join(' '), /Bezpieczna średnica przejazdu/);
+  assert.throws(() => createMachineGcode(setup, oversized, [camBox]), /Bezpieczna średnica przejazdu/);
 });

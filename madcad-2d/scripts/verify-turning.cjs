@@ -44,7 +44,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-toolpath-summary')].at(-1).querySelector('button').click()`);
     await waitFor(window, `document.querySelector('.manufacturing-gcode-preview pre')?.textContent.includes('\\nG18\\nG95\\n') && document.querySelector('.manufacturing-gcode-preview pre')?.textContent.includes('\\nM5\\nM2\\n%')`, 'podgląd programu tokarskiego');
     const layout = await window.webContents.executeJavaScript(`(() => { const panel = document.querySelector('.manufacturing-panel').getBoundingClientRect(); return { insideViewport: panel.left >= 0 && panel.top >= 0 && panel.right <= innerWidth && panel.bottom <= innerHeight, overflow: document.documentElement.scrollWidth > innerWidth, title: document.querySelector('.manufacturing-panel > header').textContent, code: document.querySelector('.manufacturing-gcode-preview pre').textContent }; })()`);
-    if (!layout.insideViewport || layout.overflow || !layout.title.includes('Toczenie 2-osiowe') || !layout.code.includes('T1 M6')) throw new Error(`Niepoprawny interfejs toczenia: ${JSON.stringify(layout)}`);
+    if (!layout.insideViewport || layout.overflow || !layout.title.includes('Toczenie 2-osiowe') || !layout.code.includes('T1 M6') || !/G0 X\d+(?:\.\d+)?\nG0 Z-?\d+(?:\.\d+)?\nG0 X\d+(?:\.\d+)?\nS\d+ M3/.test(layout.code)) throw new Error(`Niepoprawny interfejs lub bezpieczny dojazd toczenia: ${JSON.stringify(layout)}`);
     await new Promise((resolve) => setTimeout(resolve, 150));
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'en' } });

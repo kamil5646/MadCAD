@@ -1269,6 +1269,7 @@ export function calculateCut2dToolpath(setup, operation, bodies = [], document =
 
 export function calculateTurningToolpath(setup, operation, bodies = []) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
+  const normalizedSetup = normalizeManufacturingSetup(setup);
   const normalized = normalizeTurningOperation(operation);
   const tool = CAM_TURNING_TOOL_PRESETS[normalized.toolId];
   const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
@@ -1284,7 +1285,8 @@ export function calculateTurningToolpath(setup, operation, bodies = []) {
   const centerZ = setupResult.origin[2];
   const stockRadius = normalized.stockDiameter / 2;
   const targetRadius = normalized.targetDiameter / 2;
-  const safeRadius = stockRadius + Math.max(2, setup.safeHeight);
+  const safeRadius = stockRadius + Math.max(2, normalizedSetup.safeHeight);
+  if (safeRadius * 2 > setupResult.machine.travel[1] + 1e-7) return fail(`Bezpieczna średnica przejazdu X${(safeRadius * 2).toFixed(2)} przekracza zakres tokarki Ø${setupResult.machine.travel[1]} mm.`);
   const stockFront = setupResult.stockBounds[1][0];
   const bodyFront = Number(bodyBounds[1][0]);
   const segments = [];
@@ -1565,12 +1567,25 @@ export function analyzeHoleMachiningCompleteness(setup, body, operationReports =
   };
 }
 
+function turningClearanceDiameter(setup, operation = null) {
+  const normalized = normalizeManufacturingSetup(setup);
+  const diameters = normalized.operations.filter((item) => item.type === 'turn-face' || item.type === 'turn-profile').map((item) => item.stockDiameter);
+  if (operation) diameters.push(normalizeTurningOperation(operation).stockDiameter);
+  return Math.max(0, ...diameters) + 2 * Math.max(2, normalized.safeHeight);
+}
+
 export function analyzeManufacturingProgram(setup, bodies = [], document = null) {
   const normalized = normalizeManufacturingSetup(setup);
+  const safeTurningDiameter = normalized.operationKind === 'turning-2axis'
+    ? turningClearanceDiameter(normalized)
+    : 0;
   let previousToolpath = null;
   const operations = normalized.operations.map((operation) => {
     const toolpath = calculateOperationToolpath(normalized, operation, bodies, document);
     const issues = analyzeToolpathSafety(toolpath);
+    if (toolpath.turning && safeTurningDiameter > toolpath.setup.machine.travel[1] + 1e-7) {
+      issues.push({ code: 'TURNING_CLEARANCE_EXCEEDED', message: `Bezpieczna średnica przejazdu X${safeTurningDiameter.toFixed(2)} przekracza zakres tokarki Ø${toolpath.setup.machine.travel[1]} mm.` });
+    }
     if (!toolpath.turning && toolpath.valid && previousToolpath?.valid && previousToolpath.segments.length && toolpath.segments.length) {
       const previousEnd = previousToolpath.segments.at(-1).to;
       const currentStart = toolpath.segments[0].from;
@@ -1794,9 +1809,15 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   if (toolpath.turning) {
     if (postProcessor.id !== 'linuxcnc-turn') throw new Error('Toczenie wymaga postprocesora LinuxCNC Tokarka.');
     const toolNumber = Object.keys(CAM_TURNING_TOOL_PRESETS).indexOf(toolpath.operation.toolId) + 1;
+    const clearanceDiameter = turningClearanceDiameter(setup, toolpath.operation);
+    if (clearanceDiameter > toolpath.setup.machine.travel[1] + 1e-7) throw new Error(`Eksport zablokowany: bezpieczna średnica przejazdu X${clearanceDiameter.toFixed(2)} przekracza zakres tokarki.`);
+    const start = toolpath.segments[0].from;
+    const startDiameter = Math.abs(start[1] - origin[1]) * 2;
+    const startAxial = start[0] - origin[0];
     const lines = programFragment
-      ? [comment(`${operation.name} | ${toolpath.tool.name}`), ...(includeToolChange ? [`T${toolNumber} M6`] : []), `S${toolpath.operation.spindleRpm} M3`]
-      : ['%', comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź mocowanie, zero osi Z i średnicę X przed uruchomieniem.'), 'G21', 'G90', 'G18', 'G95', toolpath.setup.workOffset, 'G40', `T${toolNumber} M6`, `S${toolpath.operation.spindleRpm} M3`];
+      ? [comment(`${operation.name} | ${toolpath.tool.name}`), ...(includeToolChange ? [`T${toolNumber} M6`] : [])]
+      : ['%', comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź mocowanie, zero osi Z i średnicę X przed uruchomieniem.'), 'G21', 'G90', 'G18', 'G95', toolpath.setup.workOffset, 'G40', `T${toolNumber} M6`];
+    lines.push(`G0 X${gcodeNumber(clearanceDiameter)}`, `G0 Z${gcodeNumber(startAxial)}`, `G0 X${gcodeNumber(startDiameter)}`, `S${toolpath.operation.spindleRpm} M3`);
     let lastFeed = null;
     for (const segment of toolpath.segments) {
       const diameter = Math.abs(segment.to[1] - origin[1]) * 2;
