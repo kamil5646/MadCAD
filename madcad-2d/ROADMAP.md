@@ -48,7 +48,7 @@ potwierdzonego wyniku bez blokowania użytkownika:
   zużycie pamięci na Windows i macOS;
 - [x] edycja podczas przebudowy zachowuje wyłącznie najnowszą rewizję, daje się
   anulować z interfejsu i nie pozostawia częściowego modelu ani cache;
-- [ ] wielokrotne zapisanie, autozapis, awaria i ponowne otwarcie każdego
+- [x] wielokrotne zapisanie, autozapis, awaria i ponowne otwarcie każdego
   dokumentu korpusu zachowują identyczny wynik geometrii i trwałe referencje;
 - [ ] raport CI publikuje czasy, pamięć i najwolniejszą operację, a przekroczenie
   ustalonego budżetu blokuje merge.
@@ -61,11 +61,14 @@ anulowanej rewizji i usuwa jej wpis z cache nawet wtedy, gdy zdążyła się
 zakończyć tuż przed kliknięciem. Test desktopowy obejmuje anulowanie oraz
 ponowną edycję historii 220 operacji.
 
-Test korpusu sprawdza już trzy kolejne zapisy atomowe, autozapis, odzyskanie
+Test korpusu sprawdza trzy kolejne zapisy atomowe, autozapis, odzyskanie
 uszkodzonego autozapisu z kopii oraz trwałość identyfikatorów i przygotowanych
-operacji we wszystkich trzech dokumentach. Punkt o odporności zapisu pozostaje
-otwarty: brakuje jeszcze przebudowy rzeczywistej geometrii OpenCascade każdego
-dokumentu po awarii i porównania trwałych referencji topologicznych.
+operacji we wszystkich trzech dokumentach. Osobny scenariusz desktopowy celowo
+kończy proces renderera po autozapisie każdego projektu; po ponownym uruchomieniu
+porównuje objętość, pole, granice, siatkę oraz stabilne identyfikatory ścian,
+krawędzi i wierzchołków wszystkich brył z wynikiem OpenCascade przed awarią.
+Raport `artifacts/madcad-large-project-corpus.json` zapisuje czasy i rozmiar
+każdego scenariusza; test należy do pełnej bramki desktopowej na macOS i Windows.
 
 Po tym pionie następne w kolejności są: walidacja importu na większym korpusie
 STEP/DWG/DXF/STL/3MF, rozbudowa CAM oraz walidowany MES dowolnej geometrii 3D.

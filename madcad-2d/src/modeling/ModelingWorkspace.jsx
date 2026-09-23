@@ -4445,6 +4445,16 @@ export default function ModelingWorkspace() {
       setSelection({ kind: 'document', id: opened.document.id });
       setCommand(null);
     };
+    window.__madcadVerifyLoadSerializedDocument = (text) => {
+      const opened = openDocument(JSON.parse(text));
+      if (opened.readOnly) throw new Error('Korpus testowy jest tylko do odczytu.');
+      history.replace(opened.document);
+      setSavedDocumentText(null);
+      setActiveSketchId(null);
+      setWorkspace('solid');
+      setSelection({ kind: 'document', id: opened.document.id });
+      setCommand(null);
+    };
     window.__madcadVerifyLoadPointHoleFixture = () => {
       const fixture = createDocument('Otwór z punktu');
       const baseProfile = createRectangleProfile({ width: 40, height: 30, x: 0, y: 0 });
@@ -4728,6 +4738,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyUpdateConstraint;
       delete window.__madcadVerifyReopenAutosave;
       delete window.__madcadVerifyReopenCurrentDocument;
+      delete window.__madcadVerifyLoadSerializedDocument;
       delete window.__madcadVerifyLoadPointHoleFixture;
       delete window.__madcadVerifyLoadTimelineFixture;
       delete window.__madcadVerifyLoadLargeHistoryFixture;
