@@ -56,7 +56,7 @@ import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/p
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
-import { analyzeManufacturingProgram, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, ensureDocumentManufacturing, extractTopBoundaryLoops, instantiateManufacturingOperationTemplate, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
+import { analyzeManufacturingProgram, analyzeManufacturingSetupSequence, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, ensureDocumentManufacturing, extractTopBoundaryLoops, instantiateManufacturingOperationTemplate, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
 import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
@@ -5875,6 +5875,36 @@ test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedync
   assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 19 && entry.to === 20), true);
   setup.fixtures[0].bounds = [[5, -5, 0], [-2, 5, 15]];
   assert.equal(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixtures[0].bounds')), true);
+});
+
+test('raport kolejnych mocowań wymaga potwierdzenia WCS i ujawnia błędny Setup bez generowania ruchów sondy', () => {
+  const first = createManufacturingSetup({ name: 'Góra & detalu', bodyId: camBox.id, workOffset: 'G54', operations: [createFacingOperation()] });
+  const second = createManufacturingSetup({ name: 'Spód detalu', bodyId: camBox.id, workOffset: 'G55', wcsOrigin: 'stock-top-front-left', operations: [createFacingOperation()] });
+  const manufacturing = { setups: [first, second], activeSetupId: first.id };
+  const report = analyzeManufacturingSetupSequence(manufacturing, [camBox]);
+  assert.equal(report.valid, true);
+  assert.equal(report.operationCount, 2);
+  assert.equal(report.setups[1].workOffset, 'G55');
+  assert.match(report.setups[1].instructions.join(' '), /Zmierz i potwierdź zero G55/);
+  const sheet = createManufacturingSequenceSheet(manufacturing, [camBox], { projectName: 'Korpus <test>' });
+  assert.match(sheet.html, /Góra &amp; detalu/);
+  assert.match(sheet.html, /Korpus &lt;test&gt;/);
+  assert.match(sheet.html, /nie generuje ruchów sondy/);
+  assert.equal(translateModelingText('Kolejne mocowania · 2 Setupy', 'en'), 'Setup sequence · 2 Setups');
+  assert.equal(translateModelingText('Zmierz zero WCS · 2 operacji', 'en'), 'Measure WCS zero · 2 operations');
+
+  second.workOffset = 'G54';
+  assert.equal(analyzeManufacturingSetupSequence(manufacturing, [camBox]).setups[1].offsetReusedAtDifferentZero, true);
+  const third = createManufacturingSetup({ name: 'Powrót na G54', bodyId: camBox.id, workOffset: 'G54', wcsOrigin: 'stock-top-front-left', operations: [createFacingOperation()] });
+  second.workOffset = 'G55';
+  manufacturing.setups.push(third);
+  assert.equal(analyzeManufacturingSetupSequence(manufacturing, [camBox]).setups[2].offsetReusedAtDifferentZero, true);
+  manufacturing.setups.pop();
+  second.fixtures = [{ name: 'Kolizyjna szczęka', enabled: true, bounds: [[-10, -10, 5], [50, 30, 25]], clearance: 1 }];
+  const unsafe = analyzeManufacturingSetupSequence(manufacturing, [camBox]);
+  assert.equal(unsafe.valid, false);
+  assert.ok(unsafe.setups[1].issues.some((issue) => issue.includes('Kolizyjna szczęka')));
+  assert.match(createManufacturingSequenceSheet(manufacturing, [camBox]).html, /WYMAGA POPRAWY/);
 });
 
 test('CAM generuje skompensowane cięcie laserowe i plazmowe z kontrolą zgodności maszyny', () => {

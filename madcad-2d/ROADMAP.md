@@ -306,7 +306,9 @@ Te prace nie czekają na koniec modelowania:
 - [>] P5.5 Mocowanie, wiele układów roboczych i sondowanie: model uchwytu oraz strefy kolizji, G54–G59, operacje ustawiania bazy i bezpieczny raport kolejnych zamocowań.
   - [x] Każdy Setup zapisuje własny układ G54–G59, przekazuje go do programów frezarskich, tokarskich i cięcia oraz umieszcza na arkuszu ustawczym.
   - [x] Wiele stref uchwytów jako prostopadłościany XYZ jest zapisywanych w Setupie, wizualizowanych i blokuje eksport przy przecięciu trajektorii narzędzia z zadanym odstępem.
+  - [x] Raport kolejnych Setupów zestawia WCS, operacje, ostrzeżenia i ręczne czynności operatora; wykrywa ponowne użycie offsetu z innym zerem, ale nie generuje sondowania ani przejazdów między Setupami.
   - [ ] Rozszerzyć mocowanie o rzeczywistą geometrię szczęk i oprawek oraz kontrolę wszystkich przejazdów maszyny.
+  - [ ] Dodać bezpieczne operacje sondowania/ustawiania bazy oraz ich weryfikację na konkretnych sterowaniach.
 
 ## Definition of Done
 

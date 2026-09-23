@@ -25,6 +25,7 @@ module.exports = Object.freeze({
     'scripts/verify-external-compatibility.cjs',
     'scripts/verify-import-report.cjs',
     'scripts/verify-manufacturing.cjs',
+    'scripts/verify-cam-sequence.cjs',
     'scripts/verify-cutting.cjs',
     'scripts/verify-turning.cjs',
   ]),

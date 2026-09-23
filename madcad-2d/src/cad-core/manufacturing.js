@@ -1624,6 +1624,78 @@ export function createManufacturingSetupSheet(setup, bodies = [], { projectName 
   return { html, report, operationCount: normalized.operations.length, toolCount: toolUsage.size };
 }
 
+export function analyzeManufacturingSetupSequence(manufacturing, bodies = [], document = null) {
+  const setups = Array.isArray(manufacturing?.setups) ? manufacturing.setups.map(normalizeManufacturingSetup) : [];
+  const entries = setups.map((setup, index) => {
+    const previous = setups[index - 1] || null;
+    const setupResult = calculateManufacturingSetup(setup, bodies);
+    let program = null;
+    const issues = [...setupResult.warnings];
+    try {
+      program = analyzeManufacturingProgram(setup, bodies, document);
+      if (!setup.operations.length) issues.push('Setup nie zawiera operacji.');
+      for (const operation of program.operations) {
+        if (!operation.valid) issues.push(...operation.issues.map((issue) => `${operation.name}: ${issue.message}`));
+      }
+      for (const hole of program.holeCompleteness.entries) {
+        issues.push(...hole.missingStages.map((stage) => `Otwór Ø${formatSetupSheetNumber(hole.diameter)}: brak etapu ${HOLE_STAGE_LABELS[stage] || stage}.`));
+        issues.push(...hole.orderingIssues);
+      }
+    } catch (error) {
+      issues.push(`Nie udało się sprawdzić ścieżki: ${error.message}`);
+    }
+    const activeFixtures = setup.fixtures.filter((fixture) => fixture.enabled);
+    const previousFixtures = previous?.fixtures.filter((fixture) => fixture.enabled) || [];
+    const fixtureChanged = JSON.stringify(activeFixtures.map(({ bounds, clearance }) => ({ bounds, clearance })))
+      !== JSON.stringify(previousFixtures.map(({ bounds, clearance }) => ({ bounds, clearance })));
+    const requiresReclamp = !previous || previous.bodyId !== setup.bodyId || previous.machineId !== setup.machineId || fixtureChanged;
+    const origin = setupResult.origin || null;
+    const priorOffsetSetup = setups.slice(0, index).reverse().find((candidate) => candidate.machineId === setup.machineId && candidate.workOffset === setup.workOffset);
+    const priorOffsetOrigin = priorOffsetSetup ? calculateManufacturingSetup(priorOffsetSetup, bodies).origin : null;
+    const offsetReusedAtDifferentZero = Boolean(priorOffsetSetup && origin && priorOffsetOrigin
+      && origin.some((value, axis) => Math.abs(value - priorOffsetOrigin[axis]) > 1e-7));
+    const instructions = [
+      ...(previous ? ['Zatrzymaj wrzeciono i potwierdź bezpieczną pozycję osi przed zmianą Setupu.'] : []),
+      ...(requiresReclamp ? [`Potwierdź mocowanie ${setup.name}: ${activeFixtures.length} aktywnych stref uchwytów.`] : []),
+      `Zmierz i potwierdź zero ${setup.workOffset}${origin ? `: X ${formatSetupSheetNumber(origin[0])}, Y ${formatSetupSheetNumber(origin[1])}, Z ${formatSetupSheetNumber(origin[2])} mm` : ''}.`,
+      ...(offsetReusedAtDifferentZero ? [`Ten sam ${setup.workOffset} ma inne zero niż przy jego poprzednim użyciu — ustaw offset ponownie na sterowaniu.`] : []),
+      'Sprawdź narzędzia, uchwyty i przejazd bez materiału przed startem programu.',
+    ];
+    return {
+      id: setup.id,
+      name: setup.name,
+      bodyId: setup.bodyId,
+      machineId: setup.machineId,
+      machineName: setupResult.machine.name,
+      workOffset: setup.workOffset,
+      origin,
+      activeFixtureCount: activeFixtures.length,
+      operationCount: setup.operations.length,
+      durationMinutes: program?.durationMinutes || 0,
+      requiresReclamp,
+      offsetReusedAtDifferentZero,
+      valid: setupResult.valid && Boolean(program?.valid) && issues.length === 0,
+      issues,
+      instructions,
+    };
+  });
+  return {
+    valid: entries.length > 0 && entries.every((entry) => entry.valid),
+    setups: entries,
+    operationCount: entries.reduce((sum, entry) => sum + entry.operationCount, 0),
+    durationMinutes: entries.reduce((sum, entry) => sum + entry.durationMinutes, 0),
+    reclampCount: entries.slice(1).filter((entry) => entry.requiresReclamp).length,
+  };
+}
+
+export function createManufacturingSequenceSheet(manufacturing, bodies = [], { projectName = 'MadCAD', document = null } = {}) {
+  const report = analyzeManufacturingSetupSequence(manufacturing, bodies, document);
+  if (!report.setups.length) throw new Error('Raport mocowań wymaga co najmniej jednego Setupu CAM.');
+  const rows = report.setups.map((setup, index) => `<section><h2>${index + 1}. ${escapeManufacturingHtml(setup.name)} · ${setup.workOffset}</h2><p>${escapeManufacturingHtml(setup.machineName)} · ${setup.operationCount} operacji · ${Math.max(1, Math.ceil(setup.durationMinutes))} min · ${setup.activeFixtureCount} stref uchwytów</p><p class="${setup.valid ? 'ok' : 'bad'}">${setup.valid ? 'ŚCIEŻKI SPRAWDZONE W MODELU' : 'WYMAGA POPRAWY'}</p>${setup.issues.length ? `<ul class="bad">${setup.issues.map((issue) => `<li>${escapeManufacturingHtml(issue)}</li>`).join('')}</ul>` : ''}<ol>${setup.instructions.map((instruction) => `<li>${escapeManufacturingHtml(instruction)}</li>`).join('')}</ol></section>`).join('');
+  const html = `<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeManufacturingHtml(projectName)} — raport mocowań CAM</title><style>@page{size:A4 portrait;margin:14mm}body{font:12px/1.45 Arial,sans-serif;color:#18212a}h1{border-bottom:3px solid #bd252d;padding-bottom:8px}h2{font-size:16px}section{break-inside:avoid;border:1px solid #aeb8c0;padding:10px;margin:10px 0}p{margin:4px 0}.ok{color:#176348;font-weight:700}.bad{color:#9c1820;font-weight:700}li{margin:4px 0}footer{border-top:1px solid #aeb8c0;margin-top:14px;padding-top:8px;color:#52606d}</style></head><body><h1>Raport kolejnych mocowań CAM</h1><p><strong>${escapeManufacturingHtml(projectName)}</strong> · ${report.setups.length} Setupów · ${report.operationCount} operacji · ${report.reclampCount} ponownych zamocowań</p>${rows}<footer>Raport nie generuje ruchów sondy ani przejazdów między Setupami. Operator musi potwierdzić rzeczywiste mocowanie, offsety WCS, narzędzia i przejazd próbny na obrabiarce.</footer></body></html>`;
+  return { html, report, setupCount: report.setups.length };
+}
+
 export function simulateMaterialRemoval(setup, bodies = [], document = null, progress = 1, resolution = 36) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
   const report = analyzeManufacturingProgram(setup, bodies, document);

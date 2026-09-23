@@ -1851,6 +1851,13 @@ const ENGLISH_TEXT = Object.freeze({
   'Podgląd G-code': 'G-code preview',
   'Eksportuj cały program': 'Export complete program',
   'Arkusz ustawczy': 'Setup sheet',
+  'Kolejne mocowania CAM': 'CAM setup sequence',
+  'Raport mocowań': 'Setup sequence report',
+  'ścieżki sprawdzone w modelu': 'toolpaths checked in the model',
+  'co najmniej jeden Setup wymaga poprawy': 'at least one Setup needs attention',
+  'Potwierdź mocowanie · ': 'Confirm fixture · ',
+  'ustaw offset ponownie': 'reset the work offset',
+  'Raport nie generuje ruchów sondy ani przejazdów między Setupami.': 'The report does not generate probe moves or travel between Setups.',
   'Przesuń w górę': 'Move up',
   'Przesuń w dół': 'Move down',
   'Duplikuj': 'Duplicate',
@@ -1879,6 +1886,11 @@ const ENGLISH_TEXT = Object.freeze({
 });
 
 const ENGLISH_PHRASES = Object.freeze([
+  [/Kolejne mocowania · (\d+) Setupy/g, 'Setup sequence · $1 Setups'],
+  [/(\d+) ponownych zamocowań/g, '$1 reclampings'],
+  [/Potwierdź mocowanie/g, 'Confirm fixture'],
+  [/Zmierz zero WCS/g, 'Measure WCS zero'],
+  [/ustaw offset ponownie/g, 'reset the work offset'],
   [/Uchwyt (\d+)/g, 'Fixture $1'],
   [/Usuń uchwyt (.+)/g, 'Delete fixture $1'],
   [/Nazwa folderu (.+)/g, 'Folder name $1'],
