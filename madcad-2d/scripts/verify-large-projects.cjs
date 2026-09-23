@@ -82,9 +82,9 @@ app.whenReady().then(async () => {
     await sendHistoryShortcut(window, { redo: true });
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${undoRevision} && window.__madcadVerifyDocumentState?.featureData?.[2]?.x === '-3'`, 'Redo dużego projektu');
     await waitFor(window, `JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.length === 220 && JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null')?.features?.[2]?.x === '-3'`, 'autozapis dużego projektu');
-    const redoRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    const redoState = await window.webContents.executeJavaScript(`({ revision: window.__madcadVerifyEngineState.revision, volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume })`);
     await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision > ${redoRevision} && window.__madcadVerifyDocumentState?.features === 220 && window.__madcadVerifyDocumentState?.featureData?.[2]?.x === '-3'`, 'ponowne otwarcie autozapisu dużego projektu');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.revision === ${redoState.revision} && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${redoState.volume}) < 1e-6 && window.__madcadVerifyDocumentState?.features === 220 && window.__madcadVerifyDocumentState?.featureData?.[2]?.x === '-3'`, 'ponowne otwarcie autozapisu dużego projektu bez zbędnej przebudowy');
 
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     const finalMemory = rendererMemory(window);

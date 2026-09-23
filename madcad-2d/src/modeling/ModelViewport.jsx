@@ -1107,6 +1107,15 @@ export default function ModelViewport({
       fixtureEdges.rotation.z = fixtureMesh.rotation.z;
       fixtureEdges.renderOrder = 22;
       manufacturingGroup.add(fixtureEdges);
+      const clearance = Math.max(0, Number(fixture.clearance) || 0);
+      if (clearance > 0) {
+        const clearanceGeometry = new THREE.BoxGeometry(...size.map((value) => value + 2 * clearance));
+        const clearanceEdges = new THREE.LineSegments(new THREE.EdgesGeometry(clearanceGeometry), new THREE.LineBasicMaterial({ color: 0xffbf69, transparent: true, opacity: 0.78, depthTest: false }));
+        clearanceEdges.position.fromArray(center);
+        clearanceEdges.rotation.z = fixtureMesh.rotation.z;
+        clearanceEdges.renderOrder = 21;
+        manufacturingGroup.add(clearanceEdges);
+      }
     }
     if (manufacturingVisualization?.removalColumns?.length) {
       const geometry = new THREE.BoxGeometry(1, 1, 1);
@@ -1164,7 +1173,7 @@ export default function ModelViewport({
       manufacturingGroup.add(cutter);
     }
     scene.add(manufacturingGroup);
-    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadManufacturingVisualState = { segmentCount: visibleManufacturingSegments, stockVisible: Boolean(manufacturingVisualization?.stockBounds), fixtureCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).length || 0, fixtureRotations: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).map((item) => item.rotationDegrees) || [], removedColumnCount: manufacturingVisualization?.removalColumns?.length || 0, cutterVisible: Boolean(manufacturingVisualization?.cutter?.position) };
+    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadManufacturingVisualState = { segmentCount: visibleManufacturingSegments, stockVisible: Boolean(manufacturingVisualization?.stockBounds), fixtureCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).length || 0, fixtureClearanceEnvelopeCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled && Number(item.clearance) > 0).length || 0, fixtureRotations: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).map((item) => item.rotationDegrees) || [], removedColumnCount: manufacturingVisualization?.removalColumns?.length || 0, cutterVisible: Boolean(manufacturingVisualization?.cutter?.position) };
     if (showBed) {
       const plateGeometry = new THREE.PlaneGeometry(bed.bedWidth, bed.bedDepth);
       const plateMaterial = new THREE.MeshStandardMaterial({ color: 0x384b55, roughness: 0.9, metalness: 0.04, transparent: true, opacity: 0.72, side: THREE.DoubleSide });

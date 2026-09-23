@@ -214,9 +214,9 @@ app.whenReady().then(async () => {
     await setControl(window, '.manufacturing-fixture:nth-of-type(2) input[step="1"]', '30');
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[1].name === 'Szczęka prawa' && JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[1].bounds[0][0] === 80 && JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[1].bounds[1][0] === 100 && JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[1].rotationDegrees === 30`, 'edycja wymiarów, obrotu i nazwy uchwytu');
     await window.webContents.executeJavaScript(`document.querySelectorAll('.manufacturing-fixture input[type="checkbox"]')[0].click()`);
-    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[0].enabled && window.__madcadManufacturingVisualState?.fixtureCount === 1`, 'wizualizacja pierwszego uchwytu CAM');
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[0].enabled && window.__madcadManufacturingVisualState?.fixtureCount === 1 && window.__madcadManufacturingVisualState?.fixtureClearanceEnvelopeCount === 1`, 'wizualizacja uchwytu i odstępu bezpieczeństwa CAM');
     await window.webContents.executeJavaScript(`document.querySelectorAll('.manufacturing-fixture input[type="checkbox"]')[1].click()`);
-    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[1].enabled && window.__madcadManufacturingVisualState?.fixtureCount === 2 && window.__madcadManufacturingVisualState?.fixtureRotations?.[1] === 30`, 'wizualizacja wielu uchwytów CAM');
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[1].enabled && window.__madcadManufacturingVisualState?.fixtureCount === 2 && window.__madcadManufacturingVisualState?.fixtureClearanceEnvelopeCount === 2 && window.__madcadManufacturingVisualState?.fixtureRotations?.[1] === 30`, 'wizualizacja wielu uchwytów i odstępów CAM');
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `!JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[1].enabled && window.__madcadManufacturingVisualState?.fixtureCount === 1`, 'Cofnij drugi uchwyt CAM');
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
@@ -224,6 +224,10 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('.manufacturing-fixture:nth-of-type(2) input[step="1"]').scrollIntoView({ block: 'center' })`);
     await new Promise((resolve) => setTimeout(resolve, 150));
     await fs.writeFile(fixtureScreenshotPath, (await window.webContents.capturePage()).toPNG());
+    await setControl(window, '.manufacturing-fixture:nth-of-type(2) input[min="0"][step="0.5"]', '0');
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[1].clearance === 0 && window.__madcadManufacturingVisualState?.fixtureClearanceEnvelopeCount === 1`, 'brak obrysu zerowego odstępu drugiej szczęki');
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[1].clearance === 1 && window.__madcadManufacturingVisualState?.fixtureClearanceEnvelopeCount === 2`, 'Cofnij zmianę odstępu szczęki');
     await window.webContents.executeJavaScript(`document.querySelector('[aria-label="Usuń uchwyt Szczęka prawa"]').click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures.length === 1 && window.__madcadManufacturingVisualState?.fixtureCount === 1`, 'usunięcie drugiego uchwytu CAM');
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);

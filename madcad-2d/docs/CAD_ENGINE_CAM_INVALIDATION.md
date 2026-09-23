@@ -37,5 +37,9 @@ CI `35853142356` na macOS zgłosiło w teście modelowanego gwintu status
 `ready` i nową rewizję, ale odczyt objętości w tej chwili odpowiadał jeszcze
 otworowi bez rowków. Lokalny pełny scenariusz przechodził. Test czeka teraz
 również na właściwą objętość bryły i przy przekroczeniu czasu zapisuje stan
-silnika, osi czasu oraz diagnostykę. Dopóki ponowny przebieg CI nie potwierdzi
-obu systemów, nie traktujemy tego jako zamkniętej regresji.
+silnika, osi czasu oraz diagnostykę. W CI `35854165469` pełny scenariusz
+`verify-modeling` przeszedł na macOS i Windows, ale następny
+`verify-large-projects` na obu systemach nadal oczekiwał zwiększenia rewizji
+po otwarciu identycznego autozapisu. Oczekiwanie zmieniono na zachowanie tej
+samej rewizji i objętości przy 220 operacjach; lokalny scenariusz przeszedł.
+Ponowny pełny przebieg CI musi jeszcze potwierdzić całą część modelowania.
