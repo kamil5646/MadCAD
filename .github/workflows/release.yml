@@ -105,6 +105,10 @@ jobs:
         working-directory: madcad-2d
         run: npm ci
 
+      - name: Ensure Electron runtime with retry
+        working-directory: madcad-2d
+        run: node scripts/install-electron-with-retry.cjs
+
       - name: Build UI
         working-directory: madcad-2d
         run: npm run build:ui
