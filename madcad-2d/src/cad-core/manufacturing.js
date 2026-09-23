@@ -1387,6 +1387,15 @@ export function analyzeToolpathSafety(toolpath) {
     if (toolpath.segments.some((segment) => segmentIntersectsBounds(segment, minimum, maximum))) {
       issues.push({ code: 'FIXTURE_COLLISION', fixtureId: fixture.id, message: `Trajektoria narzędzia przecina strefę ${fixture.name} lub jej wymagany odstęp.` });
     }
+    const holderRadius = Math.max(0, Number(toolpath.tool?.holderDiameter) || 0) / 2;
+    const stickout = Number(toolpath.tool?.stickout);
+    if (holderRadius > 0 && Number.isFinite(stickout) && stickout > 0) {
+      const holderMinimum = [fixture.bounds[0][0] - holderRadius - fixture.clearance, fixture.bounds[0][1] - holderRadius - fixture.clearance, -Infinity];
+      const holderMaximum = [fixture.bounds[1][0] + holderRadius + fixture.clearance, fixture.bounds[1][1] + holderRadius + fixture.clearance, fixture.bounds[1][2] + fixture.clearance - stickout];
+      if (toolpath.segments.some((segment) => segmentIntersectsBounds(segment, holderMinimum, holderMaximum))) {
+        issues.push({ code: 'HOLDER_FIXTURE_COLLISION', fixtureId: fixture.id, message: `Oprawka narzędzia może przeciąć strefę ${fixture.name} lub jej wymagany odstęp.` });
+      }
+    }
   }
   const stockTop = toolpath.stockBounds[1][2];
   for (const segment of toolpath.segments) {

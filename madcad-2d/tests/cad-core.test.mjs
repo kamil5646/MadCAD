@@ -5782,6 +5782,32 @@ test('CAM eksportuje LinuxCNC i Mach3 oraz blokuje niebezpieczne ścieżki', () 
   assert.match(calculateContourToolpath(setup, tooDeep, [camBox]).warnings.join(' '), /długość ostrza/);
 });
 
+test('CAM blokuje kolizję szerszej oprawki z uchwytem także na szybkim przejeździe', () => {
+  const setup = createManufacturingSetup({ bodyId: camBox.id });
+  const contour = createContourOperation({ targetDepth: 1, toolId: 'flat-6' });
+  const basePath = calculateContourToolpath(setup, contour, [camBox]);
+  const fixture = { id: 'jaw-right', name: 'Prawa szczęka', enabled: true, bounds: [[4, 8, 105], [6, 10, 115]], clearance: 0 };
+  const path = {
+    ...basePath,
+    setup: { ...basePath.setup, fixtures: [fixture] },
+    tool: { ...basePath.tool, diameter: 3, holderDiameter: 20, stickout: 5 },
+    segments: [{ kind: 'rapid', from: [0, 0, 100], to: [10, 0, 100] }],
+  };
+  const issues = analyzeToolpathSafety(path);
+  assert.equal(issues.some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
+  assert.equal(issues.some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION' && issue.fixtureId === fixture.id), true);
+  assert.equal(analyzeToolpathSafety({ ...path, tool: { ...path.tool, stickout: 20 } }).some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION'), false);
+
+  const firstPoint = basePath.segments[0].from;
+  const maximumToolZ = Math.max(...basePath.segments.flatMap((segment) => [segment.from[2], segment.to[2]]));
+  const overheadFixture = { id: 'jaw-overhead', name: 'Górna szczęka', enabled: true, bounds: [[firstPoint[0] - 1, firstPoint[1] - 1, maximumToolZ + basePath.tool.stickout + 1], [firstPoint[0] + 1, firstPoint[1] + 1, maximumToolZ + basePath.tool.stickout + 5]], clearance: 0 };
+  const guardedSetup = { ...setup, fixtures: [overheadFixture], operations: [contour] };
+  const guardedPath = calculateContourToolpath(guardedSetup, contour, [camBox]);
+  assert.equal(analyzeToolpathSafety(guardedPath).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
+  assert.equal(analyzeManufacturingProgram(guardedSetup, [camBox]).operations[0].issues.some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION'), true);
+  assert.throws(() => createMachineGcode(guardedSetup, contour, [camBox]), /Eksport.*zablokowany/);
+});
+
 test('CAM zarządza kolejnością, eksportuje kompletny program i tworzy arkusz ustawczy', () => {
   const setup = createManufacturingSetup({ bodyId: camBox.id, name: 'Setup produkcyjny', workOffset: 'G55' });
   const contour = createContourOperation({ name: 'Kontur końcowy', targetDepth: 1, toolId: 'flat-6' });
