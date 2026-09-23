@@ -1749,6 +1749,10 @@ const ENGLISH_TEXT = Object.freeze({
   'Układ współrzędnych': 'Coordinate system',
   'Układ roboczy': 'Work offset',
   'Strefa uchwytu': 'Fixture keep-out zone',
+  'Strefy uchwytów': 'Fixture keep-out zones',
+  'Prostopadłościenne strefy XYZ modelu. Kolizja blokuje eksport.': 'Rectangular zones in model XYZ coordinates. A collision blocks export.',
+  'Dodaj uchwyt': 'Add fixture',
+  'Nazwa uchwytu': 'Fixture name',
   'Uwzględnij uchwyt': 'Enable fixture zone',
   'Przybliżona prostopadłościenna strefa w układzie modelu XYZ. Kolizja blokuje eksport.': 'Approximate rectangular zone in model XYZ coordinates. A collision blocks export.',
   'Odstęp od uchwytu': 'Fixture clearance',
@@ -1872,6 +1876,8 @@ const ENGLISH_TEXT = Object.freeze({
 });
 
 const ENGLISH_PHRASES = Object.freeze([
+  [/Uchwyt (\d+)/g, 'Fixture $1'],
+  [/Usuń uchwyt (.+)/g, 'Delete fixture $1'],
   [/Nazwa folderu (.+)/g, 'Folder name $1'],
   [/Usuń folder (.+)/g, 'Delete folder $1'],
   [/Nazwa szablonu (.+)/g, 'Template name $1'],

@@ -1,8 +1,8 @@
-# Pierwsza strefa uchwytu CAM
+# Strefy uchwytów CAM
 
-Setup frezowania lub cięcia 2D może przechowywać jedną prostopadłościenną strefę uchwytu. W panelu **Ustawienia → Strefa uchwytu** włącz kontrolę i wpisz rzeczywiste współrzędne minimalne oraz maksymalne X/Y/Z w układzie modelu (mm). Domyślne granice są tylko wartościami początkowymi, **nie pomiarem uchwytu**. Odstęp bezpieczeństwa także podaje się w mm.
+Setup frezowania lub cięcia 2D może przechowywać do 20 prostopadłościennych stref uchwytów. W panelu **Ustawienia → Strefy uchwytów** dodaj i nazwij każdą strefę, wpisz rzeczywiste współrzędne minimalne oraz maksymalne X/Y/Z w układzie modelu (mm), a następnie ją włącz. Domyślne granice są tylko wartościami początkowymi, **nie pomiarem uchwytu**. Odstęp bezpieczeństwa także podaje się w mm.
 
-Aktywna strefa jest czerwona w widoku CAM i trafia na arkusz ustawczy. Kontrola sprawdza każdy odcinek ścieżki narzędzia, w tym przejazdy szybkie, przeciw strefie powiększonej w XY o promień narzędzia i zadany odstęp oraz w Z o zadany odstęp. Przecięcie oznacza operację jako niebezpieczną i blokuje eksport pojedynczej operacji oraz całego programu. Nieprawidłowe wymiary strefy również unieważniają Setup. Zmiana jest zapisywana w `.madcad`, obsługuje Cofnij/Ponów, a projekty v18 są migrowane do v19 z domyślnie wyłączoną strefą.
+Aktywne strefy są czerwone w widoku CAM i trafiają na arkusz ustawczy. Kontrola sprawdza każdy odcinek ścieżki narzędzia, w tym przejazdy szybkie, przeciw każdej strefie powiększonej w XY o promień narzędzia i zadany odstęp oraz w Z o zadany odstęp. Przecięcie oznacza operację jako niebezpieczną i blokuje eksport pojedynczej operacji oraz całego programu. Nieprawidłowe wymiary aktywnej strefy również unieważniają Setup. Zmiany są zapisywane w `.madcad` i obsługują Cofnij/Ponów. Schemat projektu v20 migruje pojedynczą strefę z v19 do listy bez utraty jej parametrów.
 
 To przybliżony test odsunięcia, **nie dowód bezkolizyjności na obrabiarce**. Nie obejmuje geometrii szczęk, śrub, oprawki, wrzeciona, kinematyki ani dojazdu do pierwszego punktu z aktualnej pozycji maszyny. Tokarka nie obsługuje jeszcze tej strefy. Operator musi zweryfikować rzeczywiste mocowanie, zero, korekcje i wykonać bezpieczny przejazd próbny.
 

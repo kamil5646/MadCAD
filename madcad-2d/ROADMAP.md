@@ -279,8 +279,8 @@ Te prace nie czekają na koniec modelowania:
   - [x] Szablony operacji zapisują parametry i narzędzie w projekcie bez nietrwałych referencji do geometrii, a zgodność z rodzajem Setupu jest sprawdzana przed użyciem.
 - [>] P5.5 Mocowanie, wiele układów roboczych i sondowanie: model uchwytu oraz strefy kolizji, G54–G59, operacje ustawiania bazy i bezpieczny raport kolejnych zamocowań.
   - [x] Każdy Setup zapisuje własny układ G54–G59, przekazuje go do programów frezarskich, tokarskich i cięcia oraz umieszcza na arkuszu ustawczym.
-  - [x] Pierwsza strefa uchwytu jako prostopadłościan XYZ jest zapisywana w Setupie, wizualizowana i blokuje eksport przy przecięciu trajektorii narzędzia z zadanym odstępem.
-  - [ ] Rozszerzyć mocowanie o wiele uchwytów, rzeczywistą geometrię szczęk i oprawek oraz kontrolę wszystkich przejazdów maszyny.
+  - [x] Wiele stref uchwytów jako prostopadłościany XYZ jest zapisywanych w Setupie, wizualizowanych i blokuje eksport przy przecięciu trajektorii narzędzia z zadanym odstępem.
+  - [ ] Rozszerzyć mocowanie o rzeczywistą geometrię szczęk i oprawek oraz kontrolę wszystkich przejazdów maszyny.
 
 ## Definition of Done
 

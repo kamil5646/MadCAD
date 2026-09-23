@@ -5788,27 +5788,33 @@ test('CAM zapisuje foldery i szablony oraz migruje starsze schematy', () => {
   assert.deepEqual(migrated.document.manufacturing.operationTemplates, []);
   assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 17 && entry.to === 18), true);
   assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 18 && entry.to === 19), true);
-  assert.equal(migrated.document.manufacturing.setups[0]?.fixture?.enabled ?? false, false);
+  assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 19 && entry.to === 20), true);
+  assert.deepEqual(migrated.document.manufacturing.setups[0]?.fixtures || [], []);
 });
 
-test('CAM przenosi strefę uchwytu przez zapis projektu i odrzuca niepoprawne granice', () => {
-  const setup = createManufacturingSetup({ bodyId: camBox.id, fixture: { enabled: true, bounds: [[-5, -5, 0], [-2, 5, 15]], clearance: 2 } });
+test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedynczy uchwyt v19', () => {
+  const setup = createManufacturingSetup({ bodyId: camBox.id, fixtures: [
+    { name: 'Lewa szczęka', enabled: true, bounds: [[-5, -5, 0], [-2, 5, 15]], clearance: 2 },
+    { name: 'Prawa szczęka', enabled: false, bounds: [[50, -5, 0], [55, 5, 15]], clearance: 1 },
+  ] });
   const document = createDocument('Mocowanie CAM');
   document.manufacturing.setups = [setup];
   document.manufacturing.activeSetupId = setup.id;
   const opened = openDocument(document);
   assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
-  assert.deepEqual(opened.document.manufacturing.setups[0].fixture, setup.fixture);
+  assert.deepEqual(opened.document.manufacturing.setups[0].fixtures, setup.fixtures);
   assert.deepEqual(validateManufacturing(opened.document.manufacturing), []);
-  const legacy = createDocument('Mocowanie v18');
-  legacy.schemaVersion = 18;
-  legacy.manufacturing.setups = [{ ...setup, fixture: undefined }];
+  const legacy = createDocument('Mocowanie v19');
+  legacy.schemaVersion = 19;
+  legacy.manufacturing.setups = [{ ...setup, fixtures: undefined, fixture: { enabled: true, bounds: [[-5, -5, 0], [-2, 5, 15]], clearance: 2 } }];
   legacy.manufacturing.activeSetupId = setup.id;
   const migrated = openDocument(legacy);
-  assert.deepEqual(migrated.document.manufacturing.setups[0].fixture, { enabled: false, bounds: [[-10, -10, -10], [10, 10, 10]], clearance: 1 });
-  assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 18 && entry.to === 19), true);
-  setup.fixture.bounds = [[5, -5, 0], [-2, 5, 15]];
-  assert.equal(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixture.bounds')), true);
+  assert.equal(migrated.document.manufacturing.setups[0].fixtures.length, 1);
+  assert.equal(migrated.document.manufacturing.setups[0].fixtures[0].enabled, true);
+  assert.deepEqual(migrated.document.manufacturing.setups[0].fixtures[0].bounds, [[-5, -5, 0], [-2, 5, 15]]);
+  assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 19 && entry.to === 20), true);
+  setup.fixtures[0].bounds = [[5, -5, 0], [-2, 5, 15]];
+  assert.equal(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixtures[0].bounds')), true);
 });
 
 test('CAM generuje skompensowane cięcie laserowe i plazmowe z kontrolą zgodności maszyny', () => {

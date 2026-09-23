@@ -6374,6 +6374,9 @@
 .manufacturing-form input,
 .manufacturing-form select { width: 100%; height: 30px; box-sizing: border-box; border: 1px solid #596978; border-radius: 3px; background: #222b35; color: #edf3f7; padding: 0 8px; font: inherit; }
 .manufacturing-form input[type="checkbox"] { width: 18px; height: 18px; padding: 0; accent-color: #59c4de; }
+.manufacturing-fixture { display: grid; gap: 8px; padding: 9px; border: 1px solid #657789; border-radius: 4px; }
+.manufacturing-fixture > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.manufacturing-fixture > label { position: relative; display: grid; gap: 4px; color: #bdc8d1; font-size: 10px; font-weight: 700; }
 .manufacturing-form label > em { position: absolute; right: 7px; bottom: 8px; color: #7f909e; font-size: 9px; font-style: normal; pointer-events: none; }
 .manufacturing-form label > em + * { padding-right: 28px; }
 .manufacturing-form fieldset { display: grid; gap: 8px; margin: 0; padding: 9px; border: 1px solid #52606d; border-radius: 4px; }

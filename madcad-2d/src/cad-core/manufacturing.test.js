@@ -23,6 +23,7 @@ import {
   createGrblGcode,
   createMachineGcode,
   createManufacturingProgramGcode,
+  createManufacturingFixture,
   createManufacturingOperationGroup,
   createManufacturingOperationTemplate,
   createManufacturingSetupSheet,
@@ -88,18 +89,21 @@ describe('CAM contour operations', () => {
     const segment = baseline.segments.find((item) => item.kind === 'cut' && Math.hypot(...item.to.map((value, axis) => value - item.from[axis])) > 1);
     expect(segment).toBeDefined();
     const middle = segment.from.map((value, axis) => (value + segment.to[axis]) / 2);
-    setup.fixture = { enabled: true, bounds: [middle.map((value) => value - 0.1), middle.map((value) => value + 0.1)], clearance: 0.5 };
+    setup.fixtures = [createManufacturingFixture({ name: 'Szczęka lewa', enabled: true, bounds: [middle.map((value) => value - 0.1), middle.map((value) => value + 0.1)], clearance: 0.5 })];
     const collision = calculateContourToolpath(setup, operation, [box]);
     expect(analyzeToolpathSafety(collision)).toContainEqual(expect.objectContaining({ code: 'FIXTURE_COLLISION' }));
     expect(analyzeManufacturingProgram(setup, [box]).valid).toBe(false);
-    expect(() => createMachineGcode(setup, operation, [box])).toThrow(/uchwytu/);
+    expect(() => createMachineGcode(setup, operation, [box])).toThrow(/Szczęka lewa/);
     expect(() => createManufacturingProgramGcode(setup, [box])).toThrow(/zablokowany/);
-    setup.fixture.bounds = [[100, 100, 100], [110, 110, 110]];
+    setup.fixtures.push(createManufacturingFixture({ name: 'Szczęka prawa', enabled: true, bounds: [middle.map((value) => value - 0.1), middle.map((value) => value + 0.1)], clearance: 0.5 }));
+    expect(analyzeToolpathSafety(calculateContourToolpath(setup, operation, [box])).filter((issue) => issue.code === 'FIXTURE_COLLISION')).toHaveLength(2);
+    setup.fixtures[0].bounds = [[100, 100, 100], [110, 110, 110]];
+    setup.fixtures[1].enabled = false;
     expect(analyzeToolpathSafety(calculateContourToolpath(setup, operation, [box]))).toEqual([]);
-    expect(createManufacturingSetupSheet(setup, [box]).html).toContain('Strefa uchwytu XYZ: 100.00 / 100.00 / 100.00 — 110.00 / 110.00 / 110.00 mm; odstęp 0.50 mm.');
+    expect(createManufacturingSetupSheet(setup, [box]).html).toContain('Szczęka lewa XYZ: 100.00 / 100.00 / 100.00 — 110.00 / 110.00 / 110.00 mm; odstęp 0.50 mm.');
     expect(validateManufacturing({ setups: [setup], activeSetupId: setup.id })).toEqual([]);
-    setup.fixture.bounds[1][0] = 90;
-    expect(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixture.bounds'))).toBe(true);
+    setup.fixtures[0].bounds[1][0] = 90;
+    expect(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixtures[0].bounds'))).toBe(true);
   });
   it('drills recognized model holes with safe pecks, simulation data, and portable G-code', () => {
     const setup = createManufacturingSetup({ bodyId: drilledBox.id, stock: { sideOffset: 2, topOffset: 2, bottomOffset: 0 }, safeHeight: 5 });

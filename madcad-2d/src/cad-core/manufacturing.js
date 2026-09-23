@@ -271,6 +271,25 @@ const finiteNonNegative = (value, fallback) => {
   return Number.isFinite(number) && number >= 0 ? number : fallback;
 };
 
+export function normalizeManufacturingFixture(fixture = {}, index = 0) {
+  const source = fixture && typeof fixture === 'object' && !Array.isArray(fixture) ? fixture : {};
+  return {
+    id: typeof source.id === 'string' && source.id ? source.id : createId('cam-fixture'),
+    name: String(source.name || `Uchwyt ${index + 1}`).trim().slice(0, 80) || `Uchwyt ${index + 1}`,
+    enabled: Boolean(source.enabled),
+    bounds: [0, 1].map((side) => [0, 1, 2].map((axis) => {
+      const fallback = side === 0 ? -10 : 10;
+      const value = Number(source.bounds?.[side]?.[axis]);
+      return Number.isFinite(value) ? value : fallback;
+    })),
+    clearance: finiteNonNegative(source.clearance, 1),
+  };
+}
+
+export function createManufacturingFixture(options = {}) {
+  return normalizeManufacturingFixture({ ...options, id: createId('cam-fixture') });
+}
+
 export function normalizeManufacturingSetup(setup = {}, index = 0) {
   const machineId = CAM_MACHINE_PRESETS[setup.machineId] ? setup.machineId : 'mill-500';
   const wcsOrigin = CAM_WCS_ORIGINS.some((item) => item.id === setup.wcsOrigin) ? setup.wcsOrigin : 'stock-top-center';
@@ -287,6 +306,14 @@ export function normalizeManufacturingSetup(setup = {}, index = 0) {
   });
   const operations = (Array.isArray(setup.operations) ? setup.operations : []).map(normalizeManufacturingOperation)
     .map((operation) => ({ ...operation, groupId: groupIds.has(operation.groupId) ? operation.groupId : '' }));
+  const fixtureIds = new Set();
+  const fixtureSources = Array.isArray(setup.fixtures) ? setup.fixtures : setup.fixture && typeof setup.fixture === 'object' ? [setup.fixture] : [];
+  const fixtures = fixtureSources.slice(0, 20).map((fixture, fixtureIndex) => {
+    const normalized = normalizeManufacturingFixture(fixture, fixtureIndex);
+    if (fixtureIds.has(normalized.id)) normalized.id = createId('cam-fixture');
+    fixtureIds.add(normalized.id);
+    return normalized;
+  });
   return {
     id: typeof setup.id === 'string' && setup.id ? setup.id : createId('cam-setup'),
     name: String(setup.name || `Setup ${index + 1}`).trim().slice(0, 80) || `Setup ${index + 1}`,
@@ -300,15 +327,7 @@ export function normalizeManufacturingSetup(setup = {}, index = 0) {
     },
     wcsOrigin,
     workOffset: CAM_WORK_OFFSETS.includes(setup.workOffset) ? setup.workOffset : 'G54',
-    fixture: {
-      enabled: Boolean(setup.fixture?.enabled),
-      bounds: [0, 1].map((side) => [0, 1, 2].map((axis) => {
-        const fallback = side === 0 ? -10 : 10;
-        const value = Number(setup.fixture?.bounds?.[side]?.[axis]);
-        return Number.isFinite(value) ? value : fallback;
-      })),
-      clearance: finiteNonNegative(setup.fixture?.clearance, 1),
-    },
+    fixtures,
     safeHeight: finiteNonNegative(setup.safeHeight, 5),
     operationGroups,
     operations,
@@ -432,9 +451,11 @@ export function calculateManufacturingSetup(setup, bodies = []) {
   else if (normalized.wcsOrigin === 'stock-top-front-left') origin = [stockBounds[0][0], stockBounds[0][1], stockBounds[1][2]];
   else origin = [(stockBounds[0][0] + stockBounds[1][0]) / 2, (stockBounds[0][1] + stockBounds[1][1]) / 2, stockBounds[1][2]];
   const warnings = [];
-  const fixture = normalized.fixture;
-  if (fixture.enabled && machine.kind === 'turning-2axis') warnings.push('Strefa uchwytu nie obsługuje jeszcze tokarki.');
-  if (fixture.enabled && fixture.bounds.some((side, index) => index === 0 && side.some((value, axis) => value >= fixture.bounds[1][axis]))) warnings.push('Strefa uchwytu wymaga dodatnich wymiarów X, Y i Z.');
+  const fixtures = normalized.fixtures;
+  if (fixtures.some((fixture) => fixture.enabled) && machine.kind === 'turning-2axis') warnings.push('Strefy uchwytów nie obsługują jeszcze tokarki.');
+  for (const fixture of fixtures.filter((item) => item.enabled)) {
+    if (fixture.bounds[0].some((value, axis) => value >= fixture.bounds[1][axis])) warnings.push(`${fixture.name}: strefa wymaga dodatnich wymiarów X, Y i Z.`);
+  }
   const exceededAxes = dimensions.map((value, axis) => value > machine.travel[axis] ? ['X', 'Y', 'Z'][axis] : null).filter(Boolean);
   if (exceededAxes.length) warnings.push(`Półfabrykat przekracza przesuw maszyny w osi ${exceededAxes.join(', ')}.`);
   if (dimensions.some((value) => value <= 0)) warnings.push('Półfabrykat musi mieć dodatnie wymiary.');
@@ -448,7 +469,7 @@ export function calculateManufacturingSetup(setup, bodies = []) {
     dimensions,
     origin,
     workOffset: normalized.workOffset,
-    fixture,
+    fixtures,
     clearancePlaneZ,
     warnings,
   };
@@ -1358,14 +1379,13 @@ export function analyzeToolpathSafety(toolpath) {
     if (Math.max(...values) - Math.min(...values) > machine.travel[axis] + 1e-7) issues.push({ code: 'MACHINE_TRAVEL', message: `Ścieżka przekracza przesuw maszyny w osi ${['X', 'Y', 'Z'][axis]}.` });
   }
   if (toolpath.turning) return issues;
-  const fixture = toolpath.setup.fixture;
-  if (fixture?.enabled) {
+  for (const fixture of toolpath.setup.fixtures.filter((item) => item.enabled)) {
     const radius = Math.max(0, Number(toolpath.tool?.diameter) || 0) / 2;
     const margin = fixture.clearance + radius;
     const minimum = fixture.bounds[0].map((value, axis) => value - (axis === 2 ? fixture.clearance : margin));
     const maximum = fixture.bounds[1].map((value, axis) => value + (axis === 2 ? fixture.clearance : margin));
     if (toolpath.segments.some((segment) => segmentIntersectsBounds(segment, minimum, maximum))) {
-      issues.push({ code: 'FIXTURE_COLLISION', message: 'Trajektoria narzędzia przecina strefę uchwytu lub jej wymagany odstęp.' });
+      issues.push({ code: 'FIXTURE_COLLISION', fixtureId: fixture.id, message: `Trajektoria narzędzia przecina strefę ${fixture.name} lub jej wymagany odstęp.` });
     }
   }
   const stockTop = toolpath.stockBounds[1][2];
@@ -1593,9 +1613,10 @@ export function createManufacturingSetupSheet(setup, bodies = [], { projectName 
   }).join('');
   const toolRows = [...toolUsage.values()].map(({ tool, operationNumbers }, index) => `<tr><td>T${index + 1}</td><td><strong>${escapeManufacturingHtml(tool.name)}</strong><small>${escapeManufacturingHtml(tool.type || '')}</small></td><td>${tool.diameter ? `Ø${formatSetupSheetNumber(tool.diameter)}` : '—'}</td><td>${tool.stickout ? `${formatSetupSheetNumber(tool.stickout)} mm` : '—'}</td><td>${operationNumbers.join(', ')}</td></tr>`).join('');
   const issues = [...(report.setupIssues || []), ...report.operations.flatMap((operation) => operation.issues.map((issue) => `${operation.name}: ${issue.message}`)), ...(report.holeCompleteness?.entries || []).flatMap((entry) => [...entry.missingStages.map((stage) => `Ø${formatSetupSheetNumber(entry.diameter)}: brak etapu ${HOLE_STAGE_LABELS[stage] || stage}.`), ...entry.orderingIssues])];
-  const fixtureMarkup = normalized.fixture.enabled
-    ? `<p>Strefa uchwytu XYZ: ${normalized.fixture.bounds.map((point) => point.map((value) => formatSetupSheetNumber(value)).join(' / ')).join(' — ')} mm; odstęp ${formatSetupSheetNumber(normalized.fixture.clearance)} mm.</p>`
-    : '<p>Strefa uchwytu: nieaktywna — sprawdź rzeczywiste mocowanie na obrabiarce.</p>';
+  const activeFixtures = normalized.fixtures.filter((fixture) => fixture.enabled);
+  const fixtureMarkup = activeFixtures.length
+    ? activeFixtures.map((fixture) => `<p>${escapeManufacturingHtml(fixture.name)} XYZ: ${fixture.bounds.map((point) => point.map((value) => formatSetupSheetNumber(value)).join(' / ')).join(' — ')} mm; odstęp ${formatSetupSheetNumber(fixture.clearance)} mm.</p>`).join('')
+    : '<p>Strefy uchwytów: nieaktywne — sprawdź rzeczywiste mocowanie na obrabiarce.</p>';
   const issueMarkup = `${fixtureMarkup}${issues.length ? `<ul>${issues.map((issue) => `<li>${escapeManufacturingHtml(issue)}</li>`).join('')}</ul>` : '<p>Kontrola Setupu, ścieżek, kolizji i kompletności obróbki zakończona bez błędów.</p>'}`;
   const dimensions = setupResult.dimensions.map((value) => formatSetupSheetNumber(value)).join(' × ');
   const origin = setupResult.origin.map((value) => formatSetupSheetNumber(value)).join(' / ');
@@ -1907,14 +1928,23 @@ export function validateManufacturing(manufacturing) {
     if (!CAM_MACHINE_PRESETS[setup.machineId]) issues.push({ path: `${base}.machineId`, message: 'Nieznany profil obrabiarki.', code: 'UNSUPPORTED' });
     if (!CAM_WCS_ORIGINS.some((item) => item.id === setup.wcsOrigin)) issues.push({ path: `${base}.wcsOrigin`, message: 'Nieznany początek układu WCS.', code: 'UNSUPPORTED' });
     if (!CAM_WORK_OFFSETS.includes(setup.workOffset)) issues.push({ path: `${base}.workOffset`, message: 'Układ roboczy musi mieścić się w zakresie G54–G59.', code: 'UNSUPPORTED' });
-    if (!setup.fixture || typeof setup.fixture !== 'object' || Array.isArray(setup.fixture)) issues.push({ path: `${base}.fixture`, message: 'Strefa uchwytu musi być obiektem.', code: 'TYPE' });
+    if (!Array.isArray(setup.fixtures)) issues.push({ path: `${base}.fixtures`, message: 'Strefy uchwytów muszą być tablicą.', code: 'TYPE' });
     else {
-      const fixture = setup.fixture;
-      if (typeof fixture.enabled !== 'boolean') issues.push({ path: `${base}.fixture.enabled`, message: 'Aktywność strefy uchwytu musi być wartością logiczną.', code: 'TYPE' });
-      if (!Array.isArray(fixture.bounds) || fixture.bounds.length !== 2 || fixture.bounds.some((side) => !Array.isArray(side) || side.length !== 3 || side.some((value) => !Number.isFinite(Number(value))))) issues.push({ path: `${base}.fixture.bounds`, message: 'Strefa uchwytu wymaga sześciu skończonych współrzędnych.', code: 'VALUE' });
-      else if (fixture.bounds[0].some((value, axis) => Number(value) >= Number(fixture.bounds[1][axis]))) issues.push({ path: `${base}.fixture.bounds`, message: 'Strefa uchwytu wymaga dodatnich wymiarów X, Y i Z.', code: 'VALUE' });
-      if (!Number.isFinite(Number(fixture.clearance)) || Number(fixture.clearance) < 0) issues.push({ path: `${base}.fixture.clearance`, message: 'Odstęp od uchwytu musi być nieujemny.', code: 'VALUE' });
-      if (fixture.enabled && setup.operationKind === 'turning-2axis') issues.push({ path: `${base}.fixture`, message: 'Strefa uchwytu nie obsługuje jeszcze tokarki.', code: 'UNSUPPORTED' });
+      if (setup.fixtures.length > 20) issues.push({ path: `${base}.fixtures`, message: 'Setup może zawierać najwyżej 20 stref uchwytów.', code: 'LIMIT' });
+      const fixtureIds = new Set();
+      setup.fixtures.forEach((fixture, fixtureIndex) => {
+        const fixtureBase = `${base}.fixtures[${fixtureIndex}]`;
+        if (!fixture || typeof fixture !== 'object' || Array.isArray(fixture)) { issues.push({ path: fixtureBase, message: 'Uchwyt musi być obiektem.', code: 'TYPE' }); return; }
+        if (typeof fixture.id !== 'string' || !fixture.id) issues.push({ path: `${fixtureBase}.id`, message: 'Uchwyt wymaga ID.', code: 'REQUIRED' });
+        else if (fixtureIds.has(fixture.id)) issues.push({ path: `${fixtureBase}.id`, message: 'ID uchwytu jest powtórzone.', code: 'DUPLICATE_ID' });
+        else fixtureIds.add(fixture.id);
+        if (typeof fixture.name !== 'string' || !fixture.name.trim()) issues.push({ path: `${fixtureBase}.name`, message: 'Uchwyt wymaga nazwy.', code: 'REQUIRED' });
+        if (typeof fixture.enabled !== 'boolean') issues.push({ path: `${fixtureBase}.enabled`, message: 'Aktywność uchwytu musi być wartością logiczną.', code: 'TYPE' });
+        if (!Array.isArray(fixture.bounds) || fixture.bounds.length !== 2 || fixture.bounds.some((side) => !Array.isArray(side) || side.length !== 3 || side.some((value) => !Number.isFinite(Number(value))))) issues.push({ path: `${fixtureBase}.bounds`, message: 'Strefa uchwytu wymaga sześciu skończonych współrzędnych.', code: 'VALUE' });
+        else if (fixture.bounds[0].some((value, axis) => Number(value) >= Number(fixture.bounds[1][axis]))) issues.push({ path: `${fixtureBase}.bounds`, message: 'Strefa uchwytu wymaga dodatnich wymiarów X, Y i Z.', code: 'VALUE' });
+        if (!Number.isFinite(Number(fixture.clearance)) || Number(fixture.clearance) < 0) issues.push({ path: `${fixtureBase}.clearance`, message: 'Odstęp od uchwytu musi być nieujemny.', code: 'VALUE' });
+        if (fixture.enabled && setup.operationKind === 'turning-2axis') issues.push({ path: fixtureBase, message: 'Strefa uchwytu nie obsługuje jeszcze tokarki.', code: 'UNSUPPORTED' });
+      });
     }
     for (const key of ['sideOffset', 'topOffset', 'bottomOffset']) if (!Number.isFinite(Number(setup.stock?.[key])) || Number(setup.stock[key]) < 0) issues.push({ path: `${base}.stock.${key}`, message: 'Naddatek musi być liczbą nieujemną.', code: 'VALUE' });
     if (!Number.isFinite(Number(setup.safeHeight)) || Number(setup.safeHeight) < 0) issues.push({ path: `${base}.safeHeight`, message: 'Wysokość bezpieczna musi być liczbą nieujemną.', code: 'VALUE' });

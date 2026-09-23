@@ -1093,8 +1093,8 @@ export default function ModelViewport({
       stockEdges.renderOrder = 20;
       manufacturingGroup.add(stockEdges);
     }
-    if (manufacturingVisualization?.fixture?.enabled) {
-      const [minimum, maximum] = manufacturingVisualization.fixture.bounds;
+    for (const fixture of manufacturingVisualization?.fixtures?.filter((item) => item.enabled) || []) {
+      const [minimum, maximum] = fixture.bounds;
       const size = maximum.map((value, axis) => Math.max(0.001, value - minimum[axis]));
       const center = maximum.map((value, axis) => (value + minimum[axis]) / 2);
       const fixtureGeometry = new THREE.BoxGeometry(...size);
@@ -1145,7 +1145,7 @@ export default function ModelViewport({
       manufacturingGroup.add(cutter);
     }
     scene.add(manufacturingGroup);
-    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadManufacturingVisualState = { segmentCount: manufacturingVisualization?.segments?.length || 0, stockVisible: Boolean(manufacturingVisualization?.stockBounds), fixtureVisible: Boolean(manufacturingVisualization?.fixture?.enabled), removedColumnCount: manufacturingVisualization?.removalColumns?.length || 0, cutterVisible: Boolean(manufacturingVisualization?.cutter?.position) };
+    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadManufacturingVisualState = { segmentCount: manufacturingVisualization?.segments?.length || 0, stockVisible: Boolean(manufacturingVisualization?.stockBounds), fixtureCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).length || 0, removedColumnCount: manufacturingVisualization?.removalColumns?.length || 0, cutterVisible: Boolean(manufacturingVisualization?.cutter?.position) };
     if (showBed) {
       const plateGeometry = new THREE.PlaneGeometry(bed.bedWidth, bed.bedDepth);
       const plateMaterial = new THREE.MeshStandardMaterial({ color: 0x384b55, roughness: 0.9, metalness: 0.04, transparent: true, opacity: 0.72, side: THREE.DoubleSide });
