@@ -70,7 +70,8 @@ npm run verify:desktop-suite -- analysis
   wzorzec i dokładny opis etapu błędu. Po podmianie fixture nie wystarczy
   `engine.status === ready`: stary model może nadal spełniać ten warunek.
   Czekaj na identyfikator ostatniej operacji nowego dokumentu także w wyniku
-  silnika, zanim utworzysz utraconą referencję.
+  silnika, zanim utworzysz utraconą referencję. Odczyt panelu rób atomowo:
+  Windows może go odmontować między `waitFor` i osobnym `executeJavaScript`.
 - `ModelingWorkspace.jsx`, `ModelViewport.jsx` i `cad-worker.js` są monolitami;
   nie dodawaj do nich kolejnej domeny bez rozważenia wydzielenia modułu.
 - PR podnoszący `replicad-opencascadejs` do 1.x jest migracją kernela, nie

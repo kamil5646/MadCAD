@@ -437,6 +437,7 @@ describe('CAM contour operations', () => {
     expect(toolpath.valid).toBe(true);
     expect(toolpath.layerCount).toBe(2);
     expect(toolpath.segments.filter((segment) => segment.kind === 'cut')).toHaveLength(10);
+    expect(analyzeToolpathSafety(toolpath).some((issue) => issue.code === 'RAPID_IN_STOCK')).toBe(false);
     expect(validateManufacturing({ setups: [laserSetup], activeSetupId: laserSetup.id })).toEqual([]);
     const laser = createMachineGcode(laserSetup, laserOperation, [box]);
     expect(laser.postProcessor).toBe('grbl-laser');

@@ -1531,12 +1531,14 @@ export function analyzeToolpathSafety(toolpath) {
   const holderRadius = Math.max(0, Number(toolpath.tool?.holderDiameter) || 0) / 2;
   for (const segment of toolpath.segments) {
     const horizontalDistance = Math.hypot(segment.to[0] - segment.from[0], segment.to[1] - segment.from[1]);
-    if (segment.kind !== 'rapid' || horizontalDistance <= 1e-7) continue;
+    // A laser/plasma head descends to its cutting plane with the process off.
+    const descends = machine.kind !== 'cut-2d' && segment.to[2] < segment.from[2] - 1e-7;
+    if (segment.kind !== 'rapid' || (horizontalDistance <= 1e-7 && !descends)) continue;
     const cutterIntersectsStock = segmentIntersectsFixtureFootprint(segment, stockMinimum, stockMaximum, cutterRadius, 0, stockMinimum[2] - exposedLength, stockTop - 1e-7);
     const holderIntersectsStock = holderRadius > 0 && exposedLength > 0
       && segmentIntersectsFixtureFootprint(segment, stockMinimum, stockMaximum, holderRadius, 0, -Infinity, stockTop - exposedLength - 1e-7);
     if (cutterIntersectsStock || holderIntersectsStock) {
-      issues.push({ code: 'RAPID_IN_STOCK', message: 'Wykryto szybki przejazd poziomy narzędzia lub oprawki przez półfabrykat.' });
+      issues.push({ code: 'RAPID_IN_STOCK', message: 'Wykryto szybki przejazd narzędzia lub oprawki przez półfabrykat.' });
       break;
     }
   }

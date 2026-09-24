@@ -50,6 +50,31 @@ async function invokeVerificationHook(window, hookName, label, timeoutMs = 30000
   throw new Error(`Przekroczono czas oczekiwania: ${label}`);
 }
 
+async function readWizardState(window, timeoutMs = 30000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const state = await executeStep(window, `(() => {
+      const panel = document.querySelector('.reference-repair-panel:not(.collapsed)');
+      const candidate = panel?.querySelector('.reference-candidate');
+      if (!panel || !candidate) return null;
+      const rect = panel.getBoundingClientRect();
+      return {
+        title: panel.querySelector('header strong')?.textContent.trim(),
+        step: panel.querySelector('.reference-repair-progress span')?.textContent.trim(),
+        progressMax: Number(panel.querySelector('progress')?.max),
+        candidateClass: candidate.className || '',
+        candidateScore: candidate.querySelector('strong')?.textContent.trim() || '',
+        candidateActions: candidate.querySelectorAll('button').length,
+        insideViewport: rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight,
+        horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
+      };
+    })()`, 'odczyt stanu kreatora przed naprawą');
+    if (state) return state;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error('Przekroczono czas oczekiwania: stabilny kreator naprawy z kandydatem.');
+}
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({
     width: 1440,
@@ -75,21 +100,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.reference-repair-panel:not(.collapsed) .reference-candidate')`, 'rozwinięty kreator z kandydatem');
     await waitFor(window, `document.querySelector('[data-reference-action="repair-certain"]:not(:disabled)')`, 'gotowa automatyczna naprawa');
 
-    const before = await executeStep(window, `(() => {
-      const panel = document.querySelector('.reference-repair-panel');
-      const rect = panel.getBoundingClientRect();
-      const candidate = panel.querySelector('.reference-candidate');
-      return {
-        title: panel.querySelector('header strong')?.textContent.trim(),
-        step: panel.querySelector('.reference-repair-progress span')?.textContent.trim(),
-        progressMax: Number(panel.querySelector('progress')?.max),
-        candidateClass: candidate?.className || '',
-        candidateScore: candidate?.querySelector('strong')?.textContent.trim() || '',
-        candidateActions: candidate?.querySelectorAll('button').length || 0,
-        insideViewport: rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight,
-        horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
-      };
-    })()`, 'odczyt stanu kreatora przed naprawą');
+    const before = await readWizardState(window);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
     await clickWhenEnabled(window, '[data-reference-action="repair-certain"]', 'uruchomienie automatycznej naprawy');
     await waitFor(window, `!document.querySelector('.reference-repair-panel') && window.__madcadVerifyDocumentState.references.find((reference) => reference.id === ${JSON.stringify(referenceId)})?.repairedAt`, 'automatyczna naprawa pewnego dopasowania');

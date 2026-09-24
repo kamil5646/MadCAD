@@ -340,6 +340,7 @@ Te prace nie czekają na koniec modelowania:
   - [x] Eksport najpierw podnosi Z i ustawia XY na płaszczyźnie bezpiecznej; pełny program sprawdza dodatkowo przejazdy między operacjami tego samego Setupu.
   - [x] Toczenie rozdziela dojazd na odsunięcie promieniowe X, przejazd osiowy Z i powrót do promienia startowego; blokuje nieosiągalną średnicę bezpieczną.
   - [x] Strefa mocowania może być pionowym walcem, np. śrubą: widok, odstęp, kontrola freza i oprawki, arkusz ustawczy oraz migracja projektu v21→v22 używają tego samego kształtu.
+  - [x] Kontrola szybkiego przejazdu frezu przez półfabrykat wykrywa także pionowy ruch w dół do materiału; pionowe wycofanie, ruch poza obrysem XY i dojazd głowicy laserowej/plazmowej mają regresje bez fałszywego alarmu.
   - [ ] Rozszerzyć mocowanie o rzeczywistą geometrię szczęk i oprawek oraz kontrolę wszystkich przejazdów maszyny.
   - [ ] Dodać bezpieczne operacje sondowania/ustawiania bazy oraz ich weryfikację na konkretnych sterowaniach; [ograniczenia i źródła](./docs/CAM_PROBING_NOTES.md).
 

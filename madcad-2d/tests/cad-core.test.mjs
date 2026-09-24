@@ -5803,6 +5803,12 @@ test('CAM eksportuje LinuxCNC i Mach3 oraz blokuje niebezpieczne ścieżki', () 
   const lowHolderZ = unsafe.stockBounds[1][2] - unsafe.tool.stickout - 1;
   const lowHolder = { ...outside, segments: [{ ...outsideSegment, from: [-10, outsideY, lowHolderZ], to: [50, outsideY, lowHolderZ] }] };
   assert.equal(analyzeToolpathSafety(lowHolder).some((issue) => issue.code === 'RAPID_IN_STOCK'), true);
+  const stockCenter = unsafe.stockBounds[0].map((value, axis) => (value + unsafe.stockBounds[1][axis]) / 2);
+  const stockTop = unsafe.stockBounds[1][2];
+  const downwardRapid = { kind: 'rapid', from: [stockCenter[0], stockCenter[1], stockTop + 2], to: [stockCenter[0], stockCenter[1], stockTop - 1] };
+  assert.equal(analyzeToolpathSafety({ ...unsafe, segments: [downwardRapid] }).some((issue) => issue.code === 'RAPID_IN_STOCK'), true);
+  assert.equal(analyzeToolpathSafety({ ...unsafe, segments: [{ ...downwardRapid, from: downwardRapid.to, to: downwardRapid.from }] }).some((issue) => issue.code === 'RAPID_IN_STOCK'), false);
+  assert.equal(analyzeToolpathSafety({ ...unsafe, segments: [{ ...downwardRapid, from: [stockCenter[0], outsideY, stockTop + 2], to: [stockCenter[0], outsideY, stockTop - 1] }] }).some((issue) => issue.code === 'RAPID_IN_STOCK'), false);
   const tooDeep = createContourOperation({ targetDepth: 30, toolId: 'flat-6' });
   assert.match(calculateContourToolpath(setup, tooDeep, [camBox]).warnings.join(' '), /długość ostrza/);
 });
