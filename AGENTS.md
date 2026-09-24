@@ -67,7 +67,10 @@ npm run verify:desktop-suite -- analysis
 
 - Windowsowy scenariusz naprawy referencji został ustabilizowany w PR #69 przez
   atomowe wywołanie hooków helperem `invokeVerificationHook()`. Zachowaj ten
-  wzorzec i dokładny opis etapu błędu.
+  wzorzec i dokładny opis etapu błędu. Po podmianie fixture nie wystarczy
+  `engine.status === ready`: stary model może nadal spełniać ten warunek.
+  Czekaj na identyfikator ostatniej operacji nowego dokumentu także w wyniku
+  silnika, zanim utworzysz utraconą referencję.
 - `ModelingWorkspace.jsx`, `ModelViewport.jsx` i `cad-worker.js` są monolitami;
   nie dodawaj do nich kolejnej domeny bez rozważenia wydzielenia modułu.
 - PR podnoszący `replicad-opencascadejs` do 1.x jest migracją kernela, nie

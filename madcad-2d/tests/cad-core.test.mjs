@@ -6091,6 +6091,16 @@ test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedync
   assert.equal(createManufacturingSetup({ fixtures: [{ rotationDegrees: 1e308 }] }).fixtures[0].rotationDegrees < 360, true);
   assert.equal(createManufacturingSetup({ fixtures: [{ shape: 'cylinder' }] }).fixtures[0].shape, 'cylinder');
   assert.equal(createManufacturingSetup({ fixtures: [{ shape: 'invalid' }] }).fixtures[0].shape, 'box');
+  const v21 = createDocument('Mocowanie v21');
+  v21.schemaVersion = 21;
+  v21.manufacturing.setups = [{ ...setup, fixtures: [{ ...setup.fixtures[0], shape: undefined }] }];
+  v21.manufacturing.activeSetupId = setup.id;
+  const upgradedV21 = openDocument(v21);
+  assert.equal(upgradedV21.document.manufacturing.setups[0].fixtures[0].shape, 'box');
+  assert.equal(upgradedV21.document.metadata.migrationHistory.some((entry) => entry.from === 21 && entry.to === 22), true);
+  setup.fixtures[0].shape = 'unknown';
+  assert.equal(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixtures[0].shape')), true);
+  setup.fixtures[0].shape = 'box';
   setup.fixtures[0].bounds = [[5, -5, 0], [-2, 5, 15]];
   assert.equal(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixtures[0].bounds')), true);
 });

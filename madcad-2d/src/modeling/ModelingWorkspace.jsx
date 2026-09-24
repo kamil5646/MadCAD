@@ -4493,6 +4493,7 @@ export default function ModelingWorkspace() {
       setWorkspace('solid');
       setSelection({ kind: 'document', id: fixture.id });
       setCommand(null);
+      return fixture.features.at(-1).id;
     };
     window.__madcadVerifyLoadLargeHistoryFixture = (featureCount = 220) => {
       const count = Math.max(200, Math.min(500, Math.trunc(Number(featureCount) || 220)));
