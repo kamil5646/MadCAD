@@ -1,7 +1,8 @@
 # MadCAD — playbook pracy nad repozytorium
 
-Ten plik jest krótkim punktem startowym dla kolejnych prac. Szczegółowy stan i
-priorytety znajdują się w `AUDIT-2026-09-20.md`.
+Ten plik jest krótkim punktem startowym dla kolejnych prac. Bieżące priorytety
+i otwarte kryteria odbioru znajdują się w `madcad-2d/ROADMAP.md`; dokument
+`AUDIT-2026-09-20.md` jest migawką audytu z podanej daty.
 
 ## Układ repozytorium
 
@@ -12,8 +13,9 @@ priorytety znajdują się w `AUDIT-2026-09-20.md`.
 - `madcad-2d/src/modeling/` — React, ribbon, panele, dialogi i viewport.
 - `madcad-2d/electron/` — pliki, recovery, licencja, aktualizacje i bezpieczne
   IPC desktopowe.
-- `madcad-2d/scripts/desktop-verification-manifest.cjs` — źródło podziału 52
-  scenariuszy Electron na shardy.
+- `madcad-2d/scripts/desktop-verification-manifest.cjs` — źródło podziału 55
+  scenariuszy Electron na siedem shardów; czasy i sposób sprawdzania opisuje
+  `madcad-2d/docs/CI_DESKTOP_VERIFICATION.md`.
 - `.github/workflows/ci.yml` i `release.yml` — obowiązujące bramki CI/release.
 - `docs/` — strona GitHub Pages; domena produkcyjna ma osobny deployment.
 - `docs/DEPLOYMENT.md` — bezpieczna procedura publikacji i kontroli produkcji.
@@ -37,6 +39,8 @@ Nie uruchamiaj wszystkich ciężkich scenariuszy bez potrzeby. Wybierz skrypt
 
 ```bash
 npm run verify:desktop-suite -- modeling
+npm run verify:desktop-suite -- modeling-features
+npm run verify:desktop-suite -- modeling-3d
 npm run verify:desktop-suite -- interoperability
 npm run verify:desktop-suite -- interface
 npm run verify:desktop-suite -- project
@@ -63,9 +67,23 @@ npm run verify:desktop-suite -- analysis
 
 - Windowsowy scenariusz naprawy referencji został ustabilizowany w PR #69 przez
   atomowe wywołanie hooków helperem `invokeVerificationHook()`. Zachowaj ten
-  wzorzec i dokładny opis etapu błędu.
+  wzorzec i dokładny opis etapu błędu. Po podmianie fixture nie wystarczy
+  `engine.status === ready`: stary model może nadal spełniać ten warunek.
+  Czekaj na identyfikator ostatniej operacji nowego dokumentu także w wyniku
+  silnika, zanim utworzysz utraconą referencję. Odczyt panelu rób atomowo:
+  Windows może go odmontować między `waitFor` i osobnym `executeJavaScript`.
 - `ModelingWorkspace.jsx`, `ModelViewport.jsx` i `cad-worker.js` są monolitami;
   nie dodawaj do nich kolejnej domeny bez rozważenia wydzielenia modułu.
+- Uchwyt CAM typu `body` wskazuje osobną bryłę po ID, a nie kopiuje geometrii do
+  `.madcad`. `manufacturing-fixture-mesh.js` wymaga zamkniętej powierzchni i
+  indeksuje jej trójkąty zachowawczo; brak siatki lub niepewna kolizja blokuje
+  eksport. Nie nazywaj tego dokładną symulacją oprawki ani pozycji startowej
+  obrabiarki.
+- Własne narzędzie CAM w schemacie v24 ma opcjonalny pierwszy stopień oprawki:
+  `holderNeckDiameter` i `holderNeckLength` nad wysięgiem `stickout`. Długość 0
+  zachowuje model v23; powyżej szyjki obowiązuje `holderDiameter` do góry bez
+  skończonej granicy. Zmiany kontroli kolizji sprawdzaj przez
+  `npm run verify:manufacturing`, `verify:cam-sequence` i `verify:cutting`.
 - PR podnoszący `replicad-opencascadejs` do 1.x jest migracją kernela, nie
   zwykłym bumpem zależności.
 - Konto MadCAD i okresowe sprawdzenie uprawnienia są wymagane; nie opisuj tego
@@ -86,6 +104,9 @@ npm run verify:desktop-suite -- analysis
   `package.json` i latest release.
 - Nie dodawaj nowej funkcji do roadmapy bez jednego aktywnego pionowego celu i
   mierzalnych kryteriów odbioru.
+- W trwającym celu zbliżenia do Fusion nie twórz tagu ani GitHub Release i nie
+  aktualizuj strony produkcyjnej, dopóki otwarte wymagania produktu nie zostaną
+  zaimplementowane i zweryfikowane; roboczy PR pozostaje szkicem.
 
 ## Definicja ukończonego wydania
 

@@ -2,25 +2,49 @@ import { describe, expect, it } from 'vitest';
 import {
   calculateAdaptiveToolpath,
   calculateContourToolpath,
+  calculateCounterboreToolpath,
   calculateCut2dToolpath,
   calculateDrillingToolpath,
+  calculateManufacturingSetup,
+  calculateOperationToolpath,
+  calculateSpotDrillingToolpath,
+  calculateTappingToolpath,
   calculatePocketToolpath,
   calculateTurningToolpath,
   analyzeManufacturingProgram,
+  analyzeManufacturingSetupSequence,
+  analyzeHoleMachiningCompleteness,
   analyzeToolpathSafety,
   createContourOperation,
+  createCounterboreOperation,
   createCut2dOperation,
+  createCustomCamTool,
   createDrillingOperation,
+  createFacingOperation,
+  duplicateManufacturingOperation,
   createAdaptiveOperation,
   createGrblGcode,
   createMachineGcode,
+  createManufacturingProgramGcode,
+  createManufacturingFixture,
+  createManufacturingOperationGroup,
+  createManufacturingOperationTemplate,
+  createManufacturingSetupSheet,
   createManufacturingSetup,
   createPocketOperation,
+  createSpotDrillingOperation,
   createTurningOperation,
+  createTappingOperation,
+  ensureDocumentManufacturing,
   extractTopBoundaryLoops,
+  instantiateManufacturingOperationTemplate,
   offsetClosedContour,
+  optimizeManufacturingOperationOrder,
+  moveManufacturingOperation,
+  deleteManufacturingOperationGroup,
   simulateMaterialRemoval,
   validateManufacturing,
+  validateManufacturingOperationOrder,
 } from './manufacturing.js';
 
 const box = {
@@ -60,7 +84,169 @@ const drilledBox = {
   }],
 };
 
+const fixtureCube = (id, minimum, maximum) => ({
+  id,
+  name: 'Bryła szczęki',
+  bounds: [minimum, maximum],
+  vertices: new Float32Array([
+    minimum[0], minimum[1], minimum[2], maximum[0], minimum[1], minimum[2], maximum[0], maximum[1], minimum[2], minimum[0], maximum[1], minimum[2],
+    minimum[0], minimum[1], maximum[2], maximum[0], minimum[1], maximum[2], maximum[0], maximum[1], maximum[2], minimum[0], maximum[1], maximum[2],
+  ]),
+  triangles: box.triangles,
+});
+
 describe('CAM contour operations', () => {
+  it('detects a swept tool crossing the fixture zone and blocks NC export', () => {
+    const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [operation] });
+    const baseline = calculateContourToolpath(setup, operation, [box]);
+    const segment = baseline.segments.find((item) => item.kind === 'cut' && Math.hypot(...item.to.map((value, axis) => value - item.from[axis])) > 1);
+    expect(segment).toBeDefined();
+    const middle = segment.from.map((value, axis) => (value + segment.to[axis]) / 2);
+    setup.fixtures = [createManufacturingFixture({ name: 'Szczęka lewa', enabled: true, bounds: [middle.map((value) => value - 0.1), middle.map((value) => value + 0.1)], clearance: 0.5 })];
+    const collision = calculateContourToolpath(setup, operation, [box]);
+    expect(analyzeToolpathSafety(collision)).toContainEqual(expect.objectContaining({ code: 'FIXTURE_COLLISION' }));
+    expect(analyzeManufacturingProgram(setup, [box]).valid).toBe(false);
+    expect(() => createMachineGcode(setup, operation, [box])).toThrow(/Szczęka lewa/);
+    expect(() => createManufacturingProgramGcode(setup, [box])).toThrow(/zablokowany/);
+    setup.fixtures.push(createManufacturingFixture({ name: 'Szczęka prawa', enabled: true, bounds: [middle.map((value) => value - 0.1), middle.map((value) => value + 0.1)], clearance: 0.5 }));
+    expect(analyzeToolpathSafety(calculateContourToolpath(setup, operation, [box])).filter((issue) => issue.code === 'FIXTURE_COLLISION')).toHaveLength(2);
+    setup.fixtures[0].bounds = [[100, 100, 100], [110, 110, 110]];
+    setup.fixtures[1].enabled = false;
+    expect(analyzeToolpathSafety(calculateContourToolpath(setup, operation, [box]))).toEqual([]);
+    expect(createManufacturingSetupSheet(setup, [box]).html).toContain('Szczęka lewa XYZ: 100.00 / 100.00 / 100.00 — 110.00 / 110.00 / 110.00 mm; odstęp 0.50 mm.');
+    expect(validateManufacturing({ setups: [setup], activeSetupId: setup.id })).toEqual([]);
+    setup.fixtures[0].bounds[1][0] = 90;
+    expect(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixtures[0].bounds'))).toBe(true);
+  });
+  it('checks the G-code final retract and rejects unmodeled gaps in a milling path', () => {
+    const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [operation] });
+    setup.fixtures = [createManufacturingFixture({ enabled: true, name: 'Szczęka nad końcem', bounds: [[69, -1, 15], [71, 1, 20]], clearance: 0 })];
+    const baseline = calculateContourToolpath(setup, operation, [box]);
+    expect(baseline.valid).toBe(true);
+    const path = {
+      ...baseline,
+      clearancePlaneZ: 30,
+      tool: { ...baseline.tool, stickout: 5, holderDiameter: 10 },
+      segments: [
+        { kind: 'rapid', from: [60, 0, 30], to: [60, 0, 0] },
+        { kind: 'rapid', from: [60, 0, 0], to: [70, 0, 0] },
+      ],
+    };
+    expect(analyzeToolpathSafety(path)).toContainEqual(expect.objectContaining({ code: 'FIXTURE_COLLISION', fixtureId: setup.fixtures[0].id }));
+    const gap = structuredClone(path);
+    gap.segments[1].from[0] = 61;
+    expect(analyzeToolpathSafety(gap)).toContainEqual(expect.objectContaining({ code: 'DISCONTINUOUS_PATH' }));
+    const approach = structuredClone(path);
+    approach.segments[0].from[2] = 29;
+    expect(analyzeToolpathSafety(approach)).toContainEqual(expect.objectContaining({ code: 'UNMODELED_APPROACH' }));
+  });
+  it('uses the previous tool for retract and the next tool for the XY transition', () => {
+    const first = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
+    const second = createContourOperation({ targetDepth: 1, toolId: 'face-16' });
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [first, second] });
+    const baseline = calculateContourToolpath(setup, first, [box]);
+    const end = [-20, -20, 0];
+    const fixture = createManufacturingFixture({ name: 'Szczęka tylko przy wycofaniu', enabled: true, clearance: 0,
+      bounds: [[end[0] - 1, end[1] + 8, end[2] + 5], [end[0] + 1, end[1] + 10, end[2] + 7]] });
+    setup.fixtures = [fixture];
+    const previousPath = calculateContourToolpath(setup, first, [box]);
+    const previous = { ...previousPath, tool: { ...baseline.tool, diameter: 3, holderDiameter: 4, stickout: 5 },
+      segments: [{ kind: 'rapid', from: [end[0], end[1], previousPath.clearancePlaneZ], to: end }] };
+    const safeZ = previous.clearancePlaneZ;
+    const next = { ...calculateContourToolpath(setup, second, [box]), tool: { ...baseline.tool, diameter: 3, holderDiameter: 20, stickout: 5 },
+      segments: [{ kind: 'rapid', from: [100, 100, safeZ], to: [110, 100, safeZ] }] };
+    expect(analyzeToolpathSafety(previous)).toEqual([]);
+    expect(analyzeToolpathSafety(next)).toEqual([]);
+    const report = analyzeManufacturingProgram(setup, [box], null, [previous, next]);
+    expect(report.operations[1].issues.filter((issue) => issue.code.startsWith('INTER_OPERATION_'))).toEqual([]);
+    const crossingFixture = createManufacturingFixture({ name: 'Szczęka na przejeździe', enabled: true, clearance: 0,
+      bounds: [[39, 39, safeZ + 6], [41, 41, safeZ + 8]] });
+    setup.fixtures = [crossingFixture];
+    const crossingSetup = { ...previous.setup, fixtures: [crossingFixture] };
+    const previousCrossing = { ...previous, setup: crossingSetup };
+    const nextCrossing = { ...next, setup: crossingSetup };
+    expect(analyzeToolpathSafety(previousCrossing)).toEqual([]);
+    expect(analyzeToolpathSafety(nextCrossing)).toEqual([]);
+    expect(analyzeManufacturingProgram(setup, [box], null, [previousCrossing, nextCrossing]).operations[1].issues)
+      .toContainEqual(expect.objectContaining({ code: 'INTER_OPERATION_HOLDER_FIXTURE_COLLISION', fixtureId: crossingFixture.id }));
+  });
+  it('uses a modeled fixture body to block a swept tool and NC export', () => {
+    const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [operation] });
+    const baseline = calculateContourToolpath(setup, operation, [box]);
+    const cutting = baseline.segments.find((segment) => segment.kind === 'cut' && Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis])) > 1);
+    expect(cutting).toBeDefined();
+    const center = cutting.from.map((value, axis) => (value + cutting.to[axis]) / 2);
+    const jaw = fixtureCube('fixture-jaw', center.map((value) => value - 0.5), center.map((value) => value + 0.5));
+    setup.fixtures = [createManufacturingFixture({ name: 'Szczęka z modelu', shape: 'body', bodyId: jaw.id, enabled: true, clearance: 0 })];
+    const toolpath = calculateContourToolpath(setup, operation, [box, jaw]);
+    expect(toolpath.valid).toBe(true);
+    expect(analyzeToolpathSafety(toolpath)).toContainEqual(expect.objectContaining({ code: 'FIXTURE_COLLISION', fixtureId: setup.fixtures[0].id }));
+    expect(() => createMachineGcode(setup, operation, [box, jaw])).toThrow(/Szczęka z modelu/);
+    expect(createManufacturingSetupSheet(setup, [box, jaw]).html).toContain('bryła CAD: Bryła szczęki');
+    const secondSetup = createManufacturingSetup({ bodyId: box.id, fixtures: setup.fixtures });
+    expect(analyzeManufacturingSetupSequence({ setups: [setup, secondSetup] }, [box, jaw]).setups[1].requiresReclamp).toBe(false);
+    secondSetup.fixtures[0].bounds[0][0] = 999;
+    expect(validateManufacturing({ setups: [secondSetup], activeSetupId: secondSetup.id })).toEqual([]);
+    expect(analyzeManufacturingSetupSequence({ setups: [setup, secondSetup] }, [box, jaw]).setups[1].requiresReclamp).toBe(false);
+    secondSetup.fixtures[0].bodyId = 'another-jaw';
+    expect(analyzeManufacturingSetupSequence({ setups: [setup, secondSetup] }, [box, jaw]).setups[1].requiresReclamp).toBe(true);
+    const distant = fixtureCube(jaw.id, [100, 100, 100], [102, 102, 102]);
+    expect(analyzeToolpathSafety(calculateContourToolpath(setup, operation, [box, distant]))).toEqual([]);
+    expect(calculateManufacturingSetup(setup, [box]).warnings.join(' ')).toMatch(/inną istniejącą bryłę/);
+    expect(() => createMachineGcode(setup, operation, [box])).toThrow(/bryłę mocowania/);
+    expect(calculateManufacturingSetup(setup, [box, { ...jaw, triangles: [] }]).warnings.join(' ')).toMatch(/siatki trójkątów/);
+    expect(calculateManufacturingSetup(setup, [box, { ...jaw, triangles: jaw.triangles.slice(0, -3) }]).warnings.join(' ')).toMatch(/zamkniętej powierzchni/);
+    setup.fixtures[0].bodyId = box.id;
+    expect(calculateManufacturingSetup(setup, [box, jaw]).valid).toBe(false);
+  });
+  it('checks holder reach against a modeled fixture without a false cutter hit', () => {
+    const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
+    const jaw = fixtureCube('fixture-holder-jaw', [4, 8, 106], [6, 10, 115]);
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [operation], fixtures: [{ id: 'fixture-holder', name: 'Szczęka oprawki', shape: 'body', bodyId: jaw.id, enabled: true, clearance: 0 }] });
+    const baseline = calculateContourToolpath(setup, operation, [box, jaw]);
+    const path = { ...baseline, clearancePlaneZ: 100, tool: { ...baseline.tool, diameter: 3, stickout: 5, holderDiameter: 20 }, segments: [{ kind: 'rapid', from: [0, 0, 100], to: [10, 0, 100] }] };
+    const issues = analyzeToolpathSafety(path);
+    expect(issues.some((issue) => issue.code === 'FIXTURE_COLLISION')).toBe(false);
+    expect(issues).toContainEqual(expect.objectContaining({ code: 'HOLDER_FIXTURE_COLLISION', fixtureId: 'fixture-holder' }));
+    const neckTool = { ...path.tool, holderNeckDiameter: 4, holderNeckLength: 15 };
+    expect(analyzeToolpathSafety({ ...path, tool: neckTool }).some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION')).toBe(false);
+    const upperJaw = fixtureCube(jaw.id, [4, 8, 125], [6, 10, 130]);
+    const upperPath = calculateContourToolpath(setup, operation, [box, upperJaw]);
+    expect(analyzeToolpathSafety({ ...upperPath, clearancePlaneZ: 100, tool: neckTool, segments: path.segments }))
+      .toContainEqual(expect.objectContaining({ code: 'HOLDER_FIXTURE_COLLISION', fixtureId: 'fixture-holder' }));
+    const boxFixture = createManufacturingFixture({ name: 'Szczęka prosta', bounds: [[4, 8, 106], [6, 10, 115]], enabled: true, clearance: 0 });
+    const boxPath = { ...path, setup: { ...path.setup, fixtures: [boxFixture] } };
+    expect(analyzeToolpathSafety(boxPath)).toContainEqual(expect.objectContaining({ code: 'HOLDER_FIXTURE_COLLISION' }));
+    expect(analyzeToolpathSafety({ ...boxPath, tool: neckTool }).some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION')).toBe(false);
+    const stockPath = { ...path, setup: { ...path.setup, fixtures: [] }, stockBounds: [[0, 0, 0], [40, 20, 10]], clearancePlaneZ: 0,
+      segments: [{ kind: 'rapid', from: [5, -8, 0], to: [15, -8, 0] }] };
+    expect(analyzeToolpathSafety(stockPath)).toContainEqual(expect.objectContaining({ code: 'RAPID_IN_STOCK' }));
+    expect(analyzeToolpathSafety({ ...stockPath, tool: neckTool }).some((issue) => issue.code === 'RAPID_IN_STOCK')).toBe(false);
+    const customTool = createCustomCamTool({ diameter: 3, stickout: 5, holderDiameter: 20, holderNeckDiameter: 4, holderNeckLength: 15 });
+    const customSetup = { ...setup, operations: [createDrillingOperation({ toolId: customTool.id })] };
+    const document = { manufacturing: { tools: [customTool] } };
+    expect(customTool.holderNeckDiameter).toBe(4);
+    expect(customTool.holderNeckLength).toBe(15);
+    expect(createManufacturingSetupSheet(customSetup, [box, jaw], { document }).html)
+      .toContain('szyjka oprawki Ø4.00 × 15.00 mm, dalej Ø20.00');
+  });
+  it('exports a drilled program only when the measured holder neck clears a modeled jaw', () => {
+    const jaw = fixtureCube('drill-jaw', [9, 13, 13], [11, 15, 16]);
+    const oldTool = createCustomCamTool({ type: 'twist-drill', diameter: 5, stickout: 15, holderDiameter: 20 });
+    const measuredTool = { ...oldTool, holderNeckDiameter: 6, holderNeckLength: 15 };
+    const operation = createDrillingOperation({ toolId: oldTool.id });
+    const setup = createManufacturingSetup({ bodyId: drilledBox.id, operations: [operation],
+      fixtures: [{ shape: 'body', bodyId: jaw.id, enabled: true, clearance: 0 }] });
+    const bodies = [drilledBox, jaw];
+    expect(() => createMachineGcode(setup, operation, bodies, { document: { manufacturing: { tools: [oldTool] } } }))
+      .toThrow(/oprawka|Oprawka/);
+    const output = createMachineGcode(setup, operation, bodies, { document: { manufacturing: { tools: [measuredTool] } } });
+    expect(output.text).toContain(oldTool.name);
+    expect(output.toolpath.tool.holderNeckLength).toBe(15);
+  });
   it('drills recognized model holes with safe pecks, simulation data, and portable G-code', () => {
     const setup = createManufacturingSetup({ bodyId: drilledBox.id, stock: { sideOffset: 2, topOffset: 2, bottomOffset: 0 }, safeHeight: 5 });
     const operation = createDrillingOperation({ toolId: 'drill-5', peckDepth: 3, retractHeight: 1, breakthroughDepth: 0.2, feedRate: 120 });
@@ -81,6 +267,148 @@ describe('CAM contour operations', () => {
     const simulation = simulateMaterialRemoval(setup, [drilledBox], null, 1, 20);
     expect(simulation.valid).toBe(true);
     expect(simulation.columns.length).toBeGreaterThan(0);
+  });
+
+  it('uses G81/G82/G83 on capable controllers and explicit safe fallback on GRBL', () => {
+    const setup = createManufacturingSetup({ bodyId: drilledBox.id, stock: { sideOffset: 2, topOffset: 2, bottomOffset: 0 }, safeHeight: 5 });
+    const normal = createDrillingOperation({ toolId: 'drill-5', cycleType: 'normal', feedRate: 120, postProcessorId: 'linuxcnc' });
+    const normalPath = calculateDrillingToolpath(setup, normal, [drilledBox]);
+    expect(normalPath.peckCount).toBe(2);
+    expect(normalPath.segments.filter((segment) => segment.kind === 'plunge')).toHaveLength(2);
+    const linuxCnc = createMachineGcode(setup, normal, [drilledBox]);
+    expect(linuxCnc.text).toContain('G81 X-10 Y-5 Z-12.2 R1 F120');
+    expect(linuxCnc.text).toContain('G80');
+
+    const dwell = createDrillingOperation({ toolId: 'drill-5', cycleType: 'dwell', dwellSeconds: 1.25, feedRate: 120, postProcessorId: 'mach3' });
+    expect(createMachineGcode(setup, dwell, [drilledBox]).text).toContain('G82 X-10 Y-5 Z-12.2 R1 P1.25 F120');
+    const grblFallback = createGrblGcode(setup, dwell, [drilledBox]);
+    expect(grblFallback.text).not.toContain('G82');
+    expect(grblFallback.text.match(/G4 P1.25/g)).toHaveLength(2);
+
+    const peck = createDrillingOperation({ toolId: 'drill-5', cycleType: 'peck', peckDepth: 3, postProcessorId: 'linuxcnc' });
+    expect(createMachineGcode(setup, peck, [drilledBox]).text).toContain('G83 X-10 Y-5 Z-12.2 R1 Q3 F120');
+  });
+
+  it('stores project tools, uses a custom drill, and protects tapping from a drilling cycle', () => {
+    const drill = createCustomCamTool({ name: 'Wiertło produkcyjne Ø4,8', type: 'twist-drill', diameter: 4.8, fluteLength: 30, stickout: 40, holderDiameter: 12, flutes: 2 });
+    const tap = createCustomCamTool({ name: 'Gwintownik M5', type: 'tap', diameter: 5, pitch: 0.8, fluteLength: 20, stickout: 35, holderDiameter: 12, flutes: 3 });
+    const document = ensureDocumentManufacturing({ manufacturing: { setups: [], activeSetupId: '', tools: [drill, tap] } });
+    const setup = createManufacturingSetup({ bodyId: drilledBox.id });
+    const operation = createDrillingOperation({ toolId: drill.id, cycleType: 'normal' });
+    setup.operations.push(operation);
+    document.manufacturing.setups.push(setup);
+    document.manufacturing.activeSetupId = setup.id;
+    const toolpath = calculateDrillingToolpath(setup, operation, [drilledBox], document);
+    expect(toolpath.valid).toBe(true);
+    expect(toolpath.tool.name).toBe('Wiertło produkcyjne Ø4,8');
+    expect(createMachineGcode(setup, operation, [drilledBox], { document })).toHaveProperty('toolpath.tool.id', drill.id);
+    expect(validateManufacturing(document.manufacturing)).toEqual([]);
+
+    const tappingInDrill = calculateDrillingToolpath(setup, { ...operation, toolId: tap.id }, [drilledBox], document);
+    expect(tappingInDrill.valid).toBe(false);
+    expect(tappingInDrill.warnings.join(' ')).toContain('Gwintownik wymaga cyklu gwintowania');
+  });
+
+  it('taps a matching pilot hole with pitch-derived feed and synchronized G84', () => {
+    const tap = createCustomCamTool({ name: 'Gwintownik M8 × 1,25', type: 'tap', diameter: 8, pitch: 1.25, fluteLength: 30, stickout: 40, holderDiameter: 12, flutes: 3 });
+    const pilotBody = { ...drilledBox, manufacturingHoles: drilledBox.manufacturingHoles.map((hole) => ({ ...hole, diameter: 6.8 })) };
+    const document = ensureDocumentManufacturing({ manufacturing: { setups: [], activeSetupId: '', tools: [tap] } });
+    const setup = createManufacturingSetup({ bodyId: pilotBody.id, stock: { sideOffset: 2, topOffset: 2, bottomOffset: 0 }, safeHeight: 5 });
+    const operation = createTappingOperation({ toolId: tap.id, spindleRpm: 500, bottomClearance: 1, postProcessorId: 'linuxcnc' });
+    setup.operations.push(operation);
+    document.manufacturing.setups.push(setup);
+    document.manufacturing.activeSetupId = setup.id;
+    const toolpath = calculateTappingToolpath(setup, operation, [pilotBody], document);
+    expect(toolpath.valid).toBe(true);
+    expect(toolpath.operation.feedRate).toBe(625);
+    expect(toolpath.segments.filter((segment) => segment.kind === 'tap-down')).toHaveLength(2);
+    expect(toolpath.segments.filter((segment) => segment.kind === 'tap-up')).toHaveLength(2);
+    expect(analyzeToolpathSafety(toolpath)).toEqual([]);
+    const output = createMachineGcode(setup, operation, [pilotBody], { document });
+    expect(output.text).toContain('T100 M6');
+    expect(output.text).toContain('G84 X-10 Y-5 Z-11 R1 F625');
+    expect(output.text).toContain('G80');
+    expect(() => createMachineGcode(setup, operation, [pilotBody], { document, postProcessorId: 'grbl' })).toThrow(/G84/);
+    const wrongPilot = calculateTappingToolpath(setup, operation, [drilledBox], document);
+    expect(wrongPilot.valid).toBe(false);
+    expect(wrongPilot.warnings.join(' ')).toContain('oczekiwane wiertło');
+    expect(validateManufacturing(document.manufacturing)).toEqual([]);
+  });
+
+  it('spot drills recognized holes to a geometry-derived cone depth', () => {
+    const spotDrill = createCustomCamTool({ name: 'Nawiertak 90° Ø12', type: 'spot-drill', diameter: 12, pointAngle: 90, fluteLength: 20, stickout: 30, holderDiameter: 12, flutes: 2 });
+    const document = ensureDocumentManufacturing({ manufacturing: { setups: [], activeSetupId: '', tools: [spotDrill] } });
+    const setup = createManufacturingSetup({ bodyId: drilledBox.id, stock: { sideOffset: 2, topOffset: 0, bottomOffset: 0 }, safeHeight: 5 });
+    const operation = createSpotDrillingOperation({ toolId: spotDrill.id, targetDiameter: 7, retractHeight: 1, feedRate: 90, postProcessorId: 'linuxcnc' });
+    setup.operations.push(operation);
+    document.manufacturing.setups.push(setup);
+    document.manufacturing.activeSetupId = setup.id;
+    const toolpath = calculateSpotDrillingToolpath(setup, operation, [drilledBox], document);
+    expect(toolpath.valid).toBe(true);
+    expect(toolpath.holeCount).toBe(2);
+    expect(toolpath.holes[0].coneDepth).toBeCloseTo(1, 8);
+    expect(toolpath.holes[0].targetZ).toBeCloseTo(9, 8);
+    expect(toolpath.segments.filter((segment) => segment.kind === 'plunge')).toHaveLength(2);
+    expect(analyzeToolpathSafety(toolpath)).toEqual([]);
+    expect(createMachineGcode(setup, operation, [drilledBox], { document }).text).toContain('Nawiertak 90° Ø12');
+    expect(validateManufacturing(document.manufacturing)).toEqual([]);
+    expect(calculateSpotDrillingToolpath(setup, { ...operation, targetDiameter: 13 }, [drilledBox], document).warnings.join(' ')).toContain('przekracza średnicę nawiertaka');
+    expect(calculateSpotDrillingToolpath(setup, { ...operation, targetDiameter: 5 }, [drilledBox], document).warnings.join(' ')).toContain('musi być większa niż otwór');
+  });
+
+  it('counterbores recognized holes in safe axial layers', () => {
+    const counterboreBody = { ...drilledBox, manufacturingHoles: drilledBox.manufacturingHoles.map((hole) => ({ ...hole, diameter: 8 })) };
+    const setup = createManufacturingSetup({ bodyId: counterboreBody.id, stock: { sideOffset: 2, topOffset: 0, bottomOffset: 0 }, safeHeight: 5 });
+    const operation = createCounterboreOperation({ toolId: 'flat-6', targetDiameter: 14, targetDepth: 3, maxStepdown: 1, feedRate: 300, plungeRate: 100 });
+    setup.operations.push(operation);
+    const toolpath = calculateCounterboreToolpath(setup, operation, [counterboreBody]);
+    expect(toolpath.valid).toBe(true);
+    expect(toolpath.holeCount).toBe(2);
+    expect(toolpath.layerCount).toBe(3);
+    expect(toolpath.segments.filter((segment) => segment.kind === 'plunge')).toHaveLength(6);
+    expect(toolpath.segments.filter((segment) => segment.kind === 'cut').length).toBeGreaterThan(100);
+    expect(toolpath.estimatedRemovedVolume).toBeCloseTo(Math.PI / 4 * (14 ** 2 - 8 ** 2) * 3 * 2, 8);
+    expect(analyzeToolpathSafety(toolpath)).toEqual([]);
+    expect(createMachineGcode(setup, operation, [counterboreBody]).text).toContain('Pogłębianie walcowe');
+    expect(validateManufacturing({ setups: [setup], activeSetupId: setup.id, tools: [] })).toEqual([]);
+    expect(calculateCounterboreToolpath(setup, { ...operation, toolId: 'flat-3', targetDiameter: 3 }, [counterboreBody]).warnings.join(' ')).toContain('większa niż frez');
+    expect(calculateCounterboreToolpath(setup, { ...operation, targetDepth: 11 }, [counterboreBody]).warnings.join(' ')).toContain('przekracza głębokość otworu');
+  });
+
+  it('reports missing and incorrectly ordered hole machining stages', () => {
+    const counterboreBody = { ...drilledBox, manufacturingHoles: drilledBox.manufacturingHoles.map((hole) => ({ ...hole, diameter: 8, holeType: 'counterbore' })) };
+    const setup = createManufacturingSetup({ bodyId: counterboreBody.id });
+    const drill = createDrillingOperation({ toolId: 'drill-8' });
+    const counterbore = createCounterboreOperation({ toolId: 'flat-6', targetDiameter: 14, targetDepth: 2 });
+    setup.operations.push(counterbore, drill);
+    const wrongOrder = analyzeManufacturingProgram(setup, [counterboreBody]);
+    expect(wrongOrder.valid).toBe(false);
+    expect(wrongOrder.holeCompleteness.entries[0].missingStages).toEqual([]);
+    expect(wrongOrder.holeCompleteness.entries[0].orderingIssues.join(' ')).toContain('wiercenie powinno poprzedzać pogłębianie');
+    setup.operations = [drill];
+    const missing = analyzeManufacturingProgram(setup, [counterboreBody]);
+    expect(missing.holeCompleteness.entries[0].missingStages).toEqual(['counterbore']);
+    setup.operations = [drill, counterbore];
+    const complete = analyzeManufacturingProgram(setup, [counterboreBody]);
+    expect(complete.valid).toBe(true);
+    expect(complete.holeCompleteness).toMatchObject({ complete: true, groupCount: 1, completeGroupCount: 1, totalHoleCount: 2, completeHoleCount: 2 });
+    expect(analyzeHoleMachiningCompleteness(setup, counterboreBody, complete.operations).entries[0].plannedStages).toEqual(['drill', 'counterbore']);
+  });
+
+  it('orders operations by manufacturing dependencies and then minimizes tool changes', () => {
+    const drill = createDrillingOperation({ name: 'Wiercenie', toolId: 'drill-8', holeFeatureIds: ['hole-main'] });
+    const spot = createSpotDrillingOperation({ name: 'Nawiertanie', toolId: 'spot-tool', holeFeatureIds: ['hole-main'] });
+    const counterbore = createCounterboreOperation({ name: 'Pogłębienie', toolId: 'flat-6', holeFeatureIds: ['hole-main'] });
+    const contour = createContourOperation({ name: 'Kontur', toolId: 'flat-6' });
+    const setup = createManufacturingSetup({ bodyId: drilledBox.id });
+    setup.operations = [contour, counterbore, drill, spot];
+    const result = optimizeManufacturingOperationOrder(setup, drilledBox);
+    expect(result.operations.map((operation) => operation.type)).toEqual(['spot', 'drill', 'counterbore', 'contour']);
+    expect(result.changed).toBe(true);
+    expect(result.warnings).toEqual([]);
+    expect(result.toolChangesAfter).toBeLessThanOrEqual(result.toolChangesBefore);
+    const stable = optimizeManufacturingOperationOrder({ ...setup, operations: result.operations }, drilledBox);
+    expect(stable.changed).toBe(false);
   });
 
   it('rejects oversized drills and non-Z hole axes instead of exporting unsafe paths', () => {
@@ -141,6 +469,105 @@ describe('CAM contour operations', () => {
     expect(mach3.text).toContain('\nM30\n');
   });
 
+  it('exports one safe program for the complete setup without duplicate headers or tool changes', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id, name: 'Korpus produkcyjny', workOffset: 'G55' });
+    setup.operations.push(
+      createPocketOperation({ name: 'Kieszeń główna', targetDepth: 1, toolId: 'flat-6', postProcessorId: 'linuxcnc' }),
+      createContourOperation({ name: 'Kontur końcowy', targetDepth: 1, toolId: 'flat-6', postProcessorId: 'linuxcnc' }),
+    );
+    const output = createManufacturingProgramGcode(setup, [box], { projectName: 'Program testowy', postProcessorId: 'linuxcnc' });
+    expect(output.operationCount).toBe(2);
+    expect(output.postProcessor).toBe('linuxcnc');
+    expect(output.text).toMatch(/^%\n/);
+    expect(output.text.match(/\nG21\n/g)).toHaveLength(1);
+    expect(output.text.match(/T2 M6/g)).toHaveLength(1);
+    expect(output.text.match(/\nG55\n/g)).toHaveLength(1);
+    expect(output.text).toContain('(Kieszeń główna | Frez palcowy płaski Ø6)');
+    expect(output.text).toContain('(Kontur końcowy | Frez palcowy płaski Ø6)');
+    expect(output.text.match(/\nM2\n/g)).toHaveLength(1);
+    expect(output.text).toMatch(/\nM5\nM2\n%\n$/);
+  });
+
+  it('duplicates operations and permits only manual moves that preserve technological dependencies', () => {
+    const setup = createManufacturingSetup({ bodyId: drilledBox.id });
+    const face = createFacingOperation({ name: 'Planowanie bazowe' });
+    const drill = createDrillingOperation({ name: 'Wiercenie produkcyjne', holeFeatureIds: ['hole-main'] });
+    const contour = createContourOperation({ name: 'Kontur końcowy' });
+    setup.operations.push(face, drill, contour);
+    const duplicate = duplicateManufacturingOperation(setup, drill.id);
+    expect(duplicate.operation.id).not.toBe(drill.id);
+    expect(duplicate.operation.name).toBe('Wiercenie produkcyjne — kopia');
+    expect(duplicate.operations[2].holeFeatureIds).toEqual(['hole-main']);
+    const movedUp = moveManufacturingOperation({ ...setup, operations: duplicate.operations }, duplicate.operation.id, 'up', drilledBox);
+    expect(movedUp.changed).toBe(true);
+    expect(movedUp.operations[1].id).toBe(duplicate.operation.id);
+    const blockedFace = moveManufacturingOperation({ ...setup, operations: movedUp.operations }, face.id, 'down', drilledBox);
+    expect(blockedFace.changed).toBe(false);
+    expect(blockedFace.warnings.join(' ')).toContain('zależność technologiczną');
+    const blockedContour = moveManufacturingOperation({ ...setup, operations: movedUp.operations }, contour.id, 'up', drilledBox);
+    expect(blockedContour.changed).toBe(false);
+    expect(validateManufacturingOperationOrder({ ...setup, operations: movedUp.operations }, drilledBox).valid).toBe(true);
+  });
+
+  it('organizes operations in persistent folders without changing execution order', () => {
+    const roughing = createManufacturingOperationGroup({ name: 'Zgrubne' });
+    const finishing = createManufacturingOperationGroup({ name: 'Wykańczające', collapsed: true });
+    const setup = createManufacturingSetup({
+      bodyId: box.id,
+      operationGroups: [roughing, finishing],
+      operations: [
+        { ...createPocketOperation({ name: 'Kieszeń' }), groupId: roughing.id },
+        { ...createContourOperation({ name: 'Kontur' }), groupId: finishing.id },
+      ],
+    });
+    expect(setup.operationGroups).toEqual([roughing, finishing]);
+    expect(setup.operations.map((operation) => operation.groupId)).toEqual([roughing.id, finishing.id]);
+    const removed = deleteManufacturingOperationGroup(setup, roughing.id);
+    expect(removed.changed).toBe(true);
+    expect(removed.operationGroups.map((group) => group.id)).toEqual([finishing.id]);
+    expect(removed.operations.map((operation) => operation.groupId)).toEqual(['', finishing.id]);
+    expect(removed.operations.map((operation) => operation.name)).toEqual(['Kieszeń', 'Kontur']);
+    expect(validateManufacturing({ setups: [removed], activeSetupId: removed.id, tools: [], operationTemplates: [] })).toEqual([]);
+  });
+
+  it('stores reusable operation templates without model geometry and applies them to compatible setups', () => {
+    const source = createPocketOperation({ name: 'Kieszeń aluminium', toolId: 'flat-6', targetDepth: 4, boundaryFaceId: 'face-top' });
+    const template = createManufacturingOperationTemplate(source, { name: 'Kieszeń Al Ø6' });
+    expect(template.name).toBe('Kieszeń Al Ø6');
+    expect(template.operation.id).toBe('');
+    expect(template.operation.boundaryFaceId).toBe('');
+    expect(template.operation.targetDepth).toBe(4);
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [source] });
+    const instance = instantiateManufacturingOperationTemplate(template, setup);
+    expect(instance.id).not.toBe(source.id);
+    expect(instance.name).toBe('Kieszeń aluminium 2');
+    expect(instance.targetDepth).toBe(4);
+    expect(instance.boundaryFaceId).toBe('');
+    expect(() => instantiateManufacturingOperationTemplate(template, createManufacturingSetup({ bodyId: box.id, machineId: 'lathe-300' }))).toThrow(/nie pasuje/);
+    const document = ensureDocumentManufacturing({ manufacturing: { setups: [setup], activeSetupId: setup.id, tools: [], operationTemplates: [template] } });
+    expect(document.manufacturing.operationTemplates).toHaveLength(1);
+    expect(validateManufacturing(document.manufacturing)).toEqual([]);
+  });
+
+  it('creates a printable and escaped setup sheet from the verified CAM program', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id, name: 'Setup produkcyjny', workOffset: 'G56' });
+    setup.operations.push(
+      createPocketOperation({ name: 'Kieszeń <A>', targetDepth: 1, toolId: 'flat-6' }),
+      createContourOperation({ name: 'Kontur końcowy', targetDepth: 1, toolId: 'flat-6' }),
+    );
+    const sheet = createManufacturingSetupSheet(setup, [box], { projectName: 'Korpus & uchwyt' });
+    expect(sheet.report.valid).toBe(true);
+    expect(sheet.operationCount).toBe(2);
+    expect(sheet.toolCount).toBe(1);
+    expect(sheet.html).toContain('<h1>Arkusz ustawczy CAM</h1>');
+    expect(sheet.html).toContain('Korpus &amp; uchwyt');
+    expect(sheet.html).toContain('Kieszeń &lt;A&gt;');
+    expect(sheet.html).toContain('Półfabrykat X × Y × Z');
+    expect(sheet.html).toContain('<span>Układ roboczy</span><strong>G56</strong>');
+    expect(sheet.html).toContain('Kontrola przed uruchomieniem');
+    expect(sheet.html).not.toContain('Korpus & uchwyt');
+  });
+
   it('creates compensated 2D cutting paths and laser/plasma programs', () => {
     const laserSetup = createManufacturingSetup({ bodyId: box.id, machineId: 'laser-600' });
     const laserOperation = createCut2dOperation({ kerfWidth: 0.2, leadIn: 3, passes: 2, powerPercent: 70 });
@@ -150,6 +577,7 @@ describe('CAM contour operations', () => {
     expect(toolpath.valid).toBe(true);
     expect(toolpath.layerCount).toBe(2);
     expect(toolpath.segments.filter((segment) => segment.kind === 'cut')).toHaveLength(10);
+    expect(analyzeToolpathSafety(toolpath).some((issue) => issue.code === 'RAPID_IN_STOCK')).toBe(false);
     expect(validateManufacturing({ setups: [laserSetup], activeSetupId: laserSetup.id })).toEqual([]);
     const laser = createMachineGcode(laserSetup, laserOperation, [box]);
     expect(laser.postProcessor).toBe('grbl-laser');
@@ -282,6 +710,39 @@ describe('CAM contour operations', () => {
     expect(finished.columns.length).toBeGreaterThan(0);
     expect(finished.cutter.position).toHaveLength(3);
     expect(finished.processedSegments).toBe(finished.totalSegments);
+  });
+
+  it('reuses calculated toolpaths without changing the multi-operation simulation', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id, stock: { topOffset: 2 } });
+    setup.operations.push(createPocketOperation({ targetDepth: 2, maxStepdown: 1 }));
+    setup.operations.push(createFacingOperation({ maxStepdown: 1 }));
+    const toolpaths = setup.operations.map((operation) => calculateOperationToolpath(setup, operation, [box]));
+    const report = analyzeManufacturingProgram(setup, [box], null, toolpaths);
+    expect(report).toEqual(analyzeManufacturingProgram(setup, [box]));
+    expect(analyzeManufacturingProgram(setup, [box], null, [...toolpaths].reverse())).toEqual(report);
+    const precomputed = { setupResult: calculateManufacturingSetup(setup, [box]), toolpaths, report };
+    for (const progress of [0, 0.25, 0.5, 1]) {
+      expect(simulateMaterialRemoval(setup, [box], null, progress, 20, precomputed))
+        .toEqual(simulateMaterialRemoval(setup, [box], null, progress, 20));
+    }
+  });
+
+  it('advances through 150k CAM segments without building a flattened entry list', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id, stock: { topOffset: 2 } });
+    const operation = createFacingOperation();
+    setup.operations.push(operation);
+    const segment = { kind: 'rapid', from: [0, 0, 12], to: [1, 0, 12] };
+    const toolpath = { valid: true, operation, tool: { diameter: 6 }, segments: Array(150000).fill(segment) };
+    const precomputed = {
+      setupResult: calculateManufacturingSetup(setup, [box]),
+      toolpaths: [toolpath],
+      report: { valid: true, operations: [{ id: operation.id }], setupIssues: [] },
+    };
+    const result = simulateMaterialRemoval(setup, [box], null, 0.5, 12, precomputed);
+    expect(result.totalSegments).toBe(150000);
+    expect(result.processedSegments).toBe(75000);
+    expect(result.cutter).toEqual({ position: [1, 0, 12], diameter: 6, operationId: operation.id });
+    expect(result.removedVolume).toBe(0);
   });
 
   it('uses a persistent selected horizontal face and rejects a vertical face', () => {

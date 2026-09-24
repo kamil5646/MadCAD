@@ -1,5 +1,6 @@
 import { createId } from './ids.js';
 import { evaluateExpression, resolveParameters } from './expressions.js';
+import { createManufacturingFixtureMeshIndex, fixtureMeshPotentialCollision } from './manufacturing-fixture-mesh.js';
 
 export const CAM_MACHINE_PRESETS = Object.freeze({
   'desktop-3018': Object.freeze({ id: 'desktop-3018', name: 'Frezarka biurkowa 3018', kind: 'mill-3axis', travel: [300, 180, 45], maxSpindleRpm: 10000 }),
@@ -16,6 +17,8 @@ export const CAM_WCS_ORIGINS = Object.freeze([
   Object.freeze({ id: 'model-origin', name: 'Początek układu modelu' }),
 ]);
 
+export const CAM_WORK_OFFSETS = Object.freeze(['G54', 'G55', 'G56', 'G57', 'G58', 'G59']);
+
 export const CAM_TOOL_PRESETS = Object.freeze({
   'flat-3': Object.freeze({ id: 'flat-3', name: 'Frez palcowy płaski Ø3', type: 'flat-end-mill', diameter: 3, fluteLength: 12, stickout: 20, holderDiameter: 16, flutes: 2 }),
   'flat-6': Object.freeze({ id: 'flat-6', name: 'Frez palcowy płaski Ø6', type: 'flat-end-mill', diameter: 6, fluteLength: 20, stickout: 30, holderDiameter: 20, flutes: 2 }),
@@ -26,6 +29,54 @@ export const CAM_TOOL_PRESETS = Object.freeze({
   'drill-6.8': Object.freeze({ id: 'drill-6.8', name: 'Wiertło kręte Ø6,8 (M8)', type: 'twist-drill', diameter: 6.8, fluteLength: 45, stickout: 55, holderDiameter: 13, flutes: 2 }),
   'drill-8': Object.freeze({ id: 'drill-8', name: 'Wiertło kręte Ø8', type: 'twist-drill', diameter: 8, fluteLength: 50, stickout: 60, holderDiameter: 13, flutes: 2 }),
 });
+
+export const CAM_HOLE_TOOL_TYPES = Object.freeze([
+  Object.freeze({ id: 'twist-drill', name: 'Wiertło kręte' }),
+  Object.freeze({ id: 'spot-drill', name: 'Nawiertak' }),
+  Object.freeze({ id: 'tap', name: 'Gwintownik' }),
+]);
+
+export function normalizeCustomCamTool(tool = {}, index = 0) {
+  const type = CAM_HOLE_TOOL_TYPES.some((item) => item.id === tool.type) ? tool.type : 'twist-drill';
+  const diameter = Math.min(100, Math.max(0.1, Number(tool.diameter) || 5));
+  return {
+    id: typeof tool.id === 'string' && tool.id && !CAM_TOOL_PRESETS[tool.id] ? tool.id : createId('cam-tool'),
+    name: String(tool.name || `Narzędzie własne ${index + 1}`).trim().slice(0, 80) || `Narzędzie własne ${index + 1}`,
+    type,
+    diameter,
+    fluteLength: Math.min(500, Math.max(0.1, Number(tool.fluteLength) || Math.max(10, diameter * 5))),
+    stickout: Math.min(500, Math.max(0.1, Number(tool.stickout) || Math.max(15, diameter * 7))),
+    holderDiameter: Math.min(200, Math.max(diameter, Number(tool.holderDiameter) || 13)),
+    holderNeckDiameter: Math.min(200, Math.max(diameter, Number(tool.holderNeckDiameter) || Number(tool.holderDiameter) || 13)),
+    holderNeckLength: Math.min(500, Math.max(0, Number(tool.holderNeckLength) || 0)),
+    flutes: Math.min(12, Math.max(1, Math.round(Number(tool.flutes) || (type === 'tap' ? 3 : 2)))),
+    pitch: type === 'tap' ? Math.min(10, Math.max(0.1, Number(tool.pitch) || 1)) : null,
+    pointAngle: type === 'spot-drill' ? Math.min(170, Math.max(30, Number(tool.pointAngle) || 90)) : null,
+  };
+}
+
+export function createCustomCamTool(options = {}) {
+  return normalizeCustomCamTool({ ...options, id: createId('cam-tool') });
+}
+
+export function resolveCamTool(toolId, document = null) {
+  return CAM_TOOL_PRESETS[toolId] || document?.manufacturing?.tools?.find((tool) => tool.id === toolId) || null;
+}
+
+function holderSections(tool) {
+  const stickout = Number(tool?.stickout);
+  const diameter = Number(tool?.holderDiameter);
+  if (!(stickout > 0) || !(diameter > 0) || !Number.isFinite(stickout) || !Number.isFinite(diameter)) return [];
+  const neckLength = Math.max(0, Number(tool?.holderNeckLength) || 0);
+  const neckDiameter = Number(tool?.holderNeckDiameter);
+  if (!(neckLength > 0) || !(neckDiameter > 0) || !Number.isFinite(neckLength) || !Number.isFinite(neckDiameter)) {
+    return [{ radius: diameter / 2, lowerOffset: stickout, upperOffset: Infinity }];
+  }
+  return [
+    { radius: neckDiameter / 2, lowerOffset: stickout, upperOffset: stickout + neckLength },
+    { radius: diameter / 2, lowerOffset: stickout + neckLength, upperOffset: Infinity },
+  ];
+}
 
 export const CAM_TURNING_TOOL_PRESETS = Object.freeze({
   'turn-rough-r08': Object.freeze({ id: 'turn-rough-r08', name: 'Nóż zewnętrzny R0,8', type: 'turning-rough', noseRadius: 0.8, stickout: 25 }),
@@ -118,18 +169,67 @@ export function normalizeAdaptiveOperation(operation = {}, index = 0) {
 }
 
 export function normalizeDrillingOperation(operation = {}, index = 0) {
-  const selectedTool = CAM_TOOL_PRESETS[operation.toolId];
+  const cycleType = ['normal', 'peck', 'dwell'].includes(operation.cycleType) ? operation.cycleType : 'peck';
   return {
     id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
     name: String(operation.name || `Wiercenie ${index + 1}`).trim().slice(0, 80) || `Wiercenie ${index + 1}`,
     type: 'drill',
-    toolId: selectedTool?.type === 'twist-drill' ? operation.toolId : 'drill-5',
+    toolId: typeof operation.toolId === 'string' && operation.toolId ? operation.toolId : 'drill-5',
     holeFeatureIds: Array.isArray(operation.holeFeatureIds) ? [...new Set(operation.holeFeatureIds.filter((id) => typeof id === 'string' && id))] : [],
+    cycleType,
     peckDepth: Math.max(0.05, Number(operation.peckDepth) || 3),
+    dwellSeconds: Number.isFinite(Number(operation.dwellSeconds)) ? Math.min(60, Math.max(0, Number(operation.dwellSeconds))) : 0.5,
     retractHeight: Number.isFinite(Number(operation.retractHeight)) ? Math.max(0, Number(operation.retractHeight)) : 1,
     breakthroughDepth: Number.isFinite(Number(operation.breakthroughDepth)) ? Math.max(0, Number(operation.breakthroughDepth)) : 0.2,
     feedRate: Math.max(1, Number(operation.feedRate) || 120),
     spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 3000)),
+    postProcessorId: normalizePostProcessorId(operation.postProcessorId),
+  };
+}
+
+export function normalizeTappingOperation(operation = {}, index = 0) {
+  return {
+    id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
+    name: String(operation.name || `Gwintowanie ${index + 1}`).trim().slice(0, 80) || `Gwintowanie ${index + 1}`,
+    type: 'tap',
+    toolId: typeof operation.toolId === 'string' ? operation.toolId : '',
+    holeFeatureIds: Array.isArray(operation.holeFeatureIds) ? [...new Set(operation.holeFeatureIds.filter((id) => typeof id === 'string' && id))] : [],
+    retractHeight: Number.isFinite(Number(operation.retractHeight)) ? Math.max(0, Number(operation.retractHeight)) : 1,
+    bottomClearance: Number.isFinite(Number(operation.bottomClearance)) ? Math.max(0, Number(operation.bottomClearance)) : 1,
+    spindleRpm: Math.min(3000, Math.max(1, Math.round(Number(operation.spindleRpm) || 500))),
+    postProcessorId: ['linuxcnc', 'mach3'].includes(operation.postProcessorId) ? operation.postProcessorId : 'linuxcnc',
+  };
+}
+
+export function normalizeSpotDrillingOperation(operation = {}, index = 0) {
+  return {
+    id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
+    name: String(operation.name || `Nawiertanie ${index + 1}`).trim().slice(0, 80) || `Nawiertanie ${index + 1}`,
+    type: 'spot',
+    toolId: typeof operation.toolId === 'string' ? operation.toolId : '',
+    holeFeatureIds: Array.isArray(operation.holeFeatureIds) ? [...new Set(operation.holeFeatureIds.filter((id) => typeof id === 'string' && id))] : [],
+    targetDiameter: Math.max(0.1, Number(operation.targetDiameter) || 10),
+    retractHeight: Number.isFinite(Number(operation.retractHeight)) ? Math.max(0, Number(operation.retractHeight)) : 1,
+    feedRate: Math.max(1, Number(operation.feedRate) || 100),
+    spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 2500)),
+    postProcessorId: normalizePostProcessorId(operation.postProcessorId),
+  };
+}
+
+export function normalizeCounterboreOperation(operation = {}, index = 0) {
+  return {
+    id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
+    name: String(operation.name || `Pogłębianie walcowe ${index + 1}`).trim().slice(0, 80) || `Pogłębianie walcowe ${index + 1}`,
+    type: 'counterbore',
+    toolId: CAM_TOOL_PRESETS[operation.toolId]?.type === 'flat-end-mill' ? operation.toolId : 'flat-6',
+    holeFeatureIds: Array.isArray(operation.holeFeatureIds) ? [...new Set(operation.holeFeatureIds.filter((id) => typeof id === 'string' && id))] : [],
+    targetDiameter: Math.max(0.1, Number(operation.targetDiameter) || 12),
+    targetDepth: Math.max(0.05, Number(operation.targetDepth) || 2),
+    maxStepdown: Math.max(0.05, Number(operation.maxStepdown) || 1),
+    retractHeight: Number.isFinite(Number(operation.retractHeight)) ? Math.max(0, Number(operation.retractHeight)) : 1,
+    feedRate: Math.max(1, Number(operation.feedRate) || 300),
+    plungeRate: Math.max(1, Number(operation.plungeRate) || 100),
+    spindleRpm: Math.max(1, Math.round(Number(operation.spindleRpm) || 8000)),
     postProcessorId: normalizePostProcessorId(operation.postProcessorId),
   };
 }
@@ -170,13 +270,18 @@ export function normalizeTurningOperation(operation = {}, index = 0) {
 }
 
 export function normalizeManufacturingOperation(operation = {}, index = 0) {
-  if (operation?.type === 'contour') return normalizeContourOperation(operation, index);
-  if (operation?.type === 'pocket') return normalizePocketOperation(operation, index);
-  if (operation?.type === 'adaptive') return normalizeAdaptiveOperation(operation, index);
-  if (operation?.type === 'drill') return normalizeDrillingOperation(operation, index);
-  if (operation?.type === 'cut2d') return normalizeCut2dOperation(operation, index);
-  if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') return normalizeTurningOperation(operation, index);
-  return normalizeFacingOperation(operation, index);
+  let normalized;
+  if (operation?.type === 'contour') normalized = normalizeContourOperation(operation, index);
+  else if (operation?.type === 'pocket') normalized = normalizePocketOperation(operation, index);
+  else if (operation?.type === 'adaptive') normalized = normalizeAdaptiveOperation(operation, index);
+  else if (operation?.type === 'drill') normalized = normalizeDrillingOperation(operation, index);
+  else if (operation?.type === 'tap') normalized = normalizeTappingOperation(operation, index);
+  else if (operation?.type === 'spot') normalized = normalizeSpotDrillingOperation(operation, index);
+  else if (operation?.type === 'counterbore') normalized = normalizeCounterboreOperation(operation, index);
+  else if (operation?.type === 'cut2d') normalized = normalizeCut2dOperation(operation, index);
+  else if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') normalized = normalizeTurningOperation(operation, index);
+  else normalized = normalizeFacingOperation(operation, index);
+  return { ...normalized, groupId: typeof operation.groupId === 'string' ? operation.groupId : '' };
 }
 
 const finiteNonNegative = (value, fallback) => {
@@ -184,9 +289,53 @@ const finiteNonNegative = (value, fallback) => {
   return Number.isFinite(number) && number >= 0 ? number : fallback;
 };
 
+export function normalizeManufacturingFixture(fixture = {}, index = 0) {
+  const source = fixture && typeof fixture === 'object' && !Array.isArray(fixture) ? fixture : {};
+  const rotationDegrees = Number(source.rotationDegrees ?? 0);
+  return {
+    id: typeof source.id === 'string' && source.id ? source.id : createId('cam-fixture'),
+    name: String(source.name || `Uchwyt ${index + 1}`).trim().slice(0, 80) || `Uchwyt ${index + 1}`,
+    enabled: Boolean(source.enabled),
+    shape: ['box', 'cylinder', 'body'].includes(source.shape) ? source.shape : 'box',
+    bodyId: typeof source.bodyId === 'string' ? source.bodyId : '',
+    bounds: [0, 1].map((side) => [0, 1, 2].map((axis) => {
+      const fallback = side === 0 ? -10 : 10;
+      const value = Number(source.bounds?.[side]?.[axis]);
+      return Number.isFinite(value) ? value : fallback;
+    })),
+    rotationDegrees: Number.isFinite(rotationDegrees) ? rotationDegrees % 360 || 0 : 0,
+    clearance: finiteNonNegative(source.clearance, 1),
+  };
+}
+
+export function createManufacturingFixture(options = {}) {
+  return normalizeManufacturingFixture({ ...options, id: createId('cam-fixture') });
+}
+
 export function normalizeManufacturingSetup(setup = {}, index = 0) {
   const machineId = CAM_MACHINE_PRESETS[setup.machineId] ? setup.machineId : 'mill-500';
   const wcsOrigin = CAM_WCS_ORIGINS.some((item) => item.id === setup.wcsOrigin) ? setup.wcsOrigin : 'stock-top-center';
+  const groupIds = new Set();
+  const operationGroups = (Array.isArray(setup.operationGroups) ? setup.operationGroups : []).slice(0, 50).map((group, groupIndex) => {
+    const requestedId = typeof group?.id === 'string' && group.id ? group.id : createId('cam-group');
+    const id = groupIds.has(requestedId) ? createId('cam-group') : requestedId;
+    groupIds.add(id);
+    return {
+      id,
+      name: String(group?.name || `Folder ${groupIndex + 1}`).trim().slice(0, 80) || `Folder ${groupIndex + 1}`,
+      collapsed: Boolean(group?.collapsed),
+    };
+  });
+  const operations = (Array.isArray(setup.operations) ? setup.operations : []).map(normalizeManufacturingOperation)
+    .map((operation) => ({ ...operation, groupId: groupIds.has(operation.groupId) ? operation.groupId : '' }));
+  const fixtureIds = new Set();
+  const fixtureSources = Array.isArray(setup.fixtures) ? setup.fixtures : setup.fixture && typeof setup.fixture === 'object' ? [setup.fixture] : [];
+  const fixtures = fixtureSources.slice(0, 20).map((fixture, fixtureIndex) => {
+    const normalized = normalizeManufacturingFixture(fixture, fixtureIndex);
+    if (fixtureIds.has(normalized.id)) normalized.id = createId('cam-fixture');
+    fixtureIds.add(normalized.id);
+    return normalized;
+  });
   return {
     id: typeof setup.id === 'string' && setup.id ? setup.id : createId('cam-setup'),
     name: String(setup.name || `Setup ${index + 1}`).trim().slice(0, 80) || `Setup ${index + 1}`,
@@ -199,16 +348,42 @@ export function normalizeManufacturingSetup(setup = {}, index = 0) {
       bottomOffset: finiteNonNegative(setup.stock?.bottomOffset, 0),
     },
     wcsOrigin,
+    workOffset: CAM_WORK_OFFSETS.includes(setup.workOffset) ? setup.workOffset : 'G54',
+    fixtures,
     safeHeight: finiteNonNegative(setup.safeHeight, 5),
-    operations: Array.isArray(setup.operations) ? setup.operations.map(normalizeManufacturingOperation) : [],
+    operationGroups,
+    operations,
+  };
+}
+
+export function normalizeManufacturingOperationTemplate(template = {}, index = 0) {
+  const source = template?.operation && typeof template.operation === 'object' ? template.operation : template;
+  const operation = normalizeManufacturingOperation(source, index);
+  return {
+    id: typeof template.id === 'string' && template.id ? template.id : createId('cam-template'),
+    name: String(template.name || operation.name || `Szablon ${index + 1}`).trim().slice(0, 80) || `Szablon ${index + 1}`,
+    operation: {
+      ...operation,
+      id: '',
+      name: String(operation.name || template.name || `Operacja ${index + 1}`).trim().slice(0, 80),
+      groupId: '',
+      ...(Object.hasOwn(operation, 'boundaryFaceId') ? { boundaryFaceId: '' } : {}),
+      ...(Object.hasOwn(operation, 'boundarySketchId') ? { boundarySketchId: '' } : {}),
+      ...(Object.hasOwn(operation, 'boundaryProfileId') ? { boundaryProfileId: '' } : {}),
+      ...(Object.hasOwn(operation, 'holeFeatureIds') ? { holeFeatureIds: [] } : {}),
+    },
   };
 }
 
 export function ensureDocumentManufacturing(document) {
   if (!document.manufacturing || typeof document.manufacturing !== 'object' || Array.isArray(document.manufacturing)) {
-    document.manufacturing = { setups: [], activeSetupId: '' };
+    document.manufacturing = { setups: [], activeSetupId: '', tools: [], operationTemplates: [] };
   }
   if (!Array.isArray(document.manufacturing.setups)) document.manufacturing.setups = [];
+  if (!Array.isArray(document.manufacturing.tools)) document.manufacturing.tools = [];
+  if (!Array.isArray(document.manufacturing.operationTemplates)) document.manufacturing.operationTemplates = [];
+  document.manufacturing.tools = document.manufacturing.tools.slice(0, 100).map(normalizeCustomCamTool);
+  document.manufacturing.operationTemplates = document.manufacturing.operationTemplates.slice(0, 100).map(normalizeManufacturingOperationTemplate);
   document.manufacturing.setups = document.manufacturing.setups.map(normalizeManufacturingSetup);
   if (typeof document.manufacturing.activeSetupId !== 'string') document.manufacturing.activeSetupId = '';
   if (!document.manufacturing.setups.some((setup) => setup.id === document.manufacturing.activeSetupId)) {
@@ -219,6 +394,60 @@ export function ensureDocumentManufacturing(document) {
 
 export function createManufacturingSetup(options = {}) {
   return normalizeManufacturingSetup({ ...options, id: createId('cam-setup') });
+}
+
+export function createManufacturingOperationGroup(options = {}) {
+  return {
+    id: createId('cam-group'),
+    name: String(options.name || 'Nowy folder').trim().slice(0, 80) || 'Nowy folder',
+    collapsed: Boolean(options.collapsed),
+  };
+}
+
+export function deleteManufacturingOperationGroup(setup, groupId) {
+  const normalized = normalizeManufacturingSetup(setup);
+  if (!normalized.operationGroups.some((group) => group.id === groupId)) return { ...normalized, changed: false };
+  return {
+    ...normalized,
+    changed: true,
+    operationGroups: normalized.operationGroups.filter((group) => group.id !== groupId),
+    operations: normalized.operations.map((operation) => operation.groupId === groupId ? { ...operation, groupId: '' } : operation),
+  };
+}
+
+export function createManufacturingOperationTemplate(operation, options = {}) {
+  if (!operation || typeof operation !== 'object') throw new Error('Szablon wymaga istniejącej operacji CAM.');
+  return normalizeManufacturingOperationTemplate({
+    id: createId('cam-template'),
+    name: options.name || `${operation.name || 'Operacja'} — szablon`,
+    operation,
+  });
+}
+
+const operationMatchesSetupKind = (operation, operationKind) => {
+  const turning = operation.type === 'turn-face' || operation.type === 'turn-profile';
+  if (operationKind === 'turning-2axis') return turning;
+  if (operationKind === 'cut-2d') return operation.type === 'cut2d';
+  return !turning && operation.type !== 'cut2d';
+};
+
+export function instantiateManufacturingOperationTemplate(template, setup, options = {}) {
+  const normalizedTemplate = normalizeManufacturingOperationTemplate(template);
+  const normalizedSetup = normalizeManufacturingSetup(setup);
+  if (!operationMatchesSetupKind(normalizedTemplate.operation, normalizedSetup.operationKind)) {
+    throw new Error('Typ operacji w szablonie nie pasuje do rodzaju aktywnego Setupu.');
+  }
+  const baseName = String(options.name || normalizedTemplate.operation.name || normalizedTemplate.name).trim().slice(0, 80) || 'Operacja z szablonu';
+  const names = new Set(normalizedSetup.operations.map((operation) => operation.name.toLocaleLowerCase()));
+  let name = baseName;
+  let copyNumber = 2;
+  while (names.has(name.toLocaleLowerCase())) name = `${baseName} ${copyNumber++}`.slice(0, 80);
+  return normalizeManufacturingOperation({
+    ...normalizedTemplate.operation,
+    id: createId('cam-operation'),
+    name,
+    groupId: typeof options.groupId === 'string' ? options.groupId : '',
+  }, normalizedSetup.operations.length);
 }
 
 export function calculateManufacturingSetup(setup, bodies = []) {
@@ -244,6 +473,21 @@ export function calculateManufacturingSetup(setup, bodies = []) {
   else if (normalized.wcsOrigin === 'stock-top-front-left') origin = [stockBounds[0][0], stockBounds[0][1], stockBounds[1][2]];
   else origin = [(stockBounds[0][0] + stockBounds[1][0]) / 2, (stockBounds[0][1] + stockBounds[1][1]) / 2, stockBounds[1][2]];
   const warnings = [];
+  const fixtures = normalized.fixtures;
+  const fixtureMeshes = new Map();
+  if (fixtures.some((fixture) => fixture.enabled) && machine.kind === 'turning-2axis') warnings.push('Strefy uchwytów nie obsługują jeszcze tokarki.');
+  for (const fixture of fixtures.filter((item) => item.enabled)) {
+    if (fixture.shape === 'body') {
+      const fixtureBody = bodies.find((item) => item.id === fixture.bodyId);
+      if (!fixtureBody || fixtureBody.id === body.id || fixtureBody.bodyKind === 'surface') {
+        warnings.push(`${fixture.name}: wybierz inną istniejącą bryłę mocowania.`);
+        continue;
+      }
+      const index = createManufacturingFixtureMeshIndex(fixtureBody);
+      if (!index) warnings.push(`${fixture.name}: bryła mocowania nie ma poprawnej siatki trójkątów o zamkniętej powierzchni.`);
+      else fixtureMeshes.set(fixture.id, index);
+    } else if (fixture.bounds[0].some((value, axis) => value >= fixture.bounds[1][axis])) warnings.push(`${fixture.name}: strefa wymaga dodatnich wymiarów X, Y i Z.`);
+  }
   const exceededAxes = dimensions.map((value, axis) => value > machine.travel[axis] ? ['X', 'Y', 'Z'][axis] : null).filter(Boolean);
   if (exceededAxes.length) warnings.push(`Półfabrykat przekracza przesuw maszyny w osi ${exceededAxes.join(', ')}.`);
   if (dimensions.some((value) => value <= 0)) warnings.push('Półfabrykat musi mieć dodatnie wymiary.');
@@ -256,6 +500,9 @@ export function calculateManufacturingSetup(setup, bodies = []) {
     stockBounds,
     dimensions,
     origin,
+    workOffset: normalized.workOffset,
+    fixtures,
+    fixtureMeshes,
     clearancePlaneZ,
     warnings,
   };
@@ -279,6 +526,18 @@ export function createAdaptiveOperation(options = {}) {
 
 export function createDrillingOperation(options = {}) {
   return normalizeDrillingOperation({ ...options, id: createId('cam-operation') });
+}
+
+export function createTappingOperation(options = {}) {
+  return normalizeTappingOperation({ ...options, id: createId('cam-operation') });
+}
+
+export function createSpotDrillingOperation(options = {}) {
+  return normalizeSpotDrillingOperation({ ...options, id: createId('cam-operation') });
+}
+
+export function createCounterboreOperation(options = {}) {
+  return normalizeCounterboreOperation({ ...options, id: createId('cam-operation') });
 }
 
 export function createCut2dOperation(options = {}) {
@@ -504,13 +763,16 @@ function summarizeToolpath(segments) {
   };
 }
 
-export function calculateDrillingToolpath(setup, operation, bodies = []) {
+export function calculateDrillingToolpath(setup, operation, bodies = [], document = null) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
   const normalized = normalizeDrillingOperation(operation);
-  const tool = CAM_TOOL_PRESETS[normalized.toolId];
+  const tool = resolveCamTool(normalized.toolId, document);
   const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
   if (!setupResult.body || !setupResult.stockBounds) return fail('Wiercenie wymaga poprawnego Setupu i bryły.');
   if (!setupResult.valid) return fail('Popraw Setup przed obliczeniem wiercenia.');
+  if (!tool) return fail('Wybrane narzędzie nie istnieje w bibliotece projektu.');
+  if (tool.type === 'tap') return fail('Gwintownik wymaga cyklu gwintowania.');
+  if (tool.type !== 'twist-drill') return fail('Nawiertak wymaga dedykowanej operacji nawiertania.');
   if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`);
   if (normalized.retractHeight > setupResult.clearancePlaneZ - setupResult.stockBounds[1][2] + 1e-7) return fail('Wysokość wycofania nie może przekraczać wysokości bezpiecznej Setupu.');
   const selectedIds = new Set(normalized.holeFeatureIds);
@@ -555,15 +817,23 @@ export function calculateDrillingToolpath(setup, operation, bodies = []) {
   for (const hole of resolvedHoles) {
     push('rapid', [hole.x, hole.y, setupResult.clearancePlaneZ]);
     push('rapid', [hole.x, hole.y, retractZ]);
-    let currentDepth = 0;
-    while (currentDepth < hole.drillingDepth - 1e-9) {
-      currentDepth = Math.min(hole.drillingDepth, currentDepth + normalized.peckDepth);
-      push('plunge', [hole.x, hole.y, stockTop - currentDepth], normalized.feedRate);
+    if (normalized.cycleType === 'peck') {
+      let currentDepth = 0;
+      while (currentDepth < hole.drillingDepth - 1e-9) {
+        currentDepth = Math.min(hole.drillingDepth, currentDepth + normalized.peckDepth);
+        push('plunge', [hole.x, hole.y, stockTop - currentDepth], normalized.feedRate);
+        peckCount += 1;
+        push('rapid', [hole.x, hole.y, retractZ]);
+      }
+    } else {
+      push('plunge', [hole.x, hole.y, hole.targetZ], normalized.feedRate);
+      if (normalized.cycleType === 'dwell' && segments.length) segments.at(-1).dwellSeconds = normalized.dwellSeconds;
       peckCount += 1;
       push('rapid', [hole.x, hole.y, retractZ]);
     }
     push('rapid', [hole.x, hole.y, setupResult.clearancePlaneZ]);
   }
+  const summary = summarizeToolpath(segments);
   return {
     valid: true,
     setup: setupResult,
@@ -578,9 +848,179 @@ export function calculateDrillingToolpath(setup, operation, bodies = []) {
     peckCount,
     layerCount: peckCount,
     estimatedRemovedVolume: resolvedHoles.reduce((sum, hole) => sum + Math.PI * (tool.diameter / 2) ** 2 * hole.drillingDepth, 0),
-    ...summarizeToolpath(segments),
+    ...summary,
+    durationMinutes: summary.durationMinutes + (normalized.cycleType === 'dwell' ? resolvedHoles.length * normalized.dwellSeconds / 60 : 0),
     warnings: [],
   };
+}
+
+export function calculateTappingToolpath(setup, operation, bodies = [], document = null) {
+  const setupResult = calculateManufacturingSetup(setup, bodies);
+  const normalized = normalizeTappingOperation(operation);
+  const tool = resolveCamTool(normalized.toolId, document);
+  const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
+  if (!setupResult.body || !setupResult.stockBounds || !setupResult.valid) return fail('Gwintowanie wymaga poprawnego Setupu i bryły.');
+  if (!tool) return fail('Wybierz gwintownik z biblioteki projektu.');
+  if (tool.type !== 'tap' || !Number.isFinite(tool.pitch) || tool.pitch <= 0) return fail('Gwintowanie wymaga gwintownika z prawidłowym skokiem.');
+  if (!['linuxcnc', 'mach3'].includes(normalized.postProcessorId)) return fail('Gwintowanie wymaga sterownika obsługującego synchronizowany cykl G84.');
+  if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`);
+  if (normalized.retractHeight > setupResult.clearancePlaneZ - setupResult.stockBounds[1][2] + 1e-7) return fail('Wysokość wycofania nie może przekraczać wysokości bezpiecznej Setupu.');
+  const selectedIds = new Set(normalized.holeFeatureIds);
+  const holes = (setupResult.body.manufacturingHoles || []).filter((hole) => !selectedIds.size || selectedIds.has(hole.featureId));
+  if (!holes.length) return fail(selectedIds.size ? 'Wybrane cechy otworów już nie istnieją.' : 'Bryła nie zawiera rozpoznanych otworów do gwintowania.');
+  const recommendedPilot = tool.diameter - tool.pitch;
+  const pilotTolerance = Math.max(0.15, tool.pitch * 0.25);
+  const resolvedHoles = [];
+  for (const hole of holes) {
+    if (Math.abs(Number(hole.diameter) - recommendedPilot) > pilotTolerance) return fail(`Otwór Ø${Number(hole.diameter).toFixed(2)} nie pasuje do gwintownika Ø${tool.diameter} × ${tool.pitch}; oczekiwane wiertło około Ø${recommendedPilot.toFixed(2)}.`);
+    const instances = Array.isArray(hole.instances) && hole.instances.length ? hole.instances : hole.position && hole.direction ? [{ position: hole.position, direction: hole.direction, depth: hole.depth }] : [];
+    if (!instances.length) return fail('Otwór nie zawiera danych położenia. Przebuduj model.');
+    for (const instance of instances) {
+      if (![instance.position, instance.direction].every((vector) => Array.isArray(vector) && vector.length === 3 && vector.every(Number.isFinite)) || !Number.isFinite(Number(instance.depth)) || Number(instance.depth) <= 0) return fail('Dane położenia otworu są nieprawidłowe. Przebuduj model.');
+      const length = Math.hypot(...instance.direction);
+      const direction = length > 1e-9 ? instance.direction.map((value) => value / length) : [0, 0, 0];
+      if (Math.abs(direction[2]) < 0.999 || Math.hypot(direction[0], direction[1]) > 0.045) return fail('Gwintowanie 3-osiowe obsługuje obecnie otwory równoległe do osi Z.');
+      const otherEnd = instance.position.map((value, axis) => value + direction[axis] * Number(instance.depth));
+      const entry = instance.position[2] >= otherEnd[2] ? instance.position : otherEnd;
+      const bottom = instance.position[2] >= otherEnd[2] ? otherEnd : instance.position;
+      const targetZ = Math.min(entry[2] - 0.1, bottom[2] + normalized.bottomClearance);
+      const tappingDepth = setupResult.stockBounds[1][2] - targetZ;
+      if (tappingDepth > tool.fluteLength + 1e-7 || tappingDepth > tool.stickout + 1e-7) return fail(`Głębokość gwintowania ${tappingDepth.toFixed(2)} mm przekracza roboczą długość gwintownika.`);
+      resolvedHoles.push({ featureId: hole.featureId, x: entry[0], y: entry[1], entryZ: entry[2], targetZ, tappingDepth });
+    }
+  }
+  const stockTop = setupResult.stockBounds[1][2];
+  const retractZ = stockTop + normalized.retractHeight;
+  const feedRate = normalized.spindleRpm * tool.pitch;
+  const segments = [];
+  let previous = [resolvedHoles[0].x, resolvedHoles[0].y, setupResult.clearancePlaneZ];
+  const push = (kind, to, feed = null) => { if (Math.hypot(...to.map((value, axis) => value - previous[axis])) <= 1e-9) return; segments.push({ kind, from: previous, to, ...(feed ? { feed } : {}) }); previous = to; };
+  for (const hole of resolvedHoles) {
+    push('rapid', [hole.x, hole.y, setupResult.clearancePlaneZ]);
+    push('rapid', [hole.x, hole.y, retractZ]);
+    push('tap-down', [hole.x, hole.y, hole.targetZ], feedRate);
+    push('tap-up', [hole.x, hole.y, retractZ], feedRate);
+    push('rapid', [hole.x, hole.y, setupResult.clearancePlaneZ]);
+  }
+  return { valid: true, tapping: true, setup: setupResult, stockBounds: setupResult.stockBounds, origin: setupResult.origin, clearancePlaneZ: setupResult.clearancePlaneZ, operation: { ...normalized, feedRate }, tool, segments, holes: resolvedHoles, holeCount: resolvedHoles.length, tapCount: resolvedHoles.length, layerCount: resolvedHoles.length, estimatedRemovedVolume: 0, ...summarizeToolpath(segments), warnings: [] };
+}
+
+export function calculateSpotDrillingToolpath(setup, operation, bodies = [], document = null) {
+  const setupResult = calculateManufacturingSetup(setup, bodies);
+  const normalized = normalizeSpotDrillingOperation(operation);
+  const tool = resolveCamTool(normalized.toolId, document);
+  const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
+  if (!setupResult.body || !setupResult.stockBounds || !setupResult.valid) return fail('Nawiertanie wymaga poprawnego Setupu i bryły.');
+  if (!tool || tool.type !== 'spot-drill' || !Number.isFinite(tool.pointAngle)) return fail('Nawiertanie wymaga nawiertaka z prawidłowym kątem ostrza.');
+  if (normalized.targetDiameter > tool.diameter + 1e-7) return fail(`Docelowa średnica Ø${normalized.targetDiameter} przekracza średnicę nawiertaka Ø${tool.diameter}.`);
+  if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`);
+  if (normalized.retractHeight > setupResult.clearancePlaneZ - setupResult.stockBounds[1][2] + 1e-7) return fail('Wysokość wycofania nie może przekraczać wysokości bezpiecznej Setupu.');
+  const selectedIds = new Set(normalized.holeFeatureIds);
+  const holes = (setupResult.body.manufacturingHoles || []).filter((hole) => !selectedIds.size || selectedIds.has(hole.featureId));
+  if (!holes.length) return fail(selectedIds.size ? 'Wybrane cechy otworów już nie istnieją.' : 'Bryła nie zawiera rozpoznanych otworów do nawiertania.');
+  const resolvedHoles = [];
+  const halfAngleRadians = tool.pointAngle * Math.PI / 360;
+  for (const hole of holes) {
+    const holeDiameter = Number(hole.diameter);
+    if (!Number.isFinite(holeDiameter) || normalized.targetDiameter <= holeDiameter + 1e-7) return fail(`Docelowa średnica nawiertania musi być większa niż otwór Ø${holeDiameter}.`);
+    const coneDepth = (normalized.targetDiameter - holeDiameter) / (2 * Math.tan(halfAngleRadians));
+    if (!Number.isFinite(coneDepth) || coneDepth <= 0 || coneDepth > tool.fluteLength + 1e-7) return fail('Geometria nawiertania przekracza roboczą długość narzędzia.');
+    const instances = Array.isArray(hole.instances) && hole.instances.length ? hole.instances : hole.position && hole.direction ? [{ position: hole.position, direction: hole.direction, depth: hole.depth }] : [];
+    if (!instances.length) return fail('Otwór nie zawiera danych położenia. Przebuduj model.');
+    for (const instance of instances) {
+      if (![instance.position, instance.direction].every((vector) => Array.isArray(vector) && vector.length === 3 && vector.every(Number.isFinite))) return fail('Dane położenia otworu są nieprawidłowe. Przebuduj model.');
+      if (!Number.isFinite(Number(instance.depth)) || Number(instance.depth) <= 0) return fail('Głębokość otworu jest nieprawidłowa. Przebuduj model.');
+      const length = Math.hypot(...instance.direction);
+      const direction = length > 1e-9 ? instance.direction.map((value) => value / length) : [0, 0, 0];
+      if (Math.abs(direction[2]) < 0.999 || Math.hypot(direction[0], direction[1]) > 0.045) return fail('Nawiertanie 3-osiowe obsługuje obecnie otwory równoległe do osi Z.');
+      const otherEnd = instance.position.map((value, axis) => value + direction[axis] * Number(instance.depth));
+      const entry = instance.position[2] >= otherEnd[2] ? instance.position : otherEnd;
+      const targetZ = entry[2] - coneDepth;
+      const totalDepth = setupResult.stockBounds[1][2] - targetZ;
+      if (totalDepth > tool.fluteLength + 1e-7 || totalDepth > tool.stickout + 1e-7) return fail(`Głębokość nawiertania ${totalDepth.toFixed(2)} mm przekracza roboczą długość narzędzia.`);
+      resolvedHoles.push({ featureId: hole.featureId, holeDiameter, x: entry[0], y: entry[1], entryZ: entry[2], targetZ, coneDepth, targetDiameter: normalized.targetDiameter });
+    }
+  }
+  const stockTop = setupResult.stockBounds[1][2];
+  const retractZ = stockTop + normalized.retractHeight;
+  const segments = [];
+  let previous = [resolvedHoles[0].x, resolvedHoles[0].y, setupResult.clearancePlaneZ];
+  const push = (kind, to, feed = null) => { if (Math.hypot(...to.map((value, axis) => value - previous[axis])) <= 1e-9) return; segments.push({ kind, from: previous, to, ...(feed ? { feed } : {}) }); previous = to; };
+  for (const hole of resolvedHoles) {
+    push('rapid', [hole.x, hole.y, setupResult.clearancePlaneZ]);
+    push('rapid', [hole.x, hole.y, retractZ]);
+    push('plunge', [hole.x, hole.y, hole.targetZ], normalized.feedRate);
+    push('rapid', [hole.x, hole.y, retractZ]);
+    push('rapid', [hole.x, hole.y, setupResult.clearancePlaneZ]);
+  }
+  return { valid: true, spotting: true, setup: setupResult, stockBounds: setupResult.stockBounds, origin: setupResult.origin, clearancePlaneZ: setupResult.clearancePlaneZ, operation: normalized, tool, segments, holes: resolvedHoles, holeCount: resolvedHoles.length, spotCount: resolvedHoles.length, layerCount: resolvedHoles.length, estimatedRemovedVolume: resolvedHoles.reduce((sum, hole) => { const outer = hole.targetDiameter / 2; const inner = hole.holeDiameter / 2; return sum + Math.PI * hole.coneDepth * (outer ** 2 + outer * inner - 2 * inner ** 2) / 3; }, 0), ...summarizeToolpath(segments), warnings: [] };
+}
+
+export function calculateCounterboreToolpath(setup, operation, bodies = []) {
+  const setupResult = calculateManufacturingSetup(setup, bodies);
+  const normalized = normalizeCounterboreOperation(operation);
+  const tool = CAM_TOOL_PRESETS[normalized.toolId];
+  const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
+  if (!setupResult.body || !setupResult.stockBounds || !setupResult.valid) return fail('Pogłębianie walcowe wymaga poprawnego Setupu i bryły.');
+  if (!tool || tool.type !== 'flat-end-mill') return fail('Pogłębianie walcowe wymaga płaskiego freza palcowego.');
+  if (normalized.targetDiameter <= tool.diameter + 1e-7) return fail(`Średnica pogłębienia musi być większa niż frez Ø${tool.diameter}.`);
+  if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`);
+  if (normalized.retractHeight > setupResult.clearancePlaneZ - setupResult.stockBounds[1][2] + 1e-7) return fail('Wysokość wycofania nie może przekraczać wysokości bezpiecznej Setupu.');
+  const selectedIds = new Set(normalized.holeFeatureIds);
+  const holes = (setupResult.body.manufacturingHoles || []).filter((hole) => !selectedIds.size || selectedIds.has(hole.featureId));
+  if (!holes.length) return fail(selectedIds.size ? 'Wybrane cechy otworów już nie istnieją.' : 'Bryła nie zawiera rozpoznanych otworów do pogłębiania.');
+  const resolvedHoles = [];
+  for (const hole of holes) {
+    const holeDiameter = Number(hole.diameter);
+    if (!Number.isFinite(holeDiameter) || normalized.targetDiameter <= holeDiameter + 1e-7) return fail(`Średnica pogłębienia musi być większa niż otwór Ø${holeDiameter}.`);
+    if (tool.diameter > holeDiameter + 1e-7) return fail(`Frez Ø${tool.diameter} nie mieści się w otworze pilotowym Ø${holeDiameter}; bezpieczne wejście wymaga mniejszego narzędzia.`);
+    const instances = Array.isArray(hole.instances) && hole.instances.length ? hole.instances : hole.position && hole.direction ? [{ position: hole.position, direction: hole.direction, depth: hole.depth }] : [];
+    if (!instances.length) return fail('Otwór nie zawiera danych położenia. Przebuduj model.');
+    for (const instance of instances) {
+      if (![instance.position, instance.direction].every((vector) => Array.isArray(vector) && vector.length === 3 && vector.every(Number.isFinite)) || !Number.isFinite(Number(instance.depth)) || Number(instance.depth) <= 0) return fail('Dane położenia albo głębokości otworu są nieprawidłowe. Przebuduj model.');
+      const length = Math.hypot(...instance.direction);
+      const direction = length > 1e-9 ? instance.direction.map((value) => value / length) : [0, 0, 0];
+      if (Math.abs(direction[2]) < 0.999 || Math.hypot(direction[0], direction[1]) > 0.045) return fail('Pogłębianie 3-osiowe obsługuje obecnie otwory równoległe do osi Z.');
+      if (normalized.targetDepth > Number(instance.depth) + 1e-7) return fail(`Głębokość pogłębienia ${normalized.targetDepth} mm przekracza głębokość otworu.`);
+      const otherEnd = instance.position.map((value, axis) => value + direction[axis] * Number(instance.depth));
+      const entry = instance.position[2] >= otherEnd[2] ? instance.position : otherEnd;
+      const targetZ = entry[2] - normalized.targetDepth;
+      const totalDepth = setupResult.stockBounds[1][2] - targetZ;
+      if (totalDepth > tool.fluteLength + 1e-7 || totalDepth > tool.stickout + 1e-7) return fail(`Głębokość pogłębiania ${totalDepth.toFixed(2)} mm przekracza roboczą długość freza.`);
+      resolvedHoles.push({ featureId: hole.featureId, holeDiameter, x: entry[0], y: entry[1], entryZ: entry[2], targetZ });
+    }
+  }
+  const stockTop = setupResult.stockBounds[1][2];
+  const retractZ = stockTop + normalized.retractHeight;
+  const layerCount = Math.max(1, Math.ceil(normalized.targetDepth / normalized.maxStepdown));
+  const segments = [];
+  let previous = [resolvedHoles[0].x, resolvedHoles[0].y, setupResult.clearancePlaneZ];
+  const push = (kind, to, feed = null) => { if (Math.hypot(...to.map((value, axis) => value - previous[axis])) <= 1e-9) return; segments.push({ kind, from: previous, to, ...(feed ? { feed } : {}) }); previous = to; };
+  for (const hole of resolvedHoles) {
+    push('rapid', [hole.x, hole.y, setupResult.clearancePlaneZ]);
+    push('rapid', [hole.x, hole.y, retractZ]);
+    for (let layer = 1; layer <= layerCount; layer += 1) {
+      const z = hole.entryZ - Math.min(normalized.targetDepth, layer * normalized.targetDepth / layerCount);
+      push('plunge', [hole.x, hole.y, z], normalized.plungeRate);
+      const maximumRadius = (normalized.targetDiameter - tool.diameter) / 2;
+      const firstRadius = Math.min(maximumRadius, hole.holeDiameter / 2 + tool.diameter / 2);
+      const radii = [firstRadius];
+      while (radii.at(-1) < maximumRadius - 1e-7) radii.push(Math.min(maximumRadius, radii.at(-1) + tool.diameter * 0.5));
+      for (const radius of radii) {
+        push('cut', [hole.x + radius, hole.y, z], normalized.feedRate);
+        const pointCount = Math.max(24, Math.ceil(Math.PI * 2 * radius / 1.5));
+        for (let pointIndex = 1; pointIndex <= pointCount; pointIndex += 1) {
+          const angle = pointIndex / pointCount * Math.PI * 2;
+          push('cut', [hole.x + Math.cos(angle) * radius, hole.y + Math.sin(angle) * radius, z], normalized.feedRate);
+        }
+      }
+      push('cut', [hole.x, hole.y, z], normalized.feedRate);
+    }
+    push('rapid', [hole.x, hole.y, retractZ]);
+    push('rapid', [hole.x, hole.y, setupResult.clearancePlaneZ]);
+  }
+  const estimatedRemovedVolume = resolvedHoles.reduce((sum, hole) => sum + Math.PI / 4 * (normalized.targetDiameter ** 2 - hole.holeDiameter ** 2) * normalized.targetDepth, 0);
+  return { valid: true, counterboring: true, setup: setupResult, stockBounds: setupResult.stockBounds, origin: setupResult.origin, clearancePlaneZ: setupResult.clearancePlaneZ, operation: normalized, tool, segments, holes: resolvedHoles, holeCount: resolvedHoles.length, counterboreCount: resolvedHoles.length, layerCount, estimatedRemovedVolume, ...summarizeToolpath(segments), warnings: [] };
 }
 
 export function calculateContourToolpath(setup, operation, bodies = [], document = null) {
@@ -654,6 +1094,22 @@ function scanlineIntervals(polygon, y) {
   return intervals;
 }
 
+export function measureCamPolygonBounds(points) {
+  if (!Array.isArray(points) || !points.length) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const point of points) {
+    if (!point || !Number.isFinite(point[0]) || !Number.isFinite(point[1])) return null;
+    minX = Math.min(minX, point[0]);
+    minY = Math.min(minY, point[1]);
+    maxX = Math.max(maxX, point[0]);
+    maxY = Math.max(maxY, point[1]);
+  }
+  return [[minX, minY], [maxX, maxY]];
+}
+
 export function calculatePocketToolpath(setup, operation, bodies = [], document = null) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
   const normalized = normalizePocketOperation(operation);
@@ -670,11 +1126,10 @@ export function calculatePocketToolpath(setup, operation, bodies = [], document 
   try { resolvedBoundary = resolveOperationBoundary(setupResult, normalized, document); } catch (error) { return fail(error.message); }
   const { loops } = resolvedBoundary;
   const boundary = offsetClosedContour(loops[0], -tool.diameter / 2);
-  const xs = boundary.map((point) => point[0]);
-  const ys = boundary.map((point) => point[1]);
-  const minimumY = Math.min(...ys);
-  const maximumY = Math.max(...ys);
-  if (!(Math.max(...xs) - Math.min(...xs) > 1e-7) || !(maximumY - minimumY > 1e-7)) return fail('Obrys jest za mały dla wybranego narzędzia.');
+  const bounds = measureCamPolygonBounds(boundary);
+  if (!bounds || !(bounds[1][0] - bounds[0][0] > 1e-7) || !(bounds[1][1] - bounds[0][1] > 1e-7)) return fail('Obrys jest za mały dla wybranego narzędzia.');
+  const minimumY = bounds[0][1];
+  const maximumY = bounds[1][1];
   const rowStep = tool.diameter * normalized.stepover;
   const rowCount = Math.max(2, Math.ceil((maximumY - minimumY) / rowStep) + 1);
   const rows = [];
@@ -746,9 +1201,8 @@ export function calculateAdaptiveToolpath(setup, operation, bodies = [], documen
     rings.push(ring);
     const next = offsetClosedContour(ring, -radialStep);
     const nextArea = Math.abs(signedPolygonArea(next));
-    const xs = next.map((point) => point[0]);
-    const ys = next.map((point) => point[1]);
-    if (nextArea >= previousArea - 1e-7 || Math.max(...xs) - Math.min(...xs) < radialStep || Math.max(...ys) - Math.min(...ys) < radialStep) break;
+    const nextBounds = measureCamPolygonBounds(next);
+    if (!nextBounds || nextArea >= previousArea - 1e-7 || nextBounds[1][0] - nextBounds[0][0] < radialStep || nextBounds[1][1] - nextBounds[0][1] < radialStep) break;
     ring = next;
     previousArea = nextArea;
   }
@@ -862,6 +1316,7 @@ export function calculateCut2dToolpath(setup, operation, bodies = [], document =
 
 export function calculateTurningToolpath(setup, operation, bodies = []) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
+  const normalizedSetup = normalizeManufacturingSetup(setup);
   const normalized = normalizeTurningOperation(operation);
   const tool = CAM_TURNING_TOOL_PRESETS[normalized.toolId];
   const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
@@ -877,7 +1332,8 @@ export function calculateTurningToolpath(setup, operation, bodies = []) {
   const centerZ = setupResult.origin[2];
   const stockRadius = normalized.stockDiameter / 2;
   const targetRadius = normalized.targetDiameter / 2;
-  const safeRadius = stockRadius + Math.max(2, setup.safeHeight);
+  const safeRadius = stockRadius + Math.max(2, normalizedSetup.safeHeight);
+  if (safeRadius * 2 > setupResult.machine.travel[1] + 1e-7) return fail(`Bezpieczna średnica przejazdu X${(safeRadius * 2).toFixed(2)} przekracza zakres tokarki Ø${setupResult.machine.travel[1]} mm.`);
   const stockFront = setupResult.stockBounds[1][0];
   const bodyFront = Number(bodyBounds[1][0]);
   const segments = [];
@@ -933,42 +1389,418 @@ export function calculateOperationToolpath(setup, operation, bodies = [], docume
   if (operation?.type === 'contour') return calculateContourToolpath(setup, operation, bodies, document);
   if (operation?.type === 'pocket') return calculatePocketToolpath(setup, operation, bodies, document);
   if (operation?.type === 'adaptive') return calculateAdaptiveToolpath(setup, operation, bodies, document);
-  if (operation?.type === 'drill') return calculateDrillingToolpath(setup, operation, bodies);
+  if (operation?.type === 'drill') return calculateDrillingToolpath(setup, operation, bodies, document);
+  if (operation?.type === 'tap') return calculateTappingToolpath(setup, operation, bodies, document);
+  if (operation?.type === 'spot') return calculateSpotDrillingToolpath(setup, operation, bodies, document);
+  if (operation?.type === 'counterbore') return calculateCounterboreToolpath(setup, operation, bodies);
   if (operation?.type === 'cut2d') return calculateCut2dToolpath(setup, operation, bodies, document);
   if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') return calculateTurningToolpath(setup, operation, bodies);
   return calculateFacingToolpath(setup, operation, bodies);
 }
 
+function segmentIntersectsBounds(segment, minimum, maximum) {
+  let enter = 0;
+  let exit = 1;
+  for (let axis = 0; axis < 3; axis += 1) {
+    const direction = segment.to[axis] - segment.from[axis];
+    if (Math.abs(direction) < 1e-9) {
+      if (segment.from[axis] < minimum[axis] || segment.from[axis] > maximum[axis]) return false;
+      continue;
+    }
+    const first = (minimum[axis] - segment.from[axis]) / direction;
+    const last = (maximum[axis] - segment.from[axis]) / direction;
+    enter = Math.max(enter, Math.min(first, last));
+    exit = Math.min(exit, Math.max(first, last));
+    if (enter > exit) return false;
+  }
+  return true;
+}
+
+function squaredDistanceToSegment2d(point, start, end) {
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  const lengthSquared = dx * dx + dy * dy;
+  const fraction = lengthSquared > 0
+    ? Math.max(0, Math.min(1, ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / lengthSquared))
+    : 0;
+  const offsetX = point[0] - start[0] - fraction * dx;
+  const offsetY = point[1] - start[1] - fraction * dy;
+  return offsetX * offsetX + offsetY * offsetY;
+}
+
+function segmentIntersectsFixtureFootprint(segment, minimum, maximum, radius, clearance, lowerZ, upperZ) {
+  const rectangleMinimum = [minimum[0] - clearance, minimum[1] - clearance];
+  const rectangleMaximum = [maximum[0] + clearance, maximum[1] + clearance];
+  const broadMinimum = [rectangleMinimum[0] - radius, rectangleMinimum[1] - radius, lowerZ];
+  const broadMaximum = [rectangleMaximum[0] + radius, rectangleMaximum[1] + radius, upperZ];
+  if (!segmentIntersectsBounds(segment, broadMinimum, broadMaximum)) return false;
+
+  const deltaZ = segment.to[2] - segment.from[2];
+  let first = 0;
+  let last = 1;
+  if (Math.abs(deltaZ) > 1e-9) {
+    const entry = (lowerZ - segment.from[2]) / deltaZ;
+    const exit = (upperZ - segment.from[2]) / deltaZ;
+    first = Math.max(0, Math.min(entry, exit));
+    last = Math.min(1, Math.max(entry, exit));
+  }
+  if (first > last) return false;
+  const deltaX = segment.to[0] - segment.from[0];
+  const deltaY = segment.to[1] - segment.from[1];
+  const start = [segment.from[0] + first * deltaX, segment.from[1] + first * deltaY];
+  const end = [segment.from[0] + last * deltaX, segment.from[1] + last * deltaY];
+  if (segmentIntersectsBounds(
+    { from: [start[0], start[1], 0], to: [end[0], end[1], 0] },
+    [...rectangleMinimum, -Infinity], [...rectangleMaximum, Infinity],
+  )) return true;
+
+  const corners = [
+    rectangleMinimum,
+    [rectangleMaximum[0], rectangleMinimum[1]],
+    rectangleMaximum,
+    [rectangleMinimum[0], rectangleMaximum[1]],
+  ];
+  const radiusSquared = radius * radius + 1e-9;
+  for (let index = 0; index < corners.length; index += 1) {
+    const corner = corners[index];
+    const next = corners[(index + 1) % corners.length];
+    if (squaredDistanceToSegment2d(start, corner, next) <= radiusSquared
+      || squaredDistanceToSegment2d(end, corner, next) <= radiusSquared
+      || squaredDistanceToSegment2d(corner, start, end) <= radiusSquared) return true;
+  }
+  return false;
+}
+
+function segmentIntersectsFixtureCylinder(segment, minimum, maximum, toolRadius, clearance, lowerZ, upperZ) {
+  const centerX = (minimum[0] + maximum[0]) / 2;
+  const centerY = (minimum[1] + maximum[1]) / 2;
+  // The larger XY span is the diameter; unequal spans remain conservative.
+  const radius = Math.max(maximum[0] - minimum[0], maximum[1] - minimum[1]) / 2 + toolRadius + clearance;
+  const deltaZ = segment.to[2] - segment.from[2];
+  let first = 0;
+  let last = 1;
+  if (deltaZ === 0) {
+    if (segment.from[2] < lowerZ || segment.from[2] > upperZ) return false;
+  } else {
+    const entry = (lowerZ - segment.from[2]) / deltaZ;
+    const exit = (upperZ - segment.from[2]) / deltaZ;
+    first = Math.max(0, Math.min(entry, exit));
+    last = Math.min(1, Math.max(entry, exit));
+    if (first > last) return false;
+  }
+  const start = [segment.from[0] + (segment.to[0] - segment.from[0]) * first, segment.from[1] + (segment.to[1] - segment.from[1]) * first];
+  const end = [segment.from[0] + (segment.to[0] - segment.from[0]) * last, segment.from[1] + (segment.to[1] - segment.from[1]) * last];
+  return squaredDistanceToSegment2d([centerX, centerY], start, end) <= radius * radius + 1e-9;
+}
+
+function createFixtureSegmentTransform(fixture) {
+  const angle = (Number(fixture.rotationDegrees || 0) % 360) * Math.PI / 180;
+  if (!angle) return (segment) => segment;
+  const cosine = Math.cos(angle);
+  const sine = Math.sin(angle);
+  const centerX = (fixture.bounds[0][0] + fixture.bounds[1][0]) / 2;
+  const centerY = (fixture.bounds[0][1] + fixture.bounds[1][1]) / 2;
+  const rotatePoint = (point) => {
+    const x = point[0] - centerX;
+    const y = point[1] - centerY;
+    return [centerX + x * cosine + y * sine, centerY - x * sine + y * cosine, point[2]];
+  };
+  return (segment) => ({ from: rotatePoint(segment.from), to: rotatePoint(segment.to) });
+}
+
 export function analyzeToolpathSafety(toolpath) {
   const issues = [];
   if (!toolpath?.valid) return (toolpath?.warnings || ['Ścieżka nie jest prawidłowa.']).map((message) => ({ code: 'INVALID_TOOLPATH', message }));
-  const points = toolpath.segments.flatMap((segment) => [segment.from, segment.to]);
-  if (points.some((point) => point.length !== 3 || point.some((value) => !Number.isFinite(value)))) issues.push({ code: 'NON_FINITE', message: 'Ścieżka zawiera nieprawidłową współrzędną.' });
-  const machine = toolpath.setup.machine;
-  for (let axis = 0; axis < 3; axis += 1) {
-    const values = points.map((point) => point[axis]);
-    if (Math.max(...values) - Math.min(...values) > machine.travel[axis] + 1e-7) issues.push({ code: 'MACHINE_TRAVEL', message: `Ścieżka przekracza przesuw maszyny w osi ${['X', 'Y', 'Z'][axis]}.` });
-  }
-  if (toolpath.turning) return issues;
-  const stockTop = toolpath.stockBounds[1][2];
+  if (!toolpath.segments?.length) return [{ code: 'EMPTY_TOOLPATH', message: 'Ścieżka CAM nie zawiera żadnego ruchu.' }];
   for (const segment of toolpath.segments) {
-    const horizontalDistance = Math.hypot(segment.to[0] - segment.from[0], segment.to[1] - segment.from[1]);
-    if (segment.kind === 'rapid' && horizontalDistance > 1e-7 && Math.min(segment.from[2], segment.to[2]) < stockTop - 1e-7) {
-      issues.push({ code: 'RAPID_IN_STOCK', message: 'Wykryto szybki przejazd poziomy poniżej góry półfabrykatu.' });
+    for (const point of [segment?.from, segment?.to]) {
+      if (!Array.isArray(point) || point.length !== 3 || point.some((value) => !Number.isFinite(value))) {
+        return [{ code: 'NON_FINITE', message: 'Ścieżka zawiera nieprawidłową współrzędną.' }];
+      }
+    }
+  }
+  const isMilling = !toolpath.turning && toolpath.setup.machine.kind === 'mill-3axis';
+  const first = toolpath.segments[0];
+  if (isMilling && Math.abs(first.from[2] - toolpath.clearancePlaneZ) > 1e-6) {
+    issues.push({ code: 'UNMODELED_APPROACH', message: 'Początkowy dojazd od płaszczyzny bezpiecznej nie jest opisany przez ścieżkę CAM.' });
+  }
+  const last = toolpath.segments.at(-1);
+  const finalRetract = isMilling && Math.abs(last.to[2] - toolpath.clearancePlaneZ) > 1e-6
+    ? { kind: 'rapid', from: last.to, to: [last.to[0], last.to[1], toolpath.clearancePlaneZ] }
+    : null;
+  const checkedSegments = finalRetract ? [...toolpath.segments, finalRetract] : toolpath.segments;
+  const minimum = [Infinity, Infinity, Infinity];
+  const maximum = [-Infinity, -Infinity, -Infinity];
+  let minimumCutZ = Infinity;
+  for (const segment of checkedSegments) {
+    for (let endpoint = 0; endpoint < 2; endpoint += 1) {
+      const point = endpoint === 0 ? segment.from : segment.to;
+      for (let axis = 0; axis < 3; axis += 1) {
+        minimum[axis] = Math.min(minimum[axis], point[axis]);
+        maximum[axis] = Math.max(maximum[axis], point[axis]);
+      }
+      if (segment.kind !== 'rapid') minimumCutZ = Math.min(minimumCutZ, point[2]);
+    }
+  }
+  for (let index = 1; index < toolpath.segments.length; index += 1) {
+    const previous = toolpath.segments[index - 1];
+    const current = toolpath.segments[index];
+    if (Math.hypot(...current.from.map((value, axis) => value - previous.to[axis])) > 1e-6) {
+      issues.push({ code: 'DISCONTINUOUS_PATH', message: 'Ścieżka CAM zawiera przerwę między ruchami; rzeczywisty przejazd nie został sprawdzony.' });
       break;
     }
   }
-  const cuttingPoints = toolpath.segments.filter((segment) => segment.kind !== 'rapid').flatMap((segment) => [segment.from, segment.to]);
-  const minimumCutZ = cuttingPoints.length ? Math.min(...cuttingPoints.map((point) => point[2])) : stockTop;
-  if (stockTop - minimumCutZ > toolpath.tool.stickout + 1e-7) issues.push({ code: 'HOLDER_COLLISION', message: 'Głębokość ścieżki powoduje ryzyko kolizji oprawki z półfabrykatem.' });
+  const machine = toolpath.setup.machine;
+  for (let axis = 0; axis < 3; axis += 1) {
+    if (maximum[axis] - minimum[axis] > machine.travel[axis] + 1e-7) issues.push({ code: 'MACHINE_TRAVEL', message: `Ścieżka przekracza przesuw maszyny w osi ${['X', 'Y', 'Z'][axis]}.` });
+  }
+  if (toolpath.turning) return issues;
+  for (const fixture of toolpath.setup.fixtures.filter((item) => item.enabled)) {
+    const toFixtureCoordinates = createFixtureSegmentTransform(fixture);
+    const intersectsFixture = fixture.shape === 'cylinder' ? segmentIntersectsFixtureCylinder : segmentIntersectsFixtureFootprint;
+    const meshIndex = fixture.shape === 'body' ? toolpath.setup.fixtureMeshes?.get(fixture.id) : null;
+    if (fixture.shape === 'body' && !meshIndex) {
+      issues.push({ code: 'FIXTURE_MESH_UNAVAILABLE', fixtureId: fixture.id, message: `Bryła uchwytu ${fixture.name} nie ma dostępnej siatki do kontroli kolizji.` });
+      continue;
+    }
+    const radius = Math.max(0, Number(toolpath.tool?.diameter) || 0) / 2;
+    const stickout = Number(toolpath.tool?.stickout);
+    const exposedLength = Number.isFinite(stickout) && stickout > 0 ? stickout : 0;
+    // The path follows the tip, but the exposed cutter and shank reach above it.
+    const holderGeometry = holderSections(toolpath.tool);
+    const checkHolder = holderGeometry.length > 0;
+    let toolCollision = false;
+    let holderCollision = false;
+    for (const segment of checkedSegments) {
+      const localSegment = fixture.shape === 'body' ? segment : toFixtureCoordinates(segment);
+      if (!toolCollision) toolCollision = fixture.shape === 'body'
+        ? fixtureMeshPotentialCollision(meshIndex, localSegment, radius, fixture.clearance, 0, exposedLength, segmentIntersectsFixtureFootprint)
+        : intersectsFixture(localSegment, fixture.bounds[0], fixture.bounds[1], radius, fixture.clearance, fixture.bounds[0][2] - fixture.clearance - exposedLength, fixture.bounds[1][2] + fixture.clearance);
+      if (checkHolder && !holderCollision) holderCollision = holderGeometry.some((section) => fixture.shape === 'body'
+        ? fixtureMeshPotentialCollision(meshIndex, localSegment, section.radius, fixture.clearance, section.lowerOffset, section.upperOffset, segmentIntersectsFixtureFootprint)
+        : intersectsFixture(localSegment, fixture.bounds[0], fixture.bounds[1], section.radius, fixture.clearance,
+          Number.isFinite(section.upperOffset) ? fixture.bounds[0][2] - fixture.clearance - section.upperOffset : -Infinity,
+          fixture.bounds[1][2] + fixture.clearance - section.lowerOffset));
+      if (toolCollision && (holderCollision || !checkHolder)) break;
+    }
+    if (toolCollision) issues.push({ code: 'FIXTURE_COLLISION', fixtureId: fixture.id, message: `Narzędzie lub jego wysunięty trzon przecina strefę ${fixture.name} albo wymagany odstęp.` });
+    if (holderCollision) issues.push({ code: 'HOLDER_FIXTURE_COLLISION', fixtureId: fixture.id, message: `Oprawka narzędzia może przeciąć strefę ${fixture.name} lub jej wymagany odstęp.` });
+  }
+  const stockMinimum = toolpath.stockBounds[0];
+  const stockMaximum = toolpath.stockBounds[1];
+  const stockTop = stockMaximum[2];
+  const cutterRadius = Math.max(0, Number(toolpath.tool?.diameter) || 0) / 2;
+  const stickout = Number(toolpath.tool?.stickout);
+  const exposedLength = Number.isFinite(stickout) && stickout > 0 ? stickout : 0;
+  const holderGeometry = holderSections(toolpath.tool);
+  for (const segment of checkedSegments) {
+    const horizontalDistance = Math.hypot(segment.to[0] - segment.from[0], segment.to[1] - segment.from[1]);
+    // A laser/plasma head descends to its cutting plane with the process off.
+    const descends = machine.kind !== 'cut-2d' && segment.to[2] < segment.from[2] - 1e-7;
+    if (segment.kind !== 'rapid' || (horizontalDistance <= 1e-7 && !descends)) continue;
+    const cutterIntersectsStock = segmentIntersectsFixtureFootprint(segment, stockMinimum, stockMaximum, cutterRadius, 0, stockMinimum[2] - exposedLength, stockTop - 1e-7);
+    const holderIntersectsStock = holderGeometry.some((section) => segmentIntersectsFixtureFootprint(
+      segment, stockMinimum, stockMaximum, section.radius, 0,
+      Number.isFinite(section.upperOffset) ? stockMinimum[2] - section.upperOffset : -Infinity,
+      stockTop - section.lowerOffset - 1e-7,
+    ));
+    if (cutterIntersectsStock || holderIntersectsStock) {
+      issues.push({ code: 'RAPID_IN_STOCK', message: 'Wykryto szybki przejazd narzędzia lub oprawki przez półfabrykat.' });
+      break;
+    }
+  }
+  if (stockTop - (Number.isFinite(minimumCutZ) ? minimumCutZ : stockTop) > toolpath.tool.stickout + 1e-7) issues.push({ code: 'HOLDER_COLLISION', message: 'Głębokość ścieżki powoduje ryzyko kolizji oprawki z półfabrykatem.' });
   return issues;
 }
 
-export function analyzeManufacturingProgram(setup, bodies = [], document = null) {
+const HOLE_STAGE_LABELS = Object.freeze({ spot: 'nawiertanie', drill: 'wiercenie', counterbore: 'pogłębianie walcowe', tap: 'gwintowanie' });
+const HOLE_STAGE_ORDER = Object.freeze({ spot: 10, drill: 20, counterbore: 30, tap: 40 });
+
+const countToolChanges = (operations) => operations.reduce((result, operation) => {
+  if (!operation.toolId) return result;
+  return { lastToolId: operation.toolId, count: result.lastToolId && result.lastToolId !== operation.toolId ? result.count + 1 : result.count };
+}, { lastToolId: '', count: 0 }).count;
+
+function buildManufacturingOperationDependencies(operations, body = null) {
+  const edges = operations.map(() => new Set());
+  const addEdge = (from, to) => {
+    if (from !== to) edges[from].add(to);
+  };
+  const knownFeatureIds = new Set((body?.manufacturingHoles || []).map((hole) => hole.featureId).filter(Boolean));
+  const selectedIds = (operation) => new Set((operation.holeFeatureIds || []).filter((id) => !knownFeatureIds.size || knownFeatureIds.has(id)));
+  const overlaps = (first, second) => {
+    const firstIds = selectedIds(first);
+    const secondIds = selectedIds(second);
+    return !firstIds.size || !secondIds.size || [...firstIds].some((id) => secondIds.has(id));
+  };
+  for (let first = 0; first < operations.length; first += 1) {
+    for (let second = first + 1; second < operations.length; second += 1) {
+      const firstOperation = operations[first];
+      const secondOperation = operations[second];
+      if (firstOperation.type === 'face' && secondOperation.type !== 'face') addEdge(first, second);
+      else if (secondOperation.type === 'face' && firstOperation.type !== 'face') addEdge(second, first);
+      if (firstOperation.type === 'contour' && secondOperation.type !== 'contour') addEdge(second, first);
+      else if (secondOperation.type === 'contour' && firstOperation.type !== 'contour') addEdge(first, second);
+      const firstStage = HOLE_STAGE_ORDER[firstOperation.type];
+      const secondStage = HOLE_STAGE_ORDER[secondOperation.type];
+      if (firstStage && secondStage && firstStage !== secondStage && overlaps(firstOperation, secondOperation)) addEdge(firstStage < secondStage ? first : second, firstStage < secondStage ? second : first);
+    }
+  }
+  return edges;
+}
+
+export function validateManufacturingOperationOrder(setup, body = null) {
+  const operations = normalizeManufacturingSetup(setup).operations;
+  const edges = buildManufacturingOperationDependencies(operations, body);
+  const warnings = [];
+  edges.forEach((targets, source) => targets.forEach((target) => {
+    if (source > target) warnings.push(`„${operations[source].name}” musi być przed „${operations[target].name}”.`);
+  }));
+  return { valid: warnings.length === 0, warnings };
+}
+
+export function moveManufacturingOperation(setup, operationId, direction, body = null) {
   const normalized = normalizeManufacturingSetup(setup);
-  const operations = normalized.operations.map((operation) => {
-    const toolpath = calculateOperationToolpath(normalized, operation, bodies, document);
+  const operations = normalized.operations;
+  const sourceIndex = operations.findIndex((operation) => operation.id === operationId);
+  const targetIndex = sourceIndex + (direction === 'up' ? -1 : direction === 'down' ? 1 : 0);
+  if (sourceIndex < 0) return { operations, changed: false, warnings: ['Nie znaleziono operacji CAM.'] };
+  if (targetIndex < 0 || targetIndex >= operations.length || targetIndex === sourceIndex) return { operations, changed: false, warnings: [] };
+  const candidate = [...operations];
+  [candidate[sourceIndex], candidate[targetIndex]] = [candidate[targetIndex], candidate[sourceIndex]];
+  const validation = validateManufacturingOperationOrder({ ...normalized, operations: candidate }, body);
+  if (!validation.valid) return { operations, changed: false, warnings: [`Ruch zablokowany przez zależność technologiczną: ${validation.warnings[0]}`] };
+  return { operations: candidate, changed: true, warnings: [] };
+}
+
+export function duplicateManufacturingOperation(setup, operationId) {
+  const normalized = normalizeManufacturingSetup(setup);
+  const sourceIndex = normalized.operations.findIndex((operation) => operation.id === operationId);
+  if (sourceIndex < 0) return { operations: normalized.operations, operation: null };
+  const source = normalized.operations[sourceIndex];
+  const usedNames = new Set(normalized.operations.map((operation) => operation.name.toLocaleLowerCase()));
+  let name = `${source.name} — kopia`;
+  for (let copyIndex = 2; usedNames.has(name.toLocaleLowerCase()); copyIndex += 1) name = `${source.name} — kopia ${copyIndex}`;
+  const operation = normalizeManufacturingOperation({ ...source, id: createId('cam-operation'), name }, sourceIndex + 1);
+  const operations = [...normalized.operations];
+  operations.splice(sourceIndex + 1, 0, operation);
+  return { operations, operation };
+}
+
+export function optimizeManufacturingOperationOrder(setup, body = null) {
+  const normalized = normalizeManufacturingSetup(setup);
+  const operations = normalized.operations;
+  if (operations.length < 2) return { operations, changed: false, toolChangesBefore: 0, toolChangesAfter: 0, warnings: [] };
+  const edges = buildManufacturingOperationDependencies(operations, body);
+  const indegree = operations.map(() => 0);
+  edges.forEach((targets) => targets.forEach((target) => { indegree[target] += 1; }));
+  const typePriority = { face: 0, adaptive: 10, pocket: 10, spot: 20, drill: 30, counterbore: 40, tap: 50, contour: 100 };
+  const remaining = new Set(operations.map((_operation, index) => index));
+  const orderedIndices = [];
+  let lastToolId = '';
+  while (remaining.size) {
+    const ready = [...remaining].filter((index) => indegree[index] === 0);
+    if (!ready.length) return { operations, changed: false, toolChangesBefore: countToolChanges(operations), toolChangesAfter: countToolChanges(operations), warnings: ['Nie można uporządkować operacji z powodu cyklu zależności.'] };
+    ready.sort((first, second) => {
+      const firstSameTool = lastToolId && operations[first].toolId === lastToolId ? 0 : 1;
+      const secondSameTool = lastToolId && operations[second].toolId === lastToolId ? 0 : 1;
+      return firstSameTool - secondSameTool || (typePriority[operations[first].type] ?? 60) - (typePriority[operations[second].type] ?? 60) || first - second;
+    });
+    const selected = ready[0];
+    remaining.delete(selected);
+    orderedIndices.push(selected);
+    lastToolId = operations[selected].toolId || lastToolId;
+    for (const target of edges[selected]) indegree[target] -= 1;
+  }
+  const ordered = orderedIndices.map((index) => operations[index]);
+  return {
+    operations: ordered,
+    changed: ordered.some((operation, index) => operation.id !== operations[index].id),
+    toolChangesBefore: countToolChanges(operations),
+    toolChangesAfter: countToolChanges(ordered),
+    warnings: [],
+  };
+}
+
+export function analyzeHoleMachiningCompleteness(setup, body, operationReports = []) {
+  const holes = body?.manufacturingHoles || [];
+  const validOperationIds = new Set(operationReports.filter((operation) => operation.valid).map((operation) => operation.id));
+  const operations = normalizeManufacturingSetup(setup).operations;
+  const entries = holes.map((hole, holeIndex) => {
+    const featureId = hole.featureId || `hole-${holeIndex + 1}`;
+    const requiredStages = ['drill'];
+    if (hole.holeType === 'countersink') requiredStages.unshift('spot');
+    if (hole.holeType === 'counterbore') requiredStages.push('counterbore');
+    if (hole.threadDesignation || ['tapped', 'npt-tapped', 'bspt-tapped'].includes(hole.holeApplication)) requiredStages.push('tap');
+    const relevantOperations = operations
+      .map((operation, index) => ({ operation, index }))
+      .filter(({ operation }) => HOLE_STAGE_ORDER[operation.type] && (!operation.holeFeatureIds.length || operation.holeFeatureIds.includes(featureId)) && validOperationIds.has(operation.id));
+    const plannedStages = [...new Set(relevantOperations.map(({ operation }) => operation.type))];
+    const missingStages = requiredStages.filter((stage) => !plannedStages.includes(stage));
+    const requiredOperations = relevantOperations.filter(({ operation }) => requiredStages.includes(operation.type));
+    const orderingIssues = [];
+    for (let index = 1; index < requiredOperations.length; index += 1) {
+      const previous = requiredOperations[index - 1];
+      const current = requiredOperations[index];
+      if (HOLE_STAGE_ORDER[current.operation.type] < HOLE_STAGE_ORDER[previous.operation.type]) orderingIssues.push(`${HOLE_STAGE_LABELS[current.operation.type]} powinno poprzedzać ${HOLE_STAGE_LABELS[previous.operation.type]}`);
+    }
+    return {
+      featureId,
+      diameter: Number(hole.diameter) || 0,
+      quantity: Number(hole.quantity) || hole.instances?.length || 1,
+      requiredStages,
+      plannedStages,
+      missingStages,
+      orderingIssues,
+      complete: missingStages.length === 0 && orderingIssues.length === 0,
+    };
+  });
+  const totalHoleCount = entries.reduce((sum, entry) => sum + entry.quantity, 0);
+  const completeHoleCount = entries.filter((entry) => entry.complete).reduce((sum, entry) => sum + entry.quantity, 0);
+  return {
+    complete: entries.every((entry) => entry.complete),
+    groupCount: entries.length,
+    completeGroupCount: entries.filter((entry) => entry.complete).length,
+    totalHoleCount,
+    completeHoleCount,
+    entries,
+  };
+}
+
+function turningClearanceDiameter(setup, operation = null) {
+  const normalized = normalizeManufacturingSetup(setup);
+  const diameters = normalized.operations.filter((item) => item.type === 'turn-face' || item.type === 'turn-profile').map((item) => item.stockDiameter);
+  if (operation) diameters.push(normalizeTurningOperation(operation).stockDiameter);
+  return Math.max(0, ...diameters) + 2 * Math.max(2, normalized.safeHeight);
+}
+
+export function analyzeManufacturingProgram(setup, bodies = [], document = null, precomputedToolpaths = null) {
+  const normalized = normalizeManufacturingSetup(setup);
+  const safeTurningDiameter = normalized.operationKind === 'turning-2axis'
+    ? turningClearanceDiameter(normalized)
+    : 0;
+  let previousToolpath = null;
+  const operations = normalized.operations.map((operation, index) => {
+    const cachedToolpath = precomputedToolpaths?.[index];
+    const toolpath = cachedToolpath?.operation?.id === operation.id
+      ? cachedToolpath
+      : calculateOperationToolpath(normalized, operation, bodies, document);
     const issues = analyzeToolpathSafety(toolpath);
+    if (toolpath.turning && safeTurningDiameter > toolpath.setup.machine.travel[1] + 1e-7) {
+      issues.push({ code: 'TURNING_CLEARANCE_EXCEEDED', message: `Bezpieczna średnica przejazdu X${safeTurningDiameter.toFixed(2)} przekracza zakres tokarki Ø${toolpath.setup.machine.travel[1]} mm.` });
+    }
+    if (!toolpath.turning && toolpath.valid && previousToolpath?.valid && previousToolpath.segments.length && toolpath.segments.length) {
+      const previousEnd = previousToolpath.segments.at(-1).to;
+      const currentStart = toolpath.segments[0].from;
+      const safeZ = toolpath.clearancePlaneZ;
+      // The previous operation retracts with its own tool before M6; that
+      // retract was already checked by analyzeToolpathSafety(previousToolpath).
+      // Only the XY traverse after tool change uses this operation's holder.
+      const bridge = [{ kind: 'rapid', from: [previousEnd[0], previousEnd[1], safeZ], to: [currentStart[0], currentStart[1], safeZ] }];
+      const transitionIssues = analyzeToolpathSafety({ ...toolpath, segments: bridge });
+      issues.push(...transitionIssues.map((issue) => ({ ...issue, code: `INTER_OPERATION_${issue.code}`, message: `Przejazd między operacjami: ${issue.message}` })));
+    }
+    previousToolpath = toolpath;
     return {
       id: operation.id,
       name: operation.name,
@@ -982,10 +1814,11 @@ export function analyzeManufacturingProgram(setup, bodies = [], document = null)
     };
   });
   const setupResult = calculateManufacturingSetup(normalized, bodies);
+  const holeCompleteness = analyzeHoleMachiningCompleteness(normalized, setupResult.body, operations);
   const stockVolume = setupResult.dimensions?.reduce((volume, dimension) => volume * dimension, 1) || 0;
   const estimatedRemovedVolume = operations.reduce((sum, operation) => sum + operation.estimatedRemovedVolume, 0);
   return {
-    valid: setupResult.valid && operations.length > 0 && operations.every((operation) => operation.valid),
+    valid: setupResult.valid && operations.length > 0 && operations.every((operation) => operation.valid) && holeCompleteness.complete,
     setupIssues: setupResult.warnings,
     operations,
     segmentCount: operations.reduce((sum, operation) => sum + operation.segmentCount, 0),
@@ -994,19 +1827,129 @@ export function analyzeManufacturingProgram(setup, bodies = [], document = null)
     stockVolume,
     estimatedRemovedVolume,
     estimatedRemovalPercent: stockVolume ? Math.min(100, estimatedRemovedVolume / stockVolume * 100) : 0,
+    holeCompleteness,
   };
 }
 
-export function simulateMaterialRemoval(setup, bodies = [], document = null, progress = 1, resolution = 36) {
-  const setupResult = calculateManufacturingSetup(setup, bodies);
-  const report = analyzeManufacturingProgram(setup, bodies, document);
+const escapeManufacturingHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+const formatSetupSheetNumber = (value, digits = 2) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : '—';
+
+export function createManufacturingSetupSheet(setup, bodies = [], { projectName = 'MadCAD', document = null } = {}) {
+  const normalized = normalizeManufacturingSetup(setup);
+  const setupResult = calculateManufacturingSetup(normalized, bodies);
+  if (!setupResult.body || !setupResult.stockBounds) throw new Error('Arkusz ustawczy wymaga poprawnego Setupu i istniejącej bryły.');
+  const report = analyzeManufacturingProgram(normalized, bodies, document);
+  const toolUsage = new Map();
+  normalized.operations.forEach((operation, index) => {
+    const tool = CAM_TURNING_TOOL_PRESETS[operation.toolId] || resolveCamTool(operation.toolId, document) || { id: operation.toolId, name: operation.toolId || 'Źródło cięcia', diameter: null, stickout: null };
+    if (!toolUsage.has(operation.toolId || tool.id)) toolUsage.set(operation.toolId || tool.id, { tool, operationNumbers: [] });
+    toolUsage.get(operation.toolId || tool.id).operationNumbers.push(index + 1);
+  });
+  const typeLabels = { face: 'Planowanie', pocket: 'Kieszeń 2D', adaptive: 'Adaptacyjne 2D', contour: 'Kontur 2D', drill: 'Wiercenie', spot: 'Nawiertanie', counterbore: 'Pogłębianie walcowe', tap: 'Gwintowanie', cut2d: 'Cięcie 2D', 'turn-face': 'Toczenie czoła', 'turn-profile': 'Toczenie profilu' };
+  const operationRows = normalized.operations.map((operation, index) => {
+    const operationReport = report.operations[index];
+    const tool = CAM_TURNING_TOOL_PRESETS[operation.toolId] || resolveCamTool(operation.toolId, document);
+    return `<tr><td>${index + 1}</td><td><strong>${escapeManufacturingHtml(operation.name)}</strong><small>${escapeManufacturingHtml(typeLabels[operation.type] || operation.type)}</small></td><td>${escapeManufacturingHtml(tool?.name || 'Źródło cięcia')}</td><td>${operation.spindleRpm ? `${formatSetupSheetNumber(operation.spindleRpm, 0)} obr./min` : '—'}</td><td>${operation.feedRate ? `${formatSetupSheetNumber(operation.feedRate, operation.type?.startsWith('turn-') ? 2 : 0)} ${operation.type?.startsWith('turn-') ? 'mm/obr.' : 'mm/min'}` : '—'}</td><td>${Math.max(1, Math.ceil(operationReport?.durationMinutes || 0))} min</td><td class="${operationReport?.valid ? 'ok' : 'bad'}">${operationReport?.valid ? 'OK' : 'SPRAWDŹ'}</td></tr>`;
+  }).join('');
+  const toolRows = [...toolUsage.values()].map(({ tool, operationNumbers }, index) => `<tr><td>T${index + 1}</td><td><strong>${escapeManufacturingHtml(tool.name)}</strong><small>${escapeManufacturingHtml(tool.type || '')}${Number(tool.holderNeckLength) > 0 ? ` · szyjka oprawki Ø${formatSetupSheetNumber(tool.holderNeckDiameter)} × ${formatSetupSheetNumber(tool.holderNeckLength)} mm, dalej Ø${formatSetupSheetNumber(tool.holderDiameter)}` : ''}</small></td><td>${tool.diameter ? `Ø${formatSetupSheetNumber(tool.diameter)}` : '—'}</td><td>${tool.stickout ? `${formatSetupSheetNumber(tool.stickout)} mm` : '—'}</td><td>${operationNumbers.join(', ')}</td></tr>`).join('');
+  const issues = [...(report.setupIssues || []), ...report.operations.flatMap((operation) => operation.issues.map((issue) => `${operation.name}: ${issue.message}`)), ...(report.holeCompleteness?.entries || []).flatMap((entry) => [...entry.missingStages.map((stage) => `Ø${formatSetupSheetNumber(entry.diameter)}: brak etapu ${HOLE_STAGE_LABELS[stage] || stage}.`), ...entry.orderingIssues])];
+  const activeFixtures = normalized.fixtures.filter((fixture) => fixture.enabled);
+  const fixtureMarkup = activeFixtures.length
+    ? activeFixtures.map((fixture) => fixture.shape === 'body'
+      ? `<p>${escapeManufacturingHtml(fixture.name)} (bryła CAD: ${escapeManufacturingHtml(bodies.find((body) => body.id === fixture.bodyId)?.name || fixture.bodyId)}); odstęp ${formatSetupSheetNumber(fixture.clearance)} mm.</p>`
+      : `<p>${escapeManufacturingHtml(fixture.name)}${fixture.shape === 'cylinder' ? ' (walec, średnica = większy wymiar XY)' : ''} XYZ: ${fixture.bounds.map((point) => point.map((value) => formatSetupSheetNumber(value)).join(' / ')).join(' — ')} mm; odstęp ${formatSetupSheetNumber(fixture.clearance)} mm${fixture.rotationDegrees ? `; obrót Z ${formatSetupSheetNumber(fixture.rotationDegrees)}°` : ''}.</p>`).join('')
+    : '<p>Strefy uchwytów: nieaktywne — sprawdź rzeczywiste mocowanie na obrabiarce.</p>';
+  const issueMarkup = `${fixtureMarkup}${issues.length ? `<ul>${issues.map((issue) => `<li>${escapeManufacturingHtml(issue)}</li>`).join('')}</ul>` : '<p>Kontrola Setupu, ścieżek, kolizji i kompletności obróbki zakończona bez błędów.</p>'}`;
+  const dimensions = setupResult.dimensions.map((value) => formatSetupSheetNumber(value)).join(' × ');
+  const origin = setupResult.origin.map((value) => formatSetupSheetNumber(value)).join(' / ');
+  const html = `<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeManufacturingHtml(projectName)} — ${escapeManufacturingHtml(normalized.name)} — arkusz ustawczy</title><style>@page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{margin:0;color:#18212a;font:12px/1.4 Arial,sans-serif}header{display:flex;justify-content:space-between;gap:20px;border-bottom:3px solid #bd252d;padding-bottom:8px}h1,h2,p{margin:0}h1{font-size:23px}header p{color:#52606d}.status{align-self:start;padding:7px 12px;border:2px solid #27815f;color:#176348;font-weight:800}.status.bad{border-color:#bd252d;color:#9c1820}.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:10px 0}.fact{border:1px solid #abb5be;padding:7px}.fact span,td small{display:block;color:#66737e;font-size:10px}.fact strong{font-size:13px}section{margin-top:11px}h2{margin-bottom:5px;font-size:14px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #aeb8c0;padding:5px 6px;text-align:left;vertical-align:top}th{background:#e9edf0;font-size:10px;text-transform:uppercase}.ok{color:#176348;font-weight:800}.bad{color:#9c1820;font-weight:800}.checks{border:1px solid #aeb8c0;padding:8px}.checks ul{margin:0;padding-left:18px}.checks p{color:#176348;font-weight:700}footer{margin-top:10px;border-top:1px solid #aeb8c0;padding-top:6px;color:#66737e;font-size:10px}@media print{body{print-color-adjust:exact}}</style></head><body><header><div><h1>Arkusz ustawczy CAM</h1><p>${escapeManufacturingHtml(projectName)} · ${escapeManufacturingHtml(normalized.name)}</p></div><div class="status${report.valid ? '' : ' bad'}">${report.valid ? 'ŚCIEŻKI SPRAWDZONE W MODELU' : 'WYMAGA POPRAWY'}</div></header><div class="facts"><div class="fact"><span>Obrabiarka</span><strong>${escapeManufacturingHtml(setupResult.machine.name)}</strong></div><div class="fact"><span>Bryła</span><strong>${escapeManufacturingHtml(setupResult.body.name || setupResult.body.id)}</strong></div><div class="fact"><span>Półfabrykat X × Y × Z</span><strong>${dimensions} mm</strong></div><div class="fact"><span>Układ roboczy</span><strong>${normalized.workOffset}</strong></div><div class="fact"><span>Zero WCS X / Y / Z</span><strong>${origin} mm</strong></div><div class="fact"><span>Płaszczyzna bezpieczna</span><strong>${formatSetupSheetNumber(setupResult.clearancePlaneZ)} mm</strong></div><div class="fact"><span>Operacje</span><strong>${normalized.operations.length}</strong></div><div class="fact"><span>Szacowany czas</span><strong>${Math.max(1, Math.ceil(report.durationMinutes))} min</strong></div><div class="fact"><span>Długość skrawania</span><strong>${formatSetupSheetNumber(report.cuttingDistance, 0)} mm</strong></div></div><section><h2>Narzędzia</h2><table><thead><tr><th>Poz.</th><th>Narzędzie</th><th>Średnica</th><th>Wysięg</th><th>Operacje</th></tr></thead><tbody>${toolRows || '<tr><td colspan="5">Brak narzędzi</td></tr>'}</tbody></table></section><section><h2>Program operacji</h2><table><thead><tr><th>#</th><th>Operacja</th><th>Narzędzie</th><th>Obroty</th><th>Posuw</th><th>Czas</th><th>Kontrola</th></tr></thead><tbody>${operationRows || '<tr><td colspan="7">Brak operacji</td></tr>'}</tbody></table></section><section><h2>Kontrola przed uruchomieniem</h2><div class="checks">${issueMarkup}</div></section><footer>Wygenerowano w MadCAD. Operator odpowiada za sprawdzenie mocowania, korekcji narzędzi, punktu zerowego i przejazdu bez materiału na obrabiarce.</footer></body></html>`;
+  return { html, report, operationCount: normalized.operations.length, toolCount: toolUsage.size };
+}
+
+export function analyzeManufacturingSetupSequence(manufacturing, bodies = [], document = null) {
+  const setups = Array.isArray(manufacturing?.setups) ? manufacturing.setups.map(normalizeManufacturingSetup) : [];
+  const entries = setups.map((setup, index) => {
+    const previous = setups[index - 1] || null;
+    const setupResult = calculateManufacturingSetup(setup, bodies);
+    let program = null;
+    const issues = [...setupResult.warnings];
+    try {
+      program = analyzeManufacturingProgram(setup, bodies, document);
+      if (!setup.operations.length) issues.push('Setup nie zawiera operacji.');
+      for (const operation of program.operations) {
+        if (!operation.valid) issues.push(...operation.issues.map((issue) => `${operation.name}: ${issue.message}`));
+      }
+      for (const hole of program.holeCompleteness.entries) {
+        issues.push(...hole.missingStages.map((stage) => `Otwór Ø${formatSetupSheetNumber(hole.diameter)}: brak etapu ${HOLE_STAGE_LABELS[stage] || stage}.`));
+        issues.push(...hole.orderingIssues);
+      }
+    } catch (error) {
+      issues.push(`Nie udało się sprawdzić ścieżki: ${error.message}`);
+    }
+    const activeFixtures = setup.fixtures.filter((fixture) => fixture.enabled);
+    const previousFixtures = previous?.fixtures.filter((fixture) => fixture.enabled) || [];
+    const fixtureGeometry = ({ shape, bodyId, bounds, clearance, rotationDegrees }) => shape === 'body'
+      ? { shape, bodyId, clearance }
+      : { shape, bounds, clearance, rotationDegrees };
+    const fixtureChanged = JSON.stringify(activeFixtures.map(fixtureGeometry)) !== JSON.stringify(previousFixtures.map(fixtureGeometry));
+    const requiresReclamp = !previous || previous.bodyId !== setup.bodyId || previous.machineId !== setup.machineId || fixtureChanged;
+    const origin = setupResult.origin || null;
+    const priorOffsetSetup = setups.slice(0, index).reverse().find((candidate) => candidate.machineId === setup.machineId && candidate.workOffset === setup.workOffset);
+    const priorOffsetOrigin = priorOffsetSetup ? calculateManufacturingSetup(priorOffsetSetup, bodies).origin : null;
+    const offsetReusedAtDifferentZero = Boolean(priorOffsetSetup && origin && priorOffsetOrigin
+      && origin.some((value, axis) => Math.abs(value - priorOffsetOrigin[axis]) > 1e-7));
+    const instructions = [
+      ...(previous ? ['Zatrzymaj wrzeciono i potwierdź bezpieczną pozycję osi przed zmianą Setupu.'] : []),
+      ...(requiresReclamp ? [`Potwierdź mocowanie ${setup.name}: ${activeFixtures.length} aktywnych stref uchwytów.`] : []),
+      `Zmierz i potwierdź zero ${setup.workOffset}${origin ? `: X ${formatSetupSheetNumber(origin[0])}, Y ${formatSetupSheetNumber(origin[1])}, Z ${formatSetupSheetNumber(origin[2])} mm` : ''}.`,
+      ...(offsetReusedAtDifferentZero ? [`Ten sam ${setup.workOffset} ma inne zero niż przy jego poprzednim użyciu — ustaw offset ponownie na sterowaniu.`] : []),
+      'Sprawdź narzędzia, uchwyty i przejazd bez materiału przed startem programu.',
+    ];
+    return {
+      id: setup.id,
+      name: setup.name,
+      bodyId: setup.bodyId,
+      machineId: setup.machineId,
+      machineName: setupResult.machine.name,
+      workOffset: setup.workOffset,
+      origin,
+      activeFixtureCount: activeFixtures.length,
+      operationCount: setup.operations.length,
+      durationMinutes: program?.durationMinutes || 0,
+      requiresReclamp,
+      offsetReusedAtDifferentZero,
+      valid: setupResult.valid && Boolean(program?.valid) && issues.length === 0,
+      issues,
+      instructions,
+    };
+  });
+  return {
+    valid: entries.length > 0 && entries.every((entry) => entry.valid),
+    setups: entries,
+    operationCount: entries.reduce((sum, entry) => sum + entry.operationCount, 0),
+    durationMinutes: entries.reduce((sum, entry) => sum + entry.durationMinutes, 0),
+    reclampCount: entries.slice(1).filter((entry) => entry.requiresReclamp).length,
+  };
+}
+
+export function createManufacturingSequenceSheet(manufacturing, bodies = [], { projectName = 'MadCAD', document = null } = {}) {
+  const report = analyzeManufacturingSetupSequence(manufacturing, bodies, document);
+  if (!report.setups.length) throw new Error('Raport mocowań wymaga co najmniej jednego Setupu CAM.');
+  const rows = report.setups.map((setup, index) => `<section><h2>${index + 1}. ${escapeManufacturingHtml(setup.name)} · ${setup.workOffset}</h2><p>${escapeManufacturingHtml(setup.machineName)} · ${setup.operationCount} operacji · ${Math.max(1, Math.ceil(setup.durationMinutes))} min · ${setup.activeFixtureCount} stref uchwytów</p><p class="${setup.valid ? 'ok' : 'bad'}">${setup.valid ? 'ŚCIEŻKI SPRAWDZONE W MODELU' : 'WYMAGA POPRAWY'}</p>${setup.issues.length ? `<ul class="bad">${setup.issues.map((issue) => `<li>${escapeManufacturingHtml(issue)}</li>`).join('')}</ul>` : ''}<ol>${setup.instructions.map((instruction) => `<li>${escapeManufacturingHtml(instruction)}</li>`).join('')}</ol></section>`).join('');
+  const html = `<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeManufacturingHtml(projectName)} — raport mocowań CAM</title><style>@page{size:A4 portrait;margin:14mm}body{font:12px/1.45 Arial,sans-serif;color:#18212a}h1{border-bottom:3px solid #bd252d;padding-bottom:8px}h2{font-size:16px}section{break-inside:avoid;border:1px solid #aeb8c0;padding:10px;margin:10px 0}p{margin:4px 0}.ok{color:#176348;font-weight:700}.bad{color:#9c1820;font-weight:700}li{margin:4px 0}footer{border-top:1px solid #aeb8c0;margin-top:14px;padding-top:8px;color:#52606d}</style></head><body><h1>Raport kolejnych mocowań CAM</h1><p><strong>${escapeManufacturingHtml(projectName)}</strong> · ${report.setups.length} Setupów · ${report.operationCount} operacji · ${report.reclampCount} ponownych zamocowań</p>${rows}<footer>Raport nie generuje ruchów sondy ani przejazdów między Setupami. Operator musi potwierdzić rzeczywiste mocowanie, offsety WCS, narzędzia i przejazd próbny na obrabiarce.</footer></body></html>`;
+  return { html, report, setupCount: report.setups.length };
+}
+
+export function simulateMaterialRemoval(setup, bodies = [], document = null, progress = 1, resolution = 36, precomputed = {}) {
+  const setupResult = precomputed.setupResult || calculateManufacturingSetup(setup, bodies);
+  const allToolpaths = precomputed.toolpaths || normalizeManufacturingSetup(setup).operations
+    .map((operation) => calculateOperationToolpath(setup, operation, bodies, document));
+  const report = precomputed.report || analyzeManufacturingProgram(setup, bodies, document, allToolpaths);
   if (!setupResult.valid || !report.operations.length) return { valid: false, progress: 0, columns: [], cutter: null, removedVolume: 0, warnings: setupResult.warnings };
-  const toolpaths = normalizeManufacturingSetup(setup).operations
-    .map((operation) => calculateOperationToolpath(setup, operation, bodies, document))
-    .filter((toolpath) => toolpath.valid);
-  const entries = toolpaths.flatMap((toolpath) => toolpath.segments.map((segment) => ({ segment, tool: toolpath.tool, operationId: toolpath.operation.id })));
+  const toolpaths = allToolpaths.filter((toolpath) => toolpath.valid);
+  const totalSegments = toolpaths.reduce((count, toolpath) => count + toolpath.segments.length, 0);
   const normalizedProgress = Math.min(1, Math.max(0, Number(progress) || 0));
-  const processedCount = Math.min(entries.length, Math.ceil(entries.length * normalizedProgress));
+  const processedCount = Math.min(totalSegments, Math.ceil(totalSegments * normalizedProgress));
   const [minimum, maximum] = setupResult.stockBounds;
   const width = maximum[0] - minimum[0];
   const depth = maximum[1] - minimum[1];
@@ -1017,27 +1960,34 @@ export function simulateMaterialRemoval(setup, bodies = [], document = null, pro
   const cellDepth = depth / yCount;
   const stockTop = maximum[2];
   const heights = new Float32Array(xCount * yCount).fill(stockTop);
-  let cutter = entries[0] ? { position: [...entries[0].segment.from], diameter: entries[0].tool.diameter, operationId: entries[0].operationId } : null;
-  for (const entry of entries.slice(0, processedCount)) {
-    cutter = { position: [...entry.segment.to], diameter: entry.tool.diameter, operationId: entry.operationId };
-    if (entry.segment.kind === 'rapid') continue;
-    const length = Math.hypot(...entry.segment.to.map((value, axis) => value - entry.segment.from[axis]));
-    const sampleStep = Math.max(0.1, Math.min(cellWidth, cellDepth, entry.tool.diameter / 2) / 2);
-    const samples = Math.max(1, Math.ceil(length / sampleStep));
-    const radius = entry.tool.diameter / 2;
-    for (let sample = 0; sample <= samples; sample += 1) {
-      const ratio = sample / samples;
-      const point = entry.segment.from.map((value, axis) => value + (entry.segment.to[axis] - value) * ratio);
-      const minX = Math.max(0, Math.floor((point[0] - radius - minimum[0]) / cellWidth));
-      const maxX = Math.min(xCount - 1, Math.floor((point[0] + radius - minimum[0]) / cellWidth));
-      const minY = Math.max(0, Math.floor((point[1] - radius - minimum[1]) / cellDepth));
-      const maxY = Math.min(yCount - 1, Math.floor((point[1] + radius - minimum[1]) / cellDepth));
-      for (let y = minY; y <= maxY; y += 1) for (let x = minX; x <= maxX; x += 1) {
-        const centerX = minimum[0] + (x + 0.5) * cellWidth;
-        const centerY = minimum[1] + (y + 0.5) * cellDepth;
-        if (Math.hypot(centerX - point[0], centerY - point[1]) <= radius + Math.hypot(cellWidth, cellDepth) / 2) {
-          const index = y * xCount + x;
-          heights[index] = Math.max(minimum[2], Math.min(heights[index], point[2]));
+  const firstToolpath = toolpaths.find((toolpath) => toolpath.segments.length);
+  let cutter = firstToolpath ? { position: [...firstToolpath.segments[0].from], diameter: firstToolpath.tool.diameter, operationId: firstToolpath.operation.id } : null;
+  let remaining = processedCount;
+  for (const toolpath of toolpaths) {
+    if (!remaining) break;
+    const { tool } = toolpath;
+    for (let index = 0; index < toolpath.segments.length && remaining; index += 1, remaining -= 1) {
+      const segment = toolpath.segments[index];
+      cutter = { position: [...segment.to], diameter: tool.diameter, operationId: toolpath.operation.id };
+      if (segment.kind === 'rapid') continue;
+      const length = Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis]));
+      const sampleStep = Math.max(0.1, Math.min(cellWidth, cellDepth, tool.diameter / 2) / 2);
+      const samples = Math.max(1, Math.ceil(length / sampleStep));
+      const radius = tool.diameter / 2;
+      for (let sample = 0; sample <= samples; sample += 1) {
+        const ratio = sample / samples;
+        const point = segment.from.map((value, axis) => value + (segment.to[axis] - value) * ratio);
+        const minX = Math.max(0, Math.floor((point[0] - radius - minimum[0]) / cellWidth));
+        const maxX = Math.min(xCount - 1, Math.floor((point[0] + radius - minimum[0]) / cellWidth));
+        const minY = Math.max(0, Math.floor((point[1] - radius - minimum[1]) / cellDepth));
+        const maxY = Math.min(yCount - 1, Math.floor((point[1] + radius - minimum[1]) / cellDepth));
+        for (let y = minY; y <= maxY; y += 1) for (let x = minX; x <= maxX; x += 1) {
+          const centerX = minimum[0] + (x + 0.5) * cellWidth;
+          const centerY = minimum[1] + (y + 0.5) * cellDepth;
+          if (Math.hypot(centerX - point[0], centerY - point[1]) <= radius + Math.hypot(cellWidth, cellDepth) / 2) {
+            const index = y * xCount + x;
+            heights[index] = Math.max(minimum[2], Math.min(heights[index], point[2]));
+          }
         }
       }
     }
@@ -1051,7 +2001,7 @@ export function simulateMaterialRemoval(setup, bodies = [], document = null, pro
     removedVolume += volume;
     columns.push({ x: minimum[0] + (x + 0.5) * cellWidth, y: minimum[1] + (y + 0.5) * cellDepth, bottom: top, top: stockTop, width: cellWidth, depth: cellDepth });
   }
-  return { valid: report.valid, progress: normalizedProgress, columns, cutter, removedVolume, processedSegments: processedCount, totalSegments: entries.length, warnings: report.setupIssues };
+  return { valid: report.valid, progress: normalizedProgress, columns, cutter, removedVolume, processedSegments: processedCount, totalSegments, warnings: report.setupIssues };
 }
 
 function gcodeNumber(value) {
@@ -1059,7 +2009,7 @@ function gcodeNumber(value) {
   return Number(Number(value).toFixed(4)).toString();
 }
 
-export function createMachineGcode(setup, operation, bodies = [], { projectName = 'MadCAD', document = null, postProcessorId = operation?.postProcessorId } = {}) {
+export function createMachineGcode(setup, operation, bodies = [], { projectName = 'MadCAD', document = null, postProcessorId = operation?.postProcessorId, programFragment = false, includeToolChange = true } = {}) {
   const toolpath = calculateOperationToolpath(setup, operation, bodies, document);
   if (!toolpath.valid || !toolpath.segments.length) throw new Error(toolpath.warnings.join(' ') || 'Ścieżka CAM nie jest gotowa do eksportu.');
   const safetyIssues = analyzeToolpathSafety(toolpath);
@@ -1067,12 +2017,21 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   const origin = toolpath.origin;
   const safeLocalZ = toolpath.clearancePlaneZ - origin[2];
   const postProcessor = CAM_POST_PROCESSORS[postProcessorId] || CAM_POST_PROCESSORS.grbl;
+  if (toolpath.operation.type === 'tap' && !['linuxcnc', 'mach3'].includes(postProcessor.id)) throw new Error('Gwintowanie wymaga postprocesora z synchronizowanym cyklem G84.');
   const cleanComment = (value) => String(value).replace(/[\r\n;()]/g, ' ').trim();
   const comment = (value) => postProcessor.commentStyle === 'parentheses' ? `(${cleanComment(value)})` : `; ${cleanComment(value)}`;
   if (toolpath.turning) {
     if (postProcessor.id !== 'linuxcnc-turn') throw new Error('Toczenie wymaga postprocesora LinuxCNC Tokarka.');
     const toolNumber = Object.keys(CAM_TURNING_TOOL_PRESETS).indexOf(toolpath.operation.toolId) + 1;
-    const lines = ['%', comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź mocowanie, zero osi Z i średnicę X przed uruchomieniem.'), 'G21', 'G90', 'G18', 'G95', 'G40', `T${toolNumber} M6`, `S${toolpath.operation.spindleRpm} M3`];
+    const clearanceDiameter = turningClearanceDiameter(setup, toolpath.operation);
+    if (clearanceDiameter > toolpath.setup.machine.travel[1] + 1e-7) throw new Error(`Eksport zablokowany: bezpieczna średnica przejazdu X${clearanceDiameter.toFixed(2)} przekracza zakres tokarki.`);
+    const start = toolpath.segments[0].from;
+    const startDiameter = Math.abs(start[1] - origin[1]) * 2;
+    const startAxial = start[0] - origin[0];
+    const lines = programFragment
+      ? [comment(`${operation.name} | ${toolpath.tool.name}`), ...(includeToolChange ? [`T${toolNumber} M6`] : [])]
+      : ['%', comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź mocowanie, zero osi Z i średnicę X przed uruchomieniem.'), 'G21', 'G90', 'G18', 'G95', toolpath.setup.workOffset, 'G40', `T${toolNumber} M6`];
+    lines.push(`G0 X${gcodeNumber(clearanceDiameter)}`, `G0 Z${gcodeNumber(startAxial)}`, `G0 X${gcodeNumber(startDiameter)}`, `S${toolpath.operation.spindleRpm} M3`);
     let lastFeed = null;
     for (const segment of toolpath.segments) {
       const diameter = Math.abs(segment.to[1] - origin[1]) * 2;
@@ -1084,16 +2043,20 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
         lastFeed = feed;
       }
     }
-    lines.push('M5', 'M2', '%', '');
+    lines.push('M5');
+    if (!programFragment) lines.push('M2', '%');
+    lines.push('');
     return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
   }
   if (toolpath.operation.type === 'cut2d') {
     if (!['grbl-laser', 'linuxcnc-plasma'].includes(postProcessor.id)) throw new Error('Wybierz postprocesor przeznaczony do cięcia 2D.');
     const isPlasma = postProcessor.id === 'linuxcnc-plasma';
-    const lines = [];
-    if (isPlasma) lines.push('%');
-    lines.push(comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź zero WCS, moc i przejazd bez materiału.'), 'G21', 'G90', 'G17', 'G94');
-    if (isPlasma) lines.push('G40', 'G64 P0.01');
+    const lines = programFragment ? [comment(`${operation.name} | ${toolpath.tool.name}`)] : [];
+    if (!programFragment && isPlasma) lines.push('%');
+    if (!programFragment) lines.push(comment(cleanComment(projectName) || 'MadCAD'), comment(`${operation.name} | ${toolpath.tool.name}`), comment('Sprawdź zero WCS, moc i przejazd bez materiału.'), 'G21', 'G90', 'G17', 'G94', toolpath.setup.workOffset);
+    if (!programFragment && isPlasma) lines.push('G40', 'G64 P0.01');
+    const start = toolpath.segments[0].from;
+    lines.push(`G0 Z${gcodeNumber(safeLocalZ)}`, `G0 X${gcodeNumber(start[0] - origin[0])} Y${gcodeNumber(start[1] - origin[1])}`);
     let processOn = false;
     for (const segment of toolpath.segments) {
       const local = segment.to.map((value, axis) => value - origin[axis]);
@@ -1110,25 +2073,57 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
       }
     }
     if (processOn) lines.push('M5');
-    lines.push(isPlasma ? 'M2' : 'M30');
-    if (isPlasma) lines.push('%');
+    if (!programFragment) lines.push(isPlasma ? 'M2' : 'M30');
+    if (!programFragment && isPlasma) lines.push('%');
     lines.push('');
     return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
   }
-  const toolNumber = Object.keys(CAM_TOOL_PRESETS).indexOf(toolpath.tool.id) + 1;
+  const presetToolIndex = Object.keys(CAM_TOOL_PRESETS).indexOf(toolpath.tool.id);
+  const customToolIndex = document?.manufacturing?.tools?.findIndex((tool) => tool.id === toolpath.tool.id) ?? -1;
+  const toolNumber = presetToolIndex >= 0 ? presetToolIndex + 1 : 100 + Math.max(0, customToolIndex);
   const lines = [];
-  if (postProcessor.id === 'linuxcnc') lines.push('%');
-  lines.push(
+  if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('%');
+  if (programFragment) lines.push(comment(`${operation.name} | ${toolpath.tool.name}`));
+  else lines.push(
     comment(cleanComment(projectName) || 'MadCAD'),
     comment(`${operation.name} | ${toolpath.tool.name}`),
     comment('Sprawdź punkt zerowy WCS i wykonaj symulację bez materiału przed obróbką.'),
-    'G21', 'G90', 'G17', 'G94',
+    'G21', 'G90', 'G17', 'G94', toolpath.setup.workOffset,
   );
-  if (postProcessor.id === 'linuxcnc') lines.push('G40', 'G49', 'G64 P0.01');
-  if (postProcessor.id === 'mach3') lines.push('G40', 'G49', 'G80');
-  if (postProcessor.toolChange) lines.push(`T${toolNumber} M6`);
-  else lines.push(comment(`Narzędzie T${toolNumber}: ${toolpath.tool.name} — zmień ręcznie przed startem`));
-  lines.push(`S${toolpath.operation.spindleRpm} M3`, `G0 Z${gcodeNumber(safeLocalZ)}`);
+  if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('G40', 'G49', 'G64 P0.01');
+  if (!programFragment && postProcessor.id === 'mach3') lines.push('G40', 'G49', 'G80');
+  if (includeToolChange && postProcessor.toolChange) lines.push(`T${toolNumber} M6`);
+  else if (includeToolChange) lines.push(comment(`Narzędzie T${toolNumber}: ${toolpath.tool.name} — zmień ręcznie przed startem`));
+  const start = toolpath.segments[0].from;
+  lines.push(`G0 Z${gcodeNumber(safeLocalZ)}`, `G0 X${gcodeNumber(start[0] - origin[0])} Y${gcodeNumber(start[1] - origin[1])}`, `S${toolpath.operation.spindleRpm} M3`);
+  if (toolpath.operation.type === 'tap') {
+    const retractLocalZ = toolpath.stockBounds[1][2] + toolpath.operation.retractHeight - origin[2];
+    lines.push('G98');
+    for (const hole of toolpath.holes) lines.push(`G84 X${gcodeNumber(hole.x - origin[0])} Y${gcodeNumber(hole.y - origin[1])} Z${gcodeNumber(hole.targetZ - origin[2])} R${gcodeNumber(retractLocalZ)} F${gcodeNumber(toolpath.operation.feedRate)}`);
+    lines.push('G80', `G0 Z${gcodeNumber(safeLocalZ)}`, 'M5');
+    if (!programFragment) lines.push(postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
+    if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('%');
+    lines.push('');
+    return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
+  }
+  const supportsCannedDrilling = toolpath.operation.type === 'drill' && ['linuxcnc', 'mach3'].includes(postProcessor.id);
+  if (supportsCannedDrilling) {
+    const cycleCode = toolpath.operation.cycleType === 'peck' ? 'G83' : toolpath.operation.cycleType === 'dwell' ? 'G82' : 'G81';
+    const retractLocalZ = toolpath.stockBounds[1][2] + toolpath.operation.retractHeight - origin[2];
+    lines.push('G98');
+    for (const hole of toolpath.holes) {
+      const words = [cycleCode, `X${gcodeNumber(hole.x - origin[0])}`, `Y${gcodeNumber(hole.y - origin[1])}`, `Z${gcodeNumber(hole.targetZ - origin[2])}`, `R${gcodeNumber(retractLocalZ)}`];
+      if (cycleCode === 'G83') words.push(`Q${gcodeNumber(toolpath.operation.peckDepth)}`);
+      if (cycleCode === 'G82') words.push(`P${gcodeNumber(toolpath.operation.dwellSeconds)}`);
+      words.push(`F${gcodeNumber(toolpath.operation.feedRate)}`);
+      lines.push(words.join(' '));
+    }
+    lines.push('G80', `G0 Z${gcodeNumber(safeLocalZ)}`, 'M5');
+    if (!programFragment) lines.push(postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
+    if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('%');
+    lines.push('');
+    return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
+  }
   let lastFeed = null;
   for (const segment of toolpath.segments) {
     const local = segment.to.map((value, axis) => value - origin[axis]);
@@ -1137,13 +2132,62 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
       const feed = segment.feed;
       const feedWord = feed !== lastFeed ? ` F${gcodeNumber(feed)}` : '';
       lines.push(`G1 X${gcodeNumber(local[0])} Y${gcodeNumber(local[1])} Z${gcodeNumber(local[2])}${feedWord}`);
+      if (segment.dwellSeconds > 0) lines.push(`G4 P${gcodeNumber(segment.dwellSeconds)}`);
       lastFeed = feed;
     }
   }
-  lines.push(`G0 Z${gcodeNumber(safeLocalZ)}`, 'M5', postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
-  if (postProcessor.id === 'linuxcnc') lines.push('%');
+  lines.push(`G0 Z${gcodeNumber(safeLocalZ)}`, 'M5');
+  if (!programFragment) lines.push(postProcessor.id === 'linuxcnc' ? 'M2' : 'M30');
+  if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('%');
   lines.push('');
   return { text: lines.join('\n'), lineCount: lines.length - 1, toolpath, postProcessor: postProcessor.id, extension: postProcessor.extension };
+}
+
+export function createManufacturingProgramGcode(setup, bodies = [], { projectName = 'MadCAD', document = null, postProcessorId = null } = {}) {
+  const normalized = normalizeManufacturingSetup(setup);
+  if (!normalized.operations.length) throw new Error('Program CAM wymaga co najmniej jednej operacji.');
+  const report = analyzeManufacturingProgram(normalized, bodies, document);
+  if (!report.valid) throw new Error('Eksport programu zablokowany: popraw Setup, ścieżki, bezpieczeństwo i kompletność obróbki otworów.');
+  const tappingOperation = normalized.operations.find((operation) => operation.type === 'tap');
+  const selectedPostId = postProcessorId || tappingOperation?.postProcessorId || normalized.operations[0].postProcessorId;
+  const postProcessor = CAM_POST_PROCESSORS[selectedPostId] || CAM_POST_PROCESSORS.grbl;
+  const cleanComment = (value) => String(value).replace(/[\r\n;()]/g, ' ').trim();
+  const comment = (value) => postProcessor.commentStyle === 'parentheses' ? `(${cleanComment(value)})` : `; ${cleanComment(value)}`;
+  const isTurning = normalized.operationKind === 'turning-2axis';
+  const isCutting = normalized.operationKind === 'cut-2d';
+  if (isTurning && postProcessor.id !== 'linuxcnc-turn') throw new Error('Program tokarski wymaga postprocesora LinuxCNC Tokarka.');
+  if (isCutting && !['grbl-laser', 'linuxcnc-plasma'].includes(postProcessor.id)) throw new Error('Program cięcia wymaga postprocesora laserowego albo plazmowego.');
+  const linuxCncEnvelope = ['linuxcnc', 'linuxcnc-turn', 'linuxcnc-plasma'].includes(postProcessor.id);
+  const lines = [];
+  if (linuxCncEnvelope) lines.push('%');
+  lines.push(
+    comment(cleanComment(projectName) || 'MadCAD'),
+    comment(`${normalized.name} | kompletny program CAM | ${normalized.operations.length} operacji`),
+    comment('Sprawdź mocowanie, punkt zerowy WCS i wykonaj przejazd bez materiału przed obróbką.'),
+    'G21', 'G90', isTurning ? 'G18' : 'G17', isTurning ? 'G95' : 'G94', normalized.workOffset, 'G40',
+  );
+  if (!isCutting) lines.push('G49');
+  if (postProcessor.id === 'linuxcnc' || postProcessor.id === 'linuxcnc-plasma') lines.push('G64 P0.01');
+  if (postProcessor.id === 'mach3') lines.push('G80');
+  let previousToolId = null;
+  const outputs = normalized.operations.map((operation) => {
+    const output = createMachineGcode(normalized, operation, bodies, { projectName, document, postProcessorId: postProcessor.id, programFragment: true, includeToolChange: operation.toolId !== previousToolId });
+    previousToolId = operation.toolId;
+    return output;
+  });
+  for (const output of outputs) lines.push('', ...output.text.trim().split('\n'));
+  lines.push('', 'M5', linuxCncEnvelope ? 'M2' : 'M30');
+  if (linuxCncEnvelope) lines.push('%');
+  lines.push('');
+  return {
+    text: lines.join('\n'),
+    lineCount: lines.length - 1,
+    operationCount: outputs.length,
+    toolpaths: outputs.map((output) => output.toolpath),
+    postProcessor: postProcessor.id,
+    extension: postProcessor.extension,
+    report,
+  };
 }
 
 export function createGrblGcode(setup, operation, bodies = [], options = {}) {
@@ -1155,6 +2199,52 @@ export function validateManufacturing(manufacturing) {
   const issues = [];
   if (!manufacturing || typeof manufacturing !== 'object' || Array.isArray(manufacturing)) return [{ path: 'manufacturing', message: 'Wymagane są dane wytwarzania.', code: 'TYPE' }];
   if (!Array.isArray(manufacturing.setups)) return [{ path: 'manufacturing.setups', message: 'Setupy CAM muszą być tablicą.', code: 'TYPE' }];
+  const customToolIds = new Set();
+  const customToolNames = new Set();
+  if (manufacturing.tools !== undefined && !Array.isArray(manufacturing.tools)) issues.push({ path: 'manufacturing.tools', message: 'Biblioteka narzędzi CAM musi być tablicą.', code: 'TYPE' });
+  else (manufacturing.tools || []).forEach((tool, index) => {
+    const base = `manufacturing.tools[${index}]`;
+    if (!tool || typeof tool !== 'object' || Array.isArray(tool)) { issues.push({ path: base, message: 'Narzędzie CAM musi być obiektem.', code: 'TYPE' }); return; }
+    if (typeof tool.id !== 'string' || !tool.id) issues.push({ path: `${base}.id`, message: 'Narzędzie CAM wymaga ID.', code: 'REQUIRED' });
+    else if (CAM_TOOL_PRESETS[tool.id] || customToolIds.has(tool.id)) issues.push({ path: `${base}.id`, message: 'ID narzędzia CAM jest zarezerwowane lub powtórzone.', code: 'DUPLICATE_ID' });
+    else customToolIds.add(tool.id);
+    const name = typeof tool.name === 'string' ? tool.name.trim() : '';
+    if (!name) issues.push({ path: `${base}.name`, message: 'Narzędzie CAM wymaga nazwy.', code: 'REQUIRED' });
+    else if (customToolNames.has(name.toLocaleLowerCase())) issues.push({ path: `${base}.name`, message: 'Nazwa narzędzia CAM jest powtórzona.', code: 'DUPLICATE' });
+    else customToolNames.add(name.toLocaleLowerCase());
+    if (!CAM_HOLE_TOOL_TYPES.some((item) => item.id === tool.type)) issues.push({ path: `${base}.type`, message: 'Nieobsługiwany typ narzędzia otworowego.', code: 'UNSUPPORTED' });
+    for (const key of ['diameter', 'fluteLength', 'stickout', 'holderDiameter', 'flutes']) if (!Number.isFinite(Number(tool[key])) || Number(tool[key]) <= 0) issues.push({ path: `${base}.${key}`, message: 'Wymiar narzędzia musi być dodatni.', code: 'VALUE' });
+    if (!Number.isFinite(Number(tool.holderNeckDiameter)) || Number(tool.holderNeckDiameter) < Number(tool.diameter) || Number(tool.holderNeckDiameter) > 200) issues.push({ path: `${base}.holderNeckDiameter`, message: 'Średnica szyjki oprawki musi być co najmniej średnicą narzędzia i nie może przekraczać 200 mm.', code: 'VALUE' });
+    if (!Number.isFinite(Number(tool.holderNeckLength)) || Number(tool.holderNeckLength) < 0 || Number(tool.holderNeckLength) > 500) issues.push({ path: `${base}.holderNeckLength`, message: 'Długość szyjki oprawki musi mieścić się w zakresie 0–500 mm.', code: 'VALUE' });
+    if (tool.type === 'tap' && (!Number.isFinite(Number(tool.pitch)) || Number(tool.pitch) <= 0)) issues.push({ path: `${base}.pitch`, message: 'Gwintownik wymaga dodatniego skoku.', code: 'VALUE' });
+    if (tool.type === 'spot-drill' && (!Number.isFinite(Number(tool.pointAngle)) || Number(tool.pointAngle) < 30 || Number(tool.pointAngle) > 170)) issues.push({ path: `${base}.pointAngle`, message: 'Kąt nawiertaka musi mieścić się w zakresie 30–170°.', code: 'VALUE' });
+  });
+  const templateIds = new Set();
+  const templateNames = new Set();
+  if (manufacturing.operationTemplates !== undefined && !Array.isArray(manufacturing.operationTemplates)) issues.push({ path: 'manufacturing.operationTemplates', message: 'Szablony operacji CAM muszą być tablicą.', code: 'TYPE' });
+  else (manufacturing.operationTemplates || []).forEach((template, index) => {
+    const base = `manufacturing.operationTemplates[${index}]`;
+    if (!template || typeof template !== 'object' || Array.isArray(template)) { issues.push({ path: base, message: 'Szablon operacji CAM musi być obiektem.', code: 'TYPE' }); return; }
+    if (typeof template.id !== 'string' || !template.id) issues.push({ path: `${base}.id`, message: 'Szablon operacji CAM wymaga ID.', code: 'REQUIRED' });
+    else if (templateIds.has(template.id)) issues.push({ path: `${base}.id`, message: 'ID szablonu operacji CAM jest powtórzone.', code: 'DUPLICATE_ID' });
+    else templateIds.add(template.id);
+    const name = typeof template.name === 'string' ? template.name.trim() : '';
+    if (!name) issues.push({ path: `${base}.name`, message: 'Szablon operacji CAM wymaga nazwy.', code: 'REQUIRED' });
+    else if (templateNames.has(name.toLocaleLowerCase())) issues.push({ path: `${base}.name`, message: 'Nazwa szablonu operacji CAM jest powtórzona.', code: 'DUPLICATE' });
+    else templateNames.add(name.toLocaleLowerCase());
+    if (!template.operation || typeof template.operation !== 'object' || Array.isArray(template.operation)) issues.push({ path: `${base}.operation`, message: 'Szablon wymaga parametrów operacji CAM.', code: 'TYPE' });
+    else {
+      const operation = template.operation;
+      const supported = ['face', 'contour', 'pocket', 'adaptive', 'drill', 'tap', 'spot', 'counterbore', 'cut2d', 'turn-face', 'turn-profile'].includes(operation.type);
+      const isTurning = operation.type === 'turn-face' || operation.type === 'turn-profile';
+      if (!supported) issues.push({ path: `${base}.operation.type`, message: 'Szablon zawiera nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
+      if (supported && operation.type !== 'cut2d' && !isTurning && !CAM_TOOL_PRESETS[operation.toolId] && !customToolIds.has(operation.toolId)) issues.push({ path: `${base}.operation.toolId`, message: 'Szablon wskazuje nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
+      if (supported && isTurning && !CAM_TURNING_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${base}.operation.toolId`, message: 'Szablon wskazuje nieznany nóż tokarski.', code: 'UNSUPPORTED' });
+      if (supported && !CAM_POST_PROCESSORS[operation.postProcessorId]) issues.push({ path: `${base}.operation.postProcessorId`, message: 'Szablon wskazuje nieznany postprocesor CAM.', code: 'UNSUPPORTED' });
+      const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : operation.type === 'drill' ? ['peckDepth', 'feedRate', 'spindleRpm'] : operation.type === 'tap' ? ['spindleRpm'] : operation.type === 'spot' ? ['targetDiameter', 'feedRate', 'spindleRpm'] : operation.type === 'counterbore' ? ['targetDiameter', 'targetDepth', 'maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'] : isTurning ? ['stockDiameter', 'targetDiameter', 'axialLength', 'maxDepthOfCut', 'feedRate', 'spindleRpm'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];
+      if (supported) for (const key of positiveKeys) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${base}.operation.${key}`, message: 'Parametr szablonu operacji musi być dodatni.', code: 'VALUE' });
+    }
+  });
   const ids = new Set();
   const names = new Set();
   manufacturing.setups.forEach((setup, index) => {
@@ -1171,22 +2261,71 @@ export function validateManufacturing(manufacturing) {
     if (typeof setup.bodyId !== 'string') issues.push({ path: `${base}.bodyId`, message: 'Identyfikator bryły musi być tekstem.', code: 'TYPE' });
     if (!CAM_MACHINE_PRESETS[setup.machineId]) issues.push({ path: `${base}.machineId`, message: 'Nieznany profil obrabiarki.', code: 'UNSUPPORTED' });
     if (!CAM_WCS_ORIGINS.some((item) => item.id === setup.wcsOrigin)) issues.push({ path: `${base}.wcsOrigin`, message: 'Nieznany początek układu WCS.', code: 'UNSUPPORTED' });
+    if (!CAM_WORK_OFFSETS.includes(setup.workOffset)) issues.push({ path: `${base}.workOffset`, message: 'Układ roboczy musi mieścić się w zakresie G54–G59.', code: 'UNSUPPORTED' });
+    if (!Array.isArray(setup.fixtures)) issues.push({ path: `${base}.fixtures`, message: 'Strefy uchwytów muszą być tablicą.', code: 'TYPE' });
+    else {
+      if (setup.fixtures.length > 20) issues.push({ path: `${base}.fixtures`, message: 'Setup może zawierać najwyżej 20 stref uchwytów.', code: 'LIMIT' });
+      const fixtureIds = new Set();
+      setup.fixtures.forEach((fixture, fixtureIndex) => {
+        const fixtureBase = `${base}.fixtures[${fixtureIndex}]`;
+        if (!fixture || typeof fixture !== 'object' || Array.isArray(fixture)) { issues.push({ path: fixtureBase, message: 'Uchwyt musi być obiektem.', code: 'TYPE' }); return; }
+        if (typeof fixture.id !== 'string' || !fixture.id) issues.push({ path: `${fixtureBase}.id`, message: 'Uchwyt wymaga ID.', code: 'REQUIRED' });
+        else if (fixtureIds.has(fixture.id)) issues.push({ path: `${fixtureBase}.id`, message: 'ID uchwytu jest powtórzone.', code: 'DUPLICATE_ID' });
+        else fixtureIds.add(fixture.id);
+        if (typeof fixture.name !== 'string' || !fixture.name.trim()) issues.push({ path: `${fixtureBase}.name`, message: 'Uchwyt wymaga nazwy.', code: 'REQUIRED' });
+        if (typeof fixture.enabled !== 'boolean') issues.push({ path: `${fixtureBase}.enabled`, message: 'Aktywność uchwytu musi być wartością logiczną.', code: 'TYPE' });
+        if (!['box', 'cylinder', 'body'].includes(fixture.shape)) issues.push({ path: `${fixtureBase}.shape`, message: 'Strefa uchwytu wymaga kształtu prostopadłościanu, walca lub bryły CAD.', code: 'UNSUPPORTED' });
+        if (fixture.shape === 'body' && (typeof fixture.bodyId !== 'string' || !fixture.bodyId)) issues.push({ path: `${fixtureBase}.bodyId`, message: 'Uchwyt z bryły CAD wymaga ID bryły.', code: 'REQUIRED' });
+        if (fixture.shape !== 'body') {
+          if (!Array.isArray(fixture.bounds) || fixture.bounds.length !== 2 || fixture.bounds.some((side) => !Array.isArray(side) || side.length !== 3 || side.some((value) => !Number.isFinite(Number(value))))) issues.push({ path: `${fixtureBase}.bounds`, message: 'Strefa uchwytu wymaga sześciu skończonych współrzędnych.', code: 'VALUE' });
+          else if (fixture.bounds[0].some((value, axis) => Number(value) >= Number(fixture.bounds[1][axis]))) issues.push({ path: `${fixtureBase}.bounds`, message: 'Strefa uchwytu wymaga dodatnich wymiarów X, Y i Z.', code: 'VALUE' });
+        }
+        if (!Number.isFinite(Number(fixture.clearance)) || Number(fixture.clearance) < 0) issues.push({ path: `${fixtureBase}.clearance`, message: 'Odstęp od uchwytu musi być nieujemny.', code: 'VALUE' });
+        if (fixture.rotationDegrees !== undefined && !Number.isFinite(Number(fixture.rotationDegrees))) issues.push({ path: `${fixtureBase}.rotationDegrees`, message: 'Obrót uchwytu musi być skończonym kątem.', code: 'VALUE' });
+        if (fixture.enabled && setup.operationKind === 'turning-2axis') issues.push({ path: fixtureBase, message: 'Strefa uchwytu nie obsługuje jeszcze tokarki.', code: 'UNSUPPORTED' });
+      });
+    }
     for (const key of ['sideOffset', 'topOffset', 'bottomOffset']) if (!Number.isFinite(Number(setup.stock?.[key])) || Number(setup.stock[key]) < 0) issues.push({ path: `${base}.stock.${key}`, message: 'Naddatek musi być liczbą nieujemną.', code: 'VALUE' });
     if (!Number.isFinite(Number(setup.safeHeight)) || Number(setup.safeHeight) < 0) issues.push({ path: `${base}.safeHeight`, message: 'Wysokość bezpieczna musi być liczbą nieujemną.', code: 'VALUE' });
+    const groupIds = new Set();
+    const groupNames = new Set();
+    if (!Array.isArray(setup.operationGroups)) issues.push({ path: `${base}.operationGroups`, message: 'Foldery operacji CAM muszą być tablicą.', code: 'TYPE' });
+    else setup.operationGroups.forEach((group, groupIndex) => {
+      const groupBase = `${base}.operationGroups[${groupIndex}]`;
+      if (!group || typeof group !== 'object' || Array.isArray(group)) { issues.push({ path: groupBase, message: 'Folder operacji CAM musi być obiektem.', code: 'TYPE' }); return; }
+      if (typeof group.id !== 'string' || !group.id) issues.push({ path: `${groupBase}.id`, message: 'Folder operacji CAM wymaga ID.', code: 'REQUIRED' });
+      else if (groupIds.has(group.id)) issues.push({ path: `${groupBase}.id`, message: 'ID folderu operacji CAM jest powtórzone.', code: 'DUPLICATE_ID' });
+      else groupIds.add(group.id);
+      const groupName = typeof group.name === 'string' ? group.name.trim() : '';
+      if (!groupName) issues.push({ path: `${groupBase}.name`, message: 'Folder operacji CAM wymaga nazwy.', code: 'REQUIRED' });
+      else if (groupNames.has(groupName.toLocaleLowerCase())) issues.push({ path: `${groupBase}.name`, message: 'Nazwa folderu operacji CAM jest powtórzona.', code: 'DUPLICATE' });
+      else groupNames.add(groupName.toLocaleLowerCase());
+      if (typeof group.collapsed !== 'boolean') issues.push({ path: `${groupBase}.collapsed`, message: 'Stan folderu operacji CAM musi być logiczny.', code: 'TYPE' });
+    });
     if (!Array.isArray(setup.operations)) issues.push({ path: `${base}.operations`, message: 'Operacje CAM muszą być tablicą.', code: 'TYPE' });
     else setup.operations.forEach((operation, operationIndex) => {
       const operationBase = `${base}.operations[${operationIndex}]`;
       if (!operation || typeof operation !== 'object') issues.push({ path: operationBase, message: 'Operacja CAM musi być obiektem.', code: 'TYPE' });
       else {
-        if (!['face', 'contour', 'pocket', 'adaptive', 'drill', 'cut2d', 'turn-face', 'turn-profile'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
+        if (!['face', 'contour', 'pocket', 'adaptive', 'drill', 'tap', 'spot', 'counterbore', 'cut2d', 'turn-face', 'turn-profile'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
         const isTurning = operation.type === 'turn-face' || operation.type === 'turn-profile';
-        if (operation.type !== 'cut2d' && !isTurning && !CAM_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
+        if (operation.type !== 'cut2d' && !isTurning && !CAM_TOOL_PRESETS[operation.toolId] && !customToolIds.has(operation.toolId)) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
         if (isTurning && !CAM_TURNING_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznany nóż tokarski.', code: 'UNSUPPORTED' });
         if (!CAM_POST_PROCESSORS[operation.postProcessorId]) issues.push({ path: `${operationBase}.postProcessorId`, message: 'Nieznany postprocesor CAM.', code: 'UNSUPPORTED' });
-        const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : operation.type === 'drill' ? ['peckDepth', 'feedRate', 'spindleRpm'] : isTurning ? ['stockDiameter', 'targetDiameter', 'axialLength', 'maxDepthOfCut', 'feedRate', 'spindleRpm'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];
+        if (operation.groupId !== undefined && typeof operation.groupId !== 'string') issues.push({ path: `${operationBase}.groupId`, message: 'Folder operacji CAM musi być identyfikatorem tekstowym.', code: 'TYPE' });
+        else if (operation.groupId && !groupIds.has(operation.groupId)) issues.push({ path: `${operationBase}.groupId`, message: 'Folder przypisany do operacji CAM nie istnieje.', code: 'BROKEN_REFERENCE' });
+        const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : operation.type === 'drill' ? ['peckDepth', 'feedRate', 'spindleRpm'] : operation.type === 'tap' ? ['spindleRpm'] : operation.type === 'spot' ? ['targetDiameter', 'feedRate', 'spindleRpm'] : operation.type === 'counterbore' ? ['targetDiameter', 'targetDepth', 'maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'] : isTurning ? ['stockDiameter', 'targetDiameter', 'axialLength', 'maxDepthOfCut', 'feedRate', 'spindleRpm'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];
         for (const key of positiveKeys) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) <= 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr operacji musi być dodatni.', code: 'VALUE' });
         if (operation.type === 'drill') for (const key of ['retractHeight', 'breakthroughDepth']) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) < 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr wiercenia musi być nieujemny.', code: 'VALUE' });
+        if (operation.type === 'drill' && !['normal', 'peck', 'dwell'].includes(operation.cycleType)) issues.push({ path: `${operationBase}.cycleType`, message: 'Nieobsługiwany cykl wiercenia.', code: 'UNSUPPORTED' });
+        if (operation.type === 'drill' && (!Number.isFinite(Number(operation.dwellSeconds)) || Number(operation.dwellSeconds) < 0 || Number(operation.dwellSeconds) > 60)) issues.push({ path: `${operationBase}.dwellSeconds`, message: 'Postój wiercenia musi mieścić się w zakresie 0–60 s.', code: 'VALUE' });
         if (operation.type === 'drill' && (!Array.isArray(operation.holeFeatureIds) || operation.holeFeatureIds.some((id) => typeof id !== 'string' || !id))) issues.push({ path: `${operationBase}.holeFeatureIds`, message: 'Grupy otworów muszą być zapisane jako identyfikatory.', code: 'TYPE' });
+        if (operation.type === 'tap' && (!Array.isArray(operation.holeFeatureIds) || operation.holeFeatureIds.some((id) => typeof id !== 'string' || !id))) issues.push({ path: `${operationBase}.holeFeatureIds`, message: 'Grupy otworów muszą być zapisane jako identyfikatory.', code: 'TYPE' });
+        if (operation.type === 'tap') for (const key of ['retractHeight', 'bottomClearance']) if (!Number.isFinite(Number(operation[key])) || Number(operation[key]) < 0) issues.push({ path: `${operationBase}.${key}`, message: 'Parametr gwintowania musi być nieujemny.', code: 'VALUE' });
+        if (operation.type === 'spot' && (!Array.isArray(operation.holeFeatureIds) || operation.holeFeatureIds.some((id) => typeof id !== 'string' || !id))) issues.push({ path: `${operationBase}.holeFeatureIds`, message: 'Grupy otworów muszą być zapisane jako identyfikatory.', code: 'TYPE' });
+        if (operation.type === 'spot' && (!Number.isFinite(Number(operation.retractHeight)) || Number(operation.retractHeight) < 0)) issues.push({ path: `${operationBase}.retractHeight`, message: 'Wycofanie nawiertania musi być nieujemne.', code: 'VALUE' });
+        if (operation.type === 'counterbore' && (!Array.isArray(operation.holeFeatureIds) || operation.holeFeatureIds.some((id) => typeof id !== 'string' || !id))) issues.push({ path: `${operationBase}.holeFeatureIds`, message: 'Grupy otworów muszą być zapisane jako identyfikatory.', code: 'TYPE' });
+        if (operation.type === 'counterbore' && (!Number.isFinite(Number(operation.retractHeight)) || Number(operation.retractHeight) < 0)) issues.push({ path: `${operationBase}.retractHeight`, message: 'Wycofanie pogłębiania musi być nieujemne.', code: 'VALUE' });
         if (['contour', 'pocket', 'adaptive'].includes(operation.type) && (!Number.isFinite(Number(operation.targetDepth)) || Number(operation.targetDepth) <= 0)) issues.push({ path: `${operationBase}.targetDepth`, message: 'Głębokość obróbki musi być dodatnia.', code: 'VALUE' });
         if (setup.operationKind === 'cut-2d' && operation.type !== 'cut2d') issues.push({ path: `${operationBase}.type`, message: 'Setup cięcia może zawierać tylko operacje cięcia 2D.', code: 'INCOMPATIBLE' });
         if (setup.operationKind === 'mill-3axis' && operation.type === 'cut2d') issues.push({ path: `${operationBase}.type`, message: 'Operacja cięcia wymaga Setupu laserowego lub plazmowego.', code: 'INCOMPATIBLE' });

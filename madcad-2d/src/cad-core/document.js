@@ -28,7 +28,7 @@ import {
 } from './sketch-model.js';
 import { normalizeSketchFrame } from './sketch-frame.js';
 
-export const DOCUMENT_SCHEMA_VERSION = 17;
+export const DOCUMENT_SCHEMA_VERSION = 24;
 export const MIN_MIGRATABLE_SCHEMA_VERSION = 2;
 
 const SUPPORTED_PLANES = new Set(['XY', 'XZ', 'YZ']);
@@ -321,6 +321,118 @@ function migrateV16ToV17(source, now) {
   return migrated;
 }
 
+function migrateV17ToV18(source, now) {
+  const migrated = ensureDocumentManufacturing(cloneDocument(source));
+  migrated.schemaVersion = 18;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 17,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 17, to: 18, at: now },
+    ],
+  };
+  return migrated;
+}
+
+function migrateV18ToV19(source, now) {
+  const migrated = ensureDocumentManufacturing(cloneDocument(source));
+  migrated.schemaVersion = 19;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 18,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 18, to: 19, at: now },
+    ],
+  };
+  return migrated;
+}
+
+function migrateV19ToV20(source, now) {
+  const migrated = ensureDocumentManufacturing(cloneDocument(source));
+  migrated.schemaVersion = 20;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 19,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 19, to: 20, at: now },
+    ],
+  };
+  return migrated;
+}
+
+function migrateV20ToV21(source, now) {
+  const migrated = ensureDocumentManufacturing(cloneDocument(source));
+  migrated.schemaVersion = 21;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 20,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 20, to: 21, at: now },
+    ],
+  };
+  return migrated;
+}
+
+function migrateV21ToV22(source, now) {
+  const migrated = ensureDocumentManufacturing(cloneDocument(source));
+  migrated.schemaVersion = 22;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 21,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 21, to: 22, at: now },
+    ],
+  };
+  return migrated;
+}
+
+function migrateV22ToV23(source, now) {
+  const migrated = ensureDocumentManufacturing(cloneDocument(source));
+  migrated.schemaVersion = 23;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 22,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 22, to: 23, at: now },
+    ],
+  };
+  return migrated;
+}
+
+function migrateV23ToV24(source, now) {
+  const migrated = ensureDocumentManufacturing(cloneDocument(source));
+  migrated.schemaVersion = 24;
+  migrated.metadata = {
+    ...(isRecord(migrated.metadata) ? migrated.metadata : {}),
+    migratedFromVersion: migrated.metadata?.migratedFromVersion ?? 23,
+    migratedAt: now,
+    modifiedAt: now,
+    migrationHistory: [
+      ...(Array.isArray(migrated.metadata?.migrationHistory) ? migrated.metadata.migrationHistory : []),
+      { from: 23, to: 24, at: now },
+    ],
+  };
+  return migrated;
+}
+
 const MIGRATIONS = new Map([
   [2, migrateV2ToV3],
   [3, migrateV3ToV4],
@@ -337,6 +449,13 @@ const MIGRATIONS = new Map([
   [14, migrateV14ToV15],
   [15, migrateV15ToV16],
   [16, migrateV16ToV17],
+  [17, migrateV17ToV18],
+  [18, migrateV18ToV19],
+  [19, migrateV19ToV20],
+  [20, migrateV20ToV21],
+  [21, migrateV21ToV22],
+  [22, migrateV22ToV23],
+  [23, migrateV23ToV24],
 ]);
 
 export function createParameter(name, expression, unit = 'mm', label = name) {
@@ -422,7 +541,7 @@ export function createDocument(name = 'Nowy projekt') {
     drawings: [],
     layers: [createDefaultLayer()],
     activeLayerId: 'layer-0',
-    manufacturing: { setups: [], activeSetupId: '' },
+    manufacturing: { setups: [], activeSetupId: '', tools: [], operationTemplates: [] },
     print: {
       profileId: 'creality-ender3', bedWidth: 220, bedDepth: 220, bedHeight: 250, materialProfileId: 'pla', material: 'PLA',
       positionX: 0, positionY: 0, positionZ: 0,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { WorkerRecoveryPolicy } from './worker-runtime.js';
 
 const MAX_WORKER_RESTARTS = 3;
@@ -9,13 +9,27 @@ function engineError(message, code = 'CAD_ENGINE_ERROR') {
   return error;
 }
 
+export function cadGeometrySignature(document) {
+  const geometryDocument = { ...document };
+  delete geometryDocument.manufacturing;
+  delete geometryDocument.metadata;
+  return JSON.stringify(geometryDocument);
+}
+
 export function useCadEngine(document, { quality = 'display' } = {}) {
   const workerRef = useRef(null);
   const requestsRef = useRef(new Map());
   const requestIdRef = useRef(0);
   const revisionRef = useRef(0);
+  const canceledRevisionRef = useRef(0);
   const canceledRevisionsRef = useRef(0);
   const recoveryPolicyRef = useRef(new WorkerRecoveryPolicy({ maxAttempts: MAX_WORKER_RESTARTS }));
+  const geometrySignature = useMemo(() => cadGeometrySignature(document), [document]);
+  const latestDocumentRef = useRef(document);
+  const latestGeometrySignatureRef = useRef(geometrySignature);
+  const evaluatedGeometrySignatureRef = useRef(null);
+  latestDocumentRef.current = document;
+  latestGeometrySignatureRef.current = geometrySignature;
   const [workerGeneration, setWorkerGeneration] = useState(0);
   const [state, setState] = useState({
     status: 'loading',
@@ -125,17 +139,23 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
 
   useEffect(() => {
     let active = true;
+    const evaluationDocument = latestDocumentRef.current;
     revisionRef.current += 1;
     const revision = revisionRef.current;
     const timeout = window.setTimeout(async () => {
+      if (canceledRevisionRef.current === revision) return;
       setState((current) => ({ ...current, status: 'computing', revision, error: '' }));
       try {
-        const result = await send({ type: 'evaluate', document, revision, quality });
-        if (active && result.revision === revision) {
-          setState((current) => ({ ...current, status: 'ready', error: '', ...result, evaluatedDocument: document }));
+        const result = await send({ type: 'evaluate', document: evaluationDocument, revision, quality });
+        if (active && canceledRevisionRef.current !== revision && result.revision === revision && latestGeometrySignatureRef.current === geometrySignature) {
+          evaluatedGeometrySignatureRef.current = geometrySignature;
+          setState((current) => ({ ...current, status: 'ready', error: '', ...result, evaluatedDocument: latestDocumentRef.current }));
         }
       } catch (error) {
-        if (error.code === 'STALE_REVISION') canceledRevisionsRef.current += 1;
+        if (error.code === 'STALE_REVISION') {
+          canceledRevisionsRef.current += 1;
+          if (active && canceledRevisionRef.current === revision) setState((current) => ({ ...current }));
+        }
         if (!active || error.code === 'STALE_REVISION' || error.code === 'WORKER_STOPPED' || error.code === 'WORKER_CRASH') return;
         setState((current) => ({
           ...current,
@@ -149,7 +169,23 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
       active = false;
       window.clearTimeout(timeout);
     };
-  }, [document, quality, send, workerGeneration]);
+  }, [geometrySignature, quality, send, workerGeneration]);
+
+  useEffect(() => {
+    if (evaluatedGeometrySignatureRef.current !== geometrySignature) return;
+    setState((current) => current.status === 'ready' && current.evaluatedDocument !== document
+      ? { ...current, evaluatedDocument: document }
+      : current);
+  }, [document, geometrySignature]);
+
+  const cancelRebuild = useCallback(() => {
+    const revision = revisionRef.current;
+    if (state.status !== 'computing' || state.revision !== revision || !workerRef.current) return false;
+    canceledRevisionRef.current = revision;
+    workerRef.current.postMessage({ type: 'cancel-evaluate', revision });
+    setState((current) => ({ ...current, status: 'canceled', error: 'Przeliczanie przerwano. Ostatni poprawny model pozostał bez zmian.' }));
+    return true;
+  }, [state.revision, state.status]);
 
   const exportModel = useCallback(async (format, { validateRoundTrip = false } = {}) => {
     const revision = revisionRef.current;
@@ -196,5 +232,5 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     setWorkerGeneration((generation) => generation + 1);
   }, [rejectPending]);
 
-  return { ...state, canceledRevisions: canceledRevisionsRef.current, analyzeCollisions, exportExternalDocument, exportModel, projectPointsToSurface, restartWorkerForTest };
+  return { ...state, canceledRevisions: canceledRevisionsRef.current, analyzeCollisions, cancelRebuild, exportExternalDocument, exportModel, projectPointsToSurface, restartWorkerForTest };
 }

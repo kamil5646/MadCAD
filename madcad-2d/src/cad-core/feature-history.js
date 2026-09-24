@@ -72,6 +72,7 @@ function evaluateFeatureAtIndex(features, featureIndex, executor, state) {
 export async function evaluateFeatureHistoryCooperatively(features, executor, initialState = {}, {
   checkpoint = async () => {},
   checkpointInterval = 4,
+  onFeatureEvaluated = null,
 } = {}) {
   if (!Number.isInteger(checkpointInterval) || checkpointInterval < 1) {
     throw new Error('Interwał kontroli przebudowy historii musi być dodatnią liczbą całkowitą.');
@@ -82,7 +83,9 @@ export async function evaluateFeatureHistoryCooperatively(features, executor, in
     timeline: [],
   };
   for (let featureIndex = 0; featureIndex < features.length; featureIndex += 1) {
+    const startedAt = onFeatureEvaluated ? performance.now() : 0;
     const shouldContinue = evaluateFeatureAtIndex(features, featureIndex, executor, state);
+    if (onFeatureEvaluated) onFeatureEvaluated({ feature: features[featureIndex], featureIndex, durationMs: performance.now() - startedAt });
     if (!shouldContinue) break;
     if ((featureIndex + 1) % checkpointInterval === 0 || featureIndex === features.length - 1) {
       await checkpoint({ featureIndex, processedFeatures: featureIndex + 1, state });

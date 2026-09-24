@@ -86,7 +86,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest]
-        shard: [modeling, interoperability, interface, project, analysis]
+        shard: [modeling, modeling-features, modeling-3d, interoperability, interface, project, analysis]
     defaults:
       run:
         working-directory: madcad-2d

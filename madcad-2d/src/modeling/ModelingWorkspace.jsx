@@ -145,7 +145,7 @@ import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMesh
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { createId } from '../cad-core/ids.js';
-import { CAM_TOOL_PRESETS, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingSetup, createPocketOperation, createTurningOperation, normalizeManufacturingOperation, normalizeManufacturingSetup, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
+import { CAM_TOOL_PRESETS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, instantiateManufacturingOperationTemplate, moveManufacturingOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingOperationTemplate, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
@@ -1056,6 +1056,23 @@ export default function ModelingWorkspace() {
     next.manufacturing.activeSetupId = next.manufacturing.setups[0]?.id || '';
     setNotice('Usunięto Setup CAM. Cofnij, aby go przywrócić.');
   });
+  const createCamTool = () => commit((next) => {
+    const tool = createCustomCamTool({ name: `Wiertło własne ${next.manufacturing.tools.length + 1}` });
+    next.manufacturing.tools.push(tool);
+    setNotice(`Dodano ${tool.name} do biblioteki projektu.`);
+  });
+  const updateCamTool = (toolId, patch) => commit((next) => {
+    const index = next.manufacturing.tools.findIndex((tool) => tool.id === toolId);
+    if (index >= 0) next.manufacturing.tools[index] = normalizeCustomCamTool({ ...next.manufacturing.tools[index], ...patch }, index);
+  });
+  const deleteCamTool = (toolId) => commit((next) => {
+    const usedBy = next.manufacturing.setups.flatMap((setup) => setup.operations).find((operation) => operation.toolId === toolId);
+    const templateUsingTool = next.manufacturing.operationTemplates.find((template) => template.operation?.toolId === toolId);
+    if (usedBy) { setNotice(`Nie można usunąć narzędzia używanego przez operację „${usedBy.name}”.`); return; }
+    if (templateUsingTool) { setNotice(`Nie można usunąć narzędzia używanego przez szablon „${templateUsingTool.name}”.`); return; }
+    next.manufacturing.tools = next.manufacturing.tools.filter((tool) => tool.id !== toolId);
+    setNotice('Usunięto narzędzie z biblioteki projektu. Cofnij, aby je przywrócić.');
+  });
   const createCamOperation = (setupId, type = 'face') => commit((next) => {
     const setup = next.manufacturing.setups.find((item) => item.id === setupId);
     if (!setup) return;
@@ -1068,9 +1085,18 @@ export default function ModelingWorkspace() {
     const setupBounds = setupBody?.bounds || setupBody?.metrics?.bounds;
     const firstHoleDiameter = Number(setupBody?.manufacturingHoles?.[0]?.diameter);
     const firstHoleFeatureId = setupBody?.manufacturingHoles?.[0]?.featureId;
-    const drillingToolId = Object.values(CAM_TOOL_PRESETS)
+    const drillingToolId = [...Object.values(CAM_TOOL_PRESETS), ...next.manufacturing.tools]
       .filter((tool) => tool.type === 'twist-drill' && (!Number.isFinite(firstHoleDiameter) || tool.diameter <= firstHoleDiameter + 0.05))
       .sort((first, second) => Number.isFinite(firstHoleDiameter) ? Math.abs(first.diameter - firstHoleDiameter) - Math.abs(second.diameter - firstHoleDiameter) : first.diameter - second.diameter)[0]?.id;
+    const tappingToolId = next.manufacturing.tools
+      .filter((tool) => tool.type === 'tap')
+      .sort((first, second) => Number.isFinite(firstHoleDiameter) ? Math.abs(first.diameter - first.pitch - firstHoleDiameter) - Math.abs(second.diameter - second.pitch - firstHoleDiameter) : first.diameter - second.diameter)[0]?.id;
+    const spotTool = next.manufacturing.tools
+      .filter((tool) => tool.type === 'spot-drill' && (!Number.isFinite(firstHoleDiameter) || tool.diameter > firstHoleDiameter + 0.05))
+      .sort((first, second) => first.diameter - second.diameter)[0];
+    const counterboreToolId = Object.values(CAM_TOOL_PRESETS)
+      .filter((tool) => tool.type === 'flat-end-mill' && (!Number.isFinite(firstHoleDiameter) || tool.diameter <= firstHoleDiameter + 0.05))
+      .sort((first, second) => second.diameter - first.diameter)[0]?.id;
     const turningDefaults = setupBounds ? {
       stockDiameter: Math.max(setupBounds[1][1] - setupBounds[0][1], setupBounds[1][2] - setupBounds[0][2]) + setup.stock.sideOffset * 2,
       targetDiameter: Math.max(setupBounds[1][1] - setupBounds[0][1], setupBounds[1][2] - setupBounds[0][2]),
@@ -1084,25 +1110,111 @@ export default function ModelingWorkspace() {
           ? createAdaptiveOperation({ name: `Adaptacyjne 2D ${sameTypeCount}`, ...boundarySelection })
           : type === 'drill'
             ? createDrillingOperation({ name: `Wiercenie ${sameTypeCount}`, toolId: drillingToolId, holeFeatureIds: firstHoleFeatureId ? [firstHoleFeatureId] : [] })
+          : type === 'spot'
+            ? createSpotDrillingOperation({ name: `Nawiertanie ${sameTypeCount}`, toolId: spotTool?.id, targetDiameter: Number.isFinite(firstHoleDiameter) && spotTool ? Math.min(spotTool.diameter, firstHoleDiameter + 2) : spotTool?.diameter, holeFeatureIds: firstHoleFeatureId ? [firstHoleFeatureId] : [] })
+          : type === 'counterbore'
+            ? createCounterboreOperation({ name: `Pogłębianie walcowe ${sameTypeCount}`, toolId: counterboreToolId, targetDiameter: Number.isFinite(firstHoleDiameter) ? firstHoleDiameter + 6 : 12, holeFeatureIds: firstHoleFeatureId ? [firstHoleFeatureId] : [] })
+          : type === 'tap'
+            ? createTappingOperation({ name: `Gwintowanie ${sameTypeCount}`, toolId: tappingToolId, holeFeatureIds: firstHoleFeatureId ? [firstHoleFeatureId] : [] })
           : type === 'cut2d'
             ? createCut2dOperation({ name: `Cięcie konturu ${sameTypeCount}`, postProcessorId: setup.machineId === 'plasma-1250' ? 'linuxcnc-plasma' : 'grbl-laser', ...boundarySelection })
             : type === 'turn-face' || type === 'turn-profile'
               ? createTurningOperation(type, { name: type === 'turn-face' ? `Planowanie czoła ${sameTypeCount}` : `Toczenie zewnętrzne ${sameTypeCount}`, ...turningDefaults })
         : createFacingOperation({ name: `Planowanie ${sameTypeCount}` });
     setup.operations.push(operation);
-    const operationLabel = type === 'pocket' ? 'Kieszeń 2D' : type === 'adaptive' ? 'Adaptacyjne 2D' : type === 'drill' ? 'Wiercenie' : type === 'cut2d' ? 'Cięcie konturu' : type === 'turn-face' ? 'Planowanie czoła' : type === 'turn-profile' ? 'Toczenie zewnętrzne' : 'Kontur 2D';
+    const operationLabel = type === 'pocket' ? 'Kieszeń 2D' : type === 'adaptive' ? 'Adaptacyjne 2D' : type === 'drill' ? 'Wiercenie' : type === 'spot' ? 'Nawiertanie' : type === 'counterbore' ? 'Pogłębianie walcowe' : type === 'tap' ? 'Gwintowanie' : type === 'cut2d' ? 'Cięcie konturu' : type === 'turn-face' ? 'Planowanie czoła' : type === 'turn-profile' ? 'Toczenie zewnętrzne' : 'Kontur 2D';
     const boundaryLabel = selectedProfileMatch && !activeSketchId ? ' dla zaznaczonego profilu szkicu' : selectedBoundaryFaceId ? ' dla zaznaczonej ściany' : ' dla górnej powierzchni bryły';
-    setNotice(type === 'face' ? 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.' : type === 'drill' ? 'Utworzono wiercenie rozpoznanych otworów. Ustaw wiertło, głębokość skoku i wycofanie.' : type === 'cut2d' ? `Utworzono ${operationLabel}${boundaryLabel}. Ustaw szczelinę, wejście, moc, przejścia i posuw.` : type === 'turn-face' || type === 'turn-profile' ? `Utworzono ${operationLabel}. Sprawdź średnice, długość, głębokość przejścia, posuw i obroty.` : `Utworzono ${operationLabel}${boundaryLabel}. Ustaw frez, głębokość, zejście i posuw.`);
+    setNotice(type === 'face' ? 'Utworzono planowanie. Ustaw frez, stepover, zejście i posuw.' : type === 'drill' ? 'Utworzono wiercenie rozpoznanych otworów. Ustaw wiertło, głębokość skoku i wycofanie.' : type === 'spot' ? 'Utworzono nawiertanie. Głębokość jest wyliczana ze średnicy otworu, średnicy docelowej i kąta ostrza.' : type === 'counterbore' ? 'Utworzono pogłębianie walcowe. Ustaw średnicę, głębokość, warstwę i frez mieszczący się w otworze pilotowym.' : type === 'tap' ? 'Utworzono gwintowanie. Posuw jest wyliczany ze skoku gwintownika i obrotów.' : type === 'cut2d' ? `Utworzono ${operationLabel}${boundaryLabel}. Ustaw szczelinę, wejście, moc, przejścia i posuw.` : type === 'turn-face' || type === 'turn-profile' ? `Utworzono ${operationLabel}. Sprawdź średnice, długość, głębokość przejścia, posuw i obroty.` : `Utworzono ${operationLabel}${boundaryLabel}. Ustaw frez, głębokość, zejście i posuw.`);
   });
   const updateCamOperation = (setupId, operationId, patch) => commit((next) => {
     const setup = next.manufacturing.setups.find((item) => item.id === setupId);
     const index = setup?.operations.findIndex((item) => item.id === operationId) ?? -1;
     if (index >= 0) setup.operations[index] = normalizeManufacturingOperation({ ...setup.operations[index], ...patch }, index);
   });
+  const optimizeCamOperationOrder = (setupId) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    if (!setup) return;
+    const body = engine.bodies.find((item) => item.id === setup.bodyId);
+    const result = optimizeManufacturingOperationOrder(setup, body);
+    setup.operations = result.operations;
+    setNotice(result.warnings[0] || (result.changed ? `Uporządkowano operacje. Zmiany narzędzia: ${result.toolChangesBefore} → ${result.toolChangesAfter}.` : `Kolejność jest już optymalna. Zmiany narzędzia: ${result.toolChangesAfter}.`));
+  });
   const deleteCamOperation = (setupId, operationId) => commit((next) => {
     const setup = next.manufacturing.setups.find((item) => item.id === setupId);
     if (setup) setup.operations = setup.operations.filter((item) => item.id !== operationId);
     setNotice('Usunięto operację CAM. Cofnij, aby ją przywrócić.');
+  });
+  const duplicateCamOperation = (setupId, operationId) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    if (!setup) return;
+    const result = duplicateManufacturingOperation(setup, operationId);
+    if (!result.operation) { setNotice('Nie znaleziono operacji CAM do zduplikowania.'); return; }
+    setup.operations = result.operations;
+    setNotice(`Utworzono „${result.operation.name}”. Kopia zachowuje narzędzie, geometrię i parametry źródła.`);
+  });
+  const moveCamOperation = (setupId, operationId, direction) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    if (!setup) return;
+    const body = engine.bodies.find((item) => item.id === setup.bodyId);
+    const result = moveManufacturingOperation(setup, operationId, direction, body);
+    if (!result.changed) { setNotice(result.warnings[0] || 'Operacja jest już na skraju listy.'); return; }
+    setup.operations = result.operations;
+    setNotice('Zmieniono kolejność operacji CAM. Zależności technologiczne pozostały zachowane.');
+  });
+  const createCamOperationGroup = (setupId) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    if (!setup) return;
+    const group = createManufacturingOperationGroup({ name: `Folder ${setup.operationGroups.length + 1}` });
+    setup.operationGroups.push(group);
+    setNotice(`Utworzono „${group.name}”. Przypisz operacje z pola Folder.`);
+  });
+  const updateCamOperationGroup = (setupId, groupId, patch) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    const index = setup?.operationGroups.findIndex((group) => group.id === groupId) ?? -1;
+    if (index < 0) return;
+    setup.operationGroups[index] = {
+      ...setup.operationGroups[index],
+      ...patch,
+      name: String(patch.name ?? setup.operationGroups[index].name).trim().slice(0, 80) || setup.operationGroups[index].name,
+    };
+  });
+  const deleteCamOperationGroup = (setupId, groupId) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    if (!setup) return;
+    const result = deleteManufacturingOperationGroup(setup, groupId);
+    if (!result.changed) return;
+    setup.operationGroups = result.operationGroups;
+    setup.operations = result.operations;
+    setNotice('Usunięto folder. Operacje zachowano na liście głównej.');
+  });
+  const saveCamOperationTemplate = (setupId, operationId) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    const operation = setup?.operations.find((item) => item.id === operationId);
+    if (!operation) return;
+    const template = createManufacturingOperationTemplate(operation);
+    next.manufacturing.operationTemplates.push(template);
+    setNotice(`Zapisano „${template.name}”. Geometria modelu nie jest częścią szablonu.`);
+  });
+  const updateCamOperationTemplate = (templateId, patch) => commit((next) => {
+    const index = next.manufacturing.operationTemplates.findIndex((template) => template.id === templateId);
+    if (index < 0) return;
+    next.manufacturing.operationTemplates[index] = normalizeManufacturingOperationTemplate({ ...next.manufacturing.operationTemplates[index], ...patch }, index);
+  });
+  const deleteCamOperationTemplate = (templateId) => commit((next) => {
+    next.manufacturing.operationTemplates = next.manufacturing.operationTemplates.filter((template) => template.id !== templateId);
+    setNotice('Usunięto szablon operacji CAM.');
+  });
+  const applyCamOperationTemplate = (setupId, templateId) => commit((next) => {
+    const setup = next.manufacturing.setups.find((item) => item.id === setupId);
+    const template = next.manufacturing.operationTemplates.find((item) => item.id === templateId);
+    if (!setup || !template) return;
+    try {
+      const operation = instantiateManufacturingOperationTemplate(template, setup);
+      setup.operations.push(operation);
+      setNotice(`Dodano „${operation.name}” z szablonu. Wskaż geometrię operacji, jeśli jest wymagana.`);
+    } catch (error) {
+      setNotice(error.message);
+    }
   });
   const exportCamOperation = (setupId, operationId) => {
     try {
@@ -1114,6 +1226,37 @@ export default function ModelingWorkspace() {
       setNotice(`Zapisano G-code ${output.postProcessor}: ${output.lineCount} linii. Przed obróbką sprawdź WCS i wykonaj przejazd bez materiału.`);
     } catch (error) {
       setNotice(`Eksport G-code nie powiódł się: ${error.message}`);
+    }
+  };
+  const exportCamProgram = (setupId) => {
+    try {
+      const setup = document.manufacturing.setups.find((item) => item.id === setupId);
+      if (!setup) throw new Error('Nie znaleziono Setupu CAM.');
+      const output = createManufacturingProgramGcode(setup, engine.bodies, { projectName: document.name, document });
+      downloadBlob(new Blob([output.text], { type: 'text/plain;charset=utf-8' }), `${safeName(document.name)}-${safeName(setup.name)}-program.${output.extension}`);
+      setNotice(`Zapisano cały program ${output.postProcessor}: ${output.operationCount} operacji, ${output.lineCount} linii. Przed obróbką sprawdź WCS i wykonaj przejazd bez materiału.`);
+    } catch (error) {
+      setNotice(`Eksport programu CAM nie powiódł się: ${error.message}`);
+    }
+  };
+  const exportCamSetupSheet = (setupId) => {
+    try {
+      const setup = document.manufacturing.setups.find((item) => item.id === setupId);
+      if (!setup) throw new Error('Nie znaleziono Setupu CAM.');
+      const sheet = createManufacturingSetupSheet(setup, engine.bodies, { projectName: document.name, document });
+      downloadBlob(new Blob([sheet.html], { type: 'text/html;charset=utf-8' }), `${safeName(document.name)}-${safeName(setup.name)}-arkusz-ustawczy.html`);
+      setNotice(`Zapisano arkusz ustawczy: ${sheet.operationCount} operacji i ${sheet.toolCount} narzędzi.`);
+    } catch (error) {
+      setNotice(`Eksport arkusza ustawczego nie powiódł się: ${error.message}`);
+    }
+  };
+  const exportCamSequenceSheet = () => {
+    try {
+      const sheet = createManufacturingSequenceSheet(document.manufacturing, engine.bodies, { projectName: document.name, document });
+      downloadBlob(new Blob([sheet.html], { type: 'text/html;charset=utf-8' }), `${safeName(document.name)}-raport-mocowan.html`);
+      setNotice(`Zapisano raport ${sheet.setupCount} mocowań CAM. Potwierdź zera WCS i przejazdy na obrabiarce.`);
+    } catch (error) {
+      setNotice(`Eksport raportu mocowań nie powiódł się: ${error.message}`);
     }
   };
 
@@ -4311,6 +4454,16 @@ export default function ModelingWorkspace() {
       setSelection({ kind: 'document', id: opened.document.id });
       setCommand(null);
     };
+    window.__madcadVerifyLoadSerializedDocument = (text) => {
+      const opened = openDocument(JSON.parse(text));
+      if (opened.readOnly) throw new Error('Korpus testowy jest tylko do odczytu.');
+      history.replace(opened.document);
+      setSavedDocumentText(null);
+      setActiveSketchId(null);
+      setWorkspace('solid');
+      setSelection({ kind: 'document', id: opened.document.id });
+      setCommand(null);
+    };
     window.__madcadVerifyLoadPointHoleFixture = () => {
       const fixture = createDocument('Otwór z punktu');
       const baseProfile = createRectangleProfile({ width: 40, height: 30, x: 0, y: 0 });
@@ -4340,6 +4493,7 @@ export default function ModelingWorkspace() {
       setWorkspace('solid');
       setSelection({ kind: 'document', id: fixture.id });
       setCommand(null);
+      return fixture.features.at(-1).id;
     };
     window.__madcadVerifyLoadLargeHistoryFixture = (featureCount = 220) => {
       const count = Math.max(200, Math.min(500, Math.trunc(Number(featureCount) || 220)));
@@ -4594,6 +4748,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyUpdateConstraint;
       delete window.__madcadVerifyReopenAutosave;
       delete window.__madcadVerifyReopenCurrentDocument;
+      delete window.__madcadVerifyLoadSerializedDocument;
       delete window.__madcadVerifyLoadPointHoleFixture;
       delete window.__madcadVerifyLoadTimelineFixture;
       delete window.__madcadVerifyLoadLargeHistoryFixture;
@@ -7407,8 +7562,8 @@ export default function ModelingWorkspace() {
             : 'Krok 1/3 · Zacznij od szkicu 2D';
   const workspaceGuide = engine.status !== 'ready'
     ? {
-      title: engine.status === 'computing' ? 'Przeliczanie modelu' : engine.status === 'loading' ? 'Uruchamianie silnika CAD' : 'Model wymaga poprawy',
-      text: engine.status === 'error' ? engine.error : 'Poczekaj na zakończenie obliczeń.',
+      title: engine.status === 'computing' ? 'Przeliczanie modelu' : engine.status === 'canceled' ? 'Przeliczanie anulowane' : engine.status === 'loading' ? 'Uruchamianie silnika CAD' : 'Model wymaga poprawy',
+      text: engine.status === 'error' || engine.status === 'canceled' ? engine.error : 'Poczekaj na zakończenie obliczeń.',
     }
     : workspace === 'tools'
       ? { title: 'ZARZĄDZAJ · projekt i jego historia', text: 'Parametry, wersje, zależności i struktura projektu są zebrane w jednym miejscu.', action: 'Wróć do projektowania', onAction: () => switchWorkspace('solid') }
@@ -7420,19 +7575,28 @@ export default function ModelingWorkspace() {
               : { title: 'KROK 1 · dokończ szkic 2D', text: 'Szkic nie ma jeszcze zamkniętego obrysu. Domknij linie, zakończ szkic, potem zaznacz jego wnętrze.', action: `Edytuj: ${lastSketch.name}`, onAction: () => editSketch(lastSketch.id) }
             : { title: 'PROJEKTUJ · szkic 2D i model 3D', text: readyEngineLabel };
   const activeCamSetup = document.manufacturing.setups.find((setup) => setup.id === document.manufacturing.activeSetupId) || null;
-  const manufacturingToolpaths = workspace === 'manufacture' && activeCamSetup
-    ? activeCamSetup.operations.map((operation) => calculateOperationToolpath(activeCamSetup, operation, engine.bodies, document)).filter((toolpath) => toolpath.valid)
-    : [];
-  const camSimulation = workspace === 'manufacture' && activeCamSetup
-    ? simulateMaterialRemoval(activeCamSetup, engine.bodies, document, camSimulationProgress)
-    : null;
-  const manufacturingSegments = manufacturingToolpaths.flatMap((toolpath) => toolpath.segments);
-  const manufacturingVisualization = manufacturingToolpaths.length ? {
-    stockBounds: manufacturingToolpaths[0].stockBounds,
-    segments: manufacturingSegments.slice(0, Math.ceil(manufacturingSegments.length * camSimulationProgress)),
+  const activeCamSetupResult = useMemo(() => workspace === 'manufacture' && activeCamSetup
+    ? calculateManufacturingSetup(activeCamSetup, engine.bodies)
+    : null, [workspace, activeCamSetup, engine.bodies]);
+  const allManufacturingToolpaths = useMemo(() => workspace === 'manufacture' && activeCamSetup
+    ? activeCamSetup.operations.map((operation) => calculateOperationToolpath(activeCamSetup, operation, engine.bodies, document))
+    : [], [workspace, activeCamSetup, engine.bodies, document]);
+  const activeCamProgramReport = useMemo(() => workspace === 'manufacture' && activeCamSetup
+    ? analyzeManufacturingProgram(activeCamSetup, engine.bodies, document, allManufacturingToolpaths)
+    : null, [workspace, activeCamSetup, engine.bodies, document, allManufacturingToolpaths]);
+  const manufacturingToolpaths = useMemo(() => allManufacturingToolpaths.filter((toolpath) => toolpath.valid), [allManufacturingToolpaths]);
+  const camSimulation = useMemo(() => workspace === 'manufacture' && activeCamSetup
+    ? simulateMaterialRemoval(activeCamSetup, engine.bodies, document, camSimulationProgress, 36, { setupResult: activeCamSetupResult, toolpaths: allManufacturingToolpaths, report: activeCamProgramReport })
+    : null, [workspace, activeCamSetup, engine.bodies, document, camSimulationProgress, activeCamSetupResult, allManufacturingToolpaths, activeCamProgramReport]);
+  const manufacturingSegments = useMemo(() => manufacturingToolpaths.flatMap((toolpath) => toolpath.segments), [manufacturingToolpaths]);
+  const manufacturingVisualization = useMemo(() => activeCamSetupResult?.stockBounds ? {
+    stockBounds: activeCamSetupResult.stockBounds,
+    fixtures: activeCamSetup.fixtures.filter((fixture) => fixture.shape !== 'body' || activeCamSetupResult.fixtureMeshes?.has(fixture.id)),
+    segments: manufacturingSegments,
+    segmentCount: Math.ceil(manufacturingSegments.length * camSimulationProgress),
     removalColumns: camSimulation?.columns || [],
     cutter: camSimulation?.cutter || null,
-  } : null;
+  } : null, [activeCamSetupResult, activeCamSetup, manufacturingSegments, camSimulationProgress, camSimulation]);
   const startPageVisible = workspace === 'solid' && !document.sketches.length && !engine.bodies.length && !command && !readOnly;
   const showProjectBrowser = browserOpen && workspace !== 'drawing' && !startPageVisible;
   let adaptiveContext = null;
@@ -8139,10 +8303,11 @@ export default function ModelingWorkspace() {
             renderCaptureRef={renderCaptureRef}
           />
           </React.Suspense>}
-          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} projectDocument={document} simulationProgress={camSimulationProgress} onSimulationProgress={setCamSimulationProgress} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onExportOperation={exportCamOperation} />}
-          {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
-          {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
-          {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}</div>}
+          {workspace === 'manufacture' && <ManufacturingPanel manufacturing={document.manufacturing} bodies={engine.bodies} projectDocument={document} cachedSetupResult={activeCamSetupResult} cachedProgramReport={activeCamProgramReport} cachedToolpaths={allManufacturingToolpaths} simulationProgress={camSimulationProgress} onSimulationProgress={setCamSimulationProgress} readOnly={readOnly} onCreate={createCamSetup} onActivate={activateCamSetup} onUpdate={updateCamSetup} onDelete={deleteCamSetup} onCreateOperation={createCamOperation} onUpdateOperation={updateCamOperation} onDeleteOperation={deleteCamOperation} onDuplicateOperation={duplicateCamOperation} onMoveOperation={moveCamOperation} onOptimizeOperations={optimizeCamOperationOrder} onCreateOperationGroup={createCamOperationGroup} onUpdateOperationGroup={updateCamOperationGroup} onDeleteOperationGroup={deleteCamOperationGroup} onSaveOperationTemplate={saveCamOperationTemplate} onUpdateOperationTemplate={updateCamOperationTemplate} onDeleteOperationTemplate={deleteCamOperationTemplate} onApplyOperationTemplate={applyCamOperationTemplate} onExportOperation={exportCamOperation} onExportProgram={exportCamProgram} onExportSetupSheet={exportCamSetupSheet} onExportSequenceSheet={exportCamSequenceSheet} onCreateTool={createCamTool} onUpdateTool={updateCamTool} onDeleteTool={deleteCamTool} />}
+          {workspace !== 'drawing' && workspace !== 'tools' && !activeSketchId && !command && !adaptiveContext && <section className={`engine-status workspace-guidebar ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" /><div><strong>{workspaceGuide.title}</strong><small>{workspaceGuide.text}</small></div>{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}{workspaceGuide.action && <button type="button" onClick={workspaceGuide.onAction}>{workspaceGuide.action}<ArrowRight size={13} /></button>}</section>}
+          {workspace !== 'drawing' && (activeSketchId || command) && <div className={`engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}</div>}
+          {workspace === 'solid' && !activeSketchId && !command && adaptiveContext && <div className={`engine-status adaptive-engine-status ${engine.status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true" />{engine.status === 'ready' ? readyEngineLabel : engine.status === 'computing' ? 'Przeliczanie historii…' : engine.status === 'loading' ? 'Uruchamianie OpenCascade…' : engine.error}{engine.status === 'computing' && <button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button>}</div>}
+          {(workspace === 'drawing' || workspace === 'tools') && engine.status === 'computing' && <div className="engine-status computing" role="status" aria-live="polite"><span aria-hidden="true" />Przeliczanie historii…<button type="button" onClick={engine.cancelRebuild}>Anuluj przeliczanie</button></div>}
           {workspace !== 'drawing' && workspace !== 'tools' && adaptiveContext && !meshToolsOpen && !renderSceneOpen && <AdaptiveToolShelf {...adaptiveContext} />}
           {notice && <div className={`workspace-notice ${command ? 'command-active' : ''}`} role="status" aria-live="polite" aria-atomic="true">{notice}</div>}
           <CrashRecoveryBanner

@@ -45,6 +45,15 @@ export class RevisionCache {
     this.evict();
   }
 
+  delete(revision) {
+    const entry = this.entries.get(revision);
+    if (!entry) return false;
+    this.entries.delete(revision);
+    this.totalBytes -= entry.byteSize;
+    this.onEvict?.(entry.value, revision);
+    return true;
+  }
+
   evict() {
     while (this.entries.size > this.maxEntries || (this.totalBytes > this.maxBytes && this.entries.size > 1)) {
       const oldestRevision = this.entries.keys().next().value;
