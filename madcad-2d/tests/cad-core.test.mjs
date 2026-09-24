@@ -5886,6 +5886,40 @@ test('okrągły frez i oprawka nie zgłaszają fałszywej kolizji przy narożnik
   assert.equal(analyzeToolpathSafety({ ...cutterPath, segments: segmentAt(-0.7, -0.7) }).some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
 });
 
+test('walcowy uchwyt sprawdza rzeczywisty promień w XY, wysięg w Z i odstęp', () => {
+  const setup = createManufacturingSetup({ bodyId: camBox.id });
+  const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-6' });
+  const basePath = calculateContourToolpath(setup, operation, [camBox]);
+  const fixture = { id: 'round-bolt', name: 'Śruba', enabled: true, shape: 'cylinder', bounds: [[0, 0, 106], [10, 10, 110]], clearance: 0, rotationDegrees: 0 };
+  const segmentAt = (x, y, z = 100) => [{ kind: 'rapid', from: [x, y, z], to: [x, y, z] }];
+  const path = {
+    ...basePath,
+    setup: { ...basePath.setup, fixtures: [fixture] },
+    tool: { ...basePath.tool, diameter: 2, holderDiameter: 0, stickout: 10 },
+    segments: segmentAt(0.5, 0.5),
+  };
+  const collides = (candidate) => analyzeToolpathSafety(candidate).some((issue) => issue.code === 'FIXTURE_COLLISION');
+  assert.equal(collides(path), false, 'walec nie zajmuje narożnika prostopadłościennej obwiedni');
+  assert.equal(collides({ ...path, segments: segmentAt(1, 1) }), true);
+  assert.equal(collides({ ...path, segments: segmentAt(1, 1, 94) }), false);
+  assert.equal(collides({ ...path, setup: { ...path.setup, fixtures: [{ ...fixture, clearance: 1 }] } }), true);
+  assert.equal(collides({ ...path, tool: { ...path.tool, holderDiameter: 4, stickout: 5 }, segments: segmentAt(12, 5) }), false);
+  assert.equal(analyzeToolpathSafety({ ...path, tool: { ...path.tool, holderDiameter: 4, stickout: 5 }, segments: segmentAt(11.9, 5) }).some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION'), true);
+});
+
+test('walcowy uchwyt blokuje eksport operacji przy kolizji', () => {
+  const operation = createFacingOperation({ toolId: 'flat-6' });
+  const setup = createManufacturingSetup({ bodyId: camBox.id, operations: [operation] });
+  const path = calculateFacingToolpath(setup, operation, [camBox]);
+  const point = path.segments.find((segment) => segment.kind === 'cut').from;
+  setup.fixtures = [{
+    id: 'round-path-bolt', name: 'Śruba przy ścieżce', enabled: true, shape: 'cylinder', clearance: 0, rotationDegrees: 0,
+    bounds: [[point[0] - 1, point[1] - 1, point[2] - 1], [point[0] + 1, point[1] + 1, point[2] + 1]],
+  }];
+  assert.equal(analyzeManufacturingProgram(setup, [camBox]).operations[0].issues.some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
+  assert.throws(() => createMachineGcode(setup, operation, [camBox]), /Eksport.*zablokowany/);
+});
+
 test('obrócona szczęka blokuje eksport rzeczywistego programu CAM, a odsunięta nie', () => {
   const operation = createFacingOperation({ toolId: 'flat-6' });
   const fixture = { id: 'rotated-program-jaw', name: 'Szczęka programu', enabled: true, bounds: [[-50, 59, 10], [90, 61, 12]], rotationDegrees: 90, clearance: 0 };
@@ -6013,7 +6047,7 @@ test('CAM zapisuje foldery i szablony oraz migruje starsze schematy', () => {
 test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedynczy uchwyt v19', () => {
   const setup = createManufacturingSetup({ bodyId: camBox.id, fixtures: [
     { name: 'Lewa szczęka', enabled: true, bounds: [[-5, -5, 0], [-2, 5, 15]], rotationDegrees: 30, clearance: 2 },
-    { name: 'Prawa szczęka', enabled: false, bounds: [[50, -5, 0], [55, 5, 15]], clearance: 1 },
+    { name: 'Śruba', enabled: false, shape: 'cylinder', bounds: [[50, -5, 0], [55, 5, 15]], clearance: 1 },
   ] });
   const document = createDocument('Mocowanie CAM');
   document.manufacturing.setups = [setup];
@@ -6021,11 +6055,15 @@ test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedync
   const opened = openDocument(document);
   assert.equal(opened.document.schemaVersion, DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(opened.document.manufacturing.setups[0].fixtures, setup.fixtures);
+  assert.equal(opened.document.manufacturing.setups[0].fixtures[1].shape, 'cylinder');
   assert.deepEqual(validateManufacturing(opened.document.manufacturing), []);
   assert.match(createManufacturingSetupSheet(setup, [camBox]).html, /obrót Z 30\.00°/);
   const sameFixture = createManufacturingSetup({ bodyId: camBox.id, fixtures: setup.fixtures });
   const sequence = { setups: [setup, sameFixture], activeSetupId: setup.id };
   assert.equal(analyzeManufacturingSetupSequence(sequence, [camBox]).setups[1].requiresReclamp, false);
+  sameFixture.fixtures[0].shape = 'cylinder';
+  assert.equal(analyzeManufacturingSetupSequence(sequence, [camBox]).setups[1].requiresReclamp, true);
+  sameFixture.fixtures[0].shape = 'box';
   sameFixture.fixtures[0].rotationDegrees = 31;
   assert.equal(analyzeManufacturingSetupSequence(sequence, [camBox]).setups[1].requiresReclamp, true);
   const legacy = createDocument('Mocowanie v19');
@@ -6037,6 +6075,7 @@ test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedync
   assert.equal(migrated.document.manufacturing.setups[0].fixtures[0].enabled, true);
   assert.deepEqual(migrated.document.manufacturing.setups[0].fixtures[0].bounds, [[-5, -5, 0], [-2, 5, 15]]);
   assert.equal(migrated.document.manufacturing.setups[0].fixtures[0].rotationDegrees, 0);
+  assert.equal(migrated.document.manufacturing.setups[0].fixtures[0].shape, 'box');
   assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 19 && entry.to === 20), true);
   assert.equal(migrated.document.metadata.migrationHistory.some((entry) => entry.from === 20 && entry.to === 21), true);
   const v20 = createDocument('Mocowanie v20');
@@ -6045,9 +6084,13 @@ test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedync
   v20.manufacturing.activeSetupId = setup.id;
   const upgraded = openDocument(v20);
   assert.equal(upgraded.document.manufacturing.setups[0].fixtures[0].rotationDegrees, 0);
+  assert.equal(upgraded.document.manufacturing.setups[0].fixtures[0].shape, 'box');
+  assert.equal(upgraded.document.metadata.migrationHistory.some((entry) => entry.from === 21 && entry.to === 22), true);
   assert.equal(upgraded.document.metadata.migrationHistory.some((entry) => entry.from === 20 && entry.to === 21), true);
   assert.equal(createManufacturingSetup({ fixtures: [{ rotationDegrees: 390 }] }).fixtures[0].rotationDegrees, 30);
   assert.equal(createManufacturingSetup({ fixtures: [{ rotationDegrees: 1e308 }] }).fixtures[0].rotationDegrees < 360, true);
+  assert.equal(createManufacturingSetup({ fixtures: [{ shape: 'cylinder' }] }).fixtures[0].shape, 'cylinder');
+  assert.equal(createManufacturingSetup({ fixtures: [{ shape: 'invalid' }] }).fixtures[0].shape, 'box');
   setup.fixtures[0].bounds = [[5, -5, 0], [-2, 5, 15]];
   assert.equal(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixtures[0].bounds')), true);
 });

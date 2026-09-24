@@ -221,6 +221,12 @@ app.whenReady().then(async () => {
     await waitFor(window, `!JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[1].enabled && window.__madcadManufacturingVisualState?.fixtureCount === 1`, 'Cofnij drugi uchwyt CAM');
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[1].enabled && window.__madcadManufacturingVisualState?.fixtureCount === 2`, 'Ponów drugi uchwyt CAM');
+    await window.webContents.executeJavaScript(`(() => { const control = document.querySelectorAll('.manufacturing-fixture')[1].querySelector('select'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(control, 'cylinder'); control.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[1].shape === 'cylinder' && window.__madcadManufacturingVisualState?.fixtureShapes?.[1] === 'cylinder'`, 'walcowy uchwyt CAM w projekcie i widoku');
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[1].shape === 'box' && window.__madcadManufacturingVisualState?.fixtureShapes?.[1] === 'box'`, 'Cofnij zmianę kształtu uchwytu CAM');
+    await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].fixtures[1].shape === 'cylinder' && window.__madcadManufacturingVisualState?.fixtureShapes?.[1] === 'cylinder'`, 'Ponów walcowy uchwyt CAM');
     await window.webContents.executeJavaScript(`document.querySelector('.manufacturing-fixture:nth-of-type(2) input[step="1"]').scrollIntoView({ block: 'center' })`);
     await new Promise((resolve) => setTimeout(resolve, 150));
     await fs.writeFile(fixtureScreenshotPath, (await window.webContents.capturePage()).toPNG());
