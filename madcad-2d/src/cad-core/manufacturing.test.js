@@ -181,6 +181,41 @@ describe('CAM contour operations', () => {
     const issues = analyzeToolpathSafety(path);
     expect(issues.some((issue) => issue.code === 'FIXTURE_COLLISION')).toBe(false);
     expect(issues).toContainEqual(expect.objectContaining({ code: 'HOLDER_FIXTURE_COLLISION', fixtureId: 'fixture-holder' }));
+    const neckTool = { ...path.tool, holderNeckDiameter: 4, holderNeckLength: 15 };
+    expect(analyzeToolpathSafety({ ...path, tool: neckTool }).some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION')).toBe(false);
+    const upperJaw = fixtureCube(jaw.id, [4, 8, 125], [6, 10, 130]);
+    const upperPath = calculateContourToolpath(setup, operation, [box, upperJaw]);
+    expect(analyzeToolpathSafety({ ...upperPath, clearancePlaneZ: 100, tool: neckTool, segments: path.segments }))
+      .toContainEqual(expect.objectContaining({ code: 'HOLDER_FIXTURE_COLLISION', fixtureId: 'fixture-holder' }));
+    const boxFixture = createManufacturingFixture({ name: 'Szczęka prosta', bounds: [[4, 8, 106], [6, 10, 115]], enabled: true, clearance: 0 });
+    const boxPath = { ...path, setup: { ...path.setup, fixtures: [boxFixture] } };
+    expect(analyzeToolpathSafety(boxPath)).toContainEqual(expect.objectContaining({ code: 'HOLDER_FIXTURE_COLLISION' }));
+    expect(analyzeToolpathSafety({ ...boxPath, tool: neckTool }).some((issue) => issue.code === 'HOLDER_FIXTURE_COLLISION')).toBe(false);
+    const stockPath = { ...path, setup: { ...path.setup, fixtures: [] }, stockBounds: [[0, 0, 0], [40, 20, 10]], clearancePlaneZ: 0,
+      segments: [{ kind: 'rapid', from: [5, -8, 0], to: [15, -8, 0] }] };
+    expect(analyzeToolpathSafety(stockPath)).toContainEqual(expect.objectContaining({ code: 'RAPID_IN_STOCK' }));
+    expect(analyzeToolpathSafety({ ...stockPath, tool: neckTool }).some((issue) => issue.code === 'RAPID_IN_STOCK')).toBe(false);
+    const customTool = createCustomCamTool({ diameter: 3, stickout: 5, holderDiameter: 20, holderNeckDiameter: 4, holderNeckLength: 15 });
+    const customSetup = { ...setup, operations: [createDrillingOperation({ toolId: customTool.id })] };
+    const document = { manufacturing: { tools: [customTool] } };
+    expect(customTool.holderNeckDiameter).toBe(4);
+    expect(customTool.holderNeckLength).toBe(15);
+    expect(createManufacturingSetupSheet(customSetup, [box, jaw], { document }).html)
+      .toContain('szyjka oprawki Ø4.00 × 15.00 mm, dalej Ø20.00');
+  });
+  it('exports a drilled program only when the measured holder neck clears a modeled jaw', () => {
+    const jaw = fixtureCube('drill-jaw', [9, 13, 13], [11, 15, 16]);
+    const oldTool = createCustomCamTool({ type: 'twist-drill', diameter: 5, stickout: 15, holderDiameter: 20 });
+    const measuredTool = { ...oldTool, holderNeckDiameter: 6, holderNeckLength: 15 };
+    const operation = createDrillingOperation({ toolId: oldTool.id });
+    const setup = createManufacturingSetup({ bodyId: drilledBox.id, operations: [operation],
+      fixtures: [{ shape: 'body', bodyId: jaw.id, enabled: true, clearance: 0 }] });
+    const bodies = [drilledBox, jaw];
+    expect(() => createMachineGcode(setup, operation, bodies, { document: { manufacturing: { tools: [oldTool] } } }))
+      .toThrow(/oprawka|Oprawka/);
+    const output = createMachineGcode(setup, operation, bodies, { document: { manufacturing: { tools: [measuredTool] } } });
+    expect(output.text).toContain(oldTool.name);
+    expect(output.toolpath.tool.holderNeckLength).toBe(15);
   });
   it('drills recognized model holes with safe pecks, simulation data, and portable G-code', () => {
     const setup = createManufacturingSetup({ bodyId: drilledBox.id, stock: { sideOffset: 2, topOffset: 2, bottomOffset: 0 }, safeHeight: 5 });

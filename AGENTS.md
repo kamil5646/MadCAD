@@ -79,6 +79,11 @@ npm run verify:desktop-suite -- analysis
   indeksuje jej trójkąty zachowawczo; brak siatki lub niepewna kolizja blokuje
   eksport. Nie nazywaj tego dokładną symulacją oprawki ani pozycji startowej
   obrabiarki.
+- Własne narzędzie CAM w schemacie v24 ma opcjonalny pierwszy stopień oprawki:
+  `holderNeckDiameter` i `holderNeckLength` nad wysięgiem `stickout`. Długość 0
+  zachowuje model v23; powyżej szyjki obowiązuje `holderDiameter` do góry bez
+  skończonej granicy. Zmiany kontroli kolizji sprawdzaj przez
+  `npm run verify:manufacturing`, `verify:cam-sequence` i `verify:cutting`.
 - PR podnoszący `replicad-opencascadejs` do 1.x jest migracją kernela, nie
   zwykłym bumpem zależności.
 - Konto MadCAD i okresowe sprawdzenie uprawnienia są wymagane; nie opisuj tego

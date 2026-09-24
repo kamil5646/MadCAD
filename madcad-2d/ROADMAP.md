@@ -343,6 +343,7 @@ Te prace nie czekają na koniec modelowania:
   - [x] Kontrola szybkiego przejazdu frezu przez półfabrykat wykrywa także pionowy ruch w dół do materiału; pionowe wycofanie, ruch poza obrysem XY i dojazd głowicy laserowej/plazmowej mają regresje bez fałszywego alarmu.
   - [x] Kontrola eksportu frezarskiego obejmuje końcowe podniesienie Z dopisywane przez postprocesor i odrzuca nieciągłą ścieżkę lub dojazd niezgodny z jej płaszczyzną startową; test pokazuje kolizję z uchwytem wyłącznie podczas tego ostatniego ruchu.
   - [x] Mocowanie może wskazywać osobną bryłę CAD projektu: siatka jest indeksowana przestrzennie, zachowawcza kontrola pełnego ruchu freza i oprawki blokuje eksport przy kolizji lub niepewnej geometrii, a panel i widok 3D pokazują wskazaną bryłę. Schemat v23 migruje v22; testy obejmują zapis/otwarcie, utraconą bryłę, Cofnij/Ponów i desktop E2E. Nie jest to jeszcze dokładna symulacja oprawki ani wszystkich ruchów maszyny.
+  - [~] Własne narzędzie może opisać zmierzoną szyjkę oprawki jako drugi stopień walcowy nad wysięgiem. Kontrola używa obu średnic przy szczękach i półfabrykacie; schemat v24 migruje dotychczasowe narzędzia bez zmiany zachowania. Nadal brakuje pełnej geometrii oprawki i wrzeciona.
   - [ ] Rozszerzyć mocowanie o rzeczywistą geometrię szczęk i oprawek oraz kontrolę wszystkich przejazdów maszyny.
   - [ ] Dodać bezpieczne operacje sondowania/ustawiania bazy oraz ich weryfikację na konkretnych sterowaniach; [ograniczenia i źródła](./docs/CAM_PROBING_NOTES.md).
 

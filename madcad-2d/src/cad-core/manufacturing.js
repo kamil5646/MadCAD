@@ -47,6 +47,8 @@ export function normalizeCustomCamTool(tool = {}, index = 0) {
     fluteLength: Math.min(500, Math.max(0.1, Number(tool.fluteLength) || Math.max(10, diameter * 5))),
     stickout: Math.min(500, Math.max(0.1, Number(tool.stickout) || Math.max(15, diameter * 7))),
     holderDiameter: Math.min(200, Math.max(diameter, Number(tool.holderDiameter) || 13)),
+    holderNeckDiameter: Math.min(200, Math.max(diameter, Number(tool.holderNeckDiameter) || Number(tool.holderDiameter) || 13)),
+    holderNeckLength: Math.min(500, Math.max(0, Number(tool.holderNeckLength) || 0)),
     flutes: Math.min(12, Math.max(1, Math.round(Number(tool.flutes) || (type === 'tap' ? 3 : 2)))),
     pitch: type === 'tap' ? Math.min(10, Math.max(0.1, Number(tool.pitch) || 1)) : null,
     pointAngle: type === 'spot-drill' ? Math.min(170, Math.max(30, Number(tool.pointAngle) || 90)) : null,
@@ -59,6 +61,21 @@ export function createCustomCamTool(options = {}) {
 
 export function resolveCamTool(toolId, document = null) {
   return CAM_TOOL_PRESETS[toolId] || document?.manufacturing?.tools?.find((tool) => tool.id === toolId) || null;
+}
+
+function holderSections(tool) {
+  const stickout = Number(tool?.stickout);
+  const diameter = Number(tool?.holderDiameter);
+  if (!(stickout > 0) || !(diameter > 0) || !Number.isFinite(stickout) || !Number.isFinite(diameter)) return [];
+  const neckLength = Math.max(0, Number(tool?.holderNeckLength) || 0);
+  const neckDiameter = Number(tool?.holderNeckDiameter);
+  if (!(neckLength > 0) || !(neckDiameter > 0) || !Number.isFinite(neckLength) || !Number.isFinite(neckDiameter)) {
+    return [{ radius: diameter / 2, lowerOffset: stickout, upperOffset: Infinity }];
+  }
+  return [
+    { radius: neckDiameter / 2, lowerOffset: stickout, upperOffset: stickout + neckLength },
+    { radius: diameter / 2, lowerOffset: stickout + neckLength, upperOffset: Infinity },
+  ];
 }
 
 export const CAM_TURNING_TOOL_PRESETS = Object.freeze({
@@ -1550,8 +1567,8 @@ export function analyzeToolpathSafety(toolpath) {
     const stickout = Number(toolpath.tool?.stickout);
     const exposedLength = Number.isFinite(stickout) && stickout > 0 ? stickout : 0;
     // The path follows the tip, but the exposed cutter and shank reach above it.
-    const holderRadius = Math.max(0, Number(toolpath.tool?.holderDiameter) || 0) / 2;
-    const checkHolder = holderRadius > 0 && Number.isFinite(stickout) && stickout > 0;
+    const holderGeometry = holderSections(toolpath.tool);
+    const checkHolder = holderGeometry.length > 0;
     let toolCollision = false;
     let holderCollision = false;
     for (const segment of checkedSegments) {
@@ -1559,9 +1576,11 @@ export function analyzeToolpathSafety(toolpath) {
       if (!toolCollision) toolCollision = fixture.shape === 'body'
         ? fixtureMeshPotentialCollision(meshIndex, localSegment, radius, fixture.clearance, 0, exposedLength, segmentIntersectsFixtureFootprint)
         : intersectsFixture(localSegment, fixture.bounds[0], fixture.bounds[1], radius, fixture.clearance, fixture.bounds[0][2] - fixture.clearance - exposedLength, fixture.bounds[1][2] + fixture.clearance);
-      if (checkHolder && !holderCollision) holderCollision = fixture.shape === 'body'
-        ? fixtureMeshPotentialCollision(meshIndex, localSegment, holderRadius, fixture.clearance, stickout, Infinity, segmentIntersectsFixtureFootprint)
-        : intersectsFixture(localSegment, fixture.bounds[0], fixture.bounds[1], holderRadius, fixture.clearance, -Infinity, fixture.bounds[1][2] + fixture.clearance - stickout);
+      if (checkHolder && !holderCollision) holderCollision = holderGeometry.some((section) => fixture.shape === 'body'
+        ? fixtureMeshPotentialCollision(meshIndex, localSegment, section.radius, fixture.clearance, section.lowerOffset, section.upperOffset, segmentIntersectsFixtureFootprint)
+        : intersectsFixture(localSegment, fixture.bounds[0], fixture.bounds[1], section.radius, fixture.clearance,
+          Number.isFinite(section.upperOffset) ? fixture.bounds[0][2] - fixture.clearance - section.upperOffset : -Infinity,
+          fixture.bounds[1][2] + fixture.clearance - section.lowerOffset));
       if (toolCollision && (holderCollision || !checkHolder)) break;
     }
     if (toolCollision) issues.push({ code: 'FIXTURE_COLLISION', fixtureId: fixture.id, message: `Narzędzie lub jego wysunięty trzon przecina strefę ${fixture.name} albo wymagany odstęp.` });
@@ -1573,15 +1592,18 @@ export function analyzeToolpathSafety(toolpath) {
   const cutterRadius = Math.max(0, Number(toolpath.tool?.diameter) || 0) / 2;
   const stickout = Number(toolpath.tool?.stickout);
   const exposedLength = Number.isFinite(stickout) && stickout > 0 ? stickout : 0;
-  const holderRadius = Math.max(0, Number(toolpath.tool?.holderDiameter) || 0) / 2;
+  const holderGeometry = holderSections(toolpath.tool);
   for (const segment of checkedSegments) {
     const horizontalDistance = Math.hypot(segment.to[0] - segment.from[0], segment.to[1] - segment.from[1]);
     // A laser/plasma head descends to its cutting plane with the process off.
     const descends = machine.kind !== 'cut-2d' && segment.to[2] < segment.from[2] - 1e-7;
     if (segment.kind !== 'rapid' || (horizontalDistance <= 1e-7 && !descends)) continue;
     const cutterIntersectsStock = segmentIntersectsFixtureFootprint(segment, stockMinimum, stockMaximum, cutterRadius, 0, stockMinimum[2] - exposedLength, stockTop - 1e-7);
-    const holderIntersectsStock = holderRadius > 0 && exposedLength > 0
-      && segmentIntersectsFixtureFootprint(segment, stockMinimum, stockMaximum, holderRadius, 0, -Infinity, stockTop - exposedLength - 1e-7);
+    const holderIntersectsStock = holderGeometry.some((section) => segmentIntersectsFixtureFootprint(
+      segment, stockMinimum, stockMaximum, section.radius, 0,
+      Number.isFinite(section.upperOffset) ? stockMinimum[2] - section.upperOffset : -Infinity,
+      stockTop - section.lowerOffset - 1e-7,
+    ));
     if (cutterIntersectsStock || holderIntersectsStock) {
       issues.push({ code: 'RAPID_IN_STOCK', message: 'Wykryto szybki przejazd narzędzia lub oprawki przez półfabrykat.' });
       break;
@@ -1829,7 +1851,7 @@ export function createManufacturingSetupSheet(setup, bodies = [], { projectName 
     const tool = CAM_TURNING_TOOL_PRESETS[operation.toolId] || resolveCamTool(operation.toolId, document);
     return `<tr><td>${index + 1}</td><td><strong>${escapeManufacturingHtml(operation.name)}</strong><small>${escapeManufacturingHtml(typeLabels[operation.type] || operation.type)}</small></td><td>${escapeManufacturingHtml(tool?.name || 'Źródło cięcia')}</td><td>${operation.spindleRpm ? `${formatSetupSheetNumber(operation.spindleRpm, 0)} obr./min` : '—'}</td><td>${operation.feedRate ? `${formatSetupSheetNumber(operation.feedRate, operation.type?.startsWith('turn-') ? 2 : 0)} ${operation.type?.startsWith('turn-') ? 'mm/obr.' : 'mm/min'}` : '—'}</td><td>${Math.max(1, Math.ceil(operationReport?.durationMinutes || 0))} min</td><td class="${operationReport?.valid ? 'ok' : 'bad'}">${operationReport?.valid ? 'OK' : 'SPRAWDŹ'}</td></tr>`;
   }).join('');
-  const toolRows = [...toolUsage.values()].map(({ tool, operationNumbers }, index) => `<tr><td>T${index + 1}</td><td><strong>${escapeManufacturingHtml(tool.name)}</strong><small>${escapeManufacturingHtml(tool.type || '')}</small></td><td>${tool.diameter ? `Ø${formatSetupSheetNumber(tool.diameter)}` : '—'}</td><td>${tool.stickout ? `${formatSetupSheetNumber(tool.stickout)} mm` : '—'}</td><td>${operationNumbers.join(', ')}</td></tr>`).join('');
+  const toolRows = [...toolUsage.values()].map(({ tool, operationNumbers }, index) => `<tr><td>T${index + 1}</td><td><strong>${escapeManufacturingHtml(tool.name)}</strong><small>${escapeManufacturingHtml(tool.type || '')}${Number(tool.holderNeckLength) > 0 ? ` · szyjka oprawki Ø${formatSetupSheetNumber(tool.holderNeckDiameter)} × ${formatSetupSheetNumber(tool.holderNeckLength)} mm, dalej Ø${formatSetupSheetNumber(tool.holderDiameter)}` : ''}</small></td><td>${tool.diameter ? `Ø${formatSetupSheetNumber(tool.diameter)}` : '—'}</td><td>${tool.stickout ? `${formatSetupSheetNumber(tool.stickout)} mm` : '—'}</td><td>${operationNumbers.join(', ')}</td></tr>`).join('');
   const issues = [...(report.setupIssues || []), ...report.operations.flatMap((operation) => operation.issues.map((issue) => `${operation.name}: ${issue.message}`)), ...(report.holeCompleteness?.entries || []).flatMap((entry) => [...entry.missingStages.map((stage) => `Ø${formatSetupSheetNumber(entry.diameter)}: brak etapu ${HOLE_STAGE_LABELS[stage] || stage}.`), ...entry.orderingIssues])];
   const activeFixtures = normalized.fixtures.filter((fixture) => fixture.enabled);
   const fixtureMarkup = activeFixtures.length
@@ -2192,6 +2214,8 @@ export function validateManufacturing(manufacturing) {
     else customToolNames.add(name.toLocaleLowerCase());
     if (!CAM_HOLE_TOOL_TYPES.some((item) => item.id === tool.type)) issues.push({ path: `${base}.type`, message: 'Nieobsługiwany typ narzędzia otworowego.', code: 'UNSUPPORTED' });
     for (const key of ['diameter', 'fluteLength', 'stickout', 'holderDiameter', 'flutes']) if (!Number.isFinite(Number(tool[key])) || Number(tool[key]) <= 0) issues.push({ path: `${base}.${key}`, message: 'Wymiar narzędzia musi być dodatni.', code: 'VALUE' });
+    if (!Number.isFinite(Number(tool.holderNeckDiameter)) || Number(tool.holderNeckDiameter) < Number(tool.diameter) || Number(tool.holderNeckDiameter) > 200) issues.push({ path: `${base}.holderNeckDiameter`, message: 'Średnica szyjki oprawki musi być co najmniej średnicą narzędzia i nie może przekraczać 200 mm.', code: 'VALUE' });
+    if (!Number.isFinite(Number(tool.holderNeckLength)) || Number(tool.holderNeckLength) < 0 || Number(tool.holderNeckLength) > 500) issues.push({ path: `${base}.holderNeckLength`, message: 'Długość szyjki oprawki musi mieścić się w zakresie 0–500 mm.', code: 'VALUE' });
     if (tool.type === 'tap' && (!Number.isFinite(Number(tool.pitch)) || Number(tool.pitch) <= 0)) issues.push({ path: `${base}.pitch`, message: 'Gwintownik wymaga dodatniego skoku.', code: 'VALUE' });
     if (tool.type === 'spot-drill' && (!Number.isFinite(Number(tool.pointAngle)) || Number(tool.pointAngle) < 30 || Number(tool.pointAngle) > 170)) issues.push({ path: `${base}.pointAngle`, message: 'Kąt nawiertaka musi mieścić się w zakresie 30–170°.', code: 'VALUE' });
   });
