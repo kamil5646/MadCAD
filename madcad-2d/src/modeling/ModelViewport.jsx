@@ -1094,6 +1094,30 @@ export default function ModelViewport({
       manufacturingGroup.add(stockEdges);
     }
     for (const fixture of manufacturingVisualization?.fixtures?.filter((item) => item.enabled) || []) {
+      if (fixture.shape === 'body') {
+        const fixtureBody = bodies.find((body) => body.id === fixture.bodyId);
+        if (!fixtureBody?.vertices?.length || !fixtureBody?.triangles?.length) continue;
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(fixtureBody.vertices, 3));
+        geometry.setIndex(new THREE.BufferAttribute(ArrayBuffer.isView(fixtureBody.triangles) ? fixtureBody.triangles : Uint32Array.from(fixtureBody.triangles), 1));
+        const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: 0xe65b5b, transparent: true, opacity: 0.34, depthWrite: false, side: THREE.DoubleSide }));
+        mesh.name = 'cam-fixture-body';
+        mesh.renderOrder = 19;
+        manufacturingGroup.add(mesh);
+        const clearance = Math.max(0, Number(fixture.clearance) || 0);
+        const bounds = fixtureBody.bounds || fixtureBody.metrics?.bounds;
+        if (clearance > 0 && bounds?.length === 2) {
+          const size = bounds[1].map((value, axis) => Math.max(0.001, value - bounds[0][axis]) + 2 * clearance);
+          const center = bounds[1].map((value, axis) => (value + bounds[0][axis]) / 2);
+          const envelope = new THREE.BoxGeometry(...size);
+          const edges = new THREE.LineSegments(new THREE.EdgesGeometry(envelope), new THREE.LineBasicMaterial({ color: 0xffbf69, transparent: true, opacity: 0.78, depthTest: false }));
+          envelope.dispose();
+          edges.position.fromArray(center);
+          edges.renderOrder = 21;
+          manufacturingGroup.add(edges);
+        }
+        continue;
+      }
       const [minimum, maximum] = fixture.bounds;
       const size = maximum.map((value, axis) => Math.max(0.001, value - minimum[axis]));
       const center = maximum.map((value, axis) => (value + minimum[axis]) / 2);
@@ -1181,7 +1205,7 @@ export default function ModelViewport({
       manufacturingGroup.add(cutter);
     }
     scene.add(manufacturingGroup);
-    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadManufacturingVisualState = { segmentCount: visibleManufacturingSegments, stockVisible: Boolean(manufacturingVisualization?.stockBounds), fixtureCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).length || 0, fixtureClearanceEnvelopeCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled && Number(item.clearance) > 0).length || 0, fixtureRotations: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).map((item) => item.rotationDegrees) || [], fixtureShapes: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).map((item) => item.shape || 'box') || [], removedColumnCount: manufacturingVisualization?.removalColumns?.length || 0, cutterVisible: Boolean(manufacturingVisualization?.cutter?.position) };
+    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadManufacturingVisualState = { segmentCount: visibleManufacturingSegments, stockVisible: Boolean(manufacturingVisualization?.stockBounds), fixtureCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).length || 0, fixtureBodyMeshCount: manufacturingGroup.children.filter((item) => item.name === 'cam-fixture-body').length, fixtureClearanceEnvelopeCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled && Number(item.clearance) > 0).length || 0, fixtureRotations: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).map((item) => item.rotationDegrees) || [], fixtureShapes: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).map((item) => item.shape || 'box') || [], removedColumnCount: manufacturingVisualization?.removalColumns?.length || 0, cutterVisible: Boolean(manufacturingVisualization?.cutter?.position) };
     if (showBed) {
       const plateGeometry = new THREE.PlaneGeometry(bed.bedWidth, bed.bedDepth);
       const plateMaterial = new THREE.MeshStandardMaterial({ color: 0x384b55, roughness: 0.9, metalness: 0.04, transparent: true, opacity: 0.72, side: THREE.DoubleSide });

@@ -74,6 +74,10 @@ npm run verify:desktop-suite -- analysis
   Windows może go odmontować między `waitFor` i osobnym `executeJavaScript`.
 - `ModelingWorkspace.jsx`, `ModelViewport.jsx` i `cad-worker.js` są monolitami;
   nie dodawaj do nich kolejnej domeny bez rozważenia wydzielenia modułu.
+- Uchwyt CAM typu `body` wskazuje osobną bryłę po ID, a nie kopiuje geometrii do
+  `.madcad`. `manufacturing-fixture-mesh.js` indeksuje jej trójkąty zachowawczo;
+  brak siatki lub niepewna kolizja blokuje eksport. Nie nazywaj tego dokładną
+  symulacją oprawki ani pozycji startowej obrabiarki.
 - PR podnoszący `replicad-opencascadejs` do 1.x jest migracją kernela, nie
   zwykłym bumpem zależności.
 - Konto MadCAD i okresowe sprawdzenie uprawnienia są wymagane; nie opisuj tego

@@ -7591,7 +7591,7 @@ export default function ModelingWorkspace() {
   const manufacturingSegments = useMemo(() => manufacturingToolpaths.flatMap((toolpath) => toolpath.segments), [manufacturingToolpaths]);
   const manufacturingVisualization = useMemo(() => activeCamSetupResult?.stockBounds ? {
     stockBounds: activeCamSetupResult.stockBounds,
-    fixtures: activeCamSetup.fixtures,
+    fixtures: activeCamSetup.fixtures.filter((fixture) => fixture.shape !== 'body' || activeCamSetupResult.fixtureMeshes?.has(fixture.id)),
     segments: manufacturingSegments,
     segmentCount: Math.ceil(manufacturingSegments.length * camSimulationProgress),
     removalColumns: camSimulation?.columns || [],

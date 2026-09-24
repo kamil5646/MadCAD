@@ -12,6 +12,7 @@ import {
   calculatePocketToolpath,
   calculateTurningToolpath,
   analyzeManufacturingProgram,
+  analyzeManufacturingSetupSequence,
   analyzeHoleMachiningCompleteness,
   analyzeToolpathSafety,
   createContourOperation,
@@ -83,6 +84,17 @@ const drilledBox = {
   }],
 };
 
+const fixtureCube = (id, minimum, maximum) => ({
+  id,
+  name: 'Bryła szczęki',
+  bounds: [minimum, maximum],
+  vertices: new Float32Array([
+    minimum[0], minimum[1], minimum[2], maximum[0], minimum[1], minimum[2], maximum[0], maximum[1], minimum[2], minimum[0], maximum[1], minimum[2],
+    minimum[0], minimum[1], maximum[2], maximum[0], minimum[1], maximum[2], maximum[0], maximum[1], maximum[2], minimum[0], maximum[1], maximum[2],
+  ]),
+  triangles: box.triangles,
+});
+
 describe('CAM contour operations', () => {
   it('detects a swept tool crossing the fixture zone and blocks NC export', () => {
     const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
@@ -129,6 +141,45 @@ describe('CAM contour operations', () => {
     const approach = structuredClone(path);
     approach.segments[0].from[2] = 29;
     expect(analyzeToolpathSafety(approach)).toContainEqual(expect.objectContaining({ code: 'UNMODELED_APPROACH' }));
+  });
+  it('uses a modeled fixture body to block a swept tool and NC export', () => {
+    const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [operation] });
+    const baseline = calculateContourToolpath(setup, operation, [box]);
+    const cutting = baseline.segments.find((segment) => segment.kind === 'cut' && Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis])) > 1);
+    expect(cutting).toBeDefined();
+    const center = cutting.from.map((value, axis) => (value + cutting.to[axis]) / 2);
+    const jaw = fixtureCube('fixture-jaw', center.map((value) => value - 0.5), center.map((value) => value + 0.5));
+    setup.fixtures = [createManufacturingFixture({ name: 'Szczęka z modelu', shape: 'body', bodyId: jaw.id, enabled: true, clearance: 0 })];
+    const toolpath = calculateContourToolpath(setup, operation, [box, jaw]);
+    expect(toolpath.valid).toBe(true);
+    expect(analyzeToolpathSafety(toolpath)).toContainEqual(expect.objectContaining({ code: 'FIXTURE_COLLISION', fixtureId: setup.fixtures[0].id }));
+    expect(() => createMachineGcode(setup, operation, [box, jaw])).toThrow(/Szczęka z modelu/);
+    expect(createManufacturingSetupSheet(setup, [box, jaw]).html).toContain('bryła CAD: Bryła szczęki');
+    const secondSetup = createManufacturingSetup({ bodyId: box.id, fixtures: setup.fixtures });
+    expect(analyzeManufacturingSetupSequence({ setups: [setup, secondSetup] }, [box, jaw]).setups[1].requiresReclamp).toBe(false);
+    secondSetup.fixtures[0].bounds[0][0] = 999;
+    expect(validateManufacturing({ setups: [secondSetup], activeSetupId: secondSetup.id })).toEqual([]);
+    expect(analyzeManufacturingSetupSequence({ setups: [setup, secondSetup] }, [box, jaw]).setups[1].requiresReclamp).toBe(false);
+    secondSetup.fixtures[0].bodyId = 'another-jaw';
+    expect(analyzeManufacturingSetupSequence({ setups: [setup, secondSetup] }, [box, jaw]).setups[1].requiresReclamp).toBe(true);
+    const distant = fixtureCube(jaw.id, [100, 100, 100], [102, 102, 102]);
+    expect(analyzeToolpathSafety(calculateContourToolpath(setup, operation, [box, distant]))).toEqual([]);
+    expect(calculateManufacturingSetup(setup, [box]).warnings.join(' ')).toMatch(/inną istniejącą bryłę/);
+    expect(() => createMachineGcode(setup, operation, [box])).toThrow(/bryłę mocowania/);
+    expect(calculateManufacturingSetup(setup, [box, { ...jaw, triangles: [] }]).warnings.join(' ')).toMatch(/siatki trójkątów/);
+    setup.fixtures[0].bodyId = box.id;
+    expect(calculateManufacturingSetup(setup, [box, jaw]).valid).toBe(false);
+  });
+  it('checks holder reach against a modeled fixture without a false cutter hit', () => {
+    const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
+    const jaw = fixtureCube('fixture-holder-jaw', [4, 8, 106], [6, 10, 115]);
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [operation], fixtures: [{ id: 'fixture-holder', name: 'Szczęka oprawki', shape: 'body', bodyId: jaw.id, enabled: true, clearance: 0 }] });
+    const baseline = calculateContourToolpath(setup, operation, [box, jaw]);
+    const path = { ...baseline, clearancePlaneZ: 100, tool: { ...baseline.tool, diameter: 3, stickout: 5, holderDiameter: 20 }, segments: [{ kind: 'rapid', from: [0, 0, 100], to: [10, 0, 100] }] };
+    const issues = analyzeToolpathSafety(path);
+    expect(issues.some((issue) => issue.code === 'FIXTURE_COLLISION')).toBe(false);
+    expect(issues).toContainEqual(expect.objectContaining({ code: 'HOLDER_FIXTURE_COLLISION', fixtureId: 'fixture-holder' }));
   });
   it('drills recognized model holes with safe pecks, simulation data, and portable G-code', () => {
     const setup = createManufacturingSetup({ bodyId: drilledBox.id, stock: { sideOffset: 2, topOffset: 2, bottomOffset: 0 }, safeHeight: 5 });

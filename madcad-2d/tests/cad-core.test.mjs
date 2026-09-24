@@ -57,6 +57,7 @@ import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
 import { analyzeManufacturingProgram, analyzeManufacturingSetupSequence, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createDrillingOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, ensureDocumentManufacturing, extractTopBoundaryLoops, instantiateManufacturingOperationTemplate, measureCamPolygonBounds, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
+import { createManufacturingFixtureMeshIndex } from '../src/cad-core/manufacturing-fixture-mesh.js';
 import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
@@ -5672,6 +5673,36 @@ const camBox = {
   ],
 };
 
+test('CAM sprawdza bryłę szczęki z siatki CAD i blokuje kolizyjny eksport', () => {
+  const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
+  const setup = createManufacturingSetup({ bodyId: camBox.id, operations: [operation] });
+  const baseline = calculateContourToolpath(setup, operation, [camBox]);
+  const cut = baseline.segments.find((segment) => segment.kind === 'cut' && Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis])) > 1);
+  assert.ok(cut);
+  const center = cut.from.map((value, axis) => (value + cut.to[axis]) / 2);
+  const minimum = center.map((value) => value - 0.5);
+  const maximum = center.map((value) => value + 0.5);
+  const jaw = {
+    id: 'jaw-mesh', name: 'Szczęka z bryły', bounds: [minimum, maximum],
+    vertices: Float32Array.from(camBox.vertices, (value, index) => minimum[index % 3] + value / [40, 20, 10][index % 3]),
+    triangles: camBox.triangles,
+  };
+  const mesh = createManufacturingFixtureMeshIndex(jaw);
+  assert.ok(mesh);
+  assert.equal(createManufacturingFixtureMeshIndex(jaw), mesh);
+  setup.fixtures = [{ id: 'fixture-mesh', name: 'Szczęka z bryły', enabled: true, shape: 'body', bodyId: jaw.id, clearance: 0 }];
+  const toolpath = calculateContourToolpath(setup, operation, [camBox, jaw]);
+  assert.equal(toolpath.valid, true);
+  assert.equal(analyzeToolpathSafety(toolpath).some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
+  assert.throws(() => createMachineGcode(setup, operation, [camBox, jaw]), /Szczęka z bryły/);
+  const remote = { ...jaw, vertices: Float32Array.from(jaw.vertices, (value) => value + 100), bounds: [[100, 100, 100], [101, 101, 101]] };
+  assert.deepEqual(analyzeToolpathSafety(calculateContourToolpath(setup, operation, [camBox, remote])), []);
+  assert.equal(calculateManufacturingSetup(setup, [camBox]).valid, false);
+  assert.equal(createManufacturingFixtureMeshIndex({ ...jaw, vertices: new Float32Array([NaN, 0, 0]) }), null);
+  jaw.vertices[0] += 0.1;
+  assert.notEqual(createManufacturingFixtureMeshIndex(jaw), mesh);
+});
+
 test('Setup CAM wylicza półfabrykat, WCS i zgodność z obrabiarką', () => {
   const setup = createManufacturingSetup({
     bodyId: 'body-test',
@@ -6107,6 +6138,22 @@ test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedync
   const upgradedV21 = openDocument(v21);
   assert.equal(upgradedV21.document.manufacturing.setups[0].fixtures[0].shape, 'box');
   assert.equal(upgradedV21.document.metadata.migrationHistory.some((entry) => entry.from === 21 && entry.to === 22), true);
+  assert.equal(upgradedV21.document.metadata.migrationHistory.some((entry) => entry.from === 22 && entry.to === 23), true);
+  const v22 = createDocument('Mocowanie v22');
+  v22.schemaVersion = 22;
+  v22.manufacturing.setups = [{ ...setup, fixtures: [{ ...setup.fixtures[0], bodyId: undefined }] }];
+  v22.manufacturing.activeSetupId = setup.id;
+  const upgradedV22 = openDocument(v22);
+  assert.equal(upgradedV22.document.manufacturing.setups[0].fixtures[0].bodyId, '');
+  assert.equal(upgradedV22.document.metadata.migrationHistory.some((entry) => entry.from === 22 && entry.to === 23), true);
+  const modeledFixture = createManufacturingSetup({ bodyId: camBox.id, fixtures: [{ shape: 'body', bodyId: 'jaw-body', enabled: true }] });
+  const modeledDocument = createDocument('Szczęka CAD');
+  modeledDocument.manufacturing.setups = [modeledFixture];
+  modeledDocument.manufacturing.activeSetupId = modeledFixture.id;
+  assert.equal(openDocument(JSON.parse(JSON.stringify(modeledDocument))).document.manufacturing.setups[0].fixtures[0].bodyId, 'jaw-body');
+  assert.equal(validateManufacturing(modeledDocument.manufacturing).length, 0);
+  modeledFixture.fixtures[0].bodyId = '';
+  assert.equal(validateManufacturing({ setups: [modeledFixture], activeSetupId: modeledFixture.id }).some((issue) => issue.path.endsWith('fixtures[0].bodyId')), true);
   setup.fixtures[0].shape = 'unknown';
   assert.equal(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixtures[0].shape')), true);
   setup.fixtures[0].shape = 'box';
