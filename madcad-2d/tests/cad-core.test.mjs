@@ -5699,6 +5699,7 @@ test('CAM sprawdza bryłę szczęki z siatki CAD i blokuje kolizyjny eksport', (
   assert.deepEqual(analyzeToolpathSafety(calculateContourToolpath(setup, operation, [camBox, remote])), []);
   assert.equal(calculateManufacturingSetup(setup, [camBox]).valid, false);
   assert.equal(createManufacturingFixtureMeshIndex({ ...jaw, vertices: new Float32Array([NaN, 0, 0]) }), null);
+  assert.equal(createManufacturingFixtureMeshIndex({ ...jaw, triangles: jaw.triangles.slice(0, -3) }), null);
   jaw.vertices[0] += 0.1;
   assert.notEqual(createManufacturingFixtureMeshIndex(jaw), mesh);
 });

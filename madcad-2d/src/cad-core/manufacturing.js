@@ -467,7 +467,7 @@ export function calculateManufacturingSetup(setup, bodies = []) {
         continue;
       }
       const index = createManufacturingFixtureMeshIndex(fixtureBody);
-      if (!index) warnings.push(`${fixture.name}: bryła mocowania nie ma poprawnej siatki trójkątów.`);
+      if (!index) warnings.push(`${fixture.name}: bryła mocowania nie ma poprawnej siatki trójkątów o zamkniętej powierzchni.`);
       else fixtureMeshes.set(fixture.id, index);
     } else if (fixture.bounds[0].some((value, axis) => value >= fixture.bounds[1][axis])) warnings.push(`${fixture.name}: strefa wymaga dodatnich wymiarów X, Y i Z.`);
   }

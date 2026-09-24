@@ -168,6 +168,7 @@ describe('CAM contour operations', () => {
     expect(calculateManufacturingSetup(setup, [box]).warnings.join(' ')).toMatch(/inną istniejącą bryłę/);
     expect(() => createMachineGcode(setup, operation, [box])).toThrow(/bryłę mocowania/);
     expect(calculateManufacturingSetup(setup, [box, { ...jaw, triangles: [] }]).warnings.join(' ')).toMatch(/siatki trójkątów/);
+    expect(calculateManufacturingSetup(setup, [box, { ...jaw, triangles: jaw.triangles.slice(0, -3) }]).warnings.join(' ')).toMatch(/zamkniętej powierzchni/);
     setup.fixtures[0].bodyId = box.id;
     expect(calculateManufacturingSetup(setup, [box, jaw]).valid).toBe(false);
   });

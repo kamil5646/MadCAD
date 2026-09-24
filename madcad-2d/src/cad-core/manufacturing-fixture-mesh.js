@@ -25,6 +25,43 @@ function triangleBounds(vertices, indices, offset) {
   return bounds;
 }
 
+function hasClosedSurface(vertices, indices) {
+  const coordinateBounds = [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]];
+  for (let offset = 0; offset < vertices.length; offset += 3) {
+    for (let axis = 0; axis < 3; axis += 1) {
+      coordinateBounds[0][axis] = Math.min(coordinateBounds[0][axis], vertices[offset + axis]);
+      coordinateBounds[1][axis] = Math.max(coordinateBounds[1][axis], vertices[offset + axis]);
+    }
+  }
+  const span = Math.max(...coordinateBounds[0].map((value, axis) => coordinateBounds[1][axis] - value));
+  const dimensions = coordinateBounds[0].map((value, axis) => coordinateBounds[1][axis] - value);
+  if (dimensions.some((value) => value <= 1e-7)) return false;
+  // Float32 tessellation can duplicate a vertex at a face seam. Merge only
+  // coordinates below the mesh's own geometric resolution.
+  const grid = Math.max(1e-5, span * 1e-7);
+  const vertexKeys = Array.from({ length: vertices.length / 3 }, (_unused, index) => [0, 1, 2]
+    .map((axis) => Math.round(vertices[index * 3 + axis] / grid)).join(':'));
+  const edgeCounts = new Map();
+  const origin = [vertices[0], vertices[1], vertices[2]];
+  let signedVolume6 = 0;
+  for (let offset = 0; offset < indices.length; offset += 3) {
+    const corners = [0, 1, 2].map((corner) => vertexKeys[indices[offset + corner]]);
+    if (new Set(corners).size !== 3) return false;
+    const [first, second, third] = [0, 1, 2].map((corner) => [0, 1, 2].map((axis) => vertices[indices[offset + corner] * 3 + axis] - origin[axis]));
+    signedVolume6 += first[0] * (second[1] * third[2] - second[2] * third[1])
+      + first[1] * (second[2] * third[0] - second[0] * third[2])
+      + first[2] * (second[0] * third[1] - second[1] * third[0]);
+    for (const [first, second] of [[0, 1], [1, 2], [2, 0]]) {
+      const key = [corners[first], corners[second]].sort().join('|');
+      const count = (edgeCounts.get(key) || 0) + 1;
+      if (count > 2) return false;
+      edgeCounts.set(key, count);
+    }
+  }
+  return [...edgeCounts.values()].every((count) => count === 2)
+    && Math.abs(signedVolume6) > Math.max(1e-9, dimensions[0] * dimensions[1] * dimensions[2] * 1e-8) * 6;
+}
+
 function createNode(triangles) {
   const bounds = triangles.reduce((union, triangle) => unionBounds(union, triangle.bounds), triangles[0].bounds);
   if (triangles.length <= LEAF_TRIANGLES) return { bounds, triangles };
@@ -43,6 +80,7 @@ export function createManufacturingFixtureMeshIndex(body) {
   const indices = body.triangles;
   const vertexCount = vertices.length / 3;
   if (vertices.some((value) => !Number.isFinite(value)) || indices.some((value) => !Number.isInteger(value) || value < 0 || value >= vertexCount)) return null;
+  if (!hasClosedSurface(vertices, indices)) return null;
   const triangles = [];
   for (let offset = 0; offset < indices.length; offset += 3) triangles.push({ bounds: triangleBounds(vertices, indices, offset) });
   const index = createNode(triangles);
