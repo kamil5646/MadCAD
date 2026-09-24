@@ -1481,20 +1481,43 @@ function createFixtureSegmentTransform(fixture) {
 export function analyzeToolpathSafety(toolpath) {
   const issues = [];
   if (!toolpath?.valid) return (toolpath?.warnings || ['Ścieżka nie jest prawidłowa.']).map((message) => ({ code: 'INVALID_TOOLPATH', message }));
+  if (!toolpath.segments?.length) return [{ code: 'EMPTY_TOOLPATH', message: 'Ścieżka CAM nie zawiera żadnego ruchu.' }];
+  for (const segment of toolpath.segments) {
+    for (const point of [segment?.from, segment?.to]) {
+      if (!Array.isArray(point) || point.length !== 3 || point.some((value) => !Number.isFinite(value))) {
+        return [{ code: 'NON_FINITE', message: 'Ścieżka zawiera nieprawidłową współrzędną.' }];
+      }
+    }
+  }
+  const isMilling = !toolpath.turning && toolpath.setup.machine.kind === 'mill-3axis';
+  const first = toolpath.segments[0];
+  if (isMilling && Math.abs(first.from[2] - toolpath.clearancePlaneZ) > 1e-6) {
+    issues.push({ code: 'UNMODELED_APPROACH', message: 'Początkowy dojazd od płaszczyzny bezpiecznej nie jest opisany przez ścieżkę CAM.' });
+  }
+  const last = toolpath.segments.at(-1);
+  const finalRetract = isMilling && Math.abs(last.to[2] - toolpath.clearancePlaneZ) > 1e-6
+    ? { kind: 'rapid', from: last.to, to: [last.to[0], last.to[1], toolpath.clearancePlaneZ] }
+    : null;
+  const checkedSegments = finalRetract ? [...toolpath.segments, finalRetract] : toolpath.segments;
   const minimum = [Infinity, Infinity, Infinity];
   const maximum = [-Infinity, -Infinity, -Infinity];
   let minimumCutZ = Infinity;
-  for (const segment of toolpath.segments) {
+  for (const segment of checkedSegments) {
     for (let endpoint = 0; endpoint < 2; endpoint += 1) {
       const point = endpoint === 0 ? segment.from : segment.to;
-      if (!point || point.length !== 3 || !Number.isFinite(point[0]) || !Number.isFinite(point[1]) || !Number.isFinite(point[2])) {
-        return [{ code: 'NON_FINITE', message: 'Ścieżka zawiera nieprawidłową współrzędną.' }];
-      }
       for (let axis = 0; axis < 3; axis += 1) {
         minimum[axis] = Math.min(minimum[axis], point[axis]);
         maximum[axis] = Math.max(maximum[axis], point[axis]);
       }
       if (segment.kind !== 'rapid') minimumCutZ = Math.min(minimumCutZ, point[2]);
+    }
+  }
+  for (let index = 1; index < toolpath.segments.length; index += 1) {
+    const previous = toolpath.segments[index - 1];
+    const current = toolpath.segments[index];
+    if (Math.hypot(...current.from.map((value, axis) => value - previous.to[axis])) > 1e-6) {
+      issues.push({ code: 'DISCONTINUOUS_PATH', message: 'Ścieżka CAM zawiera przerwę między ruchami; rzeczywisty przejazd nie został sprawdzony.' });
+      break;
     }
   }
   const machine = toolpath.setup.machine;
@@ -1513,7 +1536,7 @@ export function analyzeToolpathSafety(toolpath) {
     const checkHolder = holderRadius > 0 && Number.isFinite(stickout) && stickout > 0;
     let toolCollision = false;
     let holderCollision = false;
-    for (const segment of toolpath.segments) {
+    for (const segment of checkedSegments) {
       const localSegment = toFixtureCoordinates(segment);
       if (!toolCollision) toolCollision = intersectsFixture(localSegment, fixture.bounds[0], fixture.bounds[1], radius, fixture.clearance, fixture.bounds[0][2] - fixture.clearance - exposedLength, fixture.bounds[1][2] + fixture.clearance);
       if (checkHolder && !holderCollision) holderCollision = intersectsFixture(localSegment, fixture.bounds[0], fixture.bounds[1], holderRadius, fixture.clearance, -Infinity, fixture.bounds[1][2] + fixture.clearance - stickout);
@@ -1529,7 +1552,7 @@ export function analyzeToolpathSafety(toolpath) {
   const stickout = Number(toolpath.tool?.stickout);
   const exposedLength = Number.isFinite(stickout) && stickout > 0 ? stickout : 0;
   const holderRadius = Math.max(0, Number(toolpath.tool?.holderDiameter) || 0) / 2;
-  for (const segment of toolpath.segments) {
+  for (const segment of checkedSegments) {
     const horizontalDistance = Math.hypot(segment.to[0] - segment.from[0], segment.to[1] - segment.from[1]);
     // A laser/plasma head descends to its cutting plane with the process off.
     const descends = machine.kind !== 'cut-2d' && segment.to[2] < segment.from[2] - 1e-7;

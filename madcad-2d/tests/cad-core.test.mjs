@@ -5822,6 +5822,7 @@ test('CAM blokuje kolizję szerszej oprawki z uchwytem także na szybkim przeje�
     ...basePath,
     setup: { ...basePath.setup, fixtures: [fixture] },
     tool: { ...basePath.tool, diameter: 3, holderDiameter: 20, stickout: 5 },
+    clearancePlaneZ: 100,
     segments: [{ kind: 'rapid', from: [0, 0, 100], to: [10, 0, 100] }],
   };
   const issues = analyzeToolpathSafety(path);
@@ -5943,11 +5944,13 @@ test('kontrola CAM analizuje 150 tys. segmentów bez przepełnienia stosu i zach
   const setup = createManufacturingSetup({ bodyId: camBox.id });
   const contour = createContourOperation({ targetDepth: 1 });
   const base = calculateContourToolpath(setup, contour, [camBox]);
-  const safeSegment = { kind: 'rapid', from: [0, 0, 100], to: [1, 0, 100] };
-  const segments = Array(150000).fill(safeSegment);
-  assert.deepEqual(analyzeToolpathSafety({ ...base, segments }), []);
-  assert.equal(analyzeToolpathSafety({ ...base, segments: [...segments, { kind: 'rapid', from: [1, 0, 100], to: [600, 0, 100] }] }).some((issue) => issue.code === 'MACHINE_TRAVEL'), true);
-  assert.equal(analyzeToolpathSafety({ ...base, segments: [...segments, { kind: 'cut', from: [1, 0, 100], to: [1, 0, NaN] }] })[0].code, 'NON_FINITE');
+  const forward = { kind: 'rapid', from: [0, 0, 100], to: [1, 0, 100] };
+  const backward = { kind: 'rapid', from: [1, 0, 100], to: [0, 0, 100] };
+  const segments = Array.from({ length: 150000 }, (_unused, index) => index % 2 ? backward : forward);
+  const path = { ...base, clearancePlaneZ: 100 };
+  assert.deepEqual(analyzeToolpathSafety({ ...path, segments }), []);
+  assert.equal(analyzeToolpathSafety({ ...path, segments: [...segments, { kind: 'rapid', from: [0, 0, 100], to: [600, 0, 100] }] }).some((issue) => issue.code === 'MACHINE_TRAVEL'), true);
+  assert.equal(analyzeToolpathSafety({ ...path, segments: [...segments, { kind: 'cut', from: [0, 0, 100], to: [0, 0, NaN] }] })[0].code, 'NON_FINITE');
 });
 
 test('obrysy kieszeni i obróbki adaptacyjnej mierzą 150 tys. punktów bez limitu argumentów', () => {

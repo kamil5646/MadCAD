@@ -107,6 +107,29 @@ describe('CAM contour operations', () => {
     setup.fixtures[0].bounds[1][0] = 90;
     expect(validateManufacturing({ setups: [setup], activeSetupId: setup.id }).some((issue) => issue.path.endsWith('fixtures[0].bounds'))).toBe(true);
   });
+  it('checks the G-code final retract and rejects unmodeled gaps in a milling path', () => {
+    const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [operation] });
+    setup.fixtures = [createManufacturingFixture({ enabled: true, name: 'Szczęka nad końcem', bounds: [[69, -1, 15], [71, 1, 20]], clearance: 0 })];
+    const baseline = calculateContourToolpath(setup, operation, [box]);
+    expect(baseline.valid).toBe(true);
+    const path = {
+      ...baseline,
+      clearancePlaneZ: 30,
+      tool: { ...baseline.tool, stickout: 5, holderDiameter: 10 },
+      segments: [
+        { kind: 'rapid', from: [60, 0, 30], to: [60, 0, 0] },
+        { kind: 'rapid', from: [60, 0, 0], to: [70, 0, 0] },
+      ],
+    };
+    expect(analyzeToolpathSafety(path)).toContainEqual(expect.objectContaining({ code: 'FIXTURE_COLLISION', fixtureId: setup.fixtures[0].id }));
+    const gap = structuredClone(path);
+    gap.segments[1].from[0] = 61;
+    expect(analyzeToolpathSafety(gap)).toContainEqual(expect.objectContaining({ code: 'DISCONTINUOUS_PATH' }));
+    const approach = structuredClone(path);
+    approach.segments[0].from[2] = 29;
+    expect(analyzeToolpathSafety(approach)).toContainEqual(expect.objectContaining({ code: 'UNMODELED_APPROACH' }));
+  });
   it('drills recognized model holes with safe pecks, simulation data, and portable G-code', () => {
     const setup = createManufacturingSetup({ bodyId: drilledBox.id, stock: { sideOffset: 2, topOffset: 2, bottomOffset: 0 }, safeHeight: 5 });
     const operation = createDrillingOperation({ toolId: 'drill-5', peckDepth: 3, retractHeight: 1, breakthroughDepth: 0.2, feedRate: 120 });
