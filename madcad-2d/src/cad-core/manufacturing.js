@@ -36,8 +36,14 @@ export const CAM_HOLE_TOOL_TYPES = Object.freeze([
   Object.freeze({ id: 'tap', name: 'Gwintownik' }),
 ]);
 
+export const CAM_CUSTOM_TOOL_TYPES = Object.freeze([
+  Object.freeze({ id: 'flat-end-mill', name: 'Frez palcowy płaski' }),
+  Object.freeze({ id: 'face-mill', name: 'Frez do planowania' }),
+  ...CAM_HOLE_TOOL_TYPES,
+]);
+
 export function normalizeCustomCamTool(tool = {}, index = 0) {
-  const type = CAM_HOLE_TOOL_TYPES.some((item) => item.id === tool.type) ? tool.type : 'twist-drill';
+  const type = CAM_CUSTOM_TOOL_TYPES.some((item) => item.id === tool.type) ? tool.type : 'twist-drill';
   const diameter = Math.min(100, Math.max(0.1, Number(tool.diameter) || 5));
   return {
     id: typeof tool.id === 'string' && tool.id && !CAM_TOOL_PRESETS[tool.id] ? tool.id : createId('cam-tool'),
@@ -61,6 +67,15 @@ export function createCustomCamTool(options = {}) {
 
 export function resolveCamTool(toolId, document = null) {
   return CAM_TOOL_PRESETS[toolId] || document?.manufacturing?.tools?.find((tool) => tool.id === toolId) || null;
+}
+
+function operationAcceptsTool(operationType, toolType) {
+  if (['face', 'contour', 'pocket', 'adaptive'].includes(operationType)) return ['flat-end-mill', 'face-mill'].includes(toolType);
+  if (operationType === 'counterbore') return toolType === 'flat-end-mill';
+  if (operationType === 'drill') return toolType === 'twist-drill';
+  if (operationType === 'spot') return toolType === 'spot-drill';
+  if (operationType === 'tap') return toolType === 'tap';
+  return true;
 }
 
 function holderSections(tool) {
@@ -93,13 +108,14 @@ export const CAM_POST_PROCESSORS = Object.freeze({
 });
 
 const normalizePostProcessorId = (value) => CAM_POST_PROCESSORS[value] ? value : 'grbl';
+const normalizeMillingToolId = (value) => typeof value === 'string' && value ? value : 'flat-6';
 
 export function normalizeFacingOperation(operation = {}, index = 0) {
   return {
     id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
     name: String(operation.name || `Planowanie ${index + 1}`).trim().slice(0, 80) || `Planowanie ${index + 1}`,
     type: 'face',
-    toolId: CAM_TOOL_PRESETS[operation.toolId] ? operation.toolId : 'flat-6',
+    toolId: normalizeMillingToolId(operation.toolId),
     stepover: Math.min(0.9, Math.max(0.1, Number(operation.stepover) || 0.6)),
     maxStepdown: Math.max(0.05, Number(operation.maxStepdown) || 1),
     feedRate: Math.max(1, Number(operation.feedRate) || 600),
@@ -114,7 +130,7 @@ export function normalizeContourOperation(operation = {}, index = 0) {
     id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
     name: String(operation.name || `Kontur 2D ${index + 1}`).trim().slice(0, 80) || `Kontur 2D ${index + 1}`,
     type: 'contour',
-    toolId: CAM_TOOL_PRESETS[operation.toolId] ? operation.toolId : 'flat-6',
+    toolId: normalizeMillingToolId(operation.toolId),
     targetDepth: Math.max(0.05, Number(operation.targetDepth) || 2),
     maxStepdown: Math.max(0.05, Number(operation.maxStepdown) || 1),
     feedRate: Math.max(1, Number(operation.feedRate) || 500),
@@ -133,7 +149,7 @@ export function normalizePocketOperation(operation = {}, index = 0) {
     id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
     name: String(operation.name || `Kieszeń 2D ${index + 1}`).trim().slice(0, 80) || `Kieszeń 2D ${index + 1}`,
     type: 'pocket',
-    toolId: CAM_TOOL_PRESETS[operation.toolId] ? operation.toolId : 'flat-6',
+    toolId: normalizeMillingToolId(operation.toolId),
     targetDepth: Math.max(0.05, Number(operation.targetDepth) || 2),
     maxStepdown: Math.max(0.05, Number(operation.maxStepdown) || 1),
     stepover: Math.min(0.8, Math.max(0.1, Number(operation.stepover) || 0.45)),
@@ -153,7 +169,7 @@ export function normalizeAdaptiveOperation(operation = {}, index = 0) {
     id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
     name: String(operation.name || `Adaptacyjne 2D ${index + 1}`).trim().slice(0, 80) || `Adaptacyjne 2D ${index + 1}`,
     type: 'adaptive',
-    toolId: CAM_TOOL_PRESETS[operation.toolId] ? operation.toolId : 'flat-6',
+    toolId: normalizeMillingToolId(operation.toolId),
     targetDepth: Math.max(0.05, Number(operation.targetDepth) || 2),
     maxStepdown: Math.max(0.05, Number(operation.maxStepdown) || 1),
     optimalLoad: Math.min(0.6, Math.max(0.1, Number(operation.optimalLoad) || 0.3)),
@@ -221,7 +237,7 @@ export function normalizeCounterboreOperation(operation = {}, index = 0) {
     id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
     name: String(operation.name || `Pogłębianie walcowe ${index + 1}`).trim().slice(0, 80) || `Pogłębianie walcowe ${index + 1}`,
     type: 'counterbore',
-    toolId: CAM_TOOL_PRESETS[operation.toolId]?.type === 'flat-end-mill' ? operation.toolId : 'flat-6',
+    toolId: normalizeMillingToolId(operation.toolId),
     holeFeatureIds: Array.isArray(operation.holeFeatureIds) ? [...new Set(operation.holeFeatureIds.filter((id) => typeof id === 'string' && id))] : [],
     targetDiameter: Math.max(0.1, Number(operation.targetDiameter) || 12),
     targetDepth: Math.max(0.05, Number(operation.targetDepth) || 2),
@@ -548,11 +564,12 @@ export function createTurningOperation(type = 'turn-face', options = {}) {
   return normalizeTurningOperation({ ...options, type, id: createId('cam-operation') });
 }
 
-export function calculateFacingToolpath(setup, operation, bodies = []) {
+export function calculateFacingToolpath(setup, operation, bodies = [], document = null) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
   const normalized = normalizeFacingOperation(operation);
-  const tool = CAM_TOOL_PRESETS[normalized.toolId];
+  const tool = resolveCamTool(normalized.toolId, document);
   if (!setupResult.stockBounds || !setupResult.body) return { valid: false, tool, segments: [], warnings: setupResult.warnings };
+  if (!tool || !['flat-end-mill', 'face-mill'].includes(tool.type)) return { valid: false, tool, segments: [], warnings: ['Planowanie wymaga istniejącego freza do planowania lub freza palcowego.'] };
   const bodyBounds = setupResult.body.bounds || setupResult.body.metrics?.bounds;
   const stockTop = setupResult.stockBounds[1][2];
   const targetZ = Number(bodyBounds[1][2]);
@@ -956,10 +973,10 @@ export function calculateSpotDrillingToolpath(setup, operation, bodies = [], doc
   return { valid: true, spotting: true, setup: setupResult, stockBounds: setupResult.stockBounds, origin: setupResult.origin, clearancePlaneZ: setupResult.clearancePlaneZ, operation: normalized, tool, segments, holes: resolvedHoles, holeCount: resolvedHoles.length, spotCount: resolvedHoles.length, layerCount: resolvedHoles.length, estimatedRemovedVolume: resolvedHoles.reduce((sum, hole) => { const outer = hole.targetDiameter / 2; const inner = hole.holeDiameter / 2; return sum + Math.PI * hole.coneDepth * (outer ** 2 + outer * inner - 2 * inner ** 2) / 3; }, 0), ...summarizeToolpath(segments), warnings: [] };
 }
 
-export function calculateCounterboreToolpath(setup, operation, bodies = []) {
+export function calculateCounterboreToolpath(setup, operation, bodies = [], document = null) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
   const normalized = normalizeCounterboreOperation(operation);
-  const tool = CAM_TOOL_PRESETS[normalized.toolId];
+  const tool = resolveCamTool(normalized.toolId, document);
   const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
   if (!setupResult.body || !setupResult.stockBounds || !setupResult.valid) return fail('Pogłębianie walcowe wymaga poprawnego Setupu i bryły.');
   if (!tool || tool.type !== 'flat-end-mill') return fail('Pogłębianie walcowe wymaga płaskiego freza palcowego.');
@@ -1026,10 +1043,11 @@ export function calculateCounterboreToolpath(setup, operation, bodies = []) {
 export function calculateContourToolpath(setup, operation, bodies = [], document = null) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
   const normalized = normalizeContourOperation(operation);
-  const tool = CAM_TOOL_PRESETS[normalized.toolId];
+  const tool = resolveCamTool(normalized.toolId, document);
   const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
   if (!setupResult.body || !setupResult.stockBounds) return fail('Kontur wymaga poprawnego Setupu i bryły.');
   if (!setupResult.valid) return fail('Popraw Setup przed obliczeniem konturu.');
+  if (!tool || !['flat-end-mill', 'face-mill'].includes(tool.type)) return fail('Kontur wymaga istniejącego freza do planowania lub freza palcowego.');
   if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`);
   const bodyBounds = setupResult.body.bounds || setupResult.body.metrics?.bounds;
   const bodyHeight = Number(bodyBounds[1][2]) - Number(bodyBounds[0][2]);
@@ -1113,10 +1131,11 @@ export function measureCamPolygonBounds(points) {
 export function calculatePocketToolpath(setup, operation, bodies = [], document = null) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
   const normalized = normalizePocketOperation(operation);
-  const tool = CAM_TOOL_PRESETS[normalized.toolId];
+  const tool = resolveCamTool(normalized.toolId, document);
   const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
   if (!setupResult.body || !setupResult.stockBounds) return fail('Kieszeń wymaga poprawnego Setupu i bryły.');
   if (!setupResult.valid) return fail('Popraw Setup przed obliczeniem kieszeni.');
+  if (!tool || !['flat-end-mill', 'face-mill'].includes(tool.type)) return fail('Kieszeń wymaga istniejącego freza do planowania lub freza palcowego.');
   if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`);
   if (normalized.targetDepth > tool.fluteLength) return fail(`Głębokość przekracza długość ostrza narzędzia (${tool.fluteLength} mm).`);
   const bodyBounds = setupResult.body.bounds || setupResult.body.metrics?.bounds;
@@ -1180,10 +1199,11 @@ export function calculatePocketToolpath(setup, operation, bodies = [], document 
 export function calculateAdaptiveToolpath(setup, operation, bodies = [], document = null) {
   const setupResult = calculateManufacturingSetup(setup, bodies);
   const normalized = normalizeAdaptiveOperation(operation);
-  const tool = CAM_TOOL_PRESETS[normalized.toolId];
+  const tool = resolveCamTool(normalized.toolId, document);
   const fail = (warning) => ({ valid: false, setup: setupResult, tool, segments: [], warnings: [...(setupResult.warnings || []), warning].filter(Boolean) });
   if (!setupResult.body || !setupResult.stockBounds) return fail('Obróbka adaptacyjna wymaga poprawnego Setupu i bryły.');
   if (!setupResult.valid) return fail('Popraw Setup przed obliczeniem obróbki adaptacyjnej.');
+  if (!tool || !['flat-end-mill', 'face-mill'].includes(tool.type)) return fail('Obróbka adaptacyjna wymaga istniejącego freza do planowania lub freza palcowego.');
   if (normalized.spindleRpm > setupResult.machine.maxSpindleRpm) return fail(`Obroty przekraczają limit maszyny ${setupResult.machine.maxSpindleRpm} obr./min.`);
   if (normalized.targetDepth > tool.fluteLength) return fail(`Głębokość przekracza długość ostrza narzędzia (${tool.fluteLength} mm).`);
   const bodyBounds = setupResult.body.bounds || setupResult.body.metrics?.bounds;
@@ -1392,10 +1412,10 @@ export function calculateOperationToolpath(setup, operation, bodies = [], docume
   if (operation?.type === 'drill') return calculateDrillingToolpath(setup, operation, bodies, document);
   if (operation?.type === 'tap') return calculateTappingToolpath(setup, operation, bodies, document);
   if (operation?.type === 'spot') return calculateSpotDrillingToolpath(setup, operation, bodies, document);
-  if (operation?.type === 'counterbore') return calculateCounterboreToolpath(setup, operation, bodies);
+  if (operation?.type === 'counterbore') return calculateCounterboreToolpath(setup, operation, bodies, document);
   if (operation?.type === 'cut2d') return calculateCut2dToolpath(setup, operation, bodies, document);
   if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') return calculateTurningToolpath(setup, operation, bodies);
-  return calculateFacingToolpath(setup, operation, bodies);
+  return calculateFacingToolpath(setup, operation, bodies, document);
 }
 
 function segmentIntersectsBounds(segment, minimum, maximum) {
@@ -2201,6 +2221,8 @@ export function validateManufacturing(manufacturing) {
   if (!Array.isArray(manufacturing.setups)) return [{ path: 'manufacturing.setups', message: 'Setupy CAM muszą być tablicą.', code: 'TYPE' }];
   const customToolIds = new Set();
   const customToolNames = new Set();
+  const selectedTool = (toolId) => CAM_TOOL_PRESETS[toolId]
+    || (Array.isArray(manufacturing.tools) ? manufacturing.tools.find((tool) => tool?.id === toolId) : null);
   if (manufacturing.tools !== undefined && !Array.isArray(manufacturing.tools)) issues.push({ path: 'manufacturing.tools', message: 'Biblioteka narzędzi CAM musi być tablicą.', code: 'TYPE' });
   else (manufacturing.tools || []).forEach((tool, index) => {
     const base = `manufacturing.tools[${index}]`;
@@ -2212,7 +2234,7 @@ export function validateManufacturing(manufacturing) {
     if (!name) issues.push({ path: `${base}.name`, message: 'Narzędzie CAM wymaga nazwy.', code: 'REQUIRED' });
     else if (customToolNames.has(name.toLocaleLowerCase())) issues.push({ path: `${base}.name`, message: 'Nazwa narzędzia CAM jest powtórzona.', code: 'DUPLICATE' });
     else customToolNames.add(name.toLocaleLowerCase());
-    if (!CAM_HOLE_TOOL_TYPES.some((item) => item.id === tool.type)) issues.push({ path: `${base}.type`, message: 'Nieobsługiwany typ narzędzia otworowego.', code: 'UNSUPPORTED' });
+    if (!CAM_CUSTOM_TOOL_TYPES.some((item) => item.id === tool.type)) issues.push({ path: `${base}.type`, message: 'Nieobsługiwany typ narzędzia CAM.', code: 'UNSUPPORTED' });
     for (const key of ['diameter', 'fluteLength', 'stickout', 'holderDiameter', 'flutes']) if (!Number.isFinite(Number(tool[key])) || Number(tool[key]) <= 0) issues.push({ path: `${base}.${key}`, message: 'Wymiar narzędzia musi być dodatni.', code: 'VALUE' });
     if (!Number.isFinite(Number(tool.holderNeckDiameter)) || Number(tool.holderNeckDiameter) < Number(tool.diameter) || Number(tool.holderNeckDiameter) > 200) issues.push({ path: `${base}.holderNeckDiameter`, message: 'Średnica szyjki oprawki musi być co najmniej średnicą narzędzia i nie może przekraczać 200 mm.', code: 'VALUE' });
     if (!Number.isFinite(Number(tool.holderNeckLength)) || Number(tool.holderNeckLength) < 0 || Number(tool.holderNeckLength) > 500) issues.push({ path: `${base}.holderNeckLength`, message: 'Długość szyjki oprawki musi mieścić się w zakresie 0–500 mm.', code: 'VALUE' });
@@ -2239,6 +2261,7 @@ export function validateManufacturing(manufacturing) {
       const isTurning = operation.type === 'turn-face' || operation.type === 'turn-profile';
       if (!supported) issues.push({ path: `${base}.operation.type`, message: 'Szablon zawiera nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
       if (supported && operation.type !== 'cut2d' && !isTurning && !CAM_TOOL_PRESETS[operation.toolId] && !customToolIds.has(operation.toolId)) issues.push({ path: `${base}.operation.toolId`, message: 'Szablon wskazuje nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
+      if (supported && selectedTool(operation.toolId) && !operationAcceptsTool(operation.type, selectedTool(operation.toolId).type)) issues.push({ path: `${base}.operation.toolId`, message: 'Typ narzędzia nie pasuje do operacji szablonu.', code: 'INCOMPATIBLE' });
       if (supported && isTurning && !CAM_TURNING_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${base}.operation.toolId`, message: 'Szablon wskazuje nieznany nóż tokarski.', code: 'UNSUPPORTED' });
       if (supported && !CAM_POST_PROCESSORS[operation.postProcessorId]) issues.push({ path: `${base}.operation.postProcessorId`, message: 'Szablon wskazuje nieznany postprocesor CAM.', code: 'UNSUPPORTED' });
       const positiveKeys = operation.type === 'cut2d' ? ['kerfWidth', 'feedRate', 'powerPercent', 'passes'] : operation.type === 'drill' ? ['peckDepth', 'feedRate', 'spindleRpm'] : operation.type === 'tap' ? ['spindleRpm'] : operation.type === 'spot' ? ['targetDiameter', 'feedRate', 'spindleRpm'] : operation.type === 'counterbore' ? ['targetDiameter', 'targetDepth', 'maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'] : isTurning ? ['stockDiameter', 'targetDiameter', 'axialLength', 'maxDepthOfCut', 'feedRate', 'spindleRpm'] : ['maxStepdown', 'feedRate', 'plungeRate', 'spindleRpm'];
@@ -2310,6 +2333,7 @@ export function validateManufacturing(manufacturing) {
         if (!['face', 'contour', 'pocket', 'adaptive', 'drill', 'tap', 'spot', 'counterbore', 'cut2d', 'turn-face', 'turn-profile'].includes(operation.type)) issues.push({ path: `${operationBase}.type`, message: 'Nieobsługiwany typ operacji CAM.', code: 'UNSUPPORTED' });
         const isTurning = operation.type === 'turn-face' || operation.type === 'turn-profile';
         if (operation.type !== 'cut2d' && !isTurning && !CAM_TOOL_PRESETS[operation.toolId] && !customToolIds.has(operation.toolId)) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznane narzędzie CAM.', code: 'UNSUPPORTED' });
+        if (selectedTool(operation.toolId) && !operationAcceptsTool(operation.type, selectedTool(operation.toolId).type)) issues.push({ path: `${operationBase}.toolId`, message: 'Typ narzędzia nie pasuje do operacji CAM.', code: 'INCOMPATIBLE' });
         if (isTurning && !CAM_TURNING_TOOL_PRESETS[operation.toolId]) issues.push({ path: `${operationBase}.toolId`, message: 'Nieznany nóż tokarski.', code: 'UNSUPPORTED' });
         if (!CAM_POST_PROCESSORS[operation.postProcessorId]) issues.push({ path: `${operationBase}.postProcessorId`, message: 'Nieznany postprocesor CAM.', code: 'UNSUPPORTED' });
         if (operation.groupId !== undefined && typeof operation.groupId !== 'string') issues.push({ path: `${operationBase}.groupId`, message: 'Folder operacji CAM musi być identyfikatorem tekstowym.', code: 'TYPE' });

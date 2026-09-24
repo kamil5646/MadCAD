@@ -96,6 +96,38 @@ const fixtureCube = (id, minimum, maximum) => ({
 });
 
 describe('CAM contour operations', () => {
+  it('uses a measured custom end mill throughout milling paths and rejects missing tools', () => {
+    const tool = createCustomCamTool({ type: 'flat-end-mill', name: 'Frez własny Ø4', diameter: 4, fluteLength: 20,
+      stickout: 25, holderDiameter: 18, holderNeckDiameter: 8, holderNeckLength: 6 });
+    expect(tool.type).toBe('flat-end-mill');
+    const document = { manufacturing: { tools: [tool] } };
+    const operations = [createFacingOperation({ toolId: tool.id }), createContourOperation({ toolId: tool.id, targetDepth: 1 }),
+      createPocketOperation({ toolId: tool.id, targetDepth: 1 }), createAdaptiveOperation({ toolId: tool.id, targetDepth: 1 })];
+    const setup = createManufacturingSetup({ bodyId: box.id, operations });
+    for (const operation of setup.operations) {
+      expect(operation.toolId).toBe(tool.id);
+      const path = calculateOperationToolpath(setup, operation, [box], document);
+      expect(path.valid).toBe(true);
+      expect(path.tool.holderNeckDiameter).toBe(8);
+      expect(createMachineGcode(setup, operation, [box], { document }).text).toContain('Frez własny Ø4');
+      const missing = calculateOperationToolpath(setup, operation, [box]);
+      expect(missing.valid).toBe(false);
+      expect(missing.warnings.join(' ')).toMatch(/frez|narzędzie|bibliotece/i);
+    }
+    const counterbore = createCounterboreOperation({ toolId: tool.id, targetDiameter: 14, targetDepth: 1 });
+    const holeSetup = createManufacturingSetup({ name: 'Pogłębianie', bodyId: drilledBox.id, operations: [counterbore] });
+    expect(calculateOperationToolpath(holeSetup, counterbore, [drilledBox], document).valid).toBe(true);
+    expect(calculateOperationToolpath(holeSetup, counterbore, [drilledBox]).valid).toBe(false);
+    expect(validateManufacturing({ tools: [tool], setups: [setup, holeSetup], activeSetupId: setup.id })).toEqual([]);
+    const drill = createCustomCamTool({ type: 'twist-drill', name: 'Wiertło Ø4', diameter: 4 });
+    const wrongToolOperation = createContourOperation({ toolId: drill.id });
+    const wrongToolSetup = createManufacturingSetup({ bodyId: box.id, operations: [wrongToolOperation] });
+    expect(calculateOperationToolpath(wrongToolSetup, wrongToolOperation, [box], { manufacturing: { tools: [drill] } }).valid).toBe(false);
+    expect(validateManufacturing({ tools: [drill], setups: [wrongToolSetup], activeSetupId: wrongToolSetup.id }))
+      .toContainEqual(expect.objectContaining({ code: 'INCOMPATIBLE' }));
+    expect(validateManufacturing({ tools: [], setups: [setup], activeSetupId: setup.id }).filter((issue) => issue.path.endsWith('toolId')))
+      .toEqual(setup.operations.map(() => expect.objectContaining({ code: 'UNSUPPORTED' })));
+  });
   it('detects a swept tool crossing the fixture zone and blocks NC export', () => {
     const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
     const setup = createManufacturingSetup({ bodyId: box.id, operations: [operation] });

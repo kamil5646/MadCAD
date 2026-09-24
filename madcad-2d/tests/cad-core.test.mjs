@@ -6162,6 +6162,17 @@ test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedync
   assert.equal(reopenedV24.document.manufacturing.tools[0].holderNeckDiameter, 9);
   assert.equal(reopenedV24.document.manufacturing.tools[0].holderNeckLength, 6);
   assert.deepEqual(validateManufacturing(reopenedV24.document.manufacturing), []);
+  const v24 = createDocument('Frez własny v24');
+  v24.schemaVersion = 24;
+  v24.manufacturing.tools = [{ id: 'tool-custom-mill', name: 'Frez Ø6', type: 'flat-end-mill', diameter: 6, fluteLength: 20, stickout: 30, holderDiameter: 16, holderNeckDiameter: 10, holderNeckLength: 8, flutes: 4 }];
+  const upgradedV24 = openDocument(v24);
+  assert.equal(upgradedV24.document.metadata.migrationHistory.some((entry) => entry.from === 24 && entry.to === 25), true);
+  assert.equal(upgradedV24.document.manufacturing.tools[0].type, 'flat-end-mill');
+  assert.equal(upgradedV24.document.manufacturing.tools[0].holderNeckDiameter, 10);
+  const reopenedV25 = openDocument(JSON.parse(JSON.stringify(upgradedV24.document)));
+  assert.equal(reopenedV25.document.manufacturing.tools[0].type, 'flat-end-mill');
+  assert.equal(reopenedV25.document.manufacturing.tools[0].holderNeckLength, 8);
+  assert.deepEqual(validateManufacturing(reopenedV25.document.manufacturing), []);
   const modeledFixture = createManufacturingSetup({ bodyId: camBox.id, fixtures: [{ shape: 'body', bodyId: 'jaw-body', enabled: true }] });
   const modeledDocument = createDocument('Szczęka CAD');
   modeledDocument.manufacturing.setups = [modeledFixture];
