@@ -1793,10 +1793,10 @@ export function analyzeManufacturingProgram(setup, bodies = [], document = null,
       const previousEnd = previousToolpath.segments.at(-1).to;
       const currentStart = toolpath.segments[0].from;
       const safeZ = toolpath.clearancePlaneZ;
-      const bridge = [
-        { kind: 'rapid', from: previousEnd, to: [previousEnd[0], previousEnd[1], safeZ] },
-        { kind: 'rapid', from: [previousEnd[0], previousEnd[1], safeZ], to: [currentStart[0], currentStart[1], safeZ] },
-      ];
+      // The previous operation retracts with its own tool before M6; that
+      // retract was already checked by analyzeToolpathSafety(previousToolpath).
+      // Only the XY traverse after tool change uses this operation's holder.
+      const bridge = [{ kind: 'rapid', from: [previousEnd[0], previousEnd[1], safeZ], to: [currentStart[0], currentStart[1], safeZ] }];
       const transitionIssues = analyzeToolpathSafety({ ...toolpath, segments: bridge });
       issues.push(...transitionIssues.map((issue) => ({ ...issue, code: `INTER_OPERATION_${issue.code}`, message: `Przejazd między operacjami: ${issue.message}` })));
     }

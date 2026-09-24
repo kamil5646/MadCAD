@@ -142,6 +142,36 @@ describe('CAM contour operations', () => {
     approach.segments[0].from[2] = 29;
     expect(analyzeToolpathSafety(approach)).toContainEqual(expect.objectContaining({ code: 'UNMODELED_APPROACH' }));
   });
+  it('uses the previous tool for retract and the next tool for the XY transition', () => {
+    const first = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
+    const second = createContourOperation({ targetDepth: 1, toolId: 'face-16' });
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [first, second] });
+    const baseline = calculateContourToolpath(setup, first, [box]);
+    const end = [-20, -20, 0];
+    const fixture = createManufacturingFixture({ name: 'Szczęka tylko przy wycofaniu', enabled: true, clearance: 0,
+      bounds: [[end[0] - 1, end[1] + 8, end[2] + 5], [end[0] + 1, end[1] + 10, end[2] + 7]] });
+    setup.fixtures = [fixture];
+    const previousPath = calculateContourToolpath(setup, first, [box]);
+    const previous = { ...previousPath, tool: { ...baseline.tool, diameter: 3, holderDiameter: 4, stickout: 5 },
+      segments: [{ kind: 'rapid', from: [end[0], end[1], previousPath.clearancePlaneZ], to: end }] };
+    const safeZ = previous.clearancePlaneZ;
+    const next = { ...calculateContourToolpath(setup, second, [box]), tool: { ...baseline.tool, diameter: 3, holderDiameter: 20, stickout: 5 },
+      segments: [{ kind: 'rapid', from: [100, 100, safeZ], to: [110, 100, safeZ] }] };
+    expect(analyzeToolpathSafety(previous)).toEqual([]);
+    expect(analyzeToolpathSafety(next)).toEqual([]);
+    const report = analyzeManufacturingProgram(setup, [box], null, [previous, next]);
+    expect(report.operations[1].issues.filter((issue) => issue.code.startsWith('INTER_OPERATION_'))).toEqual([]);
+    const crossingFixture = createManufacturingFixture({ name: 'Szczęka na przejeździe', enabled: true, clearance: 0,
+      bounds: [[39, 39, safeZ + 6], [41, 41, safeZ + 8]] });
+    setup.fixtures = [crossingFixture];
+    const crossingSetup = { ...previous.setup, fixtures: [crossingFixture] };
+    const previousCrossing = { ...previous, setup: crossingSetup };
+    const nextCrossing = { ...next, setup: crossingSetup };
+    expect(analyzeToolpathSafety(previousCrossing)).toEqual([]);
+    expect(analyzeToolpathSafety(nextCrossing)).toEqual([]);
+    expect(analyzeManufacturingProgram(setup, [box], null, [previousCrossing, nextCrossing]).operations[1].issues)
+      .toContainEqual(expect.objectContaining({ code: 'INTER_OPERATION_HOLDER_FIXTURE_COLLISION', fixtureId: crossingFixture.id }));
+  });
   it('uses a modeled fixture body to block a swept tool and NC export', () => {
     const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
     const setup = createManufacturingSetup({ bodyId: box.id, operations: [operation] });
