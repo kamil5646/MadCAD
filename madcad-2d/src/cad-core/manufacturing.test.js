@@ -780,6 +780,8 @@ describe('CAM contour operations', () => {
     expect(finished.removedVolume).toBeGreaterThanOrEqual(halfway.removedVolume);
     expect(finished.columns.length).toBeGreaterThan(0);
     expect(finished.cutter.position).toHaveLength(3);
+    expect(start.cutter.stickout).toBe(calculateOperationToolpath(setup, setup.operations[0], [box]).tool.stickout);
+    expect(finished.cutter.stickout).toBe(start.cutter.stickout);
     expect(finished.processedSegments).toBe(finished.totalSegments);
   });
 

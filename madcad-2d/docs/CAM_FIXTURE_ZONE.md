@@ -22,6 +22,8 @@ Schemat v26 pozwala dodać do sześciu dalszych zmierzonych stopni walcowych po 
 
 Nieprawidłowa średnica albo długość stopnia blokuje eksport NC również przed zapisaniem dokumentu; sam formularz i migracja nie są jedynymi punktami walidacji. Nie zmniejszaj wymiarów tylko po to, by usunąć ostrzeżenie o kolizji.
 
+Walec freza w podglądzie symulacji pokazuje zadeklarowany wysięg narzędzia zamiast umownej długości. Nadal nie rysuje całej oprawki ani wrzeciona; tekstowy profil na arkuszu i analizator kolizji pozostają właściwymi źródłami kontroli.
+
 Nieznany typ własnego narzędzia w pliku `.madcad` jest błędem walidacji. Nie wolno automatycznie zamieniać go na wiertło: po takim otwarciu projekt wyglądałby na poprawny, choć narzędzie utraciło swój rzeczywisty typ.
 
 Osobna kontrola szybkiego przejazdu przez półfabrykat uwzględnia jego obrys XY, promień freza lub oprawki i zakres Z. Dla frezowania obejmuje ruchy poziome i skośne oraz pionowy ruch **w dół** do materiału; pionowe wycofanie z już obrobionej strefy nie jest zgłaszane wyłącznie na podstawie pełnego półfabrykatu. Pionowy dojazd głowicy laserowej lub plazmowej do płaszczyzny cięcia, przy wyłączonym procesie, nie jest traktowany jako wejście freza w materiał. Przejazd poniżej górnej płaszczyzny, ale całkowicie poza obrysem XY, nie jest fałszywie blokowany. Kontrola nadal traktuje pełną bryłę półfabrykatu jako materiał, nawet po wcześniejszych operacjach, więc może zachowawczo zgłosić przejazd przez już wybraną kieszeń.

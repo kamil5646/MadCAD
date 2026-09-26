@@ -1197,15 +1197,18 @@ export default function ModelViewport({
     }
     if (manufacturingVisualization?.cutter?.position) {
       const diameter = Math.max(0.5, manufacturingVisualization.cutter.diameter || 6);
-      const length = Math.max(12, diameter * 2.5);
+      const measuredStickout = Number(manufacturingVisualization.cutter.stickout);
+      const length = Number.isFinite(measuredStickout) && measuredStickout > 0
+        ? measuredStickout : Math.max(12, diameter * 2.5);
       const cutter = new THREE.Mesh(new THREE.CylinderGeometry(diameter / 2, diameter / 2, length, 24), new THREE.MeshBasicMaterial({ color: 0xf4f7fa, transparent: true, opacity: 0.82, depthTest: false }));
+      cutter.name = 'cam-cutter';
       cutter.rotation.x = Math.PI / 2;
       cutter.position.set(manufacturingVisualization.cutter.position[0], manufacturingVisualization.cutter.position[1], manufacturingVisualization.cutter.position[2] + length / 2);
       cutter.renderOrder = 23;
       manufacturingGroup.add(cutter);
     }
     scene.add(manufacturingGroup);
-    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadManufacturingVisualState = { segmentCount: visibleManufacturingSegments, stockVisible: Boolean(manufacturingVisualization?.stockBounds), fixtureCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).length || 0, fixtureBodyMeshCount: manufacturingGroup.children.filter((item) => item.name === 'cam-fixture-body').length, fixtureClearanceEnvelopeCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled && Number(item.clearance) > 0).length || 0, fixtureRotations: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).map((item) => item.rotationDegrees) || [], fixtureShapes: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).map((item) => item.shape || 'box') || [], removedColumnCount: manufacturingVisualization?.removalColumns?.length || 0, cutterVisible: Boolean(manufacturingVisualization?.cutter?.position) };
+    if (new URLSearchParams(window.location.search).has('verify')) window.__madcadManufacturingVisualState = { segmentCount: visibleManufacturingSegments, stockVisible: Boolean(manufacturingVisualization?.stockBounds), fixtureCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).length || 0, fixtureBodyMeshCount: manufacturingGroup.children.filter((item) => item.name === 'cam-fixture-body').length, fixtureClearanceEnvelopeCount: manufacturingVisualization?.fixtures?.filter((item) => item.enabled && Number(item.clearance) > 0).length || 0, fixtureRotations: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).map((item) => item.rotationDegrees) || [], fixtureShapes: manufacturingVisualization?.fixtures?.filter((item) => item.enabled).map((item) => item.shape || 'box') || [], removedColumnCount: manufacturingVisualization?.removalColumns?.length || 0, cutterVisible: Boolean(manufacturingVisualization?.cutter?.position), cutterLength: manufacturingGroup.children.find((item) => item.name === 'cam-cutter')?.geometry?.parameters?.height ?? null };
     if (showBed) {
       const plateGeometry = new THREE.PlaneGeometry(bed.bedWidth, bed.bedDepth);
       const plateMaterial = new THREE.MeshStandardMaterial({ color: 0x384b55, roughness: 0.9, metalness: 0.04, transparent: true, opacity: 0.72, side: THREE.DoubleSide });

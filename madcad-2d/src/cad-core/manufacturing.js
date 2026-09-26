@@ -2021,14 +2021,15 @@ export function simulateMaterialRemoval(setup, bodies = [], document = null, pro
   const stockTop = maximum[2];
   const heights = new Float32Array(xCount * yCount).fill(stockTop);
   const firstToolpath = toolpaths.find((toolpath) => toolpath.segments.length);
-  let cutter = firstToolpath ? { position: [...firstToolpath.segments[0].from], diameter: firstToolpath.tool.diameter, operationId: firstToolpath.operation.id } : null;
+  let cutter = firstToolpath ? { position: [...firstToolpath.segments[0].from], diameter: firstToolpath.tool.diameter,
+    stickout: firstToolpath.tool.stickout, operationId: firstToolpath.operation.id } : null;
   let remaining = processedCount;
   for (const toolpath of toolpaths) {
     if (!remaining) break;
     const { tool } = toolpath;
     for (let index = 0; index < toolpath.segments.length && remaining; index += 1, remaining -= 1) {
       const segment = toolpath.segments[index];
-      cutter = { position: [...segment.to], diameter: tool.diameter, operationId: toolpath.operation.id };
+      cutter = { position: [...segment.to], diameter: tool.diameter, stickout: tool.stickout, operationId: toolpath.operation.id };
       if (segment.kind === 'rapid') continue;
       const length = Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis]));
       const sampleStep = Math.max(0.1, Math.min(cellWidth, cellDepth, tool.diameter / 2) / 2);
