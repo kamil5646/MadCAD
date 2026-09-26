@@ -52,8 +52,8 @@ export function normalizeCustomCamTool(tool = {}, index = 0) {
     diameter,
     fluteLength: Math.min(500, Math.max(0.1, Number(tool.fluteLength) || Math.max(10, diameter * 5))),
     stickout: Math.min(500, Math.max(0.1, Number(tool.stickout) || Math.max(15, diameter * 7))),
-    holderDiameter: Math.min(200, Math.max(diameter, Number(tool.holderDiameter) || 13)),
-    holderNeckDiameter: Math.min(200, Math.max(diameter, Number(tool.holderNeckDiameter) || Number(tool.holderDiameter) || 13)),
+    holderDiameter: Math.min(200, Math.max(0.1, Number(tool.holderDiameter) || Math.max(diameter, 13))),
+    holderNeckDiameter: Math.min(200, Math.max(0.1, Number(tool.holderNeckDiameter) || Number(tool.holderDiameter) || Math.max(diameter, 13))),
     holderNeckLength: Math.min(500, Math.max(0, Number(tool.holderNeckLength) || 0)),
     flutes: Math.min(12, Math.max(1, Math.round(Number(tool.flutes) || (type === 'tap' ? 3 : 2)))),
     pitch: type === 'tap' ? Math.min(10, Math.max(0.1, Number(tool.pitch) || 1)) : null,
@@ -2236,7 +2236,7 @@ export function validateManufacturing(manufacturing) {
     else customToolNames.add(name.toLocaleLowerCase());
     if (!CAM_CUSTOM_TOOL_TYPES.some((item) => item.id === tool.type)) issues.push({ path: `${base}.type`, message: 'Nieobsługiwany typ narzędzia CAM.', code: 'UNSUPPORTED' });
     for (const key of ['diameter', 'fluteLength', 'stickout', 'holderDiameter', 'flutes']) if (!Number.isFinite(Number(tool[key])) || Number(tool[key]) <= 0) issues.push({ path: `${base}.${key}`, message: 'Wymiar narzędzia musi być dodatni.', code: 'VALUE' });
-    if (!Number.isFinite(Number(tool.holderNeckDiameter)) || Number(tool.holderNeckDiameter) < Number(tool.diameter) || Number(tool.holderNeckDiameter) > 200) issues.push({ path: `${base}.holderNeckDiameter`, message: 'Średnica szyjki oprawki musi być co najmniej średnicą narzędzia i nie może przekraczać 200 mm.', code: 'VALUE' });
+    if (!Number.isFinite(Number(tool.holderNeckDiameter)) || Number(tool.holderNeckDiameter) <= 0 || Number(tool.holderNeckDiameter) > 200) issues.push({ path: `${base}.holderNeckDiameter`, message: 'Średnica szyjki oprawki musi być dodatnia i nie może przekraczać 200 mm.', code: 'VALUE' });
     if (!Number.isFinite(Number(tool.holderNeckLength)) || Number(tool.holderNeckLength) < 0 || Number(tool.holderNeckLength) > 500) issues.push({ path: `${base}.holderNeckLength`, message: 'Długość szyjki oprawki musi mieścić się w zakresie 0–500 mm.', code: 'VALUE' });
     if (tool.type === 'tap' && (!Number.isFinite(Number(tool.pitch)) || Number(tool.pitch) <= 0)) issues.push({ path: `${base}.pitch`, message: 'Gwintownik wymaga dodatniego skoku.', code: 'VALUE' });
     if (tool.type === 'spot-drill' && (!Number.isFinite(Number(tool.pointAngle)) || Number(tool.pointAngle) < 30 || Number(tool.pointAngle) > 170)) issues.push({ path: `${base}.pointAngle`, message: 'Kąt nawiertaka musi mieścić się w zakresie 30–170°.', code: 'VALUE' });

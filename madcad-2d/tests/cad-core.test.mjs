@@ -6092,6 +6092,16 @@ test('nieznany typ własnego narzędzia CAM nie jest po cichu zamieniany na wier
   assert.throws(() => openDocument(document), /Nieobsługiwany typ narzędzia CAM/);
 });
 
+test('własny frez czołowy zachowuje węższą oprawkę i szyjkę po zapisaniu projektu', () => {
+  const document = createDocument('Frez czołowy');
+  document.manufacturing.tools = [{ id: 'tool-face-narrow', name: 'Frez czołowy Ø16', type: 'face-mill', diameter: 16,
+    fluteLength: 10, stickout: 25, holderDiameter: 12, holderNeckDiameter: 10, holderNeckLength: 6, flutes: 4 }];
+  const opened = openDocument(JSON.parse(JSON.stringify(document))).document;
+  assert.equal(opened.manufacturing.tools[0].holderDiameter, 12);
+  assert.equal(opened.manufacturing.tools[0].holderNeckDiameter, 10);
+  assert.deepEqual(validateManufacturing(opened.manufacturing), []);
+});
+
 test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedynczy uchwyt v19', () => {
   const setup = createManufacturingSetup({ bodyId: camBox.id, fixtures: [
     { name: 'Lewa szczęka', enabled: true, bounds: [[-5, -5, 0], [-2, 5, 15]], rotationDegrees: 30, clearance: 2 },

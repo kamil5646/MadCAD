@@ -98,7 +98,9 @@ const fixtureCube = (id, minimum, maximum) => ({
 describe('CAM contour operations', () => {
   it('accepts a custom face mill for facing but not for counterboring', () => {
     const tool = createCustomCamTool({ type: 'face-mill', name: 'Frez czołowy Ø16', diameter: 16,
-      fluteLength: 10, stickout: 25, holderDiameter: 32 });
+      fluteLength: 10, stickout: 25, holderDiameter: 12, holderNeckDiameter: 10, holderNeckLength: 6 });
+    expect(tool.holderDiameter).toBe(12);
+    expect(tool.holderNeckDiameter).toBe(10);
     const document = { manufacturing: { tools: [tool] } };
     const facing = createFacingOperation({ toolId: tool.id });
     const setup = createManufacturingSetup({ bodyId: box.id, operations: [facing] });
