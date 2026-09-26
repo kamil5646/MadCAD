@@ -76,7 +76,8 @@ npm run verify:desktop-suite -- analysis
   nie dodawaj do nich kolejnej domeny bez rozważenia wydzielenia modułu.
 - Uchwyt CAM typu `body` wskazuje osobną bryłę po ID, a nie kopiuje geometrii do
   `.madcad`. `manufacturing-fixture-mesh.js` wymaga zamkniętej powierzchni i
-  indeksuje jej trójkąty zachowawczo; brak siatki lub niepewna kolizja blokuje
+  indeksuje jej trójkąty zachowawczo. Rzut trójkąta w XY może odrzucić tylko
+  jednoznacznie oddalone przejazdy; brak siatki lub niepewna kolizja blokuje
   eksport. Nie nazywaj tego dokładną symulacją oprawki ani pozycji startowej
   obrabiarki.
 - Własne narzędzie CAM w schemacie v25 może być frezem palcowym, frezem do

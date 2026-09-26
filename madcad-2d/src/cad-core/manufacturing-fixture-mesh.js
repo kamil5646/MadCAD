@@ -1,6 +1,6 @@
 // A fixture body is tessellated by the CAD kernel. Each leaf stores a small
-// group of triangle bounds; testing those bounds is conservative (it may
-// report a collision outside the triangle, but cannot miss its surface).
+// group of triangle bounds. An exact XY projection test can reject a triangle
+// clearly outside the cutter footprint; Z remains a conservative bound.
 const meshIndexCache = new WeakMap();
 const LEAF_TRIANGLES = 8;
 
@@ -82,7 +82,10 @@ export function createManufacturingFixtureMeshIndex(body) {
   if (vertices.some((value) => !Number.isFinite(value)) || indices.some((value) => !Number.isInteger(value) || value < 0 || value >= vertexCount)) return null;
   if (!hasClosedSurface(vertices, indices)) return null;
   const triangles = [];
-  for (let offset = 0; offset < indices.length; offset += 3) triangles.push({ bounds: triangleBounds(vertices, indices, offset) });
+  for (let offset = 0; offset < indices.length; offset += 3) triangles.push({
+    bounds: triangleBounds(vertices, indices, offset),
+    xy: [0, 1, 2].map((corner) => [vertices[indices[offset + corner] * 3], vertices[indices[offset + corner] * 3 + 1]]),
+  });
   const index = createNode(triangles);
   meshIndexCache.set(body, { vertices: Float64Array.from(vertices), indices: Uint32Array.from(indices), index });
   return index;
@@ -90,8 +93,80 @@ export function createManufacturingFixtureMeshIndex(body) {
 
 const pointInsideBounds = (point, bounds) => point.every((value, axis) => value >= bounds[0][axis] && value <= bounds[1][axis]);
 
+const crossXY = (first, second, point) => (second[0] - first[0]) * (point[1] - first[1])
+  - (second[1] - first[1]) * (point[0] - first[0]);
+
+function pointSegmentDistanceSquaredXY(point, first, second) {
+  const dx = second[0] - first[0];
+  const dy = second[1] - first[1];
+  const lengthSquared = dx * dx + dy * dy;
+  const t = lengthSquared ? Math.max(0, Math.min(1, ((point[0] - first[0]) * dx + (point[1] - first[1]) * dy) / lengthSquared)) : 0;
+  return (point[0] - first[0] - t * dx) ** 2 + (point[1] - first[1] - t * dy) ** 2;
+}
+
+function pointInTriangleXY(point, triangle, tolerance) {
+  const [first, second, third] = triangle;
+  const area = crossXY(first, second, third);
+  const edgeSpan = Math.max(1, Math.hypot(second[0] - first[0], second[1] - first[1]),
+    Math.hypot(third[0] - second[0], third[1] - second[1]), Math.hypot(first[0] - third[0], first[1] - third[1]));
+  const epsilon = tolerance * edgeSpan * 4;
+  // Only a truly collinear projection is a line. A very thin but nonzero
+  // triangle may still contain a point far enough from its edges to matter.
+  if (area === 0) return false;
+  const sign = Math.sign(area);
+  return crossXY(first, second, point) * sign >= -epsilon
+    && crossXY(second, third, point) * sign >= -epsilon
+    && crossXY(third, first, point) * sign >= -epsilon;
+}
+
+function segmentsIntersectXY(first, second, third, fourth, tolerance) {
+  if ((first[0] - second[0]) ** 2 + (first[1] - second[1]) ** 2 <= tolerance ** 2
+    || (third[0] - fourth[0]) ** 2 + (third[1] - fourth[1]) ** 2 <= tolerance ** 2) return false;
+  const span = Math.max(1, Math.hypot(second[0] - first[0], second[1] - first[1]),
+    Math.hypot(fourth[0] - third[0], fourth[1] - third[1]));
+  const epsilon = tolerance * span * 4;
+  const firstSide = crossXY(first, second, third);
+  const secondSide = crossXY(first, second, fourth);
+  const thirdSide = crossXY(third, fourth, first);
+  const fourthSide = crossXY(third, fourth, second);
+  return firstSide * secondSide <= epsilon ** 2 && thirdSide * fourthSide <= epsilon ** 2;
+}
+
+function segmentTriangleDistanceSquaredXY(segment, triangle, tolerance) {
+  const first = segment.from;
+  const second = segment.to;
+  if (pointInTriangleXY(first, triangle, tolerance) || pointInTriangleXY(second, triangle, tolerance)) return 0;
+  let distanceSquared = Infinity;
+  for (let edge = 0; edge < 3; edge += 1) {
+    const start = triangle[edge];
+    const end = triangle[(edge + 1) % 3];
+    if (segmentsIntersectXY(first, second, start, end, tolerance)) return 0;
+    distanceSquared = Math.min(distanceSquared,
+      pointSegmentDistanceSquaredXY(first, start, end), pointSegmentDistanceSquaredXY(second, start, end),
+      pointSegmentDistanceSquaredXY(start, first, second), pointSegmentDistanceSquaredXY(end, first, second));
+  }
+  return distanceSquared;
+}
+
+function projectedMeshContainsPoint(index, point, tolerance) {
+  const pending = [index];
+  const segment = { from: point, to: point };
+  while (pending.length) {
+    const node = pending.pop();
+    if (point[0] < node.bounds[0][0] - tolerance || point[0] > node.bounds[1][0] + tolerance
+      || point[1] < node.bounds[0][1] - tolerance || point[1] > node.bounds[1][1] + tolerance) continue;
+    if (node.triangles) {
+      if (node.triangles.some((triangle) => segmentTriangleDistanceSquaredXY(segment, triangle.xy, tolerance) <= tolerance ** 2)) return true;
+    } else pending.push(...node.children);
+  }
+  return false;
+}
+
 export function fixtureMeshPotentialCollision(index, segment, radius, clearance, lowerOffset, upperOffset, intersectsPrism) {
   if (!index) return true;
+  const coordinateScale = Math.max(1, ...index.bounds.flatMap((point) => point.map((value) => Math.abs(value))));
+  const tolerance = Math.max(1e-6, coordinateScale * 1e-7);
+  const reach = Math.max(0, Number(radius) || 0) + Math.max(0, Number(clearance) || 0) + tolerance;
   const intersects = (bounds) => intersectsPrism(
     segment, bounds[0], bounds[1], radius, clearance,
     Number.isFinite(upperOffset) ? bounds[0][2] - clearance - upperOffset : -Infinity,
@@ -103,11 +178,13 @@ export function fixtureMeshPotentialCollision(index, segment, radius, clearance,
     const node = pending.pop();
     if (!intersects(node.bounds)) continue;
     if (node.triangles) {
-      if (node.triangles.some((triangle) => intersects(triangle.bounds))) return true;
+      if (node.triangles.some((triangle) => intersects(triangle.bounds)
+        && segmentTriangleDistanceSquaredXY(segment, triangle.xy, tolerance) <= reach ** 2)) return true;
     } else pending.push(...node.children);
   }
   // A path wholly inside a closed solid need not cross any surface triangle.
-  // Without a watertightness proof, an endpoint inside the mesh envelope is
-  // uncertain and therefore blocks export rather than becoming a false safe.
-  return pointInsideBounds(segment.from, index.bounds) || pointInsideBounds(segment.to, index.bounds);
+  // Its XY position must still project onto the surface of the closed body;
+  // otherwise the enclosing box alone must not cause a false collision.
+  return [segment.from, segment.to].some((point) => pointInsideBounds(point, index.bounds)
+    && projectedMeshContainsPoint(index, point, tolerance));
 }

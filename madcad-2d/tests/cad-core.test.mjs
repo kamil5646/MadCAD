@@ -57,7 +57,7 @@ import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
 import { analyzeManufacturingProgram, analyzeManufacturingSetupSequence, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createDrillingOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, ensureDocumentManufacturing, extractTopBoundaryLoops, instantiateManufacturingOperationTemplate, measureCamPolygonBounds, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
-import { createManufacturingFixtureMeshIndex } from '../src/cad-core/manufacturing-fixture-mesh.js';
+import { createManufacturingFixtureMeshIndex, fixtureMeshPotentialCollision } from '../src/cad-core/manufacturing-fixture-mesh.js';
 import { DEFAULT_RENDER_SCENE, createRenderDecal, deleteRenderDecal, normalizeRenderScene, renderEnvironmentPreset, updateRenderDecal } from '../src/cad-core/render-scene.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../src/cad-core/assembly-motion.js';
 import { evaluateExpression, listExpressionIdentifiers, resolveParameters } from '../src/cad-core/expressions.js';
@@ -5702,6 +5702,58 @@ test('CAM sprawdza bryłę szczęki z siatki CAD i blokuje kolizyjny eksport', (
   assert.equal(createManufacturingFixtureMeshIndex({ ...jaw, triangles: jaw.triangles.slice(0, -3) }), null);
   jaw.vertices[0] += 0.1;
   assert.notEqual(createManufacturingFixtureMeshIndex(jaw), mesh);
+});
+
+test('skośna bryła szczęki nie blokuje narzędzia poza rzeczywistym rzutem trójkątów', () => {
+  const jaw = {
+    vertices: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1]),
+    triangles: new Uint32Array([0, 2, 1, 3, 4, 5, 0, 1, 4, 0, 4, 3, 1, 2, 5, 1, 5, 4, 2, 0, 3, 2, 3, 5]),
+  };
+  const index = createManufacturingFixtureMeshIndex(jaw);
+  assert.ok(index);
+  const intersectsPointPrism = (segment, minimum, maximum, radius, clearance, minimumZ, maximumZ) => {
+    const [x, y, z] = segment.from;
+    const reach = radius + clearance;
+    return x + reach >= minimum[0] && x - reach <= maximum[0]
+      && y + reach >= minimum[1] && y - reach <= maximum[1]
+      && z >= minimumZ && z <= maximumZ;
+  };
+  const at = (x, y) => ({ from: [x, y, 0.5], to: [x, y, 0.5] });
+  assert.equal(fixtureMeshPotentialCollision(index, at(0.9, 0.9), 0.05, 0, 0, 0, intersectsPointPrism), false);
+  assert.equal(fixtureMeshPotentialCollision(index, at(0.53, 0.53), 0.1, 0, 0, 0, intersectsPointPrism), true);
+  assert.equal(fixtureMeshPotentialCollision(index, at(0.4, 0.4), 0.05, 0, 0, 0, intersectsPointPrism), true);
+  assert.equal(fixtureMeshPotentialCollision(index, at(0.9, 0.9), 0.05, 0.6, 0, 0, intersectsPointPrism), true);
+  const intersectsSegmentPrism = (segment, minimum, maximum, radius, clearance, minimumZ, maximumZ) => {
+    const reach = radius + clearance;
+    return Math.min(segment.from[0], segment.to[0]) - reach <= maximum[0]
+      && Math.max(segment.from[0], segment.to[0]) + reach >= minimum[0]
+      && Math.min(segment.from[1], segment.to[1]) - reach <= maximum[1]
+      && Math.max(segment.from[1], segment.to[1]) + reach >= minimum[1]
+      && segment.from[2] >= minimumZ && segment.from[2] <= maximumZ;
+  };
+  assert.equal(fixtureMeshPotentialCollision(index, { from: [0.7, 0.8, 0.5], to: [0.8, 0.7, 0.5] }, 0.05, 0, 0, 0, intersectsSegmentPrism), false);
+  assert.equal(fixtureMeshPotentialCollision(index, { from: [0.7, 0.4, 0.5], to: [0.4, 0.5, 0.5] }, 0.05, 0, 0, 0, intersectsSegmentPrism), true);
+  const distantIndex = createManufacturingFixtureMeshIndex({ ...jaw, vertices: Float32Array.from(jaw.vertices, (value) => value + 1_000_000) });
+  const distantAt = (x, y) => ({ from: [1_000_000 + x, 1_000_000 + y, 1_000_000.5], to: [1_000_000 + x, 1_000_000 + y, 1_000_000.5] });
+  assert.equal(fixtureMeshPotentialCollision(distantIndex, distantAt(0.9, 0.9), 0.05, 0, 0, 0, intersectsPointPrism), false);
+  assert.equal(fixtureMeshPotentialCollision(distantIndex, distantAt(0.4, 0.4), 0.05, 0, 0, 0, intersectsPointPrism), true);
+  const thinIndex = createManufacturingFixtureMeshIndex({ ...jaw, vertices: Float32Array.from(jaw.vertices, (value, coordinate) => 1_000_000 + (coordinate % 3 === 1 ? value * 0.35 : value)) });
+  assert.equal(fixtureMeshPotentialCollision(thinIndex, distantAt(0.25, 0.125), 0.01, 0, 0, 0, intersectsPointPrism), true);
+  const translated = { ...jaw, vertices: Float32Array.from(jaw.vertices, (value) => value + 100) };
+  const fixture = { id: 'slanted-jaw', name: 'Skośna szczęka', shape: 'body', enabled: true, clearance: 0 };
+  const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
+  const setup = createManufacturingSetup({ bodyId: camBox.id, operations: [operation] });
+  const baseline = calculateContourToolpath(setup, operation, [camBox]);
+  const path = {
+    ...baseline,
+    setup: { ...baseline.setup, fixtures: [fixture], fixtureMeshes: new Map([[fixture.id, createManufacturingFixtureMeshIndex(translated)]]) },
+    tool: { ...baseline.tool, diameter: 0.2, stickout: 1, holderDiameter: 0 },
+    clearancePlaneZ: 100.5,
+    segments: [{ kind: 'rapid', from: [100.9, 100.9, 100.5], to: [100.9, 100.9, 100.5] }],
+  };
+  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
+  path.segments = [{ kind: 'rapid', from: [100.53, 100.53, 100.5], to: [100.53, 100.53, 100.5] }];
+  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
 });
 
 test('Setup CAM wylicza półfabrykat, WCS i zgodność z obrabiarką', () => {
