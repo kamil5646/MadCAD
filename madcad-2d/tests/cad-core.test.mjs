@@ -6085,6 +6085,13 @@ test('CAM zapisuje foldery i szablony oraz migruje starsze schematy', () => {
   assert.deepEqual(migrated.document.manufacturing.setups[0]?.fixtures || [], []);
 });
 
+test('nieznany typ własnego narzędzia CAM nie jest po cichu zamieniany na wiertło', () => {
+  const document = createDocument('Nieznany frez');
+  document.manufacturing.tools = [{ id: 'tool-unknown-profile', name: 'Frez kulisty', type: 'ball-end-mill', diameter: 6,
+    fluteLength: 20, stickout: 30, holderDiameter: 16, holderNeckDiameter: 16, holderNeckLength: 0, flutes: 2 }];
+  assert.throws(() => openDocument(document), /Nieobsługiwany typ narzędzia CAM/);
+});
+
 test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedynczy uchwyt v19', () => {
   const setup = createManufacturingSetup({ bodyId: camBox.id, fixtures: [
     { name: 'Lewa szczęka', enabled: true, bounds: [[-5, -5, 0], [-2, 5, 15]], rotationDegrees: 30, clearance: 2 },

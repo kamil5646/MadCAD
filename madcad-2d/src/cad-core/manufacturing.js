@@ -43,7 +43,7 @@ export const CAM_CUSTOM_TOOL_TYPES = Object.freeze([
 ]);
 
 export function normalizeCustomCamTool(tool = {}, index = 0) {
-  const type = CAM_CUSTOM_TOOL_TYPES.some((item) => item.id === tool.type) ? tool.type : 'twist-drill';
+  const type = typeof tool.type === 'string' && tool.type.trim() ? tool.type.trim().slice(0, 80) : 'twist-drill';
   const diameter = Math.min(100, Math.max(0.1, Number(tool.diameter) || 5));
   return {
     id: typeof tool.id === 'string' && tool.id && !CAM_TOOL_PRESETS[tool.id] ? tool.id : createId('cam-tool'),

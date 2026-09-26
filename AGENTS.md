@@ -79,7 +79,10 @@ npm run verify:desktop-suite -- analysis
   indeksuje jej trójkąty zachowawczo; brak siatki lub niepewna kolizja blokuje
   eksport. Nie nazywaj tego dokładną symulacją oprawki ani pozycji startowej
   obrabiarki.
-- Własne narzędzie CAM w schemacie v24 ma opcjonalny pierwszy stopień oprawki:
+- Własne narzędzie CAM w schemacie v25 może być frezem palcowym, frezem do
+  planowania, wiertłem, nawiertakiem albo gwintownikiem. Nieznany typ musi
+  pozostać błędem walidacji projektu, a nie po cichu stać się wiertłem.
+  Opcjonalny pierwszy stopień oprawki opisują:
   `holderNeckDiameter` i `holderNeckLength` nad wysięgiem `stickout`. Długość 0
   zachowuje model v23; powyżej szyjki obowiązuje `holderDiameter` do góry bez
   skończonej granicy. Zmiany kontroli kolizji sprawdzaj przez

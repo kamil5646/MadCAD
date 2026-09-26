@@ -96,6 +96,20 @@ const fixtureCube = (id, minimum, maximum) => ({
 });
 
 describe('CAM contour operations', () => {
+  it('accepts a custom face mill for facing but not for counterboring', () => {
+    const tool = createCustomCamTool({ type: 'face-mill', name: 'Frez czołowy Ø16', diameter: 16,
+      fluteLength: 10, stickout: 25, holderDiameter: 32 });
+    const document = { manufacturing: { tools: [tool] } };
+    const facing = createFacingOperation({ toolId: tool.id });
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [facing] });
+    expect(calculateOperationToolpath(setup, facing, [box], document)).toMatchObject({ valid: true, tool: { id: tool.id, type: 'face-mill' } });
+    expect(createMachineGcode(setup, facing, [box], { document }).text).toContain('Frez czołowy Ø16');
+    const counterbore = createCounterboreOperation({ toolId: tool.id });
+    const holeSetup = createManufacturingSetup({ bodyId: drilledBox.id, operations: [counterbore] });
+    expect(calculateOperationToolpath(holeSetup, counterbore, [drilledBox], document).valid).toBe(false);
+    expect(validateManufacturing({ tools: [tool], setups: [holeSetup], activeSetupId: holeSetup.id }))
+      .toContainEqual(expect.objectContaining({ code: 'INCOMPATIBLE' }));
+  });
   it('uses a measured custom end mill throughout milling paths and rejects missing tools', () => {
     const tool = createCustomCamTool({ type: 'flat-end-mill', name: 'Frez własny Ø4', diameter: 4, fluteLength: 20,
       stickout: 25, holderDiameter: 18, holderNeckDiameter: 8, holderNeckLength: 6 });
