@@ -55,6 +55,10 @@ export function normalizeCustomCamTool(tool = {}, index = 0) {
     holderDiameter: Math.min(200, Math.max(0.1, Number(tool.holderDiameter) || Math.max(diameter, 13))),
     holderNeckDiameter: Math.min(200, Math.max(0.1, Number(tool.holderNeckDiameter) || Number(tool.holderDiameter) || Math.max(diameter, 13))),
     holderNeckLength: Math.min(500, Math.max(0, Number(tool.holderNeckLength) || 0)),
+    holderStages: Array.isArray(tool.holderStages) ? tool.holderStages.slice(0, 7).map((stage) => ({
+      diameter: Number(stage?.diameter),
+      length: Number(stage?.length),
+    })) : tool.holderStages === undefined ? [] : tool.holderStages,
     flutes: Math.min(12, Math.max(1, Math.round(Number(tool.flutes) || (type === 'tap' ? 3 : 2)))),
     pitch: type === 'tap' ? Math.min(10, Math.max(0.1, Number(tool.pitch) || 1)) : null,
     pointAngle: type === 'spot-drill' ? Math.min(170, Math.max(30, Number(tool.pointAngle) || 90)) : null,
@@ -82,15 +86,39 @@ function holderSections(tool) {
   const stickout = Number(tool?.stickout);
   const diameter = Number(tool?.holderDiameter);
   if (!(stickout > 0) || !(diameter > 0) || !Number.isFinite(stickout) || !Number.isFinite(diameter)) return [];
+  if (tool?.holderStages !== undefined && !Array.isArray(tool.holderStages)) {
+    return [{ radius: 100, lowerOffset: stickout, upperOffset: Infinity }];
+  }
   const neckLength = Math.max(0, Number(tool?.holderNeckLength) || 0);
   const neckDiameter = Number(tool?.holderNeckDiameter);
-  if (!(neckLength > 0) || !(neckDiameter > 0) || !Number.isFinite(neckLength) || !Number.isFinite(neckDiameter)) {
-    return [{ radius: diameter / 2, lowerOffset: stickout, upperOffset: Infinity }];
+  const sections = [];
+  let offset = stickout;
+  if (neckLength > 0 && neckDiameter > 0 && Number.isFinite(neckLength) && Number.isFinite(neckDiameter)) {
+    sections.push({ radius: neckDiameter / 2, lowerOffset: offset, upperOffset: offset + neckLength });
+    offset += neckLength;
   }
-  return [
-    { radius: neckDiameter / 2, lowerOffset: stickout, upperOffset: stickout + neckLength },
-    { radius: diameter / 2, lowerOffset: stickout + neckLength, upperOffset: Infinity },
-  ];
+  for (const stage of Array.isArray(tool?.holderStages) ? tool.holderStages : []) {
+    const stageLength = Number(stage?.length);
+    const stageDiameter = Number(stage?.diameter);
+    if (!(stageLength > 0) || !(stageDiameter > 0) || !Number.isFinite(stageLength) || !Number.isFinite(stageDiameter)) {
+      return [{ radius: 100, lowerOffset: stickout, upperOffset: Infinity }];
+    }
+    sections.push({ radius: stageDiameter / 2, lowerOffset: offset, upperOffset: offset + stageLength });
+    offset += stageLength;
+  }
+  sections.push({ radius: diameter / 2, lowerOffset: offset, upperOffset: Infinity });
+  return sections;
+}
+
+function hasInvalidHolderProfile(tool) {
+  const finiteInRange = (value, minimum, maximum) => Number.isFinite(Number(value)) && Number(value) >= minimum && Number(value) <= maximum;
+  if (!finiteInRange(tool?.stickout, 0.1, 500) || !finiteInRange(tool?.holderDiameter, 0.1, 200)
+    || !finiteInRange(tool?.holderNeckLength ?? 0, 0, 500)) return true;
+  if (Number(tool?.holderNeckLength) > 0 && !finiteInRange(tool?.holderNeckDiameter, 0.1, 200)) return true;
+  if (tool?.holderStages === undefined) return false;
+  return !Array.isArray(tool.holderStages) || tool.holderStages.length > 6
+    || tool.holderStages.some((stage) => !stage || typeof stage !== 'object' || Array.isArray(stage)
+      || !finiteInRange(stage.diameter, 0.1, 200) || !finiteInRange(stage.length, 0.1, 500));
 }
 
 export const CAM_TURNING_TOOL_PRESETS = Object.freeze({
@@ -1571,6 +1599,9 @@ export function analyzeToolpathSafety(toolpath) {
     }
   }
   const machine = toolpath.setup.machine;
+  if (isMilling && hasInvalidHolderProfile(toolpath.tool)) {
+    issues.push({ code: 'INVALID_HOLDER_PROFILE', message: 'Profil oprawki ma nieprawidłowe wymiary; popraw narzędzie przed eksportem.' });
+  }
   for (let axis = 0; axis < 3; axis += 1) {
     if (maximum[axis] - minimum[axis] > machine.travel[axis] + 1e-7) issues.push({ code: 'MACHINE_TRAVEL', message: `Ścieżka przekracza przesuw maszyny w osi ${['X', 'Y', 'Z'][axis]}.` });
   }
@@ -1871,7 +1902,16 @@ export function createManufacturingSetupSheet(setup, bodies = [], { projectName 
     const tool = CAM_TURNING_TOOL_PRESETS[operation.toolId] || resolveCamTool(operation.toolId, document);
     return `<tr><td>${index + 1}</td><td><strong>${escapeManufacturingHtml(operation.name)}</strong><small>${escapeManufacturingHtml(typeLabels[operation.type] || operation.type)}</small></td><td>${escapeManufacturingHtml(tool?.name || 'Źródło cięcia')}</td><td>${operation.spindleRpm ? `${formatSetupSheetNumber(operation.spindleRpm, 0)} obr./min` : '—'}</td><td>${operation.feedRate ? `${formatSetupSheetNumber(operation.feedRate, operation.type?.startsWith('turn-') ? 2 : 0)} ${operation.type?.startsWith('turn-') ? 'mm/obr.' : 'mm/min'}` : '—'}</td><td>${Math.max(1, Math.ceil(operationReport?.durationMinutes || 0))} min</td><td class="${operationReport?.valid ? 'ok' : 'bad'}">${operationReport?.valid ? 'OK' : 'SPRAWDŹ'}</td></tr>`;
   }).join('');
-  const toolRows = [...toolUsage.values()].map(({ tool, operationNumbers }, index) => `<tr><td>T${index + 1}</td><td><strong>${escapeManufacturingHtml(tool.name)}</strong><small>${escapeManufacturingHtml(tool.type || '')}${Number(tool.holderNeckLength) > 0 ? ` · szyjka oprawki Ø${formatSetupSheetNumber(tool.holderNeckDiameter)} × ${formatSetupSheetNumber(tool.holderNeckLength)} mm, dalej Ø${formatSetupSheetNumber(tool.holderDiameter)}` : ''}</small></td><td>${tool.diameter ? `Ø${formatSetupSheetNumber(tool.diameter)}` : '—'}</td><td>${tool.stickout ? `${formatSetupSheetNumber(tool.stickout)} mm` : '—'}</td><td>${operationNumbers.join(', ')}</td></tr>`).join('');
+  const holderDescription = (tool) => {
+    const neck = Number(tool.holderNeckLength) > 0
+      ? `szyjka oprawki Ø${formatSetupSheetNumber(tool.holderNeckDiameter)} × ${formatSetupSheetNumber(tool.holderNeckLength)} mm`
+      : '';
+    const stages = Array.isArray(tool.holderStages) && tool.holderStages.length
+      ? `stopnie oprawki: ${tool.holderStages.map((stage) => `Ø${formatSetupSheetNumber(stage.diameter)} × ${formatSetupSheetNumber(stage.length)} mm`).join(', ')}`
+      : '';
+    return neck || stages ? ` · ${[neck, stages].filter(Boolean).join(', ')}, dalej Ø${formatSetupSheetNumber(tool.holderDiameter)}` : '';
+  };
+  const toolRows = [...toolUsage.values()].map(({ tool, operationNumbers }, index) => `<tr><td>T${index + 1}</td><td><strong>${escapeManufacturingHtml(tool.name)}</strong><small>${escapeManufacturingHtml(tool.type || '')}${holderDescription(tool)}</small></td><td>${tool.diameter ? `Ø${formatSetupSheetNumber(tool.diameter)}` : '—'}</td><td>${tool.stickout ? `${formatSetupSheetNumber(tool.stickout)} mm` : '—'}</td><td>${operationNumbers.join(', ')}</td></tr>`).join('');
   const issues = [...(report.setupIssues || []), ...report.operations.flatMap((operation) => operation.issues.map((issue) => `${operation.name}: ${issue.message}`)), ...(report.holeCompleteness?.entries || []).flatMap((entry) => [...entry.missingStages.map((stage) => `Ø${formatSetupSheetNumber(entry.diameter)}: brak etapu ${HOLE_STAGE_LABELS[stage] || stage}.`), ...entry.orderingIssues])];
   const activeFixtures = normalized.fixtures.filter((fixture) => fixture.enabled);
   const fixtureMarkup = activeFixtures.length
@@ -2238,6 +2278,16 @@ export function validateManufacturing(manufacturing) {
     for (const key of ['diameter', 'fluteLength', 'stickout', 'holderDiameter', 'flutes']) if (!Number.isFinite(Number(tool[key])) || Number(tool[key]) <= 0) issues.push({ path: `${base}.${key}`, message: 'Wymiar narzędzia musi być dodatni.', code: 'VALUE' });
     if (!Number.isFinite(Number(tool.holderNeckDiameter)) || Number(tool.holderNeckDiameter) <= 0 || Number(tool.holderNeckDiameter) > 200) issues.push({ path: `${base}.holderNeckDiameter`, message: 'Średnica szyjki oprawki musi być dodatnia i nie może przekraczać 200 mm.', code: 'VALUE' });
     if (!Number.isFinite(Number(tool.holderNeckLength)) || Number(tool.holderNeckLength) < 0 || Number(tool.holderNeckLength) > 500) issues.push({ path: `${base}.holderNeckLength`, message: 'Długość szyjki oprawki musi mieścić się w zakresie 0–500 mm.', code: 'VALUE' });
+    if (tool.holderStages !== undefined && !Array.isArray(tool.holderStages)) issues.push({ path: `${base}.holderStages`, message: 'Dodatkowe stopnie oprawki muszą być tablicą.', code: 'TYPE' });
+    else if (Array.isArray(tool.holderStages)) {
+      if (tool.holderStages.length > 6) issues.push({ path: `${base}.holderStages`, message: 'Oprawka może mieć najwyżej 6 dodatkowych stopni.', code: 'LIMIT' });
+      tool.holderStages.forEach((stage, stageIndex) => {
+        const stageBase = `${base}.holderStages[${stageIndex}]`;
+        if (!stage || typeof stage !== 'object' || Array.isArray(stage)) { issues.push({ path: stageBase, message: 'Stopień oprawki musi być obiektem.', code: 'TYPE' }); return; }
+        if (!Number.isFinite(Number(stage.diameter)) || Number(stage.diameter) < 0.1 || Number(stage.diameter) > 200) issues.push({ path: `${stageBase}.diameter`, message: 'Średnica stopnia oprawki musi mieścić się w zakresie 0,1–200 mm.', code: 'VALUE' });
+        if (!Number.isFinite(Number(stage.length)) || Number(stage.length) < 0.1 || Number(stage.length) > 500) issues.push({ path: `${stageBase}.length`, message: 'Długość stopnia oprawki musi mieścić się w zakresie 0,1–500 mm.', code: 'VALUE' });
+      });
+    }
     if (tool.type === 'tap' && (!Number.isFinite(Number(tool.pitch)) || Number(tool.pitch) <= 0)) issues.push({ path: `${base}.pitch`, message: 'Gwintownik wymaga dodatniego skoku.', code: 'VALUE' });
     if (tool.type === 'spot-drill' && (!Number.isFinite(Number(tool.pointAngle)) || Number(tool.pointAngle) < 30 || Number(tool.pointAngle) > 170)) issues.push({ path: `${base}.pointAngle`, message: 'Kąt nawiertaka musi mieścić się w zakresie 30–170°.', code: 'VALUE' });
   });

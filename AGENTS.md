@@ -85,8 +85,12 @@ npm run verify:desktop-suite -- analysis
   pozostać błędem walidacji projektu, a nie po cichu stać się wiertłem.
   Opcjonalny pierwszy stopień oprawki opisują:
   `holderNeckDiameter` i `holderNeckLength` nad wysięgiem `stickout`. Długość 0
-  zachowuje model v23; powyżej szyjki obowiązuje `holderDiameter` do góry bez
-  skończonej granicy. Zmiany kontroli kolizji sprawdzaj przez
+  zachowuje model v23; bez dalszych stopni powyżej szyjki obowiązuje
+  `holderDiameter` do góry bez skończonej granicy. Od schematu v26
+  `holderStages` może zawierać do sześciu
+  dalszych stopni `{ diameter, length }` po szyjce; nad ostatnim wciąż obowiązuje
+  `holderDiameter`. Starsze projekty migrują z pustą listą. Nie utożsamiaj tego
+  z pełną geometrią wrzeciona. Zmiany kontroli kolizji sprawdzaj przez
   `npm run verify:manufacturing`, `verify:cam-sequence` i `verify:cutting`.
 - PR podnoszący `replicad-opencascadejs` do 1.x jest migracją kernela, nie
   zwykłym bumpem zależności.
