@@ -52,13 +52,19 @@ function hasClosedSurface(vertices, indices) {
       + first[1] * (second[2] * third[0] - second[0] * third[2])
       + first[2] * (second[0] * third[1] - second[1] * third[0]);
     for (const [first, second] of [[0, 1], [1, 2], [2, 0]]) {
-      const key = [corners[first], corners[second]].sort().join('|');
-      const count = (edgeCounts.get(key) || 0) + 1;
-      if (count > 2) return false;
-      edgeCounts.set(key, count);
+      const from = corners[first];
+      const to = corners[second];
+      const key = [from, to].sort().join('|');
+      const edge = edgeCounts.get(key) || { count: 0, orientation: 0 };
+      edge.count += 1;
+      edge.orientation += from < to ? 1 : -1;
+      if (edge.count > 2) return false;
+      edgeCounts.set(key, edge);
     }
   }
-  return [...edgeCounts.values()].every((count) => count === 2)
+  // Two faces sharing an edge must traverse it in opposite directions.
+  // Counting only incidences accepts a locally flipped, non-orientable shell.
+  return [...edgeCounts.values()].every((edge) => edge.count === 2 && edge.orientation === 0)
     && Math.abs(signedVolume6) > Math.max(1e-9, dimensions[0] * dimensions[1] * dimensions[2] * 1e-8) * 6;
 }
 

@@ -5700,6 +5700,13 @@ test('CAM sprawdza bryłę szczęki z siatki CAD i blokuje kolizyjny eksport', (
   assert.equal(calculateManufacturingSetup(setup, [camBox]).valid, false);
   assert.equal(createManufacturingFixtureMeshIndex({ ...jaw, vertices: new Float32Array([NaN, 0, 0]) }), null);
   assert.equal(createManufacturingFixtureMeshIndex({ ...jaw, triangles: jaw.triangles.slice(0, -3) }), null);
+  const reversedTriangle = Uint32Array.from(jaw.triangles);
+  [reversedTriangle[0], reversedTriangle[1]] = [reversedTriangle[1], reversedTriangle[0]];
+  assert.equal(createManufacturingFixtureMeshIndex({ ...jaw, triangles: reversedTriangle }), null,
+    'odwrócony trójkąt nie może uchodzić za spójną, zamkniętą powierzchnię szczęki');
+  const reversedJaw = { ...jaw, triangles: reversedTriangle };
+  assert.equal(calculateManufacturingSetup(setup, [camBox, reversedJaw]).valid, false);
+  assert.throws(() => createMachineGcode(setup, operation, [camBox, reversedJaw]), /zamkniętej powierzchni/);
   jaw.vertices[0] += 0.1;
   assert.notEqual(createManufacturingFixtureMeshIndex(jaw), mesh);
 });
