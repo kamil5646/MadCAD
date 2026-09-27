@@ -12,6 +12,16 @@ pokazują czytelny układ standardowy i kompaktowy; `verify-modeling` sprawdza
 brak przepełnienia przy skali 100%, 150% i 200%, lecz nie zastępuje uruchomienia
 gotowego instalatora na czystym profilu użytkownika.
 
+Lokalny niepodpisany pakiet macOS `release/mac-arm64/MadCAD.app` zbudowany po
+wydzieleniu handlerów uruchomiono z osobnym katalogiem wskazanym przez
+`MADCAD_TEST_USER_DATA_DIR`. Potwierdzono załadowanie `dist/index.html` z tego
+konkretnego pakietu, ekran startowy i okno licencji; adres nie zawierał
+`?verify=1`. Zmienna izoluje profil również w pakiecie, ale hooki weryfikacyjne
+pozostają tylko w aplikacji niepakietowanej. Ekran licencji wymaga konta, więc
+ten smoke test **nie** potwierdza ręcznego modelowania po zalogowaniu ani
+instalacji z finalnego instalatora. Potwierdzenie pełnego przepływu pochodzi na
+razie z testów desktopowych kodu źródłowego; wydanie wymaga oddzielnego audytu.
+
 CI `35908613650` dla commitu `63d4a5e` potwierdził wszystkie trzy części modelowania na obu systemach i pięć instalatorów: 23/23 zadań zakończyło się powodzeniem. Główny shard Windows zakończył się po 9 min 36 s od startu zadania, zamiast 23 min 20 s poprzedniego wspólnego shardu (około 2,4× szybciej do końca modelowania). CodeQL `35908613712` również przeszedł.
 
 CI `35910260871` dla commitu `126feba` po zmianie kontroli szybkich przejazdów CAM także przeszedł 23/23 zadań, w tym oba systemy i wszystkie instalatory; CodeQL `35910260767` przeszedł.

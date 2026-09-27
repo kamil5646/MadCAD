@@ -58,7 +58,8 @@ if (app && typeof app.setName === 'function') {
   app.setName(APP_DISPLAY_NAME);
   // Zachowujemy dotychczasowy katalog danych, aby aktualizacja po zmianie nazwy
   // nie utraciła ustawień ani automatycznych zapisów użytkownika.
-  const isolatedTestUserData = !app.isPackaged && process.env.MADCAD_TEST_USER_DATA_DIR
+  // Także pakiet można uruchomić z osobnym profilem do testu instalatora.
+  const isolatedTestUserData = process.env.MADCAD_TEST_USER_DATA_DIR
     ? path.resolve(process.env.MADCAD_TEST_USER_DATA_DIR)
     : '';
   app.setPath('userData', isolatedTestUserData || path.join(app.getPath('appData'), LEGACY_USER_DATA_NAME));
@@ -918,7 +919,8 @@ function createMainWindow() {
   } else {
     win.loadFile(
       path.join(__dirname, '..', 'dist', 'index.html'),
-      process.env.MADCAD_TEST_USER_DATA_DIR ? { query: { verify: '1' } } : undefined,
+      // Profil testowy nie może włączyć hooków weryfikacyjnych w wydanym pakiecie.
+      !app.isPackaged && process.env.MADCAD_TEST_USER_DATA_DIR ? { query: { verify: '1' } } : undefined,
     );
   }
 
