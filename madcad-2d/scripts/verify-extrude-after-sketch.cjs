@@ -84,6 +84,37 @@ app.whenReady().then(async () => {
       throw new Error(`Bledny wynik przeplywu szkic -> Wyciagnij: ${JSON.stringify(result)}`);
     }
 
+    // Exercise the same part through the timeline, history and document
+    // round-trip before switching to the independent open-chain scenario.
+    process.stdout.write('[verify] edit basic extrusion from timeline\n');
+    await window.webContents.executeJavaScript(`document.querySelector('.timeline-item')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'feature'`, 'wybrana operacja w historii');
+    process.stdout.write('[verify] timeline feature selected\n');
+    await window.webContents.executeJavaScript(`document.querySelector('[data-timeline-action="edit"]')?.click()`);
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'edytowane wyciągnięcie');
+    process.stdout.write('[verify] extrusion editor open\n');
+    await window.webContents.executeJavaScript(`(() => {
+      const field = [...document.querySelectorAll('.command-dialog .command-field')].find((item) => item.querySelector(':scope > span')?.textContent.trim() === 'Odległość');
+      const input = field?.querySelector('input');
+      const propsKey = input && Object.keys(input).find((key) => key.startsWith('__reactProps'));
+      if (typeof input?.[propsKey]?.onChange !== 'function') throw new Error('Brak edycji odległości w historii');
+      input[propsKey].onChange({ target: { value: '15' } });
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.distance === '15'`, 'nowa odległość wyciągnięcia');
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    process.stdout.write('[verify] edited extrusion, undo and redo\n');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 14400) < 0.01`, 'przebudowa po edycji historii', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 11520) < 0.01`, 'Cofnij edycję wyciągnięcia', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 14400) < 0.01`, 'Ponów edycję wyciągnięcia', 30000);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyReopenCurrentDocument()`);
+    process.stdout.write('[verify] reopened edited extrusion\n');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.sketches?.length === 1 && window.__madcadVerifyDocumentState?.features === 1 && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 14400) < 0.01`, 'ponownie otwarty projekt z wyciągnięciem', 30000);
+    result.editedVolume = 14400;
+    result.undoRedo = true;
+    result.reopened = true;
+
     // Stop the old renderer before clearing storage. Its delayed autosave can
     // otherwise repopulate the first sketch between clear() and the reload.
     await window.loadURL('about:blank');

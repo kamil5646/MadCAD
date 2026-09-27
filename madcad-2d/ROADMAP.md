@@ -58,11 +58,15 @@ istniejących blokad niebezpiecznego eksportu nie wolno usuwać.
 - [ ] Potwierdzić finalny podstawowy przepływ na Windows i macOS w CI oraz
   rozróżnić wyniki z kodu źródłowego od stanu zainstalowanej aplikacji.
 
-Dotychczasowy desktopowy test `verify:extrude-after-sketch` potwierdza
-szkic → bryłę i cienkie wyciągnięcie, lecz sam nie obejmuje całego zapisu i
-edycji historii. `verify:modeling` pokrywa wiele tych etapów, ale w oddzielnych
-scenariuszach; potrzebna jest również jedna pionowa regresja podstawowego
-przepływu. Nie tworzymy wydania przed jego zamknięciem i walidacją.
+Desktopowy test `verify:extrude-after-sketch` potwierdza szkic → bryłę, edycję
+Wyciągnięcia z osi czasu, Cofnij/Ponów, ponowne otwarcie przez serializację
+dokumentu oraz osobny przypadek cienkiego wyciągnięcia. Nie sprawdza jeszcze
+edycji wymiaru źródłowego szkicu ani rzeczywistego zapisu/otwarcia pliku przez
+desktopowe IPC. `verify:modeling` obejmuje wiele tych etapów w oddzielnych
+scenariuszach, ale lokalny przebieg 2026-09-27 przekroczył istniejący budżet
+całego scenariusza 120 s (199,9 s); sam przebieg szkic → bryła w krótszym
+teście przeszedł. Nie podnosimy budżetu bez diagnozy kosztu. Nie tworzymy
+wydania przed zamknięciem pełnego przepływu i walidacją.
 
 ## Ukończony pion R6.6 — niezawodność dużych projektów
 
