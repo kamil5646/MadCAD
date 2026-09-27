@@ -6,8 +6,10 @@ i otwarte kryteria odbioru znajdują się w `madcad-2d/ROADMAP.md`; dokument
 
 Priorytet od 2026-09-27: najpierw pionowy przepływ podstawowego projektowania
 jak w Fusion (szkic, wymiary, bryła, historia, Cofnij/Ponów, zapis i ponowne
-otwarcie) oraz naprawa potwierdzonych różnic UX. Rozbudowa P5.5 CAM, sondowanie
-i symulacja maszyny są odłożone za ten przepływ; patrz aktywny cel w roadmapie.
+otwarcie) oraz naprawa potwierdzonych różnic UX. Rozbudowa przygotowania
+ścieżek CAM jest odłożona za ten przepływ. Użytkownik nie potrzebuje zarządzania
+obrabiarką: automatyczne sondowanie/ustawianie jej zera i sterowanie maszyną są
+poza celem. Nie osłabiaj istniejących blokad niebezpiecznego eksportu NC.
 
 ## Układ repozytorium
 

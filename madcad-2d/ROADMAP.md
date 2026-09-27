@@ -35,9 +35,15 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 ## Aktywny cel — podstawowy przepływ projektowania jak w Fusion
 
 Priorytet użytkownika z 2026-09-27: najpierw niezawodna codzienna praca w
-obszarze projektowania, dopiero potem zaawansowany CAM, sondowanie i symulacja
-maszyny. Samo oznaczenie narzędzia jako zaimplementowanego nie potwierdza
+obszarze projektowania, dopiero potem ewentualne zaawansowanie przygotowania
+ścieżek CAM. Samo oznaczenie narzędzia jako zaimplementowanego nie potwierdza
 spójnego doświadczenia od pustego projektu do gotowej części.
+
+Zakres produktu doprecyzowany 2026-09-27: użytkownik nie potrzebuje
+zarządzania obrabiarką. Sterowanie maszyną, automatyczne ustawianie jej zera,
+sondowanie WCS i konfiguracja pracy sterownika nie są wymaganiami celu.
+Ewentualny eksport ścieżek/G-code pozostaje przygotowaniem pliku poza maszyną;
+istniejących blokad niebezpiecznego eksportu nie wolno usuwać.
 
 - [>] Przejść w rzeczywistej aplikacji jeden ciąg: nowy projekt → szkic na
   płaszczyźnie → wymiary i więzy → Wyciągnij → edycja wymiaru szkicu i operacji
@@ -354,7 +360,7 @@ Te prace nie czekają na koniec modelowania:
   - [x] Drukowalny arkusz ustawczy A4 z WCS, półfabrykatem, narzędziami, operacjami, czasem i wynikiem kontroli.
   - [x] Trwałe foldery operacji organizują program bez zmiany kolejności wykonania; usunięcie folderu zachowuje operacje.
   - [x] Szablony operacji zapisują parametry i narzędzie w projekcie bez nietrwałych referencji do geometrii, a zgodność z rodzajem Setupu jest sprawdzana przed użyciem.
-- [~] P5.5 Mocowanie, wiele układów roboczych i sondowanie: częściowy model uchwytu oraz strefy kolizji, G54–G59 i raport kolejnych zamocowań; dalsze prace odłożone za podstawowy przepływ projektowania.
+- [~] P5.5 Mocowanie i układy robocze: częściowy model uchwytu oraz strefy kolizji, G54–G59 i raport kolejnych zamocowań. Dalsze prace nad dokładną kontrolą eksportowanych ścieżek są odłożone za podstawowy przepływ projektowania; automatyczne sondowanie i zarządzanie obrabiarką są poza celem użytkownika.
   - [x] Każdy Setup zapisuje własny układ G54–G59, przekazuje go do programów frezarskich, tokarskich i cięcia oraz umieszcza na arkuszu ustawczym.
   - [x] Wiele stref uchwytów jako prostopadłościany XYZ jest zapisywanych w Setupie, wizualizowanych i blokuje eksport przy przecięciu trajektorii narzędzia z zadanym odstępem.
   - [x] Raport kolejnych Setupów zestawia WCS, operacje, ostrzeżenia i ręczne czynności operatora; wykrywa ponowne użycie offsetu z innym zerem, ale nie generuje sondowania ani przejazdów między Setupami.
@@ -377,7 +383,7 @@ Te prace nie czekają na koniec modelowania:
   - [~] Własne narzędzie może opisać zmierzoną szyjkę i do sześciu kolejnych walcowych stopni oprawki nad wysięgiem; kontrola używa ich przy szczękach i półfabrykacie. Schemat v26 migruje v25 z pustą listą stopni. Nadal brakuje dowolnej geometrii oprawki, wrzeciona i kinematyki maszyny.
   - [x] Biblioteka obejmuje własne frezy palcowe i do planowania: operacje frezowania rozwiązują ich trwałe ID z projektu, brakujące lub niezgodne narzędzie blokuje ścieżkę, a schemat v25 zachowuje typ i profil oprawki po ponownym otwarciu. Zmierzona oprawka i szyjka freza czołowego mogą być węższe od ostrza. Testy obejmują ścieżki, walidację, eksport oraz desktopowy wybór freza w konturze i zapis profilu freza czołowego.
   - [ ] Rozszerzyć mocowanie o rzeczywistą geometrię szczęk i oprawek oraz kontrolę wszystkich przejazdów maszyny.
-  - [ ] Dodać bezpieczne operacje sondowania/ustawiania bazy oraz ich weryfikację na konkretnych sterowaniach; [ograniczenia i źródła](./docs/CAM_PROBING_NOTES.md).
+  - [~] Sondowanie/automatyczne ustawianie bazy było analizowane jako możliwe rozszerzenie, lecz nie jest wymagane przez użytkownika i nie blokuje ukończenia jego celu; [ograniczenia i źródła](./docs/CAM_PROBING_NOTES.md). Nie udostępniać niedokończonego eksportu sondowania.
 
 ## Definition of Done
 
