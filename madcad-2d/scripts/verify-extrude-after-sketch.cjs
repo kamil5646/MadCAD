@@ -1,6 +1,7 @@
 const fs = require('fs/promises');
+const os = require('os');
 const path = require('path');
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 
 const artifactPath = path.join(__dirname, '..', 'artifacts', 'extrude-after-sketch.png');
 const thinArtifactPath = path.join(__dirname, '..', 'artifacts', 'thin-extrude-after-sketch.png');
@@ -24,11 +25,25 @@ async function clickTool(window, label) {
 }
 
 app.whenReady().then(async () => {
+  const projectDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'madcad-basic-project-'));
+  const projectPath = path.join(projectDirectory, 'basic-design.madcad');
+  ipcMain.handle('madcad-verify:save-project', async (_event, payload) => {
+    if (typeof payload?.text !== 'string' || !payload.text || payload.atomic !== true) throw new Error('Nieprawidłowe żądanie zapisu projektu.');
+    await fs.writeFile(projectPath, payload.text, 'utf8');
+    return { ok: true, canceled: false, filePath: projectPath, backupPath: null };
+  });
+  ipcMain.handle('madcad-verify:open-project', async () => ({ ok: true, canceled: false, filePath: projectPath, text: await fs.readFile(projectPath, 'utf8') }));
   const window = new BrowserWindow({
     width: 1440,
     height: 900,
     show: false,
-    webPreferences: { partition: `madcad-extrude-sketch-${Date.now()}` },
+    webPreferences: {
+      preload: path.join(__dirname, 'verify-basic-project-preload.cjs'),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      partition: `madcad-extrude-sketch-${Date.now()}`,
+    },
   });
   let exitCode = 0;
   try {
@@ -111,9 +126,20 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`window.__madcadVerifyReopenCurrentDocument()`);
     process.stdout.write('[verify] reopened edited extrusion\n');
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.sketches?.length === 1 && window.__madcadVerifyDocumentState?.features === 1 && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 14400) < 0.01`, 'ponownie otwarty projekt z wyciągnięciem', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('#saveProjectBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('Zapisano projekt atomowo:')`, 'zapis pliku .madcad');
+    const savedProject = JSON.parse(await fs.readFile(projectPath, 'utf8'));
+    if (savedProject.features?.length !== 1 || savedProject.sketches?.length !== 1 || savedProject.features[0].distance !== '15') {
+      throw new Error('Plik .madcad nie zachował edytowanego wyciągnięcia.');
+    }
+    await window.webContents.executeJavaScript(`document.querySelector('#newProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 0 && window.__madcadVerifyDocumentState?.sketches?.length === 0`, 'nowy pusty projekt');
+    await window.webContents.executeJavaScript(`document.querySelector('#openProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.features === 1 && window.__madcadVerifyDocumentState?.sketches?.length === 1 && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 14400) < 0.01`, 'plik .madcad otwarty przez interfejs', 30000);
     result.editedVolume = 14400;
     result.undoRedo = true;
     result.reopened = true;
+    result.fileRoundTrip = true;
 
     // Stop the old renderer before clearing storage. Its delayed autosave can
     // otherwise repopulate the first sketch between clear() and the reload.
@@ -161,6 +187,9 @@ app.whenReady().then(async () => {
     exitCode = 1;
   } finally {
     window.destroy();
+    ipcMain.removeHandler('madcad-verify:save-project');
+    ipcMain.removeHandler('madcad-verify:open-project');
+    await fs.rm(projectDirectory, { recursive: true, force: true });
     app.exit(exitCode);
   }
 });

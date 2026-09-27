@@ -59,10 +59,12 @@ istniejących blokad niebezpiecznego eksportu nie wolno usuwać.
   rozróżnić wyniki z kodu źródłowego od stanu zainstalowanej aplikacji.
 
 Desktopowy test `verify:extrude-after-sketch` potwierdza szkic → bryłę, edycję
-Wyciągnięcia z osi czasu, Cofnij/Ponów, ponowne otwarcie przez serializację
-dokumentu oraz osobny przypadek cienkiego wyciągnięcia. Nie sprawdza jeszcze
-edycji wymiaru źródłowego szkicu ani rzeczywistego zapisu/otwarcia pliku przez
-desktopowe IPC. `verify:modeling` obejmuje wiele tych etapów w oddzielnych
+Wyciągnięcia z osi czasu, Cofnij/Ponów, ponowne otwarcie przez serializację,
+zapis pliku `.madcad` przyciskiem aplikacji i otwarcie go po nowym projekcie
+oraz osobny przypadek cienkiego wyciągnięcia. Krótki test używa kontrolowanego
+IPC plikowego, nie produkcyjnego okna wyboru ścieżki ani mechanizmu atomowej
+kopii `.bak`; nie sprawdza jeszcze edycji wymiaru źródłowego szkicu.
+`verify:modeling` obejmuje wiele tych etapów w oddzielnych
 scenariuszach, ale lokalny przebieg 2026-09-27 przekroczył istniejący budżet
 całego scenariusza 120 s (199,9 s); sam przebieg szkic → bryła w krótszym
 teście przeszedł. Nie podnosimy budżetu bez diagnozy kosztu. Nie tworzymy
