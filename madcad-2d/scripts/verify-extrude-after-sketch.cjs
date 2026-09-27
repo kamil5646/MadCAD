@@ -12,7 +12,7 @@ async function waitFor(window, expression, label, timeoutMs = 20000) {
     if (await window.webContents.executeJavaScript(`Boolean(${expression})`)) return;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  const state = await window.webContents.executeJavaScript(`({ status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision, command: window.__madcadVerifyDocumentState?.command, sketch: window.__madcadVerifyDocumentState?.sketches?.[0] })`);
+  const state = await window.webContents.executeJavaScript(`({ status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision, command: window.__madcadVerifyDocumentState?.command, sketches: window.__madcadVerifyDocumentState?.sketches?.map((sketch) => ({ id: sketch.id, support: sketch.support, planeOffset: sketch.planeOffset })), timeline: window.__madcadVerifyEngineState?.timeline, volumes: window.__madcadVerifyEngineState?.bodies?.map((body) => body.metrics.volume) })`);
   throw new Error(`Nie osiagnieto stanu: ${label}. ${JSON.stringify(state)}`);
 }
 
@@ -21,6 +21,18 @@ async function clickTool(window, label) {
     const button = [...document.querySelectorAll('.ribbon-tool')].find((item) => item.querySelector('.ribbon-label')?.textContent === ${JSON.stringify(label)});
     if (!button || button.disabled) throw new Error('Niedostepne narzedzie: ${label}');
     button.click();
+  })()`);
+}
+
+async function setCommandField(window, label, value) {
+  await window.webContents.executeJavaScript(`(() => {
+    const field = [...document.querySelectorAll('.command-dialog .command-field')].find((item) => item.firstElementChild?.textContent.trim() === ${JSON.stringify(label)});
+    const input = field?.querySelector('input, select');
+    if (!input) throw new Error('Brak pola polecenia: ${label}');
+    const key = Object.keys(input).find((item) => item.startsWith('__reactProps'));
+    const handler = key && input[key]?.onChange;
+    if (typeof handler !== 'function') throw new Error('Brak obsługi pola polecenia: ${label}');
+    handler({ target: { value: ${JSON.stringify(String(value))} } });
   })()`);
 }
 
@@ -186,6 +198,52 @@ app.whenReady().then(async () => {
     result.undoRedo = true;
     result.reopened = true;
     result.fileRoundTrip = true;
+
+    const supportFace = await window.webContents.executeJavaScript(`(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const face = body.topology.faces.find((item) => item.descriptor.geometry === 'PLANE' && (item.descriptor.normal?.[2] || 0) > 0.99 && item.descriptor.center?.[2] > 14.9);
+      return face && { id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId };
+    })()`);
+    if (!supportFace) throw new Error('Brak górnej ściany bryły do drugiego szkicu.');
+    await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify({ kind: 'face', ...supportFace })}, 'replace')`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'face'`, 'wybrana ściana pierwszej bryły');
+    await clickTool(window, 'Utwórz szkic');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[1]?.support?.kind === 'face' && document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'szkic na ścianie', 30000);
+    await clickTool(window, 'Okrąg');
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Okrąg')`, 'okrąg drugiego szkicu');
+    await setCommandField(window, 'Średnica', '6');
+    await setCommandField(window, 'Środek X', '10');
+    await setCommandField(window, 'Środek Y', '10');
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[1]?.profiles === 1`, 'zamknięty profil otworu');
+    await clickTool(window, 'Zakończ szkic');
+    await clickTool(window, 'Wyciągnij');
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'drugie wyciągnięcie');
+    await setCommandField(window, 'Operacja', 'cut');
+    await setCommandField(window, 'Kierunek', 'through-all');
+    const faceCutRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 2 && window.__madcadVerifyEngineState?.revision > ${faceCutRevision} && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.timeline?.length === 2`, 'zależne wycięcie', 30000);
+    result.faceSketch = await window.webContents.executeJavaScript(`({
+      support: window.__madcadVerifyDocumentState.sketches[1].support.kind,
+      operation: window.__madcadVerifyDocumentState.featureData[1].operation,
+      volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume,
+      featureStatus: window.__madcadVerifyEngineState.timeline[1].status,
+    })`);
+    if (result.faceSketch.support !== 'face' || result.faceSketch.operation !== 'cut' || result.faceSketch.featureStatus !== 'ok' || !(result.faceSketch.volume < 17999)) {
+      throw new Error(`Szkic na ścianie nie wyciął materiału: ${JSON.stringify(result.faceSketch)}`);
+    }
+    await window.webContents.executeJavaScript(`document.querySelector('#saveProjectBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('Zapisano projekt atomowo:')`, 'zapis projektu z drugim szkicem');
+    const savedFaceProject = JSON.parse(await fs.readFile(projectPath, 'utf8'));
+    if (savedFaceProject.sketches?.[1]?.support?.kind !== 'face' || savedFaceProject.features?.[1]?.operation !== 'cut') {
+      throw new Error('Plik .madcad nie zachował szkicu na ścianie i zależnego wycięcia.');
+    }
+    await window.webContents.executeJavaScript(`document.querySelector('#newProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 0`, 'nowy projekt po wycięciu');
+    await window.webContents.executeJavaScript(`document.querySelector('#openProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 2 && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${result.faceSketch.volume}) < 0.01`, 'odtworzony projekt z wycięciem', 30000);
+    result.faceSketch.fileRoundTrip = true;
 
     // Stop the old renderer before clearing storage. Its delayed autosave can
     // otherwise repopulate the first sketch between clear() and the reload.
