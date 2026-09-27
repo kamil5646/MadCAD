@@ -460,7 +460,7 @@ describe('CAM contour operations', () => {
     const missing = analyzeManufacturingProgram(setup, [counterboreBody]);
     expect(missing.holeCompleteness.entries[0].missingStages).toEqual(['counterbore']);
     setup.operations = [drill, counterbore];
-    const complete = analyzeManufacturingProgram(setup, [counterboreBody]);
+    const complete = analyzeManufacturingProgram(setup, [counterboreBody], null, null, { postProcessorId: 'linuxcnc' });
     expect(complete.valid).toBe(true);
     expect(complete.holeCompleteness).toMatchObject({ complete: true, groupCount: 1, completeGroupCount: 1, totalHoleCount: 2, completeHoleCount: 2 });
     expect(analyzeHoleMachiningCompleteness(setup, counterboreBody, complete.operations).entries[0].plannedStages).toEqual(['drill', 'counterbore']);
@@ -573,6 +573,26 @@ describe('CAM contour operations', () => {
     expect(output.text.indexOf('G49')).toBeLessThan(output.text.indexOf('G43 H1'));
     const grbl = createMachineGcode(setup, setup.operations[0], [box], { postProcessorId: 'grbl' });
     expect(grbl.text).not.toContain('G43');
+  });
+
+  it('blocks a mixed-tool GRBL program while preserving same-tool and compensated-controller exports', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [
+      createFacingOperation({ toolId: 'flat-3', postProcessorId: 'grbl' }),
+      createContourOperation({ toolId: 'flat-6', targetDepth: 1, postProcessorId: 'grbl' }),
+    ] });
+    const report = analyzeManufacturingProgram(setup, [box]);
+    expect(report.valid).toBe(false);
+    expect(report.setupIssues.join(' ')).toMatch(/GRBL 1\.1.*wielu narzędzi/);
+    expect(() => createManufacturingProgramGcode(setup, [box])).toThrow(/GRBL 1\.1.*wielu narzędzi/);
+    const linuxCnc = createManufacturingProgramGcode(setup, [box], { postProcessorId: 'linuxcnc' });
+    expect(linuxCnc.report.valid).toBe(true);
+    expect(linuxCnc.text).toMatch(/T1 M6\nG43 H1/);
+    expect(linuxCnc.text).toMatch(/T2 M6\nG43 H2/);
+    setup.operations[1].toolId = 'flat-3';
+    expect(analyzeManufacturingProgram(setup, [box]).valid).toBe(true);
+    const grbl = createManufacturingProgramGcode(setup, [box]);
+    expect(grbl.postProcessor).toBe('grbl');
+    expect(grbl.text).not.toMatch(/\b(?:M6|G43)\b/);
   });
 
   it('duplicates operations and permits only manual moves that preserve technological dependencies', () => {

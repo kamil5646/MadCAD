@@ -10,7 +10,7 @@ const fixtureBodyScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madca
 const holderScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-manufacturing-holder-stages.png');
 const gcodeScreenshotPath = path.join(__dirname, '..', 'artifacts', 'madcad-gcode-preview.png');
 const gcodePath = path.join(__dirname, '..', 'artifacts', 'madcad-contour-linuxcnc.ngc');
-const programGcodePath = path.join(__dirname, '..', 'artifacts', 'madcad-complete-program.nc');
+const programGcodePath = path.join(__dirname, '..', 'artifacts', 'madcad-complete-program.ngc');
 const setupSheetPath = path.join(__dirname, '..', 'artifacts', 'madcad-cam-setup-sheet.html');
 async function waitFor(window, expression, label, timeoutMs = 45000) {
   const startedAt = Date.now();
@@ -228,6 +228,11 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 5 && !JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.some((operation) => operation.name.includes('— kopia'))`, 'Cofnij duplikowanie operacji CAM');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-page-tabs button')].find((button) => button.textContent.includes('Kontrola')).click()`);
+    await waitFor(window, `document.querySelector('.manufacturing-program-report > header.invalid')?.textContent.includes('GRBL 1.1') && document.querySelector('.manufacturing-report-actions button:last-child')?.disabled`, 'blokada niebezpiecznego wielonarzędziowego programu GRBL');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-page-tabs button')].find((button) => button.textContent.includes('Operacje')).click()`);
+    await window.webContents.executeJavaScript(`(() => { const control = [...document.querySelector('.manufacturing-operation').querySelectorAll('label')].find((label) => label.textContent.includes('Sterownik / postprocesor')).querySelector('select'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(control, 'linuxcnc'); control.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations[0].postProcessorId === 'linuxcnc'`, 'postprocesor pełnego programu LinuxCNC');
+    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-page-tabs button')].find((button) => button.textContent.includes('Kontrola')).click()`);
     await waitFor(window, `document.querySelector('.manufacturing-program-report > header.valid') && [...document.querySelectorAll('.manufacturing-report-operations')].at(-1)?.querySelectorAll(':scope > div.valid').length === 5`, 'raport bezpieczeństwa, kompletności i czasu CAM');
     const reportState = await window.webContents.executeJavaScript(`(() => ({ text: document.querySelector('.manufacturing-program-report').textContent, overflow: document.documentElement.scrollWidth > innerWidth }))()`);
     if (reportState.overflow || !reportState.text.includes('Szacowany czas') || !reportState.text.includes('Usuwany materiał') || !reportState.text.includes('Kompletność obróbki otworów') || !reportState.text.includes('ma kompletny i prawidłowo uporządkowany proces') || !reportState.text.includes('Ścieżki sprawdzone w modelu') || !reportState.text.includes('potwierdź rzeczywiste mocowanie, zero i dojazd')) throw new Error(`Niepełny raport CAM: ${JSON.stringify(reportState)}`);
@@ -240,7 +245,7 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('button')].find((button) => button.textContent.includes('Eksportuj cały program')).click()`);
     await programDownload;
     const programGcode = await fs.readFile(programGcodePath, 'utf8');
-    if ((programGcode.match(/\nG21\n/g) || []).length !== 1 || (programGcode.match(/\nG55\n/g) || []).length !== 1 || (programGcode.match(/\nM30\n/g) || []).length !== 1 || !programGcode.includes('Planowanie 1') || !programGcode.includes('Kieszeń 2D 1') || !programGcode.includes('Adaptacyjne 2D 1') || !programGcode.includes('Wiercenie 1')) throw new Error('Kompletny program CAM nie zawiera układu roboczego, pojedynczej otoczki albo wszystkich operacji.');
+    if ((programGcode.match(/\nG21\n/g) || []).length !== 1 || (programGcode.match(/\nG55\n/g) || []).length !== 1 || (programGcode.match(/\nM2\n/g) || []).length !== 1 || !programGcode.includes('Planowanie 1') || !programGcode.includes('Kieszeń 2D 1') || !programGcode.includes('Adaptacyjne 2D 1') || !programGcode.includes('Wiercenie 1') || (programGcode.match(/T\d+ M6\nG43 H\d+/g) || []).length < 2) throw new Error('Kompletny program CAM nie zawiera układu roboczego, korekcji kolejnych narzędzi, pojedynczej otoczki albo wszystkich operacji.');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-simulation-controls button')].find((button) => button.textContent.includes('Od początku')).click()`);
     await waitFor(window, `document.querySelector('.manufacturing-simulation-controls output').textContent === '0%' && window.__madcadManufacturingVisualState?.segmentCount === 0 && window.__madcadManufacturingVisualState?.removedColumnCount === 0`, 'wyzerowanie symulacji CAM');
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-simulation-controls button')].find((button) => button.textContent.includes('Odtwórz')).click()`);
@@ -254,6 +259,8 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`[...document.querySelectorAll('.manufacturing-page-tabs button')].find((button) => button.textContent.includes('Operacje')).click()`);
     await window.webContents.executeJavaScript(`document.querySelector('.manufacturing-panel').scrollTop = document.querySelector('.manufacturing-panel').scrollHeight`);
     await fs.writeFile(screenshotPath, (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
+    await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations[0].postProcessorId === 'grbl'`, 'Cofnij zmianę postprocesora pełnego programu');
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);
     await waitFor(window, `JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations.length === 5 && JSON.parse(window.__madcadGetSessionExport()).manufacturing.setups[0].operations[3].type === 'drill'`, 'Cofnij optymalizację kolejności CAM');
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn').click()`);

@@ -1825,8 +1825,14 @@ function turningClearanceDiameter(setup, operation = null) {
   return Math.max(0, ...diameters) + 2 * Math.max(2, normalized.safeHeight);
 }
 
-export function analyzeManufacturingProgram(setup, bodies = [], document = null, precomputedToolpaths = null) {
+export function analyzeManufacturingProgram(setup, bodies = [], document = null, precomputedToolpaths = null, { postProcessorId = null } = {}) {
   const normalized = normalizeManufacturingSetup(setup);
+  const tappingOperation = normalized.operations.find((operation) => operation.type === 'tap');
+  const selectedPostId = postProcessorId || tappingOperation?.postProcessorId || normalized.operations[0]?.postProcessorId;
+  const postProcessor = CAM_POST_PROCESSORS[selectedPostId] || CAM_POST_PROCESSORS.grbl;
+  const needsUnsupportedGrblToolChange = normalized.operationKind === 'mill-3axis'
+    && postProcessor.id === 'grbl'
+    && new Set(normalized.operations.map((operation) => operation.toolId)).size > 1;
   const safeTurningDiameter = normalized.operationKind === 'turning-2axis'
     ? turningClearanceDiameter(normalized)
     : 0;
@@ -1865,12 +1871,14 @@ export function analyzeManufacturingProgram(setup, bodies = [], document = null,
     };
   });
   const setupResult = calculateManufacturingSetup(normalized, bodies);
+  const setupIssues = [...setupResult.warnings];
+  if (needsUnsupportedGrblToolChange) setupIssues.push('GRBL 1.1: jeden program nie może używać wielu narzędzi bez bezpiecznej zmiany i ponownego ustawienia długości. Wybierz LinuxCNC/Mach3 z przygotowaną tabelą narzędzi albo eksportuj operacje osobno i ustawiaj Z dla każdego narzędzia.');
   const holeCompleteness = analyzeHoleMachiningCompleteness(normalized, setupResult.body, operations);
   const stockVolume = setupResult.dimensions?.reduce((volume, dimension) => volume * dimension, 1) || 0;
   const estimatedRemovedVolume = operations.reduce((sum, operation) => sum + operation.estimatedRemovedVolume, 0);
   return {
-    valid: setupResult.valid && operations.length > 0 && operations.every((operation) => operation.valid) && holeCompleteness.complete,
-    setupIssues: setupResult.warnings,
+    valid: setupResult.valid && !needsUnsupportedGrblToolChange && operations.length > 0 && operations.every((operation) => operation.valid) && holeCompleteness.complete,
+    setupIssues,
     operations,
     segmentCount: operations.reduce((sum, operation) => sum + operation.segmentCount, 0),
     durationMinutes: operations.reduce((sum, operation) => sum + operation.durationMinutes, 0),
@@ -2207,11 +2215,11 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
 export function createManufacturingProgramGcode(setup, bodies = [], { projectName = 'MadCAD', document = null, postProcessorId = null } = {}) {
   const normalized = normalizeManufacturingSetup(setup);
   if (!normalized.operations.length) throw new Error('Program CAM wymaga co najmniej jednej operacji.');
-  const report = analyzeManufacturingProgram(normalized, bodies, document);
-  if (!report.valid) throw new Error('Eksport programu zablokowany: popraw Setup, ścieżki, bezpieczeństwo i kompletność obróbki otworów.');
   const tappingOperation = normalized.operations.find((operation) => operation.type === 'tap');
   const selectedPostId = postProcessorId || tappingOperation?.postProcessorId || normalized.operations[0].postProcessorId;
   const postProcessor = CAM_POST_PROCESSORS[selectedPostId] || CAM_POST_PROCESSORS.grbl;
+  const report = analyzeManufacturingProgram(normalized, bodies, document, null, { postProcessorId: postProcessor.id });
+  if (!report.valid) throw new Error(`Eksport programu zablokowany: ${report.setupIssues.join(' ') || 'popraw Setup, ścieżki, bezpieczeństwo i kompletność obróbki otworów.'}`);
   const cleanComment = (value) => String(value).replace(/[\r\n;()]/g, ' ').trim();
   const comment = (value) => postProcessor.commentStyle === 'parentheses' ? `(${cleanComment(value)})` : `; ${cleanComment(value)}`;
   const isTurning = normalized.operationKind === 'turning-2axis';
