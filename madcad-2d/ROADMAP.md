@@ -70,13 +70,17 @@ ani uruchomienia z instalatora. Ten sam test potwierdza też drugi szkic
 założony na płaskiej ścianie, wycięcie zależne od pierwszej bryły, przesunięcie
 tej podpory po edycji pierwszego Wyciągnięcia z 15 na 20 mm, Cofnij/Ponów
 obu położeń, odczyt obu operacji z pliku i naprawę kontrolowanie utraconej
-referencji ściany przez kreator. Korekta podpory obejmuje teraz końcową ścianę
-osiowego, jednostronnego Wyciągnięcia; ogólne zmiany topologii i inne rodzaje
-ścian nadal wymagają osobnej walidacji przed zamknięciem tego etapu.
+referencji ściany przez kreator. Korekta podpory obejmuje końcową ścianę
+jednostronnego Wyciągnięcia, także na skośnej ramie szkicu; test jednostkowy
+potwierdza przesunięcie ramy zależnego szkicu bez zmiany jej osi lokalnych,
+a desktopowe przypadki osiowy i skośny potwierdzają wycięcie, przebudowę,
+Cofnij/Ponów oraz zapis i ponowne otwarcie. Rotacja podpory, ogólne zmiany
+topologii i inne rodzaje ścian wymagają osobnej walidacji przed zamknięciem
+tego etapu.
 `verify:modeling` obejmuje wiele tych etapów w oddzielnych
 scenariuszach, ale lokalny przebieg 2026-09-27 przekroczył istniejący budżet
-całego scenariusza 120 s (199,9 s); sam przebieg szkic → bryła w krótszym
-teście przeszedł. Nie podnosimy budżetu bez diagnozy kosztu. Nie tworzymy
+całego scenariusza 120 s (199,9 s); dwa późniejsze lokalne przebiegi pełnego
+`verify:modeling` przeszły bez podnoszenia progu. Nie tworzymy
 wydania przed zamknięciem pełnego przepływu i walidacją.
 
 ## Ukończony pion R6.6 — niezawodność dużych projektów

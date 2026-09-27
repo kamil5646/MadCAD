@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { moveEndFaceSketchSupports, placeSketchesOnReassignedFace } from './face-sketch-support.js';
+import { frameFromNormal } from './sketch-frame.js';
 
 function fixture() {
   return {
@@ -32,6 +33,42 @@ describe('face-supported sketch tracking', () => {
     next.features[0].distance = '20';
     expect(moveEndFaceSketchSupports(previous, next)).toBe(0);
     expect(next.sketches[1].planeOffset).toBe('15');
+  });
+
+  it('moves a sketch on an angled extrusion end face with its stable local axes', () => {
+    const previous = fixture();
+    const normal = [0, -Math.SQRT1_2, Math.SQRT1_2];
+    previous.sketches[0].frame = frameFromNormal([2, 3, 4], normal);
+    const previousEnd = previous.sketches[0].frame.origin.map((value, index) => value + normal[index] * 15);
+    previous.sketches[1].frame = frameFromNormal(previousEnd, normal);
+    previous.references[0].descriptor.normal = normal;
+    previous.references[0].descriptor.center = previousEnd;
+    previous.references[0].descriptor.centerOfMass = previousEnd;
+    const next = structuredClone(previous);
+    next.features[0].distance = '20';
+
+    expect(moveEndFaceSketchSupports(previous, next)).toBe(1);
+    for (let axis = 0; axis < 3; axis += 1) {
+      expect(next.sketches[1].frame.origin[axis]).toBeCloseTo(previousEnd[axis] + normal[axis] * 5, 8);
+      expect(next.references[0].descriptor.center[axis]).toBeCloseTo(previousEnd[axis] + normal[axis] * 5, 8);
+    }
+    expect(next.sketches[1].frame.u).toEqual(previous.sketches[1].frame.u);
+    expect(next.sketches[1].frame.v).toEqual(previous.sketches[1].frame.v);
+  });
+
+  it('leaves an unrelated or rotated support to geometric reference repair', () => {
+    const previous = fixture();
+    const next = structuredClone(previous);
+    next.features[0].distance = '20';
+    previous.references[0].descriptor.center = [0, 0, 0];
+    next.references[0].descriptor.center = [0, 0, 0];
+    expect(moveEndFaceSketchSupports(previous, next)).toBe(0);
+    expect(next.sketches[1].planeOffset).toBe('15');
+
+    const rotated = structuredClone(fixture());
+    rotated.features[0].distance = '20';
+    rotated.sketches[0].frame = frameFromNormal([0, 0, 0], [0, -Math.SQRT1_2, Math.SQRT1_2]);
+    expect(moveEndFaceSketchSupports(fixture(), rotated)).toBe(0);
   });
 
   it('updates the sketch plane when a lost face reference is reassigned', () => {

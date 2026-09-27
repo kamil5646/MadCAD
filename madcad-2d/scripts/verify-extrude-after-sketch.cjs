@@ -276,6 +276,87 @@ app.whenReady().then(async () => {
     await waitFor(window, `!document.querySelector('.reference-repair-panel') && window.__madcadVerifyDocumentState?.references?.find((reference) => reference.id === ${JSON.stringify(brokenSupportReferenceId)})?.topologyId.endsWith('-lost') === false && Number(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset) === 20 && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'`, 'naprawiona referencja podpory szkicu', 30000);
     result.faceSketch.referenceRepair = true;
 
+    const angledProject = structuredClone(savedProject);
+    const normal = [0, -Math.SQRT1_2, Math.SQRT1_2];
+    angledProject.sketches[0].frame = {
+      origin: [0, 0, 0],
+      normal,
+      u: [0, Math.SQRT1_2, Math.SQRT1_2],
+      v: [-1, 0, 0],
+    };
+    const beforeAngledLoadRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(angledProject))})`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${beforeAngledLoadRevision}
+      && window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyDocumentState?.features === 1
+      && window.__madcadVerifyEngineState?.bodies?.[0]?.topology?.faces?.some((face) => face.descriptor.normal?.[1] < -0.7 && face.descriptor.normal?.[2] > 0.7)`, 'skośna bryła bazowa', 30000);
+    const angledFace = await window.webContents.executeJavaScript(`(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const face = body.topology.faces.find((item) => item.descriptor.geometry === 'PLANE'
+        && item.descriptor.normal?.[1] < -0.7 && item.descriptor.normal?.[2] > 0.7
+        && item.descriptor.center?.[2] > 10);
+      return face && { id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId };
+    })()`);
+    if (!angledFace) {
+      const faces = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].topology.faces.map((face) => ({ normal: face.descriptor.normal, center: face.descriptor.center }))`);
+      throw new Error(`Brak skośnej końcowej ściany bazowego Wyciągnięcia: ${JSON.stringify(faces)}`);
+    }
+    await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify({ kind: 'face', ...angledFace })}, 'replace')`);
+    await clickTool(window, 'Utwórz szkic');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[1]?.support?.kind === 'face' && Boolean(window.__madcadVerifyDocumentState.sketches[1].frame)`, 'szkic na skośnej ścianie');
+    await clickTool(window, 'Okrąg');
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Okrąg')`, 'okrąg na skośnej ścianie');
+    await setCommandField(window, 'Średnica', '6');
+    await setCommandField(window, 'Środek X', '0');
+    await setCommandField(window, 'Środek Y', '0');
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[1]?.profiles === 1`, 'profil wycięcia na skośnej ścianie');
+    await clickTool(window, 'Zakończ szkic');
+    await clickTool(window, 'Wyciągnij');
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'wycięcie skośnej bryły');
+    await setCommandField(window, 'Operacja', 'cut');
+    await setCommandField(window, 'Kierunek', 'through-all');
+    const angledCutRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 2 && window.__madcadVerifyEngineState?.revision > ${angledCutRevision} && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'`, 'gotowe wycięcie skośnej bryły', 30000);
+    const angledBefore = await window.webContents.executeJavaScript(`({ volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume, origin: window.__madcadVerifyDocumentState.sketches[1].frame.origin, feature: window.__madcadVerifyDocumentState.featureData[1] })`);
+    if (!(angledBefore.volume < 17999)) throw new Error(`Skośne wycięcie nie usunęło materiału: ${JSON.stringify(angledBefore)}`);
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.timeline-item')[0]?.click()`);
+    await window.webContents.executeJavaScript(`document.querySelector('[data-timeline-action="edit"]')?.click()`);
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'edycja skośnego wyciągnięcia');
+    await setCommandField(window, 'Odległość', '20');
+    const angledRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${angledRevision} && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok' && window.__madcadVerifyDocumentState?.sketches?.[1]?.frame?.origin?.[2] > ${angledBefore.origin[2] + 3.5}`, 'skośny szkic śledzi zmianę bryły', 30000);
+    const angledAfter = await window.webContents.executeJavaScript(`({ volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume, origin: window.__madcadVerifyDocumentState.sketches[1].frame.origin })`);
+    if (!(angledAfter.volume > angledBefore.volume && angledAfter.volume < 23999)
+      || Math.abs(angledAfter.origin[1] - angledBefore.origin[1] + 5 * Math.SQRT1_2) > 0.01) {
+      throw new Error(`Skośna podpora nie przebudowała wycięcia: ${JSON.stringify({ angledBefore, angledAfter })}`);
+    }
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'
+      && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${angledBefore.volume}) < 0.01
+      && Math.abs(window.__madcadVerifyDocumentState?.sketches?.[1]?.frame?.origin?.[2] - ${angledBefore.origin[2]}) < 0.01`, 'Cofnij przesunięcie skośnej podpory', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'
+      && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${angledAfter.volume}) < 0.01
+      && Math.abs(window.__madcadVerifyDocumentState?.sketches?.[1]?.frame?.origin?.[2] - ${angledAfter.origin[2]}) < 0.01`, 'Ponów przesunięcie skośnej podpory', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('#saveProjectBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('Zapisano projekt atomowo:')`, 'zapis skośnej bryły');
+    const savedAngledProject = JSON.parse(await fs.readFile(projectPath, 'utf8'));
+    if (savedAngledProject.sketches?.[1]?.support?.kind !== 'face'
+      || Math.abs(savedAngledProject.sketches[1].frame.origin[2] - angledAfter.origin[2]) > 0.01) {
+      throw new Error('Plik .madcad nie zachował skośnej podpory szkicu.');
+    }
+    await window.webContents.executeJavaScript(`document.querySelector('#newProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 0`, 'nowy projekt po skośnym wycięciu');
+    await window.webContents.executeJavaScript(`document.querySelector('#openProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyDocumentState?.features === 2
+      && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${angledAfter.volume}) < 0.01
+      && Math.abs(window.__madcadVerifyDocumentState?.sketches?.[1]?.frame?.origin?.[2] - ${angledAfter.origin[2]}) < 0.01`, 'odtworzona skośna bryła', 30000);
+    result.angledFaceSketch = { beforeVolume: angledBefore.volume, afterVolume: angledAfter.volume, tracked: true, undoRedo: true, fileRoundTrip: true };
+
     // Stop the old renderer before clearing storage. Its delayed autosave can
     // otherwise repopulate the first sketch between clear() and the reload.
     await window.loadURL('about:blank');
@@ -325,6 +406,7 @@ app.whenReady().then(async () => {
     ipcMain.removeHandler('madcad:save-text-file');
     ipcMain.removeHandler('madcad:open-project-file');
     await fs.rm(projectDirectory, { recursive: true, force: true });
-    process.exit(exitCode);
+    process.exitCode = exitCode;
+    app.exit(exitCode);
   }
 });

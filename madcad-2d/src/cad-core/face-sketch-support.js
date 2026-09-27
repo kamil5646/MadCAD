@@ -1,10 +1,10 @@
 import { evaluateExpression, resolveParameters } from './expressions.js';
-import { frameFromNormal } from './sketch-frame.js';
+import { frameFromNormal, resolveSketchFrame } from './sketch-frame.js';
 
-const PLANE_NORMALS = Object.freeze({ XY: [0, 0, 1], XZ: [0, -1, 0], YZ: [1, 0, 0] });
+const dot = (left, right) => left.reduce((sum, value, index) => sum + value * right[index], 0);
 
-// Keep a sketch on the end cap of an axis-aligned, one-sided extrusion when
-// that extrusion changes in the same document-history transaction. Other
+// Keep a sketch on the end cap of a one-sided extrusion when that extrusion
+// changes in the same document-history transaction. Rotations and other
 // topology changes still need geometric reference resolution and repair.
 export function moveEndFaceSketchSupports(previous, next) {
   const previousParameters = resolveParameters(previous.parameters);
@@ -12,7 +12,7 @@ export function moveEndFaceSketchSupports(previous, next) {
   if (!previousParameters.valid || !nextParameters.valid) return 0;
   let moved = 0;
   for (const sketch of next.sketches) {
-    if (sketch.support?.kind !== 'face' || sketch.frame) continue;
+    if (sketch.support?.kind !== 'face') continue;
     const reference = next.references.find((item) => item.id === sketch.support.referenceId);
     const previousFeature = previous.features.find((item) => item.id === reference?.sourceFeatureId);
     const nextFeature = next.features.find((item) => item.id === reference?.sourceFeatureId);
@@ -22,21 +22,31 @@ export function moveEndFaceSketchSupports(previous, next) {
       || previousFeature.sketchId !== nextFeature.sketchId || reference?.descriptor?.geometry !== 'PLANE') continue;
     const previousSource = previous.sketches.find((item) => item.id === previousFeature.sketchId);
     const nextSource = next.sketches.find((item) => item.id === nextFeature.sketchId);
-    const normal = PLANE_NORMALS[previousSource?.plane];
-    if (!normal || nextSource?.plane !== previousSource.plane || previousSource.frame || nextSource.frame
-      || !Array.isArray(reference.descriptor.normal)
-      || normal.reduce((sum, value, index) => sum + value * reference.descriptor.normal[index], 0) < 0.99) continue;
+    if (!previousSource || !nextSource || !Array.isArray(reference.descriptor.normal)
+      || !Array.isArray(reference.descriptor.center)) continue;
     try {
-      const endPosition = (source, feature, values) => evaluateExpression(source.planeOffset || 0, values)
-        + evaluateExpression(feature.startOffset || 0, values)
-        + evaluateExpression(feature.distance, values);
-      const delta = endPosition(nextSource, nextFeature, nextParameters.values)
-        - endPosition(previousSource, previousFeature, previousParameters.values);
-      if (!Number.isFinite(delta) || Math.abs(delta) < 1e-9) continue;
-      sketch.planeOffset = String(evaluateExpression(sketch.planeOffset || 0, nextParameters.values) + delta);
+      const sourceFrame = (source, values) => resolveSketchFrame({ ...source, planeOffset: evaluateExpression(source.planeOffset || 0, values) });
+      const before = sourceFrame(previousSource, previousParameters.values);
+      const after = sourceFrame(nextSource, nextParameters.values);
+      const normal = before.normal;
+      if (dot(normal, after.normal) < 0.999999 || dot(normal, reference.descriptor.normal) < 0.99) continue;
+      const endPosition = (frame, feature, values) => frame.origin.map((value, index) => value + frame.normal[index]
+        * (evaluateExpression(feature.startOffset || 0, values) + evaluateExpression(feature.distance, values)));
+      const previousEnd = endPosition(before, previousFeature, previousParameters.values);
+      const nextEnd = endPosition(after, nextFeature, nextParameters.values);
+      if (Math.abs(dot(reference.descriptor.center.map((value, index) => value - previousEnd[index]), normal)) > 1e-4) continue;
+      const shift = nextEnd.map((value, index) => value - previousEnd[index]);
+      if (shift.some((value) => !Number.isFinite(value)) || Math.hypot(...shift) < 1e-9) continue;
+      if (sketch.frame) sketch.frame.origin = sketch.frame.origin.map((value, index) => value + shift[index]);
+      else {
+        if (dot(resolveSketchFrame(sketch).normal, normal) < 0.999999) continue;
+        const alongNormal = dot(shift, normal);
+        if (Math.hypot(...shift.map((value, index) => value - normal[index] * alongNormal)) > 1e-6) continue;
+        sketch.planeOffset = String(evaluateExpression(sketch.planeOffset || 0, nextParameters.values) + alongNormal);
+      }
       for (const key of ['center', 'centerOfMass']) {
         if (Array.isArray(reference.descriptor[key])) {
-          reference.descriptor[key] = reference.descriptor[key].map((value, index) => value + normal[index] * delta);
+          reference.descriptor[key] = reference.descriptor[key].map((value, index) => value + shift[index]);
         }
       }
       moved += 1;
