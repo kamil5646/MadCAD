@@ -25,6 +25,11 @@ poza celem. Nie osłabiaj istniejących blokad niebezpiecznego eksportu NC.
 - `madcad-2d/scripts/desktop-verification-manifest.cjs` — źródło podziału 55
   scenariuszy Electron na siedem shardów; czasy i sposób sprawdzania opisuje
   `madcad-2d/docs/CI_DESKTOP_VERIFICATION.md`.
+- `madcad-2d/scripts/verify-packaged-startup.cjs` — po zbudowaniu uruchamia
+  rzeczywisty ZIP/DMG macOS i ZIP Windows Portable na izolowanym profilu;
+  dla NSIS sprawdza katalog `win-unpacked`, nie samą instalację. Przez lokalny
+  debugger potwierdza ekran licencji i brak hooków testowych; nie obchodzi
+  logowania. Workflow wydania wymaga arm64 dla paczki macOS.
 - `.github/workflows/ci.yml` i `release.yml` — obowiązujące bramki CI/release.
 - `docs/` — strona GitHub Pages; domena produkcyjna ma osobny deployment.
 - `docs/DEPLOYMENT.md` — bezpieczna procedura publikacji i kontroli produkcji.
@@ -71,6 +76,10 @@ npm run verify:desktop-suite -- analysis
   wspólnego limitu 300000 ms, ale nadal muszą potwierdzać wynik geometrii.
 - Nie traktuj tagu ani uploadu jako ukończonego wydania: sprawdź workflow,
   artefakty i produkcyjną stronę.
+- Nowy plik `scripts/verify-*.cjs` musi mieć jawną bramkę w
+  `verify-product-completeness.cjs` (manifest desktopowy albo wyjątek dla
+  pakietu) oraz odpowiadający mu krok CI/release; inaczej bramka jakości
+  zatrzyma całą macierz przed testami desktopowymi.
 
 ## Znane pułapki
 
