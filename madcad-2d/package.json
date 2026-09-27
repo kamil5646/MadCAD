@@ -77,6 +77,7 @@
     "verify:desktop-suite:prepared": "node scripts/run-desktop-verification-suite.cjs",
     "verify:product-completeness": "node scripts/verify-product-completeness.cjs",
     "verify:package": "node scripts/verify-package.cjs",
+    "verify:packaged-startup": "node scripts/verify-packaged-startup.cjs",
     "verify:release-version": "node scripts/verify-release-version.cjs",
     "verify:repository": "node scripts/verify-repository.cjs",
     "checksums:package": "node scripts/create-package-checksums.cjs",

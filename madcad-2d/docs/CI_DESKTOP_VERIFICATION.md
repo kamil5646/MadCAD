@@ -25,6 +25,16 @@ ten smoke test **nie** potwierdza ręcznego modelowania po zalogowaniu ani
 instalacji z finalnego instalatora. Potwierdzenie pełnego przepływu pochodzi na
 razie z testów desktopowych kodu źródłowego; wydanie wymaga oddzielnego audytu.
 
+`verify:packaged-startup` uruchamia po zbudowaniu pakietu aplikację z osobnym
+profilem, lokalnym połączeniem debuggera i limitem 30 s. Dla macOS uruchamia
+aplikację wyodrębnioną z ZIP albo zamontowaną z DMG, dla Windows Portable z
+ZIP, a dla instalatora NSIS — z katalogu `win-unpacked` (bez instalacji NSIS).
+Sprawdza załadowanie `app.asar/dist/index.html`, API desktopowe, ekran licencji
+oraz brak hooków `?verify=1`; lokalne przebiegi ZIP i DMG macOS przeszły.
+W CI na runnerze macOS innym niż arm64 test jawnie raportuje pominięcie,
+ponieważ dystrybuowana paczka jest arm64. Test nie instaluje NSIS, nie
+obchodzi wymagania konta i nie potwierdza pracy po zalogowaniu.
+
 CI `35908613650` dla commitu `63d4a5e` potwierdził wszystkie trzy części modelowania na obu systemach i pięć instalatorów: 23/23 zadań zakończyło się powodzeniem. Główny shard Windows zakończył się po 9 min 36 s od startu zadania, zamiast 23 min 20 s poprzedniego wspólnego shardu (około 2,4× szybciej do końca modelowania). CodeQL `35908613712` również przeszedł.
 
 CI `35910260871` dla commitu `126feba` po zmianie kontroli szybkich przejazdów CAM także przeszedł 23/23 zadań, w tym oba systemy i wszystkie instalatory; CodeQL `35910260767` przeszedł.
