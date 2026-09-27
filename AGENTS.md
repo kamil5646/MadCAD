@@ -79,8 +79,9 @@ npm run verify:desktop-suite -- analysis
   indeksuje jej trójkąty zachowawczo. Rzut trójkąta w XY odrzuca jednoznacznie
   oddalone przejazdy, a ograniczony podział pochyłych trójkątów zawęża ich
   lokalny zakres Z. Promień pionowy sprawdza wnętrze zamkniętej bryły dla
-  końcówek narzędzia i przekrojów oprawki; przypadki niejednoznaczne pozostają
-  kolizją. Regresja skośnej szczęki jest w `tests/cad-core.test.mjs`. Brak
+  końcówek narzędzia i przekrojów oprawki. Szew triangulacji nie blokuje
+  punktu ponad wszystkimi trafionymi powierzchniami; inne niejednoznaczności
+  pozostają kolizją. Regresja skośnej szczęki jest w `tests/cad-core.test.mjs`. Brak
   siatki lub niepewna kolizja blokuje eksport. Nie nazywaj tego dokładną
   symulacją oprawki ani pozycji startowej obrabiarki.
 - Własne narzędzie CAM w schemacie v25 może być frezem palcowym, frezem do
