@@ -2153,7 +2153,7 @@ export function createMachineGcode(setup, operation, bodies = [], { projectName 
   );
   if (!programFragment && postProcessor.id === 'linuxcnc') lines.push('G40', 'G49', 'G64 P0.01');
   if (!programFragment && postProcessor.id === 'mach3') lines.push('G40', 'G49', 'G80');
-  if (includeToolChange && postProcessor.toolChange) lines.push(`T${toolNumber} M6`);
+  if (includeToolChange && postProcessor.toolChange) lines.push(`T${toolNumber} M6`, `G43 H${toolNumber}`);
   else if (includeToolChange) lines.push(comment(`Narzędzie T${toolNumber}: ${toolpath.tool.name} — zmień ręcznie przed startem`));
   const start = toolpath.segments[0].from;
   lines.push(`G0 Z${gcodeNumber(safeLocalZ)}`, `G0 X${gcodeNumber(start[0] - origin[0])} Y${gcodeNumber(start[1] - origin[1])}`, `S${toolpath.operation.spindleRpm} M3`);

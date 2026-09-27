@@ -16,6 +16,8 @@ CI `35990224163` dla `f590a72` przeszedł 23/23 zadań, a CodeQL `35990224177` r
 
 CI `36279789091` dla `8ec1281` potwierdził również nowszą kontrolę siatki: 23/23 zadań, łącznie z pełną macierzą desktopową i pięcioma instalatorami. CodeQL `36279789087` przeszedł. Zmiana profilu oprawki w schemacie v26 powstała później i wymaga własnego przebiegu; nie przypisuj jej tego wyniku.
 
+CI `36280738840` dla `d3a3a2d` potwierdził schemat v26, wielostopniową oprawkę i poprawiony podgląd: 23/23 zadań. CodeQL `36280738826` także przeszedł. Późniejsza emisja `G43 Hn` po zmianie narzędzia wymaga osobnego przebiegu i nie jest potwierdzona tym CI.
+
 Przy ocenie budżetu dużych projektów porównuj etap i powtórzenie, nie sam czerwony wynik: Windows `modeling-features` w CI `35912028110` przekroczył 45 s przy odtworzeniu korpusu 220 szkiców (47,05 s; siatkowanie 33,14 s), lecz ten sam scenariusz w `35910260871` trwał 22,77 s, a w `35955122785` 17,25 s (siatkowanie 11,82 s). Nie podnoś progu na podstawie pojedynczego skoku obciążenia runnera; najpierw porównaj `initial`/`recovered`, `historyMs`, `meshMs` i ponowny niezależny przebieg. W `35955122785` sam shard `modeling-features` Windows był zielony, lecz shard `project` Windows przerwał kreator naprawy referencji. Jego skrypt musi czekać na ID ostatniej operacji **nowego** fixture także w wyniku silnika; samo `status === ready` mogło nadal oznaczać poprzedni model. Diagnostyka w `35956074757` pokazała drugi wyścig: panel znikał między `waitFor` a osobnym odczytem jego prostokąta w `executeJavaScript`. Odczyt panelu i kandydata musi być atomowy, z ponowieniem gdy panel jest chwilowo odmontowany; komunikat o błędzie nadal powinien wskazywać etap.
 
 Szybka kontrola lokalna po zmianie manifestu:

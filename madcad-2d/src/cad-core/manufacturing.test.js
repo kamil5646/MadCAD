@@ -396,7 +396,7 @@ describe('CAM contour operations', () => {
     expect(toolpath.segments.filter((segment) => segment.kind === 'tap-up')).toHaveLength(2);
     expect(analyzeToolpathSafety(toolpath)).toEqual([]);
     const output = createMachineGcode(setup, operation, [pilotBody], { document });
-    expect(output.text).toContain('T100 M6');
+    expect(output.text).toMatch(/T100 M6\nG43 H100\nG0 Z/);
     expect(output.text).toContain('G84 X-10 Y-5 Z-11 R1 F625');
     expect(output.text).toContain('G80');
     expect(() => createMachineGcode(setup, operation, [pilotBody], { document, postProcessorId: 'grbl' })).toThrow(/G84/);
@@ -532,11 +532,12 @@ describe('CAM contour operations', () => {
     expect(linuxCnc.extension).toBe('ngc');
     expect(linuxCnc.text).toMatch(/^%\n/);
     expect(linuxCnc.text).toContain('G64 P0.01');
-    expect(linuxCnc.text).toContain('T2 M6');
+    expect(linuxCnc.text).toMatch(/T2 M6\nG43 H2\nG0 Z/);
     expect(linuxCnc.text).toContain('\nM2\n%');
     const mach3 = createMachineGcode(setup, operation, [box], { postProcessorId: 'mach3' });
     expect(mach3.extension).toBe('tap');
     expect(mach3.text).toContain('G80');
+    expect(mach3.text).toMatch(/T2 M6\nG43 H2\nG0 Z/);
     expect(mach3.text).toContain('\nM30\n');
   });
 
@@ -552,11 +553,26 @@ describe('CAM contour operations', () => {
     expect(output.text).toMatch(/^%\n/);
     expect(output.text.match(/\nG21\n/g)).toHaveLength(1);
     expect(output.text.match(/T2 M6/g)).toHaveLength(1);
+    expect(output.text.match(/G43 H2/g)).toHaveLength(1);
     expect(output.text.match(/\nG55\n/g)).toHaveLength(1);
     expect(output.text).toContain('(Kieszeń główna | Frez palcowy płaski Ø6)');
     expect(output.text).toContain('(Kontur końcowy | Frez palcowy płaski Ø6)');
     expect(output.text.match(/\nM2\n/g)).toHaveLength(1);
     expect(output.text).toMatch(/\nM5\nM2\n%\n$/);
+  });
+
+  it('reactivates the matching tool-table length offset after each milling tool change', () => {
+    const setup = createManufacturingSetup({ bodyId: box.id, operations: [
+      createFacingOperation({ toolId: 'flat-3', postProcessorId: 'linuxcnc' }),
+      createContourOperation({ toolId: 'flat-6', targetDepth: 1, postProcessorId: 'linuxcnc' }),
+    ] });
+    const output = createManufacturingProgramGcode(setup, [box], { postProcessorId: 'linuxcnc' });
+    expect(output.text).toMatch(/T1 M6\nG43 H1\nG0 Z/);
+    expect(output.text).toMatch(/T2 M6\nG43 H2\nG0 Z/);
+    expect(output.text.match(/G43 H/g)).toHaveLength(2);
+    expect(output.text.indexOf('G49')).toBeLessThan(output.text.indexOf('G43 H1'));
+    const grbl = createMachineGcode(setup, setup.operations[0], [box], { postProcessorId: 'grbl' });
+    expect(grbl.text).not.toContain('G43');
   });
 
   it('duplicates operations and permits only manual moves that preserve technological dependencies', () => {

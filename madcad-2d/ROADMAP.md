@@ -338,6 +338,7 @@ Te prace nie czekają na koniec modelowania:
   - [x] Okrągły przekrój freza i oprawki jest sprawdzany względem narożnika szczęki po obrocie, bez fałszywego przecięcia wynikającego wyłącznie z kwadratowej obwiedni; regresja obejmuje bezpieczny i kolizyjny przejazd.
   - [x] Widok CAM pokazuje osobny obrys zadanego odstępu bezpieczeństwa każdej aktywnej szczęki; brak obrysu przy 0 mm oraz Cofnij są sprawdzane w desktop E2E.
   - [x] Eksport najpierw podnosi Z i ustawia XY na płaszczyźnie bezpiecznej; pełny program sprawdza dodatkowo przejazdy między operacjami tego samego Setupu.
+  - [x] Frezarskie postprocesory LinuxCNC i Mach3/Mach4 włączają `G43 Hn` po każdym `Tn M6`, przed pierwszym ruchem Z; brak dostępu do rzeczywistej tabeli długości narzędzi nadal wymaga kontroli operatora.
   - [x] Toczenie rozdziela dojazd na odsunięcie promieniowe X, przejazd osiowy Z i powrót do promienia startowego; blokuje nieosiągalną średnicę bezpieczną.
   - [x] Strefa mocowania może być pionowym walcem, np. śrubą: widok, odstęp, kontrola freza i oprawki, arkusz ustawczy oraz migracja projektu v21→v22 używają tego samego kształtu.
   - [x] Kontrola szybkiego przejazdu frezu przez półfabrykat wykrywa także pionowy ruch w dół do materiału; pionowe wycofanie, ruch poza obrysem XY i dojazd głowicy laserowej/plazmowej mają regresje bez fałszywego alarmu.
