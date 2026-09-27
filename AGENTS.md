@@ -4,6 +4,11 @@ Ten plik jest krótkim punktem startowym dla kolejnych prac. Bieżące priorytet
 i otwarte kryteria odbioru znajdują się w `madcad-2d/ROADMAP.md`; dokument
 `AUDIT-2026-09-20.md` jest migawką audytu z podanej daty.
 
+Priorytet od 2026-09-27: najpierw pionowy przepływ podstawowego projektowania
+jak w Fusion (szkic, wymiary, bryła, historia, Cofnij/Ponów, zapis i ponowne
+otwarcie) oraz naprawa potwierdzonych różnic UX. Rozbudowa P5.5 CAM, sondowanie
+i symulacja maszyny są odłożone za ten przepływ; patrz aktywny cel w roadmapie.
+
 ## Układ repozytorium
 
 - `madcad-2d/src/cad-core/` — dokument, solver, historia, topologia, formaty i

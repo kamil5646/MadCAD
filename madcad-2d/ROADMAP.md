@@ -32,7 +32,33 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 7. Każdy pionowy etap kończy się scenariuszem od pustego dokumentu oraz ponownym otwarciem zapisu.
 8. Nowe narzędzie działa na obsługiwanych płaszczyznach i ścianach albo jawnie pokazuje ograniczenie.
 
-## Aktywny cel R6.6 — niezawodność dużych projektów
+## Aktywny cel — podstawowy przepływ projektowania jak w Fusion
+
+Priorytet użytkownika z 2026-09-27: najpierw niezawodna codzienna praca w
+obszarze projektowania, dopiero potem zaawansowany CAM, sondowanie i symulacja
+maszyny. Samo oznaczenie narzędzia jako zaimplementowanego nie potwierdza
+spójnego doświadczenia od pustego projektu do gotowej części.
+
+- [>] Przejść w rzeczywistej aplikacji jeden ciąg: nowy projekt → szkic na
+  płaszczyźnie → wymiary i więzy → Wyciągnij → edycja wymiaru szkicu i operacji
+  w historii → automatyczna przebudowa bryły → Cofnij/Ponów → zapis pliku
+  `.madcad` → ponowne otwarcie i porównanie geometrii.
+- [ ] Powtórzyć ten sam ciąg dla szkicu na ścianie oraz drugiej operacji
+  zależnej od pierwszej; utracona referencja ma dawać naprawialny komunikat,
+  a nie znikającą bryłę.
+- [ ] Sprawdzić ergonomię i widoczny stan podstawowych poleceń na typowym
+  oknie oraz przy 150% skali; każdą potwierdzoną różnicę od oczekiwanego
+  przepływu naprawić i zabezpieczyć desktopowym testem regresyjnym.
+- [ ] Potwierdzić finalny podstawowy przepływ na Windows i macOS w CI oraz
+  rozróżnić wyniki z kodu źródłowego od stanu zainstalowanej aplikacji.
+
+Dotychczasowy desktopowy test `verify:extrude-after-sketch` potwierdza
+szkic → bryłę i cienkie wyciągnięcie, lecz sam nie obejmuje całego zapisu i
+edycji historii. `verify:modeling` pokrywa wiele tych etapów, ale w oddzielnych
+scenariuszach; potrzebna jest również jedna pionowa regresja podstawowego
+przepływu. Nie tworzymy wydania przed jego zamknięciem i walidacją.
+
+## Ukończony pion R6.6 — niezawodność dużych projektów
 
 Jeden aktywny pion prowadzi teraz od szybkiej edycji długiej historii do
 potwierdzonego wyniku bez blokowania użytkownika:
@@ -328,7 +354,7 @@ Te prace nie czekają na koniec modelowania:
   - [x] Drukowalny arkusz ustawczy A4 z WCS, półfabrykatem, narzędziami, operacjami, czasem i wynikiem kontroli.
   - [x] Trwałe foldery operacji organizują program bez zmiany kolejności wykonania; usunięcie folderu zachowuje operacje.
   - [x] Szablony operacji zapisują parametry i narzędzie w projekcie bez nietrwałych referencji do geometrii, a zgodność z rodzajem Setupu jest sprawdzana przed użyciem.
-- [>] P5.5 Mocowanie, wiele układów roboczych i sondowanie: model uchwytu oraz strefy kolizji, G54–G59, operacje ustawiania bazy i bezpieczny raport kolejnych zamocowań.
+- [~] P5.5 Mocowanie, wiele układów roboczych i sondowanie: częściowy model uchwytu oraz strefy kolizji, G54–G59 i raport kolejnych zamocowań; dalsze prace odłożone za podstawowy przepływ projektowania.
   - [x] Każdy Setup zapisuje własny układ G54–G59, przekazuje go do programów frezarskich, tokarskich i cięcia oraz umieszcza na arkuszu ustawczym.
   - [x] Wiele stref uchwytów jako prostopadłościany XYZ jest zapisywanych w Setupie, wizualizowanych i blokuje eksport przy przecięciu trajektorii narzędzia z zadanym odstępem.
   - [x] Raport kolejnych Setupów zestawia WCS, operacje, ostrzeżenia i ręczne czynności operatora; wykrywa ponowne użycie offsetu z innym zerem, ale nie generuje sondowania ani przejazdów między Setupami.
