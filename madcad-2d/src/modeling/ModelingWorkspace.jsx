@@ -123,6 +123,7 @@ import { evaluateExpression, resolveParameters } from '../cad-core/expressions.j
 import { resolveOpenChainProfile } from '../cad-core/evaluator.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../cad-core/topology-references.js';
+import { moveEndFaceSketchSupports } from '../cad-core/face-sketch-support.js';
 import { createAnglePlane, createMidplane, createOffsetPlane, createPathPlane, createTangentPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
 import { frameFromNormal, normalizeSketchFrame } from '../cad-core/sketch-frame.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createPlaneNormalAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../cad-core/construction-axes.js';
@@ -1024,6 +1025,7 @@ export default function ModelingWorkspace() {
     history.commit((next) => {
       const existingEntityIds = new Set(next.sketches.flatMap((sketch) => sketch.entities.map((entity) => entity.id)));
       mutator(next);
+      moveEndFaceSketchSupports(document, next);
       for (const sketch of next.sketches) {
         sketch.entities = sketch.entities.map((entity) => existingEntityIds.has(entity.id)
           ? entity

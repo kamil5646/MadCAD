@@ -49,7 +49,7 @@ istniejących blokad niebezpiecznego eksportu nie wolno usuwać.
   płaszczyźnie → wymiary i więzy → Wyciągnij → edycja wymiaru szkicu i operacji
   w historii → automatyczna przebudowa bryły → Cofnij/Ponów → zapis pliku
   `.madcad` → ponowne otwarcie i porównanie geometrii.
-- [>] Powtórzyć ten sam ciąg dla szkicu na ścianie oraz drugiej operacji
+- [ ] Powtórzyć ten sam ciąg dla szkicu na ścianie oraz drugiej operacji
   zależnej od pierwszej; utracona referencja ma dawać naprawialny komunikat,
   a nie znikającą bryłę.
 - [ ] Sprawdzić ergonomię i widoczny stan podstawowych poleceń na typowym
@@ -66,13 +66,12 @@ serializację, zapis pliku `.madcad` przyciskiem aplikacji i otwarcie go po nowy
 projekcie oraz osobny przypadek cienkiego wyciągnięcia. Krótki test używa
 kontrolowanego IPC plikowego, nie produkcyjnego okna wyboru ścieżki ani
 mechanizmu atomowej kopii `.bak`. Ten sam test potwierdza też drugi szkic
-założony na płaskiej ścianie, wycięcie zależne od pierwszej bryły i ponowny
-odczyt obu operacji z pliku. Odkryta luka: po zmianie odległości pierwszego
-Wyciągnięcia z 15 na 20 mm zapisany `planeOffset` szkicu na ścianie pozostaje
-na 15 mm. Bryła zostaje przeliczona, ale szkic nie podąża za podporą. Przed
-zamknięciem tego etapu trzeba rozwiązywać położenie szkicu z bieżącej
-referencji ściany i dodać regresję obejmującą edycję operacji nadrzędnej
-oraz naprawę utraconej referencji.
+założony na płaskiej ścianie, wycięcie zależne od pierwszej bryły, przesunięcie
+tej podpory po edycji pierwszego Wyciągnięcia z 15 na 20 mm, Cofnij/Ponów
+obu położeń oraz odczyt obu operacji z pliku. Korekta podpory obejmuje teraz
+końcową ścianę osiowego, jednostronnego Wyciągnięcia; ogólne zmiany topologii,
+inne rodzaje ścian i naprawa utraconej referencji nadal wymagają osobnej
+walidacji przed zamknięciem tego etapu.
 `verify:modeling` obejmuje wiele tych etapów w oddzielnych
 scenariuszach, ale lokalny przebieg 2026-09-27 przekroczył istniejący budżet
 całego scenariusza 120 s (199,9 s); sam przebieg szkic → bryła w krótszym

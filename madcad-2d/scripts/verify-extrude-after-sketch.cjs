@@ -233,16 +233,30 @@ app.whenReady().then(async () => {
     if (result.faceSketch.support !== 'face' || result.faceSketch.operation !== 'cut' || result.faceSketch.featureStatus !== 'ok' || !(result.faceSketch.volume < 17999)) {
       throw new Error(`Szkic na ścianie nie wyciął materiału: ${JSON.stringify(result.faceSketch)}`);
     }
+    await window.webContents.executeJavaScript(`document.querySelectorAll('.timeline-item')[0]?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'feature'`, 'pierwsza operacja wybrana ponownie');
+    await window.webContents.executeJavaScript(`document.querySelector('[data-timeline-action="edit"]')?.click()`);
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'ponowna edycja pierwszej operacji');
+    await setCommandField(window, 'Odległość', '20');
+    const dependentRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${dependentRevision} && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok' && Number(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset) > 19.9 && window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume > 23000`, 'szkic i wycięcie śledzą zmianę pierwszej bryły', 30000);
+    result.faceSketch.rebuiltVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`);
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && Number(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset) === 15 && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${result.faceSketch.volume}) < 0.01`, 'Cofnij operację nadrzędną i położenie szkicu', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && Number(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset) === 20 && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${result.faceSketch.rebuiltVolume}) < 0.01`, 'Ponów operację nadrzędną i położenie szkicu', 30000);
+    result.faceSketch.undoRedo = true;
     await window.webContents.executeJavaScript(`document.querySelector('#saveProjectBtn')?.click()`);
     await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('Zapisano projekt atomowo:')`, 'zapis projektu z drugim szkicem');
     const savedFaceProject = JSON.parse(await fs.readFile(projectPath, 'utf8'));
-    if (savedFaceProject.sketches?.[1]?.support?.kind !== 'face' || savedFaceProject.features?.[1]?.operation !== 'cut') {
+    if (savedFaceProject.sketches?.[1]?.support?.kind !== 'face' || Number(savedFaceProject.sketches[1].planeOffset) !== 20 || savedFaceProject.features?.[1]?.operation !== 'cut') {
       throw new Error('Plik .madcad nie zachował szkicu na ścianie i zależnego wycięcia.');
     }
     await window.webContents.executeJavaScript(`document.querySelector('#newProjectBtn')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.features === 0`, 'nowy projekt po wycięciu');
     await window.webContents.executeJavaScript(`document.querySelector('#openProjectBtn')?.click()`);
-    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 2 && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${result.faceSketch.volume}) < 0.01`, 'odtworzony projekt z wycięciem', 30000);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 2 && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${result.faceSketch.rebuiltVolume}) < 0.01`, 'odtworzony projekt z wycięciem', 30000);
     result.faceSketch.fileRoundTrip = true;
 
     // Stop the old renderer before clearing storage. Its delayed autosave can
