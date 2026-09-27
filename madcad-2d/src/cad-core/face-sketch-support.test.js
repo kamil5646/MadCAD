@@ -56,6 +56,27 @@ describe('face-supported sketch tracking', () => {
     expect(next.sketches[1].frame.v).toEqual(previous.sketches[1].frame.v);
   });
 
+  it('moves two sketches sharing one face reference without shifting that reference twice', () => {
+    const previous = fixture();
+    previous.sketches.push({ id: 'second-dependent', plane: 'XY', planeOffset: '15', support: { kind: 'face', referenceId: 'top' } });
+    const next = structuredClone(previous);
+    next.features[0].distance = '20';
+    expect(moveEndFaceSketchSupports(previous, next)).toBe(2);
+    expect(next.sketches[1].planeOffset).toBe('20');
+    expect(next.sketches[2].planeOffset).toBe('20');
+    expect(next.references[0].descriptor.center).toEqual([0, 0, 20]);
+  });
+
+  it('tracks a driving parameter change, not only a literal extrusion edit', () => {
+    const previous = fixture();
+    previous.parameters = [{ name: 'height', expression: '15' }];
+    previous.features[0].distance = 'height';
+    const next = structuredClone(previous);
+    next.parameters[0].expression = '20';
+    expect(moveEndFaceSketchSupports(previous, next)).toBe(1);
+    expect(next.sketches[1].planeOffset).toBe('20');
+  });
+
   it('leaves an unrelated or rotated support to geometric reference repair', () => {
     const previous = fixture();
     const next = structuredClone(previous);

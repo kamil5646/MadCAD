@@ -173,6 +173,21 @@ jobs:
             npm run verify:package -- windows-portable
           fi
 
+      - name: Start packaged apps from release artifacts
+        if: runner.os != 'Linux'
+        working-directory: madcad-2d
+        shell: bash
+        env:
+          MADCAD_REQUIRE_PACKAGED_STARTUP: '1'
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            npm run verify:packaged-startup -- mac
+            npm run verify:packaged-startup -- mac-dmg
+          else
+            npm run verify:packaged-startup -- windows
+            npm run verify:packaged-startup -- windows-portable
+          fi
+
       - name: Upload verified release package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

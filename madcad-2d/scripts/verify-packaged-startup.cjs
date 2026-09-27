@@ -74,6 +74,9 @@ async function stop(child) {
 
 (async () => {
   if ((kind === 'mac' || kind === 'mac-dmg') && process.arch !== 'arm64') {
+    if (process.env.MADCAD_REQUIRE_PACKAGED_STARTUP === '1') {
+      throw new Error('Wymagana bramka wydania: paczka macOS arm64 musi zostać uruchomiona na runnerze arm64.');
+    }
     process.stdout.write(`${JSON.stringify({ skipped: true, kind, reason: 'Pakiet jest arm64, a runner nie jest arm64.' })}\n`);
     return;
   }

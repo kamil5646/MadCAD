@@ -10,10 +10,16 @@ export function moveEndFaceSketchSupports(previous, next) {
   const previousParameters = resolveParameters(previous.parameters);
   const nextParameters = resolveParameters(next.parameters);
   if (!previousParameters.valid || !nextParameters.valid) return 0;
+  const originalSupportPlanes = new Map(next.references.map((reference) => [reference.id, {
+    normal: reference.descriptor?.normal,
+    center: reference.descriptor?.center,
+  }]));
+  const movedReferences = new Set();
   let moved = 0;
   for (const sketch of next.sketches) {
     if (sketch.support?.kind !== 'face') continue;
     const reference = next.references.find((item) => item.id === sketch.support.referenceId);
+    const originalPlane = originalSupportPlanes.get(reference?.id);
     const previousFeature = previous.features.find((item) => item.id === reference?.sourceFeatureId);
     const nextFeature = next.features.find((item) => item.id === reference?.sourceFeatureId);
     if (!previousFeature || !nextFeature || previousFeature.type !== 'extrude' || nextFeature.type !== 'extrude'
@@ -22,19 +28,19 @@ export function moveEndFaceSketchSupports(previous, next) {
       || previousFeature.sketchId !== nextFeature.sketchId || reference?.descriptor?.geometry !== 'PLANE') continue;
     const previousSource = previous.sketches.find((item) => item.id === previousFeature.sketchId);
     const nextSource = next.sketches.find((item) => item.id === nextFeature.sketchId);
-    if (!previousSource || !nextSource || !Array.isArray(reference.descriptor.normal)
-      || !Array.isArray(reference.descriptor.center)) continue;
+    if (!previousSource || !nextSource || !Array.isArray(originalPlane?.normal)
+      || !Array.isArray(originalPlane?.center)) continue;
     try {
       const sourceFrame = (source, values) => resolveSketchFrame({ ...source, planeOffset: evaluateExpression(source.planeOffset || 0, values) });
       const before = sourceFrame(previousSource, previousParameters.values);
       const after = sourceFrame(nextSource, nextParameters.values);
       const normal = before.normal;
-      if (dot(normal, after.normal) < 0.999999 || dot(normal, reference.descriptor.normal) < 0.99) continue;
+      if (dot(normal, after.normal) < 0.999999 || dot(normal, originalPlane.normal) < 0.99) continue;
       const endPosition = (frame, feature, values) => frame.origin.map((value, index) => value + frame.normal[index]
         * (evaluateExpression(feature.startOffset || 0, values) + evaluateExpression(feature.distance, values)));
       const previousEnd = endPosition(before, previousFeature, previousParameters.values);
       const nextEnd = endPosition(after, nextFeature, nextParameters.values);
-      if (Math.abs(dot(reference.descriptor.center.map((value, index) => value - previousEnd[index]), normal)) > 1e-4) continue;
+      if (Math.abs(dot(originalPlane.center.map((value, index) => value - previousEnd[index]), normal)) > 1e-4) continue;
       const shift = nextEnd.map((value, index) => value - previousEnd[index]);
       if (shift.some((value) => !Number.isFinite(value)) || Math.hypot(...shift) < 1e-9) continue;
       if (sketch.frame) sketch.frame.origin = sketch.frame.origin.map((value, index) => value + shift[index]);
@@ -44,10 +50,13 @@ export function moveEndFaceSketchSupports(previous, next) {
         if (Math.hypot(...shift.map((value, index) => value - normal[index] * alongNormal)) > 1e-6) continue;
         sketch.planeOffset = String(evaluateExpression(sketch.planeOffset || 0, nextParameters.values) + alongNormal);
       }
-      for (const key of ['center', 'centerOfMass']) {
-        if (Array.isArray(reference.descriptor[key])) {
-          reference.descriptor[key] = reference.descriptor[key].map((value, index) => value + shift[index]);
+      if (!movedReferences.has(reference.id)) {
+        for (const key of ['center', 'centerOfMass']) {
+          if (Array.isArray(reference.descriptor[key])) {
+            reference.descriptor[key] = reference.descriptor[key].map((value, index) => value + shift[index]);
+          }
         }
+        movedReferences.add(reference.id);
       }
       moved += 1;
     } catch {
