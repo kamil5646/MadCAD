@@ -203,8 +203,9 @@ app.whenReady().then(async () => {
     if (state.schemaVersion !== DOCUMENT_SCHEMA_VERSION || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.visibleProjectionLines < 20 || !state.projectedInkInsidePaper || state.hatchCount < 1 || state.annotationCount !== 10 || state.userAnnotationCount !== 8 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note|feature-control-frame|balloon' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || !state.gdtFrame || !state.balloonVisible || state.tables !== 2 || state.bomRows < 1 || state.holeRows < 1 || state.revisions !== 1 || state.partNumber !== 'MC-VERIFY-001' || state.associatedViewCount !== 3 || !state.pdfEnabled || !state.dxfEnabled || !state.outputInFileMenu || (!state.visibleRibbonGroups.includes('ZESTAWIENIA') && !state.overflowVisible) || state.horizontalOverflow || !state.paperInsideStage || !state.drawingMode || !state.projectBrowserHidden || !state.timelineHidden || !state.zoomToolbar || !state.panelToggles) {
       throw new Error(`Niepoprawny obszar dokumentacji: ${JSON.stringify(state)}`);
     }
-    process.stdout.write(`${JSON.stringify({ screenshotPath, ...state }, null, 2)}\n`);
-    app.exit(0);
+    // Windows pipes stdout asynchronously. Exiting Electron before the write
+    // callback can leave its completion handle invalid despite passing checks.
+    process.stdout.write(`${JSON.stringify({ screenshotPath, ...state }, null, 2)}\n`, () => app.exit(0));
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);
     app.exit(1);
