@@ -308,6 +308,6 @@ app.whenReady().then(async () => {
     ipcMain.removeHandler('madcad-verify:save-project');
     ipcMain.removeHandler('madcad-verify:open-project');
     await fs.rm(projectDirectory, { recursive: true, force: true });
-    app.exit(exitCode);
+    process.exit(exitCode);
   }
 });
