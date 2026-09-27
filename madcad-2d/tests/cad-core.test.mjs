@@ -6346,12 +6346,18 @@ test('CAM tokarki planuje czoło i średnicę zewnętrzną w układzie X/Z', () 
   assert.equal(facePath.passCount, 2);
   assert.equal(profilePath.valid, true);
   assert.equal(profilePath.passCount, 2);
+  assert.deepEqual(analyzeToolpathSafety(facePath), []);
+  assert.deepEqual(analyzeToolpathSafety(profilePath), []);
+  const unsafeRapid = { ...profilePath, segments: [{ kind: 'rapid', from: profilePath.segments[0].from,
+    to: [profilePath.stockBounds[1][0] - 2, profilePath.origin[1], profilePath.origin[2]] }] };
+  assert.equal(analyzeToolpathSafety(unsafeRapid).some((issue) => issue.code === 'RAPID_IN_TURNING_STOCK'), true);
   assert.deepEqual(validateManufacturing({ setups: [setup], activeSetupId: setup.id }), []);
   const output = createMachineGcode(setup, profile, [camBox]);
   assert.equal(output.postProcessor, 'linuxcnc-turn');
   assert.match(output.text, /\nG18\nG95\n/);
   assert.match(output.text, /G0 X34\nG0 Z2\nG0 X34\nS1200 M3/);
   assert.match(output.text, /G1 X20 Z-30/);
+  assert.match(output.text, /G1 X20 Z-30\nG1 X20 Z1\nG0 X34 Z1/);
   assert.match(output.text, /\nM5\nM2\n%/);
   const fullProgram = createManufacturingProgramGcode(setup, [camBox]);
   assert.equal(fullProgram.operationCount, 2);

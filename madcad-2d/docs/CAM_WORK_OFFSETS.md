@@ -9,6 +9,7 @@ Każdy Setup CAM przechowuje własny `workOffset` w projekcie. Nowe i starsze pr
 - Zakres i obsługa strefy są opisane osobno w [CAM_FIXTURE_ZONE.md](./CAM_FIXTURE_ZONE.md).
 - Eksport obejmuje jeden Setup i używa jednego układu roboczego na jego cały program. Zmiana układu między Setupami wymaga odrębnego eksportu i kontroli na maszynie.
 - W toczeniu początek każdej operacji jest osiągany kolejno przez odsunięcie X na średnicę bezpieczną, przesunięcie osiowe Z i powrót X do promienia startowego. Średnica bezpieczna musi mieścić się w zakresie tokarki. Strefy uchwytów tokarki nie są jeszcze modelowane, a początkowe położenie maszyny jest nieznane aplikacji.
+- W toczeniu zewnętrznym promieniowy dojazd do kolejnego przejścia odbywa się przed czołem półfabrykatu. Po skrawaniu nóż wraca osiowo przy posuwie `G1` po wykonanej ścieżce, a dopiero przed czołem odsuwa się szybkim `G0` na średnicę bezpieczną. Planowanie czoła także wycofuje się osiowo przy posuwie przed szybkim odsunięciem promieniowym. Analizator blokuje szybki ruch przecinający cylindryczną obwiednię półfabrykatu z uwzględnieniem promienia naroża noża; nie zastępuje to symulacji uchwytu tokarskiego ani pomiaru położenia początkowego.
 - Przed rzeczywistą obróbką trzeba sprawdzić mocowanie, korekcje narzędzi, zero osi, przejazdy oraz zgodność postprocesora ze sterownikiem.
 
 ## Punkty kontrolne dla dalszych prac

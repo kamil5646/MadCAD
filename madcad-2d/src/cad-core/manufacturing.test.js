@@ -710,12 +710,27 @@ describe('CAM contour operations', () => {
     expect(facePath.passCount).toBe(2);
     expect(profilePath.valid).toBe(true);
     expect(profilePath.passCount).toBe(2);
+    const rapidClearsStock = (path, segment) => {
+      const front = path.stockBounds[1][0];
+      const radius = path.operation.stockDiameter / 2;
+      const nose = path.tool.noseRadius;
+      return [segment.from, segment.to].every((point) => point[0] > front + nose)
+        || [segment.from, segment.to].every((point) => point[1] > path.origin[1] + radius + nose);
+    };
+    expect(facePath.segments.filter((segment) => segment.kind === 'rapid').every((segment) => rapidClearsStock(facePath, segment))).toBe(true);
+    expect(profilePath.segments.filter((segment) => segment.kind === 'rapid').every((segment) => rapidClearsStock(profilePath, segment))).toBe(true);
+    expect(analyzeToolpathSafety(facePath)).toEqual([]);
+    expect(analyzeToolpathSafety(profilePath)).toEqual([]);
+    expect(analyzeToolpathSafety({ ...profilePath, segments: [{ kind: 'rapid', from: profilePath.segments[0].from,
+      to: [profilePath.stockBounds[1][0] - 2, profilePath.origin[1], profilePath.origin[2]] }] }))
+      .toContainEqual(expect.objectContaining({ code: 'RAPID_IN_TURNING_STOCK' }));
     expect(validateManufacturing({ setups: [setup], activeSetupId: setup.id })).toEqual([]);
     const output = createMachineGcode(setup, profile, [box]);
     expect(output.postProcessor).toBe('linuxcnc-turn');
     expect(output.text).toContain('\nG18\nG95\n');
     expect(output.text).toContain('\nT1 M6\n');
     expect(output.text).toContain('G1 X22 Z-30 F0.25');
+    expect(output.text).toMatch(/G1 X22 Z-30 F0\.25\nG1 X22 Z1\nG0 X34 Z1/);
     expect(output.text).toContain('G1 X20 Z-30');
     expect(output.text).toContain('\nM5\nM2\n%');
   });

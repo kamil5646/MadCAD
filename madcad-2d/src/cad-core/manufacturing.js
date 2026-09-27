@@ -803,7 +803,7 @@ function summarizeToolpath(segments) {
   const segmentLength = (segment) => Math.hypot(...segment.to.map((value, axis) => value - segment.from[axis]));
   return {
     distance: segments.reduce((sum, segment) => sum + segmentLength(segment), 0),
-    cuttingDistance: segments.filter((segment) => segment.kind !== 'rapid').reduce((sum, segment) => sum + segmentLength(segment), 0),
+    cuttingDistance: segments.filter((segment) => segment.kind !== 'rapid' && segment.kind !== 'feed-retract').reduce((sum, segment) => sum + segmentLength(segment), 0),
     durationMinutes: segments.reduce((sum, segment) => sum + segmentLength(segment) / (segment.kind === 'rapid' ? 3000 : segment.feed), 0),
   };
 }
@@ -1400,15 +1400,20 @@ export function calculateTurningToolpath(setup, operation, bodies = []) {
       push('rapid', [axial + 1, centerY + safeRadius, centerZ]);
       push('rapid', [axial, centerY + stockRadius + 1, centerZ]);
       push('cut', [axial, centerY, centerZ], normalized.feedRate);
-      push('rapid', [axial + 1, centerY + safeRadius, centerZ]);
+      // Feed back along the freshly faced area; a diagonal G0 from the axis
+      // would cross material left for the next facing pass.
+      push('feed-retract', [stockFront + 1, centerY, centerZ], normalized.feedRate);
+      push('rapid', [stockFront + 1, centerY + safeRadius, centerZ]);
     }
   } else {
     passCount = Math.max(1, Math.ceil((stockRadius - targetRadius) / normalized.maxDepthOfCut));
     for (let pass = 1; pass <= passCount; pass += 1) {
       const radius = stockRadius - (stockRadius - targetRadius) * pass / passCount;
       push('rapid', [stockFront + 1, centerY + safeRadius, centerZ]);
-      push('rapid', [stockFront, centerY + radius, centerZ]);
+      // Radial approach belongs ahead of the stock face, not on its surface.
+      push('rapid', [stockFront + 1, centerY + radius, centerZ]);
       push('cut', [stockFront - normalized.axialLength, centerY + radius, centerZ], normalized.feedRate);
+      push('feed-retract', [stockFront + 1, centerY + radius, centerZ], normalized.feedRate);
       push('rapid', [stockFront + 1, centerY + safeRadius, centerZ]);
     }
   }
@@ -1605,7 +1610,17 @@ export function analyzeToolpathSafety(toolpath) {
   for (let axis = 0; axis < 3; axis += 1) {
     if (maximum[axis] - minimum[axis] > machine.travel[axis] + 1e-7) issues.push({ code: 'MACHINE_TRAVEL', message: `Ścieżka przekracza przesuw maszyny w osi ${['X', 'Y', 'Z'][axis]}.` });
   }
-  if (toolpath.turning) return issues;
+  if (toolpath.turning) {
+    const noseRadius = Math.max(0, Number(toolpath.tool?.noseRadius) || 0);
+    const stockRadius = toolpath.operation.stockDiameter / 2 + noseRadius;
+    const center = toolpath.origin;
+    const stockMinimum = [toolpath.stockBounds[0][0] - noseRadius, center[1] - stockRadius, center[2] - stockRadius];
+    const stockMaximum = [toolpath.stockBounds[1][0] + noseRadius, center[1] + stockRadius, center[2] + stockRadius];
+    if (checkedSegments.some((segment) => segment.kind === 'rapid' && segmentIntersectsBounds(segment, stockMinimum, stockMaximum))) {
+      issues.push({ code: 'RAPID_IN_TURNING_STOCK', message: 'Wykryto szybki przejazd noża tokarskiego przez półfabrykat.' });
+    }
+    return issues;
+  }
   for (const fixture of toolpath.setup.fixtures.filter((item) => item.enabled)) {
     const toFixtureCoordinates = createFixtureSegmentTransform(fixture);
     const intersectsFixture = fixture.shape === 'cylinder' ? segmentIntersectsFixtureCylinder : segmentIntersectsFixtureFootprint;
