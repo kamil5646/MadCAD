@@ -6234,6 +6234,19 @@ test('nieznany typ operacji CAM nie jest zamieniany na planowanie ani eksportowa
   assert.throws(() => openDocument(document), /Nieobsługiwany typ operacji CAM/);
 });
 
+test('nieznany kształt uchwytu nie zmienia się po cichu w prostopadłościan', () => {
+  const operation = createFacingOperation();
+  const setup = createManufacturingSetup({ bodyId: camBox.id, fixtures: [{ id: 'future-jaw', name: 'Nowy uchwyt', enabled: true,
+    shape: 'mesh-v2', bounds: [[-10, -10, 0], [10, 10, 20]], clearance: 0 }], operations: [operation] });
+  assert.equal(setup.fixtures[0].shape, 'mesh-v2');
+  assert.equal(calculateManufacturingSetup(setup, [camBox]).valid, false);
+  assert.throws(() => createMachineGcode(setup, operation, [camBox]), /nieobsługiwany kształt uchwytu/);
+  const document = createDocument('Nieznany uchwyt CAM');
+  document.manufacturing.setups = [setup];
+  document.manufacturing.activeSetupId = setup.id;
+  assert.throws(() => openDocument(document), /Strefa uchwytu wymaga kształtu/);
+});
+
 test('własny frez czołowy zachowuje węższą oprawkę i szyjkę po zapisaniu projektu', () => {
   const document = createDocument('Frez czołowy');
   document.manufacturing.tools = [{ id: 'tool-face-narrow', name: 'Frez czołowy Ø16', type: 'face-mill', diameter: 16,
@@ -6299,7 +6312,7 @@ test('CAM przenosi wiele stref uchwytów przez zapis projektu i migruje pojedync
   assert.equal(createManufacturingSetup({ fixtures: [{ rotationDegrees: 390 }] }).fixtures[0].rotationDegrees, 30);
   assert.equal(createManufacturingSetup({ fixtures: [{ rotationDegrees: 1e308 }] }).fixtures[0].rotationDegrees < 360, true);
   assert.equal(createManufacturingSetup({ fixtures: [{ shape: 'cylinder' }] }).fixtures[0].shape, 'cylinder');
-  assert.equal(createManufacturingSetup({ fixtures: [{ shape: 'invalid' }] }).fixtures[0].shape, 'box');
+  assert.equal(createManufacturingSetup({ fixtures: [{ shape: 'invalid' }] }).fixtures[0].shape, 'invalid');
   const v21 = createDocument('Mocowanie v21');
   v21.schemaVersion = 21;
   v21.manufacturing.setups = [{ ...setup, fixtures: [{ ...setup.fixtures[0], shape: undefined }] }];

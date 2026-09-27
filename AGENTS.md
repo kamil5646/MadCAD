@@ -100,6 +100,9 @@ npm run verify:desktop-suite -- analysis
   jego typ do walidacji projektu i zwracaj nieprawidłową ścieżkę, aby eksport NC
   był zablokowany. Dotyczy to także przyszłego `probe-wcs`, zanim powstaną jego
   pełna walidacja, bezpieczny eksport i weryfikacja sterowania.
+- Nieznany jawnie zapisany kształt mocowania CAM zachowuje swoją wartość i
+  blokuje walidację oraz eksport NC; tylko brak pola w starszym projekcie
+  oznacza dawny prostopadłościan. Nie zmieniaj przyszłej geometrii po cichu.
 - PR podnoszący `replicad-opencascadejs` do 1.x jest migracją kernela, nie
   zwykłym bumpem zależności.
 - Konto MadCAD i okresowe sprawdzenie uprawnienia są wymagane; nie opisuj tego

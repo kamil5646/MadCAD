@@ -348,7 +348,9 @@ export function normalizeManufacturingFixture(fixture = {}, index = 0) {
     id: typeof source.id === 'string' && source.id ? source.id : createId('cam-fixture'),
     name: String(source.name || `Uchwyt ${index + 1}`).trim().slice(0, 80) || `Uchwyt ${index + 1}`,
     enabled: Boolean(source.enabled),
-    shape: ['box', 'cylinder', 'body'].includes(source.shape) ? source.shape : 'box',
+    // Missing shape belongs to legacy box fixtures; an explicit future shape
+    // must survive normalization so validation and NC export can reject it.
+    shape: source.shape === undefined ? 'box' : source.shape,
     bodyId: typeof source.bodyId === 'string' ? source.bodyId : '',
     bounds: [0, 1].map((side) => [0, 1, 2].map((axis) => {
       const fallback = side === 0 ? -10 : 10;
@@ -529,6 +531,10 @@ export function calculateManufacturingSetup(setup, bodies = []) {
   const fixtureMeshes = new Map();
   if (fixtures.some((fixture) => fixture.enabled) && machine.kind === 'turning-2axis') warnings.push('Strefy uchwytów nie obsługują jeszcze tokarki.');
   for (const fixture of fixtures.filter((item) => item.enabled)) {
+    if (!['box', 'cylinder', 'body'].includes(fixture.shape)) {
+      warnings.push(`${fixture.name}: nieobsługiwany kształt uchwytu; eksport CAM jest zablokowany.`);
+      continue;
+    }
     if (fixture.shape === 'body') {
       const fixtureBody = bodies.find((item) => item.id === fixture.bodyId);
       if (!fixtureBody || fixtureBody.id === body.id || fixtureBody.bodyKind === 'surface') {
