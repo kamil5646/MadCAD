@@ -11,6 +11,7 @@ const sketchOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-sket
 const directOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-direct-extrude.png');
 const narrowOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-qa-narrow.png');
 const ribbonOverflowOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-ribbon-overflow.png');
+const scaledUiOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-design-150-percent.png');
 const referenceSketchOutputPath = path.join(__dirname, '..', 'artifacts', 'madcad-reference-sketch-visible.png');
 const verificationStartedAt = Date.now();
 const isCi = Boolean(process.env.CI);
@@ -2081,6 +2082,10 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.empty-canvas')`, 'pusty projekt');
   await new Promise((resolve) => setTimeout(resolve, 75));
   await fs.writeFile(emptyOutputPath, (await window.webContents.capturePage()).toPNG());
+  window.webContents.setZoomFactor(1.5);
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await fs.writeFile(scaledUiOutputPath, (await window.webContents.capturePage()).toPNG());
+  window.webContents.setZoomFactor(1);
 
   progress('AutoCAD-style line length input');
   await clickTool('Utwórz szkic');
@@ -3073,7 +3078,7 @@ app.whenReady().then(async () => {
     const slowBody = workerPerformance.bodies?.find((body) => body.durationMs > performanceBudgets.displayMeshPerBodyMs);
     if (slowBody) throw new Error(`Body meshing exceeded budget: ${JSON.stringify(slowBody)}.`);
     performance.worker = workerPerformance;
-    const report = { ...result, licenseUi, licenseDialog, screenshot: outputPath, narrowScreenshot: narrowOutputPath, ribbonOverflowScreenshot: ribbonOverflowOutputPath, referenceSketchScreenshot: referenceSketchOutputPath, narrowViewport, ribbonOverflow, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, wcag, englishUi, performance, rendererMessages };
+    const report = { ...result, licenseUi, licenseDialog, screenshot: outputPath, narrowScreenshot: narrowOutputPath, ribbonOverflowScreenshot: ribbonOverflowOutputPath, scaledUiScreenshot: scaledUiOutputPath, referenceSketchScreenshot: referenceSketchOutputPath, narrowViewport, ribbonOverflow, uiFlow, topologyMapping, exports: { stl, step, threeMf }, imports: { threeMf: threeMfImport }, accessibility, wcag, englishUi, performance, rendererMessages };
     await fs.writeFile(path.join(path.dirname(outputPath), 'verification-report.json'), JSON.stringify(report, null, 2));
     process.stdout.write(`${JSON.stringify(report)}\n`);
     if (!result.shell || !result.status.includes('ready') || uiFlow.features < 2 || narrowViewport.horizontalOverflow || !narrowViewport.coreToolbarVisible || !narrowViewport.ribbonOverflowVisible || !narrowViewport.ribbonHasHiddenGroups || !ribbonOverflow.groups.length || !ribbonOverflow.tools || !narrowViewport.timelineVisible || !narrowViewport.repairPanelCompact) process.exitCode = 1;

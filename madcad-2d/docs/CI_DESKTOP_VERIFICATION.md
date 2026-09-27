@@ -9,7 +9,10 @@ systemach, scenariusze desktopowe Windows/macOS oraz pięć testów pakietów.
 CodeQL `36317981940` również przeszedł. Wynik dotyczy tego commita; późniejsze
 wydzielenie handlerów plików wymaga osobnego CI. Zrzuty z artefaktów `interface`
 pokazują czytelny układ standardowy i kompaktowy; `verify-modeling` sprawdza
-brak przepełnienia przy skali 100%, 150% i 200%, lecz nie zastępuje uruchomienia
+brak przepełnienia przy skali 100%, 150% i 200% oraz zapisuje osobny zrzut
+czystego projektu przy 150% (`artifacts/madcad-design-150-percent.png`). Lokalny
+przebieg tego testu przeszedł, a zrzut pokazuje dostępny przycisk pierwszego
+szkicu, kartę projektu i czytelną instrukcję startową. Nie zastępuje to uruchomienia
 gotowego instalatora na czystym profilu użytkownika.
 
 Lokalny niepodpisany pakiet macOS `release/mac-arm64/MadCAD.app` zbudowany po
