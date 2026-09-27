@@ -315,7 +315,8 @@ export function normalizeTurningOperation(operation = {}, index = 0) {
 
 export function normalizeManufacturingOperation(operation = {}, index = 0) {
   let normalized;
-  if (operation?.type === 'contour') normalized = normalizeContourOperation(operation, index);
+  if (operation?.type === 'face') normalized = normalizeFacingOperation(operation, index);
+  else if (operation?.type === 'contour') normalized = normalizeContourOperation(operation, index);
   else if (operation?.type === 'pocket') normalized = normalizePocketOperation(operation, index);
   else if (operation?.type === 'adaptive') normalized = normalizeAdaptiveOperation(operation, index);
   else if (operation?.type === 'drill') normalized = normalizeDrillingOperation(operation, index);
@@ -324,6 +325,13 @@ export function normalizeManufacturingOperation(operation = {}, index = 0) {
   else if (operation?.type === 'counterbore') normalized = normalizeCounterboreOperation(operation, index);
   else if (operation?.type === 'cut2d') normalized = normalizeCut2dOperation(operation, index);
   else if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') normalized = normalizeTurningOperation(operation, index);
+  else if (Object.hasOwn(operation ?? {}, 'type')) normalized = {
+    id: typeof operation.id === 'string' && operation.id ? operation.id : createId('cam-operation'),
+    name: String(operation.name || `Nieobsługiwana operacja ${index + 1}`).trim().slice(0, 80),
+    type: operation.type,
+    toolId: operation.toolId,
+    postProcessorId: operation.postProcessorId,
+  };
   else normalized = normalizeFacingOperation(operation, index);
   return { ...normalized, groupId: typeof operation.groupId === 'string' ? operation.groupId : '' };
 }
@@ -1448,7 +1456,8 @@ export function calculateOperationToolpath(setup, operation, bodies = [], docume
   if (operation?.type === 'counterbore') return calculateCounterboreToolpath(setup, operation, bodies, document);
   if (operation?.type === 'cut2d') return calculateCut2dToolpath(setup, operation, bodies, document);
   if (operation?.type === 'turn-face' || operation?.type === 'turn-profile') return calculateTurningToolpath(setup, operation, bodies);
-  return calculateFacingToolpath(setup, operation, bodies, document);
+  if (!Object.hasOwn(operation ?? {}, 'type') || operation.type === 'face') return calculateFacingToolpath(setup, operation, bodies, document);
+  return { valid: false, operation, tool: null, segments: [], warnings: ['Nieobsługiwany typ operacji CAM.'] };
 }
 
 function segmentIntersectsBounds(segment, minimum, maximum) {

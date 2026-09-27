@@ -6220,6 +6220,20 @@ test('nieznany typ własnego narzędzia CAM nie jest po cichu zamieniany na wier
   assert.throws(() => openDocument(document), /Nieobsługiwany typ narzędzia CAM/);
 });
 
+test('nieznany typ operacji CAM nie jest zamieniany na planowanie ani eksportowany', () => {
+  const operation = { id: 'cam-unknown-probe', name: 'Przyszłe sondowanie', type: 'probe-wcs', toolId: 'flat-6', postProcessorId: 'linuxcnc' };
+  const setup = createManufacturingSetup({ bodyId: camBox.id, stock: { topOffset: 2 }, operations: [operation] });
+  assert.equal(setup.operations[0].type, 'probe-wcs');
+  const report = analyzeManufacturingProgram(setup, [camBox]);
+  assert.equal(report.valid, false);
+  assert.equal(report.operations[0].issues.some((issue) => /Nieobsługiwany typ operacji CAM/.test(issue.message)), true);
+  assert.throws(() => createMachineGcode(setup, operation, [camBox]), /Nieobsługiwany typ operacji CAM/);
+  const document = createDocument('Nieznana operacja CAM');
+  document.manufacturing.setups = [setup];
+  document.manufacturing.activeSetupId = setup.id;
+  assert.throws(() => openDocument(document), /Nieobsługiwany typ operacji CAM/);
+});
+
 test('własny frez czołowy zachowuje węższą oprawkę i szyjkę po zapisaniu projektu', () => {
   const document = createDocument('Frez czołowy');
   document.manufacturing.tools = [{ id: 'tool-face-narrow', name: 'Frez czołowy Ø16', type: 'face-mill', diameter: 16,

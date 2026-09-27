@@ -84,9 +84,12 @@ app.whenReady().then(async () => {
       throw new Error(`Bledny wynik przeplywu szkic -> Wyciagnij: ${JSON.stringify(result)}`);
     }
 
-    await window.webContents.executeJavaScript(`localStorage.clear()`);
+    // Stop the old renderer before clearing storage. Its delayed autosave can
+    // otherwise repopulate the first sketch between clear() and the reload.
+    await window.loadURL('about:blank');
+    await window.webContents.session.clearStorageData({ storages: ['localstorage'] });
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'`, 'gotowy silnik dla otwartego szkicu');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.sketches?.length === 0`, 'pusty dokument dla otwartego szkicu');
     await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button[aria-label="Zamknij"]')?.click()`);
     await clickTool(window, 'Utwórz szkic');
     await waitFor(window, `Boolean(document.querySelector('.plane-options'))`, 'wybor plaszczyzny otwartego szkicu');

@@ -96,6 +96,10 @@ npm run verify:desktop-suite -- analysis
   `holderDiameter`. Starsze projekty migrują z pustą listą. Nie utożsamiaj tego
   z pełną geometrią wrzeciona. Zmiany kontroli kolizji sprawdzaj przez
   `npm run verify:manufacturing`, `verify:cam-sequence` i `verify:cutting`.
+- Nieznany typ operacji CAM nie może być normalizowany do planowania: zachowaj
+  jego typ do walidacji projektu i zwracaj nieprawidłową ścieżkę, aby eksport NC
+  był zablokowany. Dotyczy to także przyszłego `probe-wcs`, zanim powstaną jego
+  pełna walidacja, bezpieczny eksport i weryfikacja sterowania.
 - PR podnoszący `replicad-opencascadejs` do 1.x jest migracją kernela, nie
   zwykłym bumpem zależności.
 - Konto MadCAD i okresowe sprawdzenie uprawnienia są wymagane; nie opisuj tego
