@@ -36,6 +36,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'`, 'start silnika CAD');
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadTopologyFixture?.('XY')`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1 && window.__madcadCameraState`, 'model i kamera');
+    await waitFor(window, `document.querySelector('.navigation-bar [aria-label="Orbita"]')?.getAttribute('aria-pressed') === 'false'`, 'domyślny tryb zaznaczania');
 
     const viewport = await window.webContents.executeJavaScript(`(() => {
       const canvas = document.querySelector('.model-viewport canvas');
@@ -74,7 +75,10 @@ app.whenReady().then(async () => {
         const movement = distance(previous.position, current.position) + distance(previous.target, current.target);
         if (movement <= 0.003) stableSamples += 1;
         else stableSamples = 0;
-        if (stableSamples >= 3) return current;
+        // CI renderers can skip several frames while the main process is still
+        // receiving mouse input. A few identical samples alone do not mean
+        // OrbitControls has finished applying its damped pan/rotation.
+        if (stableSamples >= 4 && Date.now() - startedAt >= 700) return current;
         previous = current;
       }
       throw new Error(`Kamera nie ustabilizowała się po ${timeoutMs} ms.`);

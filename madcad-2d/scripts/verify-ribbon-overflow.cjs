@@ -55,6 +55,11 @@ app.whenReady().then(async () => {
     await waitFor(window, `document.querySelector('.import-model-dialog .confirm')`, 'potwierdzenie importu');
     await window.webContents.executeJavaScript(`document.querySelector('.import-model-dialog .confirm').click()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'pełny kontekst modelowania');
+    // The imported model changes the available ribbon groups. Resize after
+    // that render so the overflow assertion observes the final layout.
+    window.setContentSize(810, 697);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    window.setContentSize(820, 697);
     await waitFor(window, `document.querySelectorAll('.ribbon-group[hidden]').length > 0 && document.querySelector('.ribbon-overflow-trigger')`, 'responsywna wstążka');
     await window.webContents.executeJavaScript(`document.querySelector('.ribbon-overflow-trigger').click()`);
     await waitFor(window, `document.querySelector('.ribbon-overflow-menu')`, 'menu przepełnienia');
