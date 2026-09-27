@@ -62,6 +62,30 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.gesturePoints === 1`, 'pierwszy punkt prostokata');
     await window.webContents.executeJavaScript(`window.__madcadVerifyCanvasSketchPoint([20, 12])`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.profiles === 1`, 'zamkniety profil prostokata');
+    await window.webContents.executeJavaScript(`(() => {
+      const pointIds = window.__madcadVerifyDocumentState.sketches[0].entityData.filter((entity) => entity.type === 'point').slice(0, 2).map((entity) => entity.id);
+      if (pointIds.length !== 2) throw new Error('Brak narożników prostokąta');
+      window.__madcadVerifySketchSelection(pointIds, 'replace');
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length === 2`, 'dwa zaznaczone narożniki');
+    await window.webContents.executeJavaScript(`document.querySelector('.ribbon-tool-menu-trigger[data-tool-label="Wymiary"]')?.click()`);
+    await waitFor(window, `Boolean(document.querySelector('.ribbon-tool-submenu button[data-tool-label="Wymiar poziomy"]:not(:disabled)'))`, 'aktywny wymiar poziomy');
+    await window.webContents.executeJavaScript(`document.querySelector('.ribbon-tool-submenu button[data-tool-label="Wymiar poziomy"]')?.click()`);
+    await waitFor(window, `document.querySelector('.sketch-dimension-dialog')?.textContent.includes('Wymiar poziomy')`, 'okno wymiaru poziomego');
+    await window.webContents.executeJavaScript(`document.querySelector('.sketch-dimension-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.dimensions?.some((dimension) => dimension.type === 'horizontal')`, 'sterujący wymiar poziomy');
+    await window.webContents.executeJavaScript(`(() => {
+      const line = window.__madcadVerifyDocumentState.sketches[0].entityData.filter((entity) => entity.type === 'line')[1];
+      if (!line) throw new Error('Brak pionowego odcinka prostokąta');
+      window.__madcadVerifySketchSelection([line.id], 'replace');
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.ids?.length === 1`, 'zaznaczony odcinek');
+    await window.webContents.executeJavaScript(`document.querySelector('.ribbon-tool-menu-trigger[data-tool-label="Wymiary"]')?.click()`);
+    await waitFor(window, `Boolean(document.querySelector('.ribbon-tool-submenu button[data-tool-label="Wymiar pionowy"]:not(:disabled)'))`, 'aktywny wymiar pionowy odcinka');
+    await window.webContents.executeJavaScript(`document.querySelector('.ribbon-tool-submenu button[data-tool-label="Wymiar pionowy"]')?.click()`);
+    await waitFor(window, `document.querySelector('.sketch-dimension-dialog')?.textContent.includes('Wymiar pionowy')`, 'okno wymiaru pionowego');
+    await window.webContents.executeJavaScript(`document.querySelector('.sketch-dimension-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.dimensions?.some((dimension) => dimension.type === 'vertical')`, 'sterujący wymiar pionowy odcinka');
 
     await clickTool(window, 'Zakończ szkic');
     await waitFor(window, `window.__madcadCompletedSketchVisibilityState?.profileCount === 1 && window.__madcadCompletedSketchVisibilityState?.renderedObjects > 0`, 'widoczny ukonczony szkic');
@@ -99,6 +123,26 @@ app.whenReady().then(async () => {
       throw new Error(`Bledny wynik przeplywu szkic -> Wyciagnij: ${JSON.stringify(result)}`);
     }
 
+    await window.webContents.executeJavaScript(`window.__madcadVerifyEditSketch(window.__madcadVerifyDocumentState.sketches[0].id)`);
+    await waitFor(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'ponownie edytowany szkic');
+    await window.webContents.executeJavaScript(`(() => {
+      const badge = document.querySelector('.sketch-constraint-badges button[title^="distanceX:"]');
+      if (!badge) throw new Error('Brak widocznego wymiaru poziomego do edycji');
+      badge.click();
+    })()`);
+    await waitFor(window, `Boolean(document.querySelector('.sketch-constraint-editor input[name="constraintValue"]'))`, 'widoczny edytor wymiaru');
+    await window.webContents.executeJavaScript(`(() => {
+      const input = document.querySelector('.sketch-constraint-editor input[name="constraintValue"]');
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, '50');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      document.querySelector('.sketch-constraint-editor button[type="submit"]').click();
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.dimensions?.some((dimension) => dimension.type === 'horizontal' && dimension.expression === '50')`, 'zmieniony wymiar szkicu');
+    await clickTool(window, 'Zakończ szkic');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 14400) < 0.01`, 'bryła przebudowana po zmianie wymiaru szkicu', 30000);
+    result.dimensionEditedVolume = 14400;
+
     // Exercise the same part through the timeline, history and document
     // round-trip before switching to the independent open-chain scenario.
     process.stdout.write('[verify] edit basic extrusion from timeline\n');
@@ -118,25 +162,27 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.distance === '15'`, 'nowa odległość wyciągnięcia');
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
     process.stdout.write('[verify] edited extrusion, undo and redo\n');
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 14400) < 0.01`, 'przebudowa po edycji historii', 30000);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 18000) < 0.01`, 'przebudowa po edycji historii', 30000);
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn')?.click()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 11520) < 0.01`, 'Cofnij edycję wyciągnięcia', 30000);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 14400) < 0.01`, 'Cofnij edycję wyciągnięcia', 30000);
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn')?.click()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 14400) < 0.01`, 'Ponów edycję wyciągnięcia', 30000);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 18000) < 0.01`, 'Ponów edycję wyciągnięcia', 30000);
     await window.webContents.executeJavaScript(`window.__madcadVerifyReopenCurrentDocument()`);
     process.stdout.write('[verify] reopened edited extrusion\n');
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.sketches?.length === 1 && window.__madcadVerifyDocumentState?.features === 1 && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 14400) < 0.01`, 'ponownie otwarty projekt z wyciągnięciem', 30000);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.sketches?.length === 1 && window.__madcadVerifyDocumentState?.features === 1 && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 18000) < 0.01`, 'ponownie otwarty projekt z wyciągnięciem', 30000);
     await window.webContents.executeJavaScript(`document.querySelector('#saveProjectBtn')?.click()`);
     await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('Zapisano projekt atomowo:')`, 'zapis pliku .madcad');
     const savedProject = JSON.parse(await fs.readFile(projectPath, 'utf8'));
-    if (savedProject.features?.length !== 1 || savedProject.sketches?.length !== 1 || savedProject.features[0].distance !== '15') {
-      throw new Error('Plik .madcad nie zachował edytowanego wyciągnięcia.');
+    if (savedProject.features?.length !== 1 || savedProject.sketches?.length !== 1 || savedProject.features[0].distance !== '15'
+      || !savedProject.sketches[0].dimensions.some((dimension) => dimension.type === 'horizontal' && dimension.expression === '50')
+      || !savedProject.sketches[0].dimensions.some((dimension) => dimension.type === 'vertical' && dimension.expression === '24')) {
+      throw new Error('Plik .madcad nie zachował wymiarów szkicu i edytowanego wyciągnięcia.');
     }
     await window.webContents.executeJavaScript(`document.querySelector('#newProjectBtn')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.features === 0 && window.__madcadVerifyDocumentState?.sketches?.length === 0`, 'nowy pusty projekt');
     await window.webContents.executeJavaScript(`document.querySelector('#openProjectBtn')?.click()`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.features === 1 && window.__madcadVerifyDocumentState?.sketches?.length === 1 && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 14400) < 0.01`, 'plik .madcad otwarty przez interfejs', 30000);
-    result.editedVolume = 14400;
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.features === 1 && window.__madcadVerifyDocumentState?.sketches?.length === 1 && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 18000) < 0.01`, 'plik .madcad otwarty przez interfejs', 30000);
+    result.editedVolume = 18000;
     result.undoRedo = true;
     result.reopened = true;
     result.fileRoundTrip = true;

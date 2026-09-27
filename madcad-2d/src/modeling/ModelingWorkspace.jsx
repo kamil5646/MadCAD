@@ -1503,6 +1503,8 @@ export default function ModelingWorkspace() {
     && selectedSketchEntities.every((entity) => entity.type === 'arc')
     && selectedSketchEntities[0].pointIds.slice(1).filter((pointId) => selectedSketchEntities[1].pointIds.slice(1).includes(pointId)).length === 1;
   const canAddOrdinate = selectedSketchEntities.length === 1 && selectedSketchEntities[0].type === 'point';
+  const canAddPointPairDimension = selectedSketchEntities.length === 2 && selectedSketchEntities.every((entity) => entity.type === 'point');
+  const canAddLinearDimension = canAddPointPairDimension || (selectedSketchEntities.length === 1 && selectedSketchEntities[0].type === 'line');
   const canAddArcLength = selectedSketchEntities.length === 1 && selectedSketchEntities[0].type === 'arc';
   const addDocumentLayer = () => commit((next) => {
     const usedNames = new Set(next.layers.map((layer) => layer.name.toLocaleLowerCase()));
@@ -3855,11 +3857,23 @@ export default function ModelingWorkspace() {
     if (readOnly) return readOnlyNotice();
     const sketch = document.sketches.find((item) => item.id === activeSketchId);
     const entity = selectedSketchEntities[0];
-    if (!sketch || (dimensionType === 'arcLength' ? !canAddArcLength : !canAddOrdinate)) {
-      setNotice(dimensionType === 'arcLength' ? 'Długość łuku wymaga zaznaczenia jednego łuku.' : 'Wymiar ordinate wymaga zaznaczenia jednego punktu.');
+    const pointPairDimension = ['horizontal', 'vertical', 'aligned'].includes(dimensionType);
+    if (!sketch || (pointPairDimension ? !canAddLinearDimension : dimensionType === 'arcLength' ? !canAddArcLength : !canAddOrdinate)) {
+      setNotice(pointPairDimension ? 'Zaznacz dwa punkty albo jeden odcinek szkicu.' : dimensionType === 'arcLength' ? 'Długość łuku wymaga zaznaczenia jednego łuku.' : 'Wymiar ordinate wymaga zaznaczenia jednego punktu.');
       return;
     }
-    let value = dimensionType === 'ordinateX' ? entity.geometry.x : entity.geometry.y;
+    let value = pointPairDimension ? '' : dimensionType === 'ordinateX' ? entity.geometry.x : entity.geometry.y;
+    if (pointPairDimension) {
+      const points = canAddPointPairDimension ? selectedSketchEntities : entity.pointIds.map((id) => sketch.entities.find((item) => item.id === id));
+      if (points.some((point) => point?.type !== 'point')) {
+        setNotice('Odcinek nie ma poprawnych punktów końcowych.');
+        return;
+      }
+      const [first, second] = points.map((point) => point.geometry);
+      const dx = Number(second.x) - Number(first.x);
+      const dy = Number(second.y) - Number(first.y);
+      value = String(dimensionType === 'horizontal' ? dx : dimensionType === 'vertical' ? dy : Math.hypot(dx, dy));
+    }
     if (dimensionType === 'arcLength') {
       const resolved = resolveParameters(document.parameters);
       if (!resolved.valid) {
@@ -4824,6 +4838,10 @@ export default function ModelingWorkspace() {
     commit((next) => {
       const sketch = next.sketches.find((item) => item.id === activeSketchId);
       sketch.entities.push(...shape.entities);
+      if (sourceCommand.type === 'rectangle' && sketchOptions.autoConstraints
+        && (sourceCommand.definition === 'twoPoints' || (sourceCommand.definition === 'center' && Number(sourceCommand.rotation || 0) === 0))) {
+        sketch.constraints.push(...shape.curves.map((line, index) => createSketchConstraint(index % 2 ? 'vertical' : 'horizontal', [line.id], { automatic: true })));
+      }
       const result = refreshDetectedSketchProfiles(sketch, next.parameters);
       const createdProfile = result.profiles.find((profile) => profile.entityIds.length === curveIds.length && profile.entityIds.every((id) => curveIdSet.has(id)));
       if (createdProfile) createdProfile.name = shapeName;
@@ -7610,6 +7628,11 @@ export default function ModelingWorkspace() {
       recommended.push({ icon: Ruler, label: 'Wymiar X', onClick: () => openSketchDimension('ordinateX'), primary: true });
       more.push({ icon: Ruler, label: 'Wymiar Y', onClick: () => openSketchDimension('ordinateY') });
     }
+    if (canAddLinearDimension) {
+      recommended.push({ icon: Ruler, label: 'Wymiar poziomy', onClick: () => openSketchDimension('horizontal'), primary: true });
+      more.push({ icon: Ruler, label: 'Wymiar pionowy', onClick: () => openSketchDimension('vertical') });
+      more.push({ icon: Ruler, label: 'Wymiar odcinka', onClick: () => openSketchDimension('aligned') });
+    }
     if (canAddArcLength) recommended.push({ icon: RotateCw, label: 'Długość łuku', onClick: () => openSketchDimension('arcLength'), primary: true });
     if (selectedSketchEntityIds.length) {
       recommended.push({ icon: Move, label: 'Przesuń', onClick: openSketchMove });
@@ -7861,7 +7884,10 @@ export default function ModelingWorkspace() {
                     { icon: Frame, label: 'Symetria', onClick: () => addSelectedSketchConstraint('symmetry'), disabled: readOnly || !canAddSymmetry, disabledReason: 'Zaznacz geometrię i oś symetrii.' },
                     { icon: CircleDotDashed, label: 'Krzywizna G2', onClick: () => addSelectedSketchConstraint('curvature'), disabled: readOnly || !canAddCurvature, disabledReason: 'Zaznacz dwie zgodne krzywe.' },
                   ]} />
-                  <ToolMenuButton icon={SketchDimensionCadIcon} label="Wymiary" description="Wymiary współrzędnych i długości łuku." items={[
+                  <ToolMenuButton icon={SketchDimensionCadIcon} label="Wymiary" description="Sterujące wymiary między punktami, współrzędne i długość łuku." items={[
+                    { icon: Ruler, label: 'Wymiar poziomy', onClick: () => openSketchDimension('horizontal'), disabled: readOnly || !canAddLinearDimension, disabledReason: 'Zaznacz dwa punkty albo jeden odcinek szkicu.' },
+                    { icon: Ruler, label: 'Wymiar pionowy', onClick: () => openSketchDimension('vertical'), disabled: readOnly || !canAddLinearDimension, disabledReason: 'Zaznacz dwa punkty albo jeden odcinek szkicu.' },
+                    { icon: Ruler, label: 'Wymiar odcinka', onClick: () => openSketchDimension('aligned'), disabled: readOnly || !canAddLinearDimension, disabledReason: 'Zaznacz dwa punkty albo jeden odcinek szkicu.' },
                     { icon: Ruler, label: 'Ordinate X', displayLabel: 'Współrzędna X', onClick: () => openSketchDimension('ordinateX'), disabled: readOnly || !canAddOrdinate, disabledReason: 'Zaznacz punkt szkicu.' },
                     { icon: Ruler, label: 'Ordinate Y', displayLabel: 'Współrzędna Y', onClick: () => openSketchDimension('ordinateY'), disabled: readOnly || !canAddOrdinate, disabledReason: 'Zaznacz punkt szkicu.' },
                     { icon: RotateCw, label: 'Długość łuku', onClick: () => openSketchDimension('arcLength'), disabled: readOnly || !canAddArcLength, disabledReason: 'Zaznacz łuk.' },

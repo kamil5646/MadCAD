@@ -1,6 +1,6 @@
 # MadCAD — aktywny plan rozwoju
 
-Aktualizacja: 2026-09-23
+Aktualizacja: 2026-09-27
 Wersja bazowa: `6.5.22 stable`
 Gałąź wydania: `main`
 
@@ -58,12 +58,14 @@ istniejących blokad niebezpiecznego eksportu nie wolno usuwać.
 - [ ] Potwierdzić finalny podstawowy przepływ na Windows i macOS w CI oraz
   rozróżnić wyniki z kodu źródłowego od stanu zainstalowanej aplikacji.
 
-Desktopowy test `verify:extrude-after-sketch` potwierdza szkic → bryłę, edycję
-Wyciągnięcia z osi czasu, Cofnij/Ponów, ponowne otwarcie przez serializację,
-zapis pliku `.madcad` przyciskiem aplikacji i otwarcie go po nowym projekcie
-oraz osobny przypadek cienkiego wyciągnięcia. Krótki test używa kontrolowanego
-IPC plikowego, nie produkcyjnego okna wyboru ścieżki ani mechanizmu atomowej
-kopii `.bak`; nie sprawdza jeszcze edycji wymiaru źródłowego szkicu.
+Desktopowy test `verify:extrude-after-sketch` potwierdza szkic z wymiarem
+poziomym między punktami i pionowym odcinka dodanymi przez interfejs → bryłę,
+edycję źródłowego wymiaru szkicu w widocznym panelu i automatyczną przebudowę,
+edycję Wyciągnięcia z osi czasu, Cofnij/Ponów, ponowne otwarcie przez
+serializację, zapis pliku `.madcad` przyciskiem aplikacji i otwarcie go po nowym
+projekcie oraz osobny przypadek cienkiego wyciągnięcia. Krótki test używa
+kontrolowanego IPC plikowego, nie produkcyjnego okna wyboru ścieżki ani
+mechanizmu atomowej kopii `.bak`.
 `verify:modeling` obejmuje wiele tych etapów w oddzielnych
 scenariuszach, ale lokalny przebieg 2026-09-27 przekroczył istniejący budżet
 całego scenariusza 120 s (199,9 s); sam przebieg szkic → bryła w krótszym

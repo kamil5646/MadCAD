@@ -37,6 +37,9 @@ const TOOL_DESCRIPTIONS = {
   'Współliniowe': 'Wymuś położenie dwóch wybranych linii na jednej prostej.',
   'Symetria': 'Utwórz więz symetrii dla wybranej geometrii względem osi.',
   'Krzywizna G2': 'Nadaj ciągłość krzywizny G2 pomiędzy zgodnymi krzywymi.',
+  'Wymiar poziomy': 'Ustal poziomą odległość między dwoma punktami szkicu.',
+  'Wymiar pionowy': 'Ustal pionową odległość między dwoma punktami szkicu.',
+  'Wymiar odcinka': 'Ustal rzeczywistą odległość między dwoma punktami szkicu.',
   'Ordinate X': 'Dodaj wymiar współrzędnej X wybranego punktu.',
   'Ordinate Y': 'Dodaj wymiar współrzędnej Y wybranego punktu.',
   'Długość łuku': 'Dodaj sterujący wymiar długości wybranego łuku.',
@@ -154,7 +157,7 @@ const TOOL_COLOR_GROUPS = Object.freeze({
   mesh: new Set(['Importuj model', 'Napraw siatkę', 'Redukuj siatkę', 'Krzywizna siatki', 'Siatka do B-Rep']),
   destructive: new Set(['Usuń', 'Delete Face + Heal', 'Szczelina blachy']),
   edit: new Set(['Trim', 'Extend', 'Break', 'Offset', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu', 'Przesuń', 'Zaokrąglij', 'Fazuj', 'Shell', 'Draft', 'Split Body', 'Split Face', 'Replace Face', 'Offset Face', 'Przesuń bryłę', 'Obróć bryłę', 'Edytuj']),
-  reference: new Set(['Project', 'Więzy', 'Wymiary', 'Współliniowe', 'Symetria', 'Krzywizna G2', 'Ordinate X', 'Ordinate Y', 'Długość łuku', 'Płaszczyzna odsunięta', 'Płaszczyzna środkowa', 'Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce', 'Oś z krawędzi', 'Oś walca', 'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum', 'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi']),
+  reference: new Set(['Project', 'Więzy', 'Wymiary', 'Współliniowe', 'Symetria', 'Krzywizna G2', 'Wymiar poziomy', 'Wymiar pionowy', 'Wymiar odcinka', 'Ordinate X', 'Ordinate Y', 'Długość łuku', 'Płaszczyzna odsunięta', 'Płaszczyzna środkowa', 'Przez 3 punkty', 'Pod kątem', 'Styczna', 'Na ścieżce', 'Oś z krawędzi', 'Oś walca', 'Oś 2 punkty', 'Oś przecięcia', 'Oś normalna', 'Punkt wierzchołka', 'Punkt centrum', 'Punkt przecięcia', 'Punkt środkowy', 'Punkt na osi']),
   inspect: new Set(['Parametry', 'Zmierz', 'Przekrój', 'Właściwości masy', 'Sprawdź geometrię', 'Punkty zapisu', 'Porównaj wersje', 'Kondycja projektu', 'Gdzie używane', 'Wybierz']),
   output: new Set(['Import SVG/DXF', 'Import DWG', 'STEP / STL / 3MF', 'STEP', 'STL', '3MF', 'Kontrola druku', 'Tabela gięć']),
 });

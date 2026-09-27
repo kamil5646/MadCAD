@@ -898,6 +898,9 @@ export function SketchDimensionDialog({ command, onChange, onConfirm, onCancel }
   const dialogRef = useDialogFocus(command?.type === 'sketchDimension');
   if (command?.type !== 'sketchDimension') return null;
   const titles = {
+    horizontal: 'Wymiar poziomy',
+    vertical: 'Wymiar pionowy',
+    aligned: 'Wymiar odcinka',
     ordinateX: 'Wymiar ordinate X',
     ordinateY: 'Wymiar ordinate Y',
     arcLength: 'Wymiar długości łuku',
