@@ -67,9 +67,29 @@ async function evaluate(targetUrl, expression) {
 async function stop(child) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
   const exited = new Promise((resolve) => child.once('exit', resolve));
-  child.kill('SIGTERM');
+  if (process.platform === 'win32') {
+    // Chromium keeps DLLs locked in child processes after the main process
+    // exits. Stop only this verifier's process tree before removing its ZIP.
+    try { await execFileAsync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { timeout: 10000 }); } catch {}
+  } else child.kill('SIGTERM');
   await Promise.race([exited, delay(5000)]);
   if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+}
+
+async function removeTemporaryDirectory(directory) {
+  if (!directory) return;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await fs.rm(directory, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (!['EPERM', 'EBUSY', 'ENOTEMPTY'].includes(error.code)) throw error;
+      await delay(500 * (attempt + 1));
+    }
+  }
+  // An ephemeral CI runner clears its own temp directory. A delayed Windows
+  // Chromium child must not turn a successful packaged startup into failure.
+  process.stderr.write(`Pozostawiono tymczasowy katalog pakietu do wyczyszczenia przez system: ${directory}\n`);
 }
 
 (async () => {
@@ -131,11 +151,9 @@ async function stop(child) {
     process.stdout.write(`${JSON.stringify({ ok: true, kind, executable: prepared.executable, packageSource: prepared.source, profileIsolated: true, ...state })}\n`);
   } finally {
     await stop(child);
-    if (profile) {
-      try { await fs.rm(profile, { recursive: true, force: true }); } catch {}
-    }
+    await removeTemporaryDirectory(profile);
     if (prepared.mounted) await execFileAsync('/usr/bin/hdiutil', ['detach', '-quiet', prepared.directory], { timeout: 30000 });
-    if (prepared.directory) await fs.rm(prepared.directory, { recursive: true, force: true });
+    await removeTemporaryDirectory(prepared.directory);
   }
 })().catch((error) => {
   process.stderr.write(`${error.stack || error.message}\n`);

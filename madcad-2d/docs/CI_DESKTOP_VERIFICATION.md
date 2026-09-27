@@ -36,6 +36,16 @@ ponieważ dystrybuowana paczka jest arm64; w workflow wydania taka sytuacja
 jest błędem blokującym publikację. Test nie instaluje NSIS, nie obchodzi
 wymagania konta i nie potwierdza pracy po zalogowaniu.
 
+CI `36333554392` dla `3423bcd` potwierdził wszystkie 14 shardów desktopowych
+Windows/macOS, CodeQL, trzy buildy rdzenia oraz paczki Linux, macOS ZIP/DMG i
+Windows NSIS. Windows Portable rzeczywiście uruchomił aplikację z rozpakowanego
+ZIP, załadował ekran licencji i potwierdził brak hooków testowych, lecz zadanie
+zakończyło się błędem podczas usuwania tymczasowego `dxcompiler.dll` (`EPERM`):
+proces potomny Chromium nadal trzymał plik. Test zatrzymuje teraz własne
+drzewo procesów Windows i ponawia sprzątanie; jeśli blokada systemowa trwa,
+raportuje pozostawiony katalog tymczasowy zamiast fałszywie odrzucać poprawny
+start. Cała bramka nadal wymaga ponownego zielonego przebiegu CI.
+
 CI `35908613650` dla commitu `63d4a5e` potwierdził wszystkie trzy części modelowania na obu systemach i pięć instalatorów: 23/23 zadań zakończyło się powodzeniem. Główny shard Windows zakończył się po 9 min 36 s od startu zadania, zamiast 23 min 20 s poprzedniego wspólnego shardu (około 2,4× szybciej do końca modelowania). CodeQL `35908613712` również przeszedł.
 
 CI `35910260871` dla commitu `126feba` po zmianie kontroli szybkich przejazdów CAM także przeszedł 23/23 zadań, w tym oba systemy i wszystkie instalatory; CodeQL `35910260767` przeszedł.
