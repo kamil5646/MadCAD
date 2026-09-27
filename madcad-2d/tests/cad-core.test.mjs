@@ -5810,6 +5810,28 @@ test('skośna szczęka nie blokuje narzędzia ponad lokalną powierzchnią trój
   assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
 });
 
+test('szew triangulacji pochyłej powierzchni nie blokuje przejazdu ponad szczęką', () => {
+  const jaw = {
+    vertices: Float32Array.from(camBox.vertices, (value, coordinate) => coordinate % 3 === 2 && coordinate >= 12
+      ? 1 + camBox.vertices[coordinate - 2] * 0.225 : value),
+    // Top and bottom use different diagonals; the ray hits one ordinary face
+    // and the seam of two other faces.
+    triangles: new Uint32Array([0, 3, 1, 1, 3, 2, ...camBox.triangles.slice(6)]),
+  };
+  const index = createManufacturingFixtureMeshIndex(jaw);
+  assert.ok(index);
+  const intersectsPointPrism = (segment, minimum, maximum, radius, clearance, minimumZ, maximumZ) => {
+    const [x, y, z] = segment.from;
+    const reach = radius + clearance;
+    return x + reach >= minimum[0] && x - reach <= maximum[0]
+      && y + reach >= minimum[1] && y - reach <= maximum[1]
+      && z >= minimumZ && z <= maximumZ;
+  };
+  const at = (z) => ({ from: [10, 5, z], to: [10, 5, z] });
+  assert.equal(fixtureMeshPotentialCollision(index, at(8), 0.01, 0, 0, 0, intersectsPointPrism), false);
+  assert.equal(fixtureMeshPotentialCollision(index, at(3), 0.01, 0, 0, 0, intersectsPointPrism), true);
+});
+
 test('Setup CAM wylicza półfabrykat, WCS i zgodność z obrabiarką', () => {
   const setup = createManufacturingSetup({
     bodyId: 'body-test',

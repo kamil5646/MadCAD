@@ -156,6 +156,7 @@ function meshContainsPointOrUncertain(index, point, tolerance) {
   const pending = [index];
   const above = [];
   let surfaceCount = 0;
+  let ambiguousAbove = false;
   while (pending.length) {
     const node = pending.pop();
     if (point[0] < node.bounds[0][0] - tolerance || point[0] > node.bounds[1][0] + tolerance
@@ -173,19 +174,26 @@ function meshContainsPointOrUncertain(index, point, tolerance) {
         const edgeSpan = Math.max(...[0, 1, 2].map((edge) => Math.hypot(...triangle.xy[edge].map((value, axis) => value - triangle.xy[(edge + 1) % 3][axis]))));
         const weightTolerance = Math.min(0.25, tolerance / Math.max(edgeSpan, tolerance));
         if (weights.some((weight) => weight < -weightTolerance)) continue;
-        // A ray through a triangle edge/vertex has ambiguous parity. Keep it
-        // blocked instead of relying on how the CAD kernel split that face.
-        if (weights.some((weight) => weight <= weightTolerance)) return true;
         const surfaceZ = weights.reduce((sum, weight, corner) => sum + weight * triangle.xyz[corner][2], 0);
-        surfaceCount += 1;
         if (Math.abs(point[2] - surfaceZ) <= tolerance) return true;
+        // A seam has ambiguous crossing parity, but cannot block a point
+        // above every surface it meets. Keep lower points conservative.
+        if (weights.some((weight) => weight <= weightTolerance)) {
+          if (surfaceZ > point[2]) ambiguousAbove = true;
+          continue;
+        }
+        surfaceCount += 1;
         if (surfaceZ > point[2]) above.push(surfaceZ);
       }
     } else pending.push(...node.children);
   }
   // For one ordinary closed shell the vertical ray crosses bottom and top.
   // Multiple overlapping shells or a degenerate ray remain uncertain.
-  if (surfaceCount !== 2) return surfaceCount > 0;
+  if (ambiguousAbove) return true;
+  // A bounded closed solid cannot contain a point if its upward ray has no
+  // surface left to cross, even when the lower face has a different seam.
+  if (above.length === 0) return false;
+  if (surfaceCount !== 2) return true;
   return above.length === 1;
 }
 
