@@ -1,6 +1,6 @@
 // A fixture body is tessellated by the CAD kernel. Each leaf stores a small
-// group of triangle bounds. An exact XY projection test can reject a triangle
-// clearly outside the cutter footprint; Z remains a conservative bound.
+// group of triangles. Subdivision narrows conservative XY/Z bounds for a
+// sloped face without ever assuming that an unresolved candidate is safe.
 const meshIndexCache = new WeakMap();
 const LEAF_TRIANGLES = 8;
 
@@ -88,16 +88,14 @@ export function createManufacturingFixtureMeshIndex(body) {
   if (vertices.some((value) => !Number.isFinite(value)) || indices.some((value) => !Number.isInteger(value) || value < 0 || value >= vertexCount)) return null;
   if (!hasClosedSurface(vertices, indices)) return null;
   const triangles = [];
-  for (let offset = 0; offset < indices.length; offset += 3) triangles.push({
-    bounds: triangleBounds(vertices, indices, offset),
-    xy: [0, 1, 2].map((corner) => [vertices[indices[offset + corner] * 3], vertices[indices[offset + corner] * 3 + 1]]),
-  });
+  for (let offset = 0; offset < indices.length; offset += 3) {
+    const xyz = [0, 1, 2].map((corner) => [0, 1, 2].map((axis) => vertices[indices[offset + corner] * 3 + axis]));
+    triangles.push({ bounds: triangleBounds(vertices, indices, offset), xyz, xy: xyz.map((point) => point.slice(0, 2)) });
+  }
   const index = createNode(triangles);
   meshIndexCache.set(body, { vertices: Float64Array.from(vertices), indices: Uint32Array.from(indices), index });
   return index;
 }
-
-const pointInsideBounds = (point, bounds) => point.every((value, axis) => value >= bounds[0][axis] && value <= bounds[1][axis]);
 
 const crossXY = (first, second, point) => (second[0] - first[0]) * (point[1] - first[1])
   - (second[1] - first[1]) * (point[0] - first[0]);
@@ -154,18 +152,59 @@ function segmentTriangleDistanceSquaredXY(segment, triangle, tolerance) {
   return distanceSquared;
 }
 
-function projectedMeshContainsPoint(index, point, tolerance) {
+function meshContainsPointOrUncertain(index, point, tolerance) {
   const pending = [index];
-  const segment = { from: point, to: point };
+  const above = [];
+  let surfaceCount = 0;
   while (pending.length) {
     const node = pending.pop();
     if (point[0] < node.bounds[0][0] - tolerance || point[0] > node.bounds[1][0] + tolerance
       || point[1] < node.bounds[0][1] - tolerance || point[1] > node.bounds[1][1] + tolerance) continue;
     if (node.triangles) {
-      if (node.triangles.some((triangle) => segmentTriangleDistanceSquaredXY(segment, triangle.xy, tolerance) <= tolerance ** 2)) return true;
+      for (const triangle of node.triangles) {
+        const [first, second, third] = triangle.xy;
+        const area = crossXY(first, second, third);
+        if (Math.abs(area) <= tolerance ** 2) {
+          if (point[2] >= triangle.bounds[0][2] - tolerance && point[2] <= triangle.bounds[1][2] + tolerance
+            && [0, 1, 2].some((edge) => pointSegmentDistanceSquaredXY(point, triangle.xy[edge], triangle.xy[(edge + 1) % 3]) <= tolerance ** 2)) return true;
+          continue;
+        }
+        const weights = [crossXY(second, third, point) / area, crossXY(third, first, point) / area, crossXY(first, second, point) / area];
+        const edgeSpan = Math.max(...[0, 1, 2].map((edge) => Math.hypot(...triangle.xy[edge].map((value, axis) => value - triangle.xy[(edge + 1) % 3][axis]))));
+        const weightTolerance = Math.min(0.25, tolerance / Math.max(edgeSpan, tolerance));
+        if (weights.some((weight) => weight < -weightTolerance)) continue;
+        // A ray through a triangle edge/vertex has ambiguous parity. Keep it
+        // blocked instead of relying on how the CAD kernel split that face.
+        if (weights.some((weight) => weight <= weightTolerance)) return true;
+        const surfaceZ = weights.reduce((sum, weight, corner) => sum + weight * triangle.xyz[corner][2], 0);
+        surfaceCount += 1;
+        if (Math.abs(point[2] - surfaceZ) <= tolerance) return true;
+        if (surfaceZ > point[2]) above.push(surfaceZ);
+      }
     } else pending.push(...node.children);
   }
-  return false;
+  // For one ordinary closed shell the vertical ray crosses bottom and top.
+  // Multiple overlapping shells or a degenerate ray remain uncertain.
+  if (surfaceCount !== 2) return surfaceCount > 0;
+  return above.length === 1;
+}
+
+function candidateTriangleCollision(triangle, segment, reach, tolerance, intersects, depth = 0) {
+  if (!intersects(triangle.bounds) || segmentTriangleDistanceSquaredXY(segment, triangle.xy, tolerance) > reach ** 2) return false;
+  if (depth >= 8 || triangle.bounds[1][2] - triangle.bounds[0][2] <= tolerance * 4) return true;
+  const edges = [[0, 1], [1, 2], [2, 0]];
+  const length = ([first, second]) => Math.hypot(...triangle.xyz[first].map((value, axis) => value - triangle.xyz[second][axis]));
+  const [first, second] = edges.reduce((selected, edge) => {
+    return length(edge) > length(selected) ? edge : selected;
+  });
+  const third = 3 - first - second;
+  const midpoint = triangle.xyz[first].map((value, axis) => (value + triangle.xyz[second][axis]) / 2);
+  const child = (xyz) => ({ xyz, xy: xyz.map((point) => point.slice(0, 2)), bounds: [
+    [0, 1, 2].map((axis) => Math.min(...xyz.map((point) => point[axis]))),
+    [0, 1, 2].map((axis) => Math.max(...xyz.map((point) => point[axis]))),
+  ] });
+  return candidateTriangleCollision(child([triangle.xyz[first], midpoint, triangle.xyz[third]]), segment, reach, tolerance, intersects, depth + 1)
+    || candidateTriangleCollision(child([midpoint, triangle.xyz[second], triangle.xyz[third]]), segment, reach, tolerance, intersects, depth + 1);
 }
 
 export function fixtureMeshPotentialCollision(index, segment, radius, clearance, lowerOffset, upperOffset, intersectsPrism) {
@@ -184,13 +223,18 @@ export function fixtureMeshPotentialCollision(index, segment, radius, clearance,
     const node = pending.pop();
     if (!intersects(node.bounds)) continue;
     if (node.triangles) {
-      if (node.triangles.some((triangle) => intersects(triangle.bounds)
-        && segmentTriangleDistanceSquaredXY(segment, triangle.xy, tolerance) <= reach ** 2)) return true;
+      if (node.triangles.some((triangle) => candidateTriangleCollision(triangle, segment, reach, tolerance, intersects))) return true;
     } else pending.push(...node.children);
   }
   // A path wholly inside a closed solid need not cross any surface triangle.
-  // Its XY position must still project onto the surface of the closed body;
-  // otherwise the enclosing box alone must not cause a false collision.
-  return [segment.from, segment.to].some((point) => pointInsideBounds(point, index.bounds)
-    && projectedMeshContainsPoint(index, point, tolerance));
+  // A vertical ray gives an inside check; ambiguous edges stay blocked.
+  return [segment.from, segment.to].some((point) => {
+    if (point[0] < index.bounds[0][0] - reach || point[0] > index.bounds[1][0] + reach
+      || point[1] < index.bounds[0][1] - reach || point[1] > index.bounds[1][1] + reach) return false;
+    const lowerZ = point[2] + lowerOffset;
+    const upperZ = point[2] + upperOffset;
+    if (lowerZ > index.bounds[1][2] + clearance || upperZ < index.bounds[0][2] - clearance) return false;
+    const clampZ = (value) => Math.max(index.bounds[0][2], Math.min(index.bounds[1][2], value));
+    return [clampZ(lowerZ), clampZ(upperZ)].some((z) => meshContainsPointOrUncertain(index, [point[0], point[1], z], tolerance));
+  });
 }

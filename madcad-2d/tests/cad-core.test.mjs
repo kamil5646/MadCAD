@@ -5763,6 +5763,53 @@ test('skośna bryła szczęki nie blokuje narzędzia poza rzeczywistym rzutem tr
   assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
 });
 
+test('skośna szczęka nie blokuje narzędzia ponad lokalną powierzchnią trójkąta', () => {
+  const wedge = {
+    vertices: new Float32Array([0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 1, 10, 0, 10, 0, 10, 10]),
+    triangles: new Uint32Array([0, 2, 1, 3, 4, 5, 0, 1, 4, 0, 4, 3, 1, 2, 5, 1, 5, 4, 2, 0, 3, 2, 3, 5]),
+  };
+  const index = createManufacturingFixtureMeshIndex(wedge);
+  assert.ok(index);
+  const intersectsPointPrism = (segment, minimum, maximum, radius, clearance, minimumZ, maximumZ) => {
+    const [x, y, z] = segment.from;
+    const reach = radius + clearance;
+    return x + reach >= minimum[0] && x - reach <= maximum[0]
+      && y + reach >= minimum[1] && y - reach <= maximum[1]
+      && z >= minimumZ && z <= maximumZ;
+  };
+  const at = (x, y, z) => ({ from: [x, y, z], to: [x, y, z] });
+  assert.equal(fixtureMeshPotentialCollision(index, at(0.2, 0.2, 8), 0.05, 0, 0, 0, intersectsPointPrism), false);
+  assert.equal(fixtureMeshPotentialCollision(index, at(8, 1, 8), 0.05, 0, 0, 0, intersectsPointPrism), true);
+  assert.equal(fixtureMeshPotentialCollision(index, at(0.2, 0.2, 1.1), 0.05, 0, 0, 0, intersectsPointPrism), true);
+  assert.equal(fixtureMeshPotentialCollision(index, at(0.2, 0.2, 0), 0.05, 0, 5, 10, intersectsPointPrism), false);
+  assert.equal(fixtureMeshPotentialCollision(index, at(8, 1, 0), 0.05, 0, 5, 10, intersectsPointPrism), true);
+  const intersectsSegmentPrism = (segment, minimum, maximum, radius, clearance, minimumZ, maximumZ) => {
+    const reach = radius + clearance;
+    return Math.min(segment.from[0], segment.to[0]) - reach <= maximum[0]
+      && Math.max(segment.from[0], segment.to[0]) + reach >= minimum[0]
+      && Math.min(segment.from[1], segment.to[1]) - reach <= maximum[1]
+      && Math.max(segment.from[1], segment.to[1]) + reach >= minimum[1]
+      && Math.min(segment.from[2], segment.to[2]) <= maximumZ
+      && Math.max(segment.from[2], segment.to[2]) >= minimumZ;
+  };
+  assert.equal(fixtureMeshPotentialCollision(index, { from: [0.2, 0.2, 8], to: [0.4, 0.2, 8] }, 0.05, 0, 0, 0, intersectsSegmentPrism), false);
+  assert.equal(fixtureMeshPotentialCollision(index, { from: [0.2, 0.2, 8], to: [8, 1, 8] }, 0.05, 0, 0, 0, intersectsSegmentPrism), true);
+  const fixture = { id: 'sloped-jaw-z', name: 'Skośna szczęka Z', shape: 'body', enabled: true, clearance: 0 };
+  const operation = createContourOperation({ targetDepth: 1, toolId: 'flat-3' });
+  const setup = createManufacturingSetup({ bodyId: camBox.id, operations: [operation] });
+  const baseline = calculateContourToolpath(setup, operation, [camBox]);
+  const path = {
+    ...baseline,
+    setup: { ...baseline.setup, fixtures: [fixture], fixtureMeshes: new Map([[fixture.id, index]]) },
+    tool: { ...baseline.tool, diameter: 0.1, stickout: 0.1, holderDiameter: 0 },
+    clearancePlaneZ: 8,
+    segments: [{ kind: 'rapid', from: [0.2, 0.2, 8], to: [0.4, 0.2, 8] }],
+  };
+  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION'), false);
+  path.segments = [{ kind: 'rapid', from: [0.2, 0.2, 8], to: [8, 1, 8] }];
+  assert.equal(analyzeToolpathSafety(path).some((issue) => issue.code === 'FIXTURE_COLLISION'), true);
+});
+
 test('Setup CAM wylicza półfabrykat, WCS i zgodność z obrabiarką', () => {
   const setup = createManufacturingSetup({
     bodyId: 'body-test',
