@@ -19,7 +19,9 @@ poza celem. Nie osłabiaj istniejących blokad niebezpiecznego eksportu NC.
   operacje B-Rep w workerze.
 - `madcad-2d/src/modeling/` — React, ribbon, panele, dialogi i viewport.
 - `madcad-2d/electron/` — pliki, recovery, licencja, aktualizacje i bezpieczne
-  IPC desktopowe.
+  IPC desktopowe. `project-file-handlers.cjs` jest wspólną ścieżką produkcyjnego
+  zapisu/otwarcia oraz krótkiego testu `verify-extrude-after-sketch.cjs`; test
+  podmienia tylko systemowy wybór ścieżki i sprawdza także kopię `.bak`.
 - `madcad-2d/scripts/desktop-verification-manifest.cjs` — źródło podziału 55
   scenariuszy Electron na siedem shardów; czasy i sposób sprawdzania opisuje
   `madcad-2d/docs/CI_DESKTOP_VERIFICATION.md`.

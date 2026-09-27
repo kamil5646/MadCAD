@@ -4,6 +4,14 @@
 
 W CI testy modelowania są rozdzielone na `modeling` (`verify-modeling.cjs`), `modeling-3d` (`verify-sketch-3d.cjs`) i `modeling-features` (pozostałe 13), uruchamiane równolegle na macOS i Windows. W przebiegu `35905193839` na macOS poprzedni wspólny shard 15 scenariuszy trwał około 602 s, z czego `verify-modeling.cjs` około 347 s. Na Windows cały shard trwał około 1400 s, z czego `verify-modeling.cjs` około 510 s, a `verify-sketch-3d.cjs` około 467 s. Rozdział skrócił ścieżkę krytyczną bez usuwania żadnego scenariusza.
 
+CI `36317981941` dla `719f30d` przeszło 23/23 zadań: rdzeń i build na trzech
+systemach, scenariusze desktopowe Windows/macOS oraz pięć testów pakietów.
+CodeQL `36317981940` również przeszedł. Wynik dotyczy tego commita; późniejsze
+wydzielenie handlerów plików wymaga osobnego CI. Zrzuty z artefaktów `interface`
+pokazują czytelny układ standardowy i kompaktowy; `verify-modeling` sprawdza
+brak przepełnienia przy skali 100%, 150% i 200%, lecz nie zastępuje uruchomienia
+gotowego instalatora na czystym profilu użytkownika.
+
 CI `35908613650` dla commitu `63d4a5e` potwierdził wszystkie trzy części modelowania na obu systemach i pięć instalatorów: 23/23 zadań zakończyło się powodzeniem. Główny shard Windows zakończył się po 9 min 36 s od startu zadania, zamiast 23 min 20 s poprzedniego wspólnego shardu (około 2,4× szybciej do końca modelowania). CodeQL `35908613712` również przeszedł.
 
 CI `35910260871` dla commitu `126feba` po zmianie kontroli szybkich przejazdów CAM także przeszedł 23/23 zadań, w tym oba systemy i wszystkie instalatory; CodeQL `35910260767` przeszedł.

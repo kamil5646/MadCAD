@@ -8,6 +8,7 @@ import { strToU8, zipSync } from 'three/examples/jsm/libs/fflate.module.js';
 import { createLargeProjectCorpus, LARGE_FEATURE_COUNT } from './large-project-fixtures.mjs';
 import largeProjectBudget from '../scripts/large-project-budget.cjs';
 import atomicFile from '../electron/atomic-file.cjs';
+import projectFileHandlers from '../electron/project-file-handlers.cjs';
 import slicerLaunch from '../electron/slicer-launch.cjs';
 import securityPolicy from '../electron/security-policy.cjs';
 import ipcPolicy from '../electron/ipc-policy.cjs';
@@ -188,6 +189,7 @@ import {
 } from '../src/cad-core/sketch-primitives.js';
 
 const { atomicWriteTextFile } = atomicFile;
+const { saveProjectTextFile, openProjectTextFile } = projectFileHandlers;
 
 test('widok rozstrzelony wyznacza deterministyczne przesunięcia bez zmiany położeń złożenia', () => {
   const occurrences = [{ id: 'left', position: [-10, 0, 0] }, { id: 'right', position: [10, 0, 0] }];
@@ -5055,6 +5057,29 @@ test('zapis atomowy zachowuje poprzednią poprawną wersję jako .bak', async ()
     assert.equal(await readFile(targetPath, 'utf8'), 'wersja-najnowsza');
     assert.equal(await readFile(`${targetPath}.bak`, 'utf8'), 'wersja-nowa');
     assert.equal((await readdir(directory)).some((name) => name.endsWith('.tmp')), false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('produkcyjne handlery pliku projektu zapisują, tworzą .bak i odrzucają uszkodzony JSON', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'madcad-project-ipc-'));
+  const targetPath = join(directory, 'projekt.madcad');
+  const dialog = {
+    showSaveDialog: async () => ({ canceled: false, filePath: targetPath }),
+    showOpenDialog: async () => ({ canceled: false, filePaths: [targetPath] }),
+  };
+  try {
+    const first = await saveProjectTextFile({ text: '{"version":1}', defaultName: 'projekt.madcad', atomic: true, createBackup: true }, { dialog });
+    assert.equal(first.ok, true);
+    assert.equal(first.backupPath, null);
+    const second = await saveProjectTextFile({ text: '{"version":2}', defaultName: 'projekt.madcad', targetPath, atomic: true, createBackup: true }, { dialog });
+    assert.equal(second.backupPath, `${targetPath}.bak`);
+    assert.equal(await readFile(`${targetPath}.bak`, 'utf8'), '{"version":1}');
+    assert.equal((await openProjectTextFile({ dialog })).text, '{"version":2}');
+    await writeFile(targetPath, '{broken', 'utf8');
+    assert.match((await openProjectTextFile({ dialog })).error, /JSON|Unexpected|Expected/i);
+    assert.equal((await saveProjectTextFile({ text: '{}', atomic: true }, { dialog: { showSaveDialog: async () => ({ canceled: true }) } })).canceled, true);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -8,6 +8,7 @@ const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 const { app, BrowserWindow, Menu, shell, nativeImage, dialog, ipcMain, screen, safeStorage } = require('electron');
 const { atomicWriteTextFile } = require('./atomic-file.cjs');
+const { saveProjectTextFile, openProjectTextFile } = require('./project-file-handlers.cjs');
 const { normalizeSlicerPayload, windowsCandidates } = require('./slicer-launch.cjs');
 const { isTrustedAppNavigation, isTrustedIpcUrl, normalizeExternalUrl } = require('./security-policy.cjs');
 const {
@@ -18,7 +19,6 @@ const {
   normalizeLinkedProjectReadPayload,
   normalizeProjectSnapshotCreatePayload,
   normalizeProjectSnapshotIdPayload,
-  normalizeSaveTextPayload,
   securePrintPreviewHtml,
 } = require('./ipc-policy.cjs');
 const { createProjectSnapshot, deleteProjectSnapshot, listProjectSnapshots, readProjectSnapshot } = require('./project-snapshots.cjs');
@@ -1292,41 +1292,13 @@ registerTrustedIpcHandler('madcad:import-dwg-sketch', async (event) => {
 });
 
 registerTrustedIpcHandler('madcad:save-text-file', async (event, payload) => {
-  try {
-    const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;
-    const normalized = normalizeSaveTextPayload(payload, appLanguage);
-
-    let filePath = normalized.targetPath;
-    if (filePath) {
-      const existingFile = await fs.stat(filePath).catch(() => null);
-      if (!existingFile?.isFile()) filePath = '';
-    }
-
-    if (!filePath) {
-      const result = await dialog.showSaveDialog(senderWindow, {
-        title: t('Zapisz plik', 'Save file'),
-        defaultPath: normalized.defaultName,
-        filters: normalized.filters,
-        properties: ['createDirectory', 'showOverwriteConfirmation']
-      });
-
-      if (result.canceled || !result.filePath) {
-        return { ok: false, canceled: true };
-      }
-      filePath = result.filePath;
-    }
-
-    const writeResult = normalized.atomic
-      ? await atomicWriteTextFile(filePath, normalized.text, { backup: normalized.createBackup })
-      : (await fs.writeFile(filePath, normalized.text, 'utf8'), { filePath, backupPath: null });
-    return { ok: true, canceled: false, ...writeResult };
-  } catch (error) {
-    return {
-      ok: false,
-      canceled: false,
-      error: storageErrorMessage(error, 'Nieznany błąd zapisu', 'Unknown save error')
-    };
-  }
+  return saveProjectTextFile(payload, {
+    dialog,
+    ownerWindow: BrowserWindow.fromWebContents(event.sender) || null,
+    language: appLanguage,
+    translate: t,
+    errorMessage: storageErrorMessage,
+  });
 });
 
 registerTrustedIpcHandler('madcad:confirm-unsaved-changes', async (event, payload) => {
@@ -1612,27 +1584,13 @@ registerTrustedIpcHandler('madcad:project-snapshot-delete', async (_event, paylo
 });
 
 registerTrustedIpcHandler('madcad:open-project-file', async (event) => {
-  try {
-    const senderWindow = BrowserWindow.fromWebContents(event.sender) || null;
-    const selection = await dialog.showOpenDialog(senderWindow, {
-      title: t('Otwórz projekt MadCAD', 'Open a MadCAD project'),
-      buttonLabel: t('Otwórz', 'Open'),
-      filters: [{ name: 'MadCAD', extensions: ['madcad', 'json'] }],
-      properties: ['openFile'],
-    });
-    if (selection.canceled || !selection.filePaths?.[0]) return { ok: false, canceled: true };
-    const filePath = path.normalize(selection.filePaths[0]);
-    const extension = path.extname(filePath).toLowerCase();
-    if (!['.madcad', '.json'].includes(extension)) throw new Error(t('Wybierz plik .madcad albo .json.', 'Choose a .madcad or .json file.'));
-    const stats = await fs.stat(filePath);
-    if (!stats.isFile()) throw new Error(t('Wybrana ścieżka nie wskazuje pliku.', 'The selected path does not point to a file.'));
-    if (stats.size > MAX_LINKED_PROJECT_BYTES) throw new Error(t('Projekt przekracza limit 64 MiB.', 'The project exceeds the 64 MiB limit.'));
-    const text = await fs.readFile(filePath, 'utf8');
-    validateJsonText(text);
-    return { ok: true, canceled: false, filePath, text };
-  } catch (error) {
-    return { ok: false, canceled: false, error: storageErrorMessage(error, 'Nie udało się otworzyć projektu.', 'Failed to open the project.') };
-  }
+  return openProjectTextFile({
+    dialog,
+    ownerWindow: BrowserWindow.fromWebContents(event.sender) || null,
+    translate: t,
+    errorMessage: storageErrorMessage,
+    maxBytes: MAX_LINKED_PROJECT_BYTES,
+  });
 });
 
 for (const [channel, kind] of [

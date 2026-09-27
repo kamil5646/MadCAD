@@ -4,6 +4,6 @@ contextBridge.exposeInMainWorld('desktopApp', {
   platform: process.platform,
   isDesktop: true,
   appLanguage: 'pl',
-  saveTextFile: (payload) => ipcRenderer.invoke('madcad-verify:save-project', payload),
-  openProjectFile: () => ipcRenderer.invoke('madcad-verify:open-project'),
+  saveTextFile: (payload) => ipcRenderer.invoke('madcad:save-text-file', payload),
+  openProjectFile: () => ipcRenderer.invoke('madcad:open-project-file'),
 });

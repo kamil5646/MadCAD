@@ -2,6 +2,7 @@ const fs = require('fs/promises');
 const os = require('os');
 const path = require('path');
 const { app, BrowserWindow, ipcMain } = require('electron');
+const { saveProjectTextFile, openProjectTextFile } = require('../electron/project-file-handlers.cjs');
 
 const artifactPath = path.join(__dirname, '..', 'artifacts', 'extrude-after-sketch.png');
 const thinArtifactPath = path.join(__dirname, '..', 'artifacts', 'thin-extrude-after-sketch.png');
@@ -39,12 +40,12 @@ async function setCommandField(window, label, value) {
 app.whenReady().then(async () => {
   const projectDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'madcad-basic-project-'));
   const projectPath = path.join(projectDirectory, 'basic-design.madcad');
-  ipcMain.handle('madcad-verify:save-project', async (_event, payload) => {
-    if (typeof payload?.text !== 'string' || !payload.text || payload.atomic !== true) throw new Error('Nieprawidłowe żądanie zapisu projektu.');
-    await fs.writeFile(projectPath, payload.text, 'utf8');
-    return { ok: true, canceled: false, filePath: projectPath, backupPath: null };
-  });
-  ipcMain.handle('madcad-verify:open-project', async () => ({ ok: true, canceled: false, filePath: projectPath, text: await fs.readFile(projectPath, 'utf8') }));
+  const projectDialog = {
+    showSaveDialog: async () => ({ canceled: false, filePath: projectPath }),
+    showOpenDialog: async () => ({ canceled: false, filePaths: [projectPath] }),
+  };
+  ipcMain.handle('madcad:save-text-file', async (_event, payload) => saveProjectTextFile(payload, { dialog: projectDialog }));
+  ipcMain.handle('madcad:open-project-file', async () => openProjectTextFile({ dialog: projectDialog }));
   const window = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -250,14 +251,19 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#saveProjectBtn')?.click()`);
     await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('Zapisano projekt atomowo:')`, 'zapis projektu z drugim szkicem');
     const savedFaceProject = JSON.parse(await fs.readFile(projectPath, 'utf8'));
+    const backupProject = JSON.parse(await fs.readFile(`${projectPath}.bak`, 'utf8'));
     if (savedFaceProject.sketches?.[1]?.support?.kind !== 'face' || Number(savedFaceProject.sketches[1].planeOffset) !== 20 || savedFaceProject.features?.[1]?.operation !== 'cut') {
       throw new Error('Plik .madcad nie zachował szkicu na ścianie i zależnego wycięcia.');
+    }
+    if (backupProject.features?.length !== 1 || backupProject.features[0].distance !== '15') {
+      throw new Error('Kopia .bak nie zachowała ostatniego poprawnego projektu przed nadpisaniem.');
     }
     await window.webContents.executeJavaScript(`document.querySelector('#newProjectBtn')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.features === 0`, 'nowy projekt po wycięciu');
     await window.webContents.executeJavaScript(`document.querySelector('#openProjectBtn')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.features === 2 && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${result.faceSketch.rebuiltVolume}) < 0.01`, 'odtworzony projekt z wycięciem', 30000);
     result.faceSketch.fileRoundTrip = true;
+    result.faceSketch.atomicBackup = true;
     const brokenSupportReferenceId = await window.webContents.executeJavaScript(`window.__madcadVerifyBreakFaceSupportReference()`);
     await waitFor(window, `Boolean(document.querySelector('.reference-repair-panel'))`, 'widoczny kreator naprawy podpory ściany');
     await window.webContents.executeJavaScript(`document.querySelector('.reference-repair-panel.collapsed .reference-repair-toggle')?.click()`);
@@ -316,8 +322,8 @@ app.whenReady().then(async () => {
     exitCode = 1;
   } finally {
     window.destroy();
-    ipcMain.removeHandler('madcad-verify:save-project');
-    ipcMain.removeHandler('madcad-verify:open-project');
+    ipcMain.removeHandler('madcad:save-text-file');
+    ipcMain.removeHandler('madcad:open-project-file');
     await fs.rm(projectDirectory, { recursive: true, force: true });
     process.exit(exitCode);
   }

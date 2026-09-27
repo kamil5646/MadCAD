@@ -63,9 +63,10 @@ poziomym między punktami i pionowym odcinka dodanymi przez interfejs → brył�
 edycję źródłowego wymiaru szkicu w widocznym panelu i automatyczną przebudowę,
 edycję Wyciągnięcia z osi czasu, Cofnij/Ponów, ponowne otwarcie przez
 serializację, zapis pliku `.madcad` przyciskiem aplikacji i otwarcie go po nowym
-projekcie oraz osobny przypadek cienkiego wyciągnięcia. Krótki test używa
-kontrolowanego IPC plikowego, nie produkcyjnego okna wyboru ścieżki ani
-mechanizmu atomowej kopii `.bak`. Ten sam test potwierdza też drugi szkic
+projekcie oraz osobny przypadek cienkiego wyciągnięcia. Krótki test wywołuje
+ten sam handler pliku co aplikacja (walidacja żądania, zapis atomowy i kopia
+`.bak`) z kontrolowanym wyborem ścieżki; nie sprawdza natywnego okna systemu
+ani uruchomienia z instalatora. Ten sam test potwierdza też drugi szkic
 założony na płaskiej ścianie, wycięcie zależne od pierwszej bryły, przesunięcie
 tej podpory po edycji pierwszego Wyciągnięcia z 15 na 20 mm, Cofnij/Ponów
 obu położeń, odczyt obu operacji z pliku i naprawę kontrolowanie utraconej
