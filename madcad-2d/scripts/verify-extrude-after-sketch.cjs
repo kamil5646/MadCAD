@@ -258,6 +258,17 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#openProjectBtn')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState?.features === 2 && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${result.faceSketch.rebuiltVolume}) < 0.01`, 'odtworzony projekt z wycięciem', 30000);
     result.faceSketch.fileRoundTrip = true;
+    const brokenSupportReferenceId = await window.webContents.executeJavaScript(`window.__madcadVerifyBreakFaceSupportReference()`);
+    await waitFor(window, `Boolean(document.querySelector('.reference-repair-panel'))`, 'widoczny kreator naprawy podpory ściany');
+    await window.webContents.executeJavaScript(`document.querySelector('.reference-repair-panel.collapsed .reference-repair-toggle')?.click()`);
+    await waitFor(window, `Boolean(document.querySelector('.reference-repair-panel button[data-reference-action="candidate-1"]'))`, 'kandydat naprawy podpory ściany');
+    await window.webContents.executeJavaScript(`(() => {
+      const candidate = document.querySelector('.reference-repair-panel button[data-reference-action="candidate-1"]');
+      if (!candidate) throw new Error('Brak kandydata naprawy ściany');
+      candidate.click();
+    })()`);
+    await waitFor(window, `!document.querySelector('.reference-repair-panel') && window.__madcadVerifyDocumentState?.references?.find((reference) => reference.id === ${JSON.stringify(brokenSupportReferenceId)})?.topologyId.endsWith('-lost') === false && Number(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset) === 20 && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'`, 'naprawiona referencja podpory szkicu', 30000);
+    result.faceSketch.referenceRepair = true;
 
     // Stop the old renderer before clearing storage. Its delayed autosave can
     // otherwise repopulate the first sketch between clear() and the reload.

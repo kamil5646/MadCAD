@@ -1,4 +1,5 @@
 import { evaluateExpression, resolveParameters } from './expressions.js';
+import { frameFromNormal } from './sketch-frame.js';
 
 const PLANE_NORMALS = Object.freeze({ XY: [0, 0, 1], XZ: [0, -1, 0], YZ: [1, 0, 0] });
 
@@ -45,4 +46,21 @@ export function moveEndFaceSketchSupports(previous, next) {
     }
   }
   return moved;
+}
+
+export function placeSketchesOnReassignedFace(document, referenceId, descriptor) {
+  if (descriptor?.geometry !== 'PLANE' || !Array.isArray(descriptor.center) || !Array.isArray(descriptor.normal)) return 0;
+  const normal = descriptor.normal;
+  const dominant = normal.map(Math.abs).indexOf(Math.max(...normal.map(Math.abs)));
+  const axisAligned = normal.every((value, index) => index === dominant || Math.abs(value) <= 1e-6);
+  let placed = 0;
+  for (const sketch of document.sketches) {
+    if (sketch.support?.kind !== 'face' || sketch.support.referenceId !== referenceId) continue;
+    sketch.plane = dominant === 0 ? 'YZ' : dominant === 1 ? 'XZ' : 'XY';
+    sketch.planeOffset = String(dominant === 1 ? -descriptor.center[1] : descriptor.center[dominant]);
+    if (axisAligned) delete sketch.frame;
+    else sketch.frame = frameFromNormal(descriptor.center, normal);
+    placed += 1;
+  }
+  return placed;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { moveEndFaceSketchSupports } from './face-sketch-support.js';
+import { moveEndFaceSketchSupports, placeSketchesOnReassignedFace } from './face-sketch-support.js';
 
 function fixture() {
   return {
@@ -32,5 +32,13 @@ describe('face-supported sketch tracking', () => {
     next.features[0].distance = '20';
     expect(moveEndFaceSketchSupports(previous, next)).toBe(0);
     expect(next.sketches[1].planeOffset).toBe('15');
+  });
+
+  it('updates the sketch plane when a lost face reference is reassigned', () => {
+    const document = fixture();
+    expect(placeSketchesOnReassignedFace(document, 'top', { geometry: 'PLANE', center: [0, 0, 20], normal: [0, 0, 1] })).toBe(1);
+    expect(document.sketches[1].planeOffset).toBe('20');
+    expect(document.sketches[1].plane).toBe('XY');
+    expect(document.sketches[0].planeOffset).toBe('0');
   });
 });

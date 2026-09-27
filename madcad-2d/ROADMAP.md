@@ -68,10 +68,10 @@ kontrolowanego IPC plikowego, nie produkcyjnego okna wyboru ścieżki ani
 mechanizmu atomowej kopii `.bak`. Ten sam test potwierdza też drugi szkic
 założony na płaskiej ścianie, wycięcie zależne od pierwszej bryły, przesunięcie
 tej podpory po edycji pierwszego Wyciągnięcia z 15 na 20 mm, Cofnij/Ponów
-obu położeń oraz odczyt obu operacji z pliku. Korekta podpory obejmuje teraz
-końcową ścianę osiowego, jednostronnego Wyciągnięcia; ogólne zmiany topologii,
-inne rodzaje ścian i naprawa utraconej referencji nadal wymagają osobnej
-walidacji przed zamknięciem tego etapu.
+obu położeń, odczyt obu operacji z pliku i naprawę kontrolowanie utraconej
+referencji ściany przez kreator. Korekta podpory obejmuje teraz końcową ścianę
+osiowego, jednostronnego Wyciągnięcia; ogólne zmiany topologii i inne rodzaje
+ścian nadal wymagają osobnej walidacji przed zamknięciem tego etapu.
 `verify:modeling` obejmuje wiele tych etapów w oddzielnych
 scenariuszach, ale lokalny przebieg 2026-09-27 przekroczył istniejący budżet
 całego scenariusza 120 s (199,9 s); sam przebieg szkic → bryła w krótszym

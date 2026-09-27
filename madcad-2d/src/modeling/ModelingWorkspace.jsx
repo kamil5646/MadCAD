@@ -123,7 +123,7 @@ import { evaluateExpression, resolveParameters } from '../cad-core/expressions.j
 import { resolveOpenChainProfile } from '../cad-core/evaluator.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
 import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../cad-core/topology-references.js';
-import { moveEndFaceSketchSupports } from '../cad-core/face-sketch-support.js';
+import { moveEndFaceSketchSupports, placeSketchesOnReassignedFace } from '../cad-core/face-sketch-support.js';
 import { createAnglePlane, createMidplane, createOffsetPlane, createPathPlane, createTangentPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
 import { frameFromNormal, normalizeSketchFrame } from '../cad-core/sketch-frame.js';
 import { createCylinderAxis, createEdgeAxis, createPlaneIntersectionAxis, createPlaneNormalAxis, createTwoPointAxis, resolveConstructionAxis, resolveConstructionAxes } from '../cad-core/construction-axes.js';
@@ -3751,6 +3751,7 @@ export default function ModelingWorkspace() {
         const index = next.references.findIndex((reference) => reference.id === referenceId);
         if (index < 0) throw new Error('Nie znaleziono referencji do naprawy.');
         next.references[index] = reassignTopologyReference(next.references[index], topology, descriptor);
+        if (topology.kind === 'face') placeSketchesOnReassignedFace(next, referenceId, descriptor);
         synchronizeProjectedGeometry(next, actualBodies);
       });
       setSelection({ kind: topology.kind, id: topology.id, bodyId: topology.bodyId, sourceFeatureId: topology.sourceFeatureId, items: [topology] });
@@ -4238,6 +4239,16 @@ export default function ModelingWorkspace() {
         reference.topologyId = `${reference.topologyId}-lost`;
       });
       return { entityId: projected.id, referenceId: projected.projectionReferenceId };
+    };
+    window.__madcadVerifyBreakFaceSupportReference = () => {
+      const sketch = document.sketches.find((item) => item.support?.kind === 'face');
+      if (!sketch) throw new Error('Brak szkicu na ścianie do testu naprawy.');
+      history.commit((next) => {
+        const reference = next.references.find((item) => item.id === sketch.support.referenceId);
+        if (!reference) throw new Error('Brak referencji podpory szkicu.');
+        reference.topologyId = `${reference.topologyId}-lost`;
+      });
+      return sketch.support.referenceId;
     };
     window.__madcadVerifyMoveSketch = moveSketchEntities;
     window.__madcadVerifyDeleteSketch = deleteSelectedSketchEntities;
@@ -4750,6 +4761,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyProfileSelection;
       delete window.__madcadVerifyCreateLostTopologyReference;
       delete window.__madcadVerifyBreakProjectedReference;
+      delete window.__madcadVerifyBreakFaceSupportReference;
       delete window.__madcadVerifyMoveSketch;
       delete window.__madcadVerifyDeleteSketch;
       delete window.__madcadVerifyEditSketch;
