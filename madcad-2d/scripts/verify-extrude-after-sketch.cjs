@@ -200,6 +200,7 @@ app.whenReady().then(async () => {
     result.reopened = true;
     result.fileRoundTrip = true;
 
+    process.stdout.write('[verify] top-face dependent cut\n');
     const supportFace = await window.webContents.executeJavaScript(`(() => {
       const body = window.__madcadVerifyEngineState.bodies[0];
       const face = body.topology.faces.find((item) => item.descriptor.geometry === 'PLANE' && (item.descriptor.normal?.[2] || 0) > 0.99 && item.descriptor.center?.[2] > 14.9);
@@ -276,6 +277,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `!document.querySelector('.reference-repair-panel') && window.__madcadVerifyDocumentState?.references?.find((reference) => reference.id === ${JSON.stringify(brokenSupportReferenceId)})?.topologyId.endsWith('-lost') === false && Number(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset) === 20 && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'`, 'naprawiona referencja podpory szkicu', 30000);
     result.faceSketch.referenceRepair = true;
 
+    process.stdout.write('[verify] angled-face dependent cut\n');
     const angledProject = structuredClone(savedProject);
     const normal = [0, -Math.SQRT1_2, Math.SQRT1_2];
     angledProject.sketches[0].frame = {
@@ -356,7 +358,18 @@ app.whenReady().then(async () => {
       && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${angledAfter.volume}) < 0.01
       && Math.abs(window.__madcadVerifyDocumentState?.sketches?.[1]?.frame?.origin?.[2] - ${angledAfter.origin[2]}) < 0.01`, 'odtworzona skośna bryła', 30000);
     result.angledFaceSketch = { beforeVolume: angledBefore.volume, afterVolume: angledAfter.volume, tracked: true, undoRedo: true, fileRoundTrip: true };
+    const brokenAngledReferenceId = await window.webContents.executeJavaScript(`window.__madcadVerifyBreakFaceSupportReference()`);
+    await waitFor(window, `Boolean(document.querySelector('.reference-repair-panel'))`, 'naprawa skośnej podpory');
+    await window.webContents.executeJavaScript(`document.querySelector('.reference-repair-panel.collapsed .reference-repair-toggle')?.click()`);
+    await waitFor(window, `Boolean(document.querySelector('.reference-repair-panel button[data-reference-action="candidate-1"]'))`, 'kandydat skośnej ściany');
+    await window.webContents.executeJavaScript(`document.querySelector('.reference-repair-panel button[data-reference-action="candidate-1"]')?.click()`);
+    await waitFor(window, `!document.querySelector('.reference-repair-panel')
+      && window.__madcadVerifyDocumentState?.references?.find((reference) => reference.id === ${JSON.stringify(brokenAngledReferenceId)})?.topologyId.endsWith('-lost') === false
+      && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'
+      && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${angledAfter.volume}) < 0.01`, 'naprawione skośne wycięcie', 30000);
+    result.angledFaceSketch.referenceRepair = true;
 
+    process.stdout.write('[verify] side-face dependent cut\n');
     const sideLoadRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
     await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(savedProject))})`);
     await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${sideLoadRevision}
@@ -422,6 +435,116 @@ app.whenReady().then(async () => {
       && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'
       && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${sideCutVolume}) < 0.01`, 'naprawione boczne wycięcie', 30000);
     result.sideFaceSketch = { volume: sideCutVolume, cut: true, undoRedo: true, fileRoundTrip: true, referenceRepair: true };
+
+    process.stdout.write('[verify] rotating construction-plane dependent cut\n');
+    const rotatingProject = structuredClone(savedProject);
+    const rotatingPlane = {
+      id: 'plane-rotating-support', kind: 'construction-plane', planeType: 'angle',
+      name: 'Płaszczyzna obrotu', basePlane: 'XY', rotationAxis: 'u', angle: '30', offset: '0', visible: true,
+    };
+    rotatingProject.references.push(rotatingPlane);
+    rotatingProject.sketches[0].support = { kind: 'construction-plane', referenceId: rotatingPlane.id };
+    const rotatingLoadRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    const rotatingLoad = await window.webContents.executeJavaScript(`(() => {
+      try {
+        window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(rotatingProject))});
+        return { ok: true };
+      } catch (error) { return { ok: false, error: error?.stack || String(error) }; }
+    })()`);
+    if (!rotatingLoad.ok) throw new Error(`Nie udało się załadować projektu z obrotową płaszczyzną: ${rotatingLoad.error}`);
+    process.stdout.write('[verify] rotating fixture loaded\n');
+    await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${rotatingLoadRevision}
+      && window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyDocumentState?.features === 1
+      && window.__madcadVerifyEngineState?.bodies?.[0]?.topology?.faces?.some((face) => face.descriptor.normal?.[1] < -0.49 && face.descriptor.normal?.[2] > 0.86)`, 'bryła na płaszczyźnie 30°', 30000);
+    const rotatingFace = await window.webContents.executeJavaScript(`(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const face = body.topology.faces.find((item) => item.descriptor.geometry === 'PLANE'
+        && item.descriptor.normal?.[1] < -0.49 && item.descriptor.normal?.[2] > 0.86
+        && item.descriptor.center?.[2] > 10);
+      return face && { id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId };
+    })()`);
+    if (!rotatingFace) throw new Error('Brak końcowej ściany bryły na płaszczyźnie 30°.');
+    process.stdout.write('[verify] rotating face selected\n');
+    await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify({ kind: 'face', ...rotatingFace })}, 'replace')`);
+    await clickTool(window, 'Utwórz szkic');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[1]?.support?.kind === 'face'`, 'zależny szkic na obrotowej ścianie');
+    process.stdout.write('[verify] rotating face sketch created\n');
+    await clickTool(window, 'Okrąg');
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Okrąg')`, 'profil na obrotowej ścianie');
+    await setCommandField(window, 'Średnica', '6');
+    await setCommandField(window, 'Środek X', '0');
+    await setCommandField(window, 'Środek Y', '0');
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[1]?.profiles === 1`, 'profil zależny od płaszczyzny 30°');
+    await clickTool(window, 'Zakończ szkic');
+    await clickTool(window, 'Wyciągnij');
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'wycięcie bryły z obrotowej płaszczyzny');
+    await setCommandField(window, 'Operacja', 'cut');
+    await setCommandField(window, 'Kierunek', 'through-all');
+    const rotatingCutRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${rotatingCutRevision}
+      && window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'`, 'wycięcie na płaszczyźnie 30°', 30000);
+    process.stdout.write('[verify] rotating face cut ready\n');
+    const rotatingBefore = await window.webContents.executeJavaScript(`({
+      volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume,
+      frame: window.__madcadVerifyDocumentState.sketches[1].frame,
+    })`);
+    if (!(rotatingBefore.volume > 0 && rotatingBefore.volume < 18000)) throw new Error('Wycięcie na obrotowej płaszczyźnie nie usunęło materiału.');
+    await window.webContents.executeJavaScript(`window.__madcadVerifyConstructionPlaneSelection(${JSON.stringify(rotatingPlane.id)})`);
+    process.stdout.write('[verify] rotating plane selection requested\n');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'constructionPlane'`, 'wybrana płaszczyzna konstrukcyjna');
+    await window.webContents.executeJavaScript(`(() => {
+      const button = [...document.querySelectorAll('button')].find((item) => item.title === 'Edytuj' && !item.disabled);
+      if (!button) throw new Error('Brak dostępnego przycisku Edytuj dla płaszczyzny.');
+      button.click();
+    })()`);
+    process.stdout.write('[verify] rotating plane edit opened\n');
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Płaszczyzna pod kątem')`, 'edycja kąta płaszczyzny');
+    await setCommandField(window, 'Kąt', '60');
+    const rotatingEditRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${rotatingEditRevision}
+      && window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'
+      && window.__madcadVerifyDocumentState?.sketches?.[1]?.frame?.normal?.[1] < -0.86
+      && window.__madcadVerifyDocumentState?.sketches?.[1]?.frame?.normal?.[2] < 0.51`, 'zależne wycięcie po obrocie płaszczyzny', 30000);
+    const rotatingAfter = await window.webContents.executeJavaScript(`({
+      volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume,
+      frame: window.__madcadVerifyDocumentState.sketches[1].frame,
+    })`);
+    if (Math.abs(rotatingAfter.volume - rotatingBefore.volume) > 0.05
+      || Math.abs(rotatingAfter.frame.origin[2] - 7.5) > 0.05) {
+      throw new Error(`Zależny szkic nie podążył za obrotem płaszczyzny: ${JSON.stringify({ rotatingBefore, rotatingAfter })}`);
+    }
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyDocumentState?.references?.find((reference) => reference.id === ${JSON.stringify(rotatingPlane.id)})?.angle === '30'
+      && window.__madcadVerifyDocumentState?.sketches?.[1]?.frame?.normal?.[1] > -0.51
+      && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${rotatingBefore.volume}) < 0.05`, 'Cofnij obrót podpory', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyDocumentState?.references?.find((reference) => reference.id === ${JSON.stringify(rotatingPlane.id)})?.angle === '60'
+      && window.__madcadVerifyDocumentState?.sketches?.[1]?.frame?.normal?.[1] < -0.86
+      && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${rotatingAfter.volume}) < 0.05`, 'Ponów obrót podpory', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('#saveProjectBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('Zapisano projekt atomowo:')`, 'zapis obróconej podpory');
+    const savedRotatingProject = JSON.parse(await fs.readFile(projectPath, 'utf8'));
+    if (savedRotatingProject.references?.find((reference) => reference.id === rotatingPlane.id)?.angle !== '60'
+      || savedRotatingProject.sketches?.[1]?.frame?.normal?.[1] > -0.86) {
+      throw new Error('Plik .madcad nie zachował obróconej podpory i zależnego szkicu.');
+    }
+    await window.webContents.executeJavaScript(`document.querySelector('#newProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 0`, 'nowy projekt po obrocie podpory');
+    await window.webContents.executeJavaScript(`document.querySelector('#openProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyDocumentState?.features === 2
+      && window.__madcadVerifyDocumentState?.sketches?.[1]?.frame?.normal?.[1] < -0.86
+      && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${rotatingAfter.volume}) < 0.05`, 'odtworzone wycięcie na obróconej podporze', 30000);
+    result.rotatedFaceSketch = { beforeVolume: rotatingBefore.volume, afterVolume: rotatingAfter.volume, tracked: true, undoRedo: true, fileRoundTrip: true };
+    process.stdout.write(`[verify] rotated support ${JSON.stringify(result.rotatedFaceSketch)}\n`);
 
     // Stop the old renderer before clearing storage. Its delayed autosave can
     // otherwise repopulate the first sketch between clear() and the reload.

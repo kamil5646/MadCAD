@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { moveEndFaceSketchSupports, placeSketchesOnReassignedFace } from './face-sketch-support.js';
 import { frameFromNormal } from './sketch-frame.js';
+import { createAnglePlane, resolveConstructionPlane } from './construction-planes.js';
 
 function fixture() {
   return {
@@ -77,7 +78,7 @@ describe('face-supported sketch tracking', () => {
     expect(next.sketches[1].planeOffset).toBe('20');
   });
 
-  it('leaves an unrelated or rotated support to geometric reference repair', () => {
+  it('leaves an unrelated support to geometric reference repair', () => {
     const previous = fixture();
     const next = structuredClone(previous);
     next.features[0].distance = '20';
@@ -86,10 +87,47 @@ describe('face-supported sketch tracking', () => {
     expect(moveEndFaceSketchSupports(previous, next)).toBe(0);
     expect(next.sketches[1].planeOffset).toBe('15');
 
-    const rotated = structuredClone(fixture());
-    rotated.features[0].distance = '20';
-    rotated.sketches[0].frame = frameFromNormal([0, 0, 0], [0, -Math.SQRT1_2, Math.SQRT1_2]);
-    expect(moveEndFaceSketchSupports(fixture(), rotated)).toBe(0);
+  });
+
+  it('rotates an end-face sketch and its reference with the source sketch frame', () => {
+    const previous = fixture();
+    const next = structuredClone(previous);
+    const normal = [0, -Math.SQRT1_2, Math.SQRT1_2];
+    next.sketches[0].frame = frameFromNormal([0, 0, 0], normal);
+    next.features[0].distance = '20';
+
+    expect(moveEndFaceSketchSupports(previous, next)).toBe(1);
+    expect(next.sketches[1].frame.normal[1]).toBeCloseTo(normal[1], 8);
+    expect(next.sketches[1].frame.normal[2]).toBeCloseTo(normal[2], 8);
+    expect(next.sketches[1].frame.origin[1]).toBeCloseTo(normal[1] * 20, 8);
+    expect(next.sketches[1].frame.origin[2]).toBeCloseTo(normal[2] * 20, 8);
+    expect(next.references[0].descriptor.normal[1]).toBeCloseTo(normal[1], 8);
+    expect(next.references[0].descriptor.center).toEqual(next.sketches[1].frame.origin);
+  });
+
+  it('follows an edited angled construction plane', () => {
+    const previous = fixture();
+    const plane = createAnglePlane({ angle: '30', offset: '0' });
+    const firstFrame = resolveConstructionPlane(plane);
+    const firstEnd = firstFrame.origin.map((value, axis) => value + firstFrame.normal[axis] * 15);
+    previous.references.push(plane);
+    previous.sketches[0].support = { kind: 'construction-plane', referenceId: plane.id };
+    previous.sketches[1].frame = frameFromNormal(firstEnd, firstFrame.normal);
+    previous.references[0].descriptor.normal = firstFrame.normal;
+    previous.references[0].descriptor.center = firstEnd;
+    previous.references[0].descriptor.centerOfMass = firstEnd;
+    const next = structuredClone(previous);
+    next.references[1].angle = '60';
+    const finalFrame = resolveConstructionPlane(next.references[1]);
+    const finalEnd = finalFrame.origin.map((value, axis) => value + finalFrame.normal[axis] * 15);
+
+    expect(moveEndFaceSketchSupports(previous, next)).toBe(1);
+    for (let axis = 0; axis < 3; axis += 1) {
+      expect(next.sketches[1].frame.origin[axis]).toBeCloseTo(finalEnd[axis], 8);
+      expect(next.sketches[1].frame.normal[axis]).toBeCloseTo(finalFrame.normal[axis], 8);
+      expect(next.references[0].descriptor.center[axis]).toBeCloseTo(finalEnd[axis], 8);
+    }
+    expect(next.sketches[1].support).toEqual(previous.sketches[1].support);
   });
 
   it('updates the sketch plane when a lost face reference is reassigned', () => {

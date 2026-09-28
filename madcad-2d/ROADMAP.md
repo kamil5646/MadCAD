@@ -79,9 +79,13 @@ topologii i inne rodzaje ścian wymagają osobnej walidacji przed zamknięciem
 tego etapu.
 Lokalny scenariusz desktopowy potwierdził ponadto szkic na bocznej płaskiej
 ścianie, wycięcie przez bryłę, Cofnij/Ponów, zapis i ponowne otwarcie pliku
-oraz naprawę utraconej referencji tej ściany. Ten nowy wariant wymaga jeszcze
-potwierdzenia w CI; automatyczne podążanie za obróconą podporą i ogólnymi
-zmianami topologii nadal nie jest potwierdzone.
+oraz naprawę utraconej referencji tej ściany. Przeszła również naprawa
+utraconej referencji skośnej ściany z zachowaniem objętości wycięcia.
+CI `36448327496` potwierdziło boczną ścianę i jej naprawę. Lokalnie przeszedł
+także obrót źródłowej płaszczyzny konstrukcyjnej z 30° na 60°: zależny szkic
+na końcowej ścianie, wycięcie, Cofnij/Ponów i plik `.madcad` zachowały geometrię.
+Ten wariant wymaga jeszcze CI; ogólne zmiany topologii nadal nie są
+potwierdzone.
 `verify:modeling` obejmuje wiele tych etapów w oddzielnych
 scenariuszach, ale lokalny przebieg 2026-09-27 przekroczył istniejący budżet
 całego scenariusza 120 s (199,9 s); dwa późniejsze lokalne przebiegi pełnego

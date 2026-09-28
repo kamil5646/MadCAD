@@ -4212,6 +4212,7 @@ export default function ModelingWorkspace() {
     window.__madcadVerifyFinishCanvasSketchTool = finishCanvasSketchTool;
     window.__madcadVerifySketchSelection = handleSketchSelection;
     window.__madcadVerifyTopologySelection = handleTopologySelection;
+    window.__madcadVerifyConstructionPlaneSelection = (id) => setSelection({ kind: 'constructionPlane', id });
     window.__madcadVerifyStartSketch = startSketch;
     window.__madcadVerifyOpenProjectToSurface = openProjectToSurface;
     window.__madcadVerifyProfileSelection = (sketchId, profileId) => setSelection({ kind: 'profile', id: profileId, sketchId });
@@ -4756,6 +4757,7 @@ export default function ModelingWorkspace() {
       delete window.__madcadVerifyFinishCanvasSketchTool;
       delete window.__madcadVerifySketchSelection;
       delete window.__madcadVerifyTopologySelection;
+      delete window.__madcadVerifyConstructionPlaneSelection;
       delete window.__madcadVerifyStartSketch;
       delete window.__madcadVerifyOpenProjectToSurface;
       delete window.__madcadVerifyProfileSelection;

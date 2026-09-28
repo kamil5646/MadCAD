@@ -1,11 +1,28 @@
 import { evaluateExpression, resolveParameters } from './expressions.js';
+import { resolveConstructionPlane } from './construction-planes.js';
 import { frameFromNormal, resolveSketchFrame } from './sketch-frame.js';
 
 const dot = (left, right) => left.reduce((sum, value, index) => sum + value * right[index], 0);
+const subtract = (left, right) => left.map((value, index) => value - right[index]);
+const add = (left, right) => left.map((value, index) => value + right[index]);
+
+function sourceSketchFrame(document, sketch, values) {
+  if (sketch.support?.kind === 'construction-plane') {
+    const plane = document.references.find((reference) => reference.id === sketch.support.referenceId);
+    if (plane) return resolveConstructionPlane(plane, values);
+  }
+  return resolveSketchFrame({ ...sketch, planeOffset: evaluateExpression(sketch.planeOffset || 0, values) });
+}
+
+function transformBetweenFrames(before, after, vector) {
+  return before.u.map((_, index) => after.u[index] * dot(vector, before.u)
+    + after.v[index] * dot(vector, before.v)
+    + after.normal[index] * dot(vector, before.normal));
+}
 
 // Keep a sketch on the end cap of a one-sided extrusion when that extrusion
-// changes in the same document-history transaction. Rotations and other
-// topology changes still need geometric reference resolution and repair.
+// or its source construction plane changes in one document-history transaction.
+// Other topology changes still need geometric reference resolution and repair.
 export function moveEndFaceSketchSupports(previous, next) {
   const previousParameters = resolveParameters(previous.parameters);
   const nextParameters = resolveParameters(next.parameters);
@@ -31,21 +48,31 @@ export function moveEndFaceSketchSupports(previous, next) {
     if (!previousSource || !nextSource || !Array.isArray(originalPlane?.normal)
       || !Array.isArray(originalPlane?.center)) continue;
     try {
-      const sourceFrame = (source, values) => resolveSketchFrame({ ...source, planeOffset: evaluateExpression(source.planeOffset || 0, values) });
-      const before = sourceFrame(previousSource, previousParameters.values);
-      const after = sourceFrame(nextSource, nextParameters.values);
+      const before = sourceSketchFrame(previous, previousSource, previousParameters.values);
+      const after = sourceSketchFrame(next, nextSource, nextParameters.values);
       const normal = before.normal;
-      if (dot(normal, after.normal) < 0.999999 || dot(normal, originalPlane.normal) < 0.99) continue;
+      if (dot(normal, originalPlane.normal) < 0.99) continue;
       const endPosition = (frame, feature, values) => frame.origin.map((value, index) => value + frame.normal[index]
         * (evaluateExpression(feature.startOffset || 0, values) + evaluateExpression(feature.distance, values)));
       const previousEnd = endPosition(before, previousFeature, previousParameters.values);
       const nextEnd = endPosition(after, nextFeature, nextParameters.values);
-      if (Math.abs(dot(originalPlane.center.map((value, index) => value - previousEnd[index]), normal)) > 1e-4) continue;
-      const shift = nextEnd.map((value, index) => value - previousEnd[index]);
-      if (shift.some((value) => !Number.isFinite(value)) || Math.hypot(...shift) < 1e-9) continue;
-      if (sketch.frame) sketch.frame.origin = sketch.frame.origin.map((value, index) => value + shift[index]);
-      else {
-        if (dot(resolveSketchFrame(sketch).normal, normal) < 0.999999) continue;
+      if (Math.abs(dot(subtract(originalPlane.center, previousEnd), normal)) > 1e-4) continue;
+      const shift = subtract(nextEnd, previousEnd);
+      const changedOrientation = dot(before.u, after.u) < 0.999999 || dot(before.v, after.v) < 0.999999 || dot(before.normal, after.normal) < 0.999999;
+      if (shift.some((value) => !Number.isFinite(value)) || (!changedOrientation && Math.hypot(...shift) < 1e-9)) continue;
+      const supportedFrame = resolveSketchFrame({ ...sketch, planeOffset: evaluateExpression(sketch.planeOffset || 0, nextParameters.values) });
+      if (dot(supportedFrame.normal, normal) < 0.999999) continue;
+      const transformPoint = (point) => add(nextEnd, transformBetweenFrames(before, after, subtract(point, previousEnd)));
+      if (sketch.frame || changedOrientation) {
+        sketch.frame = changedOrientation
+          ? {
+            origin: transformPoint(supportedFrame.origin),
+            normal: transformBetweenFrames(before, after, supportedFrame.normal),
+            u: transformBetweenFrames(before, after, supportedFrame.u),
+            v: transformBetweenFrames(before, after, supportedFrame.v),
+          }
+          : { ...sketch.frame, origin: add(sketch.frame.origin, shift) };
+      } else {
         const alongNormal = dot(shift, normal);
         if (Math.hypot(...shift.map((value, index) => value - normal[index] * alongNormal)) > 1e-6) continue;
         sketch.planeOffset = String(evaluateExpression(sketch.planeOffset || 0, nextParameters.values) + alongNormal);
@@ -53,9 +80,12 @@ export function moveEndFaceSketchSupports(previous, next) {
       if (!movedReferences.has(reference.id)) {
         for (const key of ['center', 'centerOfMass']) {
           if (Array.isArray(reference.descriptor[key])) {
-            reference.descriptor[key] = reference.descriptor[key].map((value, index) => value + shift[index]);
+            reference.descriptor[key] = changedOrientation
+              ? transformPoint(reference.descriptor[key])
+              : add(reference.descriptor[key], shift);
           }
         }
+        if (changedOrientation) reference.descriptor.normal = transformBetweenFrames(before, after, originalPlane.normal);
         movedReferences.add(reference.id);
       }
       moved += 1;
