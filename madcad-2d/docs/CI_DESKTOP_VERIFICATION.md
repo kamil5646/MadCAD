@@ -58,6 +58,13 @@ pakiet `interface` po stabilizacji czasu obserwacji kamery i ponownym
 przeliczeniu układu wstążki przeszedł 12/12. Budżet wydajności nie został
 podniesiony; następny CI sprawdzi, czy przekroczenie na Windows się powtarza.
 
+CI `36442074852` dla `52f4309` przeszło 23/23 zadań: wszystkie shardy
+desktopowe Windows/macOS i pięć testów pakietów, łącznie z Windows Portable.
+CodeQL `36442074932` również przeszedł. Odzyskanie korpusu 220 szkiców na
+Windows trwało 6,765 s, więc poprzednie przekroczenie 46,837 s nie powtórzyło
+się bez zmiany limitu. Ten przebieg nie obejmuje jeszcze faktycznej instalacji
+NSIS dodanej w późniejszym commicie.
+
 CI `35908613650` dla commitu `63d4a5e` potwierdził wszystkie trzy części modelowania na obu systemach i pięć instalatorów: 23/23 zadań zakończyło się powodzeniem. Główny shard Windows zakończył się po 9 min 36 s od startu zadania, zamiast 23 min 20 s poprzedniego wspólnego shardu (około 2,4× szybciej do końca modelowania). CodeQL `35908613712` również przeszedł.
 
 CI `35910260871` dla commitu `126feba` po zmianie kontroli szybkich przejazdów CAM także przeszedł 23/23 zadań, w tym oba systemy i wszystkie instalatory; CodeQL `35910260767` przeszedł.
