@@ -28,13 +28,15 @@ razie z testów desktopowych kodu źródłowego; wydanie wymaga oddzielnego audy
 `verify:packaged-startup` uruchamia po zbudowaniu pakietu aplikację z osobnym
 profilem, lokalnym połączeniem debuggera i limitem 30 s. Dla macOS uruchamia
 aplikację wyodrębnioną z ZIP albo zamontowaną z DMG, dla Windows Portable z
-ZIP, a dla instalatora NSIS — z katalogu `win-unpacked` (bez instalacji NSIS).
+ZIP, a dla instalatora NSIS wykonuje cichą instalację w odizolowanym katalogu
+runnera Windows, uruchamia zainstalowaną aplikację i wykonuje deinstalację.
 Sprawdza załadowanie `app.asar/dist/index.html`, API desktopowe, ekran licencji
 oraz brak hooków `?verify=1`; lokalne przebiegi ZIP i DMG macOS przeszły.
 W CI na runnerze macOS innym niż arm64 test jawnie raportuje pominięcie,
 ponieważ dystrybuowana paczka jest arm64; w workflow wydania taka sytuacja
-jest błędem blokującym publikację. Test nie instaluje NSIS, nie obchodzi
-wymagania konta i nie potwierdza pracy po zalogowaniu.
+jest błędem blokującym publikację. Test nie obchodzi wymagania konta i nie
+potwierdza pracy po zalogowaniu. Ścieżka instalacji NSIS wymaga jeszcze
+potwierdzenia w CI; wcześniejsze zielone przebiegi sprawdzały `win-unpacked`.
 
 CI `36333554392` dla `3423bcd` potwierdził wszystkie 14 shardów desktopowych
 Windows/macOS, CodeQL, trzy buildy rdzenia oraz paczki Linux, macOS ZIP/DMG i
@@ -45,6 +47,16 @@ proces potomny Chromium nadal trzymał plik. Test zatrzymuje teraz własne
 drzewo procesów Windows i ponawia sprzątanie; jeśli blokada systemowa trwa,
 raportuje pozostawiony katalog tymczasowy zamiast fałszywie odrzucać poprawny
 start. Cała bramka nadal wymaga ponownego zielonego przebiegu CI.
+
+CI `36334532774` dla `094ac48` zakończyło się 16/18 zadań pomyślnie.
+Macierz desktopowa Windows/macOS przeszła poza dwoma przypadkami: interfejs
+macOS uznał dampowaną kamerę za nieruchomą po kilku próbkach bez klatki, a
+`modeling-features` Windows przekroczył budżet 45 s dla odzyskanego korpusu
+220 szkiców o 1,837 s. Pozostałe długie shardy modelowania przeszły, co
+wyklucza wcześniejsze przerywanie ich przez kolejne commity. Lokalny pełny
+pakiet `interface` po stabilizacji czasu obserwacji kamery i ponownym
+przeliczeniu układu wstążki przeszedł 12/12. Budżet wydajności nie został
+podniesiony; następny CI sprawdzi, czy przekroczenie na Windows się powtarza.
 
 CI `35908613650` dla commitu `63d4a5e` potwierdził wszystkie trzy części modelowania na obu systemach i pięć instalatorów: 23/23 zadań zakończyło się powodzeniem. Główny shard Windows zakończył się po 9 min 36 s od startu zadania, zamiast 23 min 20 s poprzedniego wspólnego shardu (około 2,4× szybciej do końca modelowania). CodeQL `35908613712` również przeszedł.
 

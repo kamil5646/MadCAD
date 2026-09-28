@@ -36,7 +36,23 @@ async function preparePackage() {
       throw error;
     }
   }
-  if (kind === 'windows') return { executable: path.join(releaseRoot, 'win-unpacked', 'MadCAD.exe'), source: 'unpacked' };
+  if (kind === 'windows') {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'madcad-nsis-install-'));
+    const installer = path.join(releaseRoot, `MadCAD-${version}-win-x64.exe`);
+    try {
+      await fs.access(installer);
+      // /D is supported by electron-builder's per-user NSIS template and
+      // must be the final argument. Keep this installation off the runner's
+      // normal Programs directory so it cannot reuse an existing install.
+      await execFileAsync(installer, ['/S', `/D=${directory}`], { timeout: 120000 });
+      const executable = path.join(directory, 'MadCAD.exe');
+      await fs.access(executable);
+      return { executable, directory, installed: true, source: 'nsis-installed' };
+    } catch (error) {
+      await removeTemporaryDirectory(directory);
+      throw error;
+    }
+  }
   throw new Error('Podaj rodzaj pakietu mac, mac-dmg, windows albo windows-portable.');
 }
 
@@ -153,6 +169,11 @@ async function removeTemporaryDirectory(directory) {
     await stop(child);
     await removeTemporaryDirectory(profile);
     if (prepared.mounted) await execFileAsync('/usr/bin/hdiutil', ['detach', '-quiet', prepared.directory], { timeout: 30000 });
+    if (prepared.installed) {
+      const uninstaller = path.join(prepared.directory, 'Uninstall MadCAD.exe');
+      await fs.access(uninstaller);
+      await execFileAsync(uninstaller, ['/S'], { timeout: 120000 });
+    }
     await removeTemporaryDirectory(prepared.directory);
   }
 })().catch((error) => {

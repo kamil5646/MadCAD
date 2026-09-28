@@ -27,7 +27,8 @@ poza celem. Nie osłabiaj istniejących blokad niebezpiecznego eksportu NC.
   `madcad-2d/docs/CI_DESKTOP_VERIFICATION.md`.
 - `madcad-2d/scripts/verify-packaged-startup.cjs` — po zbudowaniu uruchamia
   rzeczywisty ZIP/DMG macOS i ZIP Windows Portable na izolowanym profilu;
-  dla NSIS sprawdza katalog `win-unpacked`, nie samą instalację. Przez lokalny
+  dla NSIS wykonuje cichą instalację w tymczasowym katalogu runnera, uruchamia
+  zainstalowaną aplikację i odinstalowuje ją. Przez lokalny
   debugger potwierdza ekran licencji i brak hooków testowych; nie obchodzi
   logowania. Workflow wydania wymaga arm64 dla paczki macOS.
 - `.github/workflows/ci.yml` i `release.yml` — obowiązujące bramki CI/release.
