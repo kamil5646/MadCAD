@@ -13,7 +13,7 @@ async function waitFor(window, expression, label, timeoutMs = 20000) {
     if (await window.webContents.executeJavaScript(`Boolean(${expression})`)) return;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  const state = await window.webContents.executeJavaScript(`({ status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision, command: window.__madcadVerifyDocumentState?.command, sketches: window.__madcadVerifyDocumentState?.sketches?.map((sketch) => ({ id: sketch.id, support: sketch.support, planeOffset: sketch.planeOffset })), timeline: window.__madcadVerifyEngineState?.timeline, volumes: window.__madcadVerifyEngineState?.bodies?.map((body) => body.metrics.volume) })`);
+  const state = await window.webContents.executeJavaScript(`({ status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision, command: window.__madcadVerifyDocumentState?.command, notice: document.querySelector('.workspace-notice')?.textContent, sketches: window.__madcadVerifyDocumentState?.sketches?.map((sketch) => ({ id: sketch.id, support: sketch.support, planeOffset: sketch.planeOffset })), timeline: window.__madcadVerifyEngineState?.timeline, volumes: window.__madcadVerifyEngineState?.bodies?.map((body) => body.metrics.volume) })`);
   throw new Error(`Nie osiagnieto stanu: ${label}. ${JSON.stringify(state)}`);
 }
 
@@ -356,6 +356,72 @@ app.whenReady().then(async () => {
       && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${angledAfter.volume}) < 0.01
       && Math.abs(window.__madcadVerifyDocumentState?.sketches?.[1]?.frame?.origin?.[2] - ${angledAfter.origin[2]}) < 0.01`, 'odtworzona skośna bryła', 30000);
     result.angledFaceSketch = { beforeVolume: angledBefore.volume, afterVolume: angledAfter.volume, tracked: true, undoRedo: true, fileRoundTrip: true };
+
+    const sideLoadRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(savedProject))})`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${sideLoadRevision}
+      && window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyDocumentState?.features === 1
+      && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 18000) < 0.01`, 'bryła bazowa dla ściany bocznej', 30000);
+    const sideFace = await window.webContents.executeJavaScript(`(() => {
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const face = body.topology.faces.find((item) => item.descriptor.geometry === 'PLANE' && item.descriptor.normal?.[0] > 0.99);
+      return face && { id: face.id, bodyId: body.id, sourceFeatureId: body.sourceFeatureId };
+    })()`);
+    if (!sideFace) throw new Error('Brak bocznej ściany bryły do zależnego szkicu.');
+    await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(${JSON.stringify({ kind: 'face', ...sideFace })}, 'replace')`);
+    await clickTool(window, 'Utwórz szkic');
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[1]?.support?.kind === 'face'`, 'szkic na ścianie bocznej');
+    await clickTool(window, 'Okrąg');
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Okrąg')`, 'okrąg na ścianie bocznej');
+    await setCommandField(window, 'Średnica', '6');
+    await setCommandField(window, 'Środek X', '0');
+    await setCommandField(window, 'Środek Y', '0');
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[1]?.profiles === 1`, 'profil na ścianie bocznej');
+    await clickTool(window, 'Zakończ szkic');
+    await clickTool(window, 'Wyciągnij');
+    await waitFor(window, `document.querySelector('.command-dialog')?.textContent.includes('Wyciągnięcie')`, 'wycięcie od ściany bocznej');
+    await setCommandField(window, 'Operacja', 'cut');
+    await setCommandField(window, 'Kierunek', 'through-all');
+    const sideCutRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${sideCutRevision}
+      && window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyDocumentState?.features === 2
+      && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'`, 'gotowe wycięcie ze ściany bocznej', 30000);
+    const sideCutVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`);
+    if (!(sideCutVolume > 0 && sideCutVolume < 18000)) throw new Error(`Szkic na ścianie bocznej nie wyciął materiału: ${sideCutVolume}`);
+    await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyDocumentState?.features === 1
+      && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 18000) < 0.01`, 'Cofnij boczne wycięcie', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyDocumentState?.features === 2
+      && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${sideCutVolume}) < 0.01`, 'Ponów boczne wycięcie', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('#saveProjectBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('Zapisano projekt atomowo:')`, 'zapis bocznego wycięcia');
+    const savedSideProject = JSON.parse(await fs.readFile(projectPath, 'utf8'));
+    if (savedSideProject.sketches?.[1]?.support?.kind !== 'face' || savedSideProject.features?.[1]?.operation !== 'cut') {
+      throw new Error('Plik .madcad nie zachował bocznego wycięcia i jego podpory.');
+    }
+    await window.webContents.executeJavaScript(`document.querySelector('#newProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 0`, 'nowy projekt po bocznym wycięciu');
+    await window.webContents.executeJavaScript(`document.querySelector('#openProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyDocumentState?.features === 2
+      && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${sideCutVolume}) < 0.01`, 'odtworzone boczne wycięcie', 30000);
+    const brokenSideReferenceId = await window.webContents.executeJavaScript(`window.__madcadVerifyBreakFaceSupportReference()`);
+    await waitFor(window, `Boolean(document.querySelector('.reference-repair-panel'))`, 'naprawa bocznej podpory');
+    await window.webContents.executeJavaScript(`document.querySelector('.reference-repair-panel.collapsed .reference-repair-toggle')?.click()`);
+    await waitFor(window, `Boolean(document.querySelector('.reference-repair-panel button[data-reference-action="candidate-1"]'))`, 'kandydat bocznej ściany');
+    await window.webContents.executeJavaScript(`document.querySelector('.reference-repair-panel button[data-reference-action="candidate-1"]')?.click()`);
+    await waitFor(window, `!document.querySelector('.reference-repair-panel')
+      && window.__madcadVerifyDocumentState?.references?.find((reference) => reference.id === ${JSON.stringify(brokenSideReferenceId)})?.topologyId.endsWith('-lost') === false
+      && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok'
+      && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${sideCutVolume}) < 0.01`, 'naprawione boczne wycięcie', 30000);
+    result.sideFaceSketch = { volume: sideCutVolume, cut: true, undoRedo: true, fileRoundTrip: true, referenceRepair: true };
 
     // Stop the old renderer before clearing storage. Its delayed autosave can
     // otherwise repopulate the first sketch between clear() and the reload.

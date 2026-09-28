@@ -77,6 +77,11 @@ a desktopowe przypadki osiowy i skośny potwierdzają wycięcie, przebudowę,
 Cofnij/Ponów oraz zapis i ponowne otwarcie. Rotacja podpory, ogólne zmiany
 topologii i inne rodzaje ścian wymagają osobnej walidacji przed zamknięciem
 tego etapu.
+Lokalny scenariusz desktopowy potwierdził ponadto szkic na bocznej płaskiej
+ścianie, wycięcie przez bryłę, Cofnij/Ponów, zapis i ponowne otwarcie pliku
+oraz naprawę utraconej referencji tej ściany. Ten nowy wariant wymaga jeszcze
+potwierdzenia w CI; automatyczne podążanie za obróconą podporą i ogólnymi
+zmianami topologii nadal nie jest potwierdzone.
 `verify:modeling` obejmuje wiele tych etapów w oddzielnych
 scenariuszach, ale lokalny przebieg 2026-09-27 przekroczył istniejący budżet
 całego scenariusza 120 s (199,9 s); dwa późniejsze lokalne przebiegi pełnego
