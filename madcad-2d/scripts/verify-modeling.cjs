@@ -1864,7 +1864,7 @@ async function runUiFlow(window) {
   await setCommandField('Położenie Y', '0');
   await setCommandField('Położenie Z', '15');
   await confirmDialog();
-  await waitForUi(window, `window.__madcadVerifyEngineState?.bodies?.length === 2 && window.__madcadVerifyEngineState.bodies.some((body) => Math.abs(body.metrics.volume - 1000) < 0.05) && window.__madcadVerifyEngineState.bodies.some((body) => Math.abs(body.metrics.volume - 200) < 0.05)`, 'dwie bryły Replace Face', modelingTimeoutMs);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.features === 2 && !document.querySelector('.command-dialog') && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.evaluatedFeatureData?.at(-1)?.id === window.__madcadVerifyDocumentState?.featureData?.at(-1)?.id && window.__madcadVerifyEngineState?.bodies?.length === 2 && window.__madcadVerifyEngineState.bodies.some((body) => Math.abs(body.metrics.volume - 1000) < 0.05) && window.__madcadVerifyEngineState.bodies.some((body) => Math.abs(body.metrics.volume - 200) < 0.05)`, 'dwie zatwierdzone bryły Replace Face', modelingTimeoutMs);
   const replaceFaceFixture = await window.webContents.executeJavaScript(`(() => {
     const source = window.__madcadVerifyEngineState.bodies.find((body) => Math.abs(body.metrics.volume - 1000) < 0.05);
     const destination = window.__madcadVerifyEngineState.bodies.find((body) => Math.abs(body.metrics.volume - 200) < 0.05);

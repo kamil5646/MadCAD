@@ -99,8 +99,9 @@ referencja szkicu pozostała na poprzedniej płaszczyźnie; kreator naprawy
 przypisuje ją ponownie i ustawia szkic na bieżącej ścianie. CI `36519688187`
 potwierdziło ten przypadek na Windows/macOS (23/23 zadań, CodeQL
 `36519688182` zielony). Ogólne zmiany topologii nadal nie są potwierdzone.
-Lokalna kontrola spakowanej aplikacji macOS arm64 z odizolowaną kopią
-zalogowanego profilu potwierdziła wejście do programu bez hooków testowych,
+Lokalna kontrola spakowanej aplikacji macOS arm64, także po wyodrębnieniu z
+dystrybuowanego ZIP, z odizolowaną kopią zalogowanego profilu potwierdziła
+wejście do programu bez hooków testowych,
 bryłę prymitywną, szkic okręgu na XY → Wyciągnięcie oraz Cofnij/Ponów.
 Natywny dialog zapisu/otwarcia i pełny przepływ po zalogowaniu z instalatora
 Windows pozostają oddzielnymi, niepotwierdzonymi krokami wydania.

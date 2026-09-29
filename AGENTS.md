@@ -91,6 +91,10 @@ npm run verify:desktop-suite -- analysis
   Czekaj na identyfikator ostatniej operacji nowego dokumentu także w wyniku
   silnika, zanim utworzysz utraconą referencję. Odczyt panelu rób atomowo:
   Windows może go odmontować między `waitFor` i osobnym `executeJavaScript`.
+  Ta sama zasada dotyczy wyboru ścian po zatwierdzeniu drugiego prymitywu
+  w teście Replace Face: dwie widoczne bryły mogą jeszcze pochodzić z podglądu,
+  więc przed zapisaniem ID ścian czekaj na zamknięcie dialogu, status `ready`
+  i zgodność ID ostatniej cechy dokumentu z wynikiem silnika.
 - `ModelingWorkspace.jsx`, `ModelViewport.jsx` i `cad-worker.js` są monolitami;
   nie dodawaj do nich kolejnej domeny bez rozważenia wydzielenia modułu.
 - Uchwyt CAM typu `body` wskazuje osobną bryłę po ID, a nie kopiuje geometrii do
