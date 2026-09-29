@@ -52,9 +52,28 @@ profilu. Po zbudowaniu `a93d4a5` ten sam przepływ przeszedł także na aplikacj
 wyodrębnionej z dystrybuowanego ZIP (`MADCAD_PACKAGED_APP_PATH`). Test wraca do
 pustego modelu przez Cofnij; przycisk „Nowy projekt” otwiera natywny dialog
 niezapisanych zmian i jest sprawdzany w osobnych testach desktopowych. To
-potwierdza pracę po zalogowaniu w tych pakietach, ale nie
-sprawdza jeszcze natywnego okna wyboru pliku ani instalatora Windows po
-zalogowaniu. Nie zapisuj profilu w repozytorium ani artefaktach CI.
+potwierdza pracę po zalogowaniu w tych pakietach, ale nie sprawdza natywnych
+okien wyboru pliku ani instalatora Windows po zalogowaniu. Nie zapisuj profilu
+w repozytorium ani artefaktach CI.
+
+Oddzielna lokalna próba 2026-09-29 na tej samej niepodpisanej aplikacji macOS
+`release/mac-arm64/MadCAD.app` przeszła przez rzeczywiste systemowe okno
+„Zachowaj jako” i zapisała plik `.madcad`. Zapis miał schemat 26 i jedną
+operację `primitive`. W drugim uruchomieniu z odizolowanym zalogowanym profilem
+systemowe okno „Otwórz” wczytało ten sam plik; produkcyjny interfejs pokazał
+jedną bryłę i jedną operację, status silnika `ready`, komunikat „Otwarto projekt
+Bez nazwy” i brak `__madcadVerifyDocumentState`. Dialogi kontrolowano przez
+macOS Accessibility po PID procesu, nie przez hooki aplikacji. To potwierdza
+lokalny zapis/otwarcie w niepodpisanym pakiecie macOS, nie w instalatorze
+Windows ani w paczce podpisanej/notaryzowanej.
+
+CI `36531322788` dla `8339ad1` zakończyło się 23/23 sukcesami, w tym pełnym
+modelowaniem Windows/macOS i pięcioma kontrolami paczek/instalatorów; CodeQL
+`36531322575` także przeszedł. Dwa poprzednie przebiegi ujawniły wyścigi
+weryfikatora Windows: pobranie ID ścian z podglądu przed zatwierdzeniem modelu
+oraz kliknięcie panelu naprawy przed ukończeniem `history.commit`. Weryfikator
+czeka teraz na ID ostatniej cechy w silniku oraz nową gotową rewizję po dodaniu
+referencji, bez zwiększania timeoutów i bez zmiany logiki CAD.
 
 CI `36333554392` dla `3423bcd` potwierdził wszystkie 14 shardów desktopowych
 Windows/macOS, CodeQL, trzy buildy rdzenia oraz paczki Linux, macOS ZIP/DMG i

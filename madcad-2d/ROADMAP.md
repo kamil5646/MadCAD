@@ -103,8 +103,11 @@ Lokalna kontrola spakowanej aplikacji macOS arm64, także po wyodrębnieniu z
 dystrybuowanego ZIP, z odizolowaną kopią zalogowanego profilu potwierdziła
 wejście do programu bez hooków testowych,
 bryłę prymitywną, szkic okręgu na XY → Wyciągnięcie oraz Cofnij/Ponów.
-Natywny dialog zapisu/otwarcia i pełny przepływ po zalogowaniu z instalatora
-Windows pozostają oddzielnymi, niepotwierdzonymi krokami wydania.
+Rzeczywiste systemowe okna zapisu i otwarcia zostały lokalnie potwierdzone
+w niepodpisanym pakiecie macOS z zalogowanym kontem: zapisany plik `.madcad`
+ponownie otworzył jedną bryłę i jedną operację przy gotowym silniku. Pełny
+przepływ po zalogowaniu z instalatora Windows pozostaje niepotwierdzonym
+krokiem wydania.
 `verify:modeling` obejmuje wiele tych etapów w oddzielnych
 scenariuszach, ale lokalny przebieg 2026-09-27 przekroczył istniejący budżet
 całego scenariusza 120 s (199,9 s); dwa późniejsze lokalne przebiegi pełnego

@@ -134,6 +134,12 @@ npm run verify:desktop-suite -- analysis
 - Konto MadCAD i okresowe sprawdzenie uprawnienia są wymagane; nie opisuj tego
   jako klucza produktu ani wysyłania projektów. Licencja, README, prywatność,
   strona i interfejs muszą pozostać zgodne.
+- Przy lokalnym teście natywnych okien plików macOS nie wybieraj aplikacji po
+  samej nazwie, jeśli `/Applications/MadCAD.app` też działa. Uruchom pakiet z
+  odizolowaną kopią zalogowanego profilu i kieruj macOS Accessibility do
+  `first application process whose unix id is <PID>`. Potwierdź zapis przez
+  odczyt pliku `.madcad`, a otwarcie przez komunikat UI, historię, bryły i
+  status silnika; nie uznawaj samego zamknięcia dialogu za sukces.
 - `https://madcad.madmagsystem.pl/` może być starsze niż `docs/` w repo;
   weryfikuj domenę po każdym wdrożeniu.
 - Komunikat `.zshenv` o brakującym `.cargo/env` jest szumem środowiska, nie
