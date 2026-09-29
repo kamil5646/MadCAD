@@ -2313,6 +2313,7 @@ async function runUiFlow(window) {
     }
   })()`, 'utworzenie kontrolowanej utraconej referencji po ustabilizowaniu topologii', modelingTimeoutMs);
   const lostReferenceId = await window.webContents.executeJavaScript(`window.__madcadVerifyLostReferenceId`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.references?.some((item) => item.id === ${JSON.stringify(lostReferenceId)}) && window.__madcadVerifyEngineState?.revision > ${revisionAfterSelection} && window.__madcadVerifyEngineState?.status === 'ready' && Boolean(document.querySelector('.reference-repair-panel'))`, 'przebudowa po zapisaniu utraconej referencji', modelingTimeoutMs);
   await expandReferenceRepair();
   await waitForUi(window, `document.querySelector('.reference-repair-panel')?.textContent.includes('Źródło: Wyciągnięcie 1')`, 'komunikat utraconej referencji ze źródłowym feature', modelingTimeoutMs);
   await waitForUi(window, `(() => {

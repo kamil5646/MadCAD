@@ -95,6 +95,9 @@ npm run verify:desktop-suite -- analysis
   w teście Replace Face: dwie widoczne bryły mogą jeszcze pochodzić z podglądu,
   więc przed zapisaniem ID ścian czekaj na zamknięcie dialogu, status `ready`
   i zgodność ID ostatniej cechy dokumentu z wynikiem silnika.
+  Kontrolowane dodanie utraconej referencji także zwraca ID przed ukończeniem
+  `history.commit`: zanim rozwiniesz panel naprawy, sprawdź obecność referencji
+  w dokumencie i nowszą, gotową rewizję silnika.
 - `ModelingWorkspace.jsx`, `ModelViewport.jsx` i `cad-worker.js` są monolitami;
   nie dodawaj do nich kolejnej domeny bez rozważenia wydzielenia modułu.
 - Uchwyt CAM typu `body` wskazuje osobną bryłę po ID, a nie kopiuje geometrii do
