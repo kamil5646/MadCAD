@@ -38,6 +38,20 @@ jest błędem blokującym publikację. Test nie obchodzi wymagania konta i nie
 potwierdza pracy po zalogowaniu. Ścieżka instalacji NSIS wymaga jeszcze
 potwierdzenia w CI; wcześniejsze zielone przebiegi sprawdzały `win-unpacked`.
 
+Opcjonalna lokalna kontrola `node scripts/check-packaged-licensed-modeling.cjs`
+korzysta z istniejącego zalogowanego profilu wskazanego przez
+`MADCAD_LICENSED_PROFILE_SOURCE`. Kopiuje go do katalogu tymczasowego z
+uprawnieniami właściciela, uruchamia zbudowany `release/mac-arm64/MadCAD.app`
+bez hooków weryfikacyjnych, wchodzi do programu, tworzy bryłę prymitywną,
+sprawdza Cofnij/Ponów, a potem tworzy szkic okręgu na XY, Wyciągnięcie i
+ponownie Cofnij/Ponów. Profil źródłowy nie jest modyfikowany ani wypisywany,
+kopia zostaje usunięta także po błędzie. Narzędzie jest opt-in i nie należy do
+CI: runner nie ma konta użytkownika. Lokalny przebieg 2026-09-29 dla commitu
+`80f3727` przeszedł na macOS arm64 z zalogowanym kontem w odizolowanym
+profilu. To potwierdza pracę po zalogowaniu w pakiecie z tego commitu, ale nie
+sprawdza jeszcze natywnego okna wyboru pliku ani instalatora Windows po
+zalogowaniu. Nie zapisuj profilu w repozytorium ani artefaktach CI.
+
 CI `36333554392` dla `3423bcd` potwierdził wszystkie 14 shardów desktopowych
 Windows/macOS, CodeQL, trzy buildy rdzenia oraz paczki Linux, macOS ZIP/DMG i
 Windows NSIS. Windows Portable rzeczywiście uruchomił aplikację z rozpakowanego

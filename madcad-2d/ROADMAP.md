@@ -96,8 +96,14 @@ i ponowne otwarcie `.madcad`. CI `36518052349` potwierdziło ten wariant
 na Windows/macOS (23/23 zadań, CodeQL `36518052338` zielony). Dodatkowy
 scenariusz lokalny wykrywa stary projekt, w którym ściana zachowała ID, lecz
 referencja szkicu pozostała na poprzedniej płaszczyźnie; kreator naprawy
-przypisuje ją ponownie i ustawia szkic na bieżącej ścianie. Ten przypadek
-wymaga jeszcze CI. Ogólne zmiany topologii nadal nie są potwierdzone.
+przypisuje ją ponownie i ustawia szkic na bieżącej ścianie. CI `36519688187`
+potwierdziło ten przypadek na Windows/macOS (23/23 zadań, CodeQL
+`36519688182` zielony). Ogólne zmiany topologii nadal nie są potwierdzone.
+Lokalna kontrola spakowanej aplikacji macOS arm64 z odizolowaną kopią
+zalogowanego profilu potwierdziła wejście do programu bez hooków testowych,
+bryłę prymitywną, szkic okręgu na XY → Wyciągnięcie oraz Cofnij/Ponów.
+Natywny dialog zapisu/otwarcia i pełny przepływ po zalogowaniu z instalatora
+Windows pozostają oddzielnymi, niepotwierdzonymi krokami wydania.
 `verify:modeling` obejmuje wiele tych etapów w oddzielnych
 scenariuszach, ale lokalny przebieg 2026-09-27 przekroczył istniejący budżet
 całego scenariusza 120 s (199,9 s); dwa późniejsze lokalne przebiegi pełnego
