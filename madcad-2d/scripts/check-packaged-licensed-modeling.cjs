@@ -114,8 +114,8 @@ async function stop(child) {
     await waitFor(page, `document.querySelectorAll('.timeline-item').length === 0`, 'Cofnij w pakiecie');
     await evaluate(page, `document.querySelector('#redoProjectBtn')?.click()`);
     await waitFor(page, `document.querySelectorAll('.timeline-item').length === 1`, 'Ponów w pakiecie');
-    await evaluate(page, `document.querySelector('#newProjectBtn')?.click()`);
-    await waitFor(page, `document.querySelectorAll('.timeline-item').length === 0`, 'nowy projekt po bryle testowej');
+    await evaluate(page, `document.querySelector('#undoProjectBtn')?.click()`);
+    await waitFor(page, `document.querySelectorAll('.timeline-item').length === 0`, 'pusty model po cofnięciu bryły testowej');
     await clickTool(page, 'Utwórz szkic');
     await waitFor(page, `Boolean(document.querySelector('.plane-options'))`, 'wybór płaszczyzny szkicu');
     await evaluate(page, `[...document.querySelectorAll('.plane-options button')].find((button) => button.textContent.includes('XY'))?.click()`);

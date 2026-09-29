@@ -35,8 +35,8 @@ oraz brak hooków `?verify=1`; lokalne przebiegi ZIP i DMG macOS przeszły.
 W CI na runnerze macOS innym niż arm64 test jawnie raportuje pominięcie,
 ponieważ dystrybuowana paczka jest arm64; w workflow wydania taka sytuacja
 jest błędem blokującym publikację. Test nie obchodzi wymagania konta i nie
-potwierdza pracy po zalogowaniu. Ścieżka instalacji NSIS wymaga jeszcze
-potwierdzenia w CI; wcześniejsze zielone przebiegi sprawdzały `win-unpacked`.
+potwierdza pracy po zalogowaniu. Nowsze zielone przebiegi CI obejmują także
+cichą instalację, uruchomienie i odinstalowanie NSIS, ale bez zalogowanego konta.
 
 Opcjonalna lokalna kontrola `node scripts/check-packaged-licensed-modeling.cjs`
 korzysta z istniejącego zalogowanego profilu wskazanego przez
@@ -48,7 +48,11 @@ ponownie Cofnij/Ponów. Profil źródłowy nie jest modyfikowany ani wypisywany,
 kopia zostaje usunięta także po błędzie. Narzędzie jest opt-in i nie należy do
 CI: runner nie ma konta użytkownika. Lokalny przebieg 2026-09-29 dla commitu
 `80f3727` przeszedł na macOS arm64 z zalogowanym kontem w odizolowanym
-profilu. To potwierdza pracę po zalogowaniu w pakiecie z tego commitu, ale nie
+profilu. Po zbudowaniu `a93d4a5` ten sam przepływ przeszedł także na aplikacji
+wyodrębnionej z dystrybuowanego ZIP (`MADCAD_PACKAGED_APP_PATH`). Test wraca do
+pustego modelu przez Cofnij; przycisk „Nowy projekt” otwiera natywny dialog
+niezapisanych zmian i jest sprawdzany w osobnych testach desktopowych. To
+potwierdza pracę po zalogowaniu w tych pakietach, ale nie
 sprawdza jeszcze natywnego okna wyboru pliku ani instalatora Windows po
 zalogowaniu. Nie zapisuj profilu w repozytorium ani artefaktach CI.
 
