@@ -84,8 +84,16 @@ utraconej referencji skośnej ściany z zachowaniem objętości wycięcia.
 CI `36448327496` potwierdziło boczną ścianę i jej naprawę. Lokalnie przeszedł
 także obrót źródłowej płaszczyzny konstrukcyjnej z 30° na 60°: zależny szkic
 na końcowej ścianie, wycięcie, Cofnij/Ponów i plik `.madcad` zachowały geometrię.
-Ten wariant wymaga jeszcze CI; ogólne zmiany topologii nadal nie są
-potwierdzone.
+CI `36450498129` potwierdziło ten wariant na Windows i macOS (23/23 zadań,
+CodeQL `36450497970` zielony). Kolejny lokalny test wykrył, że po zmianie
+szerokości źródłowego szkicu 50→60 mm boczna ściana przesuwała się z X=25 na
+X=30, lecz referencja i drugi szkic pozostawały na X=25 mimo poprawnego statusu
+osi czasu. Naprawa śledzi płaską boczną ścianę wyciągnięcia, jeśli co najmniej
+dwa te same punkty jej krawędzi przesuwają się zgodnie wzdłuż normalnej;
+nie zgaduje położenia, kiedy krawędź się obraca. Test desktopowy sprawdza
+przebudowę zależnego wycięcia, zgodność położenia podpory i ściany oraz zapis
+i ponowne otwarcie `.madcad`. Ten nowy wariant wymaga jeszcze CI. Ogólne
+zmiany topologii nadal nie są potwierdzone.
 `verify:modeling` obejmuje wiele tych etapów w oddzielnych
 scenariuszach, ale lokalny przebieg 2026-09-27 przekroczył istniejący budżet
 całego scenariusza 120 s (199,9 s); dwa późniejsze lokalne przebiegi pełnego

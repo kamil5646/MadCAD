@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { moveEndFaceSketchSupports, placeSketchesOnReassignedFace } from './face-sketch-support.js';
+import { moveTrackedFaceSketchSupports, placeSketchesOnReassignedFace } from './face-sketch-support.js';
 import { frameFromNormal } from './sketch-frame.js';
 import { createAnglePlane, resolveConstructionPlane } from './construction-planes.js';
 
@@ -20,7 +20,7 @@ describe('face-supported sketch tracking', () => {
     const previous = fixture();
     const next = structuredClone(previous);
     next.features[0].distance = '20';
-    expect(moveEndFaceSketchSupports(previous, next)).toBe(1);
+    expect(moveTrackedFaceSketchSupports(previous, next)).toBe(1);
     expect(next.sketches[1].planeOffset).toBe('20');
     expect(next.references[0].descriptor.center).toEqual([0, 0, 20]);
     expect(next.references[0].descriptor.centerOfMass).toEqual([0, 0, 20]);
@@ -32,8 +32,67 @@ describe('face-supported sketch tracking', () => {
     previous.references[0].descriptor.normal = [1, 0, 0];
     const next = structuredClone(previous);
     next.features[0].distance = '20';
-    expect(moveEndFaceSketchSupports(previous, next)).toBe(0);
+    expect(moveTrackedFaceSketchSupports(previous, next)).toBe(0);
     expect(next.sketches[1].planeOffset).toBe('15');
+  });
+
+  it('moves a side-face sketch with the matching source-profile edge', () => {
+    const previous = fixture();
+    previous.sketches[0].entities = [
+      { id: 'left-bottom', type: 'point', geometry: { x: '-25', y: '-12' } },
+      { id: 'right-bottom', type: 'point', geometry: { x: '25', y: '-12' } },
+      { id: 'right-top', type: 'point', geometry: { x: '25', y: '12' } },
+      { id: 'left-top', type: 'point', geometry: { x: '-25', y: '12' } },
+    ];
+    previous.sketches[1].plane = 'YZ';
+    previous.sketches[1].planeOffset = '25';
+    previous.references[0].descriptor.normal = [1, 0, 0];
+    previous.references[0].descriptor.center = [25, 0, 7.5];
+    previous.references[0].descriptor.centerOfMass = [25, 0, 7.5];
+    const next = structuredClone(previous);
+    for (const entity of next.sketches[0].entities) entity.geometry.x = String(Number(entity.geometry.x) * 1.2);
+
+    expect(moveTrackedFaceSketchSupports(previous, next)).toBe(1);
+    expect(next.sketches[1].planeOffset).toBe('30');
+    expect(next.references[0].descriptor.center).toEqual([30, 0, 7.5]);
+    expect(next.references[0].descriptor.centerOfMass).toEqual([30, 0, 7.5]);
+  });
+
+  it('does not guess a new side face when its source edge tilts', () => {
+    const previous = fixture();
+    previous.sketches[0].entities = [
+      { id: 'bottom', type: 'point', geometry: { x: '25', y: '-12' } },
+      { id: 'top', type: 'point', geometry: { x: '25', y: '12' } },
+    ];
+    previous.sketches[1].plane = 'YZ';
+    previous.sketches[1].planeOffset = '25';
+    previous.references[0].descriptor.normal = [1, 0, 0];
+    previous.references[0].descriptor.center = [25, 0, 7.5];
+    const next = structuredClone(previous);
+    next.sketches[0].entities[0].geometry.x = '30';
+
+    expect(moveTrackedFaceSketchSupports(previous, next)).toBe(0);
+    expect(next.sketches[1].planeOffset).toBe('25');
+  });
+
+  it('moves a shared side-face reference only once', () => {
+    const previous = fixture();
+    previous.sketches[0].entities = [
+      { id: 'bottom', type: 'point', geometry: { x: '25', y: '-12' } },
+      { id: 'top', type: 'point', geometry: { x: '25', y: '12' } },
+    ];
+    previous.sketches[1].plane = 'YZ';
+    previous.sketches[1].planeOffset = '25';
+    previous.sketches.push({ id: 'second', plane: 'YZ', planeOffset: '25', support: { kind: 'face', referenceId: 'top' } });
+    previous.references[0].descriptor.normal = [1, 0, 0];
+    previous.references[0].descriptor.center = [25, 0, 7.5];
+    const next = structuredClone(previous);
+    for (const entity of next.sketches[0].entities) entity.geometry.x = '30';
+
+    expect(moveTrackedFaceSketchSupports(previous, next)).toBe(2);
+    expect(next.sketches[1].planeOffset).toBe('30');
+    expect(next.sketches[2].planeOffset).toBe('30');
+    expect(next.references[0].descriptor.center).toEqual([30, 0, 7.5]);
   });
 
   it('moves a sketch on an angled extrusion end face with its stable local axes', () => {
@@ -48,7 +107,7 @@ describe('face-supported sketch tracking', () => {
     const next = structuredClone(previous);
     next.features[0].distance = '20';
 
-    expect(moveEndFaceSketchSupports(previous, next)).toBe(1);
+    expect(moveTrackedFaceSketchSupports(previous, next)).toBe(1);
     for (let axis = 0; axis < 3; axis += 1) {
       expect(next.sketches[1].frame.origin[axis]).toBeCloseTo(previousEnd[axis] + normal[axis] * 5, 8);
       expect(next.references[0].descriptor.center[axis]).toBeCloseTo(previousEnd[axis] + normal[axis] * 5, 8);
@@ -62,7 +121,7 @@ describe('face-supported sketch tracking', () => {
     previous.sketches.push({ id: 'second-dependent', plane: 'XY', planeOffset: '15', support: { kind: 'face', referenceId: 'top' } });
     const next = structuredClone(previous);
     next.features[0].distance = '20';
-    expect(moveEndFaceSketchSupports(previous, next)).toBe(2);
+    expect(moveTrackedFaceSketchSupports(previous, next)).toBe(2);
     expect(next.sketches[1].planeOffset).toBe('20');
     expect(next.sketches[2].planeOffset).toBe('20');
     expect(next.references[0].descriptor.center).toEqual([0, 0, 20]);
@@ -74,7 +133,7 @@ describe('face-supported sketch tracking', () => {
     previous.features[0].distance = 'height';
     const next = structuredClone(previous);
     next.parameters[0].expression = '20';
-    expect(moveEndFaceSketchSupports(previous, next)).toBe(1);
+    expect(moveTrackedFaceSketchSupports(previous, next)).toBe(1);
     expect(next.sketches[1].planeOffset).toBe('20');
   });
 
@@ -84,7 +143,7 @@ describe('face-supported sketch tracking', () => {
     next.features[0].distance = '20';
     previous.references[0].descriptor.center = [0, 0, 0];
     next.references[0].descriptor.center = [0, 0, 0];
-    expect(moveEndFaceSketchSupports(previous, next)).toBe(0);
+    expect(moveTrackedFaceSketchSupports(previous, next)).toBe(0);
     expect(next.sketches[1].planeOffset).toBe('15');
 
   });
@@ -96,7 +155,7 @@ describe('face-supported sketch tracking', () => {
     next.sketches[0].frame = frameFromNormal([0, 0, 0], normal);
     next.features[0].distance = '20';
 
-    expect(moveEndFaceSketchSupports(previous, next)).toBe(1);
+    expect(moveTrackedFaceSketchSupports(previous, next)).toBe(1);
     expect(next.sketches[1].frame.normal[1]).toBeCloseTo(normal[1], 8);
     expect(next.sketches[1].frame.normal[2]).toBeCloseTo(normal[2], 8);
     expect(next.sketches[1].frame.origin[1]).toBeCloseTo(normal[1] * 20, 8);
@@ -121,7 +180,7 @@ describe('face-supported sketch tracking', () => {
     const finalFrame = resolveConstructionPlane(next.references[1]);
     const finalEnd = finalFrame.origin.map((value, axis) => value + finalFrame.normal[axis] * 15);
 
-    expect(moveEndFaceSketchSupports(previous, next)).toBe(1);
+    expect(moveTrackedFaceSketchSupports(previous, next)).toBe(1);
     for (let axis = 0; axis < 3; axis += 1) {
       expect(next.sketches[1].frame.origin[axis]).toBeCloseTo(finalEnd[axis], 8);
       expect(next.sketches[1].frame.normal[axis]).toBeCloseTo(finalFrame.normal[axis], 8);

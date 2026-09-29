@@ -436,6 +436,47 @@ app.whenReady().then(async () => {
       && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${sideCutVolume}) < 0.01`, 'naprawione boczne wycięcie', 30000);
     result.sideFaceSketch = { volume: sideCutVolume, cut: true, undoRedo: true, fileRoundTrip: true, referenceRepair: true };
 
+    process.stdout.write('[verify] side-face support after source dimension edit\n');
+    const sideEditRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyEditSketch(window.__madcadVerifyDocumentState.sketches[0].id)`);
+    await waitFor(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'edycja szkicu źródłowego bocznej ściany');
+    await window.webContents.executeJavaScript(`document.querySelector('.sketch-constraint-badges button[title^="distanceX:"]')?.click()`);
+    await waitFor(window, `Boolean(document.querySelector('.sketch-constraint-editor input[name="constraintValue"]'))`, 'wymiar źródłowego szkicu bocznej ściany');
+    await window.webContents.executeJavaScript(`(() => {
+      const input = document.querySelector('.sketch-constraint-editor input[name="constraintValue"]');
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, '60');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      document.querySelector('.sketch-constraint-editor button[type="submit"]').click();
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.dimensions?.some((dimension) => dimension.type === 'horizontal' && dimension.expression === '60')`, 'zmieniony wymiar źródłowy bocznej ściany');
+    await clickTool(window, 'Zakończ szkic');
+    await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${sideEditRevision} && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.features === 2`, 'przebudowa po zmianie bocznej ściany', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('#saveProjectBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('Zapisano projekt atomowo:')`, 'zapis po zmianie bocznej ściany');
+    const changedSideProject = JSON.parse(await fs.readFile(projectPath, 'utf8'));
+    const changedSide = await window.webContents.executeJavaScript(`(() => {
+      const documentState = window.__madcadVerifyDocumentState;
+      const body = window.__madcadVerifyEngineState.bodies[0];
+      const face = body.topology.faces.find((item) => item.descriptor.geometry === 'PLANE' && item.descriptor.normal?.[0] > 0.99);
+      return { faceCenter: face?.descriptor?.center, timeline: window.__madcadVerifyEngineState.timeline.map((item) => item.status), volume: body.metrics.volume };
+    })()`);
+    const changedSideSupport = changedSideProject.references.find((item) => item.id === changedSideProject.sketches[1].support.referenceId);
+    if (changedSide.timeline[1] !== 'ok' || Math.abs((21600 - changedSide.volume) / (18000 - sideCutVolume) - 1.2) > 0.01
+      || Math.abs(changedSide.faceCenter?.[0] - 30) > 0.001
+      || Math.abs(changedSideSupport?.descriptor?.center?.[0] - changedSide.faceCenter[0]) > 0.001
+      || Math.abs(Number(changedSideProject.sketches[1].planeOffset) - 30) > 0.001) {
+      throw new Error(`Szkic boczny odłączył się od zmienionej ściany: ${JSON.stringify({ changedSide, referenceCenter: changedSideSupport?.descriptor?.center, planeOffset: changedSideProject.sketches[1].planeOffset })}`);
+    }
+    await window.webContents.executeJavaScript(`document.querySelector('#newProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 0`, 'nowy projekt po zmianie bocznej ściany');
+    await window.webContents.executeJavaScript(`document.querySelector('#openProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyDocumentState?.features === 2
+      && Math.abs(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset - 30) < 0.001
+      && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${changedSide.volume}) < 0.02`, 'odtworzony szkic na przesuniętej ścianie', 30000);
+    result.sideFaceSketch.sourceDimensionRebuild = true;
+
     process.stdout.write('[verify] rotating construction-plane dependent cut\n');
     const rotatingProject = structuredClone(savedProject);
     const rotatingPlane = {
