@@ -25,6 +25,20 @@ function vectorAngle(first, second) {
   return Math.acos(Math.max(-1, Math.min(1, Math.abs(dot)))) * 180 / Math.PI;
 }
 
+function facePlaneDrift(referenceDescriptor, candidateDescriptor) {
+  if (referenceDescriptor?.geometry !== 'PLANE' || candidateDescriptor?.geometry !== 'PLANE'
+    || !Array.isArray(referenceDescriptor.center) || !Array.isArray(candidateDescriptor.center)
+    || !Array.isArray(referenceDescriptor.normal) || !Array.isArray(candidateDescriptor.normal)) return false;
+  const normal = referenceDescriptor.normal;
+  const normalLength = Math.hypot(...normal);
+  const candidateLength = Math.hypot(...candidateDescriptor.normal);
+  if (!normalLength || !candidateLength) return false;
+  const alignment = normal.reduce((sum, value, axis) => sum + value * candidateDescriptor.normal[axis], 0) / (normalLength * candidateLength);
+  const distance = Math.abs(normal.reduce((sum, value, axis) => sum
+    + value * (candidateDescriptor.center[axis] - referenceDescriptor.center[axis]), 0)) / normalLength;
+  return alignment < 0.99999 || distance > 1e-3;
+}
+
 function relativeDifference(first, second) {
   const left = Number(first);
   const right = Number(second);
@@ -89,10 +103,14 @@ export function topologySelectionForRecord(body, kind, record) {
 export function inspectTopologyReferences(document, bodies) {
   const bodyMap = new Map((bodies || []).map((body) => [body.id, body]));
   const featureMap = new Map((document?.features || []).map((feature) => [feature.id, feature]));
+  const sketchSupportIds = new Set((document?.sketches || []).filter((sketch) => sketch.support?.kind === 'face')
+    .map((sketch) => sketch.support.referenceId));
   return (document?.references || []).filter((reference) => reference.kind === TOPOLOGY_REFERENCE_KIND && reference.scope !== 'feature-input').map((reference) => {
     const body = bodyMap.get(reference.bodyId);
     const records = topologyRecords(body, reference.topologyKind);
     const resolvedRecord = records.find((record) => record.id === reference.topologyId) || null;
+    const staleSketchPlane = Boolean(resolvedRecord && sketchSupportIds.has(reference.id)
+      && facePlaneDrift(reference.descriptor, resolvedRecord.descriptor));
     const candidateBodies = body ? [body] : [...bodyMap.values()];
     const candidates = candidateBodies.flatMap((candidateBody) => topologyRecords(candidateBody, reference.topologyKind).map((record) => ({
       ...topologySelectionForRecord(candidateBody, reference.topologyKind, record),
@@ -101,15 +119,17 @@ export function inspectTopologyReferences(document, bodies) {
     }))).sort((left, right) => right.score - left.score || left.distance - right.distance || left.id.localeCompare(right.id));
     return {
       reference,
-      status: resolvedRecord ? 'resolved' : 'lost',
+      status: resolvedRecord && !staleSketchPlane ? 'resolved' : 'lost',
       resolvedRecord,
       sourceFeature: featureMap.get(reference.sourceFeatureId) || null,
       ownerFeature: featureMap.get(reference.ownerFeatureId) || null,
-      reason: resolvedRecord
-        ? null
-        : body
-          ? `Nie znaleziono ${reference.topologyKind} o trwałym ID „${reference.topologyId}”.`
-          : `Nie znaleziono bryły źródłowej „${reference.bodyId}”.`,
+      reason: staleSketchPlane
+        ? 'Ściana zachowała ID, ale zmieniła położenie lub kierunek płaszczyzny szkicu.'
+        : resolvedRecord
+          ? null
+          : body
+            ? `Nie znaleziono ${reference.topologyKind} o trwałym ID „${reference.topologyId}”.`
+            : `Nie znaleziono bryły źródłowej „${reference.bodyId}”.`,
       candidates,
     };
   });

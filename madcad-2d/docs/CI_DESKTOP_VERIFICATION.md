@@ -79,6 +79,13 @@ zapisem/otwarciem `.madcad` i naprawą referencji. Wariant naprawy skośnej
 ściany oraz nowa obsługa obrotu płaszczyzny źródłowej są późniejszymi
 lokalnymi zmianami i wymagają kolejnego CI.
 
+CI `36518052349` dla `45510ab` przeszło 23/23 zadań, a CodeQL
+`36518052338` zakończył się sukcesem. Test Windows/macOS potwierdził
+przesunięcie szkicu na bocznej ścianie po edycji szerokości źródła 50→60 mm,
+ponowne przeliczenie zależnego wycięcia oraz zapis/otwarcie `.madcad`.
+Późniejsza detekcja starych projektów z prawidłowym ID ściany, lecz nieaktualną
+płaszczyzną referencji, wymaga jeszcze oddzielnego CI.
+
 CI `35908613650` dla commitu `63d4a5e` potwierdził wszystkie trzy części modelowania na obu systemach i pięć instalatorów: 23/23 zadań zakończyło się powodzeniem. Główny shard Windows zakończył się po 9 min 36 s od startu zadania, zamiast 23 min 20 s poprzedniego wspólnego shardu (około 2,4× szybciej do końca modelowania). CodeQL `35908613712` również przeszedł.
 
 CI `35910260871` dla commitu `126feba` po zmianie kontroli szybkich przejazdów CAM także przeszedł 23/23 zadań, w tym oba systemy i wszystkie instalatory; CodeQL `35910260767` przeszedł.

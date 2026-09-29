@@ -92,8 +92,12 @@ osi czasu. Naprawa śledzi płaską boczną ścianę wyciągnięcia, jeśli co n
 dwa te same punkty jej krawędzi przesuwają się zgodnie wzdłuż normalnej;
 nie zgaduje położenia, kiedy krawędź się obraca. Test desktopowy sprawdza
 przebudowę zależnego wycięcia, zgodność położenia podpory i ściany oraz zapis
-i ponowne otwarcie `.madcad`. Ten nowy wariant wymaga jeszcze CI. Ogólne
-zmiany topologii nadal nie są potwierdzone.
+i ponowne otwarcie `.madcad`. CI `36518052349` potwierdziło ten wariant
+na Windows/macOS (23/23 zadań, CodeQL `36518052338` zielony). Dodatkowy
+scenariusz lokalny wykrywa stary projekt, w którym ściana zachowała ID, lecz
+referencja szkicu pozostała na poprzedniej płaszczyźnie; kreator naprawy
+przypisuje ją ponownie i ustawia szkic na bieżącej ścianie. Ten przypadek
+wymaga jeszcze CI. Ogólne zmiany topologii nadal nie są potwierdzone.
 `verify:modeling` obejmuje wiele tych etapów w oddzielnych
 scenariuszach, ale lokalny przebieg 2026-09-27 przekroczył istniejący budżet
 całego scenariusza 120 s (199,9 s); dwa późniejsze lokalne przebiegi pełnego

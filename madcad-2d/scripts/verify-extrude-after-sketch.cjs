@@ -477,6 +477,34 @@ app.whenReady().then(async () => {
       && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${changedSide.volume}) < 0.02`, 'odtworzony szkic na przesuniętej ścianie', 30000);
     result.sideFaceSketch.sourceDimensionRebuild = true;
 
+    process.stdout.write('[verify] repair a legacy side sketch with a stale plane but unchanged face ID\n');
+    const staleSideProject = structuredClone(changedSideProject);
+    const staleSideSupport = staleSideProject.references.find((item) => item.id === staleSideProject.sketches[1].support.referenceId);
+    staleSideSupport.descriptor.center[0] = 25;
+    staleSideSupport.descriptor.centerOfMass[0] = 25;
+    staleSideProject.sketches[1].planeOffset = '25';
+    const staleSideRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(staleSideProject))})`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${staleSideRevision}
+      && window.__madcadVerifyEngineState?.status === 'ready'
+      && Boolean(document.querySelector('.reference-repair-panel'))`, 'wykryty dryf ściany o niezmienionym ID', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('.reference-repair-panel.collapsed .reference-repair-toggle')?.click()`);
+    await waitFor(window, `Boolean(document.querySelector('.reference-repair-panel button[data-reference-action="candidate-1"]'))`, 'kandydat przesuniętej ściany');
+    await window.webContents.executeJavaScript(`document.querySelector('.reference-repair-panel button[data-reference-action="candidate-1"]')?.click()`);
+    await waitFor(window, `!document.querySelector('.reference-repair-panel')
+      && window.__madcadVerifyEngineState?.status === 'ready'
+      && Math.abs(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset - 30) < 0.001`, 'naprawiona płaszczyzna starego szkicu', 30000);
+    await window.webContents.executeJavaScript(`document.querySelector('#saveProjectBtn')?.click()`);
+    await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('Zapisano projekt atomowo:')`, 'zapis naprawionej płaszczyzny');
+    await window.webContents.executeJavaScript(`document.querySelector('#newProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.features === 0`, 'nowy projekt po naprawie płaszczyzny');
+    await window.webContents.executeJavaScript(`document.querySelector('#openProjectBtn')?.click()`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'
+      && window.__madcadVerifyDocumentState?.features === 2
+      && Math.abs(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset - 30) < 0.001
+      && !document.querySelector('.reference-repair-panel')`, 'trwale naprawiona płaszczyzna po otwarciu pliku', 30000);
+    result.sideFaceSketch.stalePlaneRepair = true;
+
     process.stdout.write('[verify] rotating construction-plane dependent cut\n');
     const rotatingProject = structuredClone(savedProject);
     const rotatingPlane = {
