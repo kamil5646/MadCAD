@@ -6833,3 +6833,13 @@ test('eksport zapisuje warstwy z kolorem ACI, typem linii i stanem widoczności 
   assert.equal(aciFromHex('nie-kolor'), 7);
   assert.throws(() => sketchDxf({ entities: [] }, { parameters: [], layers: [] }), /nie zawiera geometrii/);
 });
+
+test('import DXF ignoruje osierocone VERTEX powtórzone przez konwerter po SEQEND', () => {
+  const dxf = dxfFile({ entities: [
+    ['0', 'POLYLINE', '70', '1'], ['0', 'VERTEX', '10', '0', '20', '0'], ['0', 'VERTEX', '10', '10', '20', '0'], ['0', 'VERTEX', '10', '10', '20', '10'], ['0', 'SEQEND'],
+    ['0', 'VERTEX', '10', '0', '20', '0'], ['0', 'VERTEX', '10', '10', '20', '0'],
+  ] });
+  const imported = parseSketchImport(dxf, 'dxf');
+  assert.equal(imported.curveCount, 3);
+  assert.ok(!imported.repairReport.entries.some((entry) => /VERTEX/.test(entry.message)));
+});

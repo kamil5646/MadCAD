@@ -490,6 +490,15 @@ function normalizeSelectedFileBytes(bytes) {
   return null;
 }
 
+const BASIC_CONSTRAINT_HINTS = Object.freeze({
+  horizontal: 'Zaznacz jedną linię albo dwa punkty.',
+  vertical: 'Zaznacz jedną linię albo dwa punkty.',
+  coincident: 'Zaznacz dwa punkty.',
+  equal: 'Zaznacz dwie linie albo dwa okręgi.',
+  tangent: 'Zaznacz linię i okrąg.',
+  fixed: 'Zaznacz geometrię do zablokowania.',
+});
+
 export default function ModelingWorkspace() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [licenseInfoOpen, setLicenseInfoOpen] = useState(true);
@@ -1503,6 +1512,16 @@ export default function ModelingWorkspace() {
   const canUseSpatialPath = Boolean(activeSketchIs3D && selectedSketchEntities.length && selectedSketchEntities.every((entity) => ['line', 'arc3d', 'spline3d', 'bspline3d'].includes(entity.type)));
   const canProjectToSurface = Boolean(activeSketchIs3D && selectedSketchEntities.length && selectedSketchEntities.every((entity) => entity.role !== 'projected' && ['line', 'arc3d', 'spline3d'].includes(entity.type)));
   const canAddCollinear = selectedSketchEntities.length === 2 && selectedSketchEntities.every((entity) => entity.type === 'line');
+  const selectedSketchTypeCount = (type) => selectedSketchEntities.filter((entity) => entity.type === type).length;
+  // Basic geometric constraints that the solver supports for the current selection.
+  const basicConstraintAvailability = {
+    horizontal: (selectedSketchEntities.length === 1 && selectedSketchTypeCount('line') === 1) || (selectedSketchEntities.length === 2 && selectedSketchTypeCount('point') === 2),
+    vertical: (selectedSketchEntities.length === 1 && selectedSketchTypeCount('line') === 1) || (selectedSketchEntities.length === 2 && selectedSketchTypeCount('point') === 2),
+    coincident: selectedSketchEntities.length === 2 && selectedSketchTypeCount('point') === 2,
+    equal: selectedSketchEntities.length === 2 && (selectedSketchTypeCount('line') === 2 || selectedSketchTypeCount('circle') === 2),
+    tangent: selectedSketchEntities.length === 2 && selectedSketchTypeCount('line') === 1 && selectedSketchTypeCount('circle') === 1,
+    fixed: selectedSketchEntities.length > 0,
+  };
   const canAddSymmetry = selectedSketchEntities.filter((entity) => entity.type === 'point').length === 2
     && selectedSketchEntities.filter((entity) => entity.type === 'line').length === 1
     && selectedSketchEntities.length === 3;
@@ -3841,8 +3860,12 @@ export default function ModelingWorkspace() {
 
   const addSelectedSketchConstraint = (type) => {
     if (readOnly) return readOnlyNotice();
-    const valid = type === 'collinear' ? canAddCollinear : type === 'symmetry' ? canAddSymmetry : type === 'curvature' ? canAddCurvature : false;
+    const valid = type === 'collinear' ? canAddCollinear : type === 'symmetry' ? canAddSymmetry : type === 'curvature' ? canAddCurvature : Boolean(basicConstraintAvailability[type]);
     if (!activeSketchId || !valid) {
+      if (BASIC_CONSTRAINT_HINTS[type]) {
+        setNotice(BASIC_CONSTRAINT_HINTS[type]);
+        return;
+      }
       setNotice(type === 'collinear' ? 'Współliniowość wymaga zaznaczenia dwóch linii.' : type === 'symmetry' ? 'Symetria wymaga zaznaczenia dwóch punktów i jednej linii osi.' : 'Krzywizna G2 wymaga dwóch łuków z jednym wspólnym końcem.');
       return;
     }
@@ -3862,7 +3885,17 @@ export default function ModelingWorkspace() {
       applyConstraint(checked);
       commit(applyConstraint);
       setSelection({ kind: 'sketchConstraint', id: constraint.id, sketchId: activeSketchId });
-      setNotice(type === 'collinear' ? 'Dodano więz współliniowości. Cofnij przywraca poprzednią geometrię.' : type === 'symmetry' ? 'Dodano więz symetrii względem wskazanej osi. Cofnij przywraca poprzednią geometrię.' : 'Dodano ciągłość krzywizny G2 między łukami. Cofnij przywraca poprzednią geometrię.');
+      setNotice(`${({
+        collinear: 'Dodano więz współliniowości.',
+        symmetry: 'Dodano więz symetrii względem wskazanej osi.',
+        curvature: 'Dodano ciągłość krzywizny G2 między łukami.',
+        horizontal: 'Dodano więz poziomy.',
+        vertical: 'Dodano więz pionowy.',
+        coincident: 'Połączono punkty więzem zbieżności.',
+        equal: 'Dodano więz równości.',
+        tangent: 'Dodano więz styczności.',
+        fixed: 'Zablokowano zaznaczoną geometrię.',
+      })[type]} Cofnij przywraca poprzednią geometrię.`);
     } catch (error) {
       setNotice(`Nie dodano więzu: ${error.message}`);
     }
@@ -4424,6 +4457,7 @@ export default function ModelingWorkspace() {
       fixture.sketches.push(sketch);
       window.__madcadConstraintFixtureIds = {
         collinear: [sourceLine.id, targetLine.id],
+        horizontal: [targetLine.id],
         symmetry: [symmetryPoints[0].id, symmetryPoints[1].id, axisLine.id],
         targetPointIds: targetPoints.map((point) => point.id),
         reflectedPointId: symmetryPoints[1].id,
@@ -7946,7 +7980,13 @@ export default function ModelingWorkspace() {
                 </RibbonGroup>
                 <RibbonGroup label="WIĄZANIA">
                   <ToolButton icon={ProjectGeometryCadIcon} label="Project" displayLabel="Rzutuj" onClick={projectSelectedTopology} primary={command?.type === 'projectSketch'} disabled={readOnly} />
-                  <ToolMenuButton icon={SketchConstraintCadIcon} label="Więzy" description="Zaawansowane więzy geometryczne zaznaczonej geometrii." items={[
+                  <ToolMenuButton icon={SketchConstraintCadIcon} label="Więzy" description="Więzy geometryczne zaznaczonej geometrii." items={[
+                    { icon: Minus, label: 'Poziomo', onClick: () => addSelectedSketchConstraint('horizontal'), disabled: readOnly || !basicConstraintAvailability.horizontal, disabledReason: BASIC_CONSTRAINT_HINTS.horizontal },
+                    { icon: Minus, label: 'Pionowo', onClick: () => addSelectedSketchConstraint('vertical'), disabled: readOnly || !basicConstraintAvailability.vertical, disabledReason: BASIC_CONSTRAINT_HINTS.vertical },
+                    { icon: CircleDotDashed, label: 'Zbieżne punkty', onClick: () => addSelectedSketchConstraint('coincident'), disabled: readOnly || !basicConstraintAvailability.coincident, disabledReason: BASIC_CONSTRAINT_HINTS.coincident },
+                    { icon: Ruler, label: 'Równe', onClick: () => addSelectedSketchConstraint('equal'), disabled: readOnly || !basicConstraintAvailability.equal, disabledReason: BASIC_CONSTRAINT_HINTS.equal },
+                    { icon: RotateCw, label: 'Styczne', onClick: () => addSelectedSketchConstraint('tangent'), disabled: readOnly || !basicConstraintAvailability.tangent, disabledReason: BASIC_CONSTRAINT_HINTS.tangent },
+                    { icon: Frame, label: 'Zablokuj', onClick: () => addSelectedSketchConstraint('fixed'), disabled: readOnly || !basicConstraintAvailability.fixed, disabledReason: BASIC_CONSTRAINT_HINTS.fixed },
                     { icon: Minus, label: 'Współliniowe', onClick: () => addSelectedSketchConstraint('collinear'), disabled: readOnly || !canAddCollinear, disabledReason: 'Zaznacz dwie linie.' },
                     { icon: Frame, label: 'Symetria', onClick: () => addSelectedSketchConstraint('symmetry'), disabled: readOnly || !canAddSymmetry, disabledReason: 'Zaznacz geometrię i oś symetrii.' },
                     { icon: CircleDotDashed, label: 'Krzywizna G2', onClick: () => addSelectedSketchConstraint('curvature'), disabled: readOnly || !canAddCurvature, disabledReason: 'Zaznacz dwie zgodne krzywe.' },

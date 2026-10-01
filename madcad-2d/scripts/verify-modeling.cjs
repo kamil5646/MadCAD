@@ -312,7 +312,7 @@ async function runUiFlow(window) {
   const sketchToolMenus = new Map([
     ...['Łuk', 'Łuk styczny', 'Wielokąt', 'Elipsa', 'Slot', 'Spline', 'Conic', 'Punkt'].map((label) => [label, 'Więcej kształtów']),
     ...['Extend', 'Break', 'Offset', 'Przesuń', 'Fillet szkicu', 'Faza szkicu', 'Transformuj', 'Szyk szkicu'].map((label) => [label, 'Modyfikuj']),
-    ...['Współliniowe', 'Symetria', 'Krzywizna G2'].map((label) => [label, 'Więzy']),
+    ...['Poziomo', 'Pionowo', 'Zbieżne punkty', 'Równe', 'Styczne', 'Zablokuj', 'Współliniowe', 'Symetria', 'Krzywizna G2'].map((label) => [label, 'Więzy']),
     ...['Ordinate X', 'Ordinate Y', 'Długość łuku'].map((label) => [label, 'Wymiary']),
     ...['Warstwy', 'Bloki'].map((label) => [label, 'Warstwy i bloki']),
     ...['Thin Extrude', 'Rib/Web', 'Pipe'].map((label) => [label, 'Utwórz 3D']),
@@ -807,6 +807,14 @@ async function runUiFlow(window) {
   progress('collinear and symmetry constraints');
   await window.webContents.executeJavaScript(`window.__madcadVerifyLoadConstraintFixture?.()`);
   await waitForUi(window, `window.__madcadConstraintFixtureIds && window.__madcadVerifyDocumentState?.sketches?.[0]?.entities === 18`, 'fixture więzów P1');
+  // Basic constraint from the Więzy menu: make the slanted target line horizontal, then undo.
+  await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection(window.__madcadConstraintFixtureIds.horizontal, 'replace')`);
+  await clickTool('Poziomo');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.constraints?.some((item) => item.type === 'horizontal')`, 'więz poziomy z menu');
+  const horizontalSolved = await window.webContents.executeJavaScript(`(() => { const ys = window.__madcadVerifyDocumentState.sketches[0].entityData.filter((item) => window.__madcadConstraintFixtureIds.targetPointIds.includes(item.id)).map((item) => Number(item.geometry.y)); return Math.abs(ys[0] - ys[1]) < 1e-6; })()`);
+  if (!horizontalSolved) throw new Error('UI horizontal constraint did not level the target line.');
+  await sendShortcut('z');
+  await waitForUi(window, `!window.__madcadVerifyDocumentState?.sketches?.[0]?.constraints?.some((item) => item.type === 'horizontal')`, 'cofnięcie więzu poziomego');
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection(window.__madcadConstraintFixtureIds.collinear, 'replace')`);
   await clickTool('Współliniowe');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.constraints?.some((item) => item.type === 'collinear')`, 'więz collinear');

@@ -8,6 +8,7 @@
 - wyszukiwarka Ctrl+K znajduje i uruchamia polecenia wstążki (również z menu rozwijanych) i pokazuje, dlaczego polecenie jest niedostępne;
 - szkic na ścianie podąża za edycją bryły bez otwierania kreatora naprawy referencji (także gdy ściana ma otwór);
 - „Zakończ szkic” zawsze widoczne na wąskim oknie, baner odzyskiwania znika sam po przeliczeniu modelu, panel CAM nie zasłania nawigacji widoku, minimalny rozmiar tekstu 9 px, polskie nazwy typów w wyszukiwarce;
+- podstawowe więzy szkicu (poziomo, pionowo, zbieżne punkty, równe, styczne, zablokuj) dostępne w menu Więzy i w Ctrl+K; niedostępne polecenia w menu są wyraźnie wyszarzone;
 - poprawiono testy desktopowe, które przy błędzie kończyły się kodem 0.
 
 ## 6.5.25 (2026-10-01)
