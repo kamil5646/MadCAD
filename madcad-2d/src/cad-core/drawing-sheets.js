@@ -5,7 +5,25 @@ import { sketchDrawingSegments } from './sketch-topology.js';
 export const DRAWING_PAGE_SIZES = Object.freeze({
   A4: Object.freeze({ width: 297, height: 210 }),
   A3: Object.freeze({ width: 420, height: 297 }),
+  A2: Object.freeze({ width: 594, height: 420 }),
+  A1: Object.freeze({ width: 841, height: 594 }),
+  A0: Object.freeze({ width: 1189, height: 841 }),
 });
+
+// ISO 129 / PN-EN ISO 129: lettering heights from the ISO 3098 series; Polish drawings
+// usually use the decimal comma.
+export const DRAWING_TEXT_HEIGHTS = Object.freeze([2.5, 3.5, 5]);
+export const DEFAULT_DIMENSION_STYLE = Object.freeze({ decimalSeparator: '.', textHeight: 3.5 });
+
+export function normalizeDimensionStyle(style) {
+  const textHeight = DRAWING_TEXT_HEIGHTS.includes(Number(style?.textHeight)) ? Number(style.textHeight) : DEFAULT_DIMENSION_STYLE.textHeight;
+  return { decimalSeparator: style?.decimalSeparator === ',' ? ',' : '.', textHeight };
+}
+
+function formatDecimal(value, precision, style) {
+  const text = Number(value || 0).toFixed(precision);
+  return style?.decimalSeparator === ',' ? text.replace('.', ',') : text;
+}
 
 export const DRAWING_VIEW_ORIENTATIONS = Object.freeze(['front', 'top', 'right', 'isometric']);
 export const DRAWING_VIEW_TYPES = Object.freeze(['base', 'sketch', 'projected', 'section', 'detail']);
@@ -36,6 +54,7 @@ export function createDrawingSheet({ name = 'Arkusz 1', pageSize = 'A4', orienta
     titleBlock: { title: '', partNumber: '', material: '', author: '', company: '', revision: 'A' },
     revisions: [],
     tables: [],
+    dimensionStyle: { ...DEFAULT_DIMENSION_STYLE },
   };
 }
 
@@ -242,6 +261,7 @@ export function ensureDocumentDrawings(document) {
       titleBlock: sheet.titleBlock && typeof sheet.titleBlock === 'object' && !Array.isArray(sheet.titleBlock) ? sheet.titleBlock : { title: '', partNumber: '', material: '', author: '', company: '', revision: 'A' },
       revisions: Array.isArray(sheet.revisions) ? sheet.revisions : [],
       tables: Array.isArray(sheet.tables) ? sheet.tables : [],
+      dimensionStyle: normalizeDimensionStyle(sheet.dimensionStyle),
     }
     : sheet);
   return document;
@@ -498,11 +518,11 @@ export function recommendedSketchDrawingScale(sheet, sketch, parameters = [], la
   return standardScales.find((scale) => scale <= fit) || Math.max(0.001, fit);
 }
 
-function dimensionText(value, annotation) {
+function dimensionText(value, annotation, style) {
   const precision = Math.max(0, Math.min(4, Math.trunc(Number(annotation.precision) || 0)));
-  const main = Number(value || 0).toFixed(precision);
-  const upper = Number(annotation.upperTolerance || 0).toFixed(precision);
-  const lower = Number(annotation.lowerTolerance || 0).toFixed(precision);
+  const main = formatDecimal(value, precision, style);
+  const upper = formatDecimal(annotation.upperTolerance, precision, style);
+  const lower = formatDecimal(annotation.lowerTolerance, precision, style);
   if (annotation.toleranceMode === 'symmetric' && Number(annotation.upperTolerance) > 0) return `${main} ±${upper}`;
   if (annotation.toleranceMode === 'deviation' && (Number(annotation.upperTolerance) > 0 || Number(annotation.lowerTolerance) > 0)) return `${main} +${upper}/−${lower}`;
   return main;
@@ -516,8 +536,10 @@ function arrowSegments(point, direction, size = 2.4) {
   ];
 }
 
-function renderedAnnotation(source, view, bodies) {
+function renderedAnnotation(source, view, bodies, style = DEFAULT_DIMENSION_STYLE) {
   if (!view) return null;
+  const arrow = style.textHeight * 0.75;
+  const textGap = style.textHeight * 0.45;
   const halfWidth = Math.max(0.01, view.modelWidth * view.scale / 2);
   const halfHeight = Math.max(0.01, view.modelHeight * view.scale / 2);
   if (source.type === 'linear-dimension') {
@@ -527,21 +549,21 @@ function renderedAnnotation(source, view, bodies) {
       const x = view.x + halfWidth + offset;
       const top = [x, view.y - halfHeight];
       const bottom = [x, view.y + halfHeight];
-      return { ...source, value: view.modelHeight, text: dimensionText(view.modelHeight, source), textX: x + 2.2, textY: view.y, textRotation: -90, segments: [
+      return { ...source, value: view.modelHeight, text: dimensionText(view.modelHeight, source, style), textHeight: style.textHeight, textX: x + textGap + style.textHeight * 0.35, textY: view.y, textRotation: -90, segments: [
         [[view.x + halfWidth, view.y - halfHeight], [x + 1.5, view.y - halfHeight]],
         [[view.x + halfWidth, view.y + halfHeight], [x + 1.5, view.y + halfHeight]],
         [top, bottom],
-        ...arrowSegments(top, [0, 1]), ...arrowSegments(bottom, [0, -1]),
+        ...arrowSegments(top, [0, 1], arrow), ...arrowSegments(bottom, [0, -1], arrow),
       ] };
     }
     const y = view.y + halfHeight + offset;
     const left = [view.x - halfWidth, y];
     const right = [view.x + halfWidth, y];
-    return { ...source, value: view.modelWidth, text: dimensionText(view.modelWidth, source), textX: view.x, textY: y - 1.6, textRotation: 0, segments: [
+    return { ...source, value: view.modelWidth, text: dimensionText(view.modelWidth, source, style), textHeight: style.textHeight, textX: view.x, textY: y - textGap, textRotation: 0, segments: [
       [[view.x - halfWidth, view.y + halfHeight], [view.x - halfWidth, y + 1.5]],
       [[view.x + halfWidth, view.y + halfHeight], [view.x + halfWidth, y + 1.5]],
       [left, right],
-      ...arrowSegments(left, [1, 0]), ...arrowSegments(right, [-1, 0]),
+      ...arrowSegments(left, [1, 0], arrow), ...arrowSegments(right, [-1, 0], arrow),
     ] };
   }
   if (source.type === 'centerline') {
@@ -567,8 +589,8 @@ function renderedAnnotation(source, view, bodies) {
     const prefix = Number(source.quantity) > 1 ? `${Math.trunc(Number(source.quantity))}× ` : '';
     const text = source.noteMode === 'thread'
       ? `${prefix}${String(source.threadDesignation || 'M8×1.25')} - ${String(source.threadClass || '6H')}${source.through === false ? '' : ' THRU'}`
-      : diameter > 0 ? `${prefix}⌀${diameter.toFixed(precision)}${source.through === false ? '' : ' THRU'}` : `${prefix}⌀—${source.through === false ? '' : ' THRU'}`;
-    return { ...source, diameter: diameter || 0, text, textX: labelX, textY: labelY, segments: [[[x, y], [labelX - 2, labelY]], [[labelX - 2, labelY], [labelX + Math.max(14, text.length * 1.7), labelY]]] };
+      : diameter > 0 ? `${prefix}⌀${formatDecimal(diameter, precision, style)}${source.through === false ? '' : ' THRU'}` : `${prefix}⌀—${source.through === false ? '' : ' THRU'}`;
+    return { ...source, diameter: diameter || 0, text, textHeight: style.textHeight, textX: labelX, textY: labelY, segments: [[[x, y], [labelX - 2, labelY]], [[labelX - 2, labelY], [labelX + Math.max(14, text.length * 1.7), labelY]]] };
   }
   if (source.type === 'feature-control-frame') {
     const symbols = { position: '⌖', flatness: '⏥', parallelism: '∥', perpendicularity: '⊥', circularity: '○' };
@@ -760,7 +782,7 @@ export function drawingSheetScene(sheet, bodies = [], { components = [], compone
     }
     return [];
   });
-  const annotations = [...viewAnnotations, ...(sheet?.annotations || []).map((annotation) => renderedAnnotation(annotation, resolved.get(annotation.viewId), bodies)).filter(Boolean)];
+  const annotations = [...viewAnnotations, ...(sheet?.annotations || []).map((annotation) => renderedAnnotation(annotation, resolved.get(annotation.viewId), bodies, normalizeDimensionStyle(sheet?.dimensionStyle))).filter(Boolean)];
   const tables = (sheet?.tables || []).map((table) => renderedTable(table, resolved, bodies, components, componentInstances));
   return { ...page, margin: PAGE_MARGIN, titleBlockHeight: TITLE_BLOCK_HEIGHT, views, annotations, tables };
 }
@@ -785,7 +807,7 @@ export function drawingSheetHtml(sheet, bodies = [], { documentName = 'Projekt',
     if (annotation.type === 'section-line') return `<g class="annotation section-callout"><line x1="${annotation.x1}" y1="${annotation.y1}" x2="${annotation.x2}" y2="${annotation.y2}"/><text x="${annotation.x1}" y="${annotation.y1 - 2}">${escapeHtml(annotation.label)}</text><text x="${annotation.x2}" y="${annotation.y2 - 2}">${escapeHtml(annotation.label)}</text></g>`;
     if (annotation.type === 'detail-callout') return `<g class="annotation detail-callout"><circle cx="${annotation.x}" cy="${annotation.y}" r="${annotation.radius}"/><text x="${annotation.x + annotation.radius + 2}" y="${annotation.y}">${escapeHtml(annotation.label)}</text></g>`;
     const segments = (annotation.segments || []).map((segment) => line(segment)).join('');
-    const text = annotation.text ? `<text x="${annotation.textX}" y="${annotation.textY}"${annotation.textRotation ? ` transform="rotate(${annotation.textRotation} ${annotation.textX} ${annotation.textY})"` : ''}>${escapeHtml(annotation.text)}</text>` : '';
+    const text = annotation.text ? `<text x="${annotation.textX}" y="${annotation.textY}"${annotation.textHeight ? ` style="font-size:${annotation.textHeight}px"` : ''}${annotation.textRotation ? ` transform="rotate(${annotation.textRotation} ${annotation.textX} ${annotation.textY})"` : ''}>${escapeHtml(annotation.text)}</text>` : '';
     const frame = annotation.frame ? `<rect x="${annotation.frame.x}" y="${annotation.frame.y}" width="${annotation.frame.width}" height="${annotation.frame.height}"/>${annotation.cells.slice(1).map((_, index) => `<line x1="${annotation.frame.x + (index + 1) * annotation.frame.cellWidth}" y1="${annotation.frame.y}" x2="${annotation.frame.x + (index + 1) * annotation.frame.cellWidth}" y2="${annotation.frame.y + annotation.frame.height}"/>`).join('')}${annotation.cells.map((cell, index) => `<text x="${annotation.frame.x + index * annotation.frame.cellWidth + annotation.frame.cellWidth / 2}" y="${annotation.frame.y + 4.2}" text-anchor="middle">${escapeHtml(cell)}</text>`).join('')}` : '';
     const circle = annotation.circle ? `<circle cx="${annotation.circle.x}" cy="${annotation.circle.y}" r="${annotation.circle.radius}"/>` : '';
     return `<g class="annotation drawing-${escapeHtml(annotation.type)}">${segments}${text}${frame}${circle}</g>`;
@@ -806,7 +828,7 @@ export function drawingSheetHtml(sheet, bodies = [], { documentName = 'Projekt',
   const latestRevision = sheet?.revisions?.at(-1);
   const revisionValue = latestRevision?.code || block.revision || revision;
   const revisionRows = (sheet?.revisions || []).slice(-3).map((item, index) => `<text x="${scene.width - 191}" y="${titleTop + 4 + index * 4}">${escapeHtml(item.code)} · ${escapeHtml(item.date)}</text>`).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(sheet?.name || 'Arkusz')}</title><style>@page{size:${escapeHtml(sheet?.pageSize || 'A4')} ${escapeHtml(sheet?.orientation || 'landscape')};margin:0}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:white;font-family:Arial,sans-serif}svg{display:block;width:${scene.width}mm;height:${scene.height}mm}.border,.title,.annotation rect,.drawing-table rect{fill:none;stroke:#111;stroke-width:.35}.geometry{fill:none;stroke:#111;stroke-width:.28;stroke-linecap:round;stroke-linejoin:round}.geometry.section{stroke-width:.5}.geometry .hatch{stroke-width:.16}.detail-border,.annotation circle{fill:none;stroke:#111;stroke-width:.25}.annotation line,.drawing-table line{stroke:#111;stroke-width:.25}.section-callout line,.detail-callout line,.drawing-centerline line,.drawing-center-mark line{stroke-dasharray:3 1}.drawing-linear-dimension line,.drawing-hole-note line{stroke-width:.2}.annotation text{font-weight:700}text{fill:#111;font-size:3px}.project{font-size:5px;font-weight:700}.drawing-table text{font-size:2.3px}.drawing-table .table-title{font-weight:700}</style></head><body><svg viewBox="0 0 ${scene.width} ${scene.height}" xmlns="http://www.w3.org/2000/svg"><rect class="border" x="${scene.margin}" y="${scene.margin}" width="${scene.width - scene.margin * 2}" height="${scene.height - scene.margin * 2}"/>${lineMarkup}${annotationMarkup}${tableMarkup}${viewLabels}<g class="title"><rect x="${scene.width - 192}" y="${titleTop}" width="60" height="14"/><rect x="${scene.width - 132}" y="${titleTop}" width="122" height="14"/><line x1="${scene.width - 55}" y1="${titleTop}" x2="${scene.width - 55}" y2="${scene.height - 10}"/><line x1="${scene.width - 28}" y1="${titleTop}" x2="${scene.width - 28}" y2="${scene.height - 10}"/></g>${revisionRows}<text class="project" x="${scene.width - 129}" y="${titleTop + 5}">${escapeHtml(block.title || documentName)}</text><text x="${scene.width - 129}" y="${titleTop + 9}">${escapeHtml(block.partNumber || sheet?.name || 'Arkusz')} · ${escapeHtml(block.material || '—')}</text><text x="${scene.width - 129}" y="${titleTop + 12.5}">${escapeHtml(block.company || '')}</text><text x="${scene.width - 53}" y="${titleTop + 5}">Autor</text><text x="${scene.width - 53}" y="${titleTop + 11}">${escapeHtml(block.author || author || '—')}</text><text x="${scene.width - 26}" y="${titleTop + 5}">Rew.</text><text x="${scene.width - 26}" y="${titleTop + 11}">${escapeHtml(revisionValue)}</text></svg></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(sheet?.name || 'Arkusz')}</title><style>@page{size:${scene.width}mm ${scene.height}mm;margin:0}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:white;font-family:Arial,sans-serif}svg{display:block;width:${scene.width}mm;height:${scene.height}mm}.border,.title,.annotation rect,.drawing-table rect{fill:none;stroke:#111;stroke-width:.35}.geometry{fill:none;stroke:#111;stroke-width:.28;stroke-linecap:round;stroke-linejoin:round}.geometry.section{stroke-width:.5}.geometry .hatch{stroke-width:.16}.detail-border,.annotation circle{fill:none;stroke:#111;stroke-width:.25}.annotation line,.drawing-table line{stroke:#111;stroke-width:.25}.section-callout line,.detail-callout line,.drawing-centerline line,.drawing-center-mark line{stroke-dasharray:3 1}.drawing-linear-dimension line,.drawing-hole-note line{stroke-width:.2}.annotation text{font-weight:700}text{fill:#111;font-size:3px}.project{font-size:5px;font-weight:700}.drawing-table text{font-size:2.3px}.drawing-table .table-title{font-weight:700}</style></head><body><svg viewBox="0 0 ${scene.width} ${scene.height}" xmlns="http://www.w3.org/2000/svg"><rect class="border" x="${scene.margin}" y="${scene.margin}" width="${scene.width - scene.margin * 2}" height="${scene.height - scene.margin * 2}"/>${lineMarkup}${annotationMarkup}${tableMarkup}${viewLabels}<g class="title"><rect x="${scene.width - 192}" y="${titleTop}" width="60" height="14"/><rect x="${scene.width - 132}" y="${titleTop}" width="122" height="14"/><line x1="${scene.width - 55}" y1="${titleTop}" x2="${scene.width - 55}" y2="${scene.height - 10}"/><line x1="${scene.width - 28}" y1="${titleTop}" x2="${scene.width - 28}" y2="${scene.height - 10}"/></g>${revisionRows}<text class="project" x="${scene.width - 129}" y="${titleTop + 5}">${escapeHtml(block.title || documentName)}</text><text x="${scene.width - 129}" y="${titleTop + 9}">${escapeHtml(block.partNumber || sheet?.name || 'Arkusz')} · ${escapeHtml(block.material || '—')}</text><text x="${scene.width - 129}" y="${titleTop + 12.5}">${escapeHtml(block.company || '')}</text><text x="${scene.width - 53}" y="${titleTop + 5}">Autor</text><text x="${scene.width - 53}" y="${titleTop + 11}">${escapeHtml(block.author || author || '—')}</text><text x="${scene.width - 26}" y="${titleTop + 5}">Rew.</text><text x="${scene.width - 26}" y="${titleTop + 11}">${escapeHtml(revisionValue)}</text></svg></body></html>`;
 }
 
 function dxfNumber(value) {
@@ -834,7 +856,7 @@ export function drawingSheetDxf(sheet, bodies = [], { components = [], component
     else if (annotation.type === 'detail-callout') addCircle(annotation.x, annotation.y, annotation.radius);
     else {
       (annotation.segments || []).forEach((segment) => addLine(segment, 'ANNOTATION'));
-      if (annotation.text) addText(annotation.text, annotation.textX, annotation.textY);
+      if (annotation.text) addText(annotation.text, annotation.textX, annotation.textY, annotation.textHeight || 3);
       if (annotation.circle) addCircle(annotation.circle.x, annotation.circle.y, annotation.circle.radius, 'BALLOON');
       if (annotation.frame) {
         const { x, y, width, height, cellWidth } = annotation.frame;
