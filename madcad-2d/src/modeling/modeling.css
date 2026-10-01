@@ -6338,8 +6338,10 @@
   top: 14px;
   right: 14px;
   width: min(390px, calc(100% - 28px));
-  max-height: calc(100% - 28px);
+  /* Stop above the viewport navigation and selection-filter bars at the bottom. */
+  max-height: calc(100% - 84px);
   overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid #5d6d7c;
   border-radius: 5px;
   background: #303a47;
