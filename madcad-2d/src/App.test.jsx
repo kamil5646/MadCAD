@@ -176,15 +176,19 @@ describe('App', () => {
     try {
       const onDismiss = vi.fn();
       const info = { updatedAt: '2026-08-15T20:30:00.000Z' };
-      const { rerender } = render(<CrashRecoveryBanner info={info} onSave={() => {}} onDismiss={() => onDismiss()} />);
+      const { rerender } = render(<CrashRecoveryBanner info={info} autoDismiss onSave={() => {}} onDismiss={() => onDismiss()} />);
       const banner = screen.getByRole('alert', { name: /Odzyskiwanie projektu po awarii/i });
       // A parent re-render with a fresh callback must not restart the countdown.
       vi.advanceTimersByTime(CRASH_RECOVERY_AUTO_DISMISS_MS - 1000);
-      rerender(<CrashRecoveryBanner info={info} onSave={() => {}} onDismiss={() => onDismiss()} />);
+      rerender(<CrashRecoveryBanner info={info} autoDismiss onSave={() => {}} onDismiss={() => onDismiss()} />);
       vi.advanceTimersByTime(1000);
       expect(onDismiss).toHaveBeenCalledOnce();
 
       onDismiss.mockClear();
+      rerender(<CrashRecoveryBanner info={info} autoDismiss={false} onSave={() => {}} onDismiss={() => onDismiss()} />);
+      vi.advanceTimersByTime(CRASH_RECOVERY_AUTO_DISMISS_MS * 2);
+      expect(onDismiss).not.toHaveBeenCalled(); // still rebuilding the recovered model
+      rerender(<CrashRecoveryBanner info={info} autoDismiss onSave={() => {}} onDismiss={() => onDismiss()} />);
       fireEvent.mouseEnter(banner);
       vi.advanceTimersByTime(CRASH_RECOVERY_AUTO_DISMISS_MS * 2);
       expect(onDismiss).not.toHaveBeenCalled();

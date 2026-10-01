@@ -45,14 +45,15 @@ const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
 
 export const CRASH_RECOVERY_AUTO_DISMISS_MS = 20000;
 
-export function CrashRecoveryBanner({ info, onSave, onOpenSnapshots, onDismiss }) {
+export function CrashRecoveryBanner({ info, onSave, onOpenSnapshots, onDismiss, autoDismiss = false }) {
   const [paused, setPaused] = useState(false);
-  // The banner covers the ribbon/status area, so it leaves by itself unless the
-  // user is reading it or has focus inside; the unsaved marker in the title
-  // bar keeps telling them the recovered project still needs saving.
+  // The banner covers the ribbon/status area, so once the recovered model is
+  // ready (`autoDismiss`) it leaves by itself unless the user is reading it or
+  // has focus inside; the unsaved marker in the title bar keeps telling them the
+  // recovered project still needs saving.
   const dismissRef = React.useRef(onDismiss);
   dismissRef.current = onDismiss;
-  const canDismiss = Boolean(onDismiss);
+  const canDismiss = Boolean(onDismiss) && autoDismiss;
   const visible = Boolean(info);
   useEffect(() => {
     if (!visible || paused || !canDismiss) return undefined;

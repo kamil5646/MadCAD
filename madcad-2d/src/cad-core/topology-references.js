@@ -152,11 +152,14 @@ export function rebindMovedFaceSupportReferences(document, bodies) {
     const claimed = new Set(document.references
       .filter((other) => other.id !== reference.id && other.kind === TOPOLOGY_REFERENCE_KIND && other.bodyId === reference.bodyId)
       .map((other) => other.topologyId));
+    // A sketch only needs the plane, so in-plane centroid shifts (a cut through
+    // the face, a changed outline) must not block the rebind. Among several
+    // coplanar faces take the nearest one only when it is clearly the nearest.
     const matches = state.candidates.filter((candidate) => candidate.bodyId === reference.bodyId
       && candidate.descriptor?.geometry === 'PLANE' && reference.descriptor?.geometry === 'PLANE'
-      && !claimed.has(candidate.id) && !facePlaneDrift(reference.descriptor, candidate.descriptor)
-      && candidate.distance < 1e-3);
-    if (matches.length !== 1) continue;
+      && !claimed.has(candidate.id) && !facePlaneDrift(reference.descriptor, candidate.descriptor))
+      .sort((left, right) => left.distance - right.distance);
+    if (!matches.length || (matches.length > 1 && !(matches[0].distance < matches[1].distance && matches[0].distance * 2 <= matches[1].distance))) continue;
     reference.topologyId = matches[0].id;
     reference.descriptor = structuredClone(matches[0].descriptor);
     rebound.push(reference.id);

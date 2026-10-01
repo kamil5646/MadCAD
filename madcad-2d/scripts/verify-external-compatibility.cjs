@@ -129,7 +129,8 @@ app.whenReady().then(async () => {
     exitCode = 1;
     process.stderr.write(`${error.stack || error.message}\n`);
   } finally {
-    window.destroy();
+    // Never destroy the last window before app.exit(): window-all-closed would quit
+    // with exit code 0 and hide a failed scenario.
     await fs.rm(temporaryRoot, { recursive: true, force: true });
     process.exitCode = exitCode;
     app.exit(exitCode);
