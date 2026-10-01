@@ -1,5 +1,17 @@
 # Changelog
 
+## 6.5.26 (2026-10-01)
+
+- import DXF znacznie wierniejszy: łuki bulge jako prawdziwe łuki, klasyczne POLYLINE, ELLIPSE i SPLINE jako natywne krzywe, bloki INSERT (przesunięcie, obrót, skala, odbicie, zagnieżdżenia, MINSERT), kierunek wyciągnięcia −Z, pełna tabela jednostek $INSUNITS, pomijanie wyłączonych i zamrożonych warstw, raport pogrupowany według typu encji;
+- warstwy DXF trafiają do projektu z kolorem, typem linii, grubością i blokadą;
+- nowy eksport aktywnego szkicu do DXF R12 (Plik → Szkic DXF) z warstwami; linie, okręgi i łuki dokładnie, elipsy i spline jako gęste polilinie;
+- wyszukiwarka Ctrl+K znajduje i uruchamia polecenia wstążki (również z menu rozwijanych) i pokazuje, dlaczego polecenie jest niedostępne;
+- szkic na ścianie podąża za edycją bryły bez otwierania kreatora naprawy referencji (także gdy ściana ma otwór);
+- „Zakończ szkic” zawsze widoczne na wąskim oknie, baner odzyskiwania znika sam po przeliczeniu modelu, panel CAM nie zasłania nawigacji widoku, minimalny rozmiar tekstu 9 px, polskie nazwy typów w wyszukiwarce;
+- podstawowe więzy szkicu (poziomo, pionowo, zbieżne punkty, równe, styczne, zablokuj) dostępne w menu Więzy i w Ctrl+K; niedostępne polecenia w menu są wyraźnie wyszarzone;
+- widok 3D nie odtwarza już całej sceny przy niezwiązanych zmianach interfejsu (otwarcie menu, panel przeglądarki), więc obrót i przesuwanie nie są przerywane;
+- poprawiono testy desktopowe, które przy błędzie kończyły się kodem 0.
+
 ## 6.5.25 (2026-10-01)
 
 - wydanie 6.5.24 nie zostało opublikowane: weryfikacja przenośnego ZIP na Windows zatrzymała się, bo pod Git Bash `tar.exe` to GNU tar, który traktuje literę dysku `D:` jako zdalny host; skrypt używa teraz systemowego bsdtar z `System32`;

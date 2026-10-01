@@ -37,6 +37,21 @@ async function sendHistoryShortcut(window, { redo = false } = {}) {
   await window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Z', modifiers });
 }
 
+// Right after the first ready check the renderer occasionally rejects a script (seen on
+// macOS runners). Retry the idempotent setup calls and surface the renderer error so a
+// recurrence is diagnosable from the CI log.
+async function executeSetup(window, code, label, attempts = 3) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await window.webContents.executeJavaScript(code);
+    } catch (error) {
+      process.stderr.write(`[setup] ${label}, próba ${attempt}/${attempts}: ${error.message}\n`);
+      if (attempt >= attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+}
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({
     width: 1440,
@@ -45,20 +60,31 @@ app.whenReady().then(async () => {
     webPreferences: { partition: `madcad-large-projects-${Date.now()}` },
   });
   window.setContentSize(1440, 837);
+  window.webContents.on('console-message', (event, legacyLevel, legacyMessage) => {
+    const level = event?.level ?? legacyLevel;
+    const message = event?.message ?? legacyMessage;
+    if (level === 'error' || level === 3) process.stderr.write(`[renderer] ${String(message).slice(0, 400)}\n`);
+  });
 
   try {
     await fs.mkdir(path.dirname(screenshotPath), { recursive: true });
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
     await waitFor(window, `document.querySelector('.modeling-shell') && typeof window.__madcadVerifyLoadLargeHistoryFixture === 'function'`, 'gotowy interfejs dużych projektów');
-    await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
-    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadLargeHistoryFixture(220)`);
+    await executeSetup(window, `document.querySelector('.license-info-dialog button.confirm')?.click()`, 'zamknięcie okna licencji');
+    await executeSetup(window, `window.__madcadVerifyLoadLargeHistoryFixture(220)`, 'fixture dużej historii');
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.features === 220 && window.__madcadVerifyEngineState?.timeline?.length === 220 && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'przebudowany projekt z 220 operacjami');
     const initialMemory = rendererMemory(window);
 
     const beforeCancel = await window.webContents.executeJavaScript(`({ revision: window.__madcadVerifyEngineState.revision, canceled: window.__madcadVerifyEngineState.canceledRevisions, volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume })`);
     await window.webContents.executeJavaScript(`window.__madcadVerifyUpdateLargeHistory(2, 10)`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'computing' && window.__madcadVerifyEngineState?.revision > ${beforeCancel.revision} && [...document.querySelectorAll('.engine-status button')].some((button) => button.textContent.includes('Anuluj przeliczanie'))`, 'trwająca przebudowa z przyciskiem anulowania', 5);
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.engine-status button')].find((button) => button.textContent.includes('Anuluj przeliczanie')).click()`);
+    // Find and click the cancel button in one renderer task: on fast runners the rebuild can finish
+    // between a separate presence check and the click, leaving nothing to click.
+    await waitFor(window, `(() => {
+      const button = [...document.querySelectorAll('.engine-status button')].find((item) => item.textContent.includes('Anuluj przeliczanie'));
+      if (window.__madcadVerifyEngineState?.status !== 'computing' || !(window.__madcadVerifyEngineState?.revision > ${beforeCancel.revision}) || !button) return false;
+      button.click();
+      return true;
+    })()`, 'trwająca przebudowa anulowana przyciskiem', 5);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'canceled' && window.__madcadVerifyEngineState?.bodies?.length === 1 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - ${beforeCancel.volume}) < 1e-6 && window.__madcadVerifyDocumentState?.featureData?.[2]?.x === '10'`, 'anulowanie zachowało ostatni poprawny model');
     await waitFor(window, `window.__madcadVerifyEngineState?.canceledRevisions > ${beforeCancel.canceled}`, 'worker potwierdził przerwanie obliczeń');
     const canceledRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);

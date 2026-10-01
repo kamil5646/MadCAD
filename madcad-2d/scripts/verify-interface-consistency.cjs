@@ -167,7 +167,7 @@ app.whenReady().then(async () => {
         importNotDuplicatedInRibbon: !document.querySelector('.modeling-ribbon [data-tool-label="Import 3D"]'),
       };
     })()`);
-    const expectedHeadings = ['PROJEKT', 'IMPORT', 'EKSPORT MODELU', 'RYSUNEK TECHNICZNY', 'DRUK 3D'];
+    const expectedHeadings = ['PROJEKT', 'IMPORT', 'EKSPORT MODELU', 'EKSPORT SZKICU', 'RYSUNEK TECHNICZNY', 'DRUK 3D'];
     if (fileMenu.headings.join('|') !== expectedHeadings.join('|') || fileMenu.requiredActions.some((item) => !item.available) || !fileMenu.leftAligned || !fileMenu.insideWindow || !fileMenu.readableWidth || !fileMenu.compactRows || !fileMenu.legacyLayoutsRemoved || !fileMenu.fileTabsRemoved || !fileMenu.importNotDuplicatedInRibbon) throw new Error(`Menu Plik nie porządkuje operacji wejścia i wyjścia: ${JSON.stringify(fileMenu)}`);
     const fileMenuCapture = (await window.webContents.capturePage()).toPNG();
     await fs.writeFile(fileMenuScreenshotPath, fileMenuCapture);
