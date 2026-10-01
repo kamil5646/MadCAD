@@ -8,6 +8,7 @@
   },
   "fixtures": [
     { "file": "autocad-2013-rectangle.dxf", "format": "dxf", "producerProfile": "AutoCAD 2013 / AC1027", "expectedCurves": 5, "expectedProfiles": 1 },
+    { "file": "libredwg-r2000-sample.dxf", "format": "dxf", "producerProfile": "LibreDWG 0.13 dwgadd -> DWG r2000 -> dwg2dxf (verbose AcDb output with tables, blocks and handles)", "expectedCurves": 9, "expectedProfiles": 1 },
     { "file": "fusion-sketch-mm.dxf", "format": "dxf", "producerProfile": "Autodesk Fusion sketch DXF", "expectedCurves": 4, "expectedProfiles": 1 },
     { "file": "freecad-step-envelope.step", "format": "step", "producerProfile": "FreeCAD / OpenCascade STEP envelope", "expectedImportMode": "brep" },
     { "file": "slicer-tetrahedron-ascii.stl", "format": "stl", "producerProfile": "PrusaSlicer, Cura and Bambu Studio ASCII STL compatibility", "expectedImportMode": "mesh", "expectedTriangles": 4 },
