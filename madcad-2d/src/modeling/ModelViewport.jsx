@@ -881,6 +881,11 @@ export default function ModelViewport({
     };
   }, []);
 
+  // The workspace passes a fresh array on every render; key the scene rebuild on the
+  // selected ids themselves so unrelated re-renders do not recreate the scene mid-drag.
+  const selectedSketchEntityKey = (selectedSketchEntityIds || []).join('|');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const sceneSelectedSketchEntityIds = useMemo(() => selectedSketchEntityIds || [], [selectedSketchEntityKey]);
   useEffect(() => {
     const host = hostRef.current;
     const renderer = rendererRef.current;
@@ -1962,7 +1967,7 @@ export default function ModelViewport({
         frame: activeFrame,
       });
       sketchRender = addSketchEntities(sketchGroup, activeSketch, parameters, activePlane, {
-        selectedIds: selectedSketchEntityIds,
+        selectedIds: sceneSelectedSketchEntityIds,
         errorIds: lostProjectedEntityIds,
         showPoints: showSketchPoints,
         showConstruction: showConstructionGeometry,
@@ -2639,8 +2644,8 @@ export default function ModelViewport({
         try { renderer.domElement.setPointerCapture?.(event.pointerId); } catch { /* Pointer capture is optional in synthetic tests. */ }
         if (hit) {
           const hitId = hit.object.userData.sketchEntityId;
-          const existing = selectedSketchEntityIds.includes(hitId) && !event.ctrlKey && !event.shiftKey;
-          const entityIds = existing ? [...selectedSketchEntityIds] : [hitId];
+          const existing = sceneSelectedSketchEntityIds.includes(hitId) && !event.ctrlKey && !event.shiftKey;
+          const entityIds = existing ? [...sceneSelectedSketchEntityIds] : [hitId];
           sketchInteraction.drag = {
             hitId,
             entityIds,
@@ -3036,7 +3041,7 @@ export default function ModelViewport({
         setSnapFeedback(null);
         renderer.domElement.style.cursor = 'crosshair';
         if (finished.moved && (Math.abs(finished.dx) > 1e-9 || Math.abs(finished.dy) > 1e-9)) {
-          if (!selectedSketchEntityIds.includes(finished.hitId)) sketchSelectionRef.current?.(finished.entityIds, finished.mode);
+          if (!sceneSelectedSketchEntityIds.includes(finished.hitId)) sketchSelectionRef.current?.(finished.entityIds, finished.mode);
           sketchMoveRef.current?.({ ids: finished.entityIds, dx: finished.dx, dy: finished.dy });
         } else {
           sketchRender?.update();
@@ -3349,7 +3354,7 @@ export default function ModelViewport({
     };
   // Scalar projections intentionally keep the expensive Three.js scene lifecycle stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeFrame, activeUsesFrame, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, selectedProfileFrame, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, selectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, beamFeaVisualization, solidFeaVisualization, manufacturingVisualization, printRiskAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
+  }, [bodies, components, componentInstances, selectedComponentInstanceId, joints, selectedJointId, collisionInstanceIds, exactCollisionInstanceIds, explodeAmount, animationInstanceOffsets, animationInstanceRotations, animationJointValues, selectedBodySet, selectedTopologySet, selectionFilter, planeSelectionMode, constructionPlanes, constructionAxes, constructionPoints, selectedConstructionId, selectedConstructionAxisId, selectedConstructionPointId, bed, showBed, showGrid, view, standardViewRequestId, activeSketchId, activePlane, activeFrame, activeUsesFrame, activeSketch, referenceSketches, visibleSketch, draftProfile, draftType, sketchTool, polylineDraft, parameters, layers, directEnabled, selectedProfile?.id, selectedProfilePlane, selectedProfilePlaneOffset, selectedProfileFrame, directManipulator?.kind, directManipulator?.origin?.join(','), navigationMode, zoomScale, sceneSelectedSketchEntityIds, lostProjectedEntityIds, showSketchPoints, showSketchProfiles, showSketchConstraints, showSketchDimensions, showConstructionGeometry, showProjectedGeometry, sliceModel, sectionAnalysis?.enabled, sectionAnalysis?.plane, sectionAnalysis?.offset, sectionAnalysis?.flip, draftAnalysis, surfaceAnalysis?.enabled, surfaceAnalysis?.mode, surfaceAnalysis?.bands, surfaceAnalysis?.curvatureMax, surfaceAnalysis?.combScale, surfaceAnalysis?.isocurveAxis, surfaceAnalysis?.isocurveSpacing, surfaceAnalysis?.showEdges, beamFeaVisualization, solidFeaVisualization, manufacturingVisualization, printRiskAnalysis, snapThresholdPx, sketchModifierMode, freedomDiagnostics.affectedPointIds, fitRequest?.requestId, activeCommand?.type, activeCommand?.previewFeature?.id, activeCommand?.selectedControlKind, activeCommand?.selectedControlPoint, activeCommand?.selectedControlEdge, activeCommand?.selectedControlFace, renderScene]);
 
   useEffect(() => {
     if (!cameraRequest?.requestId || cameraRequest.requestId === lastCameraRequestIdRef.current || !cameraApiRef.current) return;

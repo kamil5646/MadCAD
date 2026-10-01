@@ -1,4 +1,5 @@
 import { createSketchArc, createSketchCircleEntity, createSketchEntity, createSketchLine, createSketchPoint } from './sketch-model.js';
+import { ACI_UI_COLORS as ACI_COLORS } from './aci-colors.js';
 import { refreshDetectedSketchProfiles } from './sketch-topology.js';
 
 export const SKETCH_IMPORT_UNITS = Object.freeze({
@@ -31,6 +32,11 @@ function number(value, label) {
 function builder(scale, flipY = false, diagnostics = []) {
   const entities = [];
   const points = new Map();
+  let currentLayer = null;
+  const addCurve = (entity) => {
+    if (currentLayer) entity.layerName = currentLayer;
+    entities.push(entity);
+  };
   const coordinate = ([x, y]) => [number(x, 'X') * scale, number(y, 'Y') * scale * (flipY ? -1 : 1)];
   const point = (raw) => {
     const [x, y] = coordinate(raw);
@@ -43,6 +49,7 @@ function builder(scale, flipY = false, diagnostics = []) {
   };
   return {
     entities,
+    setLayer(name) { currentLayer = name || null; },
     line(start, end) {
       const first = point(start);
       const last = point(end);
@@ -50,11 +57,11 @@ function builder(scale, flipY = false, diagnostics = []) {
         diagnostics.push({ code: 'ZERO_LENGTH_SKIPPED', status: 'skipped', message: 'Pominięto odcinek o zerowej długości.' });
         return;
       }
-      entities.push(createSketchLine({ startPointId: first.id, endPointId: last.id }));
+      addCurve(createSketchLine({ startPointId: first.id, endPointId: last.id }));
     },
     circle(center, radius) {
       const centerPoint = point(center);
-      entities.push(createSketchCircleEntity({ centerPointId: centerPoint.id, radius: number(radius, 'promienia') * scale }));
+      addCurve(createSketchCircleEntity({ centerPointId: centerPoint.id, radius: number(radius, 'promienia') * scale }));
     },
     arc(center, radius, startAngle, endAngle) {
       const radians = (degrees) => number(degrees, 'kąta') * Math.PI / 180;
@@ -65,11 +72,11 @@ function builder(scale, flipY = false, diagnostics = []) {
       const centerPoint = point([centerValue[0] / scale, centerValue[1] / scale * (flipY ? -1 : 1)]);
       const startPoint = point([start[0] / scale, start[1] / scale * (flipY ? -1 : 1)]);
       const endPoint = point([end[0] / scale, end[1] / scale * (flipY ? -1 : 1)]);
-      entities.push(createSketchArc({ centerPointId: centerPoint.id, startPointId: startPoint.id, endPointId: endPoint.id, direction: flipY ? 'cw' : 'ccw' }));
+      addCurve(createSketchArc({ centerPointId: centerPoint.id, startPointId: startPoint.id, endPointId: endPoint.id, direction: flipY ? 'cw' : 'ccw' }));
     },
     ellipse(center, majorRadius, minorRadius, rotationDegrees) {
       const centerPoint = point(center);
-      entities.push(createSketchEntity('ellipse', {
+      addCurve(createSketchEntity('ellipse', {
         pointIds: [centerPoint.id],
         geometry: { majorRadius: String(majorRadius * scale), minorRadius: String(minorRadius * scale), rotation: String(rotationDegrees) },
         expressionKeys: ['majorRadius', 'minorRadius', 'rotation'],
@@ -86,7 +93,7 @@ function builder(scale, flipY = false, diagnostics = []) {
       const centerPoint = point(center);
       const startPoint = point(onEllipse(startDegrees));
       const endPoint = point(onEllipse(endDegrees));
-      entities.push(createSketchEntity('ellipticalArc', {
+      addCurve(createSketchEntity('ellipticalArc', {
         pointIds: [centerPoint.id, startPoint.id, endPoint.id],
         geometry: { majorRadius: String(majorRadius * scale), minorRadius: String(minorRadius * scale), rotation: String(rotationDegrees), startAngle: String(startDegrees), endAngle: String(endDegrees), direction: 'ccw' },
         expressionKeys: ['majorRadius', 'minorRadius', 'rotation', 'startAngle', 'endAngle'],
@@ -95,7 +102,7 @@ function builder(scale, flipY = false, diagnostics = []) {
     spline(coordinates, mode = 'fit') {
       const splinePoints = coordinates.map(point);
       if (new Set(splinePoints.map((entry) => entry.id)).size < 2) return;
-      entities.push(createSketchEntity('spline', { pointIds: splinePoints.map((entry) => entry.id), geometry: { mode, closed: false }, expressionKeys: [] }));
+      addCurve(createSketchEntity('spline', { pointIds: splinePoints.map((entry) => entry.id), geometry: { mode, closed: false }, expressionKeys: [] }));
     },
   };
 }
@@ -425,13 +432,29 @@ function dxfBlocks(sections) {
   return blocks;
 }
 
-function hiddenDxfLayers(sections) {
+const DXF_LINE_TYPES = Object.freeze([[/^(dashdot|dash_dot|dashdotdot)/i, 'dashdot'], [/^(center|axis)/i, 'center'], [/^(dash|hidden|phantom)/i, 'dashed']]);
+const LAYER_LINE_WEIGHTS = [0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1];
+
+function dxfLayerTable(sections) {
   const hidden = new Set();
+  const definitions = new Map();
   for (const entity of groupEntities(sections.get('TABLES'))) {
     if (entity.type !== 'LAYER') continue;
-    if ((num(entity.pairs, 70, 0) & 1) || num(entity.pairs, 62, 1) < 0) hidden.add(first(entity.pairs, 2, ''));
+    const name = first(entity.pairs, 2, '');
+    const flags = num(entity.pairs, 70, 0);
+    const color = num(entity.pairs, 62, 7);
+    if ((flags & 1) || color < 0) hidden.add(name);
+    const lineTypeName = String(first(entity.pairs, 6, 'CONTINUOUS'));
+    const weight = num(entity.pairs, 370, -3) / 100;
+    definitions.set(name, {
+      name,
+      color: ACI_COLORS[Math.abs(color)] || undefined,
+      lineType: DXF_LINE_TYPES.find(([pattern]) => pattern.test(lineTypeName))?.[1] || 'continuous',
+      lineWeight: weight > 0 ? LAYER_LINE_WEIGHTS.reduce((best, candidate) => (Math.abs(candidate - weight) < Math.abs(best - weight) ? candidate : best)) : undefined,
+      locked: Boolean(flags & 4),
+    });
   }
-  return hidden;
+  return { hidden, definitions };
 }
 
 const MAX_DXF_INSERT_DEPTH = 8;
@@ -440,16 +463,22 @@ const MAX_DXF_INSERT_COPIES = 2000;
 function parseDxf(pairs, target, diagnostics) {
   const sections = splitDxfSections(pairs);
   const blocks = dxfBlocks(sections);
-  const hiddenLayers = hiddenDxfLayers(sections);
+  const { hidden: hiddenLayers, definitions: layerDefinitions } = dxfLayerTable(sections);
+  const usedLayers = new Map();
   const skipped = new Map();
   const invalid = new Map();
   const hidden = new Map();
   let insertCopies = 0;
   const count = (map, type) => map.set(type, (map.get(type) || 0) + 1);
 
-  const emit = (entity, m, depth) => {
+  const emit = (entity, m, depth, inheritedLayer = '0') => {
     const values = entity.pairs;
-    if (hiddenLayers.has(first(values, 8, '0'))) { count(hidden, entity.type); return; }
+    // Entities on layer 0 inside a block take the layer of the INSERT, as in AutoCAD.
+    const ownLayer = first(values, 8, '0');
+    const layer = ownLayer === '0' ? inheritedLayer : ownLayer;
+    if (hiddenLayers.has(layer)) { count(hidden, entity.type); return; }
+    target.setLayer?.(layer === '0' ? null : layer);
+    if (layer !== '0' && entity.type !== 'INSERT') usedLayers.set(layer, layerDefinitions.get(layer) || { name: layer });
     try {
       if (entity.type === 'LINE') target.line(applyMatrix(m, [num(values, 10), num(values, 20)]), applyMatrix(m, [num(values, 11), num(values, 21)]));
       else if (entity.type === 'CIRCLE') emitCircle(target, diagnostics, [num(values, 10), num(values, 20)], num(values, 40), ocsMatrix(values, m));
@@ -483,7 +512,7 @@ function parseDxf(pairs, target, diagnostics) {
             const origin = [position[0] + dx * cos - dy * sin, position[1] + dx * sin + dy * cos];
             const local = insertMatrix(origin, num(values, 41, 1), num(values, 42, num(values, 41, 1)), rotation, block.base);
             const blockMatrix = multiplyMatrix(placementMatrix, local);
-            for (const child of block.entities) emit(child, blockMatrix, depth + 1);
+            for (const child of block.entities) emit(child, blockMatrix, depth + 1, layer);
           }
         }
       } else count(skipped, entity.type);
@@ -493,9 +522,11 @@ function parseDxf(pairs, target, diagnostics) {
   };
 
   for (const entity of nestPolylines(groupEntities(sections.get('ENTITIES')))) emit(entity, IDENTITY, 0);
+  target.setLayer?.(null);
   for (const [type, total] of skipped) diagnostics.push({ code: 'DXF_ENTITY_UNSUPPORTED', status: 'skipped', message: `Pominięto nieobsługiwane encje DXF typu ${type}: ${total}.` });
   for (const [reason, total] of invalid) diagnostics.push({ code: 'DXF_ENTITY_INVALID', status: 'skipped', message: `Pominięto uszkodzone encje DXF (${reason}): ${total}.` });
   for (const [type, total] of hidden) diagnostics.push({ code: 'DXF_LAYER_HIDDEN', status: 'skipped', message: `Pominięto encje ${type} z wyłączonych lub zamrożonych warstw: ${total}.` });
+  return [...usedLayers.values()];
 }
 
 function repairReport(diagnostics, curveCount, profileCount) {
@@ -536,8 +567,9 @@ export function parseSketchImport(text, format, options = {}) {
   if (!scale) throw new Error('Nieobsługiwana jednostka importu szkicu.');
   const diagnostics = [];
   const target = builder(scale, inspected.format === 'svg', diagnostics);
+  let layers = [];
   if (inspected.format === 'svg') parseSvg(text, target, diagnostics);
-  else parseDxf(dxfPairs(text), target, diagnostics);
+  else layers = parseDxf(dxfPairs(text), target, diagnostics);
   const curves = target.entities.filter((entity) => entity.type !== 'point');
   if (!curves.length) throw new Error('Plik nie zawiera obsługiwanej geometrii szkicu.');
   const sketch = { entities: target.entities, profiles: [], constraints: [], dimensions: [] };
@@ -549,6 +581,7 @@ export function parseSketchImport(text, format, options = {}) {
     sourceUnit,
     scale,
     entities: sketch.entities,
+    layers: layers.filter((layer) => sketch.entities.some((entity) => entity.layerName === layer.name)),
     profiles: sketch.profiles,
     diagnostics: combinedDiagnostics,
     repairReport: repairReport(combinedDiagnostics, curves.length, sketch.profiles.length),
