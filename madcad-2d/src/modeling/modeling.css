@@ -982,9 +982,12 @@
 }
 
 .ribbon-tool-submenu > button:disabled {
-  opacity: 0.7;
   cursor: default;
 }
+/* Unavailable items read as such at a glance, while the reason stays legible. */
+.ribbon-tool-submenu > button:disabled > span:first-child { color: #6f7c88; filter: grayscale(1); }
+.ribbon-tool-submenu > button:disabled strong { color: #9aa6b1; font-weight: 600; }
+.ribbon-tool-submenu > button:disabled small { color: #8f9ba6; font-style: italic; }
 
 .ribbon-tool-submenu > button > span:first-child {
   display: grid;
