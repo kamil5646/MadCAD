@@ -122,7 +122,7 @@ import { applySketchConstraintSolution, solveSketchConstraints, SKETCH_SOLVER_ST
 import { evaluateExpression, resolveParameters } from '../cad-core/expressions.js';
 import { resolveOpenChainProfile } from '../cad-core/evaluator.js';
 import { useCadEngine } from '../cad-core/useCadEngine.js';
-import { createTopologyReference, inspectTopologyReferences, reassignTopologyReference } from '../cad-core/topology-references.js';
+import { createTopologyReference, inspectTopologyReferences, rebindMovedFaceSupportReferences, reassignTopologyReference } from '../cad-core/topology-references.js';
 import { moveTrackedFaceSketchSupports, placeSketchesOnReassignedFace } from '../cad-core/face-sketch-support.js';
 import { createAnglePlane, createMidplane, createOffsetPlane, createPathPlane, createTangentPlane, createThreePointPlane, resolveConstructionPlane, resolveConstructionPlanes } from '../cad-core/construction-planes.js';
 import { frameFromNormal, normalizeSketchFrame } from '../cad-core/sketch-frame.js';
@@ -2442,6 +2442,13 @@ export default function ModelingWorkspace() {
   }, [document, actualBodies, command?.previewFeature, engine.status, engine.evaluatedDocument, history, readOnly]);
 
   useEffect(() => {
+    if (readOnly || command?.previewFeature || engine.status !== 'ready' || engine.evaluatedDocument !== document) return;
+    const probe = cloneDocument(document);
+    if (!rebindMovedFaceSupportReferences(probe, actualBodies).length) return;
+    history.synchronize((next) => rebindMovedFaceSupportReferences(next, actualBodies));
+  }, [document, actualBodies, command?.previewFeature, engine.status, engine.evaluatedDocument, history, readOnly]);
+
+  useEffect(() => {
     if (readOnly || engine.status !== 'ready' || engine.evaluatedDocument !== document) return;
     const updates = (engine.surfaceProjectionUpdates || []).filter((update) => update.descriptor);
     if (!updates.length) return;
@@ -3872,9 +3879,21 @@ export default function ModelingWorkspace() {
         setNotice('Odcinek nie ma poprawnych punktów końcowych.');
         return;
       }
-      const [first, second] = points.map((point) => point.geometry);
-      const dx = Number(second.x) - Number(first.x);
-      const dy = Number(second.y) - Number(first.y);
+      const resolved = resolveParameters(document.parameters);
+      if (!resolved.valid) {
+        setNotice('Nie można odczytać wymiaru, dopóki parametry dokumentu zawierają błędy.');
+        return;
+      }
+      const [first, second] = points.map((point) => ({
+        x: evaluateExpression(point.geometry.x, resolved.values),
+        y: evaluateExpression(point.geometry.y, resolved.values),
+      }));
+      const dx = second.x - first.x;
+      const dy = second.y - first.y;
+      if (![dx, dy].every(Number.isFinite)) {
+        setNotice('Nie można odczytać bieżącego wymiaru. Sprawdź współrzędne zaznaczonych punktów.');
+        return;
+      }
       value = String(dimensionType === 'horizontal' ? dx : dimensionType === 'vertical' ? dy : Math.hypot(dx, dy));
     }
     if (dimensionType === 'arcLength') {

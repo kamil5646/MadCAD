@@ -135,6 +135,35 @@ export function inspectTopologyReferences(document, bodies) {
   });
 }
 
+// Face-supported sketches are moved together with their source feature before
+// the kernel rebuilds the model, so the face they sit on gets a new persistent
+// ID. Rebind such a reference to the rebuilt face when exactly one coplanar
+// candidate sits where the tracked descriptor says it should be; anything
+// ambiguous stays lost and goes through the repair workflow.
+export function rebindMovedFaceSupportReferences(document, bodies) {
+  const supportIds = new Set((document?.sketches || []).filter((sketch) => sketch.support?.kind === 'face')
+    .map((sketch) => sketch.support.referenceId));
+  if (!supportIds.size) return [];
+  const rebound = [];
+  for (const state of inspectTopologyReferences(document, bodies)) {
+    const { reference } = state;
+    if (state.status !== 'lost' || state.resolvedRecord || reference.topologyKind !== 'face'
+      || !supportIds.has(reference.id) || !state.candidates.some((candidate) => candidate.bodyId === reference.bodyId)) continue;
+    const claimed = new Set(document.references
+      .filter((other) => other.id !== reference.id && other.kind === TOPOLOGY_REFERENCE_KIND && other.bodyId === reference.bodyId)
+      .map((other) => other.topologyId));
+    const matches = state.candidates.filter((candidate) => candidate.bodyId === reference.bodyId
+      && candidate.descriptor?.geometry === 'PLANE' && reference.descriptor?.geometry === 'PLANE'
+      && !claimed.has(candidate.id) && !facePlaneDrift(reference.descriptor, candidate.descriptor)
+      && candidate.distance < 1e-3);
+    if (matches.length !== 1) continue;
+    reference.topologyId = matches[0].id;
+    reference.descriptor = structuredClone(matches[0].descriptor);
+    rebound.push(reference.id);
+  }
+  return rebound;
+}
+
 export function reassignTopologyReference(reference, selection, descriptor = null) {
   if (!reference || reference.kind !== TOPOLOGY_REFERENCE_KIND) throw new Error('Nieprawidłowa referencja topologii.');
   if (!selection || selection.kind !== reference.topologyKind || !selection.id || !selection.bodyId) {

@@ -243,11 +243,13 @@ app.whenReady().then(async () => {
     const dependentRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
     await window.webContents.executeJavaScript(`document.querySelector('.command-dialog .confirm')?.click()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${dependentRevision} && window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.timeline?.[1]?.status === 'ok' && Number(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset) > 19.9 && window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume > 23000`, 'szkic i wycięcie śledzą zmianę pierwszej bryły', 30000);
+    await waitFor(window, `!document.querySelector('.reference-repair-panel')`, 'podpora szkicu podąża za ścianą bez kreatora naprawy', 30000);
     result.faceSketch.rebuiltVolume = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.bodies[0].metrics.volume`);
     await window.webContents.executeJavaScript(`document.querySelector('#undoProjectBtn')?.click()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && Number(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset) === 15 && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${result.faceSketch.volume}) < 0.01`, 'Cofnij operację nadrzędną i położenie szkicu', 30000);
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn')?.click()`);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && Number(window.__madcadVerifyDocumentState?.sketches?.[1]?.planeOffset) === 20 && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${result.faceSketch.rebuiltVolume}) < 0.01`, 'Ponów operację nadrzędną i położenie szkicu', 30000);
+    await waitFor(window, `!document.querySelector('.reference-repair-panel')`, 'Ponów nie otwiera kreatora naprawy podpory', 30000);
     result.faceSketch.undoRedo = true;
     await window.webContents.executeJavaScript(`document.querySelector('#saveProjectBtn')?.click()`);
     await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('Zapisano projekt atomowo:')`, 'zapis projektu z drugim szkicem');
@@ -343,6 +345,7 @@ app.whenReady().then(async () => {
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready'
       && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - ${angledAfter.volume}) < 0.01
       && Math.abs(window.__madcadVerifyDocumentState?.sketches?.[1]?.frame?.origin?.[2] - ${angledAfter.origin[2]}) < 0.01`, 'Ponów przesunięcie skośnej podpory', 30000);
+    await waitFor(window, `!document.querySelector('.reference-repair-panel')`, 'skośna podpora bez kreatora naprawy po Ponów', 30000);
     await window.webContents.executeJavaScript(`document.querySelector('#saveProjectBtn')?.click()`);
     await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('Zapisano projekt atomowo:')`, 'zapis skośnej bryły');
     const savedAngledProject = JSON.parse(await fs.readFile(projectPath, 'utf8'));
