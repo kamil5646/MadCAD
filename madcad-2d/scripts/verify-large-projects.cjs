@@ -77,8 +77,14 @@ app.whenReady().then(async () => {
 
     const beforeCancel = await window.webContents.executeJavaScript(`({ revision: window.__madcadVerifyEngineState.revision, canceled: window.__madcadVerifyEngineState.canceledRevisions, volume: window.__madcadVerifyEngineState.bodies[0].metrics.volume })`);
     await window.webContents.executeJavaScript(`window.__madcadVerifyUpdateLargeHistory(2, 10)`);
-    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'computing' && window.__madcadVerifyEngineState?.revision > ${beforeCancel.revision} && [...document.querySelectorAll('.engine-status button')].some((button) => button.textContent.includes('Anuluj przeliczanie'))`, 'trwająca przebudowa z przyciskiem anulowania', 5);
-    await window.webContents.executeJavaScript(`[...document.querySelectorAll('.engine-status button')].find((button) => button.textContent.includes('Anuluj przeliczanie')).click()`);
+    // Find and click the cancel button in one renderer task: on fast runners the rebuild can finish
+    // between a separate presence check and the click, leaving nothing to click.
+    await waitFor(window, `(() => {
+      const button = [...document.querySelectorAll('.engine-status button')].find((item) => item.textContent.includes('Anuluj przeliczanie'));
+      if (window.__madcadVerifyEngineState?.status !== 'computing' || !(window.__madcadVerifyEngineState?.revision > ${beforeCancel.revision}) || !button) return false;
+      button.click();
+      return true;
+    })()`, 'trwająca przebudowa anulowana przyciskiem', 5);
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'canceled' && window.__madcadVerifyEngineState?.bodies?.length === 1 && Math.abs(window.__madcadVerifyEngineState.bodies[0].metrics.volume - ${beforeCancel.volume}) < 1e-6 && window.__madcadVerifyDocumentState?.featureData?.[2]?.x === '10'`, 'anulowanie zachowało ostatni poprawny model');
     await waitFor(window, `window.__madcadVerifyEngineState?.canceledRevisions > ${beforeCancel.canceled}`, 'worker potwierdził przerwanie obliczeń');
     const canceledRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
