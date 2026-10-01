@@ -968,6 +968,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `!document.querySelector('.command-dialog')`, 'Enter kończy polilinię');
 
   progress('open chain thin extrude');
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entityData?.some((entity) => entity.type === 'line')`, 'linia otwartego łańcucha w dokumencie');
   const openThinLineId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(openThinLineId)}], 'replace')`);
   await clickTool('Thin Extrude');
@@ -1524,6 +1525,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `!document.querySelector('.command-dialog')`, 'zakończona ścieżka Sweep');
   await clickTool('Zakończ szkic');
   const sweepPathSketchId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].id`);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entityData?.some((entity) => entity.type === 'line')`, 'linia ścieżki Sweep w dokumencie');
   const sweepPathEntityId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
   await clickTool('Utwórz szkic');
   await waitForUi(window, `document.querySelector('.plane-picker')`, 'wybór płaszczyzny profilu Sweep');
@@ -1635,6 +1637,7 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'otwarty profil Rib Web');
   await addSketchPoint([-8, 0], 1);
   await addSketchPoint([8, 0], 3);
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entityData?.some((entity) => entity.type === 'line')`, 'linia żebra w dokumencie');
   const ribLineId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(ribLineId)}], 'replace')`);
   await clickTool('Rib/Web');
@@ -1705,6 +1708,8 @@ async function runUiFlow(window) {
   await waitForUi(window, `document.querySelector('.command-dialog')?.textContent.includes('Linia')`, 'polecenie linii Pipe');
   await addSketchPoint([-10, 0], 1);
   await addSketchPoint([10, 0], 3);
+  // The line reaches the document state asynchronously; reading it right away raced on fast runners.
+  await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.[0]?.entityData?.some((entity) => entity.type === 'line')`, 'linia ścieżki Pipe w dokumencie');
   const pipePathId = await window.webContents.executeJavaScript(`window.__madcadVerifyDocumentState.sketches[0].entityData.find((entity) => entity.type === 'line').id`);
   await window.webContents.executeJavaScript(`window.__madcadVerifySketchSelection?.([${JSON.stringify(pipePathId)}], 'replace')`);
   await clickTool('Pipe');

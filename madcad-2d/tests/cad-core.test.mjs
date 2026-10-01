@@ -142,6 +142,8 @@ import {
   drawingSheetHtml,
   drawingSheetDxf,
   drawingSheetScene,
+  drawingPageDimensions,
+  ensureDocumentDrawings,
   projectDrawingView,
   recommendedDrawingScale,
   recommendedSketchDrawingScale,
@@ -6842,4 +6844,37 @@ test('import DXF ignoruje osierocone VERTEX powtórzone przez konwerter po SEQEN
   const imported = parseSketchImport(dxf, 'dxf');
   assert.equal(imported.curveCount, 3);
   assert.ok(!imported.repairReport.entries.some((entry) => /VERTEX/.test(entry.message)));
+});
+
+test('arkusze obsługują formaty A2-A0 oraz styl wymiarów z przecinkiem i wysokością tekstu', () => {
+  for (const [size, width, height] of [['A2', 594, 420], ['A1', 841, 594], ['A0', 1189, 841]]) {
+    const sheet = createDrawingSheet({ pageSize: size });
+    assert.equal(sheet.pageSize, size);
+    assert.deepEqual(drawingPageDimensions(sheet), { width, height });
+    assert.deepEqual(drawingPageDimensions({ ...sheet, orientation: 'portrait' }), { width: height, height: width });
+  }
+  const sheet = createDrawingSheet({ pageSize: 'A3' });
+  assert.deepEqual(sheet.dimensionStyle, { decimalSeparator: '.', textHeight: 3.5 });
+  const body = { id: 'b1', name: 'Płyta', bounds: [[0, 0, 0], [12.5, 8.25, 3]], mesh: { positions: [], indices: [] } };
+  const view = createBaseDrawingView({ bodyIds: ['b1'], orientation: 'front', scale: 1, sheet });
+  sheet.views.push(view);
+  sheet.annotations.push(createLinearDrawingDimension({ viewId: view.id, axis: 'horizontal', precision: 2, toleranceMode: 'symmetric', upperTolerance: 0.05 }));
+  const dot = drawingSheetScene(sheet, [body]).annotations.find((item) => item.type === 'linear-dimension');
+  assert.ok(dot.text.includes('.'));
+  sheet.dimensionStyle = { decimalSeparator: ',', textHeight: 5 };
+  const comma = drawingSheetScene(sheet, [body]).annotations.find((item) => item.type === 'linear-dimension');
+  assert.match(comma.text, /^\d+,\d{2} ±0,05$/);
+  assert.equal(comma.textHeight, 5);
+  const html = drawingSheetHtml(sheet, [body]);
+  assert.match(html, /@page\{size:420mm 297mm/);
+  assert.match(html, /font-size:5px/);
+  const dxf = drawingSheetDxf(sheet, [body]);
+  assert.match(dxf, /\n40\n5\n1\n\d+,\d{2} %%p0,05/); // AutoCAD writes ± as %%p
+});
+
+test('stare arkusze bez stylu wymiarów dostają domyślny styl, a błędne wartości są poprawiane', () => {
+  const document = { drawings: [{ id: 's', name: 'Stary', pageSize: 'A4', orientation: 'landscape', views: [], annotations: [] }, { id: 't', name: 'Zły', views: [], annotations: [], dimensionStyle: { decimalSeparator: ';', textHeight: 9 } }] };
+  ensureDocumentDrawings(document);
+  assert.deepEqual(document.drawings[0].dimensionStyle, { decimalSeparator: '.', textHeight: 3.5 });
+  assert.deepEqual(document.drawings[1].dimensionStyle, { decimalSeparator: '.', textHeight: 3.5 });
 });

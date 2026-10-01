@@ -1,5 +1,12 @@
 # Changelog
 
+## 6.5.27 (2026-10-02)
+
+- arkusze 2D w formatach A2, A1 i A0; wydruk PDF w dokładnym rozmiarze strony w mm;
+- styl wymiarów arkusza: kropka albo przecinek dziesiętny (PN-EN ISO 129) i wysokość tekstu 2,5/3,5/5 mm (ISO 3098) na ekranie, w PDF i w DXF; starsze arkusze dostają styl domyślny;
+- README opisuje wyszukiwanie poleceń, więzy oraz import i eksport DXF;
+- stabilniejsze testy desktopowe (oczekiwanie na geometrię szkicu przed odczytem).
+
 ## 6.5.26 (2026-10-01)
 
 - import DXF znacznie wierniejszy: łuki bulge jako prawdziwe łuki, klasyczne POLYLINE, ELLIPSE i SPLINE jako natywne krzywe, bloki INSERT (przesunięcie, obrót, skala, odbicie, zagnieżdżenia, MINSERT), kierunek wyciągnięcia −Z, pełna tabela jednostek $INSUNITS, pomijanie wyłączonych i zamrożonych warstw, raport pogrupowany według typu encji;

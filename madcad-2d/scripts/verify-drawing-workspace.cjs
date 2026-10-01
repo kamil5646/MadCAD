@@ -120,6 +120,16 @@ app.whenReady().then(async () => {
     }
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.annotations?.length === 8 && document.querySelectorAll('.drawing-user-annotation').length === 8 && document.querySelector('.drawing-feature-control-frame rect') && document.querySelector('.drawing-balloon circle')`, 'skojarzone adnotacje rysunkowe, GD&T i balon pozycji');
 
+    // Dimension style: decimal comma and larger lettering apply to the rendered dimensions.
+    await window.webContents.executeJavaScript(`(() => {
+      const set = (selector, value) => { const select = document.querySelector(selector); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, value); select.dispatchEvent(new Event('change', { bubbles: true })); };
+      set('[data-dimension-decimal]', ',');
+      set('[data-dimension-text-height]', '5');
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.dimensionStyle?.decimalSeparator === ',' && [...document.querySelectorAll('.drawing-linear-dimension text')].some((item) => /\\d,\\d/.test(item.textContent) && item.style.fontSize === '5px')`, 'styl wymiarów z przecinkiem i tekstem 5 mm');
+    await window.webContents.executeJavaScript(`(() => { const select = document.querySelector('[data-dimension-decimal]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, '.'); select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.dimensionStyle?.decimalSeparator === '.'`, 'powrót do kropki dziesiętnej');
+
     await window.webContents.executeJavaScript(`document.querySelectorAll('.drawing-view')[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
     if (!(await clickText(window, '.ribbon-tool', 'BOM'))) throw new Error('Brak polecenia BOM.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.drawings?.[0]?.tables?.length === 1 && document.querySelector('.drawing-table-bom')`, 'automatyczne zestawienie części');
