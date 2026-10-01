@@ -13,7 +13,7 @@ async function waitFor(window, expression, label, timeoutMs = 20000) {
     if (await window.webContents.executeJavaScript(`Boolean(${expression})`)) return;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  const state = await window.webContents.executeJavaScript(`({ status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision, command: window.__madcadVerifyDocumentState?.command, notice: document.querySelector('.workspace-notice')?.textContent, sketches: window.__madcadVerifyDocumentState?.sketches?.map((sketch) => ({ id: sketch.id, support: sketch.support, planeOffset: sketch.planeOffset })), timeline: window.__madcadVerifyEngineState?.timeline, volumes: window.__madcadVerifyEngineState?.bodies?.map((body) => body.metrics.volume) })`);
+  const state = await window.webContents.executeJavaScript(`({ status: window.__madcadVerifyEngineState?.status, revision: window.__madcadVerifyEngineState?.revision, command: window.__madcadVerifyDocumentState?.command, notice: document.querySelector('.workspace-notice')?.textContent, sketches: window.__madcadVerifyDocumentState?.sketches?.map((sketch) => ({ id: sketch.id, support: sketch.support, planeOffset: sketch.planeOffset })), timeline: window.__madcadVerifyEngineState?.timeline, volumes: window.__madcadVerifyEngineState?.bodies?.map((body) => body.metrics.volume), references: window.__madcadVerifyDocumentState?.references?.filter((reference) => reference.kind === 'topology').map((reference) => ({ id: reference.id, topologyId: reference.topologyId, center: reference.descriptor?.center, normal: reference.descriptor?.normal })), faces: window.__madcadVerifyEngineState?.bodies?.flatMap((body) => body.topology?.faces?.filter((face) => face.descriptor?.geometry === 'PLANE').map((face) => ({ id: face.id, center: face.descriptor.center, normal: face.descriptor.normal }))) })`);
   throw new Error(`Nie osiagnieto stanu: ${label}. ${JSON.stringify(state)}`);
 }
 
@@ -663,7 +663,9 @@ app.whenReady().then(async () => {
     process.stderr.write(`${error.stack || error.message}\n`);
     exitCode = 1;
   } finally {
-    window.destroy();
+    // Do the awaited cleanup first and never destroy the last window before
+    // app.exit(): the default window-all-closed quit would win the race and
+    // report exit code 0 for a failed scenario.
     ipcMain.removeHandler('madcad:save-text-file');
     ipcMain.removeHandler('madcad:open-project-file');
     await fs.rm(projectDirectory, { recursive: true, force: true });

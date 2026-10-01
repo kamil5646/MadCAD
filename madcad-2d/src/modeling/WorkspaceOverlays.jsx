@@ -43,14 +43,30 @@ import { formatShortcut } from './platform-shortcuts.js';
 
 const PLANE_LABELS = { XY: 'Góra (XY)', XZ: 'Przód (XZ)', YZ: 'Prawo (YZ)' };
 
-export function CrashRecoveryBanner({ info, onSave, onOpenSnapshots, onDismiss }) {
+export const CRASH_RECOVERY_AUTO_DISMISS_MS = 20000;
+
+export function CrashRecoveryBanner({ info, onSave, onOpenSnapshots, onDismiss, autoDismiss = false }) {
+  const [paused, setPaused] = useState(false);
+  // The banner covers the ribbon/status area, so once the recovered model is
+  // ready (`autoDismiss`) it leaves by itself unless the user is reading it or
+  // has focus inside; the unsaved marker in the title bar keeps telling them the
+  // recovered project still needs saving.
+  const dismissRef = React.useRef(onDismiss);
+  dismissRef.current = onDismiss;
+  const canDismiss = Boolean(onDismiss) && autoDismiss;
+  const visible = Boolean(info);
+  useEffect(() => {
+    if (!visible || paused || !canDismiss) return undefined;
+    const timer = window.setTimeout(() => dismissRef.current?.(), CRASH_RECOVERY_AUTO_DISMISS_MS);
+    return () => window.clearTimeout(timer);
+  }, [visible, paused, canDismiss]);
   if (!info) return null;
   const parsedTime = Date.parse(info.updatedAt || '');
   const savedAt = Number.isFinite(parsedTime)
     ? new Date(parsedTime).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'medium' })
     : null;
   return (
-    <section className="crash-recovery-banner" role="alert" aria-label="Odzyskiwanie projektu po awarii">
+    <section className="crash-recovery-banner" role="alert" aria-label="Odzyskiwanie projektu po awarii" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
       <div>
         <strong>Odzyskano projekt po nieoczekiwanym zamknięciu MadCAD</strong>
         <span>{info.backup ? 'Użyto poprzedniej poprawnej kopii autozapisu' : 'Użyto ostatniego poprawnego autozapisu'}{savedAt ? ` · ${savedAt}` : ''}.</span>
@@ -309,7 +325,7 @@ export function ProjectSearchPalette({ index = [], language = 'pl', onNavigate, 
         <header><div><Search size={17} /><span><strong>IDŹ DO</strong><small>Wyszukaj nazwę albo typ obiektu</small></span></div><kbd>Ctrl/⌘ K</kbd><button type="button" aria-label="Zamknij wyszukiwanie projektu" title="Zamknij" onClick={onClose}><X size={15} /></button></header>
         <label className="project-search-input"><Search size={16} /><input ref={inputRef} data-project-search-input value={query} role="combobox" aria-controls="project-search-results" aria-expanded="true" aria-autocomplete="list" aria-activedescendant={results[activeIndex] ? `project-search-option-${activeIndex}` : undefined} placeholder="Parametr, szkic, operacja, komponent…" aria-label="Szukaj w projekcie" onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} onKeyDown={handleKeyDown} /><span>{results.length}</span></label>
         <div ref={resultsRef} id="project-search-results" className="project-search-results" role="listbox" aria-label="Wyniki wyszukiwania projektu">
-          {results.length ? results.map((item, resultIndex) => <button id={`project-search-option-${resultIndex}`} className={resultIndex === activeIndex ? 'active' : ''} type="button" role="option" aria-selected={resultIndex === activeIndex} data-project-search-position={resultIndex} data-project-search-result={item.id} data-project-search-kind={item.kind} key={item.id} onMouseEnter={() => setActiveIndex(resultIndex)} onClick={() => choose(item)}><span>{translateModelingText(kindLabels[item.kind] || item.kind, language)}</span><div><strong>{item.label}</strong>{item.secondary && <small>{item.secondary}</small>}</div><CornerDownLeft size={13} /></button>) : <div className="project-search-empty"><Search size={22} /><strong>Brak pasujących obiektów</strong><span>Spróbuj nazwy, typu albo numeru części.</span></div>}
+          {results.length ? results.map((item, resultIndex) => <button id={`project-search-option-${resultIndex}`} className={resultIndex === activeIndex ? 'active' : ''} type="button" role="option" aria-selected={resultIndex === activeIndex} data-project-search-position={resultIndex} data-project-search-result={item.id} data-project-search-kind={item.kind} key={item.id} onMouseEnter={() => setActiveIndex(resultIndex)} onClick={() => choose(item)}><span>{translateModelingText(kindLabels[item.kind] || item.kind, language)}</span><div><strong>{item.label}</strong>{item.secondary && <small>{translateModelingText(item.secondary, language)}</small>}</div><CornerDownLeft size={13} /></button>) : <div className="project-search-empty"><Search size={22} /><strong>Brak pasujących obiektów</strong><span>Spróbuj nazwy, typu albo numeru części.</span></div>}
         </div>
         <footer><span><kbd>↑</kbd><kbd>↓</kbd> wybór</span><span><kbd>Enter</kbd> przejdź</span><span><kbd>Esc</kbd> zamknij</span></footer>
       </section>

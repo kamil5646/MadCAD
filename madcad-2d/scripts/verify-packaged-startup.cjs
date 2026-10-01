@@ -59,6 +59,21 @@ async function preparePackage() {
   throw new Error('Podaj rodzaj pakietu mac, mac-dmg, windows albo windows-portable.');
 }
 
+// Chromium helper processes can keep the mounted image busy for a moment after the
+// app has stopped, so retry the detach and force it as the last resort.
+async function detachDiskImage(directory) {
+  const attempts = 5;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await execFileAsync('/usr/bin/hdiutil', ['detach', '-quiet', ...(attempt === attempts ? ['-force'] : []), directory], { timeout: 30000 });
+      return;
+    } catch (error) {
+      if (attempt === attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+    }
+  }
+}
+
 async function evaluate(targetUrl, expression) {
   const socket = new WebSocket(targetUrl);
   try {
@@ -171,7 +186,7 @@ async function removeTemporaryDirectory(directory) {
   } finally {
     await stop(child);
     await removeTemporaryDirectory(profile);
-    if (prepared.mounted) await execFileAsync('/usr/bin/hdiutil', ['detach', '-quiet', prepared.directory], { timeout: 30000 });
+    if (prepared.mounted) await detachDiskImage(prepared.directory);
     if (prepared.installed) {
       const uninstaller = path.join(prepared.directory, 'Uninstall MadCAD.exe');
       await fs.access(uninstaller);

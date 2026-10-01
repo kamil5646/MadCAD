@@ -1,3 +1,5 @@
+import { FEATURE_TYPE_NAMES } from './document.js';
+
 export const PROJECT_SEARCH_KINDS = Object.freeze(['parameter', 'sketch', 'feature', 'body', 'component', 'component-instance', 'drawing', 'linked-project', 'reference', 'document']);
 
 const KIND_ORDER = new Map(PROJECT_SEARCH_KINDS.map((kind, index) => [kind, index]));
@@ -36,7 +38,8 @@ function addItem(items, seen, item) {
   if (!item.id || seen.has(item.id)) return;
   seen.add(item.id);
   const label = String(item.label || item.id);
-  items.push({ ...item, label, searchText: normalizeProjectSearchText(`${label} ${item.secondary || ''} ${KIND_KEYWORDS[item.kind] || item.kind}`) });
+  const { keywords, ...visible } = item;
+  items.push({ ...visible, label, searchText: normalizeProjectSearchText(`${label} ${item.secondary || ''} ${keywords || ''} ${KIND_KEYWORDS[item.kind] || item.kind}`) });
 }
 
 function referenceTarget(reference) {
@@ -51,13 +54,13 @@ export function buildProjectSearchIndex(document) {
   for (const parameter of document?.parameters || []) addItem(items, seen, { id: parameter.id, kind: 'parameter', label: parameter.label || parameter.name, secondary: `${parameter.name} ${parameter.expression || ''}`, target: { kind: 'settings', id: parameter.id, parameterName: parameter.name } });
   for (const sketch of document?.sketches || []) addItem(items, seen, { id: sketch.id, kind: 'sketch', label: sketch.name, secondary: sketch.plane || '', target: { kind: 'sketch', id: sketch.id } });
   for (const feature of document?.features || []) {
-    addItem(items, seen, { id: feature.id, kind: 'feature', label: feature.name, secondary: feature.type, target: { kind: 'feature', id: feature.id } });
-    if (bodyProducer(feature)) addItem(items, seen, { id: `body-${feature.id}`, kind: 'body', label: feature.name, secondary: feature.type, target: { kind: 'body', id: `body-${feature.id}` } });
+    addItem(items, seen, { id: feature.id, kind: 'feature', label: feature.name, secondary: FEATURE_TYPE_NAMES[feature.type] || feature.type, keywords: feature.type, target: { kind: 'feature', id: feature.id } });
+    if (bodyProducer(feature)) addItem(items, seen, { id: `body-${feature.id}`, kind: 'body', label: feature.name, secondary: FEATURE_TYPE_NAMES[feature.type] || feature.type, keywords: feature.type, target: { kind: 'body', id: `body-${feature.id}` } });
   }
-  for (const body of document?.bodies || []) addItem(items, seen, { id: body.id, kind: 'body', label: body.name || body.id, secondary: 'body', target: { kind: 'body', id: body.id } });
+  for (const body of document?.bodies || []) addItem(items, seen, { id: body.id, kind: 'body', label: body.name || body.id, secondary: 'Bryła', keywords: 'body', target: { kind: 'body', id: body.id } });
   for (const component of document?.components || []) addItem(items, seen, { id: component.id, kind: 'component', label: component.name, secondary: `${component.type || ''} ${component.partNumber || ''}`, target: { kind: 'component', id: component.id } });
   for (const instance of document?.componentInstances || []) addItem(items, seen, { id: instance.id, kind: 'component-instance', label: instance.name, secondary: instance.componentId || '', target: { kind: 'componentInstance', id: instance.id, componentId: instance.componentId } });
-  for (const sheet of document?.drawings || []) addItem(items, seen, { id: sheet.id, kind: 'drawing', label: sheet.name, secondary: `${sheet.size || ''} ${sheet.orientation || ''}`, target: { kind: 'drawingSheet', id: sheet.id } });
+  for (const sheet of document?.drawings || []) addItem(items, seen, { id: sheet.id, kind: 'drawing', label: sheet.name, secondary: `${sheet.pageSize || sheet.size || ''} ${sheet.orientation === 'portrait' ? 'pionowo' : 'poziomo'}`, keywords: sheet.orientation, target: { kind: 'drawingSheet', id: sheet.id } });
   for (const link of document?.linkedProjects || []) addItem(items, seen, { id: link.id, kind: 'linked-project', label: link.sourceName || link.fileName || link.id, secondary: `${link.fileName || ''} ${link.relativePath || ''}`, target: { kind: 'component', id: link.linkedComponentId || '', linkedProjectId: link.id } });
   for (const reference of document?.references || []) addItem(items, seen, { id: reference.id, kind: 'reference', label: reference.name || reference.label || reference.id, secondary: `${reference.kind || ''} ${reference.planeType || reference.axisType || reference.pointType || ''}`, target: referenceTarget(reference) });
   return items.sort(compareItems);

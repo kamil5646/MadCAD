@@ -76,6 +76,25 @@ describe('rebinding moved face support references', () => {
     expect(rebindMovedFaceSupportReferences(document, bodies)).toEqual([]);
   });
 
+  it('rebinds when the rebuilt face only shifted inside its plane, e.g. after a cut through it', () => {
+    const { document, bodies } = moved();
+    bodies[0].topology.faces[0].descriptor.center = [30, -0.21, 7.8];
+    expect(rebindMovedFaceSupportReferences(document, bodies)).toEqual(['support']);
+    expect(document.references[0].topologyId).toBe('face-moved');
+  });
+
+  it('picks the nearest of several coplanar faces only when it is clearly nearest', () => {
+    const { document, bodies } = moved();
+    bodies[0].topology.faces.push({ id: 'face-far', descriptor: { geometry: 'PLANE', center: [30, 20, 7.5], normal: [1, 0, 0], area: 50 } });
+    expect(rebindMovedFaceSupportReferences(document, bodies)).toEqual(['support']);
+    expect(document.references[0].topologyId).toBe('face-moved');
+
+    const ambiguous = moved();
+    ambiguous.bodies[0].topology.faces[0].descriptor.center = [30, 4, 7.5];
+    ambiguous.bodies[0].topology.faces.push({ id: 'face-twin', descriptor: { geometry: 'PLANE', center: [30, -4, 7.5], normal: [1, 0, 0], area: 50 } });
+    expect(rebindMovedFaceSupportReferences(ambiguous.document, ambiguous.bodies)).toEqual([]);
+  });
+
   it('ignores references that no sketch uses as support', () => {
     const { document, bodies } = moved();
     document.sketches = [];
