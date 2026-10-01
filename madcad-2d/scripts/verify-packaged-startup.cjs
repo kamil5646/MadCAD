@@ -29,7 +29,10 @@ async function preparePackage() {
     const archive = path.join(releaseRoot, `MadCAD-${version}-win-x64.zip`);
     try {
       await fs.access(archive);
-      await execFileAsync('tar.exe', ['-xf', archive, '-C', directory], { timeout: 120000 });
+      // Use the Windows bsdtar by absolute path: under Git Bash, `tar.exe` resolves
+      // to GNU tar, which reads the drive letter in `D:\\...` as a remote host.
+      const windowsTar = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
+      await execFileAsync(windowsTar, ['-xf', archive, '-C', directory], { timeout: 120000 });
       return { executable: path.join(directory, 'MadCAD.exe'), directory, mounted: false, source: 'zip' };
     } catch (error) {
       await fs.rm(directory, { recursive: true, force: true });
