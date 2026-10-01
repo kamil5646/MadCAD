@@ -37,6 +37,21 @@ async function sendHistoryShortcut(window, { redo = false } = {}) {
   await window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Z', modifiers });
 }
 
+// Right after the first ready check the renderer occasionally rejects a script (seen on
+// macOS runners). Retry the idempotent setup calls and surface the renderer error so a
+// recurrence is diagnosable from the CI log.
+async function executeSetup(window, code, label, attempts = 3) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await window.webContents.executeJavaScript(code);
+    } catch (error) {
+      process.stderr.write(`[setup] ${label}, próba ${attempt}/${attempts}: ${error.message}\n`);
+      if (attempt >= attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+}
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({
     width: 1440,
@@ -45,13 +60,18 @@ app.whenReady().then(async () => {
     webPreferences: { partition: `madcad-large-projects-${Date.now()}` },
   });
   window.setContentSize(1440, 837);
+  window.webContents.on('console-message', (event, legacyLevel, legacyMessage) => {
+    const level = event?.level ?? legacyLevel;
+    const message = event?.message ?? legacyMessage;
+    if (level === 'error' || level === 3) process.stderr.write(`[renderer] ${String(message).slice(0, 400)}\n`);
+  });
 
   try {
     await fs.mkdir(path.dirname(screenshotPath), { recursive: true });
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
     await waitFor(window, `document.querySelector('.modeling-shell') && typeof window.__madcadVerifyLoadLargeHistoryFixture === 'function'`, 'gotowy interfejs dużych projektów');
-    await window.webContents.executeJavaScript(`document.querySelector('.license-info-dialog button.confirm')?.click()`);
-    await window.webContents.executeJavaScript(`window.__madcadVerifyLoadLargeHistoryFixture(220)`);
+    await executeSetup(window, `document.querySelector('.license-info-dialog button.confirm')?.click()`, 'zamknięcie okna licencji');
+    await executeSetup(window, `window.__madcadVerifyLoadLargeHistoryFixture(220)`, 'fixture dużej historii');
     await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyDocumentState?.features === 220 && window.__madcadVerifyEngineState?.timeline?.length === 220 && window.__madcadVerifyEngineState?.bodies?.length === 1`, 'przebudowany projekt z 220 operacjami');
     const initialMemory = rendererMemory(window);
 
