@@ -238,7 +238,7 @@ app.whenReady().then(async () => {
     window.setContentSize(1459, 877);
     await new Promise((resolve) => setTimeout(resolve, 300));
     const expandedSketch = await window.webContents.executeJavaScript(`(() => {
-      const directLabels = [...document.querySelectorAll('.modeling-ribbon .ribbon-visible-groups > .ribbon-group .ribbon-tool')].map((item) => item.dataset.toolLabel).filter(Boolean);
+      const directLabels = [...document.querySelectorAll('.modeling-ribbon .ribbon-visible-groups > .ribbon-group .ribbon-tool, .modeling-ribbon .ribbon-sticky-groups > .ribbon-group .ribbon-tool')].map((item) => item.dataset.toolLabel).filter(Boolean);
       const ribbon = document.querySelector('.modeling-ribbon');
       const groupLabels = [...document.querySelectorAll('.modeling-ribbon > .ribbon-visible-groups > .ribbon-group, .modeling-ribbon > .ribbon-sticky-groups > .ribbon-group')].map((item) => item.getAttribute('aria-label'));
       return {
@@ -268,6 +268,18 @@ app.whenReady().then(async () => {
       };
     })()`);
     if (!expandedSketch.requiredDirect || !expandedSketch.contextualToolsGrouped || !expandedSketch.balancedDirectCount || !expandedSketch.fusionOrder || !expandedSketch.redundantSelectRemoved || expandedSketch.finishActionCount !== 1 || !expandedSketch.finishHeadingHidden || !expandedSketch.finishLabelContained || !expandedSketch.duplicatePaletteFinishRemoved || expandedSketch.enabledWithoutAction.length || expandedSketch.hiddenGroups || expandedSketch.horizontalOverflow || !expandedSketch.basicShortcutTitles.Linia.includes('Skrót: L.') || !expandedSketch.basicShortcutTitles.Prostokąt.includes('Skrót: R.') || !expandedSketch.basicShortcutTitles.Okrąg.includes('Skrót: C.') || !expandedSketch.basicShortcutTitles.Wymiary.includes('Skrót: D.')) throw new Error(`Wstążka szkicu nadal nie zachowuje hierarchii podstawowych i kontekstowych narzędzi: ${JSON.stringify(expandedSketch)}`);
+    for (const width of [1100, 900]) {
+      window.setContentSize(width, 700);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const finishState = await window.webContents.executeJavaScript(`(() => {
+        const tool = document.querySelector('[data-tool-label="Zakończ szkic"]');
+        const rect = tool?.getBoundingClientRect();
+        return { inStickyGroup: Boolean(tool?.closest('.ribbon-sticky-groups')), visible: Boolean(rect && rect.width > 0 && rect.right <= window.innerWidth && rect.left >= 0), overflowCount: document.querySelectorAll('.ribbon-overflow-menu [data-tool-label="Zakończ szkic"]').length };
+      })()`);
+      if (!finishState.inStickyGroup || !finishState.visible || finishState.overflowCount) throw new Error(`Zakończ szkic musi zostać widoczny przy szerokości ${width}: ${JSON.stringify(finishState)}`);
+    }
+    window.setContentSize(1459, 877);
+    await new Promise((resolve) => setTimeout(resolve, 300));
     if (!(await clickText(window, '.ribbon-tool', 'Linia'))) throw new Error('Brak polecenia Linia do kontroli komunikatu stanu.');
     await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'line'`, 'aktywne polecenie Linia');
     const noticeHiddenDuringCommand = await window.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.workspace-notice')).display === 'none'`);

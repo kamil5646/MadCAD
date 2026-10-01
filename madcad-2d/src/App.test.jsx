@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import App, { AppErrorBoundary } from './App.jsx';
 import { FullLicenseDialog, LicenseInfoDialog, UpdateDialog } from './modeling/AppDialogs.jsx';
-import { CrashRecoveryBanner } from './modeling/WorkspaceOverlays.jsx';
+import { CRASH_RECOVERY_AUTO_DISMISS_MS, CrashRecoveryBanner } from './modeling/WorkspaceOverlays.jsx';
 
 describe('App', () => {
   it('renders the current modeling workspace as the only application interface', () => {
@@ -169,5 +169,30 @@ describe('App', () => {
     expect(onSave).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: /Zamknij komunikat odzyskiwania/i }));
     expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  it('dismisses the recovery banner by itself unless the user is hovering it', () => {
+    vi.useFakeTimers();
+    try {
+      const onDismiss = vi.fn();
+      const info = { updatedAt: '2026-08-15T20:30:00.000Z' };
+      const { rerender } = render(<CrashRecoveryBanner info={info} onSave={() => {}} onDismiss={() => onDismiss()} />);
+      const banner = screen.getByRole('alert', { name: /Odzyskiwanie projektu po awarii/i });
+      // A parent re-render with a fresh callback must not restart the countdown.
+      vi.advanceTimersByTime(CRASH_RECOVERY_AUTO_DISMISS_MS - 1000);
+      rerender(<CrashRecoveryBanner info={info} onSave={() => {}} onDismiss={() => onDismiss()} />);
+      vi.advanceTimersByTime(1000);
+      expect(onDismiss).toHaveBeenCalledOnce();
+
+      onDismiss.mockClear();
+      fireEvent.mouseEnter(banner);
+      vi.advanceTimersByTime(CRASH_RECOVERY_AUTO_DISMISS_MS * 2);
+      expect(onDismiss).not.toHaveBeenCalled();
+      fireEvent.mouseLeave(banner);
+      vi.advanceTimersByTime(CRASH_RECOVERY_AUTO_DISMISS_MS);
+      expect(onDismiss).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

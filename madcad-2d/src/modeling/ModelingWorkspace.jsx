@@ -7869,7 +7869,7 @@ export default function ModelingWorkspace() {
                     <RibbonGroup label="UŻYJ ŚCIEŻKI">
                       <ToolButton icon={Cylinder} label="Pipe" displayLabel="Rura" onClick={openPipe} disabled={readOnly || command?.type === 'editSketch3d' || !canUseSpatialPath} disabledReason="Dodaj co najmniej jedną krzywą ścieżki 3D." />
                     </RibbonGroup>
-                    <RibbonGroup label="ZAKOŃCZ SZKIC"><ToolButton icon={FinishSketchCadIcon} label="Zakończ szkic" onClick={finishSketch3D} primary disabled={command?.type === 'editSketch3d'} /></RibbonGroup>
+                    <RibbonGroup label="ZAKOŃCZ SZKIC" end><ToolButton icon={FinishSketchCadIcon} label="Zakończ szkic" onClick={finishSketch3D} primary disabled={command?.type === 'editSketch3d'} /></RibbonGroup>
                   </>
                 ) : (
                   <>
@@ -7934,7 +7934,7 @@ export default function ModelingWorkspace() {
                     { icon: Blocks, label: 'Bloki', onClick: () => { setLayersOpen(false); setComponentsOpen(false); setBlocksOpen(true); } },
                   ]} />
                 </RibbonGroup>
-                <RibbonGroup label="ZAKOŃCZ SZKIC"><ToolButton icon={FinishSketchCadIcon} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
+                <RibbonGroup label="ZAKOŃCZ SZKIC" end><ToolButton icon={FinishSketchCadIcon} label="Zakończ szkic" onClick={finishSketch} primary /></RibbonGroup>
                   </>
                 )}
               </>

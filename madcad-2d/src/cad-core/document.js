@@ -535,8 +535,12 @@ export function createSketch({ name = 'Szkic', space = '2d', plane = 'XY', plane
   });
 }
 
+// Default display names per feature type; also used wherever the UI needs a
+// readable label for a stored feature type.
+export const FEATURE_TYPE_NAMES = Object.freeze({ extrude: 'Wyciągnięcie', sheetBase: 'Baza blachowa', sheetFlange: 'Kołnierz blachy', sheetHem: 'Zawinięcie blachy', sheetRip: 'Szczelina blachy', sheetUnfold: 'Rozwinięcie blachy', sheetRefold: 'Ponowne zagięcie blachy', plasticBoss: 'Boss', plasticSnapFit: 'Snap-fit', plasticGrille: 'Grille', formBody: 'Form', surfacePatch: 'Patch', surfaceExtrude: 'Wyciągnięcie powierzchni', surfaceRevolve: 'Obrót powierzchni', surfaceSweep: 'Powierzchnia po ścieżce', surfaceLoft: 'Powierzchnia przejściowa', surfaceOffset: 'Odsunięcie powierzchni', surfaceStitch: 'Zszycie powierzchni', surfaceTrim: 'Przycięcie powierzchni', surfaceExtend: 'Przedłużenie powierzchni', thickenSurface: 'Pogrubienie powierzchni', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' });
+
 export function createFeature(type, options = {}) {
-  const names = { extrude: 'Wyciągnięcie', sheetBase: 'Baza blachowa', sheetFlange: 'Kołnierz blachy', sheetHem: 'Zawinięcie blachy', sheetRip: 'Szczelina blachy', sheetUnfold: 'Rozwinięcie blachy', sheetRefold: 'Ponowne zagięcie blachy', plasticBoss: 'Boss', plasticSnapFit: 'Snap-fit', plasticGrille: 'Grille', formBody: 'Form', surfacePatch: 'Patch', surfaceExtrude: 'Wyciągnięcie powierzchni', surfaceRevolve: 'Obrót powierzchni', surfaceSweep: 'Powierzchnia po ścieżce', surfaceLoft: 'Powierzchnia przejściowa', surfaceOffset: 'Odsunięcie powierzchni', surfaceStitch: 'Zszycie powierzchni', surfaceTrim: 'Przycięcie powierzchni', surfaceExtend: 'Przedłużenie powierzchni', thickenSurface: 'Pogrubienie powierzchni', revolve: 'Revolve', sweep: 'Sweep', loft: 'Loft', rib: 'Rib/Web', coil: 'Coil', pipe: 'Pipe', pattern: 'Pattern', boolean: 'Boolean', hole: 'Otwór', fillet: 'Zaokrąglenie', chamfer: 'Fazowanie', shell: 'Shell', draft: 'Draft', splitBody: 'Split Body', splitFace: 'Split Face', deleteFace: 'Delete Face + Heal', replaceFace: 'Replace Face', primitive: 'Prymityw', transform: 'Transformacja', offsetFace: 'Offset Face', textSolid: 'Tekst 3D', importedModel: 'Model importowany' };
+  const names = FEATURE_TYPE_NAMES;
   return {
     id: createId('feature'),
     name: options.name || names[type] || 'Operacja',
@@ -1484,7 +1488,7 @@ export function validateDocument(document) {
       if (!['new', 'join', 'cut', 'intersect'].includes(feature.operation)) add(`${base}.operation`, `Nieobsługiwana operacja: ${feature.operation ?? ''}.`, 'UNSUPPORTED');
       const extent = feature.extent || 'one-side';
       if (!['one-side', 'two-sides', 'symmetric', 'through-all', 'to-object'].includes(extent)) add(`${base}.extent`, `Nieobsługiwany zakres wyciągnięcia: ${extent}.`, 'UNSUPPORTED');
-      if (extent === 'through-all' && !['cut', 'intersect'].includes(feature.operation)) add(`${base}.extent`, 'Through All jest dostępne dla Cut i Intersect.', 'UNSUPPORTED');
+      if (extent === 'through-all' && !['cut', 'intersect'].includes(feature.operation)) add(`${base}.extent`, 'Przez wszystko jest dostępne dla Cut i Intersect.', 'UNSUPPORTED');
       if (extent === 'two-sides' && feature.secondDistance === undefined) add(`${base}.secondDistance`, 'Wyciągnięcie na dwie strony wymaga drugiej odległości.', 'REQUIRED');
       if (extent === 'to-object') {
         const targetReference = references.find((reference) => reference.id === feature.targetReferenceId);
