@@ -19,6 +19,17 @@ describe('external CAD and slicer compatibility fixtures', () => {
     expect(imported.profiles).toHaveLength(profiles);
   });
 
+  it('imports the verbose DXF that LibreDWG writes for a real DWG, keeping arcs and circles native', async () => {
+    const imported = parseSketchImport(await readFile(fixturePath('libredwg-r2000-sample.dxf'), 'utf8'), 'dxf');
+    expect(imported.sourceUnit).toBe('millimeter');
+    expect(imported.curveCount).toBe(9);
+    expect(imported.profiles).toHaveLength(1);
+    expect(imported.entities.filter((entity) => entity.type === 'circle')).toHaveLength(1);
+    expect(imported.entities.filter((entity) => entity.type === 'arc')).toHaveLength(1);
+    // dwgadd leaves the INSERT block names empty; that must be reported, not crash the import.
+    expect(imported.repairReport.entries.some((entry) => /INSERT bez definicji bloku/.test(entry.message))).toBe(true);
+  });
+
   it('accepts the documented FreeCAD/OpenCascade STEP envelope as exact CAD', async () => {
     const bytes = await readFile(fixturePath('freecad-step-envelope.step'));
     expect(inspectModelImportBuffer(bytes, 'step')).toMatchObject({ format: 'step', importMode: 'brep' });
