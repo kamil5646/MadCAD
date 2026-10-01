@@ -85,7 +85,12 @@ app.whenReady().then(async () => {
   try {
     const { createLargeProjectCorpus } = await import('../tests/large-project-fixtures.mjs');
     const { GEOMETRY_POLICY } = await import('../src/cad-core/geometry-policy.js');
-    const budgets = GEOMETRY_POLICY.performanceBudgets;
+    // Shared CI runners mesh the 220-body corpus in 33-47 s inside the serial
+    // release job (about 20 s in a dedicated shard), so CI gets headroom like
+    // verify-modeling.cjs does; local runs keep the product budget.
+    const budgets = process.env.CI
+      ? { ...GEOMETRY_POLICY.performanceBudgets, largeProjectEvaluationMs: 60000 }
+      : GEOMETRY_POLICY.performanceBudgets;
     const corpus = createLargeProjectCorpus();
     const results = [];
     await window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { query: { verify: '1', verifyLanguage: 'pl' } });
