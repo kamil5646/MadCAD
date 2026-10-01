@@ -1,6 +1,6 @@
 {
   "name": "madcad-desktop",
-  "version": "6.5.22",
+  "version": "6.5.23",
   "description": "Desktopowy CAD 2D/3D: klasyczne szkicowanie, parametryczna historia i modelowanie bryłowe.",
   "desktopName": "MadCAD",
   "repository": {
@@ -17,6 +17,8 @@
     "build:ui": "vite build",
     "verify:modeling": "npm run build:ui && electron scripts/verify-modeling.cjs",
     "verify:large-projects": "npm run build:ui && electron scripts/verify-large-projects.cjs",
+    "verify:large-project-corpus": "npm run build:ui && electron scripts/verify-large-project-corpus.cjs",
+    "verify:cam-sequence": "npm run build:ui && electron scripts/verify-cam-sequence.cjs",
     "verify:surface-modeling": "npm run build:ui && electron scripts/verify-surface-modeling.cjs",
     "verify:sheet-metal-base": "npm run build:ui && electron scripts/verify-sheet-metal-base.cjs",
     "verify:plastic-boss": "npm run build:ui && electron scripts/verify-plastic-boss.cjs",
@@ -75,6 +77,7 @@
     "verify:desktop-suite:prepared": "node scripts/run-desktop-verification-suite.cjs",
     "verify:product-completeness": "node scripts/verify-product-completeness.cjs",
     "verify:package": "node scripts/verify-package.cjs",
+    "verify:packaged-startup": "node scripts/verify-packaged-startup.cjs",
     "verify:release-version": "node scripts/verify-release-version.cjs",
     "verify:repository": "node scripts/verify-repository.cjs",
     "checksums:package": "node scripts/create-package-checksums.cjs",
@@ -105,7 +108,7 @@
     "@testing-library/react": "^16.3.3",
     "@vitejs/plugin-react": "6.0.5",
     "axe-core": "^4.10.3",
-    "electron": "43.4.0",
+    "electron": "43.5.0",
     "electron-builder": "^26.15.3",
     "eslint": "^9.39.5",
     "eslint-plugin-react": "^7.37.5",

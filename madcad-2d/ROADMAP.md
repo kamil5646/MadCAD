@@ -1,7 +1,7 @@
 # MadCAD — aktywny plan rozwoju
 
-Aktualizacja: 2026-09-21
-Wersja bazowa: `6.5.22 stable`
+Aktualizacja: 2026-09-29
+Wersja bazowa: `6.5.23 stable`
 Gałąź wydania: `main`
 
 Ten plik opisuje aktywną ścieżkę do CAD 2D/3D: bezpośrednie szkicowanie i polecenia znane z klasycznego CAD są podstawą, a parametryczna historia i modelowanie bryłowe rozwijają rysunek w model 3D. Przygotowanie do druku 3D pozostaje opcjonalnym dodatkiem eksportowym. Historia ukończonych prac znajduje się w [DONE.md](./DONE.md), a dalszy zakres produktu w [BACKLOG.md](./BACKLOG.md).
@@ -32,7 +32,89 @@ Od pustego dokumentu użytkownik tworzy w pełni zwymiarowaną część mechanic
 7. Każdy pionowy etap kończy się scenariuszem od pustego dokumentu oraz ponownym otwarciem zapisu.
 8. Nowe narzędzie działa na obsługiwanych płaszczyznach i ścianach albo jawnie pokazuje ograniczenie.
 
-## Aktywny cel R6.6 — niezawodność dużych projektów
+## Aktywny cel — podstawowy przepływ projektowania jak w Fusion
+
+Priorytet użytkownika z 2026-09-27: najpierw niezawodna codzienna praca w
+obszarze projektowania, dopiero potem ewentualne zaawansowanie przygotowania
+ścieżek CAM. Samo oznaczenie narzędzia jako zaimplementowanego nie potwierdza
+spójnego doświadczenia od pustego projektu do gotowej części.
+
+Zakres produktu doprecyzowany 2026-09-27: użytkownik nie potrzebuje
+zarządzania obrabiarką. Sterowanie maszyną, automatyczne ustawianie jej zera,
+sondowanie WCS i konfiguracja pracy sterownika nie są wymaganiami celu.
+Ewentualny eksport ścieżek/G-code pozostaje przygotowaniem pliku poza maszyną;
+istniejących blokad niebezpiecznego eksportu nie wolno usuwać.
+
+- [>] Przejść w rzeczywistej aplikacji jeden ciąg: nowy projekt → szkic na
+  płaszczyźnie → wymiary i więzy → Wyciągnij → edycja wymiaru szkicu i operacji
+  w historii → automatyczna przebudowa bryły → Cofnij/Ponów → zapis pliku
+  `.madcad` → ponowne otwarcie i porównanie geometrii.
+- [ ] Powtórzyć ten sam ciąg dla szkicu na ścianie oraz drugiej operacji
+  zależnej od pierwszej; utracona referencja ma dawać naprawialny komunikat,
+  a nie znikającą bryłę.
+- [ ] Sprawdzić ergonomię i widoczny stan podstawowych poleceń na typowym
+  oknie oraz przy 150% skali; każdą potwierdzoną różnicę od oczekiwanego
+  przepływu naprawić i zabezpieczyć desktopowym testem regresyjnym.
+- [ ] Potwierdzić finalny podstawowy przepływ na Windows i macOS w CI oraz
+  rozróżnić wyniki z kodu źródłowego od stanu zainstalowanej aplikacji.
+
+Desktopowy test `verify:extrude-after-sketch` potwierdza szkic z wymiarem
+poziomym między punktami i pionowym odcinka dodanymi przez interfejs → bryłę,
+edycję źródłowego wymiaru szkicu w widocznym panelu i automatyczną przebudowę,
+edycję Wyciągnięcia z osi czasu, Cofnij/Ponów, ponowne otwarcie przez
+serializację, zapis pliku `.madcad` przyciskiem aplikacji i otwarcie go po nowym
+projekcie oraz osobny przypadek cienkiego wyciągnięcia. Krótki test wywołuje
+ten sam handler pliku co aplikacja (walidacja żądania, zapis atomowy i kopia
+`.bak`) z kontrolowanym wyborem ścieżki; nie sprawdza natywnego okna systemu
+ani uruchomienia z instalatora. Ten sam test potwierdza też drugi szkic
+założony na płaskiej ścianie, wycięcie zależne od pierwszej bryły, przesunięcie
+tej podpory po edycji pierwszego Wyciągnięcia z 15 na 20 mm, Cofnij/Ponów
+obu położeń, odczyt obu operacji z pliku i naprawę kontrolowanie utraconej
+referencji ściany przez kreator. Korekta podpory obejmuje końcową ścianę
+jednostronnego Wyciągnięcia, także na skośnej ramie szkicu; test jednostkowy
+potwierdza przesunięcie ramy zależnego szkicu bez zmiany jej osi lokalnych,
+a desktopowe przypadki osiowy i skośny potwierdzają wycięcie, przebudowę,
+Cofnij/Ponów oraz zapis i ponowne otwarcie. Rotacja podpory, ogólne zmiany
+topologii i inne rodzaje ścian wymagają osobnej walidacji przed zamknięciem
+tego etapu.
+Lokalny scenariusz desktopowy potwierdził ponadto szkic na bocznej płaskiej
+ścianie, wycięcie przez bryłę, Cofnij/Ponów, zapis i ponowne otwarcie pliku
+oraz naprawę utraconej referencji tej ściany. Przeszła również naprawa
+utraconej referencji skośnej ściany z zachowaniem objętości wycięcia.
+CI `36448327496` potwierdziło boczną ścianę i jej naprawę. Lokalnie przeszedł
+także obrót źródłowej płaszczyzny konstrukcyjnej z 30° na 60°: zależny szkic
+na końcowej ścianie, wycięcie, Cofnij/Ponów i plik `.madcad` zachowały geometrię.
+CI `36450498129` potwierdziło ten wariant na Windows i macOS (23/23 zadań,
+CodeQL `36450497970` zielony). Kolejny lokalny test wykrył, że po zmianie
+szerokości źródłowego szkicu 50→60 mm boczna ściana przesuwała się z X=25 na
+X=30, lecz referencja i drugi szkic pozostawały na X=25 mimo poprawnego statusu
+osi czasu. Naprawa śledzi płaską boczną ścianę wyciągnięcia, jeśli co najmniej
+dwa te same punkty jej krawędzi przesuwają się zgodnie wzdłuż normalnej;
+nie zgaduje położenia, kiedy krawędź się obraca. Test desktopowy sprawdza
+przebudowę zależnego wycięcia, zgodność położenia podpory i ściany oraz zapis
+i ponowne otwarcie `.madcad`. CI `36518052349` potwierdziło ten wariant
+na Windows/macOS (23/23 zadań, CodeQL `36518052338` zielony). Dodatkowy
+scenariusz lokalny wykrywa stary projekt, w którym ściana zachowała ID, lecz
+referencja szkicu pozostała na poprzedniej płaszczyźnie; kreator naprawy
+przypisuje ją ponownie i ustawia szkic na bieżącej ścianie. CI `36519688187`
+potwierdziło ten przypadek na Windows/macOS (23/23 zadań, CodeQL
+`36519688182` zielony). Ogólne zmiany topologii nadal nie są potwierdzone.
+Lokalna kontrola spakowanej aplikacji macOS arm64, także po wyodrębnieniu z
+dystrybuowanego ZIP, z odizolowaną kopią zalogowanego profilu potwierdziła
+wejście do programu bez hooków testowych,
+bryłę prymitywną, szkic okręgu na XY → Wyciągnięcie oraz Cofnij/Ponów.
+Rzeczywiste systemowe okna zapisu i otwarcia zostały lokalnie potwierdzone
+w niepodpisanym pakiecie macOS z zalogowanym kontem: zapisany plik `.madcad`
+ponownie otworzył jedną bryłę i jedną operację przy gotowym silniku. Pełny
+przepływ po zalogowaniu z instalatora Windows pozostaje niepotwierdzonym
+krokiem wydania.
+`verify:modeling` obejmuje wiele tych etapów w oddzielnych
+scenariuszach, ale lokalny przebieg 2026-09-27 przekroczył istniejący budżet
+całego scenariusza 120 s (199,9 s); dwa późniejsze lokalne przebiegi pełnego
+`verify:modeling` przeszły bez podnoszenia progu. Nie tworzymy
+wydania przed zamknięciem pełnego przepływu i walidacją.
+
+## Ukończony pion R6.6 — niezawodność dużych projektów
 
 Jeden aktywny pion prowadzi teraz od szybkiej edycji długiej historii do
 potwierdzonego wyniku bez blokowania użytkownika:
@@ -46,12 +128,63 @@ potwierdzonego wyniku bez blokowania użytkownika:
   rewizję po anulowaniu starszej;
 - [x] rozszerzyć raport dużych projektów o Undo/Redo, autozapis oraz szczytowe
   zużycie pamięci na Windows i macOS;
-- [ ] edycja podczas przebudowy zachowuje wyłącznie najnowszą rewizję, daje się
+- [x] edycja podczas przebudowy zachowuje wyłącznie najnowszą rewizję, daje się
   anulować z interfejsu i nie pozostawia częściowego modelu ani cache;
-- [ ] wielokrotne zapisanie, autozapis, awaria i ponowne otwarcie każdego
+- [x] wielokrotne zapisanie, autozapis, awaria i ponowne otwarcie każdego
   dokumentu korpusu zachowują identyczny wynik geometrii i trwałe referencje;
-- [ ] raport CI publikuje czasy, pamięć i najwolniejszą operację, a przekroczenie
+- [x] kontrola bezpieczeństwa CAM przetwarza 150 tys. segmentów bez kopiowania
+  wszystkich punktów i bez przekazywania dużej tablicy do stosu wywołań;
+- [x] granice obrysów kieszeni 2D i obróbki adaptacyjnej są mierzone iteracyjnie;
+  regresja obejmuje 150 tys. punktów i nieprawidłowe współrzędne;
+- [x] animacja CAM ponownie wykorzystuje ścieżki i raport zamiast przeliczać je
+  przy każdym kroku, a symulacja i widok nie kopiują listy wszystkich segmentów;
+  zakres i pozostały koszt opisuje [CAM_SIMULATION_PERFORMANCE.md](./docs/CAM_SIMULATION_PERFORMANCE.md);
+- [x] raport CI publikuje czasy, pamięć i najwolniejszą operację, a przekroczenie
   ustalonego budżetu blokuje merge.
+
+Anulowanie przeliczenia zachowuje w widoku ostatni poprawnie obliczony model,
+ale dokument nadal zawiera niezakończoną zmianę. Eksport geometrii jest wtedy
+niedostępny. Następna edycja uruchamia nową przebudowę; cofnięcie zmiany lub
+ponowne otwarcie zapisu też przywraca spójny wynik. Worker odrzuca wyniki
+anulowanej rewizji i usuwa jej wpis z cache nawet wtedy, gdy zdążyła się
+zakończyć tuż przed kliknięciem. Test desktopowy obejmuje anulowanie oraz
+ponowną edycję historii 220 operacji.
+
+Test korpusu sprawdza trzy kolejne zapisy atomowe, autozapis, odzyskanie
+uszkodzonego autozapisu z kopii oraz trwałość identyfikatorów i przygotowanych
+operacji we wszystkich trzech dokumentach. Osobny scenariusz desktopowy celowo
+kończy proces renderera po autozapisie każdego projektu; po ponownym uruchomieniu
+porównuje objętość, pole, granice, siatkę oraz stabilne identyfikatory ścian,
+krawędzi i wierzchołków wszystkich brył z wynikiem OpenCascade przed awarią.
+Raport `artifacts/madcad-large-project-corpus.json` zapisuje czasy i rozmiar
+każdego scenariusza; test należy do pełnej bramki desktopowej na macOS i Windows.
+Worker podaje też najwolniejszą operację historii. Raport korpusu zawiera czasy,
+szczyt pamięci procesu oraz budżety: 45 s na przebudowę, 15 s na pojedynczą
+operację, 5 s na siatkowanie bryły i 2 GiB szczytu pamięci procesu.
+Przekroczenie kończy test błędem; w GitHub Actions te same dane trafiają do
+podsumowania zadania i artefaktu. CI `35823985456` na roboczym PR #87
+potwierdziło oba zadania `Desktop E2E modeling` oraz łącznie 19/19 zadań CI
+i osobny CodeQL. Raporty korpusu z obu systemów mają `failures: []`:
+najdłuższe przeliczenie to 39,2 s na Windows i 6,3 s na macOS, a największy
+odnotowany szczyt pamięci wyniósł odpowiednio 429 636 KiB i 544 656 KiB.
+Budżety pozostają częścią wymaganej kontroli `main`, więc przekroczenie
+blokuje merge. Wynik dotyczy tej gałęzi i tego uruchomienia, nie dowodzi
+jeszcze gotowości całego produktu do wydania.
+Nowszy przebieg `35827561178` wykazał na Windows pojedyncze przekroczenie
+o `363 ms` w siatkowaniu korpusu szkiców. Diagnoza, usunięty nadmiar pracy
+i sposób sprawdzenia kolejnego CI są w
+[CAD_MESH_PERFORMANCE.md](./docs/CAD_MESH_PERFORMANCE.md); budżet nie został
+podniesiony.
+
+Kontrola istniejącego CI z 2026-09-23 (run `35800781854`, starszy commit)
+wykazała dwa błędy scenariuszy desktopowych: na macOS test otwartego szkicu
+zakładał samoczynne zakończenie polecenia linii, a na Windows test naprawy
+referencji szukał przycisku kandydata osobno od kliknięcia, gdy silnik nadal
+przeliczał historię. Testy synchronizują teraz oba kroki ze stanem aplikacji;
+powtórne pełne scenariusze modelowania przeszły na macOS i Windows w CI
+`35823985456`. To nie potwierdza jeszcze całkowitej gotowości produktu.
+Nowego wydania, taga ani publikacji strony nie wykonujemy przed zamknięciem
+całego celu i przejściem pełnej bramki na docelowych systemach.
 
 Po tym pionie następne w kolejności są: walidacja importu na większym korpusie
 STEP/DWG/DXF/STL/3MF, rozbudowa CAM oraz walidowany MES dowolnej geometrii 3D.
@@ -269,7 +402,38 @@ Te prace nie czekają na koniec modelowania:
 ## P5 — Manufacture / CAM klasy produkcyjnej
 
 - [x] P5.1 Wiercenie 3-osiowe rozpoznanych otworów modelu: pozycje i osie z kernela, obsługa szyków, wiertła kręte, grupy cech, pełne wycofanie między skokami, przebicie otworów przelotowych, kontrola długości rowków i średnicy, symulacja oraz przenośny G-code. Odrzucenie osi innych niż Z, Undo/Redo, zapis/otwarcie i desktop E2E są zweryfikowane; kontrakt opisuje `docs/CAM_DRILLING.md`.
-- [>] P5.2 Projektowa biblioteka własnych narzędzi i cykli otworowych: edytowalne wiertła, nawiertaki i gwintowniki, dobór po średnicy, wiercenie zwykłe/peck/dwell, gwintowanie z posuwem wynikającym ze skoku oraz postprocesory wykorzystujące bezpieczny cykl jawny albo G81/G82/G83/G84 zależnie od sterownika.
+- [x] P5.2 Projektowa biblioteka własnych narzędzi i cykli otworowych: zapisywane w projekcie edytowalne wiertła, nawiertaki i gwintowniki, bezpieczne referencje i dobór po średnicy, wiercenie zwykłe/peck/dwell, jawny fallback GRBL oraz G81/G82/G83 dla LinuxCNC i Mach3. Dedykowane gwintowanie sprawdza otwór pilotowy, wylicza posuw jako obroty × skok, generuje synchronizowane G84/G80 i blokuje sterowniki bez obsługi sztywnego gwintowania.
+- [x] P5.3 Rozszerzone strategie otworowe: nawiertanie/pogłębianie stożkowe wylicza głębokość z geometrii ostrza, pogłębianie walcowe tworzy bezpieczne warstwy i koncentryczne przejścia, raport kompletności wyprowadza wymagane etapy z modelu, a graf zależności automatycznie porządkuje operacje i ogranicza zmiany narzędzia.
+- [x] P5.4 Produkcyjne zarządzanie programem CAM: foldery i grupy operacji, duplikowanie i szablony, ręczne przesuwanie z walidacją zależności, arkusz ustawczy oraz eksport całego programu jednym plikiem.
+  - [x] Eksport wszystkich operacji Setupu do jednego bezpiecznego programu z jednym nagłówkiem, zmianami narzędzi i zakończeniem.
+  - [x] Duplikowanie operacji oraz ręczne przesuwanie góra/dół z walidacją zależności technologicznych.
+  - [x] Drukowalny arkusz ustawczy A4 z WCS, półfabrykatem, narzędziami, operacjami, czasem i wynikiem kontroli.
+  - [x] Trwałe foldery operacji organizują program bez zmiany kolejności wykonania; usunięcie folderu zachowuje operacje.
+  - [x] Szablony operacji zapisują parametry i narzędzie w projekcie bez nietrwałych referencji do geometrii, a zgodność z rodzajem Setupu jest sprawdzana przed użyciem.
+- [~] P5.5 Mocowanie i układy robocze: częściowy model uchwytu oraz strefy kolizji, G54–G59 i raport kolejnych zamocowań. Dalsze prace nad dokładną kontrolą eksportowanych ścieżek są odłożone za podstawowy przepływ projektowania; automatyczne sondowanie i zarządzanie obrabiarką są poza celem użytkownika.
+  - [x] Każdy Setup zapisuje własny układ G54–G59, przekazuje go do programów frezarskich, tokarskich i cięcia oraz umieszcza na arkuszu ustawczym.
+  - [x] Wiele stref uchwytów jako prostopadłościany XYZ jest zapisywanych w Setupie, wizualizowanych i blokuje eksport przy przecięciu trajektorii narzędzia z zadanym odstępem.
+  - [x] Raport kolejnych Setupów zestawia WCS, operacje, ostrzeżenia i ręczne czynności operatora; wykrywa ponowne użycie offsetu z innym zerem, ale nie generuje sondowania ani przejazdów między Setupami.
+  - [x] Kontrola ścieżki obejmuje również szerokość oprawki i jej minimalny wysięg nad końcówką narzędzia przy strefach uchwytów; wykryta kolizja blokuje eksport G-code.
+  - [x] Kontrola obejmuje też wysunięty trzon narzędzia ponad końcówką na każdym odcinku, również szybkim; scenariusz szczęki ponad końcówką ma test regresyjny.
+  - [x] Strefę szczęki można obrócić wokół własnego środka w osi Z; ten sam kąt obowiązuje w widoku, raporcie, kontroli narzędzia i oprawki oraz migracji dokumentu v20→v21.
+  - [x] Okrągły przekrój freza i oprawki jest sprawdzany względem narożnika szczęki po obrocie, bez fałszywego przecięcia wynikającego wyłącznie z kwadratowej obwiedni; regresja obejmuje bezpieczny i kolizyjny przejazd.
+  - [x] Widok CAM pokazuje osobny obrys zadanego odstępu bezpieczeństwa każdej aktywnej szczęki; brak obrysu przy 0 mm oraz Cofnij są sprawdzane w desktop E2E.
+  - [x] Eksport najpierw podnosi Z i ustawia XY na płaszczyźnie bezpiecznej; pełny program sprawdza dodatkowo przejazdy między operacjami tego samego Setupu.
+  - [x] Frezarskie postprocesory LinuxCNC i Mach3/Mach4 włączają `G43 Hn` po każdym `Tn M6`, przed pierwszym ruchem Z; brak dostępu do rzeczywistej tabeli długości narzędzi nadal wymaga kontroli operatora.
+  - [x] Toczenie rozdziela dojazd na odsunięcie promieniowe X, przejazd osiowy Z i powrót do promienia startowego; blokuje nieosiągalną średnicę bezpieczną.
+  - [x] Strefa mocowania może być pionowym walcem, np. śrubą: widok, odstęp, kontrola freza i oprawki, arkusz ustawczy oraz migracja projektu v21→v22 używają tego samego kształtu.
+  - [x] Kontrola szybkiego przejazdu frezu przez półfabrykat wykrywa także pionowy ruch w dół do materiału; pionowe wycofanie, ruch poza obrysem XY i dojazd głowicy laserowej/plazmowej mają regresje bez fałszywego alarmu.
+  - [x] Kontrola eksportu frezarskiego obejmuje końcowe podniesienie Z dopisywane przez postprocesor i odrzuca nieciągłą ścieżkę lub dojazd niezgodny z jej płaszczyzną startową; test pokazuje kolizję z uchwytem wyłącznie podczas tego ostatniego ruchu.
+  - [x] Mocowanie może wskazywać osobną bryłę CAD projektu: siatka jest indeksowana przestrzennie, zachowawcza kontrola pełnego ruchu freza i oprawki blokuje eksport przy kolizji lub niepewnej geometrii, a panel i widok 3D pokazują wskazaną bryłę. Schemat v23 migruje v22; testy obejmują zapis/otwarcie, utraconą bryłę, Cofnij/Ponów i desktop E2E. Nie jest to jeszcze dokładna symulacja oprawki ani wszystkich ruchów maszyny.
+  - [x] Dla skośnej szczęki z bryły CAD kontrola oprócz obwiedni trójkąta sprawdza odległość rzutu całego odcinka ruchu w XY: wyraźnie oddalony narożnik nie blokuje ścieżki, ale przecięcie, zadany odstęp i niepewna pozycja wewnątrz rzutu nadal blokują eksport.
+  - [x] Ograniczony podział pochyłego trójkąta zawęża jego lokalny zakres Z, więc przejazd wyraźnie ponad niską częścią szczęki nie dziedziczy wysokości odległego narożnika. Promień pionowy sprawdza punkt wewnątrz zamkniętej bryły i zakresy trzonu/oprawki. Szew triangulacji nie blokuje punktu ponad wszystkimi powierzchniami przeciętymi przez promień, natomiast niepewne wejście w bryłę nadal blokuje eksport. Test obejmuje bezpieczny i kolizyjny odcinek, różne diagonale siatki oraz pełny analizator CAM; to nadal przybliżenie zachowawcze, nie dokładna geometria całej maszyny.
+  - [x] Siatka bryły mocowania wymaga przeciwnej orientacji sąsiednich trójkątów na każdej wspólnej krawędzi; test odrzuca pojedynczy odwrócony trójkąt przed kontrolą kolizji.
+  - [x] Jawnie nieznany typ mocowania nie jest po normalizacji zastępowany prostopadłościanem: walidacja projektu i eksport NC odrzucają go, zamiast sprawdzać inną geometrię. Brak pola w starszym projekcie nadal oznacza prostopadłościan.
+  - [~] Własne narzędzie może opisać zmierzoną szyjkę i do sześciu kolejnych walcowych stopni oprawki nad wysięgiem; kontrola używa ich przy szczękach i półfabrykacie. Schemat v26 migruje v25 z pustą listą stopni. Nadal brakuje dowolnej geometrii oprawki, wrzeciona i kinematyki maszyny.
+  - [x] Biblioteka obejmuje własne frezy palcowe i do planowania: operacje frezowania rozwiązują ich trwałe ID z projektu, brakujące lub niezgodne narzędzie blokuje ścieżkę, a schemat v25 zachowuje typ i profil oprawki po ponownym otwarciu. Zmierzona oprawka i szyjka freza czołowego mogą być węższe od ostrza. Testy obejmują ścieżki, walidację, eksport oraz desktopowy wybór freza w konturze i zapis profilu freza czołowego.
+  - [ ] Rozszerzyć mocowanie o rzeczywistą geometrię szczęk i oprawek oraz kontrolę wszystkich przejazdów maszyny.
+  - [~] Sondowanie/automatyczne ustawianie bazy było analizowane jako możliwe rozszerzenie, lecz nie jest wymagane przez użytkownika i nie blokuje ukończenia jego celu; [ograniczenia i źródła](./docs/CAM_PROBING_NOTES.md). Nie udostępniać niedokończonego eksportu sondowania.
 
 ## Definition of Done
 

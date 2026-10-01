@@ -10,9 +10,12 @@ const expectText = (source, pattern, label) => {
 const rejectText = (source, pattern, label) => {
   if (pattern.test(source)) throw new Error(`Pozostał niedozwolony element: ${label}.`);
 };
+const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const packageJson = JSON.parse(read('madcad-2d/package.json'));
-if (packageJson.version !== '6.5.22') throw new Error(`Wersja stabilna musi wynosić 6.5.22, jest ${packageJson.version}.`);
+if (!/^\d+\.\d+\.\d+$/.test(packageJson.version)) throw new Error(`Nieprawidłowa stabilna wersja pakietu: ${packageJson.version}.`);
+const versionPattern = escapeRegExp(packageJson.version);
+const releaseSeriesPattern = escapeRegExp(packageJson.version.split('.').slice(0, 2).join('.'));
 
 const license = read('LICENSE');
 const packagedLicense = read('madcad-2d/LICENSE');
@@ -25,11 +28,12 @@ expectText(license, /jednym stanowisku\s+roboczym lub urządzeniu/, 'licencja na
 expectText(license, /kkasprzak15@icloud\.com/, 'kontakt handlowy');
 
 const site = read('docs/index.html');
-expectText(site, /Oficjalne wydanie 6\.5/, 'stabilne wydanie na stronie');
+expectText(site, new RegExp(`Oficjalne wydanie ${releaseSeriesPattern}`), 'stabilne wydanie na stronie');
+expectText(site, new RegExp(`MadCAD ${versionPattern}`), 'wersja aplikacji na stronie');
 expectText(site, /40 dni bezpłatnej oceny/, 'ocena komercyjna na stronie');
 expectText(site, /licencja bezterminowa na stanowisko/, 'licencja stanowiskowa na stronie');
 expectText(site, /mailto:kkasprzak15@icloud\.com/, 'zakup licencji na stronie');
-expectText(site, /paczki 6\.5\.22 są publikowane bez podpisu producenta/, 'ostrzeżenie o niepodpisanym wydaniu 6.5.22');
+expectText(site, new RegExp(`paczki ${versionPattern} są publikowane bez podpisu producenta`), 'ostrzeżenie o niepodpisanym wydaniu');
 expectText(site, /Linux · x64/, 'oficjalna paczka Linux na stronie');
 expectText(site, /data-release-asset="windows-installer"/, 'bezpośredni instalator Windows na stronie');
 expectText(site, /data-release-asset="windows-portable"/, 'przenośna paczka Windows na stronie');
@@ -37,7 +41,7 @@ expectText(site, /data-release-asset="mac-dmg"/, 'bezpośredni obraz DMG na stro
 rejectText(site, /license-registry|issue-private|token-admin|generatePrivateToken/i, 'stary system tokenów na stronie');
 
 const rootReadme = read('README.md');
-expectText(rootReadme, /Uwaga o wydaniu 6\.5\.22/, 'ostrzeżenie wydania w README');
+expectText(rootReadme, new RegExp(`Uwaga o wydaniu ${versionPattern}`), 'ostrzeżenie wydania w README');
 expectText(rootReadme, /Importuj DWG/, 'lokalny import DWG w README');
 const firstPart = read('madcad-2d/FIRST_PART.md');
 expectText(firstPart, /DWG jest konwertowany lokalnie/, 'lokalny przepływ DWG w samouczku');
@@ -58,7 +62,7 @@ const licensePlan = read('madcad-2d/src/modeling/license-plan.js');
 expectText(licensePlan, /MODES = new Set\(\['personal', 'commercial-trial', 'commercial'\]\)/, 'plany sterowane przez serwer');
 rejectText(licensePlan, /localStorage|commercialHolder|commercialReference/, 'lokalne nadawanie planu komercyjnego');
 expectText(appDialogs, /fullLicenseText/, 'lokalna pełna licencja w aplikacji');
-expectText(appDialogs, /Wydanie 6\.5\.22 nie ma podpisu producenta/, 'ostrzeżenie o podpisie w aplikacji');
+expectText(appDialogs, new RegExp(`Wydanie ${versionPattern} nie ma podpisu producenta`), 'ostrzeżenie o podpisie w aplikacji');
 
 const preload = read('madcad-2d/electron/preload.js');
 const main = read('madcad-2d/electron/main.js');

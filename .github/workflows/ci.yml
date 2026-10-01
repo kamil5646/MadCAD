@@ -86,7 +86,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest]
-        shard: [modeling, interoperability, interface, project, analysis]
+        shard: [modeling, modeling-features, modeling-3d, interoperability, interface, project, analysis]
     defaults:
       run:
         working-directory: madcad-2d
@@ -154,6 +154,9 @@ jobs:
         run: ${{ matrix.build }}
       - name: Verify package signature and size
         run: npm run verify:package -- ${{ matrix.kind }}
+      - name: Start packaged desktop app in isolated profile
+        if: matrix.kind != 'linux'
+        run: npm run verify:packaged-startup -- ${{ matrix.kind }}
       - name: Generate and verify package checksum
         shell: bash
         run: npm run checksums:package && MADCAD_REQUIRE_CHECKSUM=1 npm run verify:package -- ${{ matrix.kind }}

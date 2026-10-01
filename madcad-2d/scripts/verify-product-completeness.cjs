@@ -39,6 +39,7 @@ const unregisteredFiles = fs.readdirSync(path.join(appRoot, 'scripts'))
   .filter((script) => !manifestScripts.includes(script))
   .filter((script) => ![
     'scripts/verify-package.cjs',
+    'scripts/verify-packaged-startup.cjs',
     'scripts/verify-release-version.cjs',
     'scripts/verify-repository.cjs',
     'scripts/verify-product-completeness.cjs',
@@ -54,10 +55,16 @@ if (!/npm run verify:desktop-suite -- \$\{\{ matrix\.shard \}\}/.test(ci)) throw
 if (!ci.includes('npm run verify:solid-fea-benchmarks')) throw new Error('CI nie uruchamia benchmarków MES bryły 3D.');
 if (!ci.includes('npm run test:license')) throw new Error('CI nie uruchamia testów klienta licencji.');
 if (!ci.includes('npm run test:import-file')) throw new Error('CI nie uruchamia testów natywnego importu plików.');
+if (!ci.includes('npm run verify:packaged-startup -- ${{ matrix.kind }}')) throw new Error('CI nie uruchamia rozpakowanych paczek na izolowanym profilu.');
 if (!release.includes('npm run verify:desktop-suite -- all')) throw new Error('Wydanie nie uruchamia pełnej bramki desktopowej.');
 if (!release.includes('npm run verify:solid-fea-benchmarks')) throw new Error('Wydanie nie uruchamia benchmarków MES bryły 3D.');
 if (!release.includes('npm run test:license')) throw new Error('Wydanie nie uruchamia testów klienta licencji.');
 if (!release.includes('npm run test:import-file')) throw new Error('Wydanie nie uruchamia testów natywnego importu plików.');
+if (!release.includes('npm run verify:packaged-startup -- mac') || !release.includes('npm run verify:packaged-startup -- mac-dmg')
+  || !release.includes('npm run verify:packaged-startup -- windows') || !release.includes('npm run verify:packaged-startup -- windows-portable')) {
+  throw new Error('Wydanie nie uruchamia paczek macOS i Windows na izolowanym profilu.');
+}
+if (!release.includes("MADCAD_REQUIRE_PACKAGED_STARTUP: '1'")) throw new Error('Wydanie może pomijać bramkę uruchomienia paczki macOS.');
 
 const activeItems = roadmap.match(/^- \[>\].+$/gm) || [];
 if (activeItems.length > 1) throw new Error(`Roadmapa może mieć najwyżej jeden aktywny element, ma ${activeItems.length}.`);

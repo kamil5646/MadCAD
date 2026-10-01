@@ -1,5 +1,14 @@
 # Changelog
 
+## 6.5.23 (2026-09-29)
+
+- rozbudowano podstawowy przepływ szkic → wymiary i więzy → Wyciągnięcie → edycja historii → automatyczna przebudowa → Cofnij/Ponów → zapis i ponowne otwarcie `.madcad`;
+- ustabilizowano zależne szkice na płaskich ścianach końcowych i bocznych po edycji wymiarów oraz obrocie płaszczyzny źródłowej; niezgodna płaszczyzna przy zachowanym ID ściany trafia do kreatora naprawy;
+- wzmocniono kontrolę bezpiecznego CAM, w tym kolizji mocowań, oprawek i przejazdów; sterowanie obrabiarką nie wchodzi w zakres wydania;
+- potwierdzono lokalnie modelowanie po zalogowaniu w spakowanej aplikacji macOS, rozpakowanym ZIP oraz natywny zapis i odczyt `.madcad`; CI `36531322788` przeszło 23/23 zadań Windows/macOS/Linux wraz ze startem paczek i instalacją NSIS.
+
+Znane ograniczenia: pełne modelowanie po zalogowaniu bezpośrednio z instalatora Windows nie zostało niezależnie sprawdzone; ogólne zmiany topologii poza przetestowanymi płaskimi ścianami nadal wymagają walidacji. Paczki Windows/macOS pozostają niepodpisane.
+
 ## 6.5.22 (2026-09-15)
 
 - ujednolicono wieloplatformowy limit pełnego scenariusza przestrzennego: Pipe, ponowne otwarcie, Project to Surface i zależna przebudowa czekają na rzeczywisty wynik kernela na Windows;

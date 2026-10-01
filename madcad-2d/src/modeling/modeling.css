@@ -1919,6 +1919,8 @@
 }
 
 .workspace-guidebar button:hover { background: #1b819f; }
+.engine-status:not(.workspace-guidebar) > button { flex: 0 0 auto; margin-left: auto; padding: 3px 7px; border: 1px solid #4faecc; border-radius: 3px; background: #176f8d; color: #effbff; font: inherit; cursor: pointer; }
+.engine-status.computing { max-width: min(540px, 70%); }
 
 @media (max-width: 900px) {
   .workspace-guidebar { max-width: calc(100% - 24px); }
@@ -6373,6 +6375,10 @@
 .manufacturing-field-grid label { position: relative; display: grid; gap: 4px; color: #bdc8d1; font-size: 10px; font-weight: 700; }
 .manufacturing-form input,
 .manufacturing-form select { width: 100%; height: 30px; box-sizing: border-box; border: 1px solid #596978; border-radius: 3px; background: #222b35; color: #edf3f7; padding: 0 8px; font: inherit; }
+.manufacturing-form input[type="checkbox"] { width: 18px; height: 18px; padding: 0; accent-color: #59c4de; }
+.manufacturing-fixture { display: grid; gap: 8px; padding: 9px; border: 1px solid #657789; border-radius: 4px; }
+.manufacturing-fixture > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.manufacturing-fixture > label { position: relative; display: grid; gap: 4px; color: #bdc8d1; font-size: 10px; font-weight: 700; }
 .manufacturing-form label > em { position: absolute; right: 7px; bottom: 8px; color: #7f909e; font-size: 9px; font-style: normal; pointer-events: none; }
 .manufacturing-form label > em + * { padding-right: 28px; }
 .manufacturing-form fieldset { display: grid; gap: 8px; margin: 0; padding: 9px; border: 1px solid #52606d; border-radius: 4px; }
@@ -6405,6 +6411,21 @@
 .manufacturing-operation-list > header small { color: #9eabb6; font-size: 9px; }
 .manufacturing-add-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; }
 .manufacturing-add-actions button { padding: 0 7px; border-color: #4b8294; font-size: 10px; }
+.manufacturing-organization { display: grid; gap: 7px; margin: 0 12px 10px; }
+.manufacturing-organization > section { display: grid; gap: 5px; padding: 8px; border: 1px solid #4b5d6b; border-radius: 4px; background: #25303a; }
+.manufacturing-organization header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.manufacturing-organization header span { display: grid; gap: 2px; }
+.manufacturing-organization header strong { font-size: 10px; }
+.manufacturing-organization header small,
+.manufacturing-organization p { margin: 0; color: #93a3af; font-size: 9px; }
+.manufacturing-organization section > div { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px; }
+.manufacturing-organization input { min-width: 0; height: 27px; padding: 0 7px; border: 1px solid #536675; border-radius: 3px; background: #202a33; color: #e7edf1; font-size: 10px; }
+.manufacturing-organization button { min-height: 27px; padding: 0 7px; font-size: 9px; }
+.manufacturing-operation-group { margin: 0 12px 6px; border: 1px solid #557083; border-radius: 4px; background: #31404c; }
+.manufacturing-operation-group.collapsed { margin-bottom: 10px; }
+.manufacturing-operation-group button { display: flex; width: 100%; align-items: center; justify-content: space-between; min-height: 31px; padding: 0 9px; border: 0; background: transparent; color: #d7e3e9; }
+.manufacturing-operation-group span { font-size: 10px; font-weight: 800; }
+.manufacturing-operation-group small { color: #83cfe2; font-size: 9px; }
 .manufacturing-operation { margin: 0 12px 11px; border: 1px solid #596978; border-radius: 4px; background: #293440; }
 .manufacturing-operation > header { display: flex; align-items: center; justify-content: space-between; padding: 8px 9px; border-bottom: 1px solid #4f5d6a; }
 .manufacturing-operation > header > div { display: flex; align-items: center; gap: 7px; }
@@ -6412,6 +6433,9 @@
 .manufacturing-operation > header strong { font-size: 11px; }
 .manufacturing-operation > header small { color: #92a2ae; font-size: 9px; }
 .manufacturing-operation > header button { min-height: 25px; width: 27px; color: #efaaa4; }
+.manufacturing-operation > header .manufacturing-operation-actions { display: flex; gap: 3px; }
+.manufacturing-operation > header .manufacturing-operation-actions button { color: #b9c8d2; }
+.manufacturing-operation > header .manufacturing-operation-actions button:last-child { color: #efaaa4; }
 .manufacturing-operation .operation-form { padding: 9px; }
 .manufacturing-boundary { display: flex; align-items: center; gap: 7px; padding: 7px 8px; border: 1px solid #4d6170; border-radius: 3px; background: #25313c; color: #72cee7; }
 .manufacturing-boundary span { display: grid; gap: 1px; }
@@ -6448,6 +6472,16 @@
 .manufacturing-program-report > header span { display: grid; gap: 3px; }
 .manufacturing-program-report > header strong { font-size: 12px; }
 .manufacturing-program-report > header small { color: #b9c4cb; font-size: 9px; line-height: 1.45; }
+.manufacturing-sequence { display: grid; gap: 6px; padding: 9px; border: 1px solid #50606e; border-radius: 4px; background: #25303b; }
+.manufacturing-sequence > header, .manufacturing-sequence > div { display: grid; gap: 3px; }
+.manufacturing-sequence > header strong { font-size: 11px; }
+.manufacturing-sequence > header small, .manufacturing-sequence > div small, .manufacturing-sequence > p { color: #afbdc7; font-size: 9px; line-height: 1.4; }
+.manufacturing-sequence > div { padding: 7px; border: 1px solid #3e8b72; border-radius: 3px; }
+.manufacturing-sequence > div.invalid { border-color: #a57449; }
+.manufacturing-sequence > div span { display: flex; align-items: center; gap: 5px; color: #6bd5ab; font-size: 10px; }
+.manufacturing-sequence > div.invalid span { color: #efb478; }
+.manufacturing-sequence > button { justify-self: start; display: inline-flex; align-items: center; gap: 5px; }
+.manufacturing-sequence > p { margin: 0; }
 .manufacturing-program-report dl { display: grid; gap: 1px; margin: 0; border: 1px solid #50606e; border-radius: 4px; overflow: hidden; }
 .manufacturing-program-report dl div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 9px; background: #29343f; }
 .manufacturing-program-report dt { display: flex; align-items: center; gap: 5px; color: #aebbc5; font-size: 10px; }
@@ -6470,6 +6504,8 @@
 .manufacturing-report-operations div.invalid span svg { color: #efab69; }
 .manufacturing-report-operations small { color: #9dabb6; font-size: 9px; }
 .manufacturing-program-report > p { margin: 0; color: #95a5b1; font-size: 9px; line-height: 1.5; }
+.manufacturing-report-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.manufacturing-report-actions button { min-height: 30px; padding: 0 11px; border-color: #3e8d73; color: #75dcb1; }
 
 /* MadCAD brand theme -------------------------------------------------------
    The app icon is the visual source of truth: near-black graphite surfaces,
