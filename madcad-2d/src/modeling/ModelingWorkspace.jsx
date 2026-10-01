@@ -65,6 +65,7 @@ import {
   createFeature,
   createRectangleProfile,
   createSketch,
+  nextSketchName,
   createStarterDocument,
   openDocument,
   validateDocument,
@@ -3030,13 +3031,13 @@ export default function ModelingWorkspace() {
       const plane = dominant === 0 ? 'YZ' : dominant === 1 ? 'XZ' : 'XY';
       const planeOffset = dominant === 1 ? -supportPlane.origin[1] : supportPlane.origin[dominant];
       const sketch = createSketch({
-        name: `Szkic ${document.sketches.length + 1}`,
+        name: 'Szkic',
         plane,
         planeOffset,
         ...(axisAligned ? {} : { frame: normalizeSketchFrame(supportPlane) }),
         support: { kind: 'construction-plane', referenceId: supportPlane.id },
       });
-      commit((next) => next.sketches.push(sketch));
+      commit((next) => { sketch.name = nextSketchName(next.sketches); next.sketches.push(sketch); });
       setActiveSketchId(sketch.id);
       setSelection({ kind: 'sketch', id: sketch.id });
       setCommand(null);
@@ -3059,8 +3060,8 @@ export default function ModelingWorkspace() {
       const plane = dominant === 0 ? 'YZ' : dominant === 1 ? 'XZ' : 'XY';
       const planeOffset = dominant === 1 ? -center[1] : center[dominant];
       const reference = createTopologyReference({ selection: selectedFace, descriptor: face.descriptor, label: `Podpora szkicu ${document.sketches.length + 1}` });
-      const sketch = createSketch({ name: `Szkic ${document.sketches.length + 1}`, plane, planeOffset, ...(axisAligned ? {} : { frame: frameFromNormal(center, normal) }), support: { kind: 'face', referenceId: reference.id } });
-      commit((next) => { next.references.push(reference); next.sketches.push(sketch); });
+      const sketch = createSketch({ name: 'Szkic', plane, planeOffset, ...(axisAligned ? {} : { frame: frameFromNormal(center, normal) }), support: { kind: 'face', referenceId: reference.id } });
+      commit((next) => { next.references.push(reference); sketch.name = nextSketchName(next.sketches); next.sketches.push(sketch); });
       setActiveSketchId(sketch.id);
       setSelection({ kind: 'sketch', id: sketch.id });
       setCommand(null);
@@ -3079,8 +3080,8 @@ export default function ModelingWorkspace() {
       setNotice('Najpierw zakończ aktywny szkic.');
       return;
     }
-    const sketch = createSketch({ name: `Szkic 3D ${document.sketches.filter((item) => item.space === '3d').length + 1}`, space: '3d' });
-    commit((next) => next.sketches.push(sketch));
+    const sketch = createSketch({ name: 'Szkic 3D', space: '3d' });
+    commit((next) => { sketch.name = nextSketchName(next.sketches, 'Szkic 3D', '3d'); next.sketches.push(sketch); });
     setActiveSketchId(sketch.id);
     setSelection({ kind: 'sketch', id: sketch.id });
     setWorkspace('sketch');
@@ -3263,8 +3264,8 @@ export default function ModelingWorkspace() {
         : `Kontynuujesz ${resumable.name} na płaszczyźnie ${plane}. Stara i nowa geometria tworzą wspólne profile.`);
       return;
     }
-    const sketch = createSketch({ name: `Szkic ${document.sketches.length + 1}`, plane });
-    commit((next) => next.sketches.push(sketch));
+    const sketch = createSketch({ name: 'Szkic', plane });
+    commit((next) => { sketch.name = nextSketchName(next.sketches); next.sketches.push(sketch); });
     setActiveSketchId(sketch.id);
     setSelection({ kind: 'sketch', id: sketch.id });
     setCommand(null);

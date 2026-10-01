@@ -516,6 +516,15 @@ export function createCircleProfile({ name = 'Okrąg', diameter = 'srednicaOtwor
   };
 }
 
+// Pick the first free "<prefix> N" so deleting a sketch or firing the command
+// twice never produces two sketches with the same name.
+export function nextSketchName(sketches, prefix = 'Szkic', space = '2d') {
+  const used = new Set((sketches || []).filter((item) => (item.space || '2d') === space).map((item) => item.name));
+  let index = 1;
+  while (used.has(`${prefix} ${index}`)) index += 1;
+  return `${prefix} ${index}`;
+}
+
 export function createSketch({ name = 'Szkic', space = '2d', plane = 'XY', planeOffset = '0', frame = null, support = null, entities = [], profiles = [], constraints = [], dimensions = [], blockInstances = [] } = {}) {
   return normalizeSketchModel({
     id: createId('sketch'),
