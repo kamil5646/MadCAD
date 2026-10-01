@@ -1,7 +1,8 @@
 # Prywatność
 
-MadCAD działa lokalnie i domyślnie nie wymaga konta, klucza ani aktywacji. Nie
-wysyła telemetrii ani treści projektów do autora. Projekty, ustawienia i
+MadCAD działa lokalnie, ale wymaga bezpłatnego konta MadCAD i okresowo sprawdza
+uprawnienie online; nie używa klucza produktu. Nie wysyła telemetrii ani treści
+projektów do autora. Projekty, ustawienia i
 autozapis pozostają na urządzeniu użytkownika. Sprawdzanie aktualizacji pobiera
 jedynie publiczne dane wydań z GitHuba.
 

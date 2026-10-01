@@ -82,8 +82,9 @@ Renderer nie może podać dowolnego adresu aktualizacji.
 - `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`;
 - CSP i zablokowana nawigacja poza aplikację;
 - zewnętrzne linki są normalizowane do zatwierdzonych adresów HTTPS;
-- brak klucza produktu, fingerprintu urządzenia, telemetrii i zdalnej
-  aktywacji;
+- brak klucza produktu i telemetrii projektów; wymagane jest bezpłatne konto
+  MadCAD z okresowym sprawdzaniem uprawnienia online, bez fingerprintu
+  urządzenia (tylko identyfikator instalacji);
 - wydanie bez podpisu musi mieć obowiązkowe SHA-256, test paczki i jawne
   ostrzeżenie, a wbudowany aktualizator nie może obchodzić kontroli podpisu;
 - dokument użytkownika nie jest zastępowany przed udanym parsowaniem i
