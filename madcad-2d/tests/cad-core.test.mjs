@@ -6489,3 +6489,194 @@ test('CAM tokarki planuje czoło i średnicę zewnętrzną w układzie X/Z', () 
   assert.match(calculateTurningToolpath(setup, oversized, [camBox]).warnings.join(' '), /Bezpieczna średnica przejazdu/);
   assert.throws(() => createMachineGcode(setup, oversized, [camBox]), /Bezpieczna średnica przejazdu/);
 });
+
+// --- DXF import fidelity -------------------------------------------------
+function dxfFile({ header = [], tables = [], blocks = [], entities = [] }) {
+  const section = (name, items) => ['0', 'SECTION', '2', name, ...items.flat().map(String), '0', 'ENDSEC'];
+  return [
+    ...(header.length ? section('HEADER', header) : []),
+    ...(tables.length ? section('TABLES', tables) : []),
+    ...(blocks.length ? section('BLOCKS', blocks) : []),
+    ...section('ENTITIES', entities),
+    '0', 'EOF',
+  ].join('\n');
+}
+
+function dxfPoint(imported, id) {
+  const entity = imported.entities.find((item) => item.id === id);
+  return [Number(entity.geometry.x), Number(entity.geometry.y)];
+}
+
+function dxfArcs(imported) {
+  return imported.entities.filter((item) => item.type === 'arc').map((arc) => ({
+    center: dxfPoint(imported, arc.pointIds[0]),
+    start: dxfPoint(imported, arc.pointIds[1]),
+    end: dxfPoint(imported, arc.pointIds[2]),
+    direction: arc.geometry.direction,
+  }));
+}
+
+const near = (actual, expected, tolerance = 1e-6) => Math.abs(actual - expected) <= tolerance;
+
+test('import DXF zamienia bulge w LWPOLYLINE na prawdziwe łuki', () => {
+  const dxf = dxfFile({ entities: [['0', 'LWPOLYLINE', '70', '0', '10', '0', '20', '0', '42', '1', '10', '10', '20', '0']] });
+  const imported = parseSketchImport(dxf, 'dxf');
+  const [arc] = dxfArcs(imported);
+  assert.equal(imported.entities.filter((item) => item.type === 'line').length, 0);
+  assert.ok(near(arc.center[0], 5) && near(arc.center[1], 0));
+  assert.ok(near(arc.start[0], 0) && near(arc.end[0], 10));
+  assert.equal(arc.direction, 'ccw');
+  assert.equal(imported.repairReport.changed, 0);
+});
+
+test('ujemny bulge biegnie zgodnie z ruchem wskazówek zegara od pierwszego do drugiego wierzchołka', () => {
+  const dxf = dxfFile({ entities: [['0', 'LWPOLYLINE', '70', '0', '10', '0', '20', '0', '42', '-1', '10', '10', '20', '0']] });
+  const [arc] = dxfArcs(parseSketchImport(dxf, 'dxf'));
+  // Clockwise from (0,0) to (10,0) around (5,0) passes through (5,5); expressed ccw it starts at (10,0).
+  assert.ok(near(arc.start[0], 10) && near(arc.end[0], 0));
+  assert.ok(near(arc.center[0], 5));
+});
+
+test('zaokrąglony prostokąt z bulge tworzy zamknięty profil z czterema łukami', () => {
+  const b = Math.tan(Math.PI / 8);
+  const dxf = dxfFile({ entities: [['0', 'LWPOLYLINE', '70', '1',
+    '10', '2', '20', '0', '10', '8', '20', '0', '42', String(b), '10', '10', '20', '2', '10', '10', '20', '8', '42', String(b),
+    '10', '8', '20', '10', '10', '2', '20', '10', '42', String(b), '10', '0', '20', '8', '10', '0', '20', '2', '42', String(b)]] });
+  const imported = parseSketchImport(dxf, 'dxf');
+  assert.equal(dxfArcs(imported).length, 4);
+  assert.equal(imported.entities.filter((item) => item.type === 'line').length, 4);
+  assert.equal(imported.profiles.length, 1);
+  assert.ok(dxfArcs(imported).every((arc) => near(Math.hypot(arc.start[0] - arc.center[0], arc.start[1] - arc.center[1]), 2, 1e-6)));
+});
+
+test('import DXF czyta klasyczną POLYLINE z VERTEX, bulge i flagą zamknięcia', () => {
+  const dxf = dxfFile({ entities: [
+    ['0', 'POLYLINE', '70', '1'],
+    ['0', 'VERTEX', '10', '0', '20', '0'], ['0', 'VERTEX', '10', '10', '20', '0'], ['0', 'VERTEX', '10', '10', '20', '10', '42', '1'], ['0', 'VERTEX', '10', '0', '20', '10'],
+    ['0', 'SEQEND'],
+    ['0', 'LINE', '10', '50', '20', '0', '11', '60', '21', '0'],
+  ] });
+  const imported = parseSketchImport(dxf, 'dxf');
+  assert.equal(dxfArcs(imported).length, 1);
+  assert.equal(imported.entities.filter((item) => item.type === 'line').length, 4); // 3 polyline segments + 1 separate LINE
+  assert.equal(imported.curveCount, 5);
+});
+
+test('import DXF pomija siatki i polilinie 3D zamiast zgadywać geometrię', () => {
+  const dxf = dxfFile({ entities: [
+    ['0', 'POLYLINE', '70', '8'], ['0', 'VERTEX', '10', '0', '20', '0', '30', '0'], ['0', 'VERTEX', '10', '1', '20', '1', '30', '1'], ['0', 'SEQEND'],
+    ['0', 'LINE', '10', '0', '20', '0', '11', '5', '21', '0'],
+  ] });
+  const imported = parseSketchImport(dxf, 'dxf');
+  assert.equal(imported.curveCount, 1);
+  assert.ok(imported.repairReport.entries.some((entry) => /POLYLINE 3D/.test(entry.message)));
+});
+
+test('INSERT rozwija blok z przesunięciem, obrotem i skalą oraz zachowuje punkt bazowy', () => {
+  const dxf = dxfFile({
+    blocks: [['0', 'BLOCK', '2', 'ZAW', '10', '1', '20', '1'], ['0', 'LINE', '10', '1', '20', '1', '11', '3', '21', '1'], ['0', 'CIRCLE', '10', '1', '20', '1', '40', '0.5'], ['0', 'ENDBLK']],
+    entities: [['0', 'INSERT', '2', 'ZAW', '10', '10', '20', '20', '41', '2', '42', '2', '50', '90']],
+  });
+  const imported = parseSketchImport(dxf, 'dxf');
+  const line = imported.entities.find((item) => item.type === 'line');
+  const [start, end] = line.pointIds.map((id) => dxfPoint(imported, id));
+  assert.ok(near(start[0], 10) && near(start[1], 20));
+  assert.ok(near(end[0], 10) && near(end[1], 24)); // length 2 scaled x2, rotated 90 deg
+  const circle = imported.entities.find((item) => item.type === 'circle');
+  assert.ok(near(Number(circle.geometry.radius), 1));
+  assert.deepEqual(dxfPoint(imported, circle.pointIds[0]), [10, 20]);
+});
+
+test('INSERT z ujemną skalą odbija łuk bez zmiany jego położenia', () => {
+  const dxf = dxfFile({
+    blocks: [['0', 'BLOCK', '2', 'L', '10', '0', '20', '0'], ['0', 'ARC', '10', '0', '20', '0', '40', '5', '50', '0', '51', '90'], ['0', 'ENDBLK']],
+    entities: [['0', 'INSERT', '2', 'L', '10', '0', '20', '0', '41', '-1', '42', '1', '50', '0']],
+  });
+  const [arc] = dxfArcs(parseSketchImport(dxf, 'dxf'));
+  // The quarter arc (5,0)->(0,5) mirrored in X occupies the second quadrant: (0,5)->(-5,0) counter-clockwise.
+  assert.ok(near(arc.start[0], 0) && near(arc.start[1], 5));
+  assert.ok(near(arc.end[0], -5) && near(arc.end[1], 0));
+});
+
+test('INSERT obsługuje zagnieżdżenia i odporność na rekurencję oraz brak bloku', () => {
+  const dxf = dxfFile({
+    blocks: [
+      ['0', 'BLOCK', '2', 'A', '10', '0', '20', '0'], ['0', 'LINE', '10', '0', '20', '0', '11', '1', '21', '0'], ['0', 'INSERT', '2', 'A', '10', '0', '20', '1'], ['0', 'ENDBLK'],
+    ],
+    entities: [['0', 'INSERT', '2', 'A', '10', '0', '20', '0'], ['0', 'INSERT', '2', 'NIE_ISTNIEJE', '10', '0', '20', '0']],
+  });
+  const imported = parseSketchImport(dxf, 'dxf');
+  assert.ok(imported.curveCount >= 1 && imported.curveCount <= 20);
+  assert.ok(imported.repairReport.entries.some((entry) => /bez definicji bloku/.test(entry.message)));
+  assert.ok(imported.repairReport.entries.some((entry) => /zbyt głęboko/.test(entry.message)));
+});
+
+test('MINSERT tworzy siatkę kopii bloku', () => {
+  const dxf = dxfFile({
+    blocks: [['0', 'BLOCK', '2', 'P', '10', '0', '20', '0'], ['0', 'CIRCLE', '10', '0', '20', '0', '40', '1'], ['0', 'ENDBLK']],
+    entities: [['0', 'INSERT', '2', 'P', '10', '0', '20', '0', '70', '3', '71', '2', '44', '10', '45', '20']],
+  });
+  assert.equal(parseSketchImport(dxf, 'dxf').entities.filter((item) => item.type === 'circle').length, 6);
+});
+
+test('import DXF odtwarza elipsę, łuk eliptyczny i spline', () => {
+  const dxf = dxfFile({ entities: [
+    ['0', 'ELLIPSE', '10', '0', '20', '0', '11', '10', '21', '0', '40', '0.5', '41', '0', '42', String(Math.PI * 2)],
+    ['0', 'ELLIPSE', '10', '30', '20', '0', '11', '0', '21', '8', '40', '0.25', '41', '0', '42', String(Math.PI / 2)],
+    ['0', 'SPLINE', '70', '8', '73', '0', '74', '3', '11', '0', '21', '20', '11', '5', '21', '25', '11', '10', '21', '20'],
+  ] });
+  const imported = parseSketchImport(dxf, 'dxf');
+  const ellipse = imported.entities.find((item) => item.type === 'ellipse');
+  assert.equal(ellipse.geometry.majorRadius, '10');
+  assert.equal(ellipse.geometry.minorRadius, '5');
+  assert.equal(Number(ellipse.geometry.rotation), 0);
+  const arc = imported.entities.find((item) => item.type === 'ellipticalArc');
+  assert.equal(arc.geometry.majorRadius, '8');
+  assert.equal(arc.geometry.minorRadius, '2');
+  assert.ok(near(Number(arc.geometry.rotation), 90, 1e-9));
+  assert.equal(arc.geometry.endAngle, '90');
+  const spline = imported.entities.find((item) => item.type === 'spline');
+  assert.equal(spline.pointIds.length, 3);
+  assert.equal(spline.geometry.mode, 'fit');
+});
+
+test('import DXF respektuje kierunek wyciągnięcia ujemnego Z i odbija łuk', () => {
+  const dxf = dxfFile({ entities: [['0', 'ARC', '10', '0', '20', '0', '40', '5', '50', '0', '51', '90', '210', '0', '220', '0', '230', '-1']] });
+  const [arc] = dxfArcs(parseSketchImport(dxf, 'dxf'));
+  assert.ok(near(arc.start[0], 0) && near(arc.start[1], 5));
+  assert.ok(near(arc.end[0], -5) && near(arc.end[1], 0));
+});
+
+test('import DXF mapuje pełną tabelę $INSUNITS i pomija wyłączone warstwy', () => {
+  const unitFile = (code) => dxfFile({ header: [['9', '$INSUNITS', '70', String(code)]], entities: [['0', 'LINE', '10', '0', '20', '0', '11', '1', '21', '0']] });
+  for (const [code, unit, scale] of [[1, 'inch', 25.4], [2, 'foot', 304.8], [5, 'centimeter', 10], [6, 'meter', 1000], [7, 'kilometer', 1000000], [10, 'yard', 914.4], [14, 'decimeter', 100], [0, 'millimeter', 1], [99, 'millimeter', 1]]) {
+    const imported = parseSketchImport(unitFile(code), 'dxf');
+    assert.equal(imported.detectedUnit, unit, `kod ${code}`);
+    const line = imported.entities.find((item) => item.type === 'line');
+    assert.ok(near(Math.abs(dxfPoint(imported, line.pointIds[1])[0] - dxfPoint(imported, line.pointIds[0])[0]), scale, 1e-6));
+  }
+  const layered = dxfFile({
+    tables: [['0', 'LAYER', '2', 'WIDOCZNA', '70', '0', '62', '7'], ['0', 'LAYER', '2', 'WYLACZONA', '70', '0', '62', '-7'], ['0', 'LAYER', '2', 'ZAMROZONA', '70', '1', '62', '7']],
+    entities: [
+      ['0', 'LINE', '8', 'WIDOCZNA', '10', '0', '20', '0', '11', '1', '21', '0'],
+      ['0', 'LINE', '8', 'WYLACZONA', '10', '0', '20', '5', '11', '1', '21', '5'],
+      ['0', 'LINE', '8', 'ZAMROZONA', '10', '0', '20', '9', '11', '1', '21', '9'],
+    ],
+  });
+  const imported = parseSketchImport(layered, 'dxf');
+  assert.equal(imported.curveCount, 1);
+  assert.ok(imported.repairReport.entries.some((entry) => /wyłączonych lub zamrożonych warstw/.test(entry.message) && /2/.test(entry.message)));
+});
+
+test('import DXF grupuje nieobsługiwane encje i odrzuca binarny DXF oraz uszkodzoną encję bez przerywania całego pliku', () => {
+  const dxf = dxfFile({ entities: [
+    ['0', 'TEXT', '10', '0', '20', '0', '1', 'A'], ['0', 'TEXT', '10', '0', '20', '5', '1', 'B'], ['0', 'HATCH'],
+    ['0', 'LINE', '10', 'abc', '20', '0', '11', '1', '21', '0'], ['0', 'LINE', '10', '0', '20', '0', '11', '2', '21', '0'],
+  ] });
+  const imported = parseSketchImport(dxf, 'dxf');
+  assert.equal(imported.curveCount, 2); // invalid coordinate becomes 0 -> still a line; second line valid
+  const text = imported.repairReport.entries.find((entry) => /typu TEXT/.test(entry.message));
+  assert.match(text.message, /: 2\./);
+  assert.ok(imported.repairReport.entries.some((entry) => /typu HATCH/.test(entry.message)));
+  assert.throws(() => parseSketchImport('AutoCAD Binary DXF\r\n\u001a\u0000', 'dxf'), /Binarny plik DXF/);
+});
