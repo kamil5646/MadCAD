@@ -2265,7 +2265,12 @@ export default function ModelingWorkspace() {
   const constructionPoints = useMemo(() => resolveConstructionPoints(document.references, document.parameters, engine.bodies), [document.references, document.parameters, engine.bodies]);
   const actualBodyIds = useMemo(() => new Set(document.features.filter((feature) => (['extrude', 'revolve', 'sweep', 'loft', 'coil', 'pipe'].includes(feature.type) && feature.operation === 'new') || feature.type === 'sheetBase' || feature.type === 'primitive' || feature.type === 'formBody' || feature.type === 'importedModel' || feature.type === 'splitBody' || (feature.type === 'textSolid' && feature.operation === 'new')).map((feature) => `body-${feature.id}`)), [document.features]);
   const actualBodies = command?.previewFeature ? engine.bodies.filter((body) => actualBodyIds.has(body.id)) : engine.bodies;
-  const visibleViewportBodies = engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false);
+  // Stable identities matter: the viewport rebuilds its whole scene (and orbit controls)
+  // whenever these change, which used to interrupt a drag on any unrelated re-render.
+  const visibleViewportBodies = useMemo(
+    () => engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false),
+    [engine.bodies, document.features],
+  );
   const printRiskAnalysis = useMemo(() => {
     if (!printPanelOpen || !document.print.showRiskMap) return null;
     const visibleBodies = engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false);
