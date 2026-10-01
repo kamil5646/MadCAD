@@ -6489,3 +6489,20 @@ test('CAM tokarki planuje czoło i średnicę zewnętrzną w układzie X/Z', () 
   assert.match(calculateTurningToolpath(setup, oversized, [camBox]).warnings.join(' '), /Bezpieczna średnica przejazdu/);
   assert.throws(() => createMachineGcode(setup, oversized, [camBox]), /Bezpieczna średnica przejazdu/);
 });
+
+test('wyszukiwarka pokazuje polskie opisy typów, a nadal znajduje po nazwie technicznej', () => {
+  const document = createStarterDocument();
+  const index = buildProjectSearchIndex(document);
+  const feature = index.find((item) => item.kind === 'feature' && item.label === 'Podstawa');
+  assert.equal(feature.secondary, 'Wyciągnięcie');
+  assert.equal(feature.keywords, undefined);
+  assert.equal(searchProjectIndex(index, 'extrude').some((item) => item.id === feature.id), true);
+  assert.equal(searchProjectIndex(index, 'wyciagniecie').some((item) => item.id === feature.id), true);
+  const sheet = createDrawingSheet?.({ name: 'Arkusz test' });
+  if (sheet) {
+    const withSheet = structuredClone(document);
+    withSheet.drawings.push(sheet);
+    const item = buildProjectSearchIndex(withSheet).find((entry) => entry.id === sheet.id);
+    assert.match(item.secondary, /^A\d poziomo$/);
+  }
+});
