@@ -35,7 +35,7 @@ Skrócony playbook dla dalszych prac: [AGENTS.md](./AGENTS.md).
 - `Ctrl/⌘ K` wyszukuje obiekty projektu i polecenia wstążki (także z menu rozwijanych) oraz od razu je uruchamia.
 - Podstawowe skróty zgodne z Autodesk Fusion: `L`, `R`, `C`, `T`, `O`, `P`, `M`, `I`, `E` i `Del`.
 - Szkice parametryczne z więzami (poziomo, pionowo, zbieżne, równe, styczne, symetria, G2), wymiarami, profilami i szykami.
-- DXF/DWG: import z warstwami, blokami (INSERT), łukami bulge, elipsami i spline; DWG lokalnie przez GNU LibreDWG lub ODA; eksport szkicu do DXF R12 z warstwami.
+- DXF/DWG: import z warstwami, blokami (INSERT), łukami bulge, elipsami i spline; Importuj DWG lokalnie przez GNU LibreDWG lub ODA; eksport szkicu do DXF R12 z warstwami.
 - Modelowanie 3D: Extrude, Revolve, Sweep, Loft, Coil, Boolean, Shell, Draft, fillet i chamfer.
 - Trwałe referencje B-Rep, historia operacji, geometria konstrukcyjna i pomiary.
 - Import i eksport `STEP`, `STL`, `3MF`; poprawny import jest dopasowywany do widoku, a odrzucony nie blokuje historii. Import szkicu obejmuje `DWG`, `DXF`, `SVG`; własny parametryczny format to `.madcad`.
