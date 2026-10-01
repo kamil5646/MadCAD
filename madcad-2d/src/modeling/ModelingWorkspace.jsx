@@ -489,8 +489,6 @@ function normalizeSelectedFileBytes(bytes) {
   return null;
 }
 
-const NO_SELECTED_IDS = Object.freeze([]);
-
 const BASIC_CONSTRAINT_HINTS = Object.freeze({
   horizontal: 'Zaznacz jedną linię albo dwa punkty.',
   vertical: 'Zaznacz jedną linię albo dwa punkty.',
@@ -1479,7 +1477,7 @@ export default function ModelingWorkspace() {
   const hasHoleReference = isCircularProfile || Boolean(selectedSketchPointMatch);
   const selectedSketchEntityIds = selection?.kind === 'sketchEntities' && selection.sketchId === activeSketchId
     ? selection.ids
-    : NO_SELECTED_IDS;
+    : [];
   const selectedSketchConstraintId = selection?.kind === 'sketchConstraint' && selection.sketchId === activeSketchId
     ? selection.id
     : null;
