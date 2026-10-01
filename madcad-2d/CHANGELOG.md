@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.5.24 (2026-10-01)
+
+- wydanie 6.5.23 nie zostało opublikowane: workflow wydania dwukrotnie zatrzymał się na Windows, bo odzyskany korpus 220 brył przekroczył budżet 45 s (46,0 s i 47,0 s); funkcjonalnie nic się nie zmieniło, a ten sam scenariusz trwa ok. 20 s w osobnym shardzie CI;
+- budżet produktowy 45 s pozostaje dla uruchomień lokalnych, a na współdzielonych runnerach CI korpus ma 60 s zapasu, tak jak pełny scenariusz modelowania;
+- zawiera zmiany przygotowane dla 6.5.23: stos CAM, śledzenie podpór szkiców na ścianach (referencja jest automatycznie przypinana do przebudowanej ściany), wymiary liniowe z parametrami dokumentu oraz Electron 43.5.0 z poprawkami `npm audit`.
+
 ## 6.5.23 (2026-09-29)
 
 - rozbudowano podstawowy przepływ szkic → wymiary i więzy → Wyciągnięcie → edycja historii → automatyczna przebudowa → Cofnij/Ponów → zapis i ponowne otwarcie `.madcad`;
