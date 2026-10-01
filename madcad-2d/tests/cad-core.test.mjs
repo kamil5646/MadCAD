@@ -6697,3 +6697,36 @@ test('import DXF grupuje nieobsługiwane encje i odrzuca binarny DXF oraz uszkod
   assert.ok(imported.repairReport.entries.some((entry) => /typu HATCH/.test(entry.message)));
   assert.throws(() => parseSketchImport('AutoCAD Binary DXF\r\n\u001a\u0000', 'dxf'), /Binarny plik DXF/);
 });
+
+test('import DXF przenosi warstwy: kolor, typ linii, grubość, blokadę i dziedziczenie warstwy 0 w blokach', () => {
+  const dxf = dxfFile({
+    tables: [
+      ['0', 'LAYER', '2', 'OSIE', '70', '0', '62', '1', '6', 'CENTER', '370', '25'],
+      ['0', 'LAYER', '2', 'KONTUR', '70', '4', '62', '3', '6', 'CONTINUOUS', '370', '50'],
+      ['0', 'LAYER', '2', 'KRESKI', '70', '0', '62', '7', '6', 'HIDDEN', '370', '-3'],
+    ],
+    blocks: [['0', 'BLOCK', '2', 'B', '10', '0', '20', '0'], ['0', 'LINE', '8', '0', '10', '0', '20', '0', '11', '1', '21', '0'], ['0', 'ENDBLK']],
+    entities: [
+      ['0', 'LINE', '8', 'OSIE', '10', '0', '20', '0', '11', '10', '21', '0'],
+      ['0', 'CIRCLE', '8', 'KONTUR', '10', '5', '20', '5', '40', '2'],
+      ['0', 'LINE', '8', 'KRESKI', '10', '0', '20', '9', '11', '10', '21', '9'],
+      ['0', 'LINE', '8', '0', '10', '0', '20', '20', '11', '5', '21', '20'],
+      ['0', 'INSERT', '8', 'OSIE', '2', 'B', '10', '30', '20', '0'],
+    ],
+  });
+  const imported = parseSketchImport(dxf, 'dxf');
+  const byName = Object.fromEntries(imported.layers.map((layer) => [layer.name, layer]));
+  assert.deepEqual(Object.keys(byName).sort(), ['KONTUR', 'KRESKI', 'OSIE']);
+  assert.equal(byName.OSIE.lineType, 'center');
+  assert.equal(byName.OSIE.lineWeight, 0.25);
+  assert.equal(byName.OSIE.color, '#ff4d4d');
+  assert.equal(byName.KONTUR.locked, true);
+  assert.equal(byName.KONTUR.lineWeight, 0.5);
+  assert.equal(byName.KRESKI.lineType, 'dashed');
+  assert.equal(byName.KRESKI.lineWeight, undefined);
+  const curves = imported.entities.filter((entity) => entity.type !== 'point');
+  assert.equal(curves.filter((entity) => entity.layerName === 'OSIE').length, 2); // own line + the block line inheriting the INSERT layer
+  assert.equal(curves.filter((entity) => entity.layerName === 'KONTUR').length, 1);
+  assert.equal(curves.filter((entity) => entity.layerName === undefined).length, 1); // layer 0 stays on the default layer
+  assert.equal(parseSketchImport(dxfFile({ entities: [['0', 'LINE', '10', '0', '20', '0', '11', '1', '21', '0']] }), 'dxf').layers.length, 0);
+});

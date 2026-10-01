@@ -149,7 +149,7 @@ import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-impor
 import { createId } from '../cad-core/ids.js';
 import { CAM_TOOL_PRESETS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, instantiateManufacturingOperationTemplate, moveManufacturingOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingOperationTemplate, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
-import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
+import { DEFAULT_LAYER_ID, assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
 import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../cad-core/assembly-joints.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../cad-core/assembly-motion.js';
@@ -1029,7 +1029,9 @@ export default function ModelingWorkspace() {
       mutator(next);
       moveTrackedFaceSketchSupports(document, next);
       for (const sketch of next.sketches) {
-        sketch.entities = sketch.entities.map((entity) => existingEntityIds.has(entity.id)
+        // New entities join the active layer unless their creator placed them on a
+        // specific one (for example an imported DXF layer).
+        sketch.entities = sketch.entities.map((entity) => existingEntityIds.has(entity.id) || (entity.layerId && entity.layerId !== DEFAULT_LAYER_ID)
           ? entity
           : { ...entity, layerId: next.activeLayerId });
       }
@@ -6809,7 +6811,16 @@ export default function ModelingWorkspace() {
       commit((next) => {
         const targetSketch = next.sketches.find((item) => item.id === activeSketchId);
         if (!targetSketch) throw new Error('Aktywny szkic nie istnieje.');
-        targetSketch.entities.push(...imported.entities);
+        // Bring DXF layers along: reuse a layer with the same name, otherwise create it.
+        const layerIdByName = new Map();
+        for (const definition of imported.layers || []) {
+          const existing = next.layers.find((layer) => layer.name.toLocaleLowerCase('pl') === definition.name.toLocaleLowerCase('pl'));
+          if (existing) { layerIdByName.set(definition.name, existing.id); continue; }
+          const layer = createLayer({ name: definition.name, color: definition.color, lineType: definition.lineType, lineWeight: definition.lineWeight, locked: definition.locked });
+          next.layers.push(layer);
+          layerIdByName.set(definition.name, layer.id);
+        }
+        targetSketch.entities.push(...imported.entities.map(({ layerName, ...entity }) => (layerName && layerIdByName.has(layerName) ? { ...entity, layerId: layerIdByName.get(layerName) } : entity)));
         refreshDetectedSketchProfiles(targetSketch, next.parameters);
       });
       setImportRepairReport({
