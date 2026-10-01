@@ -581,6 +581,7 @@ export default function ModelingWorkspace() {
   }, [language]);
   const [initialOpen] = useState(loadInitialDocument);
   const history = useDocumentHistory(initialOpen.document);
+  const ribbonCommandsRef = useRef([]);
   const { document } = history;
   const replaceDocument = history.replace;
   const serializedDocument = useMemo(() => JSON.stringify(document), [document]);
@@ -7853,7 +7854,7 @@ export default function ModelingWorkspace() {
               return <button key={item.id} className={selected ? 'active' : ''} type="button" role="tab" aria-selected={selected} tabIndex={selected ? 0 : -1} disabled={Boolean(activeSketchId && item.id !== 'solid')} title={activeSketchId && item.id !== 'solid' ? 'Najpierw zakończ aktywny szkic.' : item.label} onKeyDown={(event) => handleWorkspaceTabKeyDown(event, index, WORKSPACE_OPTIONS, switchWorkspace)} onClick={() => switchWorkspace(item.id)}>{item.label}</button>;
             })}
           </nav>
-          <ResponsiveRibbon key={licenseInfoOpen ? 'license-open' : 'license-closed'} language={language}>
+          <ResponsiveRibbon key={licenseInfoOpen ? 'license-open' : 'license-closed'} language={language} commandRegistry={ribbonCommandsRef}>
             {activeSketchId ? (
               <>
                 {activeSketchIs3D ? (
@@ -8383,7 +8384,7 @@ export default function ModelingWorkspace() {
           {projectComparisonOpen && <ProjectComparisonPanel snapshots={projectSnapshots} comparison={projectComparison} sourceLabel={projectComparisonBaseline?.label || ''} loading={projectComparisonLoading || projectSnapshotsLoading} error={projectComparisonError || projectSnapshotsError} onCompareSnapshot={compareProjectSnapshot} onCompareFile={compareExternalProject} onClose={() => setProjectComparisonOpen(false)} />}
           {projectHealthOpen && <ProjectHealthPanel report={projectHealthReport} language={language} onNavigate={navigateProjectHealthIssue} onExport={exportProjectHealthReport} onClose={() => setProjectHealthOpen(false)} />}
           {projectDependenciesOpen && <ProjectDependenciesPanel inspection={projectDependencyInspection} language={language} onSelectNode={setProjectDependencyNodeId} onNavigate={navigateProjectDependency} onClose={() => setProjectDependenciesOpen(false)} />}
-          {projectSearchOpen && <ProjectSearchPalette index={projectSearchIndex} language={language} onNavigate={navigateProjectSearchResult} onClose={() => setProjectSearchOpen(false)} />}
+          {projectSearchOpen && <ProjectSearchPalette index={projectSearchIndex} language={language} commands={ribbonCommandsRef.current} onNavigate={navigateProjectSearchResult} onClose={() => setProjectSearchOpen(false)} />}
           <TopologyReferenceRepairPanel items={lostTopologyReferences} selection={selection} onReassign={repairTopologyReference} onPreview={(candidate) => handleTopologySelection(candidate)} />
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}

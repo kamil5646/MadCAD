@@ -117,7 +117,21 @@ app.whenReady().then(async () => {
     })()`);
     if (!englishInspection.ok) throw new Error(`Paleta zawiera nieprzetłumaczony tekst systemowy: ${englishInspection.content}`);
 
-    process.stdout.write(`${JSON.stringify({ ...layout, targetId, sketchId, bodyId, parameterNavigation: true, keyboardNavigation: true, noResults: true, englishPanel: true, screenshotPath }, null, 2)}\n`);
+    // Command search: ribbon commands (also those inside dropdown menus) can be found and run.
+    await setQuery(window, 'chamfer');
+    await waitFor(window, `[...document.querySelectorAll('[data-project-search-kind="command"]')].some((item) => /chamfer/i.test(item.textContent))`, 'polecenie Chamfer w palecie');
+    const commandOption = await window.webContents.executeJavaScript(`(() => {
+      const item = document.querySelector('[data-project-search-kind="command"]');
+      return { text: item.textContent, disabled: item.getAttribute('aria-disabled') === 'true' };
+    })()`);
+    if (!commandOption.disabled && !commandOption.text) throw new Error('Wynik polecenia jest pusty.');
+    await setQuery(window, 'primitive');
+    await waitFor(window, `document.querySelector('[data-project-search-kind="command"]:not([aria-disabled="true"])')`, 'dostępne polecenie Primitive');
+    await window.webContents.executeJavaScript(`document.querySelector('[data-project-search-input]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
+    await waitFor(window, `!document.querySelector('.project-search-palette') && document.querySelector('.command-dialog')`, 'uruchomienie polecenia z palety');
+    await window.webContents.executeJavaScript(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+
+    process.stdout.write(`${JSON.stringify({ ...layout, targetId, sketchId, bodyId, parameterNavigation: true, keyboardNavigation: true, noResults: true, englishPanel: true, commandSearch: true, screenshotPath }, null, 2)}\n`);
     app.exit(0);
   } catch (error) {
     process.stderr.write(`${error.stack || error.message}\n`);

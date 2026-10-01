@@ -2294,6 +2294,10 @@
 .project-search-results > button > div { display: grid; min-width: 0; gap: 2px; }
 .project-search-results strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .project-search-results small { overflow: hidden; color: #97aab8; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.project-search-results > button[data-project-search-kind="command"] > span { color: #f0c36a; }
+.project-search-results > button.command-disabled { cursor: not-allowed; }
+.project-search-results > button.command-disabled > div { opacity: 0.55; }
+.project-search-results > button > kbd { padding: 1px 6px; border: 1px solid #5d7384; border-radius: 3px; background: #243542; color: #cfe0ea; font: inherit; font-size: 9px; }
 .project-search-results > button > svg { color: #8194a2; opacity: 0; }
 .project-search-results > button.active > svg { opacity: 1; }
 .project-search-empty { display: flex; min-height: 150px; align-items: center; justify-content: center; color: #9fb0bd; text-align: center; flex-direction: column; gap: 5px; font-size: 10px; }
