@@ -93,3 +93,26 @@ export function searchProjectIndex(index, query, { limit = 30 } = {}) {
 export function searchProject(document, query, options) {
   return searchProjectIndex(buildProjectSearchIndex(document), query, options);
 }
+
+// Ranks command-palette entries (see collectRibbonCommands) for a typed query.
+// Available commands outrank unavailable ones with the same text match.
+export function searchCommands(commands, query, { limit = 8, translate = (value) => value } = {}) {
+  const normalizedQuery = normalizeProjectSearchText(query);
+  if (!normalizedQuery) return [];
+  const tokens = normalizedQuery.split(' ').filter(Boolean);
+  const scored = [];
+  for (const command of commands || []) {
+    const names = [command.label, command.displayLabel, translate(command.displayLabel || command.label)].filter(Boolean).map(normalizeProjectSearchText);
+    const haystack = normalizeProjectSearchText([command.label, command.displayLabel, translate(command.displayLabel || command.label), command.parent, command.group, command.shortcut, translate(command.description || ''), 'polecenie command'].filter(Boolean).join(' '));
+    if (!tokens.every((token) => haystack.includes(token))) continue;
+    let score = 0;
+    if (names.includes(normalizedQuery)) score = 1000;
+    else if (names.some((name) => name.startsWith(normalizedQuery))) score = 700;
+    else if (names.some((name) => name.includes(normalizedQuery))) score = 450;
+    else if (names.some((name) => tokens.every((token) => name.includes(token)))) score = 300;
+    else score = 100;
+    if (command.disabled) score -= 50;
+    scored.push({ ...command, score, nameMatch: score - (command.disabled ? -50 : 0) >= 300 });
+  }
+  return scored.sort((left, right) => right.score - left.score || String(left.displayLabel || left.label).localeCompare(String(right.displayLabel || right.label), 'pl')).slice(0, limit);
+}

@@ -406,6 +406,44 @@ function flattenRibbonGroups(children) {
   return groups;
 }
 
+// Flat list of every ribbon command (including items inside dropdown menus) with
+// its current availability, so the command search can run them without the
+// ribbon having to render each menu.
+export function collectRibbonCommands(children) {
+  const commands = [];
+  const seen = new Set();
+  const addCommand = (tool, group, parent = null) => {
+    const { label, displayLabel = label, description, onClick, disabled = false, disabledReason } = tool;
+    if (!label || seen.has(label)) return;
+    seen.add(label);
+    const operational = typeof onClick === 'function';
+    const unavailable = disabled || !operational;
+    commands.push({
+      id: `command-${label}`,
+      label,
+      displayLabel,
+      description: description || TOOL_DESCRIPTIONS[label] || '',
+      group,
+      parent,
+      shortcut: TOOL_SHORTCUTS[label] || null,
+      disabled: unavailable,
+      disabledReason: unavailable ? (operational ? (disabledReason || 'Polecenie nie jest dostępne w bieżącym stanie projektu.') : 'Polecenie nie ma przypisanej operacji.') : '',
+      onClick,
+    });
+  };
+  const visit = (nodes, group) => {
+    React.Children.forEach(nodes, (node) => {
+      if (!React.isValidElement(node)) return;
+      if (node.type === React.Fragment) { visit(node.props.children, group); return; }
+      const { items, label, displayLabel = label } = node.props;
+      if (items?.length) items.forEach((item) => addCommand({ ...item, disabled: node.props.disabled || item.disabled }, group, displayLabel));
+      else addCommand(node.props, group);
+    });
+  };
+  for (const group of flattenRibbonGroups(children)) visit(group.props.children, group.props.label);
+  return commands;
+}
+
 export function calculateVisibleRibbonGroups(widths, availableWidth, stickyIndices = [], overflowWidth = 78) {
   const sticky = new Set(stickyIndices);
   const normalIndices = widths.map((_, index) => index).filter((index) => !sticky.has(index));
@@ -514,8 +552,11 @@ function RibbonOverflow({ groups, language = 'pl' }) {
   );
 }
 
-export function ResponsiveRibbon({ children, language = 'pl' }) {
+export function ResponsiveRibbon({ children, language = 'pl', commandRegistry = null }) {
   const groups = flattenRibbonGroups(children);
+  // Assigned during render on purpose: the command search reads the latest tree
+  // without every ribbon re-render having to notify the workspace.
+  if (commandRegistry) commandRegistry.current = collectRibbonCommands(children);
   const groupSignature = groups.map((group) => `${group.props.label}:${group.props.end ? '1' : '0'}`).join('|');
   const groupCount = groups.length;
   const stickyKey = groups.map((group, index) => (group.props.end ? index : -1)).filter((index) => index >= 0).join(',');
