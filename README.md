@@ -39,7 +39,7 @@ Skrócony playbook dla dalszych prac: [AGENTS.md](./AGENTS.md).
 - Import i eksport `STEP`, `STL`, `3MF`; poprawny import jest dopasowywany do widoku, a odrzucony nie blokuje historii. Import szkicu obejmuje `DWG`, `DXF`, `SVG`; własny parametryczny format to `.madcad`.
 - Kontrola drukowalności, gabarytów i dopasowania modelu do stołu drukarki.
 - Interfejs polski i angielski, lokalne pliki projektów, bezpłatne konto MadCAD,
-  brak telemetrii projektów i brak klucza aktywacyjnego.
+  brak telemetrii projektów i brak klucza produktu.
 - Przeglądarka projektu jest domyślnie zwinięta, aby maksymalizować obszar rysowania.
 
 ## Szybki start
@@ -63,7 +63,7 @@ MadCAD korzysta z [MadCAD Personal and Commercial License 3.0](./LICENSE):
 - **prywatnie:** bezpłatnie bez limitu czasu dla osoby fizycznej, do celów prywatnych, edukacyjnych i niezarobkowych;
 - **ocena w firmie:** pełna wersja przez 40 dni bez opłaty;
 - **komercyjnie:** po ocenie wymagana jest płatna, bezterminowa licencja dla każdego stanowiska;
-- **bez aktywacji:** dowodem licencji komercyjnej jest dokument zakupu, nie klucz programu;
+- **bez klucza produktu:** dowodem licencji komercyjnej jest dokument zakupu, nie klucz programu; wymagane jest tylko konto MadCAD z okresowym sprawdzeniem uprawnienia;
 - **własność projektów:** pliki i rezultaty utworzone przez użytkownika pozostają jego własnością.
 
 Wycena licencji komercyjnej: [kkasprzak15@icloud.com](mailto:kkasprzak15@icloud.com?subject=MadCAD%20-%20licencja%20komercyjna).
