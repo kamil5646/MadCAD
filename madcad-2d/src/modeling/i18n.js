@@ -1718,6 +1718,8 @@ const ENGLISH_TEXT = Object.freeze({
   'Wyszukaj obiekt w projekcie · Ctrl/⌘ K': 'Search for an object in the project · Ctrl/⌘ K',
   'IDŹ DO': 'GO TO',
   'Wyszukaj nazwę albo typ obiektu': 'Search by object name or type',
+  'Wyszukaj obiekt albo polecenie': 'Search for an object or a command',
+  'Obiekt lub polecenie: szkic, fazuj, parametr…': 'Object or command: sketch, chamfer, parameter…',
   'Zamknij wyszukiwanie projektu': 'Close project search',
   'Parametr, szkic, operacja, komponent…': 'Parameter, sketch, feature, component…',
   'Szukaj w projekcie': 'Search project',
