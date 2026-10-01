@@ -32,8 +32,10 @@ Skrócony playbook dla dalszych prac: [AGENTS.md](./AGENTS.md).
 - Linia w stylu AutoCAD: kliknij początek, ustaw kierunek kursorem, wpisz długość i naciśnij `Enter`.
 - Nawigacja CAD: naciśnięte kółko przesuwa widok, przeciągnięcie prawym przyciskiem lub `Shift` + kółko obraca model 3D, rolka przybliża pod kursorem, a lewy przycisk zaznacza i rysuje.
 - Podpowiedzi po najechaniu z opisem działania; skróty podstawowych funkcji są pokazywane tylko w podpowiedzi.
+- `Ctrl/⌘ K` wyszukuje obiekty projektu i polecenia wstążki (także z menu rozwijanych) oraz od razu je uruchamia.
 - Podstawowe skróty zgodne z Autodesk Fusion: `L`, `R`, `C`, `T`, `O`, `P`, `M`, `I`, `E` i `Del`.
-- Szkice parametryczne z więzami, wymiarami, profilami i szykami. Importuj DWG lokalnie przez GNU LibreDWG lub ODA, a także SVG i DXF.
+- Szkice parametryczne z więzami (poziomo, pionowo, zbieżne, równe, styczne, symetria, G2), wymiarami, profilami i szykami.
+- DXF/DWG: import z warstwami, blokami (INSERT), łukami bulge, elipsami i spline; Importuj DWG lokalnie przez GNU LibreDWG lub ODA; eksport szkicu do DXF R12 z warstwami.
 - Modelowanie 3D: Extrude, Revolve, Sweep, Loft, Coil, Boolean, Shell, Draft, fillet i chamfer.
 - Trwałe referencje B-Rep, historia operacji, geometria konstrukcyjna i pomiary.
 - Import i eksport `STEP`, `STL`, `3MF`; poprawny import jest dopasowywany do widoku, a odrzucony nie blokuje historii. Import szkicu obejmuje `DWG`, `DXF`, `SVG`; własny parametryczny format to `.madcad`.
