@@ -146,10 +146,11 @@ import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, pars
 import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMeshFaces, reduceMesh, remeshUniform, repairMesh, smoothMesh } from '../cad-core/mesh-tools.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
+import { sketchDxf } from '../cad-core/sketch-dxf-export.js';
 import { createId } from '../cad-core/ids.js';
 import { CAM_TOOL_PRESETS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, instantiateManufacturingOperationTemplate, moveManufacturingOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingOperationTemplate, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
-import { assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
+import { DEFAULT_LAYER_ID, assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
 import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../cad-core/assembly-joints.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../cad-core/assembly-motion.js';
@@ -1029,7 +1030,9 @@ export default function ModelingWorkspace() {
       mutator(next);
       moveTrackedFaceSketchSupports(document, next);
       for (const sketch of next.sketches) {
-        sketch.entities = sketch.entities.map((entity) => existingEntityIds.has(entity.id)
+        // New entities join the active layer unless their creator placed them on a
+        // specific one (for example an imported DXF layer).
+        sketch.entities = sketch.entities.map((entity) => existingEntityIds.has(entity.id) || (entity.layerId && entity.layerId !== DEFAULT_LAYER_ID)
           ? entity
           : { ...entity, layerId: next.activeLayerId });
       }
@@ -6809,7 +6812,16 @@ export default function ModelingWorkspace() {
       commit((next) => {
         const targetSketch = next.sketches.find((item) => item.id === activeSketchId);
         if (!targetSketch) throw new Error('Aktywny szkic nie istnieje.');
-        targetSketch.entities.push(...imported.entities);
+        // Bring DXF layers along: reuse a layer with the same name, otherwise create it.
+        const layerIdByName = new Map();
+        for (const definition of imported.layers || []) {
+          const existing = next.layers.find((layer) => layer.name.toLocaleLowerCase('pl') === definition.name.toLocaleLowerCase('pl'));
+          if (existing) { layerIdByName.set(definition.name, existing.id); continue; }
+          const layer = createLayer({ name: definition.name, color: definition.color, lineType: definition.lineType, lineWeight: definition.lineWeight, locked: definition.locked });
+          next.layers.push(layer);
+          layerIdByName.set(definition.name, layer.id);
+        }
+        targetSketch.entities.push(...imported.entities.map(({ layerName, ...entity }) => (layerName && layerIdByName.has(layerName) ? { ...entity, layerId: layerIdByName.get(layerName) } : entity)));
         refreshDetectedSketchProfiles(targetSketch, next.parameters);
       });
       setImportRepairReport({
@@ -7083,6 +7095,21 @@ export default function ModelingWorkspace() {
       if (sheet) sheet.tables = sheet.tables.filter((table) => table.id !== tableId);
     });
     setNotice('Usunięto tabelę z arkusza.');
+  };
+
+  const dxfExportSketch = document.sketches.find((sketch) => sketch.id === (activeSketchId || (selection?.kind === 'sketch' ? selection.id : null))) || null;
+  const canExportSketchDxf = Boolean(dxfExportSketch && dxfExportSketch.space !== '3d'
+    && dxfExportSketch.entities.some((entity) => !['point', 'text'].includes(entity.type) && entity.role !== 'construction'));
+  const exportActiveSketchDxf = () => {
+    if (!canExportSketchDxf) return;
+    try {
+      const { text, stats } = sketchDxf(dxfExportSketch, { parameters: document.parameters, layers: document.layers });
+      downloadBlob(new Blob([text], { type: 'application/dxf;charset=utf-8' }), `${safeName(document.name)}-${safeName(dxfExportSketch.name)}.dxf`);
+      const sampled = stats.polylines ? ` · ${stats.polylines} krzywych (elipsy, spline) jako polilinie` : '';
+      setNotice(`Wyeksportowano szkic ${dxfExportSketch.name} do DXF R12 w mm: ${stats.lines} odcinków, ${stats.circles} okręgów, ${stats.arcs} łuków${sampled} · ${stats.layers} warstw.`);
+    } catch (error) {
+      setNotice(`Eksport szkicu DXF nie powiódł się: ${error.message}`);
+    }
   };
 
   const exportActiveDrawingDxf = () => {
@@ -7833,6 +7860,9 @@ export default function ModelingWorkspace() {
               <button id="fileExportStepBtn" type="button" disabled={!engine.bodies.length || engine.status !== 'ready' || containsImportedMesh} onClick={() => { setFileMenuOpen(false); void exportModel('step'); }}><FileBox /><span><strong>STEP</strong><small>Dokładna geometria CAD B-Rep.</small></span></button>
               <button id="fileExportStlBtn" type="button" disabled={!engine.bodies.length || engine.status !== 'ready'} onClick={() => { setFileMenuOpen(false); void exportModel('stl'); }}><HardDriveDownload /><span><strong>STL</strong><small>Siatka modelu 3D.</small></span></button>
               <button id="fileExport3mfBtn" type="button" disabled={!engine.bodies.length || engine.status !== 'ready'} onClick={() => { setFileMenuOpen(false); void exportModel('3mf'); }}><FileDown /><span><strong>3MF</strong><small>Siatka 3D z jednostkami.</small></span></button>
+            </section>
+            <section><h2>EKSPORT SZKICU</h2>
+              <button id="fileExportSketchDxfBtn" type="button" disabled={!canExportSketchDxf} onClick={() => { setFileMenuOpen(false); exportActiveSketchDxf(); }}><FileText /><span><strong>Szkic DXF</strong><small>DXF R12 w mm · aktywny albo zaznaczony szkic z warstwami.</small></span></button>
             </section>
             <section><h2>RYSUNEK TECHNICZNY</h2>
               <button type="button" disabled={!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow} onClick={() => { setFileMenuOpen(false); void previewActiveDrawing(); }}><Eye /><span><strong>Podgląd wydruku</strong><small>Arkusz 2D w skali 1:1.</small></span></button>
