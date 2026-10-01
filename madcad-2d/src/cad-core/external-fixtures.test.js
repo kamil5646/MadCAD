@@ -30,6 +30,18 @@ describe('external CAD and slicer compatibility fixtures', () => {
     expect(imported.repairReport.entries.some((entry) => /INSERT bez definicji bloku/.test(entry.message))).toBe(true);
   });
 
+  it('imports a rich ezdxf R2018 drawing: layers, blocks, bulges, ellipses and splines stay native', async () => {
+    const imported = parseSketchImport(await readFile(fixturePath('ezdxf-r2018-rich.dxf'), 'utf8'), 'dxf');
+    expect(imported.sourceUnit).toBe('millimeter');
+    expect(imported.curveCount).toBe(25);
+    const count = (type) => imported.entities.filter((entity) => entity.type === type).length;
+    expect([count('circle'), count('arc'), count('ellipse'), count('ellipticalArc'), count('spline')]).toEqual([5, 6, 1, 1, 1]);
+    expect(imported.layers.map((layer) => [layer.name, layer.lineType, layer.lineWeight])).toEqual([['KONTUR', 'continuous', 0.5], ['OSIE', 'center', 0.25]]);
+    const messages = imported.repairReport.entries.map((entry) => entry.message).join(' | ');
+    for (const type of ['TEXT', 'MTEXT', 'HATCH', 'DIMENSION', 'POINT']) expect(messages).toContain(`typu ${type}`);
+    expect(messages).toContain('wyłączonych lub zamrożonych warstw: 2');
+  });
+
   it('accepts the documented FreeCAD/OpenCascade STEP envelope as exact CAD', async () => {
     const bytes = await readFile(fixturePath('freecad-step-envelope.step'));
     expect(inspectModelImportBuffer(bytes, 'step')).toMatchObject({ format: 'step', importMode: 'brep' });

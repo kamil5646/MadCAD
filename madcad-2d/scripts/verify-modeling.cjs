@@ -780,14 +780,29 @@ async function runUiFlow(window) {
   if (importedLayers.axis.lineType !== 'center' || importedLayers.axisEntities.join() !== 'line' || importedLayers.outlineEntities.join() !== 'circle') {
     throw new Error(`Import DXF nie przypisał geometrii do warstw: ${JSON.stringify(importedLayers)}`);
   }
+  // Export the sketch back to DXF and read the produced file from the download blob.
+  await window.webContents.executeJavaScript(`(() => {
+    window.__verifyBlobs = [];
+    const create = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = (blob) => { window.__verifyBlobs.push(blob); return create(blob); };
+  })()`);
+  await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn')?.click()`);
+  await waitForUi(window, `Boolean(document.querySelector('#fileExportSketchDxfBtn:not([disabled])'))`, 'aktywny eksport szkicu DXF w menu Plik');
+  await window.webContents.executeJavaScript(`document.querySelector('#fileExportSketchDxfBtn').click()`);
+  await waitForUi(window, `window.__verifyBlobs.length === 1`, 'plik eksportu szkicu DXF');
+  const exportedSketchDxf = await window.webContents.executeJavaScript(`window.__verifyBlobs[0].text()`);
+  if (!/AC1009/.test(exportedSketchDxf) || !/0\nLAYER\n2\nOSIE\n70\n0\n62\n1\n6\nCENTER/.test(exportedSketchDxf) || !/0\nCIRCLE\n8\nKONTUR\n/.test(exportedSketchDxf)) {
+    throw new Error(`Eksport szkicu DXF nie zawiera warstw i geometrii: ${exportedSketchDxf.slice(0, 600)}`);
+  }
   await sendShortcut('z');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.layers?.length === ${layersBeforeImport}`, 'undo importu warstw DXF');
   await waitForUi(window, `window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 16`, 'geometria przed importem warstw przywrócona');
+  await waitForUi(window, `(() => { const saved = JSON.parse(localStorage.getItem('madcad:modeling-document:v4') || 'null'); return saved?.sketches?.at(-1)?.entities?.length === 16 && saved.layers.length === ${layersBeforeImport}; })()`, 'autozapis po cofnięciu importu warstw');
 
   const dwgImportedRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState?.revision || 0`);
   await window.webContents.executeJavaScript(`window.__madcadVerifyReopenAutosave?.()`);
   await waitForUi(window, `window.__madcadVerifyEngineState?.revision >= ${dwgImportedRevision} && window.__madcadVerifyDocumentState?.sketches?.at(-1)?.entities === 16`, 'ponownie otwarty import DWG', modelingTimeoutMs);
-  const sketchImport = { format: 'svg/dwg', entities: 16, profiles: 2, undoRedo: true, reopened: true, dxfLayers: true };
+  const sketchImport = { format: 'svg/dwg', entities: 16, profiles: 2, undoRedo: true, reopened: true, dxfLayers: true, dxfSketchExport: true };
 
   progress('collinear and symmetry constraints');
   await window.webContents.executeJavaScript(`window.__madcadVerifyLoadConstraintFixture?.()`);

@@ -128,14 +128,49 @@ function sampleConic(edge, reversed = false, steps = 32) {
   });
 }
 
-function edgeSamples(edge, reversed = false) {
+// `density` multiplies the number of samples of curves that are not exact in DXF
+// (ellipses, splines, conics); arcs and circles keep their standard sampling.
+function edgeSamples(edge, reversed = false, density = 1) {
   if (edge.type === 'line') return reversed ? [edge.end, edge.start] : [edge.start, edge.end];
   if (edge.type === 'arc') return sampleArc(edge.center, edge.start, edge.end, edge.direction, reversed);
-  if (edge.type === 'ellipticalArc') return sampleEllipticalArc(edge, reversed);
-  if (edge.type === 'spline') return sampleSpline(edge, reversed);
-  if (edge.type === 'conic') return sampleConic(edge, reversed);
-  if (edge.type === 'ellipse') return sampleEllipse(edge.center, edge.majorRadius, edge.minorRadius, edge.rotation, reversed);
+  if (edge.type === 'ellipticalArc') return sampleEllipticalArc(edge, reversed, 48 * density);
+  if (edge.type === 'spline') return sampleSpline(edge, reversed, 16 * density);
+  if (edge.type === 'conic') return sampleConic(edge, reversed, 32 * density);
+  if (edge.type === 'ellipse') return sampleEllipse(edge.center, edge.majorRadius, edge.minorRadius, edge.rotation, reversed, 72 * density);
   return sampleCircle(edge.center, edge.radius, reversed);
+}
+
+export function sampleSketchEdge(edge, density = 1) {
+  return edgeSamples(edge, false, density);
+}
+
+function sketchEntityEdge(entity, pointMap, values) {
+  const points = (entity.pointIds || []).map((pointId) => pointMap.get(pointId));
+  if (entity.type === 'line' && points[0] && points[1]) return { type: 'line', start: points[0], end: points[1] };
+  if (entity.type === 'arc' && points[0] && points[1] && points[2]) return { type: 'arc', center: points[0], start: points[1], end: points[2], direction: entity.geometry?.direction || 'ccw' };
+  if (entity.type === 'circle' && points[0]) return { type: 'circle', center: points[0], radius: numeric(entity.geometry?.radius, values) };
+  if (entity.type === 'ellipse' && points[0]) return { type: 'ellipse', center: points[0], majorRadius: numeric(entity.geometry?.majorRadius, values), minorRadius: numeric(entity.geometry?.minorRadius, values), rotation: numeric(entity.geometry?.rotation || '0', values) };
+  if (entity.type === 'ellipticalArc' && points[0] && points[1] && points[2]) return { type: 'ellipticalArc', center: points[0], start: points[1], end: points[2], majorRadius: numeric(entity.geometry?.majorRadius, values), minorRadius: numeric(entity.geometry?.minorRadius, values), rotation: numeric(entity.geometry?.rotation || '0', values), startAngle: numeric(entity.geometry?.startAngle, values), endAngle: numeric(entity.geometry?.endAngle, values), direction: entity.geometry?.direction || 'ccw' };
+  if (entity.type === 'spline' && points.filter(Boolean).length >= 2) return { type: 'spline', mode: entity.geometry?.mode === 'control' ? 'control' : 'fit', controlPoints: points.filter(Boolean) };
+  if (entity.type === 'conic' && points.length === 3 && points.every(Boolean)) return { type: 'conic', controlPoints: points, rho: numeric(entity.geometry?.rho || '1', values) };
+  return null;
+}
+
+// Resolved curves of a sketch with their layer, for exporters that want exact
+// lines/arcs/circles and sampled everything else.
+export function sketchExportCurves(sketch, parameters = [], { includeConstruction = false } = {}) {
+  const values = resolvedValues(parameters);
+  const pointMap = new Map((sketch?.entities || [])
+    .filter((entity) => entity.type === 'point')
+    .map((point) => [point.id, [numeric(point.geometry.x, values), numeric(point.geometry.y, values)]]));
+  const curves = [];
+  for (const entity of sketch?.entities || []) {
+    if (entity.type === 'point' || entity.type === 'text') continue;
+    if (!includeConstruction && entity.role === 'construction') continue;
+    const edge = sketchEntityEdge(entity, pointMap, values);
+    if (edge && [...(edge.start || []), ...(edge.end || []), ...(edge.center || [])].every(Number.isFinite)) curves.push({ entity, edge });
+  }
+  return curves;
 }
 
 export function sketchDrawingSegments(sketch, parameters = [], { layers = [], includeConstruction = false } = {}) {
@@ -160,14 +195,8 @@ export function sketchDrawingSegments(sketch, parameters = [], { layers = [], in
   };
 
   for (const entity of entities) {
-    const points = (entity.pointIds || []).map((pointId) => pointMap.get(pointId));
-    if (entity.type === 'line' && points[0] && points[1]) addSamples(points.slice(0, 2));
-    else if (entity.type === 'arc' && points[0] && points[1] && points[2]) addSamples(edgeSamples({ type: 'arc', center: points[0], start: points[1], end: points[2], direction: entity.geometry?.direction || 'ccw' }));
-    else if (entity.type === 'circle' && points[0]) addSamples(edgeSamples({ type: 'circle', center: points[0], radius: numeric(entity.geometry?.radius, values) }));
-    else if (entity.type === 'ellipse' && points[0]) addSamples(edgeSamples({ type: 'ellipse', center: points[0], majorRadius: numeric(entity.geometry?.majorRadius, values), minorRadius: numeric(entity.geometry?.minorRadius, values), rotation: numeric(entity.geometry?.rotation || '0', values) }));
-    else if (entity.type === 'ellipticalArc' && points[0] && points[1] && points[2]) addSamples(edgeSamples({ type: 'ellipticalArc', center: points[0], start: points[1], end: points[2], majorRadius: numeric(entity.geometry?.majorRadius, values), minorRadius: numeric(entity.geometry?.minorRadius, values), rotation: numeric(entity.geometry?.rotation || '0', values), startAngle: numeric(entity.geometry?.startAngle, values), endAngle: numeric(entity.geometry?.endAngle, values), direction: entity.geometry?.direction || 'ccw' }));
-    else if (entity.type === 'spline' && points.filter(Boolean).length >= 2) addSamples(edgeSamples({ type: 'spline', mode: entity.geometry?.mode === 'control' ? 'control' : 'fit', controlPoints: points.filter(Boolean) }));
-    else if (entity.type === 'conic' && points.length === 3 && points.every(Boolean)) addSamples(edgeSamples({ type: 'conic', controlPoints: points, rho: numeric(entity.geometry?.rho || '1', values) }));
+    const edge = sketchEntityEdge(entity, pointMap, values);
+    if (edge) addSamples(edgeSamples(edge));
   }
   return segments;
 }

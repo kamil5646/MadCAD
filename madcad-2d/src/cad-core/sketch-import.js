@@ -1,4 +1,5 @@
 import { createSketchArc, createSketchCircleEntity, createSketchEntity, createSketchLine, createSketchPoint } from './sketch-model.js';
+import { ACI_UI_COLORS as ACI_COLORS } from './aci-colors.js';
 import { refreshDetectedSketchProfiles } from './sketch-topology.js';
 
 export const SKETCH_IMPORT_UNITS = Object.freeze({
@@ -429,8 +430,6 @@ function dxfBlocks(sections) {
   return blocks;
 }
 
-// AutoCAD color indices that have a stable meaning; everything else keeps the app default.
-const ACI_COLORS = Object.freeze({ 1: '#ff4d4d', 2: '#ffd84d', 3: '#4dff7a', 4: '#4de8ff', 5: '#4d7dff', 6: '#ff4dff', 7: '#e8eef2', 8: '#808080', 9: '#c0c0c0' });
 const DXF_LINE_TYPES = Object.freeze([[/^(dashdot|dash_dot|dashdotdot)/i, 'dashdot'], [/^(center|axis)/i, 'center'], [/^(dash|hidden|phantom)/i, 'dashed']]);
 const LAYER_LINE_WEIGHTS = [0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1];
 

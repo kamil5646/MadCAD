@@ -55,6 +55,9 @@ import { createLinkedProject, linkedProjectState } from '../src/cad-core/linked-
 import { compareProjectDocuments } from '../src/cad-core/project-diff.js';
 import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/project-health.js';
 import { dependencyNodeIdForSelection, inspectProjectDependencies } from '../src/cad-core/project-dependencies.js';
+import { sketchDxf, dxfLayerName } from '../src/cad-core/sketch-dxf-export.js';
+import { aciFromHex } from '../src/cad-core/aci-colors.js';
+import { createLayer as createSketchLayer } from '../src/cad-core/layers.js';
 import { buildProjectSearchIndex, normalizeProjectSearchText, searchProject, searchProjectIndex } from '../src/cad-core/project-search.js';
 import { createNamedView, deleteNamedView, renameNamedView } from '../src/cad-core/named-views.js';
 import { analyzeManufacturingProgram, analyzeManufacturingSetupSequence, analyzeToolpathSafety, calculateAdaptiveToolpath, calculateContourToolpath, calculateCut2dToolpath, calculateFacingToolpath, calculateManufacturingSetup, calculatePocketToolpath, calculateTurningToolpath, createAdaptiveOperation, createContourOperation, createCut2dOperation, createDrillingOperation, createFacingOperation, createGrblGcode, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, ensureDocumentManufacturing, extractTopBoundaryLoops, instantiateManufacturingOperationTemplate, measureCamPolygonBounds, moveManufacturingOperation, offsetClosedContour, optimizeManufacturingOperationOrder, simulateMaterialRemoval, validateManufacturing, validateManufacturingOperationOrder } from '../src/cad-core/manufacturing.js';
@@ -6729,4 +6732,104 @@ test('import DXF przenosi warstwy: kolor, typ linii, grubość, blokadę i dzied
   assert.equal(curves.filter((entity) => entity.layerName === 'KONTUR').length, 1);
   assert.equal(curves.filter((entity) => entity.layerName === undefined).length, 1); // layer 0 stays on the default layer
   assert.equal(parseSketchImport(dxfFile({ entities: [['0', 'LINE', '10', '0', '20', '0', '11', '1', '21', '0']] }), 'dxf').layers.length, 0);
+});
+
+// --- DXF sketch export ----------------------------------------------------
+function dxfRecords(text) {
+  const lines = text.split('\n');
+  const records = [];
+  let current = null;
+  for (let index = 0; index + 1 < lines.length; index += 2) {
+    const code = lines[index].trim();
+    if (code === '0') { current = { type: lines[index + 1].trim(), pairs: [] }; records.push(current); } else current?.pairs.push([code, lines[index + 1].trim()]);
+  }
+  return records;
+}
+const recordValue = (record, code, nth = 0) => record.pairs.filter(([group]) => group === String(code))[nth]?.[1];
+
+function exportImportedSketch(dxfText, { layers = [] } = {}) {
+  const imported = parseSketchImport(dxfText, 'dxf');
+  const layerObjects = imported.layers.map((layer) => createSketchLayer({ ...layer }));
+  const idByName = new Map(layerObjects.map((layer) => [layer.name, layer.id]));
+  const entities = imported.entities.map(({ layerName, ...entity }) => (layerName ? { ...entity, layerId: idByName.get(layerName) } : entity));
+  return { imported, entities, exported: sketchDxf({ entities }, { parameters: [], layers: [...layerObjects, ...layers] }) };
+}
+
+test('eksport szkicu do DXF R12 zachowuje linie, okręgi i łuki oraz wraca przez import', () => {
+  const dxf = dxfFile({ entities: [
+    ['0', 'LINE', '10', '0', '20', '0', '11', '40', '21', '0'],
+    ['0', 'CIRCLE', '10', '20', '20', '15', '40', '4'],
+    ['0', 'ARC', '10', '60', '20', '10', '40', '8', '50', '30', '51', '200'],
+    ['0', 'LWPOLYLINE', '70', '0', '10', '100', '20', '0', '42', '-0.5', '10', '120', '20', '0'],
+  ] });
+  const { exported, imported } = exportImportedSketch(dxf);
+  assert.match(exported.text, /AC1009/);
+  assert.deepEqual({ lines: exported.stats.lines, circles: exported.stats.circles, arcs: exported.stats.arcs, polylines: exported.stats.polylines }, { lines: 1, circles: 1, arcs: 2, polylines: 0 });
+  const again = parseSketchImport(exported.text, 'dxf');
+  assert.equal(again.curveCount, imported.curveCount);
+  const arcsBefore = dxfArcs(imported);
+  const arcsAfter = dxfArcs(again);
+  assert.equal(arcsAfter.length, 2);
+  for (const before of arcsBefore) {
+    const after = arcsAfter.find((candidate) => near(candidate.center[0], before.center[0], 1e-6) && near(candidate.center[1], before.center[1], 1e-6));
+    assert.ok(after, 'łuk wrócił z tym samym środkiem');
+    assert.ok(near(after.start[0], before.start[0], 1e-6) && near(after.start[1], before.start[1], 1e-6));
+    assert.ok(near(after.end[0], before.end[0], 1e-6) && near(after.end[1], before.end[1], 1e-6));
+  }
+});
+
+test('eksport zamienia łuk zgodny z ruchem wskazówek zegara na łuk przeciwny z zamienionymi końcami', () => {
+  // A clockwise arc from (10,0) to (0,10) around the origin is the counter-clockwise arc from (0,10) to (10,0)... i.e. 90..360 sweep.
+  const entities = [
+    { id: 'c', type: 'point', geometry: { x: '0', y: '0' } }, { id: 's', type: 'point', geometry: { x: '10', y: '0' } }, { id: 'e', type: 'point', geometry: { x: '0', y: '10' } },
+    { id: 'arc', type: 'arc', role: 'standard', pointIds: ['c', 's', 'e'], geometry: { direction: 'cw' } },
+  ];
+  const { text } = sketchDxf({ entities }, { parameters: [], layers: [] });
+  const arc = dxfRecords(text).find((record) => record.type === 'ARC');
+  assert.ok(near(Number(recordValue(arc, 50)), 90) && near(Number(recordValue(arc, 51)), 0), `kąty ${recordValue(arc, 50)}..${recordValue(arc, 51)}`);
+});
+
+test('eksport próbkuje elipsę i spline do polilinii oraz pomija geometrię konstrukcyjną', () => {
+  const dxf = dxfFile({ entities: [
+    ['0', 'ELLIPSE', '10', '0', '20', '0', '11', '30', '21', '0', '40', '0.5', '41', '0', '42', String(Math.PI * 2)],
+    ['0', 'SPLINE', '70', '8', '74', '3', '11', '0', '21', '40', '11', '10', '21', '55', '11', '20', '21', '40'],
+  ] });
+  const imported = parseSketchImport(dxf, 'dxf');
+  const withConstruction = [...imported.entities, { id: 'k0', type: 'point', geometry: { x: '0', y: '0' } }, { id: 'k1', type: 'point', geometry: { x: '5', y: '5' } }, { id: 'k', type: 'line', role: 'construction', pointIds: ['k0', 'k1'], geometry: {} }];
+  const { text, stats } = sketchDxf({ entities: withConstruction }, { parameters: [], layers: [] });
+  assert.equal(stats.polylines, 2);
+  assert.equal(stats.lines, 0);
+  assert.ok((text.match(/\nVERTEX\n/g) || []).length > 100);
+  assert.equal((text.match(/\nPOLYLINE\n/g) || []).length, 2);
+  const polylines = dxfRecords(text).filter((record) => record.type === 'POLYLINE');
+  assert.equal(recordValue(polylines[0], 70), '1'); // the full ellipse is a closed polyline
+  assert.equal(recordValue(polylines[1], 70), '0'); // the spline stays open
+  const roundTrip = parseSketchImport(text, 'dxf');
+  assert.ok(roundTrip.curveCount > 100);
+  assert.ok(roundTrip.profiles.length >= 1);
+});
+
+test('eksport zapisuje warstwy z kolorem ACI, typem linii i stanem widoczności oraz nadpisania encji', () => {
+  const layers = [
+    createSketchLayer({ id: 'l1', name: 'Osie/środki', color: '#ff4d4d', lineType: 'center' }),
+    createSketchLayer({ id: 'l2', name: 'Ukryta', color: '#4d7dff', lineType: 'dashed', visible: false }),
+  ];
+  const entities = [
+    { id: 'a', type: 'point', geometry: { x: '0', y: '0' } }, { id: 'b', type: 'point', geometry: { x: '10', y: '0' } },
+    { id: 'l-1', type: 'line', role: 'standard', layerId: 'l1', pointIds: ['a', 'b'], geometry: {} },
+    { id: 'l-2', type: 'line', role: 'standard', layerId: 'l2', color: '#4de8ff', lineType: 'dashdot', pointIds: ['a', 'b'], geometry: {} },
+  ];
+  const { text } = sketchDxf({ entities }, { parameters: [], layers });
+  assert.match(text, /0\nLAYER\n2\nOsie_środki\n70\n0\n62\n1\n6\nCENTER/);
+  assert.match(text, /0\nLAYER\n2\nUkryta\n70\n0\n62\n-5\n6\nDASHED/);
+  const second = dxfRecords(text).filter((record) => record.type === 'LINE')[1];
+  assert.deepEqual([recordValue(second, 8), recordValue(second, 6), recordValue(second, 62)], ['Ukryta', 'DASHDOT', '4']);
+  for (const name of ['CONTINUOUS', 'DASHED', 'CENTER', 'DASHDOT']) assert.match(text, new RegExp(`0\\nLTYPE\\n2\\n${name}\\n`));
+  assert.equal(dxfLayerName('a<b>c:d?'), 'a_b_c_d_');
+  assert.equal(dxfLayerName('   '), '0');
+  assert.equal(aciFromHex('#4de8ff'), 4);
+  assert.equal(aciFromHex('#74cef0'), 4);
+  assert.equal(aciFromHex('#ff0000'), 1);
+  assert.equal(aciFromHex('nie-kolor'), 7);
+  assert.throws(() => sketchDxf({ entities: [] }, { parameters: [], layers: [] }), /nie zawiera geometrii/);
 });

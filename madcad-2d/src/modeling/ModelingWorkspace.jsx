@@ -146,6 +146,7 @@ import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, pars
 import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMeshFaces, reduceMesh, remeshUniform, repairMesh, smoothMesh } from '../cad-core/mesh-tools.js';
 import { analyzePrintability } from '../cad-core/print-analysis.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
+import { sketchDxf } from '../cad-core/sketch-dxf-export.js';
 import { createId } from '../cad-core/ids.js';
 import { CAM_TOOL_PRESETS, analyzeManufacturingProgram, calculateManufacturingSetup, calculateOperationToolpath, createAdaptiveOperation, createContourOperation, createCounterboreOperation, createCut2dOperation, createCustomCamTool, createDrillingOperation, createFacingOperation, createMachineGcode, createManufacturingOperationGroup, createManufacturingOperationTemplate, createManufacturingProgramGcode, createManufacturingSequenceSheet, createManufacturingSetup, createManufacturingSetupSheet, createPocketOperation, createSpotDrillingOperation, createTappingOperation, createTurningOperation, deleteManufacturingOperationGroup, duplicateManufacturingOperation, instantiateManufacturingOperationTemplate, moveManufacturingOperation, normalizeCustomCamTool, normalizeManufacturingOperation, normalizeManufacturingOperationTemplate, normalizeManufacturingSetup, optimizeManufacturingOperationOrder, simulateMaterialRemoval } from '../cad-core/manufacturing.js';
 import { createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
@@ -7096,6 +7097,21 @@ export default function ModelingWorkspace() {
     setNotice('Usunięto tabelę z arkusza.');
   };
 
+  const dxfExportSketch = document.sketches.find((sketch) => sketch.id === (activeSketchId || (selection?.kind === 'sketch' ? selection.id : null))) || null;
+  const canExportSketchDxf = Boolean(dxfExportSketch && dxfExportSketch.space !== '3d'
+    && dxfExportSketch.entities.some((entity) => !['point', 'text'].includes(entity.type) && entity.role !== 'construction'));
+  const exportActiveSketchDxf = () => {
+    if (!canExportSketchDxf) return;
+    try {
+      const { text, stats } = sketchDxf(dxfExportSketch, { parameters: document.parameters, layers: document.layers });
+      downloadBlob(new Blob([text], { type: 'application/dxf;charset=utf-8' }), `${safeName(document.name)}-${safeName(dxfExportSketch.name)}.dxf`);
+      const sampled = stats.polylines ? ` · ${stats.polylines} krzywych (elipsy, spline) jako polilinie` : '';
+      setNotice(`Wyeksportowano szkic ${dxfExportSketch.name} do DXF R12 w mm: ${stats.lines} odcinków, ${stats.circles} okręgów, ${stats.arcs} łuków${sampled} · ${stats.layers} warstw.`);
+    } catch (error) {
+      setNotice(`Eksport szkicu DXF nie powiódł się: ${error.message}`);
+    }
+  };
+
   const exportActiveDrawingDxf = () => {
     if (!activeDrawingSheet?.views.length) return;
     const dxf = drawingSheetDxf(activeDrawingSheet, engine.bodies, { components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
@@ -7844,6 +7860,9 @@ export default function ModelingWorkspace() {
               <button id="fileExportStepBtn" type="button" disabled={!engine.bodies.length || engine.status !== 'ready' || containsImportedMesh} onClick={() => { setFileMenuOpen(false); void exportModel('step'); }}><FileBox /><span><strong>STEP</strong><small>Dokładna geometria CAD B-Rep.</small></span></button>
               <button id="fileExportStlBtn" type="button" disabled={!engine.bodies.length || engine.status !== 'ready'} onClick={() => { setFileMenuOpen(false); void exportModel('stl'); }}><HardDriveDownload /><span><strong>STL</strong><small>Siatka modelu 3D.</small></span></button>
               <button id="fileExport3mfBtn" type="button" disabled={!engine.bodies.length || engine.status !== 'ready'} onClick={() => { setFileMenuOpen(false); void exportModel('3mf'); }}><FileDown /><span><strong>3MF</strong><small>Siatka 3D z jednostkami.</small></span></button>
+            </section>
+            <section><h2>EKSPORT SZKICU</h2>
+              <button id="fileExportSketchDxfBtn" type="button" disabled={!canExportSketchDxf} onClick={() => { setFileMenuOpen(false); exportActiveSketchDxf(); }}><FileText /><span><strong>Szkic DXF</strong><small>DXF R12 w mm · aktywny albo zaznaczony szkic z warstwami.</small></span></button>
             </section>
             <section><h2>RYSUNEK TECHNICZNY</h2>
               <button type="button" disabled={!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow} onClick={() => { setFileMenuOpen(false); void previewActiveDrawing(); }}><Eye /><span><strong>Podgląd wydruku</strong><small>Arkusz 2D w skali 1:1.</small></span></button>
