@@ -6697,3 +6697,13 @@ test('import DXF grupuje nieobsługiwane encje i odrzuca binarny DXF oraz uszkod
   assert.ok(imported.repairReport.entries.some((entry) => /typu HATCH/.test(entry.message)));
   assert.throws(() => parseSketchImport('AutoCAD Binary DXF\r\n\u001a\u0000', 'dxf'), /Binarny plik DXF/);
 });
+
+test('import DXF ignoruje osierocone VERTEX powtórzone przez konwerter po SEQEND', () => {
+  const dxf = dxfFile({ entities: [
+    ['0', 'POLYLINE', '70', '1'], ['0', 'VERTEX', '10', '0', '20', '0'], ['0', 'VERTEX', '10', '10', '20', '0'], ['0', 'VERTEX', '10', '10', '20', '10'], ['0', 'SEQEND'],
+    ['0', 'VERTEX', '10', '0', '20', '0'], ['0', 'VERTEX', '10', '10', '20', '0'],
+  ] });
+  const imported = parseSketchImport(dxf, 'dxf');
+  assert.equal(imported.curveCount, 3);
+  assert.ok(!imported.repairReport.entries.some((entry) => /VERTEX/.test(entry.message)));
+});

@@ -404,6 +404,8 @@ function nestPolylines(list) {
   for (const entity of list) {
     if (entity.type === 'POLYLINE') { open = { ...entity, vertices: [] }; nested.push(open); } else if (entity.type === 'VERTEX' && open) open.vertices.push(entity);
     else if (entity.type === 'SEQEND') open = null;
+    // Vertices outside a POLYLINE (some converters repeat them after SEQEND) carry no extra geometry.
+    else if (entity.type === 'VERTEX') continue;
     else { open = null; nested.push(entity); }
   }
   return nested;
