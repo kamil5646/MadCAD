@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.5.25 (2026-10-01)
+
+- wydanie 6.5.24 nie zostało opublikowane: weryfikacja przenośnego ZIP na Windows zatrzymała się, bo pod Git Bash `tar.exe` to GNU tar, który traktuje literę dysku `D:` jako zdalny host; skrypt używa teraz systemowego bsdtar z `System32`;
+- budżet korpusu dużych projektów przeszedł na Windows po zapasie CI wprowadzonym w 6.5.24; produkt i funkcje bez zmian.
+
 ## 6.5.24 (2026-10-01)
 
 - wydanie 6.5.23 nie zostało opublikowane: workflow wydania dwukrotnie zatrzymał się na Windows, bo odzyskany korpus 220 brył przekroczył budżet 45 s (46,0 s i 47,0 s); funkcjonalnie nic się nie zmieniło, a ten sam scenariusz trwa ok. 20 s w osobnym shardzie CI;
