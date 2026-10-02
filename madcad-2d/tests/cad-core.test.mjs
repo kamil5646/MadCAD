@@ -50,7 +50,7 @@ import {
   updateComponent,
   updateComponentInstance,
 } from '../src/cad-core/components.js';
-import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../src/cad-core/assembly-joints.js';
+import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointSlide, setJointValue, updateAssemblyJoint, updateMotionLink } from '../src/cad-core/assembly-joints.js';
 import { createLinkedProject, linkedProjectState } from '../src/cad-core/linked-projects.js';
 import { compareProjectDocuments } from '../src/cad-core/project-diff.js';
 import { createProjectHealthReport, formatProjectBytes } from '../src/cad-core/project-health.js';
@@ -6924,4 +6924,32 @@ test('wymiar między punktami przyciąga wierzchołki widoku i mierzy w jednostk
   const broken = annotationIssues(validateDocument(document)).map((issue) => issue.path);
   assert.ok(broken.some((path) => path.endsWith('.points')) && broken.some((path) => path.endsWith('.axis')));
   assert.throws(() => createPointDrawingDimension({ viewId: view.id, points: [[0, 0]] }), /dwóch punktów/);
+});
+
+test('joint cylindryczny łączy obrót i przesuw wzdłuż tej samej osi z osobnymi limitami', () => {
+  const document = createDocument('Cylinder');
+  const assembly = createComponent(document, { name: 'Siłownik', type: 'assembly', partNumber: 'A-C1' });
+  const body = createComponent(document, { name: 'Tuleja', partNumber: 'P-C1', parentId: assembly.id });
+  const rod = createComponent(document, { name: 'Tłoczysko', partNumber: 'P-C2', parentId: assembly.id });
+  const bodyOccurrence = document.componentInstances.find((instance) => instance.componentId === body.id);
+  const rodOccurrence = document.componentInstances.find((instance) => instance.componentId === rod.id);
+  updateComponentInstance(document, bodyOccurrence.id, { grounded: true });
+  const joint = createAssemblyJoint(document, { type: 'cylindrical', referenceInstanceId: bodyOccurrence.id, movingInstanceId: rodOccurrence.id, axis: 'z', value: 30, slide: 40, slideLimits: { enabled: true, min: 0, max: 50 } });
+  const transform = () => document.componentInstances.find((instance) => instance.id === rodOccurrence.id).transform;
+  assert.equal(joint.type, 'cylindrical');
+  assert.equal(transform().rotationZ, 30);
+  assert.equal(transform().z, 40);
+  assert.throws(() => setJointSlide(document, joint.id, 80), /zakresie/);
+  setJointSlide(document, joint.id, 80, { clamp: true });
+  assert.equal(document.joints[0].slide, 50);
+  assert.equal(transform().z, 50);
+  setJointValue(document, joint.id, -20);
+  assert.equal(transform().rotationZ, -20);
+  assert.equal(transform().z, 50, 'obrót nie zmienia przesuwu');
+  assert.throws(() => updateAssemblyJoint(document, joint.id, { slideLimits: { min: 10, max: 5 } }), /przesuw/);
+  updateAssemblyJoint(document, joint.id, { type: 'revolute' });
+  assert.equal(document.joints[0].slide, 0);
+  assert.equal(transform().z, 0);
+  assert.throws(() => setJointSlide(document, joint.id, 5), /cylindryczny/);
+  assert.equal(validateDocument(document).valid, true);
 });

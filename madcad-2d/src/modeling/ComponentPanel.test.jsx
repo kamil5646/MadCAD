@@ -59,6 +59,7 @@ function panelProps(overrides = {}) {
     onCreateJoint: vi.fn(),
     onUpdateJoint: vi.fn(),
     onSetJointValue: vi.fn(),
+    onSetJointSlide: vi.fn(),
     onDeleteJoint: vi.fn(),
     onSelectMotionLink: vi.fn(),
     onCreateMotionLink: vi.fn(),
@@ -155,6 +156,19 @@ describe('ComponentPanel', () => {
     fireEvent.change(screen.getByRole('combobox', { name: /Bazowe wystąpienie jointa/i }), { target: { value: 'occurrence-part' } });
     fireEvent.click(screen.getByRole('button', { name: /Utwórz joint/i }));
     expect(props.onCreateJoint).toHaveBeenCalledWith({ type: 'revolute', axis: 'z', referenceInstanceId: 'occurrence-part', movingInstanceId: 'occurrence-part-2' });
+  });
+
+  it('drives rotation and slide of a cylindrical joint separately', () => {
+    const cylindrical = { ...joints[0], id: 'joint-c', name: 'Tłoczysko', type: 'cylindrical', value: 15, slide: 20, slideLimits: { enabled: true, min: 0, max: 60 } };
+    const props = panelProps({ document: { components, componentInstances, rigidGroups: [], joints: [cylindrical], motionLinks: [], contactSets: [], assemblyConfigurations: [], activeAssemblyConfigurationId: '', sketches: [], references: [] }, selectedInstanceId: 'occurrence-part-2', selectedJointId: 'joint-c' });
+    render(<ComponentPanel {...props} />);
+    expect(screen.getByText('15° · 20 mm')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Numeryczny przesuw jointa/i }), { target: { value: '45' } });
+    expect(props.onSetJointSlide).toHaveBeenCalledWith('joint-c', 45);
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Maksymalny przesuw jointa/i }), { target: { value: '80' } });
+    expect(props.onUpdateJoint).toHaveBeenCalledWith('joint-c', { slideLimits: { max: 80 } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Numeryczna wartość jointa/i }), { target: { value: '30' } });
+    expect(props.onSetJointValue).toHaveBeenCalledWith('joint-c', 30);
   });
 
   it('edits joint limits and motion without obscuring it with occurrence placement', () => {

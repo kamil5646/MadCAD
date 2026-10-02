@@ -152,7 +152,7 @@ import { CAM_TOOL_PRESETS, analyzeManufacturingProgram, calculateManufacturingSe
 import { createPointDrawingDimension, createBalloonDrawingAnnotation, createBaseDrawingView, createCenterMarkDrawingAnnotation, createCenterlineDrawingAnnotation, createDetailDrawingView, createDrawingRevision, createDrawingSheet, createDrawingTable, createFeatureControlFrameDrawingAnnotation, createHoleNoteDrawingAnnotation, createLinearDrawingDimension, createProjectedDrawingView, createSectionDrawingView, createSketchDrawingView, drawingBomItemNumber, drawingPageDimensions, drawingSheetDxf, drawingSheetHtml, recommendedDrawingScale, recommendedSketchDrawingScale } from '../cad-core/drawing-sheets.js';
 import { DEFAULT_LAYER_ID, assignEntitiesToLayer, createLayer, deleteLayer } from '../cad-core/layers.js';
 import { assignBodiesToComponent, componentParentMap, createComponent, createComponentInstance, createRigidGroup, deleteComponent, deleteComponentInstance, deleteRigidGroup, duplicateComponentInstance, moveComponent, updateComponent, updateComponentInstance } from '../cad-core/components.js';
-import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink } from '../cad-core/assembly-joints.js';
+import { createAssemblyJoint, createMotionLink, deleteAssemblyJoint, deleteMotionLink, setJointValue, updateAssemblyJoint, updateMotionLink, setJointSlide } from '../cad-core/assembly-joints.js';
 import { applyAssemblyConfiguration, createAssemblyConfiguration, createContactSet, deleteAssemblyConfiguration, deleteContactSet, detectAssemblyCollisions, updateAssemblyConfiguration, updateContactSet } from '../cad-core/assembly-motion.js';
 import { addStoryboardKeyframe, createAssemblyStoryboard, deleteAssemblyStoryboard, deleteStoryboardKeyframe, sampleAssemblyStoryboardState, updateAssemblyStoryboard } from '../cad-core/assembly-animation.js';
 import { assemblyInstructionHtml } from '../cad-core/assembly-instructions.js';
@@ -2044,6 +2044,15 @@ export default function ModelingWorkspace() {
       commit((next) => Object.assign(next, checked));
     } catch (error) {
       setNotice(`Nie ustawiono ruchu jointa: ${error.message}`);
+    }
+  };
+  const setDocumentJointSlide = (jointId, slide) => {
+    try {
+      const checked = cloneDocument(document);
+      setJointSlide(checked, jointId, slide, { clamp: true });
+      commit((next) => Object.assign(next, checked));
+    } catch (error) {
+      setNotice(`Nie ustawiono przesuwu jointa: ${error.message}`);
     }
   };
   const removeDocumentJoint = (jointId) => {
@@ -8535,7 +8544,7 @@ export default function ModelingWorkspace() {
             onSelectStoryboard={(id) => { setAnimationPlaying(false); setActiveStoryboardId(id); setAnimationTime(0); setAnimationInstanceOffsets({}); setAnimationInstanceRotations({}); setAnimationJointValues({}); setAnimationNote(''); }} onCreateStoryboard={createStoryboard} onUpdateStoryboard={changeStoryboard} onDeleteStoryboard={removeStoryboard} onAddStoryboardKeyframe={addStoryboardFrame} onDeleteStoryboardKeyframe={deleteStoryboardFrame} onSeekStoryboard={seekStoryboard} onPlayStoryboard={(storyboard) => { setActiveStoryboardId(storyboard.id); if (animationTime >= storyboard.duration) { const first = sampleAssemblyStoryboardState(storyboard, 0); setAnimationTime(0); setExplodeAmount(first.explodeAmount); setAnimationInstanceOffsets(first.instanceOffsets); setAnimationInstanceRotations(first.instanceRotations); setAnimationJointValues(first.jointValues); setAnimationNote(first.note); } setAnimationPlaying(true); }} onStopStoryboard={() => setAnimationPlaying(false)} onExportStoryboardVideo={(storyboard) => { void exportStoryboardVideo(storyboard); }} onExportStoryboardInstructions={(storyboard) => { void exportStoryboardInstructions(storyboard); }}
             onCreate={createDocumentComponent} onLinkProject={() => { void linkExternalProject(); }} onPackAndGo={() => { void packAndGoProject(); }} onRefreshLinkedProject={(linkId) => { void refreshLinkedProject(linkId); }} onRepairLinkedProject={(linkId) => { void refreshLinkedProject(linkId, true); }}
             onUpdate={updateDocumentComponent} onAssignBodies={assignDocumentComponentBodies} onMove={moveDocumentComponent} onDelete={removeDocumentComponent} onSelect={(componentId) => setSelection({ kind: 'component', id: componentId })} onSelectInstance={(instanceId) => { const instance = document.componentInstances.find((item) => item.id === instanceId); setSelection({ kind: 'componentInstance', id: instanceId, componentId: instance?.componentId }); }} onCreateInstance={createDocumentComponentInstance} onUpdateInstance={updateDocumentComponentInstance} onDuplicateInstance={duplicateDocumentComponentInstance} onDeleteInstance={removeDocumentComponentInstance}
-            onCreateRigidGroup={createDocumentRigidGroup} onDeleteRigidGroup={removeDocumentRigidGroup} onSelectJoint={(jointId) => setSelection(jointId ? { kind: 'joint', id: jointId } : { kind: 'document', id: document.id })} onCreateJoint={createDocumentJoint} onUpdateJoint={updateDocumentJoint} onSetJointValue={setDocumentJointValue} onDeleteJoint={removeDocumentJoint}
+            onCreateRigidGroup={createDocumentRigidGroup} onDeleteRigidGroup={removeDocumentRigidGroup} onSelectJoint={(jointId) => setSelection(jointId ? { kind: 'joint', id: jointId } : { kind: 'document', id: document.id })} onCreateJoint={createDocumentJoint} onUpdateJoint={updateDocumentJoint} onSetJointValue={setDocumentJointValue} onSetJointSlide={setDocumentJointSlide} onDeleteJoint={removeDocumentJoint}
             onSelectMotionLink={(linkId) => setSelection(linkId ? { kind: 'motionLink', id: linkId } : { kind: 'document', id: document.id })} onCreateMotionLink={createDocumentMotionLink} onUpdateMotionLink={updateDocumentMotionLink} onDeleteMotionLink={removeDocumentMotionLink}
             onSelectConfiguration={(configurationId) => setSelection(configurationId ? { kind: 'assemblyConfiguration', id: configurationId } : { kind: 'document', id: document.id })} onCreateConfiguration={createDocumentAssemblyConfiguration} onUpdateConfiguration={updateDocumentAssemblyConfiguration} onApplyConfiguration={applyDocumentAssemblyConfiguration} onDeleteConfiguration={removeDocumentAssemblyConfiguration}
             onSelectContactSet={(contactSetId) => setSelection(contactSetId ? { kind: 'contactSet', id: contactSetId } : { kind: 'document', id: document.id })} onCreateContactSet={createDocumentContactSet} onUpdateContactSet={updateDocumentContactSet} onDeleteContactSet={removeDocumentContactSet} onClose={() => setComponentsOpen(false)}

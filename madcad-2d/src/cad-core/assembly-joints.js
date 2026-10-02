@@ -1,7 +1,8 @@
 import { createId } from './ids.js';
 import { DEFAULT_INSTANCE_TRANSFORM, ensureDocumentComponents } from './components.js';
 
-export const JOINT_TYPES = Object.freeze(['rigid', 'revolute', 'slider']);
+export const JOINT_TYPES = Object.freeze(['rigid', 'revolute', 'slider', 'cylindrical']);
+const DEFAULT_SLIDE_LIMITS = Object.freeze({ enabled: true, min: 0, max: 100 });
 export const JOINT_AXES = Object.freeze(['x', 'y', 'z']);
 
 function finiteNumber(value, fallback = 0) {
@@ -16,6 +17,12 @@ function normalizedTransform(transform) {
 function normalizedLimits(limits) {
   const min = finiteNumber(limits?.min, -90);
   const max = finiteNumber(limits?.max, 90);
+  return { enabled: limits?.enabled !== false, min: Math.min(min, max), max: Math.max(min, max) };
+}
+
+function normalizedSlideLimits(limits) {
+  const min = finiteNumber(limits?.min, DEFAULT_SLIDE_LIMITS.min);
+  const max = finiteNumber(limits?.max, DEFAULT_SLIDE_LIMITS.max);
   return { enabled: limits?.enabled !== false, min: Math.min(min, max), max: Math.max(min, max) };
 }
 
@@ -41,6 +48,9 @@ function normalizedJoint(joint, index = 0) {
     anchor: normalizedAnchor(joint?.anchor),
     limits: normalizedLimits(joint?.limits),
     value: finiteNumber(joint?.value),
+    // Cylindrical joints add a translation along the same axis to the rotation in `value`.
+    slide: type === 'cylindrical' ? finiteNumber(joint?.slide) : 0,
+    slideLimits: normalizedSlideLimits(joint?.slideLimits),
     restTransform: normalizedTransform(joint?.restTransform),
     enabled: joint?.enabled !== false,
   };
@@ -115,10 +125,22 @@ function axisDelta(axis, value) {
   };
 }
 
-export function jointDrivenTransform(joint, value = joint?.value) {
+export function jointDrivenTransform(joint, value = joint?.value, slide = joint?.slide) {
   const base = normalizedTransform(joint?.restTransform);
   if (!joint?.enabled || joint?.type === 'rigid') return base;
   const delta = axisDelta(joint.axis, finiteNumber(value));
+  if (joint.type === 'cylindrical') {
+    const shift = axisDelta(joint.axis, finiteNumber(slide));
+    return {
+      ...base,
+      x: base.x + shift.x,
+      y: base.y + shift.y,
+      z: base.z + shift.z,
+      rotationX: base.rotationX + delta.x,
+      rotationY: base.rotationY + delta.y,
+      rotationZ: base.rotationZ + delta.z,
+    };
+  }
   if (joint.type === 'slider') return {
     ...base,
     x: base.x + delta.x,
@@ -164,6 +186,23 @@ export function setJointValue(document, jointId, value, { clamp = false } = {}) 
   return document.joints.find((item) => item.id === jointId);
 }
 
+export function setJointSlide(document, jointId, slide, { clamp = false } = {}) {
+  ensureDocumentJoints(document);
+  const joint = document.joints.find((item) => item.id === jointId);
+  if (!joint) throw new Error('Nie znaleziono jointa.');
+  if (joint.type !== 'cylindrical') throw new Error('Przesuw ma tylko joint cylindryczny.');
+  const { moving } = jointInstances(document, joint.referenceInstanceId, joint.movingInstanceId);
+  let nextSlide = finiteNumber(slide);
+  if (joint.slideLimits.enabled && (nextSlide < joint.slideLimits.min || nextSlide > joint.slideLimits.max)) {
+    if (!clamp) throw new Error(`Przesuw jointa musi mieścić się w zakresie ${joint.slideLimits.min}–${joint.slideLimits.max}.`);
+    nextSlide = Math.max(joint.slideLimits.min, Math.min(joint.slideLimits.max, nextSlide));
+  }
+  joint.slide = nextSlide;
+  moving.transform = jointDrivenTransform(joint, joint.value, nextSlide);
+  if (typeof document.activeAssemblyConfigurationId === 'string') document.activeAssemblyConfigurationId = '';
+  return joint;
+}
+
 export function createAssemblyJoint(document, {
   name = '',
   type = 'rigid',
@@ -173,6 +212,8 @@ export function createAssemblyJoint(document, {
   anchor = { x: 0, y: 0, z: 0 },
   limits,
   value = 0,
+  slideLimits,
+  slide = 0,
 } = {}) {
   ensureDocumentJoints(document);
   if (!JOINT_TYPES.includes(type)) throw new Error('Nieobsługiwany typ jointa.');
@@ -192,11 +233,14 @@ export function createAssemblyJoint(document, {
     anchor,
     limits: limits || defaultLimits,
     value,
+    slide,
+    slideLimits: slideLimits || DEFAULT_SLIDE_LIMITS,
     restTransform: moving.transform,
     enabled: true,
   }, document.joints.length);
   document.joints.push(joint);
   setJointValue(document, joint.id, value, { clamp: true });
+  if (type === 'cylindrical') setJointSlide(document, joint.id, slide, { clamp: true });
   return document.joints.find((item) => item.id === joint.id);
 }
 
@@ -219,6 +263,8 @@ export function updateAssemblyJoint(document, jointId, patch = {}) {
   const rawLimits = patch.limits === undefined ? current.limits : { ...current.limits, ...patch.limits };
   if (finiteNumber(rawLimits.min) > finiteNumber(rawLimits.max)) throw new Error('Minimalny limit jointa nie może przekraczać maksymalnego.');
   const limits = normalizedLimits(rawLimits);
+  const rawSlideLimits = patch.slideLimits === undefined ? current.slideLimits : { ...current.slideLimits, ...patch.slideLimits };
+  if (finiteNumber(rawSlideLimits.min) > finiteNumber(rawSlideLimits.max)) throw new Error('Minimalny przesuw jointa nie może przekraczać maksymalnego.');
   const referencesChanged = referenceInstanceId !== current.referenceInstanceId || movingInstanceId !== current.movingInstanceId;
   const next = normalizedJoint({
     ...current,
@@ -234,9 +280,12 @@ export function updateAssemblyJoint(document, jointId, patch = {}) {
     limits,
     restTransform: referencesChanged || patch.captureRest ? moving.transform : current.restTransform,
     value: type === 'rigid' || patch.captureRest ? 0 : patch.value === undefined ? current.value : patch.value,
+    slideLimits: rawSlideLimits,
+    slide: type !== 'cylindrical' || patch.captureRest ? 0 : patch.slide === undefined ? current.slide : patch.slide,
   }, index);
   document.joints[index] = next;
-  return setJointValue(document, next.id, next.value, { clamp: true });
+  const updated = setJointValue(document, next.id, next.value, { clamp: true });
+  return next.type === 'cylindrical' ? setJointSlide(document, next.id, next.slide, { clamp: true }) : updated;
 }
 
 export function deleteAssemblyJoint(document, jointId) {

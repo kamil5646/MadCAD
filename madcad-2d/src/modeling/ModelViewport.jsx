@@ -1720,7 +1720,7 @@ export default function ModelViewport({
         const movingOrigin = new THREE.Vector3().applyMatrix4(movingMatrix);
         const axis = new THREE.Vector3(joint.axis === 'x' ? 1 : 0, joint.axis === 'y' ? 1 : 0, joint.axis === 'z' ? 1 : 0).transformDirection(referenceMatrix).normalize();
         const selected = joint.id === selectedJointId;
-        const color = selected ? 0xffc857 : joint.type === 'rigid' ? 0x8bd1e8 : joint.type === 'revolute' ? 0xd58cff : 0x78dfad;
+        const color = selected ? 0xffc857 : joint.type === 'rigid' ? 0x8bd1e8 : joint.type === 'revolute' ? 0xd58cff : joint.type === 'cylindrical' ? 0xf0a35c : 0x78dfad;
         const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity: selected ? 1 : 0.88, depthTest: false });
         const axisGeometry = new THREE.BufferGeometry().setFromPoints([anchor.clone().addScaledVector(axis, -18), anchor.clone().addScaledVector(axis, 18)]);
         const axisLine = new THREE.Line(axisGeometry, material);
@@ -1736,7 +1736,7 @@ export default function ModelViewport({
         jointGroup.add(connector);
         pickables.push(connector);
         let marker;
-        if (joint.type === 'revolute') {
+        if (joint.type === 'revolute' || joint.type === 'cylindrical') {
           marker = new THREE.Mesh(new THREE.TorusGeometry(6, 0.8, 10, 40), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthTest: false }));
           marker.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis);
         } else if (joint.type === 'slider') {

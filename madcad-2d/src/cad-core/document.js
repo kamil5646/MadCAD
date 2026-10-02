@@ -1986,7 +1986,7 @@ export function validateDocument(document) {
     if (typeof joint.name !== 'string' || !joint.name.trim()) add(`${base}.name`, 'Joint wymaga nazwy.', 'REQUIRED');
     else if (jointNames.has(joint.name.toLocaleLowerCase())) add(`${base}.name`, `Powtórzona nazwa jointa: ${joint.name}`, 'DUPLICATE');
     else jointNames.add(joint.name.toLocaleLowerCase());
-    if (!JOINT_TYPES.includes(joint.type)) add(`${base}.type`, 'Typ jointa musi mieć wartość rigid, revolute albo slider.', 'UNSUPPORTED');
+    if (!JOINT_TYPES.includes(joint.type)) add(`${base}.type`, 'Typ jointa musi mieć wartość rigid, revolute, slider albo cylindrical.', 'UNSUPPORTED');
     if (!instanceIds.has(joint.referenceInstanceId)) add(`${base}.referenceInstanceId`, `Nie znaleziono wystąpienia bazowego „${joint.referenceInstanceId ?? ''}”.`, 'BROKEN_REFERENCE');
     if (!instanceIds.has(joint.movingInstanceId)) add(`${base}.movingInstanceId`, `Nie znaleziono wystąpienia ruchomego „${joint.movingInstanceId ?? ''}”.`, 'BROKEN_REFERENCE');
     if (joint.referenceInstanceId === joint.movingInstanceId) add(`${base}.movingInstanceId`, 'Joint nie może łączyć wystąpienia z nim samym.', 'CYCLIC_REFERENCE');

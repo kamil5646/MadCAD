@@ -184,6 +184,15 @@ app.whenReady().then(async () => {
     await window.webContents.executeJavaScript(`document.querySelector('#redoProjectBtn').click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.joints[0].value === 35`, 'redo ruchu jointa');
     await waitFor(window, `document.querySelector('input[aria-label="Numeryczna wartość jointa"]')?.value === '35' && [...document.querySelectorAll('.component-joint-list button')].some((button) => button.textContent.includes('35'))`, 'odświeżone sterowanie jointa');
+    // Cylindrical joint: the same joint gains a slide along its axis, independent of the rotation.
+    const selectJointType = (value) => window.webContents.executeJavaScript(`(() => { const select = document.querySelector('select[aria-label="Typ jointa"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, ${JSON.stringify(value)}); select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await selectJointType('cylindrical');
+    await waitFor(window, `window.__madcadVerifyDocumentState.joints[0].type === 'cylindrical' && document.querySelector('input[aria-label="Numeryczny przesuw jointa"]')`, 'joint cylindryczny');
+    await setInput(window, 'input[aria-label="Numeryczny przesuw jointa"]', '12');
+    await waitFor(window, `(() => { const transform = window.__madcadVerifyDocumentState.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.transform; return window.__madcadVerifyDocumentState.joints[0].slide === 12 && transform?.z === 12 && transform?.rotationZ === 35; })()`, 'przesuw i obrót jointa cylindrycznego');
+    await waitFor(window, `window.__madcadJointVisualState?.some((item) => item.id === ${JSON.stringify(jointId)} && item.type === 'cylindrical')`, 'znacznik jointa cylindrycznego');
+    await selectJointType('revolute');
+    await waitFor(window, `window.__madcadVerifyDocumentState.joints[0].type === 'revolute' && window.__madcadVerifyDocumentState.joints[0].value === 35 && window.__madcadVerifyDocumentState.componentInstances.find((item) => item.id === ${JSON.stringify(duplicateId)})?.transform.z === 0`, 'powrót do jointa obrotowego');
     await window.webContents.executeJavaScript(`document.querySelectorAll('.storyboard-keyframes > div')[1]?.querySelector('button:last-child')?.click()`);
     await waitFor(window, `window.__madcadVerifyDocumentState.animationStoryboards[0].keyframes.length === 1`, 'usunięta końcowa klatka przed animacją jointa');
     await setInput(window, '.component-storyboard input[aria-label="Czas storyboardu"]', '5');
