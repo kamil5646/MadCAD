@@ -2,6 +2,17 @@ export const drawingProjectionGroupKey = (ids) => JSON.stringify([...new Set(ids
 export const drawingSectionKey = (view) => JSON.stringify([view.orientation || 'front', Number(view.sectionPosition) || 0.5, [...(view.bodyIds || [])].sort()]);
 export const drawingProjectionTolerance = (sheets) => 0.001 / Math.max(1, ...sheets.flatMap((sheet) => (sheet.views || []).map((view) => Number(view.scale)).filter(Number.isFinite)));
 
+export function validateDrawingSources(views, bodies, sketches = []) {
+  const ids = new Set(bodies.map((body) => body.id));
+  for (const view of views) {
+    if (view.type === 'sketch') {
+      if (!sketches.some((sketch) => sketch.id === view.sketchId)) throw new Error('Widok odwołuje się do nieistniejącego szkicu. Napraw widok przed eksportem.');
+      continue;
+    }
+    if (!ids.size || (view.bodyIds || []).some((id) => !ids.has(id))) throw new Error('Widok odwołuje się do nieistniejącej bryły. Napraw widok przed eksportem.');
+  }
+}
+
 export function uniqueDrawingSegments(segments) {
   const seen = new Set();
   return segments.filter((segment) => {
@@ -29,8 +40,9 @@ export function attachDrawingProjections(bodies, data) {
 }
 
 // Never export the transient tessellation fallback or a projection of an older model.
-export async function prepareDrawingExport({ bodies, revision, getCurrentRevision, project, groups, requiredBodyIds, sections = [], tolerance = 0.001 }) {
+export async function prepareDrawingExport({ bodies, revision, getCurrentRevision, project, groups, requiredBodyIds, sections = [], tolerance = 0.001, views = [], sketches = [] }) {
   if (getCurrentRevision() !== revision) throw new Error('Model zmienił się lub trwa jego przebudowa. Ponów eksport po jej ukończeniu.');
+  validateDrawingSources(views, bodies, sketches);
   const data = await project(['front', 'top', 'right', 'isometric'], groups, sections, tolerance);
   if (getCurrentRevision() !== revision) throw new Error('Model zmienił się podczas przygotowania rysunku. Ponów eksport.');
   for (const body of bodies) {

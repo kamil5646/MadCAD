@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { attachDrawingProjections, drawingProjectionGroups, drawingProjectionGroupKey, drawingSectionKey, prepareDrawingExport, uniqueDrawingSegments } from './drawing-projections.js';
+import { attachDrawingProjections, drawingProjectionGroups, drawingProjectionGroupKey, drawingSectionKey, prepareDrawingExport, uniqueDrawingSegments, validateDrawingSources } from './drawing-projections.js';
 import { projectDrawingView } from './drawing-sheets.js';
 
 const bodies = [{ id: 'a' }, { id: 'b' }];
@@ -49,6 +49,17 @@ describe('exact drawing exports', () => {
     const options = { bodies: [bodies[0]], revision: 1, getCurrentRevision: () => 1, project: async () => ({ a: orientations }), groups: [], sections: [view] };
     await expect(prepareDrawingExport(options)).rejects.toThrow('przekroju B-Rep');
     await expect(prepareDrawingExport({ ...options, project: async () => ({ a: orientations, __sections: { [drawingSectionKey(view)]: { segments: [] } } }) })).resolves.toHaveLength(1);
+  });
+  it('rejects every unresolved requested body rather than intersecting it with surviving bodies', async () => {
+    const project = vi.fn(async () => ({ a: orientations }));
+    await expect(prepareDrawingExport({ bodies: [bodies[0]], revision: 1, getCurrentRevision: () => 1, project, groups: [], views: [{ bodyIds: ['a', 'deleted-after-join'] }] })).rejects.toThrow('nieistniejącej bryły');
+    expect(project).not.toHaveBeenCalled();
+    expect(() => validateDrawingSources([{}], [])).toThrow('nieistniejącej bryły');
+    expect(() => validateDrawingSources([{ bodyIds: ['a'] }], bodies)).not.toThrow();
+  });
+  it('rejects missing sketch sources too, including sketch-only sheets', () => {
+    expect(() => validateDrawingSources([{ type: 'sketch', sketchId: 'gone' }], [], [])).toThrow('nieistniejącego szkicu');
+    expect(() => validateDrawingSources([{ type: 'sketch', sketchId: 's' }], [], [{ id: 's' }])).not.toThrow();
   });
   it('does not let an unused mesh block a B-Rep sheet, but rejects a mesh source', async () => {
     const options = { bodies: [{ id: 'a' }, { id: 'mesh', representation: 'mesh-import' }], revision: 1, getCurrentRevision: () => 1, project: async () => ({ a: orientations }), groups: [], requiredBodyIds: ['a'] };

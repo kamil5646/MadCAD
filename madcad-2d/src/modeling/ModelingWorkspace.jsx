@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { attachDrawingProjections, drawingProjectionGroups, drawingProjectionTolerance, prepareDrawingExport } from '../cad-core/drawing-projections.js';
+import { attachDrawingProjections, drawingProjectionGroups, drawingProjectionTolerance, prepareDrawingExport, validateDrawingSources } from '../cad-core/drawing-projections.js';
 import {
   ArrowLeft,
   ArrowRight,
@@ -6370,9 +6370,10 @@ export default function ModelingWorkspace() {
       setNotice('Poczekaj na ukończenie przebudowy modelu przed eksportem rysunku.');
       return null;
     }
-    if (activeDrawingSheet.views.every((view) => view.type === 'sketch')) return engine.bodies;
-    setNotice('Obliczanie dokładnego rzutu rysunku…');
     try {
+      validateDrawingSources(activeDrawingSheet.views, engine.bodies, document.sketches);
+      if (activeDrawingSheet.views.every((view) => view.type === 'sketch')) return engine.bodies;
+      setNotice('Obliczanie dokładnego rzutu rysunku…');
       return await prepareDrawingExport({
         bodies: engine.bodies,
         revision: engine.revision,
@@ -6380,6 +6381,8 @@ export default function ModelingWorkspace() {
         project: projectDrawingViews,
         sections: activeDrawingSheet.views.filter((view) => view.type === 'section'),
         tolerance: drawingProjectionTolerance([activeDrawingSheet]),
+        views: activeDrawingSheet.views,
+        sketches: document.sketches,
         groups: drawingProjectionGroups([activeDrawingSheet], engine.bodies),
         requiredBodyIds: engine.bodies.filter((body) => activeDrawingSheet.views.some((view) => view.type !== 'sketch' && (!view.bodyIds?.length || view.bodyIds.includes(body.id)))).map((body) => body.id),
       });

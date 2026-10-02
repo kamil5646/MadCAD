@@ -22,3 +22,17 @@ it('keeps a 200 mm circle within paper-space tolerance even at 10x drawing scale
     expect(sag * scale).toBeLessThanOrEqual(0.001);
   }
 });
+
+it('finds S-shaped deviation even when each initial interval midpoint is on its chord', () => {
+  const point = (t) => [t, Math.sin(16 * Math.PI * t)];
+  const segments = flattenDrawingCurve(point, 0.001);
+  expect(segments.length).toBeGreaterThan(100);
+  let segmentIndex = 0;
+  for (let index = 0; index <= 10000; index += 1) {
+    const t = index / 10000;
+    while (segmentIndex < segments.length - 1 && segments[segmentIndex][1][0] < t) segmentIndex += 1;
+    const [first, last] = segments[segmentIndex];
+    const ratio = (t - first[0]) / (last[0] - first[0]);
+    expect(Math.abs(point(t)[1] - (first[1] + (last[1] - first[1]) * ratio))).toBeLessThanOrEqual(0.001);
+  }
+});

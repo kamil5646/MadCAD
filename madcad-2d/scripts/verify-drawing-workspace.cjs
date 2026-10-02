@@ -288,6 +288,17 @@ app.whenReady().then(async () => {
     })()`);
     if (exactSection.count < 100 || exactSection.radiusError > 0.002) throw new Error('Niepoprawny dokładny przekrój kuli: ' + JSON.stringify(exactSection));
     state.exactSphereSection = exactSection;
+    const missingFixture = JSON.parse(JSON.stringify(sectionFixture));
+    missingFixture.drawings[0].views[0].bodyIds.push('body-disappeared-after-history-edit');
+    const missingRevision = await window.webContents.executeJavaScript(`window.__madcadVerifyEngineState.revision`);
+    await window.webContents.executeJavaScript(`window.__drawingExportHtml = null; window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(missingFixture))}); true;`);
+    await waitFor(window, `window.__madcadVerifyEngineState?.revision > ${missingRevision} && window.__madcadVerifyEngineState?.status === 'ready'`, 'arkusz z utraconą bryłą');
+    await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn').click()`);
+    await waitFor(window, `Boolean(document.querySelector('#fileExportPdfBtn'))`, 'eksport niekompletnego widoku');
+    await window.webContents.executeJavaScript(`document.querySelector('#fileExportPdfBtn').click()`);
+    await waitFor(window, `document.querySelector('.workspace-notice')?.textContent.includes('nieistniejącej bryły')`, 'jawne odrzucenie eksportu utraconej bryły');
+    if (await window.webContents.executeJavaScript(`Boolean(window.__drawingExportHtml)`)) throw new Error('PDF nie powinien być zapisany dla widoku z utraconą bryłą.');
+    state.missingBodyExportRejected = true;
     // Windows pipes stdout asynchronously. Exiting Electron before the write
     // callback can leave its completion handle invalid despite passing checks.
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...state }, null, 2)}\n`, () => app.exit(0));

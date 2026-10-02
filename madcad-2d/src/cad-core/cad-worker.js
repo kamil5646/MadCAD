@@ -43,7 +43,7 @@ import { evaluateFeatureHistoryCooperatively } from './feature-history.js';
 import { GEOMETRY_POLICY } from './geometry-policy.js';
 import { DRAWING_PROJECTION_CAMERAS, removeHiddenOverlaps } from './drawing-sheets.js';
 import { drawingProjectionGroupKey, uniqueDrawingSegments } from './drawing-projections.js';
-import { flattenDrawingCurve, projectExactSections } from './drawing-sections.js';
+import { kernelDrawingCurveSegments, projectExactSections } from './drawing-sections.js';
 import { resolveFaceEdgeHolePlacement } from './face-edge-hole.js';
 import { assignStableTopologyIds } from './topology-naming.js';
 import { RevisionCache, SerialTaskQueue, estimateMeshBytes, isStaleRevision } from './worker-runtime.js';
@@ -3071,10 +3071,7 @@ function projectEdgesToSegments(edges, scale, tolerance) {
   const segments = [];
   for (const edge of edges) {
     try {
-      const flattened = flattenDrawingCurve((parameter) => {
-        const vector = edge.pointAt(parameter);
-        try { return [vector.x * scale, -vector.y * scale]; } finally { vector.delete(); }
-      }, tolerance, edge.geomType === 'LINE');
+      const flattened = kernelDrawingCurveSegments(edge, (point) => [point[0] * scale, -point[1] * scale], tolerance, scale);
       if (!flattened.length) continue;
       const points = [flattened[0][0], ...flattened.map((segment) => segment[1])];
       // A curve seen edge-on (e.g. a fillet arc from the side) projects to a straight line: keep one segment.

@@ -147,6 +147,20 @@ nagłówek AC1027 błędnie deklarował format AutoCAD 2013.
 Źródła formatu: [HEADER](https://help.autodesk.com/cloudhelp/2018/ENU/AutoCAD-DXF/files/GUID-A85E8E67-27CD-4C59-BE61-4DC9FADBE74A.htm),
 [znaczniki podklas](https://help.autodesk.com/cloudhelp/2025/ENU/AutoCAD-DXF/files/GUID-CC5ACB1B-BBA3-463B-84A5-6CCD320C66E7.htm).
 
+Końcowa kontrola źródeł sprawdza wszystkie żądane ID brył, także po zmianie
+New → Join; nie przecina listy ze zbiorami przetrwałych brył. Analogicznie
+odrzuca brakujące szkice. Test produkcyjnego PDF potwierdza komunikat błędu
+i brak wywołania zapisu przy utraconej bryle.
+Krzywe B-Rep w HLR i przekrojach korzystają z natywnego
+`GCPnts_TangentialDeflection`, z poprawnym rozdzieleniem tolerancji kątowej
+i liniowej oraz uwzględnieniem skali rzutu. Nie zależą od aliasowania kilku
+punktów JS ani float32 siatki podglądu. Dodatkowe testy jednostkowe ładują
+rzeczywisty OpenCascade: kula R10 oraz krzywa Béziera w kształcie S.
+Aktualny eksport PDF przekroju kuli ma 316 segmentów i błąd promienia
+1,78e-14 mm. Pomocniczy sampler JS sprawdza ćwiartki przedziałów;
+regresja przebiegu S ma 10 001 punktów kontrolnych. Test wersjonowania
+wylicza kolejną wersję patch z package.json zamiast stałego numeru fixture.
+
 ## Migracja w produkcyjnym pakiecie i nawigacja
 
 Przez natywne okno otwarto kopię fixture v26 w produkcyjnym pakiecie macOS
