@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { attachDrawingProjections, drawingProjectionGroups, prepareDrawingExport } from '../cad-core/drawing-projections.js';
 import {
   ArrowLeft,
   ArrowRight,
@@ -1589,23 +1590,27 @@ export default function ModelingWorkspace() {
   // whenever these change, which used to interrupt a drag on any unrelated re-render.
   // 2D sheets use the kernel's hidden-line removal (visible + dashed hidden edges). Until the
   // projection for the current model revision arrives, views fall back to all tessellation edges.
-  const [drawingProjections, setDrawingProjections] = useState({ revision: -1, data: {} });
+  const [drawingProjections, setDrawingProjections] = useState({ revision: -1, groupsKey: '', data: {} });
+  const projectionGroups = useMemo(() => drawingProjectionGroups(document.drawings, engine.bodies), [document.drawings, engine.bodies]);
+  const projectionGroupsKey = JSON.stringify(projectionGroups);
+  const drawingExportRevisionRef = useRef(engine.revision);
+  useEffect(() => { drawingExportRevisionRef.current = engine.revision; }, [engine.revision]);
   const projectDrawingViews = engine.projectDrawingViews;
   useEffect(() => {
-    if (workspace !== 'drawing' || engine.status !== 'ready' || !engine.bodies.length || drawingProjections.revision === engine.revision) return undefined;
+    if (workspace !== 'drawing' || engine.status !== 'ready' || !engine.bodies.length || (drawingProjections.revision === engine.revision && drawingProjections.groupsKey === projectionGroupsKey)) return undefined;
     let active = true;
     const revision = engine.revision;
-    projectDrawingViews(['front', 'top', 'right', 'isometric'])
+    projectDrawingViews(['front', 'top', 'right', 'isometric'], projectionGroups)
       .then((data) => {
         if (!active) return;
-        setDrawingProjections({ revision, data });
+        setDrawingProjections({ revision, groupsKey: projectionGroupsKey, data });
         if (new URLSearchParams(window.location.search).has('verify')) window.__madcadDrawingProjectionState = { revision, bodies: Object.keys(data).length };
       })
-      .catch(() => { /* Stale revision or kernel error: keep the edge fallback. */ });
+      .catch((error) => { if (active) setNotice(`Nie udało się obliczyć dokładnego rzutu: ${error.message}. Podgląd jest uproszczony; eksport wymaga poprawnego rzutu.`); });
     return () => { active = false; };
-  }, [workspace, engine.status, engine.revision, engine.bodies.length, drawingProjections.revision, projectDrawingViews]);
+  }, [workspace, engine.status, engine.revision, engine.bodies.length, drawingProjections.revision, drawingProjections.groupsKey, projectDrawingViews, projectionGroups, projectionGroupsKey]);
   const withDrawingProjections = useCallback((bodies) => (drawingProjections.revision === engine.revision
-    ? bodies.map((body) => (drawingProjections.data[body.id] ? { ...body, drawingProjections: drawingProjections.data[body.id] } : body))
+    ? attachDrawingProjections(bodies, drawingProjections.data)
     : bodies), [drawingProjections, engine.revision]);
   const visibleViewportBodies = useMemo(
     () => engine.bodies.filter((body) => document.features.find((feature) => feature.id === body.sourceFeatureId)?.visible !== false),
@@ -6361,16 +6366,42 @@ export default function ModelingWorkspace() {
     }
   };
 
-  const exportActiveDrawingDxf = () => {
+  const prepareActiveDrawingBodies = async () => {
+    if (engine.status !== 'ready') {
+      setNotice('Poczekaj na ukończenie przebudowy modelu przed eksportem rysunku.');
+      return null;
+    }
+    if (activeDrawingSheet.views.every((view) => view.type === 'sketch')) return engine.bodies;
+    setNotice('Obliczanie dokładnego rzutu rysunku…');
+    try {
+      return await prepareDrawingExport({
+        bodies: engine.bodies,
+        revision: engine.revision,
+        getCurrentRevision: () => drawingExportRevisionRef.current,
+        project: projectDrawingViews,
+        groups: drawingProjectionGroups([activeDrawingSheet], engine.bodies),
+        requiredBodyIds: engine.bodies.filter((body) => activeDrawingSheet.views.some((view) => view.type !== 'sketch' && (!view.bodyIds?.length || view.bodyIds.includes(body.id)))).map((body) => body.id),
+      });
+    } catch (error) {
+      setNotice(`Nie wyeksportowano rysunku: ${error.message}`);
+      return null;
+    }
+  };
+
+  const exportActiveDrawingDxf = async () => {
     if (!activeDrawingSheet?.views.length) return;
-    const dxf = drawingSheetDxf(activeDrawingSheet, withDrawingProjections(engine.bodies), { components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
+    const bodies = await prepareActiveDrawingBodies();
+    if (!bodies) return;
+    const dxf = drawingSheetDxf(activeDrawingSheet, bodies, { components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
     downloadBlob(new Blob([dxf], { type: 'application/dxf;charset=utf-8' }), `${safeName(document.name)}-${safeName(activeDrawingSheet.name)}.dxf`);
     setNotice('Wyeksportowano arkusz DXF w jednostkach mm.');
   };
 
   const exportActiveDrawingPdf = async () => {
     if (!activeDrawingSheet?.views.length) return;
-    const html = drawingSheetHtml(activeDrawingSheet, withDrawingProjections(engine.bodies), { documentName: document.name, components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
+    const bodies = await prepareActiveDrawingBodies();
+    if (!bodies) return;
+    const html = drawingSheetHtml(activeDrawingSheet, bodies, { documentName: document.name, components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers });
     setNotice(`Przygotowywanie ${activeDrawingSheet.pageSize} PDF…`);
     if (window.desktopApp?.saveDrawingPdf) {
       const result = await window.desktopApp.saveDrawingPdf({
@@ -6394,7 +6425,9 @@ export default function ModelingWorkspace() {
 
   const previewActiveDrawing = async () => {
     if (!activeDrawingSheet?.views.length || !window.desktopApp?.openPrintPreviewWindow) return;
-    const result = await window.desktopApp.openPrintPreviewWindow({ html: drawingSheetHtml(activeDrawingSheet, withDrawingProjections(engine.bodies), { documentName: document.name, components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers }), title: `${document.name} · ${activeDrawingSheet.name}` });
+    const bodies = await prepareActiveDrawingBodies();
+    if (!bodies) return;
+    const result = await window.desktopApp.openPrintPreviewWindow({ html: drawingSheetHtml(activeDrawingSheet, bodies, { documentName: document.name, components: document.components, componentInstances: document.componentInstances, sketches: document.sketches, parameters: document.parameters, layers: document.layers }), title: `${document.name} · ${activeDrawingSheet.name}` });
     setNotice(result?.ok ? 'Otworzono podgląd arkusza 1:1.' : `Podgląd nie powiódł się: ${result?.error || 'nieznany błąd'}`);
   };
 

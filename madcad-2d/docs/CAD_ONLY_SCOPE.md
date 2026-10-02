@@ -151,3 +151,34 @@ bez nazwy akcji. Lokalnie cały scenariusz ponownie przeszedł. Do testu dodano
 zachowanie treści wywołania, błędów renderera oraz JSON i zrzutu ekranu
 z chwili awarii. Przyczyna tego błędu CI pozostaje niepotwierdzona; nie
 zwiększono limitów czasu ani nie wyłączono scenariusza.
+
+## Poprawność wymiarów i dokumentacji po zawężeniu v28
+
+Odtworzono przypadki `1 2 +`, `10(2)+` i `1..2+`, które parser błędnie
+akceptował. Walidacja kolejności tokenów odrzuca je oraz puste nawiasy,
+brakujące operandy i mnożenie bez operatora; poprawne znaki jednoargumentowe
+działają nadal. Regresja jest częścią testów rdzenia.
+
+PDF/DXF i podgląd wydruku oczekują na wynik dokładnego rzutu kernela.
+Zmiana rewizji modelu lub błąd projekcji zatrzymuje eksport i pokazuje
+komunikat. Siatka użyta jako źródło widoku wymaga konwersji do B-Rep;
+siatka niewykorzystywana w arkuszu nie blokuje eksportu. Sam podgląd roboczy
+nadal może chwilowo pokazywać uproszczone krawędzie podczas obliczeń.
+
+HLR jest liczone wspólnie dla zestawu brył wybranego w danym widoku,
+z osobnymi rzutami dla pojedynczych brył i innych zestawów. Suma przedziałów
+pokrycia zastąpiła sprawdzanie dziewięciu punktów: części ukrytej krawędzi
+pozostają, gdy widoczna linia pokrywa tylko jej fragment. Pokrywające się
+rzuty przednich i tylnych krawędzi są deduplikowane.
+
+Test Electron `verify-drawing-workspace` tworzy dwie rzeczywiste bryły,
+z których tylna jest całkowicie zasłonięta przez przednią, i uruchamia
+produkcyjny handler przygotowania PDF. Stub zastępuje jedynie zapis PDF,
+żeby odczytać wygenerowany HTML. Wynik: cztery krawędzie ciągłe i cztery
+przerywane. Rysowanie, adnotacje, tabele, powiązania i arkusz szkicu również
+przeszły pełny shard `analysis`; pełny shard `modeling` przeszedł szkice,
+operacje, historię oraz wymianę STEP/STL/3MF.
+
+Rzuty są buforowane w obrębie rewizji modelu (maksymalnie cztery warianty).
+`compoundShapes` otrzymuje klony, ponieważ zużywa wejściowe obiekty.
+Nie zmieniono wersji, nie utworzono wydania i nie podmieniono aplikacji.

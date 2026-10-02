@@ -62,6 +62,14 @@ async function clickRibbonCommand(window, label) {
 app.whenReady().then(async () => {
   const { DOCUMENT_SCHEMA_VERSION } = await import(pathToFileURL(path.join(__dirname, '..', 'src', 'cad-core', 'document.js')).href);
   const window = new BrowserWindow({ width: 1500, height: 940, show: true, webPreferences: { partition: `madcad-drawing-${Date.now()}` } });
+  const executeJavaScript = window.webContents.executeJavaScript.bind(window.webContents);
+  window.webContents.executeJavaScript = async (expression, ...args) => {
+    try { return await executeJavaScript(expression, ...args); }
+    catch (error) { throw new Error(`Nieudana akcja renderera: ${expression}\n${error.message}`, { cause: error }); }
+  };
+  window.webContents.on('console-message', (details) => {
+    if (details.level === 'error') process.stderr.write(`[renderer] ${details.message}\n`);
+  });
   window.setContentSize(1500, 877);
   try {
     await fs.mkdir(artifactsDir, { recursive: true });
@@ -233,6 +241,32 @@ app.whenReady().then(async () => {
     if (state.schemaVersion !== DOCUMENT_SCHEMA_VERSION || state.sheets !== 1 || state.views !== 4 || state.orientation !== 'top' || state.viewTypes.join('|') !== 'base|projected|section|detail' || state.lineCount < 20 || state.visibleProjectionLines < 20 || !state.projectedInkInsidePaper || state.hatchCount < 1 || state.annotationCount !== 11 || state.userAnnotationCount !== 9 || state.annotationTypes.join('|') !== 'linear-dimension|linear-dimension|centerline|center-mark|hole-note|hole-note|feature-control-frame|balloon|point-dimension' || !state.holeNote.includes('⌀') || !state.threadNote.includes('M8×1.25') || !state.gdtFrame || !state.balloonVisible || state.tables !== 2 || state.bomRows < 1 || state.holeRows < 1 || state.revisions !== 1 || state.partNumber !== 'MC-VERIFY-001' || state.associatedViewCount !== 3 || !state.pdfEnabled || !state.dxfEnabled || !state.outputInFileMenu || (!state.visibleRibbonGroups.includes('ZESTAWIENIA') && !state.overflowVisible) || state.horizontalOverflow || !state.paperInsideStage || !state.drawingMode || !state.projectBrowserHidden || !state.timelineHidden || !state.zoomToolbar || !state.panelToggles) {
       throw new Error(`Niepoprawny obszar dokumentacji: ${JSON.stringify(state)}`);
     }
+    // Real kernel regression: the rear box is completely behind the front box.
+    // Its four outline edges must be hidden, not another four solid lines.
+    const core = await import(pathToFileURL(path.join(__dirname, '..', 'src', 'cad-core', 'document.js')).href);
+    const drawing = await import(pathToFileURL(path.join(__dirname, '..', 'src', 'cad-core', 'drawing-sheets.js')).href);
+    const fixture = core.createDocument('Wzajemne zasłanianie brył');
+    fixture.features.push(
+      core.createFeature('primitive', { primitiveType: 'box', x: '0', y: '0', z: '0', width: '20', depth: '2', height: '20' }),
+      core.createFeature('primitive', { primitiveType: 'box', x: '5', y: '8', z: '5', width: '10', depth: '2', height: '10' }),
+    );
+    const sheet = drawing.createDrawingSheet();
+    sheet.views.push(drawing.createBaseDrawingView({ bodyIds: fixture.features.map((feature) => `body-${feature.id}`), orientation: 'front', scale: 1, sheet }));
+    fixture.drawings.push(sheet);
+    await waitFor(window, `typeof window.__madcadVerifyLoadSerializedDocument === 'function' && (window.__madcadVerifyLoadSerializedDocument(${JSON.stringify(JSON.stringify(fixture))}), true)`, 'załadowanie fixture zasłaniania');
+    await waitFor(window, `window.__madcadVerifyEngineState?.status === 'ready' && window.__madcadVerifyEngineState?.evaluatedFeatureData?.at(-1)?.id === ${JSON.stringify(fixture.features.at(-1).id)}`, 'przebudowana nowa fixture');
+    await window.webContents.executeJavaScript(`window.desktopApp = { saveDrawingPdf: async ({ html }) => { window.__drawingExportHtml = html; return { ok: true, filePath: 'test.pdf' }; } }; true;`);
+    await selectWorkspace(window, 'drawing');
+    await window.webContents.executeJavaScript(`document.querySelector('#fileMenuBtn').click()`);
+    await waitFor(window, `Boolean(document.querySelector('#fileExportPdfBtn'))`, 'eksport świeżego arkusza');
+    await window.webContents.executeJavaScript(`document.querySelector('#fileExportPdfBtn').click()`);
+    await waitFor(window, `Boolean(window.__drawingExportHtml)`, 'dokładny rzut przed eksportem PDF');
+    const occlusion = await window.webContents.executeJavaScript(`(() => {
+      const html = new DOMParser().parseFromString(window.__drawingExportHtml, 'text/html');
+      return { visible: html.querySelectorAll('g.geometry > line:not(.hidden)').length, hidden: html.querySelectorAll('g.geometry > line.hidden').length };
+    })()`);
+    if (occlusion.visible !== 4 || occlusion.hidden !== 4) throw new Error('Niepoprawne zasłanianie brył: ' + JSON.stringify(occlusion));
+    state.compoundOcclusion = occlusion;
     // Windows pipes stdout asynchronously. Exiting Electron before the write
     // callback can leave its completion handle invalid despite passing checks.
     process.stdout.write(`${JSON.stringify({ screenshotPath, ...state }, null, 2)}\n`, () => app.exit(0));

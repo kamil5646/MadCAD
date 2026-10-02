@@ -1,6 +1,7 @@
 import { createId } from './ids.js';
 import { componentBomEntries } from './components.js';
 import { sketchDrawingSegments } from './sketch-topology.js';
+import { drawingProjectionGroupKey } from './drawing-projections.js';
 
 export const DRAWING_PAGE_SIZES = Object.freeze({
   A4: Object.freeze({ width: 297, height: 210 }),
@@ -494,19 +495,57 @@ export function removeHiddenOverlaps(visible = [], hidden = [], tolerance = 1e-4
       }
     }
   });
-  const covered = (point) => (grid.get(key(Math.floor((point[0] - minX) / cell), Math.floor((point[1] - minY) / cell))) || [])
-    .some((index) => pointOnSegment(point, visible[index], tolerance));
-  const samples = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1];
-  return hidden.filter(([first, second]) => !samples.every((t) => covered([first[0] + (second[0] - first[0]) * t, first[1] + (second[1] - first[1]) * t])));
+  return hidden.flatMap(([first, second]) => {
+    const dx = second[0] - first[0];
+    const dy = second[1] - first[1];
+    const length = Math.hypot(dx, dy);
+    if (length <= tolerance) return visible.some((segment) => pointOnSegment(first, segment, tolerance)) ? [] : [[first, second]];
+    const candidates = new Set();
+    const x0 = Math.max(-1, Math.floor((Math.min(first[0], second[0]) - minX) / cell));
+    const x1 = Math.min(65, Math.floor((Math.max(first[0], second[0]) - minX) / cell));
+    const y0 = Math.max(-1, Math.floor((Math.min(first[1], second[1]) - minY) / cell));
+    const y1 = Math.min(65, Math.floor((Math.max(first[1], second[1]) - minY) / cell));
+    for (let cx = x0; cx <= x1; cx += 1) {
+      for (let cy = y0; cy <= y1; cy += 1) {
+        for (const index of grid.get(key(cx, cy)) || []) candidates.add(index);
+      }
+    }
+    const intervals = [];
+    for (const index of candidates) {
+      const [a, b] = visible[index];
+      const distance = (point) => Math.abs(dx * (point[1] - first[1]) - dy * (point[0] - first[0])) / length;
+      if (distance(a) > tolerance || distance(b) > tolerance) continue;
+      const along = (point) => ((point[0] - first[0]) * dx + (point[1] - first[1]) * dy) / (length * length);
+      const start = Math.max(0, Math.min(along(a), along(b)));
+      const end = Math.min(1, Math.max(along(a), along(b)));
+      if (end > start) intervals.push([start, end]);
+    }
+    intervals.sort((a, b) => a[0] - b[0]);
+    const result = [];
+    const at = (t) => [first[0] + dx * t, first[1] + dy * t];
+    let cursor = 0;
+    for (const [start, end] of intervals) {
+      if ((start - cursor) * length > tolerance) result.push([at(cursor), at(start)]);
+      cursor = Math.max(cursor, end);
+    }
+    if ((1 - cursor) * length > tolerance) result.push([at(cursor), second]);
+    return result;
+  });
 }
 
 export function projectDrawingView(view, bodies = []) {
   const sourceBodies = sourceBodiesForView(view, bodies);
   const orientation = view?.orientation || 'front';
+  const group = sourceBodies[0]?.drawingGroupProjections?.[drawingProjectionGroupKey(sourceBodies.map((body) => body.id))]?.[orientation];
   const projected = [];
   const hiddenProjected = [];
   const seen = new Set();
+  if (group) {
+    projected.push(...group.visible);
+    hiddenProjected.push(...group.hidden);
+  }
   for (const body of sourceBodies) {
+    if (group) break;
     // Kernel hidden-line removal when available; otherwise every tessellation edge is drawn.
     const exact = body?.drawingProjections?.[orientation];
     if (exact) {

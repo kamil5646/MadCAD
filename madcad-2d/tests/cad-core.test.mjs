@@ -598,6 +598,13 @@ test('bezpiecznie oblicza wyrażenia parametryczne', () => {
   assert.throws(() => evaluateExpression('10 / 0', {}), /Dzielenie przez zero/);
 });
 
+test('odrzuca brakujące operatory i błędną kolejność tokenów wymiaru', () => {
+  for (const expression of ['1 2 +', '10(2)+', '1..2+', '2(3)', '(2)3', '()', '2+()', '*2', '2*/3', '2+']) {
+    assert.throws(() => evaluateExpression(expression), /Brak operatora|Niepełne wyrażenie/, expression);
+  }
+  assert.equal(evaluateExpression('2 * (-3 + +5)'), 4);
+});
+
 test('znaki jednoargumentowe zachowują pierwszeństwo w wymiarach i parametrach', () => {
   for (const [expression, expected] of [
     ['2*-3', -6], ['10/-2', -5], ['-2*3', -6], ['2*(-3)', -6],
@@ -5885,6 +5892,12 @@ test('arkusz używa rzutu z usuwaniem linii ukrytych i rysuje je przerywaną lin
   // A hidden back edge under a visible edge split into pieces is not drawn twice.
   const kept = removeHiddenOverlaps([[[0, 0], [0, -6]], [[0, -6], [0, -10]]], [[[0, 0], [0, -10]], [[2, 0], [2, -10]]]);
   assert.deepEqual(kept, [[[2, 0], [2, -10]]]);
+  const partial = removeHiddenOverlaps([[[2, 0], [4, 0]]], [[[0, 0], [8, 0]]]);
+  assert.deepEqual(partial, [[[0, 0], [2, 0]], [[4, 0], [8, 0]]]);
+  const sparse = Array.from({ length: 9 }, (_, i) => [[Math.max(0, i - 0.01), 0], [Math.min(8, i + 0.01), 0]]);
+  const gaps = removeHiddenOverlaps(sparse, [[[0, 0], [8, 0]]]);
+  assert.equal(gaps.length, 8);
+  assert.ok(gaps.reduce((sum, [a, b]) => sum + Math.hypot(b[0] - a[0], b[1] - a[1]), 0) > 7.8);
   // Isometric views look from the front-right-top corner: +X goes right, +Y goes back (up), +Z up.
   const iso = projectDrawingView({ orientation: 'isometric' }, [{ id: 'axes', lines: new Float32Array([0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0]) }]);
   const [xAxis, yAxis] = iso.segments.map(([start, end]) => [end[0] - start[0], end[1] - start[1]]);

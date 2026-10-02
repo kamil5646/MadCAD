@@ -7,8 +7,9 @@ i otwarte kryteria odbioru znajdują się w `madcad-2d/ROADMAP.md`; dokument
 Priorytet od 2026-10-02: prosty CAD 2D/3D. Najpierw szkic, wymiary i więzy,
 bryła, historia, Cofnij/Ponów oraz zapis i ponowne otwarcie. CAM, frezowanie,
 G-code, przygotowanie druku 3D, profile drukarek i slicery są poza zakresem.
-Nie dodawaj ich ponownie. Schemat v27 zachowuje dawne dane produkcyjne
-wyłącznie w nieaktywnym `legacyProduction`, bez obliczania ścieżek lub układu.
+Nie dodawaj ich ponownie. Schemat v28 zachowuje dawne dane produkcyjne
+wyłącznie w nieaktywnym `legacyProduction`, bez obliczania ścieżek lub układu;
+dane usuniętego renderu, animacji i ruchu archiwizuje w `legacyRemovedFeatures`.
 
 ## Układ repozytorium
 
@@ -21,7 +22,7 @@ wyłącznie w nieaktywnym `legacyProduction`, bez obliczania ścieżek lub ukła
   IPC desktopowe. `project-file-handlers.cjs` jest wspólną ścieżką produkcyjnego
   zapisu/otwarcia oraz krótkiego testu `verify-extrude-after-sketch.cjs`; test
   podmienia tylko systemowy wybór ścieżki i sprawdza także kopię `.bak`.
-- `madcad-2d/scripts/desktop-verification-manifest.cjs` — źródło podziału 51
+- `madcad-2d/scripts/desktop-verification-manifest.cjs` — źródło podziału 43
   scenariuszy Electron na siedem shardów; czasy i sposób sprawdzania opisuje
   `madcad-2d/docs/CI_DESKTOP_VERIFICATION.md`.
 - `madcad-2d/scripts/verify-packaged-startup.cjs` — po zbudowaniu uruchamia
@@ -65,6 +66,10 @@ npm run verify:desktop-suite -- analysis
 
 - Operacja kernela jest transakcyjna i po błędzie zachowuje ostatni poprawny
   model.
+- Eksport PDF/DXF wymaga dokładnego rzutu bieżącej rewizji, nie chwilowego
+  podglądu tessellacji. Rysunki wielu brył liczą zasłanianie wspólnie dla
+  brył wybranych w widoku. `compoundShapes` zużywa wejściowe obiekty:
+  przekazuj klony, nigdy bryły z cache rewizji.
 - Referencje B-Rep nie mogą zależeć od indeksów pojedynczej tessellacji.
 - Zmiana schematu `.madcad` wymaga migracji, fixture starego dokumentu i testu
   round-trip.

@@ -222,9 +222,9 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
     return result.descriptor;
   }, [document, send]);
 
-  const projectDrawingViews = useCallback(async (orientations) => {
+  const projectDrawingViews = useCallback(async (orientations, groups = []) => {
     const revision = revisionRef.current;
-    const result = await send({ type: 'project-drawing', document, revision, orientations });
+    const result = await send({ type: 'project-drawing', document, revision, orientations, groups });
     if (result.revision !== revision || revisionRef.current !== revision) throw engineError('Silnik zwrócił rzut arkusza z innej rewizji dokumentu.', 'PROJECTION_REVISION_MISMATCH');
     return result.projections;
   }, [document, send]);

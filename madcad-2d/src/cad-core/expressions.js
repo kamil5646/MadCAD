@@ -43,13 +43,17 @@ function toRpn(tokens) {
   const output = [];
   const operators = [];
   let previous = null;
+  let expectsOperand = true;
 
   for (const token of tokens) {
     if (token.type === 'number' || token.type === 'identifier') {
+      if (!expectsOperand) throw new Error('Brak operatora między wartościami.');
       output.push(token);
+      expectsOperand = false;
     } else if (token.type in PRECEDENCE) {
       const unary = (token.type === '-' || token.type === '+') && (!previous || previous.type in PRECEDENCE || previous.type === '(');
       const operator = unary ? { type: `u${token.type}` } : token;
+      if (expectsOperand && !unary) throw new Error('Niepełne wyrażenie.');
       while (
         operators.length
         && operators.at(-1).type in PRECEDENCE
@@ -59,15 +63,19 @@ function toRpn(tokens) {
         output.push(operators.pop());
       }
       operators.push(operator);
+      expectsOperand = true;
     } else if (token.type === '(') {
+      if (!expectsOperand) throw new Error('Brak operatora przed nawiasem.');
       operators.push(token);
     } else if (token.type === ')') {
+      if (expectsOperand) throw new Error('Niepełne wyrażenie.');
       while (operators.length && operators.at(-1).type !== '(') output.push(operators.pop());
       if (!operators.length) throw new Error('Brakujący nawias otwierający.');
       operators.pop();
     }
     previous = token;
   }
+  if (expectsOperand) throw new Error('Niepełne wyrażenie.');
 
   while (operators.length) {
     const operator = operators.pop();

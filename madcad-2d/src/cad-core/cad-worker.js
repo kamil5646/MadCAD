@@ -42,6 +42,7 @@ import { FEATURE_STATUS, prepareDocument, resolveOpenChainProfile } from './eval
 import { evaluateFeatureHistoryCooperatively } from './feature-history.js';
 import { GEOMETRY_POLICY } from './geometry-policy.js';
 import { DRAWING_PROJECTION_CAMERAS, removeHiddenOverlaps } from './drawing-sheets.js';
+import { drawingProjectionGroupKey, uniqueDrawingSegments } from './drawing-projections.js';
 import { resolveFaceEdgeHolePlacement } from './face-edge-hole.js';
 import { assignStableTopologyIds } from './topology-naming.js';
 import { RevisionCache, SerialTaskQueue, estimateMeshBytes, isStaleRevision } from './worker-runtime.js';
@@ -3091,28 +3092,43 @@ function projectEdgesToSegments(edges, scale) {
   return segments;
 }
 
-function projectDrawingBodies(kernelBodies, orientations = []) {
+function projectDrawingBodies(kernelBodies, orientations = [], groups = []) {
   const projections = {};
-  for (const body of kernelBodies) {
-    if (!body?.shape || body.representation === 'mesh-import') continue;
-    for (const orientation of orientations) {
-      const settings = DRAWING_PROJECTION_CAMERAS[orientation];
-      if (!settings) continue;
-      // The kernel's projection axis points at the viewer, so it is the opposite of the view
-      // direction; that flips the 2D Y axis, undone in projectEdgesToSegments.
-      const camera = new ProjectionCamera([0, 0, 0], settings.direction.map((value) => -value), settings.xAxis);
-      try {
-        const { visible, hidden } = makeProjectedEdges(body.shape, camera);
-        projections[body.id] = projections[body.id] || {};
-        const visibleSegments = projectEdgesToSegments(visible, settings.scale);
-        projections[body.id][orientation] = {
-          visible: visibleSegments,
-          hidden: removeHiddenOverlaps(visibleSegments, projectEdgesToSegments(hidden, settings.scale)),
-        };
-      } finally {
-        camera.delete?.();
+  const compounds = [];
+  const sources = [...kernelBodies];
+  try {
+    for (const ids of groups) {
+      const selected = kernelBodies.filter((body) => ids.includes(body.id));
+      if (selected.length < 2 || selected.some((body) => !body.shape || body.representation === 'mesh-import')) continue;
+      // compoundShapes consumes its inputs; never hand it the revision cache's shapes.
+      const shape = compoundShapes(selected.map((body) => body.shape.clone()));
+      compounds.push(shape);
+      sources.push({ id: drawingProjectionGroupKey(selected.map((body) => body.id)), shape, group: true });
+    }
+    for (const body of sources) {
+      if (!body?.shape || body.representation === 'mesh-import') continue;
+      for (const orientation of orientations) {
+        const settings = DRAWING_PROJECTION_CAMERAS[orientation];
+        if (!settings) continue;
+        // The kernel's projection axis points at the viewer, so it is the opposite of the view
+        // direction; that flips the 2D Y axis, undone in projectEdgesToSegments.
+        const camera = new ProjectionCamera([0, 0, 0], settings.direction.map((value) => -value), settings.xAxis);
+        try {
+          const { visible, hidden } = makeProjectedEdges(body.shape, camera);
+          const target = body.group ? (projections.__groups ||= {}) : projections;
+          target[body.id] = target[body.id] || {};
+          const visibleSegments = uniqueDrawingSegments(projectEdgesToSegments(visible, settings.scale));
+          target[body.id][orientation] = {
+            visible: visibleSegments,
+            hidden: uniqueDrawingSegments(removeHiddenOverlaps(visibleSegments, projectEdgesToSegments(hidden, settings.scale))),
+          };
+        } finally {
+          camera.delete?.();
+        }
       }
     }
+  } finally {
+    compounds.forEach((shape) => shape.delete?.());
   }
   return projections;
 }
@@ -3174,7 +3190,15 @@ async function handleMessage(data) {
   }
   if (type === 'project-drawing') {
     const evaluated = await resolveRevision(document, revision, 'display');
-    const projections = projectDrawingBodies(evaluated.kernelBodies, data.orientations);
+    const cache = evaluated.drawingProjectionCache ||= new Map();
+    const key = JSON.stringify([data.orientations || [], data.groups || []]);
+    let projections = cache.get(key);
+    if (!projections) {
+      projections = projectDrawingBodies(evaluated.kernelBodies, data.orientations, data.groups);
+      cache.set(key, projections);
+      // Bound variants of body selections; this cache dies with the model revision.
+      if (cache.size > 4) cache.delete(cache.keys().next().value);
+    }
     self.postMessage({ id, ok: true, type, result: { revision, projections } });
     return;
   }

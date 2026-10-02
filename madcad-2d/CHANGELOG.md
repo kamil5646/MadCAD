@@ -2,6 +2,12 @@
 
 ## W przygotowaniu — CAD 2D/3D (2026-10-02)
 
+- parser wymiarów odrzuca brakujące operatory, błędną kolejność wartości i niepełne nawiasy zamiast obliczać przypadkowy wynik;
+- PDF/DXF oraz podgląd wydruku czekają na dokładny rzut aktualnego modelu; błędy kernela lub zmiana modelu zatrzymują eksport z komunikatem;
+- wiele brył w widoku arkusza zasłania się wzajemnie, a pokrywające się krawędzie są rysowane tylko raz;
+- filtrowanie linii ukrytych usuwa rzeczywiste przedziały pokrycia, zachowując przerwy zamiast testować tylko dziewięć punktów;
+- wyniki rzutów są buforowane w bieżącej rewizji, z ograniczeniem liczby wariantów.
+
 - usunięto obszar CAM, frezowanie/toczenie/cięcie, ścieżki narzędzi, symulację obróbki i eksport G-code;
 - usunięto panel druku 3D, profile drukarek/materiałów, układ stołu, mapę drukowalności i uruchamianie slicerów;
 - eksport zapisuje geometrię CAD w położeniu i skali projektu, bez dawnych transformacji oraz kopii drukowania;

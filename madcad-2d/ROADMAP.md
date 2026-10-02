@@ -15,6 +15,10 @@ z produktu. Dalszych funkcji wytwarzania nie rozwijamy.
   Cofnij/Ponów → zapis `.madcad` → ponowne otwarcie.
 - [x] Potwierdzić migrację v26 → v27: zachować szkice, bryły, parametry i historię;
   dawne ustawienia produkcyjne przechować jako nieaktywne `legacyProduction`.
+- [x] Schemat v28 archiwizuje dane usuniętego renderu, animacji i ruchu
+  w `legacyRemovedFeatures`; bieżący kod zachowuje podstawy CAD.
+- [x] Odrzucać błędne wyrażenia wymiarów, a PDF/DXF eksportować dopiero
+  po dokładnym rzucie bieżącej rewizji. Potwierdzić wzajemne zasłanianie brył.
 - [x] Potwierdzić brak CAM/druku 3D w menu, panelach i interfejsie desktopowym.
 - [x] Przejść szkic na ścianie i zależne wycięcie, zmianę wymiarów oraz
   naprawę utraconej referencji.
