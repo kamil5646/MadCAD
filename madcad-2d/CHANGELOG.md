@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.5.30 — widok modelu (2026-10-02)
+
+- szwy brył zamkniętych (walce, kule, torusy) nie są rysowane jako krawędzie części;
+- obszar cienia światła głównego jest dopasowany do modelu, więc cienie małych części mają ostre krawędzie;
+- wczytanie projektu pokazuje komunikat „Otwarto projekt …” zamiast zachęty do rozpoczęcia rysunku;
+- testy desktopowe czekają na zakończenie przebudowy sceny po nowym projekcie, a wyprzedzone przeliczenia są liczone jako odrzucone (stabilność CI na Windows i macOS);
+- strona produktu pokazuje aktualny zrzut interfejsu.
+
+Znane ograniczenia: ręczny test pracy CAD po zalogowaniu w zainstalowanej aplikacji Windows nie został wykonany; automatyczne testy Windows i instalatora przeszły. Paczki nie mają podpisu producenta.
+
 ## 6.5.29 — CAD 2D/3D (2026-10-02)
 
 Podstawy projektowania:
