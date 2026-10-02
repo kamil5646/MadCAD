@@ -2,6 +2,20 @@
 
 ## 6.5.29 — CAD 2D/3D (2026-10-02)
 
+Podstawy projektowania:
+- wymiary szkicu są rysowane przy geometrii (linie, strzałki, wartość); klik w wartość otwiera edycję, a Enter zatwierdza nowy wymiar;
+- pierwsze pole okna operacji ma zaznaczoną wartość, więc wpisanie liczby ją zastępuje (wcześniej „25” w Wyciągnij dawało 1025 mm);
+- prostokąt domyślnie rysuje się od narożnika z podglądem obrysu; wpisane wymiary bez kliknięcia nadal dają prostokąt wyśrodkowany;
+- ujemna odległość wyciąga w przeciwną stronę, a na szkicu na ścianie operacja sama przełącza się na Wytnij;
+- krawędź pod kursorem ma pierwszeństwo przed ścianą, a zaznaczona krawędź jest pogrubiona;
+- „Dopasuj” wypełnia widok modelem; ściany boczne nie są już czarne, krawędzie brył są wyraźne;
+- wstążka przy szerokości 1280 px nie chowa już Więzów i Wymiarów;
+- klawisze L/R/C na ekranie startowym zakładają szkic XY i uruchamiają narzędzie; aktywne narzędzie szkicu jest podświetlone;
+- arkusze 2D usuwają linie ukryte (przerywane w podglądzie, PDF i DXF); widok izometryczny nie jest już lustrzanym odbiciem;
+- komunikaty opisują geometrię nazwą („Linia 3”, „długość 17 mm”) zamiast wewnętrznych identyfikatorów; operacje są numerowane osobno dla każdego typu;
+- okno licencji pokazuje na starcie tylko najważniejsze informacje, plany są zwinięte.
+
+Zmiany zakresu i jakości:
 - usunięto symulacje MES/cieplne, render, animacje, edycję siatek skanów oraz Motion Links i Contact Sets; schemat v28 archiwizuje starsze dane w nieaktywnym `legacyRemovedFeatures`;
 
 - parser wymiarów odrzuca brakujące operatory, błędną kolejność wartości i niepełne nawiasy zamiast obliczać przypadkowy wynik;
