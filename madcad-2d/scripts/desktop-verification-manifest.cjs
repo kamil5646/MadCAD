@@ -22,9 +22,6 @@ module.exports = Object.freeze({
   ]),
   interoperability: Object.freeze([
     'scripts/verify-model-import.cjs',
-    'scripts/verify-mesh-repair.cjs',
-    'scripts/verify-mesh-scan-repair.cjs',
-    'scripts/verify-mesh-operations.cjs',
     'scripts/verify-mesh-to-brep.cjs',
     'scripts/verify-external-compatibility.cjs',
     'scripts/verify-import-report.cjs',

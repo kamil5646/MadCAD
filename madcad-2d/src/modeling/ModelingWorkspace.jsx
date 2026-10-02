@@ -133,7 +133,7 @@ import { DRAFT_DIRECTIONS, analyzeDraftAngles, analyzeWallThickness, summarizeGe
 import { DEFAULT_LICENSE_STATUS, describeLicensePlan, normalizeLicenseStatus } from './license-plan.js';
 import { inspectThreeMfArchive } from '../cad-core/three-mf.js';
 import { formatModelFileSize, inspectModelImportBuffer, normalizeModelUnit, parseStlMesh } from '../cad-core/model-import.js';
-import { fillMeshHoles, groupMeshFaces, inspectMesh, meshToBinaryStl, orientMeshFaces, reduceMesh, remeshUniform, repairMesh, smoothMesh } from '../cad-core/mesh-tools.js';
+import { inspectMesh } from '../cad-core/mesh-tools.js';
 import { inspectSketchImport, parseSketchImport } from '../cad-core/sketch-import.js';
 import { sketchDxf } from '../cad-core/sketch-dxf-export.js';
 import { createId } from '../cad-core/ids.js';
@@ -5259,158 +5259,7 @@ export default function ModelingWorkspace() {
     }
     setImportRepairReport(null);
     setMeshToolsOpen(true);
-    setNotice('Diagnostyka siatki jest gotowa. Naprawa nie wypełnia otworów ani nie zgaduje brakującej geometrii.');
-  };
-
-  const safelyRepairSelectedMesh = () => {
-    if (!selectedMeshFeature || readOnly) return;
-    try {
-      const result = repairMesh(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)));
-      const buffer = meshToBinaryStl(result.mesh);
-      commit((next) => {
-        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
-        feature.dataBase64 = arrayBufferToBase64(buffer);
-        feature.triangleCount = result.after.triangleCount;
-        feature.meshRepair = {
-          repairedAt: new Date().toISOString(),
-          removedTriangles: result.before.triangleCount - result.after.triangleCount,
-          weldedVertices: result.before.duplicateVertices,
-        };
-        feature.meshOperations = [...(feature.meshOperations || []), { type: 'repair', timestamp: new Date().toISOString(), beforeTriangles: result.before.triangleCount, afterTriangles: result.after.triangleCount }];
-        feature.meshGroups = [];
-      });
-      setNotice(`Naprawiono siatkę: scalono ${result.before.duplicateVertices} duplikatów wierzchołków i usunięto ${result.before.triangleCount - result.after.triangleCount} niebezpiecznych trójkątów. Cofnij przywraca oryginał.`);
-    } catch (error) {
-      setNotice(`Nie udało się naprawić siatki: ${error.message}`);
-    }
-  };
-
-  const orientSelectedMeshFaces = () => {
-    if (!selectedMeshFeature || readOnly) return;
-    try {
-      const result = orientMeshFaces(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)));
-      if (!result.flippedTriangles) {
-        setNotice('Kierunek ścian jest już spójny; nie zmieniono siatki.');
-        return;
-      }
-      const buffer = meshToBinaryStl(result.mesh);
-      commit((next) => {
-        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
-        feature.dataBase64 = arrayBufferToBase64(buffer);
-        feature.triangleCount = result.after.triangleCount;
-        feature.meshOperations = [...(feature.meshOperations || []), { type: 'orient', timestamp: new Date().toISOString(), flippedTriangles: result.flippedTriangles, componentCount: result.componentCount, outwardComponents: result.outwardComponents }];
-        feature.meshGroups = [];
-      });
-      setNotice(`Uporządkowano kierunek ${result.flippedTriangles.toLocaleString('pl-PL')} trójkątów w ${result.componentCount.toLocaleString('pl-PL')} komponentach. Cofnij przywraca poprzednią orientację.`);
-    } catch (error) {
-      setNotice(`Nie udało się uporządkować kierunku ścian: ${error.message}`);
-    }
-  };
-
-  const fillSelectedMeshHoles = (maximumDiameter) => {
-    if (!selectedMeshFeature || readOnly) return;
-    try {
-      const result = fillMeshHoles(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)), { maximumDiameter, maximumEdges: 64 });
-      if (!result.filledHoles) {
-        setNotice(result.holeCount
-          ? `Nie wypełniono otworów: wszystkie przekraczają limit ${result.maximumDiameter.toLocaleString('pl-PL')} mm albo nie tworzą prostej pętli.`
-          : 'Siatka nie ma otwartych pętli wymagających wypełnienia.');
-        return;
-      }
-      const buffer = meshToBinaryStl(result.mesh);
-      commit((next) => {
-        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
-        feature.dataBase64 = arrayBufferToBase64(buffer);
-        feature.triangleCount = result.after.triangleCount;
-        feature.meshOperations = [...(feature.meshOperations || []), { type: 'fillHoles', timestamp: new Date().toISOString(), maximumDiameter: result.maximumDiameter, maximumEdges: result.maximumEdges, filledHoles: result.filledHoles, skippedHoles: result.skippedHoles, insertedTriangles: result.insertedTriangles, orientedTriangles: result.orientedTriangles }];
-        feature.meshGroups = [];
-      });
-      setNotice(`Wypełniono ${result.filledHoles} ${result.filledHoles === 1 ? 'mały otwór' : 'małe otwory'} (${result.insertedTriangles} nowych trójkątów); pominięto ${result.skippedHoles}. Cofnij przywraca otwartą siatkę.`);
-    } catch (error) {
-      setNotice(`Nie udało się wypełnić otworów: ${error.message}`);
-    }
-  };
-
-  const reduceSelectedMesh = (ratio) => {
-    if (!selectedMeshFeature || readOnly) return;
-    try {
-      const result = reduceMesh(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)), ratio);
-      if (result.after.triangleCount >= result.before.triangleCount) {
-        setNotice('Ta siatka jest już zbyt mała lub regularna, aby bezpiecznie uzyskać wybraną redukcję.');
-        return;
-      }
-      const buffer = meshToBinaryStl(result.mesh);
-      commit((next) => {
-        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
-        feature.dataBase64 = arrayBufferToBase64(buffer);
-        feature.triangleCount = result.after.triangleCount;
-        feature.meshOperations = [...(feature.meshOperations || []), { type: 'reduce', timestamp: new Date().toISOString(), ratio: result.ratio, beforeTriangles: result.before.triangleCount, afterTriangles: result.after.triangleCount }];
-        feature.meshGroups = [];
-      });
-      setNotice(`Zredukowano siatkę z ${result.before.triangleCount.toLocaleString('pl-PL')} do ${result.after.triangleCount.toLocaleString('pl-PL')} trójkątów. Cofnij przywraca geometrię sprzed redukcji.`);
-    } catch (error) {
-      setNotice(`Nie udało się zredukować siatki: ${error.message}`);
-    }
-  };
-
-  const smoothSelectedMesh = (options) => {
-    if (!selectedMeshFeature || readOnly) return;
-    try {
-      const result = smoothMesh(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)), options);
-      const buffer = meshToBinaryStl(result.mesh);
-      commit((next) => {
-        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
-        feature.dataBase64 = arrayBufferToBase64(buffer);
-        feature.triangleCount = result.after.triangleCount;
-        feature.meshOperations = [...(feature.meshOperations || []), { type: 'smooth', timestamp: new Date().toISOString(), iterations: result.iterations, strength: result.strength, preservedBoundaryVertices: result.preservedBoundaryVertices }];
-        feature.meshGroups = [];
-      });
-      setNotice(`Wygładzono siatkę w ${result.iterations} krokach; ochroniono ${result.preservedBoundaryVertices} wierzchołków otwartych brzegów. Cofnij przywraca poprzedni kształt.`);
-    } catch (error) {
-      setNotice(`Nie udało się wygładzić siatki: ${error.message}`);
-    }
-  };
-
-  const remeshSelectedMesh = (targetEdgeLength) => {
-    if (!selectedMeshFeature || readOnly) return;
-    try {
-      const result = remeshUniform(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)), targetEdgeLength);
-      if (!result.collapsedEdges && !result.insertedVertices) {
-        setNotice(`Siatka już mieści się w zakresie docelowej krawędzi ${result.targetEdgeLength.toLocaleString('pl-PL')} mm.`);
-        return;
-      }
-      const buffer = meshToBinaryStl(result.mesh);
-      commit((next) => {
-        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
-        feature.dataBase64 = arrayBufferToBase64(buffer);
-        feature.triangleCount = result.after.triangleCount;
-        feature.meshOperations = [...(feature.meshOperations || []), { type: 'remesh', timestamp: new Date().toISOString(), targetEdgeLength: result.targetEdgeLength, beforeTriangles: result.before.triangleCount, afterTriangles: result.after.triangleCount, collapsedEdges: result.collapsedEdges, insertedVertices: result.insertedVertices }];
-        feature.meshGroups = [];
-      });
-      setNotice(`Przebudowano siatkę do krawędzi około ${result.targetEdgeLength.toLocaleString('pl-PL')} mm: ${result.before.triangleCount.toLocaleString('pl-PL')} → ${result.after.triangleCount.toLocaleString('pl-PL')} trójkątów. Cofnij przywraca poprzednią siatkę.`);
-    } catch (error) {
-      setNotice(`Nie udało się wykonać remesh: ${error.message}`);
-    }
-  };
-
-  const groupSelectedMeshFaces = (featureAngle) => {
-    if (!selectedMeshFeature || readOnly) return;
-    try {
-      const result = groupMeshFaces(parseStlMesh(base64ToBytes(selectedMeshFeature.dataBase64)), featureAngle);
-      const buffer = meshToBinaryStl(result.mesh);
-      const groups = result.groups.map((group) => ({ id: group.id, triangleCount: group.triangleCount, triangleIndices: [...group.triangleIndices], area: group.area }));
-      commit((next) => {
-        const feature = next.features.find((item) => item.id === selectedMeshFeature.id);
-        feature.dataBase64 = arrayBufferToBase64(buffer);
-        feature.triangleCount = result.mesh.triangles.length / 3;
-        feature.meshGroups = groups;
-        feature.meshGroupAngle = result.featureAngle;
-        feature.meshOperations = [...(feature.meshOperations || []), { type: 'group', timestamp: new Date().toISOString(), featureAngle: result.featureAngle, groupCount: groups.length }];
-      });
-      setNotice(`Wyznaczono ${groups.length} ${groups.length === 1 ? 'grupę' : 'grup'} ścian przy kącie ${result.featureAngle}°. Grupy zapisano w projekcie.`);
-    } catch (error) {
-      setNotice(`Nie udało się pogrupować ścian siatki: ${error.message}`);
-    }
+    setNotice('Diagnostyka siatki jest gotowa. Zamkniętą siatkę można zamienić na bryłę B-Rep.');
   };
 
   const convertSelectedMeshToBrep = () => {
@@ -7990,7 +7839,7 @@ export default function ModelingWorkspace() {
           {command?.type === 'measure' && <MeasurePanel measurement={measurement} onClose={() => setCommand(null)} />}
           {command?.type === 'sectionAnalysis' && sectionAnalysis && <SectionPanel analysis={sectionAnalysis} onChange={(patch) => setSectionAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSectionAnalysis} />}
           {command?.type === 'surfaceAnalysis' && surfaceAnalysis && <SurfaceAnalysisPanel analysis={surfaceAnalysis} continuity={surfaceContinuity} curvature={surfaceCurvature} onChange={(patch) => setSurfaceAnalysis((current) => ({ ...current, ...patch }))} onClose={closeSurfaceAnalysis} />}
-          {meshToolsOpen && selectedMeshBody && <MeshToolsPanel body={selectedMeshBody} report={selectedMeshReport} groups={selectedMeshFeature?.meshGroups || []} brepBlocker={meshBrepBlocker} readOnly={readOnly} onRepair={safelyRepairSelectedMesh} onOrient={orientSelectedMeshFaces} onFillHoles={fillSelectedMeshHoles} onReduce={reduceSelectedMesh} onSmooth={smoothSelectedMesh} onRemesh={remeshSelectedMesh} onGroup={groupSelectedMeshFaces} onConvertToBrep={convertSelectedMeshToBrep} onClose={() => setMeshToolsOpen(false)} />}
+          {meshToolsOpen && selectedMeshBody && <MeshToolsPanel body={selectedMeshBody} report={selectedMeshReport} brepBlocker={meshBrepBlocker} readOnly={readOnly} onConvertToBrep={convertSelectedMeshToBrep} onClose={() => setMeshToolsOpen(false)} />}
           {command?.type === 'massProperties' && <MassPropertiesPanel density={command.density} result={massProperties?.result} error={massProperties?.error} onDensityChange={(density) => setCommand((current) => ({ ...current, density }))} onClose={() => setCommand(null)} />}
           {command?.type === 'geometryInspection' && <GeometryInspectionPanel result={geometryInspection} inspectionMode={command.inspectionMode} draftDirection={command.draftDirection} draftTolerance={command.draftTolerance} thicknessTarget={command.thicknessTarget} thicknessTolerance={command.thicknessTolerance} onChange={(patch) => setCommand((current) => ({ ...current, ...patch }))} onClose={() => setCommand(null)} />}
           {namedViewsOpen && <NamedViewsPanel views={document.namedViews || []} currentCamera={currentCameraRef.current} readOnly={readOnly} onCreate={saveNamedView} onActivate={activateNamedView} onDelete={removeNamedView} onClose={() => setNamedViewsOpen(false)} />}
