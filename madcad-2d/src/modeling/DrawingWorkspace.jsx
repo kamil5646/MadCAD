@@ -20,6 +20,7 @@ const VIEW_TYPE_LABELS = {
 const ANNOTATION_TYPE_LABELS = {
   'linear-dimension': 'Wymiar gabarytowy',
   'point-dimension': 'Wymiar między punktami',
+  'angle-dimension': 'Wymiar kątowy',
   centerline: 'Oś',
   'center-mark': 'Znacznik środka',
   'hole-note': 'Opis otworu',
@@ -134,6 +135,10 @@ function AnnotationControls({ annotation, rendered, bodies, allBodies, component
     <small className="drawing-association-status">Aktualizowane z widokiem źródłowym</small>
     {annotation.type === 'point-dimension' && <label><span>Kierunek</span><select data-point-dimension-axis value={annotation.axis} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ axis: event.target.value })}><option value="horizontal">Poziomy</option><option value="vertical">Pionowy</option><option value="aligned">Wyrównany</option></select></label>}
     {(annotation.type === 'linear-dimension' || annotation.type === 'centerline') && <label><span>Kierunek</span><select value={annotation.axis} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ axis: event.target.value })}><option value="horizontal">Poziomy</option><option value="vertical">Pionowy</option></select></label>}
+    {annotation.type === 'angle-dimension' && <>
+      <div className="drawing-property-row"><label><span>Promień łuku [mm]</span><input data-angle-radius type="number" min="3" max="100" value={annotation.radius} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ radius: Math.max(3, Math.min(100, Number(event.target.value) || 12)) })} /></label><label><span>Dokładność</span><select value={annotation.precision} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ precision: Number(event.target.value) })}><option value="0">1°</option><option value="1">0,1°</option><option value="2">0,01°</option></select></label></div>
+      <small className="drawing-calculated-value">Kąt z widoku: {rendered?.text || '—'}</small>
+    </>}
     {(annotation.type === 'linear-dimension' || annotation.type === 'point-dimension') && <>
       <div className="drawing-property-row"><label><span>Odsunięcie [mm]</span><input type="number" min="-100" max="100" value={annotation.offset} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ offset: Math.max(-100, Math.min(100, Number(event.target.value) || 0)) })} /></label><label><span>Miejsca</span><input type="number" min="0" max="4" value={annotation.precision} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ precision: Math.max(0, Math.min(4, Math.trunc(Number(event.target.value) || 0))) })} /></label></div>
       <label><span>Tolerancja</span><select value={annotation.toleranceMode} disabled={readOnly} onChange={(event) => onUpdateAnnotation({ toleranceMode: event.target.value })}><option value="none">Bez tolerancji</option><option value="symmetric">Symetryczna ±</option><option value="deviation">Odchyłki +/−</option></select></label>

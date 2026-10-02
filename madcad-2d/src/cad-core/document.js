@@ -2214,6 +2214,10 @@ export function validateDocument(document) {
         if (!['none', 'symmetric', 'deviation'].includes(annotation.toleranceMode)) add(`${annotationBase}.toleranceMode`, 'Nieobsługiwany zapis tolerancji.', 'UNSUPPORTED');
         if (Number(annotation.upperTolerance) < 0 || Number(annotation.lowerTolerance) < 0) add(annotationBase, 'Tolerancje nie mogą być ujemne.', 'VALUE');
       }
+      if (annotation.type === 'angle-dimension') {
+        if (!Array.isArray(annotation.points) || annotation.points.length !== 3 || annotation.points.some((point) => !Array.isArray(point) || point.length !== 2 || point.some((value) => !Number.isFinite(Number(value))))) add(`${annotationBase}.points`, 'Wymiar kątowy wymaga trzech punktów [u, v].', 'VALUE');
+        if (!(Number(annotation.radius) >= 3 && Number(annotation.radius) <= 100)) add(`${annotationBase}.radius`, 'Promień łuku wymiaru kątowego musi mieścić się między 3 i 100 mm.', 'VALUE');
+      }
       if (annotation.type === 'point-dimension') {
         if (!['horizontal', 'vertical', 'aligned'].includes(annotation.axis)) add(`${annotationBase}.axis`, 'Wymiar między punktami musi być poziomy, pionowy albo wyrównany.', 'UNSUPPORTED');
         if (!Array.isArray(annotation.points) || annotation.points.length !== 2 || annotation.points.some((point) => !Array.isArray(point) || point.length !== 2 || point.some((value) => !Number.isFinite(Number(value))))) add(`${annotationBase}.points`, 'Wymiar między punktami wymaga dwóch punktów [u, v].', 'VALUE');

@@ -28,7 +28,7 @@ function formatDecimal(value, precision, style) {
 export const DRAWING_VIEW_ORIENTATIONS = Object.freeze(['front', 'top', 'right', 'isometric']);
 export const DRAWING_VIEW_TYPES = Object.freeze(['base', 'sketch', 'projected', 'section', 'detail']);
 export const DRAWING_VIEW_ALIGNMENTS = Object.freeze(['horizontal', 'vertical', 'free']);
-export const DRAWING_ANNOTATION_TYPES = Object.freeze(['linear-dimension', 'point-dimension', 'centerline', 'center-mark', 'hole-note', 'feature-control-frame', 'balloon']);
+export const DRAWING_ANNOTATION_TYPES = Object.freeze(['linear-dimension', 'point-dimension', 'angle-dimension', 'centerline', 'center-mark', 'hole-note', 'feature-control-frame', 'balloon']);
 export const DRAWING_TABLE_TYPES = Object.freeze(['bom', 'hole-table', 'bend-table']);
 
 const PAGE_MARGIN = 10;
@@ -105,6 +105,21 @@ export function createPointDrawingDimension({ viewId, points, axis = 'auto', off
     toleranceMode: 'none',
     upperTolerance: 0,
     lowerTolerance: 0,
+  };
+}
+
+// Angle at `points[0]` between the rays to `points[1]` and `points[2]`, in view
+// projection coordinates; `radius` is the arc radius on the sheet in mm.
+export function createAngleDrawingDimension({ viewId, points, radius = 12, precision = 1 } = {}) {
+  const parsed = (points || []).map((point) => [Number(point?.[0]) || 0, Number(point?.[1]) || 0]);
+  if (parsed.length !== 3) throw new Error('Wymiar kątowy wymaga wierzchołka i dwóch punktów ramion.');
+  return {
+    id: createId('drawing-annotation'),
+    type: 'angle-dimension',
+    viewId,
+    points: parsed,
+    radius: Math.max(3, Math.min(100, Number(radius) || 12)),
+    precision: Math.max(0, Math.min(3, Math.trunc(Number(precision) || 0))),
   };
 }
 
@@ -649,6 +664,43 @@ function renderedPointDimension(source, view, style) {
   ] };
 }
 
+function renderedAngleDimension(source, view, style) {
+  const scale = Math.max(0.001, Number(view.scale) || 1);
+  const tolerance = Math.max(0.05, Math.max(view.modelWidth, view.modelHeight) * 0.01);
+  const points = (source.points || []).map((point) => snapToVertex(point, view.vertices, tolerance));
+  if (points.length !== 3 || !view.projectionCenter) return null;
+  const toSheet = ([u, v]) => [view.x + (u - view.projectionCenter[0]) * scale, view.y + (v - view.projectionCenter[1]) * scale];
+  const [vertex, first, second] = points.map(toSheet);
+  const angleOf = (point) => Math.atan2(point[1] - vertex[1], point[0] - vertex[0]);
+  let start = angleOf(first);
+  let sweep = angleOf(second) - start;
+  while (sweep <= -Math.PI) sweep += Math.PI * 2;
+  while (sweep > Math.PI) sweep -= Math.PI * 2;
+  if (Math.abs(sweep) < 1e-9) return null;
+  const radius = Math.max(3, Math.min(100, Number(source.radius) || 12));
+  const steps = Math.max(8, Math.ceil(Math.abs(sweep) / (Math.PI / 36)));
+  const arc = Array.from({ length: steps + 1 }, (_, index) => {
+    const angle = start + sweep * index / steps;
+    return [vertex[0] + Math.cos(angle) * radius, vertex[1] + Math.sin(angle) * radius];
+  });
+  const segments = arc.slice(1).map((point, index) => [arc[index], point]);
+  const arrow = style.textHeight * 0.75;
+  const tangent = (angle, direction) => [-Math.sin(angle) * direction, Math.cos(angle) * direction];
+  const end = start + sweep;
+  const direction = Math.sign(sweep);
+  segments.push(...arrowSegments(arc[0], tangent(start, direction), arrow), ...arrowSegments(arc.at(-1), tangent(end, -direction), arrow));
+  // Extension lines from the vertex out to the arc when the picked point is closer than the arc.
+  for (const [point, angle] of [[first, start], [second, end]]) {
+    const length = Math.hypot(point[0] - vertex[0], point[1] - vertex[1]);
+    if (length < radius) segments.push([point, [vertex[0] + Math.cos(angle) * (radius + 1.5), vertex[1] + Math.sin(angle) * (radius + 1.5)]]);
+  }
+  const middle = start + sweep / 2;
+  const value = Math.abs(sweep) * 180 / Math.PI;
+  const precision = Math.max(0, Math.min(3, Math.trunc(Number(source.precision) || 0)));
+  const textRadius = radius + style.textHeight * 0.9;
+  return { ...source, value, text: `${formatDecimal(value, precision, style)}°`, textHeight: style.textHeight, textX: vertex[0] + Math.cos(middle) * textRadius, textY: vertex[1] + Math.sin(middle) * textRadius, textRotation: 0, segments };
+}
+
 function renderedAnnotation(source, view, bodies, style = DEFAULT_DIMENSION_STYLE) {
   if (!view) return null;
   const arrow = style.textHeight * 0.75;
@@ -656,6 +708,7 @@ function renderedAnnotation(source, view, bodies, style = DEFAULT_DIMENSION_STYL
   const halfWidth = Math.max(0.01, view.modelWidth * view.scale / 2);
   const halfHeight = Math.max(0.01, view.modelHeight * view.scale / 2);
   if (source.type === 'point-dimension') return renderedPointDimension(source, view, style);
+  if (source.type === 'angle-dimension') return renderedAngleDimension(source, view, style);
   if (source.type === 'linear-dimension') {
     const vertical = source.axis === 'vertical';
     const offset = Math.max(-100, Math.min(100, Number(source.offset) || 10));

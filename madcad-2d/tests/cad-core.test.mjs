@@ -143,6 +143,7 @@ import {
   drawingSheetDxf,
   drawingSheetScene,
   createPointDrawingDimension,
+  createAngleDrawingDimension,
   drawingViewSnapPoint,
   drawingPageDimensions,
   ensureDocumentDrawings,
@@ -6952,4 +6953,26 @@ test('joint cylindryczny łączy obrót i przesuw wzdłuż tej samej osi z osobn
   assert.equal(transform().z, 0);
   assert.throws(() => setJointSlide(document, joint.id, 5), /cylindryczny/);
   assert.equal(validateDocument(document).valid, true);
+});
+
+test('wymiar kątowy mierzy kąt przy wierzchołku widoku i rysuje łuk ze strzałkami', () => {
+  const sheet = createDrawingSheet({ pageSize: 'A3' });
+  const body = { id: 'b1', name: 'Płyta', bounds: [[0, 0, 0], [40, 20, 10]], mesh: { positions: [], indices: [] } };
+  const view = createBaseDrawingView({ bodyIds: ['b1'], orientation: 'front', scale: 2, sheet });
+  sheet.views.push(view);
+  const rendered = drawingSheetScene(sheet, [body]).views[0];
+  const corners = rendered.vertices;
+  const corner = corners.reduce((best, item) => (item[0] + item[1] < best[0] + best[1] ? item : best));
+  const alongX = corners.find((item) => item[1] === corner[1] && item[0] !== corner[0]);
+  const alongY = corners.find((item) => item[0] === corner[0] && item[1] !== corner[1]);
+  sheet.annotations.push(createAngleDrawingDimension({ viewId: view.id, points: [corner, alongX, alongY], precision: 1 }));
+  sheet.dimensionStyle = { decimalSeparator: ',', textHeight: 3.5 };
+  const angle = drawingSheetScene(sheet, [body]).annotations.find((item) => item.type === 'angle-dimension');
+  assert.ok(Math.abs(angle.value - 90) < 1e-9);
+  assert.equal(angle.text, '90,0°');
+  assert.ok(angle.segments.length > 10, 'łuk jest próbkowany i ma strzałki');
+  assert.throws(() => createAngleDrawingDimension({ viewId: view.id, points: [corner, alongX] }), /trzech|wierzchołka/);
+  const document = createDocument('Kąty');
+  document.drawings = [sheet];
+  assert.deepEqual(validateDocument(document).issues.filter((issue) => /annotations/.test(issue.path)), []);
 });

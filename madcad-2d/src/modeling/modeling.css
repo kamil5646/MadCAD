@@ -1739,6 +1739,7 @@
 .drawing-center-mark line { stroke-dasharray: 3 1; }
 .drawing-linear-dimension line,
 .drawing-point-dimension line,
+.drawing-angle-dimension line,
 .drawing-hole-note line { stroke-width: .2; }
 .drawing-paper.picking { cursor: crosshair; }
 .drawing-pick-marker { fill: #e8502e; }
