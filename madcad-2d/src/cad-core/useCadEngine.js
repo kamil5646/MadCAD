@@ -152,8 +152,9 @@ export function useCadEngine(document, { quality = 'display' } = {}) {
           evaluatedGeometrySignatureRef.current = geometrySignature;
           evaluatedRevisionRef.current = revision;
           setState((current) => ({ ...current, status: 'ready', error: '', ...result, evaluatedDocument: latestDocumentRef.current }));
-        } else if (canceledRevisionRef.current === revision) {
-          // The worker finished before it received the cancel; the result is discarded all the same.
+        } else {
+          // Discarded result: canceled after the worker had finished, or superseded by a newer edit
+          // that the worker did not interrupt in time. Either way the rebuild never reaches the model.
           canceledRevisionsRef.current += 1;
           if (active) setState((current) => ({ ...current }));
         }

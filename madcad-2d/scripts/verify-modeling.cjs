@@ -561,18 +561,23 @@ async function runUiFlow(window) {
     await new Promise((resolve) => setTimeout(resolve, 45));
   };
   const waitForCameraToSettle = async (timeoutMs = 2500) => {
+    // Settled = the viewport stopped rebuilding its scene and the published camera holds still.
+    const read = () => window.webContents.executeJavaScript(`({ camera: structuredClone(window.__madcadCameraState || null), rebuilds: window.__madcadViewportRebuilds || 0 })`);
     const startedAt = Date.now();
-    let previous = await window.webContents.executeJavaScript(`structuredClone(window.__madcadCameraState || null)`);
+    let previous = await read();
     let stableSamples = 0;
+    const samples = [];
     while (Date.now() - startedAt < timeoutMs) {
       await new Promise((resolve) => setTimeout(resolve, 80));
-      const current = await window.webContents.executeJavaScript(`structuredClone(window.__madcadCameraState || null)`);
-      if (cameraDelta(previous, current) <= 0.003) stableSamples += 1;
+      const current = await read();
+      const delta = cameraDelta(previous.camera, current.camera);
+      samples.push({ at: Date.now() - startedAt, delta: Number.isFinite(delta) ? Number(delta.toFixed(4)) : 'missing', rebuilds: current.rebuilds });
+      if (delta <= 0.003 && current.rebuilds === previous.rebuilds) stableSamples += 1;
       else stableSamples = 0;
-      if (stableSamples >= 3) return current;
+      if (stableSamples >= 3) return current.camera;
       previous = current;
     }
-    throw new Error(`Kamera szkicu nie ustabilizowała się po ${timeoutMs} ms.`);
+    throw new Error(`Kamera szkicu nie ustabilizowała się po ${timeoutMs} ms: ${JSON.stringify(samples.slice(-12))}`);
   };
   const clickSketchEntity = async (entityId, modifiers = []) => {
     const point = await sketchScreenPoint(entityId);

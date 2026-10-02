@@ -934,6 +934,8 @@ export default function ModelViewport({
     configureCadMouseNavigation(controls, THREE.MOUSE, { navigationMode, activeSketch: Boolean(activeSketch) });
     renderer.domElement.style.cursor = viewportCursor(activeSketch ? VIEWPORT_NAVIGATION_MODES.SELECT : navigationMode);
     if (new URLSearchParams(window.location.search).has('verify')) {
+      // Lets desktop tests wait until the scene stops being rebuilt, not just until the camera holds still.
+      window.__madcadViewportRebuilds = (window.__madcadViewportRebuilds || 0) + 1;
       window.__madcadViewportNavigationState = {
         mouseButtons: { ...controls.mouseButtons },
         navigationMode,
