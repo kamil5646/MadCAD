@@ -54,3 +54,17 @@ obrotów, pozycji, skali ani kopii zapisanych dla drukowania.
 
 Wyniki lokalne dotyczą kodu tej zmiany. Przed wydaniem wymagane są również
 CI Windows/macOS i kontrola paczek opisane w `CI_DESKTOP_VERIFICATION.md`.
+
+CI dla `f525f55`: wszystkie testy i pięć kontroli uruchomienia paczek
+przeszły w [run 36984599208](https://github.com/kamil5646/MadCAD/actions/runs/36984599208).
+Kontrola startu nie oznacza pełnej weryfikacji pracy CAD po zalogowaniu.
+
+## Dwuklik historii
+
+`verify-extrude-after-sketch.cjs` ma regresję dwukliku przy pustym
+zaznaczeniu, bez poprzedzającego kliknięcia. Stary handler wybierający
+operację ze stanu zaznaczenia nie otworzył edytora. Handler z jawnym ID
+klikniętej operacji przeszedł test, a Escape zachował wolumen 11520 mm³.
+Cały dalszy scenariusz wymiarów, edycji, Cofnij/Ponów, zapisu/otwarcia i
+szkiców zależnych od ścian także przeszedł lokalnie. Istniejąca lokalna
+poprawka dwukliku została zachowana i włączona do zmiany wraz z tym testem.

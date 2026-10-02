@@ -13,12 +13,12 @@ z produktu. Dalszych funkcji wytwarzania nie rozwijamy.
 - [>] Usunąć narzędzia produkcyjne i potwierdzić podstawowy przepływ CAD:
   nowy projekt → szkic → wymiary i więzy → bryła → edycja historii →
   Cofnij/Ponów → zapis `.madcad` → ponowne otwarcie.
-- [ ] Potwierdzić migrację v26 → v27: zachować szkice, bryły, parametry i historię;
+- [x] Potwierdzić migrację v26 → v27: zachować szkice, bryły, parametry i historię;
   dawne ustawienia produkcyjne przechować jako nieaktywne `legacyProduction`.
-- [ ] Potwierdzić brak CAM/druku 3D w menu, panelach i interfejsie desktopowym.
-- [ ] Przejść szkic na ścianie i zależne wycięcie, zmianę wymiarów oraz
+- [x] Potwierdzić brak CAM/druku 3D w menu, panelach i interfejsie desktopowym.
+- [x] Przejść szkic na ścianie i zależne wycięcie, zmianę wymiarów oraz
   naprawę utraconej referencji.
-- [ ] Potwierdzić czytelność podstawowych poleceń i wymiarów na typowym
+- [x] Potwierdzić czytelność podstawowych poleceń i wymiarów na typowym
   oraz małym oknie, również przy skali 150%.
 - [ ] Zweryfikować wersję instalowaną na Windows i macOS przed wydaniem.
 
@@ -34,6 +34,17 @@ z produktu. Dalszych funkcji wytwarzania nie rozwijamy.
    przygotowania druku ani programowania obrabiarki.
 
 ## Dowody i ograniczenia
+
+CI dla `f525f55` zakończyło się powodzeniem: testy rdzenia na trzech
+systemach, wszystkie siedem shardów Electron na Windows/macOS oraz pięć
+testów uruchomienia paczek (macOS ZIP/DMG, Windows NSIS/Portable i Linux).
+Dowód: [run 36984599208](https://github.com/kamil5646/MadCAD/actions/runs/36984599208).
+Nie jest to jeszcze pełny scenariusz CAD po zalogowaniu w zainstalowanej aplikacji.
+
+Dwuklik historii: lokalnie odtworzono brak edytora przy pustym zaznaczeniu.
+Poprawka przekazuje ID klikniętej operacji bez czekania na odświeżenie
+zaznaczenia. Test regresji sprawdza otwarcie wyciągnięcia i anulowanie bez
+zmiany bryły; dalej przechodzi edycję, przebudowę, Cofnij/Ponów i zapis/otwarcie.
 
 `verify:extrude-after-sketch` sprawdza wymiary przez interfejs, wyciągnięcie,
 edycję szkicu/operacji, przebudowę, Cofnij/Ponów i zapis/otwarcie przez

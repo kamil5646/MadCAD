@@ -6005,24 +6005,26 @@ export default function ModelingWorkspace() {
     setNotice('Operacja została dodana do parametrycznej osi czasu.');
   };
 
-  const editSelection = () => {
+  // Double-click passes its own target so it never acts on a selection that has not rendered yet.
+  const editSelection = (requested) => {
+    const target = requested?.kind ? requested : selection;
     if (readOnly) return readOnlyNotice();
-    if (selection?.kind === 'sketch') return editSketch(selection.id);
-    if (selection?.kind === 'profile') return openProfileCommand(selectedProfile.type, selectedProfile);
-    if (selection?.kind === 'constructionPlane') {
-      const plane = document.references.find((reference) => reference.id === selection.id && reference.kind === 'construction-plane');
+    if (target?.kind === 'sketch') return editSketch(target.id);
+    if (target?.kind === 'profile') return openProfileCommand(selectedProfile.type, selectedProfile);
+    if (target?.kind === 'constructionPlane') {
+      const plane = document.references.find((reference) => reference.id === target.id && reference.kind === 'construction-plane');
       return plane ? openConstructionPlane(plane.planeType, plane) : undefined;
     }
-    if (selection?.kind === 'constructionAxis') {
-      const axis = document.references.find((reference) => reference.id === selection.id && reference.kind === 'construction-axis');
+    if (target?.kind === 'constructionAxis') {
+      const axis = document.references.find((reference) => reference.id === target.id && reference.kind === 'construction-axis');
       return axis ? openConstructionAxis(axis.axisType, axis) : undefined;
     }
-    if (selection?.kind === 'constructionPoint') {
-      const point = document.references.find((reference) => reference.id === selection.id && reference.kind === 'construction-point');
+    if (target?.kind === 'constructionPoint') {
+      const point = document.references.find((reference) => reference.id === target.id && reference.kind === 'construction-point');
       return point ? openConstructionPoint(point.pointType, point) : undefined;
     }
-    if (selection?.kind !== 'feature') return;
-    const feature = document.features.find((item) => item.id === selection.id);
+    if (target?.kind !== 'feature') return;
+    const feature = document.features.find((item) => item.id === target.id);
     if (!feature) return;
     if (feature.type === 'sheetUnfold' || feature.type === 'sheetRefold') {
       setNotice('Ta operacja nie ma osobnych parametrów. Zmień regułę blachy, kołnierz albo zawinięcie wcześniej na osi czasu.');
@@ -8199,7 +8201,7 @@ export default function ModelingWorkspace() {
               <React.Fragment key={feature.id}>
                 {group && <button className={`timeline-group ${selection?.kind === 'featureGroup' && selection.id === group.id ? 'selected' : ''} ${group.collapsed ? 'collapsed' : ''}`} type="button" aria-label={`Grupa historii ${group.name}, ${group.featureIds.length} operacji`} title={group.name} onClick={() => { setSelection({ kind: 'featureGroup', id: group.id }); setTimelineRename(null); setTimelineDeleteId(null); }}><FolderOpen size={14} /><span>{group.name}</span><small>{group.featureIds.length}</small></button>}
                 {group?.collapsed && group.featureIds.includes(document.timelineRollbackFeatureId) && <span className="timeline-rollback-marker" role="separator" aria-label="Marker rollback" title="Nowe operacje zostaną wstawione po grupie"><History size={12} /></span>}
-                {!group?.collapsed && <button id={`timeline-${feature.id}`} className={`timeline-item ${selection?.kind === 'feature' && selection.id === feature.id ? 'selected' : ''} ${feature.suppressed ? 'suppressed' : ''} ${lostReferenceOwnerIds.has(feature.id) ? 'warning reference-lost' : result?.status || ''}`} type="button" aria-pressed={selection?.kind === 'feature' && selection.id === feature.id} aria-label={`${index + 1}. ${feature.name}${feature.suppressed ? ', operacja wyłączona' : ''}`} onClick={() => selectTimelineFeature(feature, index)} onDoubleClick={editSelection} title={`${index + 1}. ${feature.name}${feature.suppressed ? ' — wyłączona' : result?.status === 'rolled-back' ? ' — poza markerem rollback' : lostReferenceOwnerIds.has(feature.id) ? ' — utracona referencja topologii' : result?.error ? ` — ${result.error}` : ''}`}>
+                {!group?.collapsed && <button id={`timeline-${feature.id}`} className={`timeline-item ${selection?.kind === 'feature' && selection.id === feature.id ? 'selected' : ''} ${feature.suppressed ? 'suppressed' : ''} ${lostReferenceOwnerIds.has(feature.id) ? 'warning reference-lost' : result?.status || ''}`} type="button" aria-pressed={selection?.kind === 'feature' && selection.id === feature.id} aria-label={`${index + 1}. ${feature.name}${feature.suppressed ? ', operacja wyłączona' : ''}`} onClick={() => selectTimelineFeature(feature, index)} onDoubleClick={() => editSelection({ kind: 'feature', id: feature.id })} title={`${index + 1}. ${feature.name}${feature.suppressed ? ' — wyłączona' : result?.status === 'rolled-back' ? ' — poza markerem rollback' : lostReferenceOwnerIds.has(feature.id) ? ' — utracona referencja topologii' : result?.error ? ` — ${result.error}` : ''}`}>
                   {featureIcon(feature.type, 18)}<span aria-hidden="true">{index + 1}</span>
                 </button>}
                 {document.timelineRollbackFeatureId === feature.id && <span className="timeline-rollback-marker" role="separator" aria-label="Marker rollback" title="Nowe operacje zostaną wstawione tutaj"><History size={12} /></span>}

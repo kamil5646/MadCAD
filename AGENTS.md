@@ -125,7 +125,7 @@ npm run verify:desktop-suite -- analysis
   `package.json` i latest release.
 - Nie dodawaj nowej funkcji do roadmapy bez jednego aktywnego pionowego celu i
   mierzalnych kryteriów odbioru.
-- W trwającym celu zbliżenia do Fusion nie twórz tagu ani GitHub Release i nie
+- W trwającym celu uproszczenia i stabilizacji CAD 2D/3D nie twórz tagu ani GitHub Release i nie
   aktualizuj strony produkcyjnej, dopóki otwarte wymagania produktu nie zostaną
   zaimplementowane i zweryfikowane; roboczy PR pozostaje szkicem.
 

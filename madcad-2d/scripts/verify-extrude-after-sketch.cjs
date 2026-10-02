@@ -136,6 +136,23 @@ app.whenReady().then(async () => {
       throw new Error(`Bledny wynik przeplywu szkic -> Wyciagnij: ${JSON.stringify(result)}`);
     }
 
+    // A dblclick must use the clicked timeline entry, not a stale selection.
+    // Dispatch it without a preceding click, as can happen before React has
+    // rendered the first click of a fast double-click.
+    process.stdout.write('[verify] timeline double-click without prior feature selection\n');
+    await window.webContents.executeJavaScript(`window.__madcadVerifyTopologySelection(null)`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.selection?.kind === 'document'`, 'puste zaznaczenie przed dwuklikiem');
+    await window.webContents.executeJavaScript(`(() => {
+      const item = document.querySelector('.timeline-item');
+      if (!item) throw new Error('Brak operacji na osi historii');
+      item.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    })()`);
+    await waitFor(window, `window.__madcadVerifyDocumentState?.command?.type === 'extrude' && window.__madcadVerifyDocumentState?.command?.distance === '12'`, 'dwuklik otwiera wskazane wyciągnięcie', 3000);
+    window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+    await waitFor(window, `!document.querySelector('.command-dialog') && window.__madcadVerifyEngineState?.status === 'ready' && Math.abs(window.__madcadVerifyEngineState?.bodies?.[0]?.metrics?.volume - 11520) < 0.01`, 'anulowanie dwukliku zachowuje bryłę');
+    result.timelineDoubleClick = true;
+
     await window.webContents.executeJavaScript(`window.__madcadVerifyEditSketch(window.__madcadVerifyDocumentState.sketches[0].id)`);
     await waitFor(window, `document.querySelector('.model-viewport')?.classList.contains('sketch-view')`, 'ponownie edytowany szkic');
     await window.webContents.executeJavaScript(`(() => {
