@@ -765,12 +765,18 @@
   max-height: min(520px, calc(100vh - 160px));
   padding: 8px;
   overflow: auto;
+  /* Fade the bottom edge while more items are hidden below (scroll-driven shadow). */
+  background-image: linear-gradient(#27323e 30%, rgba(39, 50, 62, 0)), linear-gradient(rgba(39, 50, 62, 0), #27323e 70%), radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.55), transparent);
+  background-repeat: no-repeat;
+  background-size: 100% 24px, 100% 24px, 100% 12px;
+  background-position: top, bottom, bottom;
+  background-attachment: local, local, scroll;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
   gap: 8px;
   border: 1px solid #667789;
   border-radius: 5px;
-  background: #27323e;
+  background-color: #27323e;
   box-shadow: 0 16px 42px rgba(4, 9, 14, 0.56);
 }
 

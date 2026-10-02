@@ -1720,6 +1720,7 @@ const ENGLISH_TEXT = Object.freeze({
   'Wyszukaj nazwę albo typ obiektu': 'Search by object name or type',
   'Wyszukaj obiekt albo polecenie': 'Search for an object or a command',
   'EKSPORT SZKICU': 'SKETCH EXPORT',
+  'przejdź / uruchom': 'go / run',
   'Wymiar kątowy': 'Angular dimension',
   'Promień łuku [mm]': 'Arc radius [mm]',
   'Kąt z widoku:': 'Angle from view:',
