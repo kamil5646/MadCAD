@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.5.28 (2026-10-02)
+
+- wymiary między punktami na arkuszu 2D (Wymiary → Wymiar między punktami): kliknięcia przyciągają się do wierzchołków widoku, wymiar może być poziomy, pionowy albo wyrównany, podąża za przesunięciem i skalą widoku oraz za zmianą modelu, a jego kierunek, odsunięcie, dokładność i tolerancję można edytować;
+- działa ze stylem wymiarów arkusza (przecinek, wysokość tekstu), w PDF i w DXF.
+
 ## 6.5.27 (2026-10-02)
 
 - arkusze 2D w formatach A2, A1 i A0; wydruk PDF w dokładnym rozmiarze strony w mm;
