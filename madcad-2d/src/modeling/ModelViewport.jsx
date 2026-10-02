@@ -1325,6 +1325,7 @@ export default function ModelViewport({
       }
 
       for (const edgeGroup of body.edgeGroups || []) {
+        if (edgeGroup.seam) continue;
         const vertices = edgeGroupVertices(body.lines, edgeGroup);
         if (!vertices.length) continue;
         const edgeGeometry = new THREE.BufferGeometry();
@@ -1749,6 +1750,19 @@ export default function ModelViewport({
       }
     }
     const modelBox = hasFramedContent ? contentBox : null;
+    if (modelBox && sceneSettings.shadows) {
+      // Fit the shadow frustum to the model: a fixed ±400 mm area gave ~0.4 mm shadow texels and
+      // jagged shadow edges on small parts.
+      const shadowCenter = modelBox.getCenter(new THREE.Vector3());
+      const shadowExtent = Math.max(20, modelBox.getSize(new THREE.Vector3()).length() * 0.75);
+      const lightDirection = key.position.clone().normalize();
+      key.position.copy(shadowCenter).addScaledVector(lightDirection, shadowExtent * 4);
+      key.target.position.copy(shadowCenter);
+      scene.add(key.target);
+      Object.assign(key.shadow.camera, { left: -shadowExtent, right: shadowExtent, top: shadowExtent, bottom: -shadowExtent, near: 0.1, far: shadowExtent * 8 });
+      key.shadow.camera.updateProjectionMatrix();
+      key.shadow.normalBias = (shadowExtent * 2 / key.shadow.mapSize.x) * 1.5;
+    }
     const center = modelBox ? modelBox.getCenter(new THREE.Vector3()) : new THREE.Vector3(0, 0, 0);
     if (activeSketch && !hasActiveSketchContent) center.set(...mapPlanePoint(0, 0, activePlane, 0, activePlaneOffset, activeFrame));
     const size = modelBox ? modelBox.getSize(new THREE.Vector3()) : new THREE.Vector3(80, 60, 20);
