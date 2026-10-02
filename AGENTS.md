@@ -130,9 +130,12 @@ npm run verify:desktop-suite -- analysis
   `package.json` i latest release.
 - Nie dodawaj nowej funkcji do roadmapy bez jednego aktywnego pionowego celu i
   mierzalnych kryteriów odbioru.
-- W trwającym celu uproszczenia i stabilizacji CAD 2D/3D nie twórz tagu ani GitHub Release i nie
-  aktualizuj strony produkcyjnej, dopóki otwarte wymagania produktu nie zostaną
-  zaimplementowane i zweryfikowane; roboczy PR pozostaje szkicem.
+- Dla wydania 6.5.29 użytkownik 2026-10-02 jawnie zrezygnował z ręcznego
+  scenariusza CAD po zalogowaniu w zainstalowanej aplikacji Windows. Nie opisuj
+  tego scenariusza jako zaliczonego. Automatyczne testy Windows, pozostałe
+  bramki CI/release, paczki, SHA-256 i odbiór strony pozostają wymagane.
+- Numer wersji aktualizuj poleceniem `node scripts/set-release-version.cjs X.Y.Z`
+  z `madcad-2d`; historyczne dowody i changelog zachowują stare numery.
 
 ## Definicja ukończonego wydania
 

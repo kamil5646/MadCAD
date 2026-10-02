@@ -1,6 +1,8 @@
 # Changelog
 
-## W przygotowaniu — CAD 2D/3D (2026-10-02)
+## 6.5.29 — CAD 2D/3D (2026-10-02)
+
+- usunięto symulacje MES/cieplne, render, animacje, edycję siatek skanów oraz Motion Links i Contact Sets; schemat v28 archiwizuje starsze dane w nieaktywnym `legacyRemovedFeatures`;
 
 - parser wymiarów odrzuca brakujące operatory, błędną kolejność wartości i niepełne nawiasy zamiast obliczać przypadkowy wynik;
 - PDF/DXF oraz podgląd wydruku czekają na dokładny rzut aktualnego modelu; błędy kernela lub zmiana modelu zatrzymują eksport z komunikatem;
@@ -17,6 +19,8 @@
 - anulowanie edycji operacji przywraca jej zaznaczenie zamiast zostawiać profil z nieaktywnym uchwytem wyciągania;
 - biblioteki interfejsu i kernela są pakowane jako gotowy kod JS/WASM, bez dodatkowych kopii źródeł w `node_modules`; wersje bibliotek pozostają bez zmian.
 - poprawiono pierwszeństwo znaków jednoargumentowych w wymiarach i parametrach: `2*-3` daje −6, a `10/-2` daje −5; działają też zagnieżdżone znaki i parametry.
+
+Znane ograniczenia: na wyraźną decyzję użytkownika pominięto ręczny scenariusz CAD po zalogowaniu w zainstalowanej aplikacji Windows. Automatyczne testy Windows i instalatora pozostają obowiązkowe. Paczki Windows/macOS nie mają podpisu producenta ani notaryzacji Apple. Testy przeszły dla opisanych przypadków, nie oznaczają gwarancji poprawności każdej geometrii.
 
 ## 6.5.28 (2026-10-02)
 

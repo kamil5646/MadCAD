@@ -2,6 +2,7 @@
 
 Aktualizacja: 2026-10-02
 Wersja opublikowana: `6.5.28`
+Wersja przygotowywana: `6.5.29`
 
 Zakres uzgodniony z użytkownikiem: prosty program CAD do szkicowania 2D,
 modelowania 3D i dokumentacji technicznej. Frezowanie, CAM, G-code,
@@ -10,7 +11,7 @@ z produktu. Dalszych funkcji wytwarzania nie rozwijamy.
 
 ## Aktywne zadanie
 
-- [>] Usunąć narzędzia produkcyjne i potwierdzić podstawowy przepływ CAD:
+- [x] Usunąć narzędzia produkcyjne i potwierdzić podstawowy przepływ CAD:
   nowy projekt → szkic → wymiary i więzy → bryła → edycja historii →
   Cofnij/Ponów → zapis `.madcad` → ponowne otwarcie.
 - [x] Potwierdzić migrację v26 → v27: zachować szkice, bryły, parametry i historię;
@@ -25,7 +26,12 @@ z produktu. Dalszych funkcji wytwarzania nie rozwijamy.
 - [x] Potwierdzić czytelność podstawowych poleceń i wymiarów na typowym
   oraz małym oknie, również przy skali 150%.
 - [x] Przejść podstawowy scenariusz w zbudowanym pakiecie macOS bez hooków testowych.
-- [ ] Przejść podstawowy scenariusz po zalogowaniu w zainstalowanej aplikacji Windows przed wydaniem.
+- [—] Ręczny scenariusz po zalogowaniu w zainstalowanej aplikacji Windows
+  pominięty na wyraźną decyzję użytkownika z 2026-10-02 („bez weryfikacji
+  na Windowsie”). Nie został wykonany ani zaliczony. Automatyczne testy
+  Windows i instalatora nadal obowiązują.
+- [>] Opublikować 6.5.29 po zielonych bramkach CI/release, potwierdzić paczki,
+  SHA-256 i zgodność strony produkcyjnej.
 
 ## Co jest podstawą produktu
 
@@ -39,6 +45,13 @@ z produktu. Dalszych funkcji wytwarzania nie rozwijamy.
    przygotowania druku ani programowania obrabiarki.
 
 ## Dowody i ograniczenia
+
+Aktualny kod `7174bfe` przeszedł CI 23/23, w tym wszystkie 43 scenariusze
+desktopowe Windows/macOS, testy rdzenia na trzech systemach i pięć testów
+uruchomienia paczek. CodeQL również przeszedł.
+Dowód: [run 37006354811](https://github.com/kamil5646/MadCAD/actions/runs/37006354811).
+Ręczny test zalogowanego instalatora Windows pozostaje niezweryfikowany,
+ale na decyzję użytkownika nie blokuje wydania 6.5.29.
 
 CI dla `f525f55` zakończyło się powodzeniem: testy rdzenia na trzech
 systemach, wszystkie siedem shardów Electron na Windows/macOS oraz pięć
